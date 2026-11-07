@@ -13,7 +13,7 @@ import urllib.request
 
 args = sys.argv[1:]
 if "--version" in args:
-    print("Fake Chromium 1.2.3.4")
+    print("Aerie 1.2.3.4" if os.path.basename(sys.argv[0]).startswith("fake-aerie") else "Fake Chromium 1.2.3.4")
     sys.exit(0)
 
 
@@ -33,6 +33,13 @@ if profile:
     os.makedirs(os.path.join(profile, "Default"), exist_ok=True)
     open(os.path.join(profile, "Default", "touched"), "w").close()
 
+if profile and os.environ.get("FAKE_BROWSER_DUMP_PREFS"):
+    try:
+        with open(os.environ["FAKE_BROWSER_DUMP_PREFS"], "w") as f:
+            f.write(open(os.path.join(profile, "Default", "Preferences")).read())
+    except OSError:
+        pass
+
 if profile and os.environ.get("FAKE_BROWSER_SERVICES"):
     # Mimic Helium: call the seeded services origin on startup.
     try:
@@ -48,6 +55,10 @@ titles = {}
 requests = []
 if os.environ.get("FAKE_BROWSER_EXTERNAL"):
     requests.append("https://update.example.invalid/check")
+if os.environ.get("FAKE_BROWSER_EXTERNAL_URL"):
+    requests.append(os.environ["FAKE_BROWSER_EXTERNAL_URL"])
+if os.path.basename(sys.argv[0]).startswith("fake-google"):
+    requests.append("https://www.google.com/")
 current = "about:blank"
 
 

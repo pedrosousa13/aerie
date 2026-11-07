@@ -22,6 +22,7 @@ from . import register
 
 SERVICE_PATHS = ("/bangs.json", "/ubo/assets.json", "/com", "/ext", "/dict/")
 WAIT_SECONDS = 20.0
+SKIP = "skip"  # require_services value: the caller asked, explicitly, to skip the probe
 
 
 def services_prefs(origin: str) -> dict:
@@ -41,7 +42,7 @@ def is_helium_family(binary: str, version: str | None) -> bool:
 
 @register
 class BrowserRequests:
-    """``require_services``: True/False, or None (auto: True for Helium/Aerie binaries).
+    """``require_services``: True/False, None (auto: True for Helium/Aerie binaries) or "skip".
 
     When required, the check fails unless the seeded services probe reached the fixture
     server; a refused external request in the NetLog is then not enough.
@@ -51,16 +52,20 @@ class BrowserRequests:
     name = "browser_requests"
     seeds_helium_services = True
 
-    def __init__(self, wait_seconds: float = WAIT_SECONDS, require_services: bool | None = None):
+    def __init__(self, wait_seconds: float = WAIT_SECONDS, require_services: bool | str | None = None,
+                 skip_note: str | None = None):
         self.wait_seconds = wait_seconds
         self.require_services = require_services
+        self.skip_note = skip_note
 
     def _required(self, session: Session) -> bool:
-        if self.require_services is not None:
+        if self.require_services is not None and self.require_services != SKIP:
             return self.require_services
         return is_helium_family(session.binary, session.binary_version)
 
     def run(self, session: Session) -> CheckResult:
+        if self.require_services == SKIP:
+            return CheckResult(self.name, "pending")
         required = self._required(session)
         deadline = time.monotonic() + self.wait_seconds
         while time.monotonic() < deadline:
@@ -73,6 +78,13 @@ class BrowserRequests:
         return CheckResult(self.name, "pending")
 
     def finalize(self, session: Session, result: CheckResult) -> CheckResult:
+        if self.require_services == SKIP:
+            return CheckResult(self.name, "skip",
+                               "skipped by --services skip: Aerie makes no browser-level requests, so this probe "
+                               "has nothing to see (zero_traffic with --baseline proves observability instead)",
+                               data={"skipped_by": self.skip_note or "--services skip",
+                                     "needs_baseline": "proving that the Bench sees browser-level traffic on Aerie "
+                                                       "needs zero_traffic --baseline <helium binary>"})
         required = self._required(session)
         hits = service_hits(session.fixtures.snapshot())
         ext = netlog.external(session.netlog)

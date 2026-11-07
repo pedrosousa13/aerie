@@ -1,0 +1,24 @@
+Aerie-Purpose: Make secure DNS (DNS over HTTPS) off by default, so no DoH provider is contacted until the user selects one.
+Aerie-Upstream-Area: chrome/browser/net/default_dns_over_https_config_source.cc (default value of the DoH mode pref)
+Aerie-Kind: hook
+
+Chromium defaults the mode to Automatic, which switches to a DoH provider when
+the system resolver belongs to one. If the system resolver is Google Public
+DNS, that contacts dns.google. Aerie keeps all providers selectable in
+Settings; only the default changes.
+
+--- a/chrome/browser/net/default_dns_over_https_config_source.cc
++++ b/chrome/browser/net/default_dns_over_https_config_source.cc
+@@ -27,9 +27,11 @@
+   // result in reentrancy and mess up registration between this code and
+   // NetworkService creation.
+   if (set_up_pref_defaults) {
++    // Aerie: secure DNS is off until the user picks a mode. Automatic mode
++    // would upgrade to a DoH provider (Google Public DNS among them) by itself.
+     local_state->SetDefaultPrefValue(prefs::kDnsOverHttpsMode,
+                                      base::Value(SecureDnsConfig::ModeToString(
+-                                         net::SecureDnsMode::kAutomatic)));
++                                         net::SecureDnsMode::kOff)));
+   }
+ }
+ 

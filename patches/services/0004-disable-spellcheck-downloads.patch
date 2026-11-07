@@ -1,0 +1,65 @@
+Aerie-Purpose: Never download spellcheck dictionaries: Aerie has no dictionary host, so DownloadDictionary fails at once and no request is made.
+Aerie-Upstream-Area: chrome/browser/spellchecker/spellcheck_hunspell_dictionary.cc (DownloadDictionary)
+Aerie-Kind: hook
+
+Chromium fetched dictionaries from Google's gvt1 host and Helium from its
+services proxy. Both are gone. A missing dictionary used to start a request to
+the dummy origin on first launch; now it is the same failure path without the
+request. The body of DownloadDictionary is replaced, not skipped, so no dead
+code stays behind. Bundling dictionaries is left to a follow-up.
+
+--- a/chrome/browser/spellchecker/spellcheck_hunspell_dictionary.cc
++++ b/chrome/browser/spellchecker/spellcheck_hunspell_dictionary.cc
+@@ -302,49 +302,10 @@
+   DCHECK_CURRENTLY_ON(BrowserThread::UI);
+   DCHECK(browser_context_);
+ 
+-  download_status_ = DOWNLOAD_IN_PROGRESS;
+-  for (Observer& observer : observers_)
+-    observer.OnHunspellDictionaryDownloadBegin(language_);
+-
+-  net::NetworkTrafficAnnotationTag traffic_annotation =
+-      net::DefineNetworkTrafficAnnotation("spellcheck_hunspell_dictionary", R"(
+-        semantics {
+-          sender: "Spellcheck Dictionary Downloader"
+-          description:
+-            "When user selects a new language for spell checking in Google "
+-            "Chrome, a new dictionary is downloaded for it."
+-          trigger: "User selects a new language for spell checking."
+-          data:
+-            "The spell checking language identifier. No user identifier is "
+-            "sent."
+-          destination: GOOGLE_OWNED_SERVICE
+-        }
+-        policy {
+-          cookies_allowed: NO
+-          setting:
+-            "You can prevent downloading dictionaries by not selecting 'Use "
+-            "this language for spell checking.' in Chrome's settings under "
+-            "Lanugagues -> 'Language and input settings...'."
+-          policy_exception_justification:
+-            "Not implemented, considered not useful."
+-        })");
+-
+-  auto resource_request = std::make_unique<network::ResourceRequest>();
+-  resource_request->url = url;
+-  resource_request->credentials_mode = network::mojom::CredentialsMode::kOmit;
+-  simple_loader_ = network::SimpleURLLoader::Create(std::move(resource_request),
+-                                                    traffic_annotation);
+-  network::mojom::URLLoaderFactory* loader_factory =
+-      browser_context_->GetDefaultStoragePartition()
+-          ->GetURLLoaderFactoryForBrowserProcess()
+-          .get();
+-  simple_loader_->DownloadToStringOfUnboundedSizeUntilCrashAndDie(
+-      loader_factory,
+-      base::BindOnce(&SpellcheckHunspellDictionary::OnSimpleLoaderComplete,
+-                     base::Unretained(this)));
+-
+-  // Attempt downloading the dictionary only once.
++  // Aerie: dictionaries have no download host. Fail as a failed download does,
++  // and never start a request. Bundling dictionaries is a follow-up.
+   browser_context_ = nullptr;
++  InformListenersOfDownloadFailure();
+ }
+ 
+ #if !BUILDFLAG(IS_ANDROID)

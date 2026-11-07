@@ -87,6 +87,19 @@ class RunnerTest(unittest.TestCase):
         self.assertTrue(is_helium_family("/x/chrome", "Helium 0.21.1.1"))
         self.assertFalse(is_helium_family("/x/chrome", "Chromium 156"))
 
+    def test_browser_requests_skips_only_when_asked_never_by_version(self):
+        sc = scenario.Scenario(checks=("browser_requests",))
+        opts = lambda v: {"browser_requests": {"wait_seconds": 0.3, "require_services": v}}
+        skipped = self.run_bench(sc, check_options=opts("skip"))
+        self.assertEqual(skipped.status, "pass")
+        self.assertEqual(skipped.data["checks"][0]["status"], "skip")
+        self.assertEqual(skipped.data["checks"][0]["data"]["skipped_by"], "--services skip")
+        # A binary that calls itself Aerie is not skipped: a silent probe still fails.
+        link = self.root / "fake-aerie"
+        link.symlink_to(FAKE)
+        res = runner.run_bench(link, sc, self.root, timeout=10, check_options=opts(True))
+        self.assertEqual(res.data["checks"][0]["status"], "fail")
+
     def test_services_pass_records_path(self):
         res = self.run_bench(scenario.Scenario(checks=("browser_requests",)),
                              env={"FAKE_BROWSER_SERVICES": "1"})
@@ -184,10 +197,30 @@ class CliTest(unittest.TestCase):
                 pass
         return rb.call_args.kwargs["check_options"]["browser_requests"]["require_services"]
 
-    def test_default_build_binary_always_requires_services(self):
-        # Our own build may be named "chrome" and report "Chromium": never guess for it.
-        self.assertIs(self.invoke_run([], FAKE, "/tmp/x"), True)
-        self.assertIs(self.invoke_run(["--services", "auto"], FAKE, "/tmp/x"), True)
+    def test_default_build_binary_skips_the_probe_unless_told_to_require_it(self):
+        # No --binary means our own (Aerie) build, which makes no requests: skip, never guessed by name.
+        self.assertEqual(self.invoke_run([], FAKE, "/tmp/x"), "skip")
+        self.assertEqual(self.invoke_run(["--services", "auto"], FAKE, "/tmp/x"), "skip")
+        self.assertIs(self.invoke_run(["--services", "require"], FAKE, "/tmp/x"), True)
+        self.assertIs(self.invoke_run(["--services", "optional"], FAKE, "/tmp/x"), False)
+
+    def test_default_build_binary_run_prints_one_note_and_records_it(self):
+        import argparse
+        p = argparse.ArgumentParser()
+        cli.add_arguments(p, binary_required=False)
+        out = io.StringIO()
+        with tempfile.TemporaryDirectory() as d, contextlib.redirect_stdout(out):
+            code = cli.run(p.parse_args(["--check", "browser_requests", "--timeout", "10"]), Path(d), FAKE)
+            results = json.loads(next(Path(d).glob("bench/*/results.json")).read_text())
+        self.assertEqual(code, 0, out.getvalue())
+        self.assertEqual(out.getvalue().count("aerie bench: note:"), 1)
+        check = results["checks"][0]
+        self.assertEqual(check["status"], "skip")
+        self.assertIn("--baseline <helium binary>", check["data"]["skipped_by"])
+        self.assertIn("--baseline", check["data"]["needs_baseline"])
+
+    def test_skip_is_explicit_and_works_for_the_default_build_binary(self):
+        self.assertEqual(self.invoke_run(["--binary", str(FAKE), "--services", "skip"], FAKE, "/tmp/x"), "skip")
 
     def test_explicit_binary_keeps_auto_and_overrides(self):
         self.assertIsNone(self.invoke_run(["--binary", str(FAKE)], FAKE, "/tmp/x"))

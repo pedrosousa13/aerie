@@ -1,0 +1,155 @@
+Aerie-Purpose: Show a clear "extension proxy not configured" state when a Web Store install starts without a configured proxy, with no request and no prompt; never enable extension update pings.
+Aerie-Upstream-Area: extensions/browser/api/webstore_private (code and BUILD.gn); chrome/browser/extensions (webstore standalone installer, downloader factory)
+Aerie-Kind: hook
+
+The install API call fails at once with an error string, and a warning dialog
+tells the user what to do. The standalone installer does the same for inline
+installs. The dialog goes through a new WebstorePrivateAPIDelegate method with
+an empty default, so //extensions does not depend on //chrome.
+
+Depends on the Helium patch that adds helium::ShouldAccessExtensionService
+(proxy-extension-downloads.patch) and on the previous Aerie patches.
+
+--- a/chrome/browser/extensions/api/webstore_private/chrome_webstore_private_api_delegate.cc
++++ b/chrome/browser/extensions/api/webstore_private/chrome_webstore_private_api_delegate.cc
+@@ -16,9 +16,11 @@
+ #include "chrome/browser/ui/extensions/extension_install_ask_parent_dialog.h"
+ #include "chrome/browser/ui/extensions/extension_install_blocked_dialog.h"
+ #include "chrome/browser/ui/extensions/extension_install_friction_dialog.h"
++#include "chrome/browser/ui/simple_message_box.h"
+ #include "components/policy/core/common/cloud/cloud_policy_manager.h"
+ #include "components/policy/core/common/management/management_service.h"
+ #include "components/signin/public/identity_manager/identity_manager.h"
++#include "content/public/browser/web_contents.h"
+ #include "extensions/browser/extension_allowlist.h"
+ 
+ #if BUILDFLAG(SAFE_BROWSING_AVAILABLE)
+@@ -80,6 +82,19 @@
+                                                    std::move(callback));
+ }
+ 
++void ChromeWebstorePrivateAPIDelegate::ShowExtensionProxyNotConfiguredDialog(
++    content::WebContents* web_contents) {
++  if (!web_contents) {
++    return;
++  }
++  chrome::ShowWarningMessageBoxAsync(
++      web_contents->GetTopLevelNativeWindow(),
++      u"Extension proxy not configured",
++      u"Aerie installs extensions through an HTTPS proxy that you choose, and "
++      u"none is set. Set one in Settings > Privacy and security > Services, "
++      u"then try again. Nothing was sent to any server.");
++}
++
+ #if BUILDFLAG(IS_ANDROID)
+ void ChromeWebstorePrivateAPIDelegate::ShowExtensionInstallAskParentDialog(
+     content::WebContents* web_contents,
+--- a/chrome/browser/extensions/api/webstore_private/chrome_webstore_private_api_delegate.h
++++ b/chrome/browser/extensions/api/webstore_private/chrome_webstore_private_api_delegate.h
+@@ -31,6 +31,8 @@
+   void ShowExtensionInstallFrictionDialog(
+       content::WebContents* web_contents,
+       base::OnceCallback<void(bool)> callback) override;
++  void ShowExtensionProxyNotConfiguredDialog(
++      content::WebContents* web_contents) override;
+ #if BUILDFLAG(IS_ANDROID)
+   void ShowExtensionInstallAskParentDialog(
+       content::WebContents* web_contents,
+--- a/chrome/browser/extensions/updater/chrome_extension_downloader_factory.cc
++++ b/chrome/browser/extensions/updater/chrome_extension_downloader_factory.cc
+@@ -53,7 +53,9 @@
+     manifest_query_params += "&testrequest=1";
+   }
+   downloader->set_manifest_query_params(manifest_query_params);
+-  downloader->set_ping_enabled_domain("helium.computer");
++  // Aerie: pings are never enabled. No proxy domain exists yet, and ".invalid"
++  // can never match a real update host.
++  downloader->set_ping_enabled_domain("ping-disabled.invalid");
+   return downloader;
+ }
+ 
+--- a/chrome/browser/extensions/webstore_standalone_installer.cc
++++ b/chrome/browser/extensions/webstore_standalone_installer.cc
+@@ -71,6 +71,14 @@
+     return;
+   }
+ 
++  // Aerie: with no extension proxy configured there is nowhere to fetch the
++  // item data from. Fail now, without a request.
++  if (!helium::ShouldAccessExtensionService(*profile_->GetPrefs())) {
++    CompleteInstall(webstore_install::OTHER_ERROR,
++                    "Extension proxy not configured");
++    return;
++  }
++
+   // Use the requesting page as the referrer both since that is more correct
+   // (it is the page that caused this request to happen) and so that we can
+   // track top sites that trigger inline install requests.
+--- a/extensions/browser/api/webstore_private/BUILD.gn
++++ b/extensions/browser/api/webstore_private/BUILD.gn
+@@ -28,6 +28,7 @@
+     "//components/crx_file",
+     "//components/enterprise",
+     "//components/enterprise/browser/promotion:prefs",
++    "//components/helium_services",
+     "//components/keyed_service/content",
+     "//components/policy/core/common",
+     "//components/policy/proto",
+--- a/extensions/browser/api/webstore_private/webstore_private_api.cc
++++ b/extensions/browser/api/webstore_private/webstore_private_api.cc
+@@ -33,6 +33,7 @@
+ #include "build/chromeos_buildflags.h"
+ #include "components/crx_file/id_util.h"
+ #include "components/enterprise/browser/reporting/common_pref_names.h"
++#include "components/helium_services/helium_services_helpers.h"
+ #include "components/keyed_service/content/browser_context_keyed_service_shutdown_notifier_factory.h"
+ #include "components/keyed_service/core/keyed_service_shutdown_notifier.h"
+ #include "components/policy/core/common/cloud/cloud_policy_manager.h"
+@@ -542,6 +543,10 @@
+   return blocked_by_policy_error_message_;
+ }
+ 
++constexpr char kExtensionProxyNotConfiguredError[] =
++    "Extension proxy not configured. Set an https extension proxy in "
++    "Settings to install extensions.";
++
+ ExtensionFunction::ResponseAction
+ WebstorePrivateBeginInstallWithManifest3Function::Run() {
+   params_ = Params::Create(args());
+@@ -553,6 +558,21 @@
+                                     kWebstoreInvalidIdError));
+   }
+ 
++  // Aerie: with no extension proxy configured there is nowhere to download
++  // from. Say so now: no prompt, no request.
++  if (!helium::ShouldAccessExtensionService(
++          *user_prefs::UserPrefs::Get(browser_context()))) {
++    // The delegate is null in embedders without one (app_shell, unit tests).
++    if (auto* client = ExtensionsAPIClient::Get()) {
++      if (auto* delegate = client->GetWebstorePrivateAPIDelegate()) {
++        delegate->ShowExtensionProxyNotConfiguredDialog(GetSenderWebContents());
++      }
++    }
++    return RespondNow(
++        BuildResponse(api::webstore_private::Result::kUnknownError,
++                      kExtensionProxyNotConfiguredError));
++  }
++
+   GURL icon_url;
+   if (details().icon_url) {
+     icon_url = source_url().Resolve(*details().icon_url);
+--- a/extensions/browser/api/webstore_private/webstore_private_api_delegate.h
++++ b/extensions/browser/api/webstore_private/webstore_private_api_delegate.h
+@@ -70,6 +70,12 @@
+       const gfx::ImageSkia& icon,
+       base::OnceClosure done_callback) = 0;
+ 
++  // Aerie: tells the user that no extension proxy is configured, so no
++  // install can start. Embedders without UI keep this default, which does
++  // nothing; the API call still fails with an error.
++  virtual void ShowExtensionProxyNotConfiguredDialog(
++      content::WebContents* web_contents) {}
++
+   // Shows a modal dialog to Enhanced Safe Browsing users before the extension
+   // install dialog if the extension is not included in the Safe Browsing CRX
+   // allowlist.

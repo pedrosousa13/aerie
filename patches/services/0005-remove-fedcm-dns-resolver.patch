@@ -1,0 +1,23 @@
+Aerie-Purpose: Remove the built-in dns.google resolver URL that FedCM delegation used, so that no page can make the browser query Google DNS.
+Aerie-Upstream-Area: chrome/browser/chrome_content_browser_client.cc (GetDnsTxtResolverUrlPrefix)
+Aerie-Kind: hook
+
+content/browser/webid/delegation/dns_request.cc already treats an empty prefix as
+"no resolver" and answers with no result, without any request. The
+--dns-txt-resolver-url-prefix test switch still works if someone passes it.
+
+--- a/chrome/browser/chrome_content_browser_client.cc
++++ b/chrome/browser/chrome_content_browser_client.cc
+@@ -9935,9 +9935,9 @@
+ }
+ 
+ std::string ChromeContentBrowserClient::GetDnsTxtResolverUrlPrefix() {
+-  static constexpr char kGoogleDnsResolverUrl[] =
+-      "https://dns.google/resolve?type=txt&do=1&name=";
+-  return kGoogleDnsResolverUrl;
++  // Aerie: no built-in DNS-over-HTTPS resolver for FedCM delegation. An empty
++  // prefix makes the lookup fail without a request (see dns_request.cc).
++  return std::string();
+ }
+ 
+ bool ChromeContentBrowserClient::ShouldAllowPrefetchRedirection(

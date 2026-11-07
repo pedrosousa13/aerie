@@ -38,6 +38,8 @@ class Session:
         self.binary_version = binary_version
         self.netlog_path = netlog_path  # being written while the browser runs; may be partial
         self.netlog: list[dict] = []
+        self.netlog_lookups: list[dict] = []   # host names in resolver, socket and connect events
+        self.netlog_complete = False           # the NetLog was whole, valid JSON
         self.exit: dict = {}
         self.artifacts: list[str] = []
         self._sid: str | None = None

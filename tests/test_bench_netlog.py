@@ -64,5 +64,48 @@ class ParseTest(unittest.TestCase):
             self.assertEqual(len(netlog.parse_file(p)), 3)
 
 
+DNS_CONSTS = {"logEventTypes": {"URL_REQUEST_START_JOB": 7, "HOST_RESOLVER_MANAGER_REQUEST": 20,
+                                "HOST_RESOLVER_DNS_TASK": 21, "SOCKET_CONNECT": 22, "OTHER": 23},
+              "logSourceType": {"URL_REQUEST": 1, "HOST_RESOLVER_IMPL_JOB": 3, "CONNECT_JOB": 4, "SOMETHING": 9}}
+
+
+def dns(i, type_, src, **params):
+    return {"phase": 1, "source": {"id": i, "type": src}, "time": str(i), "type": type_, "params": params}
+
+
+class LoadTest(unittest.TestCase):
+    def doc(self, events):
+        return json.dumps({"constants": DNS_CONSTS, "events": events})
+
+    def test_complete_file_is_flagged_complete(self):
+        self.assertTrue(netlog.load(self.doc([])).complete)
+
+    def test_truncated_and_garbage_files_are_incomplete(self):
+        text = self.doc([ev(1, "http://127.0.0.1/")])
+        self.assertFalse(netlog.load(text[:-5]).complete)
+        self.assertFalse(netlog.load("").complete)
+        self.assertFalse(netlog.load("not json").complete)
+        self.assertFalse(netlog.load_file("/nonexistent/netlog.json").complete)
+
+    def test_host_names_come_from_resolver_connect_and_socket_events(self):
+        events = [
+            dns(1, 20, 3, host="www.google.com:443"),
+            dns(2, 21, 3, host="https://dns.google"),
+            dns(3, 22, 4, group_id="https://update.googleapis.com:443"),
+            dns(4, 20, 3, host="WWW.Google.com:443"),          # same host again: listed once
+            dns(5, 23, 9, host="not-a-lookup.example"),        # not a lookup kind
+            dns(6, 20, 3, host="[2001:db8::1]:443"),
+        ]
+        got = netlog.load(self.doc(events)).lookups
+        self.assertEqual([l["host"] for l in got],
+                         ["www.google.com", "dns.google", "update.googleapis.com", "2001:db8::1"])
+        self.assertEqual(got[0]["source_type"], "HOST_RESOLVER_IMPL_JOB")
+        self.assertEqual(got[0]["event"], "HOST_RESOLVER_MANAGER_REQUEST")
+
+    def test_url_records_are_unchanged(self):
+        recs = netlog.load(self.doc([ev(1, "https://a.example/x")])).records
+        self.assertEqual([r["host"] for r in recs], ["a.example"])
+
+
 if __name__ == "__main__":
     unittest.main()

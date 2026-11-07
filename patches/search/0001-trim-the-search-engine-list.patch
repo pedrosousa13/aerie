@@ -1,0 +1,28 @@
+Aerie-Purpose: Offer DuckDuckGo (the default), Brave, Kagi and Startpage as the built-in search engines, and no Google, Bing, Ecosia or Qwant.
+Aerie-Upstream-Area: third_party/search_engines_data/resources/definitions/regional_settings.json (default "ZZ" list)
+Aerie-Kind: hook
+
+Helium already makes the "ZZ" list the only one and falls back to DuckDuckGo
+(search/engine-defaults.patch); this patch trims that list. A custom engine,
+SearXNG for example, uses the existing custom search engine feature (see
+docs/search.md). Search suggestions are off by default in Helium
+(inox-patchset/modify-default-prefs.patch); the source gates check both.
+
+--- a/third_party/search_engines_data/resources/definitions/regional_settings.json
++++ b/third_party/search_engines_data/resources/definitions/regional_settings.json
+@@ -135,13 +135,9 @@
+       // Default
+       "search_engines": [
+           "&duckduckgo",
+-          "&ecosia",
+-          "&bing",
+-          "&break_stuff_google",
+-          "&qwant",
++          "&brave",
+           "&kagi",
+-          "&startpage",
+-          "&brave"
++          "&startpage"
+       ]
+     }
+   },

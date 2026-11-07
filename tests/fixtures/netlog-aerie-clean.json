@@ -1,0 +1,41 @@
+{
+ "_note": "SYNTHETIC. Loopback fixture pages only.",
+ "constants": {
+  "logEventTypes": {
+   "URL_REQUEST_START_JOB": 7,
+   "REQUEST_ALIVE": 8
+  },
+  "logSourceType": {
+   "URL_REQUEST": 1
+  }
+ },
+ "events": [
+  {
+   "phase": 1,
+   "source": {
+    "id": 1,
+    "type": 1
+   },
+   "time": "100",
+   "type": 7,
+   "params": {
+    "url": "http://127.0.0.1:41000/index.html",
+    "method": "GET"
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 2,
+    "type": 1
+   },
+   "time": "200",
+   "type": 7,
+   "params": {
+    "url": "http://127.0.0.1:41000/style.css",
+    "method": "GET",
+    "initiator": "http://127.0.0.1:41000"
+   }
+  }
+ ]
+}

@@ -1,0 +1,79 @@
+{
+ "_note": "SYNTHETIC. No URL request to a denylisted host, but DNS prefetch, a DoH name and a preconnect name that are.",
+ "constants": {
+  "logEventTypes": {
+   "URL_REQUEST_START_JOB": 7,
+   "HOST_RESOLVER_MANAGER_REQUEST": 20,
+   "SOCKET_CONNECT": 22
+  },
+  "logSourceType": {
+   "URL_REQUEST": 1,
+   "HOST_RESOLVER_IMPL_JOB": 3,
+   "CONNECT_JOB": 4
+  }
+ },
+ "events": [
+  {
+   "phase": 1,
+   "source": {
+    "id": 1,
+    "type": 1
+   },
+   "time": "1",
+   "type": 7,
+   "params": {
+    "url": "http://127.0.0.1:41000/index.html",
+    "method": "GET"
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 2,
+    "type": 3
+   },
+   "time": "2",
+   "type": 20,
+   "params": {
+    "host": "www.google.com:443",
+    "is_speculative": true
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 3,
+    "type": 3
+   },
+   "time": "3",
+   "type": 20,
+   "params": {
+    "host": "https://dns.google"
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 4,
+    "type": 4
+   },
+   "time": "4",
+   "type": 22,
+   "params": {
+    "group_id": "https://fonts.gstatic.com:443"
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 5,
+    "type": 3
+   },
+   "time": "5",
+   "type": 20,
+   "params": {
+    "host": "duckduckgo.com:443"
+   }
+  }
+ ]
+}
