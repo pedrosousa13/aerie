@@ -8,7 +8,8 @@
       "default": "On (strict: Always use secure connections).",
       "provided_by": "aerie",
       "default_set_in": [
-        "patches/hardening/0001-default-https-only-mode.patch: the default of the https_only_mode_enabled pref in chrome/browser/ui/browser_ui_prefs.cc"
+        "patches/hardening/0001-default-https-only-mode.patch: the default of the https_only_mode_enabled pref in chrome/browser/ui/browser_ui_prefs.cc",
+        "patches/hardening/0007-full-https-only-warning-page.patch: kHttpsFirstDialogUi is off by default in components/security_interstitials/core/features.cc, so the failed upgrade shows the warning page and not a native dialog"
       ],
       "upstream": [
         "chrome/browser/ssl/https_upgrades_interceptor.cc (net::IsLocalhost exemption, strict mode)",
@@ -19,7 +20,8 @@
         "hardening/0001-default-https-only-mode.patch",
         "hardening/0002-http-exceptions-settings-handler.patch",
         "hardening/0003-hardening-settings-page.patch",
-        "hardening/0004-hardening-settings-page-markup.patch"
+        "hardening/0004-hardening-settings-page-markup.patch",
+        "hardening/0007-full-https-only-warning-page.patch"
       ],
       "pref": {"name": "https_only_mode_enabled", "default": true},
       "cost": "Sites and devices that only speak http (router and NAS admin pages, printers, old intranet apps, captive portals) show a warning page first. The exception is one click and lasts 15 days from the last visit.",

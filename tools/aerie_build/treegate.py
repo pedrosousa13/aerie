@@ -158,9 +158,18 @@ def check_services_off(root: Path, require: bool = False) -> list[Finding]:
         "ShouldAccessServices() must return false", require)
 
 
+def check_https_first_dialog_off(root: Path, require: bool = False) -> list[Finding]:
+    return _must_match(
+        root, "components/security_interstitials/core/features.cc", "https_first_dialog_off",
+        r"BASE_FEATURE\(\s*kHttpsFirstDialogUi,\s*base::FEATURE_DISABLED_BY_DEFAULT\s*\)",
+        "kHttpsFirstDialogUi must be FEATURE_DISABLED_BY_DEFAULT (full HTTPS-only warning page)",
+        require)
+
+
 GATES: tuple[Callable[..., list[Finding]], ...] = (
     check_search_list, check_search_suggestions, check_secure_dns_default,
     check_crash_reporting, check_services_off, check_fedcm_resolver,
+    check_https_first_dialog_off,
 )
 
 
