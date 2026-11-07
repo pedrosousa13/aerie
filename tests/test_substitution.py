@@ -141,16 +141,23 @@ class ReplaceTextTest(unittest.TestCase):
         self.check("Helium.", "Aerie.")
         self.check("&amp;Helium", "&amp;Aerie")
 
-    def test_scheme_authors_and_other_words_stay(self):
-        self.check("helium://settings", "helium://settings")
-        self.check("The Helium Authors", "The Helium Authors")
+    def test_scheme_and_authors_say_aerie(self):
+        self.check("helium://settings", "aerie://settings")
+        self.check("Open helium://flags or helium://version", "Open aerie://flags or aerie://version")
+        self.check("The Helium Authors", "The Aerie Authors")
+        self.check("Copyright 2026 The Helium Authors. All rights reserved.",
+                   "Copyright 2026 The Aerie Authors. All rights reserved.")
+
+    def test_other_words_stay(self):
+        self.check("xhelium://settings", "xhelium://settings")
         self.check("Heliumite", "Heliumite")
         self.check("PreHelium", "PreHelium")
 
     def test_reports_whether_anything_matched(self):
         self.assertTrue(substitution.replace_text("Helium")[1])
         self.assertFalse(substitution.replace_text("Chromium")[1])
-        self.assertFalse(substitution.replace_text("The Helium Authors")[1])
+        self.assertTrue(substitution.replace_text("The Helium Authors")[1])
+        self.assertTrue(substitution.replace_text("helium://flags")[1])
 
     def test_idempotent(self):
         once = substitution.replace_text("About Helium and Helium")[0]
@@ -167,8 +174,9 @@ class GrdTest(unittest.TestCase):
         self.assertNotIn("About Helium", self.out)
 
     def test_untouched_content_survives(self):
-        self.assertIn("The Helium Authors", self.out)
-        self.assertIn("helium://settings", self.out)
+        self.assertIn("The Aerie Authors", self.out)
+        self.assertIn("aerie://settings", self.out)
+        self.assertNotIn("helium://", self.out)
         self.assertIn("Heliumite is not a name", self.out)
         self.assertIn("Nothing here", self.out)
 
@@ -184,8 +192,17 @@ class GrdTest(unittest.TestCase):
         self.assertEqual(self.fp_map[old], new)
         self.assertNotIn(fake_fp(_msg("Nothing here")), self.fp_map)
 
+    def test_file_with_only_the_scheme_is_rewritten(self):
+        text = GRD.replace("Helium", "Other").replace("The Other Authors", "Nobody")
+        self.assertNotIn("Helium", text)
+        out, _ = substitution.substitute_grd_text(text, fake_fp)
+        self.assertIn("Visit aerie://settings", out)
+        read = {"a.grd": text.encode()}.get
+        done, _ = substitution.substitute_files(read, ["a.grd"], [], fake_fp, workers=1)
+        self.assertIn(b"aerie://settings", done["a.grd"])
+
     def test_file_without_helium_reports_no_change(self):
-        out, fp_map = substitution.substitute_grd_text(GRD.replace("Helium", "Other"), fake_fp)
+        out, fp_map = substitution.substitute_grd_text(GRD.replace("Helium", "Other").replace("helium://", "other://"), fake_fp)
         self.assertIsNone(out)
         self.assertEqual(fp_map, {})
 
@@ -406,7 +423,7 @@ class RealMessageSetTest(unittest.TestCase):
         after = self.messages(self.out)
         for name, text in after.items():
             if name not in EXPECTED_KEPT:
-                self.assertNotRegex(text.replace("The Helium Authors", ""), r"(?<!\w)Helium(?!\w)", name)
+                self.assertNotRegex(text, r"(?<!\w)Helium(?!\w)", name)
 
     def test_about_pedal_autofill_and_update_strings_say_aerie(self):
         after = self.messages(self.out)

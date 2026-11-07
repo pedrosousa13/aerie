@@ -7,8 +7,9 @@ the browser's own strings carry Aerie's name without hand-patching each one.
 It runs after Helium's name substitution and translation step, never before:
 Helium's i18n step looks messages up by the fingerprint of the Helium text.
 
-Scope: the text users read. Message descriptions, the helium:// URL scheme,
-and the "The Helium Authors" copyright holder stay as they are. Messages that
+Scope: the text users read. "The Helium Authors" becomes "The Aerie Authors"
+and the helium:// URL scheme becomes aerie:// (patches/branding changes the
+scheme itself). Message descriptions stay as they are. Messages that
 describe Helium's own services, servers, proxying, updates, packages, crash
 reporting or partner program also stay as they are (KEEP_MESSAGES): Aerie does
 not run any of those, so text saying "Aerie services" would be false.
@@ -37,13 +38,11 @@ from typing import Callable, Iterator
 IGNORE_DIRS = ("out", ".pc", "chromeos", "remoting", "ash", "testdata")
 _DOLLAR = "&#36;"
 _DOLLAR_TOKEN = "!!dollar-sign-literal!!"
-_KEEP = "_aeriekeep"
 
-# Applied in order; the protected spans are restored in the last rule.
+# Applied in order. A rule that produces "Aerie" counts as a name replacement.
 RULES: list[tuple[re.Pattern[str], str]] = [
-    (re.compile(r"\bHelium Authors"), f"Helium{_KEEP} Authors"),
     (re.compile(r"(?<!\w)Helium(?!\w)"), "Aerie"),
-    (re.compile(_KEEP), ""),
+    (re.compile(r"(?<!\w)helium://"), "aerie://"),
 ]
 
 # Messages (by name) that describe Helium's own services or servers. Aerie runs
@@ -79,10 +78,15 @@ def replace_text(text: str) -> tuple[str, bool]:
     """Apply the rules. The flag says whether a name was actually replaced."""
     changed = False
     for regex, replacement in RULES:
-        if replacement == "Aerie" and regex.search(text):
+        if regex.search(text):
             changed = True
         text = regex.sub(replacement, text)
     return text, changed
+
+
+def _may_change(text: str) -> bool:
+    """Cheap test before parsing: does the text hold anything the rules rewrite?"""
+    return "Helium" in text or "helium://" in text
 
 
 def keep_reason(name: str | None) -> str | None:
@@ -284,7 +288,7 @@ def _scan_grd(args: tuple[Reader, str, Fingerprint]) -> tuple[str, str | None, d
     read, rel, fingerprint = args
     data = read(rel)
     text = data.decode("utf-8") if data is not None else ""
-    if "Helium" not in text:
+    if not _may_change(text):
         return rel, None, {}, []
     new_text, fp_map = substitute_grd_text(text, fingerprint)
     return rel, new_text, fp_map, kept_messages(text)
@@ -295,7 +299,7 @@ def _do_xtb(args: tuple[Reader, str, dict[str, str]]) -> tuple[str, str | None]:
     data = read(rel)
     text = data.decode("utf-8") if data is not None else ""
     # Most translation files need nothing; skip parsing them.
-    if "Helium" not in text and not any(i in fp_map for i in _XTB_ID_RE.findall(text)):
+    if not _may_change(text) and not any(i in fp_map for i in _XTB_ID_RE.findall(text)):
         return rel, None
     return rel, substitute_xtb_text(text, fp_map)
 
