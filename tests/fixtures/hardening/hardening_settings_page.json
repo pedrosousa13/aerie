@@ -56,6 +56,13 @@
       "state_text": null,
       "live": "on"
      },
+     "widevine": {
+      "present": true,
+      "default_text": "Default: Off.",
+      "cost_text": "Cost: Turning it on downloads a closed-source Google module, which is checked against a pinned signing key before it loads, and lets Aerie ask Google for updates to it. Until you do, DRM video does not play.",
+      "state_text": null,
+      "live": "off"
+     },
      "extension_lock": {
       "present": true,
       "default_text": "Default: Always on.",
@@ -129,6 +136,13 @@
       "state_text": null,
       "live": "on"
      },
+     "widevine": {
+      "present": true,
+      "default_text": "Default: Off.",
+      "cost_text": "Cost: Turning it on downloads a closed-source Google module, which is checked against a pinned signing key before it loads, and lets Aerie ask Google for updates to it. Until you do, DRM video does not play.",
+      "state_text": null,
+      "live": "off"
+     },
      "extension_lock": {
       "present": true,
       "default_text": "Default: Always on.",
@@ -195,6 +209,13 @@
       "cost_text": "Cost: Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page.",
       "state_text": null,
       "live": "on"
+     },
+     "widevine": {
+      "present": true,
+      "default_text": "Default: Off.",
+      "cost_text": "Cost: Turning it on downloads a closed-source Google module, which is checked against a pinned signing key before it loads, and lets Aerie ask Google for updates to it. Until you do, DRM video does not play.",
+      "state_text": null,
+      "live": "off"
      },
      "extension_lock": {
       "present": true,
@@ -263,6 +284,13 @@
       "state_text": null,
       "live": "on"
      },
+     "widevine": {
+      "present": true,
+      "default_text": "Default: Off.",
+      "cost_text": "Cost: Turning it on downloads a closed-source Google module, which is checked against a pinned signing key before it loads, and lets Aerie ask Google for updates to it. Until you do, DRM video does not play.",
+      "state_text": null,
+      "live": "off"
+     },
      "extension_lock": {
       "present": true,
       "default_text": "Default: Always on.",
@@ -329,6 +357,13 @@
       "cost_text": "Cost: Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page.",
       "state_text": null,
       "live": "on"
+     },
+     "widevine": {
+      "present": true,
+      "default_text": "Default: Off.",
+      "cost_text": "Cost: Turning it on downloads a closed-source Google module, which is checked against a pinned signing key before it loads, and lets Aerie ask Google for updates to it. Until you do, DRM video does not play.",
+      "state_text": null,
+      "live": "off"
      },
      "extension_lock": {
       "present": true,
@@ -397,6 +432,13 @@
       "state_text": null,
       "live": "on"
      },
+     "widevine": {
+      "present": true,
+      "default_text": "Default: Off.",
+      "cost_text": "Cost: Turning it on downloads a closed-source Google module, which is checked against a pinned signing key before it loads, and lets Aerie ask Google for updates to it. Until you do, DRM video does not play.",
+      "state_text": null,
+      "live": "off"
+     },
      "extension_lock": {
       "present": true,
       "default_text": "Default: Always on.",
@@ -461,6 +503,13 @@
       "present": true,
       "default_text": "Default: On.",
       "cost_text": "Cost: Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page.",
+      "state_text": null,
+      "live": "off"
+     },
+     "widevine": {
+      "present": true,
+      "default_text": "Default: Off.",
+      "cost_text": "Cost: Turning it on downloads a closed-source Google module, which is checked against a pinned signing key before it loads, and lets Aerie ask Google for updates to it. Until you do, DRM video does not play.",
       "state_text": null,
       "live": "off"
      },
@@ -531,6 +580,13 @@
       "state_text": null,
       "live": "on"
      },
+     "widevine": {
+      "present": true,
+      "default_text": "Default: Off.",
+      "cost_text": "Cost: Turning it on downloads a closed-source Google module, which is checked against a pinned signing key before it loads, and lets Aerie ask Google for updates to it. Until you do, DRM video does not play.",
+      "state_text": null,
+      "live": "off"
+     },
      "extension_lock": {
       "present": true,
       "default_text": "Default: Always on.",
@@ -545,9 +601,9 @@
   },
   {
    "name": "real_train1_build",
-   "expect": "pass",
-   "detail_contains": "",
-   "real": "Recorded on a real Aerie build, train-1 Bench run (bench/train1/hardening-1/results.json); LAN address scrubbed.",
+   "expect": "fail",
+   "detail_contains": "no row for widevine",
+   "real": "Recorded on a real Aerie build, train-1 Bench run (bench/train1/hardening-1/results.json); LAN address scrubbed. That build predates the Widevine row (#7), so the page is judged to lack it. Re-record on the next real build and set expect back to pass.",
    "obs": {
     "rows": {
      "https_only": {

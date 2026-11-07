@@ -19,6 +19,7 @@ page and the Bench checks, so the three cannot drift apart.
 | No prefetch or preloading | Off. | ungoogled-chromium (through Helium) | Dropdown | `hardening_prefetch` |
 | Strict site isolation | Always on. | Chromium | Read-only | `hardening_site_isolation` |
 | Fingerprinting randomization | On. | Helium | Toggle | `hardening_fingerprinting` |
+| Widevine DRM | Off. | Aerie | Toggle | `hardening_pref_defaults`, `hardening_settings_page` |
 | Extensions cannot loosen these settings | Always on. | Aerie | Read-only | `hardening_extension_prefs` |
 
 ## What upstream already provided
@@ -155,6 +156,28 @@ Every http:// page load is upgraded to https://. If the upgrade fails, a warning
 - Settings row: Dropdown
 - Cost: Sites and devices that only speak http (router and NAS admin pages, printers, old intranet apps, captive portals) show a warning page first. The exception is one click and lasts 15 days from the last visit.
 - Bench checks: `hardening_https_only`, `hardening_localhost_dev`, `hardening_http_exception`
+
+### Widevine DRM
+
+Widevine decodes protected video and audio (Netflix, Disney+ and similar). It is a component made by Google. Aerie builds it in but neither downloads nor loads it until you turn this on, and it contacts Google for nothing else. The first time a site asks for protected content, Aerie asks once whether to turn it on.
+
+- Default: Off.
+- Default provided by: Aerie
+- Where the default is set:
+  - overlay/components/aerie_widevine/widevine_opt_in.cc: aerie.widevine.enabled is registered in Local State with default false
+  - patches/widevine/0001-register-widevine-only-when-opted-in.patch: the Widevine component is registered with the component updater only once the pref is true
+- Upstream code:
+  - `chrome/browser/component_updater/widevine_cdm_component_installer.cc`
+  - `chrome/browser/component_updater/registration.cc`
+- Preference: `aerie.widevine.enabled` (default `false`)
+- Aerie patches:
+  - `patches/widevine/0001-register-widevine-only-when-opted-in.patch`
+  - `patches/widevine/0002-update-widevine-from-google-when-opted-in.patch`
+  - `patches/widevine/0003-allow-widevine-pref-in-settings.patch`
+  - `patches/widevine/0004-ask-before-the-first-drm-request.patch`
+- Settings row: Toggle
+- Cost: Turning it on downloads a closed-source Google module, which is checked against a pinned signing key before it loads, and lets Aerie ask Google for updates to it. Until you do, DRM video does not play.
+- Bench checks: `hardening_pref_defaults`, `hardening_settings_page`
 
 ### Extensions cannot loosen these settings
 

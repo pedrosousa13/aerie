@@ -39,7 +39,7 @@ Generated from tools/aerie_hardening/controls.json. Do not edit by hand. Run: ./
 +};
 --- /dev/null
 +++ b/chrome/browser/resources/settings/privacy_page/hardening_page.html
-@@ -0,0 +1,138 @@
+@@ -0,0 +1,149 @@
 +<!-- Generated from tools/aerie_hardening/controls.json. Do not edit by hand. Run: ./aerie hardening generate -->
 +  <settings-subpage page-title="Security hardening" route-path="${this.routePath}">
 +    <div class="cr-row first"><div class="cr-secondary-text" id="hardeningIntro">Aerie turns these privacy and security protections on by default. Each row shows what the protection does, its default and what it can cost you.</div></div>
@@ -142,6 +142,17 @@ Generated from tools/aerie_hardening/controls.json. Do not edit by hand. Run: ./
 +      <div class="control-meta cr-secondary-text">
 +        <div class="control-default">Default: On.</div>
 +        <div class="control-cost">Cost: Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page.</div>
++      </div>
++    </div>
++    <div class="control" id="control-widevine" data-control-id="widevine">
++      <settings-toggle-button id="control-widevine-setting" class="hr"
++          pref-key="aerie.widevine.enabled"
++          label="Widevine DRM"
++          sub-label="Widevine decodes protected video and audio (Netflix, Disney+ and similar). It is a component made by Google. Aerie builds it in but neither downloads nor loads it until you turn this on, and it contacts Google for nothing else. The first time a site asks for protected content, Aerie asks once whether to turn it on.">
++      </settings-toggle-button>
++      <div class="control-meta cr-secondary-text">
++        <div class="control-default">Default: Off.</div>
++        <div class="control-cost">Cost: Turning it on downloads a closed-source Google module, which is checked against a pinned signing key before it loads, and lets Aerie ask Google for updates to it. Until you do, DRM video does not play.</div>
 +      </div>
 +    </div>
 +    <div class="control" id="control-extension_lock" data-control-id="extension_lock">
