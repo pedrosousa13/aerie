@@ -15,7 +15,8 @@ class RepoOverlayTest(unittest.TestCase):
         for rel in files:
             self.assertTrue(rel.startswith(("components/aerie_adblock/", "third_party/filter_lists/",
                                             "chrome/browser/aerie_adblock/",
-                                            "tools/metrics/histograms/metadata/aerie/")), rel)
+                                            "tools/metrics/histograms/metadata/aerie/",
+                                            "third_party/rust/chromium_crates_io/patches/")), rel)
             self.assertNotIn("/target/", rel)
 
     def test_every_gn_source_in_the_component_exists_in_the_overlay(self):

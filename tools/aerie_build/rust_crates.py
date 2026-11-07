@@ -35,6 +35,7 @@ from __future__ import annotations
 import hashlib
 import io
 import re
+import shutil
 import subprocess
 import tarfile
 import tomllib
@@ -59,6 +60,9 @@ CARGO_TOML = Path("third_party") / "rust" / "chromium_crates_io" / "Cargo.toml"
 CARGO_LOCK = Path("third_party") / "rust" / "chromium_crates_io" / "Cargo.lock"
 GNRT_CONFIG = Path("third_party") / "rust" / "chromium_crates_io" / "gnrt_config.toml"
 VENDOR_DIR = Path("third_party") / "rust" / "chromium_crates_io" / "vendor"
+# gnrt vendor applies the patches in `patches/<crate>-<epoch>/` to a crate it
+# downloads. Aerie ships some for the crates it adds, through the overlay.
+PATCHES_DIR = Path("third_party") / "rust" / "chromium_crates_io" / "patches"
 ROOT_PACKAGE = "chromium"
 PRISTINE_BACKUP = ".aerie-cargo-lock.pristine"
 
@@ -472,6 +476,39 @@ def verify_credits(tree: Path, lock: CrateLock) -> None:
 # --- Running gnrt ----------------------------------------------------------
 
 
+def crate_patches_digest(tree: Path) -> str:
+    """sha256 over the names and bytes of every file in the crate patches directory."""
+    digest = hashlib.sha256()
+    root = Path(tree) / PATCHES_DIR
+    if root.is_dir():
+        for path in sorted(p for p in root.rglob("*") if p.is_file()):
+            rel = path.relative_to(root).as_posix().encode()
+            digest.update(len(rel).to_bytes(4, "big") + rel)
+            data = path.read_bytes()
+            digest.update(len(data).to_bytes(8, "big") + data)
+    return digest.hexdigest()
+
+
+def drop_patched_crates(tree: Path, added: Iterable[Package], log) -> None:
+    """Remove the vendored copy of each added crate that has crate patches.
+
+    gnrt vendor leaves a crate that is already vendored at the right version
+    alone, and applies its patches only when it downloads it. So a crate
+    vendored before its patches existed (a resumed build) would never get them.
+    The added crates are Aerie's: no pristine Chromium file is removed.
+    """
+    for pkg in added:
+        name = vendor_dirname(pkg)
+        patches = Path(tree) / PATCHES_DIR / name
+        if not patches.is_dir() or not any(patches.iterdir()):
+            continue
+        vendored = Path(tree) / VENDOR_DIR / name
+        if vendored.exists():
+            shutil.rmtree(vendored)
+            log(f"crates: {name} has crate patches; removed it so gnrt vendor downloads and patches it again")
+
+
+
 def run_gnrt(tree: Path, python: Path | str, env: dict, log, runner) -> None:
     """`gnrt vendor` then `gnrt gen`, through Chromium's own wrapper (builds gnrt with the in-tree cargo)."""
     script = Path(tree) / "tools" / "crates" / "run_gnrt.py"
@@ -502,9 +539,10 @@ def vendor_adblock(tree: Path, repo: Path, chromium_version: str, cache: Path, p
     check_base(lock, chromium_version, toml_text, pristine_text)
     (tree / CARGO_LOCK).write_text(merge_lock(pristine_text, lock.packages), encoding="utf-8")
     log(f"crates: pinned {len(lock.packages)} package(s) from {LOCK_FILE}")
+    added = lock.added(parse_lock(pristine_text))
+    drop_patched_crates(tree, added, log)
     run_gnrt(tree, python, env, log, runner)
     verify_resolution(tree, lock, pristine_text)
-    added = lock.added(parse_lock(pristine_text))
     count = verify_vendored(tree, added, cache, opener, log)
     verify_credits(tree, lock)
     log(f"crates: {count} added crate(s) match crates.io; adblock-rust is in the credits as {ADBLOCK_LICENSE}")

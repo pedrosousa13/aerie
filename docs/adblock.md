@@ -155,6 +155,19 @@ build:
    `License: MPL-2.0` and `Shipped: yes`, with a licence file that exists. That is
    what puts adblock-rust on `chrome://credits`.
 
+Two added crates publish no licence text: flatbuffers (Apache-2.0) and seahash
+(MIT). gnrt will not write a `README.chromium` without one, and Chromium credits
+every shipped crate. The overlay adds Chromium-style crate patches,
+`third_party/rust/chromium_crates_io/patches/{flatbuffers-v25,seahash-v4}/`, that
+add each project's upstream `LICENSE` file. `gnrt vendor` applies them when it
+downloads the crate. The flatbuffers text is the repository's `LICENSE` at the
+commit the crate was published from (the same bytes as Chromium's
+`//third_party/flatbuffers/src/LICENSE`). The seahash text was added upstream after
+4.1.0 (redox-os/seahash `3088c5c`). gnrt skips a crate that is already vendored, so
+the vendor step removes an added crate that has crate patches before it runs gnrt,
+and the crate patches are part of the step's stamp. Drop a patch when a release of
+its crate ships the file.
+
 Chromium removes the `checksum` lines from its lock and empties the checksum
 files of vendored crates, so cargo cannot do step 5 for us.
 

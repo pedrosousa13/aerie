@@ -538,10 +538,52 @@ class VendorStepTest(unittest.TestCase):
             self.run_step()
         self.assertEqual(self.commands, [])
 
+    def test_an_added_crate_with_crate_patches_is_vendored_again_so_gnrt_applies_them(self):
+        # gnrt vendor skips a crate that is already vendored at the right version, and
+        # applies chromium_crates_io/patches/<crate> only when it downloads one.
+        stale = self.tree.vendor(ENTRIES[2], dict(THISERROR1_FILES, **{"stale.txt": b"old"}))
+        patches = self.tree.root / rc.PATCHES_DIR / "thiserror-v1"
+        patches.mkdir(parents=True)
+        (patches / "0001-Add-LICENSE.patch").write_text("patch")
+        seen = []
+        self.after_gnrt = lambda: seen.append((stale / "stale.txt").exists())
+        self.run_step()
+        self.assertEqual(seen[0], False, "the patched crate was not removed before gnrt vendor")
+        self.assertTrue(any("thiserror-v1" in line and "crate patches" in line for line in self.logs), self.logs)
+
+    def test_an_added_crate_without_crate_patches_is_left_to_gnrt(self):
+        kept = self.tree.vendor(ENTRIES[2], dict(THISERROR1_FILES, **{"kept.txt": b"x"}))
+        self.run_step()
+        self.assertTrue((kept / "kept.txt").exists())
+
+    def test_crate_patches_of_chromium_crates_are_not_aerie_s_to_redo(self):
+        # bitflags is in the pristine lock: Chromium vendored it, so the step never removes it.
+        kept = self.tree.vendor(ENTRIES[1], {"Cargo.toml": b"[package]\n"})
+        patches = self.tree.root / rc.PATCHES_DIR / "bitflags-v2"
+        patches.mkdir(parents=True)
+        (patches / "0001-x.patch").write_text("patch")
+        self.run_step()
+        self.assertTrue((kept / "Cargo.toml").exists())
+
     def test_missing_gnrt_is_reported(self):
         (self.tree.root / "tools/crates/run_gnrt.py").unlink()
         with self.assertRaisesRegex(rc.CratesError, "no gnrt"):
             self.run_step()
+
+
+class CratePatchesDigestTest(unittest.TestCase):
+    def test_digest_changes_with_a_patch_and_its_name(self):
+        tree = Tree(self)
+        empty = rc.crate_patches_digest(tree.root)
+        d = tree.root / rc.PATCHES_DIR / "seahash-v4"
+        d.mkdir(parents=True)
+        (d / "0001-a.patch").write_text("one")
+        one = rc.crate_patches_digest(tree.root)
+        (d / "0001-a.patch").write_text("two")
+        two = rc.crate_patches_digest(tree.root)
+        (d / "0001-a.patch").rename(d / "0002-a.patch")
+        renamed = rc.crate_patches_digest(tree.root)
+        self.assertEqual(len({empty, one, two, renamed}), 4)
 
 
 class ResolveTest(unittest.TestCase):
@@ -597,6 +639,20 @@ class RepoFilesTest(unittest.TestCase):
         from aerie_build import lock as helium_lock
         pins = helium_lock.load_lock(REPO / "helium.lock")
         self.assertEqual(rc.load_crate_lock(REPO / rc.LOCK_FILE).chromium_version, pins.chromium_version)
+
+    def test_overlay_crate_patches_only_patch_crates_that_adblock_adds(self):
+        lock = rc.load_crate_lock(REPO / rc.LOCK_FILE)
+        added = {rc.vendor_dirname(p) for p in lock.packages if p.checksum}
+        root = REPO / "overlay" / rc.PATCHES_DIR
+        dirs = sorted(d.name for d in root.iterdir()) if root.is_dir() else []
+        for name in dirs:
+            self.assertIn(name, added, f"overlay patches {name}, which is not a crate adblock adds")
+            for patch in (root / name).iterdir():
+                self.assertRegex(patch.name, r"^\d{4}-.+\.patch$")
+                diffs = re.findall(r"^diff --git a/(\S+) b/", patch.read_text(), re.M)
+                self.assertTrue(diffs, patch)
+                for path in diffs:
+                    self.assertTrue(path.startswith(f"{rc.VENDOR_DIR.as_posix()}/{name}/"), path)
 
     def test_cargo_standalone_workspace_uses_the_same_adblock_pin(self):
         text = (REPO / "overlay/components/aerie_adblock/rust/Cargo.toml").read_text()

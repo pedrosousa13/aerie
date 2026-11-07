@@ -431,9 +431,10 @@ def prepare_adblock(ctx: Context, log: Logger, env: dict) -> None:
     1. The committed lists in the tree are checked against the lock. Nothing is downloaded.
     2. adblock-rust is vendored by gnrt under the committed crate lock and
        checked against crates.io (see rust_crates.py).
-    Step 2 leaves a stamp keyed by the lock and by the two files the Aerie
-    patches change for it, so an unchanged tree is not touched again, and a
-    changed lock or patch redoes the step.
+    Step 2 leaves a stamp keyed by the lock, by the two files the Aerie
+    patches change for it and by the crate patches gnrt applies, so an
+    unchanged tree is not touched again, and a changed lock or patch redoes
+    the step.
     """
     pins = filter_lists.load_lock(filter_lists.lock_path(ctx.repo))
     try:
@@ -446,6 +447,7 @@ def prepare_adblock(ctx: Context, log: Logger, env: dict) -> None:
     for path in (ctx.repo / rust_crates.LOCK_FILE, ctx.tree / rust_crates.CARGO_TOML,
                  ctx.tree / rust_crates.GNRT_CONFIG):
         key.update(path.read_bytes())
+    key.update(rust_crates.crate_patches_digest(ctx.tree).encode())
     stamp_key = key.hexdigest()
     stamp = ctx.tree / ".aerie-crates.stamp"
     if stamp.exists() and stamp.read_text().strip() == stamp_key:
