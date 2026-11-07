@@ -57,6 +57,7 @@ that. What Aerie adds, because it is still reachable on the pinned build:
 | Endpoint | Why it was reachable | Aerie |
 | --- | --- | --- |
 | `redirector.gvt1.com` (dictionaries) | Seen in a recorded launch of a stock browser; Helium re-pointed it at its proxy | No download host and no request (patch `services/0004`). |
+| Google Safe Browsing (`safebrowsing.googleapis.com` and related) | Chromium's phishing and malware protection | Aerie's protection does not use it. Aerie checks pinned local lists instead and sends nothing (patch `adblock/0011`, [phishing-protection.md](phishing-protection.md)). The lists are fetched only by `./aerie lists update`, from their publishers (not Google), never by the browser. |
 | `dns.google` and other DoH providers | Chromium's default secure DNS mode is Automatic, which upgrades to a provider that matches the system resolver | Default is Off (patch `network/0001`). Every provider stays selectable. |
 | `google.com`, `google.*` search | `break_stuff_google` in the built-in engine list | Not in the list (patch `search/0001`). |
 | `dns.google/resolve` (FedCM) | `ChromeContentBrowserClient::GetDnsTxtResolverUrlPrefix()` returned it; a page using FedCM delegation could make the browser query Google DNS | Returns an empty string, and `dns_request.cc` answers with no result without a request (patch `services/0005`). A source gate checks it. |
