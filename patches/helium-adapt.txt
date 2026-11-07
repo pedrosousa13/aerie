@@ -1,0 +1,10 @@
+# Helium patches that Aerie replaces, at the same place in the series, with a copy in
+# patches/helium-adapted/<entry>. One Helium series entry per line, then "# reason".
+# The sha256 is Helium's patch as it was when the copy was cut. ./aerie patches check and the
+# build fail when Helium's file differs (a Helium bump), and when the copy adds or removes a
+# line the original does not (only the placement of hunks may change). Method: CONTRIBUTING.md.
+# Needed when a patch only applies on top of one listed in helium-drop.txt: the replacement
+# is Helium's patch with the hunks that need the dropped code re-cut. Every entry needs a
+# row in docs/helium-dependency-ledger.md. Checked like helium-drop.txt.
+helium/core/component-updates.patch  sha256:90cbe369b1fc7bf5740a6497fc0169ff362406564b6b746f4438ab62bcf98c05  # its hunks sit next to the uBlock Origin asset helpers that are dropped
+helium/core/fixups-component-setup.patch  sha256:852fb83263f2f6a6488b07bd64c5b45194edb53999e21c1830f98ae208e64a65  # its hunks sit next to the uBlock Origin component lines that are dropped

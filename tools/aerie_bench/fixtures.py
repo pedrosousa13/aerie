@@ -35,6 +35,9 @@ class FixtureServer:
                 dynamic = outer._dynamic(path, self.path, self.headers)
                 body, status, ctype = dynamic[:3] if dynamic else outer._lookup(path)
                 extra = dynamic[3] if dynamic else {}
+                location = None if dynamic else outer._redirects().get(path)
+                if location:
+                    body, status, ctype = b"", 302, "text/plain; charset=utf-8"
                 with outer._lock:
                     outer.requests.append({
                         "time": time.time(), "method": "GET", "path": self.path,
@@ -51,6 +54,8 @@ class FixtureServer:
                     self.send_header("Cache-Control", "no-store")
                     for key, value in extra.items():
                         self.send_header(key, value)
+                    if status == 302:
+                        self.send_header("Location", location)
                     self.end_headers()
                     self.wfile.write(body)
                 except (BrokenPipeError, ConnectionResetError):
@@ -77,6 +82,14 @@ class FixtureServer:
             return b"{}", 200, "application/json", {
                 "Set-Cookie": f"{name}={value}; Path=/; SameSite=None; Secure"}
         return None
+
+    def _redirects(self) -> dict:
+        """path -> Location from redirects.json in the fixture directory (optional)."""
+        try:
+            data = json.loads((self.root / "redirects.json").read_text())
+        except (OSError, ValueError):
+            return {}
+        return {k: v for k, v in data.items() if k.startswith("/")}
 
     def _lookup(self, path: str) -> tuple[bytes, int, str]:
         rel = path.lstrip("/") or "index.html"

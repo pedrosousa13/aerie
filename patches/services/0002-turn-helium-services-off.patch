@@ -12,9 +12,9 @@ The plumbing stays, so Helium bumps conflict as little as possible.
 
 --- a/chrome/app/settings_strings.grdp
 +++ b/chrome/app/settings_strings.grdp
-@@ -1748,13 +1748,13 @@
-       Helium will fetch fresh filter lists for uBlock Origin. All requests to lists are proxied to protect your privacy. When disabled, default filter lists will be loaded from local storage, which are only updated along with Helium. Optional filter lists will be requested without proxying.
-     </message>
+@@ -1742,13 +1742,13 @@
+       </message>
+     </if>
      <message name="IDS_SETTINGS_HELIUM_SERVICES_OVERRIDE" desc="Text input for overriding the Helium services server">
 -      Use your own instance of Helium services
 +      Extension proxy
@@ -31,7 +31,7 @@ The plumbing stays, so Helium bumps conflict as little as possible.
        Custom origin URL for Helium services
 --- a/chrome/browser/resources/settings/privacy_page/services_page.html
 +++ b/chrome/browser/resources/settings/privacy_page/services_page.html
-@@ -142,7 +142,7 @@
+@@ -137,7 +137,7 @@
      </div>
      <cr-input
          id="heliumOriginOverride"
@@ -150,7 +150,7 @@ The plumbing stays, so Helium bumps conflict as little as possible.
  }
  
  bool ShouldAccessDictionaryService(const PrefService& prefs) {
-@@ -138,22 +113,9 @@
+@@ -133,22 +108,9 @@
      return GetServicesBaseURL(prefs).Resolve("/dict/");
  }
  

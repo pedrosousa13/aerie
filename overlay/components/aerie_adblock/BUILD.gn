@@ -1,0 +1,131 @@
+# Copyright 2026 The Aerie Authors
+# You can use, redistribute, and/or modify this source code under
+# the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+# The Filter Engine: Brave's adblock-rust (MPL-2.0, vendored by gnrt,
+# unmodified) behind a small Aerie-owned cxx bridge. The C++ side is in
+# //components/aerie_adblock/browser.
+#
+# Nothing here may be used from a renderer. `visibility` below lists the only
+# targets that may depend on these, and none of them is in a renderer.
+
+import("//build/rust/rust_executable.gni")
+import("//build/rust/rust_static_library.gni")
+import("//build/rust/rust_unit_tests_group.gni")
+import("//tools/grit/grit_rule.gni")
+
+_visibility = [
+  "//chrome/browser:core",
+  "//chrome/browser/aerie_adblock:*",
+  "//components/aerie_adblock/*",
+]
+
+# Pure Rust: the engine core. No C++, no unsafe, no panics. Used by the cxx
+# bridge below and by the build tool.
+rust_static_library("aerie_adblock_core") {
+  visibility = _visibility
+  crate_name = "aerie_adblock_core"
+  crate_root = "rust/core/src/lib.rs"
+  sources = [
+    "rust/core/src/lib.rs",
+    "rust/core/src/tests.rs",
+  ]
+  deps = [ "//third_party/rust/adblock/v0_13:lib" ]
+  build_native_rust_unit_tests = true
+}
+
+# The cxx bridge. The generated header is
+# components/aerie_adblock/rust/ffi/src/lib.rs.h
+rust_static_library("aerie_adblock_ffi") {
+  visibility = _visibility
+  crate_name = "aerie_adblock_ffi"
+  crate_root = "rust/ffi/src/lib.rs"
+  sources = [ "rust/ffi/src/lib.rs" ]
+  cxx_bindings = [ "rust/ffi/src/lib.rs" ]
+  allow_unsafe = true  # The cxx::bridge macro expands to unsafe code.
+  deps = [ ":aerie_adblock_core" ]
+
+  # No native Rust unit tests: the bridge is tested by `cargo test` (see
+  # rust/Cargo.toml) and, through C++, by aerie_adblock_unittests.
+}
+
+# Build-time tool: lists in, serialized engine out, with self-checks. Built for
+# the host and run by the "engine" action.
+rust_executable("aerie_adblock_compile") {
+  visibility = [ ":*" ]
+  crate_root = "rust/tool/src/main.rs"
+  sources = [ "rust/tool/src/main.rs" ]
+  deps = [ ":aerie_adblock_core" ]
+}
+
+# EasyList and EasyPrivacy, compiled. The lists come from
+# //third_party/filter_lists (committed in the repo; `./aerie build` checks
+# their hashes before gn runs). If they are missing, ninja fails (a missing input; gn
+# does not check): the build never falls back to an engine without lists.
+_engine_out = "$target_gen_dir/engine/aerie_adblock_engine.dat"
+_host_tool = ":aerie_adblock_compile($host_toolchain)"
+_host_tool_exe =
+    get_label_info(_host_tool, "root_out_dir") + "/aerie_adblock_compile"
+_lists_dir = "//third_party/filter_lists"
+
+action("engine") {
+  visibility = [ ":*" ]
+  script = "compile_engine.py"
+  deps = [
+    _host_tool,
+    "//third_party/filter_lists",
+  ]
+  inputs = [
+    "selfcheck.json",
+    "$_lists_dir/easylist.txt",
+    "$_lists_dir/easyprivacy.txt",
+    "$_lists_dir/filter_lists.lock.json",
+    _host_tool_exe,
+  ]
+  outputs = [ _engine_out ]
+  args = [
+    "--tool",
+    rebase_path(_host_tool_exe, root_build_dir),
+    "--out",
+    rebase_path(_engine_out, root_build_dir),
+    "--selfcheck",
+    rebase_path("selfcheck.json", root_build_dir),
+    "--lock",
+    rebase_path("$_lists_dir/filter_lists.lock.json", root_build_dir),
+    "--list",
+    rebase_path("$_lists_dir/easylist.txt", root_build_dir),
+    "--list",
+    rebase_path("$_lists_dir/easyprivacy.txt", root_build_dir),
+  ]
+}
+
+# Packs the engine into a .pak, which chrome_paks.gni merges into
+# resources.pak. Header: components/aerie_adblock/resources/grit/
+# aerie_adblock_resources.h
+grit("resources") {
+  source = "resources/aerie_adblock_resources.grd"
+  output_dir = "$root_gen_dir/components/aerie_adblock/resources"
+  outputs = [
+    "grit/aerie_adblock_resources.h",
+    "aerie_adblock_resources.pak",
+  ]
+  inputs = [ _engine_out ]
+  deps = [ ":engine" ]
+  enable_input_discovery_for_gn_analyze = false
+}
+
+# The Rust unit tests of the core crate (crates with native tests are not
+# built by `all`; this group is what builds and runs them). It writes
+# out/Default/bin/run_aerie_adblock_rust_tests.
+rust_unit_tests_group("aerie_adblock_rust_tests") {
+  testonly = true
+  deps = [ ":aerie_adblock_core" ]
+}
+
+group("unit_tests") {
+  testonly = true
+  deps = [
+    ":aerie_adblock_rust_tests",
+    "//components/aerie_adblock/browser:aerie_adblock_unittests",
+  ]
+}

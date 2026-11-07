@@ -1,0 +1,12 @@
+Aerie-Purpose: List Aerie's histograms.xml among the files the metrics tools read, so its Aerie.Adblock.* histograms are known.
+Aerie-Upstream-Area: tools/metrics/histograms/histograms_xml_files.gni (generated from histogram_paths.py; the entry is what the generator would write)
+Aerie-Kind: hook
+
+The file itself is in the overlay: tools/metrics/histograms/metadata/aerie/.
+
+--- a/tools/metrics/histograms/histograms_xml_files.gni
++++ b/tools/metrics/histograms/histograms_xml_files.gni
+@@ -158,2 +158,3 @@
+   "//tools/metrics/histograms/metadata/actor/histograms.xml",
++  "//tools/metrics/histograms/metadata/aerie/histograms.xml",
+   "//tools/metrics/histograms/metadata/ai/histograms.xml",

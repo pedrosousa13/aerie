@@ -1,0 +1,27 @@
+Name: EasyList and EasyPrivacy filter lists
+Short Name: filter_lists
+URL: https://easylist.to/
+Version: 202611071252 (EasyList), 202611071246 (EasyPrivacy)
+Update Mechanism: Manual
+License: GPL-3.0
+License File: LICENSE
+Shipped: yes
+Security Critical: yes
+
+Description:
+EasyList and EasyPrivacy, the ad and tracker filter lists. The Filter Engine
+(//components/aerie_adblock) compiles them into the engine that blocks requests
+in the browser.
+
+EasyList and EasyPrivacy are dual licensed: GPL-3.0-or-later, or CC BY-SA 3.0,
+at the user's option (https://easylist.to/pages/licence.html). Aerie uses
+them under the GPL-3.0-or-later option.
+
+Local Modifications:
+None. easylist.txt and easyprivacy.txt are the files that easylist.to served on
+the dates of the versions above, committed byte for byte. filter_lists.lock.json
+pins each by sha256 and size, and `./aerie build` fails if one differs.
+`./aerie lists update` refreshes the files and the lock. aerie_adblock_compile
+compiles them into a serialized engine at build time. Lines that are over 8 KiB,
+or that are exception rules matching every URL, are dropped at compile time (see
+components/aerie_adblock/rust/core/src/lib.rs).

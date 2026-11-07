@@ -1,0 +1,14 @@
+# Helium patches that Aerie does not apply. One Helium series entry per line (as in
+# helium-chromium/patches/series or helium-linux/patches/series), then "# reason".
+# Every entry needs a row in docs/helium-dependency-ledger.md. ./aerie patches check fails
+# if an entry is no longer in Helium's series, so a Helium bump shows it.
+# Changing this file after a tree was patched needs ./aerie build --clean.
+#
+# Bundled uBlock Origin (issue #8): Aerie blocks natively. MV2 support itself is
+# ungoogled-chromium/extensions-manifestv2.patch, which stays.
+helium/core/ublock-setup-sources.patch  # builds the bundled uBlock Origin into the tree and its resource pack
+helium/core/ublock-install-as-component.patch  # loads uBlock Origin as a component extension and allowlists it
+helium/core/ublock-reconfigure-defaults.patch  # special cases for the uBlock Origin component id; nothing MV2-related
+helium/core/ublock-helium-services.patch  # uBlock Origin asset updates from Helium services, settings strings for them
+helium/core/ublock-dns-uncloaking.patch  # the dns extension API and webRequest additions only the Helium uBlock Origin used
+helium/ui/ublock-show-in-settings.patch  # shows the built-in uBlock Origin on the extensions page

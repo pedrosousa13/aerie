@@ -1,0 +1,64 @@
+Aerie-Purpose: Ask gnrt to vendor the adblock crate (adblock-rust 0.13.4, MPL-2.0, unmodified) with the features the Filter Engine needs.
+Aerie-Upstream-Area: third_party/rust/chromium_crates_io/Cargo.toml, gnrt_config.toml
+Aerie-Kind: hook
+
+This declares the dependency and fixes the gnrt settings it needs: adblock and regex in the
+'safe' group (regex was 'test', which made adblock testonly and unshipped), flatbuffers
+without its build.rs (it enables nightly features), and thiserror v1 and v2 as separate
+sections (only v2's build script writes private.rs).
+
+The vendor step in ./aerie build pins the
+resolved crate set from rust/crates.lock.toml first, runs gnrt vendor and gnrt
+gen, and fails if the result differs from the lock or from the crates.io hashes
+(tools/aerie_build/rust_crates.py).
+
+--- a/third_party/rust/chromium_crates_io/Cargo.toml
++++ b/third_party/rust/chromium_crates_io/Cargo.toml
+@@ -220 +220,10 @@
+ features = ["arith"]
++
++# Aerie: the filter engine. Keep in step with ADBLOCK_VERSION and
++# ADBLOCK_FEATURES in tools/aerie_build/rust_crates.py, and with the lock in
++# rust/crates.lock.toml. `./aerie build` vendors this with gnrt and fails if the
++# result differs from the lock.
++[dependencies.adblock]
++version = "=0.13.4"
++default-features = false
++features = ["full-regex-handling", "single-thread"]
+--- a/third_party/rust/chromium_crates_io/gnrt_config.toml
++++ b/third_party/rust/chromium_crates_io/gnrt_config.toml
+@@ -116,2 +116,11 @@
+ 
++# Aerie: the filter engine (patches/adblock/0003-vendor-adblock-crate.patch).
++# It runs in the browser process, so it must be in the 'safe' group. It has
++# `unsafe` (flatbuffers access), which is a Rule of Two exception: its only
++# input is the engine compiled at build time from hash-pinned lists, and the
++# matcher is linear time.
++[crate.adblock]
++group = 'safe'
++extra_kv = { allow_unsafe = true }
++
+ [crate.addr2line]
+@@ -369,2 +378,8 @@
+ 
++# Aerie: flatbuffers' build.rs turns on `cfg(nightly)` under Chromium's rustc,
++# and that enables unstable features, which Chromium forbids.
++[crate.flatbuffers]
++remove_build_rs = true
++extra_kv = { allow_unsafe = true }
++
+ [crate.flate2]
+@@ -840,3 +855,3 @@
+ [crate.regex]
+-group = 'test'
++group = 'safe'  # Aerie: adblock needs it in the browser process. Linear-time matching.
+ allow_first_party_usage = false
+@@ -1034,3 +1049,7 @@
+ 
+-[crate.thiserror]
++# Aerie: two epochs of thiserror now exist. Only v2's build script writes private.rs.
++[crate."thiserror@v1"]
++extra_kv = { allow_unsafe = false }
++
++[crate."thiserror@v2"]
+ build_script_outputs = [ "private.rs" ]

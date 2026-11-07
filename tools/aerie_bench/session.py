@@ -47,6 +47,7 @@ class Session:
         self.artifacts: list[str] = []
         # Set by the runner: starts a second browser (own profile, own flags) for negative controls.
         self.variant_launcher: Callable[..., ContextManager["Session"]] | None = None
+        self.browser_pid: int | None = None  # set by the runner; the root of the browser's process tree
         self._sid: str | None = None
 
     def _page(self) -> str:
@@ -57,6 +58,14 @@ class Session:
             self._sid = att["sessionId"]
             self.client.send("Page.enable", session_id=self._sid, timeout=self.timeout)
         return self._sid
+
+    def cdp(self, method: str, params: dict | None = None) -> dict:
+        """Send a CDP command to the page."""
+        return self.client.send(method, params, session_id=self._page(), timeout=self.timeout)
+
+    def take_events(self, method: str) -> list[dict]:
+        """Consume the page's queued CDP events of one kind (see CdpClient.take_events)."""
+        return self.client.take_events(method, session_id=self._page())
 
     def navigate(self, path: str) -> None:
         """Load a fixture path and wait for the load event."""

@@ -1,0 +1,12 @@
+# Copyright 2026 The Aerie Authors
+# You can use, redistribute, and/or modify this source code under
+# the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+# The filter lists (easylist.txt, easyprivacy.txt) are committed in this
+# directory. `./aerie build` checks them against filter_lists.lock.json.
+# This group exists so that the lists are part of the dependency graph: that is
+# how chrome://credits finds README.chromium and LICENSE.
+group("filter_lists") {
+  # Only the engine build may depend on the lists.
+  visibility = [ "//components/aerie_adblock:*" ]
+}

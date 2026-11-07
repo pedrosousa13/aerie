@@ -193,7 +193,7 @@ class RunCheckTest(unittest.TestCase):
         (self.repo / "helium-chromium" / "downloads.ini").write_text(
             "[c]\ndownload_filename = base.tar\noutput_path = ./\nstrip_leading_dirs = chromium-1\n")
         (self.repo / "helium-linux" / "downloads.ini").write_text("")
-        (self.repo / "helium-chromium" / "deps.ini").write_text("")
+        (self.repo / "helium-chromium" / "deps.ini").write_text("[ublock_origin]\n")
         (self.repo / "patches").mkdir()
         (self.repo / "patches" / "series").write_text("0001.patch\n")
         (self.repo / "patches" / "0001.patch").write_text(PATCH)
@@ -216,6 +216,21 @@ class RunCheckTest(unittest.TestCase):
         self.assertIn("0 failed, 0 skipped, 1 applied", logs[-1])
         self.assertEqual([p.name for p in (self.build.root / "check").iterdir()
                           if p.name not in ("sparse", "sparse.lock")], [])
+
+    def test_an_unrelated_lint_problem_still_uses_the_filtered_deps_ini(self):
+        (self.repo / "patches" / "stray.patch").write_text(PATCH)  # not in series: a lint problem
+        with mock.patch.object(patch_check.helium_deps, "write_filtered",
+                               wraps=patch_check.helium_deps.write_filtered) as filtered:
+            status, logs = self.run_check()
+        self.assertEqual(status, 1, logs)
+        self.assertTrue(any("not listed in series" in l for l in logs), logs)
+        filtered.assert_called_once()
+
+    def test_a_deps_ini_problem_falls_back_to_the_unfiltered_one(self):
+        (self.repo / "helium-chromium" / "deps.ini").write_text("[other]\ndownload_filename = x.zip\noutput_path = ./x\n")  # no [ublock_origin]
+        status, logs = self.run_check()
+        self.assertEqual(status, 1, logs)
+        self.assertTrue(any("ublock_origin" in l for l in logs), logs)
 
     def test_does_not_touch_a_fixed_work_dir(self):
         stale = self.build.root / "check" / "work"
@@ -324,7 +339,7 @@ class RealStepsTest(unittest.TestCase):
         (core / "downloads.ini").write_text(
             "[c]\ndownload_filename = base.tar\noutput_path = ./\nstrip_leading_dirs = chromium-1\n")
         (linux / "downloads.ini").write_text("")
-        (core / "deps.ini").write_text("")
+        (core / "deps.ini").write_text("[ublock_origin]\n")
         (self.repo / "patches").mkdir()
         self.pins = lock.Lock("1", "1", "t", "c", "t", "c", downloads={"base.tar": digest})
 

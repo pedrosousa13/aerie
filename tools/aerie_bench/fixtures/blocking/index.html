@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Aerie Blocking Fixture</title>
+<link rel="stylesheet" href="/blocking/page.css">
+</head>
+<body>
+<h1 id="content">First-party content</h1>
+<p>The requests below name real ad and tracker hosts. The Bench resolves nothing
+but loopback, so none of them can leave the machine: a blocker stops them
+first (net::ERR_BLOCKED_BY_CLIENT), and without one they fail to resolve.</p>
+<script src="/blocking/content.js"></script>
+<script src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js" async></script>
+<script src="https://securepubads.g.doubleclick.net/tag/js/gpt.js" async></script>
+<script src="https://connect.facebook.net/en_US/fbevents.js" async></script>
+<script src="https://static.hotjar.com/c/hotjar-1.js" async></script>
+<img src="https://www.google-analytics.com/collect?v=1&t=pageview" width="1" height="1" alt="">
+<iframe src="https://googleads.g.doubleclick.net/pagead/ads?client=ca-pub-1" width="300" height="250" title="ad"></iframe>
+<!-- Redirect chains: first-party URLs that redirect (fixtures/redirects.json). -->
+<img src="/blocking/go-tracker" width="1" height="1" alt="">
+<script src="/blocking/go-ok.js"></script>
+<script>fetch("https://www.google-analytics.com/j/collect?v=1").catch(function () {});</script>
+</body>
+</html>

@@ -120,8 +120,9 @@ Results stay in the build root. Committed baselines are issue #16's job.
 | --- | --- |
 | `smoke` | Browser launches, loads `/index.html`, the title matches, a screenshot is taken, and the browser exits with code 0 after `Browser.close`. |
 | `browser_requests` | The browser made at least one request of its own. With services required (default for the build binary and for Helium/Aerie-identified binaries): the fixture server saw a Helium services call (`/bangs.json`, `/ubo/assets.json`, `/com`, `/ext`, `/dict/`). With services optional: that, or a request to a non-loopback host in the NetLog. Waits up to `--services-wait` seconds, less if the condition is met sooner. |
-
 | `zero_traffic` | No URL request in the NetLog goes to a host on the denylist (`docs/network-denylist.md`), in three phases: first launch, 5 minutes idle, and the browse script. Fails on an empty capture. See "Zero traffic" below. |
+| `ad_blocking` | The Filter Engine works, including at redirect hops. The page `/blocking/index.html` asks for real ad and tracker URLs (scripts, an image, a subframe, a `fetch`), and for two first-party files. Every URL in `fixtures/blocking/expected.json` under `blocked` must fail with `net::ERR_BLOCKED_BY_CLIENT` (DevTools `loadingFailed`) and must not appear in the NetLog; every `allowed` path must load with status 200 and be seen by the fixture server; the first-party script must run. Two first-party URLs redirect (`fixtures/redirects.json`): `/blocking/go-tracker` to a listed tracker, whose hop must be blocked (the redirecting URL answers 302, the target fails with `ERR_BLOCKED_BY_CLIENT` and never reaches the NetLog), and `/blocking/go-ok.js` to first-party content, which must load. The blocking must be the Aerie engine's: see below. |
+| `mv2_extension` | Manifest V2 works and uBlock Origin is gone. A tiny MV2 extension (`tools/aerie_bench/extensions/mv2`) is installed with `Extensions.loadUnpacked` (the Bench's pipe session is a browser-target session, which is what allows that command; no launch flag is needed), its persistent background page must start, its content script must run on `/mv2/index.html`, its blocking `webRequest` listener must cancel `/mv2/ext-block-me.js` (`ERR_BLOCKED_BY_CLIENT`) and leave `/mv2/allowed.js` alone, and the extension itself must say it cancelled it (its background page records every cancel and the check reads that list, so the Aerie engine cannot be what blocked it), and no DevTools target may exist under the bundled uBlock Origin's component id. |
 
 `browser_requests` is a self-test for the Bench and for Helium. Aerie makes no
 requests of its own, so a plain `./aerie bench` (no `--binary`, the default
@@ -257,6 +258,43 @@ The fixture server also serves `/hardening/echo` (the request's cookie and
 host) and `/hardening/set-cookie` (a `SameSite=None; Secure` cookie), and each
 entry in `network.fixture_requests` now has `cookie`, `sec_purpose` and
 `purpose`.
+
+### The `ad_blocking` check
+
+**Status:** Helium's bundled uBlock Origin is removed (patches dropped, asset download skipped; see
+[helium-dependency-ledger.md](helium-dependency-ledger.md)), so on a real Aerie build this check can pass and
+credit the blocking to the Aerie engine. The `mv2_extension` check proves the other half: Manifest V2 still works.
+On a build that still has uBlock Origin, or on stock Chromium or Helium, it fails, which is the control.
+
+The Bench resolves nothing but loopback, so an ad URL that is not blocked fails with
+`net::ERR_NAME_NOT_RESOLVED` and shows in the NetLog, while a blocked one fails with
+`ERR_BLOCKED_BY_CLIENT` and never reaches the network stack. The check reads that
+difference. Stock Chromium and Helium (without the engine) fail it, which is the point;
+this is the control. No traffic leaves the machine either way.
+
+A build that still shipped uBlock Origin would block the same URLs with the same error. So a pass also needs the engine's own signals, read through DevTools
+`Browser.getHistogram`: `Aerie.Adblock.EngineLoadSuccess` with a true sample and no false
+one, and at least as many true `Aerie.Adblock.RequestBlocked` samples as the page has
+expected-blocked URLs. A request that uBlock Origin stops never reaches the engine.
+
+The page names real hosts, so it is the one fixture that references external URLs. A test
+(`tests/test_bench_ad_blocking.py`) keeps that to `fixtures/blocking/` and to the hosts in
+`expected.json`. The URLs are long-lived rules of big ad and analytics hosts. If a list
+update ever unblocks one, the check fails and says which.
+
+`checks[].data` also records, with no threshold:
+
+| Field | Meaning |
+| --- | --- |
+| `metrics.page_timing` | `dom_content_loaded_ms`, `load_event_ms`, `response_end_ms` of the fixture page (Navigation Timing). |
+| `metrics.resource_entries` | Number of resource timing entries. |
+| `metrics.memory` | `total_kb` and a per-process list: resident memory of the browser's whole process tree (Linux, from `/proc`). |
+| `metrics.engine_load` | Count, sum and mean in ms of the histogram `Aerie.Adblock.EngineLoadTime` (`null` if the browser has no such histogram). |
+
+The check writes `ad_blocking-recording.json` (the DevTools events, the NetLog URLs, the
+fixture server paths) to the results directory. The tests judge such recordings
+(`tests/data/ad_blocking/`); to refresh them from a real run, copy a passing recording over
+`pass.json`.
 
 ### Writing a check
 

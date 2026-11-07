@@ -1,0 +1,16 @@
+# Copyright 2026 The Aerie Authors
+# You can use, redistribute, and/or modify this source code under
+# the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+# Starts and owns the Filter Engine service from the browser's main parts. Same
+# shape as //chrome/browser/performance_monitor.
+source_set("aerie_adblock") {
+  visibility = [ "//chrome/browser:core" ]
+  public = [ "aerie_adblock_main_extra_parts.h" ]
+  sources = [ "aerie_adblock_main_extra_parts.cc" ]
+  public_deps = [ "//chrome/browser:main_extra_parts" ]
+  deps = [
+    "//base",
+    "//components/aerie_adblock/browser",
+  ]
+}

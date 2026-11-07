@@ -9,7 +9,7 @@ anything. A choice the user makes in settings is written to the pref and then wi
 
 --- a/chrome/browser/ui/browser_ui_prefs.cc
 +++ b/chrome/browser/ui/browser_ui_prefs.cc
-@@ -274,5 +274,5 @@
+@@ -273,5 +273,5 @@
  
    registry->RegisterBooleanPref(
 -      prefs::kHttpsOnlyModeEnabled, false,

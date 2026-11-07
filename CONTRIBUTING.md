@@ -8,6 +8,8 @@ python3 -m unittest discover -s tests -t . -v
 
 Python 3.11 or newer. The tests need `patch`, `tar` and `zstd` on the host, and they build their own tiny source trees. They do not download anything and do not touch a build root.
 
+Tests for the Rust side need cargo, a C++ compiler and crates.io, so they are off by default: `AERIE_TEST_CARGO=1 python3 -m unittest tests.test_adblock_rust -v`.
+
 ## The Patch Layer
 
 Aerie changes Chromium in three layers. Each layer is a quilt-style directory with a `series` file, and the build applies them in this order:
@@ -23,6 +25,26 @@ Rules for Aerie's layer:
 - Aerie patches apply with fuzz off. A context line that no longer matches is an error, not a warning.
 - Aerie patches apply last, on the tree exactly as Helium's steps leave it (after Helium's domain and name substitution, translations and version). A context line that one of those steps rewrote must match the rewritten text. Lines a patch adds are not rewritten by those steps, so write them in their final form: the lint rejects an added line that matches `helium-chromium/domain_regex.list` in a file on `domain_substitution.list`, an added `.grd`/`.grdp` line that says Chrome or Chromium, a patch that edits an `.xtb` file, and rename/copy headers.
 - Add a patch by putting the file under `patches/<area>/` and adding its path to `patches/series`. A `.patch` file that is not in the series is an error.
+
+### The overlay
+
+Aerie-owned source that is too big to live in a patch goes in `overlay/`, laid out like the Chromium tree. `./aerie build` copies it into the source tree as an Aerie layer, after the patches apply and before the Helium to Aerie substitution. The overlay only adds files: a file that already exists upstream is an error, so change upstream files with a hook patch. Files that matter only for standalone `cargo` (`Cargo.toml`, `Cargo.lock`, `target/`) are not copied. See `tools/aerie_build/overlay.py`.
+
+The Filter Engine is the first overlay user; see [docs/adblock.md](docs/adblock.md) for its build steps and its two locks (filter lists, Rust crates).
+
+### Dropping or adapting a Helium patch
+
+Aerie never edits the Helium submodules, but it can skip a Helium patch: list its series entry in `patches/helium-drop.txt`, one per line, followed by `# reason`. The build and `./aerie patches check` then apply Helium's series without it. A Helium patch that only applies on top of a dropped one can be replaced, at the same place in the series, by a copy in `patches/helium-adapted/<entry>` listed in `patches/helium-adapt.txt` (same format; the copy needs the Aerie header). The check fails if a listed entry is no longer in Helium's series, so a Helium bump surfaces it, and a test fails without a row for each entry in [docs/helium-dependency-ledger.md](docs/helium-dependency-ledger.md). A tree patched with other drops needs `./aerie build --clean`.
+
+**Re-cutting an adapted patch** (after `./aerie patches check` says "Helium's patch changed since it was adapted", or when a new drop breaks a Helium patch). Each adapted entry in `patches/helium-adapt.txt` pins the sha256 of Helium's original. To re-cut:
+
+1. Build a private sparse tree with Helium's series (minus the drops, with the other adapted copies) applied up to, not including, the entry.
+2. Apply Helium's original with rejects (`patch -p1 --forward --reject-file=...`). The hunks that fail are the ones whose context needs the dropped code. Check that each one only adds lines (a hunk that removes lines needs thought).
+3. Put each rejected hunk's added lines after the nearest context line that still exists.
+4. `diff -u` the tree before and after into `patches/helium-adapted/<entry>`, add the Aerie header, and put the sha256 of the new Helium original in `helium-adapt.txt`.
+5. Run `./aerie patches check`. It also compares the copy with the original: every added or removed line must be one of the original's, every line of hunks that do not mention uBlock Origin must still be there, and no changed line may mention it.
+
+The re-cut changes where hunks go, never what they add. Sections of Helium's `deps.ini` that Aerie does not download are in `tools/aerie_build/helium_deps.py`.
 
 ### Patch header
 
@@ -68,7 +90,7 @@ To protect another span, add a rule to `RULES` in that file and add a test. A ch
 
 ### Changing the Aerie layers of an existing tree
 
-A clean build takes about 2.5 hours and ccache helps little, so `./aerie build` keeps the source tree and `out/Default`, and re-applies the Aerie layers (the patch series and the Helium to Aerie substitution; the overlay will join them) on every run. No `--clean` is needed to add, edit, reorder or remove a patch or to change a substitution rule.
+A clean build takes about 2.5 hours and ccache helps little, so `./aerie build` keeps the source tree and `out/Default`, and re-applies the Aerie layers (the patch series, the overlay and the Helium to Aerie substitution) on every run. No `--clean` is needed to add, edit, reorder or remove a patch or to change a substitution rule.
 
 How it works (`tools/aerie_build/layers.py`):
 

@@ -1,0 +1,13 @@
+{
+  "comment": "Build-time self-checks for the compiled engine. compile_engine.py passes each entry to aerie_adblock_compile as --expect-block or --expect-allow, and the tool fails the build if the real EasyList and EasyPrivacy do not agree. They guard against an empty, truncated or wrongly parsed list. Fields: url, hostname, source_hostname, type, third_party. Pick long-lived rules only: well known ad and tracker hosts. Update with the filter list lock (docs/adblock.md).",
+  "block": [
+    {"url": "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js", "hostname": "pagead2.googlesyndication.com", "source_hostname": "news.test", "type": "script", "third_party": true},
+    {"url": "https://securepubads.g.doubleclick.net/tag/js/gpt.js", "hostname": "securepubads.g.doubleclick.net", "source_hostname": "news.test", "type": "script", "third_party": true},
+    {"url": "https://www.google-analytics.com/analytics.js", "hostname": "www.google-analytics.com", "source_hostname": "news.test", "type": "script", "third_party": true},
+    {"url": "https://connect.facebook.net/en_US/fbevents.js", "hostname": "connect.facebook.net", "source_hostname": "news.test", "type": "script", "third_party": true}
+  ],
+  "allow": [
+    {"url": "https://news.test/assets/app.js", "hostname": "news.test", "source_hostname": "news.test", "type": "script", "third_party": false},
+    {"url": "https://news.test/style.css", "hostname": "news.test", "source_hostname": "news.test", "type": "stylesheet", "third_party": false}
+  ]
+}

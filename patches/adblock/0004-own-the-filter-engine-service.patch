@@ -1,0 +1,27 @@
+Aerie-Purpose: Create and own the Filter Engine service from the browser's main parts, so it has a defined lifetime and no process-wide singleton.
+Aerie-Upstream-Area: chrome/browser/chrome_browser_main.cc (ChromeBrowserMainParts creation), chrome/browser/BUILD.gn (source_set core deps)
+Aerie-Kind: hook
+
+One AddParts() call, in the same way as ChromeBrowserMainExtraPartsMemory. The
+part (chrome/browser/aerie_adblock, in the overlay) creates the service in
+PreProfileInit(), before any URLLoaderFactory for web content exists, and
+destroys it in PostMainMessageLoopRun().
+
+--- a/chrome/browser/chrome_browser_main.cc
++++ b/chrome/browser/chrome_browser_main.cc
+@@ -36,2 +36,3 @@
+ #include "chrome/browser/browser_process_impl.h"
++#include "chrome/browser/aerie_adblock/aerie_adblock_main_extra_parts.h"
+ #include "chrome/browser/chrome_browser_main_extra_parts.h"
+@@ -845,2 +846,5 @@
+ 
++  // Aerie: owns the Filter Engine service.
++  main_parts->AddParts(std::make_unique<AerieAdblockMainExtraParts>());
++
+   chrome::AddMetricsExtraParts(main_parts.get());
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -1108,2 +1108,3 @@
+     "//chrome/browser/ai",
++    "//chrome/browser/aerie_adblock",
+     "//chrome/browser/app_mode",

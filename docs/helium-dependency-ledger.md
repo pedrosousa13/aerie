@@ -37,6 +37,44 @@ patch adds, or assumes behavior that patch sets.
 | `patches/hardening/0003-hardening-settings-page.patch`, `patches/hardening/0004-hardening-settings-page-markup.patch` | `helium-chromium/patches/helium/core/noise/core.patch` | The fingerprinting row is a toggle on the `helium.noise.enabled` pref that this patch adds. | `rewrite`: drop the row, or lift the noise patches. |
 | `patches/hardening/0004-hardening-settings-page-markup.patch` | `helium-chromium/patches/helium/core/webrtc-default-handling-policy.patch`, `helium-chromium/patches/inox-patchset/modify-default-prefs.patch` | The page, `docs/hardening.md` and the Bench check `hardening_pref_defaults` state the WebRTC, third-party cookie and preloading defaults that these patches set. Without them the Bench check fails. | `copy`: lift both patches as they are. |
 
+## Helium patches that Aerie drops or replaces
+
+`patches/helium-drop.txt` lists Helium patches that `./aerie build` and
+`./aerie patches check` skip, each with a reason. `patches/helium-adapt.txt`
+lists Helium patches that Aerie replaces, at the same place in the series, with
+a copy in `patches/helium-adapted/` (Helium's patch with the hunks re-cut that
+sat next to dropped code). One row for each entry; a test fails without it. The
+check fails if an entry is no longer in Helium's series, so a Helium bump shows
+up here. Changing either file after a tree was patched needs
+`./aerie build --clean`.
+
+The group below is Helium's bundled uBlock Origin, which Aerie replaces with
+the native Filter Engine (issue #8). The `ungoogled-chromium/extensions-manifestv2.patch`
+that keeps Manifest V2 working is a different patch and stays: none of these
+carries an MV2 enabler (checked hunk by hunk; the Bench check `mv2_extension`
+proves it on a real build).
+
+| Helium patch | Action | Why | Portable? |
+| --- | --- | --- | --- |
+| `helium-chromium/patches/helium/core/ublock-setup-sources.patch` | drop | Builds the bundled uBlock Origin into `third_party/ublock` and its resource pack. | `drop`: not needed on another base. |
+| `helium-chromium/patches/helium/core/ublock-install-as-component.patch` | drop | Loads uBlock Origin as a component extension and allowlists its id. | `drop` |
+| `helium-chromium/patches/helium/core/ublock-reconfigure-defaults.patch` | drop | Special cases for the uBlock Origin component id (permissions, incognito, pinned by default, policy). Not MV2 related. | `drop` |
+| `helium-chromium/patches/helium/core/ublock-helium-services.patch` | drop | uBlock Origin asset updates through Helium services, with the settings toggle and strings for them. | `drop` |
+| `helium-chromium/patches/helium/core/ublock-dns-uncloaking.patch` | drop | The `dns` extension API and webRequest additions that only the Helium uBlock Origin used. | `drop` |
+| `helium-chromium/patches/helium/ui/ublock-show-in-settings.patch` | drop | Shows the built-in uBlock Origin on the extensions page. | `drop` |
+| `helium-chromium/patches/helium/core/component-updates.patch` | adapt (`patches/helium-adapted/helium/core/component-updates.patch`) | Adds Helium's component update helpers next to the uBlock Origin asset helpers that are dropped; the hunks are re-cut without them. | `copy`: Helium's original on a base that keeps uBlock Origin. |
+| `helium-chromium/patches/helium/core/fixups-component-setup.patch` | adapt (`patches/helium-adapted/helium/core/fixups-component-setup.patch`) | Adds the webstore fixups component next to the uBlock Origin component lines that are dropped; the hunks are re-cut without them. | `copy` |
+| `helium-chromium/deps.ini [ublock_origin]` | not downloaded | The uBlock Origin build that `third_party/ublock` was unpacked from. `./aerie build` reads a copy of deps.ini without that section (`tools/aerie_build/helium_deps.py`). | `drop` |
+
+Issue #6's `services/0002-turn-helium-services-off.patch` has a hunk in
+`chrome/app/settings_strings.grdp` that used to have the uBlock Origin settings
+strings (added by the dropped `ublock-helium-services.patch`) as context. It is
+re-cut against the text the Aerie layers see: Helium's patches minus the drops,
+then Helium's own steps. Other Aerie patches whose files the dropped patches
+also change (`services/0002`, `services/0005`, `hardening/0001`,
+`adblock/0001`, `adblock/0002`) have line numbers that match that text, so
+`./aerie patches check` sees no offset.
+
 ## What the unmodified build takes from Helium
 
 Until Aerie has its own patches, `./aerie build` uses all of the following
@@ -59,4 +97,4 @@ row.
 | Build flags | `helium-chromium/flags.gn`, `helium-linux/flags.linux.gn` | The GN arguments for the build. `./aerie build` writes them to `args.gn`. |
 | Build utilities | `helium-chromium/utils/downloads.py`, `helium-chromium/utils/patches.py`, `helium-chromium/utils/prune_binaries.py`, `helium-chromium/utils/domain_substitution.py` | Downloading, patching and pruning. Aerie calls them as they are. |
 | Chromium source tarballs | `helium-chromium/downloads.ini`, `helium-linux/downloads.ini` | Prepared source and toolchain tarballs at `tarballs.imput.net`. The fallback is the official Chromium tarball. |
-| Bundled assets | `helium-chromium/deps.ini` | uBlock Origin build, onboarding page and search engine data, from imputnet GitHub releases. **Not covered by the Chromium tarball fallback.** |
+| Bundled assets | `helium-chromium/deps.ini` | Onboarding page and search engine data, from imputnet GitHub releases (the uBlock Origin build is dropped, see above). **Not covered by the Chromium tarball fallback.** |
