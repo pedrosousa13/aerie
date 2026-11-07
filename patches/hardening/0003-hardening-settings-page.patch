@@ -29,11 +29,11 @@ and lives in the next patch. The page copies the way Helium's fingerprinting pag
 +
 +export class AerieHardeningBrowserProxyImpl implements
 +    AerieHardeningBrowserProxy {
-+  getHttpExceptions() {
++  getHttpExceptions(): Promise<string[]> {
 +    return sendWithPromise('getAerieHttpExceptions');
 +  }
 +
-+  removeHttpException(host: string) {
++  removeHttpException(host: string): Promise<void> {
 +    return sendWithPromise('removeAerieHttpException', host);
 +  }
 +
@@ -47,7 +47,7 @@ and lives in the next patch. The page copies the way Helium's fingerprinting pag
 +}
 --- /dev/null
 +++ b/chrome/browser/resources/settings/privacy_page/hardening_page.ts
-@@ -0,0 +1,108 @@
+@@ -0,0 +1,111 @@
 +// Copyright 2026 The Aerie Authors
 +// You can use, redistribute, and/or modify this source code under
 +// the terms of the GPL-3.0 license that can be found in the LICENSE file.
@@ -67,6 +67,7 @@ and lives in the next patch. The page copies the way Helium's fingerprinting pag
 +
 +import {CrLitElement} from 'chrome://resources/lit/v3_0/lit.rollup.js';
 +
++import type {DropdownMenuOptionList} from '../controls/settings_dropdown_menu.js';
 +import {routes} from '../route.js';
 +import type {Route} from '../router.js';
 +import {SettingsViewMixinLit} from '../settings_page/settings_view_mixin_lit.js';
@@ -101,13 +102,15 @@ and lives in the next patch. The page copies the way Helium's fingerprinting pag
 +  static override get properties() {
 +    return {
 +      httpExceptions_: {type: Array},
++      menuOptions_: {type: Object},
 +    };
 +  }
 +
 +  protected accessor httpExceptions_: string[] = [];
 +
 +  // Built once, so the dropdowns do not get a new array on every render.
-+  protected readonly menuOptions_ = HARDENING_MENU_OPTIONS;
++  protected accessor menuOptions_:
++      {[controlId: string]: DropdownMenuOptionList} = HARDENING_MENU_OPTIONS;
 +
 +  private browserProxy_: AerieHardeningBrowserProxy =
 +      AerieHardeningBrowserProxyImpl.getInstance();
@@ -127,7 +130,7 @@ and lives in the next patch. The page copies the way Helium's fingerprinting pag
 +    }
 +  }
 +
-+  protected onRemoveHttpException_(e: Event) {
++  protected onRemoveHttpExceptionClick_(e: Event) {
 +    const host = (e.currentTarget as HTMLElement).dataset['host'];
 +    if (!host) {
 +      return;

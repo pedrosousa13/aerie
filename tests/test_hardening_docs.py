@@ -90,7 +90,7 @@ class MarkupTest(unittest.TestCase):
 
     def test_http_exceptions_section_and_no_i18n_syntax(self):
         self.assertIn('id="httpExceptions"', self.html)
-        self.assertIn("onRemoveHttpException_", self.html)
+        self.assertIn("onRemoveHttpExceptionClick_", self.html)
         self.assertNotIn("$i18n", self.html)
 
     def test_patch_for_markup_is_in_sync_and_has_a_header(self):

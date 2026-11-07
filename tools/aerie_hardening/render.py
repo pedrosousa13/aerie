@@ -196,7 +196,7 @@ HTTP_EXCEPTIONS = """\
         <div class="cr-row http-exception" data-host="${host}">
           <div class="flex">${host}</div>
           <cr-button class="remove-http-exception" data-host="${host}"
-              @click="${this.onRemoveHttpException_}">Remove</cr-button>
+              @click="${this.onRemoveHttpExceptionClick_}">Remove</cr-button>
         </div>
       `)}
     </div>
