@@ -231,8 +231,8 @@
     "control": {
      "state": "complete",
      "candidates": [
-      "candidate:1030674282 1 udp 2113937151 192.168.1.10 39471 typ host generation 0 ufrag 00zD network-cost 999",
-      "candidate:3087372568 1 udp 1677729535 127.0.0.1 39471 typ srflx raddr 192.168.1.10 rport 39471 generation 0 ufrag 00zD network-cost 999"
+      "candidate:1030674282 1 udp 2113937151 192.0.2.10 39471 typ host generation 0 ufrag 00zD network-cost 999",
+      "candidate:3087372568 1 udp 1677729535 127.0.0.1 39471 typ srflx raddr 192.0.2.10 rport 39471 generation 0 ufrag 00zD network-cost 999"
      ],
      "stun_requests": 1
     }
