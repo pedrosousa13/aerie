@@ -118,6 +118,45 @@ action("engine") {
   ]
 }
 
+# The phishing and malware domain list, compiled (the protection category). Same
+# rules as "engine": the list is committed and hash-checked, and a missing,
+# empty or truncated list fails the build. 50000 is a floor, not a size: Phishing
+# Army has about 145000 domains.
+_protection_out = "$target_gen_dir/engine/aerie_protection_engine.dat"
+_protection_tool = ":aerie_protection_compile($host_toolchain)"
+_protection_tool_exe = get_label_info(_protection_tool, "root_out_dir") +
+                       "/aerie_protection_compile"
+
+action("protection_engine") {
+  visibility = [ ":*" ]
+  script = "compile_protection.py"
+  deps = [
+    _protection_tool,
+    "//third_party/filter_lists",
+  ]
+  inputs = [
+    "protection_selfcheck.json",
+    "$_lists_dir/phishing_army.txt",
+    "$_lists_dir/protection_lists.lock.json",
+    _protection_tool_exe,
+  ]
+  outputs = [ _protection_out ]
+  args = [
+    "--tool",
+    rebase_path(_protection_tool_exe, root_build_dir),
+    "--out",
+    rebase_path(_protection_out, root_build_dir),
+    "--selfcheck",
+    rebase_path("protection_selfcheck.json", root_build_dir),
+    "--lock",
+    rebase_path("$_lists_dir/protection_lists.lock.json", root_build_dir),
+    "--min-entries",
+    "50000",
+    "--list",
+    rebase_path("$_lists_dir/phishing_army.txt", root_build_dir),
+  ]
+}
+
 # Packs the engine into a .pak, which chrome_paks.gni merges into
 # resources.pak. Header: components/aerie_adblock/resources/grit/
 # aerie_adblock_resources.h
@@ -130,11 +169,13 @@ grit("resources") {
   ]
   inputs = [
     _engine_out,
+    _protection_out,
     "$_lists_dir/easylist.txt",
     "$_lists_dir/easyprivacy.txt",
   ]
   deps = [
     ":engine",
+    ":protection_engine",
     "//third_party/filter_lists",
   ]
   enable_input_discovery_for_gn_analyze = false
