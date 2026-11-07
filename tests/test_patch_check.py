@@ -1,0 +1,290 @@
+import hashlib
+import json
+import os
+import subprocess
+import tempfile
+import threading
+import time
+import unittest
+import zipfile
+from pathlib import Path
+from unittest import mock
+
+from aerie_build import lock, patch_check, patches
+from aerie_build.config import BuildPaths
+
+
+def make_tarball(root: Path, name: str, files: dict[str, str]) -> Path:
+    src = root / f"src-{name}"
+    for rel, text in files.items():
+        path = src / "chromium-1" / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
+    tarball = root / f"{name}.tar"
+    subprocess.run(["tar", "-cf", str(tarball), "-C", str(src), "chromium-1"], check=True)
+    return tarball
+
+
+class EnsureSparseTest(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        self.base = make_tarball(self.root, "base", {"a/one.txt": "1", "a/two.txt": "2"})
+        self.linux = make_tarball(self.root, "linux", {"b/three.txt": "3", "a/two.txt": "2-linux"})
+        self.sparse = self.root / "sparse"
+        self.verified: list[Path] = []
+        self.sources = [
+            patch_check.Source(self.base, "chromium-1", ""),
+            patch_check.Source(self.linux, "chromium-1", ""),
+        ]
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def ensure(self, wanted, version="1", sources=None):
+        return patch_check.ensure_sparse(
+            self.sparse, version, wanted, sources or self.sources, verify=self.verified.append,
+        )
+
+    def test_extracts_from_every_source_and_returns_files_no_source_has(self):
+        missing = self.ensure(["a/one.txt", "b/three.txt", "new/created.txt"])
+        self.assertEqual(missing, ["new/created.txt"])
+        self.assertEqual((self.sparse / "a/one.txt").read_text(), "1")
+        self.assertEqual((self.sparse / "b/three.txt").read_text(), "3")
+        self.assertFalse((self.sparse / "a/two.txt").exists())
+
+    def test_later_source_overwrites_earlier_one_like_helium_unpack(self):
+        self.ensure(["a/two.txt"])
+        self.assertEqual((self.sparse / "a/two.txt").read_text(), "2-linux")
+
+    def test_sources_are_verified_before_they_are_read(self):
+        self.ensure(["a/one.txt"])
+        self.assertEqual(self.verified, [self.base, self.linux])
+
+    def test_second_run_with_same_files_reads_nothing(self):
+        self.ensure(["a/one.txt", "new/created.txt"])
+        self.verified.clear()
+        self.ensure(["a/one.txt", "new/created.txt"])
+        self.assertEqual(self.verified, [])
+
+    def test_new_wanted_file_triggers_an_incremental_extract(self):
+        self.ensure(["a/one.txt"])
+        self.verified.clear()
+        self.ensure(["a/one.txt", "b/three.txt"])
+        self.assertEqual(len(self.verified), 2)
+        self.assertTrue((self.sparse / "b/three.txt").exists())
+        self.assertTrue((self.sparse / "a/one.txt").exists())
+
+    def test_version_change_wipes_the_cache(self):
+        self.ensure(["a/one.txt"], version="1")
+        self.ensure(["b/three.txt"], version="2")
+        self.assertFalse((self.sparse / "a/one.txt").exists())
+        manifest = json.loads((self.sparse / patch_check.MANIFEST).read_text())
+        self.assertEqual(manifest["chromium_version"], "2")
+
+    def test_failed_first_population_is_not_trusted_after_the_pin_changes(self):
+        def verify(archive):
+            if archive == self.linux:
+                raise RuntimeError("boom")
+        with self.assertRaises(RuntimeError):
+            patch_check.ensure_sparse(self.sparse, "1", ["a/one.txt", "b/three.txt"], self.sources, verify)
+        self.assertTrue((self.sparse / "a/one.txt").exists())
+        self.ensure(["b/three.txt"], version="1")
+        self.assertFalse((self.sparse / "a/one.txt").exists())
+
+    def test_failed_incremental_update_wipes_the_cache_next_time(self):
+        self.ensure(["a/one.txt"])
+        def verify(archive):
+            raise RuntimeError("boom")
+        with self.assertRaises(RuntimeError):
+            patch_check.ensure_sparse(self.sparse, "1", ["a/one.txt", "b/three.txt"], self.sources, verify)
+        self.ensure(["b/three.txt"])
+        self.assertFalse((self.sparse / "a/one.txt").exists())
+
+    def test_strip_or_output_change_wipes_the_cache(self):
+        self.ensure(["a/one.txt"])
+        moved = [patch_check.Source(self.base, "chromium-1", "x"), self.sources[1]]
+        self.ensure(["b/three.txt"], sources=moved)
+        self.assertFalse((self.sparse / "a/one.txt").exists())
+
+    def test_unreadable_manifest_is_wiped_and_rebuilt(self):
+        self.ensure(["a/one.txt"])
+        (self.sparse / patch_check.MANIFEST).write_text("{not json")
+        self.assertEqual(self.ensure(["a/one.txt"]), [])
+        self.assertEqual((self.sparse / "a/one.txt").read_text(), "1")
+
+    def test_zip_and_gzip_sources_land_under_their_output_path(self):
+        zpath = self.root / "dep.zip"
+        with zipfile.ZipFile(zpath, "w") as z:
+            z.writestr("pkg/js/assets.js", "zip")
+            z.writestr("pkg/other.js", "other")
+        gz_src = self.root / "gz"
+        (gz_src / "res").mkdir(parents=True)
+        (gz_src / "res" / "x.gni").write_text("gz")
+        gz = self.root / "dep.tar.gz"
+        subprocess.run(["tar", "-czf", str(gz), "-C", str(gz_src), "."], check=True)  # members start with ./
+        sources = [
+            patch_check.Source(zpath, "pkg", "third_party/zipped"),
+            patch_check.Source(gz, "", "components/gz"),
+        ]
+        missing = self.ensure(
+            ["third_party/zipped/js/assets.js", "components/gz/res/x.gni", "components/gz/nope"], sources=sources
+        )
+        self.assertEqual(missing, ["components/gz/nope"])
+        self.assertEqual((self.sparse / "third_party/zipped/js/assets.js").read_text(), "zip")
+        self.assertEqual((self.sparse / "components/gz/res/x.gni").read_text(), "gz")
+        self.assertFalse((self.sparse / "third_party/zipped/other.js").exists())
+
+
+class SourcesFromIniTest(unittest.TestCase):
+    def test_reads_filename_strip_and_output_path_from_helium_ini_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ini = Path(tmp) / "downloads.ini"
+            ini.write_text(
+                "[chromium]\ndownload_filename = c-%(_chromium_version)s.tar.zst\n"
+                "output_path = ./\nstrip_leading_dirs = chromium-%(_chromium_version)s\n"
+                "[dep]\ndownload_filename = d.zip\noutput_path = third_party/ublock\n"
+                "strip_leading_dirs = uBlock0.chromium\n"
+                "[plain]\ndownload_filename = p.tar.gz\noutput_path = ./components/p\n"
+            )
+            sources = patch_check.sources_from_ini([ini], "9.9", Path("/dl"))
+            self.assertEqual(
+                sources,
+                [
+                    patch_check.Source(Path("/dl/c-9.9.tar.zst"), "chromium-9.9", ""),
+                    patch_check.Source(Path("/dl/d.zip"), "uBlock0.chromium", "third_party/ublock"),
+                    patch_check.Source(Path("/dl/p.tar.gz"), "", "components/p"),
+                ],
+            )
+
+
+class LayersTest(unittest.TestCase):
+    def test_layer_order_and_fuzz(self):
+        layers = patch_check.layers(Path("/r"))
+        self.assertEqual([l.label for l in layers], ["helium-chromium", "helium-linux", "aerie"])
+        self.assertEqual([l.fuzz for l in layers], [True, True, False])
+        self.assertEqual(layers[2].directory, Path("/r/patches"))
+
+
+PATCH = """Aerie-Purpose: test
+Aerie-Upstream-Area: a
+Aerie-Kind: tracer
+
+--- a/a/one.txt
++++ b/a/one.txt
+@@ -1 +1 @@
+-1
++one
+"""
+
+
+class RunCheckTest(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        root = Path(self._tmp.name)
+        self.repo = root / "repo"
+        self.build = BuildPaths(root / "build")
+        self.build.downloads.mkdir(parents=True)
+        tarball = make_tarball(self.build.downloads, "base", {"a/one.txt": "1\n"})
+        digest = hashlib.sha256(tarball.read_bytes()).hexdigest()
+        for sub in ("helium-chromium", "helium-linux"):
+            (self.repo / sub / "patches").mkdir(parents=True)
+            (self.repo / sub / "patches" / "series").write_text("")
+        (self.repo / "helium-chromium" / "downloads.ini").write_text(
+            "[c]\ndownload_filename = base.tar\noutput_path = ./\nstrip_leading_dirs = chromium-1\n")
+        (self.repo / "helium-linux" / "downloads.ini").write_text("")
+        (self.repo / "helium-chromium" / "deps.ini").write_text("")
+        (self.repo / "patches").mkdir()
+        (self.repo / "patches" / "series").write_text("0001.patch\n")
+        (self.repo / "patches" / "0001.patch").write_text(PATCH)
+        self.pins = lock.Lock("1", "1", "t", "c", "t", "c", downloads={"base.tar": digest})
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def run_check(self, log=None):
+        logs: list[str] = []
+        status = patch_check.run_check(self.repo, self.build, self.pins, log=log or logs.append)
+        return status, logs
+
+    def test_check_passes_and_leaves_no_work_dir(self):
+        status, logs = self.run_check()
+        self.assertEqual(status, 0, logs)
+        self.assertIn("0 failed, 0 skipped, 1 applied", logs[-1])
+        self.assertEqual([p.name for p in (self.build.root / "check").iterdir()
+                          if p.name not in ("sparse", "sparse.lock")], [])
+
+    def test_does_not_touch_a_fixed_work_dir(self):
+        stale = self.build.root / "check" / "work"
+        stale.mkdir(parents=True)
+        (stale / "sentinel").write_text("x")
+        status, _ = self.run_check()
+        self.assertEqual(status, 0)
+        self.assertEqual((stale / "sentinel").read_text(), "x")
+
+    def test_work_dir_is_removed_when_the_check_fails(self):
+        with mock.patch.object(patches, "apply_layers", side_effect=KeyboardInterrupt):
+            with self.assertRaises(KeyboardInterrupt):
+                self.run_check()
+        leftovers = [p.name for p in (self.build.root / "check").iterdir()
+                     if p.name not in ("sparse", "sparse.lock")]
+        self.assertEqual(leftovers, [])
+
+    def leftovers(self):
+        return [p.name for p in (self.build.root / "check").iterdir()
+                if p.name not in ("sparse", "sparse.lock")]
+
+    def test_lock_is_released_and_work_dir_removed_when_copy_fails(self):
+        with mock.patch.object(patches, "copy_tree", side_effect=RuntimeError("boom")):
+            with self.assertRaises(RuntimeError):
+                self.run_check()
+        self.assertEqual(self.leftovers(), [])
+        status, logs = self.run_check()  # would hang if the lock leaked
+        self.assertEqual(status, 0, logs)
+
+    def test_lock_is_released_when_ensure_sparse_fails(self):
+        with mock.patch.object(patch_check, "ensure_sparse", side_effect=RuntimeError("boom")):
+            with self.assertRaises(RuntimeError):
+                self.run_check()
+        self.assertEqual(self.leftovers(), [])
+        self.assertEqual(self.run_check()[0], 0)
+
+    def test_stale_work_dirs_are_swept_but_fresh_ones_kept(self):
+        check = self.build.root / "check"
+        old, fresh = check / "work-old", check / "work-fresh"
+        for d in (old, fresh):
+            d.mkdir(parents=True)
+        t = time.time() - 2 * 3600
+        os.utime(old, (t, t))
+        self.assertEqual(self.run_check()[0], 0)
+        self.assertFalse(old.exists())
+        self.assertTrue(fresh.exists())
+
+    def test_concurrent_checks_both_succeed(self):
+        for _ in range(5):
+            results: list = []
+            barrier = threading.Barrier(4)
+
+            def worker():
+                barrier.wait()
+                try:
+                    results.append(self.run_check())
+                except BaseException as exc:  # noqa: BLE001
+                    results.append(exc)
+
+            threads = [threading.Thread(target=worker) for _ in range(4)]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+            self.assertEqual(len(results), 4)
+            self.assertEqual(self.leftovers(), [])
+            for result in results:
+                self.assertNotIsInstance(result, BaseException, result)
+                status, logs = result
+                self.assertEqual(status, 0, logs)
+                self.assertIn("0 failed, 0 skipped, 1 applied", logs[-1])
+
+
+if __name__ == "__main__":
+    unittest.main()

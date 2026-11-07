@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Sequence
 
-from . import ccache, helium, lock
+from . import ccache, helium, lock, patch_check, patches, substitution
 from .config import BuildPaths, isolated_env
 
 ARCH = "x64"
@@ -156,6 +156,7 @@ def preflight(ctx: Context, log: Logger) -> None:
     version = helium.helium_version(ctx.core, ctx.platform)
     if version != ctx.pins.helium_version:
         raise BuildError(f"submodules make Helium {version}, helium.lock says {ctx.pins.helium_version}")
+    check_aerie_patches(ctx.repo)
     for directory in ctx.paths.scratch_dirs():
         directory.mkdir(parents=True, exist_ok=True)
     free = shutil.disk_usage(ctx.paths.root).free
@@ -163,6 +164,16 @@ def preflight(ctx: Context, log: Logger) -> None:
     if free < MIN_FREE_BYTES and not (ctx.tree / ".downloaded.stamp").exists():
         log("WARNING: a clean build needs about 150-200 GB; this build may run out of space")
     log(f"Helium {version} (Chromium {chromium}); source tree {ctx.tree}")
+
+
+def check_aerie_patches(repo: Path) -> None:
+    """Fail before any download when Aerie's own patch directory is malformed."""
+    problems = patches.lint_patch_dir(patch_check.layers(repo)[-1].directory)
+    if problems:
+        raise BuildError(
+            "Aerie patch series has problems:\n"
+            + "\n".join(f"  {p.patch}: {p.message}" for p in problems)
+        )
 
 
 def install_ccache(ctx: Context, log: Logger, env: dict) -> None:
@@ -258,6 +269,27 @@ def _stamped(ctx: Context, log: Logger, name: str, action: Callable[[], None]) -
     stamp.touch()
 
 
+def _aerie_substitution(ctx: Context, log: Logger, force: bool) -> None:
+    """Helium -> Aerie in the string files, after Helium's own substitution and i18n."""
+    stamp = ctx.tree / ".aeriesub.stamp"
+    digest = substitution.rules_digest()
+    if stamp.exists():
+        if stamp.read_text().strip() != digest:
+            raise BuildError(
+                "the Helium->Aerie substitution rules changed after this tree was substituted; "
+                "rebuild the source tree with: ./aerie build --clean"
+            )
+        if not force:
+            log("aeriesub: already done")
+            return
+    fingerprint = substitution.helium_fingerprint(ctx.core / "utils", ctx.tree)
+    stats = substitution.substitute_tree(
+        ctx.tree, fingerprint, state_path=ctx.tree / ".aerie-fingerprints.json")
+    log(f"Helium->Aerie: rewrote {stats.grd_files} string file(s), {stats.xtb_files} translation file(s); "
+        f"{len(stats.kept)} Helium-services message(s) left as Helium")
+    stamp.write_text(digest + "\n")
+
+
 def prepare_tree(ctx: Context, log: Logger, env: dict) -> None:
     py, core, tree, utils = ctx.python, ctx.core, ctx.tree, ctx.core / "utils"
 
@@ -268,6 +300,14 @@ def prepare_tree(ctx: Context, log: Logger, env: dict) -> None:
                   ctx.platform / "patches"], env)
 
     _stamped(ctx, log, "patched", patch)
+
+    # Aerie's patches apply right after Helium's, before any substitution.
+    aerie = patch_check.layers(ctx.repo)[-1]
+    applied_now = patches.apply_series(tree, aerie, tree / ".aerie-patches.json", log)
+    if applied_now and (tree / ".namesub.stamp").exists():
+        log("WARNING: this tree was substituted before Aerie's patches were applied to it; "
+            "run ./aerie build --clean for a tree identical to a fresh build")
+
     _stamped(ctx, log, "domsub", lambda: run(log, [
         py, utils / "domain_substitution.py", "apply", "-r", core / "domain_regex.list",
         "-f", core / "domain_substitution.list", tree], env))
@@ -275,6 +315,7 @@ def prepare_tree(ctx: Context, log: Logger, env: dict) -> None:
         py, utils / "name_substitution.py", "--sub", "-t", tree,
         "--backup-path", tree / ".aerie-namesubs.tar"], env))
     _stamped(ctx, log, "i18n", lambda: run(log, [py, utils / "i18n_apply.py", "-t", tree], env))
+    _aerie_substitution(ctx, log, force=bool(applied_now))
     _stamped(ctx, log, "version", lambda: run(log, [
         py, utils / "helium_version.py", "--tree", core, "--platform-tree", ctx.platform,
         "--chromium-tree", tree], env))

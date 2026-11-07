@@ -9,7 +9,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import ccache, config, lock, pipeline, prune
+from . import ccache, config, lock, patch_check, pipeline, prune
 
 REPO = Path(__file__).resolve().parents[2]
 LOCK_PATH = REPO / "helium.lock"
@@ -65,6 +65,11 @@ def cmd_prune(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_patches_check(args: argparse.Namespace) -> int:
+    ctx = _context(args)
+    return patch_check.run_check(REPO, ctx.paths, ctx.pins)
+
+
 def cmd_info(args: argparse.Namespace) -> int:
     ctx = _context(args)
     print(f"helium version   {ctx.pins.helium_version} (Chromium {ctx.pins.chromium_version})")
@@ -100,6 +105,15 @@ def main(argv: list[str] | None = None) -> int:
     p_info = sub.add_parser("info", help="print the build root layout and binary path")
     _add_common(p_info)
     p_info.set_defaults(func=cmd_info)
+
+    p_patches = sub.add_parser("patches", help="work with the Aerie patch series")
+    patches_sub = p_patches.add_subparsers(dest="patches_command", required=True)
+    p_check = patches_sub.add_parser(
+        "check",
+        help="check that Helium's and Aerie's patches all apply to the pinned Chromium (sparse tree)",
+    )
+    _add_common(p_check)
+    p_check.set_defaults(func=cmd_patches_check)
 
     args = parser.parse_args(argv)
     try:
