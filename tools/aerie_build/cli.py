@@ -9,7 +9,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import ccache, config, fallback, filter_lists, lock, patch_check, pipeline, prune, rust_crates
+from . import ccache, config, fallback, filter_lists, lock, patch_check, pipeline, protection_lists, prune, rust_crates
 
 REPO = Path(__file__).resolve().parents[2]
 LOCK_PATH = REPO / "helium.lock"
@@ -92,6 +92,7 @@ def cmd_patches_gates(args: argparse.Namespace) -> int:
 
 def cmd_lists_update(args: argparse.Namespace) -> int:
     filter_lists.update(filter_lists.lock_path(REPO))
+    protection_lists.update(protection_lists.lock_path(REPO))  # phishing and malware lists, same run
     print("lists and lock rewritten; review the diff, check the new lists, commit.")
     return 0
 
