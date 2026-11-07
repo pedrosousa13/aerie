@@ -1,6 +1,6 @@
 Aerie-Purpose: Set the product name to Aerie in the build's branding values, the first tracer for the Aerie patch layer.
-Aerie-Upstream-Area: chrome/app/theme/chromium/BRANDING (PRODUCT_* values; company, copyright and bundle id lines stay Helium for now)
-Aerie-Kind: tracer
+Aerie-Upstream-Area: chrome/app/theme/chromium/BRANDING (PRODUCT_*, COMPANY_* and COPYRIGHT values; the macOS bundle id and team id lines stay Helium's)
+Aerie-Kind: branding
 
 The strings users read (window title, About page, menus) come from the
 Helium->Aerie substitution pass, not from this patch.
@@ -8,16 +8,19 @@ Helium->Aerie substitution pass, not from this patch.
 --- a/chrome/app/theme/chromium/BRANDING
 +++ b/chrome/app/theme/chromium/BRANDING
 @@ -1,9 +1,9 @@
- COMPANY_FULLNAME=The Helium Authors
- COMPANY_SHORTNAME=The Helium Authors
+-COMPANY_FULLNAME=The Helium Authors
+-COMPANY_SHORTNAME=The Helium Authors
 -PRODUCT_FULLNAME=Helium
 -PRODUCT_SHORTNAME=Helium
 -PRODUCT_INSTALLER_FULLNAME=Helium Installer
 -PRODUCT_INSTALLER_SHORTNAME=Helium Installer
+-COPYRIGHT=Copyright @LASTCHANGE_YEAR@ The Helium Authors. All rights reserved.
++COMPANY_FULLNAME=The Aerie Authors
++COMPANY_SHORTNAME=The Aerie Authors
 +PRODUCT_FULLNAME=Aerie
 +PRODUCT_SHORTNAME=Aerie
 +PRODUCT_INSTALLER_FULLNAME=Aerie Installer
 +PRODUCT_INSTALLER_SHORTNAME=Aerie Installer
- COPYRIGHT=Copyright @LASTCHANGE_YEAR@ The Helium Authors. All rights reserved.
++COPYRIGHT=Copyright @LASTCHANGE_YEAR@ The Aerie Authors. All rights reserved.
  MAC_BUNDLE_ID=net.imput.helium
  MAC_CREATOR_CODE=Cr24

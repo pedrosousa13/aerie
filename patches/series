@@ -2,6 +2,7 @@
 # Header convention: see CONTRIBUTING.md.
 
 branding/0001-set-product-name.patch
+branding/0002-aerie-internal-scheme.patch
 services/0001-add-extension-proxy-validator.patch
 services/0002-turn-helium-services-off.patch
 services/0003-extension-proxy-not-configured.patch
