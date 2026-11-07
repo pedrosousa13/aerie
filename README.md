@@ -14,6 +14,7 @@ A Google-free, hardened Chromium browser built on top of
 | `aerie` | The one entry point: `./aerie build`, `./aerie prune`, `./aerie info`. |
 | `tools/aerie_build/` | The build tooling (Python 3.11+, standard library only). |
 | `tools/requirements.txt` | Hash-pinned Python packages for Helium's utilities (Pillow), installed into the build root. |
+| `tools/aerie_bench/` | The Aerie Bench: `./aerie bench` launches a built browser, drives it and records its traffic. See [docs/bench.md](docs/bench.md). |
 | `tests/` | Unit tests for the build tooling. |
 | `patches/` | Aerie's own patch series, applied on top of Helium's. See [CONTRIBUTING.md](CONTRIBUTING.md). |
 
