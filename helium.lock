@@ -1,0 +1,31 @@
+# Aerie source lock. Bump this file, the two submodules and nothing else
+# when moving to a new Helium release (see README "Updating Helium").
+
+[helium]
+# Helium release this tree builds: helium-linux tag 0.21.1.1.
+version = "0.21.1.1"
+chromium_version = "157.0.8103.38"
+# helium-chromium submodule -> github.com/imputnet/helium
+core_tag = "0.21.1"
+core_commit = "ecb36f09c4a4140e4cf4e67e77a3150bf3f3e7eb"
+# helium-linux submodule -> github.com/imputnet/helium-linux
+platform_tag = "0.21.1.1"
+platform_commit = "4da5fdc8f90175592f62b6a3f62e90a65e171789"
+
+# sha256 of every file Helium's downloads INI files fetch. Values are copied
+# from the publisher: the prepared Chromium tarballs from the SHA256SUMS of
+# github.com/imputnet/chromium-tarballs release chromium-157.0.8103.38, the
+# rest from helium-chromium/deps.ini. The build refuses any download that is
+# not listed here or does not match.
+[downloads]
+"chromium-157.0.8103.38-base.tar.zst" = "a1f8fba6dd1657dc7e7e639b80f9d8419c5523df1f37f7d8d44a3fdeb6f859f3"
+"chromium-157.0.8103.38-linux-x64.tar.zst" = "da5817db6880ee37aa8148517711e461923ad0b749abc71df270c02bf0afcdb2"
+"nonfree-search-engines-data-202609082320.tar.gz" = "2a8d63af41454446d64bb5f19786d908419265f152adaff087132d8e0cda51a7"
+"onboarding-page-202610161403.tar.gz" = "b35de6deb79e0864f53a0a70ea8819cecd46843a3b0518a20dd6a6b7d26900ac"
+"ublock-origin-1.75.4.zip" = "5b5459231996a67de3d76b24260866227204902656cba193195da5bd95622aee"
+
+# Build tools Aerie installs into the build root.
+[tools.ccache]
+version = "4.14.2"
+url = "https://github.com/ccache/ccache/releases/download/v4.14.2/ccache-4.14.2-linux-x86_64-musl-static.tar.xz"
+sha256 = "b20ff6415151226ac5a10dfd6839700c694bd67d1871c8fddb266d366ff25bfb"
