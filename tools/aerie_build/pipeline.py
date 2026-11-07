@@ -73,7 +73,7 @@ class Context:
 
     @property
     def binary(self) -> Path:
-        return self.out_dir / "helium"
+        return self.out_dir / "aerie"
 
     @property
     def ccache_bin(self) -> Path:

@@ -91,6 +91,11 @@ class FetchSourcesTest(unittest.TestCase):
     def unpack_calls(self):
         return [c for c in self.ran if "unpack" in map(str, c)]
 
+    def test_the_built_executable_is_named_aerie(self):
+        # patches/branding/0004 renames Helium's executable; the build must look for the new name.
+        self.assertEqual(self.ctx.binary.name, "aerie")
+        self.assertEqual(self.ctx.binary.parent, self.ctx.out_dir)
+
     def test_already_unpacked_tree_still_verifies_downloads(self):
         self.mark_unpacked()
         (self.paths.downloads / "base.tar.zst").write_bytes(b"tampered")

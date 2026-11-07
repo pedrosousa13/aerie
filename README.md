@@ -59,7 +59,7 @@ Do not use `--recursive`: `helium-linux` has its own copy of
 `helium-chromium` as a nested submodule, which Aerie does not use.
 
 The browser ends up at
-`<build root>/src/helium-<version>/out/Default/helium`; `./aerie info` prints
+`<build root>/src/helium-<version>/out/Default/aerie`; `./aerie info` prints
 the exact path.
 
 #### Running it: the sandbox on Ubuntu 23.10+
@@ -71,16 +71,19 @@ AppArmor profile like the one Ubuntu ships for Chrome (adjust the path if
 your build root differs):
 
 ```sh
-sudo tee /etc/apparmor.d/aerie-helium >/dev/null <<'PROFILE'
+sudo tee /etc/apparmor.d/aerie >/dev/null <<'PROFILE'
 abi <abi/4.0>,
 include <tunables/global>
-profile aerie-helium /mnt/linux2/aerie-build/src/helium-*/out/Default/helium flags=(unconfined) {
+profile aerie /mnt/linux2/aerie-build/src/helium-*/out/Default/aerie flags=(unconfined) {
   userns,
-  include if exists <local/aerie-helium>
+  include if exists <local/aerie>
 }
 PROFILE
-sudo apparmor_parser -r /etc/apparmor.d/aerie-helium
+sudo apparmor_parser -r /etc/apparmor.d/aerie
 ```
+
+The executable used to be called `helium`. If you made the older `aerie-helium`
+profile, remove it (`sudo rm /etc/apparmor.d/aerie-helium`) and reload.
 
 For a quick check without root you can pass `--no-sandbox`, but that turns
 off Chromium's renderer sandbox: use it only for local smoke tests.
