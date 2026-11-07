@@ -13,16 +13,26 @@
 //! * Nothing here may panic on any input. In Chromium, Rust is built with
 //!   `panic=abort`, so a panic would take the browser down. Lists and
 //!   serialized engines are treated as untrusted bytes.
-//! * Only network rules are loaded. Cosmetic filters, scriptlets and
-//!   redirect resources are out of scope for the first Filter Engine.
+//! * Network rules and plain element-hiding rules (`##selector`, `#@#`)
+//!   are loaded. Scriptlets (`+js`), procedural and style-injection
+//!   cosmetic rules and redirect resources are not: `sanitize_list`
+//!   drops those lines, so no list can make the engine produce script.
+//! * The only cosmetic output is a stylesheet of `display:none` rules,
+//!   one per selector, and every selector in it passed `is_safe_selector`.
 //! * Requests are described by values the browser already computed
-//!   (hostnames and the third-party flag). `adblock`'s own domain
-//!   resolver is never used.
+//!   (hostnames and the third-party flag), so network matching never
+//!   asks `adblock` for a registrable domain. The cosmetic functions
+//!   take a page URL and `adblock` has to find its domain (for
+//!   `site.*##rule` entities). The embedded resolver is off, and
+//!   `adblock` panics without one, so `AerieDomainResolver` is
+//!   installed first. See its documentation for the limits.
 
 use adblock::Engine;
 use adblock::lists::{FilterSet, ParseOptions, RuleTypes};
 use adblock::request::Request;
+use std::collections::BTreeSet;
 use std::fmt;
+use std::sync::Once;
 
 /// Longest filter list text accepted, in bytes. EasyList and EasyPrivacy
 /// together are well under 10 MiB. A bigger input is refused whole.
@@ -31,6 +41,25 @@ pub const MAX_LIST_BYTES: usize = 32 * 1024 * 1024;
 /// Longest single line kept, in bytes. Longer lines are dropped before
 /// parsing, so one hostile line cannot make the parser or a regex big.
 pub const MAX_LINE_BYTES: usize = 8 * 1024;
+
+/// Longest selector kept, in bytes.
+pub const MAX_SELECTOR_BYTES: usize = 2 * 1024;
+
+/// Most selectors in one stylesheet.
+pub const MAX_COSMETIC_SELECTORS: usize = 20_000;
+
+/// Largest stylesheet returned, in bytes.
+pub const MAX_COSMETIC_CSS_BYTES: usize = 1024 * 1024;
+
+/// Most class names, and most ids, read from a page for generic hides. The
+/// rest are ignored.
+pub const MAX_PAGE_TOKENS: usize = 5_000;
+
+/// Longest class name or id read from a page, in bytes.
+pub const MAX_TOKEN_BYTES: usize = 256;
+
+/// Longest page URL the cosmetic functions look at, in bytes.
+pub const MAX_URL_BYTES: usize = 8 * 1024;
 
 /// Largest serialized engine accepted, in bytes.
 pub const MAX_SERIALIZED_BYTES: usize = 256 * 1024 * 1024;
@@ -115,7 +144,7 @@ pub struct FilterEngine {
 }
 
 fn parse_options() -> ParseOptions {
-    ParseOptions { rule_types: RuleTypes::NetworkOnly, ..ParseOptions::default() }
+    ParseOptions { rule_types: RuleTypes::All, ..ParseOptions::default() }
 }
 
 /// An exception rule with no pattern (`@@`, `@@$image`, `@@*`, `@@||`)
@@ -129,8 +158,183 @@ fn is_match_all_exception(line: &str) -> bool {
     matches!(pattern, "" | "*" | "|" | "||" | "^")
 }
 
+/// Finds the registrable domain of a host for `adblock`'s cosmetic
+/// matching. The embedded public suffix list is not compiled in (no extra
+/// crate to vet), so this is a heuristic: the last two labels, or the last
+/// three when the second last is a common generic label (`co`, `com`,
+/// `org`...) and the last is a two letter country code (`example.co.uk`).
+/// IP addresses and single labels are kept whole. The only effect of a
+/// wrong answer is on entity rules (`site.*##rule`) for unusual suffixes:
+/// a hide that should apply may not. It cannot make a hide apply to a site
+/// it should not, because `domain##rule` matching uses the full host.
+pub struct AerieDomainResolver;
+
+impl adblock::url_parser::ResolvesDomain for AerieDomainResolver {
+    fn get_host_domain(&self, host: &str) -> (usize, usize) {
+        let whole = (0, host.len());
+        if host.contains(':') || host.chars().all(|c| c.is_ascii_digit() || c == '.') {
+            return whole;
+        }
+        let dots: Vec<usize> = host.match_indices('.').map(|(i, _)| i).collect();
+        let Some(&last_dot) = dots.last() else {
+            return whole;
+        };
+        let tld = &host[last_dot + 1..];
+        let keep = match dots.len() {
+            0 | 1 => return whole,
+            n => {
+                let second = &host[dots[n - 2] + 1..last_dot];
+                let generic = matches!(second, "co" | "com" | "org" | "net" | "gov" | "edu" | "ac" | "or" | "ne" | "go");
+                if generic && tld.len() == 2 { 3 } else { 2 }
+            }
+        };
+        if dots.len() < keep {
+            return whole;
+        }
+        (dots[dots.len() - keep] + 1, host.len())
+    }
+}
+
+static INSTALL_RESOLVER: Once = Once::new();
+
+/// Install `AerieDomainResolver` for `adblock`, once per process. A
+/// resolver set by someone else stays.
+fn install_domain_resolver() {
+    INSTALL_RESOLVER.call_once(|| {
+        let _ = adblock::url_parser::set_domain_resolver(Box::new(AerieDomainResolver));
+    });
+}
+
+/// Cosmetic rule markers that are not plain element hiding: HTML filtering,
+/// scriptlets, procedural cosmetics and style injection, and their
+/// exceptions. Lines with one of these are dropped.
+const NON_PLAIN_COSMETIC_MARKERS: [&str; 6] = ["#?#", "#@?#", "#$#", "#@$#", "#%#", "#@%#"];
+
+/// What a list line is, as far as Aerie cares.
+enum LineKind<'a> {
+    Network,
+    /// `##` or `#@#` with the selector text that follows.
+    PlainHide(&'a str),
+    /// A cosmetic rule Aerie does not keep.
+    OtherCosmetic,
+}
+
+fn classify_line(line: &str) -> LineKind<'_> {
+    if line.starts_with('!') {
+        return LineKind::Network; // a comment; the parser ignores it
+    }
+    let plain = [line.find("##").map(|i| (i, 2)), line.find("#@#").map(|i| (i, 3))]
+        .into_iter()
+        .flatten()
+        .min_by_key(|(i, _)| *i);
+    let other = NON_PLAIN_COSMETIC_MARKERS.iter().filter_map(|m| line.find(m)).min();
+    match (plain, other) {
+        (Some((i, len)), None) => LineKind::PlainHide(&line[i + len..]),
+        (Some((i, len)), Some(o)) => {
+            if i < o { LineKind::PlainHide(&line[i + len..]) } else { LineKind::OtherCosmetic }
+        }
+        (None, Some(_)) => LineKind::OtherCosmetic,
+        (None, None) => LineKind::Network,
+    }
+}
+
+/// Is this CSS selector text fit to put in a stylesheet that Aerie writes?
+///
+/// Strict on purpose. The text comes from a filter list, and a stylesheet
+/// is built from it. Allowed: plain selector text with balanced brackets,
+/// parentheses and quotes (quotes only inside them). Refused: anything
+/// that could end the rule or start another (`{`, `}`, `;`), comments,
+/// backslash escapes, `<`, `@`-rules, `url(`, control characters, the
+/// scriptlet and HTML-filter prefixes (`+js(`, `^`), the action pseudos
+/// `:style(` and `:remove(`, and anything over `MAX_SELECTOR_BYTES`.
+pub fn is_safe_selector(selector: &str) -> bool {
+    if selector.is_empty() || selector.len() > MAX_SELECTOR_BYTES || selector.trim().is_empty() {
+        return false;
+    }
+    if selector.starts_with(['+', '^', '@']) {
+        return false;
+    }
+    let lower = selector.to_ascii_lowercase();
+    if lower.contains("url(") || lower.contains(":style(") || lower.contains(":remove(") || lower.contains("/*") || lower.contains("*/") {
+        return false;
+    }
+    let mut quote: Option<char> = None;
+    let mut brackets = 0usize;
+    let mut parens = 0usize;
+    for c in selector.chars() {
+        if c.is_control() || matches!(c, '{' | '}' | ';' | '<' | '\\') {
+            return false;
+        }
+        if let Some(q) = quote {
+            if c == q {
+                quote = None;
+            }
+            continue;
+        }
+        match c {
+            '"' | '\'' => {
+                if brackets == 0 && parens == 0 {
+                    return false;
+                }
+                quote = Some(c);
+            }
+            '@' => return false,
+            '[' => brackets += 1,
+            ']' => match brackets.checked_sub(1) {
+                Some(n) => brackets = n,
+                None => return false,
+            },
+            '(' => parens += 1,
+            ')' => match parens.checked_sub(1) {
+                Some(n) => parens = n,
+                None => return false,
+            },
+            _ => {}
+        }
+    }
+    quote.is_none() && brackets == 0 && parens == 0
+}
+
+/// The stylesheet that hides `selectors`: one `selector{display:none!important}`
+/// line each, sorted, without duplicates. A selector that fails
+/// `is_safe_selector` is skipped. Stops at `MAX_COSMETIC_SELECTORS` rules
+/// or `MAX_COSMETIC_CSS_BYTES` bytes. One rule per selector, because a
+/// selector that a browser cannot parse voids a whole comma list.
+pub fn hide_stylesheet<S: AsRef<str>>(selectors: impl IntoIterator<Item = S>) -> String {
+    const TAIL: &str = "{display:none!important}\n";
+    let safe: BTreeSet<String> = selectors
+        .into_iter()
+        .filter(|s| is_safe_selector(s.as_ref()))
+        .map(|s| s.as_ref().to_string())
+        .collect();
+    let mut css = String::new();
+    for (count, selector) in safe.iter().enumerate() {
+        if count >= MAX_COSMETIC_SELECTORS || css.len() + selector.len() + TAIL.len() > MAX_COSMETIC_CSS_BYTES {
+            break;
+        }
+        css.push_str(selector);
+        css.push_str(TAIL);
+    }
+    css
+}
+
+/// Whitespace-separated class names or ids from a page, as a set: no
+/// control characters, none over `MAX_TOKEN_BYTES`, at most `MAX_PAGE_TOKENS`.
+fn page_tokens(text: &str) -> BTreeSet<&str> {
+    text.split_ascii_whitespace()
+        .filter(|t| t.len() <= MAX_TOKEN_BYTES && !t.chars().any(char::is_control))
+        .take(MAX_PAGE_TOKENS)
+        .collect()
+}
+
+fn is_web_url(url: &str) -> bool {
+    url.len() <= MAX_URL_BYTES
+        && ["http://", "https://"].iter().any(|p| url.get(..p.len()).is_some_and(|s| s.eq_ignore_ascii_case(p)))
+}
+
 /// Make list bytes safe to parse: lossy UTF-8, NULs and carriage returns
-/// gone, over-long lines and match-all exceptions dropped. Never fails and
+/// gone, over-long lines and match-all exceptions dropped, and every
+/// cosmetic rule that is not a plain hide with a safe selector dropped. Never fails and
 /// never panics.
 pub fn sanitize_list(bytes: &[u8]) -> String {
     let text = String::from_utf8_lossy(bytes);
@@ -139,6 +343,11 @@ pub fn sanitize_list(bytes: &[u8]) -> String {
         let line = line.trim_end_matches('\r');
         if line.len() > MAX_LINE_BYTES || line.contains('\0') || is_match_all_exception(line) {
             continue;
+        }
+        match classify_line(line) {
+            LineKind::Network => {}
+            LineKind::PlainHide(selector) if is_safe_selector(selector) => {}
+            LineKind::PlainHide(_) | LineKind::OtherCosmetic => continue,
         }
         out.push_str(line);
         out.push('\n');
@@ -153,6 +362,7 @@ impl FilterEngine {
     }
 
     fn from_filter_set(set: FilterSet) -> Self {
+        install_domain_resolver();
         FilterEngine { engine: Engine::new_with_filter_set(set) }
     }
 
@@ -203,6 +413,35 @@ impl FilterEngine {
             "",
         );
         self.engine.check_network_request(&req).should_block()
+    }
+
+    /// The stylesheet to inject into a page as soon as it commits: rules
+    /// for this site, and the generic rules that do not start with a class
+    /// or id. Empty for a URL that is not http(s). See `hide_stylesheet`.
+    pub fn cosmetic_stylesheet(&self, page_url: &str) -> String {
+        if !is_web_url(page_url) {
+            return String::new();
+        }
+        install_domain_resolver();
+        let resources = self.engine.url_cosmetic_resources(page_url);
+        hide_stylesheet(resources.hide_selectors)
+    }
+
+    /// The generic rules for the classes and ids that a page uses (each a
+    /// whitespace-separated list). Empty when the site has a `$generichide`
+    /// exception or the URL is not http(s). Pass the page's classes and ids
+    /// when it has loaded, and again when more appear.
+    pub fn generic_stylesheet(&self, page_url: &str, classes: &str, ids: &str) -> String {
+        if !is_web_url(page_url) {
+            return String::new();
+        }
+        install_domain_resolver();
+        let resources = self.engine.url_cosmetic_resources(page_url);
+        if resources.generichide {
+            return String::new();
+        }
+        let selectors = self.engine.hidden_class_id_selectors(page_tokens(classes), page_tokens(ids), &resources.exceptions);
+        hide_stylesheet(selectors)
     }
 }
 

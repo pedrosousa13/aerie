@@ -32,6 +32,10 @@ def probe(entry):
                      "true" if entry["third_party"] else "false"])
 
 
+def cosmetic_probe(entry):
+    return "|".join([entry["url"], entry["classes"], entry["ids"], entry["selector"]])
+
+
 def main(argv):
     ap = argparse.ArgumentParser()
     ap.add_argument("--tool", required=True)
@@ -62,6 +66,10 @@ def main(argv):
         cmd += ["--expect-block", probe(entry)]
     for entry in checks["allow"]:
         cmd += ["--expect-allow", probe(entry)]
+    for entry in checks.get("hide", []):
+        cmd += ["--expect-hide", cosmetic_probe(entry)]
+    for entry in checks.get("keep", []):
+        cmd += ["--expect-keep", cosmetic_probe(entry)]
     cmd += args.lists
     if os.path.exists(args.out):
         os.unlink(args.out)

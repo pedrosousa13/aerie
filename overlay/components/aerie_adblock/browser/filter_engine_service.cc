@@ -4,6 +4,7 @@
 
 #include "components/aerie_adblock/browser/filter_engine_service.h"
 
+#include <algorithm>
 #include <utility>
 
 #include "base/containers/span.h"
@@ -38,12 +39,33 @@ class FilterEngineService::Host {
     return engine_.ShouldBlock(request);
   }
 
+  std::string CosmeticStylesheet(const std::string& page_url) {
+    return engine_.CosmeticStylesheet(page_url);
+  }
+
+  std::string GenericStylesheet(const std::string& page_url,
+                                const std::string& classes,
+                                const std::string& ids) {
+    return engine_.GenericStylesheet(page_url, classes, ids);
+  }
+
  private:
   AdblockEngine engine_;
 };
 
 namespace {
 FilterEngineService* g_process_instance = nullptr;
+
+// Records how many rules the engine gave for one stylesheet, then passes it
+// on. The Bench reads the histogram to tell the engine's rules from any other
+// CSS on the page.
+void ReportStylesheet(FilterEngineService::StylesheetCallback callback,
+                      std::string stylesheet) {
+  base::UmaHistogramCounts10000(
+      "Aerie.Adblock.CosmeticRuleCount",
+      static_cast<int>(std::ranges::count(stylesheet, '\n')));
+  std::move(callback).Run(std::move(stylesheet));
+}
 }  // namespace
 
 // static
@@ -100,6 +122,44 @@ void FilterEngineService::ShouldBlock(ClassifiedRequest request,
   host_.AsyncCall(&Host::ShouldBlock)
       .WithArgs(std::move(request))
       .Then(std::move(callback));
+}
+
+void FilterEngineService::GetCosmeticStylesheet(const GURL& top_level_url,
+                                                const GURL& page_url,
+                                                StylesheetCallback callback) {
+  if (!started_ || !page_url.SchemeIsHTTPOrHTTPS() ||
+      !IsCosmeticFilteringEnabled(top_level_url)) {
+    std::move(callback).Run(std::string());
+    return;
+  }
+  host_.AsyncCall(&Host::CosmeticStylesheet)
+      .WithArgs(page_url.spec())
+      .Then(base::BindOnce(&ReportStylesheet, std::move(callback)));
+}
+
+void FilterEngineService::GetGenericStylesheet(const GURL& top_level_url,
+                                               const GURL& page_url,
+                                               std::string classes,
+                                               std::string ids,
+                                               StylesheetCallback callback) {
+  if (!started_ || !page_url.SchemeIsHTTPOrHTTPS() ||
+      !IsCosmeticFilteringEnabled(top_level_url)) {
+    std::move(callback).Run(std::string());
+    return;
+  }
+  host_.AsyncCall(&Host::GenericStylesheet)
+      .WithArgs(page_url.spec(), std::move(classes), std::move(ids))
+      .Then(base::BindOnce(&ReportStylesheet, std::move(callback)));
+}
+
+void FilterEngineService::SetCosmeticFilteringPolicy(
+    CosmeticPolicyCallback policy) {
+  cosmetic_policy_ = std::move(policy);
+}
+
+bool FilterEngineService::IsCosmeticFilteringEnabled(
+    const GURL& top_level_url) const {
+  return cosmetic_policy_.is_null() || cosmetic_policy_.Run(top_level_url);
 }
 
 void FilterEngineService::OnLoaded(bool ok, base::TimeDelta elapsed) {

@@ -258,6 +258,48 @@ class RepoLockTest(unittest.TestCase):
             self.assertEqual(proc.returncode, 0, proc.stderr)
             self.assertTrue((tmp / "gen/engine.dat").is_file())
 
+    def test_compile_engine_passes_cosmetic_self_checks_to_the_tool(self):
+        import subprocess
+        import sys
+        script = REPO / "overlay/components/aerie_adblock/compile_engine.py"
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            data = tmp / "easylist.txt"
+            data.write_bytes(A)
+            lock = tmp / "lock.json"
+            lock.write_text(json.dumps({"lists": [{"file": "easylist.txt", "sha256": hashlib.sha256(A).hexdigest()}]}))
+            selfcheck = tmp / "selfcheck.json"
+            selfcheck.write_text(json.dumps({
+                "block": [], "allow": [],
+                "hide": [{"url": "https://news.test/", "classes": "ad-slot", "ids": "adbox", "selector": ".ad-slot"}],
+                "keep": [{"url": "https://news.test/", "classes": "story", "ids": "", "selector": ".story"}]}))
+            args_file = tmp / "args.txt"
+            tool = tmp / "aerie_adblock_compile"
+            tool.write_text(f'#!/bin/sh\nprintf "%s\\n" "$@" > {args_file}\n'
+                            'while [ "$1" != --out ]; do shift; done\necho engine > "$2"\n')
+            tool.chmod(0o755)
+            proc = subprocess.run(
+                [sys.executable, "-I", str(script), "--tool", str(tool), "--out", str(tmp / "gen/engine.dat"),
+                 "--selfcheck", str(selfcheck), "--lock", str(lock), "--list", str(data)],
+                capture_output=True, text=True)
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            args = args_file.read_text().splitlines()
+            self.assertIn("--expect-hide", args)
+            self.assertIn("https://news.test/|ad-slot|adbox|.ad-slot", args)
+            self.assertIn("--expect-keep", args)
+            self.assertIn("https://news.test/|story||.story", args)
+
+    def test_selfcheck_json_has_cosmetic_checks_that_the_lists_back(self):
+        selfcheck = json.loads((REPO / "overlay/components/aerie_adblock/selfcheck.json").read_text())
+        easylist = (REPO / "overlay/third_party/filter_lists/easylist.txt").read_text().splitlines()
+        self.assertTrue(selfcheck["hide"] and selfcheck["keep"])
+        for item in selfcheck["hide"]:
+            self.assertTrue(any(line == "##" + item["selector"] for line in easylist), f"EasyList has no ##{item['selector']}")
+        for item in selfcheck["keep"]:
+            self.assertFalse(any(line.endswith("##" + item["selector"]) or line.endswith("#@#" + item["selector"])
+                             for line in easylist),
+                             f"EasyList hides {item['selector']}")
+
 
 if __name__ == "__main__":
     unittest.main()

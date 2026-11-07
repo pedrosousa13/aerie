@@ -14,3 +14,21 @@ source_set("aerie_adblock") {
     "//components/aerie_adblock/browser",
   ]
 }
+
+# Cosmetic filtering: hides what the Filter Engine's hide rules name, tab by
+# tab. Attached to each tab by patches/adblock/0007; the only user is
+# TabFeatures (//chrome/browser/ui/tabs:impl).
+source_set("tab_helper") {
+  visibility = [ "//chrome/browser/ui/tabs:impl" ]
+  sources = [
+    "aerie_cosmetic_tab_helper.cc",
+    "aerie_cosmetic_tab_helper.h",
+  ]
+  deps = [
+    "//base",
+    "//components/aerie_adblock/browser:cosmetic_scripts",
+    "//components/aerie_adblock/browser:service",
+    "//content/public/browser",
+    "//url",
+  ]
+}

@@ -5,6 +5,7 @@
 #include "components/aerie_adblock/browser/adblock_engine.h"
 
 #include <cstdint>
+#include <string>
 #include <vector>
 
 #include "testing/gtest/include/gtest/gtest.h"
@@ -46,6 +47,38 @@ TEST(AdblockEngineTest, NonAsciiRequestIsNeverPassedToRust) {
   AdblockEngine engine;
   engine.LoadListForTesting("||ads.example^\n");
   EXPECT_FALSE(engine.ShouldBlock(Script("https://ads.example/\xc3\xa9", "ads.example")));
+}
+
+TEST(AdblockEngineTest, CosmeticStylesheetHidesSiteRulesAndComplexGenerics) {
+  AdblockEngine engine;
+  engine.LoadListForTesting(
+      "news.test##.site-ad\n##.ad-banner\n##div[class*=\"Ads\"]\n");
+  std::string css = engine.CosmeticStylesheet("https://news.test/a");
+  EXPECT_NE(css.find(".site-ad{display:none!important}"), std::string::npos);
+  EXPECT_NE(css.find("div[class*=\"Ads\"]{display:none!important}"),
+            std::string::npos);
+  EXPECT_EQ(engine.CosmeticStylesheet("https://other.test/").find(".site-ad"),
+            std::string::npos);
+  EXPECT_TRUE(engine.CosmeticStylesheet("chrome://settings/").empty());
+}
+
+TEST(AdblockEngineTest, GenericStylesheetNeedsAMatchingClassOrId) {
+  AdblockEngine engine;
+  engine.LoadListForTesting("##.ad-banner\n###ad-slot\n");
+  EXPECT_EQ(engine.GenericStylesheet("https://news.test/", "ad-banner x", ""),
+            ".ad-banner{display:none!important}\n");
+  EXPECT_EQ(engine.GenericStylesheet("https://news.test/", "", "ad-slot"),
+            "#ad-slot{display:none!important}\n");
+  EXPECT_TRUE(engine.GenericStylesheet("https://news.test/", "x", "y").empty());
+}
+
+TEST(AdblockEngineTest, NonAsciiCosmeticInputIsNeverPassedToRust) {
+  AdblockEngine engine;
+  engine.LoadListForTesting("##.ad-banner\n");
+  EXPECT_TRUE(engine.CosmeticStylesheet("https://news.test/\xc3\xa9").empty());
+  EXPECT_TRUE(
+      engine.GenericStylesheet("https://news.test/", "ad-banner\xc3\xa9", "")
+          .empty());
 }
 
 TEST(AdblockEngineTest, SerializedRoundTripKeepsRules) {

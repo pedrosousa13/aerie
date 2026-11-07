@@ -6,6 +6,7 @@
 #define COMPONENTS_AERIE_ADBLOCK_BROWSER_ADBLOCK_ENGINE_H_
 
 #include <cstdint>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -42,6 +43,19 @@ class AdblockEngine {
   // True if the request must be blocked. Requests with non-ASCII strings
   // (never produced by ClassifyRequest) are not blocked.
   bool ShouldBlock(const ClassifiedRequest& request) const;
+
+  // The CSS to inject when the page at |page_url| (a GURL spec) commits: one
+  // `selector{display:none!important}` line per hide rule for the site. Every
+  // selector passed the Rust core's safety check. Empty for a URL that is not
+  // ASCII http(s) (GURL specs are always ASCII).
+  std::string CosmeticStylesheet(std::string_view page_url) const;
+
+  // The CSS for generic hide rules that match the class names and ids a page
+  // uses (|classes| and |ids|: whitespace separated). Empty when the site
+  // has a $generichide exception or an argument is not ASCII.
+  std::string GenericStylesheet(std::string_view page_url,
+                                std::string_view classes,
+                                std::string_view ids) const;
 
  private:
   rust::Box<Engine> engine_;

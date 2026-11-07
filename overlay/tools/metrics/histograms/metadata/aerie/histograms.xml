@@ -13,6 +13,18 @@ directory under tools/metrics/histograms/metadata/.
 
 <histograms>
 
+<histogram name="Aerie.Adblock.CosmeticRuleCount" units="rules"
+    expires_after="never">
+  <owner>pedrodsousa@pm.me</owner>
+  <summary>
+    How many hide rules the Filter Engine put in one cosmetic stylesheet, one
+    sample for each stylesheet it built for a page (when the page committed,
+    and when it had loaded). Zero when no rule applied. Nothing is recorded
+    when cosmetic filtering is off for the site. The Bench uses it to show that
+    the engine, and not other CSS, hid the ad containers.
+  </summary>
+</histogram>
+
 <histogram name="Aerie.Adblock.EngineLoadSuccess" enum="Boolean"
     expires_after="never">
   <owner>pedrodsousa@pm.me</owner>

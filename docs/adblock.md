@@ -77,6 +77,66 @@ renderer ──Mojo──> AdblockProxyingURLLoaderFactory ──> network servi
 Not in this slice: WebSocket blocking, main-frame blocking (both out of scope in
 the issue), user controls (issue #10).
 
+## Cosmetic filtering (hiding leftover ad containers)
+
+Blocking a request leaves an empty box where the ad would have been. The Filter Engine
+also reads EasyList's plain hide rules (`##.ad-slot`, `site.com##.x`, `#@#` exceptions)
+and hides those elements.
+
+```
+tab ──> AerieCosmeticTabHelper ──> FilterEngineService ──posts──> engine (cosmetic_stylesheet, generic_stylesheet)
+  │        (browser process)                                              │
+  └── isolated world: adoptedStyleSheets <──── CSS: one `sel{display:none!important}` line per selector
+```
+
+- `chrome/browser/aerie_adblock/aerie_cosmetic_tab_helper.*` is a `WebContentsObserver`, one
+  per tab (hook patch `0007`, two `CreateForWebContents` calls in `TabFeatures`). When a
+  frame commits it asks the service for the stylesheet for that URL (rules for the site, and
+  the generic rules that do not start with a class or id) and injects it. At
+  `DOMContentLoaded` and again at load it reads the frame's class names and ids, asks for the
+  generic rules that match, and injects those.
+- Injection runs `ExecuteJavaScriptInIsolatedWorld` and adds a constructed stylesheet
+  (`document.adoptedStyleSheets`). The page's Content-Security-Policy `style-src` does not
+  govern it and no DOM node is added. The page's scripts do not share JavaScript objects
+  with the isolated world, so the Bench fixture tries to hijack `CSSStyleSheet` and the
+  `adoptedStyleSheets` accessor and must see nothing.
+- Nothing in the renderer was added. No Mojo interface, no renderer target.
+- The hook for issue #10: `FilterEngineService::SetCosmeticFilteringPolicy(callback)`. The
+  callback gets the top-level page URL and says whether cosmetic filtering is on. The default
+  is on. A frame answers to its top-level page, so an ad iframe is not judged by its own
+  host. A policy change reaches a page on its next navigation (stylesheets already
+  injected stay).
+- Output size is bounded: `Aerie.Adblock.CosmeticRuleCount` records the rules of each
+  stylesheet; the core crate stops at 20 000 rules and 1 MiB, and reads at most 5 000 classes
+  and 5 000 ids from a page.
+
+### Security: what a list or a page can make the engine do
+
+- Only `##` and `#@#` rules survive `sanitize_list`. Scriptlets (`##+js(`), HTML filters
+  (`##^`), procedural rules (`#?#`), style injection (`#$#`) and `:style(` / `:remove(`
+  actions are dropped when the lists are compiled, so the engine has no script to hand out.
+- A selector is kept only if `is_safe_selector` accepts it: no `{ } ;`, no comments, no
+  backslash escapes, no `<`, no `@`, no `url(`, balanced brackets, parentheses and
+  quotes, at most 2 KiB. This runs when the lists are compiled and again on every stylesheet
+  that leaves the engine, because adblock-rust is built without its `css-validation` feature
+  (no extra crates to vet).
+- One rule per selector: a selector a browser cannot parse voids only itself.
+- The stylesheet goes into a script as a JSON string literal (`base::GetQuotedJSONString`).
+  The only page-controlled text the browser reads is the class and id list, as engine lookup
+  keys; it never reaches a script. The script that reads them only reads the DOM.
+- The engine is the build's, from pinned lists: a page cannot add a rule.
+
+### Limits (first slice)
+
+- Elements whose class or id first appears after the load event are not hidden (no mutation
+  observer yet).
+- `site.*##rule` entity rules use a heuristic registrable domain (`AerieDomainResolver` in the
+  core crate), because the embedded public suffix list is not compiled in and adblock-rust
+  panics in cosmetic matching without a resolver. An unusual public suffix can miss an
+  entity rule; it cannot apply a hide to a site it should not.
+- Procedural cosmetic rules (`:has-text`, `:xpath`) and scriptlets are not supported.
+- The engine grew from 4.7 MB to 6.0 MB with the cosmetic rules.
+
 ## What is built
 
 `overlay/components/aerie_adblock/`:
@@ -86,7 +146,7 @@ the issue), user controls (issue #10).
 | `rust/core` | `aerie_adblock_core`: engine over adblock-rust. No C++, no panics, size and line limits. |
 | `rust/ffi` | `aerie_adblock_ffi`: the cxx bridge. Four functions. No `Result` (Chromium has no C++ exceptions). |
 | `rust/tool` | `aerie_adblock_compile`: host tool, lists in, serialized engine out, with self-checks. |
-| `browser/` | C++: classifier, engine wrapper, service, proxying factory, hook, unit tests. |
+| `browser/` | C++: classifier, engine wrapper, service, proxying factory, hook, cosmetic scripts, unit tests. |
 | `selfcheck.json`, `compile_engine.py` | Build-time checks of the compiled engine against the real lists. |
 | `resources/*.grd` | Packs the engine into `resources.pak` (hook patch `0002`). |
 
@@ -186,6 +246,7 @@ the diff, commit it.
 | C++ syntax against the real headers of a built tree (read-only, needs cargo) | `tools/check-overlay-syntax.sh` |
 | C++ unit tests (in the train) | `autoninja -C out/Default aerie_adblock_unittests` |
 | Blocking, for real (in the train) | `./aerie bench --check ad_blocking` |
+| Hiding, for real (in the train) | `./aerie bench --check cosmetic_filtering` |
 
 ## Credits
 

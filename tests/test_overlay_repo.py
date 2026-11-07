@@ -81,7 +81,7 @@ class HistogramsTest(unittest.TestCase):
         self.assertEqual(sorted(declared), re.findall(r'<histogram name="([^"]+)"', xml), "keep histograms.xml sorted")
         gni = (REPO / "patches/adblock/0005-list-aerie-histograms.patch").read_text()
         self.assertIn("histograms/metadata/aerie/histograms.xml", gni)
-        bench = (REPO / "tools/aerie_bench/checks/ad_blocking.py").read_text()
+        bench = "".join(p.read_text() for p in sorted((REPO / "tools/aerie_bench/checks").glob("*.py")))
         for name in used:
             self.assertIn(name, bench, f"the Bench check does not know {name}")
 

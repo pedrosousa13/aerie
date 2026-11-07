@@ -1,0 +1,10 @@
+/* Every box gets a size, so a hidden one is told from a shown one by layout, not only by computed style.
+   Nothing here hides anything: only the Filter Engine's cosmetic stylesheet may. */
+.ad-slot, #adbox, .ad-wrapper, ins.adsbygoogle, .adventure, .sidebar {
+  display: block;
+  width: 300px;
+  height: 60px;
+  margin: 8px 0;
+  border: 1px solid #888;
+}
+#content { color: #123456; }

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Aerie Cosmetic Fixture</title>
+<link rel="stylesheet" href="/cosmetic/page.css">
+<!-- A hostile page tries to take over the stylesheet injection. The browser runs it in an isolated world, so none of this
+     may be seen by it, and the hide must still work (expected.json: hijack_flag). -->
+<script>
+  window.CSSStyleSheet = function () { window.cosmeticHijacked = true; };
+  try {
+    Object.defineProperty(Document.prototype, "adoptedStyleSheets", {
+      configurable: true,
+      get: function () { return []; },
+      set: function () { window.cosmeticHijacked = true; }
+    });
+  } catch (e) {}
+</script>
+</head>
+<body>
+<h1 id="content">First-party content</h1>
+<p class="article">The boxes below carry the class names and ids of ad containers that EasyList hides.
+The boxes with ordinary names must stay. Nothing here is loaded from the network.</p>
+<div class="ad-slot">Ad (generic class)</div>
+<div id="adbox">Ad (generic id)</div>
+<div class="ad-wrapper">Ad (generic class)</div>
+<ins class="adsbygoogle" data-ad-client="ca-pub-1" data-ad-slot="1">Ad (generic tag rule)</ins>
+<div class="adventure">First-party box whose class starts with "ad"</div>
+<div class="sidebar">First-party sidebar</div>
+</body>
+</html>

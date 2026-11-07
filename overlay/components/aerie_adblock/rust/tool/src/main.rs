@@ -8,6 +8,8 @@
 //! aerie_adblock_compile --out engine.dat \
 //!     [--expect-block 'URL|HOST|SOURCE_HOST|TYPE|THIRD_PARTY' ...] \
 //!     [--expect-allow 'URL|HOST|SOURCE_HOST|TYPE|THIRD_PARTY' ...] \
+//!     [--expect-hide 'PAGE_URL|CLASSES|IDS|SELECTOR' ...] \
+//!     [--expect-keep 'PAGE_URL|CLASSES|IDS|SELECTOR' ...] \
 //!     list1.txt list2.txt ...
 //! ```
 //!
@@ -39,6 +41,32 @@ fn kind(name: &str) -> Option<RequestKind> {
 struct Probe {
     spec: String,
     expect_block: bool,
+}
+
+/// A cosmetic self-check: is `selector` hidden on the page, given the
+/// whitespace-separated classes and ids it uses?
+struct CosmeticProbe {
+    spec: String,
+    expect_hidden: bool,
+}
+
+fn run_cosmetic_probe(engine: &FilterEngine, probe: &CosmeticProbe) -> Result<(), String> {
+    let parts: Vec<&str> = probe.spec.splitn(4, '|').collect();
+    if parts.len() != 4 {
+        return Err(format!("bad probe {:?}: want PAGE_URL|CLASSES|IDS|SELECTOR", probe.spec));
+    }
+    let css = format!("{}{}", engine.cosmetic_stylesheet(parts[0]), engine.generic_stylesheet(parts[0], parts[1], parts[2]));
+    let rule = format!("{}{{display:none!important}}", parts[3]);
+    let hidden = css.lines().any(|line| line == rule);
+    if hidden != probe.expect_hidden {
+        return Err(format!(
+            "self-check failed: {:?} was {} but must be {}",
+            probe.spec,
+            if hidden { "hidden" } else { "not hidden" },
+            if probe.expect_hidden { "hidden" } else { "not hidden" },
+        ));
+    }
+    Ok(())
 }
 
 fn run_probe(engine: &FilterEngine, probe: &Probe) -> Result<(), String> {
@@ -73,6 +101,7 @@ fn run_probe(engine: &FilterEngine, probe: &Probe) -> Result<(), String> {
 fn run() -> Result<String, String> {
     let mut out: Option<String> = None;
     let mut probes = Vec::new();
+    let mut cosmetic_probes = Vec::new();
     let mut lists = Vec::new();
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
@@ -80,6 +109,8 @@ fn run() -> Result<String, String> {
             "--out" => out = Some(args.next().ok_or("--out needs a path")?),
             "--expect-block" => probes.push(Probe { spec: args.next().ok_or("--expect-block needs a value")?, expect_block: true }),
             "--expect-allow" => probes.push(Probe { spec: args.next().ok_or("--expect-allow needs a value")?, expect_block: false }),
+            "--expect-hide" => cosmetic_probes.push(CosmeticProbe { spec: args.next().ok_or("--expect-hide needs a value")?, expect_hidden: true }),
+            "--expect-keep" => cosmetic_probes.push(CosmeticProbe { spec: args.next().ok_or("--expect-keep needs a value")?, expect_hidden: false }),
             flag if flag.starts_with("--") => return Err(format!("unknown flag {flag}")),
             path => lists.push(path.to_string()),
         }
@@ -103,8 +134,11 @@ fn run() -> Result<String, String> {
     for probe in &probes {
         run_probe(&reloaded, probe)?;
     }
+    for probe in &cosmetic_probes {
+        run_cosmetic_probe(&reloaded, probe)?;
+    }
     std::fs::write(&out, &bytes).map_err(|e| format!("cannot write {out}: {e}"))?;
-    Ok(format!("{} bytes from {} list(s), {} self-check(s) passed -> {}", bytes.len(), lists.len(), probes.len(), out))
+    Ok(format!("{} bytes from {} list(s), {} self-check(s) passed -> {}", bytes.len(), lists.len(), probes.len() + cosmetic_probes.len(), out))
 }
 
 fn main() -> ExitCode {
