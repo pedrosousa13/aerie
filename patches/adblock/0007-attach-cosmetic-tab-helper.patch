@@ -1,0 +1,32 @@
+Aerie-Purpose: Attach the cosmetic filtering tab helper to every tab, so the Filter Engine's hide rules reach each page.
+Aerie-Upstream-Area: chrome/browser/ui/tabs/tab_features.cc (TabFeatures::Init and the new-contents path), chrome/browser/ui/tabs/BUILD.gn (impl deps)
+Aerie-Kind: hook
+
+Two CreateForWebContents() calls next to ChromeTranslateClient's: one when a tab's
+features start, one when its contents are replaced (discard and restore). The
+helper is idempotent per WebContents. It lives in chrome/browser/aerie_adblock
+(the overlay), see docs/adblock.md.
+
+--- a/chrome/browser/ui/tabs/BUILD.gn
++++ b/chrome/browser/ui/tabs/BUILD.gn
+@@ -547,2 +547,3 @@
+       "//chrome/browser/actor/ui",
++      "//chrome/browser/aerie_adblock:tab_helper",
+       "//chrome/browser/banners",
+--- a/chrome/browser/ui/tabs/tab_features.cc
++++ b/chrome/browser/ui/tabs/tab_features.cc
+@@ -20,2 +20,3 @@
+ #include "chrome/browser/actor/ui/actor_ui_tab_controller.h"
++#include "chrome/browser/aerie_adblock/aerie_cosmetic_tab_helper.h"
+ #include "chrome/browser/banners/app_banner_manager_desktop.h"
+@@ -438,2 +439,5 @@
+ 
++  // Aerie: cosmetic filtering for the pages of this tab.
++  AerieCosmeticTabHelper::CreateForWebContents(tab.GetContents());
++
+   if (!content_settings::PageSpecificContentSettings::GetDelegateForWebContents(
+@@ -1476,2 +1480,4 @@
+ 
++  AerieCosmeticTabHelper::CreateForWebContents(new_contents);
++
+   if (!content_settings::PageSpecificContentSettings::GetDelegateForWebContents(
