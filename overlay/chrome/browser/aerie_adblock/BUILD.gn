@@ -11,6 +11,9 @@ source_set("aerie_adblock") {
   public_deps = [ "//chrome/browser:main_extra_parts" ]
   deps = [
     "//base",
+    "//chrome/browser:browser_process",
+    "//chrome/browser/net:net",
+    "//chrome/common:constants",
     "//components/aerie_adblock/browser",
   ]
 }

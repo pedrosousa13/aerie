@@ -111,8 +111,15 @@ grit("resources") {
     "grit/aerie_adblock_resources.h",
     "aerie_adblock_resources.pak",
   ]
-  inputs = [ _engine_out ]
-  deps = [ ":engine" ]
+  inputs = [
+    _engine_out,
+    "$_lists_dir/easylist.txt",
+    "$_lists_dir/easyprivacy.txt",
+  ]
+  deps = [
+    ":engine",
+    "//third_party/filter_lists",
+  ]
   enable_input_discovery_for_gn_analyze = false
 }
 
@@ -130,6 +137,7 @@ group("unit_tests") {
   testonly = true
   deps = [
     ":aerie_adblock_rust_tests",
+    "//components/aerie_adblock/browser:aerie_adblock_content_unittests",
     "//components/aerie_adblock/browser:aerie_adblock_unittests",
   ]
 }
