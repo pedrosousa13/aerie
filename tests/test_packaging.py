@@ -9,7 +9,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 LINUX = REPO / "packaging" / "linux"
-APP_ID = "io.github.pedrosousa13.aerie"
+APP_ID = "me.pedrosousa.Aerie"
 
 
 def desktop() -> configparser.ConfigParser:

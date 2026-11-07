@@ -13,7 +13,7 @@ fi
 prefix=$1
 here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 art="$here/../../branding/art/app_icon"
-app_id=io.github.pedrosousa13.aerie
+app_id=me.pedrosousa.Aerie
 
 install -Dm644 "$here/aerie.desktop" "$prefix/share/applications/aerie.desktop"
 install -Dm644 "$here/$app_id.metainfo.xml" "$prefix/share/metainfo/$app_id.metainfo.xml"

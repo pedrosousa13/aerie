@@ -4,7 +4,7 @@ Aerie-Kind: branding
 
 The desktop entry is aerie.desktop and the icon theme name is aerie (both
 files are in packaging/linux). The app ID (reverse-DNS name, used as the
-metainfo id and the installer RDN) is io.github.pedrosousa13.aerie. The user
+metainfo id and the installer RDN) is me.pedrosousa.Aerie. The user
 data directory is ~/.config/aerie. The HELIUM_DESKTOP and HELIUM_CONFIG_HOME
 environment variables keep their names: they are not shown to users.
 
@@ -84,7 +84,7 @@ environment variables keep their names: they are not shown to users.
 +HELPURL="https://github.com/pedrosousa13/aerie"
  
 -RDN="net.imput.helium"
-+RDN="io.github.pedrosousa13.aerie"
++RDN="me.pedrosousa.Aerie"
 --- a/media/audio/pulse/pulse_util.cc
 +++ b/media/audio/pulse/pulse_util.cc
 @@ -39,8 +39,8 @@
