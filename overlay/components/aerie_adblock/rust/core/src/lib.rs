@@ -143,14 +143,14 @@ pub struct FilterEngine {
     engine: Engine,
 }
 
-fn parse_options() -> ParseOptions {
+pub(crate) fn parse_options() -> ParseOptions {
     ParseOptions { rule_types: RuleTypes::All, ..ParseOptions::default() }
 }
 
 /// An exception rule with no pattern (`@@`, `@@$image`, `@@*`, `@@||`)
 /// matches every URL, so one such line would switch off all blocking.
 /// No real list needs one, and a malformed list must not get that power.
-fn is_match_all_exception(line: &str) -> bool {
+pub(crate) fn is_match_all_exception(line: &str) -> bool {
     let Some(rest) = line.strip_prefix("@@") else {
         return false;
     };
@@ -444,6 +444,9 @@ impl FilterEngine {
         hide_stylesheet(selectors)
     }
 }
+
+mod lists;
+pub use lists::{ListCheck, ListError, check_list};
 
 #[cfg(test)]
 mod tests;
