@@ -117,6 +117,10 @@
       ],
       "upstream": ["chrome/browser/preloading/preloading_prefs.h", "chrome/browser/preloading/preloading_prefs.cc"],
       "aerie_patches": ["hardening/0008-no-link-prefetch-when-preloading-is-off.patch"],
+      "notes": [
+        "Data Saver and Battery Saver also turn link prefetch and renderer DNS prefetch off, even when the setting is not Off (the check runs IsSomePreloadingEnabled with should_ignore_saver_modes=false).",
+        "A change of the setting reaches open tabs only when their WebPreferences are next recomputed (reload or restart)."
+      ],
       "pref": {"name": "net.network_prediction_options", "default": 2},
       "cost": "Page loads are slightly slower, because the browser no longer opens connections or fetches pages ahead of a click.",
       "ui": {

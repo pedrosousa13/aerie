@@ -80,6 +80,10 @@ WebRTC only uses the default public network interface, so a page cannot read the
 
 Speculative loads are off: link prefetch, prerender, preconnect, DNS prefetch and speculation rules. rel=preload and modulepreload are ordinary page loads and are not touched.
 
+Data Saver and Battery Saver also turn link prefetch and renderer DNS prefetch off, even when the setting is not Off (the check runs IsSomePreloadingEnabled with should_ignore_saver_modes=false).
+
+A change of the setting reaches open tabs only when their WebPreferences are next recomputed (reload or restart).
+
 - Default: Off.
 - Default provided by: ungoogled-chromium (through Helium)
 - Where the default is set:

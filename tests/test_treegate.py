@@ -220,7 +220,7 @@ class DefaultsGatesTest(TreeCase):
         self.write({blink: LINK_PREFETCH_BLINK_OK.replace("!document.GetSettings()->GetDNSPrefetchingEnabled()", "false")})
         self.assertEqual([f.gate for f in treegate.check_link_prefetch_off(self.root)], ["link_prefetch_off"])
         self.write({blink: LINK_PREFETCH_BLINK_OK, client: LINK_PREFETCH_CLIENT_OK.replace("kEligible", "kUnspecified")})
-        self.assertEqual(len(treegate.check_link_prefetch_off(self.root)), 1)
+        self.assertEqual([f.gate for f in treegate.check_link_prefetch_off(self.root)], ["link_prefetch_off"])
 
     def test_helium_services_must_be_off(self):
         self.write({"components/helium_services/helium_services_helpers.cc": SERVICES_OK})

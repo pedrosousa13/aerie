@@ -7,10 +7,13 @@ process, but the renderer fetches <link rel=prefetch> with no check, so the Benc
 check hardening_prefetch saw a Sec-Purpose: prefetch request with the pref Off. The
 browser already sends WebPreferences::dns_prefetching_enabled to Blink, and Chrome
 never sets it (always true). This patch sets it from IsSomePreloadingEnabled and makes
-PrefetchIfNeeded honour it. No new plumbing. Side effect: renderer DNS prefetch
-(rel=dns-prefetch) is also off with the pref, as the pref's text says. The value is
-read when a page's preferences are computed, so a change of the pref applies to
-tabs from their next preference update (new tabs and navigations that recreate the view).
+PrefetchIfNeeded honour it. No new plumbing.
+
+Side effects: renderer DNS prefetch (rel=dns-prefetch) is also off with the pref.
+IsSomePreloadingEnabled runs with should_ignore_saver_modes=false, so Data Saver and
+Battery Saver also turn link prefetch and renderer DNS prefetch off. The value is read
+when a tab's WebPreferences are computed, so a pref change reaches open tabs only when
+those are next recomputed (reload or restart).
 
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
