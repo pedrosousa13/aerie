@@ -32,6 +32,15 @@ Aerie-owned source that is too big to live in a patch goes in `overlay/`, laid o
 
 The Filter Engine is the first overlay user; see [docs/adblock.md](docs/adblock.md) for its build steps and its two locks (filter lists, Rust crates).
 
+### Branding art and the release number
+
+Two more Aerie layers sit between the overlay and the substitution:
+
+- **Art.** `branding/resources.txt` lists `<file in branding/art> <tree path>` pairs. The layer replaces the files that Helium's resource step copied (logo, product icons, new tab page favicon, vector icons). A destination that is not in the tree is an error. The art is a placeholder drawn by `tools/aerie_branding/generate.py`; final art replaces the files in `branding/art/` under the same names and sizes (issue #21). A test compares the destinations and image sizes with Helium's lists.
+- **Release number.** `AERIE_VERSION` (three numbers) is added to `chrome/VERSION` as `AERIE_MAJOR`, `AERIE_MINOR` and `AERIE_PATCH`, and `patches/branding/0006` makes the About version use them. To make a release, change that file.
+
+The Linux desktop entry, metainfo and icon install script are in `packaging/linux`. The Bench checks `branding_no_helium`, `branding_scheme` and `branding_version` prove the result on a build (see [docs/bench.md](docs/bench.md)).
+
 ### Dropping or adapting a Helium patch
 
 Aerie never edits the Helium submodules, but it can skip a Helium patch: list its series entry in `patches/helium-drop.txt`, one per line, followed by `# reason`. The build and `./aerie patches check` then apply Helium's series without it. A Helium patch that only applies on top of a dropped one can be replaced, at the same place in the series, by a copy in `patches/helium-adapted/<entry>` listed in `patches/helium-adapt.txt` (same format; the copy needs the Aerie header). The check fails if a listed entry is no longer in Helium's series, so a Helium bump surfaces it, and a test fails without a row for each entry in [docs/helium-dependency-ledger.md](docs/helium-dependency-ledger.md). A tree patched with other drops needs `./aerie build --clean`.
@@ -88,13 +97,13 @@ run on a real tree with `./aerie patches gates [--tree DIR]`. They live in
 
 Helium turns "Chromium" and "Chrome" into "Helium" in string files (`.grd`, `.grdp`, `.xtb`) after its patches. Aerie then runs `tools/aerie_build/substitution.py`, which turns "Helium" into "Aerie" in the text users read. Do not patch single strings by hand.
 
-The pass keeps `helium://`, "The Helium Authors" and message descriptions. It rewrites translation ids to match the new text. It runs after Helium's translation step, because that step looks messages up by the Helium text.
+The pass also turns `helium://` into `aerie://` and "The Helium Authors" into "The Aerie Authors" (the scheme itself is renamed by `patches/branding/0002`). It keeps message descriptions. It rewrites translation ids to match the new text. It runs after Helium's translation step, because that step looks messages up by the Helium text.
 
 To protect another span, add a rule to `RULES` in that file and add a test. A changed rule needs no `--clean`: the pass always starts from the pristine text (see below).
 
 ### Changing the Aerie layers of an existing tree
 
-A clean build takes about 2.5 hours and ccache helps little, so `./aerie build` keeps the source tree and `out/Default`, and re-applies the Aerie layers (the patch series, the overlay and the Helium to Aerie substitution) on every run. No `--clean` is needed to add, edit, reorder or remove a patch or to change a substitution rule.
+A clean build takes about 2.5 hours and ccache helps little, so `./aerie build` keeps the source tree and `out/Default`, and re-applies the Aerie layers (the patch series, the overlay, the branding art, the release number and the Helium to Aerie substitution) on every run. No `--clean` is needed to add, edit, reorder or remove a patch or to change a substitution rule.
 
 How it works (`tools/aerie_build/layers.py`):
 

@@ -1,0 +1,8 @@
+{
+  "name": "branding",
+  "checks": [
+    "branding_no_helium",
+    "branding_scheme",
+    "branding_version"
+  ]
+}

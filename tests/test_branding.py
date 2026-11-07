@@ -139,7 +139,7 @@ class PipelineTest(unittest.TestCase):
         ctx = type("C", (), {"repo": REPO, "tree": Path("/t"), "core": REPO / "helium-chromium"})()
         names = [layer.name for layer in pipeline.aerie_layers(ctx, lambda _m: None)]
         self.assertEqual(names.index("branding") - 1, names.index("overlay"))
-        self.assertEqual(names.index("branding") + 1, names.index("helium-to-aerie substitution"))
+        self.assertLess(names.index("branding"), names.index("helium-to-aerie substitution"))
 
 
 class RepoArtTest(unittest.TestCase):
