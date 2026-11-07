@@ -142,6 +142,27 @@
      "webrtc.ip_handling_policy: is 'default', table says 'default_public_interface_only'"
     ]
    }
+  },
+  {
+   "name": "real_train1_build",
+   "expect": "pass",
+   "detail_contains": "",
+   "real": "Recorded on a real Aerie build, train-1 Bench run (bench/train1/hardening-1/results.json); LAN address scrubbed.",
+   "obs": {
+    "attacks": {
+     "chrome_settings": false,
+     "chrome_flags": false,
+     "control": true
+    },
+    "page_urls": [
+     "http://a.localhost:43237/hardening/idle_frame.html",
+     "about:blank",
+     "http://a.localhost:43237/index.html"
+    ],
+    "storage_access": "rejected:NotAllowedError",
+    "third_party_cookie": "blocked",
+    "prefs_mismatch": []
+   }
   }
  ]
 }

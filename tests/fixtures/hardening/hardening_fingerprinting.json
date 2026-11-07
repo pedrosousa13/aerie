@@ -244,6 +244,42 @@
      }
     }
    }
+  },
+  {
+   "name": "real_train1_audio_changes_every_render",
+   "expect": "pass",
+   "detail_contains": "",
+   "real": "Recorded on a real Aerie build, train-1 Bench run (bench/train1/hardening-1/results.json); LAN address scrubbed.",
+   "obs": {
+    "a1": {
+     "canvas": "d2f4c192",
+     "audio": "352a1c50"
+    },
+    "a2": {
+     "canvas": "d2f4c192",
+     "audio": "8e2a574a"
+    },
+    "b1": {
+     "canvas": "e2b0495b",
+     "audio": "dfb11d9b"
+    },
+    "next_session": {
+     "a": {
+      "canvas": "24bd9a17",
+      "audio": "576c200e"
+     }
+    },
+    "control": {
+     "a": {
+      "canvas": "871343e7",
+      "audio": "f5c66174"
+     },
+     "b": {
+      "canvas": "871343e7",
+      "audio": "f5c66174"
+     }
+    }
+   }
   }
  ]
 }

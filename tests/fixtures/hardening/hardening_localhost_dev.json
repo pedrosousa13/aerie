@@ -455,6 +455,84 @@
      }
     }
    }
+  },
+  {
+   "name": "real_train1_blank_native_dialog_not_the_warning_page",
+   "expect": "fail",
+   "detail_contains": "negative control failed: strict.bench.test did not get the warning page",
+   "real": "Recorded on a real Aerie build, train-1 Bench run (bench/train1/hardening-1/results.json); LAN address scrubbed.",
+   "obs": {
+    "strict_control": {
+     "outcome": "net_error"
+    },
+    "served": {
+     "localhost": {
+      "url": "http://localhost:43237/index.html",
+      "outcome": "loaded",
+      "error": null,
+      "state": {
+       "title": "Aerie Bench Fixture",
+       "href": "http://localhost:43237/index.html",
+       "interstitial": false,
+       "type": null,
+       "proceed_visible": false
+      },
+      "hit": true
+     },
+     "dev.localhost": {
+      "url": "http://dev.localhost:43237/index.html",
+      "outcome": "loaded",
+      "error": null,
+      "state": {
+       "title": "Aerie Bench Fixture",
+       "href": "http://dev.localhost:43237/index.html",
+       "interstitial": false,
+       "type": null,
+       "proceed_visible": false
+      },
+      "hit": true
+     },
+     "127.0.0.1": {
+      "url": "http://127.0.0.1:43237/index.html",
+      "outcome": "loaded",
+      "error": null,
+      "state": {
+       "title": "Aerie Bench Fixture",
+       "href": "http://127.0.0.1:43237/index.html",
+       "interstitial": false,
+       "type": null,
+       "proceed_visible": false
+      },
+      "hit": true
+     }
+    },
+    "unserved": {
+     "127.0.0.2": {
+      "url": "http://127.0.0.2:43237/index.html",
+      "outcome": "net_error",
+      "error": "net::ERR_CONNECTION_REFUSED",
+      "state": {
+       "title": "127.0.0.2",
+       "href": "chrome-error://chromewebdata/",
+       "interstitial": false,
+       "type": null,
+       "proceed_visible": false
+      }
+     },
+     "[::1]": {
+      "url": "http://[::1]:43237/index.html",
+      "outcome": "net_error",
+      "error": "net::ERR_CONNECTION_REFUSED",
+      "state": {
+       "title": "[::1]",
+       "href": "chrome-error://chromewebdata/",
+       "interstitial": false,
+       "type": null,
+       "proceed_visible": false
+      }
+     }
+    }
+   }
   }
  ]
 }

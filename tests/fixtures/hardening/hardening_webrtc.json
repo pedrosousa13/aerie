@@ -214,6 +214,29 @@
      "candidates": []
     }
    }
+  },
+  {
+   "name": "real_train1_build",
+   "expect": "pass",
+   "detail_contains": "",
+   "real": "Recorded on a real Aerie build, train-1 Bench run (bench/train1/hardening-1/results.json); LAN address scrubbed.",
+   "obs": {
+    "main": {
+     "state": "complete",
+     "candidates": [
+      "candidate:4138970498 1 udp 1677729535 127.0.0.1 49789 typ srflx raddr 0.0.0.0 rport 0 generation 0 ufrag nqWL network-cost 999"
+     ],
+     "stun_requests": 1
+    },
+    "control": {
+     "state": "complete",
+     "candidates": [
+      "candidate:1030674282 1 udp 2113937151 192.168.1.10 39471 typ host generation 0 ufrag 00zD network-cost 999",
+      "candidate:3087372568 1 udp 1677729535 127.0.0.1 39471 typ srflx raddr 192.168.1.10 rport 39471 generation 0 ufrag 00zD network-cost 999"
+     ],
+     "stun_requests": 1
+    }
+   }
   }
  ]
 }

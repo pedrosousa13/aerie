@@ -218,6 +218,25 @@
     ],
     "after_remove": "loaded"
    }
+  },
+  {
+   "name": "real_train1_blank_native_dialog_not_the_warning_page",
+   "expect": "fail",
+   "detail_contains": "negative control failed: before the click",
+   "real": "Recorded on a real Aerie build, train-1 Bench run (bench/train1/hardening-1/results.json); LAN address scrubbed.",
+   "obs": {
+    "host": "exc.bench.test",
+    "other_host": "other.bench.test",
+    "list_before": [],
+    "first": "net_error",
+    "clicked": false,
+    "loaded_after_click": false,
+    "other_site": "net_error",
+    "list_after_click": [],
+    "removed": false,
+    "list_after_remove": null,
+    "after_remove": "net_error"
+   }
   }
  ]
 }

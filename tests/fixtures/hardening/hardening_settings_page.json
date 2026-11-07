@@ -542,6 +542,74 @@
     "bogus_present": true,
     "error": null
    }
+  },
+  {
+   "name": "real_train1_build",
+   "expect": "pass",
+   "detail_contains": "",
+   "real": "Recorded on a real Aerie build, train-1 Bench run (bench/train1/hardening-1/results.json); LAN address scrubbed.",
+   "obs": {
+    "rows": {
+     "https_only": {
+      "present": true,
+      "default_text": "Default: On (strict: Always use secure connections).",
+      "cost_text": "Cost: Sites and devices that only speak http (router and NAS admin pages, printers, old intranet apps, captive portals) show a warning page first. The exception is one click and lasts 15 days from the last visit.",
+      "state_text": null,
+      "live": "Always use secure connections"
+     },
+     "third_party_cookies": {
+      "present": true,
+      "default_text": "Default: Blocked.",
+      "cost_text": "Cost: Cross-site single sign-on that relies on cookies, embedded payment or login widgets and some video embeds can fail. Site exceptions and the Storage Access API are the escape hatches.",
+      "state_text": null,
+      "live": "Block third-party cookies"
+     },
+     "storage_partitioning": {
+      "present": true,
+      "default_text": "Default: Always on.",
+      "cost_text": "Cost: An embedded widget no longer shares its state between sites, so it can ask the user to sign in again on each site.",
+      "state_text": "Always on",
+      "live": null
+     },
+     "webrtc_ip": {
+      "present": true,
+      "default_text": "Default: Default public interface only.",
+      "cost_text": "Cost: Some video calls and peer-to-peer apps cannot find a direct path and fall back to a relay, which adds delay. Stricter values can break calls that have no relay.",
+      "state_text": null,
+      "live": "Default public interface only"
+     },
+     "prefetch": {
+      "present": true,
+      "default_text": "Default: Off.",
+      "cost_text": "Cost: Page loads are slightly slower, because the browser no longer opens connections or fetches pages ahead of a click.",
+      "state_text": null,
+      "live": "Off"
+     },
+     "site_isolation": {
+      "present": true,
+      "default_text": "Default: Always on.",
+      "cost_text": "Cost: Uses more memory, because each site runs in its own process.",
+      "state_text": "Always on",
+      "live": null
+     },
+     "fingerprinting": {
+      "present": true,
+      "default_text": "Default: On.",
+      "cost_text": "Cost: Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page.",
+      "state_text": null,
+      "live": "on"
+     },
+     "extension_lock": {
+      "present": true,
+      "default_text": "Default: Always on.",
+      "cost_text": "Cost: Privacy extensions that set these options through chrome.privacy get a permission error. The user can still make the same change in settings.",
+      "state_text": "Always on",
+      "live": null
+     }
+    },
+    "bogus_present": false,
+    "error": null
+   }
   }
  ]
 }
