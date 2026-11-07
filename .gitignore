@@ -1,3 +1,5 @@
 .scratch/
 .factory/run.lock
 .factory/journal.json
+__pycache__/
+*.pyc
