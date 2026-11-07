@@ -88,6 +88,8 @@ Speculative loads are off: link prefetch, prerender, preconnect, DNS prefetch an
   - `chrome/browser/preloading/preloading_prefs.h`
   - `chrome/browser/preloading/preloading_prefs.cc`
 - Preference: `net.network_prediction_options` (default `2`)
+- Aerie patches:
+  - `patches/hardening/0008-no-link-prefetch-when-preloading-is-off.patch`
 - Settings row: Dropdown
 - Cost: Page loads are slightly slower, because the browser no longer opens connections or fetches pages ahead of a click.
 - Bench checks: `hardening_prefetch`

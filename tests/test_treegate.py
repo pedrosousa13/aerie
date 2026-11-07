@@ -63,6 +63,17 @@ HTTPS_DIALOG_OK = """// Enables a dialog-based UI for HTTPS-First Mode.
 BASE_FEATURE(kHttpsFirstDialogUi, base::FEATURE_DISABLED_BY_DEFAULT);
 """
 
+LINK_PREFETCH_CLIENT_OK = """  web_prefs->dns_prefetching_enabled =
+      prefetch::IsSomePreloadingEnabled(*prefs) ==
+      content::PreloadingEligibility::kEligible;
+"""
+
+LINK_PREFETCH_BLINK_OK = """  if (document.GetSettings() &&
+      !document.GetSettings()->GetDNSPrefetchingEnabled())
+    return;
+  UseCounter::Count(document, WebFeature::kLinkRelPrefetch);
+"""
+
 GOOD = {
     "third_party/search_engines_data/resources/definitions/regional_settings.json": SEARCH_OK,
     "chrome/browser/profiles/profile.cc": PROFILE_OK,
@@ -70,7 +81,8 @@ GOOD = {
     "components/crash/core/app/crash_reporter_client.cc": CRASH_OK,
     "chrome/browser/crash_upload_list/helium_crash_reporting.cc": CRASH_MODE_OK,
     "components/helium_services/helium_services_helpers.cc": SERVICES_OK,
-    "chrome/browser/chrome_content_browser_client.cc": FEDCM_OK,
+    "chrome/browser/chrome_content_browser_client.cc": FEDCM_OK + LINK_PREFETCH_CLIENT_OK,
+    "third_party/blink/renderer/core/loader/preload_helper.cc": LINK_PREFETCH_BLINK_OK,
     "components/security_interstitials/core/features.cc": HTTPS_DIALOG_OK,
 }
 
@@ -200,6 +212,16 @@ class DefaultsGatesTest(TreeCase):
         findings = treegate.check_https_first_dialog_off(self.root)
         self.assertEqual([f.gate for f in findings], ["https_first_dialog_off"])
 
+    def test_link_prefetch_must_follow_the_preloading_pref(self):
+        client = "chrome/browser/chrome_content_browser_client.cc"
+        blink = "third_party/blink/renderer/core/loader/preload_helper.cc"
+        self.write({client: LINK_PREFETCH_CLIENT_OK, blink: LINK_PREFETCH_BLINK_OK})
+        self.assertEqual(treegate.check_link_prefetch_off(self.root), [])
+        self.write({blink: LINK_PREFETCH_BLINK_OK.replace("!document.GetSettings()->GetDNSPrefetchingEnabled()", "false")})
+        self.assertEqual([f.gate for f in treegate.check_link_prefetch_off(self.root)], ["link_prefetch_off"])
+        self.write({blink: LINK_PREFETCH_BLINK_OK, client: LINK_PREFETCH_CLIENT_OK.replace("kEligible", "kUnspecified")})
+        self.assertEqual(len(treegate.check_link_prefetch_off(self.root)), 1)
+
     def test_helium_services_must_be_off(self):
         self.write({"components/helium_services/helium_services_helpers.cc": SERVICES_OK})
         self.assertEqual(treegate.check_services_off(self.root), [])
@@ -220,7 +242,7 @@ class RunTest(TreeCase):
 
     def test_empty_tree_passes_unless_required(self):
         self.assertEqual(self.run_gates(), [])
-        self.assertEqual(len(self.run_gates(require=True)), 8)
+        self.assertEqual(len(self.run_gates(require=True)), 10)
 
     def test_format_report(self):
         self.write({"a.cc": '"https://services.helium.imput.net"\n'})

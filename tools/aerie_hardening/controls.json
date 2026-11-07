@@ -116,7 +116,7 @@
         "helium-chromium/patches/inox-patchset/modify-default-prefs.patch: NetworkPredictionOptions::kDefault is kDisabled"
       ],
       "upstream": ["chrome/browser/preloading/preloading_prefs.h", "chrome/browser/preloading/preloading_prefs.cc"],
-      "aerie_patches": [],
+      "aerie_patches": ["hardening/0008-no-link-prefetch-when-preloading-is-off.patch"],
       "pref": {"name": "net.network_prediction_options", "default": 2},
       "cost": "Page loads are slightly slower, because the browser no longer opens connections or fetches pages ahead of a click.",
       "ui": {

@@ -12,7 +12,7 @@ overlay), see docs/adblock.md.
  #include "chrome/installer/util/google_update_settings.h"
 +#include "components/aerie_adblock/browser/aerie_adblock_hook.h"
  #include "components/autofill/core/common/autofill_features.h"
-@@ -6951,2 +6952,7 @@
+@@ -6957,2 +6958,7 @@
  
 +  // Aerie: judge requests with the Filter Engine. After the extensions' proxy
 +  // above, before the network.

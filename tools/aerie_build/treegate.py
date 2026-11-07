@@ -166,10 +166,23 @@ def check_https_first_dialog_off(root: Path, require: bool = False) -> list[Find
         require)
 
 
+def check_link_prefetch_off(root: Path, require: bool = False) -> list[Finding]:
+    out = _must_match(
+        root, "chrome/browser/chrome_content_browser_client.cc", "link_prefetch_off",
+        r"web_prefs->dns_prefetching_enabled\s*=\s*prefetch::IsSomePreloadingEnabled\(\*prefs\)\s*==\s*"
+        r"content::PreloadingEligibility::kEligible;",
+        "OverrideWebPreferences must set dns_prefetching_enabled from IsSomePreloadingEnabled", require)
+    out += _must_match(
+        root, "third_party/blink/renderer/core/loader/preload_helper.cc", "link_prefetch_off",
+        r"!document\.GetSettings\(\)->GetDNSPrefetchingEnabled\(\)\)\s*return;\s*UseCounter::Count\(document, WebFeature::kLinkRelPrefetch\)",
+        "PrefetchIfNeeded must return early when GetDNSPrefetchingEnabled() is false", require)
+    return out
+
+
 GATES: tuple[Callable[..., list[Finding]], ...] = (
     check_search_list, check_search_suggestions, check_secure_dns_default,
     check_crash_reporting, check_services_off, check_fedcm_resolver,
-    check_https_first_dialog_off,
+    check_https_first_dialog_off, check_link_prefetch_off,
 )
 
 
