@@ -21,8 +21,8 @@ from pathlib import Path
 from typing import Callable, Sequence
 
 from . import (
-    branding, ccache, fallback, filter_lists, helium, helium_deps, helium_inputs, helium_steps, layers, lock, overlay,
-    patch_check, patches, rust_crates, substitution,
+    aerie_version, branding, ccache, fallback, filter_lists, helium, helium_deps, helium_inputs, helium_steps,
+    layers, lock, overlay, patch_check, patches, rust_crates, substitution,
 )
 from .config import BuildPaths, isolated_env
 
@@ -391,6 +391,7 @@ def aerie_layers(ctx: Context, log: Callable[[str], None]) -> list[layers.Layer]
         patches.PatchLayer(patch_check.layers(ctx.repo)[-1], log),
         overlay.OverlayLayer(overlay.overlay_root(ctx.repo), log),
         branding.BrandingLayer(branding.branding_root(ctx.repo), log),
+        aerie_version.VersionLayer(ctx.repo, log),
         substitution.SubstitutionLayer(
             lambda: substitution.helium_fingerprint(ctx.core / "utils", ctx.tree), log=log),
     ]
@@ -403,7 +404,8 @@ def apply_aerie_layers(ctx: Context, log: Callable[[str], None], dry_run: bool =
         report = layers.apply_layers(
             ctx.tree, ctx.pristine_dir, aerie_layers(ctx, log), ctx.paths.tmp / "aerie-layer-stage",
             log, dry_run=dry_run)
-    except (layers.LayerError, patches.PatchStateError, overlay.OverlayError, branding.BrandingError) as exc:
+    except (layers.LayerError, patches.PatchStateError, overlay.OverlayError, branding.BrandingError,
+            aerie_version.VersionError) as exc:
         raise BuildError(str(exc)) from exc
     verb = "would change" if dry_run else "changed"
     log(f"Aerie layers {verb}: {report.summary()}; {report.snapshots} new pristine snapshot(s)")
