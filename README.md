@@ -15,6 +15,7 @@ A Google-free, hardened Chromium browser built on top of
 | `tools/aerie_build/` | The build tooling (Python 3.11+, standard library only). |
 | `tools/requirements.txt` | Hash-pinned Python packages for Helium's utilities (Pillow), installed into the build root. |
 | `tests/` | Unit tests for the build tooling. |
+| `patches/` | Aerie's own patch series, applied on top of Helium's. See [CONTRIBUTING.md](CONTRIBUTING.md). |
 
 Pinned release: **Helium 0.21.1.1** (Chromium 157.0.8103.38) —
 `helium-linux` at tag `0.21.1.1` (`4da5fdc8`), `helium-chromium` at tag

@@ -1,0 +1,820 @@
+<?xml version="1.0" encoding="utf-8"?>
+<grit-part>
+<message name="IDS_ABOUT" desc="fixture">
+              About &amp;Helium for Testing
+            </message>
+<message name="IDS_ABOUT_BROWSER_SWITCH_DESCRIPTION_KNOWN_BROWSER" desc="fixture">
+          Your system administrator has configured Helium to open <ph name="ALTERNATIVE_BROWSER_NAME">&#36;2<ex>Internet Explorer</ex></ph> to access <ph name="TARGET_URL_HOSTNAME">&#36;1<ex>example.com</ex></ph>.
+        </message>
+<message name="IDS_ABOUT_BROWSER_SWITCH_DESCRIPTION_UNKNOWN_BROWSER" desc="fixture">
+          Your system administrator has configured Helium to open an alternative browser to access <ph name="TARGET_URL_HOSTNAME">&#36;1<ex>example.com</ex></ph>.
+        </message>
+<message name="IDS_ABOUT_BROWSER_SWITCH_INTERNALS_OPEN_BROWSER_DEFAULT_REASON" desc="fixture">
+          Reason: LBS stays in <ph name="DEFAULT_OPEN_BROWSER">&#36;1<ex>Helium</ex></ph> by default.
+        </message>
+<message name="IDS_ABOUT_CHROME_AUTOUPDATE_ALL" desc="fixture">
+        Automatically update Helium for all users
+      </message>
+<message name="IDS_ABOUT_LINUX_PROXY_CONFIG_BODY" desc="fixture">
+          &lt;p&gt;When running <ph name="PRODUCT_NAME">&#36;1<ex>Helium</ex></ph> under a supported desktop environment, the system proxy settings will be used.  However, either your system is not supported or there was a problem launching your system configuration.&lt;/p&gt;
+
+          &lt;p&gt;But you can still configure via the command line.  Please see &lt;code&gt;man <ph name="PRODUCT_BINARY_NAME">&#36;2<ex>google-chrome</ex></ph>&lt;/code&gt; for more information on flags and environment variables.&lt;/p&gt;
+        </message>
+<message name="IDS_ABOUT_MAC" desc="fixture">
+          About <ph name="PRODUCT_NAME">&#36;1<ex>Helium</ex></ph>
+        </message>
+<message name="IDS_ABOUT_SAFETY_INFORMATION" translateable="false" desc="fixture">
+          Not used in Helium. Placeholder to keep resource maps in sync.
+        </message>
+<message name="IDS_ABOUT_TERMS_OF_SERVICE" translateable="false" desc="fixture">
+            Not used in Helium. Placeholder to keep resource maps in sync.
+          </message>
+<message name="IDS_ABOUT_VERSION_COMPANY_NAME" desc="fixture">
+            The Helium Authors
+          </message>
+<message name="IDS_ABOUT_VERSION_COPYRIGHT" desc="fixture">
+            Copyright <ph name="YEAR">{0,date,y}<ex>2016</ex></ph> The Helium Authors. All rights reserved.
+          </message>
+<message name="IDS_ACCESSIBLE_BETA_BROWSER_WINDOW_TITLE_FORMAT" desc="fixture">
+        <ph name="PAGE_TITLE">&#36;1<ex>Google</ex></ph> - Helium Beta
+      </message>
+<message name="IDS_ACCESSIBLE_BROWSER_WINDOW_TITLE_FORMAT" desc="fixture">
+            <ph name="PAGE_TITLE">&#36;1<ex>Google</ex></ph> - Helium for Testing
+          </message>
+<message name="IDS_ACCESSIBLE_CANARY_BROWSER_WINDOW_TITLE_FORMAT" desc="fixture">
+        <ph name="PAGE_TITLE">&#36;1<ex>Google</ex></ph> - Helium Canary
+      </message>
+<message name="IDS_ACCESSIBLE_DEV_BROWSER_WINDOW_TITLE_FORMAT" desc="fixture">
+        <ph name="PAGE_TITLE">&#36;1<ex>Google</ex></ph> - Helium Dev
+      </message>
+<message name="IDS_ACCNAME_APP_UPGRADE_RECOMMENDED" desc="fixture">
+        <ph name="ACCNAME_APP">&#36;1<ex>Helium</ex></ph> (Update is available)
+      </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_CHANGE_GOOGLE_PASSWORD_SUFFIX" desc="fixture">
+    <ph name="CHANGE_GOOGLE_PASSWORD_FOCUSED_FRIENDLY_MATCH_TEXT">&#36;1<ex>The Helium Projects http://www.ch40m1um.qjz9zk bookmark</ex></ph>, press Tab then Enter to change your Google Account password
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_CLEAR_BROWSING_DATA" desc="fixture">
+    Delete browsing data button, activate to delete your browsing history, cookies, cache, and more in Helium settings
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_CLEAR_BROWSING_DATA_SUFFIX" desc="fixture">
+    <ph name="CLEAR_BROWSING_DATA_FOCUSED_FRIENDLY_MATCH_TEXT">&#36;1<ex>The Helium Projects http://www.ch40m1um.qjz9zk bookmark</ex></ph>, press Tab then Enter to delete your browsing history, cookies, cache, and more in Helium settings
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_CLOSE_INCOGNITO_WINDOWS_SUFFIX" desc="fixture">
+    <ph name="CLOSE_INCOGNITO_WINDOWS_FOCUSED_FRIENDLY_MATCH_TEXT">&#36;1<ex>The Helium Projects http://www.ch40m1um.qjz9zk bookmark</ex></ph>, Press tab then Enter to close all Incognito windows that are currently open
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_CLOSE_ISOLATED_WINDOWS_SUFFIX" desc="fixture">
+    <ph name="CLOSE_ISOLATED_WINDOWS_FOCUSED_FRIENDLY_MATCH_TEXT">&#36;1<ex>The Helium Projects http://www.ch40m1um.qjz9zk bookmark</ex></ph>, Press Tab then Enter to close all Isolated windows that are currently open
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_CREATE_GOOGLE_CALENDAR_EVENT_SUFFIX" desc="fixture">
+    <ph name="CREATE_GOOGLE_CALENDAR_EVENT_FOCUSED_FRIENDLY_MATCH_TEXT">&#36;1<ex>The Helium Projects http://www.ch40m1um.qjz9zk bookmark</ex></ph>, press Tab then Enter to create a new event in Google Calendar quickly
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_CREATE_GOOGLE_DOC_SUFFIX" desc="fixture">
+    <ph name="CREATE_GOOGLE_DOC_FOCUSED_FRIENDLY_MATCH_TEXT">&#36;1<ex>The Helium Projects http://www.ch40m1um.qjz9zk bookmark</ex></ph>, press Tab then Enter to create a new Google Doc quickly
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_CREATE_GOOGLE_FORM_SUFFIX" desc="fixture">
+    <ph name="CREATE_GOOGLE_FORM_FOCUSED_FRIENDLY_MATCH_TEXT">&#36;1<ex>The Helium Projects http://www.ch40m1um.qjz9zk bookmark</ex></ph>, press Tab then Enter to create a new form in Google Forms quickly
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_CREATE_GOOGLE_KEEP_NOTE_SUFFIX" desc="fixture">
+    <ph name="CREATE_GOOGLE_KEEP_NOTE_FOCUSED_FRIENDLY_MATCH_TEXT">&#36;1<ex>The Helium Projects http://www.ch40m1um.qjz9zk bookmark</ex></ph>, press Tab then Enter to create a new note in Google Keep quickly
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_CREATE_GOOGLE_SHEET_SUFFIX" desc="fixture">
+    <ph name="CREATE_GOOGLE_SHEET_FOCUSED_FRIENDLY_MATCH_TEXT">&#36;1<ex>The Helium Projects http://www.ch40m1um.qjz9zk bookmark</ex></ph>, press Tab then Enter to create a new Google Sheet quickly
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_CREATE_GOOGLE_SITE_SUFFIX" desc="fixture">
+    <ph name="CREATE_GOOGLE_SITE_FOCUSED_FRIENDLY_MATCH_TEXT">&#36;1<ex>The Helium Projects http://www.ch40m1um.qjz9zk bookmark</ex></ph>, press Tab then Enter to create a new site in Google Sites quickly
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_CREATE_GOOGLE_SLIDE_SUFFIX" desc="fixture">
+    <ph name="CREATE_GOOGLE_SLIDE_FOCUSED_FRIENDLY_MATCH_TEXT">&#36;1<ex>The Helium Projects http://www.ch40m1um.qjz9zk bookmark</ex></ph>, press Tab then Enter to create a new Google presentation in Slides quickly
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_CUSTOMIZE_CHROME_FONTS" desc="fixture">
+    Customize fonts in Helium button, activate to customize font sizes and typefaces in Helium
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_CUSTOMIZE_CHROME_FONTS_SUFFIX" desc="fixture">
+    <ph name="CUSTOMIZE_CHROME_FONTS_FOCUSED_FRIENDLY_MATCH_TEXT">&#36;1<ex>The Helium Projects http://www.ch40m1um.qjz9zk bookmark</ex></ph>, Press tab then Enter to customize font sizes and typefaces in Helium
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_CUSTOMIZE_SEARCH_ENGINES_SUFFIX" desc="fixture">
+    <ph name="CUSTOMIZE_SEARCH_ENGINES_FOCUSED_FRIENDLY_MATCH_TEXT">&#36;1<ex>The Helium Projects http://www.ch40m1um.qjz9zk bookmark</ex></ph>, Press tab then Enter to manage site search and your default search engine
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_FIND_MY_PHONE_SUFFIX" desc="fixture">
+    <ph name="FIND_MY_PHONE_FOCUSED_FRIENDLY_MATCH_TEXT">&#36;1<ex>The Helium Projects http://www.ch40m1um.qjz9zk bookmark</ex></ph>, Press Tab then Enter to Find your device in the Google Account
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_LAUNCH_INCOGNITO_SUFFIX" desc="fixture">
+    <ph name="LAUNCH_INCOGNITO_FOCUSED_FRIENDLY_MATCH_TEXT">&#36;1<ex>The Helium Projects http://www.ch40m1um.qjz9zk bookmark</ex></ph>, press Tab then Enter to open a new Incognito window to browse privately
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_LAUNCH_ISOLATED_SUFFIX" desc="fixture">
+    <ph name="LAUNCH_ISOLATED_FOCUSED_FRIENDLY_MATCH_TEXT">&#36;1<ex>The Helium Projects http://www.ch40m1um.qjz9zk bookmark</ex></ph>, press Tab then Enter to open a new Isolated window to browse privately
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_MANAGE_ADDRESSES" desc="fixture">
+    Manage addresses button, activate to add and manage addresses in Helium settings
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_MANAGE_ADDRESSES_SUFFIX" desc="fixture">
+    <ph name="MANAGE_ADDRESSES_FOCUSED_FRIENDLY_MATCH_TEXT">&#36;1<ex>The Helium Projects http://www.ch40m1um.qjz9zk bookmark</ex></ph>, press Tab then Enter to add and manage addresses in Helium settings
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_MANAGE_CHROMEOS_ACCESSIBILITY_SUFFIX" desc="fixture">
+    <ph name="MANAGE_CHROMEOS_ACCESSIBILITY_FOCUSED_FRIENDLY_MATCH_TEXT">&#36;1<ex>The Helium Projects http://www.ch40m1um.qjz9zk bookmark</ex></ph>, Press tab then Enter to personalize your accessibility tools in ChromeOS settings
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_MANAGE_CHROME_ACCESSIBILITY" desc="fixture">
+    Manage accessibility settings button, activate to personalize your accessibility tools in Helium settings
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_MANAGE_CHROME_ACCESSIBILITY_SUFFIX" desc="fixture">
+    <ph name="MANAGE_CHROME_ACCESSIBILITY_FOCUSED_FRIENDLY_MATCH_TEXT">&#36;1<ex>The Helium Projects http://www.ch40m1um.qjz9zk bookmark</ex></ph>, Press tab then Enter to personalize your accessibility tools in Helium settings
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_MANAGE_CHROME_DOWNLOADS" desc="fixture">
+    Manage downloads in Helium button, activate to manage files you have downloaded in Helium
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_MANAGE_CHROME_DOWNLOADS_SUFFIX" desc="fixture">
+    <ph name="MANAGE_CHROME_DOWNLOADS_FOCUSED_FRIENDLY_MATCH_TEXT">&#36;1<ex>The Helium Projects http://www.ch40m1um.qjz9zk bookmark</ex></ph>, Press Tab then Enter to manage files you have downloaded in Helium
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_MANAGE_CHROME_SETTINGS" desc="fixture">
+    Manage Helium settings button, activate to visit your Helium settings
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_MANAGE_CHROME_SETTINGS_SUFFIX" desc="fixture">
+    <ph name="MANAGE_CHROME_SETTINGS_FOCUSED_FRIENDLY_MATCH_TEXT">&#36;1<ex>The Helium Projects http://www.ch40m1um.qjz9zk bookmark</ex></ph>, Press Tab then Enter to manage your Helium settings
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_MANAGE_CHROME_THEMES" desc="fixture">
+    Customize Helium button, activate to customize the look of your browser
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_MANAGE_CHROME_THEMES_SUFFIX" desc="fixture">
+    <ph name="MANAGE_CHROME_THEMES_FOCUSED_FRIENDLY_MATCH_TEXT">&#36;1<ex>The Helium Projects http://www.ch40m1um.qjz9zk bookmark</ex></ph>, Press tab then Enter to customize the look of your browser
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_MANAGE_COOKIES" desc="fixture">
+    Manage cookies button, activate to manage your cookie preferences in Helium settings
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_MANAGE_COOKIES_SUFFIX" desc="fixture">
+    <ph name="MANAGE_COOKIES_FOCUSED_FRIENDLY_MATCH_TEXT">&#36;1<ex>The Helium Projects http://www.ch40m1um.qjz9zk bookmark</ex></ph>, press Tab then Enter to manage your cookie preferences in Helium settings
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_MANAGE_GOOGLE_ACCOUNT_SUFFIX" desc="fixture">
+    <ph name="MANAGE_GOOGLE_ACCOUNT_FOCUSED_FRIENDLY_MATCH_TEXT">&#36;1<ex>The Helium Projects http://www.ch40m1um.qjz9zk bookmark</ex></ph>, press Tab then Enter to manage your info, privacy, and security in your Google Account
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_MANAGE_GOOGLE_PRIVACY_SUFFIX" desc="fixture">
+    <ph name="MANAGE_GOOGLE_PRIVACY_FOCUSED_FRIENDLY_MATCH_TEXT">&#36;1<ex>The Helium Projects http://www.ch40m1um.qjz9zk bookmark</ex></ph>, Press Tab then Enter to manage your Google Account privacy settings
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_MANAGE_PASSWORDS" desc="fixture">
+    Manage passwords button, activate to view and manage your passwords in Helium settings
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_MANAGE_PASSWORDS_SUFFIX" desc="fixture">
+    <ph name="MANAGE_PASSWORDS_FOCUSED_FRIENDLY_MATCH_TEXT">&#36;1<ex>The Helium Projects http://www.ch40m1um.qjz9zk bookmark</ex></ph>, press Tab then Enter to view and manage your passwords in Helium settings
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_MANAGE_SECURITY_SETTINGS" desc="fixture">
+    Manage security settings button, activate to manage your Safe Browsing and more in Helium settings
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_MANAGE_SECURITY_SETTINGS_SUFFIX" desc="fixture">
+    <ph name="MANAGE_SECURITY_SETTINGS_FOCUSED_FRIENDLY_MATCH_TEXT">&#36;1<ex>The Helium Projects http://www.ch40m1um.qjz9zk bookmark</ex></ph>, press Tab then Enter to manage your Safe Browsing and more in Helium settings
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_MANAGE_SITE_SETTINGS" desc="fixture">
+    Manage site settings button, activate to manage permissions and data stored across sites in Helium settings
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_MANAGE_SITE_SETTINGS_SUFFIX" desc="fixture">
+    <ph name="MANAGE_SITE_SETTINGS_FOCUSED_FRIENDLY_MATCH_TEXT">&#36;1<ex>The Helium Projects http://www.ch40m1um.qjz9zk bookmark</ex></ph>, press Tab then Enter to manage permissions and data stored across sites in Helium settings
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_MANAGE_SYNC" desc="fixture">
+    Manage sync button, activate to manage what info you sync in Helium settings
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_MANAGE_SYNC_SUFFIX" desc="fixture">
+    <ph name="MANAGE_SYNC_FOCUSED_FRIENDLY_MATCH_TEXT">&#36;1<ex>The Helium Projects http://www.ch40m1um.qjz9zk bookmark</ex></ph>, press Tab then Enter to manage what info you sync in Helium settings
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_MANAGE_SYNC_SUFFIX_UPDATED" desc="fixture">
+    <ph name="MANAGE_SYNC_FOCUSED_FRIENDLY_MATCH_TEXT">&#36;1<ex>The Helium Projects http://www.ch40m1um.qjz9zk bookmark</ex></ph>, press Tab then Enter to manage what Helium info you save in your Google Account
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_MANAGE_SYNC_UPDATED" desc="fixture">
+    Manage data in your account button, activate to manage what Helium info you save in your Google Account
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_PLAY_CHROME_DINO_GAME" desc="fixture">
+    Play Helium Dino game button, activate to play the Dino Run game in Helium
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_PLAY_CHROME_DINO_GAME_SUFFIX" desc="fixture">
+    <ph name="PLAY_CHROME_DINO_GAME_FOCUSED_FRIENDLY_MATCH_TEXT">&#36;1<ex>The Helium Projects http://www.ch40m1um.qjz9zk bookmark</ex></ph>, Press tab then Enter to play the Dino Run game in Helium
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_RUN_CHROME_SAFETY_CHECK" desc="fixture">
+    Run Helium safety check button, activate to run a safety check in Helium settings
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_RUN_CHROME_SAFETY_CHECK_SUFFIX" desc="fixture">
+    <ph name="RUN_CHROME_SAFETY_CHECK_FOCUSED_FRIENDLY_MATCH_TEXT">&#36;1<ex>The Helium Projects http://www.ch40m1um.qjz9zk bookmark</ex></ph>, press Tab then Enter to run a safety check in Helium settings
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_RUN_CHROME_SAFETY_CHECK_V2" desc="fixture">
+    Go to Helium safety check button, activate to visit Helium safety check page in settings
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_RUN_CHROME_SAFETY_CHECK_V2_SUFFIX" desc="fixture">
+    <ph name="RUN_CHROME_SAFETY_CHECK_FOCUSED_FRIENDLY_MATCH_TEXT">&#36;1<ex>The Helium Projects http://www.ch40m1um.qjz9zk bookmark</ex></ph>, press Tab then Enter to go to Helium safety check page in settings
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_SEE_CHROME_TIPS" desc="fixture">
+    See Helium tips button, activate to learn about Helium features
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_SEE_CHROME_TIPS_SUFFIX" desc="fixture">
+    <ph name="SEE_CHROME_TIPS_FOCUSED_FRIENDLY_MATCH_TEXT">&#36;1<ex>The Helium Projects http://www.ch40m1um.qjz9zk bookmark</ex></ph>, press Tab then Enter to learn about Helium features
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_SET_CHROME_AS_DEFAULT_BROWSER" desc="fixture">
+    Set Helium as default browser button, activate to set Helium as the system's default browser
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_SET_CHROME_AS_DEFAULT_BROWSER_SUFFIX" desc="fixture">
+    <ph name="SET_CHROME_AS_DEFAULT_BROWSER_FOCUSED_FRIENDLY_MATCH_TEXT">&#36;1<ex>The Helium Projects http://www.ch40m1um.qjz9zk bookmark</ex></ph>, Press tab then Enter to set Helium as the system's default browser
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_SHARE_THIS_PAGE_SUFFIX" desc="fixture">
+    <ph name="SHARE_THIS_PAGE_FOCUSED_FRIENDLY_MATCH_TEXT">&#36;1<ex>The Helium Projects http://www.ch40m1um.qjz9zk bookmark</ex></ph>, Press tab then Enter to share this tab by sharing the link, creating a QR code, casting, and more
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_TRANSLATE_SUFFIX" desc="fixture">
+    <ph name="TRANSLATE_FOCUSED_FRIENDLY_MATCH_TEXT">&#36;1<ex>The Helium Projects http://www.ch40m1um.qjz9zk bookmark</ex></ph>, press Tab then Enter to translate this page with Google Translate
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_UPDATE_CHROME" desc="fixture">
+    Update Helium button, activate to update Helium from your Helium settings
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_UPDATE_CHROME_SUFFIX" desc="fixture">
+    <ph name="UPDATE_CHROME_FOCUSED_FRIENDLY_MATCH_TEXT">&#36;1<ex>The Helium Projects http://www.ch40m1um.qjz9zk bookmark</ex></ph>, press Tab then Enter to update Helium from your Helium settings
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_UPDATE_CREDIT_CARD" desc="fixture">
+    Manage payment methods button, activate to manage your payments and credit card info in Helium settings
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_UPDATE_CREDIT_CARD_SUFFIX" desc="fixture">
+    <ph name="UPDATE_CREDIT_CARD_FOCUSED_FRIENDLY_MATCH_TEXT">&#36;1<ex>The Helium Projects http://www.ch40m1um.qjz9zk bookmark</ex></ph>, press Tab then Enter to manage your payments and credit card info in Helium settings
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_VIEW_CHROME_HISTORY" desc="fixture">
+    View your Helium history button, activate to view and manage your browsing history in Helium settings
+  </message>
+<message name="IDS_ACC_OMNIBOX_PEDAL_VIEW_CHROME_HISTORY_SUFFIX" desc="fixture">
+    <ph name="VIEW_CHROME_HISTORY_FOCUSED_FRIENDLY_MATCH_TEXT">&#36;1<ex>The Helium Projects http://www.ch40m1um.qjz9zk bookmark</ex></ph>, Press tab then Enter to view your browsing history in Helium
+  </message>
+<message name="IDS_ANDROID_ACC_OMNIBOX_PEDAL_LAUNCH_INCOGNITO_SUFFIX" desc="fixture">
+    <ph name="LAUNCH_INCOGNITO_FOCUSED_FRIENDLY_MATCH_TEXT">&#36;1<ex>The Helium Projects http://www.ch40m1um.qjz9zk bookmark</ex></ph>, press Tab then Enter to open a new Incognito tab to browse privately
+  </message>
+<message name="IDS_APPMENU_TOOLTIP_HELIUM_SERVICES_UPDATE" desc="fixture">
+        Helium services have been updated. Please review the changes.
+      </message>
+<message name="IDS_APPMENU_TOOLTIP_UPDATE_AVAILABLE" desc="fixture">
+        Customize and control Helium. Update is available.
+      </message>
+<message name="IDS_APP_MENU_BUTTON_UPDATE_ALT3" desc="fixture">
+          New Helium available
+        </message>
+<message name="IDS_APP_MENU_PRODUCT_NAME" translateable="false" desc="fixture">
+          Helium
+        </message>
+<message name="IDS_AUTOFILL_AI_FILLING_REAUTH" desc="fixture">
+      Helium is trying to fill your sensitive info on <ph name="APP_NAME">&#36;1<ex>9oo91e.qjz9zk</ex></ph>.
+    </message>
+<message name="IDS_AUTOFILL_AI_SAVE_OR_UPDATE_ENTITY_FAILED_WALLET_SAVE_DIALOG_DESCRIPTION" formatter_data="android_java" desc="fixture">
+      Helium will offer to save it to <ph name="IDS_AUTOFILL_GOOGLE_WALLET_TITLE">&#36;1<ex>Google Wallet</ex></ph> next time you use it
+    </message>
+<message name="IDS_AUTOFILL_AI_UPDATE_REAUTH_REQUIREMENT" desc="fixture">
+      Helium browser wants to verify it's you before you change settings
+    </message>
+<message name="IDS_AUTOFILL_AI_VIEWING_REAUTH" desc="fixture">
+      Helium browser is trying to show sensitive info
+    </message>
+<message name="IDS_AUTOFILL_MANDATORY_REAUTH_CONFIRMATION_EXPLANATION" desc="fixture">
+    Helium will now verify it's you before filling in payment methods. You can update this at any time in <ph name="IDS_AUTOFILL_MANDATORY_REAUTH_CONFIRMATION_SETTINGS_LINK">&#36;1<ex>settings</ex></ph>.
+  </message>
+<message name="IDS_BROWSER_WINDOW_TITLE_FORMAT" desc="fixture">
+              <ph name="PAGE_TITLE">&#36;1<ex>Google</ex></ph> - Helium for Testing
+            </message>
+<message name="IDS_CAPTIVE_PORTAL_BROWSER_WINDOW_TITLE_FORMAT" desc="fixture">
+          <ph name="PAGE_TITLE">&#36;1<ex>Google</ex></ph> - Network Sign-in - Helium
+        </message>
+<message name="IDS_COLLABORATION_CHROME_OUT_OF_DATE_ERROR_DIALOG_UPDATE_BUTTON" formatter_data="android_java" desc="fixture">
+    Update Helium
+  </message>
+<message name="IDS_COMPONENTS_SVC_STATUS_ERROR_HELIUM_SERVICES" desc="fixture">
+        Component updates are disabled. See Helium services in settings.
+      </message>
+<message name="IDS_CRASH_DISABLED_MESSAGE" desc="fixture">
+        Crash reporting is disabled in Helium settings or by policy.
+      </message>
+<message name="IDS_CRASH_RECOVERY_DIALOG_MESSAGE" desc="fixture">
+        Helium didn’t shut down correctly and can try to restore your lost windows and tabs. Some windows may be minimized when restored.
+      </message>
+<message name="IDS_DOWNLOAD_BUBBLE_INTERRUPTED_SUBPAGE_SUMMARY_HELIUM_SERVICES_DISABLED" desc="fixture">
+        Extension downloads are disabled. Enable this feature in Helium services settings and try again.
+      </message>
+<message name="IDS_EXTENSIONS_INSTALL_LOCATION_HELIUM" desc="fixture">
+          Helium component
+        </message>
+<message name="IDS_EXTENSION_INSTALL_PROCESS_CRASHED" desc="fixture">
+        Could not install package because a utility process crashed. Try restarting Helium and trying again.
+      </message>
+<message name="IDS_HELIUM_CRASH_REPORTING_DIALOG_DESCRIPTION" desc="fixture">
+        Helium closed unexpectedly. A crash report could help us fix the issue you ran into and prevent it from happening again.
+      </message>
+<message name="IDS_HELIUM_CRASH_REPORTING_DIALOG_PRIVACY" desc="fixture">
+        A crash report may incidentally include some sensitive data present in Helium's memory at the time of crash.
+      </message>
+<message name="IDS_HELIUM_ONBOARDING_DATA_IMPORT_MAC_NOTICE_BODY" desc="fixture">
+  macOS protects some browsers from being automatically detected. To see more options, allow Helium to access them in <ph name="BEGIN_LINK_SETTINGS">&#36;1</ph>System Settings<ph name="END_LINK_SETTINGS">&#36;2</ph>.
+</message>
+<message name="IDS_HELIUM_ONBOARDING_DATA_IMPORT_PROMPT_PERMISSION" desc="fixture">
+  Allow Helium to look for other browsers on this device so you can choose what to transfer.
+</message>
+<message name="IDS_HELIUM_ONBOARDING_DEFAULT_BROWSER_NO_DESC" desc="fixture">
+  Just trying Helium for now.
+</message>
+<message name="IDS_HELIUM_ONBOARDING_DEFAULT_BROWSER_SUBTITLE" desc="fixture">
+  Better privacy, speed, and comfort. All in one click. Wanna make links open in Helium by default?
+</message>
+<message name="IDS_HELIUM_ONBOARDING_DEFAULT_BROWSER_TITLE" desc="fixture">
+  Ready to switch to Helium?
+</message>
+<message name="IDS_HELIUM_ONBOARDING_DEFAULT_BROWSER_YES_DESC" desc="fixture">
+  Make Helium my default browser.
+</message>
+<message name="IDS_HELIUM_ONBOARDING_FINISH_BODY" desc="fixture">
+  The setup is complete, thank you for choosing Helium. Time to enjoy the internet again.
+</message>
+<message name="IDS_HELIUM_ONBOARDING_PAGE_TITLE" desc="fixture">
+  Helium Setup
+</message>
+<message name="IDS_HELIUM_ONBOARDING_PARTNER_TITLE" desc="fixture">
+  Helium Partner
+</message>
+<message name="IDS_HELIUM_ONBOARDING_PARTNER_TOOLTIP" desc="fixture">
+  Paying for this service will support the development of Helium.
+</message>
+<message name="IDS_HELIUM_ONBOARDING_PASSWORD_MANAGERS_ONE_PASSWORD" desc="fixture">
+  Popular, paid, and closed-source password manager. Offers data storage in Europe or US. May not work correctly with Helium without extra configuration.
+</message>
+<message name="IDS_HELIUM_ONBOARDING_PASSWORD_SUBTITLE" desc="fixture">
+  Helium doesn't have a built-in password manager. Would you like to install one from the Web Store?
+</message>
+<message name="IDS_HELIUM_ONBOARDING_SEARCH_CATEGORIES_CUSTOM" desc="fixture">
+  A custom search engine. Its privacy wasn't verified by Helium.
+</message>
+<message name="IDS_HELIUM_ONBOARDING_SERVICES_AUTOUPDATES_DESC" desc="fixture">
+  Helium will automatically check for updates and install them. This includes browser and component updates. We recommend keeping this setting enabled to ensure you get the latest features and security updates.
+</message>
+<message name="IDS_HELIUM_ONBOARDING_SERVICES_AUTOUPDATES_DESC_LINUX" desc="fixture">
+  Helium will automatically check for component updates and install them. We recommend keeping this setting enabled. On Linux, browser updates are handled by your distro's package manager. Please check for Helium package updates at least every week.
+</message>
+<message name="IDS_HELIUM_ONBOARDING_SERVICES_BANGS_DESC" desc="fixture">
+  Helium will fetch a list of bangs that help you browse the Internet faster, such as !w or !gh. When disabled, bangs will not work.
+</message>
+<message name="IDS_HELIUM_ONBOARDING_SERVICES_CONNECTION_DESC" desc="fixture">
+  Helium services provide additional functionality, such as: extension downloads, native !bangs, filter list updates, and browser updates. When disabled, none of these features will work, but Helium will not make any web requests.
+</message>
+<message name="IDS_HELIUM_ONBOARDING_SERVICES_CONNECTION_TITLE" desc="fixture">
+  Allow connecting to Helium services
+</message>
+<message name="IDS_HELIUM_ONBOARDING_SERVICES_EXTENSIONS_DESC" desc="fixture">
+  When enabled, Helium will proxy extension downloads and updates to protect your privacy. When disabled, downloading and updating extensions will not work.
+</message>
+<message name="IDS_HELIUM_ONBOARDING_SERVICES_INSTANCE_DESC" desc="fixture">
+  You can host your own instance of Helium services and use it in your browser instead of the pre-hosted server. If you have one, you can set it in Helium settings.
+</message>
+<message name="IDS_HELIUM_ONBOARDING_SERVICES_INSTANCE_TITLE" desc="fixture">
+  Use your own instance of Helium services
+</message>
+<message name="IDS_HELIUM_ONBOARDING_SERVICES_SPELLCHECK_DESC" desc="fixture">
+  Helium will fetch dictionary files used for spell checking when requested. When disabled, spell checking will not work.
+</message>
+<message name="IDS_HELIUM_ONBOARDING_SERVICES_TITLE" desc="fixture">
+  Helium services
+</message>
+<message name="IDS_HELIUM_ONBOARDING_SERVICES_UBLOCK_DESC" desc="fixture">
+  Helium will fetch fresh filter lists for uBlock Origin. All requests to lists are proxied to protect your privacy. When disabled, default filter lists will be loaded from local storage, which are only updated along with Helium. Optional filter lists will be requested without proxying.
+</message>
+<message name="IDS_HELIUM_ONBOARDING_WELCOME_BODY" desc="fixture">
+  Configure Helium to match your taste and import data from other browsers. Make it feel like home or jump straight to browsing.
+</message>
+<message name="IDS_HELIUM_ONBOARDING_WELCOME_FOOTER" desc="fixture">
+  If you use defaults, Helium services will be automatically enabled.
+</message>
+<message name="IDS_HELIUM_ONBOARDING_WELCOME_GREETING" desc="fixture">
+  Meet Helium
+</message>
+<message name="IDS_HELIUM_SERVICES_SCHEMA_MENU_ITEM" desc="fixture">
+        Review Helium services updates
+      </message>
+<message name="IDS_INCOGNITO_REAUTH_PROMO_TITLE" desc="fixture">
+       Lock Incognito tabs when you leave Helium
+     </message>
+<message name="IDS_INCOGNITO_REAUTH_SNACKBAR_TEXT" desc="fixture">
+        Incognito tabs will be locked when you leave Helium
+     </message>
+<message name="IDS_INCOGNITO_WINDOW_REAUTH_PROMO_TITLE" desc="fixture">
+       Lock Incognito windows when you leave Helium
+     </message>
+<message name="IDS_INSTALLING_UPDATE" desc="fixture">
+          Please wait while Helium installs the latest system updates.
+        </message>
+<message name="IDS_INTERNAL_UPDATER_SERVICE_DISPLAY_NAME" desc="fixture">
+          Helium Updater Internal Service
+        </message>
+<message name="IDS_IN_APP_UPDATE_DISCOVERY_TITLE" desc="fixture">
+        A new version of Helium is available
+      </message>
+<message name="IDS_IOS_ABOUT_PRODUCT_NAME" desc="fixture">
+        About Helium
+      </message>
+<message name="IDS_IOS_ABOUT_VERSION_COMPANY_NAME" desc="fixture">
+        The Helium Authors
+      </message>
+<message name="IDS_IOS_ABOUT_VERSION_COPYRIGHT" desc="fixture">
+        Copyright <ph name="YEAR">&#36;1</ph> The Helium Authors. All rights reserved.
+      </message>
+<message name="IDS_IOS_ACC_OMNIBOX_PEDAL_SET_CHROME_AS_DEFAULT_BROWSER" desc="fixture">
+    Set Helium as default browser button, press Enter to set Helium as the system's default browser in iOS settings
+  </message>
+<message name="IDS_IOS_ACC_OMNIBOX_PEDAL_SET_CHROME_AS_DEFAULT_BROWSER_SUFFIX" desc="fixture">
+    <ph name="SET_CHROME_AS_DEFAULT_BROWSER_FOCUSED_FRIENDLY_MATCH_TEXT">&#36;1<ex>The Helium Projects http://www.ch40m1um.qjz9zk bookmark</ex></ph>, Press tab then Enter to set Helium as the system's default browser in iOS settings
+  </message>
+<message name="IDS_IOS_AUTOFILL_AI_SAVE_OR_UPDATE_ENTITY_FAILED_WALLET_SAVE_DIALOG_DESCRIPTION" desc="fixture">
+      Helium will offer to save it in Google Wallet next time you use it
+      </message>
+<message name="IDS_IOS_INCOGNITO_REAUTH_SETTING_NAME" desc="fixture">
+       Lock Incognito tabs when you close Helium
+      </message>
+<message name="IDS_IOS_INCOGNITO_REAUTH_SET_UP_SYSTEM_DIALOG_REASON" desc="fixture">
+       Let Helium lock your Incognito tabs.
+      </message>
+<message name="IDS_IOS_OMNIBOX_PEDAL_PLAY_CHROME_DINO_GAME_HINT" desc="fixture">
+    Play Helium Dino Game
+  </message>
+<message name="IDS_IOS_OMNIBOX_PEDAL_RUN_CHROME_SAFETY_CHECK_HINT" desc="fixture">
+    Run Helium Safety Check
+  </message>
+<message name="IDS_IOS_OMNIBOX_PEDAL_SET_CHROME_AS_DEFAULT_BROWSER_HINT" desc="fixture">
+    Set Helium as Default Browser
+  </message>
+<message name="IDS_IOS_OMNIBOX_PEDAL_SET_CHROME_AS_DEFAULT_BROWSER_SUGGESTION_CONTENTS" desc="fixture">
+    Set Helium as the system's default browser in iOS settings
+  </message>
+<message name="IDS_IOS_OMNIBOX_PEDAL_VIEW_CHROME_HISTORY_HINT" desc="fixture">
+    View Your Helium History
+  </message>
+<message name="IDS_IOS_PRODUCT_NAME" desc="fixture">
+        Helium
+      </message>
+<message name="IDS_IOS_SAFETY_CHECK_COMPACT_DESCRIPTION_UPDATE_CHROME" desc="fixture">
+        Your Helium is out of date.
+      </message>
+<message name="IDS_IOS_SAFETY_CHECK_DESCRIPTION_UPDATE_CHROME" desc="fixture">
+        Your Helium is out of date. Update it to stay safe.
+      </message>
+<message name="IDS_IOS_SETTINGS_SAFETY_CHECK_UPDATES_CHANNEL_BETA_DESC" desc="fixture">
+        Not supported on Helium Beta
+      </message>
+<message name="IDS_IOS_SETTINGS_SAFETY_CHECK_UPDATES_CHANNEL_CANARY_DESC" desc="fixture">
+        Not supported on Helium Canary
+      </message>
+<message name="IDS_IOS_SETTINGS_SAFETY_CHECK_UPDATES_DESCRIPTION" desc="fixture">
+        Keep Helium up to date
+      </message>
+<message name="IDS_IOS_SETTINGS_SAFETY_CHECK_UPDATES_ERROR_DESC" desc="fixture">
+        Helium can't check for updates
+      </message>
+<message name="IDS_IOS_SETTINGS_SAFETY_CHECK_UPDATES_ERROR_INFO" meaning="An error occurred while performing the update check." desc="fixture">
+        Helium couldn't check for updates. Try again later.
+      </message>
+<message name="IDS_IOS_SETTINGS_SAFETY_CHECK_UPDATES_OFFLINE_DESC" desc="fixture">
+        Offline, Helium can't check for updates
+      </message>
+<message name="IDS_IOS_SETTINGS_SAFETY_CHECK_UPDATES_OFFLINE_INFO" meaning="The user has no internet connection and can't check for updates." desc="fixture">
+        Helium couldn't check for updates. Try checking your internet connection.
+      </message>
+<message name="IDS_IOS_SETTINGS_SAFETY_CHECK_UPDATES_OUT_OF_DATE_DESC" desc="fixture">
+        Helium is out of date
+      </message>
+<message name="IDS_IOS_SETTINGS_SAFETY_CHECK_UPDATES_UNABLE_DESC" desc="fixture">
+        Helium can't update
+      </message>
+<message name="IDS_IOS_SETTINGS_SAFETY_CHECK_UPDATES_UNABLE_INFO" meaning="The device is not able to update to the newest version." desc="fixture">
+        Helium is out of date. If no update is available in the <ph name="BEGIN_LINK">BEGIN_LINK</ph>App Store<ph name="END_LINK">END_LINK</ph>, it's possible that your device doesn't support new versions of Helium anymore.
+      </message>
+<message name="IDS_IOS_SETTINGS_SAFETY_CHECK_UPDATES_UP_TO_DATE_DESC" desc="fixture">
+        Helium is up to date
+      </message>
+<message name="IDS_IOS_SHORT_PRODUCT_NAME" desc="fixture">
+        Helium
+      </message>
+<message name="IDS_IOS_UNO_UPGRADE_PROMO_SIGNIN_SUBTITLE_SYNC_DISABLED" desc="fixture">
+        Get the most out of Helium.
+      </message>
+<message name="IDS_IOS_UPGRADE_AVAILABLE" desc="fixture">
+        Helium just got better! A new version is available.
+      </message>
+<message name="IDS_LENS_PERMISSION_BUBBLE_DIALOG_LEARN_MORE_ABOUT_GOOGLE_LENS_LINK" desc="fixture">
+          Learn more about searching with Image Search in Helium
+        </message>
+<message name="IDS_MENU_ABOUT_CHROME" desc="fixture">
+        About Helium
+      </message>
+<message name="IDS_MENU_OPEN_IN_PRODUCT" desc="fixture">
+        Open in <ph name="PRODUCT_NAME">%1&#36;s<ex>Helium</ex></ph> browser
+      </message>
+<message name="IDS_MENU_UPDATE" desc="fixture">
+        Update Helium
+      </message>
+<message name="IDS_MENU_UPDATE_UNSUPPORTED" desc="fixture">
+        Helium can’t update
+      </message>
+<message name="IDS_NEW_TAB_OTR_SUBTITLE_HELIUM" desc="fixture">
+        Helium will not save anything about your browsing in Incognito, but downloads and bookmarks will stick around. Your browsing won't leave any traces on this device, and other users won't be able to see your activity.
+      </message>
+<message name="IDS_NON_MILESTONE_UPDATE_TOAST_BODY" desc="fixture">
+        Helium was updated
+      </message>
+<message name="IDS_OMNIBOX_PEDAL_CLEAR_BROWSING_DATA_SUGGESTION_CONTENTS" desc="fixture">
+    Delete your browsing history, cookies, cache, and more in Helium settings
+  </message>
+<message name="IDS_OMNIBOX_PEDAL_CUSTOMIZE_CHROME_FONTS_SUGGESTION_CONTENTS" desc="fixture">
+    Customize font sizes and typefaces in Helium
+  </message>
+<message name="IDS_OMNIBOX_PEDAL_MANAGE_ADDRESSES_SUGGESTION_CONTENTS" desc="fixture">
+    Add and manage addresses in Helium settings
+  </message>
+<message name="IDS_OMNIBOX_PEDAL_MANAGE_CHROME_ACCESSIBILITY_SUGGESTION_CONTENTS" desc="fixture">
+    Personalize your accessibility tools in Helium settings
+  </message>
+<message name="IDS_OMNIBOX_PEDAL_MANAGE_CHROME_DOWNLOADS_SUGGESTION_CONTENTS" desc="fixture">
+    Manage files you have downloaded in Helium
+  </message>
+<message name="IDS_OMNIBOX_PEDAL_MANAGE_CHROME_SETTINGS_SUGGESTION_CONTENTS" desc="fixture">
+    Manage your Helium settings
+  </message>
+<message name="IDS_OMNIBOX_PEDAL_MANAGE_CHROME_THEMES_HINT" desc="fixture">
+    Customize Helium
+  </message>
+<message name="IDS_OMNIBOX_PEDAL_MANAGE_COOKIES_SUGGESTION_CONTENTS" desc="fixture">
+    Manage your cookie preferences in Helium settings
+  </message>
+<message name="IDS_OMNIBOX_PEDAL_MANAGE_PASSWORDS_SUGGESTION_CONTENTS" desc="fixture">
+    View and manage your passwords in Helium settings
+  </message>
+<message name="IDS_OMNIBOX_PEDAL_MANAGE_SECURITY_SETTINGS_SUGGESTION_CONTENTS" desc="fixture">
+    Manage your Safe Browsing and more in Helium settings
+  </message>
+<message name="IDS_OMNIBOX_PEDAL_MANAGE_SITE_SETTINGS_SUGGESTION_CONTENTS" desc="fixture">
+    Manage permissions and data stored across sites in Helium settings
+  </message>
+<message name="IDS_OMNIBOX_PEDAL_MANAGE_SYNC_SUGGESTION_CONTENTS" desc="fixture">
+    Manage what info you sync in Helium settings
+  </message>
+<message name="IDS_OMNIBOX_PEDAL_MANAGE_SYNC_SUGGESTION_CONTENTS_UPDATED" desc="fixture">
+    Manage what Helium info you save in your Google Account
+  </message>
+<message name="IDS_OMNIBOX_PEDAL_PLAY_CHROME_DINO_GAME_HINT" desc="fixture">
+    Play Helium Dino game
+  </message>
+<message name="IDS_OMNIBOX_PEDAL_PLAY_CHROME_DINO_GAME_SUGGESTION_CONTENTS" desc="fixture">
+    Play the Dino Run game in Helium
+  </message>
+<message name="IDS_OMNIBOX_PEDAL_RUN_CHROME_SAFETY_CHECK_SUGGESTION_CONTENTS" desc="fixture">
+    Run a safety check in Helium settings
+  </message>
+<message name="IDS_OMNIBOX_PEDAL_RUN_CHROME_SAFETY_CHECK_V2_HINT" desc="fixture">
+    Go to Helium safety check
+  </message>
+<message name="IDS_OMNIBOX_PEDAL_RUN_CHROME_SAFETY_CHECK_V2_SUGGESTION_CONTENTS" desc="fixture">
+    Go to Helium safety check page in settings
+  </message>
+<message name="IDS_OMNIBOX_PEDAL_SEE_CHROME_TIPS_HINT" desc="fixture">
+    See Helium tips
+  </message>
+<message name="IDS_OMNIBOX_PEDAL_SEE_CHROME_TIPS_SUGGESTION_CONTENTS" desc="fixture">
+    Learn about Helium features
+  </message>
+<message name="IDS_OMNIBOX_PEDAL_SET_CHROME_AS_DEFAULT_BROWSER_HINT" desc="fixture">
+    Set Helium as default browser
+  </message>
+<message name="IDS_OMNIBOX_PEDAL_SET_CHROME_AS_DEFAULT_BROWSER_SUGGESTION_CONTENTS" desc="fixture">
+    Set Helium as the system's default browser
+  </message>
+<message name="IDS_OMNIBOX_PEDAL_UPDATE_CHROME_HINT" desc="fixture">
+    Update Helium
+  </message>
+<message name="IDS_OMNIBOX_PEDAL_UPDATE_CHROME_SUGGESTION_CONTENTS" desc="fixture">
+    Update Helium from your Helium settings
+  </message>
+<message name="IDS_OMNIBOX_PEDAL_UPDATE_CREDIT_CARD_SUGGESTION_CONTENTS" desc="fixture">
+    Manage your payments and credit card info in Helium settings
+  </message>
+<message name="IDS_OMNIBOX_PEDAL_VIEW_CHROME_HISTORY_HINT" desc="fixture">
+    View your Helium history
+  </message>
+<message name="IDS_OMNIBOX_PEDAL_VIEW_CHROME_HISTORY_SUGGESTION_CONTENTS" desc="fixture">
+    View and manage your browsing history in Helium settings
+  </message>
+<message name="IDS_PAGE_INFO_HELIUM_NOISE_DESCRIPTION" desc="fixture">
+    When fingerprinting protection is enabled, Helium adds noise to certain browser features to make it harder for sites to track and profile you.
+  </message>
+<message name="IDS_PAGE_INFO_HELIUM_NOISE_GLOBALLY_DISABLED" desc="fixture">
+    Fingerprinting protection is turned off in Helium settings.
+  </message>
+<message name="IDS_PASSWORD_MANAGER_FILLING_REAUTH" desc="fixture">
+      Helium browser is trying to fill your password on <ph name="APP_NAME">&#36;1<ex>9oo91e.qjz9zk</ex></ph>.
+    </message>
+<message name="IDS_PASSWORD_MANAGER_TURN_OFF_FILLING_REAUTH_CHROMEOS" desc="fixture">
+      Helium browser will no longer require your fingerprint to autofill passwords
+    </message>
+<message name="IDS_PASSWORD_MANAGER_TURN_OFF_FILLING_REAUTH_WIN" desc="fixture">
+      Helium is trying to turn off Windows Hello for filling passwords.
+    </message>
+<message name="IDS_PASSWORD_MANAGER_TURN_ON_FILLING_REAUTH_CHROMEOS" desc="fixture">
+      Helium browser would like to use fingerprint to autofill passwords
+    </message>
+<message name="IDS_PASSWORD_MANAGER_TURN_ON_FILLING_REAUTH_WIN" desc="fixture">
+      Helium is trying to turn on Windows Hello for filling passwords.
+    </message>
+<message name="IDS_PAYMENTS_AUTOFILL_EDIT_CARD_MANDATORY_REAUTH_PROMPT" desc="fixture">
+          Helium is trying to edit payment methods.
+        </message>
+<message name="IDS_PAYMENTS_AUTOFILL_FILLING_MANDATORY_REAUTH" desc="fixture">
+      Helium is trying to verify it's you so it can fill in your payment info.
+    </message>
+<message name="IDS_PAYMENTS_AUTOFILL_MANDATORY_REAUTH_PROMPT" desc="fixture">
+          Helium is trying to modify settings for filling payment methods.
+        </message>
+<message name="IDS_PAYMENTS_AUTOFILL_SETTINGS_EDIT_MANDATORY_REAUTH" desc="fixture">
+        Helium is trying to edit payment methods.
+      </message>
+<message name="IDS_PAYMENTS_AUTOFILL_SETTINGS_TOGGLE_MANDATORY_REAUTH" desc="fixture">
+        Helium is trying to modify settings for filling payment methods.
+      </message>
+<message name="IDS_PERFORMANCE_INTERVENTION_DIALOG_TITLE_UPDATED_V3" desc="fixture">
+            {NUM_TABS, plural,
+            =1 {Helium Recommends Pausing the Tab Slowing Your Browser}
+            other {Helium Recommends Pausing the Tabs Slowing Your Browser}}
+          </message>
+<message name="IDS_PREFS_ABOUT_CHROME" desc="fixture">
+        About Helium
+      </message>
+<message name="IDS_PRODUCT_DESCRIPTION" desc="fixture">
+          Helium is a web browser that runs webpages and applications with lightning speed. It's fast, stable, and easy to use. Browse the web more safely with malware and phishing protection built into Helium.
+        </message>
+<message name="IDS_PRODUCT_LOGO_ENTERPRISE_ALT_TEXT" formatter_data="android_java" desc="fixture">
+        Helium Enterprise logo
+      </message>
+<message name="IDS_PRODUCT_NAME" translateable="false" desc="fixture">
+            Helium for Testing
+          </message>
+<message name="IDS_RELAUNCH_TO_UPDATE" desc="fixture">
+          Relaunch to Update &amp;Helium
+        </message>
+<message name="IDS_SAFETY_CHECK_UPDATES_ERROR" desc="fixture">
+        Helium can’t check for updates
+      </message>
+<message name="IDS_SAFETY_CHECK_UPDATES_OFFLINE" desc="fixture">
+        Offline. Helium can’t check for updates.
+      </message>
+<message name="IDS_SAFETY_CHECK_UPDATES_OUTDATED" desc="fixture">
+        Helium is out of date
+      </message>
+<message name="IDS_SAFETY_CHECK_UPDATES_UPDATED" desc="fixture">
+        Helium is up to date
+      </message>
+<message name="IDS_SAFETY_HUB_UPDATES_OUTDATED_SUMMARY" desc="fixture">
+        New version of Helium is available
+      </message>
+<message name="IDS_SAFETY_HUB_UPDATE_UNAVAILABLE_TITLE" desc="fixture">
+        Can’t check Helium version
+      </message>
+<message name="IDS_SESSION_CRASHED_VIEW_MESSAGE" desc="fixture">
+        Helium didn't shut down correctly.
+      </message>
+<message name="IDS_SESSION_CRASHED_VIEW_UMA_OPTIN" desc="fixture">
+        Help make Helium better by sending crash reports and <ph name="UMA_LINK">&#36;1<ex>usage statistics</ex></ph> to Google
+      </message>
+<message name="IDS_SETTINGS_ABOUT_PROGRAM" desc="fixture">
+        About Helium for Testing
+      </message>
+<message name="IDS_SETTINGS_ERROR_UPGRADE_CLIENT_USER_ERROR_DESCRIPTION" desc="fixture">
+    To use and save Helium data in your Google Account, update Helium
+  </message>
+<message name="IDS_SETTINGS_HELIUM_CRASH_REPORTING_DESCRIPTION" desc="fixture">
+      Choose whether Helium can ask to send crash reports or send them automatically. Disabling reports will delete all pending reports.
+    </message>
+<message name="IDS_SETTINGS_HELIUM_SCHEMA_NOTICE_TITLE" desc="fixture">
+      Updates to Helium services:
+    </message>
+<message name="IDS_SETTINGS_HELIUM_SERVICES" desc="fixture">
+      Helium services
+    </message>
+<message name="IDS_SETTINGS_HELIUM_SERVICES_BANGS_TOGGLE_DESCRIPTION" desc="fixture">
+      Helium will fetch a list of bangs that help you browse the Internet faster, such as !w or !gh. When disabled, bangs will not work.
+    </message>
+<message name="IDS_SETTINGS_HELIUM_SERVICES_DESCRIPTION" desc="fixture">
+      Manage what Helium services are allowed in your browser
+    </message>
+<message name="IDS_SETTINGS_HELIUM_SERVICES_EXT_PROXY_TOGGLE_DESCRIPTION" desc="fixture">
+      When enabled, Helium will proxy extension downloads and updates to protect your privacy. When disabled, downloading and updating extensions will not work.
+    </message>
+<message name="IDS_SETTINGS_HELIUM_SERVICES_OVERRIDE" desc="fixture">
+      Use your own instance of Helium services
+    </message>
+<message name="IDS_SETTINGS_HELIUM_SERVICES_OVERRIDE_ARIA_LABEL" desc="fixture">
+      Custom origin URL for Helium services
+    </message>
+<message name="IDS_SETTINGS_HELIUM_SERVICES_OVERRIDE_DESCRIPTION" desc="fixture">
+      You can host your own instance of Helium services and use it in your browser instead of the default one. HTTPS only.
+    </message>
+<message name="IDS_SETTINGS_HELIUM_SERVICES_SETUP_PENDING_TEXT" desc="fixture">
+      Helium services are not available until setup is complete to ensure your privacy and consent.
+    </message>
+<message name="IDS_SETTINGS_HELIUM_SERVICES_SPELLCHECK_TOGGLE_DESCRIPTION" desc="fixture">
+      Helium will fetch dictionary files used for spell checking when requested. When disabled, spell checking will not work.
+    </message>
+<message name="IDS_SETTINGS_HELIUM_SERVICES_TOGGLE" desc="fixture">
+      Allow connecting to Helium services
+    </message>
+<message name="IDS_SETTINGS_HELIUM_SERVICES_TOGGLE_DESCRIPTION" desc="fixture">
+      When enabled, Helium will be able to connect to anonymous web services to provide additional functionality. When disabled, additional features will not work.
+    </message>
+<message name="IDS_SETTINGS_HELIUM_SERVICES_UBO_DESCRIPTION" desc="fixture">
+      Helium will fetch fresh filter lists for uBlock Origin. All requests to lists are proxied to protect your privacy. When disabled, default filter lists will be loaded from local storage, which are only updated along with Helium. Optional filter lists will be requested without proxying.
+    </message>
+<message name="IDS_SETTINGS_HELIUM_SERVICES_UPDATE_DESCRIPTION" desc="fixture">
+        Helium will automatically check for updates and install them. This includes browser and component updates. We recommend keeping this setting enabled to ensure you get the latest features and security updates.
+      </message>
+<message name="IDS_SETTINGS_LANGUAGES_DICTIONARY_DOWNLOAD_FAILED_HELP_HELIUM" desc="fixture">
+          Please check that Helium services are enabled (including spell check downloads) and make sure that the firewall is not blocking downloads from Helium servers.
+        </message>
+<message name="IDS_SETTINGS_SAFETY_HUB_VERSION_CARD_HEADER_UPDATED" desc="fixture">
+      Helium is up to date
+    </message>
+<message name="IDS_SETTINGS_SUGGEST_PREF_DESC_HELIUM" desc="fixture">
+    When you type in the address bar, Helium sends what you type to your default search engine to get suggestions. This is off in Incognito.
+  </message>
+<message name="IDS_SETTINGS_UPGRADE_SUCCESSFUL_RELAUNCH" desc="fixture">
+      Nearly up to date! Relaunch Helium to finish updating.
+    </message>
+<message name="IDS_SETTINGS_UPGRADE_UPDATING" desc="fixture">
+      Updating Helium
+    </message>
+<message name="IDS_SETTINGS_UPGRADE_UPDATING_PERCENT" desc="fixture">
+      Updating Helium (<ph name="PROGRESS_PERCENT">&#36;1<ex>90%</ex></ph>)
+    </message>
+<message name="IDS_SETTINGS_UPGRADE_UP_TO_DATE" desc="fixture">
+      Helium is up to date
+    </message>
+<message name="IDS_SHORT_PRODUCT_LOGO_ALT_TEXT" desc="fixture">
+        Helium logo
+      </message>
+<message name="IDS_SHORT_PRODUCT_NAME" translateable="false" desc="fixture">
+            Helium for Testing
+          </message>
+<message name="IDS_SYNC_ERROR_UPGRADE_CLIENT_USER_MENU_ERROR_DESCRIPTION" desc="fixture">
+        Update Helium to keeping using the Helium data in your Google Account, <ph name="ACCOUNT_EMAIL">&#36;1<ex>elisa.beckett@9ma1l.qjz9zk</ex></ph>
+      </message>
+<message name="IDS_SYNC_ERROR_UPGRADE_CLIENT_USER_MENU_TITLE" desc="fixture">
+        To use and save Helium data in your Google Account, update Helium
+      </message>
+<message name="IDS_SYNC_ERROR_USER_MENU_UPGRADE_BUTTON" desc="fixture">
+        Update Helium
+      </message>
+<message name="IDS_SYNC_UPGRADE_CLIENT" desc="fixture">
+        Update Helium to start sync
+      </message>
+<message name="IDS_SYNC_UPGRADE_CLIENT_BUTTON" desc="fixture">
+        Update Helium
+      </message>
+<message name="IDS_UPDATED_CONNECTION_SECURITY_INDICATORS_PROMO" desc="fixture">
+        Your connection is always secure unless Helium tells you otherwise
+      </message>
+<message name="IDS_UPDATER_APP_POLICIES" desc="fixture">
+        <ph name="APP_NAME">&#36;1<ex>Helium</ex></ph> policies
+      </message>
+<message name="IDS_UPDATER_FILTER_CHIP_APP" desc="fixture">
+        App: <ph name="APPS">&#36;1<ex>Helium, Helium Beta, Helium Canary, {6BBAE539-2232-434A-A4E5-9A33560C6284}</ex></ph>
+      </message>
+<message name="IDS_UPDATER_HELP_CENTER_TOOLTIP" desc="fixture">
+        Learn more about maintaining Helium updates
+      </message>
+<message name="IDS_UPDATER_SERVICE_DESCRIPTION" desc="fixture">
+          Keeps your Helium software up to date. If this service is disabled or stopped, your Helium software will not be kept up to date, meaning security vulnerabilities that may arise cannot be fixed and features may not work. This service uninstalls itself when there is no Helium software using it.
+        </message>
+<message name="IDS_UPDATER_SERVICE_DISPLAY_NAME" desc="fixture">
+          Helium Updater Service
+        </message>
+<message name="IDS_UPDATER_VIEW_ALL_CHROME_POLICIES" desc="fixture">
+        View all Helium Policies
+      </message>
+<message name="IDS_UPDATE_NEEDED" desc="fixture">
+        Your device couldn’t open Helium. To fix the issue, download the latest Helium update from your app store.
+      </message>
+<message name="IDS_UPDATE_RECOMMENDED" desc="fixture">
+          {COUNT, plural,
+          =0 {A new update for Helium is available and will be applied as soon as you relaunch.}
+          =1 {A new update for Helium is available and will be applied as soon as you relaunch. Your Incognito window won't reopen.}
+          other {A new update for Helium is available and will be applied as soon as you relaunch. Your # Incognito windows won't reopen.}}
+        </message>
+<message name="IDS_UPDATE_RECOMMENDED_ALT" translateable="false" desc="fixture">
+          Not used in Helium. Placeholder to keep resource maps in sync.
+        </message>
+<message name="IDS_UPDATE_RECOMMENDED_DIALOG_TITLE" desc="fixture">
+          Relaunch Helium
+        </message>
+<message name="IDS_UPDATE_RECOMMENDED_DIALOG_TITLE_ALT" translateable="false" desc="fixture">
+          Not used in Helium. Placeholder to keep resource maps in sync.
+        </message>
+<message name="IDS_UPGRADE_BUBBLE_MENU_ITEM" desc="fixture">
+          Helium is Out of Date
+        </message>
+<message name="IDS_UPGRADE_BUBBLE_TEXT" desc="fixture">
+        Helium couldn't update to the latest version, so you're missing out on new features and security fixes.
+      </message>
+<message name="IDS_UPGRADE_BUBBLE_TITLE" desc="fixture">
+        Can't update Helium
+      </message>
+<message name="IDS_USAGE_AND_CRASH_REPORTS_TITLE" desc="fixture">
+        Help improve Helium\u2019s features and performance
+      </message>
+<message name="IDS_VERSION_WITH_UPDATE_TIME" desc="fixture">
+        <ph name="VERSION">%1&#36;s<ex>Helium 40.0.2214.67</ex></ph> (Updated <ph name="TIME_SINCE_UPDATE">%2&#36;s<ex>5 minutes ago</ex></ph>)
+      </message>
+</grit-part>

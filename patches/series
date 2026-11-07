@@ -1,0 +1,4 @@
+# Aerie patch series. Applied after helium-chromium and helium-linux, fuzz off.
+# Header convention: see CONTRIBUTING.md.
+
+branding/0001-set-product-name.patch
