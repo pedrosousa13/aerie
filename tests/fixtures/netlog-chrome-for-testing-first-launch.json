@@ -1,0 +1,345 @@
+{
+ "constants": {
+  "logEventTypes": {
+   "REQUEST_ALIVE": 2,
+   "URL_REQUEST_START_JOB": 134
+  },
+  "logSourceType": {
+   "URL_REQUEST": 1
+  }
+ },
+ "events": [
+  {
+   "phase": 1,
+   "source": {
+    "id": 12,
+    "start_time": "7141071",
+    "type": 1
+   },
+   "time": "7141071",
+   "type": 134,
+   "params": {
+    "url": "http://clients2.google.com/time/1/current",
+    "method": "GET",
+    "initiator": "not an origin"
+   }
+  },
+  {
+   "phase": 2,
+   "source": {
+    "id": 12,
+    "start_time": "7141071",
+    "type": 1
+   },
+   "time": "7141072",
+   "type": 134,
+   "params": {
+    "net_error": -105
+   }
+  },
+  {
+   "phase": 2,
+   "source": {
+    "id": 12,
+    "start_time": "7141071",
+    "type": 1
+   },
+   "time": "7141072",
+   "type": 2,
+   "params": {
+    "net_error": -105
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 19,
+    "start_time": "7141075",
+    "type": 1
+   },
+   "time": "7141075",
+   "type": 134,
+   "params": {
+    "url": "https://accounts.google.com/ListAccounts",
+    "method": "POST",
+    "initiator": "not an origin"
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 20,
+    "start_time": "7141075",
+    "type": 1
+   },
+   "time": "7141075",
+   "type": 134,
+   "params": {
+    "url": "https://redirector.gvt1.com/edgedl/chrome/dict/en-us-10-1.bdic",
+    "method": "GET",
+    "initiator": "not an origin"
+   }
+  },
+  {
+   "phase": 2,
+   "source": {
+    "id": 20,
+    "start_time": "7141075",
+    "type": 1
+   },
+   "time": "7141076",
+   "type": 134,
+   "params": {
+    "net_error": -105
+   }
+  },
+  {
+   "phase": 2,
+   "source": {
+    "id": 20,
+    "start_time": "7141075",
+    "type": 1
+   },
+   "time": "7141076",
+   "type": 2,
+   "params": {
+    "net_error": -105
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 28,
+    "start_time": "7141304",
+    "type": 1
+   },
+   "time": "7141304",
+   "type": 134,
+   "params": {
+    "url": "https://www.google.com/async/folae",
+    "method": "GET",
+    "initiator": "not an origin"
+   }
+  },
+  {
+   "phase": 2,
+   "source": {
+    "id": 19,
+    "start_time": "7141075",
+    "type": 1
+   },
+   "time": "7141305",
+   "type": 134,
+   "params": {
+    "net_error": -105
+   }
+  },
+  {
+   "phase": 2,
+   "source": {
+    "id": 19,
+    "start_time": "7141075",
+    "type": 1
+   },
+   "time": "7141305",
+   "type": 2,
+   "params": {
+    "net_error": -105
+   }
+  },
+  {
+   "phase": 2,
+   "source": {
+    "id": 28,
+    "start_time": "7141304",
+    "type": 1
+   },
+   "time": "7141305",
+   "type": 134,
+   "params": {
+    "net_error": -105
+   }
+  },
+  {
+   "phase": 2,
+   "source": {
+    "id": 28,
+    "start_time": "7141304",
+    "type": 1
+   },
+   "time": "7141306",
+   "type": 2,
+   "params": {
+    "net_error": -105
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 47,
+    "start_time": "7141384",
+    "type": 1
+   },
+   "time": "7141384",
+   "type": 134,
+   "params": {
+    "url": "http://127.0.0.1:42461/index.html",
+    "method": "GET",
+    "initiator": "not an origin"
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 50,
+    "start_time": "7141395",
+    "type": 1
+   },
+   "time": "7141395",
+   "type": 134,
+   "params": {
+    "url": "https://update.googleapis.com/service/update2/json",
+    "method": "POST",
+    "initiator": "not an origin"
+   }
+  },
+  {
+   "phase": 2,
+   "source": {
+    "id": 50,
+    "start_time": "7141395",
+    "type": 1
+   },
+   "time": "7141400",
+   "type": 134,
+   "params": {
+    "net_error": -105
+   }
+  },
+  {
+   "phase": 2,
+   "source": {
+    "id": 50,
+    "start_time": "7141395",
+    "type": 1
+   },
+   "time": "7141400",
+   "type": 2,
+   "params": {
+    "net_error": -105
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 57,
+    "start_time": "7141417",
+    "type": 1
+   },
+   "time": "7141420",
+   "type": 134,
+   "params": {
+    "url": "http://127.0.0.1:42461/style.css",
+    "method": "GET",
+    "initiator": "http://127.0.0.1:42461"
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 66,
+    "start_time": "7141464",
+    "type": 1
+   },
+   "time": "7141464",
+   "type": 134,
+   "params": {
+    "url": "http://127.0.0.1:42461/favicon.ico",
+    "method": "GET",
+    "initiator": "http://127.0.0.1:42461"
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 71,
+    "start_time": "7141490",
+    "type": 1
+   },
+   "time": "7141490",
+   "type": 134,
+   "params": {
+    "url": "https://update.googleapis.com/service/update2/json",
+    "method": "POST",
+    "initiator": "not an origin"
+   }
+  },
+  {
+   "phase": 2,
+   "source": {
+    "id": 71,
+    "start_time": "7141490",
+    "type": 1
+   },
+   "time": "7141490",
+   "type": 134,
+   "params": {
+    "net_error": -105
+   }
+  },
+  {
+   "phase": 2,
+   "source": {
+    "id": 71,
+    "start_time": "7141490",
+    "type": 1
+   },
+   "time": "7141490",
+   "type": 2,
+   "params": {
+    "net_error": -105
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 77,
+    "start_time": "7141491",
+    "type": 1
+   },
+   "time": "7141491",
+   "type": 134,
+   "params": {
+    "url": "https://update.googleapis.com/service/update2/json",
+    "method": "POST",
+    "initiator": "not an origin"
+   }
+  },
+  {
+   "phase": 2,
+   "source": {
+    "id": 77,
+    "start_time": "7141491",
+    "type": 1
+   },
+   "time": "7141491",
+   "type": 134,
+   "params": {
+    "net_error": -105
+   }
+  },
+  {
+   "phase": 2,
+   "source": {
+    "id": 77,
+    "start_time": "7141491",
+    "type": 1
+   },
+   "time": "7141491",
+   "type": 2,
+   "params": {
+    "net_error": -105
+   }
+  }
+ ]
+}

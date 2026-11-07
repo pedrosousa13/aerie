@@ -65,6 +65,16 @@ def browser_env(environ, profile_path: Path, extra: dict | None = None) -> dict:
     return env
 
 
+def _merge(into: dict, extra: dict) -> dict:
+    """Deep-merge ``extra`` into ``into``: nested dicts combine, anything else is replaced."""
+    for key, value in extra.items():
+        if isinstance(value, dict) and isinstance(into.get(key), dict):
+            _merge(into[key], value)
+        else:
+            into[key] = value
+    return into
+
+
 def _instantiate(scenario: Scenario, options: dict | None = None) -> list:
     out = []
     for name in scenario.checks:
@@ -106,10 +116,15 @@ def run_bench(binary: Path | str, scenario: Scenario, build_root: Path, *, out_d
     t0 = time.monotonic()
     results: dict[str, CheckResult] = {}
     seeded = any(c.seeds_helium_services for c in instances)
+    seeding_checks = [c.name for c in instances if hasattr(c, "profile_prefs")]
 
     with FixtureServer() as server, fresh_profile(Path(build_root) / "bench-tmp") as profile:
-        if seeded:
-            profile.seed_prefs(services_prefs(server.base_url))
+        prefs: dict = services_prefs(server.base_url) if seeded else {}
+        for c in instances:
+            if hasattr(c, "profile_prefs"):
+                _merge(prefs, c.profile_prefs(server))
+        if prefs:
+            profile.seed_prefs(prefs)
         argv = launcher.build_argv(binary, profile.path, netlog_path, headless=headless,
                                    no_sandbox=no_sandbox, extra=extra_flags)
         env = browser_env(os.environ, profile.path, extra_env)
@@ -127,7 +142,8 @@ def run_bench(binary: Path | str, scenario: Scenario, build_root: Path, *, out_d
         except BaseException:
             proc.kill()
             raise
-        session.netlog = netlog.parse_file(netlog_path)
+        parsed = netlog.load_file(netlog_path)
+        session.netlog, session.netlog_lookups, session.netlog_complete = parsed.records, parsed.lookups, parsed.complete
         for c in instances:
             if hasattr(c, "finalize"):
                 results[c.name] = _timed(c, "finalize", session, results[c.name])
@@ -145,6 +161,7 @@ def run_bench(binary: Path | str, scenario: Scenario, build_root: Path, *, out_d
         "headless": headless,
         "no_sandbox": no_sandbox,
         "seeded_helium_services": seeded,
+        "seeded_prefs_by": seeding_checks,
         "profile": {"path": str(profile.path), "deleted": profile.deleted and not profile.path.exists()},
         "checks": [{"name": r.name, "status": r.status, "detail": r.detail,
                     "duration_s": r.duration_s, "data": r.data} for r in results.values()],

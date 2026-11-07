@@ -15,6 +15,8 @@ Python 3.11+, standard library only. No Playwright, no Node, no network.
 ./aerie bench                                   # the browser ./aerie build produced; smoke check
 ./aerie bench --binary /path/to/chrome          # any Chromium-family binary
 ./aerie bench --binary /path/to/chrome --check smoke --check browser_requests
+./aerie bench --check zero_traffic              # zero Google/Helium traffic (about 6 minutes)
+./aerie bench --check zero_traffic --baseline /path/to/unmodified/helium   # and prove it fails there
 ./aerie bench --scenario tools/aerie_bench/scenarios/click-through.json
 python3 -m aerie_bench --binary /path/to/chrome # same thing without ./aerie
 ```
@@ -33,8 +35,12 @@ Options:
 | `--no-sandbox` | Pass `--no-sandbox`. Containers only; recorded in the results. See "Sandbox" below. |
 | `--out DIR` | Results directory. Default `<build root>/bench/<UTC timestamp>/`. |
 | `--timeout SEC` | Timeout for each CDP command (default 30). |
-| `--services MODE` | `browser_requests`: `require`, `optional` or `auto` (default). `auto` requires the seeded services call for the default build binary (never guessed by name), and for an explicit `--binary` that identifies as Helium/Aerie by file name or `--version`; it is optional for other explicit binaries. |
+| `--services MODE` | `browser_requests`: `require`, `optional`, `skip` or `auto` (default). `skip` does not run the probe (use it for Aerie builds). `auto` skips the probe when no `--binary` is given (the default build is Aerie, which makes no requests of its own; decided by the absence of `--binary`, never by name or version), and for an explicit `--binary` requires the seeded services call if it identifies as Helium/Aerie by file name or `--version`, and is optional for other binaries. `--services require` forces it everywhere. |
 | `--services-wait SEC` | `browser_requests`: longest wait for the first browser-level request (default 20). It stops early once the condition is met. |
+| `--zero-traffic-idle SEC` | `zero_traffic`: length of the idle phase (default 300, the issue's 5 minutes). |
+| `--zero-traffic-settle SEC` | `zero_traffic`: quiet time after the first page, the first-launch phase (default 60). |
+| `--zero-traffic-strict` | `zero_traffic`: also fail on blocked attempts to `.qjz9zk` dummy hosts and `trk:` URLs. |
+| `--baseline PATH` | `zero_traffic`: also run the check on this browser (an unmodified Helium build, or any browser that talks to Google) and require it to fail. If it passes, the check is vacuous and the command exits 1. |
 | `--flag FLAG` | Extra browser flag; repeat for several. |
 | `--build-root DIR` | Build root (env `AERIE_BUILD_ROOT`, default `/mnt/linux2/aerie-build`). `./aerie bench` only for the flag; `python3 -m aerie_bench` takes it too. |
 
@@ -87,6 +93,7 @@ Under `<build root>/bench/<UTC timestamp>/` (mode `0700`):
 | `flags` | string[] | Browser command line after the binary (includes the profile path). |
 | `headless`, `no_sandbox` | bool | Mode switches used. |
 | `seeded_helium_services` | bool | Whether the profile prefs were seeded for the services probe. |
+| `seeded_prefs_by` | string[] | Checks that seeded their own profile prefs through `profile_prefs` (for example `zero_traffic`). Added to schema 1 without a bump: existing readers ignore it. |
 | `profile.path`, `profile.deleted` | string, bool | The throwaway profile and whether it is gone. |
 | `checks[]` | object | `name`, `status` (`pass`/`fail`/`error`/`skip`), `detail`, `duration_s`, `data` (check-specific object). |
 | `network.netlog` | string or null | NetLog file name in the results directory. |
@@ -107,6 +114,27 @@ Results stay in the build root. Committed baselines are issue #16's job.
 | `smoke` | Browser launches, loads `/index.html`, the title matches, a screenshot is taken, and the browser exits with code 0 after `Browser.close`. |
 | `browser_requests` | The browser made at least one request of its own. With services required (default for the build binary and for Helium/Aerie-identified binaries): the fixture server saw a Helium services call (`/bangs.json`, `/ubo/assets.json`, `/com`, `/ext`, `/dict/`). With services optional: that, or a request to a non-loopback host in the NetLog. Waits up to `--services-wait` seconds, less if the condition is met sooner. |
 
+| `zero_traffic` | No URL request in the NetLog goes to a host on the denylist (`docs/network-denylist.md`), in three phases: first launch, 5 minutes idle, and the browse script. Fails on an empty capture. See "Zero traffic" below. |
+
+`browser_requests` is a self-test for the Bench and for Helium. Aerie makes no
+requests of its own, so a plain `./aerie bench` (no `--binary`, the default
+Aerie build) skips it, prints one line saying so, and records the same text in
+the check's `data.skipped_by` and `data.needs_baseline` in `results.json`. The
+skip comes from the absence of `--binary`, never from the binary's name or
+`--version`. `--services require` forces the probe. With an explicit `--binary`
+that is an Aerie build, pass `--services skip`.
+
+**Known gap.** On Aerie there is no browser-initiated request for the Bench to
+see, so a plain Aerie run does not prove that the NetLog would show one. That
+proof comes from `--baseline` (the same check fails on a browser that does talk
+to Google or Helium). A better canary is possible: an https fixture on
+127.0.0.1 configured as the extension proxy with
+`--aerie-test-allow-loopback-extension-proxy`, plus a trigger that makes the
+browser call it. It needs a certificate and a trigger that works with no
+extension installed (`chrome.developerPrivate.autoUpdate` sends nothing then),
+so it is left to a follow-up. Until then, the loopback switch and the
+validator are covered only by the C++ unit tests.
+
 `browser_requests` seeds the profile's `Default/Preferences` with
 `helium.services.origin_override = http://127.0.0.1:<port>` (plus
 `schema_version: 1`, `enabled: true`) before the first launch. Helium accepts
@@ -118,6 +146,55 @@ cannot hide behind other traffic. The check records `passed_via`
 (`services`, `netlog` or null), `services_hits`, `external_hosts` and
 `require_services` in `checks[].data`.
 
+### Zero traffic
+
+`zero_traffic` is the proof of the M1 promise. One run, three phases:
+
+1. `first_launch`: fresh profile, first fixture page, then `--zero-traffic-settle` seconds (60).
+2. `idle`: `--zero-traffic-idle` seconds (300) of nothing. Timers fire here.
+3. `browse`: the fixture script (`index.html`, a click, `browse-a.html`,
+   `browse-b.html`) and a best-effort update request from `chrome://extensions`.
+
+The profile is seeded as the worst case: the user consented to Helium services
+and turned every service on, with no origin override. Unmodified Helium then
+calls `services.helium.imput.net`. Aerie must stay silent anyway, because its
+code has no origin to call.
+
+The verdict comes from the NetLog after the browser exits. It fails when:
+
+- any request matches the denylist (Google and Helium/imput hosts), or any host name in a resolver,
+  connect or socket event does (DNS prefetch, preconnect, DoH). The Bench's own resolver rules rewrite
+  names to `~notfound` before some of those events are logged, so the host-name scan is a second net,
+  not the main one;
+- the capture holds no fixture page request at all (an empty capture proves nothing);
+- (inconclusive) the NetLog is truncated or missing, or the browser did not exit with code 0.
+  A crash or kill loses the tail of the log, which may hold the traffic that matters;
+- with `--zero-traffic-strict`, any request goes to a `.qjz9zk` dummy host or a
+  `trk:` URL. These are refused inside the network stack before any DNS query,
+  so the default run lists them as `blocked` and still passes.
+
+`checks[].data` has `hits` (url, host, group, pattern, phase, net_error),
+`blocked`, `other_hosts` (external hosts that are not on the list, for review),
+`phases` (cumulative request count at the end of each phase), `fixture_requests`
+and `extension_update_probe_error`.
+
+To see the check fail, run it on a browser that is not Aerie:
+
+```sh
+# the quickest demonstration; any Chromium that contacts Google fails within seconds
+./aerie bench --binary /path/to/chrome --check zero_traffic --zero-traffic-settle 5 --zero-traffic-idle 20
+# the acceptance proof: Aerie passes, and the unmodified Helium build must fail
+./aerie bench --check zero_traffic --baseline /path/to/unmodified/helium
+```
+
+With `--baseline` the command exits 0 only if the first browser passes and the
+baseline fails. A baseline that passes means the check cannot see traffic.
+
+Limits: the NetLog covers URL requests (browser, extensions, workers). It does
+not cover a separate process that makes its own sockets, such as the crash
+handler. Crash upload is removed in the source and checked by the source gates
+(`docs/network-endpoints.md`).
+
 ### Writing a check
 
 A check is a class in `tools/aerie_bench/checks/` registered with
@@ -128,6 +205,9 @@ A check is a class in `tools/aerie_bench/checks/` registered with
 class MyCheck:
     name = "my_check"
     seeds_helium_services = False          # True: seed the services prefs, as above
+
+    def profile_prefs(self, server):       # optional: prefs merged into Default/Preferences
+        return {}
 
     def run(self, session):                # while the browser is live
         session.navigate("/index.html")

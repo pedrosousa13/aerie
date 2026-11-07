@@ -2,3 +2,11 @@
 # Header convention: see CONTRIBUTING.md.
 
 branding/0001-set-product-name.patch
+services/0001-add-extension-proxy-validator.patch
+services/0002-turn-helium-services-off.patch
+services/0003-extension-proxy-not-configured.patch
+services/0004-disable-spellcheck-downloads.patch
+services/0005-remove-fedcm-dns-resolver.patch
+crash/0001-remove-crash-reporting.patch
+network/0001-secure-dns-off-by-default.patch
+search/0001-trim-the-search-engine-list.patch

@@ -1,0 +1,58 @@
+# Hosts Aerie must never contact. Read by the Bench check `zero_traffic`.
+# Format and matching rules: tools/aerie_bench/denylist.py. Rationale: docs/network-denylist.md.
+# Every pattern here must also appear in docs/network-denylist.md (a test enforces it).
+
+@group google
+# Search, accounts, and every country domain (google.de, google.co.uk, google.com.br, ...).
+google.*
+# The .google TLD (dns.google, ...).
+google
+# Static content, APIs, updates, downloads.
+gstatic.com
+googleapis.com
+googleapis.cn
+gvt1.com
+gvt2.com
+gvt3.com
+googleusercontent.com
+googlevideo.com
+ggpht.com
+googlezip.net
+# Ads and analytics.
+doubleclick.net
+google-analytics.com
+googletagmanager.com
+googletagservices.com
+googlesyndication.com
+googleadservices.com
+googleoptimize.com
+recaptcha.net
+# Video.
+youtube.com
+youtube-nocookie.com
+youtu.be
+ytimg.com
+# Mail, short links, infrastructure names, product sites.
+gmail.com
+googlemail.com
+goo.gl
+1e100.net
+withgoogle.com
+googlesource.com
+ampproject.org
+# Chrome and Chromium project hosts (update, crash, field trials, docs links).
+chromium.org
+chrome.com
+android.com
+# Google-owned app hosting. Third parties use it too; the Bench pages are local, so any hit is Aerie's own.
+appspot.com
+
+@group helium
+# Helium's service proxy, update host and crash host, and the project domains.
+helium.computer
+imput.net
+imput.dev
+# Helium's filter lists and uBlock fork on GitHub. github.com as a whole is not listed.
+url raw.githubusercontent.com/imputnet/
+url github.com/imputnet/
+url imputnet.github.io/

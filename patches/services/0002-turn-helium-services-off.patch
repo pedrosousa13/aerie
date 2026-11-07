@@ -1,0 +1,190 @@
+Aerie-Purpose: Turn Helium's services off and remove its hostnames, keeping only a user-configured https extension proxy.
+Aerie-Upstream-Area: components/helium_services (helpers, BUILD.gn); settings services page placeholder and strings
+Aerie-Kind: hook
+
+Helium's services proxy (services.helium.imput.net) and its update host
+(updates.helium.computer) are gone from the source. ShouldAccessServices() is
+false, so component updates, bangs, spellcheck files, uBlock Origin assets and
+browser updates have no origin and use the dummy one, which the network stack
+refuses. The only origin left is the user's extension proxy, read from the
+existing origin override pref and validated by components/aerie_services.
+The plumbing stays, so Helium bumps conflict as little as possible.
+
+--- a/chrome/app/settings_strings.grdp
++++ b/chrome/app/settings_strings.grdp
+@@ -1748,13 +1748,13 @@
+       Helium will fetch fresh filter lists for uBlock Origin. All requests to lists are proxied to protect your privacy. When disabled, default filter lists will be loaded from local storage, which are only updated along with Helium. Optional filter lists will be requested without proxying.
+     </message>
+     <message name="IDS_SETTINGS_HELIUM_SERVICES_OVERRIDE" desc="Text input for overriding the Helium services server">
+-      Use your own instance of Helium services
++      Extension proxy
+     </message>
+     <message name="IDS_SETTINGS_HELIUM_SERVICES_OVERRIDE_DESCRIPTION" desc="Description of the text input for overriding the Helium services server">
+-      You can host your own instance of Helium services and use it in your browser instead of the default one. HTTPS only.
++      Extensions are installed and updated through an HTTPS proxy that you choose. Until you set one, installing from the Web Store is not available. HTTPS only.
+     </message>
+     <message name="IDS_SETTINGS_HELIUM_SERVICES_OVERRIDE_DESCRIPTION_WARNING" desc="Warning section of description for overriding the Helium services server">
+-      Do not use this field unless you know exactly what you are doing. Never paste URLs from other people here, they are trying to steal your data. We are not responsible for any damages caused by using a custom server and will not be able to help you.
++      The proxy sees which extensions you install and update. Only use a proxy that you run or trust. Never paste a URL that someone else gave you.
+     </message>
+     <message name="IDS_SETTINGS_HELIUM_SERVICES_OVERRIDE_ARIA_LABEL" desc="ARIA label of the text input for overriding the Helium services server">
+       Custom origin URL for Helium services
+--- a/chrome/browser/resources/settings/privacy_page/services_page.html
++++ b/chrome/browser/resources/settings/privacy_page/services_page.html
+@@ -142,7 +142,7 @@
+     </div>
+     <cr-input
+         id="heliumOriginOverride"
+-        placeholder="https://services.helium.imput.net"
++        placeholder="https://proxy.example.org"
+         value="[[prefs.helium.services.origin_override.value]]"
+         pattern="https://.*"
+         on-keydown="onOriginOverrideKeydown_"
+--- a/components/helium_services/BUILD.gn
++++ b/components/helium_services/BUILD.gn
+@@ -13,6 +13,7 @@
+ 
+   public_deps = [
+     "//base",
++    "//components/aerie_services",
+     "//components/prefs",
+     "//url",
+     "//net",
+--- a/components/helium_services/helium_services_helpers.cc
++++ b/components/helium_services/helium_services_helpers.cc
+@@ -9,6 +9,7 @@
+ #include "base/command_line.h"
+ #include "base/functional/bind.h"
+ #include "base/strings/stringprintf.h"
++#include "components/aerie_services/extension_proxy.h"
+ #include "components/helium_services/pref_names.h"
+ #include "components/helium_services/schema.h"
+ #include "components/prefs/pref_service.h"
+@@ -17,45 +18,12 @@
+ #include "url/url_constants.h"
+ 
+ namespace helium {
+-#if defined(ARCH_CPU_ARM64)
+-#define CPU_ARCH_STR "arm64"
+-#elif defined(ARCH_CPU_X86_64)
+-#define CPU_ARCH_STR "x86_64"
+-#endif
+-
+-#if defined(CPU_ARCH_STR) && (BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN))
+-#define UPDATES_SUPPORTED
+-#endif
+-
+-#if defined(UPDATES_SUPPORTED)
+-constexpr std::string_view kUpdateBaseUrl = "https://updates.helium.computer/";
+-constexpr const char kUpdatePath[] =
+-#if BUILDFLAG(IS_MAC)
+-    "mac/appcast-" CPU_ARCH_STR ".xml";
+-#elif BUILDFLAG(IS_WIN)
+-    "win/appcast.xml";
+-#endif
+-
+-// Duplicated from helium_flag_choices.h to avoid importing it.
+-constexpr const char kUpdateServerUrlCommandLine[] = "custom-update-server-url";
+-#endif
+ 
++// Aerie: the user-set origin is the extension proxy, and only that. It must be
++// https to a non-loopback host (see components/aerie_services). An empty or
++// invalid value means "not configured".
+ std::optional<GURL> GetValidUserOverridenURL(std::string_view user_url_) {
+-    if (user_url_.empty()) {
+-        return std::nullopt;
+-    }
+-
+-    GURL user_url = GURL(user_url_);
+-    if (!user_url.is_valid()) {
+-        return std::nullopt;
+-    }
+-
+-    bool isSecure = user_url.SchemeIs(url::kHttpsScheme) || net::IsLocalhost(user_url);
+-    if (!isSecure) {
+-        return std::nullopt;
+-    }
+-
+-    return user_url;
++    return aerie::ParseExtensionProxyUrl(user_url_);
+ }
+ 
+ std::optional<GURL> GetValidUserOverridenURL(const PrefService& prefs) {
+@@ -64,27 +32,34 @@
+     );
+ }
+ 
++// Aerie: there is no default origin. Without a configured extension proxy this
++// is the dummy origin.
+ GURL GetServicesBaseURL(const PrefService& prefs) {
+     std::optional<GURL> user_url = GetValidUserOverridenURL(prefs);
+     if (user_url) {
+         return *user_url;
+     }
+ 
+-    return GURL(kHeliumDefaultOrigin);
++    return GetDummyURL();
+ }
+ 
+ GURL GetDummyURL() {
+     return GURL(kHeliumDummyOrigin);
+ }
+ 
++// Aerie: Helium's services (component updates, bangs, spellcheck files, uBlock
++// Origin assets, browser updates) are off, whatever the prefs say. There is no
++// origin to call. Everything below that starts with ShouldAccessServices() is
++// therefore false.
+ bool ShouldAccessServices(const PrefService& prefs) {
+-    return prefs.GetBoolean(prefs::kHeliumServicesEnabled) &&
+-           prefs.GetBoolean(prefs::kHeliumServicesConsented);
++    return false;
+ }
+ 
++// Aerie: the extension proxy is the one service left. It is available only
++// when the user configured an https proxy.
+ bool ShouldAccessExtensionService(const PrefService& prefs) {
+-    return ShouldAccessServices(prefs) &&
+-            prefs.GetBoolean(prefs::kHeliumExtProxyEnabled);
++    return prefs.GetBoolean(prefs::kHeliumExtProxyEnabled) &&
++            GetValidUserOverridenURL(prefs).has_value();
+ }
+ 
+ bool ShouldAccessDictionaryService(const PrefService& prefs) {
+@@ -138,22 +113,9 @@
+     return GetServicesBaseURL(prefs).Resolve("/dict/");
+ }
+ 
++// Aerie: no browser update checks.
+ GURL GetBrowserUpdateURL(const PrefService& prefs) {
+-  if (!ShouldAccessUpdateService(prefs)) {
+-    return GetDummyURL();
+-  }
+-
+-#if defined(UPDATES_SUPPORTED)
+-  const auto* command_line = base::CommandLine::ForCurrentProcess();
+-  std::string baseUrl(kUpdateBaseUrl);
+-  if (command_line->HasSwitch(helium::kUpdateServerUrlCommandLine)) {
+-    baseUrl =
+-        command_line->GetSwitchValueASCII(helium::kUpdateServerUrlCommandLine);
+-  }
+-  return GURL(baseUrl).Resolve(kUpdatePath);
+-#else
+   return GetDummyURL();
+-#endif
+ }
+ 
+ GURL GetComponentUpdateURL(const PrefService* prefs) {
+--- a/components/helium_services/helium_services_helpers.h
++++ b/components/helium_services/helium_services_helpers.h
+@@ -12,9 +12,8 @@
+ 
+ namespace helium {
+ 
+-const char kHeliumDefaultOrigin[] =
+-    "https://services.helium.imput.net";
+-
++// Aerie has no Helium services origin. Everything that used to call one gets
++// this dummy, which the network stack refuses.
+ const char kHeliumDummyOrigin[] =
+     "https://helium-services-are-disabled.qjz9zk";
+ 

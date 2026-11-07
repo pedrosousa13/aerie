@@ -33,7 +33,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Sequence
 
-from . import helium_inputs, helium_steps, layers as tree_layers, lock, patches
+from . import helium_inputs, helium_steps, layers as tree_layers, lock, patches, treegate
 from .config import BuildPaths
 
 MANIFEST = ".aerie-sparse.json"
@@ -177,6 +177,8 @@ def run_check(
     check_root.mkdir(parents=True, exist_ok=True)
     _sweep_stale_work(check_root)
     work: Path | None = None
+    gates_ok = True
+    gate_lines = ""
     try:
         work = Path(tempfile.mkdtemp(prefix="work-", dir=check_root))
         # The sparse cache is updated in place, so only one check may use it at a
@@ -193,16 +195,22 @@ def run_check(
         if all(r.status == "ok" for r in results):
             _helium_steps(repo, work, check_root)
             results += patches.apply_layers(work, series[-1:])
+            if all(r.status == "ok" for r in results):
+                # Only when everything applied: a half-patched tree would fail the gates for the wrong reason.
+                gate_report, gates_ok = treegate.format_report(treegate.run(work))
+                gate_lines = gate_report
         else:
             log("Aerie patches were not tried: Helium's own patches did not apply")
     finally:
         if work is not None:
             shutil.rmtree(work, ignore_errors=True)
     report, ok = patches.format_report(results)
+    if gate_lines:
+        log(gate_lines)
     log(report)
     if not _check_prepared_tree(repo, paths, pins, check_root, log):
         ok = False
-    return status if ok else 1
+    return status if ok and gates_ok else 1
 
 
 def _helium_steps(repo: Path, work: Path, check_root: Path) -> None:

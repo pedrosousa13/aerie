@@ -77,6 +77,19 @@ def cmd_patches_check(args: argparse.Namespace) -> int:
     return patch_check.run_check(REPO, ctx.paths, ctx.pins)
 
 
+def cmd_patches_gates(args: argparse.Namespace) -> int:
+    from . import treegate
+
+    ctx = _context(args)
+    tree = Path(args.tree) if args.tree else ctx.tree
+    if not tree.is_dir():
+        print(f"aerie patches gates: no source tree at {tree}", file=sys.stderr)
+        return 2
+    report, ok = treegate.format_report(treegate.run(tree, require=True))
+    print(report)
+    return 0 if ok else 1
+
+
 def cmd_info(args: argparse.Namespace) -> int:
     ctx = _context(args)
     print(f"helium version   {ctx.pins.helium_version} (Chromium {ctx.pins.chromium_version})")
@@ -140,6 +153,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     _add_common(p_check)
     p_check.set_defaults(func=cmd_patches_check)
+    p_gates = patches_sub.add_parser(
+        "gates",
+        help="run the source gates (Helium hostnames, search list, network defaults) on a patched source tree",
+    )
+    _add_common(p_gates)
+    p_gates.add_argument("--tree", metavar="DIR", help="tree to check (default: the build's source tree)")
+    p_gates.set_defaults(func=cmd_patches_gates)
 
     p_bench = sub.add_parser("bench", help="launch a built browser, drive it, record its traffic (see docs/bench.md)")
     _add_common(p_bench)

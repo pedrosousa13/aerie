@@ -50,6 +50,14 @@ It does not need a full source tree. It extracts only the files the three series
 
 If a prepared source tree exists in the build root, the command also tries Aerie's patches against it, without writing to it, and reports the result like `./aerie build --dry-run-layers`.
 
+The command ends with the source gates: checks on the patched sparse tree that
+need no build. They fail if a Helium hostname is back in source (outside a short
+allowlist with a reason for each path), if the default search list changed, or if
+secure DNS, crash upload or Helium services are no longer off. The same gates
+run on a real tree with `./aerie patches gates [--tree DIR]`. They live in
+`tools/aerie_build/treegate.py`; the endpoints they protect are listed in
+[docs/network-endpoints.md](docs/network-endpoints.md).
+
 ### Helium to Aerie names
 
 Helium turns "Chromium" and "Chrome" into "Helium" in string files (`.grd`, `.grdp`, `.xtb`) after its patches. Aerie then runs `tools/aerie_build/substitution.py`, which turns "Helium" into "Aerie" in the text users read. Do not patch single strings by hand.

@@ -25,7 +25,14 @@ patch adds, or assumes behavior that patch sets.
 
 | Aerie patch | Helium patch | Why | Portable? |
 | --- | --- | --- | --- |
-| _None yet. Aerie builds unmodified Helium (#2)._ | | | |
+| `patches/services/0001-add-extension-proxy-validator.patch` | none | Adds an Aerie-owned component and one `components_unittests` dependency line in `components/BUILD.gn`. | `copy` as is |
+| `patches/services/0002-turn-helium-services-off.patch` | `helium-chromium/patches/helium/core/services-prefs.patch`, `helium-chromium/patches/helium/core/proxy-extension-downloads.patch`, `helium-chromium/patches/helium/core/reenable-spellcheck-downloads.patch`, `helium-chromium/patches/helium/core/add-updater-preference.patch`, `helium-chromium/patches/helium/core/ublock-helium-services.patch` | Edits `components/helium_services` (a Helium component) and the services settings strings and page those patches add. | `drop`: without Helium there are no services to turn off. Keep the validator and wire it to the extension update URL. |
+| `patches/services/0003-extension-proxy-not-configured.patch` | `helium-chromium/patches/helium/core/proxy-extension-downloads.patch` | Calls `helium::ShouldAccessExtensionService` and edits the `set_ping_enabled_domain` line that patch changes. | `rewrite`: on ungoogled-chromium the Web Store update URL is `clients2.google.com`; point it at the proxy and keep the not-configured dialog. |
+| `patches/services/0004-disable-spellcheck-downloads.patch` | `helium-chromium/patches/helium/core/reenable-spellcheck-downloads.patch` | Edits the same function; without Helium the dictionary URL is Google's. | `copy`: the early failure applies to any base. |
+| `patches/services/0005-remove-fedcm-dns-resolver.patch` | none | Changes a Chromium function only. | `copy` as is |
+| `patches/crash/0001-remove-crash-reporting.patch` | `helium-chromium/patches/helium/core/crash-reporting-prefs.patch`, `helium-chromium/patches/helium/core/crash-reporter-privacy-tweaks.patch` | Edits `helium_crash_reporting.cc` and the upload URL these patches add. | `rewrite`: on ungoogled-chromium make `GetUploadUrl()` return an empty string. |
+| `patches/network/0001-secure-dns-off-by-default.patch` | none | Changes a Chromium default only. | `copy` as is |
+| `patches/search/0001-trim-the-search-engine-list.patch` | `helium-chromium/patches/helium/core/search/engine-defaults.patch`, `helium-chromium/patches/helium/core/search/restore-google.patch` | Edits the one-entry `elements` list and engine names those patches create. | `rewrite`: set the default list in `regional_settings.json` on the new base. |
 
 ## What the unmodified build takes from Helium
 
