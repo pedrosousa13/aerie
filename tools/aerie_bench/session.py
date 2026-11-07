@@ -47,6 +47,9 @@ class Session:
         self.artifacts: list[str] = []
         # Set by the runner: starts a second browser (own profile, own flags) for negative controls.
         self.variant_launcher: Callable[..., ContextManager["Session"]] | None = None
+        # Set by the runner: a context manager for a throwaway profile that outlives one browser
+        # (pass it to variant(profile=...) twice to restart on the same profile).
+        self.profile_factory: Callable[[], ContextManager] | None = None
         self.browser_pid: int | None = None  # set by the runner; the root of the browser's process tree
         self._sid: str | None = None
 
@@ -115,12 +118,23 @@ class Session:
     def stun_probe(self) -> StunProbe:
         return StunProbe()
 
-    def variant(self, extra_flags: tuple[str, ...] = (), prefs: dict | None = None) -> ContextManager["Session"]:
-        """A second browser with a fresh profile, extra flags and seeded prefs. Shares the fixture
-        server. It is stopped and its profile deleted on exit, also on error."""
+    def variant(self, extra_flags: tuple[str, ...] = (), prefs: dict | None = None,
+                profile=None) -> ContextManager["Session"]:
+        """A second browser with a fresh profile (or ``profile``, from new_profile()), extra flags and
+        seeded prefs. Shares the fixture server. It is stopped on exit, also on error, and a fresh
+        profile is deleted. After the ``with`` block the browser has exited and the session's
+        ``netlog`` holds what that launch requested."""
         if self.variant_launcher is None:
             raise CdpError("this session cannot start a second browser")
-        return self.variant_launcher(tuple(extra_flags), prefs)
+        if profile is None:
+            return self.variant_launcher(tuple(extra_flags), prefs)
+        return self.variant_launcher(tuple(extra_flags), prefs, profile)
+
+    def new_profile(self) -> ContextManager:
+        """A throwaway profile for variant(profile=...); deleted when this block ends."""
+        if self.profile_factory is None:
+            raise CdpError("this session cannot make a profile")
+        return self.profile_factory()
 
     def evaluate(self, expression: str, await_promise: bool = False, user_gesture: bool = False):
         params = {"expression": expression, "returnByValue": True}

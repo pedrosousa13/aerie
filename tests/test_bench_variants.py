@@ -93,6 +93,28 @@ class VariantTest(unittest.TestCase):
         self.assertEqual(res.data["checks"][0]["status"], "error")
         self.assertEqual(list((self.root / "bench-tmp").iterdir()), [])
 
+    def test_two_variants_share_a_profile_that_outlives_both(self):
+        def body(s):
+            with s.new_profile() as prof:
+                with s.variant(("--first",), profile=prof) as a:
+                    pass
+                touched = (prof.path / "Default" / "touched").exists()
+                (prof.path / "marker").write_text("kept")
+                with s.variant(("--second",), profile=prof) as b:
+                    pass
+                kept = (prof.path / "marker").read_text()
+                path = str(prof.path)
+            return {"touched": touched, "kept": kept, "gone": not Path(path).exists(),
+                    "netlogs": [type(a.netlog).__name__, type(b.netlog).__name__], "complete": b.netlog_complete}
+        res = self.go(body)
+        self.assertEqual(res.status, "pass", res.data["checks"])
+        data = res.data["checks"][0]["data"]
+        self.assertTrue(data["touched"])
+        self.assertEqual(data["kept"], "kept")
+        self.assertTrue(data["gone"])
+        self.assertEqual(data["netlogs"], ["list", "list"])
+        self.assertEqual(list((self.root / "bench-tmp").iterdir()), [])
+
     def test_session_without_launcher_refuses_variants(self):
         from aerie_bench.session import Session
         s = Session(None, None, Path("."))

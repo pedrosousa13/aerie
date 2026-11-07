@@ -1,0 +1,4 @@
+[Adblock Plus 2.0]
+! Title: Aerie Bench fixture list
+! Blocks the three fixture ads and nothing else.
+/filters/ads/
