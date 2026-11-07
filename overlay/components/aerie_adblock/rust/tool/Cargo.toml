@@ -7,3 +7,7 @@ publish.workspace = true
 
 [dependencies]
 aerie_adblock_core = { path = "../core" }
+
+[[bin]]
+name = "aerie_protection_compile"
+path = "src/protection_main.rs"

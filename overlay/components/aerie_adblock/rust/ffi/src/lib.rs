@@ -21,6 +21,8 @@
 use aerie_adblock_core::{FilterEngine, ListError, RequestInfo, RequestKind, check_list as core_check_list};
 use std::time::Duration;
 
+mod safety;
+
 pub struct Engine(FilterEngine);
 
 #[cxx::bridge(namespace = "aerie_adblock")]

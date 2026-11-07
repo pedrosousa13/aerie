@@ -44,8 +44,14 @@ rust_static_library("aerie_adblock_ffi") {
   visibility = _visibility
   crate_name = "aerie_adblock_ffi"
   crate_root = "rust/ffi/src/lib.rs"
-  sources = [ "rust/ffi/src/lib.rs" ]
-  cxx_bindings = [ "rust/ffi/src/lib.rs" ]
+  sources = [
+    "rust/ffi/src/lib.rs",
+    "rust/ffi/src/safety.rs",
+  ]
+  cxx_bindings = [
+    "rust/ffi/src/lib.rs",
+    "rust/ffi/src/safety.rs",
+  ]
   allow_unsafe = true  # The cxx::bridge macro expands to unsafe code.
   deps = [ ":aerie_adblock_core" ]
 
@@ -59,6 +65,15 @@ rust_executable("aerie_adblock_compile") {
   visibility = [ ":*" ]
   crate_root = "rust/tool/src/main.rs"
   sources = [ "rust/tool/src/main.rs" ]
+  deps = [ ":aerie_adblock_core" ]
+}
+
+# Build-time tool for the protection category: domain lists in, serialized
+# protection engine out, with self-checks. Built for the host.
+rust_executable("aerie_protection_compile") {
+  visibility = [ ":*" ]
+  crate_root = "rust/tool/src/protection_main.rs"
+  sources = [ "rust/tool/src/protection_main.rs" ]
   deps = [ ":aerie_adblock_core" ]
 }
 
