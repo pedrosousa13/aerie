@@ -151,9 +151,37 @@ class ProbeScriptsAreValidJavascriptTest(unittest.TestCase):
         self.check(common.DEEP_JS + "return deepQueryAll(document, '.x').map(e => e.dataset.host)")
         self.check(common.DEEP_JS + settings.LIST_ROWS_JS % json.dumps(["a", "b"]))
         self.check("return " + settings.ATTACK_JS)
-        self.check("return " + prefetch.FETCH_CONTROLS_JS % (prefetch.CONTROL_PATH, 1234))
+        self.check("return " + prefetch.FETCH_CONTROLS_JS % (prefetch.CONTROL_PATH, prefetch.PROBE_ABORT_MS, 1234))
         probe_js = "return " + ("""(async (names) => { return names; })(%s)""" % json.dumps(["a"]))
         self.check(probe_js)
+
+    def test_prefetch_control_fetch_does_not_wait_for_the_silent_probe(self):
+        # The probe listener accepts and never answers. A fetch stub that only settles on abort
+        # models it: the script must still finish, and only because it aborts the fetch itself.
+        script = f"""
+globalThis.location = {{protocol: 'http:'}};
+const seen = [];
+globalThis.fetch = (url, opts = {{}}) => new Promise((resolve, reject) => {{
+  seen.push(url);
+  if (!url.includes('127.0.0.1')) return resolve({{}});
+  if (!opts.signal) return;  // would hang forever
+  opts.signal.addEventListener('abort', () => reject(new Error('aborted')));
+}});
+const started = Date.now();
+const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('hung')), 5000));
+Promise.race([{prefetch.FETCH_CONTROLS_JS % (prefetch.CONTROL_PATH, 100, 1234)}, timeout])
+  .then(ok => {{ console.log(JSON.stringify({{ok, seen, ms: Date.now() - started}})); }},
+        e => {{ console.log(JSON.stringify({{error: e.message}})); process.exit(1); }});
+"""
+        proc = subprocess.run(["node", "-e", script], capture_output=True, text=True, timeout=20)
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        out = json.loads(proc.stdout)
+        self.assertTrue(out["ok"])
+        self.assertEqual(out["seen"], [prefetch.CONTROL_PATH, "http://127.0.0.1:1234"])
+        self.assertGreaterEqual(out["ms"], 90)
+
+    def test_prefetch_abort_is_about_one_second(self):
+        self.assertEqual(prefetch.PROBE_ABORT_MS, 1000)
 
     def test_fixture_pages_and_extension_script(self):
         root = Path(extension.__file__).parents[2] / "fixtures" / "hardening"
