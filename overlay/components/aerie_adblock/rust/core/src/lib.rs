@@ -27,6 +27,8 @@
 //!   `adblock` panics without one, so `AerieDomainResolver` is
 //!   installed first. See its documentation for the limits.
 
+pub mod safety;
+
 use adblock::Engine;
 use adblock::lists::{FilterSet, ParseOptions, RuleTypes};
 use adblock::request::Request;

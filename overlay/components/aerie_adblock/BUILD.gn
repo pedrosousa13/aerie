@@ -30,6 +30,8 @@ rust_static_library("aerie_adblock_core") {
     "rust/core/src/lib.rs",
     "rust/core/src/lists.rs",
     "rust/core/src/lists_tests.rs",
+    "rust/core/src/safety.rs",
+    "rust/core/src/safety_tests.rs",
     "rust/core/src/tests.rs",
   ]
   deps = [ "//third_party/rust/adblock/v0_13:lib" ]
