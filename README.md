@@ -27,8 +27,10 @@ Pinned release: **Helium 0.21.1.1** (Chromium 157.0.8103.38) —
 - x86_64 Linux. Tested on Ubuntu 24.04, 12 cores, 30 GB RAM.
 - `git`, `tar`, GNU `patch`, `zstd`, `curl`, and Python 3.11 or newer
   (with the `venv` module) on `PATH`.
-- About **150–200 GB** free on the drive that holds the build root, plus up
-  to 30 GB more for the compiler cache.
+- About **150–200 GB** free on the drive that holds the build root. One
+  build uses about 40 GB (measured: 33 GB source + output, 3.2 GB
+  downloads); the rest is headroom for a second Helium version during an
+  update and for the compiler cache (capped at 30 GB).
 - Network access to `tarballs.imput.net`, `github.com` and `pypi.org`.
 
 Nothing else is installed system-wide. Helium's prepared Chromium tarballs
@@ -54,9 +56,32 @@ Do not use `--recursive`: `helium-linux` has its own copy of
 
 The browser ends up at
 `<build root>/src/helium-<version>/out/Default/helium`; `./aerie info` prints
-the exact path. Run it with `<that path>`.
+the exact path.
 
-A clean build on a 12-core / 30 GB machine took **BUILD_TIME_PLACEHOLDER**
+#### Running it: the sandbox on Ubuntu 23.10+
+
+Ubuntu 23.10 and later block unprivileged user namespaces through AppArmor
+(`kernel.apparmor_restrict_unprivileged_userns = 1`). A locally built binary
+then stops at start with `No usable sandbox!`. Fix it once, as root, with an
+AppArmor profile like the one Ubuntu ships for Chrome (adjust the path if
+your build root differs):
+
+```sh
+sudo tee /etc/apparmor.d/aerie-helium >/dev/null <<'PROFILE'
+abi <abi/4.0>,
+include <tunables/global>
+profile aerie-helium /mnt/linux2/aerie-build/src/helium-*/out/Default/helium flags=(unconfined) {
+  userns,
+  include if exists <local/aerie-helium>
+}
+PROFILE
+sudo apparmor_parser -r /etc/apparmor.d/aerie-helium
+```
+
+For a quick check without root you can pass `--no-sandbox`, but that turns
+off Chromium's renderer sandbox: use it only for local smoke tests.
+
+A clean build on a 12-core / 30 GB machine takes about **2.5 hours**
 (see "Measured build" below). An interrupted build resumes: rerun
 `./aerie build`. Use `./aerie build --clean` to start the source tree over.
 
@@ -135,4 +160,22 @@ Standard library only; runs in well under a second.
 
 ### Measured build
 
-MEASURED_PLACEHOLDER
+Clean build of Helium 0.21.1.1 from a fresh clone, 2026-11-07, Ubuntu 24.04,
+12 cores, 30 GB RAM, NVMe data drive, empty compiler cache, tarballs
+already in `downloads/`:
+
+| Step | Time |
+| --- | --- |
+| Install ccache + Python venv | < 5 s |
+| Unpack tarballs (base + linux-x64 + deps) | 26 s |
+| Prune binaries, patch, domain/name substitution, resources | 1 min 49 s |
+| `gn gen` | 2 s |
+| Compile + ThinLTO link (`chrome`, `chromedriver`; about 57,500 steps) | 2 h 25 min |
+| **Total (`./aerie build --clean`)** | **2 h 27 min 35 s** |
+
+Peak memory of a single process: 18.6 GB (the final link). Downloading the
+two Chromium tarballs (3.3 GB) adds a few minutes on a fast connection.
+
+The compiler cache helps less than you might expect: Chromium 157 compiles
+most C++ with Clang modules, which ccache does not cache by default (about
+10% of compile calls were cacheable in this build).

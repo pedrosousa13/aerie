@@ -60,6 +60,7 @@ def cmd_prune(args: argparse.Namespace) -> int:
         # Re-apply the configured cap and evict down to it now.
         ccache.write_conf(ctx.paths.ccache, ctx.cache_size)
         env = config.isolated_env(ctx.paths, os.environ)
+        sys.stdout.flush()
         subprocess.run([str(ctx.ccache_bin), "--cleanup"], env=env, check=True)
     return 0
 
