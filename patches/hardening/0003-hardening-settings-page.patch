@@ -29,11 +29,11 @@ and lives in the next patch. The page copies the way Helium's fingerprinting pag
 +
 +export class AerieHardeningBrowserProxyImpl implements
 +    AerieHardeningBrowserProxy {
-+  getHttpExceptions() {
++  getHttpExceptions(): Promise<string[]> {
 +    return sendWithPromise('getAerieHttpExceptions');
 +  }
 +
-+  removeHttpException(host: string) {
++  removeHttpException(host: string): Promise<void> {
 +    return sendWithPromise('removeAerieHttpException', host);
 +  }
 +
