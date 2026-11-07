@@ -88,7 +88,12 @@ std::vector<GURL> ChromeConfigurator::PingUrl() const {
 }
 """
 
+WIDEVINE_INSTALLER_OK = """const uint8_t kWidevineSha2Hash[] = {
+    0xe8, 0xce, 0xcf, 0x42, 0x06, 0xd0, 0x93, 0x49, 0x6d};
+"""
+
 GOOD = {
+    "chrome/browser/component_updater/widevine_cdm_component_installer.cc": WIDEVINE_INSTALLER_OK,
     "chrome/browser/component_updater/registration.cc": WIDEVINE_REG_OK,
     "chrome/browser/component_updater/chrome_component_updater_configurator.cc": WIDEVINE_CFG_OK,
     "third_party/search_engines_data/resources/definitions/regional_settings.json": SEARCH_OK,
@@ -258,7 +263,7 @@ class RunTest(TreeCase):
 
     def test_empty_tree_passes_unless_required(self):
         self.assertEqual(self.run_gates(), [])
-        self.assertEqual(len(self.run_gates(require=True)), 12)
+        self.assertEqual(len(self.run_gates(require=True)), 13)
 
     def test_format_report(self):
         self.write({"a.cc": '"https://services.helium.imput.net"\n'})

@@ -181,6 +181,11 @@ def check_link_prefetch_off(root: Path, require: bool = False) -> list[Finding]:
 
 WIDEVINE_REGISTRATION = "chrome/browser/component_updater/registration.cc"
 WIDEVINE_CONFIGURATOR = "chrome/browser/component_updater/chrome_component_updater_configurator.cc"
+WIDEVINE_INSTALLER = "chrome/browser/component_updater/widevine_cdm_component_installer.cc"
+# The first bytes of the public key hash that the Widevine CRX must be signed with (extension id
+# oimompecagnajdejgnnjijobebaeigek). The update client checks the CRX signature against this hash
+# before it unpacks the component, so a changed hash would let another key's CRX load.
+WIDEVINE_KEY_HASH = r"0xe8,\s*0xce,\s*0xcf,\s*0x42,\s*0x06,\s*0xd0,\s*0x93,\s*0x49"
 
 
 def check_widevine_opt_in(root: Path, require: bool = False) -> list[Finding]:
@@ -203,6 +208,10 @@ def check_widevine_opt_in(root: Path, require: bool = False) -> list[Finding]:
             m = re.search(r"ChromeConfigurator::%s\(\)\s*const\s*\{(.*?)\n\}" % fn, text, re.S)
             if not m or "aerie_widevine::UpdateUrl(" not in m.group(1):
                 out.append(Finding(gate, WIDEVINE_CONFIGURATOR, f"{fn}() must go through aerie_widevine::UpdateUrl()"))
+    out += _must_match(
+        root, WIDEVINE_INSTALLER, gate, r"kWidevineSha2Hash\[\]\s*=\s*\{\s*" + WIDEVINE_KEY_HASH,
+        "the pinned Widevine signing key hash changed; the CRX signature check would accept another key",
+        require)
     return out
 
 

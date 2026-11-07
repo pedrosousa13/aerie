@@ -196,6 +196,11 @@ std::vector<GURL> ChromeConfigurator::PingUrl() const {
                                     helium::GetComponentUpdateURL(GetProfilePrefs()))};
 }
 """
+INSTALLER = "chrome/browser/component_updater/widevine_cdm_component_installer.cc"
+INSTALLER_OK = """const uint8_t kWidevineSha2Hash[] = {
+    0xe8, 0xce, 0xcf, 0x42, 0x06, 0xd0, 0x93, 0x49, 0x6d, 0xd9, 0x89,
+    0xe1, 0x41, 0x04};
+"""
 REG = "chrome/browser/component_updater/registration.cc"
 CFG = "chrome/browser/component_updater/chrome_component_updater_configurator.cc"
 
@@ -217,6 +222,7 @@ class GateTest(unittest.TestCase):
     def test_good_tree_passes(self):
         self.write(REG, REG_OK)
         self.write(CFG, CFG_OK)
+        self.write(INSTALLER, INSTALLER_OK)
         self.assertEqual(treegate.check_widevine_opt_in(self.root, require=True), [])
 
     def test_unconditional_registration_fails(self):
@@ -234,9 +240,17 @@ class GateTest(unittest.TestCase):
         out = treegate.check_widevine_opt_in(self.root)
         self.assertEqual([f.gate for f in out], ["widevine_opt_in"])
 
+    def test_the_pinned_signing_key_hash_must_stay(self):
+        self.write(INSTALLER, INSTALLER_OK)
+        self.assertEqual(treegate.check_widevine_opt_in(self.root), [])
+        self.write(INSTALLER, INSTALLER_OK.replace("0xe8", "0xe9"))
+        out = treegate.check_widevine_opt_in(self.root)
+        self.assertEqual([f.gate for f in out], ["widevine_opt_in"])
+        self.assertIn("signing key", out[0].message)
+
     def test_missing_files_skipped_unless_required(self):
         self.assertEqual(treegate.check_widevine_opt_in(self.root), [])
-        self.assertEqual(len(treegate.check_widevine_opt_in(self.root, require=True)), 2)
+        self.assertEqual(len(treegate.check_widevine_opt_in(self.root, require=True)), 3)
 
 
 if __name__ == "__main__":
