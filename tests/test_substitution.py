@@ -1,4 +1,5 @@
 import hashlib
+import re
 import shutil
 import tempfile
 import unittest
@@ -57,6 +58,77 @@ GRD = """<?xml version="1.0" encoding="utf-8"?>
   </release>
 </grit>
 """
+
+
+ONBOARDING_GRDP = """<grit-part>
+
+<message name="IDS_HELIUM_ONBOARDING_PAGE_TITLE" desc="The title of the Helium setup onboarding page.">
+  Helium Setup
+</message>
+
+<message name="IDS_HELIUM_ONBOARDING_PARTNER_TITLE" desc="Badge title shown for partner services in onboarding.">
+  Helium Partner
+</message>
+
+<message name="IDS_HELIUM_ONBOARDING_WELCOME_GREETING" desc="Main greeting on the first onboarding screen.">
+  Meet Helium
+</message>
+</grit-part>
+"""
+
+
+class ByteStabilityTest(unittest.TestCase):
+    def run_grd(self, text):
+        out, _ = substitution.substitute_grd_text(text, fake_fp)
+        return out
+
+    def test_declaration_present_or_absent_is_kept_byte_for_byte(self):
+        body = "<grit-part>\n<message name=\"IDS_A\" desc=\"d\">\n  About Helium\n</message>\n</grit-part>\n"
+        for head in ("", "<?xml version='1.0' encoding='utf-8'?>\n", '<?xml version="1.0" encoding="utf-8"?>\n'):
+            with self.subTest(head=head):
+                out = self.run_grd(head + body)
+                self.assertEqual(out, head + body.replace("About Helium", "About Aerie"))
+
+    def test_comments_whitespace_attribute_order_and_entities_survive(self):
+        text = (
+            "<!-- Helium header comment -->\n"
+            "<grit-part   >\r\n"
+            "\t<!-- keep Helium here -->\n"
+            "<message   desc='single &amp; \"q\" Helium'  name=\"IDS_A\"  >"
+            "Open <ph name=\"X\"  >$1<ex >Helium</ex></ph> &amp; &lt;Helium&gt; &#36;1 <!-- Helium --> now  </message>\n"
+            "<message name=\"IDS_B\" desc=\"d\"/>\n"
+            "<message name=\"IDS_C\" desc=\"d\">Nothing</message>\n\n\n"
+            "</grit-part>")
+        want = text.replace(
+            "Open <ph name=\"X\"  >$1<ex >Helium</ex></ph> &amp; &lt;Helium&gt; &#36;1 <!-- Helium --> now",
+            "Open <ph name=\"X\"  >$1<ex >Aerie</ex></ph> &amp; &lt;Aerie&gt; &#36;1 <!-- Helium --> now")
+        self.assertNotEqual(want, text)
+        self.assertEqual(self.run_grd(text), want)
+
+    def test_xtb_rekey_changes_only_ids_and_text(self):
+        text = (
+            "<?xml version='1.0' encoding=\"UTF-8\"?>\n"
+            "<!DOCTYPE translationbundle>\n"
+            "<translationbundle  lang='de'>\n"
+            "  <!-- Helium comment -->\n"
+            "<translation   fp='x' id='111'  >&amp;Helium <ph name=\"A\"/> Helium</translation>\n"
+            "<translation id=\"222\">Ohne Namen</translation>\n"
+            "</translationbundle>\n")
+        out = substitution.substitute_xtb_text(text, {"111": "999", "222": "888"})
+        self.assertEqual(out, text.replace("id='111'", "id='999'").replace('id="222"', 'id="888"')
+                         .replace("&amp;Helium <ph name=\"A\"/> Helium", "&amp;Aerie <ph name=\"A\"/> Aerie"))
+
+    def test_onboarding_grdp_keeps_grit_part_as_first_element(self):
+        out = self.run_grd(ONBOARDING_GRDP)
+        self.assertIsNotNone(out)
+        # generate-i18n.mts reads data[0]['grit-part'] with preserveOrder: the first node must be it.
+        self.assertTrue(out.startswith("<grit-part>"))
+        first = next(n for n in re.finditer(r"<(\?|!--)?([\w-]+)?", out) if n.group(1) is None)
+        self.assertEqual(first.group(2), "grit-part")
+        self.assertNotIn("<?xml", out)
+        self.assertEqual(ET.fromstring(out).tag, "grit-part")
+        self.assertIn("Aerie Setup", out)
+        self.assertIn("Helium Partner", out)  # partner messages stay Helium
 
 
 class ReplaceTextTest(unittest.TestCase):

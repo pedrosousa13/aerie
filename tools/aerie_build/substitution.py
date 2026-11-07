@@ -27,6 +27,7 @@ import os
 import re
 import sys
 import xml.etree.ElementTree as ET
+import xml.parsers.expat as expat
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
@@ -109,9 +110,9 @@ def _parser() -> ET.XMLParser:
 
 
 def _replace_in_element(element: ET.Element) -> bool:
-    """Rewrite text, tail and children of a message or translation."""
+    """Rewrite text, tail and children of a message (parsed copy, used for fingerprints)."""
     changed = False
-    if element.text:
+    if element.text and isinstance(element.tag, str):
         element.text, hit = replace_text(element.text)
         changed |= hit
     if element.tail:
@@ -122,45 +123,142 @@ def _replace_in_element(element: ET.Element) -> bool:
     return changed
 
 
-def _serialise(root: ET.Element) -> str:
-    return ET.tostring(root, encoding="unicode", xml_declaration=True).replace(_DOLLAR_TOKEN, _DOLLAR)
+# Markup that is not message text: comments, processing instructions, CDATA
+# markers, and tags (attribute values may hold a ">").
+_MARKUP_RE = re.compile(
+    rb"(<!--.*?-->|<\?.*?\?>|<!\[CDATA\[|\]\]>|<(?:[^>\"']|\"[^\"]*\"|'[^']*')*>)", re.DOTALL)
+_ATTR_RE = re.compile(rb"""([^\s=/<>]+)\s*=\s*("[^"]*"|'[^']*')""")
+
+
+@dataclass
+class _Span:
+    """Where one <message>/<translation> sits in the original bytes."""
+    name: str            # message name, or translation id
+    id_span: tuple[int, int] | None  # offsets of the id attribute value (inside the quotes)
+    start: int           # first byte of the content (after the start tag)
+    end: int             # first byte of the end tag
+
+
+def _tag_end(data: bytes, start: int) -> int:
+    """Offset just past the '>' of the start tag that begins at `start`."""
+    quote = None
+    i = start
+    while True:
+        c = data[i:i + 1]
+        if quote:
+            if c == quote:
+                quote = None
+        elif c in (b'"', b"'"):
+            quote = c
+        elif c == b">":
+            return i + 1
+        i += 1
+
+
+def _spans(data: bytes, tag: str) -> list[_Span]:
+    """Locate every outermost <tag> element in the original bytes (the parser reads, nothing is rewritten)."""
+    found: list[_Span] = []
+    stack: list[tuple[str, int, int, dict]] = []
+    depth = 0
+    parser = expat.ParserCreate("utf-8")  # offsets are bytes, whatever the declaration says
+
+    def start(name, attrs):
+        nonlocal depth
+        if name == tag:
+            if depth == 0:
+                at = parser.CurrentByteIndex
+                stack.append((name, at, _tag_end(data, at), attrs))
+            depth += 1
+
+    def end(name):
+        nonlocal depth
+        if name == tag:
+            depth -= 1
+            if depth == 0:
+                _, at, content, attrs = stack.pop()
+                close = parser.CurrentByteIndex
+                if close < content:  # <tag/>: no content
+                    return
+                id_span = None
+                for m in _ATTR_RE.finditer(data, at, content):
+                    if m.group(1) == b"id":
+                        id_span = (m.start(2) + 1, m.end(2) - 1)
+                found.append(_Span(attrs.get("name" if tag == "message" else "id", ""), id_span, content, close))
+
+    parser.StartElementHandler = start
+    parser.EndElementHandler = end
+    parser.Parse(data, True)
+    return found
+
+
+def _replace_in_markup(raw: bytes) -> bytes:
+    """Apply the rules to the text runs of `raw`, leaving tags and comments untouched."""
+    parts = _MARKUP_RE.split(raw)
+    for i in range(0, len(parts), 2):  # even parts are text
+        if parts[i]:
+            parts[i] = replace_text(parts[i].decode("utf-8"))[0].encode("utf-8")
+    return b"".join(parts)
+
+
+def _apply(data: bytes, edits: list[tuple[int, int, bytes]]) -> bytes:
+    """Splice (start, end, replacement) edits into data."""
+    for start, end, new in sorted(edits, reverse=True):
+        data = data[:start] + new + data[end:]
+    return data
 
 
 def substitute_grd_text(text: str, fingerprint: Fingerprint) -> tuple[str | None, dict[str, str]]:
-    """Rewrite a .grd/.grdp file. Returns (None, {}) when nothing changed."""
+    """Rewrite a .grd/.grdp file. Returns (None, {}) when nothing changed.
+
+    Only the text inside messages changes; every other byte of the input is kept.
+    """
+    data = text.encode("utf-8")
+    edits: list[tuple[int, int, bytes]] = []
+    for span in _spans(data, "message"):
+        if keep_reason(span.name):
+            continue
+        inner = data[span.start:span.end]
+        new = _replace_in_markup(inner)
+        if new != inner:
+            edits.append((span.start, span.end, new))
+    if not edits:
+        return None, {}
+    # The parsed copy exists only to compute fingerprints of the old and new text.
     root = ET.fromstring(text.replace(_DOLLAR, _DOLLAR_TOKEN), _parser())
     fp_map: dict[str, str] = {}
-    changed = False
     for message in root.findall(".//message"):
         if keep_reason(message.get("name")):
             continue
         old = fingerprint(message)
         if _replace_in_element(message):
-            changed = True
-            new = fingerprint(message)
-            if old != new:
-                fp_map[old] = new
-    return (_serialise(root) if changed else None), fp_map
+            new_fp = fingerprint(message)
+            if old != new_fp:
+                fp_map[old] = new_fp
+    return _apply(data, edits).decode("utf-8"), fp_map
 
 
 def substitute_xtb_text(text: str, fp_map: dict[str, str]) -> str | None:
-    """Rewrite a .xtb file: new names in the text, new fingerprints as ids."""
-    root = ET.fromstring(text.replace(_DOLLAR, _DOLLAR_TOKEN), _parser())
-    changed = False
+    """Rewrite a .xtb file: new names in the text, new fingerprints as ids.
+
+    Only translation text and id attribute values change.
+    """
+    data = text.encode("utf-8")
+    edits: list[tuple[int, int, bytes]] = []
     seen: set[str] = set()
-    for translation in root.findall(".//translation"):
-        changed |= _replace_in_element(translation)
-        old_id = translation.get("id") or ""
+    for span in _spans(data, "translation"):
+        inner = data[span.start:span.end]
+        new = _replace_in_markup(inner)
+        if new != inner:
+            edits.append((span.start, span.end, new))
+        old_id = span.name
         new_id = fp_map.get(old_id, old_id)
-        if new_id != old_id:
-            changed = True
         # Two strings that now read the same would share an id and break the build.
         while new_id in seen and new_id.isdigit():
             new_id = str(int(new_id) + 1)
-            changed = True
-        translation.set("id", new_id)
+        if new_id != old_id and span.id_span:
+            edits.append((*span.id_span, new_id.encode("utf-8")))
         seen.add(new_id)
-    return _serialise(root) if changed else None
+    return _apply(data, edits).decode("utf-8") if edits else None
 
 
 GRD_EXTENSIONS = (".grd", ".grdp")
