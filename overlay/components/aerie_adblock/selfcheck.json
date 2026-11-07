@@ -6,6 +6,17 @@
     {"url": "https://www.google-analytics.com/analytics.js", "hostname": "www.google-analytics.com", "source_hostname": "news.test", "type": "script", "third_party": true},
     {"url": "https://connect.facebook.net/en_US/fbevents.js", "hostname": "connect.facebook.net", "source_hostname": "news.test", "type": "script", "third_party": true}
   ],
+  "hide": [
+    {"url": "https://news.test/story", "classes": "ad-slot", "ids": "", "selector": ".ad-slot"},
+    {"url": "https://news.test/story", "classes": "", "ids": "adbox", "selector": "#adbox"},
+    {"url": "https://news.test/story", "classes": "ad-wrapper", "ids": "", "selector": ".ad-wrapper"},
+    {"url": "https://news.test/story", "classes": "", "ids": "", "selector": "ins.adsbygoogle[data-ad-client]"}
+  ],
+  "keep": [
+    {"url": "https://news.test/story", "classes": "story article adventure", "ids": "content main nav", "selector": ".story"},
+    {"url": "https://news.test/story", "classes": "story article adventure", "ids": "content main nav", "selector": ".adventure"},
+    {"url": "https://news.test/story", "classes": "story article adventure", "ids": "content main nav", "selector": "#content"}
+  ],
   "allow": [
     {"url": "https://news.test/assets/app.js", "hostname": "news.test", "source_hostname": "news.test", "type": "script", "third_party": false},
     {"url": "https://news.test/style.css", "hostname": "news.test", "source_hostname": "news.test", "type": "stylesheet", "third_party": false}

@@ -131,6 +131,28 @@ cxx-build = "1"
         self.assertFalse(out.exists())
         self.assertNotEqual(sh([str(tool), str(lst)]).returncode, 0)  # no --out
 
+    def test_compile_tool_cosmetic_self_checks(self):
+        build = sh(["cargo", "build", "--manifest-path", str(WORKSPACE / "Cargo.toml"), "-p", "aerie_adblock_compile"],
+                   env=self.env)
+        self.assertEqual(build.returncode, 0, build.stderr[-3000:])
+        tool = self.target / "debug" / "aerie_adblock_compile"
+        lst = self.tmp / "c.txt"
+        lst.write_text("##.ad-slot\nnews.test##.news-only\n")
+        out = self.tmp / "cosmetic.dat"
+        ok = sh([str(tool), "--out", str(out),
+                 "--expect-hide", "https://news.test/|ad-slot||.ad-slot",
+                 "--expect-hide", "https://news.test/|||.news-only",
+                 "--expect-keep", "https://other.test/|||.news-only",
+                 "--expect-keep", "https://news.test/|story||.story", str(lst)])
+        self.assertEqual(ok.returncode, 0, ok.stderr)
+        out.unlink()
+        for spec, flag in [("https://news.test/|story||.ad-slot", "--expect-hide"),
+                           ("https://news.test/|ad-slot||.ad-slot", "--expect-keep")]:
+            bad = sh([str(tool), "--out", str(out), flag, spec, str(lst)])
+            self.assertNotEqual(bad.returncode, 0)
+            self.assertIn("self-check failed", bad.stderr)
+            self.assertFalse(out.exists())
+
 
 if __name__ == "__main__":
     unittest.main()
