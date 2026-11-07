@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import signal
 import subprocess
 import time
@@ -99,6 +100,42 @@ class BrowserProcess:
         self.client.close()
 
 
+FATAL_MAX = 200
+
+
+def fatal_line(stderr_path: Path | str | None) -> str | None:
+    """The last FATAL line a browser wrote to stderr, without its pid/file prefix, or None.
+
+    Chromium writes `[pid:tid:mmdd/hhmmss.us:FATAL:file.cc:line] message`. Only the first sentence
+    of a long message is kept ("No usable sandbox!" and not the two doc URLs after it).
+    """
+    if not stderr_path:
+        return None
+    try:
+        lines = Path(stderr_path).read_text(errors="replace").splitlines()
+    except OSError:
+        return None
+    for line in reversed(lines):
+        m = re.search(r":FATAL:[^\]]*\]\s*(?P<msg>.+)$", line)
+        if m:
+            msg = m.group("msg").strip()
+            first = re.split(r"(?<=[.!?])\s", msg, maxsplit=1)[0]
+            return first[:FATAL_MAX]
+    return None
+
+
+def _why_it_died(popen: subprocess.Popen, stderr_path: Path | None, wait: float = 2.0) -> str | None:
+    """Called after the CDP pipe closed. If the process is gone (or goes within `wait`), say why."""
+    try:
+        code = popen.wait(timeout=wait)
+    except subprocess.TimeoutExpired:
+        return None  # still running: it only closed the pipe
+    line = fatal_line(stderr_path)
+    if line:
+        return f"browser exited with code {code}: {line}"
+    return f"browser exited with code {code}"
+
+
 def spawn(argv: list[str], env: dict[str, str] | None = None, stderr_path: Path | None = None) -> BrowserProcess:
     """Spawn with the browser's fd 3 / 4 wired to a CDP client."""
     to_browser_r, to_browser_w = os.pipe()    # we write, browser reads on fd 3
@@ -124,7 +161,9 @@ def spawn(argv: list[str], env: dict[str, str] | None = None, stderr_path: Path 
             err.close()
         os.close(to_browser_r)
         os.close(from_browser_w)
-    return BrowserProcess(popen, CdpClient(from_browser_r, to_browser_w))
+    client = CdpClient(from_browser_r, to_browser_w)
+    client.closed_hint = lambda: _why_it_died(popen, stderr_path)
+    return BrowserProcess(popen, client)
 
 
 def version(binary: str | Path, timeout: float = 15.0, env: dict | None = None) -> str | None:
