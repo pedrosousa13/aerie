@@ -1,0 +1,344 @@
+{
+ "events": [
+  {
+   "method": "Network.requestWillBeSent",
+   "params": {
+    "requestId": "1000.1",
+    "loaderId": "1000.1",
+    "documentURL": "http://127.0.0.1:41233/blocking/index.html",
+    "request": {
+     "url": "http://127.0.0.1:41233/blocking/index.html",
+     "method": "GET"
+    },
+    "type": "Document"
+   },
+   "sessionId": "5A1D0C2F"
+  },
+  {
+   "method": "Network.responseReceived",
+   "params": {
+    "requestId": "1000.1",
+    "type": "Document",
+    "response": {
+     "url": "http://127.0.0.1:41233/blocking/index.html",
+     "status": 200
+    }
+   },
+   "sessionId": "5A1D0C2F"
+  },
+  {
+   "method": "Network.requestWillBeSent",
+   "params": {
+    "requestId": "1000.2",
+    "request": {
+     "url": "http://127.0.0.1:41233/blocking/content.js",
+     "method": "GET"
+    },
+    "type": "Script"
+   },
+   "sessionId": "5A1D0C2F"
+  },
+  {
+   "method": "Network.responseReceived",
+   "params": {
+    "requestId": "1000.2",
+    "type": "Script",
+    "response": {
+     "url": "http://127.0.0.1:41233/blocking/content.js",
+     "status": 200
+    }
+   },
+   "sessionId": "5A1D0C2F"
+  },
+  {
+   "method": "Network.requestWillBeSent",
+   "params": {
+    "requestId": "1000.3",
+    "request": {
+     "url": "http://127.0.0.1:41233/blocking/page.css",
+     "method": "GET"
+    },
+    "type": "Stylesheet"
+   },
+   "sessionId": "5A1D0C2F"
+  },
+  {
+   "method": "Network.responseReceived",
+   "params": {
+    "requestId": "1000.3",
+    "type": "Stylesheet",
+    "response": {
+     "url": "http://127.0.0.1:41233/blocking/page.css",
+     "status": 200
+    }
+   },
+   "sessionId": "5A1D0C2F"
+  },
+  {
+   "method": "Network.requestWillBeSent",
+   "params": {
+    "requestId": "1000.4",
+    "request": {
+     "url": "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js",
+     "method": "GET"
+    },
+    "type": "Script"
+   },
+   "sessionId": "5A1D0C2F"
+  },
+  {
+   "method": "Network.loadingFailed",
+   "params": {
+    "requestId": "1000.4",
+    "timestamp": 1234.5,
+    "type": "Script",
+    "errorText": "net::ERR_BLOCKED_BY_CLIENT",
+    "canceled": false
+   },
+   "sessionId": "5A1D0C2F"
+  },
+  {
+   "method": "Network.requestWillBeSent",
+   "params": {
+    "requestId": "1000.5",
+    "request": {
+     "url": "https://securepubads.g.doubleclick.net/tag/js/gpt.js",
+     "method": "GET"
+    },
+    "type": "Script"
+   },
+   "sessionId": "5A1D0C2F"
+  },
+  {
+   "method": "Network.loadingFailed",
+   "params": {
+    "requestId": "1000.5",
+    "timestamp": 1234.5,
+    "type": "Script",
+    "errorText": "net::ERR_BLOCKED_BY_CLIENT",
+    "canceled": false
+   },
+   "sessionId": "5A1D0C2F"
+  },
+  {
+   "method": "Network.requestWillBeSent",
+   "params": {
+    "requestId": "1000.6",
+    "request": {
+     "url": "https://connect.facebook.net/en_US/fbevents.js",
+     "method": "GET"
+    },
+    "type": "Script"
+   },
+   "sessionId": "5A1D0C2F"
+  },
+  {
+   "method": "Network.loadingFailed",
+   "params": {
+    "requestId": "1000.6",
+    "timestamp": 1234.5,
+    "type": "Script",
+    "errorText": "net::ERR_BLOCKED_BY_CLIENT",
+    "canceled": false
+   },
+   "sessionId": "5A1D0C2F"
+  },
+  {
+   "method": "Network.requestWillBeSent",
+   "params": {
+    "requestId": "1000.7",
+    "request": {
+     "url": "https://static.hotjar.com/c/hotjar-1.js",
+     "method": "GET"
+    },
+    "type": "Script"
+   },
+   "sessionId": "5A1D0C2F"
+  },
+  {
+   "method": "Network.loadingFailed",
+   "params": {
+    "requestId": "1000.7",
+    "timestamp": 1234.5,
+    "type": "Script",
+    "errorText": "net::ERR_BLOCKED_BY_CLIENT",
+    "canceled": false
+   },
+   "sessionId": "5A1D0C2F"
+  },
+  {
+   "method": "Network.requestWillBeSent",
+   "params": {
+    "requestId": "1000.8",
+    "request": {
+     "url": "https://www.google-analytics.com/collect?v=1&t=pageview",
+     "method": "GET"
+    },
+    "type": "Image"
+   },
+   "sessionId": "5A1D0C2F"
+  },
+  {
+   "method": "Network.loadingFailed",
+   "params": {
+    "requestId": "1000.8",
+    "timestamp": 1234.5,
+    "type": "Image",
+    "errorText": "net::ERR_BLOCKED_BY_CLIENT",
+    "canceled": false
+   },
+   "sessionId": "5A1D0C2F"
+  },
+  {
+   "method": "Network.requestWillBeSent",
+   "params": {
+    "requestId": "1000.9",
+    "request": {
+     "url": "https://googleads.g.doubleclick.net/pagead/ads?client=ca-pub-1",
+     "method": "GET"
+    },
+    "type": "Document"
+   },
+   "sessionId": "5A1D0C2F"
+  },
+  {
+   "method": "Network.loadingFailed",
+   "params": {
+    "requestId": "1000.9",
+    "timestamp": 1234.5,
+    "type": "Document",
+    "errorText": "net::ERR_BLOCKED_BY_CLIENT",
+    "canceled": false
+   },
+   "sessionId": "5A1D0C2F"
+  },
+  {
+   "method": "Network.requestWillBeSent",
+   "params": {
+    "requestId": "1000.10",
+    "request": {
+     "url": "https://www.google-analytics.com/j/collect?v=1",
+     "method": "GET"
+    },
+    "type": "Fetch"
+   },
+   "sessionId": "5A1D0C2F"
+  },
+  {
+   "method": "Network.loadingFailed",
+   "params": {
+    "requestId": "1000.10",
+    "timestamp": 1234.5,
+    "type": "Fetch",
+    "errorText": "net::ERR_BLOCKED_BY_CLIENT",
+    "canceled": false
+   },
+   "sessionId": "5A1D0C2F"
+  },
+  {
+   "method": "Network.requestWillBeSent",
+   "params": {
+    "requestId": "2000.1",
+    "request": {
+     "url": "http://127.0.0.1:41233/blocking/go-tracker",
+     "method": "GET"
+    },
+    "type": "Image"
+   },
+   "sessionId": "5A1D0C2F"
+  },
+  {
+   "method": "Network.requestWillBeSent",
+   "params": {
+    "requestId": "2000.1",
+    "request": {
+     "url": "https://www.google-analytics.com/collect?v=1&t=redirect",
+     "method": "GET"
+    },
+    "redirectResponse": {
+     "url": "http://127.0.0.1:41233/blocking/go-tracker",
+     "status": 302
+    },
+    "type": "Image"
+   },
+   "sessionId": "5A1D0C2F"
+  },
+  {
+   "method": "Network.loadingFailed",
+   "params": {
+    "requestId": "2000.1",
+    "timestamp": 1.0,
+    "type": "Image",
+    "errorText": "net::ERR_BLOCKED_BY_CLIENT",
+    "canceled": false
+   },
+   "sessionId": "5A1D0C2F"
+  },
+  {
+   "method": "Network.requestWillBeSent",
+   "params": {
+    "requestId": "2000.2",
+    "request": {
+     "url": "http://127.0.0.1:41233/blocking/go-ok.js",
+     "method": "GET"
+    },
+    "type": "Script"
+   },
+   "sessionId": "5A1D0C2F"
+  },
+  {
+   "method": "Network.requestWillBeSent",
+   "params": {
+    "requestId": "2000.2",
+    "request": {
+     "url": "http://127.0.0.1:41233/blocking/redirected.js",
+     "method": "GET"
+    },
+    "redirectResponse": {
+     "url": "http://127.0.0.1:41233/blocking/go-ok.js",
+     "status": 302
+    },
+    "type": "Script"
+   },
+   "sessionId": "5A1D0C2F"
+  },
+  {
+   "method": "Network.responseReceived",
+   "params": {
+    "requestId": "2000.2",
+    "type": "Script",
+    "response": {
+     "url": "http://127.0.0.1:41233/blocking/redirected.js",
+     "status": 200
+    }
+   },
+   "sessionId": "5A1D0C2F"
+  }
+ ],
+ "fixture_paths": [
+  "/blocking/index.html",
+  "/blocking/page.css",
+  "/blocking/content.js",
+  "/blocking/redirected.js"
+ ],
+ "first_party_script_ran": true,
+ "engine": {
+  "load_success": {
+   "true": 1,
+   "false": 0
+  },
+  "requests": {
+   "true": 8,
+   "false": 3
+  },
+  "redirect_hops": {
+   "true": 1,
+   "false": 1
+  }
+ },
+ "fixture_redirects": [
+  "/blocking/go-tracker",
+  "/blocking/go-ok.js"
+ ],
+ "netlog_text": "{\"constants\": {\"logEventTypes\": {\"URL_REQUEST_REDIRECTED\": 10, \"URL_REQUEST_START_JOB\": 7}, \"logSourceType\": {\"URL_REQUEST\": 1}}, \"events\": [{\"phase\": 1, \"source\": {\"id\": 1, \"type\": 1}, \"time\": \"1\", \"type\": 7, \"params\": {\"url\": \"http://127.0.0.1:41233/blocking/index.html\", \"method\": \"GET\"}}, {\"phase\": 1, \"source\": {\"id\": 2, \"type\": 1}, \"time\": \"2\", \"type\": 7, \"params\": {\"url\": \"http://127.0.0.1:41233/blocking/go-tracker\", \"method\": \"GET\"}}, {\"phase\": 1, \"source\": {\"id\": 2, \"type\": 1}, \"time\": \"2\", \"type\": 10, \"params\": {\"location\": \"https://www.google-analytics.com/collect?v=1&t=redirect\"}}, {\"phase\": 1, \"source\": {\"id\": 2, \"type\": 1}, \"time\": \"2\", \"type\": 7, \"params\": {\"url\": \"https://www.google-analytics.com/collect?v=1&t=redirect\", \"method\": \"GET\"}}, {\"phase\": 1, \"source\": {\"id\": 3, \"type\": 1}, \"time\": \"3\", \"type\": 7, \"params\": {\"url\": \"http://127.0.0.1:41233/blocking/redirected.js\", \"method\": \"GET\"}}]}"
+}

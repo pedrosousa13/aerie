@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "comment": "Pinned by hash. The upstream URLs always serve the newest list, so a changed list fails the build until a person reviews it and runs ./aerie lists update (see docs/adblock.md).",
+  "lists": [
+    {
+      "name": "EasyList",
+      "file": "easylist.txt",
+      "url": "https://easylist.to/easylist/easylist.txt",
+      "sha256": "9345d72a7ed222fc9e2c13bbfc9dbdec2547d294d3a18eb17b87bb42f1ef8451",
+      "size": 2076517,
+      "version": "202611071252"
+    },
+    {
+      "name": "EasyPrivacy",
+      "file": "easyprivacy.txt",
+      "url": "https://easylist.to/easylist/easyprivacy.txt",
+      "sha256": "39e32d6a379d74385f67c3e963b351b7d1f1760bc7bc8d516057450aa843da3a",
+      "size": 1513401,
+      "version": "202611071246"
+    }
+  ]
+}

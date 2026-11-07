@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Copyright 2026 The Aerie Authors
+  You can use, redistribute, and/or modify this source code under
+  the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+  Resources of the Filter Engine: the serialized engine that the build
+  compiles from EasyList and EasyPrivacy (see ../BUILD.gn, target "engine").
+-->
+<grit latest_public_release="0" current_release="1"
+      output_all_resource_defines="false">
+  <outputs>
+    <output filename="grit/aerie_adblock_resources.h" type="rc_header" context="default_100_percent">
+      <emit emit_type='prepend'></emit>
+    </output>
+    <output filename="aerie_adblock_resources.pak" type="data_package" />
+  </outputs>
+  <release seq="1">
+    <includes>
+      <include name="IDR_AERIE_ADBLOCK_ENGINE"
+               file="${root_gen_dir}/components/aerie_adblock/engine/aerie_adblock_engine.dat"
+               use_base_dir="false" type="BINDATA" />
+    </includes>
+  </release>
+</grit>

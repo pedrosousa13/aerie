@@ -1,0 +1,5 @@
+{
+ "comment": "path -> Location. The fixture server answers these with 302. Used by blocking/index.html: a first-party URL that redirects to a listed tracker (must be blocked at the hop), and one that redirects to first-party content (must load).",
+ "/blocking/go-tracker": "https://www.google-analytics.com/collect?v=1&t=redirect",
+ "/blocking/go-ok.js": "/blocking/redirected.js"
+}

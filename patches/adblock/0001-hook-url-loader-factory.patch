@@ -1,0 +1,28 @@
+Aerie-Purpose: Judge every web content request with the Filter Engine by adding its proxying URLLoaderFactory to ChromeContentBrowserClient::WillCreateURLLoaderFactory, in the browser process.
+Aerie-Upstream-Area: chrome/browser/chrome_content_browser_client.cc (WillCreateURLLoaderFactory), chrome/browser/BUILD.gn (source_set core deps)
+Aerie-Kind: hook
+
+One call, placed after the extensions' webRequest proxy and before
+MaybeSetTargetNetwork. The component is in components/aerie_adblock (the
+overlay), see docs/adblock.md.
+
+--- a/chrome/browser/chrome_content_browser_client.cc
++++ b/chrome/browser/chrome_content_browser_client.cc
+@@ -250,2 +250,3 @@
+ #include "chrome/installer/util/google_update_settings.h"
++#include "components/aerie_adblock/browser/aerie_adblock_hook.h"
+ #include "components/autofill/core/common/autofill_features.h"
+@@ -6951,2 +6952,7 @@
+ 
++  // Aerie: judge requests with the Filter Engine. After the extensions' proxy
++  // above, before the network.
++  aerie_adblock::MaybeProxyURLLoaderFactory(type, request_initiator,
++                                            isolation_info, factory_builder);
++
+   MaybeSetTargetNetwork(GetBoundNetworkFromRenderFrameHost(frame),
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -1293,2 +1293,3 @@
+     "//components/actor/public/mojom:mojo_bindings",
++    "//components/aerie_adblock/browser",
+     "//components/application_locale_storage",

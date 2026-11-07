@@ -1,0 +1,28 @@
+Aerie-Purpose: Pack the compiled filter engine into resources.pak so the browser process can read it at startup.
+Aerie-Upstream-Area: chrome/chrome_paks.gni (chrome_extra_paks), tools/gritsettings/resource_ids.spec
+Aerie-Kind: hook
+
+The grd is components/aerie_adblock/resources/aerie_adblock_resources.grd. The id
+range 10260 (10 ids) sits between webui_toolbar_shared and the placeholder in
+the "everything else" section.
+
+--- a/chrome/chrome_paks.gni
++++ b/chrome/chrome_paks.gni
+@@ -129,2 +129,3 @@
+       "$root_gen_dir/chrome/saved_tab_groups_unsupported_resources.pak",
++      "$root_gen_dir/components/aerie_adblock/resources/aerie_adblock_resources.pak",
+       "$root_gen_dir/components/autofill/core/browser/geo/autofill_address_rewriter_resources.pak",
+@@ -176,2 +177,3 @@
+       "//chrome/common:resources",
++      "//components/aerie_adblock:resources",
+       "//components/resources",
+--- a/tools/gritsettings/resource_ids.spec
++++ b/tools/gritsettings/resource_ids.spec
+@@ -1797,2 +1797,7 @@
+ 
++  "components/aerie_adblock/resources/aerie_adblock_resources.grd": {
++    "META": {"sizes": {"includes": [10]}},
++    "includes": [10260],
++  },
++
+   "<(SHARED_INTERMEDIATE_DIR)/THIS_IS_A_PLACEHOLDER.grd": {

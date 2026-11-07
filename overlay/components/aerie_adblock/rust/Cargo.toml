@@ -1,0 +1,24 @@
+# Standalone cargo workspace for the Aerie adblock crates.
+#
+# Chromium does not read these files: it builds the crates through the GN
+# targets in BUILD.gn, with adblock vendored by `gnrt` (see rust/crates.lock.toml
+# at the repo root of Aerie). This workspace exists so that the Rust logic can
+# be unit-tested with plain `cargo test`, outside Chromium:
+#
+#   cd overlay/components/aerie_adblock/rust && cargo test
+#
+# Keep the adblock version and features in step with
+# `tools/aerie_build/rust_crates.py` (ADBLOCK_VERSION, ADBLOCK_FEATURES).
+
+[workspace]
+resolver = "2"
+members = ["core", "ffi", "tool"]
+
+[workspace.package]
+edition = "2024"
+license = "GPL-3.0-or-later"
+publish = false
+
+[workspace.dependencies]
+adblock = { version = "=0.13.4", default-features = false, features = ["full-regex-handling", "single-thread"] }
+cxx = "1"

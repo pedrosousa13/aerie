@@ -13,6 +13,7 @@ patch that fails, instead of stopping at the first.
 
 from __future__ import annotations
 
+import hashlib
 import os
 import re
 import shutil
@@ -46,6 +47,11 @@ class Layer:
     label: str
     directory: Path
     fuzz: bool
+    # Series entries that are skipped (patches/helium-drop.txt). Only Helium's layers have any.
+    dropped: frozenset = frozenset()
+    # Series entries whose patch is replaced, at the same place in the series, by an Aerie file
+    # (patches/helium-adapt.txt): ((entry, replacement path), ...).
+    replaced: tuple = ()
 
 
 class PatchStateError(RuntimeError):
@@ -245,6 +251,8 @@ def lint_patch_dir(directory: Path, rules: SubstitutionRules | None = None) -> l
         problems += _lint_patch(entry, path.read_text(encoding="utf-8", errors="replace"), rules)
     for path in sorted(directory.rglob("*.patch")):
         name = path.relative_to(directory).as_posix()
+        if name.startswith(ADAPT_DIR + "/"):
+            continue  # replacements of Helium patches, listed in helium-adapt.txt and linted there
         if name not in seen:
             problems.append(Problem(name, "patch file is not listed in series"))
     return problems
@@ -296,11 +304,226 @@ def _lint_added_lines(name: str, text: str, rules: SubstitutionRules) -> list[Pr
     return problems
 
 
+def layer_series(layer: Layer) -> list[str]:
+    """The layer's series entries without the dropped ones, in order."""
+    return [e for e in parse_series(layer.directory / "series") if e not in layer.dropped]
+
+
+def layer_patch_path(layer: Layer, entry: str) -> Path:
+    """The file to apply for a series entry: Helium's, or Aerie's replacement."""
+    for name, path in layer.replaced:
+        if name == entry:
+            return path
+    return layer.directory / entry
+
+
 def layer_entries(layer: Layer) -> list[tuple[str, Path]]:
-    return [
-        (f"{layer.label}/{entry}", layer.directory / entry)
-        for entry in parse_series(layer.directory / "series")
-    ]
+    return [(f"{layer.label}/{entry}", layer_patch_path(layer, entry)) for entry in layer_series(layer)]
+
+
+# --- Dropping Helium patches ---------------------------------------------------
+
+DROP_FILE = "helium-drop.txt"
+
+
+@dataclass(frozen=True)
+class Drop:
+    entry: str   # as in Helium's series, e.g. helium/core/ublock-setup-sources.patch
+    reason: str
+    sha256: str | None = None  # helium-adapt.txt only: the Helium patch that was adapted
+
+
+def parse_drops(path: Path) -> tuple[list[Drop], list[Problem]]:
+    """Read patches/helium-drop.txt: one Helium series entry per line, then ``# reason``.
+
+    The reason is required. A missing file means no drops.
+    """
+    return parse_drops_file(path, DROP_FILE)
+
+
+_SHA_RE = re.compile(r"^sha256:([0-9a-f]{64})$")
+
+
+def parse_drops_file(path: Path, label: str, pinned: bool = False) -> tuple[list[Drop], list[Problem]]:
+    """pinned: each line is ``entry sha256:<64 hex>  # reason`` (helium-adapt.txt)."""
+    drops: list[Drop] = []
+    problems: list[Problem] = []
+    if not Path(path).is_file():
+        return drops, problems
+    seen: set[str] = set()
+    for number, raw in enumerate(Path(path).read_text(encoding="utf-8").splitlines(), 1):
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        entry, sep, reason = line.partition("#")
+        entry, reason = entry.strip(), reason.strip()
+        where = f"{label}:{number}"
+        sha = None
+        if pinned:
+            parts = entry.split()
+            entry = parts[0] if parts else ""
+            match = _SHA_RE.match(parts[1]) if len(parts) == 2 else None
+            if not match:
+                problems.append(Problem(entry or where, f"{where}: needs 'sha256:<64 hex digits>' after the entry, the "
+                                                          "Helium patch that was adapted"))
+                continue
+            sha = match.group(1)
+        if not entry or _unsafe(entry) or " " in entry:
+            problems.append(Problem(where, f"not a Helium series entry: {raw!r}"))
+        elif not sep or not reason:
+            problems.append(Problem(entry, f"{where}: an entry needs a reason after '#'"))
+        elif entry in seen:
+            problems.append(Problem(entry, f"{where}: listed more than once"))
+        else:
+            seen.add(entry)
+            drops.append(Drop(entry, reason, sha))
+    return drops, problems
+
+
+def check_drops(drops: Sequence[Drop], helium_layers: Sequence[Layer]) -> list[Problem]:
+    """Every dropped entry must still be in a Helium series (and exist), so a bump surfaces a rename."""
+    present: dict[str, Layer] = {}
+    for layer in helium_layers:
+        series = layer.directory / "series"
+        for entry in parse_series(series) if series.is_file() else []:
+            present.setdefault(entry, layer)
+    problems = []
+    for drop in drops:
+        layer = present.get(drop.entry)
+        if layer is None:
+            problems.append(Problem(
+                drop.entry, f"{DROP_FILE} drops it, but it is no longer in Helium's series "
+                            "(renamed or removed in a Helium bump?): update or remove the entry and its ledger row"))
+        elif not (layer.directory / drop.entry).is_file():
+            problems.append(Problem(drop.entry, "listed in Helium's series but the patch file is missing"))
+    return problems
+
+
+def with_drops(layer: Layer, drops: Sequence[Drop], adapts: Sequence["Adapt"] = ()) -> Layer:
+    """The layer with those drops and replacements that belong to its series."""
+    series = layer.directory / "series"
+    entries = set(parse_series(series)) if series.is_file() else set()
+    return Layer(layer.label, layer.directory, layer.fuzz,
+                 frozenset(d.entry for d in drops if d.entry in entries),
+                 tuple((a.entry, a.path) for a in adapts if a.entry in entries))
+
+
+# --- Adapting Helium patches ---------------------------------------------------
+
+ADAPT_FILE = "helium-adapt.txt"
+ADAPT_DIR = "helium-adapted"
+
+
+@dataclass(frozen=True)
+class Adapt:
+    entry: str   # as in Helium's series
+    reason: str
+    path: Path   # patches/helium-adapted/<entry>
+    original_sha256: str = ""  # of Helium's patch when it was adapted
+
+
+def parse_adapts(patches_dir: Path) -> tuple[list[Adapt], list[Problem]]:
+    """Read patches/helium-adapt.txt (same format as helium-drop.txt) and find the replacement files.
+
+    A Helium patch that only applies on top of a patch Aerie drops is replaced, at the same
+    place in the series, by patches/helium-adapted/<entry>: Helium's patch with the hunks
+    that need the dropped code re-cut. The replacement needs the Aerie header fields.
+    """
+    drops, problems = parse_drops_file(Path(patches_dir) / ADAPT_FILE, ADAPT_FILE, pinned=True)
+    adapts: list[Adapt] = []
+    for drop in drops:
+        path = Path(patches_dir) / ADAPT_DIR / drop.entry
+        if not path.is_file():
+            problems.append(Problem(drop.entry, f"{ADAPT_FILE} lists it but {ADAPT_DIR}/{drop.entry} does not exist"))
+            continue
+        problems += _lint_patch(f"{ADAPT_DIR}/{drop.entry}", path.read_text(encoding="utf-8", errors="replace"))
+        adapts.append(Adapt(drop.entry, drop.reason, path, drop.sha256 or ""))
+    return adapts, problems
+
+
+_UBO_RE = re.compile(r"ublock|\bubo\b", re.I)
+
+
+def _changed_lines(patch_text: str) -> list[list[str]]:
+    """The added and removed lines of each hunk (file headers and context excluded)."""
+    hunks: list[list[str]] = []
+    for line in patch_text.splitlines():
+        if line.startswith("@@"):
+            hunks.append([])
+        elif hunks and line[:1] in "+-" and not line.startswith(("+++ ", "--- ")):
+            hunks[-1].append(line)
+    return hunks
+
+
+def recut_problems(original: str, recut: str) -> list[str]:
+    """Compare a re-cut Helium patch with the original: only the placement of hunks may differ.
+
+    Every added or removed line of the re-cut must be one of the original's (nothing invented);
+    every line of the original's hunks that do not mention uBlock Origin must still be in the
+    re-cut (nothing lost); and the re-cut must not mention uBlock Origin in a changed line.
+    """
+    from collections import Counter
+
+    orig_hunks = _changed_lines(original)
+    have = Counter(l for h in _changed_lines(recut) for l in h)
+    all_orig = Counter(l for h in orig_hunks for l in h)
+    kept = Counter(l for h in orig_hunks if not any(_UBO_RE.search(l) for l in h) for l in h)
+    problems = []
+    for line, count in (have - all_orig).items():
+        problems.append(f"re-cut line is not in Helium's patch: {line!r}")
+    for line, count in (kept - have).items():
+        problems.append(f"line of Helium's patch is missing from the re-cut: {line!r}")
+    for line in have:
+        if _UBO_RE.search(line):
+            problems.append(f"the re-cut changes a line that mentions uBlock Origin: {line!r}")
+    return problems
+
+
+def check_adapts(adapts: Sequence[Adapt], drops: Sequence[Drop], helium_layers: Sequence[Layer]) -> list[Problem]:
+    """Entries exist in Helium; Helium's patch is still the one that was adapted; the re-cut is faithful."""
+    problems = check_drops([Drop(a.entry, a.reason) for a in adapts], helium_layers)
+    dropped = {d.entry for d in drops}
+    present: dict[str, Path] = {}
+    for layer in helium_layers:
+        series = layer.directory / "series"
+        for entry in parse_series(series) if series.is_file() else []:
+            present.setdefault(entry, layer.directory / entry)
+    for adapt in adapts:
+        if adapt.entry in dropped:
+            problems.append(Problem(adapt.entry, f"in both {DROP_FILE} and {ADAPT_FILE}"))
+        original = present.get(adapt.entry)
+        if original is None or not original.is_file():
+            continue  # check_drops reported it
+        data = original.read_bytes()
+        actual = hashlib.sha256(data).hexdigest()
+        if adapt.original_sha256 and actual != adapt.original_sha256:
+            problems.append(Problem(
+                adapt.entry,
+                f"Helium's patch changed since it was adapted (pinned {adapt.original_sha256}, now {actual}): "
+                f"re-cut {ADAPT_DIR}/{adapt.entry} from the new patch (method in CONTRIBUTING.md) and update the pin"))
+            continue
+        for message in recut_problems(data.decode("utf-8", errors="replace"),
+                                      adapt.path.read_text(encoding="utf-8", errors="replace")):
+            problems.append(Problem(adapt.entry, message))
+    return problems
+
+
+def filtered_series_dir(layer: Layer, dest: Path) -> Path:
+    """A patch directory Helium's own patches.py can apply: the layer's series without the drops,
+    with Aerie's replacements in place of the adapted entries.
+
+    Patch files are symlinked from the real directory. Returns dest.
+    """
+    if dest.exists():
+        shutil.rmtree(dest)
+    dest.mkdir(parents=True)
+    kept = layer_series(layer)
+    for entry in kept:
+        target = dest / entry
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.symlink_to(layer_patch_path(layer, entry).resolve())
+    (dest / "series").write_text("".join(f"{e}\n" for e in kept), encoding="utf-8")
+    return dest
 
 
 def wanted_files(layers: Sequence[Layer]) -> list[str]:

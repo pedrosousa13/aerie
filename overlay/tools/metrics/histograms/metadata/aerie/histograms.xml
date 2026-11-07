@@ -1,0 +1,61 @@
+<!--
+Copyright 2026 The Aerie Authors
+You can use, redistribute, and/or modify this source code under
+the terms of the GPL-3.0 license that can be found in the LICENSE file.
+-->
+
+<!--
+Histograms of Aerie's own features. Found by the metrics tools like any
+directory under tools/metrics/histograms/metadata/.
+-->
+
+<histogram-configuration>
+
+<histograms>
+
+<histogram name="Aerie.Adblock.EngineLoadSuccess" enum="Boolean"
+    expires_after="never">
+  <owner>pedrodsousa@pm.me</owner>
+  <summary>
+    Whether the Filter Engine loaded the filter engine that ships in the build.
+    Recorded once at startup. False crashes the browser right after, because
+    the engine is part of the build and a failure to load it means the build is
+    broken. The Bench requires a true sample.
+  </summary>
+</histogram>
+
+<histogram name="Aerie.Adblock.EngineLoadTime" units="ms"
+    expires_after="never">
+  <owner>pedrodsousa@pm.me</owner>
+  <summary>
+    How long the Filter Engine took to load the serialized engine (EasyList and
+    EasyPrivacy) at startup, on its own sequence. Requests wait for it.
+  </summary>
+</histogram>
+
+<histogram name="Aerie.Adblock.RedirectHopBlocked" enum="Boolean"
+    expires_after="never">
+  <owner>pedrodsousa@pm.me</owner>
+  <summary>
+    One sample for each redirect hop of a judged request that the Filter Engine
+    judged: true if it blocked the hop, false if it let it through. Also counted
+    in Aerie.Adblock.RequestBlocked. The Bench uses it to show that the engine,
+    not another blocker, stopped a redirect.
+  </summary>
+</histogram>
+
+<histogram name="Aerie.Adblock.RequestBlocked" enum="Boolean"
+    expires_after="never">
+  <owner>pedrodsousa@pm.me</owner>
+  <summary>
+    One sample for each request the Filter Engine judged: true if it blocked
+    the request, false if it let it through. Requests that never reach the
+    engine (other schemes, main frame documents, requests another blocker
+    already stopped) have no sample. The Bench uses it to tell the engine's
+    blocking from another blocker's.
+  </summary>
+</histogram>
+
+</histograms>
+
+</histogram-configuration>

@@ -8,6 +8,7 @@ interrupted build resumes where it stopped.
 
 from __future__ import annotations
 
+import hashlib
 import os
 import shutil
 import subprocess
@@ -19,7 +20,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Sequence
 
-from . import ccache, fallback, helium, helium_inputs, helium_steps, layers, lock, patch_check, patches, substitution
+from . import (
+    ccache, fallback, filter_lists, helium, helium_deps, helium_inputs, helium_steps, layers, lock, overlay,
+    patch_check, patches, rust_crates, substitution,
+)
 from .config import BuildPaths, isolated_env
 
 ARCH = "x64"
@@ -176,6 +180,7 @@ def check_aerie_patches(repo: Path) -> None:
     """Fail before any download when Aerie's own patch directory is malformed."""
     problems = patches.lint_patch_dir(
         patch_check.layers(repo)[-1].directory, patches.load_substitution_rules(repo / "helium-chromium"))
+    problems += patch_check.drop_problems(repo)[1]
     if problems:
         raise BuildError(
             "Aerie patch series has problems:\n"
@@ -250,7 +255,8 @@ def _helium_inis(ctx: Context) -> list[Path]:
 
 
 def _deps_inis(ctx: Context) -> list[Path]:
-    return [ctx.core / "deps.ini"]
+    """Helium's deps.ini without the assets Aerie drops (the uBlock Origin build)."""
+    return [helium_deps.write_filtered(ctx.core / "deps.ini", ctx.paths.tmp / "helium-deps" / "deps.ini")]
 
 
 def fetch_official_sources(ctx: Context, log: Logger, env: dict) -> None:
@@ -380,9 +386,10 @@ def refuse_legacy_tree(ctx: Context) -> None:
 
 
 def aerie_layers(ctx: Context, log: Callable[[str], None]) -> list[layers.Layer]:
-    """The Aerie layers, in order. The overlay (issue #8) goes between the patches and the substitution."""
+    """The Aerie layers, in order: the overlay goes between the patches and the substitution."""
     return [
         patches.PatchLayer(patch_check.layers(ctx.repo)[-1], log),
+        overlay.OverlayLayer(overlay.overlay_root(ctx.repo), log),
         substitution.SubstitutionLayer(
             lambda: substitution.helium_fingerprint(ctx.core / "utils", ctx.tree), log=log),
     ]
@@ -395,7 +402,7 @@ def apply_aerie_layers(ctx: Context, log: Callable[[str], None], dry_run: bool =
         report = layers.apply_layers(
             ctx.tree, ctx.pristine_dir, aerie_layers(ctx, log), ctx.paths.tmp / "aerie-layer-stage",
             log, dry_run=dry_run)
-    except (layers.LayerError, patches.PatchStateError) as exc:
+    except (layers.LayerError, patches.PatchStateError, overlay.OverlayError) as exc:
         raise BuildError(str(exc)) from exc
     verb = "would change" if dry_run else "changed"
     log(f"Aerie layers {verb}: {report.summary()}; {report.snapshots} new pristine snapshot(s)")
@@ -415,16 +422,58 @@ def dry_run_layers(ctx: Context, log: Callable[[str], None]) -> layers.Report:
     return apply_aerie_layers(ctx, log, dry_run=True)
 
 
+def prepare_adblock(ctx: Context, log: Logger, env: dict) -> None:
+    """What the Filter Engine needs in the tree besides patches and the overlay, each step fail-closed.
+
+    Runs after the Aerie layers, which put the overlay (Aerie-owned source and
+    the committed EasyList and EasyPrivacy files) into the tree.
+
+    1. The committed lists in the tree are checked against the lock. Nothing is downloaded.
+    2. adblock-rust is vendored by gnrt under the committed crate lock and
+       checked against crates.io (see rust_crates.py).
+    Step 2 leaves a stamp keyed by the lock and by the two files the Aerie
+    patches change for it, so an unchanged tree is not touched again, and a
+    changed lock or patch redoes the step.
+    """
+    pins = filter_lists.load_lock(filter_lists.lock_path(ctx.repo))
+    try:
+        filter_lists.verify_dir(pins, ctx.tree / "third_party" / "filter_lists")
+    except filter_lists.ListError as exc:
+        raise BuildError(f"filter lists: {exc}") from exc
+    log("filter lists: committed lists verified against the lock")
+
+    key = hashlib.sha256()
+    for path in (ctx.repo / rust_crates.LOCK_FILE, ctx.tree / rust_crates.CARGO_TOML,
+                 ctx.tree / rust_crates.GNRT_CONFIG):
+        key.update(path.read_bytes())
+    stamp_key = key.hexdigest()
+    stamp = ctx.tree / ".aerie-crates.stamp"
+    if stamp.exists() and stamp.read_text().strip() == stamp_key:
+        log("crates: already vendored under this lock")
+        return
+    try:
+        rust_crates.vendor_adblock(
+            ctx.tree, ctx.repo, ctx.pins.chromium_version, ctx.paths.downloads / "crates",
+            ctx.python, env, log, run, ctx.opener)
+    except rust_crates.CratesError as exc:
+        raise BuildError(f"rust crates: {exc}") from exc
+    stamp.write_text(stamp_key + "\n")
+
+
 def prepare_tree(ctx: Context, log: Logger, env: dict) -> None:
     py, core, tree, utils = ctx.python, ctx.core, ctx.tree, ctx.core / "utils"
     refuse_legacy_tree(ctx)
     check_helium_inputs(ctx, log)
 
+    helium_layers = patch_check.layers(ctx.repo)[:2]
+
     def patch():
         run(log, [py, utils / "prune_binaries.py", "--keep-build-dependencies", tree,
                   core / "pruning.list"], env)
-        run(log, [py, utils / "patches.py", "apply", tree, core / "patches",
-                  ctx.platform / "patches"], env)
+        # Helium's own applier, on its series minus the entries in patches/helium-drop.txt.
+        scratch = ctx.paths.tmp / "helium-patches"
+        dirs = [patches.filtered_series_dir(layer, scratch / layer.label) for layer in helium_layers]
+        run(log, [py, utils / "patches.py", "apply", tree, *dirs], env)
 
     _stamped(ctx, log, "patched", patch)
 
@@ -446,6 +495,7 @@ def prepare_tree(ctx: Context, log: Logger, env: dict) -> None:
     # Last: Helium's steps are stamped and never re-run on this tree, so the
     # Aerie layers see its final content and are re-applied on every build.
     apply_aerie_layers(ctx, log)
+    prepare_adblock(ctx, log, env)
 
 
 def configure(ctx: Context, log: Logger, env: dict) -> None:

@@ -35,6 +35,11 @@ class FetchSourcesTest(unittest.TestCase):
         (core / "deps.ini").write_text(
             textwrap.dedent(
                 """
+                [ublock_origin]
+                url = https://x/ubo.zip
+                download_filename = ubo.zip
+                output_path = ./ubo
+
                 [dep]
                 url = https://x/dep.zip
                 download_filename = dep.zip

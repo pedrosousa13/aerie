@@ -33,7 +33,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Sequence
 
-from . import helium_inputs, helium_steps, layers as tree_layers, lock, patches, treegate
+from . import helium_deps, helium_inputs, helium_steps, layers as tree_layers, lock, patches, treegate
 from .config import BuildPaths
 
 MANIFEST = ".aerie-sparse.json"
@@ -45,13 +45,38 @@ AERIE_PATCHES = "patches"
 STEP_INPUTS = ("OWNERS", "chrome/VERSION", "tools/grit/grit/")
 
 
+def drop_file(repo: Path) -> Path:
+    return repo / AERIE_PATCHES / patches.DROP_FILE
+
+
 def layers(repo: Path) -> list[patches.Layer]:
-    """Patch directories in build order. Aerie's applies with fuzz off."""
+    """Patch directories in build order. Aerie's applies with fuzz off.
+
+    Helium's two layers skip the entries in patches/helium-drop.txt.
+    """
+    drops, _ = patches.parse_drops(drop_file(repo))
+    adapts, _ = patches.parse_adapts(repo / AERIE_PATCHES)
     return [
-        patches.Layer("helium-chromium", repo / "helium-chromium" / "patches", fuzz=True),
-        patches.Layer("helium-linux", repo / "helium-linux" / "patches", fuzz=True),
+        patches.with_drops(patches.Layer("helium-chromium", repo / "helium-chromium" / "patches", fuzz=True),
+                           drops, adapts),
+        patches.with_drops(patches.Layer("helium-linux", repo / "helium-linux" / "patches", fuzz=True),
+                           drops, adapts),
         patches.Layer("aerie", repo / AERIE_PATCHES, fuzz=False),
     ]
+
+
+def drop_problems(repo: Path) -> tuple[list[patches.Drop], list[patches.Problem]]:
+    """The parsed drops, and everything wrong with the drop file or with a drop."""
+    drops, problems = patches.parse_drops(drop_file(repo))
+    adapts, adapt_problems = patches.parse_adapts(repo / AERIE_PATCHES)
+    helium = [
+        patches.Layer("helium-chromium", repo / "helium-chromium" / "patches", fuzz=True),
+        patches.Layer("helium-linux", repo / "helium-linux" / "patches", fuzz=True),
+    ]
+    ini = repo / "helium-chromium" / "deps.ini"
+    deps = [patches.Problem("helium-chromium/deps.ini", m) for m in helium_deps.check(ini)] if ini.is_file() else []
+    return drops, (problems + adapt_problems + patches.check_drops(drops, helium)
+                   + patches.check_adapts(adapts, drops, helium) + deps)
 
 
 @dataclass(frozen=True)
@@ -161,13 +186,20 @@ def run_check(
     core, platform = repo / "helium-chromium", repo / "helium-linux"
 
     problems = patches.lint_patch_dir(series[-1].directory, patches.load_substitution_rules(core))
+    _, drop_issues = drop_problems(repo)
+    problems = problems + drop_issues
     for problem in problems:
         log(f"LINT    {problem.patch}: {problem.message}")
         status = 1
 
     version = pins.chromium_version
+    # The same deps.ini the build reads: without the assets Aerie does not download.
+    # A problem with deps.ini itself (already linted above) is the only reason to read it unfiltered.
+    deps_ini = core / "deps.ini"
+    if not helium_deps.check(deps_ini):
+        deps_ini = helium_deps.write_filtered(deps_ini, paths.tmp / "helium-deps" / "deps.ini")
     sources = sources_from_ini(
-        [core / "downloads.ini", platform / "downloads.ini", core / "deps.ini"],
+        [core / "downloads.ini", platform / "downloads.ini", deps_ini],
         version, paths.downloads,
     )
     check_root = paths.root / "check"

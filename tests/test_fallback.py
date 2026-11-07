@@ -13,7 +13,7 @@ from pathlib import Path
 from shutil import rmtree as shutil_rmtree
 from unittest import mock
 
-from aerie_build import config, fallback, lock, pipeline
+from aerie_build import config, fallback, helium_deps, lock, pipeline
 
 VERSION = "157.0.8103.38"
 NAME = f"chromium-{VERSION}.tar.xz"
@@ -209,6 +209,10 @@ class BuildFallbackTest(unittest.TestCase):
         self.pins = lock.load_lock(repo / "helium.lock")
         self.paths = config.BuildPaths(root / "build")
         self.paths.downloads.mkdir(parents=True)
+        # Helium's deps.ini is not in this fake repo; the filtered copy is only named, not read.
+        patcher = mock.patch.object(helium_deps, "write_filtered", lambda ini, dest: dest)
+        patcher.start()
+        self.addCleanup(patcher.stop)
         self.files = {
             self.pins.fallback["url"]: TARBALL,
             self.pins.fallback["hashes_url"]: hashes_text(

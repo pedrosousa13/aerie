@@ -140,6 +140,15 @@ class CdpClient:
                     raise CdpTimeout(f"event {method}: not seen within {timeout}s")
                 self._lock.wait(left)
 
+    def take_events(self, method: str, session_id: str | None = None) -> list[dict]:
+        """Return (and consume) every queued event of one kind, oldest first."""
+        with self._lock:
+            taken = [e for e in self._events
+                     if e.get("method") == method and (not session_id or e.get("sessionId") == session_id)]
+            for ev in taken:
+                self._events.remove(ev)
+            return taken
+
     def drain(self, method: str) -> None:
         """Forget queued events of one kind (e.g. a stale Page.loadEventFired)."""
         with self._lock:

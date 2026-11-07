@@ -82,6 +82,17 @@ class EvaluateTest(unittest.TestCase):
         self.assertEqual(v.hits[0]["group"], "helium")
 
 
+    def test_a_denylisted_redirect_hop_fails_even_when_the_first_url_is_clean(self):
+        rec = {"source_id": 1, "time": "1", "method": "GET", "scheme": "https", "host": "example.org",
+               "url": "https://example.org/go",
+               "urls": ["https://example.org/go", "https://raw.githubusercontent.com/imputnet/uBlock/main/assets.json"],
+               "initiator": None, "net_error": None, "external": True}
+        v = zt.evaluate([rec] + records("aerie-clean"), self.dl)
+        self.assertEqual(v.status, "fail")
+        self.assertEqual(v.hits[0]["group"], "helium")
+        self.assertIn("raw.githubusercontent.com", v.hits[0]["url"])
+
+
 class LookupTest(unittest.TestCase):
     def setUp(self):
         self.dl = denylist.load_default()

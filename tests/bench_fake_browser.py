@@ -69,6 +69,7 @@ if os.environ.get("FAKE_BROWSER_EXTERNAL_URL"):
 if os.path.basename(sys.argv[0]).startswith("fake-google"):
     requests.append("https://www.google.com/")
 current = "about:blank"
+fake_base = ""
 
 
 def reply(obj):
@@ -91,8 +92,101 @@ def write_netlog():
             f.write("]}")
 
 
+def emit_network(body, base):
+    """FAKE_BROWSER_BLOCKING=block|none: act like a browser with or without an ad blocker.
+
+    Reads the resource URLs out of the page, serves loopback ones (the fixture
+    server sees them), and fails the external ones with the error a blocker
+    (block) or the Bench's resolver rules (none) would give. Emits DevTools
+    Network events on session S1, and records unblocked requests for the NetLog.
+    """
+    import re
+    mode = os.environ.get("FAKE_BROWSER_BLOCKING")
+    if os.environ.get("FAKE_BROWSER_MV2") in ("works", "with-ubo"):
+        # An extension that cancels /mv2/ext-block-me.js; everything else loads.
+        for n, url in enumerate(re.findall(r'<script src="([^"]+)"', body)):
+            full = base + url
+            rid = f"9.{n}"
+            reply({"method": "Network.requestWillBeSent", "sessionId": "S1",
+                   "params": {"requestId": rid, "request": {"url": full, "method": "GET"}, "type": "Script"}})
+            if "ext-block-me" in url:
+                reply({"method": "Network.loadingFailed", "sessionId": "S1",
+                       "params": {"requestId": rid, "type": "Script", "errorText": "net::ERR_BLOCKED_BY_CLIENT", "canceled": False}})
+            else:
+                urllib.request.urlopen(full, timeout=5).read()
+                requests.append(full)
+                reply({"method": "Network.responseReceived", "sessionId": "S1",
+                       "params": {"requestId": rid, "type": "Script", "response": {"url": full, "status": 200}}})
+        return
+    if not mode:
+        return
+    found = []
+    for tag, attr, url in re.findall(r'<(script|img|iframe|link)[^>]*?(src|href)="([^"]+)"', body):
+        found.append(({"script": "Script", "img": "Image", "iframe": "Document", "link": "Stylesheet"}[tag], url))
+    for url in re.findall(r'fetch\("([^"]+)"', body):
+        found.append(("Fetch", url))
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *a, **k):
+            return None
+
+    def fetch_no_follow(full):
+        """(status, Location) without following; the fixture server logs the request."""
+        try:
+            urllib.request.build_opener(NoRedirect).open(full, timeout=5).read()
+            return 200, None
+        except urllib.error.HTTPError as err:
+            return err.code, err.headers.get("Location")
+        except Exception:
+            return 0, None
+
+    for n, (kind, url) in enumerate(found):
+        rid = f"7.{n}"
+        full = url if url.startswith("http") else base + url
+        if full.startswith(base) and "/blocking/go-" in full:
+            # A first-party URL that redirects (fixtures/redirects.json).
+            reply({"method": "Network.requestWillBeSent", "sessionId": "S1",
+                   "params": {"requestId": rid, "request": {"url": full, "method": "GET"}, "type": kind}})
+            status, location = fetch_no_follow(full)
+            requests.append(full)
+            target = location if location and location.startswith("http") else base + (location or "")
+            reply({"method": "Network.requestWillBeSent", "sessionId": "S1",
+                   "params": {"requestId": rid, "request": {"url": target, "method": "GET"}, "type": kind,
+                              "redirectResponse": {"url": full, "status": status}}})
+            if target.startswith(base):
+                status2, _ = fetch_no_follow(target)
+                requests.append(target)
+                reply({"method": "Network.responseReceived", "sessionId": "S1",
+                       "params": {"requestId": rid, "type": kind, "response": {"url": target, "status": status2}}})
+            elif mode == "block":
+                reply({"method": "Network.loadingFailed", "sessionId": "S1",
+                       "params": {"requestId": rid, "type": kind, "errorText": "net::ERR_BLOCKED_BY_CLIENT", "canceled": False}})
+            else:
+                requests.append(target)
+                reply({"method": "Network.loadingFailed", "sessionId": "S1",
+                       "params": {"requestId": rid, "type": kind, "errorText": "net::ERR_NAME_NOT_RESOLVED", "canceled": False}})
+            continue
+        reply({"method": "Network.requestWillBeSent", "sessionId": "S1",
+               "params": {"requestId": rid, "request": {"url": full, "method": "GET"}, "type": kind}})
+        if full.startswith(base):
+            try:
+                urllib.request.urlopen(full, timeout=5).read()
+                requests.append(full)
+                status = 200
+            except Exception:
+                status = 404
+            reply({"method": "Network.responseReceived", "sessionId": "S1",
+                   "params": {"requestId": rid, "type": kind, "response": {"url": full, "status": status}}})
+        elif mode == "block":
+            reply({"method": "Network.loadingFailed", "sessionId": "S1",
+                   "params": {"requestId": rid, "type": kind, "errorText": "net::ERR_BLOCKED_BY_CLIENT", "canceled": False}})
+        else:
+            requests.append(full)
+            reply({"method": "Network.loadingFailed", "sessionId": "S1",
+                   "params": {"requestId": rid, "type": kind, "errorText": "net::ERR_NAME_NOT_RESOLVED", "canceled": False}})
+
+
 def handle(msg):
-    global current
+    global current, fake_base
     m, p, i = msg["method"], msg.get("params", {}), msg["id"]
     sid = msg.get("sessionId")
     out = {"id": i, "result": {}}
@@ -116,13 +210,39 @@ def handle(msg):
             else:
                 out = {"id": i, "error": {"code": -32000, "message": str(exc)}}
         current = url
+        from urllib.parse import urlsplit as _us
+        fake_base = "%s://%s" % (_us(url).scheme, _us(url).netloc)
         reply(out)
         if "error" not in out:
+            from urllib.parse import urlsplit
+            emit_network(body, "%s://%s" % (urlsplit(url).scheme, urlsplit(url).netloc))
             reply({"method": "Page.loadEventFired", "params": {"timestamp": 1}, "sessionId": "S1"})
         return
+    elif m == "Extensions.loadUnpacked":
+        mode = os.environ.get("FAKE_BROWSER_MV2")
+        if mode == "refuse":
+            out = {"id": i, "error": {"code": -32000, "message": "Manifest version 2 is not supported"}}
+        elif mode:
+            out["result"] = {"id": "a" * 32}
+    elif m == "Target.getTargets":
+        mode = os.environ.get("FAKE_BROWSER_MV2")
+        infos = [{"type": "page", "url": current, "targetId": "P1"}]
+        if mode in ("works", "with-ubo"):
+            infos.append({"type": "background_page", "url": "chrome-extension://" + "a" * 32 + "/_generated_background_page.html", "targetId": "B1"})
+        if mode == "with-ubo":
+            infos.append({"type": "service_worker", "url": "chrome-extension://blockjmkbacgjkknlgpkjjiijinjdanf/js/background.js", "targetId": "U1"})
+        out["result"] = {"targetInfos": infos}
     elif m == "Runtime.evaluate":
         expr = p["expression"]
         val = titles.get(current, "") if expr == "document.title" else expr
+        if "aerieCancelled" in expr:
+            # What the MV2 fixture extension's background page recorded.
+            val = json.dumps([f"{fake_base}/mv2/ext-block-me.js"]) \
+                if os.environ.get("FAKE_BROWSER_MV2") in ("works", "with-ubo") else "[]"
+        elif "data-aerie-mv2" in expr:
+            val = "ran" if os.environ.get("FAKE_BROWSER_MV2") in ("works", "with-ubo") else None
+        elif "mv2AllowedRan" in expr:
+            val = os.environ.get("FAKE_BROWSER_MV2") in ("works", "with-ubo")
         if p.get("awaitPromise"):
             val = "awaited:" + str(val)
         if p.get("userGesture"):
@@ -133,6 +253,20 @@ def handle(msg):
     elif m == "Page.captureScreenshot":
         import base64
         out["result"] = {"data": base64.b64encode(b"\x89PNG\r\n\x1a\nFAKE").decode()}
+    elif m == "Browser.getHistogram" and os.environ.get("FAKE_BROWSER_BLOCKING") == "block" \
+            and os.environ.get("FAKE_BROWSER_ENGINE") != "none":
+        # An Aerie build: the engine loaded, and judged (and blocked) the requests.
+        buckets = {"Aerie.Adblock.EngineLoadSuccess": [{"low": 1, "high": 2, "count": 1}],
+                   "Aerie.Adblock.RedirectHopBlocked": [{"low": 0, "high": 1, "count": 1}, {"low": 1, "high": 2, "count": 1}],
+                   "Aerie.Adblock.RequestBlocked": [{"low": 0, "high": 1, "count": 3}, {"low": 1, "high": 2, "count": 8}]}
+        name = p["name"]
+        if name in buckets:
+            n = sum(b["count"] for b in buckets[name])
+            out["result"] = {"histogram": {"name": name, "sum": 0, "count": n, "buckets": buckets[name]}}
+        else:
+            out = {"id": i, "error": {"code": -32000, "message": "Histogram not found"}}
+    elif m == "Browser.getHistogram":
+        out = {"id": i, "error": {"code": -32000, "message": "Histogram not found"}}
     elif m == "Browser.close":
         reply(out)
         write_netlog()

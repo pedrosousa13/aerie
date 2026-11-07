@@ -5,7 +5,7 @@ from pathlib import Path
 
 from aerie_bench import netlog
 
-CONSTS = {"logEventTypes": {"URL_REQUEST_START_JOB": 7, "REQUEST_ALIVE": 8, "OTHER": 9},
+CONSTS = {"logEventTypes": {"URL_REQUEST_REDIRECTED": 10, "URL_REQUEST_START_JOB": 7, "REQUEST_ALIVE": 8, "OTHER": 9},
           "logSourceType": {"URL_REQUEST": 1, "SOCKET": 2}}
 
 
@@ -28,6 +28,45 @@ EVENTS = [
 
 def doc(events):
     return json.dumps({"constants": CONSTS, "events": events})
+
+
+class RedirectHopsTest(unittest.TestCase):
+    """A request that redirects is one source with several START_JOB events."""
+
+    HOPS = [
+        ev(1, "http://127.0.0.1:5000/go"),
+        {"phase": 0, "source": {"id": 1, "type": 1}, "time": "11", "type": 10,
+         "params": {"location": "https://www.google-analytics.com/collect?v=1"}},
+        ev(1, "https://www.google-analytics.com/collect?v=1"),
+        ev(2, "http://127.0.0.1:5000/plain"),
+    ]
+
+    def test_every_hop_url_is_recorded_in_order(self):
+        recs = {r["source_id"]: r for r in netlog.parse(doc(self.HOPS))}
+        self.assertEqual(recs[1]["urls"], ["http://127.0.0.1:5000/go",
+                                           "https://www.google-analytics.com/collect?v=1"])
+        self.assertEqual(recs[1]["url"], "http://127.0.0.1:5000/go")  # the first, as before
+        self.assertEqual(recs[2]["urls"], ["http://127.0.0.1:5000/plain"])
+
+    def test_a_redirect_location_without_a_start_job_is_still_seen(self):
+        # The hop was announced but the job event was lost (a truncated log).
+        events = [self.HOPS[0], self.HOPS[1]]
+        recs = netlog.parse(doc(events))
+        self.assertIn("https://www.google-analytics.com/collect?v=1", recs[0]["urls"])
+
+    def test_an_external_hop_makes_the_request_external(self):
+        recs = netlog.parse(doc(self.HOPS))
+        self.assertEqual([r["source_id"] for r in netlog.external(recs)], [1])
+        self.assertTrue(recs[0]["external"])
+
+    def test_duplicates_are_not_repeated(self):
+        events = self.HOPS[:3]  # location, then the job for the same URL
+        self.assertEqual(len(netlog.parse(doc(events))[0]["urls"]), 2)
+
+    def test_all_urls_helper(self):
+        recs = netlog.parse(doc(self.HOPS))
+        self.assertEqual(netlog.all_urls(recs), {"http://127.0.0.1:5000/go", "http://127.0.0.1:5000/plain",
+                                                 "https://www.google-analytics.com/collect?v=1"})
 
 
 class ParseTest(unittest.TestCase):

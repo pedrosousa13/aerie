@@ -1,0 +1,61 @@
+{
+  "comment": "What the ad_blocking check expects. 'blocked' are real ad and tracker URLs that EasyList or EasyPrivacy block (checked against the lists pinned in third_party/filter_lists/filter_lists.lock.json when this was written; tests/test_bench_ad_blocking.py checks that they match the page). 'allowed' are first-party paths on the fixture server, which must load with status 200. Keep to long-lived rules: big ad and analytics hosts.",
+  "page": "/blocking/index.html",
+  "blocked": [
+    {
+      "url": "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js",
+      "type": "Script"
+    },
+    {
+      "url": "https://securepubads.g.doubleclick.net/tag/js/gpt.js",
+      "type": "Script"
+    },
+    {
+      "url": "https://connect.facebook.net/en_US/fbevents.js",
+      "type": "Script"
+    },
+    {
+      "url": "https://static.hotjar.com/c/hotjar-1.js",
+      "type": "Script"
+    },
+    {
+      "url": "https://www.google-analytics.com/collect?v=1&t=pageview",
+      "type": "Image"
+    },
+    {
+      "url": "https://googleads.g.doubleclick.net/pagead/ads?client=ca-pub-1",
+      "type": "Document"
+    },
+    {
+      "url": "https://www.google-analytics.com/j/collect?v=1",
+      "type": "Fetch"
+    }
+  ],
+  "allowed": [
+    {
+      "path": "/blocking/content.js",
+      "type": "Script"
+    },
+    {
+      "path": "/blocking/page.css",
+      "type": "Stylesheet"
+    }
+  ],
+  "redirects": {
+    "comment": "First-party URLs that redirect. 'blocked': the hop to 'target' (a listed tracker URL) must be blocked, the first URL must answer 302 and the target must never reach the network stack. 'allowed': the redirect to 'final' (first party) must be followed and load with status 200.",
+    "blocked": [
+      {
+        "path": "/blocking/go-tracker",
+        "target": "https://www.google-analytics.com/collect?v=1&t=redirect",
+        "type": "Image"
+      }
+    ],
+    "allowed": [
+      {
+        "path": "/blocking/go-ok.js",
+        "final": "/blocking/redirected.js",
+        "type": "Script"
+      }
+    ]
+  }
+}

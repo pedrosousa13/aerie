@@ -163,6 +163,7 @@ def run_bench(binary: Path | str, scenario: Scenario, build_root: Path, *, out_d
                 vsession.exit = vproc.shutdown()
 
         session.variant_launcher = variant
+        session.browser_pid = proc.popen.pid
         try:
             for c in instances:
                 results[c.name] = _timed(c, "run", session) if hasattr(c, "run") else CheckResult(c.name, "pending")

@@ -1,0 +1,9 @@
+{
+  "manifest_version": 2,
+  "name": "Aerie Bench MV2 fixture",
+  "version": "1.0",
+  "description": "A tiny Manifest V2 extension for the Bench: a content script, and a blocking webRequest listener.",
+  "permissions": ["webRequest", "webRequestBlocking", "http://127.0.0.1/*"],
+  "background": {"scripts": ["background.js"], "persistent": true},
+  "content_scripts": [{"matches": ["http://127.0.0.1/*"], "js": ["content.js"], "run_at": "document_start"}]
+}

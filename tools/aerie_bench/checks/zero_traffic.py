@@ -81,9 +81,11 @@ def evaluate(requests: list[dict], dl: denylist_mod.Denylist, strict: bool = Fal
             continue
         if not r["external"]:
             continue
-        match = dl.match_url(r["url"])
-        if match:
-            hits.append({**base, "host": match.host, "group": match.group, "pattern": match.pattern})
+        # Every hop of a redirect counts, not just the first URL.
+        matches = [(u, m) for u in r.get("urls", [r["url"]]) if (m := dl.match_url(u))]
+        if matches:
+            for u, match in matches:
+                hits.append({**base, "url": u, "host": match.host, "group": match.group, "pattern": match.pattern})
         elif denylist_mod.is_dummy_host(r["host"]):
             blocked.append(base)
         else:

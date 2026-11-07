@@ -87,7 +87,14 @@ class FixtureServerTest(unittest.TestCase):
 
     def test_fixtures_reference_nothing_external(self):
         import re
+        # The ad_blocking check names real ad and tracker URLs on purpose: they must be blocked
+        # before they leave the browser, and the check fails if one reaches the network stack.
+        deliberate = {fixtures.FIXTURE_DIR / "blocking" / "index.html",
+                      fixtures.FIXTURE_DIR / "blocking" / "expected.json",
+                      fixtures.FIXTURE_DIR / "redirects.json"}
         for f in fixtures.FIXTURE_DIR.rglob("*"):
+            if f in deliberate:
+                continue
             if f.suffix in (".html", ".css", ".js", ".json"):
                 urls = re.findall(r"(?:https?:)?//[^\s\"')]+", f.read_text())
                 for u in urls:

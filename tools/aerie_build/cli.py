@@ -9,7 +9,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import ccache, config, fallback, lock, patch_check, pipeline, prune
+from . import ccache, config, fallback, filter_lists, lock, patch_check, pipeline, prune, rust_crates
 
 REPO = Path(__file__).resolve().parents[2]
 LOCK_PATH = REPO / "helium.lock"
@@ -90,6 +90,27 @@ def cmd_patches_gates(args: argparse.Namespace) -> int:
     return 0 if ok else 1
 
 
+def cmd_lists_update(args: argparse.Namespace) -> int:
+    filter_lists.update(filter_lists.lock_path(REPO))
+    print("lists and lock rewritten; review the diff, check the new lists, commit.")
+    return 0
+
+
+def cmd_crates_resolve(args: argparse.Namespace) -> int:
+    import tempfile
+
+    ctx = _context(args)
+    tree = Path(args.tree) if args.tree else ctx.tree
+    ctx.paths.tmp.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=ctx.paths.tmp, prefix="crates-resolve-") as work:
+        text = rust_crates.resolve(tree, ctx.pins.chromium_version, Path(work))
+    out = REPO / rust_crates.LOCK_FILE
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(text, encoding="utf-8")
+    print(f"wrote {out}; review the diff, commit it.")
+    return 0
+
+
 def cmd_info(args: argparse.Namespace) -> int:
     ctx = _context(args)
     print(f"helium version   {ctx.pins.helium_version} (Chromium {ctx.pins.chromium_version})")
@@ -167,6 +188,26 @@ def main(argv: list[str] | None = None) -> int:
     p_gates.add_argument("--tree", metavar="DIR", help="tree to check (default: the build's source tree)")
     p_gates.set_defaults(func=cmd_patches_gates)
 
+    p_lists = sub.add_parser("lists", help="work with the built-in filter lists (EasyList, EasyPrivacy)")
+    lists_sub = p_lists.add_subparsers(dest="lists_command", required=True)
+    p_update = lists_sub.add_parser(
+        "update",
+        help="download the current lists, write them and the hash lock into overlay/third_party/filter_lists (review the diff, then commit)",
+    )
+    _add_common(p_update)
+    p_update.set_defaults(func=cmd_lists_update)
+
+    p_crates = sub.add_parser("crates", help="work with the vendored Rust crates (adblock-rust)")
+    crates_sub = p_crates.add_subparsers(dest="crates_command", required=True)
+    p_resolve = crates_sub.add_parser(
+        "resolve",
+        help="resolve adblock against the tree's Cargo.toml/Cargo.lock and rewrite rust/crates.lock.toml "
+        "(needs crates.io; reads the tree, never writes it)",
+    )
+    _add_common(p_resolve)
+    p_resolve.add_argument("--tree", metavar="DIR", help="source tree with the Aerie patches applied (default: the build tree)")
+    p_resolve.set_defaults(func=cmd_crates_resolve)
+
     p_bench = sub.add_parser("bench", help="launch a built browser, drive it, record its traffic (see docs/bench.md)")
     _add_common(p_bench)
     from aerie_bench import cli as bench_cli
@@ -182,6 +223,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         return args.func(args)
-    except (config.ConfigError, lock.VerificationError, pipeline.BuildError, fallback.FetchError) as exc:
+    except (config.ConfigError, lock.VerificationError, pipeline.BuildError, fallback.FetchError,
+            filter_lists.ListError, rust_crates.CratesError) as exc:
         print(f"aerie: error: {exc}", file=sys.stderr)
         return 1

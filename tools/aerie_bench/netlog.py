@@ -63,8 +63,19 @@ def _skip_ws(text: str, pos: int) -> int:
     return n
 
 
+def _external(url: str) -> bool:
+    parts = urlsplit(url)
+    return parts.scheme in ("http", "https", "ws", "wss", "ftp") and not is_loopback(parts.hostname or "")
+
+
 def parse(text: str) -> list[dict]:
-    """Return one record per URL request, in order of first appearance."""
+    """Return one record per URL request, in order of first appearance.
+
+    A request that redirects is one NetLog source with a START_JOB event for each hop (and a
+    URL_REDIRECTED event with the location). ``url`` is the first URL; ``urls`` has every hop in
+    order, so a hop that reached the network stack is not hidden behind the first URL.
+    ``external`` is true if any hop went to a non-loopback host.
+    """
     constants, events, _ = _events(text)
     ev_names = {v: k for k, v in constants.get("logEventTypes", {}).items()}
     src_names = {v: k for k, v in constants.get("logSourceType", {}).items()}
@@ -76,22 +87,35 @@ def parse(text: str) -> list[dict]:
             continue
         sid = src.get("id")
         params = ev.get("params") or {}
-        if ev_names.get(ev.get("type")) == "URL_REQUEST_START_JOB" and sid not in records:
+        kind = ev_names.get(ev.get("type"))
+        if kind == "URL_REQUEST_START_JOB":
             url = params.get("url", "")
-            parts = urlsplit(url)
-            host = parts.hostname or ""
-            initiator = params.get("initiator")
-            records[sid] = {
-                "source_id": sid, "time": ev.get("time"), "url": url,
-                "method": params.get("method"), "scheme": parts.scheme, "host": host,
-                "initiator": None if initiator in (None, "", "not an origin") else initiator,
-                "net_error": None,
-                "external": parts.scheme in ("http", "https", "ws", "wss", "ftp") and not is_loopback(host),
-            }
-            order.append(sid)
+            if sid not in records:
+                parts = urlsplit(url)
+                initiator = params.get("initiator")
+                records[sid] = {
+                    "source_id": sid, "time": ev.get("time"), "url": url, "urls": [url],
+                    "method": params.get("method"), "scheme": parts.scheme, "host": parts.hostname or "",
+                    "initiator": None if initiator in (None, "", "not an origin") else initiator,
+                    "net_error": None, "external": _external(url),
+                }
+                order.append(sid)
+            elif url not in records[sid]["urls"]:
+                records[sid]["urls"].append(url)
+                records[sid]["external"] = records[sid]["external"] or _external(url)
+        elif kind == "URL_REQUEST_REDIRECTED" and sid in records:
+            location = params.get("location", "")
+            if location and location not in records[sid]["urls"]:
+                records[sid]["urls"].append(location)
+                records[sid]["external"] = records[sid]["external"] or _external(location)
         if sid in records and params.get("net_error"):
             records[sid]["net_error"] = params["net_error"]
     return [records[i] for i in order]
+
+
+def all_urls(records: list[dict]) -> set[str]:
+    """Every URL any request (any hop) reached the network stack with."""
+    return {u for r in records for u in r.get("urls", [r["url"]])}
 
 
 _LOOKUP_KINDS = ("HOST_RESOLVER", "DNS", "SOCKET", "CONNECT_JOB", "QUIC")

@@ -1,10 +1,11 @@
+import contextlib
 import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
-from aerie_build import config, layers, pipeline
+from aerie_build import config, layers, patches, pipeline
 
 
 class PrepareTreeOrderTest(unittest.TestCase):
@@ -24,13 +25,14 @@ class PrepareTreeOrderTest(unittest.TestCase):
             core=self.repo / "helium-chromium",
             platform=self.repo / "helium-linux",
             python=Path("py"),
+            paths=SimpleNamespace(tmp=root / "tmp"),
         )
         self.events: list[str] = []
 
     def tearDown(self):
         self._tmp.cleanup()
 
-    def run_prepare(self):
+    def run_prepare(self, keep_filtered=False):
         def fake_run(_log, cmd, _env, cwd=None):
             self.events.append(Path(str(cmd[1])).name)
 
@@ -38,7 +40,17 @@ class PrepareTreeOrderTest(unittest.TestCase):
             self.events.append("aerie-layers")
             return layers.Report()
 
-        with mock.patch.object(pipeline, "run", fake_run), \
+        def fake_adblock(ctx, log, env):
+            self.events.append("adblock")
+
+        def fake_filtered(layer, dest):
+            return dest
+
+        filtered = mock.patch.object(patches, "filtered_series_dir", fake_filtered)
+        if keep_filtered:
+            filtered = contextlib.nullcontext()
+        with mock.patch.object(pipeline, "run", fake_run), filtered, \
+             mock.patch.object(pipeline, "prepare_adblock", fake_adblock), \
              mock.patch.object(pipeline, "apply_aerie_layers", fake_layers):
             pipeline.prepare_tree(self.ctx, lambda _m: None, {})
 
@@ -48,14 +60,14 @@ class PrepareTreeOrderTest(unittest.TestCase):
             self.events,
             ["prune_binaries.py", "patches.py", "domain_substitution.py", "name_substitution.py",
              "i18n_apply.py", "helium_version.py", "generate_resources.py", "replace_resources.py",
-             "aerie-layers"],
+             "aerie-layers", "adblock"],
         )
 
     def test_second_run_only_reapplies_the_aerie_layers(self):
         self.run_prepare()
         self.events.clear()
         self.run_prepare()
-        self.assertEqual(self.events, ["aerie-layers"])
+        self.assertEqual(self.events, ["aerie-layers", "adblock"])
 
 
 class LegacyTreeTest(unittest.TestCase):
@@ -173,7 +185,7 @@ class AerieLayersWiringTest(unittest.TestCase):
     def test_layer_order_is_patches_then_substitution(self):
         ctx = SimpleNamespace(repo=Path(__file__).resolve().parents[1], core=Path("c"), tree=Path("t"))
         names = [layer.name for layer in pipeline.aerie_layers(ctx, lambda _m: None)]
-        self.assertEqual(names, ["aerie patches", "helium-to-aerie substitution"])
+        self.assertEqual(names, ["aerie patches", "overlay", "helium-to-aerie substitution"])
 
 
 class CleanTest(unittest.TestCase):
@@ -213,6 +225,53 @@ class CleanTest(unittest.TestCase):
             pipeline._fresh_tree(ctx, lambda _m: None)
             self.assertFalse(pristine.exists())
             self.assertTrue(ctx.tree.is_dir())
+
+
+class HeliumDropInputsTest(PrepareTreeOrderTest):
+    """Dropped and adapted Helium patches change Helium's own series: the inputs digest guards them."""
+
+    def write_drops(self, text):
+        (self.repo / "helium-chromium" / "patches").mkdir(parents=True, exist_ok=True)
+        (self.repo / "helium-chromium" / "patches" / "series").write_text("helium/a.patch\nhelium/b.patch\n")
+        (self.repo / "helium-linux" / "patches").mkdir(parents=True, exist_ok=True)
+        (self.repo / "helium-linux" / "patches" / "series").write_text("")
+        (self.repo / "patches" / "helium-drop.txt").write_text(text)
+
+    def test_helium_applier_gets_the_series_without_the_drops(self):
+        self.write_drops("helium/a.patch  # not wanted\n")
+        self.applied_series = []
+        real = patches.filtered_series_dir
+
+        def spy(layer, dest):
+            out = real(layer, dest)
+            self.applied_series.append((out / "series").read_text())
+            return out
+
+        with mock.patch.object(patches, "filtered_series_dir", spy):
+            self.run_prepare(keep_filtered=True)
+        self.assertEqual(self.applied_series, ["helium/b.patch\n", ""])
+
+    def test_changing_the_drops_after_patching_asks_for_a_clean_tree(self):
+        self.write_drops("helium/a.patch  # not wanted\n")
+        self.run_prepare()
+        self.write_drops("helium/a.patch  # not wanted\nhelium/b.patch  # also not\n")
+        with self.assertRaisesRegex(pipeline.BuildError, "drop/adapt lists changed.*--clean"):
+            self.run_prepare()
+
+    def test_changing_an_adapted_patch_after_patching_asks_for_a_clean_tree(self):
+        self.write_drops("helium/a.patch  # not wanted\n")
+        adapted = self.repo / "patches" / "helium-adapted" / "helium"
+        adapted.mkdir(parents=True)
+        (adapted / "b.patch").write_text("one")
+        self.run_prepare()
+        (adapted / "b.patch").write_text("two")
+        with self.assertRaisesRegex(pipeline.BuildError, "--clean"):
+            self.run_prepare()
+
+    def test_same_drops_again_is_fine(self):
+        self.write_drops("helium/a.patch  # not wanted\n")
+        self.run_prepare()
+        self.run_prepare()
 
 
 class PreflightLintTest(unittest.TestCase):
