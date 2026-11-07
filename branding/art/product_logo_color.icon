@@ -1,0 +1,26 @@
+// Copyright 2026 The Aerie Authors
+// You can use, redistribute, and/or modify this source code under
+// the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+CANVAS_DIMENSIONS, 256,
+NEW_PATH,
+PATH_COLOR_ARGB, 0xFF, 0x0E, 0x6B, 0x73,
+ROUND_RECT, 0, 0, 256, 256, 67,
+NEW_PATH,
+FILL_RULE_NONZERO,
+PATH_COLOR_ARGB, 0xFF, 0xFF, 0xFF, 0xFF,
+MOVE_TO, 113.99f, 46.65f,
+LINE_TO, 55.99f, 198.65f,
+LINE_TO, 84.01f, 209.35f,
+LINE_TO, 142.01f, 57.35f,
+CLOSE,
+MOVE_TO, 113.99f, 57.35f,
+LINE_TO, 171.99f, 209.35f,
+LINE_TO, 200.01f, 198.65f,
+LINE_TO, 142.01f, 46.65f,
+CLOSE,
+MOVE_TO, 94.00f, 166.00f,
+LINE_TO, 162.00f, 166.00f,
+LINE_TO, 162.00f, 142.00f,
+LINE_TO, 94.00f, 142.00f,
+CLOSE,
