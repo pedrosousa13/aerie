@@ -30,10 +30,11 @@ void AdblockProxyingURLLoader::CreateAndStart(
     const net::MutableNetworkTrafficAnnotationTag& traffic_annotation,
     const url::Origin& factory_initiator,
     const net::IsolationInfo& factory_isolation_info,
-    base::WeakPtr<FilterEngineService> service) {
+    base::WeakPtr<FilterEngineService> service,
+    content::GlobalRenderFrameHostId frame_id) {
   std::unique_ptr<AdblockProxyingURLLoader> loader(new AdblockProxyingURLLoader(
       request, std::move(client), factory_initiator, factory_isolation_info,
-      std::move(service)));
+      std::move(service), frame_id));
   loader->Start(target_factory, request_id, options, traffic_annotation);
   // Owned by the renderer's pipe: deleted when the renderer closes it.
   mojo::MakeSelfOwnedReceiver(std::move(loader), std::move(loader_receiver));
@@ -44,11 +45,13 @@ AdblockProxyingURLLoader::AdblockProxyingURLLoader(
     mojo::PendingRemote<network::mojom::URLLoaderClient> client,
     const url::Origin& factory_initiator,
     const net::IsolationInfo& factory_isolation_info,
-    base::WeakPtr<FilterEngineService> service)
+    base::WeakPtr<FilterEngineService> service,
+    content::GlobalRenderFrameHostId frame_id)
     : request_(request),
       factory_initiator_(factory_initiator),
       factory_isolation_info_(factory_isolation_info),
       service_(std::move(service)),
+      frame_id_(frame_id),
       forwarding_client_(std::move(client)) {}
 
 AdblockProxyingURLLoader::~AdblockProxyingURLLoader() = default;
@@ -120,6 +123,9 @@ void AdblockProxyingURLLoader::OnRedirectVerdict(
     return;
   }
   if (should_block) {
+    if (service_) {
+      service_->RecordBlocked(frame_id_);
+    }
     FailRequest(net::ERR_BLOCKED_BY_CLIENT);
     return;
   }

@@ -5,17 +5,37 @@
 #ifndef COMPONENTS_AERIE_ADBLOCK_BROWSER_ADBLOCK_ENGINE_H_
 #define COMPONENTS_AERIE_ADBLOCK_BROWSER_ADBLOCK_ENGINE_H_
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <string_view>
 #include <vector>
 
 #include "base/containers/span.h"
+#include "base/time/time.h"
 #include "components/aerie_adblock/browser/classified_request.h"
+#include "components/aerie_adblock/browser/list_failure.h"
 #include "components/aerie_adblock/rust/ffi/src/lib.rs.h"
 #include "third_party/rust/cxx/v1/cxx.h"
 
 namespace aerie_adblock {
+
+// What a good list contained (see CheckList()).
+struct ListCheck {
+  ListFailure failure = ListFailure::kNone;
+  int rules = 0;       // Network rules, when |failure| is kNone.
+  std::string title;   // The list's own "! Title:", cut short; may be empty.
+};
+
+// Decides whether |text| is a usable filter list: text, not an HTML page, at
+// least one network rule, under the size limit, parsed within |budget|. Builds
+// nothing and keeps nothing; safe on any thread. See aerie_adblock_core.
+ListCheck CheckList(base::span<const uint8_t> text, base::TimeDelta budget);
+
+struct BuildResult {
+  ListFailure failure = ListFailure::kNone;
+  size_t failed_index = 0;  // Which list failed, when |failure| is not kNone.
+};
 
 // C++ face of the Rust engine (adblock-rust, used unmodified). Not
 // thread-safe: use it on one sequence only. FilterEngineService owns the
@@ -33,6 +53,12 @@ class AdblockEngine {
   // aerie_adblock_compile writes). Returns false, and keeps the old rules,
   // when |data| is not a valid engine.
   bool LoadSerialized(base::span<const uint8_t> data);
+
+  // Checks every list in |lists| (they share |budget|) and, only if all are
+  // good, replaces the rules with all of them compiled together. On a failure
+  // the old rules stay and the result names the list.
+  BuildResult LoadLists(const std::vector<std::string>& lists,
+                        base::TimeDelta budget);
 
   // Replaces the rules with one filter list in EasyList syntax. For tests.
   void LoadListForTesting(std::string_view list);

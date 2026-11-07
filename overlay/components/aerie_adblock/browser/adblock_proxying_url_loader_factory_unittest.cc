@@ -11,6 +11,7 @@
 
 #include "base/memory/self_deleting.h"
 #include "base/task/thread_pool.h"
+#include "base/test/bind.h"
 #include "base/test/task_environment.h"
 #include "components/aerie_adblock/browser/adblock_engine.h"
 #include "components/aerie_adblock/browser/filter_engine_service.h"
@@ -90,6 +91,31 @@ TEST_F(AdblockProxyingURLLoaderFactoryTest, BlockedRequestFailsAndNeverReachesTh
   target_.AddResponse("https://ads.example/a.js", "x");
   EXPECT_EQ(net::ERR_BLOCKED_BY_CLIENT, Fetch("https://ads.example/a.js"));
   EXPECT_EQ(0u, target_.total_requests());
+}
+
+TEST_F(AdblockProxyingURLLoaderFactoryTest, ASiteExceptionLetsThatSitesAdsLoad) {
+  target_.AddResponse("https://ads.example/a.js", "x");
+  service_.SetExceptions({"news.test"});
+  EXPECT_EQ(net::OK, Fetch("https://ads.example/a.js"));
+  EXPECT_EQ(1u, target_.total_requests());
+  service_.SetExceptions({});
+  EXPECT_EQ(net::ERR_BLOCKED_BY_CLIENT, Fetch("https://ads.example/a.js"));
+}
+
+TEST_F(AdblockProxyingURLLoaderFactoryTest, OnlyBlockedRequestsAreCounted) {
+  int blocked = 0;
+  service_.SetBlockedRequestCallback(base::BindLambdaForTesting(
+      [&](content::GlobalRenderFrameHostId) { ++blocked; }));
+  target_.AddResponse("https://news.test/app.js", "ok");
+  EXPECT_EQ(net::OK, Fetch("https://news.test/app.js"));
+  EXPECT_EQ(0, blocked);
+  EXPECT_EQ(net::ERR_BLOCKED_BY_CLIENT, Fetch("https://ads.example/a.js"));
+  EXPECT_EQ(net::ERR_BLOCKED_BY_CLIENT, Fetch("https://tracker.example/t.js"));
+  EXPECT_EQ(2, blocked);
+  service_.SetExceptions({"news.test"});  // An excepted site counts nothing.
+  target_.AddResponse("https://ads.example/b.js", "x");
+  EXPECT_EQ(net::OK, Fetch("https://ads.example/b.js"));
+  EXPECT_EQ(2, blocked);
 }
 
 TEST_F(AdblockProxyingURLLoaderFactoryTest, AllowedRequestPassesThrough) {

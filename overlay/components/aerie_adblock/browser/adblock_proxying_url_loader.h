@@ -14,6 +14,7 @@
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/receiver.h"
 #include "mojo/public/cpp/bindings/remote.h"
+#include "content/public/browser/global_routing_id.h"
 #include "net/base/isolation_info.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
 #include "services/network/public/cpp/http_request_headers_update_params.h"
@@ -65,7 +66,9 @@ class AdblockProxyingURLLoader : public network::mojom::URLLoader,
       const net::MutableNetworkTrafficAnnotationTag& traffic_annotation,
       const url::Origin& factory_initiator,
       const net::IsolationInfo& factory_isolation_info,
-      base::WeakPtr<FilterEngineService> service);
+      base::WeakPtr<FilterEngineService> service,
+      content::GlobalRenderFrameHostId frame_id =
+          content::GlobalRenderFrameHostId());
 
   AdblockProxyingURLLoader(const AdblockProxyingURLLoader&) = delete;
   AdblockProxyingURLLoader& operator=(const AdblockProxyingURLLoader&) = delete;
@@ -77,7 +80,8 @@ class AdblockProxyingURLLoader : public network::mojom::URLLoader,
       mojo::PendingRemote<network::mojom::URLLoaderClient> client,
       const url::Origin& factory_initiator,
       const net::IsolationInfo& factory_isolation_info,
-      base::WeakPtr<FilterEngineService> service);
+      base::WeakPtr<FilterEngineService> service,
+      content::GlobalRenderFrameHostId frame_id);
 
   void Start(network::mojom::URLLoaderFactory* target_factory,
              int32_t request_id,
@@ -122,6 +126,8 @@ class AdblockProxyingURLLoader : public network::mojom::URLLoader,
   const url::Origin factory_initiator_;
   const net::IsolationInfo factory_isolation_info_;
   base::WeakPtr<FilterEngineService> service_;
+  // The frame the request came from, for the per-page blocked count.
+  const content::GlobalRenderFrameHostId frame_id_;
 
   mojo::Remote<network::mojom::URLLoader> loader_;
   mojo::Remote<network::mojom::URLLoaderClient> forwarding_client_;

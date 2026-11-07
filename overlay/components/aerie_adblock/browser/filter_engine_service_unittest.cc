@@ -9,6 +9,9 @@
 #include <string_view>
 #include <vector>
 
+#include "base/files/file_util.h"
+#include "base/files/scoped_temp_dir.h"
+#include "base/functional/callback_helpers.h"
 #include "base/run_loop.h"
 #include "base/test/bind.h"
 #include "base/test/task_environment.h"
@@ -149,6 +152,138 @@ TEST_F(FilterEngineServiceTest, WeakPtrGoesNullWithTheService) {
     EXPECT_TRUE(weak);
   }
   EXPECT_FALSE(weak);
+}
+
+BuildResult Replace(FilterEngineService& service,
+                    std::vector<FilterEngineService::ListInput> lists) {
+  BuildResult out;
+  base::RunLoop loop;
+  service.ReplaceLists(std::move(lists),
+                       base::BindLambdaForTesting([&](BuildResult result) {
+                         out = result;
+                         loop.Quit();
+                       }));
+  loop.Run();
+  return out;
+}
+
+TEST_F(FilterEngineServiceTest, ReplaceListsTakesEffectWithoutARestart) {
+  static const std::string kEngine = SerializedEngine("||ads.example^\n");
+  service_.Start(kEngine);
+  EXPECT_FALSE(Ask(Script("https://custom.example/a.js", "custom.example")));
+
+  EXPECT_EQ(ListFailure::kNone,
+            Replace(service_, {{"||ads.example^\n", {}}, {"||custom.example^\n", {}}})
+                .failure);
+  EXPECT_TRUE(Ask(Script("https://custom.example/a.js", "custom.example")));
+  EXPECT_TRUE(Ask(Script("https://ads.example/a.js", "ads.example")));
+}
+
+TEST_F(FilterEngineServiceTest, AQueryAskedBeforeReplaceListsSeesTheOldRules) {
+  static const std::string kEngine = SerializedEngine("||ads.example^\n");
+  service_.Start(kEngine);
+  bool before = false;
+  base::RunLoop loop;
+  service_.ShouldBlock(Script("https://ads.example/a.js", "ads.example"),
+                       base::BindLambdaForTesting([&](bool block) {
+                         before = block;
+                         loop.Quit();
+                       }));
+  service_.ReplaceLists({{"||other.example^\n", {}}}, base::DoNothing());
+  loop.Run();
+  EXPECT_TRUE(before);
+  EXPECT_FALSE(Ask(Script("https://ads.example/a.js", "ads.example")));
+}
+
+TEST_F(FilterEngineServiceTest, ABadListLeavesTheWorkingRulesAlone) {
+  static const std::string kEngine = SerializedEngine("||ads.example^\n");
+  service_.Start(kEngine);
+  BuildResult result = Replace(
+      service_, {{"||new.example^\n", {}}, {"<html>not a list</html>", {}}});
+  EXPECT_EQ(ListFailure::kLooksLikeHtml, result.failure);
+  EXPECT_EQ(1u, result.failed_index);
+  EXPECT_TRUE(Ask(Script("https://ads.example/a.js", "ads.example")));
+  EXPECT_FALSE(Ask(Script("https://new.example/a.js", "new.example")));
+}
+
+TEST_F(FilterEngineServiceTest, ListsCanComeFromFilesAndAMissingFileFails) {
+  static const std::string kEngine = SerializedEngine("||ads.example^\n");
+  service_.Start(kEngine);
+  base::ScopedTempDir dir;
+  ASSERT_TRUE(dir.CreateUniqueTempDir());
+  base::FilePath file = dir.GetPath().AppendASCII("l.txt");
+  ASSERT_TRUE(base::WriteFile(file, "||fromfile.example^\n"));
+
+  EXPECT_EQ(ListFailure::kNone, Replace(service_, {{"", file}}).failure);
+  EXPECT_TRUE(Ask(Script("https://fromfile.example/a.js", "fromfile.example")));
+
+  BuildResult missing = Replace(service_, {{"", dir.GetPath().AppendASCII("gone.txt")}});
+  EXPECT_EQ(ListFailure::kUnreadable, missing.failure);
+  EXPECT_TRUE(Ask(Script("https://fromfile.example/a.js", "fromfile.example")));
+}
+
+TEST_F(FilterEngineServiceTest, ASiteExceptionAllowsThatSiteAndItsSubdomainsOnly) {
+  static const std::string kEngine = SerializedEngine("||ads.example^\n");
+  service_.Start(kEngine);
+  service_.SetExceptions({"news.test"});
+
+  auto ask_on = [&](const char* top_site) {
+    ClassifiedRequest request = Script("https://ads.example/a.js", "ads.example");
+    request.source_hostname = top_site;
+    return Ask(request);
+  };
+  EXPECT_FALSE(ask_on("news.test"));
+  EXPECT_FALSE(ask_on("www.news.test"));
+  EXPECT_TRUE(ask_on("other.test"));
+  EXPECT_TRUE(ask_on("notnews.test"));
+
+  service_.SetExceptions({});  // Takes effect at once, no restart.
+  EXPECT_TRUE(ask_on("news.test"));
+}
+
+TEST_F(FilterEngineServiceTest, QueriesWaitWhileTheSettingsLoadThenSeeTheExceptions) {
+  static const std::string kEngine = SerializedEngine("||ads.example^\n");
+  service_.Start(kEngine);
+  service_.HoldRequestsUntilSettingsLoaded();
+  std::vector<bool> answers;
+  service_.ShouldBlock(Script("https://ads.example/a.js", "ads.example"),
+                       base::BindLambdaForTesting([&](bool b) { answers.push_back(b); }));
+  base::RunLoop().RunUntilIdle();
+  task_environment_.RunUntilIdle();
+  EXPECT_TRUE(answers.empty());  // Held, not answered "allow".
+
+  service_.SetExceptions({"news.test"});  // The query's top site is news.test.
+  EXPECT_EQ(std::vector<bool>{false}, answers);
+}
+
+TEST_F(FilterEngineServiceTest, ReleasingTheHoldAnswersWithTheRules) {
+  static const std::string kEngine = SerializedEngine("||ads.example^\n");
+  service_.Start(kEngine);
+  service_.HoldRequestsUntilSettingsLoaded();
+  bool blocked = false;
+  base::RunLoop loop;
+  service_.ShouldBlock(Script("https://ads.example/a.js", "ads.example"),
+                       base::BindLambdaForTesting([&](bool b) {
+                         blocked = b;
+                         loop.Quit();
+                       }));
+  service_.ReleaseHeldRequests();
+  loop.Run();
+  EXPECT_TRUE(blocked);
+}
+
+TEST_F(FilterEngineServiceTest, RecordBlockedReachesTheCallback) {
+  int calls = 0;
+  content::GlobalRenderFrameHostId seen;
+  service_.RecordBlocked({1, 2});  // No callback yet: ignored.
+  service_.SetBlockedRequestCallback(base::BindLambdaForTesting(
+      [&](content::GlobalRenderFrameHostId id) {
+        ++calls;
+        seen = id;
+      }));
+  service_.RecordBlocked({3, 4});
+  EXPECT_EQ(1, calls);
+  EXPECT_EQ(content::GlobalRenderFrameHostId(3, 4), seen);
 }
 
 }  // namespace

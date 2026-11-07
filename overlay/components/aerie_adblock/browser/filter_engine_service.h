@@ -5,21 +5,26 @@
 #ifndef COMPONENTS_AERIE_ADBLOCK_BROWSER_FILTER_ENGINE_SERVICE_H_
 #define COMPONENTS_AERIE_ADBLOCK_BROWSER_FILTER_ENGINE_SERVICE_H_
 
+#include <set>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
+#include "base/files/file_path.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/threading/sequence_bound.h"
+#include "components/aerie_adblock/browser/adblock_engine.h"
+#include "components/aerie_adblock/browser/list_failure.h"
 #include "components/aerie_adblock/browser/request_classifier.h"
+#include "content/public/browser/global_routing_id.h"
 #include "url/gurl.h"
 
 namespace aerie_adblock {
-
-class AdblockEngine;
 
 // The Filter Engine service: owns the one adblock engine of the browser
 // process and answers "block this request?".
@@ -84,6 +89,45 @@ class FilterEngineService {
 
   bool started() const { return started_; }
 
+  // One filter list for ReplaceLists(): its text, or, when |text| is empty,
+  // the file to read it from (read on the engine's sequence).
+  struct ListInput {
+    std::string text;
+    base::FilePath path;
+  };
+  using ReplaceCallback = base::OnceCallback<void(BuildResult)>;
+
+  // Compiles |lists| together and replaces the engine's rules with them. The
+  // work runs on the engine's sequence, after the load and every earlier
+  // query. If any list is bad (unreadable, not a list, too slow) nothing
+  // changes and |callback| gets the failure and the list's index; the old
+  // rules, which keep blocking, stay. Later queries wait for the build.
+  void ReplaceLists(std::vector<ListInput> lists, ReplaceCallback callback);
+
+  // Sites where blocking is off, as set by the user (issue #10). A request
+  // whose top-level site is, or is a subdomain of, one of these is never
+  // blocked. Hosts are lowercase (see NormalizeExceptionHost()).
+  void SetExceptions(std::set<std::string> hosts);
+  const std::set<std::string>& exceptions() const { return exceptions_; }
+
+  // From now until SetExceptions() or ReleaseHeldRequests(), every query waits
+  // (it is neither answered nor blocked). The filter list manager reads the
+  // user's exceptions from disk without blocking the UI thread; this keeps the
+  // first requests of a restored session from being judged before the
+  // exceptions are known. The manager always ends the hold, also when it is
+  // destroyed.
+  void HoldRequestsUntilSettingsLoaded() { holding_ = true; }
+  void ReleaseHeldRequests();
+
+  // Called, on the UI thread, for every request the engine blocked, with the
+  // frame the request came from (invalid for workers and the like). One
+  // callback; the page counter (page_block_counter.h) sets it.
+  using BlockedCallback =
+      base::RepeatingCallback<void(content::GlobalRenderFrameHostId)>;
+  void SetBlockedRequestCallback(BlockedCallback callback);
+  // The proxies call this after a "block" verdict.
+  void RecordBlocked(content::GlobalRenderFrameHostId frame_id);
+
   // Answers whether |request| must be blocked. |callback| runs on the UI
   // thread. It runs after the engine has loaded. If Start() was never called
   // there is no engine and the answer is "allow".
@@ -123,6 +167,10 @@ class FilterEngineService {
   void OnLoaded(bool ok, base::TimeDelta elapsed);
 
   base::SequenceBound<Host> host_;
+  std::set<std::string> exceptions_;
+  bool holding_ = false;
+  std::vector<std::pair<ClassifiedRequest, VerdictCallback>> held_;
+  BlockedCallback blocked_callback_;
   base::OnceClosure on_load_failure_;
   CosmeticPolicyCallback cosmetic_policy_;
   bool started_ = false;
