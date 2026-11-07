@@ -4,8 +4,9 @@ Aerie-Kind: hook
 
 This declares the dependency and fixes the gnrt settings it needs: adblock and regex in the
 'safe' group (regex was 'test', which made adblock testonly and unshipped), flatbuffers
-without its build.rs (it enables nightly features), and thiserror v1 and v2 as separate
-sections (only v2's build script writes private.rs).
+without its build.rs (it enables nightly features), thiserror v1 and v2 as separate
+sections (only v2's build script writes private.rs), and aho-corasick allowed `unsafe`
+(regex's default features build it, and its `Automaton` trait is `unsafe`).
 
 The vendor step in ./aerie build pins the
 resolved crate set from rust/crates.lock.toml first, runs gnrt vendor and gnrt
@@ -39,7 +40,15 @@ gen, and fails if the result differs from the lock or from the crates.io hashes
 +extra_kv = { allow_unsafe = true }
 +
  [crate.addr2line]
-@@ -369,2 +378,8 @@
+@@ -131,3 +140,6 @@
+ allow_first_party_usage = false
+-extra_kv = { allow_unsafe = false }
++# Aerie: regex's default `perf-literal` feature (which adblock uses) builds this
++# crate, and its `Automaton` trait is `unsafe`. Upstream only reached it through
++# libafl, so `false` was never compiled. Same as regex-automata and memchr.
++extra_kv = { allow_unsafe = true }
+ 
+@@ -369,2 +381,8 @@
  
 +# Aerie: flatbuffers' build.rs turns on `cfg(nightly)` under Chromium's rustc,
 +# and that enables unstable features, which Chromium forbids.
@@ -48,12 +57,12 @@ gen, and fails if the result differs from the lock or from the crates.io hashes
 +extra_kv = { allow_unsafe = true }
 +
  [crate.flate2]
-@@ -840,3 +855,3 @@
+@@ -840,3 +858,3 @@
  [crate.regex]
 -group = 'test'
 +group = 'safe'  # Aerie: adblock needs it in the browser process. Linear-time matching.
  allow_first_party_usage = false
-@@ -1034,3 +1049,7 @@
+@@ -1034,3 +1052,7 @@
  
 -[crate.thiserror]
 +# Aerie: two epochs of thiserror now exist. Only v2's build script writes private.rs.

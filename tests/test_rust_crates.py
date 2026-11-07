@@ -203,6 +203,10 @@ GNRT = """[crate.adblock]
 group = 'safe'
 extra_kv = { allow_unsafe = true }
 
+[crate.aho-corasick]
+group = 'safe'
+extra_kv = { allow_unsafe = true }
+
 [crate.flatbuffers]
 remove_build_rs = true
 extra_kv = { allow_unsafe = true }
@@ -227,6 +231,8 @@ class GnrtConfigTest(unittest.TestCase):
             (GNRT.replace("[crate.adblock]\ngroup = 'safe'", "[crate.adblock]\ngroup = 'test'"), "adblock"),
             (GNRT.replace("[crate.regex]\ngroup = 'safe'", "[crate.regex]\ngroup = 'test'"), "regex"),
             (GNRT.replace("remove_build_rs = true", ""), "flatbuffers"),
+            (GNRT.replace("[crate.aho-corasick]\ngroup = 'safe'\nextra_kv = { allow_unsafe = true }",
+                          "[crate.aho-corasick]\ngroup = 'safe'\nextra_kv = { allow_unsafe = false }"), "aho-corasick"),
             (GNRT.replace('[crate."thiserror@v1"]', "[crate.thiserror]").replace('[crate."thiserror@v2"]', "[crate.thiserror.x]"), "thiserror"),
             (GNRT.replace('build_script_outputs = [ "private.rs" ]', ""), "thiserror@v2"),
             (GNRT.replace('[crate."thiserror@v1"]\nextra_kv = { allow_unsafe = false }', '[crate."thiserror@v1"]\nbuild_script_outputs = ["private.rs"]'), "thiserror@v1"),
@@ -632,7 +638,8 @@ class RepoFilesTest(unittest.TestCase):
             self.assertEqual(pkg.source, rc.REGISTRY)
             self.assertRegex(pkg.checksum or "", r"^[0-9a-f]{64}$", f"{pkg.name} has no sha256")
         patch = (REPO / "patches/adblock/0003-vendor-adblock-crate.patch").read_text()
-        added_lines = "\n".join(line[1:] for line in patch.splitlines() if line.startswith("+") and not line.startswith("+++"))
+        cargo_part = patch.split("--- a/third_party/rust/chromium_crates_io/Cargo.toml", 1)[1].split("\n--- a/", 1)[0]
+        added_lines = "\n".join(line[1:] for line in cargo_part.splitlines() if line.startswith("+") and not line.startswith("+++"))
         rc.check_declared("[dependencies]\n" + added_lines)
 
     def test_chromium_version_matches_the_helium_lock(self):

@@ -301,7 +301,9 @@ def check_gnrt_config(text: str) -> None:
       which also leaves it off chrome://credits;
     * flatbuffers without build.rs: it turns on nightly features under Chromium's rustc, which
       Chromium forbids;
-    * thiserror v1 and v2 configured apart: only v2's build script writes private.rs.
+    * thiserror v1 and v2 configured apart: only v2's build script writes private.rs;
+    * aho-corasick allowed `unsafe`: regex's default features build it, its `Automaton`
+      trait is `unsafe`, and upstream's `false` was never compiled (found in train 2).
     """
     try:
         crates = tomllib.loads(text)["crate"]
@@ -313,6 +315,8 @@ def check_gnrt_config(text: str) -> None:
                               "(patches/adblock/0003 not applied?)")
     if crates.get("flatbuffers", {}).get("remove_build_rs") is not True:
         raise CratesError("gnrt_config.toml: [crate.flatbuffers] must have remove_build_rs = true")
+    if crates.get("aho-corasick", {}).get("extra_kv", {}).get("allow_unsafe") is not True:
+        raise CratesError("gnrt_config.toml: [crate.aho-corasick] must have extra_kv = { allow_unsafe = true }")
     if "thiserror" in crates:
         raise CratesError("gnrt_config.toml: [crate.thiserror] must be split into thiserror@v1 and thiserror@v2")
     v1, v2 = crates.get("thiserror@v1"), crates.get("thiserror@v2")

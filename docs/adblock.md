@@ -147,7 +147,7 @@ build:
 
 1. stops if Chromium's two files differ from those hashes (stale lock);
 2. writes the locked entries into `Cargo.lock`, so `gnrt vendor` cannot choose other versions;
-3. checks the gnrt settings Aerie's patch sets (adblock and regex in group `safe`, flatbuffers without its `build.rs`, thiserror v1 and v2 apart) and runs `gnrt vendor` and `gnrt gen`;
+3. checks the gnrt settings Aerie's patch sets (adblock and regex in group `safe`, flatbuffers without its `build.rs`, thiserror v1 and v2 apart, aho-corasick allowed `unsafe`) and runs `gnrt vendor` and `gnrt gen`;
 4. checks that the final `Cargo.lock` is the original plus the locked entries and nothing else;
 5. downloads each added `.crate` from crates.io, checks its sha256, and checks that
    every file in it is in `chromium_crates_io/vendor` byte for byte;
