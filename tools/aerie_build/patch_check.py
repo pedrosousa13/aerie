@@ -1,9 +1,20 @@
 """./aerie patches check: does the whole patch series apply to the pinned Helium?
 
-Applies helium-chromium, helium-linux and Aerie's patches, in build order, to
-a sparse Chromium tree under <build root>/check/. The sparse tree holds only
-the files the series touch, pulled from the pinned Chromium tarballs. It is
-cheap enough for hosted CI and never touches the real source tree.
+The check follows the build. It applies helium-chromium's and helium-linux's
+patches to a sparse Chromium tree under <build root>/check/, runs Helium's
+domain substitution, name substitution and version steps on it (helium_steps),
+and only then applies Aerie's patches, strictly. So an Aerie patch is judged on
+the text the build gives it, not on Chromium's original text. The sparse tree
+holds only the files the series touch, plus the few files those steps need,
+pulled from the pinned Chromium tarballs. It is cheap enough for hosted CI and
+never touches the real source tree.
+
+Left out: Helium's i18n step (it needs every translated string file; it only
+edits .xtb files, which Aerie patches may not touch, and the lint says so) and
+the resource replacement step.
+
+When a prepared source tree with a pristine snapshot exists, the Aerie patches
+are also tried against it, as `./aerie build --dry-run-layers` does.
 """
 
 from __future__ import annotations
@@ -14,19 +25,24 @@ import fcntl
 import json
 import os
 import shutil
+import subprocess
+import sys
 import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Sequence
 
-from . import lock, patches
+from . import helium_inputs, helium_steps, layers as tree_layers, lock, patches
 from .config import BuildPaths
 
 MANIFEST = ".aerie-sparse.json"
 BUILDING = ".aerie-sparse.building"
 STALE_WORK_SECONDS = 3600
 AERIE_PATCHES = "patches"
+# Besides the files the patches touch: name substitution wants OWNERS and the grit
+# package, the version step wants chrome/VERSION. A trailing / means a directory.
+STEP_INPUTS = ("OWNERS", "chrome/VERSION", "tools/grit/grit/")
 
 
 def layers(repo: Path) -> list[patches.Layer]:
@@ -139,24 +155,24 @@ def run_check(
     pins: lock.Lock,
     log: Callable[[str], None] = print,
 ) -> int:
-    """Lint Aerie's patches, then apply all three series. Returns the exit status."""
+    """Lint Aerie's patches, then apply the series the way the build does. Returns the exit status."""
     status = 0
     series = layers(repo)
+    core, platform = repo / "helium-chromium", repo / "helium-linux"
 
-    problems = patches.lint_patch_dir(series[-1].directory)
+    problems = patches.lint_patch_dir(series[-1].directory, patches.load_substitution_rules(core))
     for problem in problems:
         log(f"LINT    {problem.patch}: {problem.message}")
         status = 1
 
     version = pins.chromium_version
     sources = sources_from_ini(
-        [repo / "helium-chromium" / "downloads.ini", repo / "helium-linux" / "downloads.ini",
-         repo / "helium-chromium" / "deps.ini"],
+        [core / "downloads.ini", platform / "downloads.ini", core / "deps.ini"],
         version, paths.downloads,
     )
     check_root = paths.root / "check"
     sparse = check_root / "sparse"
-    wanted = patches.wanted_files(series)
+    wanted = sorted({*patches.wanted_files(series), *STEP_INPUTS})
     log(f"{len(wanted)} files touched by {sum(len(patches.layer_entries(l)) for l in series)} patches")
     check_root.mkdir(parents=True, exist_ok=True)
     _sweep_stale_work(check_root)
@@ -173,13 +189,68 @@ def run_check(
             patches.copy_tree(sparse, work)
         (work / MANIFEST).unlink()
         (work / BUILDING).unlink(missing_ok=True)
-        results = patches.apply_layers(work, series)
+        results = patches.apply_layers(work, series[:-1])
+        if all(r.status == "ok" for r in results):
+            _helium_steps(repo, work, check_root)
+            results += patches.apply_layers(work, series[-1:])
+        else:
+            log("Aerie patches were not tried: Helium's own patches did not apply")
     finally:
         if work is not None:
             shutil.rmtree(work, ignore_errors=True)
     report, ok = patches.format_report(results)
     log(report)
+    if not _check_prepared_tree(repo, paths, pins, check_root, log):
+        ok = False
     return status if ok else 1
+
+
+def _helium_steps(repo: Path, work: Path, check_root: Path) -> None:
+    """Domain substitution, name substitution and version, on the patched sparse tree."""
+    core, platform = repo / "helium-chromium", repo / "helium-linux"
+    env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
+
+    def run(cmd) -> None:
+        proc = subprocess.run([str(c) for c in cmd], env=env, capture_output=True, text=True,
+                              errors="replace", stdin=subprocess.DEVNULL, check=False)
+        if proc.returncode != 0:
+            raise RuntimeError(f"Helium step failed on the sparse tree: {' '.join(str(c) for c in cmd[1:3])}\n"
+                               + (proc.stdout + proc.stderr)[-2000:])
+
+    domain_list = helium_steps.filtered_domain_list(core, work, check_root / f"{work.name}.domain-list")
+    try:
+        helium_steps.post_patch_steps(
+            sys.executable, core, platform, work, run, lambda _name, action: action(),
+            domain_list=domain_list, i18n=False)
+    finally:
+        domain_list.unlink(missing_ok=True)
+
+
+def _check_prepared_tree(repo: Path, paths: BuildPaths, pins: lock.Lock, check_root: Path,
+                         log: Callable[[str], None]) -> bool:
+    """Also try Aerie's patches against the real prepared tree, if there is one. Writes nothing to it."""
+    name = f"helium-{pins.helium_version}"
+    tree, store = paths.tree(name), paths.pristine / name
+    if not (tree / ".resources.stamp").exists():
+        return True
+    if not helium_inputs.matches(repo, tree):
+        log(f"prepared tree {tree}: built from different Helium inputs; skipped")
+        return True
+    legacy = [n for n in tree_layers.LEGACY_STATE if (tree / n).exists()]
+    if legacy:
+        log(f"prepared tree {tree}: skipped, it was changed in place by an older build; run ./aerie build --clean")
+        return True
+    try:
+        report = tree_layers.apply_layers(
+            tree, store, [patches.PatchLayer(layers(repo)[-1])], check_root / "stage", dry_run=True)
+    except patches.PatchStateError as exc:
+        log(f"prepared tree {tree}: Aerie patches do not apply:\n{exc}")
+        return False
+    except tree_layers.LayerError as exc:
+        log(f"prepared tree {tree}: cannot be checked: {exc}")
+        return False
+    log(f"prepared tree {tree}: Aerie patches apply; {report.summary()} (dry run)")
+    return True
 
 
 def _sweep_stale_work(check_root: Path) -> None:

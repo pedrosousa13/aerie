@@ -21,7 +21,7 @@ Rules for Aerie's layer:
 - Put Aerie-owned source in its own directories. Upstream files get only the smallest hook patch that is needed to call into it.
 - Never edit the submodules. A change to Helium goes to Helium, or becomes an Aerie patch.
 - Aerie patches apply with fuzz off. A context line that no longer matches is an error, not a warning.
-- Aerie patches apply before any name substitution, on text exactly as Helium's patches leave it.
+- Aerie patches apply last, on the tree exactly as Helium's steps leave it (after Helium's domain and name substitution, translations and version). A context line that one of those steps rewrote must match the rewritten text. Lines a patch adds are not rewritten by those steps, so write them in their final form: the lint rejects an added line that matches `helium-chromium/domain_regex.list` in a file on `domain_substitution.list`, an added `.grd`/`.grdp` line that says Chrome or Chromium, a patch that edits an `.xtb` file, and rename/copy headers.
 - Add a patch by putting the file under `patches/<area>/` and adding its path to `patches/series`. A `.patch` file that is not in the series is an error.
 
 ### Patch header
@@ -44,11 +44,11 @@ Free text can follow after a blank line.
 ./aerie patches check
 ```
 
-The command lints Aerie's series (header fields, missing or unlisted files, unsafe paths), then applies all three layers in build order. It exits non-zero and names every patch that fails. A patch that needs a file that a failed patch changed is reported as skipped.
+The command lints Aerie's series (header fields, missing or unlisted files, unsafe paths, added lines that Helium's substitutions would have rewritten), then follows the build: it applies Helium's two series, runs Helium's domain substitution, name substitution and version steps on the sparse tree, and only then applies Aerie's patches. So a patch is judged on the text the build gives it. It exits non-zero and names every patch that fails. Offsets and fuzz count as failures. A patch that needs a file that a failed patch changed is reported as skipped. If Helium's own patches fail, Aerie's are not tried.
 
-It does not need a full source tree. It extracts only the files the three series touch from the pinned Chromium tarballs (after checking their sha256 against `helium.lock`) into `<build root>/check/sparse`, copies that to `<build root>/check/work`, and applies the patches there. The first run reads the tarballs and takes a few minutes. Later runs reuse the sparse tree until a series touches a new file.
+It does not need a full source tree. It extracts only the files the three series touch, plus `OWNERS`, `chrome/VERSION` and `tools/grit/grit/` that the steps need, from the pinned Chromium tarballs (after checking their sha256 against `helium.lock`) into `<build root>/check/sparse`, copies that to `<build root>/check/work`, and runs there. The first run reads the tarballs and takes a few minutes. Later runs reuse the sparse tree until a series touches a new file. Helium's i18n step is not run (it needs every translated string file and only edits `.xtb` files, which patches may not touch).
 
-Run it after you change a patch and after you bump Helium.
+If a prepared source tree exists in the build root, the command also tries Aerie's patches against it, without writing to it, and reports the result like `./aerie build --dry-run-layers`.
 
 ### Helium to Aerie names
 
@@ -56,11 +56,34 @@ Helium turns "Chromium" and "Chrome" into "Helium" in string files (`.grd`, `.gr
 
 The pass keeps `helium://`, "The Helium Authors" and message descriptions. It rewrites translation ids to match the new text. It runs after Helium's translation step, because that step looks messages up by the Helium text.
 
-To protect another span, add a rule to `RULES` in that file and add a test. A tree that was substituted with older rules must be rebuilt with `./aerie build --clean`.
+To protect another span, add a rule to `RULES` in that file and add a test. A changed rule needs no `--clean`: the pass always starts from the pristine text (see below).
 
-### Changing the series of an existing tree
+### Changing the Aerie layers of an existing tree
 
-`./aerie build` records each Aerie patch it applies, with a hash, in `.aerie-patches.json` in the source tree. New patches at the end of the series apply on top of an existing tree. A patch that was edited, removed or reordered after it was applied needs `./aerie build --clean`.
+A clean build takes about 2.5 hours and ccache helps little, so `./aerie build` keeps the source tree and `out/Default`, and re-applies the Aerie layers (the patch series and the Helium to Aerie substitution; the overlay will join them) on every run. No `--clean` is needed to add, edit, reorder or remove a patch or to change a substitution rule.
+
+How it works (`tools/aerie_build/layers.py`):
+
+- Before a layer first touches a file, its pristine bytes are saved in `<build root>/aerie-pristine/<tree>/files/`, with a `manifest.json`. A file that a layer creates is recorded as "did not exist".
+- Each build works out the final content of every file the layers touch from the pristine bytes, in a staging directory. It writes a file only if its bytes differ from the tree, through a temp file and an atomic rename. Unchanged files keep their mtime, so ninja does not rebuild them.
+- A file that no layer touches any more is restored to its pristine bytes (or deleted, if it did not exist before).
+- A `journal.json` exists while a run changes files. If a run is interrupted, the next run says so, removes leftover `*.aerie-tmp` files and finishes the job. The tree is never written before its pristine copy is saved.
+- Rewriting a string file (`.grd`) regenerates resources and a translation file (`.xtb`) re-runs its repack, so a changed rule or patch on those files costs a partial rebuild. A run with no change writes nothing.
+
+To see what the next build would change, without writing anything:
+
+```
+./aerie build --dry-run-layers
+```
+
+`./aerie build --clean` deletes the source tree and the pristine snapshot. Use it after a Helium bump. A damaged snapshot also needs it. `./aerie build` refuses, and says so, in these cases, because the tree was processed in a way that cannot be undone:
+
+- Helium's own inputs changed since the tree was prepared: the patch series of helium-chromium or helium-linux, `domain_regex.list`, `domain_substitution.list`, `pruning.list`, the translations, or any `helium-drop.txt` or `helium-adapt.txt` in the repo. A digest of them is stored in the tree as `.helium-inputs.sha256`. A tree made before that file existed adopts the current digest.
+- An older Aerie build changed the tree in place (it has `.aerie-patches.json`, `.aeriesub.stamp` or `.aerie-fingerprints.json`), so no pristine copies exist.
+
+One build at a time can re-apply layers for a tree (a lock file next to the snapshot enforces it). `./aerie prune` removes the snapshots of old trees.
+
+To add a layer that touches tree files, implement `layers.Layer` (`apply(workspace)`: read with `workspace.read`, stage results with `workspace.put`) and add it to `aerie_layers()` in `tools/aerie_build/pipeline.py`.
 
 ## Helium dependency ledger
 

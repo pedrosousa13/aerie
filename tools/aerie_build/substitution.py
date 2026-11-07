@@ -16,15 +16,13 @@ Only the capitalised word Helium is rewritten. HELIUM in identifiers or
 environment-style names is not user text and is deliberately left alone.
 
 Rewriting a message changes its GRIT fingerprint, so translation files are
-re-keyed with the same old-to-new map, as Helium's own pass does. The map is
-saved before any file is rewritten and every write is atomic, so a run that
-dies half way is repaired by running again.
+re-keyed with the same old-to-new map, as Helium's own pass does. The pass reads pristine bytes and
+returns the new content; aerie_build.layers writes it.
 """
 
 from __future__ import annotations
 
 import hashlib
-import json
 import os
 import re
 import sys
@@ -165,83 +163,75 @@ def substitute_xtb_text(text: str, fp_map: dict[str, str]) -> str | None:
     return _serialise(root) if changed else None
 
 
-def _candidates(tree: Path, extensions: tuple[str, ...]) -> Iterator[Path]:
+GRD_EXTENSIONS = (".grd", ".grdp")
+XTB_EXTENSIONS = (".xtb",)
+_XTB_ID_RE = re.compile(r'<translation\b[^>]*?\bid="(\d+)"')
+
+Reader = Callable[[str], "bytes | None"]  # tree path -> pristine bytes (None: no such file)
+
+
+def candidates(tree: Path, extensions: tuple[str, ...]) -> Iterator[str]:
+    """Tree-relative paths (posix) of the files the pass may rewrite."""
     for root, dirs, files in os.walk(tree):
         if Path(root) == tree:
             dirs[:] = [d for d in dirs if d != "out"]
         dirs[:] = [d for d in dirs if d not in IGNORE_DIRS[1:]]
         for name in files:
             if not name.startswith(".") and name.lower().endswith(extensions):
-                yield Path(root) / name
+                yield (Path(root) / name).relative_to(tree).as_posix()
 
 
-def _write_atomic(path: Path, text: str) -> None:
-    """Write via a temp file in the same directory, so a crash never leaves half a file."""
-    tmp = path.with_name(path.name + ".aerie-tmp")
-    try:
-        tmp.write_text(text, encoding="utf-8")
-        os.replace(tmp, path)
-    finally:
-        tmp.unlink(missing_ok=True)
-
-
-def _scan_grd(args: tuple[Path, Fingerprint]) -> tuple[Path, str | None, dict[str, str], list[str]]:
+def _scan_grd(args: tuple[Reader, str, Fingerprint]) -> tuple[str, str | None, dict[str, str], list[str]]:
     """Read-only: rewritten text, fingerprint changes and kept message names of one string file."""
-    path, fingerprint = args
-    text = path.read_text(encoding="utf-8")
+    read, rel, fingerprint = args
+    data = read(rel)
+    text = data.decode("utf-8") if data is not None else ""
     if "Helium" not in text:
-        return path, None, {}, []
+        return rel, None, {}, []
     new_text, fp_map = substitute_grd_text(text, fingerprint)
-    return path, new_text, fp_map, kept_messages(text)
+    return rel, new_text, fp_map, kept_messages(text)
 
 
-def _do_xtb(args: tuple[Path, dict[str, str]]) -> bool:
-    path, fp_map = args
-    new_text = substitute_xtb_text(path.read_text(encoding="utf-8"), fp_map)
-    if new_text is None:
-        return False
-    _write_atomic(path, new_text)
-    return True
+def _do_xtb(args: tuple[Reader, str, dict[str, str]]) -> tuple[str, str | None]:
+    read, rel, fp_map = args
+    data = read(rel)
+    text = data.decode("utf-8") if data is not None else ""
+    # Most translation files need nothing; skip parsing them.
+    if "Helium" not in text and not any(i in fp_map for i in _XTB_ID_RE.findall(text)):
+        return rel, None
+    return rel, substitute_xtb_text(text, fp_map)
 
 
-def _load_map(state_path: Path | None) -> dict[str, str]:
-    if state_path and state_path.is_file():
-        return json.loads(state_path.read_text())
-    return {}
-
-
-def substitute_tree(
-    tree: Path,
+def substitute_files(
+    read: Reader,
+    grd_paths: list[str],
+    xtb_paths: list[str],
     fingerprint: Fingerprint,
     workers: int | None = None,
-    state_path: Path | None = None,
-) -> Stats:
-    """Run the pass over a source tree.
+) -> tuple[dict[str, bytes], Stats]:
+    """Work out the rewritten content of every string and translation file. Writes nothing.
 
-    Order matters for crash safety. First every string file is read and the
-    full old-to-new fingerprint map is worked out and saved (state_path). Only
-    then are string files rewritten, each atomically, and last the translation
-    files. A string file that an earlier, interrupted run already rewrote adds
-    nothing new, but its entries are still in the saved map, so a re-run
-    re-keys the translations it missed.
+    Reads come from `read` (pristine bytes), so the result is the same on every
+    run. String files are scanned first to get the full old-to-new fingerprint
+    map; the translation files are re-keyed with it. Returns {path: new bytes}
+    for the files that change, plus statistics.
     """
     stats = Stats()
-    fp_map = _load_map(state_path)
+    out: dict[str, bytes] = {}
+    fp_map: dict[str, str] = {}
     with ProcessPoolExecutor(max_workers=workers or os.cpu_count()) if (workers or 2) > 1 else _Inline() as pool:
-        scanned = list(pool.map(_scan_grd, [(p, fingerprint) for p in _candidates(tree, (".grd", ".grdp"))]))
-        for _, _, found, kept in scanned:
+        for rel, new_text, found, kept in pool.map(_scan_grd, [(read, p, fingerprint) for p in grd_paths]):
             fp_map.update(found)
             stats.kept |= frozenset(kept)
-        if state_path and fp_map:
-            _write_atomic(state_path, json.dumps(fp_map, indent=1) + "\n")
-        for path, new_text, _, _ in scanned:
             if new_text is not None:
-                _write_atomic(path, new_text)
+                out[rel] = new_text.encode("utf-8")
                 stats.grd_files += 1
         if fp_map:
-            for changed in pool.map(_do_xtb, [(p, fp_map) for p in _candidates(tree, (".xtb",))]):
-                stats.xtb_files += bool(changed)
-    return stats
+            for rel, new_text in pool.map(_do_xtb, [(read, p, fp_map) for p in xtb_paths]):
+                if new_text is not None:
+                    out[rel] = new_text.encode("utf-8")
+                    stats.xtb_files += 1
+    return out, stats
 
 
 class _Inline:
@@ -256,6 +246,33 @@ class _Inline:
     @staticmethod
     def map(fn, items):
         return map(fn, items)
+
+
+class SubstitutionLayer:
+    """The pass as a tree layer: pristine string files in, rewritten string files out."""
+
+    name = "helium-to-aerie substitution"
+
+    def __init__(self, fingerprint_factory: Callable[[], Fingerprint], workers: int | None = None,
+                 log: Callable[[str], None] = lambda _m: None):
+        self._factory = fingerprint_factory
+        self._workers = workers
+        self._log = log
+        self.stats = Stats()
+
+    def apply(self, ws) -> None:
+        def paths(extensions):
+            found = set(candidates(ws.tree, extensions))
+            found |= {p for p in ws.known_paths() if p.lower().endswith(extensions)}
+            return sorted(p for p in found if ws.read(p) is not None)
+
+        out, self.stats = substitute_files(
+            ws.reader, paths(GRD_EXTENSIONS), paths(XTB_EXTENSIONS), self._factory(), self._workers)
+        for rel, data in out.items():
+            ws.put(rel, data)
+        self._log(f"Helium->Aerie: rewrites {self.stats.grd_files} string file(s), "
+                  f"{self.stats.xtb_files} translation file(s); "
+                  f"{len(self.stats.kept)} Helium-services message(s) left as Helium")
 
 
 def rules_digest() -> str:

@@ -109,6 +109,11 @@ class BuildPaths:
     def logs(self) -> Path:
         return self.root / "logs"
 
+    @property
+    def pristine(self) -> Path:
+        """Pristine copies of the tree files Aerie's layers change, one directory per tree."""
+        return self.root / "aerie-pristine"
+
     def tree(self, name: str) -> Path:
         return self.src / name
 

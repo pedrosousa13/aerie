@@ -41,6 +41,10 @@ def _context(args: argparse.Namespace) -> pipeline.Context:
 
 def cmd_build(args: argparse.Namespace) -> int:
     ctx = _context(args)
+    if args.dry_run_layers:
+        if args.clean:
+            raise pipeline.BuildError("--dry-run-layers cannot be combined with --clean")
+        return pipeline.show_layer_changes(ctx)
     binary = pipeline.build(ctx, clean=args.clean)
     print(binary)
     return 0
@@ -109,7 +113,13 @@ def main(argv: list[str] | None = None) -> int:
         help=f"where Chromium source comes from (env {fallback.ENV_SOURCE}; default auto: Helium's tarballs, "
         "or the official Chromium tarball if Helium's host is unreachable)",
     )
-    p_build.add_argument("--clean", action="store_true", help="delete the source tree first and start over")
+    p_build.add_argument("--clean", action="store_true", help="delete the source tree and the pristine snapshot first and start over (after a Helium bump)")
+    p_build.add_argument(
+        "--dry-run-layers",
+        action="store_true",
+        help="list the source-tree files the Aerie layers (patches, substitution) would change, then stop; "
+        "writes nothing to the tree",
+    )
     p_build.set_defaults(func=cmd_build)
 
     p_prune = sub.add_parser("prune", help="delete stale downloads, old source trees and old tools")

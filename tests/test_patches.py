@@ -4,6 +4,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from aerie_build import patches
 
@@ -134,6 +135,92 @@ class LintTest(unittest.TestCase):
         self.assertTrue(any("outside the patch directory" in m for _, m in self.lint()))
 
 
+class SubstitutionLintTest(unittest.TestCase):
+    """Aerie patches apply after Helium's substitutions, so added lines must already be final."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.dir = Path(self._tmp.name) / "patches"
+        self.dir.mkdir()
+        core = Path(self._tmp.name) / "core"
+        core.mkdir()
+        (core / "domain_regex.list").write_text(r"google([A-Za-z\-]*?\\*?)\.com#9oo91e\g<1>.qjz9zk" + "\n")
+        (core / "domain_substitution.list").write_text("net/listed.cc\n")
+        self.rules = patches.load_substitution_rules(core)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def lint(self, body: str) -> list[str]:
+        (self.dir / "a.patch").write_text(GOOD_HEADER + body)
+        (self.dir / "series").write_text("a.patch\n")
+        return [p.message for p in patches.lint_patch_dir(self.dir, self.rules)]
+
+    def test_added_line_with_a_domain_in_a_domain_substituted_file_is_rejected(self):
+        problems = self.lint(diff("net/listed.cc", "x", 'url = "https://www.google.com/x";'))
+        self.assertEqual(len(problems), 1)
+        self.assertIn("domain_regex.list", problems[0])
+
+    def test_the_same_line_in_a_file_the_substitution_skips_is_fine(self):
+        self.assertEqual(self.lint(diff("net/other.cc", "x", 'url = "https://www.google.com/x";')), [])
+
+    def test_removed_and_context_lines_are_not_judged(self):
+        body = "--- a/net/listed.cc\n+++ b/net/listed.cc\n@@ -1,2 +1,2 @@\n www.google.com\n-www.google.com/old\n+fine\n"
+        self.assertEqual(self.lint(body), [])
+
+    def test_added_chrome_or_chromium_in_a_grd_line_is_rejected(self):
+        for ext in ("grd", "grdp"):
+            for word in ("Chrome", "Chromium"):
+                problems = self.lint(diff(f"c/s.{ext}", "x", f"  Open {word} now"))
+                self.assertEqual(len(problems), 1, (ext, word))
+                self.assertIn("name substitution", problems[0])
+
+    def test_chrome_in_a_code_file_or_inside_a_longer_word_is_fine(self):
+        self.assertEqual(self.lint(diff("c/x.cc", "x", "Chrome")), [])
+        self.assertEqual(self.lint(diff("c/s.grd", "x", "Chromeless")), [])
+
+    def test_patches_may_not_edit_translation_files(self):
+        problems = self.lint(diff("c/s_de.xtb", "x", "y"))
+        self.assertTrue(any(".xtb" in m for m in problems))
+
+    def test_rename_and_copy_headers_are_rejected(self):
+        for kind in ("rename", "copy"):
+            body = f"diff --git a/f b/g\n{kind} from f\n{kind} to g\n" + diff("g", "a", "b")
+            self.assertTrue(any("rename/copy" in m for m in self.lint(body)), kind)
+
+    def test_patches_may_not_edit_files_helium_resources_overwrites(self):
+        core = Path(self._tmp.name) / "core"
+        (core / "resources").mkdir()
+        (core / "resources" / "helium_resources.txt").write_text(
+            "# c\nfavicons/a.png chrome/app/theme/a.png\n\nbad\n")
+        self.rules = patches.load_substitution_rules(core)
+        self.assertEqual(self.rules.resource_destinations, {"chrome/app/theme/a.png"})
+        problems = self.lint(diff("chrome/app/theme/a.png", "x", "y"))
+        self.assertEqual(len(problems), 1)
+        self.assertIn("helium_resources.txt", problems[0])
+        self.assertEqual(self.lint(diff("chrome/app/theme/b.png", "x", "y")), [])
+
+    def test_an_added_line_that_looks_like_a_file_header_is_still_an_added_line(self):
+        body = "--- a/net/listed.cc\n+++ b/net/listed.cc\n@@ -1 +1,2 @@\n x\n+++ www.google.com/y\n"
+        self.assertEqual(patches.added_lines(body), [("net/listed.cc", "++ www.google.com/y")])
+        self.assertEqual(len(self.lint(body)), 1)
+
+    def test_added_lines_follow_hunks_and_files(self):
+        body = ("--- a/f\n+++ b/f\n@@ -1,2 +1,3 @@\n c\n+one\n-gone\n\\ No newline at end of file\n"
+                "+two\n--- a/g\n+++ b/g\n@@ -0,0 +1 @@\n+three\n")
+        self.assertEqual(patches.added_lines(body), [("f", "one"), ("f", "two"), ("g", "three")])
+
+    def test_without_rules_only_the_basic_checks_run(self):
+        (self.dir / "a.patch").write_text(GOOD_HEADER + diff("c/s.grd", "x", "Chrome"))
+        (self.dir / "series").write_text("a.patch\n")
+        self.assertEqual(patches.lint_patch_dir(self.dir), [])
+
+    def test_the_real_helium_lists_load(self):
+        rules = patches.load_substitution_rules(Path(__file__).resolve().parents[1] / "helium-chromium")
+        self.assertGreater(len(rules.domain_patterns), 5)
+        self.assertGreater(len(rules.domain_files), 1000)
+
+
 class ApplyTest(unittest.TestCase):
     """Applies real patches (GNU patch) to a tiny synthetic tree."""
 
@@ -254,6 +341,53 @@ class ReportTest(unittest.TestCase):
         self.assertIn("1 applied", text)
 
 
+class DirectoryExtractTest(unittest.TestCase):
+    """A wanted entry ending in / brings in the whole directory."""
+
+    FILES = {"top/tools/grit/grit/__init__.py": "i", "top/tools/grit/grit/extern/FP.py": "fp",
+             "top/tools/grit/other.py": "o", "top/a.txt": "a"}
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        src = self.root / "src"
+        for rel, text in self.FILES.items():
+            path = src / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text)
+        self.archives = {}
+        self.archives["tar"] = self.root / "a.tar"
+        subprocess.run(["tar", "-cf", str(self.archives["tar"]), "-C", str(src), "top"], check=True)
+        self.archives["tar.gz"] = self.root / "a.tar.gz"
+        subprocess.run(["tar", "-czf", str(self.archives["tar.gz"]), "-C", str(src), "top"], check=True)
+        if shutil.which("zstd"):
+            self.archives["tar.zst"] = self.root / "a.tar.zst"
+            subprocess.run(["zstd", "-q", "-o", str(self.archives["tar.zst"]), str(self.archives["tar"])], check=True)
+        import zipfile
+        self.archives["zip"] = self.root / "a.zip"
+        with zipfile.ZipFile(self.archives["zip"], "w") as zf:
+            for rel, text in self.FILES.items():
+                zf.writestr(rel, text)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_every_archive_format_extracts_the_directory_and_only_it(self):
+        for kind, archive in self.archives.items():
+            with self.subTest(kind):
+                dest = self.root / f"out-{kind}"
+                found = patches.extract_wanted(archive, "top", ["tools/grit/grit/", "a.txt"], dest)
+                self.assertEqual(found, {"tools/grit/grit/", "a.txt"})
+                self.assertEqual((dest / "tools/grit/grit/extern/FP.py").read_text(), "fp")
+                self.assertFalse((dest / "tools/grit/other.py").exists())
+
+    def test_a_directory_the_archive_lacks_is_not_found(self):
+        for kind, archive in self.archives.items():
+            with self.subTest(kind):
+                found = patches.extract_wanted(archive, "top", ["no/such/dir/"], self.root / f"o2-{kind}")
+                self.assertEqual(found, set())
+
+
 class SparseTreeTest(unittest.TestCase):
     def test_wanted_files_unions_series_across_layers(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -302,81 +436,6 @@ class SparseTreeTest(unittest.TestCase):
                 patches.extract_wanted(bad, "chromium-1", ["keep.txt"], root / "out2")
 
 
-class StatefulApplyTest(unittest.TestCase):
-    """The build applies Aerie's layer incrementally, tracked in a state file."""
-
-    def setUp(self):
-        self._tmp = tempfile.TemporaryDirectory()
-        root = Path(self._tmp.name)
-        self.tree = root / "tree"
-        self.tree.mkdir()
-        for name in ("a", "b"):
-            (self.tree / f"{name}.txt").write_text(f"{name}-old\n")
-        self.state = self.tree / ".aerie-patches.json"
-        self.layer = patches.Layer("aerie", root / "aerie", fuzz=False)
-        self.layer.directory.mkdir()
-        self.log: list[str] = []
-
-    def tearDown(self):
-        self._tmp.cleanup()
-
-    def add(self, name: str, new: str, listed: bool = True):
-        target = name.split(".")[0]
-        (self.layer.directory / name).write_text(
-            f"--- a/{target}.txt\n+++ b/{target}.txt\n@@ -1 +1 @@\n-{target}-old\n+{new}\n"
-        )
-        if listed:
-            with open(self.layer.directory / "series", "a") as fh:
-                fh.write(name + "\n")
-
-    def read(self, target: str) -> str:
-        return (self.tree / f"{target}.txt").read_text()
-
-    def run_apply(self):
-        return patches.apply_series(self.tree, self.layer, self.state, self.log.append)
-
-    def test_applies_everything_once_and_records_state(self):
-        self.add("a.patch", "A")
-        self.assertEqual(self.run_apply(), 1)
-        self.assertEqual(self.read("a"), "A\n")
-        self.assertEqual(self.run_apply(), 0)
-
-    def test_only_new_patches_are_applied_later(self):
-        self.add("a.patch", "A")
-        self.run_apply()
-        self.add("b.patch", "B")
-        self.assertEqual(self.run_apply(), 1)
-        self.assertEqual((self.read("a"), self.read("b")), ("A\n", "B\n"))
-
-    def test_edited_patch_that_was_already_applied_is_an_error(self):
-        self.add("a.patch", "A")
-        self.run_apply()
-        self.add("a.patch", "AA", listed=False)
-        with self.assertRaises(patches.PatchStateError) as ctx:
-            self.run_apply()
-        self.assertIn("a.patch", str(ctx.exception))
-        self.assertIn("--clean", str(ctx.exception))
-
-    def test_removed_patch_is_an_error(self):
-        self.add("a.patch", "A")
-        self.add("b.patch", "B")
-        self.run_apply()
-        (self.layer.directory / "series").write_text("b.patch\n")
-        with self.assertRaises(patches.PatchStateError):
-            self.run_apply()
-
-    def test_failing_patch_is_named_and_not_recorded(self):
-        self.add("a.patch", "A")
-        self.add("b.patch", "B")
-        (self.tree / "b.txt").write_text("drifted\n")
-        with self.assertRaises(patches.PatchStateError) as ctx:
-            self.run_apply()
-        self.assertIn("aerie/b.patch", str(ctx.exception))
-        self.assertEqual(self.read("a"), "A\n")
-        self.assertIn("a.patch", self.state.read_text())
-        self.assertNotIn("b.patch", self.state.read_text())
-
-
 class OffsetTest(unittest.TestCase):
     """A hunk that lands at a shifted line means the context drifted."""
 
@@ -404,13 +463,16 @@ class OffsetTest(unittest.TestCase):
         self.assertIn("offset", results[0].detail)
         self.assertIn("line10", (self.tree / "f.txt").read_text())
 
-    def test_strict_series_apply_rejects_an_offset_and_records_nothing(self):
+    def test_patch_layer_rejects_an_offset_and_stages_nothing(self):
         layer = patches.Layer("aerie", self.dir, fuzz=False)
-        state = self.tree / ".state.json"
+        ws = mock.Mock(stage_dir=self.tree.parent / "stage")
+        ws.stage_dir.mkdir()
+        ws.read = lambda rel: (self.tree / rel).read_bytes()
+        ws.materialize = lambda rels: [(ws.stage_dir / r).write_bytes(ws.read(r)) for r in rels]
         with self.assertRaises(patches.PatchStateError) as ctx:
-            patches.apply_series(self.tree, layer, state, lambda _m: None)
+            patches.PatchLayer(layer).apply(ws)
         self.assertIn("offset", str(ctx.exception))
-        self.assertFalse(state.exists())
+        ws.put.assert_not_called()
 
     def test_fuzzy_layer_still_accepts_an_offset(self):
         layer = patches.Layer("helium", self.dir, fuzz=True)

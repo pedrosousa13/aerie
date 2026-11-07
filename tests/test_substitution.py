@@ -6,7 +6,15 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from unittest import mock
 
-from aerie_build import substitution
+from aerie_build import layers, substitution
+
+
+def substitute_dir(tree: Path):
+    """Run the pass over a directory the way the build does, through the tree layers."""
+    sub = substitution.SubstitutionLayer(lambda: fake_fp, workers=1)
+    with tempfile.TemporaryDirectory() as scratch:
+        layers.apply_layers(tree, Path(scratch) / "store", [sub], Path(scratch) / "stage")
+    return sub.stats
 
 
 def fake_fp(message) -> str:
@@ -145,7 +153,7 @@ class XtbTest(unittest.TestCase):
 
 
 class TreeTest(unittest.TestCase):
-    def test_substitute_tree_rewrites_grd_then_xtb_and_skips_ignored_dirs(self):
+    def test_pass_rewrites_grd_then_xtb_and_skips_ignored_dirs(self):
         with tempfile.TemporaryDirectory() as tmp:
             tree = Path(tmp)
             grd = tree / "chrome" / "app" / "s.grd"
@@ -157,7 +165,7 @@ class TreeTest(unittest.TestCase):
                 path.write_text(text)
             fp_old = fake_fp(_msg("About Helium"))
             xtb.write_text(XTB.replace('id="111"', f'id="{fp_old}"'))
-            stats = substitution.substitute_tree(tree, fake_fp, workers=1)
+            stats = substitute_dir(tree)
             self.assertIn("About Aerie", grd.read_text())
             self.assertEqual(ignored.read_text(), GRD)
             self.assertEqual(out_grd.read_text(), GRD)
@@ -169,9 +177,9 @@ class TreeTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             tree = Path(tmp)
             (tree / "s.grd").write_text(GRD)
-            substitution.substitute_tree(tree, fake_fp, workers=1)
+            substitute_dir(tree)
             first = (tree / "s.grd").read_text()
-            stats = substitution.substitute_tree(tree, fake_fp, workers=1)
+            stats = substitute_dir(tree)
             self.assertEqual((tree / "s.grd").read_text(), first)
             self.assertEqual(stats.grd_files, 0)
 
@@ -340,108 +348,8 @@ class RealMessageSetTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             tree = Path(tmp)
             (tree / "s.grdp").write_text(self.text, encoding="utf-8")
-            stats = substitution.substitute_tree(tree, fake_fp, workers=1)
+            stats = substitute_dir(tree)
             self.assertEqual(sorted(stats.kept), EXPECTED_KEPT)
-
-
-class InterruptedRunTest(unittest.TestCase):
-    """A run that dies part way must be repairable by running again."""
-
-    def setUp(self):
-        self._tmp = tempfile.TemporaryDirectory()
-        self.tree = Path(self._tmp.name)
-        self.grds = []
-        for i in range(3):
-            path = self.tree / "chrome" / "app" / f"s{i}.grd"
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(grd_with({f"IDS_ONE_{i}": f"About Helium {i}", f"IDS_TWO_{i}": f"Open Helium {i}"}))
-            self.grds.append(path)
-        self.xtb = self.tree / "chrome" / "app" / "resources" / "s_de.xtb"
-        self.xtb.parent.mkdir(parents=True)
-        ids = [fake_fp(_msg(f"About Helium {i}")) for i in range(3)] + [fake_fp(_msg(f"Open Helium {i}")) for i in range(3)]
-        self.xtb.write_text(
-            '<?xml version="1.0" encoding="utf-8"?>\n<translationbundle lang="de">\n'
-            + "".join(f'<translation id="{id_}">Über Helium {n}</translation>\n' for n, id_ in enumerate(ids))
-            + "</translationbundle>\n"
-        )
-        self.state = self.tree / ".fingerprints.json"
-
-    def tearDown(self):
-        self._tmp.cleanup()
-
-    def run_tree(self):
-        return substitution.substitute_tree(self.tree, fake_fp, workers=1, state_path=self.state)
-
-    def snapshot(self):
-        return {str(p.relative_to(self.tree)): p.read_text() for p in [*self.grds, self.xtb]}
-
-    def reference(self):
-        """What an uninterrupted run produces from the same starting files."""
-        saved = self.snapshot()
-        self.run_tree()
-        done = self.snapshot()
-        for rel, text in saved.items():
-            (self.tree / rel).write_text(text)
-        self.state.unlink(missing_ok=True)
-        return done
-
-    def crash_after(self, writes: int):
-        real = substitution._write_atomic
-        count = {"n": 0}
-
-        def flaky(path, text):
-            if count["n"] >= writes:
-                raise KeyboardInterrupt("simulated interrupt")
-            count["n"] += 1
-            real(path, text)
-
-        return mock.patch.object(substitution, "_write_atomic", flaky)
-
-    def test_interrupt_while_rewriting_grd_files(self):
-        expected = self.reference()
-        # Write 1 is the saved fingerprint map; write 2 is the first grd file.
-        with self.crash_after(2), self.assertRaises(KeyboardInterrupt):
-            self.run_tree()
-        done = [g for g in self.grds if "Aerie" in g.read_text()]
-        self.assertEqual(len(done), 1)
-        self.run_tree()
-        self.assertEqual(self.snapshot(), expected)
-
-    def test_interrupt_between_the_grd_and_xtb_stages(self):
-        expected = self.reference()
-        # Writes: 1 saved map + 3 grd files. The 5th write (first xtb) is the one that dies.
-        with self.crash_after(4), self.assertRaises(KeyboardInterrupt):
-            self.run_tree()
-        self.assertTrue(all("Aerie" in g.read_text() for g in self.grds))
-        self.assertNotIn("Aerie", self.xtb.read_text())
-        self.run_tree()
-        self.assertEqual(self.snapshot(), expected)
-
-    def test_the_fingerprint_map_is_saved_before_any_file_is_rewritten(self):
-        with self.crash_after(1), self.assertRaises(KeyboardInterrupt):  # dies on the first grd write
-            self.run_tree()
-        self.assertTrue(self.state.exists())
-        self.assertTrue(all("Aerie" not in g.read_text() for g in self.grds))
-
-    def test_no_temp_files_are_left_behind_and_files_are_never_half_written(self):
-        with self.crash_after(2), self.assertRaises(KeyboardInterrupt):
-            self.run_tree()
-        self.assertEqual([p.name for p in self.tree.rglob("*.aerie-tmp")], [])
-        for grd in self.grds:
-            ET.parse(grd)  # still well-formed, whether rewritten or not
-
-    def test_second_complete_run_changes_nothing(self):
-        self.run_tree()
-        first = self.snapshot()
-        self.run_tree()
-        self.assertEqual(self.snapshot(), first)
-
-    def test_atomic_write_replaces_the_file(self):
-        target = self.tree / "x.txt"
-        target.write_text("old")
-        substitution._write_atomic(target, "new")
-        self.assertEqual(target.read_text(), "new")
-        self.assertEqual(list(self.tree.glob("x.txt.*")), [])
 
 
 if __name__ == "__main__":
