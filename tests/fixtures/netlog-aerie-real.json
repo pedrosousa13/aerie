@@ -1,0 +1,27 @@
+{
+ "_note": "REAL. Aerie 0.21.1.1 on the train-1 Bench run (zero-traffic phases first_launch, idle, browse). Trimmed to URL request events with url, method, initiator and net_error only; no headers or cookies. Source: bench/train1/zt-accept/netlog.json.",
+ "constants": {"logEventTypes": {"REQUEST_ALIVE": 2, "URL_REQUEST_REDIRECTED": 137, "URL_REQUEST_START_JOB": 136}, "logSourceType": {"URL_REQUEST": 1}},
+ "events": [
+ {"phase":1,"source":{"id":12,"type":1},"time":"17172970","type":136,"params":{"initiator":"not an origin","method":"GET","url":"http://127.0.0.1:44635/index.html"}},
+ {"phase":2,"source":{"id":12,"type":1},"time":"17172979","type":136,"params":{}},
+ {"phase":1,"source":{"id":19,"type":1},"time":"17172992","type":136,"params":{"initiator":"http://127.0.0.1:44635","method":"GET","url":"http://127.0.0.1:44635/style.css"}},
+ {"phase":2,"source":{"id":19,"type":1},"time":"17172993","type":136,"params":{}},
+ {"phase":1,"source":{"id":25,"type":1},"time":"17173004","type":136,"params":{"initiator":"http://127.0.0.1:44635","method":"GET","url":"http://127.0.0.1:44635/favicon.ico"}},
+ {"phase":2,"source":{"id":25,"type":1},"time":"17173005","type":136,"params":{}},
+ {"phase":1,"source":{"id":31,"type":1},"time":"17232951","type":136,"params":{"initiator":"not an origin","method":"POST","url":"trk:https://helium-services-are-disabled.qjz9zk/"}},
+ {"phase":2,"source":{"id":31,"type":1},"time":"17232951","type":136,"params":{"net_error":-20}},
+ {"phase":2,"source":{"id":31,"type":1},"time":"17232951","type":2,"params":{"net_error":-20}},
+ {"phase":1,"source":{"id":32,"type":1},"time":"17533009","type":136,"params":{"initiator":"not an origin","method":"GET","url":"http://127.0.0.1:44635/index.html"}},
+ {"phase":2,"source":{"id":32,"type":1},"time":"17533012","type":136,"params":{}},
+ {"phase":1,"source":{"id":38,"type":1},"time":"17533018","type":136,"params":{"initiator":"http://127.0.0.1:44635","method":"GET","url":"http://127.0.0.1:44635/style.css"}},
+ {"phase":2,"source":{"id":38,"type":1},"time":"17533020","type":136,"params":{}},
+ {"phase":1,"source":{"id":44,"type":1},"time":"17533024","type":136,"params":{"initiator":"not an origin","method":"GET","url":"http://127.0.0.1:44635/browse-a.html"}},
+ {"phase":2,"source":{"id":44,"type":1},"time":"17533025","type":136,"params":{}},
+ {"phase":1,"source":{"id":50,"type":1},"time":"17533031","type":136,"params":{"initiator":"http://127.0.0.1:44635","method":"GET","url":"http://127.0.0.1:44635/style.css"}},
+ {"phase":2,"source":{"id":50,"type":1},"time":"17533033","type":136,"params":{}},
+ {"phase":1,"source":{"id":56,"type":1},"time":"17533036","type":136,"params":{"initiator":"not an origin","method":"GET","url":"http://127.0.0.1:44635/browse-b.html"}},
+ {"phase":2,"source":{"id":56,"type":1},"time":"17533038","type":136,"params":{}},
+ {"phase":1,"source":{"id":62,"type":1},"time":"17533042","type":136,"params":{"initiator":"http://127.0.0.1:44635","method":"GET","url":"http://127.0.0.1:44635/style.css"}},
+ {"phase":2,"source":{"id":62,"type":1},"time":"17533043","type":136,"params":{}}
+ ]
+}

@@ -1,0 +1,45 @@
+Aerie-Purpose: Make Blink skip legacy <link rel=prefetch> when the preloading pref (net.network_prediction_options) is Off, so the hardening promise "prefetch off" holds for link prefetch too.
+Aerie-Upstream-Area: chrome/browser/chrome_content_browser_client.cc (OverrideWebPreferences), third_party/blink/renderer/core/loader/preload_helper.cc (PrefetchIfNeeded)
+Aerie-Kind: hook
+
+Chromium gates speculation rules, prerender and preconnect on the pref in the browser
+process, but the renderer fetches <link rel=prefetch> with no check, so the Bench
+check hardening_prefetch saw a Sec-Purpose: prefetch request with the pref Off. The
+browser already sends WebPreferences::dns_prefetching_enabled to Blink, and Chrome
+never sets it (always true). This patch sets it from IsSomePreloadingEnabled and makes
+PrefetchIfNeeded honour it. No new plumbing.
+
+Side effects: renderer DNS prefetch (rel=dns-prefetch) is also off with the pref.
+IsSomePreloadingEnabled runs with should_ignore_saver_modes=false, so Data Saver and
+Battery Saver also turn link prefetch and renderer DNS prefetch off. The value is read
+when a tab's WebPreferences are computed, so a pref change reaches open tabs only when
+those are next recomputed (reload or restart).
+
+--- a/chrome/browser/chrome_content_browser_client.cc
++++ b/chrome/browser/chrome_content_browser_client.cc
+@@ -4728,6 +4728,12 @@
+ 
+   web_prefs->default_encoding = prefs->GetString(prefs::kDefaultCharset);
+ 
++  // Aerie: Blink reads this to skip <link rel=prefetch> (and DNS prefetch)
++  // when the preloading pref is Off.
++  web_prefs->dns_prefetching_enabled =
++      prefetch::IsSomePreloadingEnabled(*prefs) ==
++      content::PreloadingEligibility::kEligible;
++
+   web_prefs->dom_paste_enabled =
+       prefs->GetBoolean(prefs::kWebKitDomPasteEnabled);
+   web_prefs->javascript_can_access_clipboard =
+--- a/third_party/blink/renderer/core/loader/preload_helper.cc
++++ b/third_party/blink/renderer/core/loader/preload_helper.cc
+@@ -802,6 +802,10 @@
+   if (!params.rel.IsLinkPrefetch() || !params.href.IsValid() ||
+       !document.GetFrame())
+     return;
++  // Aerie: no link prefetch when preloading is Off (the browser clears this).
++  if (document.GetSettings() &&
++      !document.GetSettings()->GetDNSPrefetchingEnabled())
++    return;
+   UseCounter::Count(document, WebFeature::kLinkRelPrefetch);
+ 
+   ResourceRequest resource_request(params.href);

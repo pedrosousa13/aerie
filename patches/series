@@ -18,6 +18,8 @@ hardening/0003-hardening-settings-page.patch
 hardening/0004-hardening-settings-page-markup.patch
 hardening/0005-allow-webrtc-policy-in-settings.patch
 hardening/0006-lock-hardened-prefs-from-extensions.patch
+hardening/0007-full-https-only-warning-page.patch
+hardening/0008-no-link-prefetch-when-preloading-is-off.patch
 
 adblock/0001-hook-url-loader-factory.patch
 adblock/0002-pack-engine-resource.patch

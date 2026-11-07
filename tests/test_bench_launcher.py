@@ -42,6 +42,55 @@ class BuildArgvTest(unittest.TestCase):
         self.assertFalse(any("remote-debugging-port" in x for x in self.argv()))
 
 
+REAL_STDERR = Path(__file__).parent / "fixtures" / "real" / "browser-stderr-no-usable-sandbox.log"
+
+
+class FatalLineTest(unittest.TestCase):
+    """REAL_STDERR is the stderr of a real build that aborted at launch (train-1 run)."""
+
+    def test_real_fatal_line_is_cut_to_its_first_sentence(self):
+        self.assertEqual(launcher.fatal_line(REAL_STDERR), "No usable sandbox!")
+
+    def test_no_fatal_line(self):
+        with tempfile.TemporaryDirectory() as d:
+            quiet = Path(d) / "e.log"
+            quiet.write_text("[1:1:1107/1.1:WARNING:x.cc:1] hello\n")
+            self.assertIsNone(launcher.fatal_line(quiet))
+        self.assertIsNone(launcher.fatal_line(Path("/nonexistent/stderr.log")))
+        self.assertIsNone(launcher.fatal_line(None))
+
+    def test_the_last_fatal_line_wins(self):
+        with tempfile.TemporaryDirectory() as d:
+            log = Path(d) / "e.log"
+            log.write_text("[1:1:1107/1.1:FATAL:a.cc:1] first one. more\n[1:1:1107/1.2:FATAL:b.cc:2] Second one\n")
+            self.assertEqual(launcher.fatal_line(log), "Second one")
+
+    def test_browser_that_aborts_at_launch_reports_its_fatal_line(self):
+        from aerie_bench.cdp import CdpError
+        with tempfile.TemporaryDirectory() as d:
+            err = Path(d) / "browser-stderr.log"
+            code = ("import sys; sys.stderr.write(open(%r).read()); sys.exit(133)" % str(REAL_STDERR))
+            p = launcher.spawn([sys.executable, "-c", code], stderr_path=err)
+            with self.assertRaises(CdpError) as cm:
+                p.client.send("Target.createTarget", timeout=10)
+            p.kill()
+        msg = str(cm.exception)
+        self.assertIn("No usable sandbox!", msg)
+        self.assertIn("code 133", msg)
+        self.assertNotIn("9oo91esource", msg)
+
+    def test_pipe_closed_by_a_live_browser_has_no_death_reason(self):
+        from aerie_bench.cdp import CdpError
+        code = "import os,time; os.close(4); time.sleep(30)"
+        p = launcher.spawn([sys.executable, "-c", code])
+        try:
+            with self.assertRaises(CdpError) as cm:
+                p.client.send("Browser.getVersion", timeout=10)
+            self.assertNotIn("exited", str(cm.exception))
+        finally:
+            p.kill()
+
+
 class ProcessTest(unittest.TestCase):
     def test_clean_shutdown(self):
         p = launcher.spawn([sys.executable, str(FAKE)])

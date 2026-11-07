@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 
 from aerie_bench import checks
-from aerie_bench.checks.hardening import common, cookies, extension, https, isolation, prefetch, settings, webrtc
+from aerie_bench.checks.hardening import common, cookies, extension, fingerprint, https, isolation, prefetch, settings, webrtc
 from aerie_bench.session import CheckResult
 
 FIXTURES = Path(__file__).parent / "fixtures" / "hardening"
@@ -151,9 +151,37 @@ class ProbeScriptsAreValidJavascriptTest(unittest.TestCase):
         self.check(common.DEEP_JS + "return deepQueryAll(document, '.x').map(e => e.dataset.host)")
         self.check(common.DEEP_JS + settings.LIST_ROWS_JS % json.dumps(["a", "b"]))
         self.check("return " + settings.ATTACK_JS)
-        self.check("return " + prefetch.FETCH_CONTROLS_JS % (prefetch.CONTROL_PATH, 1234))
+        self.check("return " + prefetch.FETCH_CONTROLS_JS % (prefetch.CONTROL_PATH, prefetch.PROBE_ABORT_MS, 1234))
         probe_js = "return " + ("""(async (names) => { return names; })(%s)""" % json.dumps(["a"]))
         self.check(probe_js)
+
+    def test_prefetch_control_fetch_does_not_wait_for_the_silent_probe(self):
+        # The probe listener accepts and never answers. A fetch stub that only settles on abort
+        # models it: the script must still finish, and only because it aborts the fetch itself.
+        script = f"""
+globalThis.location = {{protocol: 'http:'}};
+const seen = [];
+globalThis.fetch = (url, opts = {{}}) => new Promise((resolve, reject) => {{
+  seen.push(url);
+  if (!url.includes('127.0.0.1')) return resolve({{}});
+  if (!opts.signal) return;  // would hang forever
+  opts.signal.addEventListener('abort', () => reject(new Error('aborted')));
+}});
+const started = Date.now();
+const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('hung')), 5000));
+Promise.race([{prefetch.FETCH_CONTROLS_JS % (prefetch.CONTROL_PATH, 100, 1234)}, timeout])
+  .then(ok => {{ console.log(JSON.stringify({{ok, seen, ms: Date.now() - started}})); }},
+        e => {{ console.log(JSON.stringify({{error: e.message}})); process.exit(1); }});
+"""
+        proc = subprocess.run(["node", "-e", script], capture_output=True, text=True, timeout=20)
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        out = json.loads(proc.stdout)
+        self.assertTrue(out["ok"])
+        self.assertEqual(out["seen"], [prefetch.CONTROL_PATH, "http://127.0.0.1:1234"])
+        self.assertGreaterEqual(out["ms"], 90)
+
+    def test_prefetch_abort_is_about_one_second(self):
+        self.assertEqual(prefetch.PROBE_ABORT_MS, 1000)
 
     def test_fixture_pages_and_extension_script(self):
         root = Path(extension.__file__).parents[2] / "fixtures" / "hardening"
@@ -169,6 +197,65 @@ class ProbeScriptsAreValidJavascriptTest(unittest.TestCase):
         text = (Path(extension.__file__).parents[2] / "fixtures" / "hardening" / "prefetch.html").read_text()
         rules = json.loads(re.search(r'<script type="speculationrules">(.*?)</script>', text, re.S).group(1))
         self.assertEqual(set(rules), {"prefetch", "prerender"})
+
+
+def real_case(check):
+    for _, case in load_cases():
+        if _ == check and case["name"].startswith("real_train1_"):
+            return case
+    raise AssertionError(f"no recorded real case for {check}")
+
+
+# Observed on a real build (train-1 Bench run, hardening-1/results.json).
+REAL_FINGERPRINT = real_case("hardening_fingerprinting")["obs"]
+
+
+class RealRecordingsTest(unittest.TestCase):
+    def test_twelve_checks_have_a_real_recording_that_is_judged_as_recorded(self):
+        got = {}
+        for check, case in load_cases():
+            if case["name"].startswith("real_train1_"):
+                got[check] = case
+                self.assertEqual(HARDENING[check].judge(case["obs"])[0], case["expect"], check)
+        self.assertEqual(len(got), 12)  # hardening_prefetch errored in that run: nothing to record
+
+    def test_recordings_hold_no_lan_address(self):
+        for _, case in load_cases():
+            self.assertNotIn("192.168.1.107", json.dumps(case))
+
+
+class FingerprintJudgeTest(unittest.TestCase):
+    def obs(self, **changes):
+        obs = json.loads(json.dumps(REAL_FINGERPRINT))
+        for path, value in changes.items():
+            kind, key = path.split("__")
+            obs[kind][key] = value
+        return obs
+
+    def test_real_audio_that_changes_every_render_passes(self):
+        status, detail = fingerprint.Fingerprinting.judge(self.obs())
+        self.assertEqual(status, "pass", detail)
+        self.assertIn("#38", detail)
+
+    def test_canvas_must_stay_stable_within_a_session(self):
+        obs = self.obs()
+        obs["a2"]["canvas"] = "00000000"
+        status, detail = fingerprint.Fingerprinting.judge(obs)
+        self.assertEqual(status, "fail")
+        self.assertIn("canvas changed", detail)
+
+    def test_audio_must_still_differ_across_sites_and_sessions(self):
+        obs = self.obs()
+        obs["b1"]["audio"] = obs["a1"]["audio"]
+        self.assertIn("audio is the same on two different sites", fingerprint.Fingerprinting.judge(obs)[1])
+        obs = self.obs()
+        obs["next_session"]["a"]["audio"] = obs["a1"]["audio"]
+        self.assertIn("audio is the same in a new browser session", fingerprint.Fingerprinting.judge(obs)[1])
+
+    def test_audio_equal_to_the_no_noise_control_fails(self):
+        obs = self.obs()
+        obs["a2"]["audio"] = obs["control"]["a"]["audio"]
+        self.assertIn("equals the no-noise control", fingerprint.Fingerprinting.judge(obs)[1])
 
 
 class FakeFixtures:

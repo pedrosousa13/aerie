@@ -34,6 +34,8 @@ def _ui_label(c: dict) -> str:
 
 def _control_section(c: dict) -> list[str]:
     out = [f"### {c['title']}", "", c["summary"], ""]
+    for note in c.get("notes", []):
+        out += [note, ""]
     out.append(f"- Default: {c['default']}")
     out.append(f"- Default provided by: {PROVIDED_LABEL[c['provided_by']]}")
     out.append("- Where the default is set:")

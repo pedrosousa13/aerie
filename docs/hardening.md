@@ -80,6 +80,10 @@ WebRTC only uses the default public network interface, so a page cannot read the
 
 Speculative loads are off: link prefetch, prerender, preconnect, DNS prefetch and speculation rules. rel=preload and modulepreload are ordinary page loads and are not touched.
 
+Data Saver and Battery Saver also turn link prefetch and renderer DNS prefetch off, even when the setting is not Off (the check runs IsSomePreloadingEnabled with should_ignore_saver_modes=false).
+
+A change of the setting reaches open tabs only when their WebPreferences are next recomputed (reload or restart).
+
 - Default: Off.
 - Default provided by: ungoogled-chromium (through Helium)
 - Where the default is set:
@@ -88,6 +92,8 @@ Speculative loads are off: link prefetch, prerender, preconnect, DNS prefetch an
   - `chrome/browser/preloading/preloading_prefs.h`
   - `chrome/browser/preloading/preloading_prefs.cc`
 - Preference: `net.network_prediction_options` (default `2`)
+- Aerie patches:
+  - `patches/hardening/0008-no-link-prefetch-when-preloading-is-off.patch`
 - Settings row: Dropdown
 - Cost: Page loads are slightly slower, because the browser no longer opens connections or fetches pages ahead of a click.
 - Bench checks: `hardening_prefetch`
@@ -134,6 +140,7 @@ Every http:// page load is upgraded to https://. If the upgrade fails, a warning
 - Default provided by: Aerie
 - Where the default is set:
   - patches/hardening/0001-default-https-only-mode.patch: the default of the https_only_mode_enabled pref in chrome/browser/ui/browser_ui_prefs.cc
+  - patches/hardening/0007-full-https-only-warning-page.patch: kHttpsFirstDialogUi is off by default in components/security_interstitials/core/features.cc, so the failed upgrade shows the warning page and not a native dialog
 - Upstream code:
   - chrome/browser/ssl/https_upgrades_interceptor.cc (net::IsLocalhost exemption, strict mode)
   - chrome/browser/ssl/generated_https_first_mode_pref.cc (settings radio group)
@@ -144,6 +151,7 @@ Every http:// page load is upgraded to https://. If the upgrade fails, a warning
   - `patches/hardening/0002-http-exceptions-settings-handler.patch`
   - `patches/hardening/0003-hardening-settings-page.patch`
   - `patches/hardening/0004-hardening-settings-page-markup.patch`
+  - `patches/hardening/0007-full-https-only-warning-page.patch`
 - Settings row: Dropdown
 - Cost: Sites and devices that only speak http (router and NAS admin pages, printers, old intranet apps, captive portals) show a warning page first. The exception is one click and lasts 15 days from the last visit.
 - Bench checks: `hardening_https_only`, `hardening_localhost_dev`, `hardening_http_exception`

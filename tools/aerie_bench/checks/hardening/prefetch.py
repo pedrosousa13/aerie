@@ -13,9 +13,17 @@ CONTROL_PATH = HINT_PREFIX + "control.txt"
 PRELOADING_ON_PREFS = {"net": {"network_prediction_options": 0}}  # Standard preloading
 OBSERVE_SECONDS = 5.0
 
+# The TCP listener accepts and never answers, so its fetch is aborted after
+# PROBE_ABORT_MS. Waiting for a response would hit the 30 s DevTools timeout.
+PROBE_ABORT_MS = 1000
+
 FETCH_CONTROLS_JS = """(async (probe) => {
   await fetch('%s').catch(() => {});
-  await fetch(location.protocol + '//127.0.0.1:' + probe, {mode: 'no-cors'}).catch(() => {});
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), %d);
+  await fetch(location.protocol + '//127.0.0.1:' + probe, {mode: 'no-cors', signal: abort.signal})
+    .catch(() => {});
+  clearTimeout(timer);
   return true;
 })(%d)"""
 
@@ -28,7 +36,7 @@ def observe_hints(session: Session) -> dict:
         hits = [r for r in session.fixtures.snapshot()
                 if r["host"] == host and r["path"].startswith(HINT_PREFIX) and not r["path"].startswith(CONTROL_PATH)]
         before = probe.connections
-        session.evaluate(FETCH_CONTROLS_JS % (CONTROL_PATH, probe.port), await_promise=True)
+        session.evaluate(FETCH_CONTROLS_JS % (CONTROL_PATH, PROBE_ABORT_MS, probe.port), await_promise=True)
         time.sleep(1.0)
         control_hits = [r for r in session.fixtures.snapshot() if r["path"].startswith(CONTROL_PATH)]
         return {"hint_hits": [f"{r['path']} purpose={r['sec_purpose'] or r['purpose'] or '-'}" for r in hits],

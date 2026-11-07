@@ -207,6 +207,33 @@
     },
     "hits_after_click": 0
    }
+  },
+  {
+   "name": "real_train1_blank_native_dialog_not_the_warning_page",
+   "expect": "fail",
+   "detail_contains": "expected the HTTPS-only warning page, got net_error",
+   "real": "Recorded on a real Aerie build, train-1 Bench run (bench/train1/hardening-1/results.json); LAN address scrubbed.",
+   "obs": {
+    "host": "plain.bench.test:43237",
+    "first": {
+     "url": "http://plain.bench.test:43237/index.html",
+     "outcome": "net_error",
+     "error": "net::ERR_BLOCKED_BY_CLIENT",
+     "state": {
+      "title": "",
+      "href": "chrome-error://chromewebdata/",
+      "interstitial": false,
+      "type": null,
+      "proceed_visible": false
+     }
+    },
+    "hits_before_click": 0,
+    "click": {
+     "clicked": false,
+     "loaded": false
+    },
+    "hits_after_click": 0
+   }
   }
  ]
 }

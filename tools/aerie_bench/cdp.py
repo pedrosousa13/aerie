@@ -54,6 +54,8 @@ class CdpClient:
         self._responses: dict[int, dict] = {}
         self._events: deque[dict] = deque()
         self._closed = False
+        # Set by the launcher: says why the browser went away (its fatal stderr line).
+        self.closed_hint: Callable[[], str | None] | None = None
         self._stop = threading.Event()
         self._write_lock = threading.Lock()
         self._thread = threading.Thread(target=self._read_loop, daemon=True)
@@ -103,7 +105,7 @@ class CdpClient:
         with self._lock:
             while msg_id not in self._responses:
                 if self._closed:
-                    raise CdpError(f"{method}: browser closed the pipe before replying")
+                    raise CdpError(f"{method}: browser closed the pipe before replying{self._why()}")
                 left = deadline - time.monotonic()
                 if left <= 0:
                     raise CdpTimeout(f"{method}: no reply within {timeout}s")
@@ -113,6 +115,13 @@ class CdpClient:
             err = resp["error"]
             raise CdpError(f"{method}: {err.get('message')} (code {err.get('code')})")
         return resp.get("result", {})
+
+    def _why(self) -> str:
+        try:
+            hint = self.closed_hint() if self.closed_hint else None
+        except Exception:  # a hint must never hide the real error
+            hint = None
+        return f": {hint}" if hint else ""
 
     def wait_event(self, method: str, session_id: str | None = None, timeout: float = 30.0,
                    predicate: Callable[[dict], bool] | None = None) -> dict:
@@ -134,7 +143,7 @@ class CdpClient:
                     self._events.remove(ev)
                     return ev
                 if self._closed:
-                    raise CdpError(f"{method}: browser closed the pipe while waiting")
+                    raise CdpError(f"{method}: browser closed the pipe while waiting{self._why()}")
                 left = deadline - time.monotonic()
                 if left <= 0:
                     raise CdpTimeout(f"event {method}: not seen within {timeout}s")

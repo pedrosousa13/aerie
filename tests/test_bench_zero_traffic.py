@@ -32,23 +32,25 @@ class EvaluateTest(unittest.TestCase):
         self.assertIn("update.googleapis.com", v.reason)
 
     def test_helium_baseline_fails_on_imput_hosts(self):
-        v = zt.evaluate(records("helium-baseline"), self.dl)
+        v = zt.evaluate(records("helium-real"), self.dl)
         self.assertEqual(v.status, "fail")
         self.assertEqual({h["group"] for h in v.hits}, {"helium"})
         self.assertEqual({h["host"] for h in v.hits}, {"services.helium.imput.net"})
-        self.assertEqual(len(v.hits), 5)
-        self.assertEqual(len(v.blocked), 1)
+        self.assertEqual(len(v.hits), 10)  # the real train-1 baseline run
+        self.assertEqual(len(v.blocked), 0)
 
     def test_clean_run_passes(self):
-        v = zt.evaluate(records("aerie-clean"), self.dl)
-        self.assertEqual((v.status, v.hits, v.blocked), ("pass", [], []))
-        self.assertEqual(v.fixture_requests, 2)
+        v = zt.evaluate(records("aerie-real"), self.dl)  # real Aerie run: 9 fixture requests, 1 refused
+        self.assertEqual((v.status, v.hits), ("pass", []))
+        self.assertEqual(v.fixture_requests, 9)
+        self.assertEqual(len(v.blocked), 1)
 
     def test_blocked_dummy_host_attempt_is_reported_but_passes_unless_strict(self):
-        recs = records("aerie-blocked-attempt")
+        recs = records("aerie-real")
         v = zt.evaluate(recs, self.dl)
         self.assertEqual(v.status, "pass")
-        self.assertEqual([b["host"] for b in v.blocked], ["helium-services-are-disabled.qjz9zk"])
+        self.assertEqual([b["url"] for b in v.blocked], ["trk:https://helium-services-are-disabled.qjz9zk/"])
+        self.assertEqual([b["net_error"] for b in v.blocked], [-20])
         strict = zt.evaluate(recs, self.dl, strict=True)
         self.assertEqual(strict.status, "fail")
         self.assertIn("blocked", strict.reason)
@@ -59,7 +61,7 @@ class EvaluateTest(unittest.TestCase):
         self.assertIn("no fixture page request", v.reason)
 
     def test_other_external_hosts_are_listed_but_do_not_fail(self):
-        recs = records("aerie-clean") + [
+        recs = records("aerie-real") + [
             {"source_id": 90, "time": "9", "url": "https://duckduckgo.com/?q=x", "method": "GET", "scheme": "https",
              "host": "duckduckgo.com", "initiator": None, "net_error": -105, "external": True}]
         v = zt.evaluate(recs, self.dl)
@@ -67,17 +69,16 @@ class EvaluateTest(unittest.TestCase):
         self.assertEqual(v.other_hosts, ["duckduckgo.com"])
 
     def test_phases_split_by_cumulative_request_counts(self):
-        recs = records("helium-baseline")  # 2 loopback, then 5 hits, then 1 blocked
-        v = zt.evaluate(recs, self.dl, phase_ends={"first_launch": 3, "idle": 6, "browse": 99})
-        by_phase = [(h["host"], h["phase"]) for h in v.hits]
-        self.assertEqual([p for _, p in by_phase], ["first_launch", "idle", "idle", "idle", "browse"])
-        self.assertEqual(v.blocked[0]["phase"], "browse")
+        recs = records("helium-real")  # 19 requests; the real run's phase ends were 10, 13 and 20
+        v = zt.evaluate(recs, self.dl, phase_ends={"first_launch": 10, "idle": 13, "browse": 20})
+        by_phase = [h["phase"] for h in v.hits]
+        self.assertEqual(by_phase, ["first_launch"] * 7 + ["idle"] * 3)  # as in the train-1 report
 
     def test_url_rules_apply_to_full_urls(self):
         rec = {"source_id": 1, "time": "1", "method": "GET", "scheme": "https", "host": "raw.githubusercontent.com",
                "url": "https://raw.githubusercontent.com/imputnet/uBlock/main/assets.json", "initiator": None,
                "net_error": None, "external": True}
-        v = zt.evaluate([rec] + records("aerie-clean"), self.dl)
+        v = zt.evaluate([rec] + records("aerie-real"), self.dl)
         self.assertEqual(v.status, "fail")
         self.assertEqual(v.hits[0]["group"], "helium")
 
@@ -87,7 +88,7 @@ class EvaluateTest(unittest.TestCase):
                "url": "https://example.org/go",
                "urls": ["https://example.org/go", "https://raw.githubusercontent.com/imputnet/uBlock/main/assets.json"],
                "initiator": None, "net_error": None, "external": True}
-        v = zt.evaluate([rec] + records("aerie-clean"), self.dl)
+        v = zt.evaluate([rec] + records("aerie-real"), self.dl)
         self.assertEqual(v.status, "fail")
         self.assertEqual(v.hits[0]["group"], "helium")
         self.assertIn("raw.githubusercontent.com", v.hits[0]["url"])
@@ -110,17 +111,17 @@ class LookupTest(unittest.TestCase):
         self.assertEqual(v.other_hosts, ["duckduckgo.com"])
 
     def test_a_host_seen_as_request_and_lookup_is_one_hit(self):
-        recs = records("helium-baseline")
+        recs = records("helium-real")
         v = zt.evaluate(recs, self.dl, lookups=[{"host": "services.helium.imput.net", "event": "x", "source_type": "y"}])
-        self.assertEqual(len(v.hits), 5)
+        self.assertEqual(len(v.hits), 10)
 
     def test_ip_and_loopback_lookups_are_not_other_hosts(self):
-        v = zt.evaluate(records("aerie-clean"), self.dl, lookups=[
+        v = zt.evaluate(records("aerie-real"), self.dl, lookups=[
             {"host": "127.0.0.1", "event": "x", "source_type": "y"}, {"host": "localhost", "event": "x", "source_type": "y"}])
         self.assertEqual(v.other_hosts, [])
 
     def test_dummy_host_lookups_are_not_hits(self):
-        v = zt.evaluate(records("aerie-clean"), self.dl,
+        v = zt.evaluate(records("aerie-real"), self.dl,
                         lookups=[{"host": "helium-services-are-disabled.qjz9zk", "event": "x", "source_type": "y"}])
         self.assertEqual(v.status, "pass")
 

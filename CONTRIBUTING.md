@@ -75,7 +75,11 @@ If a prepared source tree exists in the build root, the command also tries Aerie
 The command ends with the source gates: checks on the patched sparse tree that
 need no build. They fail if a Helium hostname is back in source (outside a short
 allowlist with a reason for each path), if the default search list changed, or if
-secure DNS, crash upload or Helium services are no longer off. The same gates
+search suggestions, secure DNS, crash upload or Helium services are no longer off, if the
+FedCM DNS resolver prefix is no longer empty, if `kHttpsFirstDialogUi` is on again
+(the full HTTPS-only warning page needs it off), or if link prefetch no longer follows
+the preloading pref (`dns_prefetching_enabled` set in `OverrideWebPreferences` and
+honoured by `PrefetchIfNeeded`). The same gates
 run on a real tree with `./aerie patches gates [--tree DIR]`. They live in
 `tools/aerie_build/treegate.py`; the endpoints they protect are listed in
 [docs/network-endpoints.md](docs/network-endpoints.md).
