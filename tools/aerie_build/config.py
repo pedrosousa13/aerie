@@ -112,7 +112,7 @@ class BuildPaths:
             self.tmp,
             self.pycache,
             self.logs,
-            *(self.xdg / d for d in ("cache", "config", "data", "state")),
+            *(self.xdg / d for d in ("cache", "config", "data", "state", "runtime")),
         ]
 
 
@@ -129,6 +129,7 @@ def isolated_env(paths: BuildPaths, base: Mapping[str, str]) -> dict[str, str]:
         XDG_CONFIG_HOME=str(paths.xdg / "config"),
         XDG_DATA_HOME=str(paths.xdg / "data"),
         XDG_STATE_HOME=str(paths.xdg / "state"),
+        XDG_RUNTIME_DIR=str(paths.xdg / "runtime"),
         PYTHONPYCACHEPREFIX=str(paths.pycache),
         PIP_CACHE_DIR=str(paths.xdg / "cache" / "pip"),
         CCACHE_DIR=str(paths.ccache),

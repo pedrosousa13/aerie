@@ -105,6 +105,7 @@ class IsolatedEnvTest(unittest.TestCase):
             "XDG_CONFIG_HOME",
             "XDG_DATA_HOME",
             "XDG_STATE_HOME",
+            "XDG_RUNTIME_DIR",
             "PYTHONPYCACHEPREFIX",
             "PIP_CACHE_DIR",
             "CCACHE_DIR",
