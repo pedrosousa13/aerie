@@ -1,0 +1,18 @@
+Aerie-Purpose: Let the settings page read and write the Widevine opt-in, which lives in Local State.
+Aerie-Upstream-Area: chrome/browser/extensions/api/settings_private/prefs_util.cc (allowlist)
+Aerie-Kind: hook
+
+settingsPrivate finds a pref in the profile first and in Local State second
+(PrefsUtil::FindServiceForPref), so one allowlist line is enough. The name is a string
+literal, the same as aerie_widevine::kWidevineEnabled in components/aerie_widevine, to
+keep the settings code free of a new dependency. A test in tests/ compares the two.
+
+--- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
++++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
+@@ -476,4 +476,6 @@
+   (*s_allowlist)[::prefs::kWebRTCIPHandlingPolicy] =
+       settings_api::PrefType::kString;
++  // Aerie: the Widevine opt-in (Local State).
++  (*s_allowlist)["aerie.widevine.enabled"] = settings_api::PrefType::kBoolean;
+ 
+   // Privacy page

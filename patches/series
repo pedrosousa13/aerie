@@ -41,3 +41,5 @@ adblock/0011-hook-protection-navigation-throttle.patch
 # Widevine is opt-in (#7). The settings toggle is a row of the hardening table (controls.json).
 widevine/0001-register-widevine-only-when-opted-in.patch
 widevine/0002-update-widevine-from-google-when-opted-in.patch
+widevine/0003-allow-widevine-pref-in-settings.patch
+widevine/0004-ask-before-the-first-drm-request.patch

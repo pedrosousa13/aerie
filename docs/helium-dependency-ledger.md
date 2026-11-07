@@ -44,6 +44,7 @@ patch adds, or assumes behavior that patch sets.
 | build layer `branding` (`branding/resources.txt`) | none | Replaces the files that Helium's resource step (`helium-chromium/resources/helium_resources.txt`, `generate_resources.txt`) copied, at the same destinations. | `copy`: the same list works on a base without Helium's step if the destinations exist. |
 | `patches/widevine/0001-register-widevine-only-when-opted-in.patch` | `helium-chromium/patches/helium/core/component-updates.patch` | Opt-in only works because Helium's allowlist in `component_installer.cc` keeps the Widevine id (`oimompecagnajdejgnnjijobebaeigek`); without it the updater ignores the Widevine registration. | `copy`: lift the patch, or allow that id in the base's component allowlist. |
 | `patches/widevine/0002-update-widevine-from-google-when-opted-in.patch` | `helium-chromium/patches/helium/core/component-updates.patch` | Edits the `UpdateUrl()` and `PingUrl()` lines that patch changes in `chrome_component_updater_configurator.cc`. | `rewrite`: on ungoogled-chromium or plain Chromium the configurator already points at Google; keep only the opt-in gate in `registration.cc`. |
+| `patches/widevine/0003-allow-widevine-pref-in-settings.patch`, `patches/widevine/0004-ask-before-the-first-drm-request.patch` | none | Chromium code only (the `settings_private` allowlist, the key system support hook and the infobar enum). | `copy` as is |
 
 ## Helium patches that Aerie drops or replaces
 
