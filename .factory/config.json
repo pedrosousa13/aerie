@@ -1,0 +1,6 @@
+{
+  "stampVersion": "3.0.0",
+  "tracker": { "kind": "github", "repo": "pedrosousa13/aerie" },
+  "merge": { "policy": "squash" },
+  "attackSurface": true
+}
