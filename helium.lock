@@ -24,6 +24,15 @@ platform_commit = "4da5fdc8f90175592f62b6a3f62e90a65e171789"
 "onboarding-page-202610161403.tar.gz" = "b35de6deb79e0864f53a0a70ea8819cecd46843a3b0518a20dd6a6b7d26900ac"
 "ublock-origin-1.75.4.zip" = "5b5459231996a67de3d76b24260866227204902656cba193195da5bd95622aee"
 
+# Official Chromium release tarball for the same Chromium version. Used only
+# when Helium's tarball host is unreachable (see docs/helium-fallback.md).
+# sha256 is copied from the published .hashes file next to the tarball. The
+# build refuses the tarball if the published value and this one differ.
+[fallback.chromium]
+url = "https://commondatastorage.googleapis.com/chromium-browser-official/chromium-157.0.8103.38.tar.xz"
+hashes_url = "https://commondatastorage.googleapis.com/chromium-browser-official/chromium-157.0.8103.38.tar.xz.hashes"
+sha256 = "01dbaa7a2ccdbe2092e190147a5fc28760ba3158816fb9eb2f92ecef64bda30a"
+
 # Build tools Aerie installs into the build root. Each is checked against its
 # publisher's signature before use.
 #

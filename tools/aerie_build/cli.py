@@ -9,7 +9,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import ccache, config, lock, patch_check, pipeline, prune
+from . import ccache, config, fallback, lock, patch_check, pipeline, prune
 
 REPO = Path(__file__).resolve().parents[2]
 LOCK_PATH = REPO / "helium.lock"
@@ -34,6 +34,7 @@ def _context(args: argparse.Namespace) -> pipeline.Context:
         pins=lock.load_lock(LOCK_PATH),
         cache_size=size,
         jobs=getattr(args, "jobs", None),
+        source_mode=fallback.resolve_mode(getattr(args, "source", None), os.environ),
         log_path=paths.logs / f"build-{stamp}.log",
     )
 
@@ -49,7 +50,9 @@ def cmd_prune(args: argparse.Namespace) -> int:
     ctx = _context(args)
     plan = prune.plan_prune(
         ctx.paths,
-        pinned_downloads=set(ctx.pins.downloads) | {Path(ctx.pins.tools["ccache"]["url"]).name},
+        pinned_downloads=set(ctx.pins.downloads)
+        | {Path(ctx.pins.tools["ccache"]["url"]).name}
+        | ({Path(ctx.pins.fallback["url"]).name} if ctx.pins.fallback else set()),
         current_tree=ctx.tree_name,
         current_tools=ctx.current_tools(),
     )
@@ -100,6 +103,12 @@ def main(argv: list[str] | None = None) -> int:
         help=f"compiler cache cap, e.g. 30G (env {config.ENV_CACHE_SIZE}; default {config.DEFAULT_CACHE_SIZE})",
     )
     p_build.add_argument("-j", "--jobs", type=int, help="parallel build jobs (default: autoninja's choice)")
+    p_build.add_argument(
+        "--source",
+        choices=fallback.SOURCE_MODES,
+        help=f"where Chromium source comes from (env {fallback.ENV_SOURCE}; default auto: Helium's tarballs, "
+        "or the official Chromium tarball if Helium's host is unreachable)",
+    )
     p_build.add_argument("--clean", action="store_true", help="delete the source tree first and start over")
     p_build.set_defaults(func=cmd_build)
 
@@ -132,6 +141,6 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         return args.func(args)
-    except (config.ConfigError, lock.VerificationError, pipeline.BuildError) as exc:
+    except (config.ConfigError, lock.VerificationError, pipeline.BuildError, fallback.FetchError) as exc:
         print(f"aerie: error: {exc}", file=sys.stderr)
         return 1
