@@ -65,6 +65,7 @@ class FetchSourcesTest(unittest.TestCase):
             cache_size="30G",
             jobs=None,
             log_path=self.paths.logs / "test.log",
+            source_mode="helium",
         )
         self.log = pipeline.Logger(self.ctx.log_path)
         self.ran = []

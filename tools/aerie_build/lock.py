@@ -35,6 +35,8 @@ class Lock:
     platform_commit: str
     downloads: dict[str, str] = field(default_factory=dict)
     tools: dict[str, dict] = field(default_factory=dict)
+    # Official Chromium tarball used when Helium's tarball host is down.
+    fallback: dict[str, str] = field(default_factory=dict)
 
 
 def _check_digest(name: str, digest: str) -> str:
@@ -53,6 +55,12 @@ def load_lock(path: Path) -> Lock:
     tools = data.get("tools", {})
     for name, tool in tools.items():
         tool["minisign_key"] = _load_tool_key(name, tool, Path(path).parent)
+    fallback = dict(data.get("fallback", {}).get("chromium", {}))
+    if fallback:
+        fallback["sha256"] = _check_digest("fallback.chromium", fallback.get("sha256"))
+        for key in ("url", "hashes_url"):
+            if not str(fallback.get(key, "")).startswith("https://"):
+                raise VerificationError(f"fallback.chromium.{key} must be an https URL")
     return Lock(
         helium_version=helium["version"],
         chromium_version=helium["chromium_version"],
@@ -62,6 +70,7 @@ def load_lock(path: Path) -> Lock:
         platform_commit=helium["platform_commit"],
         downloads=downloads,
         tools=tools,
+        fallback=fallback,
     )
 
 

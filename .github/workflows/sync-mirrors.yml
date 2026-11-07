@@ -1,0 +1,36 @@
+name: Sync Helium mirrors
+
+# Copies every branch and tag of imputnet/helium and imputnet/helium-linux into
+# the private mirrors pedrosousa13/helium-mirror and
+# pedrosousa13/helium-linux-mirror. See docs/helium-fallback.md.
+on:
+  schedule:
+    - cron: "17 3 * * *" # daily, 03:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-mirrors
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          submodules: false
+      - name: Sync mirrors
+        env:
+          # Fine-grained token, one-time setup: docs/helium-fallback.md.
+          MIRROR_TOKEN: ${{ secrets.MIRROR_PUSH_TOKEN }}
+        run: |
+          if [ -z "$MIRROR_TOKEN" ]; then
+            echo "::error::secret MIRROR_PUSH_TOKEN is not set; see docs/helium-fallback.md"
+            exit 1
+          fi
+          tools/sync-mirrors.sh

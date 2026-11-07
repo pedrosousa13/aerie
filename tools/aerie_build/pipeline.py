@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Sequence
 
-from . import ccache, helium, lock, patch_check, patches, substitution
+from . import ccache, fallback, helium, lock, patch_check, patches, substitution
 from .config import BuildPaths, isolated_env
 
 ARCH = "x64"
@@ -40,6 +40,8 @@ class Context:
     cache_size: str
     jobs: int | None
     log_path: Path
+    source_mode: str = "auto"
+    opener: fallback.Opener = fallback.default_opener
 
     @property
     def core(self) -> Path:
@@ -230,33 +232,102 @@ def _unpack(ctx: Context, log: Logger, env: dict, inis: list[Path]) -> None:
               "-c", ctx.paths.downloads, ctx.tree], env)
 
 
-def fetch_sources(ctx: Context, log: Logger, env: dict) -> None:
-    """Retrieve and verify every download on every build; unpack only once.
-
-    The pinned sha256 check runs even when the tree is already unpacked, so a
-    tarball that changed on disk since the last build is caught (hashing the
-    ~3 GB of tarballs takes seconds).
-    """
-    groups = [
-        [ctx.core / "downloads.ini", ctx.platform / "downloads.ini"],
-        [ctx.core / "deps.ini"],
-    ]
-    for inis in groups:
-        _retrieve(ctx, log, env, inis)
-    names = [n for inis in groups for n in lock.required_downloads(inis, ctx.pins.chromium_version)]
+def _verify_downloads(ctx: Context, log: Logger, env: dict, inis: list[Path]) -> None:
+    """Retrieve what is missing and check every file against helium.lock. Unpacks nothing."""
+    _retrieve(ctx, log, env, inis)
+    names = lock.required_downloads(inis, ctx.pins.chromium_version)
     log(f"checking {len(names)} download(s) against helium.lock")
     lock.verify_downloads(ctx.pins, ctx.paths.downloads, names)
 
-    stamp = ctx.tree / ".downloaded.stamp"
-    if stamp.exists():
-        log("sources already unpacked")
-        return
+
+def _helium_inis(ctx: Context) -> list[Path]:
+    return [ctx.core / "downloads.ini", ctx.platform / "downloads.ini"]
+
+
+def _deps_inis(ctx: Context) -> list[Path]:
+    return [ctx.core / "deps.ini"]
+
+
+def fetch_official_sources(ctx: Context, log: Logger, env: dict) -> None:
+    """Unpack the official Chromium tarball in place of Helium's two prepared layers."""
+    if not ctx.pins.fallback:
+        raise BuildError("helium.lock has no [fallback.chromium] entry")
+    if shutil.which("xz") is None:
+        raise BuildError("missing host tool: xz (needed to unpack the official Chromium tarball)")
+    _verify_downloads(ctx, log, env, _deps_inis(ctx))
+    tarball = fallback.fetch_official(ctx.pins.fallback, ctx.paths.downloads, ctx.opener, log)
+    run(log, ["tar", "-xJf", tarball, "-C", ctx.tree, "--strip-components=1"], env)
+    (ctx.tree / fallback.SOURCE_MARKER).write_text("official\n")
+    _unpack(ctx, log, env, _deps_inis(ctx))
+
+
+def _unpacked_source(ctx: Context) -> str:
+    marker = ctx.tree / fallback.SOURCE_MARKER
+    # Trees unpacked before the marker existed came from Helium's tarballs.
+    return marker.read_text().strip() if marker.is_file() else "helium"
+
+
+def _fetch_helium_sources(ctx: Context, log: Logger, env: dict) -> None:
+    # Everything is verified before anything is unpacked.
+    _verify_downloads(ctx, log, env, _helium_inis(ctx))
+    _verify_downloads(ctx, log, env, _deps_inis(ctx))
+    _unpack(ctx, log, env, _helium_inis(ctx))
+    _unpack(ctx, log, env, _deps_inis(ctx))
+    (ctx.tree / fallback.SOURCE_MARKER).write_text("helium\n")
+
+
+def _fresh_tree(ctx: Context, log: Logger) -> None:
     if ctx.tree.exists():
         log(f"removing partly unpacked tree {ctx.tree}")
         shutil.rmtree(ctx.tree)
     ctx.tree.mkdir(parents=True)
-    for inis in groups:
-        _unpack(ctx, log, env, inis)
+
+
+def _reverify_unpacked(ctx: Context, log: Logger, env: dict, have: str) -> None:
+    """Check the downloads again on every build, even when the tree is already unpacked.
+
+    A tarball that changed on disk since the last build is caught (hashing the
+    ~3 GB of tarballs takes seconds).
+    """
+    if have == "official":
+        name = ctx.pins.fallback["url"].rsplit("/", 1)[-1] if ctx.pins.fallback else None
+        if name and (ctx.paths.downloads / name).is_file():
+            fallback.fetch_official(ctx.pins.fallback, ctx.paths.downloads, ctx.opener, log)
+    else:
+        _verify_downloads(ctx, log, env, _helium_inis(ctx))
+    _verify_downloads(ctx, log, env, _deps_inis(ctx))
+
+
+def fetch_sources(ctx: Context, log: Logger, env: dict) -> None:
+    stamp = ctx.tree / ".downloaded.stamp"
+    if stamp.exists():
+        have = _unpacked_source(ctx)
+        if ctx.source_mode in ("helium", "official") and have != ctx.source_mode:
+            raise BuildError(
+                f"--source {ctx.source_mode} was requested, but {ctx.tree} was unpacked from the "
+                f"{have} source. Run ./aerie build --clean --source {ctx.source_mode} to fetch and "
+                "unpack again (this discards the tree), or drop --source to keep it."
+            )
+        _reverify_unpacked(ctx, log, env, have)
+        log(f"sources already unpacked ({have})")
+        return
+    source = fallback.choose_source(ctx.source_mode, ctx.pins.chromium_version, ctx.opener)
+    if source == "official" and ctx.source_mode == "auto":
+        log("WARNING: Helium's tarball host is unreachable; falling back to the official Chromium tarball")
+    _fresh_tree(ctx, log)
+    if source == "official":
+        fetch_official_sources(ctx, log, env)
+    else:
+        try:
+            _fetch_helium_sources(ctx, log, env)
+        except BuildError as exc:
+            if ctx.source_mode != "auto":
+                raise
+            log(f"WARNING: Helium's tarball download failed ({exc}); falling back to the official Chromium tarball")
+            source = "official"
+            _fresh_tree(ctx, log)
+            fetch_official_sources(ctx, log, env)
+    log(f"source: {source}")
     stamp.touch()
 
 
@@ -330,6 +401,11 @@ def prepare_tree(ctx: Context, log: Logger, env: dict) -> None:
 
 
 def configure(ctx: Context, log: Logger, env: dict) -> None:
+    marker = ctx.tree / fallback.SOURCE_MARKER
+    if marker.is_file() and marker.read_text().strip() == "official":
+        missing = fallback.missing_toolchain(ctx.tree)
+        if missing:
+            raise BuildError(fallback.toolchain_message(missing))
     ctx.out_dir.mkdir(parents=True, exist_ok=True)
     args = helium.gn_args(
         (ctx.core / "flags.gn").read_text(),

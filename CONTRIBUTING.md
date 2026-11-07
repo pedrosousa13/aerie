@@ -61,3 +61,35 @@ To protect another span, add a rule to `RULES` in that file and add a test. A tr
 ### Changing the series of an existing tree
 
 `./aerie build` records each Aerie patch it applies, with a hash, in `.aerie-patches.json` in the source tree. New patches at the end of the series apply on top of an existing tree. A patch that was edited, removed or reordered after it was applied needs `./aerie build --clean`.
+
+## Helium dependency ledger
+
+Every Aerie patch is a change on top of Helium. If it only applies, builds or
+works because a Helium patch is there, record that in
+[docs/helium-dependency-ledger.md](docs/helium-dependency-ledger.md) **in the
+same pull request**. A pull request that adds such a patch without a ledger
+row is not ready to merge.
+
+Add a row when your patch:
+
+- edits lines that a Helium patch added or changed;
+- calls code, flags or resources that a Helium patch adds;
+- assumes a setting or behavior that a Helium patch sets; or
+- changes a Helium-owned file (a list, a `flags` file or a utility script).
+
+Give the Helium patch path exactly as in the submodule's `patches/series`,
+say why you need it, and say how to port it to ungoogled-chromium
+(`copy`, `rewrite` or `drop`). The tests fail if a listed patch is not in the
+pinned Helium series. When a Helium bump removes or renames a patch, fix the
+ledger in the same pull request as the bump.
+
+If your patch does not depend on a Helium patch, say so in the pull request
+description. The ledger is how Aerie moves to another base if Helium stops, so
+a missing row costs real work later. See
+[docs/helium-fallback.md](docs/helium-fallback.md).
+
+## Updating Helium
+
+When you move the Helium pins in `helium.lock`, also update the official
+Chromium tarball pin in the `[fallback.chromium]` section of that file (URL and
+sha256 from the `.hashes` file next to the tarball), and check the ledger.
