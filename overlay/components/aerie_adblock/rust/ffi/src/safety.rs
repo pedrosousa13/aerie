@@ -8,46 +8,47 @@
 
 use aerie_adblock_core::safety::ProtectionList;
 
-pub struct ProtectionEngine(ProtectionList);
+/// Named apart from the C++ wrapper class `aerie_adblock::ProtectionEngine`, which cxx would clash with.
+pub struct ProtectionDomains(ProtectionList);
 
 #[cxx::bridge(namespace = "aerie_adblock")]
 mod ffi {
     extern "Rust" {
-        type ProtectionEngine;
+        type ProtectionDomains;
 
         /// An engine with no domains. It lists nothing.
-        fn new_empty_protection_engine() -> Box<ProtectionEngine>;
+        fn new_empty_protection_engine() -> Box<ProtectionDomains>;
 
         /// Build an engine from one list (domain per line or hosts format).
         /// A list that is too large gives an empty engine. For tests; the
         /// browser loads the serialized form the build made.
-        fn new_protection_engine_from_list(list: &[u8]) -> Box<ProtectionEngine>;
+        fn new_protection_engine_from_list(list: &[u8]) -> Box<ProtectionDomains>;
 
         /// Replace the domains with a serialized engine. Returns false, and
         /// keeps the old domains, when `data` is not valid.
-        fn load_serialized(self: &mut ProtectionEngine, data: &[u8]) -> bool;
+        fn load_serialized(self: &mut ProtectionDomains, data: &[u8]) -> bool;
 
         /// The form `load_serialized` reads. For tests.
-        fn serialize(self: &ProtectionEngine) -> Vec<u8>;
+        fn serialize(self: &ProtectionDomains) -> Vec<u8>;
 
         /// Is `host` a listed domain, or a subdomain of one?
-        fn is_listed(self: &ProtectionEngine, host: &str) -> bool;
+        fn is_listed(self: &ProtectionDomains, host: &str) -> bool;
 
         /// How many domains are listed.
-        fn domain_count(self: &ProtectionEngine) -> usize;
+        fn domain_count(self: &ProtectionDomains) -> usize;
     }
 }
 
-fn new_empty_protection_engine() -> Box<ProtectionEngine> {
-    Box::new(ProtectionEngine(ProtectionList::empty()))
+fn new_empty_protection_engine() -> Box<ProtectionDomains> {
+    Box::new(ProtectionDomains(ProtectionList::empty()))
 }
 
-fn new_protection_engine_from_list(list: &[u8]) -> Box<ProtectionEngine> {
+fn new_protection_engine_from_list(list: &[u8]) -> Box<ProtectionDomains> {
     let engine = ProtectionList::from_lists([list]).unwrap_or_else(|_| ProtectionList::empty());
-    Box::new(ProtectionEngine(engine))
+    Box::new(ProtectionDomains(engine))
 }
 
-impl ProtectionEngine {
+impl ProtectionDomains {
     fn load_serialized(&mut self, data: &[u8]) -> bool {
         self.0.load_serialized(data).is_ok()
     }

@@ -90,6 +90,39 @@ directory under tools/metrics/histograms/metadata/.
   </summary>
 </histogram>
 
+<histogram name="Aerie.Protection.ListLoadSuccess" enum="Boolean"
+    expires_after="never">
+  <owner>pedrodsousa@pm.me</owner>
+  <summary>
+    Whether the protection service loaded the phishing and malware list that
+    ships in the build. Recorded once at startup. False crashes the browser
+    right after, because the list is part of the build and a failure to load
+    it means the build is broken.
+  </summary>
+</histogram>
+
+<histogram name="Aerie.Protection.NavigationBlocked" enum="Boolean"
+    expires_after="never">
+  <owner>pedrodsousa@pm.me</owner>
+  <summary>
+    One sample for each http(s) navigation hop (start or redirect, any frame)
+    that the protection service judged: true if the hop was stopped (the
+    interstitial, a blocked subframe or a cancelled prerender), false if it
+    was let through (not listed, or the user chose Continue anyway for the
+    host in that tab). The Bench uses it to show the browser's own list did
+    the blocking.
+  </summary>
+</histogram>
+
+<histogram name="Aerie.Protection.UserProceeded" enum="Boolean"
+    expires_after="never">
+  <owner>pedrodsousa@pm.me</owner>
+  <summary>
+    What the user chose on the phishing and malware interstitial: true for
+    Continue anyway, false for Go back.
+  </summary>
+</histogram>
+
 </histograms>
 
 </histogram-configuration>

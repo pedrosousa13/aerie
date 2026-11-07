@@ -21,12 +21,16 @@ source_set("browser") {
   sources = [
     "aerie_adblock_hook.cc",
     "aerie_adblock_hook.h",
+    "aerie_protection_hook.cc",
+    "aerie_protection_hook.h",
   ]
 
   # aerie_adblock_hook.h includes headers of these, and
   # chrome/browser/aerie_adblock includes filter_engine_service.h through it, so
   # gn check wants them public.
   public_deps = [
+    ":protection_policy",
+    ":protection_service",
     ":service",
     "//content/public/browser",
     "//services/network/public/cpp",
@@ -170,6 +174,46 @@ source_set("page_counter") {
   ]
 }
 
+# The C++ face of the Rust protection engine (phishing and malware domains).
+source_set("protection_engine") {
+  visibility = _visibility
+  sources = [
+    "protection_engine.cc",
+    "protection_engine.h",
+  ]
+  public_deps = [
+    "//base",
+    "//components/aerie_adblock:aerie_adblock_ffi",
+  ]
+}
+
+# The protection service: one engine per process, on its own sequence.
+source_set("protection_service") {
+  visibility = _visibility
+  sources = [
+    "protection_service.cc",
+    "protection_service.h",
+  ]
+  public_deps = [
+    ":protection_engine",
+    "//base",
+  ]
+}
+
+# Which navigations are judged and what happens to them. Pure; no Rust, no
+# content. The throttle in //chrome/browser/aerie_adblock applies it.
+source_set("protection_policy") {
+  visibility = _visibility
+  sources = [
+    "protection_policy.cc",
+    "protection_policy.h",
+  ]
+  public_deps = [
+    "//base",
+    "//url",
+  ]
+}
+
 # The proxying URLLoaderFactory.
 source_set("proxy") {
   visibility = _visibility
@@ -208,6 +252,9 @@ test("aerie_adblock_unittests") {
     "filter_list_manager_unittest.cc",
     "filter_list_state_unittest.cc",
     "filter_list_storage_unittest.cc",
+    "protection_engine_unittest.cc",
+    "protection_policy_unittest.cc",
+    "protection_service_unittest.cc",
     "request_classifier_unittest.cc",
   ]
   deps = [
@@ -216,6 +263,9 @@ test("aerie_adblock_unittests") {
     ":engine",
     ":list_types",
     ":lists",
+    ":protection_engine",
+    ":protection_policy",
+    ":protection_service",
     ":proxy",
     ":service",
     "//base",
