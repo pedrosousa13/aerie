@@ -37,10 +37,11 @@ cxx = "1"
 cxx-build = "1"
 TOML
 echo 'pub use aerie_adblock_ffi::*;' > "$WORK/ffi/src/lib.rs"
-echo "fn main() { cxx_build::bridge(\"$O/components/aerie_adblock/rust/ffi/src/lib.rs\").std(\"c++20\").compile(\"b\"); }" > "$WORK/ffi/build.rs"
+echo "fn main() { cxx_build::bridges([\"$O/components/aerie_adblock/rust/ffi/src/lib.rs\", \"$O/components/aerie_adblock/rust/ffi/src/safety.rs\"]).std(\"c++20\").compile(\"b\"); }" > "$WORK/ffi/build.rs"
 (cd "$WORK/ffi" && CARGO_TARGET_DIR="$WORK/target" cargo build -q)
 cp "$(find "$WORK/target" -path '*include/ffitest*' -name lib.rs.h | head -1)" "$WORK/stub/components/aerie_adblock/rust/ffi/src/lib.rs.h"
-printf '#define IDR_AERIE_ADBLOCK_ENGINE 1\n#define IDR_AERIE_ADBLOCK_EASYLIST 2\n#define IDR_AERIE_ADBLOCK_EASYPRIVACY 3\n' > "$WORK/stub/components/aerie_adblock/resources/grit/aerie_adblock_resources.h"
+cp "$(find "$WORK/target" -path '*include/ffitest*' -name safety.rs.h | head -1)" "$WORK/stub/components/aerie_adblock/rust/ffi/src/safety.rs.h"
+printf '#define IDR_AERIE_ADBLOCK_ENGINE 1\n#define IDR_AERIE_ADBLOCK_EASYLIST 2\n#define IDR_AERIE_ADBLOCK_EASYPRIVACY 3\n#define IDR_AERIE_PROTECTION_ENGINE 4\n' > "$WORK/stub/components/aerie_adblock/resources/grit/aerie_adblock_resources.h"
 mkdir -p "$WORK/stub/chrome/browser/ui/webui/aerie_filters/grit"
 printf '#define IDR_AERIE_FILTERS_HTML 1\n#define IDR_AERIE_FILTERS_JS 2\n#define IDR_AERIE_FILTERS_CSS 3\n' > "$WORK/stub/chrome/browser/ui/webui/aerie_filters/grit/aerie_filters_resources.h"
 

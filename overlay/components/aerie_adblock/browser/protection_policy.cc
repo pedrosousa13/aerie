@@ -22,7 +22,7 @@ std::optional<std::string> HostToCheck(const GURL& url) {
   if (!url.is_valid() || !url.SchemeIsHTTPOrHTTPS() || !url.has_host()) {
     return std::nullopt;
   }
-  std::string_view host = url.host_piece();
+  std::string_view host = url.host();
   if (host.empty() || !base::IsStringASCII(host)) {
     return std::nullopt;
   }
