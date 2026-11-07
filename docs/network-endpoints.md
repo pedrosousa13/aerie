@@ -83,6 +83,15 @@ Left alone on purpose:
   updater, which has only the dummy origin now.
 - **uBlock Origin** stays until #8, with asset updates off.
 
+## Aerie-owned endpoints
+
+| Endpoint | Where | When | Aerie |
+| --- | --- | --- | --- |
+| `https://easylist.to/easylist/easylist.txt`, `.../easyprivacy.txt` | `FilterListManager` (built-in lists) | Update from the filter list page, or the daily schedule (on by default; the first check is a day after install) | The publisher's own address. https only, no cookies, no referrer, 5 MiB, 60 s. Can be turned off on `chrome://aerie-filters`. |
+| Any https address the user added | `FilterListManager` (custom lists) | When the user adds or updates it, and on the schedule | Same rules. Never http (loopback http only with `--aerie-test-allow-loopback-filter-lists`). A redirect that leaves https stops the download. |
+
+Neither host is Google-owned or Helium-owned. Nothing is fetched on a fresh install before the first scheduled check, a day later. See [adblock.md](adblock.md).
+
 ## Known blocked attempts
 
 The component updater, the uBlock Origin asset fetch and a few Google-origin

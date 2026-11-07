@@ -74,8 +74,49 @@ renderer ──Mojo──> AdblockProxyingURLLoaderFactory ──> network servi
   `Aerie.Adblock.EngineLoadSuccess`, `EngineLoadTime`, `RequestBlocked`. The Bench
   reads them.
 
-Not in this slice: WebSocket blocking, main-frame blocking (both out of scope in
-the issue), user controls (issue #10).
+Not covered: WebSocket blocking and main-frame blocking (both out of scope in
+the issue). User controls are in [the section below](#user-controls-issue-10).
+
+## User controls (issue #10)
+
+[ADR 0003](adr/0003-user-managed-filter-lists.md) has the decisions. The parts:
+
+| Part | What |
+| --- | --- |
+| `chrome://aerie-filters` | The page (`chrome/browser/ui/webui/aerie_filters`, patch `0009`): add, remove and update lists, custom list URLs, per-site exceptions, the automatic update switch. Messages: `aerieFilters.getState`, `addList`, `removeList`, `updateList`, `updateAll`, `setException`, `setAutoUpdate`. The page keeps the last state in `aerieFilters.state`. |
+| `FilterListManager` | `components/aerie_adblock/browser/filter_list_manager.*`. Owns the settings, downloads, checks, rebuilds the engine, runs the schedule. Owned by the main parts, next to the service. |
+| Toolbar button | `chrome/browser/ui/views/aerie_adblock` (patch `0010`): a shield with the blocked count of the active page. A menu turns blocking off for the page's site and opens the settings page. |
+| `PageBlockCounter` | One per tab. Counts what the engine blocked for the tab's page, from the frame id the factory got (patch `0008`). Resets when the tab commits another document. Recorded in `Aerie.Adblock.PageBlockedCount` when the page is left. |
+
+How it works:
+
+- **Files.** `<user data dir>/AerieFilterLists/state.json` and `lists/<id>.txt`. They are shared by
+  all profiles, like the engine. Every write is atomic. A damaged or hostile `state.json` gives
+  safe defaults: ids must be `[a-z0-9]{1,32}`, custom ids must be the hash of their address, only
+  known error texts are kept.
+- **Built-in lists** (EasyList, EasyPrivacy) cannot be removed. Their text is also packed into
+  `resources.pak`, because a serialized engine cannot be merged with another list. While the user
+  changes nothing, the shipped serialized engine is used. After a list changes, the engine is
+  compiled from text on its own sequence (about 0.2 s), without a restart.
+- **A download** (`FilterListFetcher`) is https only, with no cookies, no referrer, no cache,
+  a 5 MiB cap and a 60 s timeout. A redirect that leaves https stops it. Loopback http is allowed
+  only with `--aerie-test-allow-loopback-filter-lists` (the Bench), like the extension proxy.
+- **A check** (`check_list` in `aerie_adblock_core`) runs before a download replaces anything:
+  UTF-8 text without NUL, not an HTML page, at least one network rule, 10 s to parse. A list that
+  fails keeps the old copy; its error shows on the page. A saved copy that fails to build later is
+  dropped and the built-in list goes back to the shipped text.
+- **Schedule.** With automatic updates on (the default), all lists are fetched once a day while the
+  browser runs. A fresh install waits a day for the first check, so a new profile makes no request
+  at all (the Bench check `zero_traffic` depends on this). The only servers contacted are the
+  lists' own addresses (see [network-endpoints.md](network-endpoints.md)).
+- **Exceptions** are hosts. A request is never blocked when its top-level site is the host or a
+  subdomain of it. They are read before the first request: the service holds requests until the
+  settings are loaded. A change works at once and survives restart. The toolbar button reloads the
+  page after a change so the effect shows.
+- **Count.** Workers and requests with no frame are not counted. Another blocker's blocks are not
+  counted either.
+
+Open: Issue #40 (MV2 extension `webRequest` is broken by the hook) is not touched here.
 
 ## Cosmetic filtering (hiding leftover ad containers)
 
@@ -190,7 +231,8 @@ git diff --stat overlay/third_party/filter_lists/
 ```
 
 Review it, update the versions in `README.chromium`, commit. The lists expire after
-4 days upstream. Aerie does not update lists at run time.
+4 days upstream. The build never fetches. The browser fetches only when the user
+asks, or on the daily schedule (see "User controls").
 
 ### The crates
 
