@@ -10,7 +10,7 @@ import zipfile
 from pathlib import Path
 from unittest import mock
 
-from aerie_build import lock, patch_check, patches
+from aerie_build import helium_inputs, lock, patch_check, patches
 from aerie_build.config import BuildPaths
 
 
@@ -198,6 +198,9 @@ class RunCheckTest(unittest.TestCase):
         (self.repo / "patches" / "series").write_text("0001.patch\n")
         (self.repo / "patches" / "0001.patch").write_text(PATCH)
         self.pins = lock.Lock("1", "1", "t", "c", "t", "c", downloads={"base.tar": digest})
+        steps = mock.patch.object(patch_check, "_helium_steps")  # no Helium utils in this fake repo
+        self.steps = steps.start()
+        self.addCleanup(steps.stop)
 
     def tearDown(self):
         self._tmp.cleanup()
@@ -284,6 +287,168 @@ class RunCheckTest(unittest.TestCase):
                 status, logs = result
                 self.assertEqual(status, 0, logs)
                 self.assertIn("0 failed, 0 skipped, 1 applied", logs[-1])
+
+
+def _patch(old: str, new: str, path: str = "net/listed.cc") -> str:
+    return (f"Aerie-Purpose: test\nAerie-Upstream-Area: net\n\n"
+            f"--- a/{path}\n+++ b/{path}\n@@ -1 +1 @@\n-{old}\n+{new}\n")
+
+
+class RealStepsTest(unittest.TestCase):
+    """The check runs Helium's own substitution scripts between Helium's patches and Aerie's."""
+
+    REAL_CORE = Path(__file__).resolve().parents[1] / "helium-chromium"
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        root = Path(self._tmp.name)
+        self.repo = root / "repo"
+        self.build = BuildPaths(root / "build")
+        self.build.downloads.mkdir(parents=True)
+        tarball = make_tarball(self.build.downloads, "base", {
+            "net/listed.cc": "url www.google.com\n", "net/other.cc": "url www.google.com\n",
+            "OWNERS": "x\n", "chrome/VERSION": "MAJOR=1\n", "tools/grit/grit/__init__.py": "",
+        })
+        digest = hashlib.sha256(tarball.read_bytes()).hexdigest()
+        core, linux = self.repo / "helium-chromium", self.repo / "helium-linux"
+        for sub in (core, linux):
+            (sub / "patches").mkdir(parents=True)
+            (sub / "patches" / "series").write_text("")
+        (core / "utils").symlink_to(self.REAL_CORE / "utils")
+        (core / "domain_regex.list").write_text(r"google([A-Za-z\-]*?\\*?)\.com#9oo91e\g<1>.qjz9zk" + "\n")
+        (core / "domain_substitution.list").write_text("net/listed.cc\nnet/not-in-sparse.cc\n")
+        (core / "version.txt").write_text("0.21\n")
+        (core / "chromium_version.txt").write_text("157.0.1\n")
+        (core / "revision.txt").write_text("1\n")
+        (linux / "revision.txt").write_text("1\n")
+        (core / "downloads.ini").write_text(
+            "[c]\ndownload_filename = base.tar\noutput_path = ./\nstrip_leading_dirs = chromium-1\n")
+        (linux / "downloads.ini").write_text("")
+        (core / "deps.ini").write_text("")
+        (self.repo / "patches").mkdir()
+        self.pins = lock.Lock("1", "1", "t", "c", "t", "c", downloads={"base.tar": digest})
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def aerie(self, *patch_texts):
+        (self.repo / "patches" / "series").write_text("".join(f"{i}.patch\n" for i in range(len(patch_texts))))
+        for i, text in enumerate(patch_texts):
+            (self.repo / "patches" / f"{i}.patch").write_text(text)
+
+    def check(self):
+        logs: list[str] = []
+        return patch_check.run_check(self.repo, self.build, self.pins, log=logs.append), logs
+
+    def test_a_patch_written_against_the_substituted_text_applies(self):
+        self.aerie(_patch("url www.9oo91e.qjz9zk", "url www.example.test"))
+        status, logs = self.check()
+        self.assertEqual(status, 0, logs)
+
+    def test_a_patch_written_against_the_original_text_fails(self):
+        self.aerie(_patch("url www.google.com", "url www.example.test"))
+        status, logs = self.check()
+        self.assertEqual(status, 1)
+        self.assertIn("FAILED  aerie/0.patch", "\n".join(logs))
+
+    def test_a_file_the_substitution_list_skips_keeps_its_original_text(self):
+        self.aerie(_patch("url www.google.com", "url www.example.test", "net/other.cc"))
+        self.assertEqual(self.check()[0], 0)
+
+    def test_aerie_patches_see_the_version_lines_helium_appends(self):
+        (self.repo / "patches").mkdir(exist_ok=True)
+        text = ("Aerie-Purpose: t\nAerie-Upstream-Area: c\n\n--- a/chrome/VERSION\n+++ b/chrome/VERSION\n"
+                "@@ -1,3 +1,3 @@\n MAJOR=1\n-HELIUM_MAJOR=0\n+HELIUM_MAJOR=9\n HELIUM_MINOR=21\n")
+        self.aerie(text)
+        status, logs = self.check()
+        self.assertEqual(status, 0, logs)  # only possible when the step has already appended HELIUM_MAJOR
+
+    def test_a_failing_step_is_an_error_not_a_pass(self):
+        (self.repo / "helium-chromium" / "version.txt").unlink()
+        self.aerie(_patch("url www.9oo91e.qjz9zk", "x"))
+        with self.assertRaises(Exception):
+            self.check()
+
+    def test_helium_patch_failure_stops_before_the_aerie_patches(self):
+        (self.repo / "helium-chromium" / "patches" / "series").write_text("h.patch\n")
+        (self.repo / "helium-chromium" / "patches" / "h.patch").write_text(
+            _patch("not there", "x", "net/other.cc"))
+        self.aerie(_patch("url www.9oo91e.qjz9zk", "x"))
+        status, logs = self.check()
+        self.assertEqual(status, 1)
+        self.assertTrue(any("not tried" in line for line in logs))
+
+
+class PreparedTreeCheckTest(RealStepsTest):
+    """With a prepared tree and a pristine store, the patches are also tried against it."""
+
+    def setUp(self):
+        super().setUp()
+        self.tree = self.build.tree("helium-0.21.1.1")
+        (self.tree / "net").mkdir(parents=True)
+        (self.tree / "net" / "listed.cc").write_text("url www.9oo91e.qjz9zk\n")
+        self.pins = lock.Lock("0.21.1.1", "1", "t", "c", "t", "c", downloads=self.pins.downloads)
+
+    def stamp(self):
+        (self.tree / ".resources.stamp").touch()
+        (self.tree / helium_inputs.STAMP).write_text(helium_inputs.digest(self.repo) + "\n")
+
+    def test_a_tree_built_from_other_helium_inputs_is_skipped_not_failed(self):
+        (self.tree / ".resources.stamp").touch()
+        (self.tree / helium_inputs.STAMP).write_text("0" * 64 + "\n")
+        (self.tree / "net" / "listed.cc").write_text("url drifted\n")  # would fail if it were checked
+        self.aerie(_patch("url www.9oo91e.qjz9zk", "x"))
+        status, logs = self.check()
+        self.assertEqual(status, 0, logs)
+        self.assertIn(f"prepared tree {self.tree}: built from different Helium inputs; skipped", logs)
+
+    def test_a_tree_without_the_inputs_stamp_is_skipped_too(self):
+        (self.tree / ".resources.stamp").touch()
+        self.aerie(_patch("url www.9oo91e.qjz9zk", "x"))
+        status, logs = self.check()
+        self.assertEqual(status, 0, logs)
+        self.assertTrue(any("different Helium inputs; skipped" in line for line in logs))
+
+    def test_a_damaged_snapshot_is_a_message_not_a_traceback(self):
+        self.stamp()
+        store = self.build.pristine / "helium-0.21.1.1"
+        (store / "files" / "net").mkdir(parents=True)
+        (store / "manifest.json").write_text(
+            '{"net/listed.cc": {"present": true, "sha256": "bad", "mode": null}}')
+        self.aerie(_patch("url www.9oo91e.qjz9zk", "x"))
+        status, logs = self.check()
+        self.assertEqual(status, 1)
+        self.assertTrue(any("cannot be checked" in line and "--clean" in line for line in logs), logs)
+
+    def test_no_stamp_means_no_prepared_tree_report(self):
+        self.aerie(_patch("url www.9oo91e.qjz9zk", "x"))
+        status, logs = self.check()
+        self.assertEqual(status, 0, logs)
+        self.assertFalse(any("prepared tree" in line for line in logs))
+
+    def test_patches_are_tried_against_the_prepared_tree_without_writing(self):
+        self.stamp()
+        self.aerie(_patch("url www.9oo91e.qjz9zk", "url www.example.test"))
+        status, logs = self.check()
+        self.assertEqual(status, 0, logs)
+        self.assertTrue(any("prepared tree" in line and "apply" in line for line in logs), logs)
+        self.assertEqual((self.tree / "net" / "listed.cc").read_text(), "url www.9oo91e.qjz9zk\n")
+
+    def test_a_patch_that_fits_the_sparse_tree_but_not_the_prepared_tree_fails_the_check(self):
+        self.stamp()
+        (self.tree / "net" / "listed.cc").write_text("url drifted\n")
+        self.aerie(_patch("url www.9oo91e.qjz9zk", "x"))
+        status, logs = self.check()
+        self.assertEqual(status, 1)
+        self.assertIn("prepared tree", "\n".join(logs))
+
+    def test_a_tree_changed_by_an_older_build_is_skipped_with_a_hint(self):
+        self.stamp()
+        (self.tree / ".aerie-patches.json").write_text("[]")
+        self.aerie(_patch("url www.9oo91e.qjz9zk", "x"))
+        status, logs = self.check()
+        self.assertEqual(status, 0, logs)
+        self.assertTrue(any("--clean" in line for line in logs))
 
 
 if __name__ == "__main__":

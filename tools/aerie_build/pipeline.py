@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Sequence
 
-from . import ccache, fallback, helium, lock, patch_check, patches, substitution
+from . import ccache, fallback, helium, helium_inputs, helium_steps, layers, lock, patch_check, patches, substitution
 from .config import BuildPaths, isolated_env
 
 ARCH = "x64"
@@ -58,6 +58,10 @@ class Context:
     @property
     def tree(self) -> Path:
         return self.paths.tree(self.tree_name)
+
+    @property
+    def pristine_dir(self) -> Path:
+        return self.paths.pristine / self.tree_name
 
     @property
     def out_dir(self) -> Path:
@@ -170,7 +174,8 @@ def preflight(ctx: Context, log: Logger) -> None:
 
 def check_aerie_patches(repo: Path) -> None:
     """Fail before any download when Aerie's own patch directory is malformed."""
-    problems = patches.lint_patch_dir(patch_check.layers(repo)[-1].directory)
+    problems = patches.lint_patch_dir(
+        patch_check.layers(repo)[-1].directory, patches.load_substitution_rules(repo / "helium-chromium"))
     if problems:
         raise BuildError(
             "Aerie patch series has problems:\n"
@@ -280,6 +285,8 @@ def _fresh_tree(ctx: Context, log: Logger) -> None:
     if ctx.tree.exists():
         log(f"removing partly unpacked tree {ctx.tree}")
         shutil.rmtree(ctx.tree)
+    # The snapshot belongs to the tree it was taken from.
+    layers.clear_store(ctx.pristine_dir)
     ctx.tree.mkdir(parents=True)
 
 
@@ -340,29 +347,78 @@ def _stamped(ctx: Context, log: Logger, name: str, action: Callable[[], None]) -
     stamp.touch()
 
 
-def _aerie_substitution(ctx: Context, log: Logger, force: bool) -> None:
-    """Helium -> Aerie in the string files, after Helium's own substitution and i18n."""
-    stamp = ctx.tree / ".aeriesub.stamp"
-    digest = substitution.rules_digest()
+LEGACY_STATE = layers.LEGACY_STATE
+HELIUM_INPUTS_STAMP = helium_inputs.STAMP
+helium_inputs_digest = helium_inputs.digest
+
+
+def check_helium_inputs(ctx: Context, log: Callable[[str], None], write: bool = True) -> None:
+    """Refuse an incremental build when Helium's own inputs changed since the tree was prepared.
+
+    The digest is recorded when the tree is first prepared. A tree prepared
+    before this check existed adopts the current digest.
+    """
+    stamp = ctx.tree / HELIUM_INPUTS_STAMP
+    digest = helium_inputs_digest(ctx.repo)
     if stamp.exists():
         if stamp.read_text().strip() != digest:
             raise BuildError(
-                "the Helium->Aerie substitution rules changed after this tree was substituted; "
-                "rebuild the source tree with: ./aerie build --clean"
-            )
-        if not force:
-            log("aeriesub: already done")
-            return
-    fingerprint = substitution.helium_fingerprint(ctx.core / "utils", ctx.tree)
-    stats = substitution.substitute_tree(
-        ctx.tree, fingerprint, state_path=ctx.tree / ".aerie-fingerprints.json")
-    log(f"Helium->Aerie: rewrote {stats.grd_files} string file(s), {stats.xtb_files} translation file(s); "
-        f"{len(stats.kept)} Helium-services message(s) left as Helium")
-    stamp.write_text(digest + "\n")
+                "Helium's patch series, domain or pruning lists, translations or drop/adapt lists changed "
+                "since this source tree was prepared, and its processed files cannot be un-applied; "
+                "rebuild the source tree with: ./aerie build --clean")
+    elif write:
+        stamp.write_text(digest + "\n")
+
+
+def refuse_legacy_tree(ctx: Context) -> None:
+    """A tree the old pipeline patched or substituted in place has no pristine bytes to restore."""
+    found = [name for name in LEGACY_STATE if (ctx.tree / name).exists()]
+    if found:
+        raise BuildError(
+            f"{ctx.tree} was changed in place by an older Aerie build ({', '.join(found)}); "
+            "its pristine files were never saved. Rebuild the source tree with: ./aerie build --clean")
+
+
+def aerie_layers(ctx: Context, log: Callable[[str], None]) -> list[layers.Layer]:
+    """The Aerie layers, in order. The overlay (issue #8) goes between the patches and the substitution."""
+    return [
+        patches.PatchLayer(patch_check.layers(ctx.repo)[-1], log),
+        substitution.SubstitutionLayer(
+            lambda: substitution.helium_fingerprint(ctx.core / "utils", ctx.tree), log=log),
+    ]
+
+
+def apply_aerie_layers(ctx: Context, log: Callable[[str], None], dry_run: bool = False) -> layers.Report:
+    """Re-apply the Aerie layers to the Helium-processed tree, touching only files whose content changes."""
+    refuse_legacy_tree(ctx)
+    try:
+        report = layers.apply_layers(
+            ctx.tree, ctx.pristine_dir, aerie_layers(ctx, log), ctx.paths.tmp / "aerie-layer-stage",
+            log, dry_run=dry_run)
+    except (layers.LayerError, patches.PatchStateError) as exc:
+        raise BuildError(str(exc)) from exc
+    verb = "would change" if dry_run else "changed"
+    log(f"Aerie layers {verb}: {report.summary()}; {report.snapshots} new pristine snapshot(s)")
+    for change in report.changes:
+        log(f"  {change.kind:8} {change.path}")
+    return report
+
+
+def dry_run_layers(ctx: Context, log: Callable[[str], None]) -> layers.Report:
+    """Report which tree files the next build would change. Writes nothing to the tree or the store."""
+    if not (ctx.tree / ".resources.stamp").exists():
+        raise BuildError(f"{ctx.tree} is not a prepared source tree yet; run ./aerie build first")
+    if shutil.which("patch") is None:
+        raise BuildError("missing host tool: patch")
+    check_aerie_patches(ctx.repo)
+    check_helium_inputs(ctx, log, write=False)
+    return apply_aerie_layers(ctx, log, dry_run=True)
 
 
 def prepare_tree(ctx: Context, log: Logger, env: dict) -> None:
     py, core, tree, utils = ctx.python, ctx.core, ctx.tree, ctx.core / "utils"
+    refuse_legacy_tree(ctx)
+    check_helium_inputs(ctx, log)
 
     def patch():
         run(log, [py, utils / "prune_binaries.py", "--keep-build-dependencies", tree,
@@ -372,24 +428,12 @@ def prepare_tree(ctx: Context, log: Logger, env: dict) -> None:
 
     _stamped(ctx, log, "patched", patch)
 
-    # Aerie's patches apply right after Helium's, before any substitution.
-    aerie = patch_check.layers(ctx.repo)[-1]
-    applied_now = patches.apply_series(tree, aerie, tree / ".aerie-patches.json", log)
-    if applied_now and (tree / ".namesub.stamp").exists():
-        log("WARNING: this tree was substituted before Aerie's patches were applied to it; "
-            "run ./aerie build --clean for a tree identical to a fresh build")
-
-    _stamped(ctx, log, "domsub", lambda: run(log, [
-        py, utils / "domain_substitution.py", "apply", "-r", core / "domain_regex.list",
-        "-f", core / "domain_substitution.list", tree], env))
-    _stamped(ctx, log, "namesub", lambda: run(log, [
-        py, utils / "name_substitution.py", "--sub", "-t", tree,
-        "--backup-path", tree / ".aerie-namesubs.tar"], env))
-    _stamped(ctx, log, "i18n", lambda: run(log, [py, utils / "i18n_apply.py", "-t", tree], env))
-    _aerie_substitution(ctx, log, force=bool(applied_now))
-    _stamped(ctx, log, "version", lambda: run(log, [
-        py, utils / "helium_version.py", "--tree", core, "--platform-tree", ctx.platform,
-        "--chromium-tree", tree], env))
+    helium_steps.post_patch_steps(
+        py, core, ctx.platform, tree,
+        run=lambda cmd: run(log, cmd, env),
+        stamped=lambda name, action: _stamped(ctx, log, name, action),
+        namesub_backup=tree / ".aerie-namesubs.tar",
+    )
 
     def resources():
         run(log, [py, utils / "generate_resources.py",
@@ -398,6 +442,10 @@ def prepare_tree(ctx: Context, log: Logger, env: dict) -> None:
                   core / "resources" / "helium_resources.txt", core / "resources", tree], env)
 
     _stamped(ctx, log, "resources", resources)
+
+    # Last: Helium's steps are stamped and never re-run on this tree, so the
+    # Aerie layers see its final content and are re-applied on every build.
+    apply_aerie_layers(ctx, log)
 
 
 def configure(ctx: Context, log: Logger, env: dict) -> None:
@@ -431,6 +479,17 @@ def compile_targets(ctx: Context, log: Logger, env: dict) -> None:
     run(log, [ctx.ccache_bin, "--show-stats"], env)
 
 
+def show_layer_changes(ctx: Context) -> int:
+    """./aerie build --dry-run-layers: list what the next build would change in the tree."""
+    log = Logger(ctx.log_path)
+    try:
+        report = dry_run_layers(ctx, log)
+    finally:
+        log.close()
+    print(f"{len(report.changes)} file(s) would change: {report.summary()}")
+    return 0
+
+
 def build(ctx: Context, clean: bool = False) -> Path:
     log = Logger(ctx.log_path)
     started = time.monotonic()
@@ -440,6 +499,9 @@ def build(ctx: Context, clean: bool = False) -> Path:
         if clean and ctx.tree.exists():
             log(f"--clean: removing {ctx.tree}")
             shutil.rmtree(ctx.tree)
+        if clean and ctx.pristine_dir.exists():
+            log(f"--clean: removing pristine snapshot {ctx.pristine_dir}")
+            layers.clear_store(ctx.pristine_dir)
         env = isolated_env(ctx.paths, os.environ)
         env["PATH"] = os.pathsep.join([str(ctx.venv / "bin"), env.get("PATH", "")])
         steps = [

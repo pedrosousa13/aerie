@@ -13,8 +13,6 @@ patch that fails, instead of stopping at the first.
 
 from __future__ import annotations
 
-import hashlib
-import json
 import os
 import re
 import shutil
@@ -52,6 +50,40 @@ class Layer:
 
 class PatchStateError(RuntimeError):
     """The build cannot apply Aerie's layer to this tree."""
+
+
+class PatchLayer:
+    """One patch series as a tree layer (see aerie_build.layers).
+
+    The patches run in a staging directory that holds only the files they
+    touch, copied from pristine content. The tree is not changed here.
+    """
+
+    def __init__(self, layer: Layer, log: Callable[[str], None] = lambda _m: None):
+        self.layer = layer
+        self.name = f"{layer.label} patches"
+        self._log = log
+
+    def apply(self, ws) -> None:
+        entries = layer_entries(self.layer)
+        files: list[str] = []
+        for name, path in entries:
+            if not path.is_file():
+                raise PatchStateError(f"{name}: patch file does not exist")
+            text = path.read_text(encoding="utf-8", errors="replace")
+            if _RENAME_RE.search(text):
+                raise PatchStateError(f"{name}: rename/copy headers are not supported")
+            files += [f for f in touched_files(text) if f not in files]
+        ws.materialize(files)
+        # Every patch is judged, so a failure report names all of them.
+        results = apply_layers(ws.stage_dir, [self.layer])
+        report, ok = format_report(results)
+        if not ok:
+            raise PatchStateError(report)
+        for rel in files:
+            staged = ws.stage_dir / rel
+            ws.put(rel, staged.read_bytes() if staged.is_file() else None)
+        self._log(f"{self.layer.label}: {len(entries)} patch(es) over {len(files)} file(s)")
 
 
 @dataclass(frozen=True)
@@ -114,7 +146,82 @@ def _unsafe(path: str) -> bool:
     return pure.is_absolute() or ".." in pure.parts
 
 
-def lint_patch_dir(directory: Path) -> list[Problem]:
+@dataclass(frozen=True)
+class SubstitutionRules:
+    """What Helium's domain and name substitution rewrite, for linting added lines.
+
+    Aerie's patches apply after those steps, so a line a patch adds is never
+    rewritten by them. A line that they would rewrite has to be written in its
+    final form, or the patch is wrong.
+    """
+
+    domain_patterns: tuple[re.Pattern[str], ...] = ()
+    domain_files: frozenset[str] = frozenset()
+    # Files helium_resources.txt copies over after the patches; a patch edit there is lost.
+    resource_destinations: frozenset[str] = frozenset()
+
+
+_NAME_RE = re.compile(r"Chrom(?:e|ium)(?!\w)")
+_GRD_SUFFIXES = (".grd", ".grdp")
+_RENAME_RE = re.compile(r"^(rename|copy) (from|to) ", re.MULTILINE)
+
+
+def load_substitution_rules(core: Path) -> SubstitutionRules:
+    """Read helium-chromium's domain_regex.list and domain_substitution.list (missing: no rules)."""
+    regexes, files = [], frozenset()
+    regex_list, file_list = core / "domain_regex.list", core / "domain_substitution.list"
+    if regex_list.is_file():
+        for line in regex_list.read_text(encoding="utf-8").splitlines():
+            if line:
+                regexes.append(re.compile(line.split("#")[0]))
+    if file_list.is_file():
+        files = frozenset(line.strip() for line in file_list.read_text(encoding="utf-8").splitlines() if line.strip())
+    resources = core / "resources" / "helium_resources.txt"
+    destinations: set[str] = set()
+    if resources.is_file():
+        for line in resources.read_text(encoding="utf-8").splitlines():
+            parts = line.split()
+            if len(parts) == 2 and not line.lstrip().startswith("#"):
+                destinations.add(parts[1])
+    return SubstitutionRules(tuple(regexes), files, frozenset(destinations))
+
+
+_HUNK_RE = re.compile(r"^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@")
+
+
+def added_lines(patch_text: str) -> list[tuple[str, str]]:
+    """(file, line) for every line a patch adds.
+
+    Inside a hunk the line counts from the @@ header say what is content, so an
+    added line that reads "++ x" is not mistaken for a "+++ " file header.
+    """
+    out: list[tuple[str, str]] = []
+    current = ""
+    old_left = new_left = 0
+    for line in patch_text.splitlines():
+        if old_left > 0 or new_left > 0:
+            if line.startswith("+"):
+                out.append((current, line[1:]))
+                new_left -= 1
+            elif line.startswith("-"):
+                old_left -= 1
+            elif line.startswith("\\"):
+                pass  # "\ No newline at end of file"
+            else:
+                old_left -= 1
+                new_left -= 1
+            continue
+        match = _HUNK_RE.match(line)
+        if match:
+            old_left = int(match.group(1) if match.group(1) is not None else 1)
+            new_left = int(match.group(2) if match.group(2) is not None else 1)
+        elif line.startswith("+++ "):
+            name = line[4:].split("\t")[0].strip()
+            current = name[2:] if name.startswith("b/") else name
+    return out
+
+
+def lint_patch_dir(directory: Path, rules: SubstitutionRules | None = None) -> list[Problem]:
     """Series hygiene and header checks for the Aerie-owned patch directory."""
     series_path = directory / "series"
     if not series_path.is_file():
@@ -135,7 +242,7 @@ def lint_patch_dir(directory: Path) -> list[Problem]:
         if not path.is_file():
             problems.append(Problem(entry, "listed in series but the file does not exist"))
             continue
-        problems += _lint_patch(entry, path.read_text(encoding="utf-8", errors="replace"))
+        problems += _lint_patch(entry, path.read_text(encoding="utf-8", errors="replace"), rules)
     for path in sorted(directory.rglob("*.patch")):
         name = path.relative_to(directory).as_posix()
         if name not in seen:
@@ -143,7 +250,7 @@ def lint_patch_dir(directory: Path) -> list[Problem]:
     return problems
 
 
-def _lint_patch(name: str, text: str) -> list[Problem]:
+def _lint_patch(name: str, text: str, rules: SubstitutionRules | None = None) -> list[Problem]:
     problems = []
     header = parse_header(text)
     for field in REQUIRED_FIELDS:
@@ -157,6 +264,35 @@ def _lint_patch(name: str, text: str) -> list[Problem]:
     for path in touched_files(text):
         if _unsafe(path):
             problems.append(Problem(name, f"unsafe path in diff header: {path}"))
+        if rules is not None and path in rules.resource_destinations:
+            problems.append(Problem(
+                name, f"edits {path}, which helium_resources.txt overwrites after the patches apply"))
+        if path.lower().endswith(".xtb"):
+            problems.append(Problem(
+                name, f"edits translation file {path}; Helium's i18n step and Aerie's substitution own .xtb files"))
+    if _RENAME_RE.search(text):
+        problems.append(Problem(name, "rename/copy headers are not supported; delete and create the file instead"))
+    if rules is not None:
+        problems += _lint_added_lines(name, text, rules)
+    return problems
+
+
+def _lint_added_lines(name: str, text: str, rules: SubstitutionRules) -> list[Problem]:
+    problems: list[Problem] = []
+    flagged: set[tuple[str, str]] = set()
+    for path, line in added_lines(text):
+        if path in rules.domain_files and any(p.search(line) for p in rules.domain_patterns):
+            if (path, "domain") not in flagged:
+                flagged.add((path, "domain"))
+                problems.append(Problem(
+                    name, f"an added line in {path} matches helium-chromium/domain_regex.list, but Aerie "
+                          f"patches apply after domain substitution and are not rewritten: {line.strip()[:80]}"))
+        if path.endswith(_GRD_SUFFIXES) and _NAME_RE.search(line):
+            if (path, "name") not in flagged:
+                flagged.add((path, "name"))
+                problems.append(Problem(
+                    name, f"an added line in {path} says Chrome or Chromium, but Aerie patches apply after "
+                          f"name substitution and are not rewritten; write the final name: {line.strip()[:80]}"))
     return problems
 
 
@@ -232,47 +368,6 @@ def apply_layers(tree: Path, layers: Sequence[Layer]) -> list[PatchResult]:
     return results
 
 
-def series_digest(layer: Layer) -> list[list[str]]:
-    """[[series entry, sha256 of the patch file], ...] in series order."""
-    return [
-        [name, hashlib.sha256(path.read_bytes()).hexdigest()]
-        for name, path in ((e, layer.directory / e) for e in parse_series(layer.directory / "series"))
-    ]
-
-
-def apply_series(tree: Path, layer: Layer, state_path: Path, log: Callable[[str], None]) -> int:
-    """Apply a layer to the real source tree, strictly, remembering what is done.
-
-    state_path lists the patches already applied (name and content hash). Patches
-    cannot be un-applied, so the applied list must still be the start of the
-    current series; otherwise the tree has to be rebuilt. Each patch is recorded
-    right after it applies, so an interrupted run resumes. Returns the number
-    of patches applied now.
-    """
-    current = series_digest(layer)
-    applied = json.loads(state_path.read_text()) if state_path.is_file() else []
-    if current[: len(applied)] != applied:
-        changed = sorted({a[0] for a in applied} - {c[0] for c in current[: len(applied)] if c in applied})
-        raise PatchStateError(
-            f"the {layer.label} patch series changed after it was applied to this tree"
-            + (f" ({', '.join(changed)})" if changed else " (order or content)")
-            + "; rebuild the source tree with: ./aerie build --clean"
-        )
-    count = 0
-    for name, _digest in current[len(applied):]:
-        path = layer.directory / name
-        ok, output = _run_patch(tree, path, layer.fuzz, dry_run=True)
-        if ok:
-            ok, output = _run_patch(tree, path, layer.fuzz, dry_run=False)
-        if not ok:
-            raise PatchStateError(f"{layer.label}/{name} does not apply:\n{output}")
-        applied.append([name, _digest])
-        state_path.write_text(json.dumps(applied, indent=1) + "\n")
-        log(f"applied {layer.label}/{name}")
-        count += 1
-    return count
-
-
 def format_report(results: Iterable[PatchResult]) -> tuple[str, bool]:
     results = list(results)
     lines = []
@@ -292,8 +387,9 @@ def format_report(results: Iterable[PatchResult]) -> tuple[str, bool]:
 def extract_wanted(archive: Path, strip_prefix: str, wanted: Iterable[str], dest: Path) -> set[str]:
     """Extract only the wanted files from an archive into dest.
 
-    wanted holds paths relative to dest; strip_prefix is the archive's leading
-    directory (may be empty). Handles .tar.zst (streamed through GNU tar),
+    wanted holds paths relative to dest; an entry that ends in "/" is a
+    directory and brings everything under it. strip_prefix is the archive's
+    leading directory (may be empty). Handles .tar.zst (streamed through GNU tar),
     .tar.gz and .zip. Returns the subset the archive contained. The caller
     must have verified the archive against helium.lock first.
     """
@@ -320,6 +416,15 @@ def _member_key(name: str, strip_prefix: str) -> str | None:
     return name or None
 
 
+def _wanted_name(key: str | None, want: set[str]) -> str | None:
+    """The wanted entry (a file, or a "dir/" prefix) this member belongs to."""
+    if key is None:
+        return None
+    if key in want:
+        return key
+    return next((w for w in want if w.endswith("/") and key.startswith(w)), None)
+
+
 def _write_member(dest: Path, key: str, data: bytes) -> None:
     target = dest / key
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -331,9 +436,10 @@ def _extract_zip(archive: Path, strip_prefix: str, wanted: list[str], dest: Path
     with zipfile.ZipFile(archive) as zf:
         for info in zf.infolist():
             key = _member_key(info.filename, strip_prefix)
-            if key in want and not info.is_dir():  # only exact wanted names are written
+            hit = _wanted_name(key, want)
+            if hit and not info.is_dir():  # only wanted names are written
                 _write_member(dest, key, zf.read(info))
-                found.add(key)
+                found.add(hit)
     return found
 
 
@@ -342,16 +448,17 @@ def _extract_tar_gz(archive: Path, strip_prefix: str, wanted: list[str], dest: P
     with tarfile.open(archive, "r:gz") as tf:
         for member in tf:
             key = _member_key(member.name, strip_prefix)
-            if key in want and member.isfile():
+            hit = _wanted_name(key, want)
+            if hit and member.isfile():
                 _write_member(dest, key, tf.extractfile(member).read())
-                found.add(key)
+                found.add(hit)
     return found
 
 
 def _extract_tar_zst(archive: Path, strip_prefix: str, wanted: list[str], dest: Path) -> set[str]:
     names = dest / ".extract-names"
     prefix = f"{strip_prefix}/" if strip_prefix else ""
-    names.write_text("".join(f"{prefix}{w}\n" for w in wanted))
+    names.write_text("".join(f"{prefix}{w.rstrip('/')}\n" for w in wanted))
     tar = ["tar", "-x", "-f", "-", "-C", str(dest), "--no-same-owner", "--files-from", str(names)]
     if strip_prefix:
         tar.append("--strip-components=1")
@@ -392,9 +499,12 @@ def _checked_found(archive: Path, wanted: list[str], dest: Path, proc: subproces
         raise RuntimeError(f"tar failed extracting from {archive.name}: {proc.stderr.strip()}")
     found = set()
     for name in wanted:
-        if _tar_name(name, archive, missing):
+        if _tar_name(name.rstrip("/"), archive, missing):
             continue
-        if not (dest / name).is_file():
+        if name.endswith("/"):
+            if not (dest / name).is_dir():
+                raise RuntimeError(f"{archive.name} is truncated or damaged: {name} was not extracted")
+        elif not (dest / name).is_file():
             raise RuntimeError(f"{archive.name} is truncated or damaged: {name} was not extracted")
         found.add(name)
     return found

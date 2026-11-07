@@ -24,6 +24,9 @@ class PlanPruneTest(unittest.TestCase):
             self._touch(self.paths.downloads / name)
         (self.paths.tree("helium-0.21.1.1") / "out" / "Default").mkdir(parents=True)
         (self.paths.tree("helium-0.20.3.1") / "out").mkdir(parents=True)
+        for name in ("helium-0.21.1.1", "helium-0.20.3.1"):
+            self._touch(self.paths.pristine / name / "manifest.json")
+            self._touch(self.paths.pristine / (name + ".lock"))
         (self.paths.toolchain / "ccache-4.14.2").mkdir(parents=True)
         (self.paths.toolchain / "ccache-4.10.0").mkdir(parents=True)
         (self.paths.toolchain / "venv").mkdir(parents=True)
@@ -50,6 +53,8 @@ class PlanPruneTest(unittest.TestCase):
         self.assertEqual(
             names,
             [
+                "aerie-pristine/helium-0.20.3.1",
+                "aerie-pristine/helium-0.20.3.1.lock",
                 "downloads/chromium-150-base.tar.zst",
                 "downloads/chromium-150-base.tar.zst.hashes",
                 "downloads/chromium-157-linux.tar.zst.partial",
@@ -65,7 +70,26 @@ class PlanPruneTest(unittest.TestCase):
         self.assertNotIn(self.paths.tree("helium-0.21.1.1"), plan)
         self.assertNotIn(self.paths.downloads / "chromium-157-base.tar.zst", plan)
         self.assertNotIn(self.paths.ccache, plan)
+        self.assertNotIn(self.paths.pristine / "helium-0.21.1.1", plan)
+        self.assertNotIn(self.paths.pristine / "helium-0.21.1.1.lock", plan)
         self.assertNotIn(self.paths.ccache / "ccache.conf", plan)
+
+    def test_removing_an_old_snapshot_waits_for_its_lock(self):
+        import threading
+
+        from aerie_build import layers
+
+        stale = self.paths.pristine / "helium-0.20.3.1"
+        plan = [p for p in self.plan() if p.name.startswith("helium-0.20.3.1") and "aerie-pristine" in str(p)]
+        done = threading.Event()
+        with layers.locked(layers.lock_path(stale)):
+            worker = threading.Thread(
+                target=lambda: (prune.execute(plan, dry_run=False, log=lambda _m: None), done.set()))
+            worker.start()
+            self.assertFalse(done.wait(0.5))
+            self.assertTrue(stale.exists())
+        worker.join(5)
+        self.assertFalse(stale.exists())
 
     def test_dry_run_deletes_nothing(self):
         plan = self.plan()

@@ -2,7 +2,8 @@
 
 Kept: downloads pinned in helium.lock (and their published .hashes and
 .minisig files),
-the source tree of the pinned Helium version, current toolchain directories,
+the source tree of the pinned Helium version and its pristine snapshot,
+current toolchain directories,
 and the compiler cache (ccache trims itself to its size cap).
 """
 
@@ -12,6 +13,7 @@ import shutil
 from pathlib import Path
 from typing import Callable, Iterable
 
+from . import layers
 from .config import BuildPaths
 
 _ALWAYS_STALE_SUFFIXES = (".partial", ".rejected")
@@ -40,6 +42,7 @@ def plan_prune(
     stale: list[Path] = []
     stale += [p for p in _children(paths.downloads) if _download_is_stale(p, pinned_downloads)]
     stale += [p for p in _children(paths.src) if p.name != current_tree]
+    stale += [p for p in _children(paths.pristine) if p.name not in (current_tree, current_tree + ".lock")]
     stale += [p for p in _children(paths.toolchain) if p.name not in current_tools]
     return stale
 
@@ -58,6 +61,9 @@ def execute(
             continue
         log(f"removing {path}")
         if path.is_dir() and not path.is_symlink():
-            shutil.rmtree(path)
+            if path.parent.name == "aerie-pristine":
+                layers.clear_store(path)  # waits for a build that is re-applying layers
+            else:
+                shutil.rmtree(path)
         else:
             path.unlink()
