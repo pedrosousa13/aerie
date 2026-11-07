@@ -35,6 +35,7 @@ from . import register
 EXPECTED_FILE = FIXTURE_DIR / "cosmetic" / "expected.json"
 RULE_COUNT_HISTOGRAM = "Aerie.Adblock.CosmeticRuleCount"
 SETTLE_SECONDS = 15.0
+PAGE_HOST = "news.localhost"
 
 
 def load_expected(path: Path = EXPECTED_FILE) -> dict:
@@ -130,7 +131,12 @@ class CosmeticFiltering:
         return session.evaluate(measure_script(selectors)) or []
 
     def run(self, session: Session) -> CheckResult:
-        session.navigate(self.expected["page"])
+        # Not 127.0.0.1: adblock-rust gives a bare IP address or "localhost" no hide rules at all. A
+        # *.localhost name has a site of its own, resolves to the fixture server and is not upgraded
+        # by HTTPS-only mode.
+        nav = session.navigate_url(f"http://{PAGE_HOST}:{session.fixtures.port}{self.expected['page']}")
+        if nav["error"]:
+            return CheckResult(self.name, "fail", f"could not load the fixture page: {nav['error']}")
         deadline = time.monotonic() + self.settle_seconds
         while True:
             measured = self._measure(session)
