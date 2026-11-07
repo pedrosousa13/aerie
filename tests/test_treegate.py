@@ -74,7 +74,23 @@ LINK_PREFETCH_BLINK_OK = """  if (document.GetSettings() &&
   UseCounter::Count(document, WebFeature::kLinkRelPrefetch);
 """
 
+WIDEVINE_REG_OK = """void RegisterComponentsForUpdate() {
+  aerie_widevine::RegisterWhenEnabled(g_browser_process->local_state(),
+                                      base::BindRepeating(&RegisterWidevineCdmComponent, cus));
+}
+"""
+WIDEVINE_CFG_OK = """std::vector<GURL> ChromeConfigurator::UpdateUrl() const {
+  return {aerie_widevine::UpdateUrl(ls, helium::GetComponentUpdateURL(p))};
+}
+
+std::vector<GURL> ChromeConfigurator::PingUrl() const {
+  return {aerie_widevine::UpdateUrl(ls, helium::GetComponentUpdateURL(p))};
+}
+"""
+
 GOOD = {
+    "chrome/browser/component_updater/registration.cc": WIDEVINE_REG_OK,
+    "chrome/browser/component_updater/chrome_component_updater_configurator.cc": WIDEVINE_CFG_OK,
     "third_party/search_engines_data/resources/definitions/regional_settings.json": SEARCH_OK,
     "chrome/browser/profiles/profile.cc": PROFILE_OK,
     "chrome/browser/net/default_dns_over_https_config_source.cc": DOH_OK,
@@ -242,7 +258,7 @@ class RunTest(TreeCase):
 
     def test_empty_tree_passes_unless_required(self):
         self.assertEqual(self.run_gates(), [])
-        self.assertEqual(len(self.run_gates(require=True)), 10)
+        self.assertEqual(len(self.run_gates(require=True)), 12)
 
     def test_format_report(self):
         self.write({"a.cc": '"https://services.helium.imput.net"\n'})

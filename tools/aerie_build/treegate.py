@@ -179,9 +179,36 @@ def check_link_prefetch_off(root: Path, require: bool = False) -> list[Finding]:
     return out
 
 
+WIDEVINE_REGISTRATION = "chrome/browser/component_updater/registration.cc"
+WIDEVINE_CONFIGURATOR = "chrome/browser/component_updater/chrome_component_updater_configurator.cc"
+
+
+def check_widevine_opt_in(root: Path, require: bool = False) -> list[Finding]:
+    """Widevine is registered with the component updater only through the opt-in gate, and the
+    component update URL goes through it. A Helium or Chromium bump that puts a bare
+    ``RegisterWidevineCdmComponent(cus)`` back would download Widevine for everyone."""
+    gate = "widevine_opt_in"
+    out: list[Finding] = []
+    text, missing = _read(root, WIDEVINE_REGISTRATION, gate, require)
+    out += missing
+    if text is not None:
+        if not re.search(r"aerie_widevine::RegisterWhenEnabled\(", text):
+            out.append(Finding(gate, WIDEVINE_REGISTRATION, "Widevine must be registered through aerie_widevine::RegisterWhenEnabled()"))
+        if re.search(r"(?<![\w:])RegisterWidevineCdmComponent\(\s*cus\s*\)", text):
+            out.append(Finding(gate, WIDEVINE_REGISTRATION, "RegisterWidevineCdmComponent(cus) is called unconditionally"))
+    text, missing = _read(root, WIDEVINE_CONFIGURATOR, gate, require)
+    out += missing
+    if text is not None:
+        for fn in ("UpdateUrl", "PingUrl"):
+            m = re.search(r"ChromeConfigurator::%s\(\)\s*const\s*\{(.*?)\n\}" % fn, text, re.S)
+            if not m or "aerie_widevine::UpdateUrl(" not in m.group(1):
+                out.append(Finding(gate, WIDEVINE_CONFIGURATOR, f"{fn}() must go through aerie_widevine::UpdateUrl()"))
+    return out
+
+
 GATES: tuple[Callable[..., list[Finding]], ...] = (
     check_search_list, check_search_suggestions, check_secure_dns_default,
-    check_crash_reporting, check_services_off, check_fedcm_resolver,
+    check_crash_reporting, check_services_off, check_fedcm_resolver, check_widevine_opt_in,
     check_https_first_dialog_off, check_link_prefetch_off,
 )
 
