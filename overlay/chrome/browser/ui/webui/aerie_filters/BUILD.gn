@@ -1,0 +1,42 @@
+# Copyright 2026 The Aerie Authors
+# You can use, redistribute, and/or modify this source code under
+# the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+import("//tools/grit/grit_rule.gni")
+
+# chrome://aerie-filters (issue #10). Registered by patches/adblock/0009.
+source_set("aerie_filters") {
+  visibility = [ "//chrome/browser/ui/webui:*" ]
+  sources = [
+    "aerie_filters_handler.cc",
+    "aerie_filters_handler.h",
+    "aerie_filters_ui.cc",
+    "aerie_filters_ui.h",
+  ]
+  deps = [
+    ":resources",
+    "//base",
+    "//chrome/browser/profiles:profile",
+    "//components/aerie_adblock/browser:lists",
+    "//content/public/browser",
+    "//content/public/common",
+    "//url",
+  ]
+}
+
+# The page's HTML, script and style. Header: chrome/browser/ui/webui/
+# aerie_filters/grit/aerie_filters_resources.h. The pak is merged into
+# resources.pak by patches/adblock/0009.
+grit("resources") {
+  source = "aerie_filters_resources.grd"
+  output_dir = "$root_gen_dir/chrome/browser/ui/webui/aerie_filters"
+  outputs = [
+    "grit/aerie_filters_resources.h",
+    "aerie_filters_resources.pak",
+  ]
+  inputs = [
+    "aerie_filters.css",
+    "aerie_filters.html",
+    "aerie_filters.js",
+  ]
+}

@@ -33,3 +33,6 @@ adblock/0004-own-the-filter-engine-service.patch
 adblock/0005-list-aerie-histograms.patch
 adblock/0006-remove-onboarding-ublock-toggle.patch
 adblock/0007-attach-cosmetic-tab-helper.patch
+adblock/0008-pass-frame-to-adblock-hook.patch
+adblock/0009-register-filter-lists-page.patch
+adblock/0010-add-filter-toolbar-button.patch

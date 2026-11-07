@@ -1,0 +1,17 @@
+Aerie-Purpose: Tell the Filter Engine which frame a request factory is for, so blocked requests count toward that frame's tab.
+Aerie-Upstream-Area: chrome/browser/chrome_content_browser_client.cc (WillCreateURLLoaderFactory)
+Aerie-Kind: hook
+
+One more argument on the call that patch 0001 adds. |frame| is the frame
+WillCreateURLLoaderFactory() was given; it is null for workers, which are not
+counted.
+
+--- a/chrome/browser/chrome_content_browser_client.cc
++++ b/chrome/browser/chrome_content_browser_client.cc
+@@ -6960,4 +6960,4 @@
+   // above, before the network.
+-  aerie_adblock::MaybeProxyURLLoaderFactory(type, request_initiator,
+-                                            isolation_info, factory_builder);
++  aerie_adblock::MaybeProxyURLLoaderFactory(
++      type, request_initiator, isolation_info, factory_builder, frame);
+ 

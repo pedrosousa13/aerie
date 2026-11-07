@@ -10,6 +10,8 @@ import("//testing/test.gni")
 _visibility = [
   "//chrome/browser:core",
   "//chrome/browser/aerie_adblock:*",
+  "//chrome/browser/ui/views/aerie_adblock:*",
+  "//chrome/browser/ui/webui/aerie_filters:*",
   "//components/aerie_adblock/*",
 ]
 
