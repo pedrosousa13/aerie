@@ -254,3 +254,254 @@ fn object_type_rules_apply_to_object_requests_only() {
     assert!(!e.should_block(&req("https://plugin.example/x.swf", "plugin.example", "n.test", RequestKind::Other, true)));
     assert!(!e.should_block(&req("https://plugin.example/x.js", "plugin.example", "n.test", RequestKind::Script, true)));
 }
+
+// ---- Cosmetic filtering (issue #9) ----
+
+const COSMETIC_LIST: &str = "\
+! Title: cosmetic test list
+##.ad-banner
+###ad-slot
+##.promo > .sponsored
+##div[class*=\"Ads\"]
+news.test##.news-only
+other.test##.other-only
+##.keep-me
+news.test#@#.keep-me
+##.always-except
+#@#.always-except
+||ads.example^
+@@||nogeneric.test^$generichide
+";
+
+fn cosmetic_engine() -> FilterEngine {
+    FilterEngine::from_lists([COSMETIC_LIST.as_bytes()]).unwrap()
+}
+
+fn lines(css: &str) -> Vec<&str> {
+    css.lines().collect()
+}
+
+#[test]
+fn page_stylesheet_has_domain_specific_and_complex_generic_hides() {
+    let css = cosmetic_engine().cosmetic_stylesheet("https://news.test/article");
+    let l = lines(&css);
+    assert!(l.contains(&".news-only{display:none!important}"), "{css}");
+    assert!(l.contains(&"div[class*=\"Ads\"]{display:none!important}"), "{css}");
+}
+
+#[test]
+fn domain_specific_rules_do_not_leak_to_other_sites() {
+    let css = cosmetic_engine().cosmetic_stylesheet("https://news.test/");
+    assert!(!css.contains(".other-only"), "{css}");
+    let css = cosmetic_engine().cosmetic_stylesheet("https://elsewhere.test/");
+    assert!(!css.contains(".news-only"), "{css}");
+}
+
+#[test]
+fn exception_rules_remove_a_hide() {
+    let e = cosmetic_engine();
+    let generic = e.generic_stylesheet("https://news.test/", "keep-me ad-banner", "");
+    assert!(generic.contains(".ad-banner{display:none!important}"), "{generic}");
+    assert!(!generic.contains(".keep-me"), "exception on news.test: {generic}");
+    let other = e.generic_stylesheet("https://elsewhere.test/", "keep-me", "");
+    assert!(other.contains(".keep-me{display:none!important}"), "{other}");
+}
+
+#[test]
+fn generic_hides_apply_to_classes_and_ids_on_the_page() {
+    let e = cosmetic_engine();
+    let css = e.generic_stylesheet("https://news.test/", "ad-banner plain", "ad-slot content");
+    assert!(css.contains(".ad-banner{display:none!important}"), "{css}");
+    assert!(css.contains("#ad-slot{display:none!important}"), "{css}");
+    // A rule that starts with a class is keyed by that class.
+    let complex = e.generic_stylesheet("https://news.test/", "promo", "");
+    assert!(complex.contains(".promo > .sponsored{display:none!important}"), "{complex}");
+    assert!(!css.contains("plain"), "{css}");
+    assert!(!css.contains("content"), "{css}");
+}
+
+#[test]
+fn generic_hides_need_a_matching_class_or_id() {
+    let css = cosmetic_engine().generic_stylesheet("https://news.test/", "something-else", "other-id");
+    assert!(css.is_empty(), "{css}");
+}
+
+#[test]
+fn generichide_exception_switches_generic_hides_off_for_the_site() {
+    let e = cosmetic_engine();
+    let page = e.cosmetic_stylesheet("https://nogeneric.test/");
+    assert!(!page.contains("div[class*"), "{page}");
+    let generic = e.generic_stylesheet("https://nogeneric.test/", "ad-banner", "ad-slot");
+    assert!(generic.is_empty(), "{generic}");
+}
+
+#[test]
+fn first_party_content_selectors_are_not_hidden() {
+    let e = cosmetic_engine();
+    let css = format!(
+        "{}{}",
+        e.cosmetic_stylesheet("https://news.test/"),
+        e.generic_stylesheet("https://news.test/", "article headline", "content main")
+    );
+    assert!(!css.contains("article") && !css.contains("headline") && !css.contains("#main"), "{css}");
+}
+
+#[test]
+fn stylesheet_survives_serialization() {
+    let mut fresh = FilterEngine::empty();
+    fresh.load_serialized(&cosmetic_engine().serialize()).unwrap();
+    assert!(fresh.cosmetic_stylesheet("https://news.test/").contains(".news-only"));
+    assert!(fresh.generic_stylesheet("https://news.test/", "ad-banner", "").contains(".ad-banner"));
+}
+
+#[test]
+fn network_blocking_still_works_with_cosmetic_rules_loaded() {
+    let e = cosmetic_engine();
+    assert!(e.should_block(&req("https://ads.example/a.js", "ads.example", "news.test", RequestKind::Script, true)));
+}
+
+#[test]
+fn each_selector_is_its_own_rule() {
+    // One bad selector in a comma list would void the whole rule in CSS.
+    let css = cosmetic_engine().cosmetic_stylesheet("https://news.test/");
+    for line in css.lines() {
+        assert!(line.ends_with("{display:none!important}"), "{line}");
+        let sel = line.trim_end_matches("{display:none!important}");
+        assert!(!sel.contains("{") && !sel.contains("}"), "{line}");
+    }
+}
+
+#[test]
+fn unsafe_selectors_never_reach_the_stylesheet() {
+    let hostile = "\
+##.ok-one
+##.a{background:url(https://evil.example/x)}
+##.b;color:red
+##.c } body { display:none
+##.d/*
+##.e*/
+##.f\\
+##.g<script>
+##a[href=\"x
+##.h:style(background:red)
+##.i:remove()
+##@import url(x)
+##.url(x)
+##^script:has-text(x)
+##+js(abort-on-property-read, x)
+news.test##+js(set-constant, a, b)
+news.test##.ok-two
+";
+    let e = FilterEngine::from_lists([hostile.as_bytes()]).unwrap();
+    let css = e.cosmetic_stylesheet("https://news.test/");
+    let generic = e.generic_stylesheet("https://news.test/", "ok-one a b c d e f g h i url", "");
+    let all = format!("{css}\n{generic}");
+    assert!(all.contains(".ok-two{display:none!important}"), "{all}");
+    assert!(all.contains(".ok-one{display:none!important}"), "{all}");
+    for bad in ["evil", "background", "color:red", "body", "script", "@import", ":style", ":remove", "url(", "\\", "/*", "*/"] {
+        assert!(!all.contains(bad), "{bad:?} leaked: {all}");
+    }
+    assert_eq!(all.lines().filter(|l| !l.is_empty()).count(), 2, "{all}");
+}
+
+#[test]
+fn selector_safety_rules() {
+    for ok in [".ad", "#ad", "div.ad > p + span ~ b", "a[href^=\"https://x.test/\"]", "ins[data-ad='1']", ".a:not(.b)", ".a, .b"] {
+        // A comma list is split before it gets here; the checker still accepts plain CSS.
+        assert!(is_safe_selector(ok), "{ok}");
+    }
+    for bad in ["", " ", "a{", "a}", "a;b", "a<b", "a\\b", "a/*b", "a*/b", "a\"b", "a[b='c", "a(b", "a)b(", "a[b", "@media", "^script", "+js(x)", "a\nb", "a\0b", ".x:style(a:b)", ".x:remove()"] {
+        assert!(!is_safe_selector(bad), "{bad:?}");
+    }
+    assert!(!is_safe_selector(&format!(".{}", "a".repeat(MAX_SELECTOR_BYTES))));
+}
+
+#[test]
+fn hide_stylesheet_skips_unsafe_and_caps_size() {
+    assert_eq!(hide_stylesheet([".b", "a{", ".a"]), ".a{display:none!important}\n.b{display:none!important}\n");
+    let many: Vec<String> = (0..MAX_COSMETIC_SELECTORS + 50).map(|i| format!(".c{i}")).collect();
+    assert!(hide_stylesheet(many).lines().count() <= MAX_COSMETIC_SELECTORS);
+    let big: Vec<String> = (0..2000).map(|i| format!(".{}{i}", "x".repeat(1500))).collect();
+    assert!(hide_stylesheet(big).len() <= MAX_COSMETIC_CSS_BYTES);
+}
+
+#[test]
+fn page_tokens_are_limited_and_hostile_tokens_ignored() {
+    let e = cosmetic_engine();
+    let classes = format!("{} ad-banner", "z ".repeat(MAX_PAGE_TOKENS * 2));
+    // Past the cap the tail is ignored, never a panic.
+    let _ = e.generic_stylesheet("https://news.test/", &classes, "");
+    let long = "q".repeat(MAX_TOKEN_BYTES + 1);
+    let css = e.generic_stylesheet("https://news.test/", &long, "ad-slot\u{0}x");
+    assert!(css.is_empty(), "{css}");
+}
+
+#[test]
+fn odd_urls_do_not_panic_for_cosmetics() {
+    let e = cosmetic_engine();
+    for url in ["", "not a url", "https://", "data:text/html,x", "https://[::1]/", "https://%00/", &"a".repeat(100_000)] {
+        let _ = e.cosmetic_stylesheet(url);
+        let _ = e.generic_stylesheet(url, "ad-banner", "ad-slot");
+    }
+}
+
+#[test]
+fn scriptlet_and_procedural_rules_are_not_kept_in_the_engine() {
+    let list = "news.test##+js(abort-on-property-read, x)\nnews.test#?#div:has-text(Ad)\nnews.test#$#body { x: y }\n";
+    let e = FilterEngine::from_lists([list.as_bytes()]).unwrap();
+    assert!(e.cosmetic_stylesheet("https://news.test/").is_empty());
+    assert!(sanitize_list(list.as_bytes()).trim().is_empty(), "{}", sanitize_list(list.as_bytes()));
+}
+
+#[test]
+fn sanitize_keeps_plain_hide_rules_and_exceptions() {
+    let kept = sanitize_list(b"##.a\nx.test##.b\nx.test#@#.b\n! comment\n||net.example^\n");
+    for want in ["##.a", "x.test##.b", "x.test#@#.b", "||net.example^"] {
+        assert!(kept.lines().any(|l| l == want), "{want}: {kept}");
+    }
+}
+
+#[test]
+fn domain_resolver_finds_the_registrable_domain() {
+    use adblock::url_parser::ResolvesDomain;
+    let dom = |h: &str| {
+        let (a, b) = AerieDomainResolver.get_host_domain(h);
+        h[a..b].to_string()
+    };
+    assert_eq!(dom("news.test"), "news.test");
+    assert_eq!(dom("a.b.news.test"), "news.test");
+    assert_eq!(dom("www.example.co.uk"), "example.co.uk");
+    assert_eq!(dom("example.co.uk"), "example.co.uk");
+    assert_eq!(dom("localhost"), "localhost");
+    assert_eq!(dom("127.0.0.1"), "127.0.0.1");
+    assert_eq!(dom("[::1]"), "[::1]");
+    assert_eq!(dom(""), "");
+}
+
+#[test]
+fn entity_rules_match_every_tld_of_a_site() {
+    let e = FilterEngine::from_lists(["shop.*##.entity-ad\n".as_bytes()]).unwrap();
+    assert!(e.cosmetic_stylesheet("https://shop.com/").contains(".entity-ad"));
+    assert!(e.cosmetic_stylesheet("https://www.shop.co.uk/").contains(".entity-ad"));
+    assert!(!e.cosmetic_stylesheet("https://other.com/").contains(".entity-ad"));
+}
+
+#[test]
+fn real_lists_give_safe_cosmetic_output() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../third_party/filter_lists");
+    let (Ok(easylist), Ok(privacy)) = (std::fs::read(dir.join("easylist.txt")), std::fs::read(dir.join("easyprivacy.txt"))) else {
+        return; // lists are not in this checkout
+    };
+    let e = FilterEngine::from_lists([easylist.as_slice(), privacy.as_slice()]).unwrap();
+    let mut fresh = FilterEngine::empty();
+    fresh.load_serialized(&e.serialize()).unwrap();
+    let page = fresh.cosmetic_stylesheet("https://news.example.test/story");
+    let generic = fresh.generic_stylesheet("https://news.example.test/story", "sponsored-ad article-body", "content");
+    assert!(generic.contains(".sponsored-ad{display:none!important}"), "{generic}");
+    assert!(!generic.contains("article-body") && !generic.contains("#content{"), "{generic}");
+    for line in page.lines().chain(generic.lines()) {
+        let sel = line.strip_suffix("{display:none!important}").expect(line);
+        assert!(is_safe_selector(sel), "{line}");
+    }
+    assert!(page.lines().count() < 5_000, "page-wide rules should stay a small set: {}", page.lines().count());
+}

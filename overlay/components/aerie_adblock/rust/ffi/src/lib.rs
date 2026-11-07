@@ -71,6 +71,17 @@ mod ffi {
             request_type: RequestType,
             third_party: bool,
         ) -> bool;
+
+        /// The CSS to inject when the page at `page_url` commits: one
+        /// `selector{display:none!important}` line per hide rule that applies
+        /// to the site. Every selector passed the core's safety check. Empty
+        /// for a URL that is not http(s).
+        fn cosmetic_stylesheet(self: &Engine, page_url: &str) -> String;
+
+        /// The CSS for generic hide rules that match the classes and ids a
+        /// page uses (each a whitespace-separated list). Empty when the site
+        /// has a `$generichide` exception.
+        fn generic_stylesheet(self: &Engine, page_url: &str, classes: &str, ids: &str) -> String;
     }
 }
 
@@ -110,6 +121,14 @@ impl Engine {
 
     fn serialize(&self) -> Vec<u8> {
         self.0.serialize()
+    }
+
+    fn cosmetic_stylesheet(&self, page_url: &str) -> String {
+        self.0.cosmetic_stylesheet(page_url)
+    }
+
+    fn generic_stylesheet(&self, page_url: &str, classes: &str, ids: &str) -> String {
+        self.0.generic_stylesheet(page_url, classes, ids)
     }
 
     fn should_block(
@@ -182,5 +201,18 @@ mod tests {
         let huge = vec![b'a'; aerie_adblock_core::MAX_LIST_BYTES + 1];
         let e = new_engine_from_list(&huge);
         assert!(!e.should_block("https://a.test/", "a.test", "b.test", RequestType::Other, true));
+    }
+
+    #[test]
+    fn bridge_cosmetic_stylesheets() {
+        let e = new_engine_from_list(b"news.test##.site-ad\n##.ad-banner\n##div[class*=\"Ads\"]\n");
+        let page = e.cosmetic_stylesheet("https://news.test/a");
+        assert!(page.contains(".site-ad{display:none!important}"), "{page}");
+        assert!(page.contains("div[class*=\"Ads\"]{display:none!important}"), "{page}");
+        assert!(!e.cosmetic_stylesheet("https://other.test/").contains(".site-ad"));
+        assert!(e.cosmetic_stylesheet("chrome://settings/").is_empty());
+        let generic = e.generic_stylesheet("https://news.test/a", "ad-banner x", "");
+        assert!(generic.contains(".ad-banner{display:none!important}"), "{generic}");
+        assert!(e.generic_stylesheet("https://news.test/a", "x", "y").is_empty());
     }
 }
