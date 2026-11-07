@@ -53,8 +53,17 @@ PAGES = (
 PENDING_SERVICES_PAGES = {
     "chrome://settings/privacy": "the Helium services row",
     "chrome://settings/privacy/services": "the Helium services page",
+    "chrome://settings/languages": "the spell-check dictionary download messages",
     "chrome://setup/": "the onboarding page",
 }
+
+# chrome://version lists the command line, the executable and the profile path. They hold the build root
+# (.../src/helium-<version>/out/Default/aerie), which is a directory name, not branding.
+_PATH_LINE_RE = re.compile(r"^(Command Line|Executable Path|Profile Path)\t.*$", re.MULTILINE)
+
+# chrome://flags prints each experiment's internal id (#helium-noise) under its name. The id is a flag
+# name that settings and command lines use, not a word the user reads as a name.
+_FLAG_ID_RE = re.compile(r"#helium-[a-z0-9-]+")
 
 _HELIUM_RE = re.compile(r"(?<![A-Za-z0-9_])helium(?![A-Za-z0-9_])", re.IGNORECASE)
 
@@ -86,6 +95,11 @@ def find_helium(text: str) -> list[str]:
     return [text[max(0, m.start() - 20):m.end() + 20].replace("\n", " ") for m in _HELIUM_RE.finditer(text)]
 
 
+def scrub(text: str) -> str:
+    """Drop what is not branding: build paths on the version page and internal flag ids."""
+    return _FLAG_ID_RE.sub("", _PATH_LINE_RE.sub("", text))
+
+
 def read_page(session: Session, url: str) -> dict:
     nav = session.navigate_url(url, wait=20)
     if nav["error"]:
@@ -96,7 +110,7 @@ def read_page(session: Session, url: str) -> dict:
         got = session.evaluate(TEXT_JS) or {}
     except Exception as exc:  # noqa: BLE001  (a page that cannot be read is data, not a crash)
         return {"url": url, "title": "", "text": "", "error": f"could not read: {exc}"}
-    return {"url": url, "title": got.get("title", ""), "text": got.get("text", ""), "error": None}
+    return {"url": url, "title": got.get("title", ""), "text": scrub(got.get("text", "")), "error": None}
 
 
 @register
@@ -188,7 +202,9 @@ class Scheme(HardeningCheck):
             return "fail", f"negative control failed: an invented scheme loaded {obs['bogus']['url']}"
         if not loads_version_page(obs["aerie"]):
             return "fail", f"aerie://version did not load the version page (got {obs['aerie']['url']!r})"
-        if loads_version_page(obs["helium"]) or obs["helium"]["url"].startswith("helium:"):
+        # An unknown scheme keeps its URL and has no title, so only a page with a title counts as
+        # registered (the made-up scheme above is the control for exactly that).
+        if loads_version_page(obs["helium"]) or (obs["helium"]["url"].startswith("helium:") and obs["helium"]["title"]):
             return "fail", (f"helium:// is still registered (helium://version ended at {obs['helium']['url']!r}, "
                             f"title {obs['helium']['title']!r})")
         return "pass", "aerie://version loads the version page; helium://version does not, like an unknown scheme"
