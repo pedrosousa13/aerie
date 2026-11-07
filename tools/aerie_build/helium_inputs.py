@@ -30,7 +30,7 @@ NAMES = frozenset({"helium-drop.txt", "helium-adapt.txt"})
 _SKIP_DIRS = frozenset({".git", ".scratch", "node_modules", "__pycache__"})
 
 
-def _generated(repo: Path, path: Path) -> bool:
+def _is_build_output(repo: Path, path: Path) -> bool:
     rel = path.relative_to(repo).as_posix()
     return any(rel.startswith(g + "/") for g in GENERATED)
 
@@ -42,7 +42,7 @@ def digest(repo: Path) -> str:
         if path.is_file():
             files.add(path)
         elif path.is_dir():
-            files.update(p for p in path.rglob("*") if p.is_file() and not _generated(repo, p))
+            files.update(p for p in path.rglob("*") if p.is_file() and not _is_build_output(repo, p))
     for root, dirs, names in os.walk(repo):
         dirs[:] = [d for d in dirs if d not in _SKIP_DIRS]
         files.update(Path(root) / n for n in names if n in NAMES)

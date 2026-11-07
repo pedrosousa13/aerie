@@ -303,7 +303,7 @@ def check_gnrt_config(text: str) -> None:
       Chromium forbids;
     * thiserror v1 and v2 configured apart: only v2's build script writes private.rs;
     * aho-corasick allowed `unsafe`: regex's default features build it, its `Automaton`
-      trait is `unsafe`, and upstream's `false` was never compiled (found in train 2).
+      trait is `unsafe`, and upstream's `false` was never compiled.
     """
     try:
         crates = tomllib.loads(text)["crate"]
@@ -512,7 +512,6 @@ def drop_patched_crates(tree: Path, added: Iterable[Package], log) -> None:
             log(f"crates: {name} has crate patches; removed it so gnrt vendor downloads and patches it again")
 
 
-
 def run_gnrt(tree: Path, python: Path | str, env: dict, log, runner) -> None:
     """`gnrt vendor` then `gnrt gen`, through Chromium's own wrapper (builds gnrt with the in-tree cargo)."""
     script = Path(tree) / "tools" / "crates" / "run_gnrt.py"
@@ -524,7 +523,7 @@ def run_gnrt(tree: Path, python: Path | str, env: dict, log, runner) -> None:
 
 def vendor_adblock(tree: Path, repo: Path, chromium_version: str, cache: Path, python: Path | str, env: dict,
                    log, runner, opener: fallback.Opener = fallback.default_opener) -> None:
-    """The whole vendor step. Raises CratesError, and leaves the tree as the failed check found it.
+    """The whole vendor step. Raises CratesError. A failed run writes no stamp, so the next run redoes the step.
 
     Safe to run again after an interruption: the pristine Cargo.lock is kept in
     the tree on the first run, and every run pins from that copy.
