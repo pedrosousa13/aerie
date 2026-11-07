@@ -19,8 +19,22 @@ ENV_CACHE_SIZE = "AERIE_CCACHE_SIZE"
 
 _SIZE_RE = re.compile(r"^([0-9]+)([KMGT])$")
 
-# Inherited ccache settings that would override the cap or the cache location.
-_CCACHE_OVERRIDES = ("CCACHE_MAXSIZE", "CCACHE_CONFIGPATH", "CCACHE_TEMPDIR")
+# Inherited settings dropped from the build environment: ccache overrides that
+# would bypass the cap or the cache location, and host toolchain settings that
+# would leak into Chromium's bundled toolchains (a host GOROOT, for example,
+# makes the bundled Go fail with a version mismatch).
+_DROPPED_VARS = frozenset(
+    {
+        "CCACHE_MAXSIZE", "CCACHE_CONFIGPATH", "CCACHE_TEMPDIR",
+        "CC", "CXX", "AR", "NM", "LD", "CPP",
+        "CFLAGS", "CXXFLAGS", "CPPFLAGS", "LDFLAGS",
+        "CPATH", "C_INCLUDE_PATH", "CPLUS_INCLUDE_PATH", "LIBRARY_PATH", "LD_LIBRARY_PATH",
+        "PKG_CONFIG_PATH", "PKG_CONFIG_LIBDIR", "PKG_CONFIG_SYSROOT_DIR",
+        "PYTHONPATH", "PYTHONHOME", "PYTHONSTARTUP",
+        "NODE_OPTIONS", "NODE_PATH",
+    }
+)
+_DROPPED_PREFIXES = ("GO", "RUST", "CARGO_")
 
 
 class ConfigError(ValueError):
@@ -118,7 +132,11 @@ class BuildPaths:
 
 def isolated_env(paths: BuildPaths, base: Mapping[str, str]) -> dict[str, str]:
     """Return a copy of base where every per-user write location points into the build root."""
-    env = {k: v for k, v in base.items() if k not in _CCACHE_OVERRIDES}
+    env = {
+        k: v
+        for k, v in base.items()
+        if k not in _DROPPED_VARS and not k.startswith(_DROPPED_PREFIXES)
+    }
     tmp = str(paths.tmp)
     env.update(
         HOME=str(paths.home),

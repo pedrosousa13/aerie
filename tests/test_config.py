@@ -124,6 +124,29 @@ class IsolatedEnvTest(unittest.TestCase):
         self.assertNotIn("CCACHE_MAXSIZE", env)
         self.assertNotIn("CCACHE_CONFIGPATH", env)
 
+    def test_drops_host_toolchain_settings(self):
+        # A host GOROOT (e.g. from mise) breaks Chromium's bundled Go toolchain.
+        paths = config.BuildPaths(Path("/r"))
+        leaky = {
+            "GOROOT": "/home/me/go1.24",
+            "GOBIN": "/home/me/go/bin",
+            "GOFLAGS": "-x",
+            "CC": "gcc",
+            "CXX": "g++",
+            "CFLAGS": "-O0",
+            "LDFLAGS": "-L/x",
+            "RUSTFLAGS": "-C x",
+            "CARGO_HOME": "/home/me/.cargo",
+            "PYTHONPATH": "/home/me/lib",
+            "PYTHONHOME": "/opt/py",
+            "NODE_OPTIONS": "--x",
+            "LD_LIBRARY_PATH": "/opt/lib",
+            "PKG_CONFIG_PATH": "/opt/pc",
+        }
+        env = config.isolated_env(paths, dict(leaky, PATH="/usr/bin"))
+        self.assertEqual(sorted(set(leaky) & set(env)), [])
+        self.assertEqual(env["PATH"], "/usr/bin")
+
 
 if __name__ == "__main__":
     unittest.main()
