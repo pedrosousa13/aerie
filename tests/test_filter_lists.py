@@ -234,6 +234,30 @@ class RepoLockTest(unittest.TestCase):
             self.assertNotEqual(proc.returncode, 0)
             self.assertIn("wrote no engine", proc.stderr)
 
+    def test_compile_engine_runs_a_tool_named_relative_to_the_build_dir(self):
+        # On Linux the host toolchain is the default one, so GN rebases the tool to a bare
+        # "aerie_adblock_compile" in out/Default. That is a path, not a name to look up in PATH.
+        import subprocess
+        import sys
+        script = REPO / "overlay/components/aerie_adblock/compile_engine.py"
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            data = tmp / "easylist.txt"
+            data.write_bytes(A)
+            lock = tmp / "lock.json"
+            lock.write_text(json.dumps({"lists": [{"file": "easylist.txt", "sha256": hashlib.sha256(A).hexdigest()}]}))
+            selfcheck = tmp / "selfcheck.json"
+            selfcheck.write_text(json.dumps({"block": [], "allow": []}))
+            tool = tmp / "aerie_adblock_compile"
+            tool.write_text('#!/bin/sh\nwhile [ "$1" != --out ]; do shift; done\necho engine > "$2"\n')
+            tool.chmod(0o755)
+            proc = subprocess.run(
+                [sys.executable, "-I", str(script), "--tool", "aerie_adblock_compile", "--out", "gen/engine.dat",
+                 "--selfcheck", str(selfcheck), "--lock", str(lock), "--list", str(data)],
+                capture_output=True, text=True, cwd=tmp, env={"PATH": "/usr/bin:/bin"})
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            self.assertTrue((tmp / "gen/engine.dat").is_file())
+
 
 if __name__ == "__main__":
     unittest.main()

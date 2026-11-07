@@ -55,7 +55,9 @@ def main(argv):
 
     with open(args.selfcheck, encoding="utf-8") as fh:
         checks = json.load(fh)
-    cmd = [args.tool, "--out", args.out]
+    # GN passes the tool relative to the build directory, and on Linux that is a
+    # bare name ("aerie_adblock_compile"), which subprocess would look up in PATH.
+    cmd = [os.path.abspath(args.tool), "--out", args.out]
     for entry in checks["block"]:
         cmd += ["--expect-block", probe(entry)]
     for entry in checks["allow"]:
