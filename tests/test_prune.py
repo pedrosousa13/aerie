@@ -14,6 +14,8 @@ class PlanPruneTest(unittest.TestCase):
         for name in (
             "chromium-157-base.tar.zst",  # pinned, keep
             "chromium-157-base.tar.zst.hashes",  # hash file of pinned, keep
+            "chromium-157-base.tar.zst.minisig",  # signature of pinned, keep
+            "old-tool.tar.xz.minisig",  # signature of unpinned file
             "chromium-150-base.tar.zst",  # stale tarball
             "chromium-150-base.tar.zst.hashes",  # stale hash file
             "chromium-157-linux.tar.zst.partial",  # interrupted download
@@ -52,6 +54,7 @@ class PlanPruneTest(unittest.TestCase):
                 "downloads/chromium-150-base.tar.zst.hashes",
                 "downloads/chromium-157-linux.tar.zst.partial",
                 "downloads/chromium-157-linux.tar.zst.rejected",
+                "downloads/old-tool.tar.xz.minisig",
                 "src/helium-0.20.3.1",
                 "toolchain/ccache-4.10.0",
             ],

@@ -171,16 +171,15 @@ def install_ccache(ctx: Context, log: Logger, env: dict) -> None:
         log(f"ccache {tool['version']} already installed")
     else:
         archive = ctx.paths.downloads / Path(tool["url"]).name
-        if not archive.is_file():
-            log(f"downloading {tool['url']}")
-            partial = archive.with_name(archive.name + ".partial")
-            urllib.request.urlretrieve(tool["url"], partial)
-            partial.replace(archive)
-        try:
-            lock.verify_file(archive, tool["sha256"])
-        except lock.VerificationError:
-            archive.replace(archive.with_name(archive.name + ".rejected"))
-            raise
+        signature = archive.with_name(archive.name + ".minisig")
+        for url, dest in ((tool["url"], archive), (tool["url"] + ".minisig", signature)):
+            if not dest.is_file():
+                log(f"downloading {url}")
+                partial = dest.with_name(dest.name + ".partial")
+                urllib.request.urlretrieve(url, partial)
+                partial.replace(dest)
+        lock.verify_tool_archive("ccache", tool, archive, signature.read_text(encoding="utf-8"))
+        log(f"{archive.name}: minisign signature OK (ccache release key)")
         target = ctx.ccache_bin.parent
         with tarfile.open(archive) as tar:
             member = next(m for m in tar.getmembers() if m.name.endswith("/ccache") and m.isfile())
@@ -209,18 +208,34 @@ def install_python_env(ctx: Context, log: Logger, env: dict) -> None:
     stamp.write_text(digest + "\n")
 
 
-def _downloads(ctx: Context, log: Logger, env: dict, inis: list[Path], dest: Path) -> None:
-    script = ctx.core / "utils" / "downloads.py"
-    ini_args = ["-i", *inis]
-    run(log, [ctx.python, script, "retrieve", *ini_args, "-c", ctx.paths.downloads,
-              "--hide-progress-bar"], env)
-    names = lock.required_downloads(inis, ctx.pins.chromium_version)
-    log(f"checking {len(names)} download(s) against helium.lock")
-    lock.verify_downloads(ctx.pins, ctx.paths.downloads, names)
-    run(log, [ctx.python, script, "unpack", *ini_args, "-c", ctx.paths.downloads, dest], env)
+def _retrieve(ctx: Context, log: Logger, env: dict, inis: list[Path]) -> None:
+    # Downloads anything missing and checks the publisher's digests.
+    run(log, [ctx.python, ctx.core / "utils" / "downloads.py", "retrieve", "-i", *inis,
+              "-c", ctx.paths.downloads, "--hide-progress-bar"], env)
+
+
+def _unpack(ctx: Context, log: Logger, env: dict, inis: list[Path]) -> None:
+    run(log, [ctx.python, ctx.core / "utils" / "downloads.py", "unpack", "-i", *inis,
+              "-c", ctx.paths.downloads, ctx.tree], env)
 
 
 def fetch_sources(ctx: Context, log: Logger, env: dict) -> None:
+    """Retrieve and verify every download on every build; unpack only once.
+
+    The pinned sha256 check runs even when the tree is already unpacked, so a
+    tarball that changed on disk since the last build is caught (hashing the
+    ~3 GB of tarballs takes seconds).
+    """
+    groups = [
+        [ctx.core / "downloads.ini", ctx.platform / "downloads.ini"],
+        [ctx.core / "deps.ini"],
+    ]
+    for inis in groups:
+        _retrieve(ctx, log, env, inis)
+    names = [n for inis in groups for n in lock.required_downloads(inis, ctx.pins.chromium_version)]
+    log(f"checking {len(names)} download(s) against helium.lock")
+    lock.verify_downloads(ctx.pins, ctx.paths.downloads, names)
+
     stamp = ctx.tree / ".downloaded.stamp"
     if stamp.exists():
         log("sources already unpacked")
@@ -229,8 +244,8 @@ def fetch_sources(ctx: Context, log: Logger, env: dict) -> None:
         log(f"removing partly unpacked tree {ctx.tree}")
         shutil.rmtree(ctx.tree)
     ctx.tree.mkdir(parents=True)
-    _downloads(ctx, log, env, [ctx.core / "downloads.ini", ctx.platform / "downloads.ini"], ctx.tree)
-    _downloads(ctx, log, env, [ctx.core / "deps.ini"], ctx.tree)
+    for inis in groups:
+        _unpack(ctx, log, env, inis)
     stamp.touch()
 
 

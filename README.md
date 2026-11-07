@@ -36,8 +36,9 @@ Pinned release: **Helium 0.21.1.1** (Chromium 157.0.8103.38) —
 Nothing else is installed system-wide. Helium's prepared Chromium tarballs
 already carry the toolchain (clang, lld, rust, gn, siso, node) and a Debian
 sysroot, so no `-dev` packages are needed. `./aerie build` installs
-[ccache](https://ccache.dev) 4.14.2 and a Python venv with Pillow into the
-build root, each checked against a pinned sha256.
+[ccache](https://ccache.dev) 4.14.2 into the build root, checked against
+ccache's minisign release signature, and a Python venv with Pillow, installed
+with `pip --require-hashes`.
 
 You do not need Docker. (Upstream `helium-linux` builds in a Docker image;
 Aerie builds on the host so that no image layers land on the system disk.)
@@ -116,7 +117,8 @@ generated icons in `helium-chromium/resources/generated/` (ignored by git).
 
 ### Source verification
 
-Each download is checked twice before it is unpacked:
+Each source download is checked twice on every build, including builds
+that reuse an already unpacked tree:
 
 1. Helium's `downloads.py` checks it against the digest its publisher hosts
    (for the Chromium tarballs, the `.hashes` file on the
@@ -127,6 +129,18 @@ Each download is checked twice before it is unpacked:
 The build stops if a file has no pin, is missing, or does not match. A file
 that does not match is renamed to `*.rejected`, so the next run downloads it
 again. Helium does not publish signatures for these tarballs, only checksums.
+
+ccache is checked against its publisher's signature instead of a digest
+Aerie computed. ccache signs each release archive with
+[minisign](https://jedisct1.github.io/minisign/). Aerie keeps ccache's public
+key in `tools/keys/ccache-minisign.pub`, a verbatim copy of
+<https://ccache.dev/minisign.pub> (the same key is printed on
+<https://ccache.dev/download.html>), downloads `<archive>.minisig` from the
+same GitHub release, and checks both the file signature and the trusted
+comment signature. The Ed25519 check is implemented in
+`tools/aerie_build/minisign.py` with the Python standard library only, so
+the minisign tool is not needed. A failed check renames the archive to
+`*.rejected` and stops the build.
 
 ### Prune
 

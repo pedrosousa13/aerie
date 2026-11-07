@@ -24,8 +24,16 @@ platform_commit = "4da5fdc8f90175592f62b6a3f62e90a65e171789"
 "onboarding-page-202610161403.tar.gz" = "b35de6deb79e0864f53a0a70ea8819cecd46843a3b0518a20dd6a6b7d26900ac"
 "ublock-origin-1.75.4.zip" = "5b5459231996a67de3d76b24260866227204902656cba193195da5bd95622aee"
 
-# Build tools Aerie installs into the build root.
+# Build tools Aerie installs into the build root. Each is checked against its
+# publisher's signature before use.
+#
+# ccache: release archives are signed with minisign. The public key file
+# tools/keys/ccache-minisign.pub is a verbatim copy of
+# https://ccache.dev/minisign.pub (fetched 2026-11-07); the same key,
+# RWQX7yXbBedVfI4PNx6FLdFXu9GHUFsr28s4BVGxm4BeybtnX3P06saF, is printed on
+# https://ccache.dev/download.html. The signature is <url>.minisig from the
+# same GitHub release.
 [tools.ccache]
 version = "4.14.2"
 url = "https://github.com/ccache/ccache/releases/download/v4.14.2/ccache-4.14.2-linux-x86_64-musl-static.tar.xz"
-sha256 = "b20ff6415151226ac5a10dfd6839700c694bd67d1871c8fddb266d366ff25bfb"
+minisign_key_file = "tools/keys/ccache-minisign.pub"

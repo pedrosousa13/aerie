@@ -16,6 +16,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable
 
+from . import minisign
+
 _SHA256_RE = re.compile(r"^[0-9a-fA-F]{64}$")
 
 
@@ -50,7 +52,7 @@ def load_lock(path: Path) -> Lock:
     }
     tools = data.get("tools", {})
     for name, tool in tools.items():
-        tool["sha256"] = _check_digest(f"tools.{name}", tool.get("sha256"))
+        tool["minisign_key"] = _load_tool_key(name, tool, Path(path).parent)
     return Lock(
         helium_version=helium["version"],
         chromium_version=helium["chromium_version"],
@@ -61,6 +63,35 @@ def load_lock(path: Path) -> Lock:
         downloads=downloads,
         tools=tools,
     )
+
+
+def _load_tool_key(name: str, tool: dict, base: Path) -> str:
+    """Read and check the publisher's minisign public key a tool entry points to."""
+    key_file = tool.get("minisign_key_file")
+    if not key_file:
+        raise VerificationError(
+            f"tools.{name} has no minisign_key_file; tools must be verified against "
+            "their publisher's signature"
+        )
+    try:
+        text = (base / key_file).read_text(encoding="utf-8")
+        minisign.parse_public_key(text)
+    except (OSError, minisign.SignatureError) as exc:
+        raise VerificationError(f"tools.{name}: bad minisign key file {key_file}: {exc}") from exc
+    return text
+
+
+def verify_tool_archive(name: str, tool: dict, archive: Path, minisig: str) -> None:
+    """Check a tool download against its publisher's minisign signature.
+
+    On any failure the archive is renamed to <name>.rejected and
+    VerificationError is raised.
+    """
+    try:
+        minisign.verify_file(archive, tool["minisign_key"], minisig)
+    except minisign.SignatureError as exc:
+        archive.replace(archive.with_name(archive.name + ".rejected"))
+        raise VerificationError(f"{name}: {archive.name} failed signature check: {exc}") from exc
 
 
 def sha256_file(path: Path, chunk: int = 1 << 20) -> str:

@@ -7,6 +7,8 @@ from pathlib import Path
 from aerie_build import lock
 from aerie_build.lock import VerificationError
 
+from .test_minisign import CCACHE_FILE, CCACHE_PUB, CCACHE_SIG
+
 LOCK_TEXT = textwrap.dedent(
     """
     [helium]
@@ -24,7 +26,7 @@ LOCK_TEXT = textwrap.dedent(
     [tools.ccache]
     version = "4.14.2"
     url = "https://example.invalid/ccache.tar.xz"
-    sha256 = "{b}"
+    minisign_key_file = "keys/ccache.pub"
     """
 )
 
@@ -43,6 +45,10 @@ class LockTestCase(unittest.TestCase):
         (self.cache / "b.zip").write_bytes(b"beta")
         self.lock_path = self.dir / "helium.lock"
         self.lock_path.write_text(LOCK_TEXT.format(a=sha(b"alpha"), b=sha(b"beta")))
+        (self.dir / "keys").mkdir()
+        (self.dir / "keys" / "ccache.pub").write_text(
+            "untrusted comment: minisign public key 7C55E705DB25EF17\n" + CCACHE_PUB + "\n"
+        )
 
     def tearDown(self):
         self._tmp.cleanup()
@@ -56,6 +62,18 @@ class LoadLockTest(LockTestCase):
         self.assertEqual(pins.core_commit, "ecb36f09c4a4140e4cf4e67e77a3150bf3f3e7eb")
         self.assertEqual(set(pins.downloads), {"a.tar.zst", "b.zip"})
         self.assertEqual(pins.tools["ccache"]["version"], "4.14.2")
+        self.assertEqual(pins.tools["ccache"]["minisign_key"].strip().splitlines()[-1], CCACHE_PUB)
+
+    def test_tool_without_publisher_signature_key_is_rejected(self):
+        text = LOCK_TEXT.format(a=sha(b"alpha"), b=sha(b"beta"))
+        self.lock_path.write_text(text.replace('minisign_key_file = "keys/ccache.pub"\n', ""))
+        with self.assertRaisesRegex(VerificationError, "minisign"):
+            lock.load_lock(self.lock_path)
+
+    def test_tool_with_invalid_key_is_rejected(self):
+        (self.dir / "keys" / "ccache.pub").write_text("garbage\n")
+        with self.assertRaises(VerificationError):
+            lock.load_lock(self.lock_path)
 
     def test_rejects_malformed_digest(self):
         self.lock_path.write_text(LOCK_TEXT.format(a="nothex", b=sha(b"beta")))
@@ -106,6 +124,24 @@ class VerifyFileTest(LockTestCase):
     def test_rejects_mismatch(self):
         with self.assertRaises(VerificationError):
             lock.verify_file(self.cache / "a.tar.zst", sha(b"other"))
+
+
+class VerifyToolArchiveTest(LockTestCase):
+    def test_bad_signature_fails_closed_and_quarantines(self):
+        pins = lock.load_lock(self.lock_path)
+        archive = self.cache / CCACHE_FILE
+        archive.write_bytes(b"tampered tarball")
+        with self.assertRaisesRegex(VerificationError, "ccache"):
+            lock.verify_tool_archive("ccache", pins.tools["ccache"], archive, CCACHE_SIG)
+        self.assertFalse(archive.exists())
+        self.assertTrue(archive.with_name(archive.name + ".rejected").exists())
+
+    def test_missing_signature_fails_closed(self):
+        pins = lock.load_lock(self.lock_path)
+        archive = self.cache / CCACHE_FILE
+        archive.write_bytes(b"x")
+        with self.assertRaises(VerificationError):
+            lock.verify_tool_archive("ccache", pins.tools["ccache"], archive, "")
 
 
 class RequiredDownloadsTest(unittest.TestCase):

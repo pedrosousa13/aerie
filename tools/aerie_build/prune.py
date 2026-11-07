@@ -1,6 +1,7 @@
 """Remove stale downloads and old build trees from a build root.
 
-Kept: downloads pinned in helium.lock (and their published .hashes files),
+Kept: downloads pinned in helium.lock (and their published .hashes and
+.minisig files),
 the source tree of the pinned Helium version, current toolchain directories,
 and the compiler cache (ccache trims itself to its size cap).
 """
@@ -24,8 +25,9 @@ def _download_is_stale(path: Path, pinned: set[str]) -> bool:
     name = path.name
     if name.endswith(_ALWAYS_STALE_SUFFIXES):
         return True
-    if name.endswith(".hashes"):
-        return name[: -len(".hashes")] not in pinned
+    for sidecar in (".hashes", ".minisig"):
+        if name.endswith(sidecar):
+            return name[: -len(sidecar)] not in pinned
     return name not in pinned
 
 
