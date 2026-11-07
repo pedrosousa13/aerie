@@ -75,11 +75,21 @@ def origin(session: Session, host: str) -> str:
     return f"http://{host}:{session.fixtures.port}"
 
 
-def hits(session: Session, host: str, path: str) -> int:
-    """Requests the fixture server saw for one Host header value and path (query ignored)."""
+# The fixture server is shared by the control browser and the listed browser. The listed browser's
+# counts start where the control browser stopped: set by ``observe_listed_browser``.
+_BASELINE: dict[tuple[str, str], int] = {}
+
+
+def _raw_hits(session: Session, host: str, path: str) -> int:
     want = f"{host}:{session.fixtures.port}"
     return sum(1 for r in session.fixtures.snapshot()
                if r["host"] == want and r["path"].split("?", 1)[0] == path)
+
+
+def hits(session: Session, host: str, path: str) -> int:
+    """Requests the fixture server saw for one Host header value and path (query ignored), since the
+    listed browser started."""
+    return _raw_hits(session, host, path) - _BASELINE.get((host, path), 0)
 
 
 def frames(session: Session) -> list[dict]:
@@ -107,6 +117,9 @@ def visit(session: Session, host: str, path: str = LANDING) -> dict:
     """Navigate the top frame; describe where it ended up."""
     url = origin(session, host) + path
     nav = session.navigate_url(url, wait=10)
+    if nav["error"]:
+        # The error page commits a moment after the navigation fails.
+        session.wait_for("!!document.querySelector('.interstitial-wrapper')", timeout=5)
     return {"url": url, "nav_error": nav["error"], "state": state(session), "frames": frames(session),
             "landing_hits": hits(session, host, path)}
 
@@ -133,6 +146,10 @@ def new_tab_title(session: Session, url: str, timeout: float = 10.0) -> str | No
 
 def observe_listed_browser(session: Session) -> dict:
     obs: dict = {}
+    _BASELINE.clear()
+    for host in list(LISTED.values()) + [CLEAN]:
+        for path in (LANDING, "/protection/hop"):
+            _BASELINE[(host, path)] = _raw_hits(session, host, path)
     clean = visit(session, CLEAN)
     obs["clean"] = {"title": clean["state"].get("title"), "landing_hits": clean["landing_hits"]}
 
@@ -195,6 +212,16 @@ def observe_listed_browser(session: Session) -> dict:
                          "blocked": read_boolean(session, BLOCKED_HISTOGRAM),
                          "proceeded": read_boolean(session, PROCEED_HISTOGRAM)}
     return obs
+
+
+def _subframe_blocked(frames_: list[dict], url: str, listed_hits: int) -> bool:
+    """A listed subframe was stopped: it is an error page for the URL, or Chromium collapsed the iframe
+    (a navigation blocked by the client removes the frame from the tree), and the request never went out."""
+    if listed_hits:
+        return False
+    if len(frames_) < 2:
+        return len(frames_) == 1  # only the host page: the frame was collapsed
+    return any(f.get("unreachable") == url for f in frames_[1:])
 
 
 def _unreachable(frames_: list[dict], url: str, index: int | None = None) -> bool:
@@ -262,7 +289,7 @@ def judge(obs: dict) -> tuple[str, str, dict]:
                             f"{cont.get('new_tab_title')!r}")
 
     sub = listed.get("subframe", {})
-    if not _unreachable(sub.get("frames", []), sub.get("frame_url", ""), 1):
+    if not _subframe_blocked(sub.get("frames", []), sub.get("frame_url", ""), sub.get("listed_hits", 0)):
         problems.append("subframe: the listed host's frame was not blocked "
                         f"(frames: {[f.get('unreachable') or f.get('url') for f in sub.get('frames', [])]})")
     if sub.get("listed_hits"):
@@ -280,7 +307,7 @@ def judge(obs: dict) -> tuple[str, str, dict]:
         if chain.get("listed_hits"):
             problems.append("redirect chain (main frame): the listed target reached the fixture server")
     rsub = listed.get("redirect_subframe", {})
-    if not _unreachable(rsub.get("frames", []), rsub.get("target", ""), 1):
+    if not _subframe_blocked(rsub.get("frames", []), rsub.get("target", ""), rsub.get("listed_hits", 0)):
         problems.append("redirect chain (subframe): the listed hop was not blocked")
     if rsub.get("hop_hits", 0) < 2:
         # The counter is cumulative: one 302 for the main frame chain and one for the subframe chain.
