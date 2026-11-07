@@ -10,6 +10,7 @@
 
 #include "base/callback_list.h"
 #include "base/memory/raw_ptr.h"
+#include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_button.h"
 #include "components/aerie_adblock/browser/filter_list_manager.h"
@@ -68,7 +69,7 @@ class AerieFilterToolbarButton : public ToolbarButton,
   content::WebContents* ActiveWebContents() const;
 
   const raw_ptr<BrowserWindowInterface> browser_;
-  raw_ptr<content::WebContents> observed_ = nullptr;
+  base::WeakPtr<content::WebContents> observed_;
   base::CallbackListSubscription active_tab_subscription_;
   base::ScopedObservation<FilterListManager, FilterListManager::Observer>
       manager_observation_{this};

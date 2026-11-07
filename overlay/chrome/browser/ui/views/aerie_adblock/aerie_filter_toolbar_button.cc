@@ -46,7 +46,7 @@ AerieFilterToolbarButton::AerieFilterToolbarButton(
 
 AerieFilterToolbarButton::~AerieFilterToolbarButton() {
   if (observed_) {
-    PageBlockCounter::RemoveObserverFor(observed_, this);
+    PageBlockCounter::RemoveObserverFor(observed_.get(), this);
   }
 }
 
@@ -74,13 +74,13 @@ std::string AerieFilterToolbarButton::ActiveHost() const {
 
 void AerieFilterToolbarButton::OnActiveTabChanged() {
   content::WebContents* contents = ActiveWebContents();
-  if (contents != observed_) {
+  if (contents != observed_.get()) {
     if (observed_) {
-      PageBlockCounter::RemoveObserverFor(observed_, this);
+      PageBlockCounter::RemoveObserverFor(observed_.get(), this);
     }
-    observed_ = contents;
+    observed_ = contents ? contents->GetWeakPtr() : nullptr;
     if (observed_) {
-      PageBlockCounter::AddObserverFor(observed_, this);
+      PageBlockCounter::AddObserverFor(observed_.get(), this);
     }
   }
   Update();
@@ -89,7 +89,7 @@ void AerieFilterToolbarButton::OnActiveTabChanged() {
 void AerieFilterToolbarButton::OnPageBlockedCountChanged(
     content::WebContents* web_contents,
     int count) {
-  if (web_contents == observed_) {
+  if (web_contents == observed_.get()) {
     Update();
   }
 }
@@ -100,7 +100,7 @@ void AerieFilterToolbarButton::OnFilterListsChanged() {
 
 void AerieFilterToolbarButton::Update() {
   FilterListManager* manager = FilterListManager::Get();
-  int count = PageBlockCounter::CountFor(observed_);
+  int count = PageBlockCounter::CountFor(observed_.get());
   std::string host = ActiveHost();
   bool off = manager && !host.empty() && manager->HasException(host);
   SetText(LabelForCount(count));
