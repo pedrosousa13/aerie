@@ -5,6 +5,7 @@
 #ifndef COMPONENTS_AERIE_ADBLOCK_BROWSER_FILTER_ENGINE_SERVICE_H_
 #define COMPONENTS_AERIE_ADBLOCK_BROWSER_FILTER_ENGINE_SERVICE_H_
 
+#include <string>
 #include <string_view>
 
 #include "base/functional/bind.h"
@@ -14,6 +15,7 @@
 #include "base/task/sequenced_task_runner.h"
 #include "base/threading/sequence_bound.h"
 #include "components/aerie_adblock/browser/request_classifier.h"
+#include "url/gurl.h"
 
 namespace aerie_adblock {
 
@@ -48,6 +50,12 @@ class AdblockEngine;
 class FilterEngineService {
  public:
   using VerdictCallback = base::OnceCallback<void(bool should_block)>;
+  // |stylesheet| is CSS text, or empty when nothing is to be hidden.
+  using StylesheetCallback = base::OnceCallback<void(std::string stylesheet)>;
+  // Says whether cosmetic filtering is on for the page whose top-level URL is
+  // given. The hook for the per-site switch (issue #10): that code installs
+  // its own policy with SetCosmeticFilteringPolicy().
+  using CosmeticPolicyCallback = base::RepeatingCallback<bool(const GURL&)>;
 
   // The instance the browser registered with SetAsProcessInstance(), or null.
   static FilterEngineService* Get();
@@ -81,6 +89,32 @@ class FilterEngineService {
   // there is no engine and the answer is "allow".
   void ShouldBlock(ClassifiedRequest request, VerdictCallback callback);
 
+  // Cosmetic filtering (issue #9). Both answer with CSS that hides elements
+  // and run |callback| on the UI thread, after the engine has loaded. The
+  // answer is empty when the engine was never started, when |page_url| is
+  // not http(s), when the policy says cosmetic filtering is off for
+  // |top_level_url|, and when no rule applies. |top_level_url| is the URL of
+  // the page's outermost main frame; |page_url| is the frame's own.
+  //
+  // The stylesheet from GetCosmeticStylesheet() is for when the frame has
+  // committed (rules for the site, and generic rules that do not start with a
+  // class or id). GetGenericStylesheet() is for when the frame has loaded:
+  // |classes| and |ids| are whitespace separated lists of what the page uses.
+  void GetCosmeticStylesheet(const GURL& top_level_url,
+                             const GURL& page_url,
+                             StylesheetCallback callback);
+  void GetGenericStylesheet(const GURL& top_level_url,
+                            const GURL& page_url,
+                            std::string classes,
+                            std::string ids,
+                            StylesheetCallback callback);
+
+  // Installs the policy that GetCosmeticStylesheet() and GetGenericStylesheet()
+  // ask. The default (no policy) is: on everywhere. Does not touch
+  // stylesheets already injected into open pages.
+  void SetCosmeticFilteringPolicy(CosmeticPolicyCallback policy);
+  bool IsCosmeticFilteringEnabled(const GURL& top_level_url) const;
+
  private:
   class Host;
 
@@ -90,6 +124,7 @@ class FilterEngineService {
 
   base::SequenceBound<Host> host_;
   base::OnceClosure on_load_failure_;
+  CosmeticPolicyCallback cosmetic_policy_;
   bool started_ = false;
   base::WeakPtrFactory<FilterEngineService> weak_factory_{this};
 };

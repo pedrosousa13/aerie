@@ -51,6 +51,10 @@ bool IsPassable(const ClassifiedRequest& request) {
          base::IsStringASCII(request.source_hostname);
 }
 
+rust::Str ToStr(std::string_view text) {
+  return rust::Str(text.data(), text.size());
+}
+
 }  // namespace
 
 AdblockEngine::AdblockEngine() : engine_(new_empty_engine()) {}
@@ -79,6 +83,26 @@ bool AdblockEngine::ShouldBlock(const ClassifiedRequest& request) const {
       rust::Str(request.hostname.data(), request.hostname.size()),
       rust::Str(request.source_hostname.data(), request.source_hostname.size()),
       ToRustType(request.kind), request.third_party);
+}
+
+std::string AdblockEngine::CosmeticStylesheet(std::string_view page_url) const {
+  if (!base::IsStringASCII(page_url)) {
+    return std::string();
+  }
+  rust::String css = engine_->cosmetic_stylesheet(ToStr(page_url));
+  return std::string(css.data(), css.size());
+}
+
+std::string AdblockEngine::GenericStylesheet(std::string_view page_url,
+                                             std::string_view classes,
+                                             std::string_view ids) const {
+  if (!base::IsStringASCII(page_url) || !base::IsStringASCII(classes) ||
+      !base::IsStringASCII(ids)) {
+    return std::string();
+  }
+  rust::String css = engine_->generic_stylesheet(ToStr(page_url),
+                                                 ToStr(classes), ToStr(ids));
+  return std::string(css.data(), css.size());
 }
 
 }  // namespace aerie_adblock

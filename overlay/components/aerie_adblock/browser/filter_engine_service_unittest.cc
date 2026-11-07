@@ -15,6 +15,7 @@
 #include "base/task/thread_pool.h"
 #include "components/aerie_adblock/browser/adblock_engine.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "url/gurl.h"
 
 namespace aerie_adblock {
 namespace {
@@ -151,4 +152,82 @@ TEST_F(FilterEngineServiceTest, WeakPtrGoesNullWithTheService) {
 }
 
 }  // namespace
+
+// ---- Cosmetic filtering (issue #9) ----
+
+class CosmeticServiceTest : public FilterEngineServiceTest {
+ protected:
+  std::string Page(const char* top, const char* page) {
+    std::string css;
+    base::RunLoop loop;
+    service_.GetCosmeticStylesheet(
+        GURL(top), GURL(page),
+        base::BindLambdaForTesting([&](std::string result) {
+          css = std::move(result);
+          loop.Quit();
+        }));
+    loop.Run();
+    return css;
+  }
+
+  std::string Generic(const char* top,
+                      const char* page,
+                      const char* classes,
+                      const char* ids) {
+    std::string css;
+    base::RunLoop loop;
+    service_.GetGenericStylesheet(
+        GURL(top), GURL(page), classes, ids,
+        base::BindLambdaForTesting([&](std::string result) {
+          css = std::move(result);
+          loop.Quit();
+        }));
+    loop.Run();
+    return css;
+  }
+};
+
+TEST_F(CosmeticServiceTest, WithoutStartTheStylesheetIsEmpty) {
+  EXPECT_TRUE(Page("https://news.test/", "https://news.test/").empty());
+}
+
+TEST_F(CosmeticServiceTest, StylesheetsWaitForTheEngineAndHideTheRules) {
+  static const std::string kEngine =
+      SerializedEngine("news.test##.site-ad\n##.ad-banner\n");
+  service_.Start(kEngine);
+  EXPECT_NE(Page("https://news.test/", "https://news.test/")
+                .find(".site-ad{display:none!important}"),
+            std::string::npos);
+  EXPECT_EQ(Generic("https://news.test/", "https://news.test/",
+                    "ad-banner x", ""),
+            ".ad-banner{display:none!important}\n");
+}
+
+TEST_F(CosmeticServiceTest, OnlyWebPagesGetAStylesheet) {
+  static const std::string kEngine = SerializedEngine("##.ad-banner\n");
+  service_.Start(kEngine);
+  EXPECT_TRUE(Generic("chrome://settings/", "chrome://settings/", "ad-banner", "")
+                  .empty());
+  EXPECT_TRUE(Generic("https://news.test/", "about:blank", "ad-banner", "")
+                  .empty());
+}
+
+TEST_F(CosmeticServiceTest, ThePolicyCanTurnCosmeticFilteringOffPerSite) {
+  static const std::string kEngine = SerializedEngine("##.ad-banner\n");
+  service_.Start(kEngine);
+  EXPECT_TRUE(service_.IsCosmeticFilteringEnabled(GURL("https://news.test/")));
+  service_.SetCosmeticFilteringPolicy(
+      base::BindRepeating([](const GURL& top_level_url) {
+        return top_level_url.host() != "off.test";
+      }));
+  EXPECT_FALSE(service_.IsCosmeticFilteringEnabled(GURL("https://off.test/")));
+  EXPECT_TRUE(Generic("https://off.test/", "https://off.test/", "ad-banner", "")
+                  .empty());
+  // An ad iframe on the page is judged by the page's switch, not its own.
+  EXPECT_TRUE(Generic("https://off.test/", "https://news.test/", "ad-banner", "")
+                  .empty());
+  EXPECT_FALSE(Generic("https://news.test/", "https://news.test/", "ad-banner", "")
+                   .empty());
+}
+
 }  // namespace aerie_adblock
