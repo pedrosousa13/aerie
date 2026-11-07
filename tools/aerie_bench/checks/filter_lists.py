@@ -238,10 +238,16 @@ def wait_state(session: Session, accept, timeout: float = STATE_TIMEOUT) -> dict
 
 
 def add_list(session: Session, url: str) -> dict | None:
-    """Add a list and wait until it has either loaded or an error. Returns its entry (or None)."""
+    """Add a list and wait until it has either loaded, got an error, or been refused. Returns its
+    entry. A list the manager refuses on the spot (a malformed or insecure address) never gets an
+    entry: the page's ``addError`` says why, and that is returned as the entry's error."""
     send(session, "addList", [url])
-    state = wait_state(session, lambda s: (e := find_list(s, url)) is not None and (e.get("error") or e.get("updated")))
-    return find_list(state, url)
+    state = wait_state(session, lambda s: (e := find_list(s, url)) is not None and (e.get("error") or e.get("updated"))
+                       or (find_list(s, url) is None and bool(s.get("addError"))))
+    entry = find_list(state, url)
+    if entry is None and state and state.get("addError"):
+        return {"url": url, "error": state["addError"], "refused": True}
+    return entry
 
 
 def remove_list(session: Session, url: str) -> bool:
