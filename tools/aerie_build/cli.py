@@ -81,6 +81,13 @@ def cmd_info(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_bench(args: argparse.Namespace) -> int:
+    from aerie_bench import cli as bench_cli
+
+    ctx = _context(args)
+    return bench_cli.run(args, ctx.paths.root, ctx.binary)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="aerie", description="Build Aerie (currently: unmodified Helium).")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -114,6 +121,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     _add_common(p_check)
     p_check.set_defaults(func=cmd_patches_check)
+
+    p_bench = sub.add_parser("bench", help="launch a built browser, drive it, record its traffic (see docs/bench.md)")
+    _add_common(p_bench)
+    from aerie_bench import cli as bench_cli
+
+    bench_cli.add_arguments(p_bench, binary_required=False)
+    p_bench.set_defaults(func=cmd_bench)
 
     args = parser.parse_args(argv)
     try:

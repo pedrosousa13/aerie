@@ -1,0 +1,10 @@
+{
+  "name": "click-through",
+  "checks": ["smoke"],
+  "steps": [
+    {"navigate": "/index.html"},
+    {"click": "#go"},
+    {"evaluate": "document.getElementById('heading').textContent", "expect": "clicked"},
+    {"screenshot": "after-click.png"}
+  ]
+}
