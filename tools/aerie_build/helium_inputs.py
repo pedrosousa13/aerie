@@ -21,9 +21,18 @@ PATHS = (
     # Helium patches Aerie re-cut for a new Chromium (issue #8): they replace Helium's own.
     "patches/helium-adapted",
 )
+# Build outputs inside those paths. The resources step writes generate_resources.txt's
+# outputs here after the digest is recorded, so counting them would make every fresh
+# tree refuse its next incremental build.
+GENERATED = ("helium-chromium/resources/generated",)
 # Files by name, wherever they sit in the repo (Helium's series is adapted by them, issue #8).
 NAMES = frozenset({"helium-drop.txt", "helium-adapt.txt"})
 _SKIP_DIRS = frozenset({".git", ".scratch", "node_modules", "__pycache__"})
+
+
+def _is_build_output(repo: Path, path: Path) -> bool:
+    rel = path.relative_to(repo).as_posix()
+    return any(rel.startswith(g + "/") for g in GENERATED)
 
 
 def digest(repo: Path) -> str:
@@ -33,7 +42,7 @@ def digest(repo: Path) -> str:
         if path.is_file():
             files.add(path)
         elif path.is_dir():
-            files.update(p for p in path.rglob("*") if p.is_file())
+            files.update(p for p in path.rglob("*") if p.is_file() and not _is_build_output(repo, p))
     for root, dirs, names in os.walk(repo):
         dirs[:] = [d for d in dirs if d not in _SKIP_DIRS]
         files.update(Path(root) / n for n in names if n in NAMES)

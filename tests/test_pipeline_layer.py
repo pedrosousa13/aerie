@@ -175,6 +175,21 @@ class HeliumInputsTest(unittest.TestCase):
         with self.assertRaises(pipeline.BuildError):
             self.check()
 
+    def test_resources_the_build_generates_do_not_count(self):
+        # The resources step writes generate_resources.txt's outputs into
+        # helium-chromium/resources/generated after the digest is recorded.
+        icon = self.repo / "helium-chromium/resources/branding/app_icon/raw.png"
+        icon.parent.mkdir(parents=True)
+        icon.write_bytes(b"png")
+        self.check()
+        out = self.repo / "helium-chromium/resources/generated/product_icon/16x16.png"
+        out.parent.mkdir(parents=True)
+        out.write_bytes(b"small png")
+        self.check()
+        icon.write_bytes(b"new png")
+        with self.assertRaises(pipeline.BuildError):
+            self.check()
+
     def test_aerie_patches_do_not_count(self):
         self.check()
         (self.repo / "patches/z.patch").write_text("edited")

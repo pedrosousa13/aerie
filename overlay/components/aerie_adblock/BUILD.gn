@@ -116,10 +116,12 @@ grit("resources") {
 
 # The Rust unit tests of the core crate (crates with native tests are not
 # built by `all`; this group is what builds and runs them). It writes
-# out/Default/bin/run_aerie_adblock_rust_tests.
+# out/Default/bin/run_aerie_adblock_rust_tests. It finds the executables
+# through GN metadata, so it must depend on the `_unittests` target itself:
+# the library does not depend on its tests (as in //build/rust/tests).
 rust_unit_tests_group("aerie_adblock_rust_tests") {
   testonly = true
-  deps = [ ":aerie_adblock_core" ]
+  deps = [ ":aerie_adblock_core_unittests" ]
 }
 
 group("unit_tests") {

@@ -102,6 +102,15 @@ class PrepareAdblockTest(unittest.TestCase):
         self.prepare()
         self.assertEqual(self.gnrt_calls, ["vendor", "gen"])
 
+    def test_a_new_crate_patch_vendors_again(self):
+        self.prepare()
+        self.gnrt_calls.clear()
+        d = self.tree / rust_crates.PATCHES_DIR / "thiserror-v1"
+        d.mkdir(parents=True)
+        (d / "0001-Add-LICENSE.patch").write_text("patch")
+        self.prepare()
+        self.assertEqual(self.gnrt_calls, ["vendor", "gen"])
+
     def test_a_list_in_the_tree_that_differs_from_the_lock_stops_the_build_before_crates(self):
         (self.tree / "third_party/filter_lists/easylist.txt").write_bytes(A + b"||new.example^\n")
         with self.assertRaisesRegex(pipeline.BuildError, "filter lists: .*aerie lists update"):
