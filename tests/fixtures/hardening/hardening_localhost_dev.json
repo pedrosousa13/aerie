@@ -1,0 +1,460 @@
+{
+ "check": "hardening_localhost_dev",
+ "cases": [
+  {
+   "name": "dev_server_loads_without_interstitial",
+   "expect": "pass",
+   "detail_contains": "",
+   "obs": {
+    "strict_control": {
+     "outcome": "interstitial"
+    },
+    "served": {
+     "localhost": {
+      "url": "http://localhost:41000/index.html",
+      "outcome": "loaded",
+      "error": null,
+      "hit": true,
+      "state": {
+       "title": "Aerie Bench Fixture",
+       "href": "http://localhost:41000/index.html",
+       "interstitial": false
+      }
+     },
+     "dev.localhost": {
+      "url": "http://dev.localhost:41000/index.html",
+      "outcome": "loaded",
+      "error": null,
+      "hit": true,
+      "state": {
+       "title": "Aerie Bench Fixture",
+       "href": "http://dev.localhost:41000/index.html",
+       "interstitial": false
+      }
+     },
+     "127.0.0.1": {
+      "url": "http://127.0.0.1:41000/index.html",
+      "outcome": "loaded",
+      "error": null,
+      "hit": true,
+      "state": {
+       "title": "Aerie Bench Fixture",
+       "href": "http://127.0.0.1:41000/index.html",
+       "interstitial": false
+      }
+     }
+    },
+    "unserved": {
+     "127.0.0.2": {
+      "url": "http://127.0.0.2:41000/index.html",
+      "outcome": "net_error",
+      "error": "net::ERR_CONNECTION_REFUSED",
+      "state": {
+       "title": "",
+       "interstitial": false
+      }
+     },
+     "[::1]": {
+      "url": "http://[::1]:41000/index.html",
+      "outcome": "net_error",
+      "error": "net::ERR_ADDRESS_INVALID",
+      "state": {
+       "title": "",
+       "interstitial": false
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "localhost_gets_interstitial",
+   "expect": "fail",
+   "detail_contains": "warning page",
+   "obs": {
+    "strict_control": {
+     "outcome": "interstitial"
+    },
+    "served": {
+     "localhost": {
+      "url": "http://localhost:41000/index.html",
+      "outcome": "interstitial",
+      "error": null,
+      "hit": true,
+      "state": {
+       "title": "Aerie Bench Fixture",
+       "href": "http://localhost:41000/index.html",
+       "interstitial": false
+      }
+     },
+     "dev.localhost": {
+      "url": "http://dev.localhost:41000/index.html",
+      "outcome": "loaded",
+      "error": null,
+      "hit": true,
+      "state": {
+       "title": "Aerie Bench Fixture",
+       "href": "http://dev.localhost:41000/index.html",
+       "interstitial": false
+      }
+     },
+     "127.0.0.1": {
+      "url": "http://127.0.0.1:41000/index.html",
+      "outcome": "loaded",
+      "error": null,
+      "hit": true,
+      "state": {
+       "title": "Aerie Bench Fixture",
+       "href": "http://127.0.0.1:41000/index.html",
+       "interstitial": false
+      }
+     }
+    },
+    "unserved": {
+     "127.0.0.2": {
+      "url": "http://127.0.0.2:41000/index.html",
+      "outcome": "net_error",
+      "error": "net::ERR_CONNECTION_REFUSED",
+      "state": {
+       "title": "",
+       "interstitial": false
+      }
+     },
+     "[::1]": {
+      "url": "http://[::1]:41000/index.html",
+      "outcome": "net_error",
+      "error": "net::ERR_ADDRESS_INVALID",
+      "state": {
+       "title": "",
+       "interstitial": false
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "localhost_upgraded_and_unreachable",
+   "expect": "fail",
+   "detail_contains": "did not load",
+   "obs": {
+    "strict_control": {
+     "outcome": "interstitial"
+    },
+    "served": {
+     "localhost": {
+      "url": "http://localhost:41000/index.html",
+      "outcome": "net_error",
+      "error": null,
+      "hit": false,
+      "state": {
+       "title": "Aerie Bench Fixture",
+       "href": "http://localhost:41000/index.html",
+       "interstitial": false
+      }
+     },
+     "dev.localhost": {
+      "url": "http://dev.localhost:41000/index.html",
+      "outcome": "loaded",
+      "error": null,
+      "hit": true,
+      "state": {
+       "title": "Aerie Bench Fixture",
+       "href": "http://dev.localhost:41000/index.html",
+       "interstitial": false
+      }
+     },
+     "127.0.0.1": {
+      "url": "http://127.0.0.1:41000/index.html",
+      "outcome": "loaded",
+      "error": null,
+      "hit": true,
+      "state": {
+       "title": "Aerie Bench Fixture",
+       "href": "http://127.0.0.1:41000/index.html",
+       "interstitial": false
+      }
+     }
+    },
+    "unserved": {
+     "127.0.0.2": {
+      "url": "http://127.0.0.2:41000/index.html",
+      "outcome": "net_error",
+      "error": "net::ERR_CONNECTION_REFUSED",
+      "state": {
+       "title": "",
+       "interstitial": false
+      }
+     },
+     "[::1]": {
+      "url": "http://[::1]:41000/index.html",
+      "outcome": "net_error",
+      "error": "net::ERR_ADDRESS_INVALID",
+      "state": {
+       "title": "",
+       "interstitial": false
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "served_but_fixture_never_saw_it",
+   "expect": "fail",
+   "detail_contains": "did not load",
+   "obs": {
+    "strict_control": {
+     "outcome": "interstitial"
+    },
+    "served": {
+     "localhost": {
+      "url": "http://localhost:41000/index.html",
+      "outcome": "loaded",
+      "error": null,
+      "hit": true,
+      "state": {
+       "title": "Aerie Bench Fixture",
+       "href": "http://localhost:41000/index.html",
+       "interstitial": false
+      }
+     },
+     "dev.localhost": {
+      "url": "http://dev.localhost:41000/index.html",
+      "outcome": "loaded",
+      "error": null,
+      "hit": true,
+      "state": {
+       "title": "Aerie Bench Fixture",
+       "href": "http://dev.localhost:41000/index.html",
+       "interstitial": false
+      }
+     },
+     "127.0.0.1": {
+      "url": "http://127.0.0.1:41000/index.html",
+      "outcome": "loaded",
+      "error": null,
+      "hit": false,
+      "state": {
+       "title": "Aerie Bench Fixture",
+       "href": "http://127.0.0.1:41000/index.html",
+       "interstitial": false
+      }
+     }
+    },
+    "unserved": {
+     "127.0.0.2": {
+      "url": "http://127.0.0.2:41000/index.html",
+      "outcome": "net_error",
+      "error": "net::ERR_CONNECTION_REFUSED",
+      "state": {
+       "title": "",
+       "interstitial": false
+      }
+     },
+     "[::1]": {
+      "url": "http://[::1]:41000/index.html",
+      "outcome": "net_error",
+      "error": "net::ERR_ADDRESS_INVALID",
+      "state": {
+       "title": "",
+       "interstitial": false
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "loopback_ip_was_upgraded",
+   "expect": "fail",
+   "detail_contains": "upgraded to https",
+   "obs": {
+    "strict_control": {
+     "outcome": "interstitial"
+    },
+    "served": {
+     "localhost": {
+      "url": "http://localhost:41000/index.html",
+      "outcome": "loaded",
+      "error": null,
+      "hit": true,
+      "state": {
+       "title": "Aerie Bench Fixture",
+       "href": "http://localhost:41000/index.html",
+       "interstitial": false
+      }
+     },
+     "dev.localhost": {
+      "url": "http://dev.localhost:41000/index.html",
+      "outcome": "loaded",
+      "error": null,
+      "hit": true,
+      "state": {
+       "title": "Aerie Bench Fixture",
+       "href": "http://dev.localhost:41000/index.html",
+       "interstitial": false
+      }
+     },
+     "127.0.0.1": {
+      "url": "http://127.0.0.1:41000/index.html",
+      "outcome": "loaded",
+      "error": null,
+      "hit": true,
+      "state": {
+       "title": "Aerie Bench Fixture",
+       "href": "http://127.0.0.1:41000/index.html",
+       "interstitial": false
+      }
+     }
+    },
+    "unserved": {
+     "127.0.0.2": {
+      "url": "http://127.0.0.2:41000/index.html",
+      "outcome": "net_error",
+      "error": "net::ERR_SSL_PROTOCOL_ERROR",
+      "state": {
+       "title": "",
+       "interstitial": false
+      }
+     },
+     "[::1]": {
+      "url": "http://[::1]:41000/index.html",
+      "outcome": "net_error",
+      "error": "net::ERR_ADDRESS_INVALID",
+      "state": {
+       "title": "",
+       "interstitial": false
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "loopback_ip_gets_interstitial",
+   "expect": "fail",
+   "detail_contains": "warning page",
+   "obs": {
+    "strict_control": {
+     "outcome": "interstitial"
+    },
+    "served": {
+     "localhost": {
+      "url": "http://localhost:41000/index.html",
+      "outcome": "loaded",
+      "error": null,
+      "hit": true,
+      "state": {
+       "title": "Aerie Bench Fixture",
+       "href": "http://localhost:41000/index.html",
+       "interstitial": false
+      }
+     },
+     "dev.localhost": {
+      "url": "http://dev.localhost:41000/index.html",
+      "outcome": "loaded",
+      "error": null,
+      "hit": true,
+      "state": {
+       "title": "Aerie Bench Fixture",
+       "href": "http://dev.localhost:41000/index.html",
+       "interstitial": false
+      }
+     },
+     "127.0.0.1": {
+      "url": "http://127.0.0.1:41000/index.html",
+      "outcome": "loaded",
+      "error": null,
+      "hit": true,
+      "state": {
+       "title": "Aerie Bench Fixture",
+       "href": "http://127.0.0.1:41000/index.html",
+       "interstitial": false
+      }
+     }
+    },
+    "unserved": {
+     "127.0.0.2": {
+      "url": "http://127.0.0.2:41000/index.html",
+      "outcome": "net_error",
+      "error": "net::ERR_CONNECTION_REFUSED",
+      "state": {
+       "title": "",
+       "interstitial": false
+      }
+     },
+     "[::1]": {
+      "url": "http://[::1]:41000/index.html",
+      "outcome": "interstitial",
+      "error": "net::ERR_ADDRESS_INVALID",
+      "state": {
+       "title": "",
+       "interstitial": false
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "control_not_strict_so_exemption_is_vacuous",
+   "expect": "fail",
+   "detail_contains": "negative control failed",
+   "obs": {
+    "strict_control": {
+     "outcome": "loaded"
+    },
+    "served": {
+     "localhost": {
+      "url": "http://localhost:41000/index.html",
+      "outcome": "loaded",
+      "error": null,
+      "hit": true,
+      "state": {
+       "title": "Aerie Bench Fixture",
+       "href": "http://localhost:41000/index.html",
+       "interstitial": false
+      }
+     },
+     "dev.localhost": {
+      "url": "http://dev.localhost:41000/index.html",
+      "outcome": "loaded",
+      "error": null,
+      "hit": true,
+      "state": {
+       "title": "Aerie Bench Fixture",
+       "href": "http://dev.localhost:41000/index.html",
+       "interstitial": false
+      }
+     },
+     "127.0.0.1": {
+      "url": "http://127.0.0.1:41000/index.html",
+      "outcome": "loaded",
+      "error": null,
+      "hit": true,
+      "state": {
+       "title": "Aerie Bench Fixture",
+       "href": "http://127.0.0.1:41000/index.html",
+       "interstitial": false
+      }
+     }
+    },
+    "unserved": {
+     "127.0.0.2": {
+      "url": "http://127.0.0.2:41000/index.html",
+      "outcome": "net_error",
+      "error": "net::ERR_CONNECTION_REFUSED",
+      "state": {
+       "title": "",
+       "interstitial": false
+      }
+     },
+     "[::1]": {
+      "url": "http://[::1]:41000/index.html",
+      "outcome": "net_error",
+      "error": "net::ERR_ADDRESS_INVALID",
+      "state": {
+       "title": "",
+       "interstitial": false
+      }
+     }
+    }
+   }
+  }
+ ]
+}

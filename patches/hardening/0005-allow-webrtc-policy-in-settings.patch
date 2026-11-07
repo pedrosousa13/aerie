@@ -1,0 +1,13 @@
+Aerie-Purpose: Let the settings page read and write the WebRTC IP handling policy, which Chromium has no settings row for.
+Aerie-Upstream-Area: chrome/browser/extensions/api/settings_private/prefs_util.cc (allowlist)
+Aerie-Kind: hook
+
+--- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
++++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
+@@ -474,4 +474,6 @@
+   (*s_allowlist)[::prefs::kNetworkPredictionOptions] =
+       settings_api::PrefType::kNumber;
++  (*s_allowlist)[::prefs::kWebRTCIPHandlingPolicy] =
++      settings_api::PrefType::kString;
+ 
+   // Privacy page

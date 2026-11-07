@@ -1,0 +1,14 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Aerie Bench Cookie Top</title></head>
+<body>
+<p>First party: sets a cookie by script and by header, then reads both back.</p>
+<script>
+  window.__done = false;
+  document.cookie = 'tp=1; Path=/; SameSite=None; Secure';
+  fetch('/hardening/set-cookie?name=tps&value=1', {credentials: 'include'})
+    .then(() => fetch('/hardening/echo', {credentials: 'include'}))
+    .then((r) => r.json())
+    .then((echo) => { window.__result = {cookie: document.cookie, echo: echo.cookie}; window.__done = true; })
+    .catch((e) => { window.__result = {error: String(e)}; window.__done = true; });
+</script>
+</body></html>

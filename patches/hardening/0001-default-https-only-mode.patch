@@ -1,0 +1,18 @@
+Aerie-Purpose: Turn on strict HTTPS-only mode by default; the user can still change it in settings.
+Aerie-Upstream-Area: chrome/browser/ui/browser_ui_prefs.cc (default of the https_only_mode_enabled pref)
+Aerie-Kind: hook
+
+Chromium skips the upgrade for localhost, 127.0.0.0/8, ::1 and *.localhost, so a dev
+server on http://localhost:<port> still loads with no warning page. The settings radio
+group reads the same pref, so it shows Always use secure connections without writing
+anything. A choice the user makes in settings is written to the pref and then wins.
+
+--- a/chrome/browser/ui/browser_ui_prefs.cc
++++ b/chrome/browser/ui/browser_ui_prefs.cc
+@@ -274,5 +274,5 @@
+ 
+   registry->RegisterBooleanPref(
+-      prefs::kHttpsOnlyModeEnabled, false,
++      prefs::kHttpsOnlyModeEnabled, true,
+       user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
+   registry->RegisterBooleanPref(

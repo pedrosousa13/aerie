@@ -1,0 +1,10 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Aerie Bench Cookie Frame</title></head>
+<body>
+<script>
+  fetch('/hardening/echo', {credentials: 'include'})
+    .then((r) => r.json())
+    .then((echo) => window.parent.postMessage({cookie: document.cookie, echo: echo.cookie}, '*'))
+    .catch((e) => window.parent.postMessage({error: String(e), cookie: document.cookie}, '*'));
+</script>
+</body></html>

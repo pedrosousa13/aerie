@@ -1,0 +1,147 @@
+{
+ "check": "hardening_tamper",
+ "cases": [
+  {
+   "name": "nothing_changes",
+   "expect": "pass",
+   "detail_contains": "",
+   "obs": {
+    "attacks": {
+     "chrome_settings": true,
+     "chrome_flags": true,
+     "control": true
+    },
+    "page_urls": [
+     "http://a.localhost:41000/index.html",
+     "http://a.localhost:41000/hardening/idle_frame.html",
+     "about:blank"
+    ],
+    "storage_access": "rejected:NotAllowedError",
+    "third_party_cookie": "blocked",
+    "prefs_mismatch": []
+   }
+  },
+  {
+   "name": "settings_window_opened",
+   "expect": "fail",
+   "detail_contains": "privileged window",
+   "obs": {
+    "attacks": {
+     "chrome_settings": true,
+     "chrome_flags": true,
+     "control": true
+    },
+    "page_urls": [
+     "http://a.localhost:41000/index.html",
+     "http://a.localhost:41000/hardening/idle_frame.html",
+     "about:blank",
+     "chrome://settings/privacy/hardening"
+    ],
+    "storage_access": "rejected:NotAllowedError",
+    "third_party_cookie": "blocked",
+    "prefs_mismatch": []
+   }
+  },
+  {
+   "name": "flags_window_opened",
+   "expect": "fail",
+   "detail_contains": "privileged window",
+   "obs": {
+    "attacks": {
+     "chrome_settings": true,
+     "chrome_flags": true,
+     "control": true
+    },
+    "page_urls": [
+     "http://a.localhost:41000/index.html",
+     "http://a.localhost:41000/hardening/idle_frame.html",
+     "about:blank",
+     "chrome://flags/"
+    ],
+    "storage_access": "rejected:NotAllowedError",
+    "third_party_cookie": "blocked",
+    "prefs_mismatch": []
+   }
+  },
+  {
+   "name": "popups_do_not_open_at_all",
+   "expect": "fail",
+   "detail_contains": "negative control failed",
+   "obs": {
+    "attacks": {
+     "chrome_settings": true,
+     "chrome_flags": true,
+     "control": true
+    },
+    "page_urls": [
+     "http://a.localhost:41000/index.html"
+    ],
+    "storage_access": "rejected:NotAllowedError",
+    "third_party_cookie": "blocked",
+    "prefs_mismatch": []
+   }
+  },
+  {
+   "name": "storage_access_granted",
+   "expect": "fail",
+   "detail_contains": "requestStorageAccess",
+   "obs": {
+    "attacks": {
+     "chrome_settings": true,
+     "chrome_flags": true,
+     "control": true
+    },
+    "page_urls": [
+     "http://a.localhost:41000/index.html",
+     "http://a.localhost:41000/hardening/idle_frame.html",
+     "about:blank"
+    ],
+    "storage_access": "granted",
+    "third_party_cookie": "blocked",
+    "prefs_mismatch": []
+   }
+  },
+  {
+   "name": "cookie_allowed_after_attacks",
+   "expect": "fail",
+   "detail_contains": "third-party cookies were allowed",
+   "obs": {
+    "attacks": {
+     "chrome_settings": true,
+     "chrome_flags": true,
+     "control": true
+    },
+    "page_urls": [
+     "http://a.localhost:41000/index.html",
+     "http://a.localhost:41000/hardening/idle_frame.html",
+     "about:blank"
+    ],
+    "storage_access": "rejected:NotAllowedError",
+    "third_party_cookie": "allowed",
+    "prefs_mismatch": []
+   }
+  },
+  {
+   "name": "pref_changed",
+   "expect": "fail",
+   "detail_contains": "hardened default changed",
+   "obs": {
+    "attacks": {
+     "chrome_settings": true,
+     "chrome_flags": true,
+     "control": true
+    },
+    "page_urls": [
+     "http://a.localhost:41000/index.html",
+     "http://a.localhost:41000/hardening/idle_frame.html",
+     "about:blank"
+    ],
+    "storage_access": "rejected:NotAllowedError",
+    "third_party_cookie": "blocked",
+    "prefs_mismatch": [
+     "webrtc.ip_handling_policy: is 'default', table says 'default_public_interface_only'"
+    ]
+   }
+  }
+ ]
+}

@@ -1,0 +1,131 @@
+{
+ "check": "hardening_prefetch",
+ "cases": [
+  {
+   "name": "nothing_speculative_and_control_works",
+   "expect": "pass",
+   "detail_contains": "",
+   "obs": {
+    "main": {
+     "hint_hits": [],
+     "probe_connections": 0,
+     "control_hits": 1,
+     "probe_after_control": 1
+    },
+    "control": {
+     "hint_hits": [
+      "/hardening/hint/prefetch.txt purpose=prefetch"
+     ],
+     "probe_connections": 1,
+     "control_hits": 1,
+     "probe_after_control": 2
+    }
+   }
+  },
+  {
+   "name": "hint_requested",
+   "expect": "fail",
+   "detail_contains": "speculative loads happened",
+   "obs": {
+    "main": {
+     "hint_hits": [
+      "/hardening/hint/spec-prefetch.html purpose=prefetch"
+     ],
+     "probe_connections": 0,
+     "control_hits": 1,
+     "probe_after_control": 1
+    },
+    "control": {
+     "hint_hits": [
+      "/hardening/hint/prefetch.txt purpose=prefetch"
+     ],
+     "probe_connections": 1,
+     "control_hits": 1,
+     "probe_after_control": 2
+    }
+   }
+  },
+  {
+   "name": "preconnect_arrived",
+   "expect": "fail",
+   "detail_contains": "speculative loads happened",
+   "obs": {
+    "main": {
+     "hint_hits": [],
+     "probe_connections": 1,
+     "control_hits": 1,
+     "probe_after_control": 2
+    },
+    "control": {
+     "hint_hits": [
+      "/hardening/hint/prefetch.txt purpose=prefetch"
+     ],
+     "probe_connections": 1,
+     "control_hits": 1,
+     "probe_after_control": 2
+    }
+   }
+  },
+  {
+   "name": "detector_blind_to_requests",
+   "expect": "fail",
+   "detail_contains": "detector failed",
+   "obs": {
+    "main": {
+     "hint_hits": [],
+     "probe_connections": 0,
+     "control_hits": 0,
+     "probe_after_control": 1
+    },
+    "control": {
+     "hint_hits": [
+      "/hardening/hint/prefetch.txt purpose=prefetch"
+     ],
+     "probe_connections": 1,
+     "control_hits": 1,
+     "probe_after_control": 2
+    }
+   }
+  },
+  {
+   "name": "detector_blind_to_connections",
+   "expect": "fail",
+   "detail_contains": "detector failed",
+   "obs": {
+    "main": {
+     "hint_hits": [],
+     "probe_connections": 0,
+     "control_hits": 1,
+     "probe_after_control": 0
+    },
+    "control": {
+     "hint_hits": [
+      "/hardening/hint/prefetch.txt purpose=prefetch"
+     ],
+     "probe_connections": 1,
+     "control_hits": 1,
+     "probe_after_control": 2
+    }
+   }
+  },
+  {
+   "name": "hints_inert_even_when_allowed",
+   "expect": "fail",
+   "detail_contains": "negative control failed",
+   "obs": {
+    "main": {
+     "hint_hits": [],
+     "probe_connections": 0,
+     "control_hits": 1,
+     "probe_after_control": 1
+    },
+    "control": {
+     "hint_hits": [],
+     "probe_connections": 0,
+     "control_hits": 1,
+     "probe_after_control": 1
+    }
+   }
+  }
+ ]
+}

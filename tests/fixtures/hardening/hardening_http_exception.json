@@ -1,0 +1,223 @@
+{
+ "check": "hardening_http_exception",
+ "cases": [
+  {
+   "name": "one_click_listed_and_removable",
+   "expect": "pass",
+   "detail_contains": "",
+   "obs": {
+    "host": "exc.bench.test",
+    "other_host": "other.bench.test",
+    "list_before": [
+     "plain.bench.test"
+    ],
+    "first": "interstitial",
+    "clicked": true,
+    "loaded_after_click": true,
+    "other_site": "interstitial",
+    "list_after_click": [
+     "exc.bench.test",
+     "plain.bench.test"
+    ],
+    "removed": true,
+    "list_after_remove": [
+     "plain.bench.test"
+    ],
+    "after_remove": "interstitial"
+   }
+  },
+  {
+   "name": "page_has_no_list",
+   "expect": "fail",
+   "detail_contains": "did not render",
+   "obs": {
+    "host": "exc.bench.test",
+    "other_host": "other.bench.test",
+    "list_before": null,
+    "first": "interstitial",
+    "clicked": true,
+    "loaded_after_click": true,
+    "other_site": "interstitial",
+    "list_after_click": [
+     "exc.bench.test",
+     "plain.bench.test"
+    ],
+    "removed": true,
+    "list_after_remove": [
+     "plain.bench.test"
+    ],
+    "after_remove": "interstitial"
+   }
+  },
+  {
+   "name": "host_already_listed_before",
+   "expect": "fail",
+   "detail_contains": "negative control failed",
+   "obs": {
+    "host": "exc.bench.test",
+    "other_host": "other.bench.test",
+    "list_before": [
+     "exc.bench.test"
+    ],
+    "first": "interstitial",
+    "clicked": true,
+    "loaded_after_click": true,
+    "other_site": "interstitial",
+    "list_after_click": [
+     "exc.bench.test",
+     "plain.bench.test"
+    ],
+    "removed": true,
+    "list_after_remove": [
+     "plain.bench.test"
+    ],
+    "after_remove": "interstitial"
+   }
+  },
+  {
+   "name": "unrelated_entries_are_fine",
+   "expect": "pass",
+   "detail_contains": "",
+   "obs": {
+    "host": "exc.bench.test",
+    "other_host": "other.bench.test",
+    "list_before": [],
+    "first": "interstitial",
+    "clicked": true,
+    "loaded_after_click": true,
+    "other_site": "interstitial",
+    "list_after_click": [
+     "exc.bench.test",
+     "plain.bench.test"
+    ],
+    "removed": true,
+    "list_after_remove": [
+     "plain.bench.test"
+    ],
+    "after_remove": "interstitial"
+   }
+  },
+  {
+   "name": "click_does_not_load",
+   "expect": "fail",
+   "detail_contains": "one click",
+   "obs": {
+    "host": "exc.bench.test",
+    "other_host": "other.bench.test",
+    "list_before": [
+     "plain.bench.test"
+    ],
+    "first": "interstitial",
+    "clicked": true,
+    "loaded_after_click": false,
+    "other_site": "interstitial",
+    "list_after_click": [
+     "exc.bench.test",
+     "plain.bench.test"
+    ],
+    "removed": true,
+    "list_after_remove": [
+     "plain.bench.test"
+    ],
+    "after_remove": "interstitial"
+   }
+  },
+  {
+   "name": "exception_leaks_to_other_site",
+   "expect": "fail",
+   "detail_contains": "per site",
+   "obs": {
+    "host": "exc.bench.test",
+    "other_host": "other.bench.test",
+    "list_before": [
+     "plain.bench.test"
+    ],
+    "first": "interstitial",
+    "clicked": true,
+    "loaded_after_click": true,
+    "other_site": "loaded",
+    "list_after_click": [
+     "exc.bench.test",
+     "plain.bench.test"
+    ],
+    "removed": true,
+    "list_after_remove": [
+     "plain.bench.test"
+    ],
+    "after_remove": "interstitial"
+   }
+  },
+  {
+   "name": "not_listed_in_settings",
+   "expect": "fail",
+   "detail_contains": "not listed",
+   "obs": {
+    "host": "exc.bench.test",
+    "other_host": "other.bench.test",
+    "list_before": [
+     "plain.bench.test"
+    ],
+    "first": "interstitial",
+    "clicked": true,
+    "loaded_after_click": true,
+    "other_site": "interstitial",
+    "list_after_click": [],
+    "removed": true,
+    "list_after_remove": [
+     "plain.bench.test"
+    ],
+    "after_remove": "interstitial"
+   }
+  },
+  {
+   "name": "remove_does_nothing",
+   "expect": "fail",
+   "detail_contains": "Remove did not",
+   "obs": {
+    "host": "exc.bench.test",
+    "other_host": "other.bench.test",
+    "list_before": [
+     "plain.bench.test"
+    ],
+    "first": "interstitial",
+    "clicked": true,
+    "loaded_after_click": true,
+    "other_site": "interstitial",
+    "list_after_click": [
+     "exc.bench.test",
+     "plain.bench.test"
+    ],
+    "removed": true,
+    "list_after_remove": [
+     "exc.bench.test"
+    ],
+    "after_remove": "interstitial"
+   }
+  },
+  {
+   "name": "after_remove_still_loads",
+   "expect": "fail",
+   "detail_contains": "after Remove",
+   "obs": {
+    "host": "exc.bench.test",
+    "other_host": "other.bench.test",
+    "list_before": [
+     "plain.bench.test"
+    ],
+    "first": "interstitial",
+    "clicked": true,
+    "loaded_after_click": true,
+    "other_site": "interstitial",
+    "list_after_click": [
+     "exc.bench.test",
+     "plain.bench.test"
+    ],
+    "removed": true,
+    "list_after_remove": [
+     "plain.bench.test"
+    ],
+    "after_remove": "loaded"
+   }
+  }
+ ]
+}

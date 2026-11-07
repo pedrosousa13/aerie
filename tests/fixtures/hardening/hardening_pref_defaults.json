@@ -1,0 +1,115 @@
+{
+ "check": "hardening_pref_defaults",
+ "cases": [
+  {
+   "name": "live_defaults_equal_table",
+   "expect": "pass",
+   "detail_contains": "",
+   "obs": {
+    "main": {
+     "values": {
+      "https_only_mode_enabled": true,
+      "profile.cookie_controls_mode": 1,
+      "webrtc.ip_handling_policy": "default_public_interface_only",
+      "net.network_prediction_options": 2,
+      "helium.noise.enabled": true
+     },
+     "missing": []
+    },
+    "control": {
+     "values": {
+      "https_only_mode_enabled": true,
+      "profile.cookie_controls_mode": 1,
+      "webrtc.ip_handling_policy": "default",
+      "net.network_prediction_options": 2,
+      "helium.noise.enabled": true
+     },
+     "missing": []
+    }
+   }
+  },
+  {
+   "name": "https_default_still_false",
+   "expect": "fail",
+   "detail_contains": "https_only_mode_enabled",
+   "obs": {
+    "main": {
+     "values": {
+      "https_only_mode_enabled": false,
+      "profile.cookie_controls_mode": 1,
+      "webrtc.ip_handling_policy": "default_public_interface_only",
+      "net.network_prediction_options": 2,
+      "helium.noise.enabled": true
+     },
+     "missing": []
+    },
+    "control": {
+     "values": {
+      "https_only_mode_enabled": true,
+      "profile.cookie_controls_mode": 1,
+      "webrtc.ip_handling_policy": "default",
+      "net.network_prediction_options": 2,
+      "helium.noise.enabled": true
+     },
+     "missing": []
+    }
+   }
+  },
+  {
+   "name": "pref_not_readable",
+   "expect": "fail",
+   "detail_contains": "not readable",
+   "obs": {
+    "main": {
+     "values": {
+      "https_only_mode_enabled": true,
+      "profile.cookie_controls_mode": 1,
+      "webrtc.ip_handling_policy": "default_public_interface_only",
+      "net.network_prediction_options": 2,
+      "helium.noise.enabled": true
+     },
+     "missing": [
+      "webrtc.ip_handling_policy"
+     ]
+    },
+    "control": {
+     "values": {
+      "https_only_mode_enabled": true,
+      "profile.cookie_controls_mode": 1,
+      "webrtc.ip_handling_policy": "default",
+      "net.network_prediction_options": 2,
+      "helium.noise.enabled": true
+     },
+     "missing": []
+    }
+   }
+  },
+  {
+   "name": "comparison_blind_to_changes",
+   "expect": "fail",
+   "detail_contains": "negative control failed",
+   "obs": {
+    "main": {
+     "values": {
+      "https_only_mode_enabled": true,
+      "profile.cookie_controls_mode": 1,
+      "webrtc.ip_handling_policy": "default_public_interface_only",
+      "net.network_prediction_options": 2,
+      "helium.noise.enabled": true
+     },
+     "missing": []
+    },
+    "control": {
+     "values": {
+      "https_only_mode_enabled": true,
+      "profile.cookie_controls_mode": 1,
+      "webrtc.ip_handling_policy": "default_public_interface_only",
+      "net.network_prediction_options": 2,
+      "helium.noise.enabled": true
+     },
+     "missing": []
+    }
+   }
+  }
+ ]
+}

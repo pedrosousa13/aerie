@@ -93,6 +93,14 @@ One build at a time can re-apply layers for a tree (a lock file next to the snap
 
 To add a layer that touches tree files, implement `layers.Layer` (`apply(workspace)`: read with `workspace.read`, stage results with `workspace.put`) and add it to `aerie_layers()` in `tools/aerie_build/pipeline.py`.
 
+## Hardening defaults
+
+The privacy and security defaults are one table, `tools/aerie_hardening/controls.json`. The
+settings page markup (`patches/hardening/0004-...`), `docs/hardening.md` and the Bench checks all
+follow it. After you edit the table run `./aerie hardening generate`; `./aerie hardening check`
+and the unit tests fail while a generated file is stale. A control needs at least one Bench check
+with a negative control. See [docs/hardening.md](docs/hardening.md).
+
 ## Helium dependency ledger
 
 Every Aerie patch is a change on top of Helium. If it only applies, builds or

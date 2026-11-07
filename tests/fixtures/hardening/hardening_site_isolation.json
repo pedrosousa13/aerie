@@ -1,0 +1,90 @@
+{
+ "check": "hardening_site_isolation",
+ "cases": [
+  {
+   "name": "oopif_present_and_control_has_none",
+   "expect": "pass",
+   "detail_contains": "",
+   "obs": {
+    "main": {
+     "frame_loaded": true,
+     "iframe_targets": [
+      "http://b.localhost:41000/hardening/idle_frame.html?"
+     ]
+    },
+    "control": {
+     "frame_loaded": true,
+     "iframe_targets": []
+    }
+   }
+  },
+  {
+   "name": "no_separate_process",
+   "expect": "fail",
+   "detail_contains": "no process of its own",
+   "obs": {
+    "main": {
+     "frame_loaded": true,
+     "iframe_targets": []
+    },
+    "control": {
+     "frame_loaded": true,
+     "iframe_targets": []
+    }
+   }
+  },
+  {
+   "name": "frame_target_for_wrong_site",
+   "expect": "fail",
+   "detail_contains": "no process of its own",
+   "obs": {
+    "main": {
+     "frame_loaded": true,
+     "iframe_targets": [
+      "http://c.localhost:41000/x"
+     ]
+    },
+    "control": {
+     "frame_loaded": true,
+     "iframe_targets": []
+    }
+   }
+  },
+  {
+   "name": "frame_did_not_load",
+   "expect": "fail",
+   "detail_contains": "did not load",
+   "obs": {
+    "main": {
+     "frame_loaded": false,
+     "iframe_targets": [
+      "http://b.localhost:41000/hardening/idle_frame.html?"
+     ]
+    },
+    "control": {
+     "frame_loaded": true,
+     "iframe_targets": []
+    }
+   }
+  },
+  {
+   "name": "control_still_isolated",
+   "expect": "fail",
+   "detail_contains": "negative control failed",
+   "obs": {
+    "main": {
+     "frame_loaded": true,
+     "iframe_targets": [
+      "http://b.localhost:41000/hardening/idle_frame.html?"
+     ]
+    },
+    "control": {
+     "frame_loaded": true,
+     "iframe_targets": [
+      "http://b.localhost:41000/x"
+     ]
+    }
+   }
+  }
+ ]
+}

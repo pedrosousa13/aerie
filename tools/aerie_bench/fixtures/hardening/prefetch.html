@@ -1,0 +1,23 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Aerie Bench Prefetch Hints</title>
+<link rel="prefetch" href="/hardening/hint/prefetch.txt">
+<link rel="prerender" href="/hardening/hint/prerender.html">
+<script type="speculationrules">
+{"prefetch": [{"source": "list", "urls": ["/hardening/hint/spec-prefetch.html"], "eagerness": "immediate"}],
+ "prerender": [{"source": "list", "urls": ["/hardening/hint/spec-prerender.html"], "eagerness": "immediate"}]}
+</script>
+</head>
+<body>
+<p>Speculative load hints. Query: probe, the port of a TCP listener for the preconnect hint.</p>
+<script>
+  const probe = new URLSearchParams(location.search).get('probe');
+  if (probe) {
+    for (const rel of ['preconnect', 'dns-prefetch']) {
+      const l = document.createElement('link');
+      l.rel = rel;
+      l.href = location.protocol + '//127.0.0.1:' + probe;
+      document.head.appendChild(l);
+    }
+  }
+</script>
+</body></html>

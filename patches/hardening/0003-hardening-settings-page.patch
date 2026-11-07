@@ -1,0 +1,302 @@
+Aerie-Purpose: Add the Security hardening settings page: route, link row, page element and browser proxy.
+Aerie-Upstream-Area: chrome/browser/resources/settings (privacy_page, route.ts, router.ts, lazy_load.ts, BUILD.gn)
+Aerie-Kind: hook
+
+The page markup, hardening_page.html, is generated from tools/aerie_hardening/controls.json
+and lives in the next patch. The page copies the way Helium's fingerprinting page is wired in.
+
+--- /dev/null
++++ b/chrome/browser/resources/settings/privacy_page/hardening_browser_proxy.ts
+@@ -0,0 +1,37 @@
++// Copyright 2026 The Aerie Authors
++// You can use, redistribute, and/or modify this source code under
++// the terms of the GPL-3.0 license that can be found in the LICENSE file.
++
++import {sendWithPromise} from 'chrome://resources/js/cr.js';
++
++/**
++ * Talks to AerieHardeningHandler (chrome/browser/ui/webui/settings).
++ */
++export interface AerieHardeningBrowserProxy {
++  /** Hosts the user allowed over plain HTTP, sorted. */
++  getHttpExceptions(): Promise<string[]>;
++
++  /** Takes one host off the list. */
++  removeHttpException(host: string): Promise<void>;
++}
++
++let instance: AerieHardeningBrowserProxy|null = null;
++
++export class AerieHardeningBrowserProxyImpl implements
++    AerieHardeningBrowserProxy {
++  getHttpExceptions() {
++    return sendWithPromise('getAerieHttpExceptions');
++  }
++
++  removeHttpException(host: string) {
++    return sendWithPromise('removeAerieHttpException', host);
++  }
++
++  static getInstance(): AerieHardeningBrowserProxy {
++    return instance || (instance = new AerieHardeningBrowserProxyImpl());
++  }
++
++  static setInstance(obj: AerieHardeningBrowserProxy) {
++    instance = obj;
++  }
++}
+--- /dev/null
++++ b/chrome/browser/resources/settings/privacy_page/hardening_page.ts
+@@ -0,0 +1,108 @@
++// Copyright 2026 The Aerie Authors
++// You can use, redistribute, and/or modify this source code under
++// the terms of the GPL-3.0 license that can be found in the LICENSE file.
++
++/**
++ * @fileoverview
++ * 'settings-aerie-hardening-page' lists the privacy and security protections
++ * Aerie turns on by default, with each default and its cost, and the sites
++ * the user allowed over plain HTTP. The markup in hardening_page.html is
++ * generated from tools/aerie_hardening/controls.json.
++ */
++
++import 'chrome://resources/cr_elements/cr_button/cr_button.js';
++import '../controls/settings_dropdown_menu.js';
++import '../controls/settings_toggle_button.js';
++import '../settings_page/settings_subpage.js';
++
++import {CrLitElement} from 'chrome://resources/lit/v3_0/lit.rollup.js';
++
++import {routes} from '../route.js';
++import type {Route} from '../router.js';
++import {SettingsViewMixinLit} from '../settings_page/settings_view_mixin_lit.js';
++
++import {AerieHardeningBrowserProxyImpl} from './hardening_browser_proxy.js';
++import type {AerieHardeningBrowserProxy} from './hardening_browser_proxy.js';
++import {getCss} from './hardening_page.css.js';
++import {getHtml} from './hardening_page.html.js';
++import {HARDENING_MENU_OPTIONS} from './hardening_menu_options.js';
++
++const SettingsAerieHardeningPageElementBase =
++    SettingsViewMixinLit(CrLitElement);
++
++// html_to_wrapper names the element type after the file: hardening_page.html
++// gets HardeningPageElement.
++export type HardeningPageElement = SettingsAerieHardeningPageElement;
++
++export class SettingsAerieHardeningPageElement extends
++    SettingsAerieHardeningPageElementBase {
++  static get is() {
++    return 'settings-aerie-hardening-page';
++  }
++
++  static override get styles() {
++    return getCss();
++  }
++
++  override render() {
++    return getHtml.bind(this)();
++  }
++
++  static override get properties() {
++    return {
++      httpExceptions_: {type: Array},
++    };
++  }
++
++  protected accessor httpExceptions_: string[] = [];
++
++  // Built once, so the dropdowns do not get a new array on every render.
++  protected readonly menuOptions_ = HARDENING_MENU_OPTIONS;
++
++  private browserProxy_: AerieHardeningBrowserProxy =
++      AerieHardeningBrowserProxyImpl.getInstance();
++
++  override connectedCallback() {
++    super.connectedCallback();
++    this.refreshHttpExceptions_();
++  }
++
++  override currentRouteChanged(route: Route, oldRoute?: Route) {
++    super.currentRouteChanged(route, oldRoute);
++
++    // A site can be allowed in another tab at any time, so read the list
++    // again whenever the user comes to this page.
++    if (route === routes.AERIE_HARDENING) {
++      this.refreshHttpExceptions_();
++    }
++  }
++
++  protected onRemoveHttpException_(e: Event) {
++    const host = (e.currentTarget as HTMLElement).dataset['host'];
++    if (!host) {
++      return;
++    }
++    this.browserProxy_.removeHttpException(host).then(
++        () => this.refreshHttpExceptions_());
++  }
++
++  private refreshHttpExceptions_() {
++    return this.browserProxy_.getHttpExceptions().then((hosts: string[]) => {
++      this.httpExceptions_ = hosts;
++    });
++  }
++
++  // SettingsViewMixinLit implementation.
++  override focusBackButton() {
++    this.shadowRoot.querySelector('settings-subpage')!.focusBackButton();
++  }
++}
++
++declare global {
++  interface HTMLElementTagNameMap {
++    'settings-aerie-hardening-page': SettingsAerieHardeningPageElement;
++  }
++}
++
++customElements.define(
++    SettingsAerieHardeningPageElement.is, SettingsAerieHardeningPageElement);
+--- /dev/null
++++ b/chrome/browser/resources/settings/privacy_page/hardening_page.css
+@@ -0,0 +1,30 @@
++/* Copyright 2026 The Aerie Authors
++ * You can use, redistribute, and/or modify this source code under
++ * the terms of the GPL-3.0 license that can be found in the LICENSE file. */
++
++/* #css_wrapper_metadata_start
++ * #type=style-lit
++ * #import=chrome://resources/cr_elements/cr_shared_style_lit.css.js
++ * #import=../settings_shared_lit.css.js
++ * #include=cr-shared-style-lit settings-shared-lit
++ * #css_wrapper_metadata_end */
++
++.label-wrapper {
++  padding: var(--cr-section-vertical-padding) 0;
++}
++
++.control-meta {
++  padding: 0 var(--cr-section-padding) var(--cr-section-vertical-padding);
++}
++
++.control-meta > div {
++  margin-top: 4px;
++}
++
++.control-state {
++  white-space: nowrap;
++}
++
++.http-exception .flex {
++  overflow-wrap: anywhere;
++}
+--- a/chrome/browser/resources/settings/router.ts
++++ b/chrome/browser/resources/settings/router.ts
+@@ -35,4 +35,5 @@
+   EDIT_DICTIONARY: Route;
+   NOISE: Route;
++  AERIE_HARDENING: Route;
+   FONTS: Route;
+   GEMINI: Route;
+--- a/chrome/browser/resources/settings/route.ts
++++ b/chrome/browser/resources/settings/route.ts
+@@ -23,4 +23,6 @@
+   }
+ 
++  r.AERIE_HARDENING = r.PRIVACY.createChild('hardening');
++
+   r.HELIUM_SERVICES = r.PRIVACY.createChild('services');
+ 
+--- a/chrome/browser/resources/settings/BUILD.gn
++++ b/chrome/browser/resources/settings/BUILD.gn
+@@ -58,4 +58,5 @@
+     "controls/settings_toggle_button.ts",
+     "privacy_page/cookies_page.ts",
++    "privacy_page/hardening_page.ts",
+     "privacy_page/noise_page.ts",
+     "privacy_page/personalization_options.ts",
+@@ -369,4 +370,6 @@
+     "privacy_page/do_not_track_toggle.html.ts",
+     "privacy_page/do_not_track_toggle.ts",
++    "privacy_page/hardening_browser_proxy.ts",
++    "privacy_page/hardening_menu_options.ts",
+     "privacy_page/hats_browser_proxy.ts",
+     "privacy_page/privacy_guide/constants.ts",
+@@ -666,4 +669,5 @@
+     "privacy_page/cookies_page.css",
+     "privacy_page/do_not_track_toggle.css",
++    "privacy_page/hardening_page.css",
+     "privacy_page/personalization_options.css",
+     "privacy_page/privacy_guide/privacy_guide_completion_fragment.css",
+--- a/chrome/browser/resources/settings/lazy_load.ts
++++ b/chrome/browser/resources/settings/lazy_load.ts
+@@ -28,4 +28,5 @@
+ import './glic_page/glic_login_permissions_page.js';
+ import './privacy_page/cookies_page.js';
++import './privacy_page/hardening_page.js';
+ import './privacy_page/noise_page.js';
+ import './privacy_page/privacy_guide/privacy_guide_dialog.js';
+@@ -258,4 +259,5 @@
+ export {NetworkPredictionOptions} from './performance_page/constants.js';
+ export {SettingsCookiesPageElement} from './privacy_page/cookies_page.js';
++export {SettingsAerieHardeningPageElement} from './privacy_page/hardening_page.js';
+ export {SettingsDoNotTrackToggleElement} from './privacy_page/do_not_track_toggle.js';
+ export {SettingsNoisePageElement} from './privacy_page/noise_page.js';
+--- a/chrome/browser/resources/settings/privacy_page/privacy_page.html
++++ b/chrome/browser/resources/settings/privacy_page/privacy_page.html
+@@ -26,4 +26,12 @@
+       </cr-link-row>
+     ` : ''}
++    <cr-link-row id="aerieHardeningLinkRow"
++        start-icon="privacy:lock"
++        class="hr"
++        label="Security hardening"
++        sub-label="Strict defaults, what each one costs, and sites allowed over HTTP"
++        @click="${this.onAerieHardeningClick_}"
++        role-description="$i18n{subpageArrowRoleDescription}">
++    </cr-link-row>
+     ${false ? html`
+     <cr-link-row id="thirdPartyCookiesLinkRow"
+--- a/chrome/browser/resources/settings/privacy_page/privacy_page.ts
++++ b/chrome/browser/resources/settings/privacy_page/privacy_page.ts
+@@ -131,4 +131,10 @@
+   }
+ 
++  protected onAerieHardeningClick_() {
++    this.interactedWithPage_();
++
++    Router.getInstance().navigateTo(routes.AERIE_HARDENING);
++  }
++
+   protected onNoiseClick_() {
+     this.interactedWithPage_();
+@@ -241,4 +247,6 @@
+     }
+ 
++    map.set(routes.AERIE_HARDENING.path, '#aerieHardeningLinkRow');
++
+     if (routes.COOKIES) {
+       map.set(routes.COOKIES.path, '#thirdPartyCookiesLinkRow');
+@@ -267,4 +275,7 @@
+         triggerId = 'noiseLinkRow';
+         break;
++      case 'aerieHardening':
++        triggerId = 'aerieHardeningLinkRow';
++        break;
+       case 'heliumServices':
+         triggerId = 'heliumServicesLinkRow';
+--- a/chrome/browser/resources/settings/privacy_page/privacy_page_index.html
++++ b/chrome/browser/resources/settings/privacy_page/privacy_page_index.html
+@@ -55,4 +55,13 @@
+ 
+   <template is="dom-if" if="[[renderView_(
++      routes_.AERIE_HARDENING, currentRoute, inSearchMode)]]"
++      update-when-false>
++    <settings-aerie-hardening-page slot="view"
++        id="aerieHardening" data-parent-view-id="privacy"
++        route-path$="[[routes_.AERIE_HARDENING.path]]">
++    </settings-aerie-hardening-page>
++  </template>
++
++  <template is="dom-if" if="[[renderView_(
+       routes_.SECURITY, currentRoute, inSearchMode)]]" update-when-false>
+     <settings-security-page slot="view"

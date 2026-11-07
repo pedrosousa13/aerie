@@ -32,4 +32,4 @@ def get(name: str) -> type:
     return REGISTRY[name]
 
 
-from . import browser_requests, scenario_steps, smoke, zero_traffic  # noqa: E402,F401  (register built-ins)
+from . import browser_requests, hardening, scenario_steps, smoke, zero_traffic  # noqa: E402,F401  (register built-ins)

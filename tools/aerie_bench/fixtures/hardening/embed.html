@@ -1,0 +1,22 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Aerie Bench Embed</title></head>
+<body>
+<p>Embeds a frame from another site. Query: site (host name), frame (path); the rest goes to the frame.</p>
+<script>
+  window.__done = false;
+  const q = new URLSearchParams(location.search);
+  const site = q.get('site');
+  const frame = q.get('frame');
+  q.delete('site');
+  q.delete('frame');
+  const f = document.createElement('iframe');
+  f.src = location.protocol + '//' + site + ':' + location.port + frame + '?' + q.toString();
+  window.addEventListener('message', (e) => {
+    if (!window.__done) { window.__result = e.data; window.__done = true; }
+  });
+  document.body.appendChild(f);
+  setTimeout(() => {
+    if (!window.__done) { window.__result = {error: 'no message from the frame'}; window.__done = true; }
+  }, 8000);
+</script>
+</body></html>

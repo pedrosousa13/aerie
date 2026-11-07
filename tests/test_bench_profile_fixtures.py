@@ -87,11 +87,80 @@ class FixtureServerTest(unittest.TestCase):
 
     def test_fixtures_reference_nothing_external(self):
         import re
-        for f in fixtures.FIXTURE_DIR.iterdir():
-            if f.suffix in (".html", ".css", ".js"):
+        for f in fixtures.FIXTURE_DIR.rglob("*"):
+            if f.suffix in (".html", ".css", ".js", ".json"):
                 urls = re.findall(r"(?:https?:)?//[^\s\"')]+", f.read_text())
                 for u in urls:
-                    self.assertTrue(u.startswith(("http://127.0.0.1", "http://localhost")), f"{f.name}: {u}")
+                    self.assertTrue(u.startswith(("http://127.0.0.1", "http://localhost", "//127.0.0.1")), f"{f.name}: {u}")
+
+    def test_request_log_records_the_headers_hardening_checks_need(self):
+        with fixtures.FixtureServer() as s:
+            req = urllib.request.Request(s.base_url + "/index.html", headers={
+                "Cookie": "tp=1", "Sec-Purpose": "prefetch", "Purpose": "prefetch", "Referer": "http://x/"})
+            urllib.request.urlopen(req).read()
+            (rec,) = s.snapshot()
+            self.assertEqual((rec["cookie"], rec["sec_purpose"], rec["purpose"]), ("tp=1", "prefetch", "prefetch"))
+
+    def test_echo_route_returns_request_cookie_and_host(self):
+        with fixtures.FixtureServer() as s:
+            req = urllib.request.Request(s.base_url + "/hardening/echo", headers={"Cookie": "tp=1"})
+            data = json.loads(urllib.request.urlopen(req).read())
+            self.assertEqual(data["cookie"], "tp=1")
+            self.assertEqual(data["host"], f"127.0.0.1:{s.port}")
+
+    def test_set_cookie_route_sends_a_none_secure_cookie(self):
+        with fixtures.FixtureServer() as s:
+            resp = urllib.request.urlopen(s.base_url + "/hardening/set-cookie?name=tp&value=1")
+            header = resp.headers["Set-Cookie"]
+            self.assertIn("tp=1", header)
+            self.assertIn("SameSite=None", header)
+            self.assertIn("Secure", header)
+
+
+class TcpProbeTest(unittest.TestCase):
+    def test_counts_connections_on_loopback_only(self):
+        with fixtures.TcpProbe() as probe:
+            self.assertEqual(probe.bind_host, "127.0.0.1")
+            self.assertEqual(probe.connections, 0)
+            socket.create_connection(("127.0.0.1", probe.port), timeout=2).close()
+            socket.create_connection(("127.0.0.1", probe.port), timeout=2).close()
+            import time
+            for _ in range(50):
+                if probe.connections >= 2:
+                    break
+                time.sleep(0.02)
+            self.assertEqual(probe.connections, 2)
+
+
+class StunProbeTest(unittest.TestCase):
+    def test_answers_a_binding_request_with_the_senders_address(self):
+        import os
+        import struct
+        with fixtures.StunProbe() as stun:
+            self.assertEqual(stun.bind_host, "127.0.0.1")
+            txn = os.urandom(12)
+            req = struct.pack("!HHI", 0x0001, 0, 0x2112A442) + txn
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as c:
+                c.settimeout(2)
+                c.sendto(req, ("127.0.0.1", stun.port))
+                data, _ = c.recvfrom(512)
+                my_port = c.getsockname()[1]
+            mtype, length, cookie = struct.unpack("!HHI", data[:8])
+            self.assertEqual((mtype, cookie, data[8:20]), (0x0101, 0x2112A442, txn))
+            atype, alen, _, family, xport = struct.unpack("!HHBBH", data[20:28])
+            self.assertEqual((atype, alen, family), (0x0020, 8, 1))
+            self.assertEqual(xport ^ 0x2112, my_port)
+            self.assertEqual(bytes(a ^ b for a, b in zip(data[28:32], struct.pack("!I", 0x2112A442))),
+                             bytes([127, 0, 0, 1]))
+            self.assertEqual(stun.requests, 1)
+
+    def test_ignores_garbage(self):
+        with fixtures.StunProbe() as stun:
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as c:
+                c.settimeout(0.3)
+                c.sendto(b"nope", ("127.0.0.1", stun.port))
+                with self.assertRaises(socket.timeout):
+                    c.recvfrom(64)
 
 
 if __name__ == "__main__":

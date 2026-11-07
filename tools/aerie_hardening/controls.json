@@ -1,0 +1,191 @@
+{
+  "schema": 1,
+  "controls": [
+    {
+      "id": "https_only",
+      "title": "HTTPS-only mode",
+      "summary": "Every http:// page load is upgraded to https://. If the upgrade fails, a warning page offers one Continue to site button, and the exception is kept per site and listed in settings. localhost, 127.0.0.0/8, ::1 and *.localhost load over http with no warning page.",
+      "default": "On (strict: Always use secure connections).",
+      "provided_by": "aerie",
+      "default_set_in": [
+        "patches/hardening/0001-default-https-only-mode.patch: the default of the https_only_mode_enabled pref in chrome/browser/ui/browser_ui_prefs.cc"
+      ],
+      "upstream": [
+        "chrome/browser/ssl/https_upgrades_interceptor.cc (net::IsLocalhost exemption, strict mode)",
+        "chrome/browser/ssl/generated_https_first_mode_pref.cc (settings radio group)",
+        "components/security_interstitials/core/https_only_mode_allowlist.cc (HTTP_ALLOWED content setting, 15 day expiry)"
+      ],
+      "aerie_patches": [
+        "hardening/0001-default-https-only-mode.patch",
+        "hardening/0002-http-exceptions-settings-handler.patch",
+        "hardening/0003-hardening-settings-page.patch",
+        "hardening/0004-hardening-settings-page-markup.patch"
+      ],
+      "pref": {"name": "https_only_mode_enabled", "default": true},
+      "cost": "Sites and devices that only speak http (router and NAS admin pages, printers, old intranet apps, captive portals) show a warning page first. The exception is one click and lasts 15 days from the last visit.",
+      "ui": {
+        "kind": "dropdown",
+        "pref": "generated.https_first_mode_enabled",
+        "default_value": 2,
+        "options": [
+          {"value": 2, "label": "Always use secure connections"},
+          {"value": 3, "label": "Balanced (warn only for sites that usually use HTTPS)"},
+          {"value": 0, "label": "Off"}
+        ]
+      },
+      "bench_checks": ["hardening_https_only", "hardening_localhost_dev", "hardening_http_exception"]
+    },
+    {
+      "id": "third_party_cookies",
+      "title": "Third-party cookies",
+      "summary": "Cookies set or sent by a site embedded in another site are blocked.",
+      "default": "Blocked.",
+      "provided_by": "ungoogled",
+      "default_set_in": [
+        "helium-chromium/patches/inox-patchset/modify-default-prefs.patch: profile.cookie_controls_mode defaults to block third-party"
+      ],
+      "upstream": ["components/content_settings/core/browser/cookie_settings.cc"],
+      "aerie_patches": [],
+      "pref": {"name": "profile.cookie_controls_mode", "default": 1},
+      "cost": "Cross-site single sign-on that relies on cookies, embedded payment or login widgets and some video embeds can fail. Site exceptions and the Storage Access API are the escape hatches.",
+      "ui": {
+        "kind": "dropdown",
+        "pref": "profile.cookie_controls_mode",
+        "default_value": 1,
+        "options": [
+          {"value": 1, "label": "Block third-party cookies"},
+          {"value": 2, "label": "Allow third-party cookies (blocked in Incognito only)"}
+        ]
+      },
+      "bench_checks": ["hardening_third_party_cookies"]
+    },
+    {
+      "id": "storage_partitioning",
+      "title": "Partitioned storage",
+      "summary": "Storage used by an embedded site (localStorage, IndexedDB, caches) is kept separate for each top-level site.",
+      "default": "Always on.",
+      "provided_by": "chromium",
+      "default_set_in": ["Chromium: net/base/features.cc, kThirdPartyStoragePartitioning is enabled by default"],
+      "upstream": ["net/base/features.cc"],
+      "aerie_patches": [],
+      "pref": null,
+      "cost": "An embedded widget no longer shares its state between sites, so it can ask the user to sign in again on each site.",
+      "ui": {"kind": "readonly", "state": "Always on"},
+      "bench_checks": ["hardening_storage_partitioning"]
+    },
+    {
+      "id": "webrtc_ip",
+      "title": "WebRTC IP leak protection",
+      "summary": "WebRTC only uses the default public network interface, so a page cannot read the local network addresses of the device.",
+      "default": "Default public interface only.",
+      "provided_by": "helium",
+      "default_set_in": [
+        "helium-chromium/patches/helium/core/webrtc-default-handling-policy.patch: webrtc.ip_handling_policy defaults to default_public_interface_only",
+        "patches/hardening/0005-allow-webrtc-policy-in-settings.patch: lets the settings page read and write the pref (Aerie adds the row)"
+      ],
+      "upstream": ["chrome/browser/ui/browser_ui_prefs.cc", "chrome/browser/extensions/api/settings_private/prefs_util.cc"],
+      "aerie_patches": [
+        "hardening/0003-hardening-settings-page.patch",
+        "hardening/0004-hardening-settings-page-markup.patch",
+        "hardening/0005-allow-webrtc-policy-in-settings.patch"
+      ],
+      "pref": {"name": "webrtc.ip_handling_policy", "default": "default_public_interface_only"},
+      "cost": "Some video calls and peer-to-peer apps cannot find a direct path and fall back to a relay, which adds delay. Stricter values can break calls that have no relay.",
+      "ui": {
+        "kind": "dropdown",
+        "pref": "webrtc.ip_handling_policy",
+        "default_value": "default_public_interface_only",
+        "options": [
+          {"value": "default_public_interface_only", "label": "Default public interface only"},
+          {"value": "default_public_and_private_interfaces", "label": "Default public and private interfaces"},
+          {"value": "default", "label": "Use all interfaces"},
+          {"value": "disable_non_proxied_udp", "label": "Disable non-proxied UDP"}
+        ]
+      },
+      "bench_checks": ["hardening_webrtc"]
+    },
+    {
+      "id": "prefetch",
+      "title": "No prefetch or preloading",
+      "summary": "Speculative loads are off: link prefetch, prerender, preconnect, DNS prefetch and speculation rules. rel=preload and modulepreload are ordinary page loads and are not touched.",
+      "default": "Off.",
+      "provided_by": "ungoogled",
+      "default_set_in": [
+        "helium-chromium/patches/inox-patchset/modify-default-prefs.patch: NetworkPredictionOptions::kDefault is kDisabled"
+      ],
+      "upstream": ["chrome/browser/preloading/preloading_prefs.h", "chrome/browser/preloading/preloading_prefs.cc"],
+      "aerie_patches": [],
+      "pref": {"name": "net.network_prediction_options", "default": 2},
+      "cost": "Page loads are slightly slower, because the browser no longer opens connections or fetches pages ahead of a click.",
+      "ui": {
+        "kind": "dropdown",
+        "pref": "net.network_prediction_options",
+        "default_value": 2,
+        "options": [
+          {"value": 2, "label": "Off"},
+          {"value": 0, "label": "Standard preloading"},
+          {"value": 3, "label": "Extended preloading"}
+        ]
+      },
+      "bench_checks": ["hardening_prefetch"]
+    },
+    {
+      "id": "site_isolation",
+      "title": "Strict site isolation",
+      "summary": "Every site gets its own renderer process, so a compromised page cannot read another site in memory.",
+      "default": "Always on.",
+      "provided_by": "chromium",
+      "default_set_in": ["Chromium: chrome/common/chrome_features.cc, kSitePerProcess is enabled by default on desktop"],
+      "upstream": ["chrome/common/chrome_features.cc", "content/browser/site_isolation_policy.cc"],
+      "aerie_patches": [],
+      "pref": null,
+      "cost": "Uses more memory, because each site runs in its own process.",
+      "ui": {"kind": "readonly", "state": "Always on"},
+      "bench_checks": ["hardening_site_isolation"]
+    },
+    {
+      "id": "fingerprinting",
+      "title": "Fingerprinting randomization",
+      "summary": "Canvas and audio output carry small random noise. The noise differs for each site and for each browser session, and can be turned off for a single site.",
+      "default": "On.",
+      "provided_by": "helium",
+      "default_set_in": [
+        "helium-chromium/patches/helium/core/noise/core.patch: helium.noise.enabled defaults to true",
+        "helium-chromium/patches/helium/core/noise/canvas.patch and audio.patch: the canvas and audio noise"
+      ],
+      "upstream": ["content/browser/helium_noise/noise_token_data.cc", "third_party/blink/common/features.cc (HeliumNoise)"],
+      "aerie_patches": [],
+      "pref": {"name": "helium.noise.enabled", "default": true},
+      "cost": "Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page.",
+      "ui": {"kind": "toggle", "pref": "helium.noise.enabled"},
+      "bench_checks": ["hardening_fingerprinting"]
+    },
+    {
+      "id": "extension_lock",
+      "title": "Extensions cannot loosen these settings",
+      "summary": "An extension with the privacy permission cannot write the WebRTC policy, the preloading option or the third-party cookie setting. Only the user can change them, in settings. Reading them and being told about changes still works.",
+      "default": "Always on.",
+      "provided_by": "aerie",
+      "default_set_in": [
+        "patches/hardening/0006-lock-hardened-prefs-from-extensions.patch: the write permission of three chrome.privacy entries is removed in chrome/browser/extensions/pref_mapping.cc"
+      ],
+      "upstream": ["chrome/browser/extensions/pref_mapping.cc", "chrome/browser/extensions/api/preference/preference_api.cc"],
+      "aerie_patches": ["hardening/0006-lock-hardened-prefs-from-extensions.patch"],
+      "pref": null,
+      "cost": "Privacy extensions that set these options through chrome.privacy get a permission error. The user can still make the same change in settings.",
+      "ui": {"kind": "readonly", "state": "Always on"},
+      "bench_checks": ["hardening_extension_prefs"]
+    }
+  ],
+  "cross_cutting_checks": ["hardening_pref_defaults", "hardening_settings_page", "hardening_tamper"],
+  "locked_from_extensions": [
+    {"extension_pref": "chrome.privacy.network.webRTCIPHandlingPolicy", "browser_pref": "webrtc.ip_handling_policy"},
+    {"extension_pref": "chrome.privacy.network.networkPredictionEnabled", "browser_pref": "net.network_prediction_options"},
+    {"extension_pref": "chrome.privacy.websites.thirdPartyCookiesAllowed", "browser_pref": "profile.cookie_controls_mode"}
+  ],
+  "deferred": [
+    {"title": "Client rects noise", "reason": "getClientRects and getBoundingClientRect noise exists upstream but is off and uses a per-document factor. Left to a follow-up issue."},
+    {"title": "measureText noise", "reason": "Canvas measureText noise exists upstream but is off and uses a per-document factor. Left to a follow-up issue."},
+    {"title": "WebGL fingerprinting noise", "reason": "WebGL readback and vendor strings are not covered by Helium noise. This is the largest item and a compatibility risk. Left to a follow-up issue."}
+  ]
+}

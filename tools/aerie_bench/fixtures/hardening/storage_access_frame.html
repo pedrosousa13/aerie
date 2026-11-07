@@ -1,0 +1,12 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Aerie Bench Storage Access Frame</title></head>
+<body>
+<script>
+  (async () => {
+    let out;
+    try { await document.requestStorageAccess(); out = 'granted'; }
+    catch (e) { out = 'rejected:' + (e && e.name); }
+    window.parent.postMessage({result: out}, '*');
+  })();
+</script>
+</body></html>
