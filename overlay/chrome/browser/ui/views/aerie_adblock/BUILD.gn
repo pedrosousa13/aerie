@@ -17,7 +17,7 @@ source_set("aerie_adblock") {
   ]
   deps = [
     "//base",
-    "//chrome/browser/ui/browser_window/public:browser_window_interface",
+    "//chrome/browser/ui/browser_window",
     "//components/tabs:public",
     "//components/vector_icons",
     "//content/public/browser",
