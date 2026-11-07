@@ -144,9 +144,29 @@ class ReplaceTextTest(unittest.TestCase):
     def test_scheme_and_authors_say_aerie(self):
         self.check("helium://settings", "aerie://settings")
         self.check("Open helium://flags or helium://version", "Open aerie://flags or aerie://version")
-        self.check("The Helium Authors", "The Aerie Authors")
+
+    def test_copyright_line_credits_aerie_helium_and_chromium(self):
         self.check("Copyright 2026 The Helium Authors. All rights reserved.",
-                   "Copyright 2026 The Aerie Authors. All rights reserved.")
+                   "Copyright 2026 The Aerie Authors, The Helium Authors and The Chromium Authors. "
+                   "All rights reserved.")
+        self.check("The Helium Authors", "The Aerie Authors, The Helium Authors and The Chromium Authors")
+
+    def test_copyright_line_rewrite_is_idempotent(self):
+        once = substitution.replace_text("Copyright 2026 The Helium Authors.")[0]
+        self.assertEqual(substitution.replace_text(once)[0], once)
+
+    def test_may_change_follows_the_rules(self):
+        self.assertTrue(substitution._may_change("Helium"))
+        self.assertTrue(substitution._may_change("see helium://x"))
+        self.assertTrue(substitution._may_change("The Helium Authors"))
+        self.assertFalse(substitution._may_change("Chromium"))
+        # A rule added later must be honoured by the prefilter.
+        extra = (re.compile("Zorp"), "Aerie")
+        substitution.RULES.append(extra)
+        try:
+            self.assertTrue(substitution._may_change("Zorp"))
+        finally:
+            substitution.RULES.remove(extra)
 
     def test_other_words_stay(self):
         self.check("xhelium://settings", "xhelium://settings")
@@ -174,7 +194,7 @@ class GrdTest(unittest.TestCase):
         self.assertNotIn("About Helium", self.out)
 
     def test_untouched_content_survives(self):
-        self.assertIn("The Aerie Authors", self.out)
+        self.assertIn("The Aerie Authors, The Helium Authors and The Chromium Authors", self.out)
         self.assertIn("aerie://settings", self.out)
         self.assertNotIn("helium://", self.out)
         self.assertIn("Heliumite is not a name", self.out)
@@ -423,7 +443,7 @@ class RealMessageSetTest(unittest.TestCase):
         after = self.messages(self.out)
         for name, text in after.items():
             if name not in EXPECTED_KEPT:
-                self.assertNotRegex(text, r"(?<!\w)Helium(?!\w)", name)
+                self.assertNotRegex(text.replace("The Helium Authors", ""), r"(?<!\w)Helium(?!\w)", name)
 
     def test_about_pedal_autofill_and_update_strings_say_aerie(self):
         after = self.messages(self.out)

@@ -97,9 +97,9 @@ run on a real tree with `./aerie patches gates [--tree DIR]`. They live in
 
 Helium turns "Chromium" and "Chrome" into "Helium" in string files (`.grd`, `.grdp`, `.xtb`) after its patches. Aerie then runs `tools/aerie_build/substitution.py`, which turns "Helium" into "Aerie" in the text users read. Do not patch single strings by hand.
 
-The pass also turns `helium://` into `aerie://` and "The Helium Authors" into "The Aerie Authors" (the scheme itself is renamed by `patches/branding/0002`). It keeps message descriptions. It rewrites translation ids to match the new text. It runs after Helium's translation step, because that step looks messages up by the Helium text.
+The pass also turns `helium://` into `aerie://` (the scheme itself is renamed by `patches/branding/0002`). It keeps message descriptions. It rewrites translation ids to match the new text. It runs after Helium's translation step, because that step looks messages up by the Helium text.
 
-To protect another span, add a rule to `RULES` in that file and add a test. A changed rule needs no `--clean`: the pass always starts from the pristine text (see below).
+Aerie is derived from Helium (GPL-3.0) and Chromium (BSD), so their copyright notices stay. The pass turns the user-visible copyright holder "The Helium Authors" into "The Aerie Authors, The Helium Authors and The Chromium Authors". It does this with a protected span: the first rule in `RULES` marks the kept "Helium" with `_KEEP`, the name rule skips marked spans, and the last rule removes the marks. The pass only reads string files and only changes message text, so copyright and licence notices in source files, licence files and XML comments are never rewritten. `patches/branding/0001` sets the `COPYRIGHT` line to the same credit. To protect another span, mark it in an earlier rule in `RULES` the same way and add a test in `tests/test_substitution.py`. Every rule is also used to decide which files need parsing, so a new rule needs no other change. A changed rule needs no `--clean`: the pass always starts from the pristine text (see below).
 
 ### Changing the Aerie layers of an existing tree
 

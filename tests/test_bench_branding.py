@@ -29,6 +29,26 @@ class ScannerTest(unittest.TestCase):
             self.assertFalse(branding.find_helium(text), text)
 
 
+class ScrubTest(unittest.TestCase):
+    PATHS = "Command Line\t/x/helium-1/out/Default/aerie --flag\nExecutable Path\t/x/helium-1/aerie\nProfile Path\t/h/helium\n"
+
+    def test_flag_ids_are_exempt_on_the_flags_page_only(self):
+        self.assertEqual(branding.scrub("Noise #helium-x", "chrome://flags/").strip(), "Noise")
+        for url in ("chrome://settings/", "chrome://version/", "chrome://flags/other"):
+            self.assertTrue(branding.find_helium(branding.scrub("Noise #helium-x", url)), url)
+
+    def test_build_path_lines_are_exempt_on_the_version_page_only(self):
+        self.assertFalse(branding.find_helium(branding.scrub(self.PATHS, "chrome://version/")))
+        for url in ("chrome://flags/", "chrome://settings/help", "chrome://management/"):
+            self.assertTrue(branding.find_helium(branding.scrub(self.PATHS, url)), url)
+
+    def test_the_helium_authors_credit_is_exempt_on_the_version_page_only(self):
+        line = "Copyright 2026 The Aerie Authors, The Helium Authors and The Chromium Authors."
+        self.assertFalse(branding.find_helium(branding.scrub(line, "chrome://version/")))
+        self.assertTrue(branding.find_helium(branding.scrub(line, "chrome://settings/help")))
+        self.assertTrue(branding.find_helium(branding.scrub("The Helium team", "chrome://version/")))
+
+
 class NoHeliumJudgeTest(unittest.TestCase):
     judge = staticmethod(checks.get("branding_no_helium").judge)
 

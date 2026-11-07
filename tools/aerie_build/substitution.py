@@ -7,8 +7,10 @@ the browser's own strings carry Aerie's name without hand-patching each one.
 It runs after Helium's name substitution and translation step, never before:
 Helium's i18n step looks messages up by the fingerprint of the Helium text.
 
-Scope: the text users read. "The Helium Authors" becomes "The Aerie Authors"
-and the helium:// URL scheme becomes aerie:// (patches/branding changes the
+Scope: the text users read. The copyright holder "The Helium Authors" becomes
+"The Aerie Authors, The Helium Authors and The Chromium Authors": Aerie is
+derived from Helium (GPL-3.0) and Chromium (BSD), whose notices must stay.
+The helium:// URL scheme becomes aerie:// (patches/branding changes the
 scheme itself). Message descriptions stay as they are. Messages that
 describe Helium's own services, servers, proxying, updates, packages, crash
 reporting or partner program also stay as they are (KEEP_MESSAGES): Aerie does
@@ -38,11 +40,19 @@ from typing import Callable, Iterator
 IGNORE_DIRS = ("out", ".pc", "chromeos", "remoting", "ash", "testdata")
 _DOLLAR = "&#36;"
 _DOLLAR_TOKEN = "!!dollar-sign-literal!!"
+# Marks a "Helium" that a rule protects from the name rule below; the last rule removes it.
+_KEEP = "_aeriekeep"
 
-# Applied in order. A rule that produces "Aerie" counts as a name replacement.
+# Applied in order. Any rule that matches counts as a change. The first rule credits Aerie,
+# Helium and Chromium in the copyright line and marks the Helium name as protected; the
+# name rule skips marked spans; the last rule removes the marks.
 RULES: list[tuple[re.Pattern[str], str]] = [
+    # Also matches the finished line, so a second run changes nothing.
+    (re.compile(r"(?<!\w)(?:The Aerie Authors, )?The Helium Authors(?: and The Chromium Authors)?"),
+     f"The Aerie Authors, The Helium{_KEEP} Authors and The Chromium Authors"),
     (re.compile(r"(?<!\w)Helium(?!\w)"), "Aerie"),
     (re.compile(r"(?<!\w)helium://"), "aerie://"),
+    (re.compile(_KEEP), ""),
 ]
 
 # Messages (by name) that describe Helium's own services or servers. Aerie runs
@@ -75,7 +85,7 @@ class Stats:
 
 
 def replace_text(text: str) -> tuple[str, bool]:
-    """Apply the rules. The flag says whether a name was actually replaced."""
+    """Apply the rules. The flag says whether any rule matched."""
     changed = False
     for regex, replacement in RULES:
         if regex.search(text):
@@ -86,7 +96,7 @@ def replace_text(text: str) -> tuple[str, bool]:
 
 def _may_change(text: str) -> bool:
     """Cheap test before parsing: does the text hold anything the rules rewrite?"""
-    return "Helium" in text or "helium://" in text
+    return any(regex.search(text) for regex, _ in RULES)
 
 
 def keep_reason(name: str | None) -> str | None:

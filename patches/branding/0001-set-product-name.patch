@@ -1,5 +1,5 @@
 Aerie-Purpose: Set the product name to Aerie in the build's branding values, the first tracer for the Aerie patch layer.
-Aerie-Upstream-Area: chrome/app/theme/chromium/BRANDING (PRODUCT_*, COMPANY_* and COPYRIGHT values; the macOS bundle id and team id lines stay Helium's)
+Aerie-Upstream-Area: chrome/app/theme/chromium/BRANDING (PRODUCT_*, COMPANY_* values and the COPYRIGHT line, which also credits The Helium Authors and The Chromium Authors; the macOS bundle id and team id lines stay Helium's)
 Aerie-Kind: branding
 
 The strings users read (window title, About page, menus) come from the
@@ -21,6 +21,6 @@ Helium->Aerie substitution pass, not from this patch.
 +PRODUCT_SHORTNAME=Aerie
 +PRODUCT_INSTALLER_FULLNAME=Aerie Installer
 +PRODUCT_INSTALLER_SHORTNAME=Aerie Installer
-+COPYRIGHT=Copyright @LASTCHANGE_YEAR@ The Aerie Authors. All rights reserved.
++COPYRIGHT=Copyright @LASTCHANGE_YEAR@ The Aerie Authors, The Helium Authors and The Chromium Authors. All rights reserved.
  MAC_BUNDLE_ID=net.imput.helium
  MAC_CREATOR_CODE=Cr24

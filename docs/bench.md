@@ -219,10 +219,17 @@ against recorded observations in `tests/test_bench_branding.py`.
 | `branding_version` | About and `chrome://version` both show the Aerie release (`AERIE_VERSION`) and the Chromium version (`helium.lock`), and neither shows Helium's own version number. | The Helium version number must be absent, so a build that still shows it fails even with the other two present. |
 
 Until issue #23 removes the Helium services settings and the onboarding
-consent, the text of `chrome://settings/privacy`, `chrome://settings/privacy/services`
-and `chrome://setup` may still name Helium services. `branding_no_helium`
+consent, the text of `chrome://settings/privacy`, `chrome://settings/privacy/services`,
+`chrome://settings/languages` and `chrome://setup` may still name Helium services. `branding_no_helium`
 scans those pages, reports how many hits each has in its detail line, and fails
 only if their title says Helium. Delete `PENDING_SERVICES_PAGES` when #23 lands.
+
+Three other exemptions are each limited to one page. On `chrome://version`, the
+Command Line, Executable Path and Profile Path lines (build directory names)
+and the exact string "The Helium Authors" are ignored: the copyright line
+credits Aerie, Helium and Chromium, because Aerie is derived from both. On
+`chrome://flags`, internal flag ids such as `#helium-noise` are ignored. The same
+text on any other page fails the check.
 
 ### Hardening checks
 

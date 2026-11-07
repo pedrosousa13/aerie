@@ -65,6 +65,10 @@ _PATH_LINE_RE = re.compile(r"^(Command Line|Executable Path|Profile Path)\t.*$",
 # name that settings and command lines use, not a word the user reads as a name.
 _FLAG_ID_RE = re.compile(r"#helium-[a-z0-9-]+")
 
+# Aerie is derived from Helium and Chromium, so the copyright line on chrome://version credits
+# "The Helium Authors" by name. That exact string is attribution, not branding.
+_CREDIT_RE = re.compile(r"The Helium Authors")
+
 _HELIUM_RE = re.compile(r"(?<![A-Za-z0-9_])helium(?![A-Za-z0-9_])", re.IGNORECASE)
 
 # Text a user can read on the page: the document text, every shadow root, and the attributes that
@@ -95,9 +99,14 @@ def find_helium(text: str) -> list[str]:
     return [text[max(0, m.start() - 20):m.end() + 20].replace("\n", " ") for m in _HELIUM_RE.finditer(text)]
 
 
-def scrub(text: str) -> str:
-    """Drop what is not branding: build paths on the version page and internal flag ids."""
-    return _FLAG_ID_RE.sub("", _PATH_LINE_RE.sub("", text))
+def scrub(text: str, url: str) -> str:
+    """Drop what is not branding, on the one page where it belongs: build paths and the credit to
+    The Helium Authors on chrome://version, internal flag ids on chrome://flags."""
+    if url == "chrome://version/":
+        text = _CREDIT_RE.sub("", _PATH_LINE_RE.sub("", text))
+    elif url == "chrome://flags/":
+        text = _FLAG_ID_RE.sub("", text)
+    return text
 
 
 def read_page(session: Session, url: str) -> dict:
@@ -110,7 +119,7 @@ def read_page(session: Session, url: str) -> dict:
         got = session.evaluate(TEXT_JS) or {}
     except Exception as exc:  # noqa: BLE001  (a page that cannot be read is data, not a crash)
         return {"url": url, "title": "", "text": "", "error": f"could not read: {exc}"}
-    return {"url": url, "title": got.get("title", ""), "text": scrub(got.get("text", "")), "error": None}
+    return {"url": url, "title": got.get("title", ""), "text": scrub(got.get("text", ""), url), "error": None}
 
 
 @register
