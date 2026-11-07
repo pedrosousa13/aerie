@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 
 from aerie_bench import checks
-from aerie_bench.checks.hardening import common, cookies, extension, https, isolation, prefetch, settings, webrtc
+from aerie_bench.checks.hardening import common, cookies, extension, fingerprint, https, isolation, prefetch, settings, webrtc
 from aerie_bench.session import CheckResult
 
 FIXTURES = Path(__file__).parent / "fixtures" / "hardening"
@@ -197,6 +197,50 @@ Promise.race([{prefetch.FETCH_CONTROLS_JS % (prefetch.CONTROL_PATH, 100, 1234)},
         text = (Path(extension.__file__).parents[2] / "fixtures" / "hardening" / "prefetch.html").read_text()
         rules = json.loads(re.search(r'<script type="speculationrules">(.*?)</script>', text, re.S).group(1))
         self.assertEqual(set(rules), {"prefetch", "prerender"})
+
+
+# Observed on a real build (train-1 Bench run, hardening-1/results.json).
+REAL_FINGERPRINT = {
+    "a1": {"canvas": "d2f4c192", "audio": "352a1c50"}, "a2": {"canvas": "d2f4c192", "audio": "8e2a574a"},
+    "b1": {"canvas": "e2b0495b", "audio": "dfb11d9b"},
+    "next_session": {"a": {"canvas": "24bd9a17", "audio": "576c200e"}},
+    "control": {"a": {"canvas": "871343e7", "audio": "f5c66174"},
+                "b": {"canvas": "871343e7", "audio": "f5c66174"}},
+}
+
+
+class FingerprintJudgeTest(unittest.TestCase):
+    def obs(self, **changes):
+        obs = json.loads(json.dumps(REAL_FINGERPRINT))
+        for path, value in changes.items():
+            kind, key = path.split("__")
+            obs[kind][key] = value
+        return obs
+
+    def test_real_audio_that_changes_every_render_passes(self):
+        status, detail = fingerprint.Fingerprinting.judge(self.obs())
+        self.assertEqual(status, "pass", detail)
+        self.assertIn("#38", detail)
+
+    def test_canvas_must_stay_stable_within_a_session(self):
+        obs = self.obs()
+        obs["a2"]["canvas"] = "00000000"
+        status, detail = fingerprint.Fingerprinting.judge(obs)
+        self.assertEqual(status, "fail")
+        self.assertIn("canvas changed", detail)
+
+    def test_audio_must_still_differ_across_sites_and_sessions(self):
+        obs = self.obs()
+        obs["b1"]["audio"] = obs["a1"]["audio"]
+        self.assertIn("audio is the same on two different sites", fingerprint.Fingerprinting.judge(obs)[1])
+        obs = self.obs()
+        obs["next_session"]["a"]["audio"] = obs["a1"]["audio"]
+        self.assertIn("audio is the same in a new browser session", fingerprint.Fingerprinting.judge(obs)[1])
+
+    def test_audio_equal_to_the_no_noise_control_fails(self):
+        obs = self.obs()
+        obs["a2"]["audio"] = obs["control"]["a"]["audio"]
+        self.assertIn("equals the no-noise control", fingerprint.Fingerprinting.judge(obs)[1])
 
 
 class FakeFixtures:
