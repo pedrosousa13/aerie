@@ -11,6 +11,21 @@ from pathlib import Path
 
 from .cdp import CdpClient, CdpError
 
+# Host resolver rules, first match wins among MAP rules, EXCLUDE rules always win.
+# *.bench.test names are fixture sites that need a name which is not exempt from
+# HTTPS-only mode; they resolve to the loopback fixture server. Loopback names stay
+# resolvable. Everything else fails to resolve (the attempt is still in the NetLog).
+RESOLVER_RULES = (
+    "MAP *.bench.test 127.0.0.1",
+    "MAP * ~NOTFOUND",
+    "EXCLUDE 127.0.0.1",
+    "EXCLUDE 127.0.0.2",
+    "EXCLUDE ::1",
+    "EXCLUDE [::1]",
+    "EXCLUDE localhost",
+    "EXCLUDE *.localhost",
+)
+
 # Deliberately absent: --disable-background-networking, --disable-component-update,
 # --disable-sync. They would hide the browser-level traffic the Bench exists to record.
 BASE_FLAGS = (
@@ -19,7 +34,8 @@ BASE_FLAGS = (
     "--password-store=basic",
     # Offline by construction: every host except loopback fails to resolve, but
     # the attempt still shows up in the NetLog. No proxy may route around that.
-    "--host-resolver-rules=MAP * ~NOTFOUND , EXCLUDE 127.0.0.1",
+    # (rules: see RESOLVER_RULES)
+    "--host-resolver-rules=" + " , ".join(RESOLVER_RULES),
     "--no-proxy-server",
 )
 

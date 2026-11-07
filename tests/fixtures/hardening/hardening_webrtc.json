@@ -1,0 +1,219 @@
+{
+ "check": "hardening_webrtc",
+ "cases": [
+  {
+   "name": "only_loopback_srflx_and_control_leaks",
+   "expect": "pass",
+   "detail_contains": "",
+   "obs": {
+    "main": {
+     "state": "complete",
+     "candidates": [
+      "candidate:2 1 udp 1677729535 127.0.0.1 40001 typ srflx raddr 0.0.0.0 rport 0 generation 0"
+     ]
+    },
+    "control": {
+     "state": "complete",
+     "candidates": [
+      "candidate:842163049 1 udp 2113937151 192.168.1.23 51890 typ host generation 0 ufrag abcd network-cost 999",
+      "candidate:842163050 1 udp 2113937151 3f2a9c1e-5a0e-4d4c-9a30-6c8a1f0a7d11.local 51891 typ host generation 0"
+     ]
+    }
+   }
+  },
+  {
+   "name": "public_srflx_is_not_local",
+   "expect": "pass",
+   "detail_contains": "",
+   "obs": {
+    "main": {
+     "state": "complete",
+     "candidates": [
+      "candidate:1 1 udp 1677729535 93.184.216.34 40000 typ srflx raddr 0.0.0.0 rport 0 generation 0"
+     ]
+    },
+    "control": {
+     "state": "complete",
+     "candidates": [
+      "candidate:842163049 1 udp 2113937151 192.168.1.23 51890 typ host generation 0 ufrag abcd network-cost 999",
+      "candidate:842163050 1 udp 2113937151 3f2a9c1e-5a0e-4d4c-9a30-6c8a1f0a7d11.local 51891 typ host generation 0"
+     ]
+    }
+   }
+  },
+  {
+   "name": "zero_candidates_is_inconclusive",
+   "expect": "error",
+   "detail_contains": "inconclusive",
+   "obs": {
+    "main": {
+     "state": "complete",
+     "candidates": []
+    },
+    "control": {
+     "state": "complete",
+     "candidates": [
+      "candidate:842163049 1 udp 2113937151 192.168.1.23 51890 typ host generation 0 ufrag abcd network-cost 999",
+      "candidate:842163050 1 udp 2113937151 3f2a9c1e-5a0e-4d4c-9a30-6c8a1f0a7d11.local 51891 typ host generation 0"
+     ]
+    }
+   }
+  },
+  {
+   "name": "loopback_srflx_proves_gathering_and_is_not_a_leak",
+   "expect": "pass",
+   "detail_contains": "",
+   "obs": {
+    "main": {
+     "state": "complete",
+     "candidates": [
+      "candidate:2 1 udp 1677729535 127.0.0.1 40001 typ srflx raddr 0.0.0.0 rport 0 generation 0"
+     ]
+    },
+    "control": {
+     "state": "complete",
+     "candidates": [
+      "candidate:842163049 1 udp 2113937151 192.168.1.23 51890 typ host generation 0 ufrag abcd network-cost 999",
+      "candidate:842163050 1 udp 2113937151 3f2a9c1e-5a0e-4d4c-9a30-6c8a1f0a7d11.local 51891 typ host generation 0"
+     ]
+    }
+   }
+  },
+  {
+   "name": "private_srflx_is_a_leak",
+   "expect": "fail",
+   "detail_contains": "local candidate",
+   "obs": {
+    "main": {
+     "state": "complete",
+     "candidates": [
+      "candidate:3 1 udp 1677729535 192.168.1.23 40002 typ srflx raddr 0.0.0.0 rport 0 generation 0"
+     ]
+    },
+    "control": {
+     "state": "complete",
+     "candidates": [
+      "candidate:842163049 1 udp 2113937151 192.168.1.23 51890 typ host generation 0 ufrag abcd network-cost 999",
+      "candidate:842163050 1 udp 2113937151 3f2a9c1e-5a0e-4d4c-9a30-6c8a1f0a7d11.local 51891 typ host generation 0"
+     ]
+    }
+   }
+  },
+  {
+   "name": "public_host_candidate_is_not_a_leak",
+   "expect": "pass",
+   "detail_contains": "",
+   "obs": {
+    "main": {
+     "state": "complete",
+     "candidates": [
+      "candidate:4 1 udp 2113937151 93.184.216.34 40003 typ host generation 0"
+     ]
+    },
+    "control": {
+     "state": "complete",
+     "candidates": [
+      "candidate:842163049 1 udp 2113937151 192.168.1.23 51890 typ host generation 0 ufrag abcd network-cost 999",
+      "candidate:842163050 1 udp 2113937151 3f2a9c1e-5a0e-4d4c-9a30-6c8a1f0a7d11.local 51891 typ host generation 0"
+     ]
+    }
+   }
+  },
+  {
+   "name": "raw_private_address",
+   "expect": "fail",
+   "detail_contains": "local candidate",
+   "obs": {
+    "main": {
+     "state": "complete",
+     "candidates": [
+      "candidate:842163049 1 udp 2113937151 192.168.1.23 51890 typ host generation 0 ufrag abcd network-cost 999"
+     ]
+    },
+    "control": {
+     "state": "complete",
+     "candidates": [
+      "candidate:842163049 1 udp 2113937151 192.168.1.23 51890 typ host generation 0 ufrag abcd network-cost 999",
+      "candidate:842163050 1 udp 2113937151 3f2a9c1e-5a0e-4d4c-9a30-6c8a1f0a7d11.local 51891 typ host generation 0"
+     ]
+    }
+   }
+  },
+  {
+   "name": "mdns_host_candidate",
+   "expect": "fail",
+   "detail_contains": "local candidate",
+   "obs": {
+    "main": {
+     "state": "complete",
+     "candidates": [
+      "candidate:842163050 1 udp 2113937151 3f2a9c1e-5a0e-4d4c-9a30-6c8a1f0a7d11.local 51891 typ host generation 0"
+     ]
+    },
+    "control": {
+     "state": "complete",
+     "candidates": [
+      "candidate:842163049 1 udp 2113937151 192.168.1.23 51890 typ host generation 0 ufrag abcd network-cost 999",
+      "candidate:842163050 1 udp 2113937151 3f2a9c1e-5a0e-4d4c-9a30-6c8a1f0a7d11.local 51891 typ host generation 0"
+     ]
+    }
+   }
+  },
+  {
+   "name": "gathering_timed_out",
+   "expect": "fail",
+   "detail_contains": "did not finish",
+   "obs": {
+    "main": {
+     "state": "timeout",
+     "candidates": [
+      "candidate:2 1 udp 1677729535 127.0.0.1 40001 typ srflx raddr 0.0.0.0 rport 0 generation 0"
+     ]
+    },
+    "control": {
+     "state": "complete",
+     "candidates": [
+      "candidate:842163049 1 udp 2113937151 192.168.1.23 51890 typ host generation 0 ufrag abcd network-cost 999",
+      "candidate:842163050 1 udp 2113937151 3f2a9c1e-5a0e-4d4c-9a30-6c8a1f0a7d11.local 51891 typ host generation 0"
+     ]
+    }
+   }
+  },
+  {
+   "name": "control_sees_nothing",
+   "expect": "fail",
+   "detail_contains": "negative control failed",
+   "obs": {
+    "main": {
+     "state": "complete",
+     "candidates": [
+      "candidate:2 1 udp 1677729535 127.0.0.1 40001 typ srflx raddr 0.0.0.0 rport 0 generation 0"
+     ]
+    },
+    "control": {
+     "state": "complete",
+     "candidates": [
+      "candidate:842163050 1 udp 2113937151 3f2a9c1e-5a0e-4d4c-9a30-6c8a1f0a7d11.local 51891 typ host generation 0"
+     ]
+    }
+   }
+  },
+  {
+   "name": "control_offline",
+   "expect": "fail",
+   "detail_contains": "negative control failed",
+   "obs": {
+    "main": {
+     "state": "complete",
+     "candidates": [
+      "candidate:2 1 udp 1677729535 127.0.0.1 40001 typ srflx raddr 0.0.0.0 rport 0 generation 0"
+     ]
+    },
+    "control": {
+     "state": "complete",
+     "candidates": []
+    }
+   }
+  }
+ ]
+}

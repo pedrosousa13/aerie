@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -135,6 +136,33 @@ def run_bench(binary: Path | str, scenario: Scenario, build_root: Path, *, out_d
             raise BenchError(f"cannot start {binary}: {exc}") from exc
         session = Session(proc.client, server, out, timeout=timeout, binary=str(binary),
                           binary_version=binary_version, netlog_path=netlog_path)
+        variant_count = [0]
+
+        @contextmanager
+        def variant(variant_flags: tuple[str, ...], prefs: dict | None):
+            variant_count[0] += 1
+            with fresh_profile(Path(build_root) / "bench-tmp") as vprofile:
+                if prefs:
+                    vprofile.seed_prefs(prefs)
+                vnetlog = vprofile.path / "netlog.json"  # discarded with the profile
+                vargv = launcher.build_argv(binary, vprofile.path, vnetlog, headless=headless,
+                                            no_sandbox=no_sandbox, extra=(*extra_flags, *variant_flags))
+                venv = browser_env(os.environ, vprofile.path, extra_env)
+                try:
+                    vproc = launcher.spawn(vargv, env=venv,
+                                           stderr_path=out / f"browser-stderr-variant-{variant_count[0]}.log")
+                except OSError as exc:
+                    raise BenchError(f"cannot start {binary}: {exc}") from exc
+                vsession = Session(vproc.client, server, out, timeout=timeout, binary=str(binary),
+                                   binary_version=binary_version, netlog_path=vnetlog)
+                try:
+                    yield vsession
+                except BaseException:
+                    vproc.kill()
+                    raise
+                vsession.exit = vproc.shutdown()
+
+        session.variant_launcher = variant
         try:
             for c in instances:
                 results[c.name] = _timed(c, "run", session) if hasattr(c, "run") else CheckResult(c.name, "pending")
@@ -178,6 +206,7 @@ def run_bench(binary: Path | str, scenario: Scenario, build_root: Path, *, out_d
     if not data["profile"]["deleted"]:
         data["status"] = status = "fail"
     data["files"] = sorted(set(["results.json", "summary.txt"] + session.artifacts
-                               + [n for n in ("netlog.json", "browser-stderr.log") if (out / n).exists()]))
+                               + [n for n in ("netlog.json", "browser-stderr.log") if (out / n).exists()]
+                               + sorted(p.name for p in out.glob("browser-stderr-variant-*.log"))))
     report.write(out, data)
     return RunResult(status, out, data)

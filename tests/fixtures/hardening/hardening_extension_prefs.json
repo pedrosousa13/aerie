@@ -1,0 +1,198 @@
+{
+ "check": "hardening_extension_prefs",
+ "cases": [
+  {
+   "name": "hardened_refused_control_allowed",
+   "expect": "pass",
+   "detail_contains": "",
+   "obs": {
+    "loaded": true,
+    "results": [
+     {
+      "name": "webRTCIPHandlingPolicy",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference",
+      "level": "controllable_by_this_extension",
+      "value": "default_public_interface_only"
+     },
+     {
+      "name": "networkPredictionEnabled",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference",
+      "level": "controllable_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "thirdPartyCookiesAllowed",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference",
+      "level": "controllable_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "referrersEnabled",
+      "role": "control",
+      "set_error": null,
+      "level": "controlled_by_this_extension",
+      "value": false
+     }
+    ]
+   }
+  },
+  {
+   "name": "webrtc_write_succeeds",
+   "expect": "fail",
+   "detail_contains": "could change webRTCIPHandlingPolicy",
+   "obs": {
+    "loaded": true,
+    "results": [
+     {
+      "name": "webRTCIPHandlingPolicy",
+      "role": "hardened",
+      "set_error": null,
+      "level": "controlled_by_this_extension",
+      "value": null
+     },
+     {
+      "name": "networkPredictionEnabled",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference",
+      "level": "controllable_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "thirdPartyCookiesAllowed",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference",
+      "level": "controllable_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "referrersEnabled",
+      "role": "control",
+      "set_error": null,
+      "level": "controlled_by_this_extension",
+      "value": false
+     }
+    ]
+   }
+  },
+  {
+   "name": "cookie_write_succeeds_silently",
+   "expect": "fail",
+   "detail_contains": "could change thirdPartyCookiesAllowed",
+   "obs": {
+    "loaded": true,
+    "results": [
+     {
+      "name": "webRTCIPHandlingPolicy",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference",
+      "level": "controllable_by_this_extension",
+      "value": "default_public_interface_only"
+     },
+     {
+      "name": "networkPredictionEnabled",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference",
+      "level": "controllable_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "thirdPartyCookiesAllowed",
+      "role": "hardened",
+      "set_error": "x",
+      "level": "controlled_by_this_extension",
+      "value": null
+     },
+     {
+      "name": "referrersEnabled",
+      "role": "control",
+      "set_error": null,
+      "level": "controlled_by_this_extension",
+      "value": false
+     }
+    ]
+   }
+  },
+  {
+   "name": "extension_not_loaded",
+   "expect": "fail",
+   "detail_contains": "did not load",
+   "obs": {
+    "loaded": false,
+    "error": "net::ERR_BLOCKED_BY_CLIENT",
+    "results": []
+   }
+  },
+  {
+   "name": "control_also_refused",
+   "expect": "fail",
+   "detail_contains": "negative control failed",
+   "obs": {
+    "loaded": true,
+    "results": [
+     {
+      "name": "webRTCIPHandlingPolicy",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference",
+      "level": "controllable_by_this_extension",
+      "value": "default_public_interface_only"
+     },
+     {
+      "name": "networkPredictionEnabled",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference",
+      "level": "controllable_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "thirdPartyCookiesAllowed",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference",
+      "level": "controllable_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "referrersEnabled",
+      "role": "control",
+      "set_error": "denied",
+      "level": "controllable_by_this_extension",
+      "value": null
+     }
+    ]
+   }
+  },
+  {
+   "name": "hardened_setting_not_tried",
+   "expect": "fail",
+   "detail_contains": "expected three",
+   "obs": {
+    "loaded": true,
+    "results": [
+     {
+      "name": "networkPredictionEnabled",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference",
+      "level": "controllable_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "thirdPartyCookiesAllowed",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference",
+      "level": "controllable_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "referrersEnabled",
+      "role": "control",
+      "set_error": null,
+      "level": "controlled_by_this_extension",
+      "value": false
+     }
+    ]
+   }
+  }
+ ]
+}

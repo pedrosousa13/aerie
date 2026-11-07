@@ -1,0 +1,24 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Aerie Bench WebRTC</title></head>
+<body>
+<p>Gathers ICE candidates and reports them. Query: stun, the port of a loopback STUN server.</p>
+<script>
+  window.__done = false;
+  window.__candidates = [];
+  window.__state = 'running';
+  const stun = new URLSearchParams(location.search).get('stun');
+  const pc = new RTCPeerConnection({iceServers: stun ? [{urls: 'stun:127.0.0.1:' + stun}] : []});
+  function finish(state) {
+    if (window.__done) return;
+    window.__state = state;
+    window.__done = true;
+    try { pc.close(); } catch (e) {}
+  }
+  pc.createDataChannel('probe');
+  pc.onicecandidate = (e) => {
+    if (e.candidate) { window.__candidates.push(e.candidate.candidate); } else { finish('complete'); }
+  };
+  pc.createOffer().then((o) => pc.setLocalDescription(o)).catch((e) => finish('error:' + e));
+  setTimeout(() => finish('timeout'), 8000);
+</script>
+</body></html>

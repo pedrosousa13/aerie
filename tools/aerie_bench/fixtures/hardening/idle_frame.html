@@ -1,0 +1,8 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Aerie Bench Idle Frame</title></head>
+<body>
+<p>Idle frame, also used as a popup target.</p>
+<script>
+  if (window.parent !== window) { window.parent.postMessage({ready: true}, '*'); }
+</script>
+</body></html>

@@ -51,14 +51,21 @@ Options:
 2. Creates a fresh `0700` profile under `<build root>/bench-tmp/`.
 3. Starts the browser with `--remote-debugging-pipe` (no TCP debug port),
    `--log-net-log` (NetLog), `--no-first-run`, `--password-store=basic`,
-   `--no-proxy-server` and `--host-resolver-rules="MAP * ~NOTFOUND , EXCLUDE
-   127.0.0.1"`. Every host except loopback fails to resolve. The attempt still
-   appears in the NetLog, so external traffic is recorded and refused rather
-   than needed.
+   `--no-proxy-server` and `--host-resolver-rules` (see below). Every host
+   except loopback fails to resolve. The attempt still appears in the NetLog,
+   so external traffic is recorded and refused rather than needed.
 4. Runs the checks against the live page.
 5. Sends `Browser.close`, waits for the process (terminate, then kill, if it
    hangs), and parses the NetLog.
 6. Runs each check's after-exit step, deletes the profile, writes the results.
+
+The resolver rules are `launcher.RESOLVER_RULES`: `*.bench.test` maps to the
+loopback fixture server, `localhost`, `*.localhost`, `127.0.0.1`, `127.0.0.2`
+and `::1` stay resolvable, everything else is `~NOTFOUND`. `*.localhost` names
+are separate sites that HTTPS-only mode does not touch. `*.bench.test` names
+are separate sites that HTTPS-only mode does upgrade, which is what the
+hardening checks need to prove it is on. The NetLog parser counts both as
+loopback, not external.
 
 The browser gets an allowlisted environment (`PATH`, `LANG`, `LC_*`, `TZ`,
 `DISPLAY`, `WAYLAND_DISPLAY`, `XAUTHORITY`, `XDG_RUNTIME_DIR` and similar), with
@@ -100,7 +107,7 @@ Under `<build root>/bench/<UTC timestamp>/` (mode `0700`):
 | `network.netlog_requests` | int | URL requests in the NetLog. |
 | `network.requests[]` | object | Every NetLog URL request: `source_id`, `time`, `url`, `method`, `scheme`, `host`, `initiator` (null for browser-initiated), `net_error` (null or code), `external` (bool, non-loopback). |
 | `network.external_requests[]` | object | The `external` subset of `network.requests`. |
-| `network.fixture_requests[]` | object | What the fixture server saw: `time`, `method`, `path`, `host`, `status`, `user_agent`. |
+| `network.fixture_requests[]` | object | What the fixture server saw: `time`, `method`, `path`, `host`, `status`, `user_agent`, `cookie`, `sec_purpose`, `purpose` (the last three are the request headers of that name, empty when absent). |
 | `exit.clean`, `exit.code` | bool, int | `Browser.close` led to exit code 0 within the deadline; the exit code (negative: signal). |
 | `status` | string | `pass` when every check is `pass` or `skip`, the profile is deleted and the browser exited; else `fail`. |
 | `files` | string[] | Files written to the results directory. |
@@ -194,6 +201,62 @@ Limits: the NetLog covers URL requests (browser, extensions, workers). It does
 not cover a separate process that makes its own sockets, such as the crash
 handler. Crash upload is removed in the source and checked by the source gates
 (`docs/network-endpoints.md`).
+
+### Hardening checks
+
+One check for each control in `docs/hardening.md`, plus three that cover the
+whole set. They drive pages under `tools/aerie_bench/fixtures/hardening/`. Run
+them all with `./aerie bench --scenario tools/aerie_bench/scenarios/hardening.json`
+or one at a time with `--check hardening_https_only`. Each check uses its own host names, so an exception one check creates cannot change another. Each check says in `negative_control`
+how it proves that it can fail, and runs that control for real in the same
+Bench run, in the same browser or in a variant (see below).
+
+| Name | Control | Passes when | Negative control |
+| --- | --- | --- | --- |
+| `hardening_https_only` | HTTPS-only mode | An http page on a non-exempt name (`plain.bench.test`) shows the HTTPS-only warning page with a visible Continue to site button, and the fixture server sees no request before the click. | After the click the page loads over http and the server sees it. |
+| `hardening_localhost_dev` | HTTPS-only mode | `http://localhost:<port>`, `dev.localhost` and `127.0.0.1` load with no warning page, and `127.0.0.2` and `::1` are not upgraded to https. | `strict.bench.test` gets the warning page in the same run. |
+| `hardening_http_exception` | HTTPS-only mode | One click allows a host over http, it is listed under Sites allowed over HTTP in settings, another host stays blocked, and Remove brings the warning page back. | The host is not on the list and is blocked before the click. |
+| `hardening_third_party_cookies` | Third-party cookies | A frame from another site reads no cookie that its own site set. | A variant with third-party cookies allowed reads it. |
+| `hardening_storage_partitioning` | Partitioned storage | A frame stores a value under site a and sees none under site c. | A variant with `--disable-features=ThirdPartyStoragePartitioning` sees it under both. |
+| `hardening_webrtc` | WebRTC IP leak protection | ICE gathering (with a loopback STUN server) finishes, produces at least one candidate, and no candidate has a local address or an mDNS name. | A variant with the `default` policy and mDNS hiding off exposes a raw local address. |
+| `hardening_prefetch` | No prefetch | No request reaches a hinted URL (`rel=prefetch`, `prerender`, speculation rules) and the TCP listener sees no preconnect. | The page's own control fetch and control connection are seen, and a variant with preloading on shows at least one speculative load. |
+| `hardening_site_isolation` | Strict site isolation | The cross-site frame has its own iframe target. | A variant with `--disable-site-isolation-trials` has none. |
+| `hardening_fingerprinting` | Fingerprinting randomization | Canvas and audio hashes are stable for one site in one session and differ across sites and across sessions. | A variant with `--disable-features=HeliumNoise` gives equal hashes on both sites. |
+| `hardening_extension_prefs` | Extension lock | An extension with the privacy permission is refused when it writes the WebRTC policy, the preloading option or the third-party cookie setting. | The same extension changes `referrersEnabled`. |
+| `hardening_pref_defaults` | all | The live pref values (read through `chrome.settingsPrivate` on the settings page) equal the defaults in `controls.json`. | A variant that seeds a different WebRTC policy is reported as a mismatch. |
+| `hardening_settings_page` | all | `chrome://settings/privacy/hardening` has a row for every control with its default and cost text, and the live controls show the default. | A control id that is not in the table is absent. |
+| `hardening_tamper` | all | A page with a user gesture that opens `chrome://settings` or `chrome://flags`, asks for storage access and probes cookies changes no hardened default. | An ordinary popup does open. |
+
+Notes:
+
+- The checks use `chrome://` URLs. If the scheme is renamed (issue #5), change
+  `SETTINGS_URL` and `SETTINGS_ROOT` in `checks/hardening/`.
+- DNS prefetch has no observable effect when every name resolves locally, so
+  `hardening_pref_defaults` covers it through the preloading pref.
+- A check that cannot show its own negative control fails. It never passes
+  because nothing was seen.
+- `tests/fixtures/hardening/*.json` hold the observations that `judge()` is
+  tested against. They were written from what each browser feature is meant to
+  do, before a hardened build existed. Replace them with observations from a
+  real run (the `data` field of each check in `results.json`) after the first
+  train build, and keep the failing cases.
+
+### Variants and probes
+
+`session.variant(extra_flags, prefs)` starts a second browser for a negative
+control: a fresh throwaway profile with `prefs` seeded into
+`Default/Preferences`, the main run's flags plus `extra_flags`, the same
+fixture server. It is stopped and its profile deleted when the block ends, also
+after an error. Variant browser logs are `browser-stderr-variant-<n>.log`.
+`session.stun_probe()` is a loopback STUN server (so ICE gathering has a server). `session.tcp_probe()` is a loopback listener that counts connections (to see
+preconnects). Other helpers: `session.navigate_url(url)` (a failed navigation
+is returned as `{"error": ...}`), `session.wait_for(js)`, `session.targets()`,
+and `evaluate(js, await_promise=True, user_gesture=True)`.
+
+The fixture server also serves `/hardening/echo` (the request's cookie and
+host) and `/hardening/set-cookie` (a `SameSite=None; Secure` cookie), and each
+entry in `network.fixture_requests` now has `cookie`, `sec_purpose` and
+`purpose`.
 
 ### Writing a check
 

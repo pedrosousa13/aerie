@@ -46,6 +46,15 @@ class ParseTest(unittest.TestCase):
         self.assertEqual(recs[3]["net_error"], -105)
         self.assertEqual(recs[3]["host"], "update.example.invalid")
 
+    def test_bench_fixture_names_are_loopback_not_external(self):
+        urls = ["http://a.localhost:5/x", "http://plain.bench.test:5/", "http://localhost:5/",
+                "http://[::1]:5/", "http://127.0.0.2:5/", "https://update.example.invalid/check",
+                "http://notlocalhost.example/", "http://localhost.evil.example/"]
+        evs = [ev(i, u) for i, u in enumerate(urls, 1)]
+        recs = netlog.parse(doc(evs))
+        self.assertEqual([r["external"] for r in recs],
+                         [False, False, False, False, False, True, True, True])
+
     def test_truncated_file_keeps_complete_events(self):
         full = '{"constants":' + json.dumps(CONSTS) + ',\n"events": [\n' + ",\n".join(json.dumps(e) for e in EVENTS)
         truncated = full[: full.rindex(",\n")] + ',\n{"phase":1,"source":{"id":9,'

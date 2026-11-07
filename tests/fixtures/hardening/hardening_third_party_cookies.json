@@ -1,0 +1,166 @@
+{
+ "check": "hardening_third_party_cookies",
+ "cases": [
+  {
+   "name": "blocked_and_control_sees_cookie",
+   "expect": "pass",
+   "detail_contains": "",
+   "obs": {
+    "main": {
+     "first_party": {
+      "cookie": "tp=1; tps=1",
+      "echo": "tp=1; tps=1"
+     },
+     "third_party": {
+      "cookie": "",
+      "echo": ""
+     }
+    },
+    "control": {
+     "first_party": {
+      "cookie": "tp=1; tps=1",
+      "echo": "tp=1; tps=1"
+     },
+     "third_party": {
+      "cookie": "tp=1; tps=1",
+      "echo": "tp=1; tps=1"
+     }
+    }
+   }
+  },
+  {
+   "name": "stock_chromium_allows",
+   "expect": "fail",
+   "detail_contains": "could read a cookie",
+   "obs": {
+    "main": {
+     "first_party": {
+      "cookie": "tp=1; tps=1",
+      "echo": "tp=1; tps=1"
+     },
+     "third_party": {
+      "cookie": "tp=1; tps=1",
+      "echo": "tp=1; tps=1"
+     }
+    },
+    "control": {
+     "first_party": {
+      "cookie": "tp=1; tps=1",
+      "echo": "tp=1; tps=1"
+     },
+     "third_party": {
+      "cookie": "tp=1; tps=1",
+      "echo": "tp=1; tps=1"
+     }
+    }
+   }
+  },
+  {
+   "name": "header_cookie_counts",
+   "expect": "fail",
+   "detail_contains": "could read a cookie",
+   "obs": {
+    "main": {
+     "first_party": {
+      "cookie": "tp=1; tps=1",
+      "echo": "tp=1; tps=1"
+     },
+     "third_party": {
+      "cookie": "",
+      "echo": "tps=1"
+     }
+    },
+    "control": {
+     "first_party": {
+      "cookie": "tp=1; tps=1",
+      "echo": "tp=1; tps=1"
+     },
+     "third_party": {
+      "cookie": "tp=1; tps=1",
+      "echo": "tp=1; tps=1"
+     }
+    }
+   }
+  },
+  {
+   "name": "probe_cannot_set_cookie",
+   "expect": "fail",
+   "detail_contains": "could not set a first-party cookie",
+   "obs": {
+    "main": {
+     "first_party": {
+      "cookie": "",
+      "echo": ""
+     },
+     "third_party": {
+      "cookie": "",
+      "echo": ""
+     }
+    },
+    "control": {
+     "first_party": {
+      "cookie": "tp=1; tps=1",
+      "echo": "tp=1; tps=1"
+     },
+     "third_party": {
+      "cookie": "tp=1; tps=1",
+      "echo": "tp=1; tps=1"
+     }
+    }
+   }
+  },
+  {
+   "name": "control_also_blocked",
+   "expect": "fail",
+   "detail_contains": "negative control failed",
+   "obs": {
+    "main": {
+     "first_party": {
+      "cookie": "tp=1; tps=1",
+      "echo": "tp=1; tps=1"
+     },
+     "third_party": {
+      "cookie": "",
+      "echo": ""
+     }
+    },
+    "control": {
+     "first_party": {
+      "cookie": "tp=1; tps=1",
+      "echo": "tp=1; tps=1"
+     },
+     "third_party": {
+      "cookie": "",
+      "echo": ""
+     }
+    }
+   }
+  },
+  {
+   "name": "frame_never_answered",
+   "expect": "fail",
+   "detail_contains": "could not set a first-party cookie",
+   "obs": {
+    "main": {
+     "first_party": {
+      "cookie": "tp=1; tps=1",
+      "echo": "tp=1; tps=1"
+     },
+     "third_party": {
+      "error": "no message from the frame"
+     }
+    },
+    "control": {
+     "first_party": {
+      "cookie": "tp=1; tps=1",
+      "echo": "tp=1; tps=1"
+     },
+     "third_party": {
+      "cookie": "tp=1; tps=1",
+      "echo": "tp=1; tps=1"
+     }
+    }
+   }
+  }
+ ]
+}

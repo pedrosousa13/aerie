@@ -1,0 +1,180 @@
+Aerie-Purpose: Add the Security hardening settings page markup and dropdown options, generated from the hardening control table so the page, the docs and the Bench cannot disagree.
+Aerie-Upstream-Area: chrome/browser/resources/settings/privacy_page (new files hardening_page.html and hardening_menu_options.ts)
+Aerie-Kind: hook
+
+Generated from tools/aerie_hardening/controls.json. Do not edit by hand. Run: ./aerie hardening generate.
+
+--- /dev/null
++++ b/chrome/browser/resources/settings/privacy_page/hardening_menu_options.ts
+@@ -0,0 +1,30 @@
++// Copyright 2026 The Aerie Authors
++// You can use, redistribute, and/or modify this source code under
++// the terms of the GPL-3.0 license that can be found in the LICENSE file.
++
++// Generated from tools/aerie_hardening/controls.json. Do not edit by hand. Run: ./aerie hardening generate
++
++import type {DropdownMenuOptionList} from '../controls/settings_dropdown_menu.js';
++
++export const HARDENING_MENU_OPTIONS: {[controlId: string]: DropdownMenuOptionList} = {
++  https_only: [
++    {value: 2, name: "Always use secure connections"},
++    {value: 3, name: "Balanced (warn only for sites that usually use HTTPS)"},
++    {value: 0, name: "Off"},
++  ],
++  third_party_cookies: [
++    {value: 1, name: "Block third-party cookies"},
++    {value: 2, name: "Allow third-party cookies (blocked in Incognito only)"},
++  ],
++  webrtc_ip: [
++    {value: "default_public_interface_only", name: "Default public interface only"},
++    {value: "default_public_and_private_interfaces", name: "Default public and private interfaces"},
++    {value: "default", name: "Use all interfaces"},
++    {value: "disable_non_proxied_udp", name: "Disable non-proxied UDP"},
++  ],
++  prefetch: [
++    {value: 2, name: "Off"},
++    {value: 0, name: "Standard preloading"},
++    {value: 3, name: "Extended preloading"},
++  ],
++};
+--- /dev/null
++++ b/chrome/browser/resources/settings/privacy_page/hardening_page.html
+@@ -0,0 +1,138 @@
++<!-- Generated from tools/aerie_hardening/controls.json. Do not edit by hand. Run: ./aerie hardening generate -->
++  <settings-subpage page-title="Security hardening" route-path="${this.routePath}">
++    <div class="cr-row first"><div class="cr-secondary-text" id="hardeningIntro">Aerie turns these privacy and security protections on by default. Each row shows what the protection does, its default and what it can cost you.</div></div>
++    <div class="control" id="control-https_only" data-control-id="https_only">
++      <div class="cr-row hr">
++        <div class="flex label-wrapper">
++          <div class="label">HTTPS-only mode</div>
++          <div class="cr-secondary-text label">Every http:// page load is upgraded to https://. If the upgrade fails, a warning page offers one Continue to site button, and the exception is kept per site and listed in settings. localhost, 127.0.0.0/8, ::1 and *.localhost load over http with no warning page.</div>
++        </div>
++        <settings-dropdown-menu id="control-https_only-setting" label="HTTPS-only mode"
++            pref-key="generated.https_first_mode_enabled"
++            .menuOptions="${this.menuOptions_['https_only']}">
++        </settings-dropdown-menu>
++      </div>
++      <div class="control-meta cr-secondary-text">
++        <div class="control-default">Default: On (strict: Always use secure connections).</div>
++        <div class="control-cost">Cost: Sites and devices that only speak http (router and NAS admin pages, printers, old intranet apps, captive portals) show a warning page first. The exception is one click and lasts 15 days from the last visit.</div>
++      </div>
++    </div>
++    <div class="control" id="control-third_party_cookies" data-control-id="third_party_cookies">
++      <div class="cr-row hr">
++        <div class="flex label-wrapper">
++          <div class="label">Third-party cookies</div>
++          <div class="cr-secondary-text label">Cookies set or sent by a site embedded in another site are blocked.</div>
++        </div>
++        <settings-dropdown-menu id="control-third_party_cookies-setting" label="Third-party cookies"
++            pref-key="profile.cookie_controls_mode"
++            .menuOptions="${this.menuOptions_['third_party_cookies']}">
++        </settings-dropdown-menu>
++      </div>
++      <div class="control-meta cr-secondary-text">
++        <div class="control-default">Default: Blocked.</div>
++        <div class="control-cost">Cost: Cross-site single sign-on that relies on cookies, embedded payment or login widgets and some video embeds can fail. Site exceptions and the Storage Access API are the escape hatches.</div>
++      </div>
++    </div>
++    <div class="control" id="control-storage_partitioning" data-control-id="storage_partitioning">
++      <div class="cr-row hr">
++        <div class="flex label-wrapper">
++          <div class="label">Partitioned storage</div>
++          <div class="cr-secondary-text label">Storage used by an embedded site (localStorage, IndexedDB, caches) is kept separate for each top-level site.</div>
++        </div>
++        <div class="cr-secondary-text control-state" id="control-storage_partitioning-setting">Always on</div>
++      </div>
++      <div class="control-meta cr-secondary-text">
++        <div class="control-default">Default: Always on.</div>
++        <div class="control-cost">Cost: An embedded widget no longer shares its state between sites, so it can ask the user to sign in again on each site.</div>
++      </div>
++    </div>
++    <div class="control" id="control-webrtc_ip" data-control-id="webrtc_ip">
++      <div class="cr-row hr">
++        <div class="flex label-wrapper">
++          <div class="label">WebRTC IP leak protection</div>
++          <div class="cr-secondary-text label">WebRTC only uses the default public network interface, so a page cannot read the local network addresses of the device.</div>
++        </div>
++        <settings-dropdown-menu id="control-webrtc_ip-setting" label="WebRTC IP leak protection"
++            pref-key="webrtc.ip_handling_policy"
++            .menuOptions="${this.menuOptions_['webrtc_ip']}">
++        </settings-dropdown-menu>
++      </div>
++      <div class="control-meta cr-secondary-text">
++        <div class="control-default">Default: Default public interface only.</div>
++        <div class="control-cost">Cost: Some video calls and peer-to-peer apps cannot find a direct path and fall back to a relay, which adds delay. Stricter values can break calls that have no relay.</div>
++      </div>
++    </div>
++    <div class="control" id="control-prefetch" data-control-id="prefetch">
++      <div class="cr-row hr">
++        <div class="flex label-wrapper">
++          <div class="label">No prefetch or preloading</div>
++          <div class="cr-secondary-text label">Speculative loads are off: link prefetch, prerender, preconnect, DNS prefetch and speculation rules. rel=preload and modulepreload are ordinary page loads and are not touched.</div>
++        </div>
++        <settings-dropdown-menu id="control-prefetch-setting" label="No prefetch or preloading"
++            pref-key="net.network_prediction_options"
++            .menuOptions="${this.menuOptions_['prefetch']}">
++        </settings-dropdown-menu>
++      </div>
++      <div class="control-meta cr-secondary-text">
++        <div class="control-default">Default: Off.</div>
++        <div class="control-cost">Cost: Page loads are slightly slower, because the browser no longer opens connections or fetches pages ahead of a click.</div>
++      </div>
++    </div>
++    <div class="control" id="control-site_isolation" data-control-id="site_isolation">
++      <div class="cr-row hr">
++        <div class="flex label-wrapper">
++          <div class="label">Strict site isolation</div>
++          <div class="cr-secondary-text label">Every site gets its own renderer process, so a compromised page cannot read another site in memory.</div>
++        </div>
++        <div class="cr-secondary-text control-state" id="control-site_isolation-setting">Always on</div>
++      </div>
++      <div class="control-meta cr-secondary-text">
++        <div class="control-default">Default: Always on.</div>
++        <div class="control-cost">Cost: Uses more memory, because each site runs in its own process.</div>
++      </div>
++    </div>
++    <div class="control" id="control-fingerprinting" data-control-id="fingerprinting">
++      <settings-toggle-button id="control-fingerprinting-setting" class="hr"
++          pref-key="helium.noise.enabled"
++          label="Fingerprinting randomization"
++          sub-label="Canvas and audio output carry small random noise. The noise differs for each site and for each browser session, and can be turned off for a single site.">
++      </settings-toggle-button>
++      <div class="control-meta cr-secondary-text">
++        <div class="control-default">Default: On.</div>
++        <div class="control-cost">Cost: Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page.</div>
++      </div>
++    </div>
++    <div class="control" id="control-extension_lock" data-control-id="extension_lock">
++      <div class="cr-row hr">
++        <div class="flex label-wrapper">
++          <div class="label">Extensions cannot loosen these settings</div>
++          <div class="cr-secondary-text label">An extension with the privacy permission cannot write the WebRTC policy, the preloading option or the third-party cookie setting. Only the user can change them, in settings. Reading them and being told about changes still works.</div>
++        </div>
++        <div class="cr-secondary-text control-state" id="control-extension_lock-setting">Always on</div>
++      </div>
++      <div class="control-meta cr-secondary-text">
++        <div class="control-default">Default: Always on.</div>
++        <div class="control-cost">Cost: Privacy extensions that set these options through chrome.privacy get a permission error. The user can still make the same change in settings.</div>
++      </div>
++    </div>
++    <div class="cr-row hr">
++      <div class="flex label-wrapper">
++        <div class="label">Sites allowed over HTTP</div>
++        <div class="cr-secondary-text label">
++          Sites you chose to open over plain HTTP from the warning page. An entry ends 15 days after your last visit.
++        </div>
++      </div>
++    </div>
++    <div id="httpExceptions">
++      ${this.httpExceptions_.length === 0 ? html`
++        <div class="cr-row cr-secondary-text" id="httpExceptionsEmpty">No sites are allowed over HTTP.</div>
++      ` : ''}
++      ${this.httpExceptions_.map(host => html`
++        <div class="cr-row http-exception" data-host="${host}">
++          <div class="flex">${host}</div>
++          <cr-button class="remove-http-exception" data-host="${host}"
++              @click="${this.onRemoveHttpException_}">Remove</cr-button>
++        </div>
++      `)}
++    </div>
++  </settings-subpage>

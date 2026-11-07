@@ -1,0 +1,206 @@
+Aerie-Purpose: Add a settings handler that lists, and removes, the sites the user allowed over plain HTTP.
+Aerie-Upstream-Area: chrome/browser/ui/webui/settings (new aerie_hardening_handler, registered in settings_ui.cc)
+Aerie-Kind: hook
+
+The HTTPS-only warning page already stores a per-site exception (the HTTP_ALLOWED content
+setting). Nothing in settings listed them. This handler reads and clears that setting.
+
+--- /dev/null
++++ b/chrome/browser/ui/webui/settings/aerie_hardening_handler.h
+@@ -0,0 +1,42 @@
++// Copyright 2026 The Aerie Authors
++// You can use, redistribute, and/or modify this source code under
++// the terms of the GPL-3.0 license that can be found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_UI_WEBUI_SETTINGS_AERIE_HARDENING_HANDLER_H_
++#define CHROME_BROWSER_UI_WEBUI_SETTINGS_AERIE_HARDENING_HANDLER_H_
++
++#include "base/memory/raw_ptr.h"
++#include "base/values.h"
++#include "chrome/browser/ui/webui/settings/settings_page_ui_handler.h"
++
++class Profile;
++
++namespace settings {
++
++// Lists, and lets the user remove, the sites that were allowed to load over
++// plain HTTP from the HTTPS-only warning page. The exceptions are the
++// HTTP_ALLOWED content settings written by
++// security_interstitials::HttpsOnlyModeAllowlist.
++class AerieHardeningHandler : public SettingsPageUIHandler {
++ public:
++  explicit AerieHardeningHandler(Profile* profile);
++  AerieHardeningHandler(const AerieHardeningHandler&) = delete;
++  AerieHardeningHandler& operator=(const AerieHardeningHandler&) = delete;
++  ~AerieHardeningHandler() override;
++
++  // SettingsPageUIHandler:
++  void RegisterMessages() override;
++  void OnJavascriptAllowed() override;
++  void OnJavascriptDisallowed() override;
++
++ private:
++  base::ListValue GetHttpExceptions() const;
++  void HandleGetHttpExceptions(const base::ListValue& args);
++  void HandleRemoveHttpException(const base::ListValue& args);
++
++  raw_ptr<Profile> profile_;
++};
++
++}  // namespace settings
++
++#endif  // CHROME_BROWSER_UI_WEBUI_SETTINGS_AERIE_HARDENING_HANDLER_H_
+--- /dev/null
++++ b/chrome/browser/ui/webui/settings/aerie_hardening_handler.cc
+@@ -0,0 +1,123 @@
++// Copyright 2026 The Aerie Authors
++// You can use, redistribute, and/or modify this source code under
++// the terms of the GPL-3.0 license that can be found in the LICENSE file.
++
++#include "chrome/browser/ui/webui/settings/aerie_hardening_handler.h"
++
++#include <algorithm>
++#include <optional>
++#include <string>
++#include <vector>
++
++#include "base/check_op.h"
++#include "base/functional/bind.h"
++#include "base/json/values_util.h"
++#include "base/time/time.h"
++#include "base/values.h"
++#include "chrome/browser/content_settings/host_content_settings_map_factory.h"
++#include "chrome/browser/profiles/profile.h"
++#include "components/content_settings/core/browser/host_content_settings_map.h"
++#include "components/content_settings/core/common/content_settings.h"
++#include "components/content_settings/core/common/content_settings_types.h"
++#include "content/public/browser/web_ui.h"
++#include "url/gurl.h"
++
++namespace settings {
++
++namespace {
++
++// HttpsOnlyModeAllowlist stores one HTTP_ALLOWED setting per host. The key is
++// an https:// URL for the host and the value is a dictionary that holds the
++// time the exception ends under this key. Keep both in step with
++// components/security_interstitials/core/https_only_mode_allowlist.cc.
++constexpr char kExpirationTimeKey[] = "decision_expiration_time";
++
++GURL SecureUrlForHost(const std::string& host) {
++  return GURL("https://" + host);
++}
++
++}  // namespace
++
++AerieHardeningHandler::AerieHardeningHandler(Profile* profile)
++    : profile_(profile) {}
++
++AerieHardeningHandler::~AerieHardeningHandler() = default;
++
++void AerieHardeningHandler::RegisterMessages() {
++  web_ui()->RegisterMessageCallback(
++      "getAerieHttpExceptions",
++      base::BindRepeating(&AerieHardeningHandler::HandleGetHttpExceptions,
++                          base::Unretained(this)));
++  web_ui()->RegisterMessageCallback(
++      "removeAerieHttpException",
++      base::BindRepeating(&AerieHardeningHandler::HandleRemoveHttpException,
++                          base::Unretained(this)));
++}
++
++void AerieHardeningHandler::OnJavascriptAllowed() {}
++
++void AerieHardeningHandler::OnJavascriptDisallowed() {}
++
++base::ListValue AerieHardeningHandler::GetHttpExceptions() const {
++  HostContentSettingsMap* map =
++      HostContentSettingsMapFactory::GetForProfile(profile_.get());
++  const base::Time now = base::Time::Now();
++  std::vector<std::string> hosts;
++  for (const auto& entry :
++       map->GetSettingsForOneType(ContentSettingsType::HTTP_ALLOWED)) {
++    if (!entry.setting_value.is_dict()) {
++      continue;
++    }
++    // An entry that has run out no longer allows anything, so do not list it.
++    const std::optional<base::Time> expires = base::ValueToTime(
++        entry.setting_value.GetDict().Find(kExpirationTimeKey));
++    if (!expires.has_value() || *expires <= now) {
++      continue;
++    }
++    const std::string host = GURL(entry.primary_pattern.ToString()).GetHost();
++    if (!host.empty()) {
++      hosts.push_back(host);
++    }
++  }
++  std::sort(hosts.begin(), hosts.end());
++  hosts.erase(std::unique(hosts.begin(), hosts.end()), hosts.end());
++
++  base::ListValue list;
++  for (const std::string& host : hosts) {
++    list.Append(host);
++  }
++  return list;
++}
++
++void AerieHardeningHandler::HandleGetHttpExceptions(
++    const base::ListValue& args) {
++  CHECK_EQ(1U, args.size());
++  AllowJavascript();
++  ResolveJavascriptCallback(args[0], GetHttpExceptions());
++}
++
++void AerieHardeningHandler::HandleRemoveHttpException(
++    const base::ListValue& args) {
++  CHECK_EQ(2U, args.size());
++  AllowJavascript();
++  if (!args[1].is_string()) {
++    RejectJavascriptCallback(args[0], base::Value("host must be a string"));
++    return;
++  }
++  const std::string& host = args[1].GetString();
++  const GURL url = SecureUrlForHost(host);
++  // Only a canonical host name from the list can be removed.
++  if (host.empty() || !url.is_valid() || url.GetHost() != host) {
++    RejectJavascriptCallback(args[0], base::Value("not a host name"));
++    return;
++  }
++  // The same call HttpsOnlyModeAllowlist::RevokeUserAllowExceptions makes.
++  // A value of none removes the setting.
++  HostContentSettingsMapFactory::GetForProfile(profile_.get())
++      ->SetWebsiteSettingDefaultScope(url, GURL(),
++                                      ContentSettingsType::HTTP_ALLOWED,
++                                      base::Value());
++  ResolveJavascriptCallback(args[0], base::Value());
++}
++
++}  // namespace settings
+--- a/chrome/browser/ui/webui/settings/settings_ui.cc
++++ b/chrome/browser/ui/webui/settings/settings_ui.cc
+@@ -64,4 +64,5 @@
+ #include "chrome/browser/ui/webui/sanitized_image/sanitized_image_source.h"
+ #include "chrome/browser/ui/webui/settings/about_handler.h"
++#include "chrome/browser/ui/webui/settings/aerie_hardening_handler.h"
+ #include "chrome/browser/ui/webui/settings/accessibility_main_handler.h"
+ #include "chrome/browser/ui/webui/settings/appearance_handler.h"
+@@ -275,4 +276,5 @@
+   AddSettingsPageUIHandler(std::make_unique<ExtensionControlHandler>());
+   AddSettingsPageUIHandler(std::make_unique<FontHandler>(profile));
++  AddSettingsPageUIHandler(std::make_unique<AerieHardeningHandler>(profile));
+   AddSettingsPageUIHandler(std::make_unique<BraveImportDataHandler>());
+   AddSettingsPageUIHandler(std::make_unique<HatsHandler>());
+--- a/chrome/browser/ui/webui/settings/BUILD.gn
++++ b/chrome/browser/ui/webui/settings/BUILD.gn
+@@ -22,4 +22,5 @@
+     "about_handler.h",
+     "accessibility_main_handler.h",
++    "aerie_hardening_handler.h",
+     "appearance_handler.h",
+     "brave_import_data_handler.h",
+@@ -161,4 +162,5 @@
+     "about_handler.cc",
+     "accessibility_main_handler.cc",
++    "aerie_hardening_handler.cc",
+     "appearance_handler.cc",
+     "brave_import_data_handler.cc",

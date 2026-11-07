@@ -20,6 +20,13 @@ class BuildArgvTest(unittest.TestCase):
             self.assertIn(f, a)
         self.assertTrue(any(x.startswith("--host-resolver-rules=") and "EXCLUDE 127.0.0.1" in x for x in a))
 
+    def test_resolver_rules_keep_loopback_and_fixture_names_reachable(self):
+        rules = [x for x in self.argv() if x.startswith("--host-resolver-rules=")][0].split("=", 1)[1]
+        parts = [r.strip() for r in rules.split(",")]
+        for want in ("EXCLUDE localhost", "EXCLUDE *.localhost", "EXCLUDE 127.0.0.1", "EXCLUDE ::1"):
+            self.assertIn(want, parts)
+        self.assertLess(parts.index("MAP *.bench.test 127.0.0.1"), parts.index("MAP * ~NOTFOUND"))
+
     def test_never_hides_background_networking(self):
         joined = " ".join(self.argv())
         for bad in ("disable-background-networking", "disable-component-update", "disable-sync"):

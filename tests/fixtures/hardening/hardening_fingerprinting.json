@@ -1,0 +1,249 @@
+{
+ "check": "hardening_fingerprinting",
+ "cases": [
+  {
+   "name": "per_site_per_session_and_stable",
+   "expect": "pass",
+   "detail_contains": "",
+   "obs": {
+    "a1": {
+     "canvas": "c1",
+     "audio": "u1"
+    },
+    "a2": {
+     "canvas": "c1",
+     "audio": "u1"
+    },
+    "b1": {
+     "canvas": "c2",
+     "audio": "u2"
+    },
+    "next_session": {
+     "a": {
+      "canvas": "c3",
+      "audio": "u3"
+     }
+    },
+    "control": {
+     "a": {
+      "canvas": "cx",
+      "audio": "ux"
+     },
+     "b": {
+      "canvas": "cx",
+      "audio": "ux"
+     }
+    }
+   }
+  },
+  {
+   "name": "same_on_two_sites_canvas",
+   "expect": "fail",
+   "detail_contains": "canvas is the same on two different sites",
+   "obs": {
+    "a1": {
+     "canvas": "c1",
+     "audio": "u1"
+    },
+    "a2": {
+     "canvas": "c1",
+     "audio": "u1"
+    },
+    "b1": {
+     "canvas": "c1",
+     "audio": "u2"
+    },
+    "next_session": {
+     "a": {
+      "canvas": "c3",
+      "audio": "u3"
+     }
+    },
+    "control": {
+     "a": {
+      "canvas": "cx",
+      "audio": "ux"
+     },
+     "b": {
+      "canvas": "cx",
+      "audio": "ux"
+     }
+    }
+   }
+  },
+  {
+   "name": "same_on_two_sites_audio",
+   "expect": "fail",
+   "detail_contains": "audio is the same on two different sites",
+   "obs": {
+    "a1": {
+     "canvas": "c1",
+     "audio": "u1"
+    },
+    "a2": {
+     "canvas": "c1",
+     "audio": "u1"
+    },
+    "b1": {
+     "canvas": "c2",
+     "audio": "u1"
+    },
+    "next_session": {
+     "a": {
+      "canvas": "c3",
+      "audio": "u3"
+     }
+    },
+    "control": {
+     "a": {
+      "canvas": "cx",
+      "audio": "ux"
+     },
+     "b": {
+      "canvas": "cx",
+      "audio": "ux"
+     }
+    }
+   }
+  },
+  {
+   "name": "unstable_within_session",
+   "expect": "fail",
+   "detail_contains": "changed between two loads",
+   "obs": {
+    "a1": {
+     "canvas": "c1",
+     "audio": "u1"
+    },
+    "a2": {
+     "canvas": "cz",
+     "audio": "u1"
+    },
+    "b1": {
+     "canvas": "c2",
+     "audio": "u2"
+    },
+    "next_session": {
+     "a": {
+      "canvas": "c3",
+      "audio": "u3"
+     }
+    },
+    "control": {
+     "a": {
+      "canvas": "cx",
+      "audio": "ux"
+     },
+     "b": {
+      "canvas": "cx",
+      "audio": "ux"
+     }
+    }
+   }
+  },
+  {
+   "name": "same_in_next_session",
+   "expect": "fail",
+   "detail_contains": "new browser session",
+   "obs": {
+    "a1": {
+     "canvas": "c1",
+     "audio": "u1"
+    },
+    "a2": {
+     "canvas": "c1",
+     "audio": "u1"
+    },
+    "b1": {
+     "canvas": "c2",
+     "audio": "u2"
+    },
+    "next_session": {
+     "a": {
+      "canvas": "c3",
+      "audio": "u1"
+     }
+    },
+    "control": {
+     "a": {
+      "canvas": "cx",
+      "audio": "ux"
+     },
+     "b": {
+      "canvas": "cx",
+      "audio": "ux"
+     }
+    }
+   }
+  },
+  {
+   "name": "control_differs_with_noise_off",
+   "expect": "fail",
+   "detail_contains": "negative control failed",
+   "obs": {
+    "a1": {
+     "canvas": "c1",
+     "audio": "u1"
+    },
+    "a2": {
+     "canvas": "c1",
+     "audio": "u1"
+    },
+    "b1": {
+     "canvas": "c2",
+     "audio": "u2"
+    },
+    "next_session": {
+     "a": {
+      "canvas": "c3",
+      "audio": "u3"
+     }
+    },
+    "control": {
+     "a": {
+      "canvas": "cx",
+      "audio": "ux"
+     },
+     "b": {
+      "canvas": "cy",
+      "audio": "ux"
+     }
+    }
+   }
+  },
+  {
+   "name": "page_error",
+   "expect": "fail",
+   "detail_contains": "failed",
+   "obs": {
+    "a1": {
+     "error": "boom"
+    },
+    "a2": {
+     "canvas": "c1",
+     "audio": "u1"
+    },
+    "b1": {
+     "canvas": "c2",
+     "audio": "u2"
+    },
+    "next_session": {
+     "a": {
+      "canvas": "c3",
+      "audio": "u3"
+     }
+    },
+    "control": {
+     "a": {
+      "canvas": "cx",
+      "audio": "ux"
+     },
+     "b": {
+      "canvas": "cx",
+      "audio": "ux"
+     }
+    }
+   }
+  }
+ ]
+}

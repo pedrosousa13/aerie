@@ -12,7 +12,13 @@ import json
 from dataclasses import dataclass, field
 from urllib.parse import urlsplit
 
-LOOPBACK = {"127.0.0.1", "localhost", "[::1]", "::1"}
+LOOPBACK = {"127.0.0.1", "127.0.0.2", "localhost", "[::1]", "::1"}
+# The Bench resolves *.localhost and *.bench.test to its own loopback fixture server.
+LOOPBACK_SUFFIXES = (".localhost", ".bench.test")
+
+
+def is_loopback(host: str) -> bool:
+    return host in LOOPBACK or host.endswith(LOOPBACK_SUFFIXES)
 
 
 def _events(text: str) -> tuple[dict, list[dict], bool]:
@@ -80,7 +86,7 @@ def parse(text: str) -> list[dict]:
                 "method": params.get("method"), "scheme": parts.scheme, "host": host,
                 "initiator": None if initiator in (None, "", "not an origin") else initiator,
                 "net_error": None,
-                "external": parts.scheme in ("http", "https", "ws", "wss", "ftp") and host not in LOOPBACK,
+                "external": parts.scheme in ("http", "https", "ws", "wss", "ftp") and not is_loopback(host),
             }
             order.append(sid)
         if sid in records and params.get("net_error"):

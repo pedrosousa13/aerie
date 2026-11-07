@@ -1,0 +1,18 @@
+{
+  "name": "hardening",
+  "checks": [
+    "hardening_https_only",
+    "hardening_localhost_dev",
+    "hardening_http_exception",
+    "hardening_third_party_cookies",
+    "hardening_storage_partitioning",
+    "hardening_webrtc",
+    "hardening_prefetch",
+    "hardening_site_isolation",
+    "hardening_fingerprinting",
+    "hardening_extension_prefs",
+    "hardening_pref_defaults",
+    "hardening_settings_page",
+    "hardening_tamper"
+  ]
+}

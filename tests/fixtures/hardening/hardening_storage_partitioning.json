@@ -1,0 +1,137 @@
+{
+ "check": "hardening_storage_partitioning",
+ "cases": [
+  {
+   "name": "partitioned_and_control_shares",
+   "expect": "pass",
+   "detail_contains": "",
+   "obs": {
+    "default_profile": {
+     "write": "ok",
+     "read_same_top": null,
+     "read_other_top": null
+    },
+    "partitioned": {
+     "write": "ok",
+     "read_same_top": "a-value",
+     "read_other_top": null
+    },
+    "control": {
+     "write": "ok",
+     "read_same_top": "a-value",
+     "read_other_top": "a-value"
+    }
+   }
+  },
+  {
+   "name": "error_counts_as_not_shared",
+   "expect": "pass",
+   "detail_contains": "",
+   "obs": {
+    "default_profile": {
+     "write": "ok",
+     "read_same_top": null,
+     "read_other_top": null
+    },
+    "partitioned": {
+     "write": "ok",
+     "read_same_top": "a-value",
+     "read_other_top": "error:SecurityError"
+    },
+    "control": {
+     "write": "ok",
+     "read_same_top": "a-value",
+     "read_other_top": "a-value"
+    }
+   }
+  },
+  {
+   "name": "shared_storage",
+   "expect": "fail",
+   "detail_contains": "storage is shared",
+   "obs": {
+    "default_profile": {
+     "write": "ok",
+     "read_same_top": null,
+     "read_other_top": null
+    },
+    "partitioned": {
+     "write": "ok",
+     "read_same_top": "a-value",
+     "read_other_top": "a-value"
+    },
+    "control": {
+     "write": "ok",
+     "read_same_top": "a-value",
+     "read_other_top": "a-value"
+    }
+   }
+  },
+  {
+   "name": "shared_in_default_profile",
+   "expect": "fail",
+   "detail_contains": "default profile",
+   "obs": {
+    "default_profile": {
+     "write": "ok",
+     "read_same_top": null,
+     "read_other_top": "a-value"
+    },
+    "partitioned": {
+     "write": "ok",
+     "read_same_top": "a-value",
+     "read_other_top": null
+    },
+    "control": {
+     "write": "ok",
+     "read_same_top": "a-value",
+     "read_other_top": "a-value"
+    }
+   }
+  },
+  {
+   "name": "storage_does_not_work",
+   "expect": "fail",
+   "detail_contains": "inconclusive",
+   "obs": {
+    "default_profile": {
+     "write": "ok",
+     "read_same_top": null,
+     "read_other_top": null
+    },
+    "partitioned": {
+     "write": "ok",
+     "read_same_top": null,
+     "read_other_top": null
+    },
+    "control": {
+     "write": "ok",
+     "read_same_top": "a-value",
+     "read_other_top": "a-value"
+    }
+   }
+  },
+  {
+   "name": "control_not_shared",
+   "expect": "fail",
+   "detail_contains": "negative control failed",
+   "obs": {
+    "default_profile": {
+     "write": "ok",
+     "read_same_top": null,
+     "read_other_top": null
+    },
+    "partitioned": {
+     "write": "ok",
+     "read_same_top": "a-value",
+     "read_other_top": null
+    },
+    "control": {
+     "write": "ok",
+     "read_same_top": "a-value",
+     "read_other_top": null
+    }
+   }
+  }
+ ]
+}

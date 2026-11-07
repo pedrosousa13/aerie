@@ -39,6 +39,15 @@ if profile and os.environ.get("FAKE_BROWSER_DUMP_PREFS"):
             f.write(open(os.path.join(profile, "Default", "Preferences")).read())
     except OSError:
         pass
+if profile and os.environ.get("FAKE_BROWSER_COPY_PREFS"):
+    # Record the seeded Preferences of every launch (main and variants), one per line.
+    try:
+        with open(os.path.join(profile, "Default", "Preferences")) as f, \
+                open(os.environ["FAKE_BROWSER_COPY_PREFS"], "a") as out:
+            out.write(f.read() + "\n")
+    except OSError:
+        with open(os.environ["FAKE_BROWSER_COPY_PREFS"], "a") as out:
+            out.write("none\n")
 
 if profile and os.environ.get("FAKE_BROWSER_SERVICES"):
     # Mimic Helium: call the seeded services origin on startup.
@@ -102,7 +111,10 @@ def handle(msg):
             t = re.search(r"<title>(.*?)</title>", body)
             titles[url] = t.group(1) if t else ""
         except Exception as exc:
-            out = {"id": i, "error": {"code": -32000, "message": str(exc)}}
+            if os.environ.get("FAKE_BROWSER_NAV_ERRORTEXT"):
+                out["result"] = {"errorText": "net::ERR_FAKE", "frameId": "F1"}
+            else:
+                out = {"id": i, "error": {"code": -32000, "message": str(exc)}}
         current = url
         reply(out)
         if "error" not in out:
@@ -111,7 +123,13 @@ def handle(msg):
     elif m == "Runtime.evaluate":
         expr = p["expression"]
         val = titles.get(current, "") if expr == "document.title" else expr
+        if p.get("awaitPromise"):
+            val = "awaited:" + str(val)
+        if p.get("userGesture"):
+            val = "gesture:" + str(val)
         out["result"] = {"result": {"type": "string", "value": val}}
+    elif m == "Target.getTargets":
+        out["result"] = {"targetInfos": [{"targetId": "T1", "type": "page", "url": current}]}
     elif m == "Page.captureScreenshot":
         import base64
         out["result"] = {"data": base64.b64encode(b"\x89PNG\r\n\x1a\nFAKE").decode()}

@@ -1,0 +1,212 @@
+{
+ "check": "hardening_https_only",
+ "cases": [
+  {
+   "name": "strict_mode_shows_warning_and_click_loads",
+   "expect": "pass",
+   "detail_contains": "",
+   "obs": {
+    "host": "plain.bench.test:41000",
+    "first": {
+     "url": "http://plain.bench.test:41000/index.html",
+     "outcome": "interstitial",
+     "error": null,
+     "state": {
+      "title": "Connection not secure",
+      "href": "http://plain.bench.test:41000/index.html",
+      "interstitial": true,
+      "type": "HTTPS_ONLY",
+      "proceed_visible": true
+     }
+    },
+    "hits_before_click": 0,
+    "click": {
+     "clicked": true,
+     "loaded": true
+    },
+    "hits_after_click": 1
+   }
+  },
+  {
+   "name": "stock_balanced_mode_loads_over_http",
+   "expect": "fail",
+   "detail_contains": "strict HTTPS-only mode is not on",
+   "obs": {
+    "host": "plain.bench.test:41000",
+    "first": {
+     "url": "http://plain.bench.test:41000/index.html",
+     "outcome": "loaded",
+     "error": null,
+     "state": {
+      "title": "Aerie Bench Fixture",
+      "interstitial": false,
+      "type": null,
+      "proceed_visible": false
+     }
+    },
+    "hits_before_click": 1,
+    "click": {
+     "clicked": false,
+     "loaded": false
+    },
+    "hits_after_click": 1
+   }
+  },
+  {
+   "name": "net_error_instead_of_warning",
+   "expect": "fail",
+   "detail_contains": "expected the HTTPS-only warning page",
+   "obs": {
+    "host": "plain.bench.test:41000",
+    "first": {
+     "url": "http://plain.bench.test:41000/index.html",
+     "outcome": "net_error",
+     "error": "net::ERR_NAME_NOT_RESOLVED",
+     "state": {
+      "title": "Connection not secure",
+      "href": "http://plain.bench.test:41000/index.html",
+      "interstitial": true,
+      "type": "HTTPS_ONLY",
+      "proceed_visible": true
+     }
+    },
+    "hits_before_click": 0,
+    "click": {
+     "clicked": true,
+     "loaded": true
+    },
+    "hits_after_click": 1
+   }
+  },
+  {
+   "name": "no_continue_button",
+   "expect": "fail",
+   "detail_contains": "one click",
+   "obs": {
+    "host": "plain.bench.test:41000",
+    "first": {
+     "url": "http://plain.bench.test:41000/index.html",
+     "outcome": "interstitial",
+     "error": null,
+     "state": {
+      "title": "Connection not secure",
+      "href": "http://plain.bench.test:41000/index.html",
+      "interstitial": true,
+      "type": "HTTPS_ONLY",
+      "proceed_visible": false
+     }
+    },
+    "hits_before_click": 0,
+    "click": {
+     "clicked": true,
+     "loaded": true
+    },
+    "hits_after_click": 1
+   }
+  },
+  {
+   "name": "http_request_before_click",
+   "expect": "fail",
+   "detail_contains": "before any click",
+   "obs": {
+    "host": "plain.bench.test:41000",
+    "first": {
+     "url": "http://plain.bench.test:41000/index.html",
+     "outcome": "interstitial",
+     "error": null,
+     "state": {
+      "title": "Connection not secure",
+      "href": "http://plain.bench.test:41000/index.html",
+      "interstitial": true,
+      "type": "HTTPS_ONLY",
+      "proceed_visible": true
+     }
+    },
+    "hits_before_click": 2,
+    "click": {
+     "clicked": true,
+     "loaded": true
+    },
+    "hits_after_click": 1
+   }
+  },
+  {
+   "name": "wrong_interstitial_type",
+   "expect": "fail",
+   "detail_contains": "HTTPS_ONLY",
+   "obs": {
+    "host": "plain.bench.test:41000",
+    "first": {
+     "url": "http://plain.bench.test:41000/index.html",
+     "outcome": "interstitial",
+     "error": null,
+     "state": {
+      "title": "Connection not secure",
+      "href": "http://plain.bench.test:41000/index.html",
+      "interstitial": true,
+      "type": "SSL",
+      "proceed_visible": true
+     }
+    },
+    "hits_before_click": 0,
+    "click": {
+     "clicked": true,
+     "loaded": true
+    },
+    "hits_after_click": 1
+   }
+  },
+  {
+   "name": "interstitial_type_unreadable",
+   "expect": "fail",
+   "detail_contains": "HTTPS_ONLY",
+   "obs": {
+    "host": "plain.bench.test:41000",
+    "first": {
+     "url": "http://plain.bench.test:41000/index.html",
+     "outcome": "interstitial",
+     "error": null,
+     "state": {
+      "title": "Connection not secure",
+      "href": "http://plain.bench.test:41000/index.html",
+      "interstitial": true,
+      "type": null,
+      "proceed_visible": true
+     }
+    },
+    "hits_before_click": 0,
+    "click": {
+     "clicked": true,
+     "loaded": true
+    },
+    "hits_after_click": 1
+   }
+  },
+  {
+   "name": "control_click_does_not_load",
+   "expect": "fail",
+   "detail_contains": "negative control failed",
+   "obs": {
+    "host": "plain.bench.test:41000",
+    "first": {
+     "url": "http://plain.bench.test:41000/index.html",
+     "outcome": "interstitial",
+     "error": null,
+     "state": {
+      "title": "Connection not secure",
+      "href": "http://plain.bench.test:41000/index.html",
+      "interstitial": true,
+      "type": "HTTPS_ONLY",
+      "proceed_visible": true
+     }
+    },
+    "hits_before_click": 0,
+    "click": {
+     "clicked": true,
+     "loaded": false
+    },
+    "hits_after_click": 0
+   }
+  }
+ ]
+}
