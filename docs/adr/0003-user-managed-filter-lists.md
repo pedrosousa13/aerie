@@ -23,5 +23,5 @@ The Filter Engine of #8 blocks with two lists that ship in the build. Users need
 ## Consequences
 
 - The browser now contacts list publishers. Their addresses are in [network-endpoints.md](../network-endpoints.md).
-- The overlay adds a WebUI, a toolbar button and three hook patches (`0008`, `0009`, `0010`). None depends on a Helium patch.
+- The overlay adds a WebUI, the Guard icon and hook patches `0008`, `0009` and `0014` to `0017`. None depends on a Helium patch.
 - Resource id range 10270 is taken for the page's grd.

@@ -32,7 +32,8 @@ GuardState ComputeGuardState(const GURL& committed_url,
     state.blocking_off = manager->HasException(state.host, session);
     state.locked = manager->IsExceptionLocked(state.host, session);
   }
-  state.count = state.blocking_off ? 0 : (blocked_count > 0 ? blocked_count : 0);
+  state.count =
+      state.blocking_off ? 0 : (blocked_count > 0 ? blocked_count : 0);
   return state;
 }
 

@@ -162,12 +162,14 @@ void AerieGuardPageActionController::ShowMenu(views::BubbleAnchor anchor) {
     toggle_id = incognito ? IDS_AERIE_GUARD_MENU_TURN_OFF_INCOGNITO
                           : IDS_AERIE_GUARD_MENU_TURN_OFF;
   }
-  menu_model_->AddItem(kToggleSite,
-                       state.locked ? l10n_util::GetStringUTF16(toggle_id)
-                                    : l10n_util::GetStringFUTF16(toggle_id, host));
+  menu_model_->AddItem(
+      kToggleSite, state.locked
+                       ? l10n_util::GetStringUTF16(toggle_id)
+                       : l10n_util::GetStringFUTF16(toggle_id, host));
   menu_model_->SetEnabledAt(menu_model_->GetItemCount() - 1, !state.locked);
   menu_model_->AddItem(
-      kManageLists, l10n_util::GetStringUTF16(IDS_AERIE_GUARD_MENU_MANAGE_LISTS));
+      kManageLists,
+      l10n_util::GetStringUTF16(IDS_AERIE_GUARD_MENU_MANAGE_LISTS));
   menu_runner_ = std::make_unique<views::MenuRunner>(
       menu_model_.get(), views::MenuRunner::HAS_MNEMONICS);
   menu_runner_->RunMenuAt(anchor_view->GetWidget(), nullptr,
