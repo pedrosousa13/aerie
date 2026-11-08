@@ -144,9 +144,7 @@ Process rule: the optimizer mode is part of the SiteInfo and of the renderer pro
 
 Canvas and audio output carry small random noise. The noise differs for each site and for each browser session, and can be turned off for a single site.
 
-Audio noise is seeded from the site and session only, so one site gets the same audio output on every render in one session. A tracker cannot average the noise away by rendering again.
-
-Analyser readbacks (getFloatFrequencyData and similar) still carry a per-read counter in their noise.
+Audio noise is seeded from the site and session only, so one site gets the same audio output on every render and every AnalyserNode read of the same signal in one session. A tracker cannot average the noise away by reading again.
 
 - Default: On.
 - Default provided by: Helium

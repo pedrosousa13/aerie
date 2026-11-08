@@ -137,7 +137,6 @@ WIDEVINE_INSTALLER_OK = """const uint8_t kWidevineSha2Hash[] = {
     0xe1, 0x41, 0x04, 0x86, 0x4a};
 """
 
-AUDIO_BUFFER = "third_party/blink/renderer/modules/webaudio/audio_buffer.cc"
 AUDIO_NOISE_OK = """void AudioBuffer::JitterAudioData(ExecutionContext* context) {
   for (unsigned i = 0; i < channels_.size(); ++i) {
     for (size_t frame = 0; frame < samples.size(); ++frame) {
@@ -150,9 +149,18 @@ AUDIO_NOISE_OK = """void AudioBuffer::JitterAudioData(ExecutionContext* context)
 }
 """
 
+ANALYSER_NOISE_OK = """struct AudioAnalyzerNoiseState {
+  uint64_t CoordinateSeed(uint64_t domain, uint64_t index) const {
+    DCHECK(enabled);
+    return domain ^ index;
+  }
+};
+"""
+AUDIO_GOOD = {treegate.AUDIO_BUFFER_PATH: AUDIO_NOISE_OK, treegate.REALTIME_ANALYSER_PATH: ANALYSER_NOISE_OK}
+
 GOOD = {
     **JS_OPT_GOOD,
-    AUDIO_BUFFER: AUDIO_NOISE_OK,
+    **AUDIO_GOOD,
     "chrome/browser/component_updater/widevine_cdm_component_installer.cc": WIDEVINE_INSTALLER_OK,
     "chrome/browser/component_updater/registration.cc": WIDEVINE_REG_OK,
     "components/update_client/update_checker.cc": WIDEVINE_CHECKER_OK,
@@ -305,15 +313,19 @@ class DefaultsGatesTest(TreeCase):
         self.write({blink: LINK_PREFETCH_BLINK_OK, client: LINK_PREFETCH_CLIENT_OK.replace("kEligible", "kUnspecified")})
         self.assertEqual([f.gate for f in treegate.check_link_prefetch_off(self.root)], ["link_prefetch_off"])
 
-    def test_audio_noise_must_not_carry_a_render_counter(self):
-        self.write({AUDIO_BUFFER: AUDIO_NOISE_OK})
+    def test_audio_noise_seed_must_be_the_exact_coordinate_expression(self):
+        self.write(AUDIO_GOOD)
         self.assertEqual(treegate.check_audio_noise_stable(self.root, require=True), [])
+        buf = treegate.AUDIO_BUFFER_PATH
         counter = AUDIO_NOISE_OK.replace("(static_cast<uint64_t>(i) << 48)", "render_seed ^ (static_cast<uint64_t>(i) << 48)")
-        for text in (counter, "base::AtomicSequenceNumber g_helium_audio_render_sequence;\n" + AUDIO_NOISE_OK):
-            self.write({AUDIO_BUFFER: text})
-            self.assertEqual([f.gate for f in treegate.check_audio_noise_stable(self.root)], ["audio_noise_stable"])
-        self.write({AUDIO_BUFFER: "void AudioBuffer::JitterAudioData(ExecutionContext*) {}\n"})
-        self.assertEqual(len(treegate.check_audio_noise_stable(self.root)), 1)  # no per-sample jitter call
+        for text in (counter, "void AudioBuffer::JitterAudioData(ExecutionContext*) {}\n"):
+            self.write({buf: text})
+            self.assertEqual([f.path for f in treegate.check_audio_noise_stable(self.root)], [buf])
+        self.write(AUDIO_GOOD)
+        ana = treegate.REALTIME_ANALYSER_PATH
+        for text in (ANALYSER_NOISE_OK.replace("domain ^ index", "domain ^ (read_seed << 32) ^ index"), ""):
+            self.write({ana: text})
+            self.assertEqual([f.path for f in treegate.check_audio_noise_stable(self.root)], [ana])
 
     def test_helium_services_must_be_off(self):
         self.write({"components/helium_services/helium_services_helpers.cc": SERVICES_OK})
@@ -362,7 +374,7 @@ class RunTest(TreeCase):
 
     def test_empty_tree_passes_unless_required(self):
         self.assertEqual(self.run_gates(), [])
-        self.assertEqual(len(self.run_gates(require=True)), 22)
+        self.assertEqual(len(self.run_gates(require=True)), 23)
 
     def test_format_report(self):
         self.write({"a.cc": '"https://services.helium.imput.net"\n'})

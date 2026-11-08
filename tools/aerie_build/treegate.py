@@ -280,18 +280,26 @@ def check_js_optimizer(root: Path, require: bool = False) -> list[Finding]:
     return out
 
 
+AUDIO_BUFFER_PATH = "third_party/blink/renderer/modules/webaudio/audio_buffer.cc"
+REALTIME_ANALYSER_PATH = "third_party/blink/renderer/modules/webaudio/realtime_analyser.cc"
+
+
 def check_audio_noise_stable(root: Path, require: bool = False) -> list[Finding]:
-    """Helium's AudioBuffer jitter is seeded from the site/session token and the sample coordinates
-    only (issue #38). A per-render counter would let a tracker average the noise away."""
-    gate, rel = "audio_noise_stable", "third_party/blink/renderer/modules/webaudio/audio_buffer.cc"
-    text, missing = _read(root, rel, gate, require)
-    if text is None:
-        return missing
-    if re.search(r"AtomicSequenceNumber|render_seed|render_sequence", text):
-        return [Finding(gate, rel, "audio noise must not be salted with a per-render counter")]
-    if not re.search(r"BaseAudioContext::JitterAudioData\(\s*samples\[frame\],\s*context,\s*coordinate_seed\)", text):
-        return [Finding(gate, rel, "AudioBuffer::JitterAudioData must jitter each sample with a coordinate seed")]
-    return []
+    """Helium's audio jitter is seeded from the site/session token and the sample coordinates only
+    (issue #38): channel and frame for rendered buffers, domain constant and index for analyser
+    reads. A per-render or per-read counter would let a tracker average the noise away."""
+    gate = "audio_noise_stable"
+    out = _must_match(
+        root, AUDIO_BUFFER_PATH, gate,
+        r"const uint64_t coordinate_seed =\s*\(static_cast<uint64_t>\(i\) << 48\) \^ frame;\s*"
+        r"samples\[frame\] = BaseAudioContext::JitterAudioData\(\s*samples\[frame\],\s*context,\s*coordinate_seed\)",
+        "the AudioBuffer jitter seed must be exactly (static_cast<uint64_t>(i) << 48) ^ frame, with no "
+        "per-render counter", require)
+    out += _must_match(
+        root, REALTIME_ANALYSER_PATH, gate,
+        r"uint64_t CoordinateSeed\(uint64_t domain, uint64_t index\) const \{[^}]*?return domain \^ index;\s*\}",
+        "the analyser jitter seed must be exactly domain ^ index, with no per-read counter", require)
+    return out
 
 
 GATES: tuple[Callable[..., list[Finding]], ...] = (

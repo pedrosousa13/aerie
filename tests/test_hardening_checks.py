@@ -277,13 +277,19 @@ class FingerprintJudgeTest(unittest.TestCase):
     def obs(self, **changes):
         obs = json.loads(json.dumps(REAL_FINGERPRINT))
         obs["a2"]["audio"] = obs["a1"]["audio"]  # what a build with stable audio noise gives
+        for key in ("a1", "a2", "b1"):
+            obs[key]["audio_again"] = obs[key]["audio"]
         for path, value in changes.items():
             kind, key = path.split("__")
             obs[kind][key] = value
         return obs
 
-    def test_audio_is_held_to_the_same_stability_rule_as_canvas(self):
-        self.assertEqual(fingerprint.STABLE_WITHIN_SESSION, ("canvas", "audio"))
+    def test_a_missing_second_audio_render_fails(self):
+        obs = self.obs()
+        del obs["b1"]["audio_again"]
+        status, detail = fingerprint.Fingerprinting.judge(obs)
+        self.assertEqual(status, "fail")
+        self.assertIn("no second audio render", detail)
 
     def test_audio_that_changes_every_render_fails(self):
         # The train-1 recording: Helium salted the noise with a render counter.
@@ -312,7 +318,7 @@ class FingerprintJudgeTest(unittest.TestCase):
 
     def test_audio_must_still_differ_across_sites_and_sessions(self):
         obs = self.obs()
-        obs["b1"]["audio"] = obs["a1"]["audio"]
+        obs["b1"]["audio"] = obs["b1"]["audio_again"] = obs["a1"]["audio"]
         self.assertIn("audio is the same on two different sites", fingerprint.Fingerprinting.judge(obs)[1])
         obs = self.obs()
         obs["next_session"]["a"]["audio"] = obs["a1"]["audio"]
@@ -320,7 +326,8 @@ class FingerprintJudgeTest(unittest.TestCase):
 
     def test_audio_equal_to_the_no_noise_control_fails(self):
         obs = self.obs()
-        obs["a1"]["audio"] = obs["a2"]["audio"] = obs["control"]["a"]["audio"]
+        for key in ("a1", "a2"):
+            obs[key]["audio"] = obs[key]["audio_again"] = obs["control"]["a"]["audio"]
         self.assertIn("equals the no-noise control", fingerprint.Fingerprinting.judge(obs)[1])
 
 
