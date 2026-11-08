@@ -110,6 +110,9 @@ def _report_baseline(base, binary) -> int:
     if check["status"] == "pass":
         print("baseline  PASSED: the check is vacuous (it saw no traffic on a browser that should have "
               "contacted Google or Helium). Do not trust a pass on any other browser.")
+    elif check["status"] in ("xfail", "xpass"):
+        print(f"baseline  {check['status'].upper()}: {check['detail']}; zero_traffic is not marked expected to "
+              "fail, so this is not a real failure and proves nothing")
     else:
         print(f"baseline  {check['status'].upper()}: {check['detail']}; the check did not run, so it proves nothing")
     return EXIT_FAIL

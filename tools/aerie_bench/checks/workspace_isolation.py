@@ -59,6 +59,10 @@ class Driver(Protocol):
     def set_permission(self, origin: str, name: str, value: str, workspace: str) -> None: ...
     def history(self, workspace: str) -> list[str]: ...      # URLs in that Workspace's history
     def omnibox(self, workspace: str, text: str) -> list[str]: ...  # URLs the omnibox suggests there
+    def resolve(self, workspace: str, host: str) -> None: ...       # resolve a name through that Workspace's resolver
+    def dns_cache(self, workspace: str) -> list[str]: ...    # host names in that Workspace's host cache
+    def set_client_cert_choice(self, workspace: str, host: str, cert: str) -> None: ...
+    def client_cert_choice(self, workspace: str, host: str) -> str | None: ...  # the cached choice, or None
 
 
 @dataclass
@@ -448,6 +452,33 @@ def _external_link(world: World) -> ProbeResult:
     return _ok("a link opened from outside Aerie lands in the active Workspace, with that Workspace's login")
 
 
+def _dns(world: World) -> ProbeResult:
+    """Row 7: a name resolved in X is in X's host cache and not in Y's. The test page resolves through the
+    Workspace's own resolver and reads its host cache, so ``--host-resolver-rules`` does not hide it."""
+    for x, y in DIRECTIONS:
+        host = f"{world.token(f'dns-{x}')}.workspace-probe.test"
+        world.driver.resolve(x, host)
+        if host not in world.driver.dns_cache(x):
+            return _control_failed(f"the host cache of {x} does not list {host} after {x} resolved it")
+        if host in world.driver.dns_cache(y):
+            return _fail(f"{host} resolved in {x} is in the host cache of {y}")
+    return _ok("a name resolved in one Workspace is not in the other's host cache, both ways")
+
+
+def _client_cert(world: World) -> ProbeResult:
+    """Row 10: the certificate chosen for a server in X is remembered in X and not in Y. The OS
+    certificate store itself is shared by design and is not probed."""
+    for x, y in DIRECTIONS:
+        host, cert = f"{world.token(f'cert-{x}')}.workspace-probe.test", world.token(f"choice-{x}")
+        world.driver.set_client_cert_choice(x, host, cert)
+        if world.driver.client_cert_choice(x, host) != cert:
+            return _control_failed(f"{x} did not remember its own certificate choice for {host}")
+        other = world.driver.client_cert_choice(y, host)
+        if other is not None:
+            return _fail(f"the certificate choice made in {x} for {host} is remembered in {y} ({other!r})")
+    return _ok("a client certificate choice made in one Workspace is not remembered in the other, both ways")
+
+
 def _noopener(world: World) -> ProbeResult:
     """Gap G6: ``window.open(..., 'noopener')`` from a Workspace tab stays in that Workspace."""
     world.login_both()
@@ -486,8 +517,10 @@ PROBES: tuple[Probe, ...] = (
     Probe("code_cache", "code cache directories", ("4b",), _code_cache),
     Probe("service_workers", "service workers", ("5",), _service_worker),
     Probe("hsts", "HSTS", ("6",), _hsts),
+    Probe("dns", "DNS host cache", ("7",), _dns),
     Probe("sockets", "no connection reuse across Workspaces (NetLog)", ("8",), _sockets_traffic),
     Probe("http_auth", "HTTP auth cache", ("9",), _http_auth),
+    Probe("client_cert", "client certificate choices", ("10",), _client_cert),
     Probe("permissions", "permission grants (D2, G2)", ("11",), _permissions),
     Probe("history", "history, omnibox suggestions, :visited (D1, G8)", ("12",), _history),
     Probe("renderer_process", "one renderer process per Workspace", ("17",), _renderer_process),
@@ -497,14 +530,8 @@ PROBES: tuple[Probe, ...] = (
 )
 PROBE_IDS = tuple(p.id for p in PROBES)
 
-# ADR rows marked "split" that this suite cannot probe, with the reason. Each is a known gap in the
-# suite, listed in docs/bench.md, not a pass.
-WAIVED_ROWS = {
-    "7": "DNS: the Bench maps its fixture names with --host-resolver-rules before the host cache, so no "
-         "resolver job or cache entry exists to observe (a real NetLog from the Bench has none)",
-    "10": "client certificate choices: needs a server that asks for a client certificate and a way to "
-          "drive the certificate chooser; the OS certificate store is shared by design",
-}
+# ADR rows marked "split" that this suite cannot probe, with the reason. Empty: every split row has a probe.
+WAIVED_ROWS: dict[str, str] = {}
 
 # Every probe is expected to fail until Workspaces exist. M5 removes ids from this set as each turns
 # green; it is done when the set is empty.
@@ -626,16 +653,16 @@ class WorkspaceIsolation:
         return self._result(why)
 
     def _entry(self, probe: Probe, res: ProbeResult) -> dict:
-        pending = probe.id == "sockets" and res.ok
-        return {"title": probe.title, "adr_rows": list(probe.adr_rows), "raw": "pending" if pending else
-                ("pass" if res.ok else "fail"), "detail": res.detail, "observed": res.observed,
+        # "pending": the probe only made traffic; finalize judges it from the NetLog. Until then it counts as failed.
+        return {"title": probe.title, "adr_rows": list(probe.adr_rows), "raw": "pass" if res.ok else "fail",
+                "pending": probe.id == "sockets" and res.ok, "detail": res.detail, "observed": res.observed,
                 "expected_to_fail": probe.id in EXPECTED_TO_FAIL}
 
     def _result(self, driver_problem: str | None = None) -> CheckResult:
         probes = {i: dict(p) for i, p in self._probes.items()}
         for p in probes.values():
-            if p["raw"] == "pending":
-                p["raw"] = "fail"   # until finalize has judged it
+            if p["pending"]:
+                p["raw"] = "fail"
         status, detail = _verdict(probes, self.enforce)
         for p in probes.values():
             p["status"] = p["raw"] if self.enforce else (
@@ -646,8 +673,8 @@ class WorkspaceIsolation:
         return CheckResult(self.name, status, detail, data=data)
 
     def finalize(self, session: Session, result: CheckResult) -> CheckResult:
-        if "sockets" not in self._probes or self._probes["sockets"]["raw"] != "pending":
+        if "sockets" not in self._probes or not self._probes["sockets"]["pending"]:
             return result
         res = judge_sockets(session.netlog, session.netlog_complete)
-        self._probes["sockets"].update(raw="pass" if res.ok else "fail", detail=res.detail, observed=res.observed)
+        self._probes["sockets"].update(raw="pass" if res.ok else "fail", pending=False, detail=res.detail, observed=res.observed)
         return self._result(result.data.get("driver_problem"))

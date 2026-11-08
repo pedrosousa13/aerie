@@ -22,7 +22,7 @@ LEAK_TO_PROBE = {
     "cacheStorage": "cache_storage", "serviceWorker": "service_workers", "httpCache": "http_cache",
     "httpAuth": "http_auth", "hsts": "hsts", "permissions": "permissions", "history": "history",
     "visited": "history", "process": "renderer_process", "move": "tab_move", "external": "external_link",
-    "noopener": "noopener",
+    "noopener": "noopener", "dns": "dns", "clientCert": "client_cert",
 }
 
 
@@ -246,6 +246,11 @@ class AdrCoverageTest(unittest.TestCase):
         for p in wi.PROBES:
             for row in p.adr_rows:
                 self.assertRegex(text, rf"\n\| {row} \|", p.id)
+
+    def test_no_split_row_is_waived(self):
+        self.assertEqual(wi.WAIVED_ROWS, {})
+        self.assertIn("7", self.split_rows())
+        self.assertIn("10", self.split_rows())
 
     def test_the_issue_checks_are_all_present(self):
         ids = set(wi.PROBE_IDS)

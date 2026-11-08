@@ -129,7 +129,7 @@ Results stay in the build root. Committed baselines are issue #16's job.
 | `phishing_protection` | The protection category works. A second browser started with `--aerie-test-protection-list` lists fixture `*.localhost` domains; the first browser, without the list, must load the same names (negative control). A listed main-frame navigation (and a subdomain of a listed domain) shows the interstitial: Go back is the primary button, Continue anyway is a link in the closed details section, the fixture server never saw the request, and the site's script and style did not reach the page. Go back returns to the previous page; Continue anyway loads the page, is remembered in that tab and not in a new tab. A listed subframe is blocked, and a control iframe to a clean host loads. A clean URL that answers 302 to a listed host is stopped at the hop, in the main frame and in a subframe. `Aerie.Protection.ListLoadSuccess` must have a true sample and no false one, and `Aerie.Protection.NavigationBlocked` at least eight true samples. See [phishing-protection.md](phishing-protection.md). |
 | `mv2_extension` | Manifest V2 works and uBlock Origin is gone. A tiny MV2 extension (`tools/aerie_bench/extensions/mv2`) is installed with `Extensions.loadUnpacked` (the Bench's pipe session is a browser-target session, which is what allows that command; no launch flag is needed), its persistent background page must start and its listener must be live (the check fetches a probe URL from the background page until the extension cancels it, and only then loads the page; see "MV2 extensions and the hook" in adblock.md), its content script must run on `/mv2/index.html`, its blocking `webRequest` listener must cancel `/mv2/ext-block-me.js` (`ERR_BLOCKED_BY_CLIENT`) and leave `/mv2/allowed.js` alone, and the extension itself must say it cancelled it (its background page records every cancel and the check reads that list, so the Aerie engine cannot be what blocked it), and no DevTools target may exist under the bundled uBlock Origin's component id. |
 | `filter_lists` | Users manage filter lists and can turn blocking off per site (issue #10). Runs in a browser started with `--aerie-test-allow-loopback-filter-lists` and drives `chrome://filters` through `chrome.send`. Passes when: an `http://` list on a non-loopback host and a list that is an HTML page (`fixtures/filters/not-a-list.html`) both show an error and block nothing; adding the fixture list URL (`fixtures/filters/custom-list.txt`) blocks the page's three ads at once, without a restart, while first-party content loads; `Aerie.Adblock.PageBlockedCount` has one sample equal to the three blocked ads; a forced update (`aerieFilters.updateAll`) fetches the custom list again and every non-loopback request in the NetLog is an https request to a list publisher's own URL (easylist.to for the built-in lists, whose update fails in the Bench, which is tolerated); an exception for `news.localhost` lets the ads load there and not on `other.localhost`; after the browser restarts on the same profile the list and the exception still apply; and in an incognito window an exception for `incognito.localhost` lets the ads load there only, is gone from the regular window's list and from the state file, cannot undo an exception saved in the regular profile, and is gone again once the incognito window closes. |
-| `workspace_isolation` | Nothing crosses between two Workspaces (issue #73, ADR 0006). Written before the feature: until Workspaces exist every probe is expected to fail, the check reports `xfail` and the run stays green. See "Workspace isolation" below. |
+| `workspace_isolation` | Nothing crosses between two Workspaces (issue #73, ADR 0006). Written before the feature: until Workspaces exist every probe is expected to fail, the check reports `xfail` and the run stays green. See "Workspace isolation" below. Not in the default scenario; run `./aerie bench --check workspace_isolation`. |
 | `widevine_opt_in` | Widevine is opt-in (#7). On a fresh profile `requestMediaKeySystemAccess('com.widevine.alpha')` is refused, chrome://components does not list the Widevine component, and the NetLog has no request that could fetch it (a real host, or any URL naming Widevine). Negative control: a second browser whose Local State has `aerie.widevine.enabled` must list the component, so the reader can see Widevine. With `--widevine-online SEC` that browser must also answer the key system query with success within SEC seconds (the download reaches Google). Not in the default scenario; run `./aerie bench --check widevine_opt_in`. |
 
 `browser_requests` is a self-test for the Bench and for Helium. Aerie makes no
@@ -382,8 +382,10 @@ see `tools/aerie_bench/workspace_driver.py` for the JavaScript calls M5's page h
 | `code_cache` | A layout check only: each Workspace partition has its own `Code Cache` directory in the profile. It does not read cache entries. | 4b |
 | `service_workers` | A service worker registered in X is not listed in Y. | 5 |
 | `hsts` | An HSTS header seen over https in X upgrades http in X and not in Y. | 6 |
+| `dns` | A name resolved in X is in X's host cache and not in Y's. The test page resolves through the Workspace's own resolver and reads its host cache, so `--host-resolver-rules` does not hide it. | 7 |
 | `sockets` | The NetLog: no socket carried requests of both Workspaces, and sockets were reused inside each one (the control). Judged after the browser exits. | 8 |
 | `http_auth` | Basic credentials entered in X are not sent in Y. | 9 |
+| `client_cert` | A client certificate choice stored for a server in X is not remembered in Y. The OS certificate store is shared by design and not probed. | 10 |
 | `permissions` | A notification grant made in X reads `default` or `prompt` in Y (decision D2, gap G2). | 11 |
 | `history` | A page visited in X is absent from Y's history and omnibox suggestions, and a link to it is not styled `:visited` in Y; the Bench reads the link colour from a screenshot (decision D1, gap G8). | 12 |
 | `renderer_process` | The two Workspaces have different renderer process ids. | 17 |
@@ -391,17 +393,14 @@ see `tools/aerie_bench/workspace_driver.py` for the JavaScript calls M5's page h
 | `external_link` | Story 94 (decision D4): a link handed over by another app opens a tab in the active Workspace. | 22 |
 | `noopener` | `window.open(..., 'noopener')` from a Workspace tab stays in that Workspace (gap G6). | 21 |
 
-A test reads the ADR and fails if a row that says "split" has neither a probe nor an entry in `WAIVED_ROWS`.
+A test reads the ADR and fails if a row that says "split" has neither a probe nor an entry in `WAIVED_ROWS` (empty today).
 
-**Known gaps.** Two split rows have no probe, and the suite says so instead of passing them:
-
-- Under row 7 (DNS): the Bench maps its fixture names with `--host-resolver-rules`, which is applied before the host
-  cache. A real NetLog from the Bench has no resolver job for a fixture host, so there is no cache entry to observe.
-- Under row 10 (client certificate choices): a probe needs a server that asks for a client certificate and a way to drive
-  the certificate chooser.
+**Known gaps.** No split row of the ADR is left without a probe, so `WAIVED_ROWS` is empty.
+The `dns` and `client_cert` probes use the driver calls `resolve`, `dnsCache`, `setClientCertChoice` and
+`clientCertChoice`, which the train 8 test page does not have yet.
 
 The `sockets` probe reads the NetLog's source dependencies (URL request, stream job, socket). The parser is tested
-on synthetic logs and was checked against one real NetLog from a Bench run; it has not seen a log with two
+on synthetic logs and was checked by hand against one real NetLog from a Bench run (that log is not kept in the repo); it has not seen a log with two
 Workspaces. The `history`, `permissions` and `external_link` probes also need calls (`history`, `omnibox`,
 `setPermission`, `activateWorkspace`, `openExternal`) that the train 8 test page does not have yet.
 

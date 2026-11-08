@@ -11,7 +11,7 @@ from urllib.parse import parse_qs, urlsplit
 
 ALL_LEAKS = ("cookie", "localStorage", "sessionStorage", "indexedDB", "opfs", "cacheStorage", "broadcastChannel",
              "webLocks", "sharedWorker", "blobUrl", "serviceWorker", "httpCache", "httpAuth", "hsts",
-             "permissions", "history", "visited", "process", "move", "external", "noopener")
+             "permissions", "history", "visited", "process", "move", "external", "noopener", "dns", "clientCert")
 
 
 class FakeFixtures:
@@ -171,6 +171,7 @@ class FakeBrowser:
         self.permissions, self.hist, self.visited = {}, [], set()
         self.shared_session = {}
         self.lock_owner = {}
+        self.dns, self.certs = set(), {}
         self.active = ""
         self.code_cache_hook = lambda ws: None
 
@@ -230,3 +231,15 @@ class FakeBrowser:
 
     def omnibox(self, ws, text):
         return [u for u in self.history(ws) if text in u]
+
+    def resolve(self, ws, host):
+        self.dns.add(("" if "dns" in self.leaks else ws, host))
+
+    def dns_cache(self, ws):
+        return [h for p, h in self.dns if p == ("" if "dns" in self.leaks else ws)]
+
+    def set_client_cert_choice(self, ws, host, cert):
+        self.certs[("" if "clientCert" in self.leaks else ws, host)] = cert
+
+    def client_cert_choice(self, ws, host):
+        return self.certs.get(("" if "clientCert" in self.leaks else ws, host))

@@ -13,9 +13,13 @@ WebUI page, ``chrome://workspace-test``, served only with ``--aerie-test-workspa
     workspaceTest.setPermission(origin, name, value, workspaceId)
     workspaceTest.history(workspaceId)                 [url, ...] from that Workspace's history
     workspaceTest.omnibox(workspaceId, text)           [url, ...] its omnibox would suggest
+    workspaceTest.resolve(workspaceId, host)           resolve a name through that Workspace's resolver
+    workspaceTest.dnsCache(workspaceId)                [host, ...] in that Workspace's host cache
+    workspaceTest.setClientCertChoice(workspaceId, host, cert)
+    workspaceTest.clientCertChoice(workspaceId, host)  the remembered choice, or null
 
 ``open``, ``list`` and ``move`` exist in the prototype (prototypes/workspaces/measure/measure.py);
-``targetId`` and ``pid`` in ``list`` and the last five calls are new. While the page is absent,
+``targetId`` and ``pid`` in ``list`` and the last nine calls are new. While the page is absent,
 ``available()`` says so and every probe fails, which the suite expects.
 """
 
@@ -255,3 +259,16 @@ class ChromeDriver:
 
     def omnibox(self, workspace: str, text: str) -> list[str]:
         return self._ws(f"workspaceTest.omnibox({json.dumps(workspace)}, {json.dumps(text)})") or []
+
+    def resolve(self, workspace: str, host: str) -> None:
+        self._ws(f"workspaceTest.resolve({json.dumps(workspace)}, {json.dumps(host)})")
+
+    def dns_cache(self, workspace: str) -> list[str]:
+        return self._ws(f"workspaceTest.dnsCache({json.dumps(workspace)})") or []
+
+    def set_client_cert_choice(self, workspace: str, host: str, cert: str) -> None:
+        self._ws(f"workspaceTest.setClientCertChoice({json.dumps(workspace)}, {json.dumps(host)}, "
+                 f"{json.dumps(cert)})")
+
+    def client_cert_choice(self, workspace: str, host: str) -> str | None:
+        return self._ws(f"workspaceTest.clientCertChoice({json.dumps(workspace)}, {json.dumps(host)})")
