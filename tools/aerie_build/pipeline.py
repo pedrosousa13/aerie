@@ -29,12 +29,14 @@ from .config import BuildPaths, isolated_env
 ARCH = "x64"
 TARGETS = ("chrome", "chromedriver")
 # The C++ unit test binaries `./aerie test-cpp` builds and runs, each with its
-# extra arguments. components_unittests is huge and only Aerie's Widevine
-# opt-in cases in it are Aerie's, so it runs with a filter.
+# extra arguments. The Widevine opt-in cases have a binary of their own:
+# components_unittests cannot be built from Helium's tree, which prunes the
+# binary test data (models, images) its other members bundle.
 TEST_BINARIES = (
     ("aerie_adblock_unittests", ()),
-    ("aerie_adblock_content_unittests", ()),
-    ("components_unittests", ("--gtest_filter=*WidevineOptIn*",)),
+    # Content test support starts Aura; headless Ozone needs no X server (CI runs with none).
+    ("aerie_adblock_content_unittests", ("--ozone-platform=headless",)),
+    ("aerie_widevine_unittests", ()),
 )
 HOST_TOOLS = ("git", "tar", "zstd", "patch")
 MIN_FREE_BYTES = 150 * 1024**3

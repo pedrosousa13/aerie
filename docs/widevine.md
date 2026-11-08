@@ -84,5 +84,5 @@ See `docs/network-endpoints.md`. The zero-traffic Bench run never opts in.
 | Opt-in makes a DRM page report Widevine available | `--widevine-online SEC` on the same check, on a network that reaches Google | needs a build and a network |
 | Default is off and the row is on the settings page | `hardening_pref_defaults`, `hardening_settings_page` | needs a build |
 | Registration and update URL go through the gate; the update check and ping leave out every app but Widevine; signing key hash unchanged | source gate `widevine_opt_in` | now, on the patched tree |
-| Opt-in rules (prompt once, decline sticks, URL, registration) | `components_unittests` (`aerie_widevine:unit_tests`) | needs a build |
+| Opt-in rules (prompt once, decline sticks, URL, registration) | `aerie_widevine_unittests` (`./aerie test-cpp`) | needs a build |
 | The zero-Google check still passes with Widevine off | `./aerie bench --check zero_traffic` | needs a build |

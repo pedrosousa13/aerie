@@ -73,13 +73,17 @@ class TestCppTest(unittest.TestCase):
         self.assertEqual(result, 0)
         self.assertEqual(
             [Path(c[0]).name for c in calls],
-            ["aerie_adblock_unittests", "aerie_adblock_content_unittests", "components_unittests"])
+            ["aerie_adblock_unittests", "aerie_adblock_content_unittests", "aerie_widevine_unittests"])
         build_tree.assert_called_once()
 
-    def test_widevine_cases_only_for_components_unittests(self):
+    def test_no_binary_needs_components_unittests(self):
+        # Helium prunes test data that components_unittests bundles, so it cannot be built.
+        self.assertNotIn("components_unittests", [name for name, _ in pipeline.TEST_BINARIES])
+
+    def test_the_content_tests_run_without_an_x_server(self):
         _result, calls, _ = self.run_tests({})
         by_name = {Path(c[0]).name: c[1:] for c in calls}
-        self.assertEqual(by_name["components_unittests"], ["--gtest_filter=*WidevineOptIn*"])
+        self.assertEqual(by_name["aerie_adblock_content_unittests"], ["--ozone-platform=headless"])
         self.assertEqual(by_name["aerie_adblock_unittests"], [])
 
     def test_one_failure_returns_non_zero_but_every_target_still_runs(self):
@@ -88,9 +92,9 @@ class TestCppTest(unittest.TestCase):
         self.assertEqual(len(calls), 3)
 
     def test_a_subset_can_be_selected(self):
-        result, calls, _ = self.run_tests({}, targets=["components_unittests"])
+        result, calls, _ = self.run_tests({}, targets=["aerie_widevine_unittests"])
         self.assertEqual(result, 0)
-        self.assertEqual([Path(c[0]).name for c in calls], ["components_unittests"])
+        self.assertEqual([Path(c[0]).name for c in calls], ["aerie_widevine_unittests"])
 
     def test_an_unknown_target_is_an_error(self):
         with self.assertRaises(pipeline.BuildError):
@@ -99,10 +103,10 @@ class TestCppTest(unittest.TestCase):
 
 class CliTest(unittest.TestCase):
     def test_test_cpp_is_a_command_and_returns_the_result(self):
-        with mock.patch.object(cli, "_context"), \
+        with tempfile.TemporaryDirectory() as root, \
                 mock.patch.object(pipeline, "test_cpp", return_value=3) as run:
-            self.assertEqual(cli.main(["test-cpp", "--target", "components_unittests"]), 3)
-        self.assertEqual(run.call_args.kwargs["targets"], ["components_unittests"])
+            self.assertEqual(cli.main(["test-cpp", "--build-root", root, "--target", "aerie_widevine_unittests"]), 3)
+        self.assertEqual(run.call_args.kwargs["targets"], ["aerie_widevine_unittests"])
 
 
 if __name__ == "__main__":

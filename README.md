@@ -173,14 +173,15 @@ Standard library only; runs in well under a second.
 
 ```sh
 ./aerie test-cpp                          # build and run all three
-./aerie test-cpp --target components_unittests
+./aerie test-cpp --target aerie_widevine_unittests
 ```
 
 `./aerie test-cpp` prepares the source tree like `./aerie build`, then builds
 `aerie_adblock_unittests`, `aerie_adblock_content_unittests` and
-`components_unittests` in the same `out/Default` and runs them. It does not
-build `chrome`. `components_unittests` runs with
-`--gtest_filter=*WidevineOptIn*`, because only those cases are Aerie's. Every
+`aerie_widevine_unittests` in the same `out/Default` and runs them. It does not
+build `chrome`. The Widevine opt-in cases have their own binary because
+`components_unittests` cannot be built from Helium's tree: Helium prunes the
+binary test data (models, images) that its other members bundle. Every
 selected binary runs even if one fails, a summary lists each result, and the
 exit code is non-zero if any binary failed or is missing. It takes the same
 `--build-root`, `-j`, `--ccache-size`, `--source` and `--clean` options as

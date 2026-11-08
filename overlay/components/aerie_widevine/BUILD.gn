@@ -6,6 +6,9 @@
 # component update URL while opted in, and the gate that registers the Widevine
 # component only after the user opts in. No content or chrome dependency, so it
 # has unit tests.
+
+import("//testing/test.gni")
+
 source_set("aerie_widevine") {
   sources = [
     "widevine_opt_in.cc",
@@ -31,5 +34,15 @@ source_set("unit_tests") {
     "//components/prefs:test_support",
     "//testing/gtest",
     "//url",
+  ]
+}
+
+# The opt-in cases on their own, for ./aerie test-cpp. components_unittests
+# also links them, but it cannot be built from Helium's tree: Helium prunes the
+# binary test data (models, images) that its other members bundle.
+test("aerie_widevine_unittests") {
+  deps = [
+    ":unit_tests",
+    "//base/test:run_all_unittests",
   ]
 }
