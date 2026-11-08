@@ -207,8 +207,11 @@ the UI):
   four hook patches touching five Chromium files, and a 204-line overlay). G2, G3, G4 and G8 are real work, each larger than the prototype.
 - Chromium upgrades touch five files in four patches: three in `chrome/`, one in `content/` and one in
   `components/permissions/`. `content/` is the risky one; Brave carries similar hooks, which helps when comparing rebases.
-- The story 92 bar is met by the mechanism (two cookie jars, two caches, two connection pools, two processes). The
-  screenshot proof needs a build: see the report.
+- The story 92 bar is met by the mechanism (two cookie jars, two caches, two connection pools, two processes). Train 8
+  proved it with screenshots: [Workspace 1](../../prototypes/workspaces/screenshots/story92-ws1-whoami.png) shows user A and
+  [Workspace 2](../../prototypes/workspaces/screenshots/story92-ws2-whoami.png) shows user B in one window, and after a restart
+  [A](../../prototypes/workspaces/screenshots/story92-restart-ws1.png) and
+  [B](../../prototypes/workspaces/screenshots/story92-restart-ws2.png) are still apart (see the report).
 - "Brave Containers pass the leak checks" is not established. Do not cite this ADR for that.
 
 ## Decisions (maintainer, 2026-11-08)

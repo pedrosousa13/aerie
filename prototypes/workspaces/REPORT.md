@@ -26,8 +26,8 @@ localStorage, sessionStorage, IndexedDB and Cache Storage; `/whoami` reads them 
 
 | Step | Result |
 | --- | --- |
-| `open(/login?user=A, ws1)`, `open(/login?user=B, ws2)`, then `/whoami` in each, one window | **Pass.** ws1 tab: cookie, localStorage, IndexedDB, Cache Storage all `A`; ws2 tab: all `B`. Screenshots `story92-ws1-whoami.png`, `story92-ws2-whoami.png` (both tabs, titled `whoami: A` and `whoami: B`, are in one tab strip). |
-| Restart on the same profile ("continue where you left off"), open `/whoami` in ws1 and ws2 again | **Pass.** `A` and `B` again: the session cookie survived the restart in a Workspace partition (G1, patch 0004). Screenshots `story92-restart-ws1.png`, `story92-restart-ws2.png`. |
+| `open(/login?user=A, ws1)`, `open(/login?user=B, ws2)`, then `/whoami` in each, one window | **Pass.** ws1 tab: cookie, localStorage, IndexedDB, Cache Storage all `A`; ws2 tab: all `B`. Screenshots [`story92-ws1-whoami.png`](screenshots/story92-ws1-whoami.png), [`story92-ws2-whoami.png`](screenshots/story92-ws2-whoami.png) (both tabs, titled `whoami: A` and `whoami: B`, are in one tab strip). |
+| Restart on the same profile ("continue where you left off"), open `/whoami` in ws1 and ws2 again | **Pass.** `A` and `B` again: the session cookie survived the restart in a Workspace partition (G1, patch 0004). Screenshots [`story92-restart-ws1.png`](screenshots/story92-restart-ws1.png), [`story92-restart-ws2.png`](screenshots/story92-restart-ws2.png). |
 | The tabs Chromium restored itself | All in the default partition (`workspace: ""`), and `/whoami` there says `nobody`. This is G4: the test page had to reopen the Workspaces itself. |
 
 sessionStorage reads empty in each `/whoami` tab because it is per tab and the login ran in another tab. That is expected.
@@ -68,7 +68,7 @@ Three runs, fresh profile each, median per point. Each step opens one background
 | Fixture site, all in one Workspace | 441.8 | 450.2 | 459.0 | 467.7 | 477.1 MB | 10.9 MB per tab |
 
 - **Empty Workspace: no measurable cost over a tab.** 7.9 MB per Workspace is the cost of the tab's renderer; a blank
-  tab in one Workspace costs the same. That is under the proposed 10 MB bar. Caveat: an `about:blank` tab may not
+  tab in one Workspace costs the same. That is under the 10 MB bar the maintainer set. Caveat: an `about:blank` tab may not
   start the partition's network context, so this can be a lower bound.
 - **Loaded: about 1.1 MB per extra Workspace** (60.2 MB for five Workspaces against 54.9 MB for five tabs in one,
   per-run totals 59.7 to 60.6 and 54.5 to 55.5). The process counts were the same: each background tab got its own
@@ -141,16 +141,16 @@ Steps, scripted with CDP in a headed run (a screenshot needs a window, not `--he
    the strip (side by side with split view, or one shot per tab with the Workspace id shown by the test page's title).
 3. Restart the browser on the same profile. Pass: both tabs reopen with their own user. This is the G1 check (session
    cookie persistence) and also shows G4: the test page must restore the Workspace itself.
-4. Save the three screenshots under `<build root>/bench/<timestamp>/` and attach them to #72 and the PR.
+4. Keep the screenshots. The train 8 run is in [`screenshots/`](screenshots/) (four files, with the whoami pages and the restart).
 
 ## What the train measures
 
 All on one machine, one build, three runs, median reported, with the browser otherwise idle.
 Memory is the proportional set size (PSS) of every browser process, read from `/proc/<pid>/smaps_rollup`.
 
-| Metric | How | Proposed pass bar |
+| Metric | How | Pass bar (maintainer, 2026-11-08) |
 | --- | --- | --- |
-| Memory per Workspace, empty | Start the browser, record total PSS of all processes (browser, network, GPU, renderers). Create Workspaces 1..5 with `about:blank` tabs; record PSS after each. Report the slope. | Under 10 MB per extra empty Workspace. Set by the report author; the maintainer should confirm or change it. |
+| Memory per Workspace, empty | Start the browser, record total PSS of all processes (browser, network, GPU, renderers). Create Workspaces 1..5 with `about:blank` tabs; record PSS after each. Report the slope. | Under 10 MB per extra empty Workspace. |
 | Memory per Workspace, loaded | Same, with the fixture site in each Workspace. Compare with 5 tabs of the same site in one Workspace. The difference is the isolation cost: an extra renderer process and an extra network context per Workspace. | Report the number. No bar: it is the input to a decision. |
 | Switch time | The test page hides and shows tabs of two Workspaces (the real switch is M5). Measure from the command to the first frame of the shown tab with `Page.screencastFrame` timestamps or a trace; 20 repetitions, report median and p95. | Median under 100 ms, p95 under 200 ms, for tabs already loaded. |
 | Cold Workspace create | Time from `open` on a new id to `Page.loadEventFired` on `about:blank`, then on the fixture site. First partition creation makes a directory and a `NetworkContext`. | Report. |
@@ -182,7 +182,7 @@ credit it as the base of option 2 (already done in the ADR text, conditional on 
 
 ## Estimates (reasoned, not measured)
 
-- **Memory:** the dominant cost is processes. The same site in two Workspaces is two renderer processes by design
+- **Memory (the estimate made before measuring; train 8 measured 7.9 MB per empty Workspace, which passes the 10 MB bar):** the dominant cost is processes. The same site in two Workspaces is two renderer processes by design
   (partition is in `SiteInfo`), where one Workspace would share one for same-site tabs. The partition itself is a
   `NetworkContext`, an HTTP cache index and a few service objects. Expect the empty Workspace to be small and the
   loaded Workspace to cost one renderer plus network-context state. Whether the empty figure meets the 10 MB bar is
