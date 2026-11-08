@@ -1,0 +1,2783 @@
+{
+ "check": "hardening_fingerprinting_site",
+ "cases": [
+  {
+   "name": "keyed_on_the_site_and_off_switch_site_wide",
+   "expect": "pass",
+   "detail_contains": "",
+   "obs": {
+    "control": {
+     "a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     }
+    },
+    "regular": {
+     "x.a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "y.a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    },
+    "incognito_1": {
+     "a": {
+      "canvas": "c3",
+      "audio": "u3",
+      "audio_again": "u3",
+      "cores": 6
+     }
+    },
+    "incognito_2": {
+     "a": {
+      "canvas": "c4",
+      "audio": "u4",
+      "audio_again": "u4",
+      "cores": 6
+     }
+    },
+    "incognito_off": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c5",
+      "audio": "u5",
+      "audio_again": "u5",
+      "cores": 6
+     }
+    },
+    "incognito_after": {
+     "a": {
+      "canvas": "c6",
+      "audio": "u6",
+      "audio_again": "u6",
+      "cores": 6
+     }
+    },
+    "regular_after": {
+     "a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     }
+    },
+    "legacy_exception": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    },
+    "site_off": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    }
+   }
+  },
+  {
+   "name": "origin_keying_gives_two_hosts_of_one_site_different_values",
+   "expect": "fail",
+   "detail_contains": "x.a.localhost and y.a.localhost",
+   "obs": {
+    "control": {
+     "a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     }
+    },
+    "regular": {
+     "x.a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "y.a": {
+      "canvas": "c7",
+      "audio": "u7",
+      "audio_again": "u7",
+      "cores": 4
+     },
+     "a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    },
+    "incognito_1": {
+     "a": {
+      "canvas": "c3",
+      "audio": "u3",
+      "audio_again": "u3",
+      "cores": 6
+     }
+    },
+    "incognito_2": {
+     "a": {
+      "canvas": "c4",
+      "audio": "u4",
+      "audio_again": "u4",
+      "cores": 6
+     }
+    },
+    "incognito_off": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c5",
+      "audio": "u5",
+      "audio_again": "u5",
+      "cores": 6
+     }
+    },
+    "incognito_after": {
+     "a": {
+      "canvas": "c6",
+      "audio": "u6",
+      "audio_again": "u6",
+      "cores": 6
+     }
+    },
+    "regular_after": {
+     "a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     }
+    },
+    "legacy_exception": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    },
+    "site_off": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    }
+   },
+   "note": "What today's origin keying does: x.a.localhost and y.a.localhost get different seeds, so the equal-values step fails."
+  },
+  {
+   "name": "audio_differs_inside_one_site",
+   "expect": "fail",
+   "detail_contains": "audio differs between x.a.localhost and y.a.localhost",
+   "obs": {
+    "control": {
+     "a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     }
+    },
+    "regular": {
+     "x.a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "y.a": {
+      "canvas": "c1",
+      "audio": "u9",
+      "audio_again": "u9",
+      "cores": 6
+     },
+     "a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    },
+    "incognito_1": {
+     "a": {
+      "canvas": "c3",
+      "audio": "u3",
+      "audio_again": "u3",
+      "cores": 6
+     }
+    },
+    "incognito_2": {
+     "a": {
+      "canvas": "c4",
+      "audio": "u4",
+      "audio_again": "u4",
+      "cores": 6
+     }
+    },
+    "incognito_off": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c5",
+      "audio": "u5",
+      "audio_again": "u5",
+      "cores": 6
+     }
+    },
+    "incognito_after": {
+     "a": {
+      "canvas": "c6",
+      "audio": "u6",
+      "audio_again": "u6",
+      "cores": 6
+     }
+    },
+    "regular_after": {
+     "a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     }
+    },
+    "legacy_exception": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    },
+    "site_off": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    }
+   }
+  },
+  {
+   "name": "cores_differ_inside_one_site",
+   "expect": "fail",
+   "detail_contains": "cores differs between x.a.localhost and y.a.localhost",
+   "obs": {
+    "control": {
+     "a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     }
+    },
+    "regular": {
+     "x.a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "y.a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 4
+     },
+     "a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    },
+    "incognito_1": {
+     "a": {
+      "canvas": "c3",
+      "audio": "u3",
+      "audio_again": "u3",
+      "cores": 6
+     }
+    },
+    "incognito_2": {
+     "a": {
+      "canvas": "c4",
+      "audio": "u4",
+      "audio_again": "u4",
+      "cores": 6
+     }
+    },
+    "incognito_off": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c5",
+      "audio": "u5",
+      "audio_again": "u5",
+      "cores": 6
+     }
+    },
+    "incognito_after": {
+     "a": {
+      "canvas": "c6",
+      "audio": "u6",
+      "audio_again": "u6",
+      "cores": 6
+     }
+    },
+    "regular_after": {
+     "a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     }
+    },
+    "legacy_exception": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    },
+    "site_off": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    }
+   }
+  },
+  {
+   "name": "canvas_same_on_two_sites",
+   "expect": "fail",
+   "detail_contains": "canvas is the same on a.localhost and b.localhost",
+   "obs": {
+    "control": {
+     "a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     }
+    },
+    "regular": {
+     "x.a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "y.a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "b": {
+      "canvas": "c1",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    },
+    "incognito_1": {
+     "a": {
+      "canvas": "c3",
+      "audio": "u3",
+      "audio_again": "u3",
+      "cores": 6
+     }
+    },
+    "incognito_2": {
+     "a": {
+      "canvas": "c4",
+      "audio": "u4",
+      "audio_again": "u4",
+      "cores": 6
+     }
+    },
+    "incognito_off": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c5",
+      "audio": "u5",
+      "audio_again": "u5",
+      "cores": 6
+     }
+    },
+    "incognito_after": {
+     "a": {
+      "canvas": "c6",
+      "audio": "u6",
+      "audio_again": "u6",
+      "cores": 6
+     }
+    },
+    "regular_after": {
+     "a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     }
+    },
+    "legacy_exception": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    },
+    "site_off": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    }
+   }
+  },
+  {
+   "name": "audio_same_on_two_sites",
+   "expect": "fail",
+   "detail_contains": "audio is the same on a.localhost and b.localhost",
+   "obs": {
+    "control": {
+     "a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     }
+    },
+    "regular": {
+     "x.a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "y.a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 4
+     }
+    },
+    "incognito_1": {
+     "a": {
+      "canvas": "c3",
+      "audio": "u3",
+      "audio_again": "u3",
+      "cores": 6
+     }
+    },
+    "incognito_2": {
+     "a": {
+      "canvas": "c4",
+      "audio": "u4",
+      "audio_again": "u4",
+      "cores": 6
+     }
+    },
+    "incognito_off": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c5",
+      "audio": "u5",
+      "audio_again": "u5",
+      "cores": 6
+     }
+    },
+    "incognito_after": {
+     "a": {
+      "canvas": "c6",
+      "audio": "u6",
+      "audio_again": "u6",
+      "cores": 6
+     }
+    },
+    "regular_after": {
+     "a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     }
+    },
+    "legacy_exception": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    },
+    "site_off": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    }
+   }
+  },
+  {
+   "name": "control_differs_with_noise_off",
+   "expect": "fail",
+   "detail_contains": "negative control failed",
+   "obs": {
+    "control": {
+     "a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "cy",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     }
+    },
+    "regular": {
+     "x.a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "y.a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    },
+    "incognito_1": {
+     "a": {
+      "canvas": "c3",
+      "audio": "u3",
+      "audio_again": "u3",
+      "cores": 6
+     }
+    },
+    "incognito_2": {
+     "a": {
+      "canvas": "c4",
+      "audio": "u4",
+      "audio_again": "u4",
+      "cores": 6
+     }
+    },
+    "incognito_off": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c5",
+      "audio": "u5",
+      "audio_again": "u5",
+      "cores": 6
+     }
+    },
+    "incognito_after": {
+     "a": {
+      "canvas": "c6",
+      "audio": "u6",
+      "audio_again": "u6",
+      "cores": 6
+     }
+    },
+    "regular_after": {
+     "a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     }
+    },
+    "legacy_exception": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    },
+    "site_off": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    }
+   }
+  },
+  {
+   "name": "control_page_error",
+   "expect": "fail",
+   "detail_contains": "failed (control.a)",
+   "obs": {
+    "control": {
+     "a": {
+      "error": "boom"
+     },
+     "b": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     }
+    },
+    "regular": {
+     "x.a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "y.a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    },
+    "incognito_1": {
+     "a": {
+      "canvas": "c3",
+      "audio": "u3",
+      "audio_again": "u3",
+      "cores": 6
+     }
+    },
+    "incognito_2": {
+     "a": {
+      "canvas": "c4",
+      "audio": "u4",
+      "audio_again": "u4",
+      "cores": 6
+     }
+    },
+    "incognito_off": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c5",
+      "audio": "u5",
+      "audio_again": "u5",
+      "cores": 6
+     }
+    },
+    "incognito_after": {
+     "a": {
+      "canvas": "c6",
+      "audio": "u6",
+      "audio_again": "u6",
+      "cores": 6
+     }
+    },
+    "regular_after": {
+     "a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     }
+    },
+    "legacy_exception": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    },
+    "site_off": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    }
+   }
+  },
+  {
+   "name": "noise_did_nothing",
+   "expect": "fail",
+   "detail_contains": "equals the no-noise control",
+   "obs": {
+    "control": {
+     "a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     }
+    },
+    "regular": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "a": {
+      "canvas": "cx",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    },
+    "incognito_1": {
+     "a": {
+      "canvas": "c3",
+      "audio": "u3",
+      "audio_again": "u3",
+      "cores": 6
+     }
+    },
+    "incognito_2": {
+     "a": {
+      "canvas": "c4",
+      "audio": "u4",
+      "audio_again": "u4",
+      "cores": 6
+     }
+    },
+    "incognito_off": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c5",
+      "audio": "u5",
+      "audio_again": "u5",
+      "cores": 6
+     }
+    },
+    "incognito_after": {
+     "a": {
+      "canvas": "c6",
+      "audio": "u6",
+      "audio_again": "u6",
+      "cores": 6
+     }
+    },
+    "regular_after": {
+     "a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     }
+    },
+    "legacy_exception": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    },
+    "site_off": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    }
+   }
+  },
+  {
+   "name": "incognito_shares_the_regular_canvas",
+   "expect": "fail",
+   "detail_contains": "canvas in an incognito context is the same as in the regular profile",
+   "obs": {
+    "control": {
+     "a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     }
+    },
+    "regular": {
+     "x.a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "y.a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    },
+    "incognito_1": {
+     "a": {
+      "canvas": "c1",
+      "audio": "u3",
+      "audio_again": "u3",
+      "cores": 6
+     }
+    },
+    "incognito_2": {
+     "a": {
+      "canvas": "c4",
+      "audio": "u4",
+      "audio_again": "u4",
+      "cores": 6
+     }
+    },
+    "incognito_off": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c5",
+      "audio": "u5",
+      "audio_again": "u5",
+      "cores": 6
+     }
+    },
+    "incognito_after": {
+     "a": {
+      "canvas": "c6",
+      "audio": "u6",
+      "audio_again": "u6",
+      "cores": 6
+     }
+    },
+    "regular_after": {
+     "a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     }
+    },
+    "legacy_exception": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    },
+    "site_off": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    }
+   }
+  },
+  {
+   "name": "two_incognito_contexts_share_audio",
+   "expect": "fail",
+   "detail_contains": "audio is the same in two incognito contexts",
+   "obs": {
+    "control": {
+     "a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     }
+    },
+    "regular": {
+     "x.a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "y.a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    },
+    "incognito_1": {
+     "a": {
+      "canvas": "c3",
+      "audio": "u3",
+      "audio_again": "u3",
+      "cores": 6
+     }
+    },
+    "incognito_2": {
+     "a": {
+      "canvas": "c4",
+      "audio": "u3",
+      "audio_again": "u3",
+      "cores": 6
+     }
+    },
+    "incognito_off": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c5",
+      "audio": "u5",
+      "audio_again": "u5",
+      "cores": 6
+     }
+    },
+    "incognito_after": {
+     "a": {
+      "canvas": "c6",
+      "audio": "u6",
+      "audio_again": "u6",
+      "cores": 6
+     }
+    },
+    "regular_after": {
+     "a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     }
+    },
+    "legacy_exception": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    },
+    "site_off": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    }
+   }
+  },
+  {
+   "name": "off_in_incognito_leaves_a_sibling_host_protected",
+   "expect": "fail",
+   "detail_contains": "incognito_off y.a.localhost",
+   "obs": {
+    "control": {
+     "a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     }
+    },
+    "regular": {
+     "x.a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "y.a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    },
+    "incognito_1": {
+     "a": {
+      "canvas": "c3",
+      "audio": "u3",
+      "audio_again": "u3",
+      "cores": 6
+     }
+    },
+    "incognito_2": {
+     "a": {
+      "canvas": "c4",
+      "audio": "u4",
+      "audio_again": "u4",
+      "cores": 6
+     }
+    },
+    "incognito_off": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "c5",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c5",
+      "audio": "u5",
+      "audio_again": "u5",
+      "cores": 6
+     }
+    },
+    "incognito_after": {
+     "a": {
+      "canvas": "c6",
+      "audio": "u6",
+      "audio_again": "u6",
+      "cores": 6
+     }
+    },
+    "regular_after": {
+     "a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     }
+    },
+    "legacy_exception": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    },
+    "site_off": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    }
+   }
+  },
+  {
+   "name": "off_in_incognito_also_turned_off_another_site",
+   "expect": "fail",
+   "detail_contains": "turned off another site",
+   "obs": {
+    "control": {
+     "a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     }
+    },
+    "regular": {
+     "x.a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "y.a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    },
+    "incognito_1": {
+     "a": {
+      "canvas": "c3",
+      "audio": "u3",
+      "audio_again": "u3",
+      "cores": 6
+     }
+    },
+    "incognito_2": {
+     "a": {
+      "canvas": "c4",
+      "audio": "u4",
+      "audio_again": "u4",
+      "cores": 6
+     }
+    },
+    "incognito_off": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     }
+    },
+    "incognito_after": {
+     "a": {
+      "canvas": "c6",
+      "audio": "u6",
+      "audio_again": "u6",
+      "cores": 6
+     }
+    },
+    "regular_after": {
+     "a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     }
+    },
+    "legacy_exception": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    },
+    "site_off": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    }
+   }
+  },
+  {
+   "name": "incognito_off_survives_the_context",
+   "expect": "fail",
+   "detail_contains": "a new incognito context",
+   "obs": {
+    "control": {
+     "a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     }
+    },
+    "regular": {
+     "x.a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "y.a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    },
+    "incognito_1": {
+     "a": {
+      "canvas": "c3",
+      "audio": "u3",
+      "audio_again": "u3",
+      "cores": 6
+     }
+    },
+    "incognito_2": {
+     "a": {
+      "canvas": "c4",
+      "audio": "u4",
+      "audio_again": "u4",
+      "cores": 6
+     }
+    },
+    "incognito_off": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c5",
+      "audio": "u5",
+      "audio_again": "u5",
+      "cores": 6
+     }
+    },
+    "incognito_after": {
+     "a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     }
+    },
+    "regular_after": {
+     "a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     }
+    },
+    "legacy_exception": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    },
+    "site_off": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    }
+   }
+  },
+  {
+   "name": "incognito_off_reached_the_regular_profile",
+   "expect": "fail",
+   "detail_contains": "regular profile",
+   "obs": {
+    "control": {
+     "a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     }
+    },
+    "regular": {
+     "x.a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "y.a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    },
+    "incognito_1": {
+     "a": {
+      "canvas": "c3",
+      "audio": "u3",
+      "audio_again": "u3",
+      "cores": 6
+     }
+    },
+    "incognito_2": {
+     "a": {
+      "canvas": "c4",
+      "audio": "u4",
+      "audio_again": "u4",
+      "cores": 6
+     }
+    },
+    "incognito_off": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c5",
+      "audio": "u5",
+      "audio_again": "u5",
+      "cores": 6
+     }
+    },
+    "incognito_after": {
+     "a": {
+      "canvas": "c6",
+      "audio": "u6",
+      "audio_again": "u6",
+      "cores": 6
+     }
+    },
+    "regular_after": {
+     "a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     }
+    },
+    "legacy_exception": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    },
+    "site_off": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    }
+   }
+  },
+  {
+   "name": "regular_seed_changed_after_incognito",
+   "expect": "fail",
+   "detail_contains": "regular profile",
+   "obs": {
+    "control": {
+     "a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     }
+    },
+    "regular": {
+     "x.a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "y.a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    },
+    "incognito_1": {
+     "a": {
+      "canvas": "c3",
+      "audio": "u3",
+      "audio_again": "u3",
+      "cores": 6
+     }
+    },
+    "incognito_2": {
+     "a": {
+      "canvas": "c4",
+      "audio": "u4",
+      "audio_again": "u4",
+      "cores": 6
+     }
+    },
+    "incognito_off": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c5",
+      "audio": "u5",
+      "audio_again": "u5",
+      "cores": 6
+     }
+    },
+    "incognito_after": {
+     "a": {
+      "canvas": "c6",
+      "audio": "u6",
+      "audio_again": "u6",
+      "cores": 6
+     }
+    },
+    "regular_after": {
+     "a": {
+      "canvas": "c8",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     }
+    },
+    "legacy_exception": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    },
+    "site_off": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    }
+   }
+  },
+  {
+   "name": "legacy_origin_exception_not_migrated_to_the_site",
+   "expect": "fail",
+   "detail_contains": "legacy_exception y.a.localhost",
+   "obs": {
+    "control": {
+     "a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     }
+    },
+    "regular": {
+     "x.a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "y.a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    },
+    "incognito_1": {
+     "a": {
+      "canvas": "c3",
+      "audio": "u3",
+      "audio_again": "u3",
+      "cores": 6
+     }
+    },
+    "incognito_2": {
+     "a": {
+      "canvas": "c4",
+      "audio": "u4",
+      "audio_again": "u4",
+      "cores": 6
+     }
+    },
+    "incognito_off": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c5",
+      "audio": "u5",
+      "audio_again": "u5",
+      "cores": 6
+     }
+    },
+    "incognito_after": {
+     "a": {
+      "canvas": "c6",
+      "audio": "u6",
+      "audio_again": "u6",
+      "cores": 6
+     }
+    },
+    "regular_after": {
+     "a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     }
+    },
+    "legacy_exception": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "c1",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    },
+    "site_off": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    }
+   }
+  },
+  {
+   "name": "legacy_exception_turned_off_another_site",
+   "expect": "fail",
+   "detail_contains": "turned off another site",
+   "obs": {
+    "control": {
+     "a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     }
+    },
+    "regular": {
+     "x.a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "y.a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    },
+    "incognito_1": {
+     "a": {
+      "canvas": "c3",
+      "audio": "u3",
+      "audio_again": "u3",
+      "cores": 6
+     }
+    },
+    "incognito_2": {
+     "a": {
+      "canvas": "c4",
+      "audio": "u4",
+      "audio_again": "u4",
+      "cores": 6
+     }
+    },
+    "incognito_off": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c5",
+      "audio": "u5",
+      "audio_again": "u5",
+      "cores": 6
+     }
+    },
+    "incognito_after": {
+     "a": {
+      "canvas": "c6",
+      "audio": "u6",
+      "audio_again": "u6",
+      "cores": 6
+     }
+    },
+    "regular_after": {
+     "a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     }
+    },
+    "legacy_exception": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     }
+    },
+    "site_off": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    }
+   }
+  },
+  {
+   "name": "site_pattern_off_leaves_the_site_protected",
+   "expect": "fail",
+   "detail_contains": "site_off x.a.localhost",
+   "obs": {
+    "control": {
+     "a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     }
+    },
+    "regular": {
+     "x.a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "y.a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    },
+    "incognito_1": {
+     "a": {
+      "canvas": "c3",
+      "audio": "u3",
+      "audio_again": "u3",
+      "cores": 6
+     }
+    },
+    "incognito_2": {
+     "a": {
+      "canvas": "c4",
+      "audio": "u4",
+      "audio_again": "u4",
+      "cores": 6
+     }
+    },
+    "incognito_off": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c5",
+      "audio": "u5",
+      "audio_again": "u5",
+      "cores": 6
+     }
+    },
+    "incognito_after": {
+     "a": {
+      "canvas": "c6",
+      "audio": "u6",
+      "audio_again": "u6",
+      "cores": 6
+     }
+    },
+    "regular_after": {
+     "a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     }
+    },
+    "legacy_exception": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    },
+    "site_off": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    }
+   }
+  },
+  {
+   "name": "audio_changes_between_two_renders",
+   "expect": "fail",
+   "detail_contains": "audio changed between two renders",
+   "obs": {
+    "control": {
+     "a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     }
+    },
+    "regular": {
+     "x.a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "ua",
+      "cores": 6
+     },
+     "y.a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    },
+    "incognito_1": {
+     "a": {
+      "canvas": "c3",
+      "audio": "u3",
+      "audio_again": "u3",
+      "cores": 6
+     }
+    },
+    "incognito_2": {
+     "a": {
+      "canvas": "c4",
+      "audio": "u4",
+      "audio_again": "u4",
+      "cores": 6
+     }
+    },
+    "incognito_off": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c5",
+      "audio": "u5",
+      "audio_again": "u5",
+      "cores": 6
+     }
+    },
+    "incognito_after": {
+     "a": {
+      "canvas": "c6",
+      "audio": "u6",
+      "audio_again": "u6",
+      "cores": 6
+     }
+    },
+    "regular_after": {
+     "a": {
+      "canvas": "c1",
+      "audio": "u1",
+      "audio_again": "u1",
+      "cores": 6
+     }
+    },
+    "legacy_exception": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    },
+    "site_off": {
+     "x.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "y.a": {
+      "canvas": "cx",
+      "audio": "ux",
+      "audio_again": "ux",
+      "cores": 8
+     },
+     "b": {
+      "canvas": "c2",
+      "audio": "u2",
+      "audio_again": "u2",
+      "cores": 4
+     }
+    }
+   }
+  }
+ ]
+}

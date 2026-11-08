@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 
 from aerie_bench import checks
-from aerie_bench.checks.hardening import common, cookies, extension, fingerprint, https, isolation, jit, prefetch, settings, webrtc
+from aerie_bench.checks.hardening import common, cookies, extension, fingerprint, fingerprint_site, https, isolation, jit, prefetch, settings, webrtc
 from aerie_bench.session import CheckResult
 
 FIXTURES = Path(__file__).parent / "fixtures" / "hardening"
@@ -329,6 +329,36 @@ class FingerprintJudgeTest(unittest.TestCase):
         for key in ("a1", "a2"):
             obs[key]["audio"] = obs[key]["audio_again"] = obs["control"]["a"]["audio"]
         self.assertIn("equals the no-noise control", fingerprint.Fingerprinting.judge(obs)[1])
+
+
+class FingerprintSiteDriverTest(unittest.TestCase):
+    def test_seeded_exceptions_are_stored_as_primary_comma_secondary(self):
+        prefs = fingerprint_site.seeded_exceptions({"[*.]a.localhost": 2, "http://x.a.localhost:4100": 2})
+        rules = prefs["profile"]["content_settings"]["exceptions"]["helium-noise"]
+        self.assertEqual(rules, {"[*.]a.localhost,*": {"setting": 2}, "http://x.a.localhost:4100,*": {"setting": 2}})
+
+    def test_turning_a_site_off_calls_the_site_settings_handler_on_the_settings_page(self):
+        class Fake:
+            def __init__(self):
+                self.urls, self.scripts = [], []
+
+            def navigate_url(self, url):
+                self.urls.append(url)
+                return {"url": url, "error": None}
+
+            def evaluate(self, js):
+                self.scripts.append(js)
+                return True
+        fake = Fake()
+        self.assertTrue(fingerprint_site.turn_off_for_site(fake))
+        self.assertEqual(fake.urls, ["chrome://settings/"])
+        self.assertIn("setCategoryPermissionForPattern", fake.scripts[0])
+        self.assertIn('"[*.]a.localhost"', fake.scripts[0])
+        self.assertIn("'helium-noise', 'block', false", fake.scripts[0])
+
+    def test_the_fixture_page_reports_the_core_count(self):
+        text = (Path(fingerprint_site.__file__).parents[2] / "fixtures" / "hardening" / "fingerprint.html").read_text()
+        self.assertIn("hardwareConcurrency", text)
 
 
 class FakeFixtures:

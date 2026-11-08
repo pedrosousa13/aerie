@@ -40,6 +40,8 @@ TEST_BINARIES = (
     # The cosmetic renderer piece (ADR 0005): the per-tab late-report gate and the sheet state.
     ("aerie_adblock_common_unittests", ()),
     ("aerie_adblock_renderer_unittests", ()),
+    # What the fingerprinting noise is keyed on: the site key and the per-site switch's pattern (#114).
+    ("aerie_fingerprint_unittests", ()),
 )
 HOST_TOOLS = ("git", "tar", "zstd", "patch")
 MIN_FREE_BYTES = 150 * 1024**3

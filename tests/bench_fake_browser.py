@@ -190,10 +190,17 @@ def handle(msg):
     global current, fake_base
     m, p, i = msg["method"], msg.get("params", {}), msg["id"]
     sid = msg.get("sessionId")
+    if os.environ.get("FAKE_BROWSER_CDP_LOG") and m.startswith("Target."):
+        with open(os.environ["FAKE_BROWSER_CDP_LOG"], "a") as log:
+            log.write(json.dumps({"method": m, "params": p}) + "\n")
     out = {"id": i, "result": {}}
     if sid:
         out["sessionId"] = sid
-    if m == "Target.createTarget":
+    if m == "Target.createBrowserContext":
+        out["result"] = {"browserContextId": "C1"}
+    elif m == "Target.disposeBrowserContext":
+        pass
+    elif m == "Target.createTarget":
         out["result"] = {"targetId": "T1"}
     elif m == "Target.attachToTarget":
         out["result"] = {"sessionId": "S1"}

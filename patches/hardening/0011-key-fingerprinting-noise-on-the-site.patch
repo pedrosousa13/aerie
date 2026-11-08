@@ -1,0 +1,249 @@
+Aerie-Purpose: Key Helium's fingerprinting noise tokens and the per-site "off" switch on the site (scheme plus registrable domain) instead of the origin, so x.example.com and y.example.com show the same canvas, audio and core count, and turning protection off for one covers the other.
+Aerie-Upstream-Area: content/browser/helium_noise/noise_token_data.cc (HeliumNoiseTokenData::GetTokens), chrome/browser/helium_noise/helium_noise_settings.cc (SetHeliumNoiseEnabledForOrigin, GetHeliumNoiseState), content/browser/BUILD.gn, chrome/browser/BUILD.gn
+Aerie-Kind: hook
+
+Amends helium-chromium/patches/helium/core/noise/core.patch (issue #114, part of #87). Helium
+derives the tokens from SHA-256(session token || origin.Serialize()), so every origin got its own
+seed, and the HELIUM_NOISE exception was set for one origin. A tracker on one site can load a
+script from any number of subdomains, so the origin is the wrong unit; so is a per-origin switch.
+
+The key function is in the overlay, components/aerie_fingerprint (site_key.h), with unit tests
+(aerie_fingerprint_unittests). NoiseSiteKey(origin, partition) is net::SchemefulSite(origin) and an
+optional partition string; nothing passes a partition yet, and keying on the Workspace (#121) will
+pass one. NoiseSitePattern(url) gives the content-setting pattern for the same hosts, so the key and
+the switch cannot disagree.
+
+The switch is now "[*.]registrable-domain" (the host itself for an IP address or a name without a
+registrable domain). Origin-scoped "off" exceptions that an earlier build stored are turned into
+site exceptions the first time the profile is used (GetHeliumNoiseState or the setter), once per
+profile object, and the migration is idempotent. The off-the-record profile is not migrated: its
+exceptions live in memory and start empty (HELIUM_NOISE is DONT_INHERIT_IN_INCOGNITO), so a switch
+set in incognito is never written to disk and never reaches the regular profile.
+
+The new GN dependency on chrome/browser sits after //components/application_locale_storage on
+purpose: adblock/0001 puts its line between that entry and the one before it, and its hunk context
+must stay adjacent. The hunk of onboarding/0001 in this file moves down by one line.
+
+--- a/content/browser/helium_noise/noise_token_data.cc
++++ b/content/browser/helium_noise/noise_token_data.cc
+@@ -18,6 +18,7 @@
+ #include "base/numerics/byte_conversions.h"
+ #include "base/rand_util.h"
+ #include "base/unguessable_token.h"
++#include "components/aerie_fingerprint/site_key.h"
+ #include "content/public/browser/browser_context.h"
+ #include "crypto/hash.h"
+ #include "url/origin.h"
+@@ -33,8 +34,8 @@
+ constexpr uint64_t kFnvPrime = 0x00000100000001b3;
+ constexpr uint64_t kFnvOffset = 0xcbf29ce484222325;
+ 
+-// Derives a token by combining a browser context token with an origin-specific
+-// string. This makes tokens unique per-origin, but consistent within
++// Derives a token by combining a browser context token with a site-specific
++// string. This makes tokens unique per-site, but consistent within
+ // the same BrowserContext.
+ blink::HeliumNoiseToken DeriveTokenFromOrigin(blink::HeliumNoiseToken token,
+                                               std::string_view domain) {
+@@ -82,9 +83,14 @@
+     const url::Origin& origin) {
+   HeliumNoiseTokenData* data = GetBrowserTokens(context);
+ 
+-  std::string domain = !origin.opaque()
+-                          ? origin.Serialize()
+-                          : base::UnguessableToken::Create().ToString();
++  // Aerie (#114): the key is the site (scheme plus registrable domain), so
++  // x.example.com and y.example.com get the same tokens. An opaque origin has
++  // no key and gets a random value. Keying on a Workspace later (#121) is a
++  // second argument to NoiseSiteKey.
++  std::string domain = aerie_fingerprint::NoiseSiteKey(origin);
++  if (domain.empty()) {
++    domain = base::UnguessableToken::Create().ToString();
++  }
+ 
+   blink::HeliumNoiseTokenMap result;
+   for (const auto& [feature, session_token] : data->session_tokens_) {
+--- a/content/browser/helium_noise/noise_token_data.h
++++ b/content/browser/helium_noise/noise_token_data.h
+@@ -30,8 +30,9 @@
+   HeliumNoiseTokenData();
+ 
+   // Gets a map of BrowserContext-associated & feature-specific noise tokens
+-  // computed with the main frame's origin. If the origin is opaque, a random
+-  // value will be used instead.
++  // computed with the main frame's site (scheme plus registrable domain, not
++  // the full origin). If the origin is opaque, a random value will be used
++  // instead.
+   static blink::HeliumNoiseTokenMap GetTokens(BrowserContext* context,
+                                               const url::Origin& origin);
+ 
+--- a/chrome/browser/helium_noise/helium_noise_settings.cc
++++ b/chrome/browser/helium_noise/helium_noise_settings.cc
+@@ -4,12 +4,20 @@
+ 
+ #include "chrome/browser/helium_noise/helium_noise_settings.h"
+ 
++#include <memory>
++#include <optional>
++#include <string>
++
+ #include "base/feature_list.h"
++#include "base/supports_user_data.h"
+ #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/common/pref_names.h"
++#include "components/aerie_fingerprint/site_key.h"
+ #include "components/content_settings/core/browser/host_content_settings_map.h"
+ #include "components/content_settings/core/common/content_settings.h"
++#include "components/content_settings/core/common/content_settings.mojom.h"
++#include "components/content_settings/core/common/content_settings_pattern.h"
+ #include "components/content_settings/core/common/content_settings_types.h"
+ #include "components/prefs/pref_service.h"
+ #include "third_party/blink/public/common/features.h"
+@@ -27,6 +35,57 @@
+   return Profile::FromBrowserContext(browser_context);
+ }
+ 
++// Aerie (#114): the per-site switch covers every host of a site, the same
++// hosts that share a noise token (aerie_fingerprint::NoiseSiteKey). Its
++// pattern is "[*.]example.com" for a registrable domain and the host itself
++// for an IP address. Returns an invalid pattern for an address with no site.
++ContentSettingsPattern GetSitePattern(const GURL& url) {
++  const std::optional<std::string> spec =
++      aerie_fingerprint::NoiseSitePattern(url);
++  if (!spec) {
++    return ContentSettingsPattern();
++  }
++  return ContentSettingsPattern::FromString(*spec);
++}
++
++const void* const kOriginExceptionsMigratedKey =
++    &kOriginExceptionsMigratedKey;
++
++class OriginExceptionsMigrated : public base::SupportsUserData::Data {};
++
++// Before #114 the switch was set for one origin ("https://a.example.com:443").
++// Turns each such "off" exception into one for the whole site, once per
++// profile object (it is idempotent, so a restart can run it again). Skips the
++// off-the-record profile: its exceptions are in memory and start empty.
++void MigrateOriginExceptions(Profile* profile, HostContentSettingsMap* map) {
++  if (profile->IsOffTheRecord() ||
++      profile->GetUserData(kOriginExceptionsMigratedKey)) {
++    return;
++  }
++  profile->SetUserData(kOriginExceptionsMigratedKey,
++                       std::make_unique<OriginExceptionsMigrated>());
++
++  for (const ContentSettingPatternSource& rule :
++       map->GetSettingsForOneType(ContentSettingsType::HELIUM_NOISE)) {
++    if (rule.source != content_settings::mojom::ProviderType::kPrefProvider ||
++        rule.GetContentSetting() != CONTENT_SETTING_BLOCK ||
++        rule.primary_pattern.HasDomainWildcard()) {
++      continue;
++    }
++    const ContentSettingsPattern site_pattern =
++        GetSitePattern(GURL(rule.primary_pattern.ToString()));
++    if (!site_pattern.IsValid() || site_pattern == rule.primary_pattern) {
++      continue;
++    }
++    map->SetContentSettingCustomScope(
++        site_pattern, ContentSettingsPattern::Wildcard(),
++        ContentSettingsType::HELIUM_NOISE, CONTENT_SETTING_BLOCK);
++    map->SetContentSettingCustomScope(
++        rule.primary_pattern, rule.secondary_pattern,
++        ContentSettingsType::HELIUM_NOISE, CONTENT_SETTING_DEFAULT);
++  }
++}
++
+ }  // namespace
+ 
+ HeliumNoiseState GetHeliumNoiseState(
+@@ -55,6 +114,8 @@
+     return HeliumNoiseState::kEnabled;
+   }
+ 
++  MigrateOriginExceptions(profile, settings_map);
++
+   const ContentSetting noise_setting = settings_map->GetContentSetting(
+       url, GURL(), ContentSettingsType::HELIUM_NOISE);
+   if (noise_setting == CONTENT_SETTING_BLOCK) {
+@@ -89,23 +150,45 @@
+     return;
+   }
+ 
++  MigrateOriginExceptions(profile, settings_map);
++
++  const ContentSettingsPattern site_pattern = GetSitePattern(url);
++  if (!site_pattern.IsValid()) {
++    return;
++  }
++  const ContentSettingsPattern any_pattern = ContentSettingsPattern::Wildcard();
++
+   if (!enabled) {
+-    settings_map->SetNarrowestContentSetting(
+-        url, GURL(), ContentSettingsType::HELIUM_NOISE,
++    settings_map->SetContentSettingCustomScope(
++        site_pattern, any_pattern, ContentSettingsType::HELIUM_NOISE,
+         CONTENT_SETTING_BLOCK);
+     return;
+   }
+ 
+-  settings_map->SetNarrowestContentSetting(
+-      url, GURL(), ContentSettingsType::HELIUM_NOISE,
++  settings_map->SetContentSettingCustomScope(
++      site_pattern, any_pattern, ContentSettingsType::HELIUM_NOISE,
+       CONTENT_SETTING_DEFAULT);
+ 
+-  // If a broader exception still applies, override it for this origin only.
++  // An exception for one origin of this site (made in Settings) is narrower
++  // than the site and would keep that host off: remove it.
++  for (const ContentSettingPatternSource& rule :
++       settings_map->GetSettingsForOneType(ContentSettingsType::HELIUM_NOISE)) {
++    if (rule.source == content_settings::mojom::ProviderType::kPrefProvider &&
++        rule.primary_pattern.Matches(url) &&
++        rule.primary_pattern.Compare(site_pattern) ==
++            ContentSettingsPattern::PREDECESSOR) {
++      settings_map->SetContentSettingCustomScope(
++          rule.primary_pattern, rule.secondary_pattern,
++          ContentSettingsType::HELIUM_NOISE, CONTENT_SETTING_DEFAULT);
++    }
++  }
++
++  // If a broader exception still applies, override it for this site only.
+   const ContentSetting noise_setting = settings_map->GetContentSetting(
+       url, GURL(), ContentSettingsType::HELIUM_NOISE);
+   if (noise_setting == CONTENT_SETTING_BLOCK) {
+-    settings_map->SetNarrowestContentSetting(
+-        url, GURL(), ContentSettingsType::HELIUM_NOISE,
++    settings_map->SetContentSettingCustomScope(
++        site_pattern, any_pattern, ContentSettingsType::HELIUM_NOISE,
+         CONTENT_SETTING_ALLOW);
+   }
+ }
+--- a/chrome/browser/helium_noise/helium_noise_settings.h
++++ b/chrome/browser/helium_noise/helium_noise_settings.h
+@@ -29,6 +29,8 @@
+ 
+ bool CanSetHeliumNoiseForOrigin(const GURL& url);
+ 
++// Turns the noise on or off for the whole site of `url` (scheme-less pattern
++// "[*.]registrable-domain"), not for the one origin.
+ void SetHeliumNoiseEnabledForOrigin(content::BrowserContext* browser_context,
+                                     const GURL& url,
+                                     bool enabled);
+--- a/content/browser/BUILD.gn
++++ b/content/browser/BUILD.gn
+@@ -146,6 +146,7 @@
+     "//cc/animation",
+     "//cc/mojo_embedder",
+     "//cc/paint",
++    "//components/aerie_fingerprint",
+     "//components/back_forward_cache:enum",
+     "//components/browsing_data/core:cookie_or_cache_deletion_choice",
+     "//components/cbor",
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -1294,2 +1294,3 @@
+     "//components/application_locale_storage",
++    "//components/aerie_fingerprint",
+     "//components/blocked_content",
