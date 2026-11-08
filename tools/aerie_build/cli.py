@@ -174,7 +174,7 @@ def cmd_bump(args: argparse.Namespace) -> int:
         Path(args.report).write_text(bump.render_report(text, patch_lines, ok), encoding="utf-8")
     if ok is False:
         print("\nSome patches no longer apply (listed above with the hunk that failed). Fix them, then "
-              "see \"Updating Helium\" in the README.", file=sys.stderr)
+              "see docs/helium-bump.md.", file=sys.stderr)
         return bump.PATCHES_FAIL
     return bump.OK
 

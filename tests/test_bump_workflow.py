@@ -37,6 +37,13 @@ class BumpWorkflowTest(unittest.TestCase):
     def test_a_failing_patch_check_opens_a_draft(self):
         self.assertIn("--draft", WORKFLOW)
 
+    def test_a_branch_left_by_an_earlier_failed_run_does_not_block_the_push(self):
+        # A branch without a pull request (push worked, `gh pr create` did not) is replaced, not rejected.
+        self.assertRegex(WORKFLOW, r"git push --force ")
+
+    def test_package_index_is_refreshed_before_installing(self):
+        self.assertLess(WORKFLOW.index("apt-get update"), WORKFLOW.index("apt-get install"))
+
     def test_pull_request_is_opened_with_the_maintainers_token(self):
         self.assertIn("secrets.BUMP_PR_TOKEN", WORKFLOW)
 

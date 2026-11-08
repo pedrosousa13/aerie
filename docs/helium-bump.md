@@ -48,7 +48,7 @@ vendored crate lock. Those are the fix-up routine below.
 | Exit status | Meaning |
 | --- | --- |
 | 0 | Up to date, or bumped and every patch applies |
-| 1 | An error. The pins are not changed |
+| 1 | An error. Before the pins move (tag lookup, `.gitmodules`, a dirty tree, a tag that does not match) nothing changes, and a failure while the pins move puts them back. An error in the later download or patch-check step leaves the new pins in place |
 | 3 | Bumped, but a patch no longer applies. The pins are changed |
 | 20 | `--check` only: a newer release exists |
 
@@ -95,9 +95,34 @@ opens the pull request with the maintainer's token. The job cannot merge.
 
 ### One-time setup (maintainer only)
 
-The job needs the repository secret `BUMP_PR_TOKEN`. Nobody can create it for
-you. Without it the job fails with a message that says so, but only on a day
-with a new release.
+The job needs the repository secret `BUMP_PR_TOKEN`. Without it the job fails
+with a message that says so, but only on a day with a new release.
+
+The secret is set. It holds the maintainer's `gh` login token (a classic OAuth
+token with the scopes `repo`, `read:org`, `gist` and `admin:public_key`; no
+`workflow` scope, which the bump does not need). It was stored with:
+
+```sh
+gh auth token | gh secret set BUMP_PR_TOKEN -R pedrosousa13/aerie
+```
+
+Bump pull requests are therefore authored by the maintainer, which is what the
+gate needs. The job uses the token only in the two steps that talk to GitHub
+(the pull request lookup, and the push and `gh pr create`). It does not give it
+to the step that runs `./aerie bump`.
+
+The secret stops working when the maintainer runs `gh auth logout` or revokes
+the token (GitHub, Settings, Developer settings,
+Personal access tokens). The job then fails on the next day with a new release. Store the
+current token again with the command above.
+
+After this is merged, run the job once by hand to see that it passes:
+`gh workflow run bump-helium.yml -R pedrosousa13/aerie`. With no new release it
+prints the versions and ends.
+
+#### Alternative: a fine-grained token
+
+A fine-grained token is narrower and does not depend on the `gh` login:
 
 1. On GitHub open Settings, Developer settings, Personal access tokens,
    Fine-grained tokens, Generate new token.
@@ -105,12 +130,9 @@ with a new release.
 3. Repository permissions: Contents: Read and write. Pull requests: Read and
    write. Nothing else. (A token with Workflows permission is not needed: the
    bump never changes a workflow file.)
-4. Store it:
+4. Store it, and paste the token when `gh` asks:
    ```sh
    gh secret set BUMP_PR_TOKEN -R pedrosousa13/aerie
    ```
-5. After this is merged, run the job once by hand to see that it passes:
-   `gh workflow run bump-helium.yml -R pedrosousa13/aerie`. With no new release
-   it prints the versions and ends.
 
 The schedule runs only from the default branch.

@@ -70,7 +70,7 @@ jobs:
           fi
       - name: Install patch tools
         if: steps.look.outputs.found == 'true' && steps.existing.outputs.skip != 'true'
-        run: sudo apt-get install -y --no-install-recommends patch zstd
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends patch zstd
       - name: Bump and check the patches
         id: bump
         if: steps.look.outputs.found == 'true' && steps.existing.outputs.skip != 'true'
@@ -102,7 +102,7 @@ jobs:
           git checkout -b "$branch"
           git add helium.lock helium-chromium helium-linux
           git commit -m "Bump Helium to $TAG (Chromium $chromium)"
-          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$branch"
+          git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$branch"
           {
             cat "$RUNNER_TEMP/report.md"
             printf '\nOpened by .github/workflows/bump-helium.yml. The gate runs the full build and Bench on this pull request. See docs/helium-bump.md for what to fix.\n'
