@@ -17,14 +17,14 @@ from .fixtures import FixtureServer, StunProbe, TcpProbe
 @dataclass
 class CheckResult:
     name: str
-    status: str  # pass | fail | error | skip
+    status: str  # pass | fail | error | skip | xfail (expected to fail, so the run stays green) | xpass
     detail: str = ""
     duration_s: float = 0.0
     data: dict = field(default_factory=dict)
 
     @property
     def ok(self) -> bool:
-        return self.status in ("pass", "skip")
+        return self.status in ("pass", "skip", "xfail")
 
 
 class Session:
@@ -51,6 +51,7 @@ class Session:
         # (pass it to variant(profile=...) twice to restart on the same profile).
         self.profile_factory: Callable[[], ContextManager] | None = None
         self.browser_pid: int | None = None  # set by the runner; the root of the browser's process tree
+        self.profile_path: Path | None = None  # set by the runner; the throwaway profile's directory
         self._sid: str | None = None
         # Set on the session that incognito() hands out: its page lives in this browser context.
         self._context_id: str | None = None

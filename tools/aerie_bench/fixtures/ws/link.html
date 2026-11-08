@@ -1,0 +1,14 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Workspace visited link</title>
+<style>
+  html, body { margin: 0; background: rgb(255, 255, 255); }
+  a { display: block; font: bold 64px sans-serif; padding: 10px; width: 200px; }
+  a:link { color: rgb(0, 0, 255); }
+  a:visited { color: rgb(255, 0, 0); }
+</style>
+<a id="t" href="/ws/page.html">link</a>
+<script>
+  const target = new URLSearchParams(location.search).get('target');
+  if (target) document.getElementById('t').setAttribute('href', target);
+</script>
