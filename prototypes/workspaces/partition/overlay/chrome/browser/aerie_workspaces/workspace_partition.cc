@@ -11,7 +11,8 @@
 #include <utility>
 
 #include "base/strings/string_util.h"
-#include "chrome/browser/ui/browser.h"
+#include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "content/public/browser/navigation_controller.h"
@@ -77,13 +78,13 @@ std::optional<content::StoragePartitionConfig> GetWorkspacePartitionToInherit(
   return std::nullopt;
 }
 
-void MoveTabToWorkspace(Browser* browser,
+void MoveTabToWorkspace(BrowserWindowInterface* browser,
                         int tab_index,
                         std::string_view target_workspace_id) {
-  TabStripModel* strip = browser->tab_strip_model();
+  TabStripModel* strip = browser->GetTabStripModel();
   content::WebContents* old_tab = strip->GetWebContentsAt(tab_index);
   const GURL url = old_tab->GetLastCommittedURL();
-  Profile* profile = browser->profile();
+  Profile* profile = browser->GetProfile();
 
   auto site_instance = content::SiteInstance::CreateForFixedStoragePartition(
       profile, url, GetWorkspacePartitionConfig(profile, target_workspace_id));

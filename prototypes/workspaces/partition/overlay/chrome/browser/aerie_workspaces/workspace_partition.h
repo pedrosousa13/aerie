@@ -16,7 +16,7 @@
 #include "content/public/browser/aerie_workspace_partition.h"
 #include "content/public/browser/storage_partition_config.h"
 
-class Browser;
+class BrowserWindowInterface;
 struct NavigateParams;
 namespace content {
 class BrowserContext;
@@ -54,7 +54,7 @@ std::optional<content::StoragePartitionConfig> GetWorkspacePartitionToInherit(
 // move creates a new WebContents in the target partition, loads the same URL
 // and closes the old tab. In-page state (form input, JS state, sessionStorage,
 // window.opener) is lost on purpose.
-void MoveTabToWorkspace(Browser* browser,
+void MoveTabToWorkspace(BrowserWindowInterface* browser,
                         int tab_index,
                         std::string_view target_workspace_id);
 

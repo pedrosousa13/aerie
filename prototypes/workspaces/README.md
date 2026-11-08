@@ -4,10 +4,9 @@ Throwaway. **Not in `patches/series`, never built into Aerie.** The patch lint o
 do not affect the build. No Workspace feature code is on `main`. The decision is in
 [ADR 0006](../../docs/adr/0006-workspace-isolation.md) (Proposed); the numbers plan is in [REPORT.md](REPORT.md).
 
-**Nothing here has been compiled.** The Chromium tree was read-only for this spike and another agent owned the build.
-What was checked: every patch in `partition/patches` and `profile/patches` passes `patch -p1 --dry-run --fuzz=0`
-against `/mnt/linux2/aerie-build/src/helium-0.21.1.1` (Chromium 157, after Helium's steps). The overlay files were
-written against headers read in that tree, and may need small fixes to compile.
+**Option 2 compiled and was measured in build train 8** (see [REPORT.md](REPORT.md)). Option 1 has not been compiled.
+Every patch in `partition/patches` and `profile/patches` passes `patch -p1 --dry-run --fuzz=0` against
+`/mnt/linux2/aerie-build/src/helium-0.21.1.1` (Chromium 157, after Helium's steps).
 
 ## Layout
 
@@ -15,10 +14,16 @@ written against headers read in that tree, and may need small fixes to compile.
 | --- | --- |
 | `partition/patches/0001-0004` | Option 2, a storage partition per Workspace: hook patches with the Aerie header. |
 | `partition/overlay/chrome/browser/aerie_workspaces/` | Option 2 helper: ids, config, inheritance, `MoveTabToWorkspace`. Overlay layout, as `overlay/` in the repo root. |
+| `partition/test-overlay/`, `partition/test-patches/0001` | Test builds only: `chrome://workspace-test` (with `--aerie-test-workspaces`), and the 2-line GN hook that builds the option 2 helper. |
+| `measure/measure.py` | The train's driver: story 92, the leak checks, memory, switch time. |
 | `profile/patches/0001` | Option 1, a profile per Workspace: the first hook, and no more (see below). |
 | `profile/overlay/.../workspace_profile_manager.*` | Option 1 helper: creates a hidden profile for a Workspace. |
 
-To try one on a build tree (train only): copy the overlay into the source tree, apply the patches in order, build.
+To try option 2 on a build tree (train only), as train 8 did: in a scratch worktree of the train, copy
+`partition/overlay/` and `partition/test-overlay/` into `overlay/`, copy `partition/patches/0001-0004` and
+`partition/test-patches/0001` (as `0005`) into `patches/workspaces/`, list them at the end of `patches/series`, run
+`./aerie build`. Then, with an Xvfb server on `:99`:
+`PYTHONPATH=tools python3 <this dir>/measure/measure.py --binary <out/Default/aerie> --out DIR --display :99`.
 Never apply both candidates to one tree: both edit `browser_navigator.cc`.
 
 ## Option 2: what the four patches do
@@ -31,7 +36,7 @@ Never apply both candidates to one tree: both edit `browser_navigator.cc`.
 | 0004 persist session cookies in a Workspace | 9 / 0 | Upstream drops session cookies for non-main partitions. G1. |
 
 Total 44 added and no removed lines in 5 Chromium files (one in `content/`, one in `components/`, three in
-`chrome/`), plus a 203-line overlay in three files (two in `chrome/browser/aerie_workspaces/`, and
+`chrome/`), plus a 204-line overlay in three files (two in `chrome/browser/aerie_workspaces/`, and
 `content/public/browser/aerie_workspace_partition.h`, which holds the partition domain every user of it shares). Compare Brave: it also carries a content-layer hook, a
 permission change, a clear-data delegate, session persistence and sync encoding.
 

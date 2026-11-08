@@ -1,0 +1,24 @@
+# Copyright 2026 The Aerie Authors
+# You can use, redistribute, and/or modify this source code under
+# the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+# Prototype for issue #72, option 2. Test builds only: chrome://workspace-test,
+# enabled by --aerie-test-workspaces. Not in patches/series.
+source_set("aerie_workspace_test") {
+  sources = [
+    "aerie_workspace_test_ui.cc",
+    "aerie_workspace_test_ui.h",
+  ]
+  deps = [
+    "//base",
+    "//chrome/browser/profiles:profile",
+    "//chrome/browser/ui/browser_window",
+    "//chrome/browser/ui/navigator",
+    "//chrome/browser/ui/navigator:impl",
+    "//chrome/browser/ui/tabs:tab_strip",
+    "//components/tabs:public",
+    "//content/public/browser",
+    "//content/public/common",
+    "//url",
+  ]
+}
