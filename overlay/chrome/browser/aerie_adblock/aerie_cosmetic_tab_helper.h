@@ -9,6 +9,7 @@
 
 #include "base/memory/weak_ptr.h"
 #include "base/values.h"
+#include "components/aerie_adblock/browser/cosmetic_scripts.h"
 #include "content/public/browser/global_routing_id.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "content/public/browser/web_contents_user_data.h"
@@ -23,7 +24,8 @@
 //      stylesheet for that URL and inject it into the frame.
 //   2. When the frame's DOM is ready and again when it has loaded, read its
 //      class names and ids, ask for the generic rules that match them and
-//      inject those.
+//      inject those. The frame has one generic sheet: the second pass puts
+//      its rules in the sheet of the first (SheetKind::kGeneric).
 // Injection is a constructed stylesheet added to the document from an isolated
 // world (see components/aerie_adblock/browser/cosmetic_scripts.h). Nothing a
 // page controls is ever put in a script, and the only CSS is `display:none`
@@ -65,6 +67,7 @@ class AerieCosmeticTabHelper
                          base::Value result);
   void Inject(content::GlobalRenderFrameHostId id,
               GURL page_url,
+              aerie_adblock::SheetKind kind,
               std::string stylesheet);
 
   base::WeakPtrFactory<AerieCosmeticTabHelper> weak_factory_{this};
