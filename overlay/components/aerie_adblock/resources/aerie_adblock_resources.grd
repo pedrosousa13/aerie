@@ -19,6 +19,15 @@
       <include name="IDR_AERIE_ADBLOCK_ENGINE"
                file="${root_gen_dir}/components/aerie_adblock/engine/aerie_adblock_engine.dat"
                use_base_dir="false" type="BINDATA" />
+      <!-- The text of the built-in lists. Only read when the user changes the
+           set of lists: the engine is then compiled from text, because a
+           serialized engine cannot be merged with another list. -->
+      <include name="IDR_AERIE_ADBLOCK_EASYLIST"
+               file="../../../third_party/filter_lists/easylist.txt"
+               type="BINDATA" compress="gzip" />
+      <include name="IDR_AERIE_ADBLOCK_EASYPRIVACY"
+               file="../../../third_party/filter_lists/easyprivacy.txt"
+               type="BINDATA" compress="gzip" />
     </includes>
   </release>
 </grit>

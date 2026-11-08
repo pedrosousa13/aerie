@@ -1,0 +1,302 @@
+// Copyright 2026 The Aerie Authors
+// You can use, redistribute, and/or modify this source code under
+// the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+#include "components/aerie_adblock/browser/filter_list_state.h"
+
+#include <algorithm>
+#include <utility>
+
+#include "base/strings/string_util.h"
+#include "base/strings/string_number_conversions.h"
+#include "components/aerie_adblock/browser/list_failure.h"
+#include "crypto/hash.h"
+
+namespace aerie_adblock {
+
+namespace {
+
+constexpr size_t kMaxUrlLength = 2048;
+constexpr size_t kMaxTitleLength = 100;
+constexpr int kMaxRules = 50'000'000;
+
+bool IsLoopbackHost(const GURL& url) {
+  std::string host(url.host());
+  return host == "127.0.0.1" || host == "localhost" || host == "[::1]";
+}
+
+bool IsKnownErrorMessage(const std::string& text) {
+  if (text.empty()) {
+    return true;
+  }
+  for (int i = static_cast<int>(ListFailure::kTooLarge);
+       i <= static_cast<int>(ListFailure::kInsecureUrl); ++i) {
+    if (text == ListFailureMessage(static_cast<ListFailure>(i))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+std::string CustomListId(const GURL& url) {
+  // 16 hex digits of the address's hash: stable, short, safe in a file name.
+  auto digest = crypto::hash::Sha256(url.spec());
+  return "c" + base::ToLowerASCII(base::HexEncode(
+                   base::span(digest).first<8u>()));
+}
+
+FilterListEntry BuiltIn(const char* id, const char* url, const char* title) {
+  FilterListEntry entry;
+  entry.id = id;
+  entry.url = url;
+  entry.title = title;
+  entry.builtin = true;
+  return entry;
+}
+
+}  // namespace
+
+bool IsValidListId(std::string_view id) {
+  return !id.empty() && id.size() <= 32 &&
+         std::all_of(id.begin(), id.end(), [](char c) {
+           return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9');
+         });
+}
+
+bool IsAcceptableListUrl(const GURL& url, bool allow_loopback) {
+  if (!url.is_valid() || url.spec().size() > kMaxUrlLength || url.has_ref() ||
+      url.has_username() || url.has_password() || !url.has_host()) {
+    return false;
+  }
+  if (url.SchemeIs("https")) {
+    return true;
+  }
+  return allow_loopback && url.SchemeIs("http") && IsLoopbackHost(url);
+}
+
+std::string NormalizeExceptionHost(std::string_view host) {
+  std::string out = base::ToLowerASCII(host);
+  if (!out.empty() && out.back() == '.') {
+    out.pop_back();
+  }
+  if (out.empty() || out.size() > kMaxHostLength || out.front() == '.' ||
+      out.find("..") != std::string::npos) {
+    return std::string();
+  }
+  for (char c : out) {
+    bool ok = (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' ||
+              c == '.' || c == ':' || c == '[' || c == ']';
+    if (!ok) {
+      return std::string();
+    }
+  }
+  return out;
+}
+
+bool HostHasException(std::string_view host,
+                      const std::set<std::string>& exceptions) {
+  if (host.empty()) {
+    return false;
+  }
+  std::string current(host);
+  while (true) {
+    if (exceptions.count(current)) {
+      return true;
+    }
+    size_t dot = current.find('.');
+    if (dot == std::string::npos) {
+      return false;
+    }
+    current.erase(0, dot + 1);
+  }
+}
+
+FilterListState::FilterListState() {
+  lists_.push_back(BuiltIn(kEasyListId, kEasyListUrl, "EasyList"));
+  lists_.push_back(BuiltIn(kEasyPrivacyId, kEasyPrivacyUrl, "EasyPrivacy"));
+}
+
+FilterListState::FilterListState(const FilterListState&) = default;
+FilterListState& FilterListState::operator=(const FilterListState&) = default;
+FilterListState::~FilterListState() = default;
+
+FilterListEntry* FilterListState::Find(std::string_view id) {
+  for (FilterListEntry& entry : lists_) {
+    if (entry.id == id) {
+      return &entry;
+    }
+  }
+  return nullptr;
+}
+
+const FilterListEntry* FilterListState::Find(std::string_view id) const {
+  return const_cast<FilterListState*>(this)->Find(id);
+}
+
+FilterListState::AddResult FilterListState::AddCustomList(const GURL& url,
+                                                          bool allow_loopback,
+                                                          std::string* id) {
+  if (!IsAcceptableListUrl(url, allow_loopback)) {
+    return AddResult::kInvalidUrl;
+  }
+  for (const FilterListEntry& entry : lists_) {
+    if (entry.url == url.spec()) {
+      return AddResult::kDuplicate;
+    }
+  }
+  size_t custom = std::count_if(lists_.begin(), lists_.end(),
+                                [](const auto& e) { return !e.builtin; });
+  if (custom >= kMaxCustomLists) {
+    return AddResult::kTooMany;
+  }
+  FilterListEntry entry;
+  entry.id = CustomListId(url);
+  entry.url = url.spec();
+  entry.title = std::string(url.host());
+  if (Find(entry.id)) {  // A hash clash: cannot happen in practice.
+    return AddResult::kDuplicate;
+  }
+  *id = entry.id;
+  lists_.push_back(std::move(entry));
+  return AddResult::kAdded;
+}
+
+bool FilterListState::RemoveList(std::string_view id) {
+  auto it = std::find_if(lists_.begin(), lists_.end(), [&](const auto& e) {
+    return e.id == id && !e.builtin;
+  });
+  if (it == lists_.end()) {
+    return false;
+  }
+  lists_.erase(it);
+  return true;
+}
+
+bool FilterListState::SetException(std::string_view host, bool excepted) {
+  std::string normalized = NormalizeExceptionHost(host);
+  if (normalized.empty()) {
+    return false;
+  }
+  if (!excepted) {
+    exceptions_.erase(normalized);
+    return true;
+  }
+  if (exceptions_.size() >= kMaxExceptions && !exceptions_.count(normalized)) {
+    return false;
+  }
+  exceptions_.insert(std::move(normalized));
+  return true;
+}
+
+bool FilterListState::NeedsRebuild() const {
+  return std::any_of(lists_.begin(), lists_.end(), [](const auto& e) {
+    return !e.builtin || !e.updated.is_null();
+  });
+}
+
+base::DictValue FilterListState::ToValue() const {
+  base::DictValue out;
+  out.Set("auto_update", auto_update_);
+  out.Set("last_update_check", base::NumberToString(
+                                   last_update_check_.InMillisecondsSinceUnixEpoch()));
+  base::ListValue exceptions;
+  for (const std::string& host : exceptions_) {
+    exceptions.Append(host);
+  }
+  out.Set("exceptions", std::move(exceptions));
+  base::ListValue lists;
+  for (const FilterListEntry& entry : lists_) {
+    base::DictValue item;
+    item.Set("id", entry.id);
+    item.Set("url", entry.url);
+    item.Set("title", entry.title);
+    item.Set("builtin", entry.builtin);
+    item.Set("rules", entry.rules);
+    item.Set("updated",
+             base::NumberToString(entry.updated.InMillisecondsSinceUnixEpoch()));
+    item.Set("error", entry.error);
+    lists.Append(std::move(item));
+  }
+  out.Set("lists", std::move(lists));
+  return out;
+}
+
+namespace {
+
+base::Time TimeFromValue(const base::DictValue& dict, const char* key) {
+  const std::string* text = dict.FindString(key);
+  int64_t ms = 0;
+  if (!text || !base::StringToInt64(*text, &ms) || ms <= 0) {
+    return base::Time();
+  }
+  return base::Time::FromMillisecondsSinceUnixEpoch(ms);
+}
+
+}  // namespace
+
+// static
+FilterListState FilterListState::FromValue(const base::DictValue& dict) {
+  FilterListState state;
+  if (std::optional<bool> auto_update = dict.FindBool("auto_update")) {
+    state.auto_update_ = *auto_update;
+  }
+  state.last_update_check_ = TimeFromValue(dict, "last_update_check");
+
+  if (const base::ListValue* hosts = dict.FindList("exceptions")) {
+    for (const base::Value& host : *hosts) {
+      if (host.is_string()) {
+        state.SetException(host.GetString(), true);
+      }
+    }
+  }
+
+  const base::ListValue* lists = dict.FindList("lists");
+  if (!lists) {
+    return state;
+  }
+  for (const base::Value& value : *lists) {
+    const base::DictValue* item = value.GetIfDict();
+    const std::string* id = item ? item->FindString("id") : nullptr;
+    const std::string* url = item ? item->FindString("url") : nullptr;
+    if (!id || !url || !IsValidListId(*id)) {
+      continue;
+    }
+    FilterListEntry* entry = state.Find(*id);
+    if (!entry) {
+      // A custom list: its address must be acceptable, and its id the one
+      // this build would give that address (so a file name cannot be chosen).
+      // Loopback http is not re-checked here: the manager refuses to fetch it
+      // without the switch.
+      GURL gurl(*url);
+      if (!IsAcceptableListUrl(gurl, /*allow_loopback=*/true) ||
+          CustomListId(gurl) != *id ||
+          std::count_if(state.lists_.begin(), state.lists_.end(),
+                        [](const auto& e) { return !e.builtin; }) >=
+              static_cast<long>(kMaxCustomLists)) {
+        continue;
+      }
+      FilterListEntry fresh;
+      fresh.id = *id;
+      fresh.url = gurl.spec();
+      fresh.title = std::string(gurl.host());
+      state.lists_.push_back(std::move(fresh));
+      entry = &state.lists_.back();
+    }
+    // Built-in lists keep their own address and title.
+    if (!entry->builtin) {
+      if (const std::string* title = item->FindString("title")) {
+        entry->title = title->substr(0, kMaxTitleLength);
+      }
+    }
+    int rules = item->FindInt("rules").value_or(0);
+    entry->rules = (rules > 0 && rules <= kMaxRules) ? rules : 0;
+    entry->updated = TimeFromValue(*item, "updated");
+    const std::string* error = item->FindString("error");
+    if (error && error->size() <= kMaxErrorLength && IsKnownErrorMessage(*error)) {
+      entry->error = *error;
+    }
+  }
+  return state;
+}
+
+}  // namespace aerie_adblock

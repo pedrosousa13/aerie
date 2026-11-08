@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 import time
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -139,12 +139,17 @@ def run_bench(binary: Path | str, scenario: Scenario, build_root: Path, *, out_d
         variant_count = [0]
 
         @contextmanager
-        def variant(variant_flags: tuple[str, ...], prefs: dict | None):
+        def variant(variant_flags: tuple[str, ...], prefs: dict | None, profile=None):
             variant_count[0] += 1
-            with fresh_profile(Path(build_root) / "bench-tmp") as vprofile:
+            # ``profile``: a profile from session.new_profile(), to restart a browser on the same
+            # profile; the caller owns it, so it is not deleted here. Default: a fresh one.
+            with (nullcontext(profile) if profile is not None
+                  else fresh_profile(Path(build_root) / "bench-tmp")) as vprofile:
                 if prefs:
                     vprofile.seed_prefs(prefs)
-                vnetlog = vprofile.path / "netlog.json"  # discarded with the profile
+                # Discarded with the profile; one file per launch. Parsed into the variant session
+                # after the browser exits, before the profile goes (vsession.netlog).
+                vnetlog = vprofile.path / f"netlog-{variant_count[0]}.json"
                 vargv = launcher.build_argv(binary, vprofile.path, vnetlog, headless=headless,
                                             no_sandbox=no_sandbox, extra=(*extra_flags, *variant_flags))
                 venv = browser_env(os.environ, vprofile.path, extra_env)
@@ -161,8 +166,12 @@ def run_bench(binary: Path | str, scenario: Scenario, build_root: Path, *, out_d
                     vproc.kill()
                     raise
                 vsession.exit = vproc.shutdown()
+                vparsed = netlog.load_file(vnetlog)
+                vsession.netlog, vsession.netlog_lookups = vparsed.records, vparsed.lookups
+                vsession.netlog_complete = vparsed.complete
 
         session.variant_launcher = variant
+        session.profile_factory = lambda: fresh_profile(Path(build_root) / "bench-tmp")
         session.browser_pid = proc.popen.pid
         try:
             for c in instances:

@@ -1,0 +1,19 @@
+Aerie-Purpose: Tell the Filter Engine which frame and profile a request factory is for, so blocked requests count toward that frame's tab and incognito exceptions stay in their session.
+Aerie-Upstream-Area: chrome/browser/chrome_content_browser_client.cc (WillCreateURLLoaderFactory)
+Aerie-Kind: hook
+
+Two more arguments on the call that patch 0001 adds. |frame| is the frame
+WillCreateURLLoaderFactory() was given; it is null for workers, which are not
+counted. |browser_context| is the profile; an off-the-record one keeps its own
+per-site exceptions in memory.
+
+--- a/chrome/browser/chrome_content_browser_client.cc
++++ b/chrome/browser/chrome_content_browser_client.cc
+@@ -6960,4 +6960,5 @@
+   // above, before the network.
+-  aerie_adblock::MaybeProxyURLLoaderFactory(type, request_initiator,
+-                                            isolation_info, factory_builder);
++  aerie_adblock::MaybeProxyURLLoaderFactory(type, request_initiator,
++                                            isolation_info, factory_builder,
++                                            frame, browser_context);
+ 

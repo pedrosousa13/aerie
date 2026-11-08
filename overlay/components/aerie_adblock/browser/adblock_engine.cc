@@ -4,6 +4,8 @@
 
 #include "components/aerie_adblock/browser/adblock_engine.h"
 
+#include <algorithm>
+#include <string>
 #include <string_view>
 
 #include "base/containers/span_rust.h"
@@ -55,7 +57,56 @@ rust::Str ToStr(std::string_view text) {
   return rust::Str(text.data(), text.size());
 }
 
+ListFailure FromRust(ListStatus status) {
+  switch (status) {
+    case ListStatus::Ok:
+      return ListFailure::kNone;
+    case ListStatus::TooLarge:
+      return ListFailure::kTooLarge;
+    case ListStatus::Timeout:
+      return ListFailure::kTimeout;
+    case ListStatus::NotText:
+      return ListFailure::kNotText;
+    case ListStatus::LooksLikeHtml:
+      return ListFailure::kLooksLikeHtml;
+    case ListStatus::NoRules:
+      return ListFailure::kNoRules;
+  }
+  return ListFailure::kNotText;
+}
+
+uint32_t BudgetMs(base::TimeDelta budget) {
+  return static_cast<uint32_t>(
+      std::clamp<int64_t>(budget.InMilliseconds(), 0, 10 * 60 * 1000));
+}
+
 }  // namespace
+
+ListCheck CheckList(base::span<const uint8_t> text, base::TimeDelta budget) {
+  ListReport report =
+      check_list(base::SpanToRustSlice(text), BudgetMs(budget));
+  ListCheck check;
+  check.failure = FromRust(report.status);
+  if (check.failure == ListFailure::kNone) {
+    check.rules = static_cast<int>(
+        std::min<uint32_t>(report.network_rules, 100'000'000));
+    check.title = std::string(report.title);
+  }
+  return check;
+}
+
+BuildResult AdblockEngine::LoadLists(const std::vector<std::string>& lists,
+                                     base::TimeDelta budget) {
+  rust::Box<EngineBuilder> builder = new_engine_builder();
+  for (const std::string& list : lists) {
+    builder->add_list(base::SpanToRustSlice(base::as_byte_span(list)));
+  }
+  BuildReport report = builder->build_into(BudgetMs(budget), *engine_);
+  BuildResult result;
+  result.failure = FromRust(report.status);
+  result.failed_index = report.failed_index;
+  return result;
+}
 
 AdblockEngine::AdblockEngine() : engine_(new_empty_engine()) {}
 

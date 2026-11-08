@@ -8,6 +8,7 @@
 #include <cstdint>
 
 #include "base/memory/weak_ptr.h"
+#include "content/public/browser/global_routing_id.h"
 #include "components/aerie_adblock/browser/filter_engine_service.h"
 #include "content/public/browser/content_browser_client.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
@@ -48,6 +49,17 @@ class AdblockProxyingURLLoaderFactory
       base::WeakPtr<FilterEngineService> service,
       base::SelfDeletingPassKey pass_key);
 
+  // The frame this factory was made for (a document's or a navigation's
+  // factory; workers have none). Blocked requests count toward that frame's
+  // tab (page_block_counter.h). Set once, right after creation: the
+  // constructor's last parameter must stay the SelfDeletingPassKey.
+  void SetFrameId(content::GlobalRenderFrameHostId frame_id) {
+    frame_id_ = frame_id;
+  }
+  // The off-the-record session key (see SessionKeyFor()); null for a regular
+  // profile. Requests carry it so that session exceptions reach only them.
+  void SetSession(const void* session) { session_ = session; }
+
   AdblockProxyingURLLoaderFactory(const AdblockProxyingURLLoaderFactory&) =
       delete;
   AdblockProxyingURLLoaderFactory& operator=(
@@ -87,6 +99,10 @@ class AdblockProxyingURLLoaderFactory
   // The browser owns the service and may destroy it at shutdown while
   // factories live on. Requests that arrive then are aborted.
   base::WeakPtr<FilterEngineService> service_;
+  // The frame this factory was made for (invalid for workers), for the
+  // per-page blocked count.
+  content::GlobalRenderFrameHostId frame_id_;
+  const void* session_ = nullptr;
   base::WeakPtrFactory<AdblockProxyingURLLoaderFactory> weak_factory_{this};
 };
 

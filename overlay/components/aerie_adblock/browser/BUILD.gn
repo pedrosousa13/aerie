@@ -10,6 +10,8 @@ import("//testing/test.gni")
 _visibility = [
   "//chrome/browser:core",
   "//chrome/browser/aerie_adblock:*",
+  "//chrome/browser/ui/views/aerie_adblock:*",
+  "//chrome/browser/ui/webui/aerie_filters:*",
   "//components/aerie_adblock/*",
 ]
 
@@ -30,6 +32,8 @@ source_set("browser") {
     "//services/network/public/cpp",
   ]
   deps = [
+    ":lists",
+    ":page_counter",
     ":proxy",
     "//base",
     "//components/aerie_adblock:resources",
@@ -66,6 +70,24 @@ source_set("classifier") {
   ]
 }
 
+# The user's filter list settings as data, and their files (issue #10). No
+# Rust, no network.
+source_set("list_types") {
+  visibility = _visibility
+  sources = [
+    "filter_list_state.cc",
+    "filter_list_state.h",
+    "filter_list_storage.cc",
+    "filter_list_storage.h",
+    "list_failure.h",
+  ]
+  public_deps = [
+    "//base",
+    "//url",
+  ]
+  deps = [ "//crypto" ]
+}
+
 # The C++ face of the Rust engine.
 source_set("engine") {
   visibility = _visibility
@@ -75,6 +97,7 @@ source_set("engine") {
   ]
   public_deps = [
     ":classified_request",
+    ":list_types",
     "//base",
     "//components/aerie_adblock:aerie_adblock_ffi",
   ]
@@ -90,7 +113,9 @@ source_set("service") {
   public_deps = [
     ":classifier",
     ":engine",
+    ":list_types",
     "//base",
+    "//content/public/browser",
     "//url",
   ]
 }
@@ -105,6 +130,43 @@ source_set("cosmetic_scripts") {
   public_deps = [
     "//base",
     "//content/public/common",
+  ]
+}
+
+# Downloads, checks and keeps the filter lists; the scheduled update (issue #10).
+source_set("lists") {
+  visibility = _visibility
+  sources = [
+    "filter_list_fetcher.cc",
+    "filter_list_fetcher.h",
+    "filter_list_manager.cc",
+    "filter_list_manager.h",
+  ]
+  public_deps = [
+    ":list_types",
+    ":service",
+    "//base",
+    "//url",
+  ]
+  deps = [
+    ":engine",
+    "//net",
+    "//net/traffic_annotation",
+    "//services/network/public/cpp",
+    "//services/network/public/mojom",
+  ]
+}
+
+# How many requests were blocked for the page of each tab.
+source_set("page_counter") {
+  visibility = _visibility
+  sources = [
+    "page_block_counter.cc",
+    "page_block_counter.h",
+  ]
+  public_deps = [
+    "//base",
+    "//content/public/browser",
   ]
 }
 
@@ -142,12 +204,18 @@ test("aerie_adblock_unittests") {
     "adblock_proxying_url_loader_unittest.cc",
     "cosmetic_scripts_unittest.cc",
     "filter_engine_service_unittest.cc",
+    "filter_list_fetcher_unittest.cc",
+    "filter_list_manager_unittest.cc",
+    "filter_list_state_unittest.cc",
+    "filter_list_storage_unittest.cc",
     "request_classifier_unittest.cc",
   ]
   deps = [
     ":classifier",
     ":cosmetic_scripts",
     ":engine",
+    ":list_types",
+    ":lists",
     ":proxy",
     ":service",
     "//base",
@@ -160,6 +228,23 @@ test("aerie_adblock_unittests") {
     "//services/network/public/cpp",
     "//services/network/public/mojom",
     "//testing/gmock",
+    "//testing/gtest",
+    "//url",
+  ]
+}
+
+# Tests that need a content environment (a RenderViewHost and a WebContents).
+test("aerie_adblock_content_unittests") {
+  testonly = true
+  visibility = [ "//components/aerie_adblock:*" ]
+  sources = [ "page_block_counter_unittest.cc" ]
+  deps = [
+    ":page_counter",
+    "//base",
+    "//base/test:test_support",
+    "//components/test:run_all_unittests",
+    "//content/public/browser",
+    "//content/test:test_support",
     "//testing/gtest",
     "//url",
   ]

@@ -69,7 +69,9 @@ void AdblockProxyingURLLoaderFactory::CreateLoaderAndStart(
     const net::MutableNetworkTrafficAnnotationTag& traffic_annotation) {
   std::optional<ClassifiedRequest> classified =
       ClassifyRequest(request, request_initiator_, isolation_info_);
-  if (!classified.has_value()) {
+  if (classified.has_value()) {
+    classified->session = session_;
+  } else {
     target_factory_->CreateLoaderAndStart(std::move(loader_receiver),
                                           request_id, options, request,
                                           std::move(client), traffic_annotation);
@@ -106,6 +108,9 @@ void AdblockProxyingURLLoaderFactory::OnVerdict(
   // blocking from another blocker's).
   base::UmaHistogramBoolean("Aerie.Adblock.RequestBlocked", should_block);
   if (should_block) {
+    if (service_) {
+      service_->RecordBlocked(frame_id_);
+    }
     // Dropping |loader_receiver| closes the loader pipe. The client learns why
     // from the completion status.
     mojo::Remote<network::mojom::URLLoaderClient>(std::move(client))
@@ -119,7 +124,7 @@ void AdblockProxyingURLLoaderFactory::OnVerdict(
   AdblockProxyingURLLoader::CreateAndStart(
       target_factory_.get(), std::move(loader_receiver), request_id, options,
       request, std::move(client), traffic_annotation, request_initiator_,
-      isolation_info_, service_);
+      isolation_info_, service_, frame_id_, session_);
 }
 
 void AdblockProxyingURLLoaderFactory::OnTargetFactoryError() {

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Aerie Filter Lists Fixture</title></head>
+<body>
+<h1>First-party content</h1>
+<script>
+// ?visit=ID makes every request unique so the fixture log says which visit made it.
+// The ads come from 127.0.0.1 on the same port: a different host than this page, as real ads are.
+(function () {
+  var visit = new URLSearchParams(location.search).get("visit") || "none";
+  var adBase = "http://127.0.0.1:" + location.port + "/filters/ads/";
+  var results = {visit: visit, host: location.hostname, ads: [], first_party: null, trap: null, done: false};
+  window.__filterResults = results;
+  var pending = 0;
+  function load(url, done) {
+    pending++;
+    var s = document.createElement("script");
+    s.onload = function () { done(true); finish(); };
+    s.onerror = function () { done(false); finish(); };
+    s.src = url + "?visit=" + encodeURIComponent(visit);
+    document.body.appendChild(s);
+  }
+  function finish() { if (--pending === 0) results.done = true; }
+  [1, 2, 3].forEach(function (n, i) {
+    results.ads[i] = null;
+    load(adBase + "banner-" + n + ".js", function (ok) { results.ads[i] = ok; });
+  });
+  load("/filters/content.js", function (ok) { results.first_party = ok; });
+  load("/filters/trap/probe.js", function (ok) { results.trap = ok; });
+})();
+</script>
+</body>
+</html>

@@ -7,7 +7,11 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+#include <string>
+#include <string_view>
 
+#include "base/containers/span.h"
+#include "base/time/time.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace aerie_adblock {
@@ -109,6 +113,42 @@ TEST(AdblockEngineTest, MalformedListsDoNotCrash) {
   engine.LoadListForTesting("");
   engine.LoadListForTesting(std::string(1 << 20, 'a'));
   EXPECT_FALSE(engine.ShouldBlock(Script("https://ads.example/a.js", "ads.example")));
+}
+
+TEST(AdblockEngineListsTest, CheckListAcceptsAListAndNamesTheFailures) {
+  auto check = [](std::string_view text) {
+    return CheckList(base::as_byte_span(text), base::Seconds(5));
+  };
+  ListCheck good = check("! Title: Mine\n||ads.example^\n||b.example^\n");
+  EXPECT_EQ(good.failure, ListFailure::kNone);
+  EXPECT_EQ(good.rules, 2);
+  EXPECT_EQ(good.title, "Mine");
+  EXPECT_EQ(check("<html>404</html>").failure, ListFailure::kLooksLikeHtml);
+  EXPECT_EQ(check("! only a comment\n").failure, ListFailure::kNoRules);
+  EXPECT_EQ(check(std::string_view("||a.test^\0\n", 11)).failure, ListFailure::kNotText);
+  EXPECT_EQ(CheckList(base::as_byte_span(std::string_view("||a.test^\n")),
+                      base::TimeDelta())
+                .failure,
+            ListFailure::kTimeout);
+}
+
+TEST(AdblockEngineListsTest, LoadListsReplacesTheRulesOnlyWhenAllListsAreGood) {
+  AdblockEngine engine;
+  engine.LoadListForTesting("||old.example^\n");
+  ASSERT_TRUE(engine.ShouldBlock(Script("https://old.example/a.js", "old.example")));
+
+  BuildResult ok = engine.LoadLists({"||one.example^\n", "||two.example^\n"},
+                                    base::Seconds(5));
+  EXPECT_EQ(ok.failure, ListFailure::kNone);
+  EXPECT_TRUE(engine.ShouldBlock(Script("https://one.example/a.js", "one.example")));
+  EXPECT_TRUE(engine.ShouldBlock(Script("https://two.example/a.js", "two.example")));
+  EXPECT_FALSE(engine.ShouldBlock(Script("https://old.example/a.js", "old.example")));
+
+  BuildResult bad = engine.LoadLists({"||new.example^\n", "<html>"}, base::Seconds(5));
+  EXPECT_EQ(bad.failure, ListFailure::kLooksLikeHtml);
+  EXPECT_EQ(bad.failed_index, 1u);
+  EXPECT_TRUE(engine.ShouldBlock(Script("https://one.example/a.js", "one.example")));
+  EXPECT_FALSE(engine.ShouldBlock(Script("https://new.example/a.js", "new.example")));
 }
 
 }  // namespace

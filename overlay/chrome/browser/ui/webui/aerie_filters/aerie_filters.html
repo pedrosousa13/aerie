@@ -1,0 +1,57 @@
+<!doctype html>
+<!-- Copyright 2026 The Aerie Authors
+     You can use, redistribute, and/or modify this source code under
+     the terms of the GPL-3.0 license that can be found in the LICENSE file. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Filter lists</title>
+  <link rel="stylesheet" href="aerie_filters.css">
+</head>
+<body>
+  <main>
+    <h1>Filter lists</h1>
+    <p class="lead">Aerie blocks ads and trackers with these lists. A list is only
+      replaced when the new copy is a valid list; otherwise the old copy keeps working.</p>
+
+    <section aria-labelledby="lists-title">
+      <h2 id="lists-title">Lists</h2>
+      <table>
+        <thead>
+          <tr><th scope="col">List</th><th scope="col">Rules</th><th scope="col">Updated</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr>
+        </thead>
+        <tbody id="lists"></tbody>
+      </table>
+      <form id="add-list" autocomplete="off">
+        <label for="list-url">Add a list by address (https only)</label>
+        <div class="row">
+          <input id="list-url" type="url" inputmode="url" placeholder="https://example.org/list.txt" required>
+          <button type="submit">Add list</button>
+        </div>
+        <p id="add-error" class="error" role="alert"></p>
+      </form>
+      <div class="row">
+        <button id="update-all" type="button">Update all now</button>
+        <label class="check"><input id="auto-update" type="checkbox"> Update lists automatically (once a day)</label>
+      </div>
+      <p id="busy" class="muted" role="status"></p>
+    </section>
+
+    <section aria-labelledby="sites-title">
+      <h2 id="sites-title">Sites where blocking is off</h2>
+      <p class="muted">Ads are not blocked on these sites or their subdomains. You can
+        also turn blocking off for the site you are on from the toolbar button.</p>
+      <ul id="exceptions"></ul>
+      <form id="add-site" autocomplete="off">
+        <label for="site-host">Turn blocking off for a site</label>
+        <div class="row">
+          <input id="site-host" type="text" placeholder="example.org" required spellcheck="false">
+          <button type="submit">Add site</button>
+        </div>
+      </form>
+    </section>
+  </main>
+  <script src="aerie_filters.js"></script>
+</body>
+</html>

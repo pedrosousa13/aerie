@@ -1,0 +1,29 @@
+# Copyright 2026 The Aerie Authors
+# You can use, redistribute, and/or modify this source code under
+# the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+# The toolbar button of the Filter Engine (issue #10). Added to the toolbar by
+# patches/adblock/0010.
+source_set("aerie_adblock") {
+  visibility = [ "//chrome/browser/ui/views/toolbar:*" ]
+  sources = [
+    "aerie_filter_toolbar_button.cc",
+    "aerie_filter_toolbar_button.h",
+  ]
+  public_deps = [
+    "//chrome/browser/ui/views/toolbar:toolbar_button",
+    "//components/aerie_adblock/browser:lists",
+    "//components/aerie_adblock/browser:page_counter",
+  ]
+  deps = [
+    "//base",
+    "//chrome/browser/ui/browser_window",
+    "//components/tabs:public",
+    "//components/vector_icons",
+    "//content/public/browser",
+    "//ui/base",
+    "//ui/menus",
+    "//ui/views",
+    "//url",
+  ]
+}

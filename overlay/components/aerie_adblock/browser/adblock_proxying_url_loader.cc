@@ -30,10 +30,12 @@ void AdblockProxyingURLLoader::CreateAndStart(
     const net::MutableNetworkTrafficAnnotationTag& traffic_annotation,
     const url::Origin& factory_initiator,
     const net::IsolationInfo& factory_isolation_info,
-    base::WeakPtr<FilterEngineService> service) {
+    base::WeakPtr<FilterEngineService> service,
+    content::GlobalRenderFrameHostId frame_id,
+    const void* session) {
   std::unique_ptr<AdblockProxyingURLLoader> loader(new AdblockProxyingURLLoader(
       request, std::move(client), factory_initiator, factory_isolation_info,
-      std::move(service)));
+      std::move(service), frame_id, session));
   loader->Start(target_factory, request_id, options, traffic_annotation);
   // Owned by the renderer's pipe: deleted when the renderer closes it.
   mojo::MakeSelfOwnedReceiver(std::move(loader), std::move(loader_receiver));
@@ -44,11 +46,15 @@ AdblockProxyingURLLoader::AdblockProxyingURLLoader(
     mojo::PendingRemote<network::mojom::URLLoaderClient> client,
     const url::Origin& factory_initiator,
     const net::IsolationInfo& factory_isolation_info,
-    base::WeakPtr<FilterEngineService> service)
+    base::WeakPtr<FilterEngineService> service,
+    content::GlobalRenderFrameHostId frame_id,
+    const void* session)
     : request_(request),
       factory_initiator_(factory_initiator),
       factory_isolation_info_(factory_isolation_info),
       service_(std::move(service)),
+      frame_id_(frame_id),
+      session_(session),
       forwarding_client_(std::move(client)) {}
 
 AdblockProxyingURLLoader::~AdblockProxyingURLLoader() = default;
@@ -91,7 +97,9 @@ void AdblockProxyingURLLoader::FollowRedirect(
   hop.url = target;
   std::optional<ClassifiedRequest> classified =
       ClassifyRequest(hop, factory_initiator_, factory_isolation_info_);
-  if (!classified.has_value()) {
+  if (classified.has_value()) {
+    classified->session = session_;
+  } else {
     // Not something the engine judges (for example a non-http scheme).
     loader_->FollowRedirect(std::move(headers_update_params), new_url);
     return;
@@ -120,6 +128,9 @@ void AdblockProxyingURLLoader::OnRedirectVerdict(
     return;
   }
   if (should_block) {
+    if (service_) {
+      service_->RecordBlocked(frame_id_);
+    }
     FailRequest(net::ERR_BLOCKED_BY_CLIENT);
     return;
   }

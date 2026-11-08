@@ -19,6 +19,8 @@ GEN=$TREE/out/Default/gen
 WORK=$(mktemp -d); trap 'rm -rf "$WORK"' EXIT
 O=$REPO/overlay
 
+# The include order puts the stub and the repo's overlay before the tree: a prepared tree holds an older copy of
+# the overlay, and the check must read the files being edited, not that copy.
 # The cxx bridge header, generated from the real bridge, and the grit header (a stand-in).
 mkdir -p "$WORK/ffi/src" "$WORK/stub/components/aerie_adblock/rust/ffi/src" "$WORK/stub/components/aerie_adblock/resources/grit"
 cat > "$WORK/ffi/Cargo.toml" <<TOML
@@ -38,7 +40,9 @@ echo 'pub use aerie_adblock_ffi::*;' > "$WORK/ffi/src/lib.rs"
 echo "fn main() { cxx_build::bridge(\"$O/components/aerie_adblock/rust/ffi/src/lib.rs\").std(\"c++20\").compile(\"b\"); }" > "$WORK/ffi/build.rs"
 (cd "$WORK/ffi" && CARGO_TARGET_DIR="$WORK/target" cargo build -q)
 cp "$(find "$WORK/target" -path '*include/ffitest*' -name lib.rs.h | head -1)" "$WORK/stub/components/aerie_adblock/rust/ffi/src/lib.rs.h"
-echo '#define IDR_AERIE_ADBLOCK_ENGINE 1' > "$WORK/stub/components/aerie_adblock/resources/grit/aerie_adblock_resources.h"
+printf '#define IDR_AERIE_ADBLOCK_ENGINE 1\n#define IDR_AERIE_ADBLOCK_EASYLIST 2\n#define IDR_AERIE_ADBLOCK_EASYPRIVACY 3\n' > "$WORK/stub/components/aerie_adblock/resources/grit/aerie_adblock_resources.h"
+mkdir -p "$WORK/stub/chrome/browser/ui/webui/aerie_filters/grit"
+printf '#define IDR_AERIE_FILTERS_HTML 1\n#define IDR_AERIE_FILTERS_JS 2\n#define IDR_AERIE_FILTERS_CSS 3\n' > "$WORK/stub/chrome/browser/ui/webui/aerie_filters/grit/aerie_filters_resources.h"
 
 if [ $# -eq 0 ]; then mapfile -t FILES < <(find "$O/components" "$O/chrome" -name '*.cc' | sort); else FILES=("$@"); fi
 status=0
@@ -47,7 +51,7 @@ for f in "${FILES[@]}"; do
       -D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_EXTENSIVE -DLIBCXX_BUILDING_LIBCXXABI=0 \
       -nostdinc++ -isystem "$TREE/third_party/libc++/src/include" -isystem "$TREE/third_party/libc++abi/src/include" \
       -isystem "$TREE/buildtools/third_party/libc++" --sysroot="$TREE/build/linux/debian_bullseye_amd64-sysroot" \
-      -I"$TREE" -I"$GEN" -I"$WORK/stub" -I"$O" \
+      -I"$WORK/stub" -I"$O" -I"$TREE" -I"$GEN" \
       -I"$TREE/third_party/abseil-cpp" -I"$TREE/third_party/protobuf/src" -I"$TREE/base/allocator/partition_allocator/src" \
       -I"$GEN/base/allocator/partition_allocator/src" -I"$TREE/third_party/perfetto/include" -I"$GEN/third_party/perfetto" \
       -I"$GEN/third_party/perfetto/build_config" -I"$TREE/third_party/boringssl/src/include" -I"$TREE/third_party/icu/source/common" \

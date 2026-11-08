@@ -18,7 +18,8 @@
 //! * An `Engine` is not thread-safe (`adblock`'s `single-thread` feature).
 //!   The C++ owner keeps it on one sequence.
 
-use aerie_adblock_core::{FilterEngine, RequestInfo, RequestKind};
+use aerie_adblock_core::{FilterEngine, ListError, RequestInfo, RequestKind, check_list as core_check_list};
+use std::time::Duration;
 
 pub struct Engine(FilterEngine);
 
@@ -43,8 +44,49 @@ mod ffi {
         Object,
     }
 
+    /// Why a list was refused. Mirrors `aerie_adblock_core::ListError`.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    #[repr(u8)]
+    enum ListStatus {
+        Ok,
+        TooLarge,
+        Timeout,
+        NotText,
+        LooksLikeHtml,
+        NoRules,
+    }
+
+    /// The result of checking one list.
+    struct ListReport {
+        status: ListStatus,
+        network_rules: u32,
+        /// The list's own title, or "".
+        title: String,
+    }
+
+    /// The result of building an engine from the lists added to a builder.
+    struct BuildReport {
+        status: ListStatus,
+        /// Position (0 based, in the order of `add_list`) of the list that failed.
+        failed_index: u32,
+    }
+
     extern "Rust" {
         type Engine;
+        type EngineBuilder;
+
+        /// Decide whether `list` is a usable filter list, within `budget_ms`
+        /// milliseconds. Nothing is built or kept. Never panics.
+        fn check_list(list: &[u8], budget_ms: u32) -> ListReport;
+
+        /// A builder that collects lists (copying them).
+        fn new_engine_builder() -> Box<EngineBuilder>;
+        fn add_list(self: &mut EngineBuilder, list: &[u8]);
+
+        /// Check every added list, then replace the rules of `engine` with all
+        /// of them compiled together. The lists share `budget_ms`. When any list
+        /// fails, `engine` keeps its old rules and the report names the list.
+        fn build_into(self: &EngineBuilder, budget_ms: u32, engine: &mut Engine) -> BuildReport;
 
         /// An engine with no rules. It blocks nothing.
         fn new_empty_engine() -> Box<Engine>;
@@ -85,7 +127,54 @@ mod ffi {
     }
 }
 
-use ffi::RequestType;
+use ffi::{BuildReport, ListReport, ListStatus, RequestType};
+
+pub struct EngineBuilder(Vec<Vec<u8>>);
+
+fn status_from_error(e: ListError) -> ListStatus {
+    match e {
+        ListError::TooLarge => ListStatus::TooLarge,
+        ListError::Timeout => ListStatus::Timeout,
+        ListError::NotText => ListStatus::NotText,
+        ListError::LooksLikeHtml => ListStatus::LooksLikeHtml,
+        ListError::NoRules => ListStatus::NoRules,
+    }
+}
+
+fn check_list(list: &[u8], budget_ms: u32) -> ListReport {
+    match core_check_list(list, Duration::from_millis(budget_ms.into())) {
+        Ok(check) => ListReport {
+            status: ListStatus::Ok,
+            network_rules: u32::try_from(check.network_rules).unwrap_or(u32::MAX),
+            title: check.title.unwrap_or_default(),
+        },
+        Err(e) => ListReport { status: status_from_error(e), network_rules: 0, title: String::new() },
+    }
+}
+
+fn new_engine_builder() -> Box<EngineBuilder> {
+    Box::new(EngineBuilder(Vec::new()))
+}
+
+impl EngineBuilder {
+    fn add_list(&mut self, list: &[u8]) {
+        self.0.push(list.to_vec());
+    }
+
+    fn build_into(&self, budget_ms: u32, engine: &mut Engine) -> BuildReport {
+        let lists = self.0.iter().map(|l| l.as_slice());
+        match FilterEngine::from_checked_lists(lists, Duration::from_millis(budget_ms.into())) {
+            Ok((built, _)) => {
+                engine.0 = built;
+                BuildReport { status: ListStatus::Ok, failed_index: 0 }
+            }
+            Err((index, e)) => BuildReport {
+                status: status_from_error(e),
+                failed_index: u32::try_from(index).unwrap_or(u32::MAX),
+            },
+        }
+    }
+}
 
 fn kind_from_ffi(t: RequestType) -> RequestKind {
     match t {
@@ -214,5 +303,34 @@ mod tests {
         let generic = e.generic_stylesheet("https://news.test/a", "ad-banner x", "");
         assert!(generic.contains(".ad-banner{display:none!important}"), "{generic}");
         assert!(e.generic_stylesheet("https://news.test/a", "x", "y").is_empty());
+    }
+
+    #[test]
+    fn bridge_checks_a_list() {
+        let ok = check_list(b"! Title: T\n||a.test^\n", 5000);
+        assert_eq!((ok.status, ok.network_rules, ok.title.as_str()), (ListStatus::Ok, 1, "T"));
+        assert_eq!(check_list(b"<html>", 5000).status, ListStatus::LooksLikeHtml);
+        assert_eq!(check_list(b"! x\n", 5000).status, ListStatus::NoRules);
+        assert_eq!(check_list(b"||a.test^\n", 0).status, ListStatus::Timeout);
+    }
+
+    #[test]
+    fn builder_replaces_the_rules_only_when_every_list_is_good() {
+        let mut engine = new_engine_from_list(b"||old.test^\n");
+        let blocked = |e: &Engine, h: &str| {
+            e.should_block(&format!("https://{h}/"), h, "p.test", RequestType::Other, true)
+        };
+        let mut b = new_engine_builder();
+        b.add_list(b"||one.test^\n");
+        b.add_list(b"||two.test^\n");
+        assert_eq!(b.build_into(5000, &mut engine).status, ListStatus::Ok);
+        assert!(blocked(&engine, "one.test") && blocked(&engine, "two.test") && !blocked(&engine, "old.test"));
+
+        let mut bad = new_engine_builder();
+        bad.add_list(b"||new.test^\n");
+        bad.add_list(b"<html>");
+        let report = bad.build_into(5000, &mut engine);
+        assert_eq!((report.status, report.failed_index), (ListStatus::LooksLikeHtml, 1));
+        assert!(blocked(&engine, "one.test") && !blocked(&engine, "new.test"));
     }
 }

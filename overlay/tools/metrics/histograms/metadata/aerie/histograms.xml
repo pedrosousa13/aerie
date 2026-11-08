@@ -45,6 +45,28 @@ directory under tools/metrics/histograms/metadata/.
   </summary>
 </histogram>
 
+<histogram name="Aerie.Adblock.ListUpdateSuccess" enum="Boolean"
+    expires_after="never">
+  <owner>pedrodsousa@pm.me</owner>
+  <summary>
+    One sample for each download of a filter list that finished (one list, one
+    sample): true if the list passed the checks and replaced the copy in use,
+    false if the download or the checks failed and the old copy stayed.
+  </summary>
+</histogram>
+
+<histogram name="Aerie.Adblock.PageBlockedCount" units="requests"
+    expires_after="never">
+  <owner>pedrodsousa@pm.me</owner>
+  <summary>
+    How many requests the Filter Engine blocked for a page, recorded when the
+    user leaves the page (another document commits in the tab) or closes the
+    tab. Pages with no blocked request record nothing. Counts above 100 go in
+    the top bucket. The toolbar button shows the same number while the page is
+    open; the Bench reads this to check that the button's count is right.
+  </summary>
+</histogram>
+
 <histogram name="Aerie.Adblock.RedirectHopBlocked" enum="Boolean"
     expires_after="never">
   <owner>pedrodsousa@pm.me</owner>
