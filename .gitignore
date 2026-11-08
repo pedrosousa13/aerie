@@ -6,3 +6,4 @@ __pycache__/
 # Standalone cargo builds of the overlay crates (see overlay/components/aerie_adblock/rust/Cargo.toml).
 overlay/**/target/
 overlay/**/Cargo.lock
+.claude/worktrees/
