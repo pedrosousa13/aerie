@@ -30,8 +30,21 @@
 namespace {
 
 constexpr char kManagerPageUrl[] = "chrome://filters/";
-// The size of the icon of a page action, in dip.
-constexpr int kIconSize = 16;
+
+// The text of the toggle item. A locked item names no host.
+std::u16string ToggleLabel(const aerie_adblock::GuardState& state,
+                           bool incognito) {
+  if (state.locked) {
+    // An exception saved in a regular window cannot be undone from incognito.
+    return l10n_util::GetStringUTF16(IDS_AERIE_GUARD_MENU_LOCKED);
+  }
+  const int id = state.blocking_off
+                     ? (incognito ? IDS_AERIE_GUARD_MENU_TURN_ON_INCOGNITO
+                                  : IDS_AERIE_GUARD_MENU_TURN_ON)
+                     : (incognito ? IDS_AERIE_GUARD_MENU_TURN_OFF_INCOGNITO
+                                  : IDS_AERIE_GUARD_MENU_TURN_OFF);
+  return l10n_util::GetStringFUTF16(id, base::UTF8ToUTF16(state.host));
+}
 
 }  // namespace
 
@@ -55,7 +68,7 @@ AerieGuardPageActionController::~AerieGuardPageActionController() {
 // static
 ui::ImageModel AerieGuardPageActionController::DefaultImage() {
   return ui::ImageModel::FromVectorIcon(aerie_guard::kAerieGuardOnIcon,
-                                        ui::kColorIcon, kIconSize);
+                                        ui::kColorIcon, aerie_guard::kGuardImageSize);
 }
 
 aerie_adblock::GuardState AerieGuardPageActionController::CurrentState() const {
@@ -148,24 +161,9 @@ void AerieGuardPageActionController::ShowMenu(views::BubbleAnchor anchor) {
   const bool incognito = aerie_adblock::SessionKeyFor(
                              web_contents()->GetBrowserContext())
                              .is_off_the_record();
-  const std::u16string host = base::UTF8ToUTF16(state.host);
   menu_host_ = state.host;
   menu_model_ = std::make_unique<ui::SimpleMenuModel>(this);
-  int toggle_id;
-  if (state.locked) {
-    // An exception saved in a regular window cannot be undone from incognito.
-    toggle_id = IDS_AERIE_GUARD_MENU_LOCKED;
-  } else if (state.blocking_off) {
-    toggle_id = incognito ? IDS_AERIE_GUARD_MENU_TURN_ON_INCOGNITO
-                          : IDS_AERIE_GUARD_MENU_TURN_ON;
-  } else {
-    toggle_id = incognito ? IDS_AERIE_GUARD_MENU_TURN_OFF_INCOGNITO
-                          : IDS_AERIE_GUARD_MENU_TURN_OFF;
-  }
-  menu_model_->AddItem(
-      kToggleSite, state.locked
-                       ? l10n_util::GetStringUTF16(toggle_id)
-                       : l10n_util::GetStringFUTF16(toggle_id, host));
+  menu_model_->AddItem(kToggleSite, ToggleLabel(state, incognito));
   menu_model_->SetEnabledAt(menu_model_->GetItemCount() - 1, !state.locked);
   menu_model_->AddItem(
       kManageLists,

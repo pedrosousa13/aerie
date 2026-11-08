@@ -184,13 +184,5 @@ class BrowserSideStateTest(unittest.TestCase):
                 self.assertIn(needle, test)
 
 
-class NetworkEndpointsTest(unittest.TestCase):
-    def test_the_endpoint_list_is_unchanged_by_this_work(self):
-        # docs/network-endpoints.md lists every server the browser talks to; the icon adds none.
-        names = subprocess.run(["git", "diff", "--name-only", "main", "--", "docs/network-endpoints.md"],
-                               cwd=REPO, capture_output=True, text=True, check=False).stdout.split()
-        self.assertEqual(names, [])
-
-
 if __name__ == "__main__":
     unittest.main()

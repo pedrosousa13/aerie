@@ -54,7 +54,8 @@ for g in $(find "$O" -name '*.grdp'); do
 done
 for d in $(find "$O" -name '*.icon' -printf '%h\n' | sort -u); do
   rel=${d#"$O"/}; mkdir -p "$WORK/stub/$rel"
-  { printf '#pragma once\nnamespace gfx { struct VectorIcon; }\nnamespace aerie_guard {\n'
+  ns=$(sed -n 's/^namespace \([a-z_]*\) {$/\1/p' "$d/vector_icons.h.template" | tail -1)
+  { printf '#pragma once\nnamespace gfx { struct VectorIcon; }\nnamespace %s {\n' "$ns"
     for i in "$d"/*.icon; do
       b=$(basename "$i" .icon); printf 'extern const gfx::VectorIcon k%s;\n' "$(echo "$b" | sed -E 's/(^|_)([a-z0-9])/\U\2/g')Icon"
     done

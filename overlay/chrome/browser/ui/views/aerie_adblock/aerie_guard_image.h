@@ -11,6 +11,9 @@
 
 namespace aerie_guard {
 
+// The icon of a page action is 16 dip wide and high.
+inline constexpr int kGuardImageSize = 16;
+
 // The image of the Aerie Guard icon in the address bar (issue #99): the shield
 // for "Guard on" or, when |blocking_off| is true, the shield for "Guard off for
 // this site", with |badge_label| drawn into it at the bottom right when it is

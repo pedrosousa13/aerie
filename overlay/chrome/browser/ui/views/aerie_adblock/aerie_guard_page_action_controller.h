@@ -31,11 +31,10 @@ namespace views {
 class MenuRunner;
 }  // namespace views
 
-// The Aerie Guard icon of one tab (issue #99): the address bar icon that
-// replaces the toolbar button of the Filter Engine. It shows on http and https
-// pages only. The icon is the shield "on" or "off for this site", with the
-// number of requests blocked on the page drawn into it. Its tooltip and
-// accessible name say the same in words.
+// The Aerie Guard icon of one tab (issue #99): the address bar icon. It
+// shows on http and https pages only. The icon is the shield "on" or "off for
+// this site", with the number of requests blocked on the page drawn into it.
+// Its tooltip and accessible name say the same in words.
 //
 // Everything the icon shows comes from browser-side state: the committed URL of
 // the tab's primary main frame, the FilterListManager's exceptions and the

@@ -28,8 +28,6 @@ namespace aerie_guard {
 
 namespace {
 
-// The icon of a page action is 16 dip wide.
-constexpr int kImageSize = 16;
 constexpr int kBadgeFontSize = 8;
 constexpr int kBadgeHeight = 9;
 constexpr int kBadgePaddingX = 2;
@@ -43,7 +41,7 @@ class GuardImageSource : public gfx::CanvasImageSource {
                    SkColor icon_color,
                    SkColor badge_background,
                    SkColor badge_foreground)
-      : gfx::CanvasImageSource(gfx::Size(kImageSize, kImageSize)),
+      : gfx::CanvasImageSource(gfx::Size(kGuardImageSize, kGuardImageSize)),
         blocking_off_(blocking_off),
         badge_label_(std::move(badge_label)),
         icon_color_(icon_color),
@@ -53,7 +51,7 @@ class GuardImageSource : public gfx::CanvasImageSource {
   void Draw(gfx::Canvas* canvas) override {
     gfx::PaintVectorIcon(
         canvas, blocking_off_ ? kAerieGuardOffIcon : kAerieGuardOnIcon,
-        kImageSize,
+        kGuardImageSize,
         blocking_off_ ? SkColorSetA(icon_color_, kOffAlpha) : icon_color_);
     if (badge_label_.empty()) {
       return;
@@ -62,9 +60,9 @@ class GuardImageSource : public gfx::CanvasImageSource {
         gfx::FontList(gfx::Font(std::string(), kBadgeFontSize))
             .DeriveWithWeight(gfx::Font::Weight::BOLD);
     const int width = std::min(
-        kImageSize, gfx::GetStringWidth(badge_label_, font_list) +
+        kGuardImageSize, gfx::GetStringWidth(badge_label_, font_list) +
                         2 * kBadgePaddingX);
-    const gfx::Rect badge(kImageSize - width, kImageSize - kBadgeHeight, width,
+    const gfx::Rect badge(kGuardImageSize - width, kGuardImageSize - kBadgeHeight, width,
                           kBadgeHeight);
     canvas->FillRect(badge, badge_background_);
     canvas->DrawStringRectWithFlags(
@@ -96,7 +94,7 @@ ui::ImageModel GuardImage(bool blocking_off,
                           const std::u16string& badge_label) {
   return ui::ImageModel::FromImageGenerator(
       base::BindRepeating(&Generate, blocking_off, badge_label),
-      gfx::Size(kImageSize, kImageSize));
+      gfx::Size(kGuardImageSize, kGuardImageSize));
 }
 
 }  // namespace aerie_guard
