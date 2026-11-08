@@ -201,12 +201,12 @@ Promise.race([{prefetch.FETCH_CONTROLS_JS % (prefetch.CONTROL_PATH, 100, 1234)},
 
 def real_case(check):
     for _, case in load_cases():
-        if _ == check and case["name"].startswith("real_train1_"):
+        if _ == check and case["name"].startswith("real_train"):
             return case
     raise AssertionError(f"no recorded real case for {check}")
 
 
-# Observed on a real build (train-1 Bench run, hardening-1/results.json).
+# Observed on a real build (train-1 Bench run, hardening-1/results.json; the settings-page case is from train 4).
 REAL_FINGERPRINT = real_case("hardening_fingerprinting")["obs"]
 
 
@@ -214,7 +214,7 @@ class RealRecordingsTest(unittest.TestCase):
     def test_twelve_checks_have_a_real_recording_that_is_judged_as_recorded(self):
         got = {}
         for check, case in load_cases():
-            if case["name"].startswith("real_train1_"):
+            if case["name"].startswith("real_train"):
                 got[check] = case
                 self.assertEqual(HARDENING[check].judge(case["obs"])[0], case["expect"], check)
         self.assertEqual(len(got), 12)  # hardening_prefetch errored in that run: nothing to record

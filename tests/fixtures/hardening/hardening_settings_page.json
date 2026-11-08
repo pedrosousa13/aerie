@@ -656,10 +656,10 @@
    }
   },
   {
-   "name": "real_train1_build",
-   "expect": "fail",
-   "detail_contains": "no row for widevine",
-   "real": "Recorded on a real Aerie build, train-1 Bench run (bench/train1/hardening-1/results.json); LAN address scrubbed. That build predates the Widevine row (#7), so the page is judged to lack it. Re-record on the next real build and set expect back to pass.",
+   "name": "real_train4_build",
+   "expect": "pass",
+   "detail_contains": "",
+   "real": "Recorded on a real Aerie build, train-4 Bench run (bench/train4/bench/t13/results.json): all 10 controls, including the Widevine (#7) and JavaScript optimizer (#13) rows.",
    "obs": {
     "rows": {
      "https_only": {
@@ -667,56 +667,48 @@
       "default_text": "Default: On (strict: Always use secure connections).",
       "cost_text": "Cost: Sites and devices that only speak http (router and NAS admin pages, printers, old intranet apps, captive portals) show a warning page first. The exception is one click and lasts 15 days from the last visit.",
       "state_text": null,
-      "live": "Always use secure connections"
+      "live": "Always use secure connections",
+      "route": null
      },
      "third_party_cookies": {
       "present": true,
       "default_text": "Default: Blocked.",
       "cost_text": "Cost: Cross-site single sign-on that relies on cookies, embedded payment or login widgets and some video embeds can fail. Site exceptions and the Storage Access API are the escape hatches.",
       "state_text": null,
-      "live": "Block third-party cookies"
+      "live": "Block third-party cookies",
+      "route": null
      },
      "storage_partitioning": {
       "present": true,
       "default_text": "Default: Always on.",
       "cost_text": "Cost: An embedded widget no longer shares its state between sites, so it can ask the user to sign in again on each site.",
       "state_text": "Always on",
-      "live": null
+      "live": null,
+      "route": null
      },
      "webrtc_ip": {
       "present": true,
       "default_text": "Default: Default public interface only.",
       "cost_text": "Cost: Some video calls and peer-to-peer apps cannot find a direct path and fall back to a relay, which adds delay. Stricter values can break calls that have no relay.",
       "state_text": null,
-      "live": "Default public interface only"
+      "live": "Default public interface only",
+      "route": null
      },
      "prefetch": {
       "present": true,
       "default_text": "Default: Off.",
       "cost_text": "Cost: Page loads are slightly slower, because the browser no longer opens connections or fetches pages ahead of a click.",
       "state_text": null,
-      "live": "Off"
+      "live": "Off",
+      "route": null
      },
      "site_isolation": {
       "present": true,
       "default_text": "Default: Always on.",
       "cost_text": "Cost: Uses more memory, because each site runs in its own process.",
       "state_text": "Always on",
-      "live": null
-     },
-     "fingerprinting": {
-      "present": true,
-      "default_text": "Default: On.",
-      "cost_text": "Cost: Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page.",
-      "state_text": null,
-      "live": "on"
-     },
-     "extension_lock": {
-      "present": true,
-      "default_text": "Default: Always on.",
-      "cost_text": "Cost: Privacy extensions that set these options through chrome.privacy get a permission error. The user can still make the same change in settings.",
-      "state_text": "Always on",
-      "live": null
+      "live": null,
+      "route": null
      },
      "js_optimizer": {
       "present": true,
@@ -725,6 +717,30 @@
       "state_text": null,
       "live": null,
       "route": "SITE_SETTINGS_JAVASCRIPT_OPTIMIZER"
+     },
+     "fingerprinting": {
+      "present": true,
+      "default_text": "Default: On.",
+      "cost_text": "Cost: Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page.",
+      "state_text": null,
+      "live": "on",
+      "route": null
+     },
+     "widevine": {
+      "present": true,
+      "default_text": "Default: Off.",
+      "cost_text": "Cost: Turning it on downloads a closed-source Google module, which is checked against a pinned signing key before it loads, and lets Aerie ask Google for updates to it. Until you do, DRM video does not play.",
+      "state_text": null,
+      "live": "off",
+      "route": null
+     },
+     "extension_lock": {
+      "present": true,
+      "default_text": "Default: Always on.",
+      "cost_text": "Cost: Privacy extensions that set these options through chrome.privacy get a permission error. The user can still make the same change in settings.",
+      "state_text": "Always on",
+      "live": null,
+      "route": null
      }
     },
     "bogus_present": false,
