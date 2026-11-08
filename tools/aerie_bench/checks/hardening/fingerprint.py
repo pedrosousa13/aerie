@@ -7,7 +7,6 @@ no second render fails. Aerie patch hardening/0009 seeds audio noise from the si
 """
 
 
-
 from __future__ import annotations
 
 from ...session import Session
