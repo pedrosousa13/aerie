@@ -62,6 +62,12 @@ class PageTest(unittest.TestCase):
         self.assertIn('name="IDR_AERIE_ONBOARDING_INDEX_HTML" file="index.html"', grd)
         self.assertIn("IDR_AERIE_ONBOARDING_INDEX_HTML", PATCH.read_text(encoding="utf-8"))
 
+    def test_engine_ids_stay_strings(self):
+        # Ids look like "db:3"; a Number() makes NaN and the handler check-fails.
+        self.assertNotIn("Number(val)", SCRIPT)
+        self.assertNotIn("askedDefault", SCRIPT)
+        self.assertIn("'search-engines-changed'", SCRIPT)
+
     def test_the_script_never_assigns_html(self):
         for pattern in ("innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval("):
             self.assertNotIn(pattern, SCRIPT)

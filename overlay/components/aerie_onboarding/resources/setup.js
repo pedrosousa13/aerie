@@ -346,7 +346,7 @@ const VIEWS = {
     return h('section', {class: 'step solo'}, h('div', {class: 'copy'}, eyebrow(0), heading('defaultTitle', 1),
       E(2, h('p', {class: 'lede'}, t('defaultBody'))),
       E(3, h('div', {class: 'actions'},
-        primary(t('defaultYes'), () => { chrome.send('setAsDefaultBrowser', [false]); S.askedDefault = true; go(1); }, 'make-default'),
+        primary(t('defaultYes'), () => { chrome.send('setAsDefaultBrowser', [false]); go(1); }, 'make-default'),
         h('button', {class: 'btn ghost', type: 'button', id: 'not-now', onclick: () => go(1)}, t('defaultNo'))))));
   },
 
@@ -356,7 +356,7 @@ const VIEWS = {
       ['summaryImported', S.imported || t('summaryNothing')],
       ['summaryLook', `${t(COLORS[S.color][3])}, ${t(MODES.find(m => m[0] === S.mode)[1])}`],
       ['summarySearch', engine ? engine.name : ''],
-      ['summaryDefault', S.isDefault || S.askedDefault ? t('summaryIsDefault') : t('summaryNotDefault')],
+      ['summaryDefault', S.isDefault ? t('summaryIsDefault') : t('summaryNotDefault')],
     ];
     return h('section', {class: 'step solo'}, h('div', {class: 'copy'},
       E(0, h('div', {}, heroMark())), heading('doneTitle', 1),
@@ -427,6 +427,7 @@ function runImport() {
   };
   items.forEach(([, , , type]) => { types[type] = true; });
   S.importing = true;
+  S.importingName = p.name;
   S.importError = false;
   $('#import-error').hidden = true;
   updateImport();
@@ -438,7 +439,7 @@ onBrowserEvent('import-data-status-changed', status => {
   }
   S.importing = false;
   if (status === 'succeeded') {
-    S.imported = selectedProfile().name;
+    S.imported = S.importingName;
     if (S.steps[S.step] === 'import') {
       go(1);
     }
@@ -461,7 +462,7 @@ function applyLook() {
 }
 
 function choose(group, val) {
-  S[group] = group === 'engine' ? Number(val) : val;
+  S[group] = val;  // engine ids are strings such as "db:3"; never coerce them
   $$(`[data-group="${group}"]`).forEach(b => b.setAttribute('aria-checked', String(b.dataset.val === String(val))));
   if (group === 'from') {
     updateImport(true);
@@ -562,11 +563,22 @@ async function loadBrowserState() {
     }
   }, () => { S.profiles = []; });
 
-  sendWithPromise('getSearchEnginesList').then(info => {
+  // The list can be empty while the search engine service loads; the browser
+  // then fires 'search-engines-changed' with the real list.
+  const loadEngines = info => {
+    if (!info) {
+      return;
+    }
     S.engines = (info.defaults || []).filter(e => e.canBeDefault !== false || e.default);
     const current = S.engines.find(e => e.default);
-    S.engine = current ? current.id : (S.engines[0] ? S.engines[0].id : null);
-  }, () => {});
+    const keep = S.engines.find(e => e.id === S.engine);
+    S.engine = keep ? keep.id : current ? current.id : (S.engines[0] ? S.engines[0].id : null);
+    if (S.steps[S.step] === 'search') {
+      render(0);
+    }
+  };
+  onBrowserEvent('search-engines-changed', loadEngines);
+  sendWithPromise('getSearchEnginesList').then(loadEngines, () => {});
 
   onBrowserEvent('browser-default-state-changed', state => { S.isDefault = !!state.isDefault; });
   try {
