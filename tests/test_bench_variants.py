@@ -140,5 +140,42 @@ class VariantTest(unittest.TestCase):
         self.assertEqual(self.go(body).data["checks"][0]["data"]["n"], 1)
 
 
+class RendererModesTest(unittest.TestCase):
+    def proc(self, root, pid, ppid, args):
+        d = Path(root) / str(pid)
+        d.mkdir()
+        (d / "stat").write_text(f"{pid} (chrome) S {ppid} 0 0\n")
+        (d / "cmdline").write_bytes(b"\0".join(a.encode() for a in args) + b"\0")
+
+    def test_counts_renderers_by_optimizer_mode_under_the_browser_only(self):
+        from aerie_bench import procmem
+        with tempfile.TemporaryDirectory() as d:
+            self.proc(d, 10, 1, ["chrome", "--user-data-dir=/x"])
+            self.proc(d, 11, 10, ["chrome", "--type=gpu-process"])
+            self.proc(d, 12, 10, ["chrome", "--type=renderer", "--js-flags=--disable-optimizing-compilers"])
+            self.proc(d, 13, 10, ["chrome", "--type=renderer"])
+            self.proc(d, 14, 12, ["chrome", "--type=renderer", "--js-flags=--jitless,--other"])
+            self.proc(d, 15, 10, ["chrome", "--type=renderer", "--js-flags=--stack-size=900"])
+            self.proc(d, 99, 1, ["chrome", "--type=renderer", "--js-flags=--disable-optimizing-compilers"])
+            got = procmem.renderer_modes(10, Path(d))
+        self.assertEqual((got["total"], got["noopt"], got["jitless"]), (4, 1, 1))
+        self.assertEqual(got["pids"], {"noopt": [12], "default": [13, 14, 15]})
+
+    def test_reads_a_renderer_whose_command_line_is_one_space_joined_argument(self):
+        # A renderer forked from the zygote rewrites its title; /proc then holds one argument.
+        from aerie_bench import procmem
+        with tempfile.TemporaryDirectory() as d:
+            self.proc(d, 10, 1, ["chrome", "--user-data-dir=/x"])
+            self.proc(d, 12, 10, ["chrome --type=renderer --js-flags=--disable-optimizing-compilers --lang=en"])
+            self.proc(d, 13, 10, ["chrome --type=renderer --lang=en"])
+            got = procmem.renderer_modes(10, Path(d))
+        self.assertEqual((got["total"], got["noopt"]), (2, 1))
+        self.assertEqual(got["pids"], {"noopt": [12], "default": [13]})
+
+    def test_no_proc_means_unknown(self):
+        from aerie_bench import procmem
+        self.assertIsNone(procmem.renderer_modes(1, Path("/nonexistent-proc")))
+
+
 if __name__ == "__main__":
     unittest.main()

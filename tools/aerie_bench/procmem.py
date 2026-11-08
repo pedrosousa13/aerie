@@ -95,7 +95,10 @@ def renderer_modes(root_pid: int, proc: Path = Path("/proc")) -> dict | None:
             args = (proc / str(pid) / "cmdline").read_bytes().split(b"\0")
         except OSError:
             continue
-        text = [a.decode("utf-8", "replace") for a in args if a]
+        # A renderer forked from the zygote rewrites its title, so /proc shows the whole command
+        # line as ONE space-joined argument. Split on whitespace as well (switch values here have
+        # no spaces: AppendToCommaSeparatedSwitch joins js-flags with commas).
+        text = [t for a in args if a for t in a.decode("utf-8", "replace").split()]
         if "--type=renderer" not in text:
             continue
         out["total"] += 1
