@@ -36,6 +36,7 @@ advisories.
 | #65 | Give the CRLSet and PKI metadata components an update path | A02, A06 | Medium |
 | #66 | Stop extensions from allowing third-party cookies through chrome.contentSettings | A01, A05 | Low |
 | #67 | Refuse non-https redirects when pinning lists with `./aerie lists update` | A08 | Low |
+| #70 | Refuse redirects to loopback and private addresses when fetching filter lists | A10 | Low |
 
 ## Verdicts by category
 
@@ -46,7 +47,7 @@ advisories.
   cookies per site, or per top-level domain, through `chrome.contentSettings.cookies`. Upstream treats an
   explicit ALLOW as stronger than the global block (#66).
 - **Renderer to browser.** Aerie adds no Mojo interface and no renderer code. Every Aerie GN target is
-  visible only to `//chrome/browser:core`. The request proxy, the protection throttle and the cosmetic
+  visible only to browser-process targets; none is reachable from renderer code. The request proxy, the protection throttle and the cosmetic
   helper run in the browser process. A compromised renderer cannot skip the verdict.
 - **WebUI.** `chrome://filters` can only be opened by the user. Web pages cannot load it, and its default
   CSP allows only its own script. `AerieFiltersHandler` checks the type and length of every argument
@@ -148,11 +149,15 @@ A browser that sends no telemetry has no central monitoring. Local signals exist
 engine load, list update success, protection blocks and interstitial choices (local only, nothing is
 reported), and `LOG(ERROR)` when a list fails. No log line holds a URL, a host or a user value.
 
-### A10 Server-Side Request Forgery: not applicable, no finding
+### A10 Server-Side Request Forgery: finding #70
 
 Aerie runs no server. The one fetch whose address the user chooses is a custom filter list. It is https
-only, and it goes through the system network context with no credentials. It can reach only what the user
-could open in a tab. Daily updates fetch only the lists' own addresses.
+only, and it goes through the system network context with no credentials. The address the user types is
+one they could open in a tab. A redirect is different: the list publisher chooses it, not the user.
+`FilterListFetcher::OnRedirect` (`filter_list_fetcher.cc:122`) only calls `IsAcceptableListUrl`, which
+accepts any https host, including loopback, private-network and link-local IP literals. A list server can
+send the daily background fetch to an internal https address, and Private Network Access does not check
+it. The impact is a blind GET with no credentials and no response to the publisher (#70).
 
 ## Browser-specific checks
 
@@ -212,3 +217,6 @@ could open in a tab. Daily updates fetch only the lists' own addresses.
 - **Issues already open that touch security:** #40 (MV2 webRequest), #44 (cosmetic hardening), #50
   (incognito exceptions), #52 (phishing tidy-up), #56 (Widevine follow-ups), #61 (proxy sweep). No
   duplicate was filed.
+- **Follow-ups:** #70 (redirect to a private address in the list fetcher, filed by this sweep), and one
+  issue for the onboarding page: Helium's `OnboardingMessageHandler` lets the page set any `helium.*` pref
+  and still registers `installExtension` (found while reviewing PR #63) (filed separately).
