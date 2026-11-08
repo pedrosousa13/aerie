@@ -169,10 +169,12 @@ pub(crate) fn is_match_all_exception(line: &str) -> bool {
 /// Addresses that no real exception rule should cover: the `.invalid` top
 /// level domain is reserved (RFC 2606), so no real site lives there. One
 /// has a path, one has a port and a query, one has no path at all.
-const PROBE_URLS: [(&str, &str); 3] = [
+const PROBE_URLS: [(&str, &str); 5] = [
     ("https://aerie-probe-1.invalid/aerie-probe/0f3a9c71", "aerie-probe-1.invalid"),
     ("http://aerie-probe-2.invalid:8080/x/y.z?q=1", "aerie-probe-2.invalid"),
     ("https://aerie-probe-3.invalid/", "aerie-probe-3.invalid"),
+    ("ws://aerie-probe-4.invalid/aerie-probe/socket", "aerie-probe-4.invalid"),
+    ("wss://aerie-probe-5.invalid/aerie-probe/socket", "aerie-probe-5.invalid"),
 ];
 
 /// The first party for the third-party probes.

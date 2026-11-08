@@ -90,6 +90,8 @@ ListCheck CheckList(base::span<const uint8_t> text, base::TimeDelta budget) {
   if (check.failure == ListFailure::kNone) {
     check.rules = static_cast<int>(
         std::min<uint32_t>(report.network_rules, 100'000'000));
+    check.ignored_exceptions = static_cast<int>(
+        std::min<uint32_t>(report.ignored_exceptions, 100'000'000));
     check.title = std::string(report.title);
   }
   return check;
@@ -105,6 +107,9 @@ BuildResult AdblockEngine::LoadLists(const std::vector<std::string>& lists,
   BuildResult result;
   result.failure = FromRust(report.status);
   result.failed_index = report.failed_index;
+  if (result.failure == ListFailure::kNone) {
+    result.ignored_exceptions = report.ignored_exceptions;
+  }
   return result;
 }
 

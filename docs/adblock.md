@@ -127,7 +127,7 @@ How it works:
 - **Exception rules that match every address are ignored.** One `@@` rule with no scope can switch
   off every block for a type of request, for every site, with no error. The core drops a rule when
   it applies to arbitrary addresses. It tests the effect, not the text: the rule is compiled alone
-  and asked about three reserved `.invalid` addresses, for each request type, as first party and
+  and asked about five reserved `.invalid` addresses (http, https, ws and wss), for each request type, as first party and
   third party, from a first party that no `$domain=` option names. A rule that applies to any of
   them is dropped. Examples: `@@http`, `@@|http`, `@@.`, `@@://`, `@@/./`, `@@||*`, `@@*$script`,
   `@@$image`. Host-anchored rules (`@@||host...`) are scoped by their host and are not tested.
@@ -136,10 +136,18 @@ How it works:
   list that has such rules still passes the check, because the engine ignores them, and
   `ListCheck::ignored_exceptions` counts them. A list made only of them has no network rules and
   fails with "no blocking rules". `aerie_adblock_compile` prints a warning on stderr for each
-  ignored rule (the first 20 per list). The browser does not show or log the warning yet: the FFI
-  and the filter page do not carry the count. The old rule that drops `@@` rules with an empty
-  pattern also drops scoped ones with an empty pattern (`@@$generichide,domain=...`); that is
-  unchanged.
+  ignored rule (the first 20 per list). The count also goes through the FFI (`ListReport` and
+  `BuildReport`), and the browser logs a `LOG(WARNING)` when it checks a downloaded list
+  (`FilterListManager`) and when it compiles the lists (`FilterEngineService`). The filter page
+  does not show it yet. The old rule that drops `@@` rules with an empty pattern also drops
+  scoped ones with an empty pattern (`@@$generichide,domain=...`); that is unchanged, and the
+  compile tool reports those under their own reason ("with no URL pattern").
+
+  Known limit: the probe set is fixed and public, so a rule written to dodge it gets through. A
+  rule that matches every address except those five probes (for example `@@.com^`, `@@||com^`,
+  or a regex that excludes `.invalid`) is not caught. The check stops mistakes and lazy abuse,
+  not a list author who has read this page. Lists are reviewed before they are pinned, and
+  custom lists are the user's own choice.
 - **Incognito.** An exception set from an off-the-record profile (toolbar button or
   `chrome://filters` in an incognito window) is kept in memory only, for that profile only
   (`FilterEngineService::SetSessionExceptions`, keyed by the profile). It is never written to

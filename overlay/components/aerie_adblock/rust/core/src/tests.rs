@@ -534,6 +534,17 @@ fn narrow_exception_rules_still_work() {
 }
 
 #[test]
+fn websocket_only_match_all_exceptions_are_ignored() {
+    for bad in ["@@|ws", "@@|wss", "@@|ws://", "@@|wss://", "@@ws", "@@wss://"] {
+        let report = sanitize_list_report(format!("||ads.example^\n{bad}\n").as_bytes());
+        assert_eq!(report.ignored_exceptions, [bad], "{bad}");
+    }
+    let list = "||ads.example^\n@@|ws\n";
+    let e = FilterEngine::from_lists([list.as_bytes()]).unwrap();
+    assert!(e.should_block(&req("wss://ads.example/s", "ads.example", "news.test", RequestKind::Websocket, true)));
+}
+
+#[test]
 fn ignored_exceptions_are_reported_for_logging() {
     let list = "||ads.example^\n@@http\n@@||ads.example/ok\n@@.\n";
     let report = sanitize_list_report(list.as_bytes());
