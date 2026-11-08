@@ -99,6 +99,9 @@
   <message name="IDS_AERIE_SETUP_LOOK_COLOUR" desc="Label above the colour choices.">
     Colour
   </message>
+  <message name="IDS_AERIE_SETUP_COLOR_NEUTRAL" desc="Name of the theme with no colour tint. It follows the light, dark or system appearance.">
+    Neutral
+  </message>
   <message name="IDS_AERIE_SETUP_COLOR_ALPENGLOW" desc="Name of a pink and orange colour theme.">
     Alpenglow
   </message>
@@ -113,9 +116,6 @@
   </message>
   <message name="IDS_AERIE_SETUP_COLOR_SAND" desc="Name of a warm beige colour theme.">
     Sandstone
-  </message>
-  <message name="IDS_AERIE_SETUP_COLOR_GRAPHITE" desc="Name of a grey colour theme.">
-    Graphite
   </message>
   <message name="IDS_AERIE_SETUP_PREVIEW_TAB" desc="Title of an example tab in the colour preview.">
     Trail report

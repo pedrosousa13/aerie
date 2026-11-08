@@ -71,10 +71,15 @@ void AerieThemeHandler::HandleSetThemeColor(const base::ListValue& args) {
     }
     ThemeService* themes = ThemeServiceFactory::GetForProfile(profile_);
     if (choice.seed) {
+      // Grayscale off first: a user colour does not apply while it is on.
       themes->SetIsGrayscale(false);
       themes->SetUserColorAndBrowserColorVariant(
           *choice.seed, ui::mojom::BrowserColorVariant::kTonalSpot);
     } else {
+      // Neutral. SetIsGrayscale(true) clears the user colour and sets the
+      // grayscale pref, the plain grey default. SetIsGrayscale(false) would
+      // leave Chromium's blue baseline palette. UseDefaultTheme() is not
+      // used: it also resets the appearance the page set.
       themes->SetIsGrayscale(true);
     }
     return;

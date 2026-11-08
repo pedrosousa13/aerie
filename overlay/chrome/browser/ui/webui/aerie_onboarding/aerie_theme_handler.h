@@ -18,19 +18,22 @@ class Profile;
 namespace aerie_onboarding {
 
 // The colours the setup page offers, by id. The page sends an id, never a raw
-// colour, so a page script cannot set an arbitrary theme. Graphite is
-// Chromium's grayscale theme, so it has no seed colour.
+// colour, so a page script cannot set an arbitrary theme. A choice with a seed
+// colour is a coloured theme. Neutral has no seed: it is the plain default, no
+// user colour and the grayscale pref on (Helium's default for a new profile).
+// It follows the light, dark or system appearance, so one entry serves both
+// modes.
 struct ThemeChoice {
   std::string_view id;
   std::optional<SkColor> seed;
 };
 inline constexpr ThemeChoice kThemeChoices[] = {
+    {"neutral", std::nullopt},
     {"alpenglow", SkColorSetRGB(0xF0, 0x46, 0x6F)},
     {"sky", SkColorSetRGB(0x2F, 0x6B, 0xFF)},
     {"moss", SkColorSetRGB(0x13, 0x84, 0x76)},
     {"dusk", SkColorSetRGB(0x8E, 0x4F, 0xE8)},
     {"sand", SkColorSetRGB(0xD9, 0x9A, 0x6C)},
-    {"graphite", std::nullopt},
 };
 
 // Applies the "Make it yours" step of aerie://setup (issue #46): light, dark
