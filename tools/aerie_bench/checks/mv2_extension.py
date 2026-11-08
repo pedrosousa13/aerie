@@ -14,6 +14,8 @@ proves the second half on a real build:
   background page keeps a list of what it cancelled (``aerieCancelled``); the check reads
   it from the background target and requires the URL in it, so it was the extension, not
   the Aerie engine, that cancelled the request;
+* before the fixture page loads, a probe fetch from the background page (``aerieProbe``) is
+  retried until the extension cancels it, which proves the listener is registered;
 * no target of the bundled uBlock Origin component exists.
 
 Neither fixture URL is on any filter list (checked against EasyList and
@@ -69,9 +71,13 @@ def judge(load: dict | None, load_error: str | None, marker, allowed_ran, outcom
     blocked = _outcome(outcomes, BLOCKED_PATH)
     page_cancels = [url for url in (extension_cancels or []) if PROBE_QUERY not in url]
     if ext_id and probe is not None and not probe.get("ready"):
-        problems.append(f"the extension's blocking webRequest listener never took effect: a fetch from its own "
-                        f"background page was not cancelled after {probe.get('attempts')} attempt(s) in "
-                        f"{probe.get('seconds')}s, so this is not about the page's request or the proxy order")
+        if not probe.get("attempts"):
+            problems.append("the extension's background page was not found, so its blocking webRequest "
+                            "listener could not be probed")
+        else:
+            problems.append(f"the extension's blocking webRequest listener never took effect: a fetch from its own "
+                            f"background page was not cancelled after {probe.get('attempts')} attempt(s) in "
+                            f"{probe.get('seconds')}s, so this is not about the page's request or the proxy order")
     if ext_id:
         if blocked is None:
             problems.append(f"the page never requested {BLOCKED_PATH}")

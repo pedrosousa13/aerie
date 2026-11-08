@@ -93,7 +93,7 @@ void MaybeProxyURLLoaderFactory(
     return;
   }
 
-  // Diagnostics for issue #40, off by default: run with
+  // This VLOG is the diagnostic for issue #40 (keep it). Off by default: run with
   // --enable-logging=stderr --vmodule=aerie_adblock_hook=1 to see which
   // factories get this proxy.
   VLOG(1) << "aerie_adblock: proxying factory type=" << static_cast<int>(type)

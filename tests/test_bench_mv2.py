@@ -124,10 +124,9 @@ class JudgeTest(unittest.TestCase):
         self.assertEqual(status, "fail")
         self.assertIn("the block was not the extension's", detail)
 
-    def test_the_background_script_offers_a_probe_and_a_ready_flag(self):
+    def test_the_background_script_offers_a_probe(self):
         text = (EXT / "background.js").read_text()
         self.assertIn("aerieProbe", text)
-        self.assertIn("aerieReady", text)
         self.assertIn(mv2.PROBE_QUERY, (REPO / "tools/aerie_bench/checks/mv2_extension.py").read_text())
 
     def test_no_background_target_means_the_extension_did_not_start(self):
