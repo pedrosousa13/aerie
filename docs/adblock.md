@@ -11,7 +11,8 @@ The engine, the proxy (including redirect hops) and the build steps are written,
 uBlock Origin is removed: `patches/helium-drop.txt` drops its six patches, `patches/helium-adapt.txt` replaces
 two Helium patches whose hunks sat next to it, and the build does not download its assets. Manifest V2 support is
 a different patch (`ungoogled-chromium/extensions-manifestv2.patch`) and stays, so users can install uBlock Origin
-themselves. On a real build, `./aerie bench --check ad_blocking --check mv2_extension` is the proof. The Patch Layer
+themselves. Aerie keeps MV2 only as long as Helium carries it. It does not patch MV2 back in or host MV2
+extensions ([ADR 0001](adr/0001-native-adblock-engine.md#amendment-issue-76-2026-11-08-manifest-v2)). On a real build, `./aerie bench --check ad_blocking --check mv2_extension` is the proof. The Patch Layer
 feature and every dropped patch are explained in [helium-dependency-ledger.md](helium-dependency-ledger.md).
 
 The two adapted Helium patches are pinned by sha256 to Helium's originals, so a Helium bump that touches them
