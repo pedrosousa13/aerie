@@ -66,9 +66,21 @@ fn a_single_label_entry_cannot_block_a_whole_tld() {
 #[test]
 fn rejects_malformed_entries() {
     for bad in [
-        "1.2.3.4", "10.0.0.1 ", "has space.example", "-lead.example", "trail-.example", "a..b.example",
-        ".leading.example", "ünicode.example", "ex!ample.test", "http://evil.example/path", "evil.example/path",
-        "evil.example:8080", "@@||evil.example^", "[::1]", "0.0.0.0",
+        "1.2.3.4",
+        "10.0.0.1 ",
+        "has space.example",
+        "-lead.example",
+        "trail-.example",
+        "a..b.example",
+        ".leading.example",
+        "ünicode.example",
+        "ex!ample.test",
+        "http://evil.example/path",
+        "evil.example/path",
+        "evil.example:8080",
+        "@@||evil.example^",
+        "[::1]",
+        "0.0.0.0",
     ] {
         assert_eq!(parse_domain_line(bad), None, "{bad:?} must be rejected");
     }
@@ -80,13 +92,24 @@ fn rejects_malformed_entries() {
 
 #[test]
 fn accepts_punycode_names() {
-    assert_eq!(parse_domain_line("xn--e1afmkfd.xn--p1ai").as_deref(), Some("xn--e1afmkfd.xn--p1ai"));
+    assert_eq!(
+        parse_domain_line("xn--e1afmkfd.xn--p1ai").as_deref(),
+        Some("xn--e1afmkfd.xn--p1ai")
+    );
 }
 
 #[test]
 fn ip_literals_and_odd_hosts_never_match() {
     let l = list();
-    for host in ["", ".", "127.0.0.1", "[::1]", "evil.example\0", "evil.example/x", " evil.example"] {
+    for host in [
+        "",
+        ".",
+        "127.0.0.1",
+        "[::1]",
+        "evil.example\0",
+        "evil.example/x",
+        " evil.example",
+    ] {
         assert!(!l.is_listed(host), "{host:?}");
     }
 }
@@ -113,7 +136,10 @@ fn garbage_bytes_never_panic() {
 #[test]
 fn oversize_list_is_refused() {
     let huge = vec![b'a'; MAX_LIST_BYTES + 1];
-    assert!(matches!(ProtectionList::from_lists([huge.as_slice()]), Err(LoadError::TooLarge)));
+    assert!(matches!(
+        ProtectionList::from_lists([huge.as_slice()]),
+        Err(LoadError::TooLarge)
+    ));
 }
 
 #[test]
@@ -131,14 +157,19 @@ fn serialize_round_trips_and_is_sorted_and_deduplicated() {
 
 #[test]
 fn several_lists_are_merged() {
-    let l = ProtectionList::from_lists([b"a.example\n".as_slice(), b"0.0.0.0 b.example\n".as_slice()]).unwrap();
+    let l =
+        ProtectionList::from_lists([b"a.example\n".as_slice(), b"0.0.0.0 b.example\n".as_slice()])
+            .unwrap();
     assert!(l.is_listed("a.example") && l.is_listed("b.example"));
 }
 
 #[test]
 fn load_rejects_bad_input_and_keeps_old_rules() {
     let mut l = list();
-    assert_eq!(l.load_serialized(b"not an engine"), Err(LoadError::BadEngine));
+    assert_eq!(
+        l.load_serialized(b"not an engine"),
+        Err(LoadError::BadEngine)
+    );
     assert_eq!(l.load_serialized(b""), Err(LoadError::BadEngine));
     let mut with_bad_line = SERIALIZED_MAGIC.to_vec();
     with_bad_line.extend_from_slice(b"fine.example\nhttp://evil.example/\n");
@@ -146,7 +177,10 @@ fn load_rejects_bad_input_and_keeps_old_rules() {
     let mut not_utf8 = SERIALIZED_MAGIC.to_vec();
     not_utf8.extend_from_slice(&[0xff, 0xfe, b'\n']);
     assert_eq!(l.load_serialized(&not_utf8), Err(LoadError::BadEngine));
-    assert!(l.is_listed("evil.example"), "a failed load must leave the old rules");
+    assert!(
+        l.is_listed("evil.example"),
+        "a failed load must leave the old rules"
+    );
 }
 
 #[test]

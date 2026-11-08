@@ -146,7 +146,10 @@ pub struct FilterEngine {
 }
 
 pub(crate) fn parse_options() -> ParseOptions {
-    ParseOptions { rule_types: RuleTypes::All, ..ParseOptions::default() }
+    ParseOptions {
+        rule_types: RuleTypes::All,
+        ..ParseOptions::default()
+    }
 }
 
 /// An exception rule with no pattern (`@@`, `@@$image`, `@@*`, `@@||`)
@@ -186,7 +189,10 @@ impl adblock::url_parser::ResolvesDomain for AerieDomainResolver {
             0 | 1 => return whole,
             n => {
                 let second = &host[dots[n - 2] + 1..last_dot];
-                let generic = matches!(second, "co" | "com" | "org" | "net" | "gov" | "edu" | "ac" | "or" | "ne" | "go");
+                let generic = matches!(
+                    second,
+                    "co" | "com" | "org" | "net" | "gov" | "edu" | "ac" | "or" | "ne" | "go"
+                );
                 if generic && tld.len() == 2 { 3 } else { 2 }
             }
         };
@@ -225,15 +231,25 @@ fn classify_line(line: &str) -> LineKind<'_> {
     if line.starts_with('!') {
         return LineKind::Network; // a comment; the parser ignores it
     }
-    let plain = [line.find("##").map(|i| (i, 2)), line.find("#@#").map(|i| (i, 3))]
-        .into_iter()
-        .flatten()
-        .min_by_key(|(i, _)| *i);
-    let other = NON_PLAIN_COSMETIC_MARKERS.iter().filter_map(|m| line.find(m)).min();
+    let plain = [
+        line.find("##").map(|i| (i, 2)),
+        line.find("#@#").map(|i| (i, 3)),
+    ]
+    .into_iter()
+    .flatten()
+    .min_by_key(|(i, _)| *i);
+    let other = NON_PLAIN_COSMETIC_MARKERS
+        .iter()
+        .filter_map(|m| line.find(m))
+        .min();
     match (plain, other) {
         (Some((i, len)), None) => LineKind::PlainHide(&line[i + len..]),
         (Some((i, len)), Some(o)) => {
-            if i < o { LineKind::PlainHide(&line[i + len..]) } else { LineKind::OtherCosmetic }
+            if i < o {
+                LineKind::PlainHide(&line[i + len..])
+            } else {
+                LineKind::OtherCosmetic
+            }
         }
         (None, Some(_)) => LineKind::OtherCosmetic,
         (None, None) => LineKind::Network,
@@ -257,7 +273,12 @@ pub fn is_safe_selector(selector: &str) -> bool {
         return false;
     }
     let lower = selector.to_ascii_lowercase();
-    if lower.contains("url(") || lower.contains(":style(") || lower.contains(":remove(") || lower.contains("/*") || lower.contains("*/") {
+    if lower.contains("url(")
+        || lower.contains(":style(")
+        || lower.contains(":remove(")
+        || lower.contains("/*")
+        || lower.contains("*/")
+    {
         return false;
     }
     let mut quote: Option<char> = None;
@@ -311,7 +332,9 @@ pub fn hide_stylesheet<S: AsRef<str>>(selectors: impl IntoIterator<Item = S>) ->
         .collect();
     let mut css = String::new();
     for (count, selector) in safe.iter().enumerate() {
-        if count >= MAX_COSMETIC_SELECTORS || css.len() + selector.len() + TAIL.len() > MAX_COSMETIC_CSS_BYTES {
+        if count >= MAX_COSMETIC_SELECTORS
+            || css.len() + selector.len() + TAIL.len() > MAX_COSMETIC_CSS_BYTES
+        {
             break;
         }
         css.push_str(selector);
@@ -331,7 +354,10 @@ fn page_tokens(text: &str) -> BTreeSet<&str> {
 
 fn is_web_url(url: &str) -> bool {
     url.len() <= MAX_URL_BYTES
-        && ["http://", "https://"].iter().any(|p| url.get(..p.len()).is_some_and(|s| s.eq_ignore_ascii_case(p)))
+        && ["http://", "https://"].iter().any(|p| {
+            url.get(..p.len())
+                .is_some_and(|s| s.eq_ignore_ascii_case(p))
+        })
 }
 
 /// Make list bytes safe to parse: lossy UTF-8, NULs and carriage returns
@@ -365,7 +391,9 @@ impl FilterEngine {
 
     fn from_filter_set(set: FilterSet) -> Self {
         install_domain_resolver();
-        FilterEngine { engine: Engine::new_with_filter_set(set) }
+        FilterEngine {
+            engine: Engine::new_with_filter_set(set),
+        }
     }
 
     /// Compile filter lists (EasyList syntax) into one engine. Lines that
@@ -442,7 +470,11 @@ impl FilterEngine {
         if resources.generichide {
             return String::new();
         }
-        let selectors = self.engine.hidden_class_id_selectors(page_tokens(classes), page_tokens(ids), &resources.exceptions);
+        let selectors = self.engine.hidden_class_id_selectors(
+            page_tokens(classes),
+            page_tokens(ids),
+            &resources.exceptions,
+        );
         hide_stylesheet(selectors)
     }
 }
