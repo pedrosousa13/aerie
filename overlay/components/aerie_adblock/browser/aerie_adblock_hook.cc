@@ -9,6 +9,7 @@
 
 #include "base/command_line.h"
 #include "base/functional/bind.h"
+#include "base/logging.h"
 #include "base/memory/self_deleting.h"
 #include "base/notreached.h"
 #include "base/task/thread_pool.h"
@@ -91,6 +92,12 @@ void MaybeProxyURLLoaderFactory(
   if (!service) {
     return;
   }
+
+  // Diagnostics for issue #40, off by default: run with
+  // --enable-logging=stderr --vmodule=aerie_adblock_hook=1 to see which
+  // factories get this proxy.
+  VLOG(1) << "aerie_adblock: proxying factory type=" << static_cast<int>(type)
+          << " frame=" << (frame ? "yes" : "no");
 
   auto [receiver, remote] = factory_builder.Append();
   // The factory owns itself: it is deleted when its Mojo pipes close.
