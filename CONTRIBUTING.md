@@ -8,6 +8,8 @@ python3 -m unittest discover -s tests -t . -v
 
 Python 3.11 or newer. The tests need `patch`, `tar` and `zstd` on the host, and they build their own tiny source trees. They do not download anything and do not touch a build root.
 
+The C++ unit tests need a prepared source tree and a compiler: `./aerie test-cpp` builds and runs them (see the README, "C++ unit tests"). Unlike the build for the browser, it downloads one archive of Chromium's test fonts from Google storage, pinned by the sha256 in the tree's `DEPS`.
+
 Tests for the Rust side need cargo, a C++ compiler and crates.io, so they are off by default: `AERIE_TEST_CARGO=1 python3 -m unittest tests.test_adblock_rust -v`.
 
 ## The Patch Layer

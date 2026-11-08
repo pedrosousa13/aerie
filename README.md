@@ -11,7 +11,7 @@ A Google-free, hardened Chromium browser built on top of
 | `helium-chromium/` | Submodule: Helium core ([imputnet/helium](https://github.com/imputnet/helium)) — patches, build utilities, `flags.gn`, `downloads.ini`. Same name and place as in Helium's own platform repos. |
 | `helium-linux/` | Submodule: Helium's Linux platform repo ([imputnet/helium-linux](https://github.com/imputnet/helium-linux)) — Linux patches, `flags.linux.gn`, Linux tarball layer. |
 | `helium.lock` | The pinned Helium release, both submodule commits, and the sha256 of every download. |
-| `aerie` | The one entry point: `./aerie build`, `./aerie prune`, `./aerie info`. |
+| `aerie` | The one entry point: `./aerie build`, `./aerie test-cpp`, `./aerie prune`, `./aerie info`. |
 | `tools/aerie_build/` | The build tooling (Python 3.11+, standard library only). |
 | `tools/requirements.txt` | Hash-pinned Python packages for Helium's utilities (Pillow), installed into the build root. |
 | `tools/aerie_bench/` | The Aerie Bench: `./aerie bench` launches a built browser, drives it and records its traffic. See [docs/bench.md](docs/bench.md). |
@@ -168,6 +168,34 @@ python3 -m unittest discover -s tests -t . -v
 ```
 
 Standard library only; runs in well under a second.
+
+#### C++ unit tests
+
+```sh
+./aerie test-cpp                          # build and run all three
+./aerie test-cpp --target components_unittests
+```
+
+`./aerie test-cpp` prepares the source tree like `./aerie build`, then builds
+`aerie_adblock_unittests`, `aerie_adblock_content_unittests` and
+`components_unittests` in the same `out/Default` and runs them. It does not
+build `chrome`. `components_unittests` runs with
+`--gtest_filter=*WidevineOptIn*`, because only those cases are Aerie's. Every
+selected binary runs even if one fails, a summary lists each result, and the
+exit code is non-zero if any binary failed or is missing. It takes the same
+`--build-root`, `-j`, `--ccache-size`, `--source` and `--clean` options as
+`./aerie build`.
+
+Test targets need Chromium's test fonts, which Helium prunes. For this command
+only, the build downloads the font archive that the tree's `DEPS` names
+(entry `src/third_party/test_fonts/test_fonts`: bucket, object name and
+sha256 all come from `DEPS`) over https from Google storage
+(`storage.googleapis.com/chromium-fonts`), checks the sha256, keeps it in
+`downloads/` and unpacks it into `third_party/test_fonts/test_fonts/`. A
+checksum mismatch stops the build, renames the file to `*.rejected` and unpacks
+nothing. `./aerie build` never fetches the fonts, the fonts are not part of the
+browser, and `./aerie prune` removes the cached archive (the next test run
+downloads it again).
 
 ### Updating Helium
 

@@ -7,7 +7,11 @@ and what Aerie does about it. The proof is the Bench check `zero_traffic`
 ([bench.md](bench.md)); the source gates (`./aerie patches gates`) keep the
 text of the fixes from regressing between Bench runs.
 
-"Dummy origin" below is `https://helium-services-are-disabled.qjz9zk`. The
+This page is about the browser. One build-time download is outside the promise:
+`./aerie test-cpp`, a developer command, fetches Chromium's test fonts from
+`storage.googleapis.com/chromium-fonts`, pinned by the sha256 in the tree's
+`DEPS`. `./aerie build` never does, and the fonts are not part of the browser.
+ is `https://helium-services-are-disabled.qjz9zk`. The
 network stack refuses it before any DNS query (ungoogled-chromium's
 `block-trk-and-subdomains.patch`).
 
