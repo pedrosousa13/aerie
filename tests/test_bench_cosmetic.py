@@ -136,6 +136,12 @@ class GenericSheetCountTest(unittest.TestCase):
         self.assertIn("cssRules", script)
         self.assertIn('".ad-slot"', script)
 
+    def test_the_script_matches_the_exact_rule_selector_not_a_substring(self):
+        script = cf.generic_sheet_count_script(".ad-slot")
+        self.assertIn("r.selectorText===p", script)
+        self.assertNotIn("indexOf", script)
+        self.assertNotIn("cssText", script)
+
 
 class MeasureScriptTest(unittest.TestCase):
     def test_script_embeds_each_selector_as_json(self):

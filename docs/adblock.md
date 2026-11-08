@@ -151,8 +151,8 @@ tab ──> AerieCosmeticTabHelper ──> FilterEngineService ──posts──
   the generic rules that do not start with a class or id) and injects it. At
   `DOMContentLoaded` and again at load it reads the frame's class names and ids, asks for the
   generic rules that match, and injects those. A frame has one such generic sheet: the second
-  pass replaces the rules of the first (the sheet is kept in the isolated world's global). The
-  page's own sheet for the site is separate. The limits on what is read from a page (5000
+  pass replaces the rules of the first (the sheet is kept in the isolated world's global). Aerie's
+  per-page (site) sheet is separate. The limits on what is read from a page (5000
   class names, 5000 ids, 256 bytes each) are the Rust core's `MAX_PAGE_TOKENS` and
   `MAX_TOKEN_BYTES`; the C++ constants in `cosmetic_scripts.h` must equal them, and
   `tests/test_cosmetic_limits.py` fails if they do not.

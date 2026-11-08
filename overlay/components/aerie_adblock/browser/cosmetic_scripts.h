@@ -56,7 +56,7 @@ enum class SheetKind {
 // For kGeneric the script keeps its sheet in the isolated world's global, so
 // the page cannot see it, and puts the new rules in that sheet.
 std::u16string BuildInjectionScript(std::string_view stylesheet,
-                                    SheetKind kind = SheetKind::kPage);
+                                    SheetKind kind);
 
 // Script whose result is [classes, ids]: the class names and the ids in the
 // document, each a space separated string, at most kMaxPageTokens of each.

@@ -15,13 +15,15 @@ namespace aerie_adblock {
 namespace {
 
 TEST(CosmeticScriptsTest, NoStylesheetNoScript) {
-  EXPECT_TRUE(BuildInjectionScript("").empty());
-  EXPECT_TRUE(BuildInjectionScript("\xc3\xa9{display:none}").empty());
+  EXPECT_TRUE(BuildInjectionScript("", SheetKind::kPage).empty());
+  EXPECT_TRUE(
+      BuildInjectionScript("\xc3\xa9{display:none}", SheetKind::kPage)
+          .empty());
 }
 
 TEST(CosmeticScriptsTest, StylesheetIsEmbeddedAsAJsonStringLiteral) {
   std::string script = base::UTF16ToUTF8(
-      BuildInjectionScript(".ad{display:none!important}\n"));
+      BuildInjectionScript(".ad{display:none!important}\n", SheetKind::kPage));
   EXPECT_NE(script.find("replaceSync(css)"), std::string::npos);
   EXPECT_NE(script.find("(\".ad{display:none!important}\\n\");"),
             std::string::npos);
@@ -30,7 +32,8 @@ TEST(CosmeticScriptsTest, StylesheetIsEmbeddedAsAJsonStringLiteral) {
 // Whatever the text holds, it cannot close the string literal and run as code.
 TEST(CosmeticScriptsTest, HostileTextStaysInsideTheLiteral) {
   const std::string hostile = "\");alert(1);//\\\"</script><script>x";
-  std::string script = base::UTF16ToUTF8(BuildInjectionScript(hostile));
+  std::string script =
+      base::UTF16ToUTF8(BuildInjectionScript(hostile, SheetKind::kPage));
   EXPECT_EQ(script.find("alert(1);//\\\"</script>"), std::string::npos);
   EXPECT_EQ(script.find("</script>"), std::string::npos);
   EXPECT_NE(script.find("\\\");alert(1);//\\\\\\\""), std::string::npos);
@@ -71,7 +74,7 @@ TEST(CosmeticScriptsTest, GenericSheetIsReusedNotAddedAgain) {
 
   // The page sheet is a new sheet each time and keeps no state.
   std::string page = base::UTF16ToUTF8(
-      BuildInjectionScript(".ad{display:none!important}"));
+      BuildInjectionScript(".ad{display:none!important}", SheetKind::kPage));
   EXPECT_EQ(page.find("__aerieGenericSheet"), std::string::npos);
   EXPECT_NE(page.find("var s=new CSSStyleSheet()"), std::string::npos);
 }

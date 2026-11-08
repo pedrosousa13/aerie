@@ -20,7 +20,7 @@ the layout over DevTools:
 * the frame has one generic hide sheet, not one per pass (DOMContentLoaded and
   load). The sheets are counted from a separate isolated world made over
   DevTools, because the page hides ``adoptedStyleSheets`` in its own world: a
-  sheet counts if one of its rules names ``generic_sheet_probe``, a selector that
+  sheet counts if a rule's selector text is exactly ``generic_sheet_probe``, a selector that
   only the generic rules hide.
 
 The decision logic is in plain functions (``judge``) that the tests run
@@ -61,10 +61,10 @@ def measure_script(selectors: list[str]) -> str:
 
 
 def generic_sheet_count_script(probe: str) -> str:
-    """JS (for an isolated world) that counts the adopted sheets that have a rule naming `probe`."""
-    return ("(function(p){var n=0;for(var s of document.adoptedStyleSheets){var t='';"
-            "try{for(var r of s.cssRules){t+=r.cssText+'\\n';}}catch(e){}"
-            "if(t.indexOf(p)>=0){n++;}}return n;})(" + json.dumps(probe) + ")")
+    """JS (for an isolated world) that counts the adopted sheets with a rule whose selector is exactly `probe`."""
+    return ("(function(p){var n=0;for(var s of document.adoptedStyleSheets){var f=false;"
+            "try{for(var r of s.cssRules){if(r.selectorText===p){f=true;break;}}}catch(e){}"
+            "if(f){n++;}}return n;})(" + json.dumps(probe) + ")")
 
 
 def histogram_totals(hist: dict | None) -> dict | None:
