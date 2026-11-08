@@ -6,8 +6,10 @@
 * Negative control: a second browser whose Local State has ``aerie.widevine.enabled`` must list the
   Widevine component. That proves the page reader can see Widevine, so its absence above means
   something. This works offline: the component is registered even if its download is refused.
-* ``online_seconds`` > 0 (``--widevine-online SEC``) also waits that long, in the opted-in browser,
-  for the key system to become available. It needs a network that reaches the component update
+* ``online_seconds`` > 0 (``--widevine-online SEC``) also waits up to that long for an opted-in
+  browser to download Widevine, restarts it on the same profile (Linux registers a newly installed
+  Widevine at the next start) and asks for the key system. It uses ``Session.new_profile`` and
+  ``variant(profile=...)``, the Bench's restart-on-one-profile support. It needs a network that reaches the component update
   service, so it is off by default and the default Bench keeps its zero-traffic guarantee.
 """
 
@@ -21,19 +23,27 @@ from ..profile import LOCAL_STATE_KEY
 from ..session import CheckResult, Session
 from . import register
 
+HINT_FILE = "latest-component-updated-widevine-cdm"  # written once the component is installed
 SETTLE_SECONDS = 1.0  # the components list fills in after the page shell
 OPT_IN_PREFS = {LOCAL_STATE_KEY: {"aerie": {"widevine": {"enabled": True}}}}
 
+# The query asks for VP9 in WebM first: it needs no proprietary codec in the build. H.264 in MP4
+# is the second try. "Available" means one of them was granted; `config` says which.
 KEY_SYSTEM_JS = """(async () => {
-  try {
-    await navigator.requestMediaKeySystemAccess('com.widevine.alpha', [{
-      initDataTypes: ['cenc'],
-      videoCapabilities: [{contentType: 'video/mp4; codecs="avc1.42E01E"'}]
-    }]);
-    return {available: true};
-  } catch (e) {
-    return {available: false, error: String((e && e.name) || e)};
+  const configs = [
+    {initDataTypes: ['webm'], videoCapabilities: [{contentType: 'video/webm; codecs="vp9"'}]},
+    {initDataTypes: ['cenc'], videoCapabilities: [{contentType: 'video/mp4; codecs="avc1.42E01E"'}]},
+  ];
+  let last = null;
+  for (const config of configs) {
+    try {
+      await navigator.requestMediaKeySystemAccess('com.widevine.alpha', [config]);
+      return {available: true, config: config.videoCapabilities[0].contentType};
+    } catch (e) {
+      last = String((e && e.name) || e);
+    }
   }
+  return {available: false, error: last};
 })()"""
 
 # All text of chrome://components, shadow roots included.
@@ -91,7 +101,7 @@ def judge(obs: dict) -> tuple[str, str]:
     detail = ("Widevine absent on a fresh profile (key system refused, component not registered); "
               "present in the component list once opted in")
     if online is not None:
-        detail += ", and available to a DRM page after the download"
+        detail += ", and, after the download and a restart, available to a DRM page"
         hosts = obs.get("online_hosts")
         if hosts is not None:
             detail += f" (the opted-in browser contacted: {', '.join(hosts) or 'no external host'})"
@@ -110,30 +120,49 @@ class WidevineOptIn:
 
     def observe(self, session: Session) -> dict:
         main = {"key_system": ask_key_system(session), "listed": components_list_widevine(session)}
-        # Online mode must reach Google, so this one browser gets the real resolver (only the
-        # fixture names stay mapped) and writes its own NetLog, to say which hosts it contacted.
-        # The Bench's default rules refuse every non-loopback host, and Widevine could never download.
-        flags: tuple[str, ...] = ()
-        online_log = session.out_dir / "widevine-online-netlog.json" if self.online_seconds > 0 else None
-        if online_log is not None:
-            flags = ("--host-resolver-rules=MAP *.bench.test 127.0.0.1", f"--log-net-log={online_log}")
-        with session.variant(flags, OPT_IN_PREFS) as opted_in:
+        with session.variant((), OPT_IN_PREFS) as opted_in:
             control = {"listed": components_list_widevine(opted_in)}
-            obs = {"main": main, "control": control}
-            if self.online_seconds > 0:
-                obs["online"] = self._wait_available(opted_in)
+        obs = {"main": main, "control": control}
         if self.online_seconds > 0:
-            hosts = sorted({r["host"] for r in netlog.external(netlog.parse_file(online_log)) if r.get("host")})
-            obs["online_hosts"] = hosts
+            obs.update(self._online(session))
         return obs
 
-    def _wait_available(self, session: Session) -> dict:
+    def _online(self, session: Session) -> dict:
+        """Opt in, let the browser download Widevine from Google, restart it, ask for the key system.
+
+        Two things only a real run showed. The Bench's default resolver rules refuse every
+        non-loopback host, so these browsers keep only the fixture-name mapping. And on Linux a
+        newly installed Widevine is registered at the next start (the installer only writes the
+        hint file), so the proof restarts the browser on the same profile after the install.
+        Each launch writes its own NetLog, to say which hosts it contacted.
+        """
+        if not hasattr(session, "new_profile"):
+            raise RuntimeError("--widevine-online needs Session.new_profile (the Bench's restart-on-one-profile "
+                               "support, which arrives with issue #10)")
+        logs = [session.out_dir / f"widevine-online-netlog-{n}.json" for n in (1, 2)]
+
+        def flags(log):
+            return ("--host-resolver-rules=MAP *.bench.test 127.0.0.1", f"--log-net-log={log}")
+
         deadline = time.monotonic() + self.online_seconds
+        with session.new_profile() as prof:
+            hint = prof.path / "WidevineCdm" / HINT_FILE
+            with session.variant(flags(logs[0]), OPT_IN_PREFS, profile=prof):
+                while not hint.exists() and time.monotonic() < deadline:
+                    time.sleep(2.0)
+                downloaded = hint.exists()
+            with session.variant(flags(logs[1]), None, profile=prof) as restarted:
+                answer = (self._wait_available(restarted, deadline) if downloaded
+                          else {"available": False, "error": "Widevine was not downloaded in time"})
+        hosts = sorted({r["host"] for log in logs for r in netlog.external(netlog.parse_file(log)) if r.get("host")})
+        return {"online": answer, "online_downloaded": downloaded, "online_hosts": hosts}
+
+    def _wait_available(self, session: Session, deadline: float) -> dict:
         while True:
             answer = ask_key_system(session)
             if answer.get("available") or time.monotonic() >= deadline:
                 return answer
-            time.sleep(5.0)
+            time.sleep(3.0)
 
     def run(self, session: Session) -> CheckResult:
         obs = self.observe(session)

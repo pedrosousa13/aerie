@@ -117,9 +117,26 @@ class ScriptedSession:
     def wait_for(self, expression, timeout=15.0, interval=0.25):
         return True
 
-    def variant(self, extra_flags=(), prefs=None):
+    def new_profile(self):
+        outer = self
+
+        class Prof:
+            def __enter__(self_):
+                outer.profile = SimpleNamespace(path=Path(tempfile.mkdtemp()))
+                return outer.profile
+
+            def __exit__(self_, *a):
+                return False
+        return Prof()
+
+    def variant(self, extra_flags=(), prefs=None, profile=None):
         self.variants.append(prefs)
         self.variant_flags = getattr(self, "variant_flags", []) + [tuple(extra_flags)]
+        if profile is not None and self.variant_session is not None and len(self.variants) == 2:
+            # the first online launch "downloads" Widevine: the installer writes the hint file
+            hint = profile.path / "WidevineCdm"
+            hint.mkdir(exist_ok=True)
+            (hint / wv.HINT_FILE).write_text("{}")
         outer = self
 
         class Ctx:
@@ -147,16 +164,39 @@ class ObserveTest(unittest.TestCase):
         self.assertEqual(main.variants, [{profile.LOCAL_STATE_KEY: {"aerie": {"widevine": {"enabled": True}}}}])
         self.assertNotIn("online", obs)
 
-    def test_online_option_asks_the_opted_in_browser_for_widevine(self):
+    def test_online_option_restarts_after_the_download_and_asks_for_widevine(self):
         main = ScriptedSession([{"available": False}, "CRLSet"])
-        control = ScriptedSession(["Widevine", {"available": True}])
+        control = ScriptedSession(["Widevine", {"available": False}, {"available": True}])
         main.variant_session = control
-        obs = wv.WidevineOptIn(online_seconds=1).observe(main)
+        obs = wv.WidevineOptIn(online_seconds=30).observe(main)
         self.assertEqual(obs["online"], {"available": True})
+        self.assertTrue(obs["online_downloaded"])
         self.assertEqual(obs["online_hosts"], [])
-        flags = main.variant_flags[-1]
-        self.assertIn("--host-resolver-rules=MAP *.bench.test 127.0.0.1", flags)
-        self.assertTrue(any(f.startswith("--log-net-log=") for f in flags))
+        # control launch, then the online launch (opted in), then its restart (prefs kept in the profile)
+        self.assertEqual(len(main.variants), 3)
+        self.assertIsNone(main.variants[2])
+        for flags in main.variant_flags[1:]:
+            self.assertIn("--host-resolver-rules=MAP *.bench.test 127.0.0.1", flags)
+            self.assertTrue(any(f.startswith("--log-net-log=") for f in flags))
+
+    def test_online_option_reports_a_download_that_never_finished(self):
+        main = ScriptedSession([{"available": False}, "CRLSet"])
+        main.variant_session = ScriptedSession(["Widevine"])
+        main.variant = lambda *a, **k: _NullCtx(main.variant_session)  # never writes the hint
+        obs = wv.WidevineOptIn(online_seconds=0.1).observe(main)
+        self.assertFalse(obs["online_downloaded"])
+        self.assertFalse(obs["online"]["available"])
+
+
+class _NullCtx:
+    def __init__(self, value):
+        self.value = value
+
+    def __enter__(self):
+        return self.value
+
+    def __exit__(self, *a):
+        return False
 
 
 class RegistryTest(unittest.TestCase):
