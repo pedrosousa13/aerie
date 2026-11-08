@@ -4,7 +4,7 @@
 
 //! The protection category of the Filter Engine: phishing and malware domains.
 //!
-//! These lists (Phishing Army, URLhaus) are lists of host names, not of URL
+//! These lists (phishing-filter, URLhaus) are lists of host names, not of URL
 //! rules, so the category is a set of domains instead of adblock-rust rules. A
 //! listed domain covers all its subdomains. The same rules as for the ad
 //! engine apply: nothing here panics on any input, lists and serialized data
@@ -16,8 +16,8 @@
 use crate::{LoadError, MAX_LINE_BYTES, MAX_LIST_BYTES, MAX_SERIALIZED_BYTES};
 use std::collections::HashSet;
 
-/// Most domains one engine holds. Phishing Army has about 150 000; a list
-/// that has ten times that is not the list the build pinned.
+/// Most domains one engine holds. phishing-filter has about 20 000; a list
+/// that has a hundred times that is not the list the build pinned.
 pub const MAX_ENTRIES: usize = 2_000_000;
 
 /// First line of the serialized form. It names the format so that bytes of

@@ -120,8 +120,8 @@ action("engine") {
 
 # The phishing and malware domain list, compiled (the protection category). Same
 # rules as "engine": the list is committed and hash-checked, and a missing,
-# empty or truncated list fails the build. 50000 is a floor, not a size: Phishing
-# Army has about 145000 domains.
+# empty or truncated list fails the build. 10000 is a floor, not a size:
+# the pinned phishing-filter hosts list has about 20000 domains.
 _protection_out = "$target_gen_dir/engine/aerie_protection_engine.dat"
 _protection_tool = ":aerie_protection_compile($host_toolchain)"
 _protection_tool_exe = get_label_info(_protection_tool, "root_out_dir") +
@@ -136,7 +136,7 @@ action("protection_engine") {
   ]
   inputs = [
     "protection_selfcheck.json",
-    "$_lists_dir/phishing_army.txt",
+    "$_lists_dir/phishing_filter_hosts.txt",
     "$_lists_dir/protection_lists.lock.json",
     _protection_tool_exe,
   ]
@@ -151,9 +151,9 @@ action("protection_engine") {
     "--lock",
     rebase_path("$_lists_dir/protection_lists.lock.json", root_build_dir),
     "--min-entries",
-    "50000",
+    "10000",
     "--list",
-    rebase_path("$_lists_dir/phishing_army.txt", root_build_dir),
+    rebase_path("$_lists_dir/phishing_filter_hosts.txt", root_build_dir),
   ]
 }
 

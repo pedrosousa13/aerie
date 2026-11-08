@@ -1,5 +1,14 @@
 {
-  "comment": "Build-time self-checks for the compiled protection engine (compile_protection.py passes them to aerie_protection_compile). They guard against an empty, truncated or wrongly parsed phishing list. 'listed': hosts the pinned list must cover. Phishing Army publishes amiprotected.it and www.amiprotected.it as harmless filtering test domains; they are always in the list. 'unlisted': large legitimate sites that must never be listed (a list that holds them is broken or hostile).",
-  "listed": ["amiprotected.it", "www.amiprotected.it", "sub.amiprotected.it"],
-  "unlisted": ["example.com", "www.wikipedia.org", "github.com", "news.test"]
+  "comment": "Build-time self-checks for the compiled protection engine (compile_protection.py passes them to aerie_protection_compile). They guard against an empty, truncated or wrongly parsed phishing list. 'listed': hosts the pinned list must cover. The pinned list has no harmless test domain, so these are two real phishing hosts from the pinned file (2026-11-08) and a subdomain of one. ./aerie lists update checks them against the new list before it pins it, and stops when one dropped out: pick another host that the new file holds. 'unlisted': large legitimate sites that must never be listed (a list that holds them is broken or hostile).",
+  "listed": [
+    "0-1-x.16215785.xyz",
+    "023kew6.top",
+    "sub.023kew6.top"
+  ],
+  "unlisted": [
+    "example.com",
+    "www.wikipedia.org",
+    "github.com",
+    "news.test"
+  ]
 }

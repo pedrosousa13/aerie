@@ -3,12 +3,12 @@
   "comment": "Phishing and malware domain lists, pinned by hash like the ad lists. ./aerie lists update refreshes them from the publisher after a person reviews the diff (see docs/phishing-protection.md). URLhaus is not pinned yet: its public feed is gone.",
   "lists": [
     {
-      "name": "Phishing Army",
-      "file": "phishing_army.txt",
-      "url": "https://phishing.army/download/phishing_army_blocklist.txt",
-      "sha256": "1b7210dd3d17b9eb1900c493e1aae1197381b0916ec8c397a1e3241d30e1bb1e",
-      "size": 3137481,
-      "version": "2026-11-07T17:00:30Z"
+      "name": "Phishing Hosts Blocklist",
+      "file": "phishing_filter_hosts.txt",
+      "url": "https://malware-filter.gitlab.io/malware-filter/phishing-filter-hosts.txt",
+      "sha256": "74c70a8906fcf6cd2dc0bc81f06c6347f88fec8726b03a1b2dee0b90d015e586",
+      "size": 743920,
+      "version": "2026-11-08T00:02:34Z"
     }
   ]
 }

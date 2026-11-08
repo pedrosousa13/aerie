@@ -199,7 +199,7 @@ it. The impact is a blind GET with no credentials and no response to the publish
 | ccache | minisign, publisher key in `tools/keys/` | the file is renamed `.rejected` and the build stops |
 | Python packages | `--require-hashes`, wheels only | pip fails |
 | adblock crates | crates.io sha256 in `rust/crates.lock.toml`, vendored files compared byte for byte | the build stops |
-| EasyList, EasyPrivacy, Phishing Army (build) | sha256, size, version header, checked twice | the build stops |
+| EasyList, EasyPrivacy, phishing-filter (build) | sha256, size, version header where the list has one, checked twice | the build stops |
 | `./aerie lists update` | trust on first use, then review | https to http redirect followed (**#67**) |
 | List updates at run time | TLS only, then `check_list` | the old copy is kept (**#64** for the guard gap) |
 | Widevine CDM | upstream installer's pinned key hash | not loaded |

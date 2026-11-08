@@ -5,7 +5,7 @@
 use super::*;
 
 const PHISH: &str = "\
-# Title: Phishing Army (test copy)
+# Title: Example list (test copy)
 # Entries: 4
 evil.example
 Login.Bank-Secure.example.
