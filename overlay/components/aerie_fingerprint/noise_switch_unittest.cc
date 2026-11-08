@@ -23,7 +23,12 @@ namespace aerie_fingerprint {
 
 namespace {
 
-constexpr char kExceptionsPref[] = "profile.content_settings.exceptions";
+// The pref that holds the HELIUM_NOISE exceptions. Each content settings type
+// has its own registered pref: the parent "profile.content_settings.exceptions"
+// is a path, not a registered pref, and reading it is a CHECK failure. The type
+// name "helium-noise" is stored with '_' in place of '-'.
+constexpr char kHeliumNoisePref[] =
+    "profile.content_settings.exceptions.helium_noise";
 
 class NoiseSwitchTest : public testing::Test {
  protected:
@@ -64,8 +69,7 @@ TEST_F(NoiseSwitchTest, ASwitchSetOffTheRecordCoversTheSiteAndStaysInMemory) {
 
   // The regular profile never sees it, and nothing reached the preferences.
   EXPECT_EQ(CONTENT_SETTING_ALLOW, Get(regular.get(), "https://x.example.com/"));
-  EXPECT_EQ(nullptr,
-            prefs_.GetDict(kExceptionsPref).FindDict("helium_noise"));
+  EXPECT_TRUE(prefs_.GetDict(kHeliumNoisePref).empty());
 
   // A later off-the-record map (a new window) starts without it.
   auto otr_later = MakeMap(/*off_the_record=*/true);
@@ -83,10 +87,8 @@ TEST_F(NoiseSwitchTest, ARegularSwitchIsStoredUnderTheHeliumNoisePrefKey) {
       ContentSettingsPattern::Wildcard(), ContentSettingsType::HELIUM_NOISE,
       CONTENT_SETTING_BLOCK);
 
-  const base::DictValue* rules =
-      prefs_.GetDict(kExceptionsPref).FindDict("helium_noise");
-  ASSERT_TRUE(rules);
-  EXPECT_TRUE(rules->FindDict("http://[*.]a.localhost,*"));
+  EXPECT_TRUE(
+      prefs_.GetDict(kHeliumNoisePref).FindDict("http://[*.]a.localhost,*"));
   regular->ShutdownOnUIThread();
 }
 
