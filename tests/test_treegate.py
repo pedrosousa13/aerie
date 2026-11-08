@@ -182,10 +182,52 @@ ANALYSER_NOISE_OK = """struct AudioAnalyzerNoiseState {
 """
 AUDIO_GOOD = {treegate.AUDIO_BUFFER_PATH: AUDIO_NOISE_OK, treegate.REALTIME_ANALYSER_PATH: ANALYSER_NOISE_OK}
 
+GPU_WEBGL_OK = """String UnmaskedGpuString() {
+  if (base::FeatureList::IsEnabled(blink::features::kSpoofWebGLInfo)) return {};
+}
+    case WebGLDebugRendererInfo::kUnmaskedRendererWebgl:
+      if (ExtensionEnabled(kWebGLDebugRendererInfoName)) {
+        return WebGLAny(
+            script_state,
+            UnmaskedGpuString(script_state, /*vendor=*/false,
+                              blink::features::kSpoofWebGLRendererParam,
+                              String(ContextGL()->GetString(GL_VENDOR)),
+                              String(ContextGL()->GetString(GL_RENDERER))));
+      }
+      return ScriptValue::CreateNull(script_state->GetIsolate());
+    case WebGLDebugRendererInfo::kUnmaskedVendorWebgl:
+      if (ExtensionEnabled(kWebGLDebugRendererInfoName)) {
+        return WebGLAny(
+            script_state,
+            UnmaskedGpuString(script_state, /*vendor=*/true,
+                              blink::features::kSpoofWebGLVendorParam,
+                              String(ContextGL()->GetString(GL_VENDOR)),
+                              String(ContextGL()->GetString(GL_RENDERER))));
+      }
+      return ScriptValue::CreateNull(script_state->GetIsolate());
+"""
+GPU_ADAPTER_OK = """GPUAdapterInfo* GPUAdapter::CreateAdapterInfoForAdapter() {
+  const bool masked = aerie_gpu_info::ShouldMaskGpuInfo(kind, a, b, c);
+  const String vendor = masked ? g_empty_string : vendor_;
+  const String architecture = masked ? g_empty_string : architecture_;
+  const String device = masked ? g_empty_string : device_;
+  const String description = masked ? g_empty_string : description_;
+  info = MakeGarbageCollected<GPUAdapterInfo>(
+      vendor, architecture, subgroup_min_size_, subgroup_max_size_,
+      is_fallback_adapter, device, description, driver,
+      FromDawnEnum(backend_type_));
+  info = MakeGarbageCollected<GPUAdapterInfo>(
+      vendor, architecture, subgroup_min_size_, subgroup_max_size_,
+      is_fallback_adapter);
+}
+"""
+GPU_GOOD = {treegate.WEBGL_CONTEXT_PATH: GPU_WEBGL_OK, treegate.GPU_ADAPTER_PATH: GPU_ADAPTER_OK}
+
 GOOD = {
     **JS_OPT_GOOD,
     **SERVICES_UI_GOOD,
     **AUDIO_GOOD,
+    **GPU_GOOD,
     "chrome/browser/component_updater/widevine_cdm_component_installer.cc": WIDEVINE_INSTALLER_OK,
     "chrome/browser/component_updater/registration.cc": WIDEVINE_REG_OK,
     "components/update_client/update_checker.cc": WIDEVINE_CHECKER_OK,
@@ -352,6 +394,33 @@ class DefaultsGatesTest(TreeCase):
             self.write({ana: text})
             self.assertEqual([f.path for f in treegate.check_audio_noise_stable(self.root)], [ana])
 
+    def test_webgl_gpu_strings_must_go_through_the_masking_helper(self):
+        self.write(GPU_GOOD)
+        self.assertEqual(treegate.check_gpu_masking(self.root, require=True), [])
+        path = treegate.WEBGL_CONTEXT_PATH
+        raw = GPU_WEBGL_OK.replace(
+            """UnmaskedGpuString(script_state, /*vendor=*/false,
+                              blink::features::kSpoofWebGLRendererParam,
+                              String(ContextGL()->GetString(GL_VENDOR)),
+                              String(ContextGL()->GetString(GL_RENDERER)))""",
+            "String(ContextGL()->GetString(GL_RENDERER))")
+        stacked = "if (base::FeatureList::IsEnabled(blink::features::kSpoofWebGLInfo)) {}\n" + GPU_WEBGL_OK
+        for text in (raw, stacked, ""):
+            self.write({path: text})
+            self.assertEqual({f.path for f in treegate.check_gpu_masking(self.root)}, {path})
+
+    def test_webgpu_adapter_info_must_be_emptied_when_masked(self):
+        path = treegate.GPU_ADAPTER_PATH
+        for bad in (GPU_ADAPTER_OK.replace("masked ? g_empty_string : architecture_", "architecture_"),
+                    GPU_ADAPTER_OK.replace("masked ? g_empty_string : description_", "description_"),
+                    GPU_ADAPTER_OK.replace("        vendor, architecture, subgroup_min_size_", "        vendor_, architecture, subgroup_min_size_", 1)
+                    .replace("      vendor, architecture, subgroup_min_size_, subgroup_max_size_,\n      is_fallback_adapter, device",
+                             "      vendor_, architecture, subgroup_min_size_, subgroup_max_size_,\n      is_fallback_adapter, device"),
+                    ""):
+            self.write(GPU_GOOD)
+            self.write({path: bad})
+            self.assertEqual({f.path for f in treegate.check_gpu_masking(self.root)}, {path})
+
     def test_helium_services_must_be_off(self):
         self.write({"components/helium_services/helium_services_helpers.cc": SERVICES_OK})
         self.assertEqual(treegate.check_services_off(self.root), [])
@@ -442,7 +511,7 @@ class RunTest(TreeCase):
 
     def test_empty_tree_passes_unless_required(self):
         self.assertEqual(self.run_gates(), [])
-        self.assertEqual(len(self.run_gates(require=True)), 29)
+        self.assertEqual(len(self.run_gates(require=True)), 31)
 
     def test_format_report(self):
         self.write({"a.cc": '"https://services.helium.imput.net"\n'})

@@ -42,6 +42,8 @@ TEST_BINARIES = (
     ("aerie_adblock_renderer_unittests", ()),
     # What the fingerprinting noise is keyed on: the site key and the per-site switch's pattern (#114).
     ("aerie_fingerprint_unittests", ()),
+    # What WebGL and WebGPU report about the graphics card (issue #112): the vendor family and the masking decision.
+    ("aerie_gpu_info_unittests", ()),
 )
 HOST_TOOLS = ("git", "tar", "zstd", "patch")
 MIN_FREE_BYTES = 150 * 1024**3
