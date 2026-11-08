@@ -34,13 +34,8 @@ def _rss_kb(proc: Path, pid: int) -> int:
     return 0
 
 
-def tree_rss_kb(root_pid: int, proc: Path = Path("/proc")) -> dict | None:
-    """Total VmRSS in KiB of root_pid and all its descendants, with a per-process breakdown.
-
-    Returns None where /proc is not available.
-    """
-    if not proc.is_dir():
-        return None
+def _descendants(proc: Path, root_pid: int) -> list[int]:
+    """root_pid and every process below it, found by walking parent pids under ``proc``."""
     children: dict[int, list[int]] = {}
     for entry in proc.iterdir():
         if not entry.name.isdigit():
@@ -55,6 +50,17 @@ def tree_rss_kb(root_pid: int, proc: Path = Path("/proc")) -> dict | None:
             continue
         pids.append(pid)
         queue.extend(children.get(pid, []))
+    return pids
+
+
+def tree_rss_kb(root_pid: int, proc: Path = Path("/proc")) -> dict | None:
+    """Total VmRSS in KiB of root_pid and all its descendants, with a per-process breakdown.
+
+    Returns None where /proc is not available.
+    """
+    if not proc.is_dir():
+        return None
+    pids = _descendants(proc, root_pid)
     parts = []
     for pid in sorted(pids):
         info = _stat(proc, pid)
@@ -75,20 +81,7 @@ def renderer_modes(root_pid: int, proc: Path = Path("/proc")) -> dict | None:
     """
     if not proc.is_dir():
         return None
-    children: dict[int, list[int]] = {}
-    for entry in proc.iterdir():
-        if not entry.name.isdigit():
-            continue
-        info = _stat(proc, int(entry.name))
-        if info:
-            children.setdefault(info[0], []).append(int(entry.name))
-    seen, queue = [], [root_pid]
-    while queue:
-        pid = queue.pop()
-        if pid in seen:
-            continue
-        seen.append(pid)
-        queue.extend(children.get(pid, []))
+    seen = _descendants(proc, root_pid)
     out = {"total": 0, "noopt": 0, "jitless": 0, "pids": {"noopt": [], "default": []}}
     for pid in sorted(seen):
         try:

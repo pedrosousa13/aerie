@@ -119,7 +119,7 @@ Every site gets its own renderer process, so a compromised page cannot read anot
 
 The JavaScript optimizing JIT (TurboFan and Maglev) is on for speed. Turn it off for a single site in Site settings, JavaScript optimization. A site with the JIT off never shares a process with a site that has it on.
 
-The setting is the upstream javascript-optimizer content setting, so it also shows in the site details page and in Settings, Privacy and security, Site settings, Additional content settings. It applies when a tab next navigates to the site, and it is kept in the profile across restarts.
+The setting is the upstream javascript-optimizer content setting, so it also shows in the site details page and in Settings, Privacy and security, Site settings, Additional content settings. It applies on the next visit to the site in a new tab, or after a restart. An embedded frame, or a page opened from another tab, keeps its current process until you open the site in a new tab, because upstream only swaps the process on a main-frame navigation in a tab with no related windows. An exception for a non-default port (for example `http://host:8080`) does not apply, because the site URL has no port, so the rule is the same for every port of the host. It is kept in the profile across restarts.
 
 Process rule: the optimizer mode is part of the SiteInfo and of the renderer process flags. IsSuitableHost returns false for a process whose mode differs, so a site with the JIT off is only ever given a process that was started without the optimizing compilers, and a site with the JIT on is never given that process.
 

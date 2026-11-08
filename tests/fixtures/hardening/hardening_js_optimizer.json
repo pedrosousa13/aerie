@@ -12,7 +12,7 @@
     },
     "change": {
      "ok": true,
-     "origin": "http://a.localhost:41000",
+     "origin": "http://a.localhost",
      "value": "block"
     },
     "before": {
@@ -269,7 +269,7 @@
     },
     "change": {
      "ok": true,
-     "origin": "http://a.localhost:41000",
+     "origin": "http://a.localhost",
      "value": "block"
     },
     "before": {
@@ -477,7 +477,7 @@
     },
     "change": {
      "ok": true,
-     "origin": "http://a.localhost:41000",
+     "origin": "http://a.localhost",
      "value": "block"
     },
     "before": {
@@ -734,7 +734,7 @@
     },
     "change": {
      "ok": true,
-     "origin": "http://a.localhost:41000",
+     "origin": "http://a.localhost",
      "value": "block"
     },
     "before": {
@@ -992,7 +992,7 @@
     },
     "change": {
      "ok": true,
-     "origin": "http://a.localhost:41000",
+     "origin": "http://a.localhost",
      "value": "block"
     },
     "before": {
@@ -1249,7 +1249,7 @@
     },
     "change": {
      "ok": true,
-     "origin": "http://a.localhost:41000",
+     "origin": "http://a.localhost",
      "value": "block"
     },
     "before": {
@@ -1506,7 +1506,7 @@
     },
     "change": {
      "ok": true,
-     "origin": "http://a.localhost:41000",
+     "origin": "http://a.localhost",
      "value": "block"
     },
     "before": {
@@ -1763,7 +1763,7 @@
     },
     "change": {
      "ok": true,
-     "origin": "http://a.localhost:41000",
+     "origin": "http://a.localhost",
      "value": "block"
     },
     "before": {
@@ -2020,7 +2020,7 @@
     },
     "change": {
      "ok": true,
-     "origin": "http://a.localhost:41000",
+     "origin": "http://a.localhost",
      "value": "block"
     },
     "before": {
@@ -2277,7 +2277,7 @@
     },
     "change": {
      "ok": true,
-     "origin": "http://a.localhost:41000",
+     "origin": "http://a.localhost",
      "value": "block"
     },
     "before": {
@@ -2533,7 +2533,7 @@
     },
     "change": {
      "ok": true,
-     "origin": "http://a.localhost:41000",
+     "origin": "http://a.localhost",
      "value": "block"
     },
     "before": {
@@ -2788,7 +2788,7 @@
     },
     "change": {
      "ok": true,
-     "origin": "http://a.localhost:41000",
+     "origin": "http://a.localhost",
      "value": "block"
     },
     "before": {
@@ -3045,7 +3045,7 @@
     },
     "change": {
      "ok": true,
-     "origin": "http://a.localhost:41000",
+     "origin": "http://a.localhost",
      "value": "block"
     },
     "before": {
@@ -3302,7 +3302,7 @@
     },
     "change": {
      "ok": true,
-     "origin": "http://a.localhost:41000",
+     "origin": "http://a.localhost",
      "value": "block"
     },
     "before": {
@@ -3560,7 +3560,7 @@
     },
     "change": {
      "ok": true,
-     "origin": "http://a.localhost:41000",
+     "origin": "http://a.localhost",
      "value": "block"
     },
     "before": {
@@ -3817,7 +3817,7 @@
     },
     "change": {
      "ok": true,
-     "origin": "http://a.localhost:41000",
+     "origin": "http://a.localhost",
      "value": "block"
     },
     "before": {
@@ -4330,7 +4330,7 @@
     },
     "change": {
      "ok": true,
-     "origin": "http://a.localhost:41000",
+     "origin": "http://a.localhost",
      "value": "block"
     },
     "before": {
@@ -4581,7 +4581,7 @@
     },
     "change": {
      "ok": true,
-     "origin": "http://a.localhost:41000",
+     "origin": "http://a.localhost",
      "value": "block"
     },
     "before": {
@@ -4815,6 +4815,245 @@
        "default": [
         200,
         201
+       ]
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "real_train4_build",
+   "expect": "pass",
+   "detail_contains": "JIT off for site a only",
+   "real": "Recorded on a real Aerie build, train-4 Bench run (bench/final/results.json).",
+   "obs": {
+    "defaults": {
+     "page": true,
+     "pref_value": 1
+    },
+    "change": {
+     "ok": true,
+     "origin": "http://a.localhost",
+     "value": "block"
+    },
+    "before": {
+     "off_site": {
+      "ms": 64.2,
+      "runs": [
+       69.7,
+       73.7,
+       64.2
+      ],
+      "host": "a.localhost"
+     },
+     "on_site": {
+      "ms": 63.5,
+      "runs": [
+       63.9,
+       63.5,
+       71.2
+      ],
+      "host": "b.localhost"
+     },
+     "off_top": {
+      "ms": 63.8,
+      "host": "a.localhost",
+      "child": {
+       "ms": 63,
+       "runs": [
+        63.8,
+        64,
+        63
+       ],
+       "host": "b.localhost"
+      }
+     },
+     "on_top": {
+      "ms": 62.4,
+      "host": "b.localhost",
+      "child": {
+       "ms": 62,
+       "runs": [
+        64.7,
+        62,
+        62.3
+       ],
+       "host": "a.localhost"
+      }
+     },
+     "renderers": {
+      "total": 5,
+      "noopt": 0,
+      "jitless": 0,
+      "pids": {
+       "noopt": [],
+       "default": [
+        251230,
+        251270,
+        251287,
+        251303,
+        251316
+       ]
+      }
+     }
+    },
+    "after": {
+     "off_site": {
+      "ms": 493.5,
+      "runs": [
+       514.5,
+       493.5,
+       497.4
+      ],
+      "host": "a.localhost"
+     },
+     "on_site": {
+      "ms": 63.2,
+      "runs": [
+       63.2,
+       63.7,
+       65.5
+      ],
+      "host": "b.localhost"
+     },
+     "off_top": {
+      "ms": 493.9,
+      "host": "a.localhost",
+      "child": {
+       "ms": 61.8,
+       "runs": [
+        66,
+        61.8,
+        66.3
+       ],
+       "host": "b.localhost"
+      }
+     },
+     "on_top": {
+      "ms": 61.9,
+      "host": "b.localhost",
+      "child": {
+       "ms": 491.5,
+       "runs": [
+        501.1,
+        491.5,
+        497
+       ],
+       "host": "a.localhost"
+      }
+     },
+     "renderers": {
+      "total": 9,
+      "noopt": 2,
+      "jitless": 0,
+      "pids": {
+       "noopt": [
+        251425,
+        251476
+       ],
+       "default": [
+        251230,
+        251270,
+        251287,
+        251303,
+        251371,
+        251452,
+        251544
+       ]
+      }
+     }
+    },
+    "restarted": {
+     "off_site": {
+      "ms": 493.1,
+      "runs": [
+       493.1,
+       495.9,
+       521.9
+      ],
+      "host": "a.localhost"
+     },
+     "on_site": {
+      "ms": 62.2,
+      "runs": [
+       63.6,
+       62.2,
+       62.2
+      ],
+      "host": "b.localhost"
+     },
+     "off_top": {
+      "ms": 497.8,
+      "host": "a.localhost",
+      "child": {
+       "ms": 64.8,
+       "runs": [
+        72.4,
+        64.8,
+        76.1
+       ],
+       "host": "b.localhost"
+      }
+     },
+     "on_top": {
+      "ms": 61.9,
+      "host": "b.localhost",
+      "child": {
+       "ms": 501.5,
+       "runs": [
+        507.6,
+        501.5,
+        502.3
+       ],
+       "host": "a.localhost"
+      }
+     },
+     "renderers": {
+      "total": 5,
+      "noopt": 1,
+      "jitless": 0,
+      "pids": {
+       "noopt": [
+        251921
+       ],
+       "default": [
+        251761,
+        251904,
+        251954,
+        251993
+       ]
+      }
+     }
+    },
+    "control": {
+     "off_site": {
+      "ms": 61.9,
+      "runs": [
+       63.3,
+       62.7,
+       61.9
+      ],
+      "host": "a.localhost"
+     },
+     "on_site": {
+      "ms": 63.2,
+      "runs": [
+       63.3,
+       63.6,
+       63.2
+      ],
+      "host": "b.localhost"
+     },
+     "renderers": {
+      "total": 3,
+      "noopt": 0,
+      "jitless": 0,
+      "pids": {
+       "noopt": [],
+       "default": [
+        252198,
+        252218,
+        252237
        ]
       }
      }

@@ -211,17 +211,66 @@ REAL_FINGERPRINT = real_case("hardening_fingerprinting")["obs"]
 
 
 class RealRecordingsTest(unittest.TestCase):
-    def test_twelve_checks_have_a_real_recording_that_is_judged_as_recorded(self):
+    def test_every_check_with_a_real_recording_that_is_judged_as_recorded(self):
         got = {}
         for check, case in load_cases():
             if case["name"].startswith("real_train"):
                 got[check] = case
                 self.assertEqual(HARDENING[check].judge(case["obs"])[0], case["expect"], check)
-        self.assertEqual(len(got), 12)  # hardening_prefetch errored in that run: nothing to record
+        self.assertEqual(len(got), 13)  # hardening_prefetch errored in that run: nothing to record
 
     def test_recordings_hold_no_lan_address(self):
         for _, case in load_cases():
             self.assertNotIn("192.168.1.107", json.dumps(case))
+
+
+class SettingsLinkRowTest(unittest.TestCase):
+    def obs(self, **link):
+        base = next(c["obs"] for ch, c in load_cases()
+                    if ch == "hardening_settings_page" and c["name"].startswith("real_train"))
+        obs = json.loads(json.dumps(base))
+        obs["links"] = {"js_optimizer": {"clicked": True, "reached": True, **link}}
+        return obs
+
+    def test_link_that_opens_its_page_passes(self):
+        self.assertEqual(settings.SettingsPage.judge(self.obs())[0], "pass")
+
+    def test_link_whose_page_never_appears_fails(self):
+        status, detail = settings.SettingsPage.judge(self.obs(reached=False))
+        self.assertEqual(status, "fail")
+        self.assertIn("js_optimizer", detail)
+        self.assertIn("never appeared", detail)
+
+    def test_missing_link_row_to_click_fails(self):
+        status, detail = settings.SettingsPage.judge(self.obs(clicked=False, reached=False))
+        self.assertEqual(status, "fail")
+        self.assertIn("no row to click", detail)
+
+    def test_link_with_no_click_result_fails(self):
+        obs = self.obs()
+        obs["links"] = {}
+        self.assertEqual(settings.SettingsPage.judge(obs)[0], "fail")
+
+    def test_follow_link_clicks_the_row_and_waits_for_the_target_page(self):
+        class Fake:
+            def __init__(self, clicked, reached):
+                self.clicked, self.reached, self.scripts = clicked, reached, []
+
+            def evaluate(self, js):
+                self.scripts.append(js)
+                return self.clicked
+
+            def wait_for(self, js, timeout=0):
+                self.scripts.append(js)
+                return self.reached
+
+        control = next(c for c in settings.table()["controls"] if c["id"] == "js_optimizer")
+        ok = Fake(True, True)
+        self.assertEqual(settings.follow_link(ok, control), {"clicked": True, "reached": True})
+        self.assertIn("#control-js_optimizer-setting", ok.scripts[0])
+        self.assertIn("settings-v8-page", ok.scripts[1])
+        self.assertEqual(settings.follow_link(Fake(True, None), control), {"clicked": True, "reached": False})
+        self.assertEqual(settings.follow_link(Fake(False, None), control), {"clicked": False, "reached": False})
 
 
 class FingerprintJudgeTest(unittest.TestCase):

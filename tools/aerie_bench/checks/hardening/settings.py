@@ -112,6 +112,24 @@ def read_rows(session: Session, ids: list[str], live_ids: list[str]) -> dict:
     return {"rows": rows}
 
 
+# The page a link row opens, by the route name in controls.json.
+LINK_TARGET_TAGS = {"SITE_SETTINGS_JAVASCRIPT_OPTIMIZER": "settings-v8-page"}
+
+
+def follow_link(session: Session, control: dict) -> dict:
+    """Click a link row on the hardening page and see whether its target page appears."""
+    ui = control["ui"]
+    tag = LINK_TARGET_TAGS.get(ui["route"])
+    if tag is None:
+        return {"clicked": False, "reached": False, "error": f"no target page known for route {ui['route']}"}
+    clicked = session.evaluate(DEEP_JS + f"(() => {{ const e = deepQuery(document, '#control-{control['id']}-setting'); "
+                               "if (!e) return false; e.click(); return true; })()")
+    if not clicked:
+        return {"clicked": False, "reached": False}
+    reached = session.wait_for(DEEP_JS + f"!!deepQuery(document, {json.dumps(tag)})", timeout=10)
+    return {"clicked": True, "reached": bool(reached)}
+
+
 def default_label(c: dict) -> str | None:
     ui = c["ui"]
     if ui["kind"] == "dropdown":
@@ -134,7 +152,11 @@ class SettingsPage(HardeningCheck):
         got = read_rows(session, ids + ["bogus_control"], live_ids)
         rows = got.get("rows", {})
         bogus = rows.pop("bogus_control", {"present": False})
-        return {"rows": rows, "bogus_present": bool(bogus.get("present")), "error": got.get("error")}
+        # Last, because a click leaves the hardening page.
+        links = {c["id"]: follow_link(session, c) for c in controls
+                 if c["ui"]["kind"] == "link" and rows.get(c["id"], {}).get("present")}
+        return {"rows": rows, "bogus_present": bool(bogus.get("present")), "error": got.get("error"),
+                "links": links}
 
     @staticmethod
     def judge(obs: dict) -> Verdict:
@@ -154,6 +176,12 @@ class SettingsPage(HardeningCheck):
                 return "fail", f"{c['id']}: read-only state shows {row['state_text']!r}, expected {c['ui']['state']!r}"
             if c["ui"]["kind"] == "link" and row.get("route") != c["ui"]["route"]:
                 return "fail", f"{c['id']}: link row goes to {row.get('route')!r}, table says {c['ui']['route']!r}"
+            if c["ui"]["kind"] == "link":
+                # Older recordings have no "links" key; observe() always sets it.
+                follow = (obs["links"].get(c["id"]) or {}) if "links" in obs else None
+                if follow is not None and not follow.get("reached"):
+                    return "fail", (f"{c['id']}: clicking the link row did not open its page "
+                                    f"({'no row to click' if not follow.get('clicked') else 'it never appeared'})")
             want = default_label(c)
             if want is not None and row["live"] != want:
                 return "fail", f"{c['id']}: the control shows {row['live']!r} on a fresh profile, default is {want!r}"
