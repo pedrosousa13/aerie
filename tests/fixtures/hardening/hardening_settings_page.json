@@ -52,7 +52,7 @@
      "fingerprinting": {
       "present": true,
       "default_text": "Default: On.",
-      "cost_text": "Cost: Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page.",
+      "cost_text": "Cost: Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page. Turning it off does not lift the 8 GB device memory cap.",
       "state_text": null,
       "live": "on"
      },
@@ -140,7 +140,7 @@
      "fingerprinting": {
       "present": true,
       "default_text": "Default: On.",
-      "cost_text": "Cost: Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page.",
+      "cost_text": "Cost: Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page. Turning it off does not lift the 8 GB device memory cap.",
       "state_text": null,
       "live": "on"
      },
@@ -214,7 +214,7 @@
      "fingerprinting": {
       "present": true,
       "default_text": "Default: On.",
-      "cost_text": "Cost: Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page.",
+      "cost_text": "Cost: Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page. Turning it off does not lift the 8 GB device memory cap.",
       "state_text": null,
       "live": "on"
      },
@@ -296,7 +296,7 @@
      "fingerprinting": {
       "present": true,
       "default_text": "Default: On.",
-      "cost_text": "Cost: Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page.",
+      "cost_text": "Cost: Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page. Turning it off does not lift the 8 GB device memory cap.",
       "state_text": null,
       "live": "on"
      },
@@ -378,7 +378,7 @@
      "fingerprinting": {
       "present": true,
       "default_text": "Default: On.",
-      "cost_text": "Cost: Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page.",
+      "cost_text": "Cost: Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page. Turning it off does not lift the 8 GB device memory cap.",
       "state_text": null,
       "live": "on"
      },
@@ -460,7 +460,7 @@
      "fingerprinting": {
       "present": true,
       "default_text": "Default: On.",
-      "cost_text": "Cost: Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page.",
+      "cost_text": "Cost: Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page. Turning it off does not lift the 8 GB device memory cap.",
       "state_text": null,
       "live": "on"
      },
@@ -542,7 +542,7 @@
      "fingerprinting": {
       "present": true,
       "default_text": "Default: On.",
-      "cost_text": "Cost: Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page.",
+      "cost_text": "Cost: Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page. Turning it off does not lift the 8 GB device memory cap.",
       "state_text": null,
       "live": "off"
      },
@@ -624,7 +624,7 @@
      "fingerprinting": {
       "present": true,
       "default_text": "Default: On.",
-      "cost_text": "Cost: Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page.",
+      "cost_text": "Cost: Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page. Turning it off does not lift the 8 GB device memory cap.",
       "state_text": null,
       "live": "on"
      },
@@ -721,7 +721,7 @@
      "fingerprinting": {
       "present": true,
       "default_text": "Default: On.",
-      "cost_text": "Cost: Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page.",
+      "cost_text": "Cost: Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page. Turning it off does not lift the 8 GB device memory cap.",
       "state_text": null,
       "live": "on",
       "route": null
@@ -804,7 +804,7 @@
      "fingerprinting": {
       "present": true,
       "default_text": "Default: On.",
-      "cost_text": "Cost: Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page.",
+      "cost_text": "Cost: Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page. Turning it off does not lift the 8 GB device memory cap.",
       "state_text": null,
       "live": "on"
      },

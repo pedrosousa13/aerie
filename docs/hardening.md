@@ -142,7 +142,7 @@ Process rule: the optimizer mode is part of the SiteInfo and of the renderer pro
 
 ### Fingerprinting randomization
 
-Canvas and audio output carry small random noise. The noise differs for each site and for each browser session, and can be turned off for a single site. The reported device memory is capped at 8 GB.
+Canvas and audio output carry small random noise. The noise differs for each site and for each browser session, and can be turned off for a single site. The reported device memory is capped at 8 GB, and the cap stays when this is turned off.
 
 Audio noise is seeded from the site and session only, so one site gets the same audio output on every render and every AnalyserNode read of the same signal in one session. A tracker cannot average the noise away by reading again.
 
@@ -162,7 +162,7 @@ Device memory (navigator.deviceMemory, in workers, and the Device-Memory and Sec
   - `patches/hardening/0009-stable-audio-noise-per-site-and-session.patch`
   - `patches/hardening/0012-cap-device-memory-at-8gb.patch`
 - Settings row: Toggle
-- Cost: Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page.
+- Cost: Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page. Turning it off does not lift the 8 GB device memory cap.
 - Bench checks: `hardening_fingerprinting`, `hardening_device_memory`
 
 ## What Aerie added

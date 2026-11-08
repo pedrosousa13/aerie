@@ -149,11 +149,11 @@ Generated from tools/aerie_hardening/controls.json. Do not edit by hand. Run: ./
 +      <settings-toggle-button id="control-fingerprinting-setting" class="hr"
 +          pref-key="helium.noise.enabled"
 +          label="Fingerprinting randomization"
-+          sub-label="Canvas and audio output carry small random noise. The noise differs for each site and for each browser session, and can be turned off for a single site. The reported device memory is capped at 8 GB.">
++          sub-label="Canvas and audio output carry small random noise. The noise differs for each site and for each browser session, and can be turned off for a single site. The reported device memory is capped at 8 GB, and the cap stays when this is turned off.">
 +      </settings-toggle-button>
 +      <div class="control-meta cr-secondary-text">
 +        <div class="control-default">Default: On.</div>
-+        <div class="control-cost">Cost: Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page.</div>
++        <div class="control-cost">Cost: Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page. Turning it off does not lift the 8 GB device memory cap.</div>
 +      </div>
 +    </div>
 +    <div class="control" id="control-widevine" data-control-id="widevine">

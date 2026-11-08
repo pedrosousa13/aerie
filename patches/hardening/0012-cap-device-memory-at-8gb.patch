@@ -16,6 +16,11 @@ than 8 GB keeps its real bucket (the lower clamp of 2 GB is unchanged). Starting
 browser with --disable-features=HeliumNoise lifts the cap; the Bench uses that as its
 negative control.
 
+The value is computed lazily, on the first Initialize(), which the browser reaches from
+client hint header code (after base::FeatureList is set up) and the renderer from
+Platform::InitializeMainThreadCommon (after the child process feature list), so the feature
+check reads a live FeatureList in both.
+
 --- a/third_party/blink/common/device_memory/approximated_device_memory.cc
 +++ b/third_party/blink/common/device_memory/approximated_device_memory.cc
 @@ -71,6 +71,15 @@
