@@ -16,11 +16,11 @@ from __future__ import annotations
 import time
 
 from .. import netlog
+from ..denylist import DUMMY_TLD
 from ..profile import LOCAL_STATE_KEY
 from ..session import CheckResult, Session
 from . import register
 
-DUMMY_SUFFIX = ".qjz9zk"
 SETTLE_SECONDS = 1.0  # the components list fills in after the page shell
 OPT_IN_PREFS = {LOCAL_STATE_KEY: {"aerie": {"widevine": {"enabled": True}}}}
 
@@ -67,7 +67,7 @@ def escaped_requests(records: list[dict]) -> list[dict]:
     out = []
     for r in netlog.external(records):
         urls = r.get("urls") or [r["url"]]
-        if any("widevine" in u.lower() for u in urls) or not (r["host"] or "").endswith(DUMMY_SUFFIX):
+        if any("widevine" in u.lower() for u in urls) or not (r["host"] or "").endswith("." + DUMMY_TLD):
             out.append(r)
     return out
 

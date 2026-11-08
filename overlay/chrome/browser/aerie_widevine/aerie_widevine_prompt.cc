@@ -16,6 +16,7 @@
 #include "components/infobars/core/infobar.h"
 #include "components/infobars/core/infobar_delegate.h"
 #include "components/prefs/pref_service.h"
+#include "content/public/browser/browser_context.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
 #include "url/gurl.h"
@@ -28,7 +29,8 @@ namespace {
 // would need its own translation ids, and this prompt is English only for now.
 class WidevinePromptDelegate : public ConfirmInfoBarDelegate {
  public:
-  explicit WidevinePromptDelegate(std::string host) : host_(std::move(host)) {}
+  WidevinePromptDelegate(std::string host, bool off_the_record)
+      : host_(std::move(host)), off_the_record_(off_the_record) {}
 
   WidevinePromptDelegate(const WidevinePromptDelegate&) = delete;
   WidevinePromptDelegate& operator=(const WidevinePromptDelegate&) = delete;
@@ -41,9 +43,9 @@ class WidevinePromptDelegate : public ConfirmInfoBarDelegate {
   std::u16string GetMessageText() const override {
     return u"This site wants to play protected (DRM) content. Widevine is a "
            u"component made by Google that decodes it. If you turn it on, "
-           u"Aerie downloads it from Google and checks Google for updates. "
-           u"Aerie contacts Google for nothing else, and not for this until "
-           u"you agree. You can change this in Settings.";
+           u"Aerie downloads it from Google and checks Google for updates to "
+           u"it. Aerie sends nothing else to Google, and nothing at all for "
+           u"this until you agree. You can change this in Settings.";
   }
 
   int GetButtons() const override { return BUTTON_OK | BUTTON_CANCEL; }
@@ -58,12 +60,15 @@ class WidevinePromptDelegate : public ConfirmInfoBarDelegate {
   }
 
   bool Cancel() override {
-    RecordDecline(g_browser_process->local_state(), host_);
+    RecordDecline(g_browser_process->local_state(), host_, off_the_record_);
     return true;
   }
 
  private:
   std::string host_;
+  // An off-the-record window must leave no trace: its decline is kept in
+  // memory only.
+  bool off_the_record_;
 };
 
 bool HasPrompt(infobars::InfoBarManager* manager) {
@@ -99,7 +104,9 @@ void OnEncryptedMediaRequested(content::RenderFrameHost* render_frame_host) {
     return;
   }
   manager->AddInfoBar(CreateConfirmInfoBar(
-      std::make_unique<WidevinePromptDelegate>(std::string(url.host()))));
+      std::make_unique<WidevinePromptDelegate>(
+          std::string(url.host()),
+          web_contents->GetBrowserContext()->IsOffTheRecord())));
 }
 
 }  // namespace aerie_widevine

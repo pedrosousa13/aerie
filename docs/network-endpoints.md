@@ -81,12 +81,14 @@ If a Bench run ever shows one of these at idle, it needs its own patch.
 ### Only after opting in to Widevine
 
 Nothing here runs on a fresh profile. When the user turns on `aerie.widevine.enabled`
-(Settings, or the one-time prompt), `aerie_widevine::UpdateUrl()` gives the component
-updater Google's update server, and the Widevine component is registered.
+(Settings, or the one-time prompt), `aerie_widevine::WidevineUpdateUrl()` gives the component
+updater Google's update server, and the Widevine component is registered. The update check and
+the event ping name only the Widevine component (`ShouldSendToServer` in `update_client`); the
+CRLSet and any other component are left out of what Google gets.
 
 | Host | Request | Why |
 | --- | --- | --- |
-| `update.googleapis.com` | `POST /service/update2/json`: update check and ping, naming the registered components (Widevine and the CRLSet) | The only server that offers the Widevine component |
+| `update.googleapis.com` | `POST /service/update2/json`: update check and ping, naming the Widevine component only | The only server that offers the Widevine component |
 | The download host named in the update reply (Google's) | The Widevine CRX | The component itself. The updater checks its signature against the pinned key before it unpacks it |
 
 Left alone on purpose:

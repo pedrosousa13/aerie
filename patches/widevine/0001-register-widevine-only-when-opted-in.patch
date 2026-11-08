@@ -33,12 +33,14 @@ The component update URL for an opted-in browser is the next patch.
  
 --- a/chrome/browser/component_updater/BUILD.gn
 +++ b/chrome/browser/component_updater/BUILD.gn
-@@ -146,4 +146,5 @@
-   deps = [
-     "//chrome/browser:browser_features",
+@@ -162,6 +162,7 @@
+     "//chrome/browser/update_client",
+     "//chrome/common",
+     "//chrome/common/request_header_integrity:buildflags",
 +    "//components/aerie_widevine",
-     "//chrome/browser:browser_process",
-     "//chrome/browser:buildflags",
+     "//components/certificate_transparency",
+     "//components/certificate_transparency:proto_gen",
+     "//components/commerce/core:commerce_heuristics_data",
 --- a/chrome/browser/prefs/browser_prefs.cc
 +++ b/chrome/browser/prefs/browser_prefs.cc
 @@ -110,4 +110,5 @@

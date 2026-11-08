@@ -80,12 +80,24 @@ WIDEVINE_REG_OK = """void RegisterComponentsForUpdate() {
 }
 """
 WIDEVINE_CFG_OK = """std::vector<GURL> ChromeConfigurator::UpdateUrl() const {
-  return {aerie_widevine::UpdateUrl(ls, helium::GetComponentUpdateURL(p))};
+  return {aerie_widevine::WidevineUpdateUrl(ls, helium::GetComponentUpdateURL(p))};
 }
 
 std::vector<GURL> ChromeConfigurator::PingUrl() const {
-  return {aerie_widevine::UpdateUrl(ls, helium::GetComponentUpdateURL(p))};
+  return {aerie_widevine::WidevineUpdateUrl(ls, helium::GetComponentUpdateURL(p))};
 }
+
+bool ChromeConfigurator::ShouldSendToServer(const std::string& app_id) const {
+  return aerie_widevine::ShouldSendToUpdateServer(ls, app_id);
+}
+"""
+WIDEVINE_CHECKER_OK = """    if (!config_->ShouldSendToServer(app_id)) {
+      continue;
+    }
+"""
+WIDEVINE_PING_OK = """  if (!config_->ShouldSendToServer(component.app_id)) {
+    return;
+  }
 """
 
 WIDEVINE_INSTALLER_OK = """const uint8_t kWidevineSha2Hash[] = {
@@ -95,6 +107,8 @@ WIDEVINE_INSTALLER_OK = """const uint8_t kWidevineSha2Hash[] = {
 GOOD = {
     "chrome/browser/component_updater/widevine_cdm_component_installer.cc": WIDEVINE_INSTALLER_OK,
     "chrome/browser/component_updater/registration.cc": WIDEVINE_REG_OK,
+    "components/update_client/update_checker.cc": WIDEVINE_CHECKER_OK,
+    "components/update_client/ping_manager.cc": WIDEVINE_PING_OK,
     "chrome/browser/component_updater/chrome_component_updater_configurator.cc": WIDEVINE_CFG_OK,
     "third_party/search_engines_data/resources/definitions/regional_settings.json": SEARCH_OK,
     "chrome/browser/profiles/profile.cc": PROFILE_OK,
@@ -263,7 +277,7 @@ class RunTest(TreeCase):
 
     def test_empty_tree_passes_unless_required(self):
         self.assertEqual(self.run_gates(), [])
-        self.assertEqual(len(self.run_gates(require=True)), 13)
+        self.assertEqual(len(self.run_gates(require=True)), 15)
 
     def test_format_report(self):
         self.write({"a.cc": '"https://services.helium.imput.net"\n'})

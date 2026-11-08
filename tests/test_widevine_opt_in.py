@@ -187,14 +187,28 @@ REG_OK = """void RegisterComponentsForUpdate() {
 }
 """
 CFG_OK = """std::vector<GURL> ChromeConfigurator::UpdateUrl() const {
-  return {aerie_widevine::UpdateUrl(g_browser_process->local_state(),
+  return {aerie_widevine::WidevineUpdateUrl(g_browser_process->local_state(),
                                     helium::GetComponentUpdateURL(GetProfilePrefs()))};
 }
 
 std::vector<GURL> ChromeConfigurator::PingUrl() const {
-  return {aerie_widevine::UpdateUrl(g_browser_process->local_state(),
+  return {aerie_widevine::WidevineUpdateUrl(g_browser_process->local_state(),
                                     helium::GetComponentUpdateURL(GetProfilePrefs()))};
 }
+
+bool ChromeConfigurator::ShouldSendToServer(const std::string& app_id) const {
+  return aerie_widevine::ShouldSendToUpdateServer(g_browser_process->local_state(), app_id);
+}
+"""
+CHECKER = "components/update_client/update_checker.cc"
+CHECKER_OK = """    if (!config_->ShouldSendToServer(app_id)) {
+      continue;
+    }
+"""
+PINGER = "components/update_client/ping_manager.cc"
+PINGER_OK = """  if (!config_->ShouldSendToServer(component.app_id)) {
+    return;
+  }
 """
 INSTALLER = "chrome/browser/component_updater/widevine_cdm_component_installer.cc"
 INSTALLER_OK = """const uint8_t kWidevineSha2Hash[] = {
@@ -222,8 +236,26 @@ class GateTest(unittest.TestCase):
     def test_good_tree_passes(self):
         self.write(REG, REG_OK)
         self.write(CFG, CFG_OK)
+        self.write(CHECKER, CHECKER_OK)
+        self.write(PINGER, PINGER_OK)
         self.write(INSTALLER, INSTALLER_OK)
         self.assertEqual(treegate.check_widevine_opt_in(self.root, require=True), [])
+
+    def test_update_check_and_ping_must_leave_out_apps_the_embedder_refuses(self):
+        for rel, ok in ((CHECKER, CHECKER_OK), (PINGER, PINGER_OK)):
+            self.write(rel, ok)
+            self.assertEqual(treegate.check_widevine_opt_in(self.root), [], rel)
+            self.write(rel, "void F() {}\n")
+            out = treegate.check_widevine_opt_in(self.root)
+            self.assertEqual([f.gate for f in out], ["widevine_opt_in"], rel)
+            self.assertIn("ShouldSendToServer", out[0].message)
+            self.write(rel, ok)
+
+    def test_the_configurator_must_answer_through_the_opt_in(self):
+        self.write(CFG, CFG_OK.replace("aerie_widevine::ShouldSendToUpdateServer", "Id"))
+        out = treegate.check_widevine_opt_in(self.root)
+        self.assertEqual([f.gate for f in out], ["widevine_opt_in"])
+        self.assertIn("ShouldSendToServer", out[0].message)
 
     def test_unconditional_registration_fails(self):
         self.write(REG, REG_OK + "\nvoid F() { RegisterWidevineCdmComponent(cus); }\n")
@@ -236,7 +268,7 @@ class GateTest(unittest.TestCase):
         self.assertEqual(len(treegate.check_widevine_opt_in(self.root)), 1)
 
     def test_update_url_must_go_through_the_opt_in_for_both_urls(self):
-        self.write(CFG, CFG_OK.replace("aerie_widevine::UpdateUrl", "Id", 1))
+        self.write(CFG, CFG_OK.replace("aerie_widevine::WidevineUpdateUrl", "Id", 1))
         out = treegate.check_widevine_opt_in(self.root)
         self.assertEqual([f.gate for f in out], ["widevine_opt_in"])
 
@@ -250,7 +282,7 @@ class GateTest(unittest.TestCase):
 
     def test_missing_files_skipped_unless_required(self):
         self.assertEqual(treegate.check_widevine_opt_in(self.root), [])
-        self.assertEqual(len(treegate.check_widevine_opt_in(self.root, require=True)), 3)
+        self.assertEqual(len(treegate.check_widevine_opt_in(self.root, require=True)), 5)
 
 
 if __name__ == "__main__":

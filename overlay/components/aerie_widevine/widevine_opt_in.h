@@ -26,22 +26,42 @@ inline constexpr char kWidevineEnabled[] = "aerie.widevine.enabled";
 // List of host names whose DRM prompt the user declined. Never prompted again.
 inline constexpr char kDeclinedSites[] = "aerie.widevine.declined_sites";
 
+// The component updater's app id of the Widevine CDM (the extension id of its
+// pinned signing key).
+inline constexpr char kWidevineAppId[] = "oimompecagnajdejgnnjijobebaeigek";
+
 void RegisterLocalStatePrefs(PrefRegistrySimple* registry);
 
 bool IsEnabled(const PrefService* local_state);
 void SetEnabled(PrefService* local_state, bool enabled);
 
+// True if the user declined the prompt for `host`, in Local State or, for an
+// off-the-record window, earlier in this browser session.
 bool IsDeclined(const PrefService* local_state, std::string_view host);
-void RecordDecline(PrefService* local_state, std::string_view host);
+// Remembers a decline. An off-the-record window must leave no trace on disk, so
+// its declines (`off_the_record`) are kept in memory until the browser exits;
+// any other decline is written to Local State.
+void RecordDecline(PrefService* local_state,
+                   std::string_view host,
+                   bool off_the_record = false);
+void ClearSessionDeclinesForTesting();
 
 // True if the one-time prompt should be shown for a DRM request from `host`:
 // Widevine is off, the host is not empty and the user did not decline it.
 bool ShouldPrompt(const PrefService* local_state, std::string_view host);
 
-// The component update service URL. While the user is opted in it is Google's
+// The component update server URL. While the user is opted in it is Google's
 // (the only server that hosts the Widevine component); otherwise `fallback`,
 // which is Helium's dummy origin that the network stack refuses.
-GURL UpdateUrl(const PrefService* local_state, const GURL& fallback);
+GURL WidevineUpdateUrl(const PrefService* local_state, const GURL& fallback);
+
+// Whether the component updater may name `app_id` in a request to the update
+// server (update check or event ping). Opted out, every app may: the request
+// goes to the dummy origin and is refused. Opted in the server is Google's, so
+// only the Widevine component may be named; the CRLSet and any other
+// registered component never reach Google.
+bool ShouldSendToUpdateServer(const PrefService* local_state,
+                              std::string_view app_id);
 
 // Calls `register_widevine` once: now if the user is opted in, otherwise when
 // the pref turns on. `register_widevine` registers the Widevine component with

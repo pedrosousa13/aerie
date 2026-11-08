@@ -148,7 +148,7 @@ Generated from tools/aerie_hardening/controls.json. Do not edit by hand. Run: ./
 +      <settings-toggle-button id="control-widevine-setting" class="hr"
 +          pref-key="aerie.widevine.enabled"
 +          label="Widevine DRM"
-+          sub-label="Widevine decodes protected video and audio (Netflix, Disney+ and similar). It is a component made by Google. Aerie builds it in but neither downloads nor loads it until you turn this on, and it contacts Google for nothing else. The first time a site asks for protected content, Aerie asks once whether to turn it on.">
++          sub-label="Widevine decodes protected video and audio (Netflix, Disney+ and similar). It is a component made by Google. Aerie builds it in but neither downloads nor loads it until you turn this on, and Aerie sends nothing else to Google, and nothing at all about it until you turn it on. The first time a site asks for protected content, Aerie asks once whether to turn it on.">
 +      </settings-toggle-button>
 +      <div class="control-meta cr-secondary-text">
 +        <div class="control-default">Default: Off.</div>

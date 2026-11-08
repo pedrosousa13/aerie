@@ -22,16 +22,16 @@ Both write the same pref, `aerie.widevine.enabled` (Local State, default `false`
 
 | Piece | Where |
 | --- | --- |
-| Prefs, "should we ask" rules, update URL, registration gate | `overlay/components/aerie_widevine` (unit tests in `widevine_opt_in_unittest.cc`) |
+| Prefs, "should we ask" rules, update URL, which apps may reach Google, registration gate | `overlay/components/aerie_widevine` (unit tests in `widevine_opt_in_unittest.cc`) |
 | Registration only after opt-in | `patches/widevine/0001-register-widevine-only-when-opted-in.patch` |
-| Google update URL after opt-in | `patches/widevine/0002-update-widevine-from-google-when-opted-in.patch` |
+| Google update URL after opt-in, and only Widevine in what Google gets | `patches/widevine/0002-update-widevine-from-google-when-opted-in.patch` |
 | Settings can read and write the pref | `patches/widevine/0003-allow-widevine-pref-in-settings.patch` |
 | The prompt | `patches/widevine/0004-ask-before-the-first-drm-request.patch` and `overlay/chrome/browser/aerie_widevine` |
 
 With the pref off, `RegisterWidevineCdmComponent` is never called, so the component updater has
 no Widevine entry and nothing asks for it. Helium's component update origin is still the dummy
 host. With the pref on, `RegisterWhenEnabled` registers the component (at startup, or at once
-when the pref turns on), and `UpdateUrl` gives the updater Google's server. The CDM registers
+when the pref turns on), and `WidevineUpdateUrl` gives the updater Google's server. The CDM registers
 itself with the browser when its download finishes, and pages should see it without a restart.
 
 ## Signature check
@@ -45,7 +45,10 @@ pinned hash changes.
 
 ## Network
 
-Off: no Widevine request. On: `update.googleapis.com` and the download host in the update reply.
+Off: no Widevine request. On: `update.googleapis.com` (the update check and pings name only the Widevine
+component, never the CRLSet or any other component) and the download host in the update reply. Playing
+protected video also contacts the license server of the site, as it does in any browser; that is the site's
+traffic, not Aerie's.
 See `docs/network-endpoints.md`. The zero-traffic Bench run never opts in.
 
 ## Known limits
@@ -59,7 +62,10 @@ See `docs/network-endpoints.md`. The zero-traffic Bench run never opts in.
   gets the prompt too. It does so once for a site that declined.
 - **The prompt text is English only**: it is plain text in `aerie_widevine_prompt.cc`, not a grd
   message.
-- While opted in, the update check also names the CRLSet component and goes to Google.
+- **The CRLSet gets no update while Widevine is on.** The updater has one server for all
+  components, so while opted in the update check and event pings leave out every component but
+  Widevine (`update_client::Configurator::ShouldSendToServer`). Without the opt-in the CRLSet's
+  request goes to the dummy origin and is refused, so it is not updated then either.
 
 ## How it is checked
 
@@ -69,6 +75,6 @@ See `docs/network-endpoints.md`. The zero-traffic Bench run never opts in.
 | Same check's negative control: with the pref set in Local State, the component is listed | same | needs a build |
 | Opt-in makes a DRM page report Widevine available | `--widevine-online SEC` on the same check, on a network that reaches Google | needs a build and a network |
 | Default is off and the row is on the settings page | `hardening_pref_defaults`, `hardening_settings_page` | needs a build |
-| Registration and update URL go through the gate; signing key hash unchanged | source gate `widevine_opt_in` | now, on the patched tree |
+| Registration and update URL go through the gate; the update check and ping leave out every app but Widevine; signing key hash unchanged | source gate `widevine_opt_in` | now, on the patched tree |
 | Opt-in rules (prompt once, decline sticks, URL, registration) | `components_unittests` (`aerie_widevine:unit_tests`) | needs a build |
 | The zero-Google check still passes with Widevine off | `./aerie bench --check zero_traffic` | needs a build |

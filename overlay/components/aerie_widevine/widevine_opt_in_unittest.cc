@@ -16,6 +16,7 @@ namespace {
 class WidevineOptInTest : public testing::Test {
  protected:
   WidevineOptInTest() { RegisterLocalStatePrefs(prefs_.registry()); }
+  ~WidevineOptInTest() override { ClearSessionDeclinesForTesting(); }
 
   TestingPrefServiceSimple prefs_;
 };
@@ -44,13 +45,40 @@ TEST_F(WidevineOptInTest, NeverPromptsWhenOptedInOrWithoutAHost) {
   EXPECT_FALSE(ShouldPrompt(&prefs_, "example.org"));
 }
 
+TEST_F(WidevineOptInTest, OffTheRecordDeclinesStayOutOfLocalState) {
+  RecordDecline(&prefs_, "example.org", /*off_the_record=*/true);
+  EXPECT_TRUE(prefs_.GetList(kDeclinedSites).empty());
+  EXPECT_TRUE(IsDeclined(&prefs_, "example.org"));
+  EXPECT_FALSE(ShouldPrompt(&prefs_, "example.org"));
+  EXPECT_TRUE(ShouldPrompt(&prefs_, "other.example"));
+  ClearSessionDeclinesForTesting();
+  EXPECT_TRUE(ShouldPrompt(&prefs_, "example.org"));
+}
+
+TEST_F(WidevineOptInTest, DecliningInANormalWindowStillPersistsAfterAnOtrDecline) {
+  RecordDecline(&prefs_, "example.org", /*off_the_record=*/true);
+  RecordDecline(&prefs_, "example.org");
+  EXPECT_EQ(1u, prefs_.GetList(kDeclinedSites).size());
+}
+
 TEST_F(WidevineOptInTest, UpdateUrlIsTheFallbackUntilOptedIn) {
   const GURL fallback("https://dummy.invalid/com");
-  EXPECT_EQ(fallback, UpdateUrl(&prefs_, fallback));
-  EXPECT_EQ(fallback, UpdateUrl(nullptr, fallback));
+  EXPECT_EQ(fallback, WidevineUpdateUrl(&prefs_, fallback));
+  EXPECT_EQ(fallback, WidevineUpdateUrl(nullptr, fallback));
   SetEnabled(&prefs_, true);
-  EXPECT_NE(fallback, UpdateUrl(&prefs_, fallback));
-  EXPECT_TRUE(UpdateUrl(&prefs_, fallback).SchemeIs("https"));
+  EXPECT_NE(fallback, WidevineUpdateUrl(&prefs_, fallback));
+  EXPECT_TRUE(WidevineUpdateUrl(&prefs_, fallback).SchemeIs("https"));
+}
+
+TEST_F(WidevineOptInTest, OnlyWidevineMayReachGoogleOnceOptedIn) {
+  const char kCrlSet[] = "hfnkpimlhhgieaddgfemjhofmfblmnib";
+  // Off: the request goes to the dummy origin, so nothing is held back.
+  EXPECT_TRUE(ShouldSendToUpdateServer(&prefs_, kCrlSet));
+  EXPECT_TRUE(ShouldSendToUpdateServer(nullptr, kCrlSet));
+  SetEnabled(&prefs_, true);
+  EXPECT_TRUE(ShouldSendToUpdateServer(&prefs_, kWidevineAppId));
+  EXPECT_FALSE(ShouldSendToUpdateServer(&prefs_, kCrlSet));
+  EXPECT_FALSE(ShouldSendToUpdateServer(&prefs_, ""));
 }
 
 TEST_F(WidevineOptInTest, RegistersOnlyAfterTheUserOptsIn) {

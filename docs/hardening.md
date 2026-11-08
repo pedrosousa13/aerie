@@ -19,7 +19,7 @@ page and the Bench checks, so the three cannot drift apart.
 | No prefetch or preloading | Off. | ungoogled-chromium (through Helium) | Dropdown | `hardening_prefetch` |
 | Strict site isolation | Always on. | Chromium | Read-only | `hardening_site_isolation` |
 | Fingerprinting randomization | On. | Helium | Toggle | `hardening_fingerprinting` |
-| Widevine DRM | Off. | Aerie | Toggle | `hardening_pref_defaults`, `hardening_settings_page` |
+| Widevine DRM | Off. | Aerie | Toggle | `hardening_pref_defaults`, `hardening_settings_page`, `widevine_opt_in` |
 | Extensions cannot loosen these settings | Always on. | Aerie | Read-only | `hardening_extension_prefs` |
 
 ## What upstream already provided
@@ -159,7 +159,7 @@ Every http:// page load is upgraded to https://. If the upgrade fails, a warning
 
 ### Widevine DRM
 
-Widevine decodes protected video and audio (Netflix, Disney+ and similar). It is a component made by Google. Aerie builds it in but neither downloads nor loads it until you turn this on, and it contacts Google for nothing else. The first time a site asks for protected content, Aerie asks once whether to turn it on.
+Widevine decodes protected video and audio (Netflix, Disney+ and similar). It is a component made by Google. Aerie builds it in but neither downloads nor loads it until you turn this on, and Aerie sends nothing else to Google, and nothing at all about it until you turn it on. The first time a site asks for protected content, Aerie asks once whether to turn it on.
 
 - Default: Off.
 - Default provided by: Aerie
@@ -177,7 +177,7 @@ Widevine decodes protected video and audio (Netflix, Disney+ and similar). It is
   - `patches/widevine/0004-ask-before-the-first-drm-request.patch`
 - Settings row: Toggle
 - Cost: Turning it on downloads a closed-source Google module, which is checked against a pinned signing key before it loads, and lets Aerie ask Google for updates to it. Until you do, DRM video does not play.
-- Bench checks: `hardening_pref_defaults`, `hardening_settings_page`
+- Bench checks: `hardening_pref_defaults`, `hardening_settings_page`, `widevine_opt_in`
 
 ### Extensions cannot loosen these settings
 

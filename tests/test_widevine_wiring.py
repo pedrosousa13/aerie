@@ -45,6 +45,7 @@ class RepoWiringTest(unittest.TestCase):
         self.assertEqual(c["pref"], {"name": "aerie.widevine.enabled", "default": False})
         self.assertEqual(c["ui"]["kind"], "toggle")
         self.assertIn("hardening_pref_defaults", c["bench_checks"])
+        self.assertIn("widevine_opt_in", c["bench_checks"])
 
     def test_settings_allowlist_name_equals_the_pref_name(self):
         header = self.read("overlay/components/aerie_widevine/widevine_opt_in.h")
@@ -56,6 +57,53 @@ class RepoWiringTest(unittest.TestCase):
     def test_ledger_has_a_row_for_the_configurator_patch(self):
         self.assertRegex(self.read("docs/helium-dependency-ledger.md"),
                          r"patches/widevine/0002[^|]*\|[^|]*component-updates\.patch")
+
+    def test_ledger_row_for_the_prefs_hunk_names_the_crash_prefs_patch(self):
+        row = next(l for l in self.read("docs/helium-dependency-ledger.md").splitlines()
+                   if "patches/widevine/0001" in l)
+        self.assertIn("crash-reporting-prefs.patch", row)
+        self.assertIn("static_cast<int>(helium::CrashReportingMode::kAsk));", row)
+
+    def test_infobar_enum_patch_names_the_histogram_file(self):
+        header = self.read("patches/widevine/0004-ask-before-the-first-drm-request.patch").split("\n---", 1)[0]
+        self.assertIn("tools/metrics/histograms/metadata/browser/enums.xml", header)
+
+    def test_only_widevine_goes_to_google_while_opted_in(self):
+        patch = self.read("patches/widevine/0002-update-widevine-from-google-when-opted-in.patch")
+        for path in ("components/update_client/configurator.h", "components/update_client/update_checker.cc",
+                     "components/update_client/ping_manager.cc"):
+            self.assertIn(f"+++ b/{path}", patch)
+        self.assertIn("config_->ShouldSendToServer(app_id)", patch)
+        self.assertIn("config_->ShouldSendToServer(component.app_id)", patch)
+        src = self.read("overlay/components/aerie_widevine/widevine_opt_in.cc")
+        body = re.search(r"bool ShouldSendToUpdateServer\(.*?\n}\n", src, re.S).group(0)
+        self.assertIn("kWidevineAppId", body)
+
+    def test_user_text_does_not_claim_more_than_the_traffic_shows(self):
+        for rel in ("overlay/chrome/browser/aerie_widevine/aerie_widevine_prompt.cc",
+                    "tools/aerie_hardening/controls.json", "docs/hardening.md"):
+            self.assertNotIn("for nothing else", self.read(rel), rel)
+
+    def test_one_gate_for_the_browser_process_and_no_second_dummy_tld(self):
+        src = self.read("overlay/components/aerie_widevine/widevine_opt_in.cc")
+        self.assertIn("base::NoDestructor<RegistrationGate>", src)
+        self.assertNotIn("std::vector<std::unique_ptr<RegistrationGate>>", src)
+        self.assertNotIn("DUMMY_SUFFIX", self.read("tools/aerie_bench/checks/widevine_opt_in.py"))
+
+    def test_off_the_record_declines_are_not_written_to_local_state(self):
+        prompt = self.read("overlay/chrome/browser/aerie_widevine/aerie_widevine_prompt.cc")
+        self.assertIn("IsOffTheRecord()", prompt)
+        self.assertRegex(prompt, r"RecordDecline\([^;]*off_the_record_\)")
+        src = self.read("overlay/components/aerie_widevine/widevine_opt_in.cc")
+        body = re.search(r"void RecordDecline\(.*?\n}\n", src, re.S).group(0)
+        self.assertLess(body.index("if (off_the_record)"), body.index("ScopedListPrefUpdate"))
+
+    def test_build_gn_deps_are_sorted_in_the_registration_patch(self):
+        patch = self.read("patches/widevine/0001-register-widevine-only-when-opted-in.patch")
+        hunk = patch.split("+++ b/chrome/browser/component_updater/BUILD.gn", 1)[1].split("\n--- a/", 1)[0]
+        lines = [l[1:].strip() for l in hunk.splitlines() if l[:1] in " +" and l.strip().startswith(('"', '+"', ' "'))]
+        deps = [l.strip().strip('+ ,').strip() for l in lines if "//" in l]
+        self.assertEqual(deps, sorted(deps, key=lambda d: d.replace('"', '')))
 
 
 if __name__ == "__main__":

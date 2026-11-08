@@ -4,10 +4,10 @@
 
 #include "components/aerie_widevine/widevine_opt_in.h"
 
-#include <memory>
+#include <functional>
+#include <set>
 #include <string>
 #include <utility>
-#include <vector>
 
 #include "base/functional/bind.h"
 #include "base/no_destructor.h"
@@ -26,6 +26,25 @@ namespace {
 // component updater is given Helium's dummy origin.
 constexpr char kComponentUpdateUrl[] =
     "https://update.googleapis.com/service/update2/json";
+
+// Hosts declined in off-the-record windows. Browser UI thread only.
+std::set<std::string, std::less<>>& SessionDeclines() {
+  static base::NoDestructor<std::set<std::string, std::less<>>> declines;
+  return *declines;
+}
+
+bool IsDeclinedInLocalState(const PrefService* local_state,
+                            std::string_view host) {
+  if (!local_state) {
+    return false;
+  }
+  for (const base::Value& entry : local_state->GetList(kDeclinedSites)) {
+    if (entry.is_string() && entry.GetString() == host) {
+      return true;
+    }
+  }
+  return false;
+}
 
 }  // namespace
 
@@ -64,19 +83,25 @@ void SetEnabled(PrefService* local_state, bool enabled) {
 }
 
 bool IsDeclined(const PrefService* local_state, std::string_view host) {
-  if (!local_state || host.empty()) {
-    return false;
-  }
-  for (const base::Value& entry : local_state->GetList(kDeclinedSites)) {
-    if (entry.is_string() && entry.GetString() == host) {
-      return true;
-    }
-  }
-  return false;
+  return !host.empty() && (SessionDeclines().contains(host) ||
+                           IsDeclinedInLocalState(local_state, host));
 }
 
-void RecordDecline(PrefService* local_state, std::string_view host) {
-  if (host.empty() || IsDeclined(local_state, host)) {
+void ClearSessionDeclinesForTesting() {
+  SessionDeclines().clear();
+}
+
+void RecordDecline(PrefService* local_state,
+                   std::string_view host,
+                   bool off_the_record) {
+  if (host.empty()) {
+    return;
+  }
+  if (off_the_record) {
+    SessionDeclines().emplace(host);
+    return;
+  }
+  if (IsDeclinedInLocalState(local_state, host)) {
     return;
   }
   ScopedListPrefUpdate update(local_state, kDeclinedSites);
@@ -88,8 +113,13 @@ bool ShouldPrompt(const PrefService* local_state, std::string_view host) {
          !IsDeclined(local_state, host);
 }
 
-GURL UpdateUrl(const PrefService* local_state, const GURL& fallback) {
+GURL WidevineUpdateUrl(const PrefService* local_state, const GURL& fallback) {
   return IsEnabled(local_state) ? GURL(kComponentUpdateUrl) : fallback;
+}
+
+bool ShouldSendToUpdateServer(const PrefService* local_state,
+                              std::string_view app_id) {
+  return !IsEnabled(local_state) || app_id == kWidevineAppId;
 }
 
 void RegisterWhenEnabled(PrefService* local_state,
@@ -97,10 +127,9 @@ void RegisterWhenEnabled(PrefService* local_state,
   if (!local_state) {
     return;
   }
-  static base::NoDestructor<std::vector<std::unique_ptr<RegistrationGate>>>
-      gates;
-  gates->push_back(std::make_unique<RegistrationGate>(
-      local_state, std::move(register_widevine)));
+  // One gate for the browser process; a second call is ignored.
+  static base::NoDestructor<RegistrationGate> gate(
+      local_state, std::move(register_widevine));
 }
 
 }  // namespace aerie_widevine
