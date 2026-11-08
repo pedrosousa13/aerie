@@ -372,6 +372,10 @@ def check_gpu_masking(root: Path, require: bool = False) -> list[Finding]:
             if not re.search(pattern, text, re.S):
                 out.append(Finding(gate, WEBGL_CONTEXT_PATH,
                                    f"{case} must return UnmaskedGpuString(..., /*vendor=*/{flag}, ...), not the raw GL string"))
+        if "ShouldMaskGpuInfoForContext(" not in text or "aerie_gpu_info::ShouldMaskGpuInfo(" in text:
+            out.append(Finding(gate, WEBGL_CONTEXT_PATH,
+                               "UnmaskedGpuString must decide with ShouldMaskGpuInfoForContext, the one shared helper, "
+                               "not a copy of its logic"))
         if text.count("kSpoofWebGLInfo") > 1:
             out.append(Finding(gate, WEBGL_CONTEXT_PATH,
                                "kSpoofWebGLInfo may be read only inside UnmaskedGpuString, not in a second branch"))
@@ -379,8 +383,9 @@ def check_gpu_masking(root: Path, require: bool = False) -> list[Finding]:
     out += missing
     if adapter is not None:
         problems = []
-        if "aerie_gpu_info::ShouldMaskGpuInfo(" not in adapter:
-            problems.append("CreateAdapterInfoForAdapter must decide with aerie_gpu_info::ShouldMaskGpuInfo")
+        if "ShouldMaskGpuInfoForContext(" not in adapter or "aerie_gpu_info::ShouldMaskGpuInfo(" in adapter:
+            problems.append("CreateAdapterInfoForAdapter must decide with ShouldMaskGpuInfoForContext, the one "
+                            "shared helper, not a copy of its logic")
         for field in ("vendor", "architecture", "device", "description"):
             if f"{field} = masked ? g_empty_string : {field}_;" not in adapter:
                 problems.append(f"WebGPU {field} must be empty while masked")

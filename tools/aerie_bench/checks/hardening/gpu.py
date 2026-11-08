@@ -22,14 +22,25 @@ from .common import HardeningCheck, Verdict, page_value, site
 # (vendor, renderer) per family, the same strings as MaskedVendor and MaskedRenderer in gpu_info.cc.
 MASKED = {
     "AMD": ("Google Inc. (AMD)", "ANGLE (AMD, AMD Radeon Graphics, OpenGL ES 3.2)"),
-    "Intel": ("Google Inc. (Intel)", "ANGLE (Intel, Intel(R) Graphics, OpenGL ES 3.2)"),
+    "Intel": ("Google Inc. (Intel)", "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"),
     "NVIDIA": ("Google Inc. (NVIDIA)", "ANGLE (NVIDIA, NVIDIA GeForce Graphics, OpenGL ES 3.2)"),
-    "Mesa": ("Google Inc. (Mesa)", "ANGLE (Mesa, Mesa llvmpipe, OpenGL ES 3.2)"),
-    "Other": ("Google Inc. (Other)", "ANGLE (Other, Generic Graphics, OpenGL ES 3.2)"),
+    "Mesa": ("Google Inc. (Mesa)", "ANGLE (Mesa, llvmpipe, OpenGL ES 3.2)"),
 }
 GL_VERSION = "OpenGL ES 3.2"
 WEBGPU_FIELDS = ("vendor", "architecture", "device", "description")
 FEATURE_FLAG = "--disable-features=HeliumNoiseWebGL"
+
+
+def site_off_prefs(origin: str) -> dict:
+    """Preferences that turn fingerprinting protection off for one origin.
+
+    Helium's per-site switch is the HELIUM_NOISE content setting, registered as "helium-noise" with the
+    top-origin-only scope. Chromium stores it in Preferences with an underscore, as
+    content_settings.exceptions.helium_noise (a hyphenated key is ignored). An exception key is
+    "<primary pattern>,<secondary pattern>": the origin and "*". CONTENT_SETTING_BLOCK is 2, and Helium reads
+    BLOCK as "noise off for this site" (GetHeliumNoiseState gives kDisabledForSite).
+    """
+    return {"profile": {"content_settings": {"exceptions": {"helium_noise": {f"{origin},*": {"setting": 2}}}}}}
 
 
 def read_gpu(session: Session, name: str) -> dict:
@@ -77,8 +88,7 @@ class FingerprintingGpu(HardeningCheck):
         with session.variant((), prefs={"helium": {"noise": {"enabled": False}}}) as v:
             global_off = {"a": read_gpu(v, "a")}
         origin = site(session, "a")
-        site_prefs = {"profile": {"content_settings": {"exceptions": {"helium-noise": {
-            f"{origin},*": {"setting": 2}}}}}}  # 2 is CONTENT_SETTING_BLOCK
+        site_prefs = site_off_prefs(origin)
         with session.variant((), prefs=site_prefs) as v:
             site_off = {"a": read_gpu(v, "a"), "b": read_gpu(v, "b")}
         return {"a": a, "b": b, "feature_off": feature_off, "global_off": global_off, "site_off": site_off}

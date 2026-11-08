@@ -11,7 +11,8 @@
 namespace aerie_gpu_info {
 namespace {
 
-std::string Lower(std::string_view a, std::string_view b) {
+// The two strings joined with a space and lowercased.
+std::string JoinLowercase(std::string_view a, std::string_view b) {
   std::string out(a);
   out.push_back(' ');
   out.append(b);
@@ -39,6 +40,26 @@ bool HasWord(const std::string& text, std::string_view word) {
   return false;
 }
 
+// Mesa's nouveau driver names its chips NV<hex>, for example NV50, NVE4 or
+// NV117, or just "NV". The word must be all of that: "nvme" is not one.
+bool HasNouveauChipName(const std::string& text) {
+  for (size_t at = text.find("nv"); at != std::string::npos;
+       at = text.find("nv", at + 1)) {
+    if (at > 0 && IsWordChar(text[at - 1])) {
+      continue;
+    }
+    size_t end = at + 2;
+    while (end < text.size() &&
+           std::isxdigit(static_cast<unsigned char>(text[end])) != 0) {
+      ++end;
+    }
+    if (end == text.size() || !IsWordChar(text[end])) {
+      return true;
+    }
+  }
+  return false;
+}
+
 bool HasAnyWord(const std::string& text,
                 std::initializer_list<std::string_view> words) {
   return std::any_of(words.begin(), words.end(), [&](std::string_view w) {
@@ -50,11 +71,12 @@ bool HasAnyWord(const std::string& text,
 
 GpuFamily GpuFamilyFromGlStrings(std::string_view vendor,
                                  std::string_view renderer) {
-  const std::string text = Lower(vendor, renderer);
+  const std::string text = JoinLowercase(vendor, renderer);
   if (HasAnyWord(text, {"llvmpipe", "softpipe", "lavapipe"})) {
     return GpuFamily::kMesa;
   }
-  if (HasAnyWord(text, {"nvidia", "geforce"})) {
+  if (HasAnyWord(text, {"nvidia", "geforce", "nouveau"}) ||
+      HasNouveauChipName(text)) {
     return GpuFamily::kNvidia;
   }
   if (HasAnyWord(text, {"amd", "radeon", "ati"})) {
@@ -66,7 +88,13 @@ GpuFamily GpuFamilyFromGlStrings(std::string_view vendor,
   if (HasWord(text, "mesa")) {
     return GpuFamily::kMesa;
   }
-  return GpuFamily::kOther;
+  // Nothing matched (SwiftShader, Apple, an empty string). Chrome never reports
+  // an "other" family, so pick one it does. Intel is the most common GPU family
+  // among Linux desktop and laptop users: nearly every Intel CPU has an
+  // integrated GPU, and many AMD and NVIDIA machines still report Intel when
+  // the integrated GPU is the one in use. A string that most Linux users could
+  // produce hides the rest in the crowd.
+  return GpuFamily::kIntel;
 }
 
 std::string MaskedVendor(GpuFamily family) {
@@ -79,10 +107,10 @@ std::string MaskedVendor(GpuFamily family) {
       return "Google Inc. (NVIDIA)";
     case GpuFamily::kMesa:
       return "Google Inc. (Mesa)";
-    case GpuFamily::kOther:
-      return "Google Inc. (Other)";
   }
-  return "Google Inc. (Other)";
+  // Not reached: the switch covers every family. This component has no base, so
+  // there is no NOTREACHED(); the return only keeps -Wreturn-type quiet.
+  return "Google Inc. (Intel)";
 }
 
 std::string MaskedRenderer(GpuFamily family) {
@@ -90,25 +118,21 @@ std::string MaskedRenderer(GpuFamily family) {
     case GpuFamily::kAmd:
       return "ANGLE (AMD, AMD Radeon Graphics, OpenGL ES 3.2)";
     case GpuFamily::kIntel:
-      return "ANGLE (Intel, Intel(R) Graphics, OpenGL ES 3.2)";
+      return "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)";
     case GpuFamily::kNvidia:
       return "ANGLE (NVIDIA, NVIDIA GeForce Graphics, OpenGL ES 3.2)";
     case GpuFamily::kMesa:
-      return "ANGLE (Mesa, Mesa llvmpipe, OpenGL ES 3.2)";
-    case GpuFamily::kOther:
-      return "ANGLE (Other, Generic Graphics, OpenGL ES 3.2)";
+      return "ANGLE (Mesa, llvmpipe, OpenGL ES 3.2)";
   }
-  return "ANGLE (Other, Generic Graphics, OpenGL ES 3.2)";
+  // Not reached, as in MaskedVendor.
+  return "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)";
 }
 
-bool ShouldMaskGpuInfo(ContextKind kind,
-                       bool master_enabled,
-                       bool surface_enabled,
-                       bool has_token) {
-  if (!master_enabled || !surface_enabled) {
+bool ShouldMaskGpuInfo(ContextKind kind, const MaskPolicy& policy) {
+  if (!policy.master_enabled || !policy.surface_enabled) {
     return false;
   }
-  return kind == ContextKind::kWorker || has_token;
+  return kind == ContextKind::kWorker || policy.has_token;
 }
 
 }  // namespace aerie_gpu_info

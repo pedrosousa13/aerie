@@ -8,7 +8,7 @@ from aerie_bench.checks.hardening import gpu
 
 REPO = Path(__file__).resolve().parent.parent
 SOURCE = (REPO / "overlay" / "components" / "aerie_gpu_info" / "gpu_info.cc").read_text()
-FAMILIES = {"kAmd": "AMD", "kIntel": "Intel", "kNvidia": "NVIDIA", "kMesa": "Mesa", "kOther": "Other"}
+FAMILIES = {"kAmd": "AMD", "kIntel": "Intel", "kNvidia": "NVIDIA", "kMesa": "Mesa"}
 
 
 def cpp_string(function: str, family: str) -> str:
@@ -30,6 +30,12 @@ class MaskedStringsMirrorTest(unittest.TestCase):
                 self.assertTrue(text.strip())
                 self.assertNotIn("aerie", text.lower())
                 self.assertFalse(gpu.digits_beyond_version(text), text)
+
+    def test_the_per_site_seed_uses_the_stored_key_origin_pattern_and_block(self):
+        prefs = gpu.site_off_prefs("http://a.localhost:8123")
+        exceptions = prefs["profile"]["content_settings"]["exceptions"]
+        self.assertEqual(list(exceptions), ["helium_noise"])  # underscore: the hyphenated key is ignored
+        self.assertEqual(exceptions["helium_noise"], {"http://a.localhost:8123,*": {"setting": 2}})
 
     def test_the_fixture_page_exists(self):
         self.assertTrue((REPO / "tools" / "aerie_bench" / "fixtures" / "hardening" / "gpu.html").exists())

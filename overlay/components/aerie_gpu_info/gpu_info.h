@@ -13,7 +13,9 @@
 // tests. Blink only decides when to call it.
 namespace aerie_gpu_info {
 
-enum class GpuFamily { kAmd, kIntel, kNvidia, kMesa, kOther };
+// The families Chrome reports on Linux. There is no "other": Chrome never
+// reports one, so a string that named it would single out Aerie users.
+enum class GpuFamily { kAmd, kIntel, kNvidia, kMesa };
 
 // Maps the real GL_VENDOR and GL_RENDERER strings to a vendor family. Matching
 // ignores case and looks for whole vendor words. Mesa's own driver version
@@ -32,15 +34,20 @@ std::string MaskedRenderer(GpuFamily family);
 
 enum class ContextKind { kWindow, kWorker };
 
-// Whether a context reports masked GPU details. `master_enabled` is the
-// HeliumNoise feature, `surface_enabled` the HeliumNoiseWebGL feature and
-// `has_token` whether the browser sent this window a kWebGL token (it sends
-// none when protection is off globally or for the site). A worker has no
-// tokens yet (#113), so it masks whenever the features are on: fail closed.
-bool ShouldMaskGpuInfo(ContextKind kind,
-                       bool master_enabled,
-                       bool surface_enabled,
-                       bool has_token);
+// What decides whether a context reports masked GPU details.
+struct MaskPolicy {
+  // The HeliumNoise feature.
+  bool master_enabled;
+  // The HeliumNoiseWebGL feature.
+  bool surface_enabled;
+  // Whether the browser sent this window a kWebGL token (it sends none when
+  // protection is off globally or for the site).
+  bool has_token;
+};
+
+// Whether a context reports masked GPU details. A worker has no tokens yet
+// (#113), so it masks whenever the features are on: fail closed.
+bool ShouldMaskGpuInfo(ContextKind kind, const MaskPolicy& policy);
 
 }  // namespace aerie_gpu_info
 

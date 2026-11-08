@@ -184,6 +184,7 @@ AUDIO_GOOD = {treegate.AUDIO_BUFFER_PATH: AUDIO_NOISE_OK, treegate.REALTIME_ANAL
 
 GPU_WEBGL_OK = """String UnmaskedGpuString() {
   if (base::FeatureList::IsEnabled(blink::features::kSpoofWebGLInfo)) return {};
+  if (!ShouldMaskGpuInfoForContext(ExecutionContext::From(script_state))) return real;
 }
     case WebGLDebugRendererInfo::kUnmaskedRendererWebgl:
       if (ExtensionEnabled(kWebGLDebugRendererInfoName)) {
@@ -207,7 +208,7 @@ GPU_WEBGL_OK = """String UnmaskedGpuString() {
       return ScriptValue::CreateNull(script_state->GetIsolate());
 """
 GPU_ADAPTER_OK = """GPUAdapterInfo* GPUAdapter::CreateAdapterInfoForAdapter() {
-  const bool masked = aerie_gpu_info::ShouldMaskGpuInfo(kind, a, b, c);
+  const bool masked = ShouldMaskGpuInfoForContext(context);
   const String vendor = masked ? g_empty_string : vendor_;
   const String architecture = masked ? g_empty_string : architecture_;
   const String device = masked ? g_empty_string : device_;
@@ -405,7 +406,8 @@ class DefaultsGatesTest(TreeCase):
                               String(ContextGL()->GetString(GL_RENDERER)))""",
             "String(ContextGL()->GetString(GL_RENDERER))")
         stacked = "if (base::FeatureList::IsEnabled(blink::features::kSpoofWebGLInfo)) {}\n" + GPU_WEBGL_OK
-        for text in (raw, stacked, ""):
+        copied = GPU_WEBGL_OK.replace("ShouldMaskGpuInfoForContext(", "aerie_gpu_info::ShouldMaskGpuInfo(")
+        for text in (raw, stacked, copied, ""):
             self.write({path: text})
             self.assertEqual({f.path for f in treegate.check_gpu_masking(self.root)}, {path})
 
@@ -413,6 +415,7 @@ class DefaultsGatesTest(TreeCase):
         path = treegate.GPU_ADAPTER_PATH
         for bad in (GPU_ADAPTER_OK.replace("masked ? g_empty_string : architecture_", "architecture_"),
                     GPU_ADAPTER_OK.replace("masked ? g_empty_string : description_", "description_"),
+                    GPU_ADAPTER_OK.replace("ShouldMaskGpuInfoForContext(", "aerie_gpu_info::ShouldMaskGpuInfo("),
                     GPU_ADAPTER_OK.replace("        vendor, architecture, subgroup_min_size_", "        vendor_, architecture, subgroup_min_size_", 1)
                     .replace("      vendor, architecture, subgroup_min_size_, subgroup_max_size_,\n      is_fallback_adapter, device",
                              "      vendor_, architecture, subgroup_min_size_, subgroup_max_size_,\n      is_fallback_adapter, device"),
