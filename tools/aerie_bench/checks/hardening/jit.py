@@ -66,7 +66,10 @@ def set_site_setting(session: Session, name: str, value: str) -> dict:
         return {"ok": False, "error": nav["error"]}
     if not session.wait_for("typeof chrome !== 'undefined' && typeof chrome.send === 'function'", timeout=20):
         return {"ok": False, "error": "chrome.send is not available on the settings page"}
-    origin = site(session, name)
+    # No port: the browser looks the setting up by the site URL, which has none (scheme and host),
+    # so an exception for http://a.localhost:PORT would never match. Real sites on 80/443 have
+    # no port in the rule either.
+    origin = f"http://{name}.localhost"
     session.evaluate(SET_JS % (json.dumps(origin), json.dumps(value)))
     time.sleep(1.0)  # the handler runs on the UI thread; the next navigation reads the new rule
     return {"ok": True, "origin": origin, "value": value}

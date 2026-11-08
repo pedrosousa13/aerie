@@ -4,18 +4,24 @@
 <p>Times a hot numeric loop. Query: child (host name): after its own run, embed this page from that host and report its run too.</p>
 <script>
   window.__done = false;
-  // A hot loop that TurboFan and Maglev make many times faster than Ignition and Sparkplug.
-  function work(n) {
-    let x = 1;
-    for (let i = 0; i < n; i++) { x = (x * 31 + i) % 1000003; }
-    return x;
+  // Float array smoothing: TurboFan and Maglev make it several times faster (about 8x here)
+  // than Ignition and Sparkplug. A plain integer loop is only about 1.4x apart, too close to
+  // tell from noise, so the first version of this page could not detect the setting.
+  const F = new Float64Array(1024);
+  function work(rounds) {
+    for (let i = 0; i < 1024; i++) F[i] = i * 0.5;
+    let s = 0;
+    for (let r = 0; r < rounds; r++) {
+      for (let i = 1; i < 1024; i++) { F[i] = F[i - 1] * 0.999 + F[i] * 0.001; s += F[i]; }
+    }
+    return s;
   }
   function measure() {
     let best = Infinity;
     const runs = [];
     for (let r = 0; r < 3; r++) {
       const t0 = performance.now();
-      work(15000000);
+      work(20000);
       const ms = performance.now() - t0;
       runs.push(Math.round(ms * 10) / 10);
       best = Math.min(best, ms);
