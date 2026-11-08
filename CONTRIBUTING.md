@@ -171,6 +171,8 @@ a missing row costs real work later. See
 
 ## Updating Helium
 
-When you move the Helium pins in `helium.lock`, also update the official
+`./aerie bump` moves the pins and rewrites `helium.lock` for you, and a daily job opens the
+pull request (see [docs/helium-bump.md](docs/helium-bump.md)). To move the pins by hand instead,
+also update the official
 Chromium tarball pin in the `[fallback.chromium]` section of that file (URL and
 sha256 from the `.hashes` file next to the tarball), and check the ledger.

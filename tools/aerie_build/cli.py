@@ -11,6 +11,7 @@ import time
 from pathlib import Path
 
 from . import (
+    bump,
     buildlock,
     ccache,
     config,
@@ -138,6 +139,44 @@ def cmd_patches_gates(args: argparse.Namespace) -> int:
     report, ok = treegate.format_report(treegate.run(tree, require=True))
     print(report)
     return 0 if ok else 1
+
+
+def cmd_bump(args: argparse.Namespace) -> int:
+    bump.check_gitmodules(REPO)
+    pins = lock.load_lock(LOCK_PATH)
+    release = bump.resolve_release(
+        bump.remote_tags(bump.PLATFORM_UPSTREAM), bump.remote_tags(bump.CORE_UPSTREAM), to=args.to)
+    print(f"current   {pins.platform_tag} (Chromium {pins.chromium_version})")
+    print(f"latest    {release.platform_tag}")
+    if release.platform_tag == pins.platform_tag or (args.to is None and not bump.is_newer(release.platform_tag, pins.platform_tag)):
+        print("helium.lock is up to date")
+        return bump.OK
+    if args.check:
+        print("a newer Helium release exists; run ./aerie bump")
+        return bump.UPDATE_AVAILABLE
+    old, new = bump.apply(REPO, release, log=lambda m: print(f"aerie: {m}", file=sys.stderr, flush=True))
+    text = bump.summary(old.helium_version, old.chromium_version, new.helium_version, new.chromium_version)
+    print(text)
+    print("helium.lock and both submodules are moved; nothing is committed")
+    patch_lines: list[str] = []
+    ok: bool | None = None
+    if not args.no_check:
+        root = config.resolve_build_root(args.build_root, os.environ, REPO)
+        paths = config.BuildPaths(root)
+        bump.download_missing(REPO, new, paths.downloads, log=lambda m: print(f"aerie: {m}", file=sys.stderr, flush=True))
+
+        def log(line: str) -> None:
+            patch_lines.append(line)
+            print(line, flush=True)
+
+        ok = patch_check.run_check(REPO, paths, new, log=log) == 0
+    if args.report:
+        Path(args.report).write_text(bump.render_report(text, patch_lines, ok), encoding="utf-8")
+    if ok is False:
+        print("\nSome patches no longer apply (listed above with the hunk that failed). Fix them, then "
+              "see \"Updating Helium\" in the README.", file=sys.stderr)
+        return bump.PATCHES_FAIL
+    return bump.OK
 
 
 def cmd_lists_update(args: argparse.Namespace) -> int:
@@ -300,6 +339,18 @@ def main(argv: list[str] | None = None) -> int:
     p_gates.add_argument("--tree", metavar="DIR", help="tree to check (default: the build's source tree)")
     p_gates.set_defaults(func=cmd_patches_gates)
 
+    p_bump = sub.add_parser(
+        "bump",
+        help="move the Helium submodules and helium.lock to the newest Helium release, then run the patch check "
+        "(exit 20 with --check when a newer release exists, 3 when patches no longer apply)",
+    )
+    _add_common(p_bump)
+    p_bump.add_argument("--check", action="store_true", help="only look: print the current and latest release")
+    p_bump.add_argument("--to", metavar="TAG", help="bump to this helium-linux release tag instead of the latest")
+    p_bump.add_argument("--no-check", action="store_true", help="skip the patch check (it downloads the new Chromium tarballs)")
+    p_bump.add_argument("--report", metavar="FILE", help="also write the result as Markdown (for a pull request body)")
+    p_bump.set_defaults(func=cmd_bump)
+
     p_lists = sub.add_parser("lists", help="work with the built-in filter lists (EasyList, EasyPrivacy)")
     lists_sub = p_lists.add_subparsers(dest="lists_command", required=True)
     p_update = lists_sub.add_parser(
@@ -337,7 +388,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return args.func(args)
     except (config.ConfigError, lock.VerificationError, pipeline.BuildError, fallback.FetchError,
-            filter_lists.ListError, rust_crates.CratesError, buildlock.BuildTreeBusy,
+            filter_lists.ListError, bump.BumpError, rust_crates.CratesError, buildlock.BuildTreeBusy,
             test_fonts.TestFontsError) as exc:
         print(f"aerie: error: {exc}", file=sys.stderr)
         return 1
