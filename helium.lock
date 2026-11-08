@@ -48,7 +48,7 @@ url = "https://github.com/ccache/ccache/releases/download/v4.14.2/ccache-4.14.2-
 minisign_key_file = "tools/keys/ccache-minisign.pub"
 
 # Benchmark sources for the Bench's perf check (docs/bench.md, "Pinned benchmark copies").
-# Not Chromium inputs: the build never reads these. `./aerie bench --fetch-benchmarks` downloads
+# Not Chromium inputs: the build never reads these. `./aerie bench --download-benchmarks` downloads
 # each archive once into <build root>/downloads, refuses it unless its sha256 matches, and unpacks it
 # into <build root>/bench-vendor/<name>. Nothing here is committed to the repository or shipped in
 # the browser. Neither repository has release tags; each pin is the commit of the named release

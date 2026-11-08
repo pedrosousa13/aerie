@@ -1,4 +1,5 @@
 Aerie-Purpose: TEST ONLY. Make the browser process hold 768 MB so the perf gate has a regression to catch.
+Aerie-Upstream-Area: chrome/browser/chrome_browser_main_linux.cc
 Aerie-Kind: test-only (never listed in patches/series, never part of a release build)
 
 Applied on demand by `python3 -m aerie_bench.testpatch apply TREE` (docs/bench.md, "Proving the
