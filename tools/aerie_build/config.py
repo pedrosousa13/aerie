@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping
 
+from . import ccache
+
 DEFAULT_BUILD_ROOT = Path("/mnt/linux2/aerie-build")
 DEFAULT_CACHE_SIZE = "30G"
 
@@ -176,4 +178,5 @@ def isolated_env(paths: BuildPaths, base: Mapping[str, str]) -> dict[str, str]:
         DEPOT_TOOLS_UPDATE="0",
         DEPOT_TOOLS_METRICS="0",
     )
+    env.update(ccache.env_vars(paths.src))  # after the copy, so an inherited CCACHE_BASEDIR is replaced
     return env

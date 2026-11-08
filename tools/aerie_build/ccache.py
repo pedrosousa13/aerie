@@ -19,7 +19,21 @@ def conf_text(max_size: str, cache_dir: Path) -> str:
         # https://chromium.googlesource.com/chromium/src/+/main/docs/linux/build_instructions.md#use-ccache
         "sloppiness = time_macros\n"
         "compression = true\n"
+        # Do not hash the working directory. Two build roots compile in different out/ folders, so
+        # without this no entry is ever shared between them. base_dir is not set here: this file is
+        # shared by every root that uses the cache and the last writer would win. See env_vars.
+        "hash_dir = false\n"
     )
+
+
+def env_vars(src_dir: Path) -> dict[str, str]:
+    """Per-process ccache settings for one build root.
+
+    CCACHE_BASEDIR makes ccache rewrite absolute paths under the root's src folder to relative
+    ones before it hashes, so the same source at <root A>/src and <root B>/src gives the same key.
+    It is an environment variable, not a ccache.conf line, because each root needs its own value.
+    """
+    return {"CCACHE_BASEDIR": str(src_dir)}
 
 
 def write_conf(cache_dir: Path, max_size: str) -> Path:

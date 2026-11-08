@@ -16,7 +16,9 @@ from . import gate, install, nightly
 
 REPO = Path(__file__).resolve().parents[2]
 GATE_LOCK_WAIT = 6 * 3600.0
-NIGHTLY_LOCK_WAIT = 12 * 3600.0
+# Nothing else takes the nightly root's lock except a build, test or prune the maintainer starts
+# there by hand, so a long wait would only hide a stuck process. The run itself is about 3 hours.
+NIGHTLY_LOCK_WAIT = 1 * 3600.0
 ENV_NIGHTLY_ISSUE = "AERIE_CI_NIGHTLY_ISSUE"
 ENV_NIGHTLY_ROOT = "AERIE_NIGHTLY_BUILD_ROOT"
 DEFAULT_NIGHTLY_ROOT = Path("/mnt/linux2/aerie-build-nightly")
@@ -32,7 +34,8 @@ def nightly_roots(args: argparse.Namespace, environ) -> tuple[Path, Path]:
     main = config.resolve_build_root(None, environ, REPO)
     raw = args.build_root or environ.get(ENV_NIGHTLY_ROOT) or str(DEFAULT_NIGHTLY_ROOT)
     root = config.resolve_build_root(raw, environ, REPO)
-    if root == main or root.is_relative_to(main) or main.is_relative_to(root):
+    real_root, real_main = root.resolve(), main.resolve()  # a symlink must not hide the main root
+    if real_root == real_main or real_root.is_relative_to(real_main) or real_main.is_relative_to(real_root):
         raise config.ConfigError(f"nightly build root {root} must be separate from the main build root {main}")
     return root, config.resolve_ccache_dir(args.ccache_dir, environ) or main / "ccache"
 
@@ -71,7 +74,7 @@ def cmd_nightly(args: argparse.Namespace) -> int:
 
 def cmd_install(args: argparse.Namespace) -> int:
     if args.only and not args.enable:
-        raise RuntimeError("--only needs --enable")
+        raise config.ConfigError("--only needs --enable")
     dest = Path(args.dest) if args.dest else install.default_dest()
     for path in install.install(dest, REPO, enable=args.enable, only=tuple(args.only) if args.only else None):
         print(f"wrote {path}")
@@ -107,7 +110,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("install", help="write the systemd user units (does not start them unless --enable)")
     p.add_argument("--dest", metavar="DIR", help="default ~/.config/systemd/user")
     p.add_argument("--enable", action="store_true", help="also run systemctl --user daemon-reload and enable --now")
-    p.add_argument("--only", action="append", choices=install.TIMER_NAMES, metavar="{" + ",".join(install.TIMER_NAMES) + "}",
+    p.add_argument("--only", action="append", choices=list(install.TIMERS), metavar="{" + ",".join(install.TIMERS) + "}",
                    help="with --enable: enable only this timer (repeatable); all four unit files are still written")
     p.set_defaults(func=cmd_install)
     return parser

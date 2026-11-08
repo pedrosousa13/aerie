@@ -18,6 +18,17 @@ class CcacheConfTest(unittest.TestCase):
     def test_conf_has_chromium_sloppiness(self):
         self.assertIn("sloppiness = time_macros", ccache.conf_text("30G", Path("/r/ccache")))
 
+    def test_conf_ignores_the_working_directory_in_the_hash(self):
+        # Without this, two trees at different paths never share a hit: the cwd is hashed.
+        self.assertIn("hash_dir = false\n", ccache.conf_text("30G", Path("/r/ccache")))
+
+    def test_conf_has_no_base_dir_because_the_conf_is_shared_between_roots(self):
+        self.assertNotIn("base_dir", ccache.conf_text("30G", Path("/r/ccache")))
+
+    def test_base_dir_is_set_per_process_to_the_roots_src_dir(self):
+        self.assertEqual(ccache.env_vars(Path("/a/src")), {"CCACHE_BASEDIR": "/a/src"})
+        self.assertEqual(ccache.env_vars(Path("/b/src")), {"CCACHE_BASEDIR": "/b/src"})
+
     def test_write_conf_creates_dir_and_overwrites_size(self):
         with tempfile.TemporaryDirectory() as tmp:
             cache_dir = Path(tmp) / "ccache"

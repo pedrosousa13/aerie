@@ -1,11 +1,14 @@
 # Local CI
 
 CI runs on the Linux build machine, as the maintainer's user, from systemd
-user timers. The recommended setup runs only the nightly (see "Install"); the
-per-PR gate is available but off, because the build train is the merge gate. It uses no GitHub Actions
-runner and no sudo. The commands are
+user timers. It uses no GitHub Actions runner and no sudo. The commands are
 plain CLI steps, so a later Actions workflow on a self-hosted runner (#14) can
 call the same ones.
+
+The recommended setup enables only the nightly (see "Install"). `install` with no
+`--only` writes all four unit files and, with `--enable`, enables both timers. The
+per-PR gate is off in the recommended setup because the build train is the merge
+gate. You can still run it by hand or enable the poll timer later.
 
 ```sh
 python3 -m tools.aerie_ci poll        # gate the maintainer's PRs that have a new head SHA
@@ -15,8 +18,8 @@ python3 -m tools.aerie_ci install     # write the systemd user units
 ```
 
 Run them from the repo root. Python 3.11+, standard library only, plus `gh` and `git`.
-Options for `poll` and `gate`: `--build-root DIR` (env `AERIE_BUILD_ROOT`)
-and `--lock-timeout SEC`. `nightly` takes its own root and cache options (see "Nightly").
+Options for `poll` and `gate`: `--build-root DIR` (env `AERIE_BUILD_ROOT`) and
+`--lock-timeout SEC`. `nightly` takes its own root and cache options (see "Nightly").
 
 ## PR gate
 
@@ -56,7 +59,17 @@ own build root, so it never replaces the build the maintainer tests from.
 | Shared compiler cache | `--ccache-dir DIR` | `AERIE_CCACHE_DIR` | `<main build root>/ccache` |
 
 `AERIE_BUILD_ROOT` names the main root (the build train's). The nightly never uses it as
-its own root, and refuses a root that is the main root, inside it, or around it.
+its own root, and refuses a root that is the main root, inside it, or around it (symlinks
+are resolved first).
+
+**If the train uses a build root other than the default** (`/mnt/linux2/aerie-build`), the
+nightly must be told. It reads the main root only from `AERIE_BUILD_ROOT`, and the
+`<main build root>/ccache` default follows that value. When the train was started with
+`--build-root` and `AERIE_BUILD_ROOT` is not set for the nightly's unit, the nightly would
+use the default root's `ccache` folder, which is not the train's cache. In that case set
+`AERIE_CCACHE_DIR` to the train's cache folder (with `systemctl --user edit
+aerie-ci-nightly.service`, add `Environment=AERIE_CCACHE_DIR=...`), or set `AERIE_BUILD_ROOT`.
+A cache folder that does not match costs hits, not correctness.
 
 The nightly root holds the source tree, `out/`, downloads, the toolchain and the Bench
 output (`<nightly root>/bench/<date>/`). Only the compiler cache is outside it: the nightly
@@ -65,11 +78,22 @@ are in `<CI folder>/nightly/<date>/` (`nightly.log`, `summary.json`); the CI fol
 `<nightly root>-ci`, so `/mnt/linux2/aerie-build-nightly-ci` by default.
 
 `--clean` removes the nightly's source tree and pristine snapshot, but the compiler
-cache stays, so it is a clean tree and not a cold cache. Be careful with this claim:
-ccache helps little on this build (see the README timing section: Chromium compiles most C++
-with Clang modules, which ccache does not cache by default). The cache is shared so the nightly
-does not start from nothing, but nobody has measured the hit rate across two different tree paths.
-Check the `ccache --show-stats` lines in the first nightly build log.
+cache stays, so it is a clean tree and not a cold cache.
+
+For a hit to cross the two trees, ccache must not see their different paths. Aerie does two things:
+
+- Every `./aerie` command sets `CCACHE_BASEDIR` to that root's `src` folder in the build
+  environment. ccache then rewrites absolute paths under it to relative ones before it hashes.
+  It is an environment variable and not a `ccache.conf` line because the conf file is shared
+  by both roots, and each needs its own value.
+- `ccache.conf` has `hash_dir = false`, so the build directory (`out/Default` in each tree)
+  is not part of the hash.
+
+Be careful with the claim. ccache helps little on this build (see the README timing section:
+Chromium compiles most C++ with Clang modules, which ccache does not cache by default), and
+`hash_dir = false` can make debug info point at the other tree's paths. These settings remove
+the path difference. Nobody has measured a hit rate between the two trees yet. Check the
+`ccache --show-stats` lines in the first nightly build log.
 
 ### The compiler cache and two trees at once
 
@@ -81,11 +105,19 @@ lock for it. Two things to know:
 - Both builds write `ccache.conf` at the start (cap from `--ccache-size` or `AERIE_CCACHE_SIZE`,
   default `30G`). Give the nightly the same cap as the train, or the later writer wins.
 - `./aerie prune` runs `ccache --cleanup` and trims the cache to its cap (ccache also evicts old entries
-  as it writes). A trim while the other build runs can remove entries that build would have used. That costs a miss, not a wrong result.
+  as it writes). A trim while the other build runs can remove entries that build would have used. That costs a
+  miss, not a wrong result.
 
 The nightly takes `build.lock` in its own root only. It does not wait for the main root's
 lock, and a build train does not wait for it, because they share no tree. If you point
 `--build-root` at the main root (this is refused) they would share everything and need that lock.
+
+Nothing else normally takes the nightly root's lock. Only a `./aerie build`, `test-cpp`, `prune`
+or `bench` that you start by hand in that root does. So the nightly waits at most 1 hour for it
+(`--lock-timeout`, default 3600 seconds) and then reports "busy". A longer wait would only hide a
+stuck process. The systemd unit allows 6 hours in all: up to 1 hour for the lock, then the clean
+build (about 2.5 hours on the reference machine, README timing section) and the full Bench, with
+room to spare.
 
 A failure, or a night when the nightly root stayed busy, opens an issue titled
 "Nightly CI failed <date>". Set `AERIE_CI_NIGHTLY_ISSUE=<number>` to comment on
@@ -198,5 +230,16 @@ The repo is public, so code from anyone else must never run here.
 python3 -m unittest tests.test_build_lock tests.test_ci_gh tests.test_ci_gate tests.test_ci_nightly tests.test_ci_install_cli -v
 ```
 
-The gate and nightly tests mock `gh`, `git` and the build commands; the lock tests, the
-root and cache option tests and the nightly's separate-root lock test use real files and a real `flock`.
+The gate and nightly tests mock `gh`, `git` and the build commands. These use real files
+and real processes instead:
+
+- the lock tests (`tests.test_build_lock`) and the nightly's separate-root lock test, with a real `flock`;
+- `tests.test_ci_real`: the nightly root and cache resolution against real temp dirs (symlinks
+  included), and `./aerie prune --ccache-dir DIR` in a real child process, with a stand-in
+  `ccache` that records the `CCACHE_DIR` and `CCACHE_BASEDIR` it receives.
+
+Run `tests.test_ci_real` together with the others:
+
+```sh
+python3 -m unittest tests.test_ci_real tests.test_ccache -v
+```

@@ -63,9 +63,6 @@ class InstallTest(unittest.TestCase):
         install.install(self.dest, self.repo, shell=shell, enable=True, only=("poll",))
         self.assertEqual(shell.joined()[1], "systemctl --user enable --now aerie-ci-poll.timer")
 
-    def test_only_rejects_an_unknown_name(self):
-        with self.assertRaises(ValueError):
-            install.install(self.dest, self.repo, enable=True, only=("gate",))
 
     def test_default_destination_is_the_user_systemd_dir(self):
         self.assertEqual(install.default_dest({"HOME": "/home/x"}), Path("/home/x/.config/systemd/user"))
@@ -118,6 +115,12 @@ class CliTest(unittest.TestCase):
             self.assertEqual(cli.main(["install", "--dest", str(dest), "--enable", "--only", "nightly"]), 0)
         self.assertEqual(cap.call_args_list[-1].args[0][-1], "aerie-ci-nightly.timer")
         self.assertTrue((dest / "aerie-ci-poll.timer").is_file())
+
+    def test_install_only_rejects_an_unknown_name_before_writing_anything(self):
+        with self.assertRaises(SystemExit) as ctx, mock.patch("sys.stderr"):
+            cli.main(["install", "--dest", str(self.root / "u"), "--enable", "--only", "gate"])
+        self.assertEqual(ctx.exception.code, 2)
+        self.assertFalse((self.root / "u").exists())
 
     def test_install_only_without_enable_is_an_error(self):
         self.assertEqual(cli.main(["install", "--dest", str(self.root / "u"), "--only", "nightly"]), 1)

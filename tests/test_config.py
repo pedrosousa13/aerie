@@ -84,6 +84,18 @@ class CcacheDirTest(unittest.TestCase):
         self.assertEqual(config.isolated_env(paths, {})["CCACHE_DIR"], "/r/main/ccache")
         self.assertEqual(paths.src, Path("/r/nightly/src"))  # everything else stays in its own root
 
+    def test_each_root_gets_its_own_ccache_base_dir_even_with_a_shared_cache(self):
+        # base_dir lets a hit cross two tree paths; it must follow the root, not the shared cache.
+        main = config.isolated_env(config.BuildPaths(Path("/r/main")), {})
+        night = config.isolated_env(config.BuildPaths(Path("/r/nightly"), Path("/r/main/ccache")), {})
+        self.assertEqual(main["CCACHE_BASEDIR"], "/r/main/src")
+        self.assertEqual(night["CCACHE_BASEDIR"], "/r/nightly/src")
+        self.assertEqual(main["CCACHE_DIR"], night["CCACHE_DIR"])
+
+    def test_an_inherited_base_dir_is_replaced(self):
+        env = config.isolated_env(config.BuildPaths(Path("/r")), {"CCACHE_BASEDIR": "/elsewhere"})
+        self.assertEqual(env["CCACHE_BASEDIR"], "/r/src")
+
     def test_without_it_the_cache_is_in_the_root(self):
         self.assertEqual(config.BuildPaths(Path("/r")).ccache, Path("/r/ccache"))
 
