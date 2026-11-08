@@ -131,6 +131,37 @@ cxx-build = "1"
         self.assertFalse(out.exists())
         self.assertNotEqual(sh([str(tool), str(lst)]).returncode, 0)  # no --out
 
+    def test_compile_tool_ignores_exceptions_that_match_every_address(self):
+        build = sh(["cargo", "build", "--manifest-path", str(WORKSPACE / "Cargo.toml"), "-p", "aerie_adblock_compile"],
+                   env=self.env)
+        self.assertEqual(build.returncode, 0, build.stderr[-3000:])
+        tool = self.target / "debug" / "aerie_adblock_compile"
+        out = self.tmp / "broad.dat"
+        block = "https://ads.example/a.js|ads.example|news.test|script|true"
+        for bad in ["@@http", "@@|http", "@@.", "@@/./", "@@://", "@@||*", "@@*$script"]:
+            with self.subTest(bad=bad):
+                lst = self.tmp / "broad.txt"
+                lst.write_text(f"||ads.example^\n{bad}\n")
+                out.unlink(missing_ok=True)
+                run = sh([str(tool), "--out", str(out), "--expect-block", block, str(lst)])
+                self.assertEqual(run.returncode, 0, run.stderr)
+                self.assertIn("warning", run.stderr)
+                self.assertIn(bad, run.stderr)
+        # A list of nothing but such rules blocks nothing, so the self-check fails and no engine is written.
+        out.unlink(missing_ok=True)
+        only = self.tmp / "only.txt"
+        only.write_text("@@http\n")
+        run = sh([str(tool), "--out", str(out), "--expect-block", block, str(only)])
+        self.assertNotEqual(run.returncode, 0)
+        self.assertFalse(out.exists())
+        # A scoped exception is untouched and draws no warning.
+        scoped = self.tmp / "scoped.txt"
+        scoped.write_text("||ads.example^\n@@||ads.example/ok$script\n")
+        run = sh([str(tool), "--out", str(out), "--expect-allow", "https://ads.example/ok|ads.example|news.test|script|true",
+                  str(scoped)])
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertNotIn("warning", run.stderr)
+
     def test_compile_tool_cosmetic_self_checks(self):
         build = sh(["cargo", "build", "--manifest-path", str(WORKSPACE / "Cargo.toml"), "-p", "aerie_adblock_compile"],
                    env=self.env)

@@ -125,6 +125,9 @@ fn run() -> Result<String, String> {
         if bytes.is_empty() {
             return Err(format!("{path} is empty"));
         }
+        for rule in aerie_adblock_core::sanitize_list_report(&bytes).ignored_exceptions {
+            eprintln!("aerie_adblock_compile: warning: {path}: ignored an exception rule that matches every address: {rule}");
+        }
         texts.push(bytes);
     }
     let built = FilterEngine::from_lists(texts.iter().map(|t| t.as_slice())).map_err(|e| format!("cannot build engine: {e}"))?;
