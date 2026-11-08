@@ -11,11 +11,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping
 
+from . import ccache
+
 DEFAULT_BUILD_ROOT = Path("/mnt/linux2/aerie-build")
 DEFAULT_CACHE_SIZE = "30G"
 
 ENV_BUILD_ROOT = "AERIE_BUILD_ROOT"
 ENV_CACHE_SIZE = "AERIE_CCACHE_SIZE"
+ENV_CACHE_DIR = "AERIE_CCACHE_DIR"
 
 _SIZE_RE = re.compile(r"^([0-9]+)([KMGT])$")
 
@@ -67,11 +70,26 @@ def resolve_cache_size(flag: str | None, environ: Mapping[str, str]) -> str:
     return f"{int(match.group(1))}{match.group(2)}"
 
 
+def resolve_ccache_dir(flag: str | None, environ: Mapping[str, str]) -> Path | None:
+    """A compiler cache folder outside the build root, or None for the default (<root>/ccache)."""
+    raw = flag or environ.get(ENV_CACHE_DIR)
+    if not raw:
+        return None
+    path = Path(raw).expanduser()
+    if not path.is_absolute():
+        raise ConfigError(f"compiler cache folder must be an absolute path, got {raw!r}")
+    return Path(*path.parts)
+
+
 @dataclass(frozen=True)
 class BuildPaths:
-    """The layout of a build root."""
+    """The layout of a build root.
+
+    ccache_dir moves only the compiler cache out of the root, so that two build roots can share it.
+    """
 
     root: Path
+    ccache_dir: Path | None = None
 
     @property
     def downloads(self) -> Path:
@@ -87,7 +105,7 @@ class BuildPaths:
 
     @property
     def ccache(self) -> Path:
-        return self.root / "ccache"
+        return self.ccache_dir or self.root / "ccache"
 
     @property
     def home(self) -> Path:
@@ -160,4 +178,5 @@ def isolated_env(paths: BuildPaths, base: Mapping[str, str]) -> dict[str, str]:
         DEPOT_TOOLS_UPDATE="0",
         DEPOT_TOOLS_METRICS="0",
     )
+    env.update(ccache.env_vars(paths.src))  # after the copy, so an inherited CCACHE_BASEDIR is replaced
     return env

@@ -114,14 +114,15 @@ def worktree(shell: Shell, repo: Path, path: Path, sha: str) -> Iterator[Path]:
             shell.capture(["git", "-C", repo, "worktree", "prune"])
 
 
-def python_steps(python: str, tree: Path, build_root: Path) -> dict[str, tuple]:
+def python_steps(python: str, tree: Path, build_root: Path, ccache_dir: Path | None = None) -> dict[str, tuple]:
     """Commands for the existing build and Bench entry points, run from a checkout."""
     aerie = str(tree / "aerie")
     root = ["--build-root", str(build_root)]
+    cache = ["--ccache-dir", str(ccache_dir)] if ccache_dir else []
     return {
         "patches": (python, aerie, "patches", "check", *root),
-        "build": (python, aerie, "build", *root),
-        "clean_build": (python, aerie, "build", "--clean", *root),
+        "build": (python, aerie, "build", *root, *cache),
+        "clean_build": (python, aerie, "build", "--clean", *root, *cache),
         "unittest": (python, "-m", "unittest", "discover", "-s", "tests", "-t", "."),
     }
 

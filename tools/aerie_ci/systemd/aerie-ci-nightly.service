@@ -7,5 +7,6 @@ WorkingDirectory=@REPO@
 Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
 Environment=PYTHONDONTWRITEBYTECODE=1
 ExecStart=/usr/bin/env python3 -m tools.aerie_ci nightly
-TimeoutStartSec=18h
+# Up to 1 hour waiting for the build-tree lock, then a clean build (about 2.5 hours) and the Bench.
+TimeoutStartSec=6h
 Nice=10
