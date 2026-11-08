@@ -17,7 +17,8 @@ inline constexpr char kAllowLoopbackFilterLists[] =
 // Adds one more list of domains (one per line) to the protection list. For the
 // Bench: it lists a fixture domain. It only adds blocked domains and never
 // removes any.
-inline constexpr char kTestProtectionListSwitch[] = "aerie-test-protection-list";
+inline constexpr char kTestProtectionListSwitch[] =
+    "aerie-test-protection-list";
 
 }  // namespace aerie_adblock::switches
 

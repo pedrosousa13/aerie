@@ -208,7 +208,7 @@ class SetupTest(unittest.TestCase):
 
     def test_the_switch_matches_the_browser_side(self):
         switches = (REPO / "overlay/components/aerie_adblock/browser/aerie_adblock_switches.h").read_text()
-        self.assertIn(f'kTestProtectionListSwitch[] = "{pp.LIST_SWITCH.lstrip("-")}"', switches)
+        self.assertIn(f'kTestProtectionListSwitch[] =\n    "{pp.LIST_SWITCH.lstrip("-")}"', switches)
         hook = (REPO / "overlay/components/aerie_adblock/browser/aerie_protection_hook.h").read_text()
         self.assertNotIn("kTestProtectionListSwitch", hook)
 
