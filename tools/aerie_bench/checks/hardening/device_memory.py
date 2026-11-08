@@ -22,10 +22,10 @@ CONTENT_SETTING_BLOCK = 2
 
 def site_off_prefs(host_port: str) -> dict:
     """Profile prefs with fingerprinting protection switched off for one origin: a BLOCK exception in the
-    HELIUM_NOISE content setting (pref name "helium-noise", registered in content_settings_registry.cc by
+    HELIUM_NOISE content setting (pref key "helium_noise" in Preferences, the registered name "helium-noise" with dashes turned to underscores, registered in content_settings_registry.cc by
     helium-chromium core/noise/core.patch; the primary pattern is the origin, the secondary is "*")."""
     return {"profile": {"content_settings": {"exceptions": {
-        "helium-noise": {f"http://{host_port},*": {"setting": CONTENT_SETTING_BLOCK}}}}}}
+        "helium_noise": {f"http://{host_port},*": {"setting": CONTENT_SETTING_BLOCK}}}}}}
 
 
 def parse_hint(value: str | None) -> float | None:

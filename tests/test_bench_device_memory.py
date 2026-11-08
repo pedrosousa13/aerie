@@ -58,7 +58,7 @@ class RecordedCasesTest(unittest.TestCase):
 
     def test_site_off_exception_uses_the_helium_noise_content_setting(self):
         prefs = device_memory.site_off_prefs("a.localhost:1234")
-        exc = prefs["profile"]["content_settings"]["exceptions"]["helium-noise"]
+        exc = prefs["profile"]["content_settings"]["exceptions"]["helium_noise"]
         self.assertEqual(exc, {"http://a.localhost:1234,*": {"setting": 2}})
 
 
