@@ -1,4 +1,4 @@
-"""The branding layer: Aerie's placeholder art replaces Helium's, file for file."""
+"""The branding layer: Aerie's art replaces Helium's, file for file."""
 
 import os
 import struct

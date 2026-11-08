@@ -36,7 +36,7 @@ The Filter Engine is the first overlay user; see [docs/adblock.md](docs/adblock.
 
 Two more Aerie layers sit between the overlay and the substitution:
 
-- **Art.** `branding/resources.txt` lists `<file in branding/art> <tree path>` pairs. The layer replaces the files that Helium's resource step copied (logo, product icons, new tab page favicon, vector icons). A destination that is not in the tree is an error. The art is a placeholder drawn by `tools/aerie_branding/generate.py`; final art replaces the files in `branding/art/` under the same names and sizes (issue #21). A test compares the destinations and image sizes with Helium's lists.
+- **Art.** `branding/resources.txt` lists `<file in branding/art> <tree path>` pairs. The layer replaces the files that Helium's resource step copied (logo, product icons, new tab page favicon, vector icons). A destination that is not in the tree is an error. The art is exported from the sources in `branding/source/` by `tools/aerie_branding/export.py` (see `branding/source/README.md`); new art replaces the files in `branding/art/` under the same names and sizes. A test compares the destinations and image sizes with Helium's lists.
 - **Release number.** `AERIE_VERSION` (three numbers) is added to `chrome/VERSION` as `AERIE_MAJOR`, `AERIE_MINOR` and `AERIE_PATCH`, and `patches/branding/0006` makes the About version use them. To make a release, change that file.
 
 The Linux desktop entry, metainfo and icon install script are in `packaging/linux`. The Bench checks `branding_no_helium`, `branding_scheme` and `branding_version` prove the result on a build (see [docs/bench.md](docs/bench.md)).
