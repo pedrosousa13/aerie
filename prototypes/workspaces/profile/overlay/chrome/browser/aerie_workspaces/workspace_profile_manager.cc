@@ -1,3 +1,7 @@
+// Copyright 2026 The Aerie Authors
+// You can use, redistribute, and/or modify this source code under
+// the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
 // Prototype for issue #72, option 1. Not built.
 
 #include "chrome/browser/aerie_workspaces/workspace_profile_manager.h"
@@ -15,8 +19,8 @@ namespace aerie_workspaces {
 void GetOrCreateWorkspaceProfile(const std::string& workspace_id,
                                  base::OnceCallback<void(Profile*)> callback) {
   ProfileManager* manager = g_browser_process->profile_manager();
-  const base::FilePath path = manager->user_data_dir().AppendASCII(
-      "Workspace " + workspace_id);
+  const std::string name = "Workspace " + workspace_id;
+  const base::FilePath path = manager->user_data_dir().AppendASCII(name);
   if (Profile* existing = manager->GetProfileByPath(path)) {
     std::move(callback).Run(existing);
     return;
@@ -26,7 +30,7 @@ void GetOrCreateWorkspaceProfile(const std::string& workspace_id,
   // real feature must map workspace id -> directory in a pref, or call
   // CreateAndInitializeProfile(path) (private today, friend access needed).
   ProfileManager::CreateMultiProfileAsync(
-      base::UTF8ToUTF16("Workspace " + workspace_id), /*icon_index=*/0,
+      base::UTF8ToUTF16(name), /*icon_index=*/0,
       /*is_hidden=*/true, std::move(callback));
 }
 

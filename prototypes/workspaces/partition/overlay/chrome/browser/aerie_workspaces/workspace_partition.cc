@@ -1,3 +1,7 @@
+// Copyright 2026 The Aerie Authors
+// You can use, redistribute, and/or modify this source code under
+// the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
 // Prototype for issue #72, option 2. Not built. Written against Chromium 157
 // (Helium 0.21.1.1); every Chromium call below was checked by reading the tree.
 
@@ -31,21 +35,26 @@ content::StoragePartitionConfig GetWorkspacePartitionConfig(
     std::string_view workspace_id) {
   CHECK(IsValidId(workspace_id));
   return content::StoragePartitionConfig::Create(
-      context, kPartitionDomain, workspace_id, /*in_memory=*/false);
+      context, content::kAerieWorkspacePartitionDomain, workspace_id, /*in_memory=*/false);
 }
 
 bool IsWorkspacePartition(const content::StoragePartitionConfig& config) {
-  return config.partition_domain() == kPartitionDomain &&
+  return config.partition_domain() == content::kAerieWorkspacePartitionDomain &&
          IsValidId(config.partition_name());
 }
 
-std::string GetWorkspaceId(const content::StoragePartitionConfig& config) {
-  return IsWorkspacePartition(config) ? config.partition_name() : std::string();
+std::optional<std::string> GetWorkspaceId(
+    const content::StoragePartitionConfig& config) {
+  if (!IsWorkspacePartition(config)) {
+    return std::nullopt;
+  }
+  return config.partition_name();
 }
 
-std::string GetWorkspaceIdForWebContents(content::WebContents* web_contents) {
+std::optional<std::string> GetWorkspaceIdForWebContents(
+    content::WebContents* web_contents) {
   if (!web_contents) {
-    return std::string();
+    return std::nullopt;
   }
   return GetWorkspaceId(web_contents->GetSiteInstance()
                             ->GetSecurityPrincipal()
@@ -66,13 +75,6 @@ std::optional<content::StoragePartitionConfig> GetWorkspacePartitionToInherit(
     }
   }
   return std::nullopt;
-}
-
-std::vector<content::StoragePartitionConfig> GetAllWorkspacePartitionConfigs(
-    Profile* profile) {
-  // TODO(M5): read the Workspace list (id, name, icon, colour) from the
-  // profile pref the sidebar owns. Not part of the spike.
-  return {};
 }
 
 void MoveTabToWorkspace(Browser* browser,

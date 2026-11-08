@@ -1,3 +1,7 @@
+// Copyright 2026 The Aerie Authors
+// You can use, redistribute, and/or modify this source code under
+// the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
 // Prototype for issue #72, option 2 (a StoragePartition per Workspace).
 // Not built, not in patches/series. See prototypes/workspaces/README.md.
 
@@ -9,10 +13,10 @@
 #include <string_view>
 #include <vector>
 
+#include "content/public/browser/aerie_workspace_partition.h"
 #include "content/public/browser/storage_partition_config.h"
 
 class Browser;
-class Profile;
 struct NavigateParams;
 namespace content {
 class BrowserContext;
@@ -21,33 +25,30 @@ class WebContents;
 
 namespace aerie_workspaces {
 
-// The partition domain is [a-z]* (see StoragePartitionConfig::Create). The
-// partition name is the Workspace id, a random UUID the browser makes.
-// permission_util.cc and profile_network_context_service.cc compare against
-// this literal, because components/ and net/ cannot include chrome/.
-inline constexpr char kPartitionDomain[] = "aerieworkspace";
-
-// Persistent on disk (in_memory=false): <profile>/Partitions/aerieworkspace/<hash of id>.
+// The partition name is the Workspace id, a random UUID the browser makes. The
+// domain constant is shared with permission_util.cc and
+// profile_network_context_service.cc through
+// content/public/browser/aerie_workspace_partition.h.
+//
+// Persistent on disk (in_memory=false), at
+// <profile>/Storage/ext/aerieworkspace/<hex of the first 6 bytes of
+// SHA-256(id)> (storage_partition_impl_map.cc, GetStoragePartitionPath).
 content::StoragePartitionConfig GetWorkspacePartitionConfig(
     content::BrowserContext* context,
     std::string_view workspace_id);
 
 bool IsWorkspacePartition(const content::StoragePartitionConfig& config);
 
-// "" for the default partition (the "no Workspace" tab).
-std::string GetWorkspaceId(const content::StoragePartitionConfig& config);
-std::string GetWorkspaceIdForWebContents(content::WebContents* web_contents);
+// std::nullopt for the default partition (the "no Workspace" tab).
+std::optional<std::string> GetWorkspaceId(
+    const content::StoragePartitionConfig& config);
+std::optional<std::string> GetWorkspaceIdForWebContents(
+    content::WebContents* web_contents);
 
 // Used by browser_navigator.cc: the explicit config in `params`, else the
 // config of `params.source_site_instance` if it is a Workspace partition.
 std::optional<content::StoragePartitionConfig> GetWorkspacePartitionToInherit(
     const NavigateParams& params);
-
-// One config per Workspace the user has. Needed by "Clear browsing data" and
-// by the Bench, because BrowsingDataRemoverImpl clears only the default
-// partition unless the filter names one. Reads the Workspace list pref.
-std::vector<content::StoragePartitionConfig> GetAllWorkspacePartitionConfigs(
-    Profile* profile);
 
 // Story 95. A fixed-partition BrowsingInstance cannot change partition, so a
 // move creates a new WebContents in the target partition, loads the same URL

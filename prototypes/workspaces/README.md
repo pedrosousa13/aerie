@@ -27,11 +27,12 @@ Never apply both candidates to one tree: both edit `browser_navigator.cc`.
 | --- | --- | --- |
 | 0001 open new tabs in the Workspace partition | 18 / 0 | `NavigateParams::storage_partition_config`; `CreateTargetContents` pins a tab with no opener to the Workspace partition with `SiteInstance::CreateForFixedStoragePartition`. G7. |
 | 0002 keep noopener windows in the opener partition | 6 / 0 | `WebContentsImpl::CreateNewWindow` sent a noopener window to the default partition. G6. |
-| 0003 allow permission requests in a Workspace partition | 10 / 0 | Upstream blocks undelegated permissions in a non-default partition. Does **not** split grants (G2). |
+| 0003 allow permission requests in a Workspace partition | 11 / 0 | Upstream blocks undelegated permissions in a non-default partition. Does **not** split grants (G2). |
 | 0004 persist session cookies in a Workspace | 9 / 0 | Upstream drops session cookies for non-main partitions. G1. |
 
-Total about 43 added and no removed lines in 6 Chromium files (one in `content/`, one in `components/`, four in
-`chrome/`), plus a 163-line overlay (header, source). Compare Brave: it also carries a content-layer hook, a
+Total 44 added and no removed lines in 5 Chromium files (one in `content/`, one in `components/`, three in
+`chrome/`), plus a 203-line overlay in three files (two in `chrome/browser/aerie_workspaces/`, and
+`content/public/browser/aerie_workspace_partition.h`, which holds the partition domain every user of it shares). Compare Brave: it also carries a content-layer hook, a
 permission change, a clear-data delegate, session persistence and sync encoding.
 
 **Not prototyped, in order of size:**
@@ -40,7 +41,7 @@ permission change, a clear-data delegate, session persistence and sync encoding.
 | --- | --- | --- |
 | G2 permission grants split by Workspace | A Workspace-keyed layer in front of the content-settings read; every reader of `HostContentSettingsMap` that is not partition-aware must be audited. | L |
 | G4 session, reopen-closed-tab, sync | Persist `workspace_id` in the M2 tab model and in Chromium's session entries (Brave uses a URL prefix and edits `PageState`). | L |
-| G3 clear browsing data | Run the remover once per Workspace partition and fix the delegate's default-partition calls (lines 295, 468, 521). | S to M |
+| G3 clear browsing data | Run the remover once per Workspace partition and fix the delegate's default-partition calls (lines 295, 468, 521, 705, 986, 1395). | S to M |
 | Workspace-aware extension access (M-D1) | A check where Chromium decides page access for a tab. | M |
 | UI: sidebar labels, hover card, Workspace picker | M2 and M5. | M2/M5 |
 
@@ -55,7 +56,10 @@ Chromium 157 tree: `browser->profile()` or `browser->GetProfile()` appears about
 and about 9,000 times in `chrome/browser`. The omnibox, the navigator, the command controller, bookmarks, extensions
 menus, the downloads shelf and settings all take the profile from the Browser. The only alternative to patching them is
 one hidden Browser per profile with its tab strip shown inside the visible window, which is a window-system change
-rather than a patch. We did not estimate a line count: it would be a guess, and the ADR does not depend on one.
+rather than a patch. Rough bound for option 1, by files touched: at least the one hook shown, and at most an audit of the 1,685 files in
+`chrome/browser` that call `browser->profile()` or `GetProfile()` on a Browser. A working window would need only the
+callers that act for the visible tab, which we guess is tens to low hundreds of files. That guess is not counted
+and the ADR does not depend on it.
 
 `workspace_profile_manager` shows how a Workspace profile would be created (hidden, under the user data dir). Its
 TODO says what a real one needs (a stored id-to-directory map; `CreateMultiProfileAsync` picks its own directory).

@@ -8,10 +8,10 @@ from the next build train, with the plan below. Where a target appears it is a p
 | Item | State |
 | --- | --- |
 | Option 2 (partition) patches, 4 | Written. Apply cleanly with `--dry-run --fuzz=0` to the Helium 0.21.1.1 tree. Not compiled. |
-| Option 2 overlay | Written, 163 lines. Not compiled. |
+| Option 2 overlay | Written, 203 lines in three files. Not compiled. |
 | Option 1 (profile) patch and manager | One patch (9/1) and a 57-line overlay. Not compiled. Deliberately incomplete: see README. |
-| Patch size, option 2 | 43 added, 0 removed, 6 files, 4 patches (counted from the patch files). |
-| Patch size, option 1 | 9 added, 1 removed for the first hook. Full size unknown; call-site counts in the README. |
+| Patch size, option 2 | 44 added, 0 removed, 5 files, 4 patches (counted from the patch files). |
+| Patch size, option 1 | 9 added, 1 removed for the first hook. Full size unknown. Rough bound by files touched: the one hook shown, up to an audit of 1,685 files that call `browser->profile()`; a working window is guessed at tens to low hundreds of files (README). |
 | Brave leak run | **Not done.** No Brave build, no permission to build. On the train plan. |
 | Screenshot proof of story 92 | **Not done.** Needs a build. On the train plan. |
 | Memory per Workspace, switch time | **Not measured.** On the train plan. |
@@ -26,7 +26,7 @@ the sidebar does not exist yet (M2):
    - `workspaceTest.open(url, workspaceId)`: opens a tab in that Workspace (calls `SiteInstance::CreateForFixedStoragePartition` through the overlay).
    - `workspaceTest.move(tabId, workspaceId)`: `MoveTabToWorkspace`.
    - `workspaceTest.list()`: the Workspaces and each tab's id.
-2. Implement `GetAllWorkspacePartitionConfigs` as "every id the page has opened" (a real pref comes with M5).
+2. The test page keeps the list of Workspace ids it has opened (a real pref comes with M5; the prototype has no list).
 3. Optional, for the Brave comparison: a Brave release build, from Brave's own download, run as a black box.
 
 ## Two-logins-in-one-window proof (acceptance criterion 1)

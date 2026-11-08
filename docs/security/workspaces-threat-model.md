@@ -84,7 +84,7 @@ Goal: read or change data of a Workspace the user did not mean the extension to 
 | --- | --- | --- |
 | A content script runs in a Workspace B page and reads it, or sends it away | Extensions are one set per profile and are trusted with all browsing. Mitigation M-D1: a per-extension "run in Workspaces" setting, off by default for extensions installed after M5, enforced where Chromium decides page access for a tab (to be placed on the train). | **Open: D3, M-D1.** |
 | `webRequest` sees `Cookie` and `Authorization` headers of B | Same. MV2 stays supported in Aerie (see `docs/adblock.md`), so a blocking `webRequest` extension sees them. | Accepted with M-D1, R-1. |
-| `chrome.cookies` reads B's cookies | It reads only the default partition (`cookies_api.cc:264`), so it cannot. | By design; a side effect is that cookie-manager extensions do not work in Workspaces. |
+| `chrome.cookies` reads B's cookies | It reads only the default partition (`extensions/browser/api/cookies/cookies_api.cc:120`, `ParseStoreCookieManager`), so it cannot. | By design; a side effect is that cookie-manager extensions do not work in Workspaces. |
 | An extension opens a tab in a chosen Workspace | `chrome.tabs.create` goes through the navigator: no partition is named, so the tab inherits the active Workspace or the default. There is no extension API to name one. | By design. |
 | Extension storage links A and B | Extension storage is per profile. | Accepted, R-1. |
 
