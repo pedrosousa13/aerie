@@ -6,7 +6,7 @@ The final Aerie mark is **Soar**: the wings sweep up into a peak, so the bird is
 | --- | --- |
 | `soar-mark.svg` | Master mark. One stroked path and one circle on a 256 px canvas. |
 | `soar-mark-small.svg` | The same mark tuned for 16 to 24 px: heavier wings and a smaller, lower sun. It is used for small icons, the toolbar glyph and the new tab page favicon. |
-| `fonts/Sora-Variable.ttf` | Sora, SemiBold weight, for the word "Aerie" in the logo images. SIL Open Font License 1.1, see `fonts/OFL.txt`. |
+| `fonts/Outfit-Variable.ttf` | Outfit, SemiBold weight, for the word "Aerie" in the logo images. Outfit is also the typeface for Aerie's own pages, such as the first-run setup (#46). SIL Open Font License 1.1, see `fonts/OFL.txt`. |
 
 `tools/aerie_branding/export.py` turns these sources into every file in `branding/art/`. It keeps the names and sizes that `branding/resources.txt` maps into the Chromium tree. The build does not run the exporter, because the exported files are committed. After you change a source, run:
 

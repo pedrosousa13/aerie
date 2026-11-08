@@ -8,7 +8,7 @@ with no code change (issues #5 and #21).
 Sources, all in branding/source/:
   soar-mark.svg        the mark, master. One stroked path and one circle.
   soar-mark-small.svg  the same mark tuned for 16-24 px: heavier wings, smaller sun.
-  fonts/               Sora (SIL OFL 1.1), for the word "Aerie" in the logo images.
+  fonts/               Outfit (SIL OFL 1.1), for the word "Aerie" in the logo images.
 
 The build does not run this. The exported files are committed. You only need it
 after changing a source. It needs Pillow and skia-pathops:
@@ -27,7 +27,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 SOURCE = REPO / "branding" / "source"
-FONT = SOURCE / "fonts" / "Sora-Variable.ttf"
+FONT = SOURCE / "fonts" / "Outfit-Variable.ttf"
 FONT_WEIGHT = b"SemiBold"
 
 CANVAS = 256.0
