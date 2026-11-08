@@ -353,11 +353,54 @@ def check_audio_noise_stable(root: Path, require: bool = False) -> list[Finding]
     return out
 
 
+WEBGL_CONTEXT_PATH = "third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc"
+GPU_ADAPTER_PATH = "third_party/blink/renderer/modules/webgpu/gpu_adapter.cc"
+
+
+def check_gpu_masking(root: Path, require: bool = False) -> list[Finding]:
+    """The graphics card is not a fingerprint surface (issue #112): WEBGL_debug_renderer_info goes
+    through the one masking helper, with no second SpoofWebGLInfo branch stacked on it, and WebGPU
+    adapter info is built from values that are empty while masked."""
+    gate = "gpu_masking"
+    out: list[Finding] = []
+    text, missing = _read(root, WEBGL_CONTEXT_PATH, gate, require)
+    out += missing
+    if text is not None:
+        for case, flag in (("kUnmaskedRendererWebgl", "false"), ("kUnmaskedVendorWebgl", "true")):
+            pattern = (r"case WebGLDebugRendererInfo::" + case + r":(?:(?!case WebGLDebugRendererInfo::).)*?"
+                       r"UnmaskedGpuString\(script_state,\s*/\*vendor=\*/" + flag)
+            if not re.search(pattern, text, re.S):
+                out.append(Finding(gate, WEBGL_CONTEXT_PATH,
+                                   f"{case} must return UnmaskedGpuString(..., /*vendor=*/{flag}, ...), not the raw GL string"))
+        if "ShouldMaskGpuInfoForContext(" not in text or "aerie_gpu_info::ShouldMaskGpuInfo(" in text:
+            out.append(Finding(gate, WEBGL_CONTEXT_PATH,
+                               "UnmaskedGpuString must decide with ShouldMaskGpuInfoForContext, the one shared helper, "
+                               "not a copy of its logic"))
+        if text.count("kSpoofWebGLInfo") > 1:
+            out.append(Finding(gate, WEBGL_CONTEXT_PATH,
+                               "kSpoofWebGLInfo may be read only inside UnmaskedGpuString, not in a second branch"))
+    adapter, missing = _read(root, GPU_ADAPTER_PATH, gate, require)
+    out += missing
+    if adapter is not None:
+        problems = []
+        if "ShouldMaskGpuInfoForContext(" not in adapter or "aerie_gpu_info::ShouldMaskGpuInfo(" in adapter:
+            problems.append("CreateAdapterInfoForAdapter must decide with ShouldMaskGpuInfoForContext, the one "
+                            "shared helper, not a copy of its logic")
+        for field in ("vendor", "architecture", "device", "description"):
+            if f"{field} = masked ? g_empty_string : {field}_;" not in adapter:
+                problems.append(f"WebGPU {field} must be empty while masked")
+        if re.search(r"GPUAdapterInfo>\(\s*vendor_", adapter) or not re.search(
+                r"GPUAdapterInfo>\(\s*vendor, architecture,", adapter):
+            problems.append("GPUAdapterInfo must be built from the masked values, not vendor_ and architecture_")
+        out += [Finding(gate, GPU_ADAPTER_PATH, m) for m in problems]
+    return out
+
+
 GATES: tuple[Callable[..., list[Finding]], ...] = (
     check_search_list, check_search_suggestions, check_secure_dns_default,
     check_crash_reporting, check_services_off, check_fedcm_resolver, check_widevine_opt_in,
     check_https_first_dialog_off, check_link_prefetch_off, check_js_optimizer, check_services_ui,
-    check_audio_noise_stable,
+    check_audio_noise_stable, check_gpu_masking,
 )
 
 

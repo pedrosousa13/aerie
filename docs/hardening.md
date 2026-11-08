@@ -19,7 +19,7 @@ page and the Bench checks, so the three cannot drift apart.
 | No prefetch or preloading | Off. | ungoogled-chromium (through Helium) | Dropdown | `hardening_prefetch` |
 | Strict site isolation | Always on. | Chromium | Read-only | `hardening_site_isolation` |
 | JavaScript JIT per site | On for every site. | Chromium | Link to site settings | `hardening_js_optimizer` |
-| Fingerprinting randomization | On. | Helium | Toggle | `hardening_fingerprinting`, `hardening_fingerprinting_site`, `hardening_device_memory` |
+| Fingerprinting randomization | On. | Helium | Toggle | `hardening_fingerprinting`, `hardening_fingerprinting_site`, `hardening_fingerprinting_gpu`, `hardening_device_memory` |
 | Widevine DRM | Off. | Aerie | Toggle | `hardening_pref_defaults`, `hardening_settings_page`, `widevine_opt_in` |
 | Extensions cannot loosen these settings | Always on. | Aerie | Read-only | `hardening_extension_prefs` |
 
@@ -142,7 +142,7 @@ Process rule: the optimizer mode is part of the SiteInfo and of the renderer pro
 
 ### Fingerprinting randomization
 
-Canvas and audio output and the reported number of CPU cores carry small random noise. The noise differs for each site and for each browser session, and is the same on every address of one site (www.example.com and shop.example.com share it). A private window starts with its own noise. You can turn it off for a single site, and that covers every address of the site. The reported device memory is capped at 8 GB, and the cap stays when this is turned off.
+Canvas and audio output and the reported number of CPU cores carry small random noise. The noise differs for each site and for each browser session, and is the same on every address of one site (www.example.com and shop.example.com share it). A private window starts with its own noise. You can turn it off for a single site, and that covers every address of the site. WebGL reports only the vendor family of the graphics card (for example Google Inc. (AMD)), and WebGPU reports no adapter details. The reported device memory is capped at 8 GB, and the cap stays when this is turned off.
 
 Audio noise is seeded from the site and session only, so one site gets the same audio output on every render and every AnalyserNode read of the same signal in one session. A tracker cannot average the noise away by reading again.
 
@@ -152,24 +152,34 @@ The seeds are created from random numbers when a browser context first asks for 
 
 Device memory (navigator.deviceMemory, in workers, and the Device-Memory and Sec-CH-Device-Memory headers) is capped at 8 GB, where Chromium's desktop maximum is 32 GB. A machine with less than 8 GB keeps its real bucket. There is no noise on this value. The cap is the one exception to the rule that turning fingerprinting protection off restores the real value: it follows the HeliumNoise feature only, so it stays on when the setting is off, globally or for one site, and only --disable-features=HeliumNoise lifts it.
 
+WebGL vendor and renderer (WEBGL_debug_renderer_info) report the vendor family in Chrome's own format, for example Google Inc. (AMD) and ANGLE (AMD, AMD Radeon Graphics, OpenGL ES 3.2). The families are AMD, Intel, NVIDIA and Mesa (llvmpipe); a card that matches none of them reports Intel, because Chrome never reports an other family and Intel is the most common one on Linux. The model, driver and LLVM version are dropped. Other WebGL parameters and extension lists are not changed. A site that picks graphics quality from the card model gets the generic family instead.
+
+WebGPU adapter info has an empty vendor, architecture, device and description. Aerie's own code does the family mapping and the masked strings (components/aerie_gpu_info), with unit tests.
+
+The WebGL and WebGPU values follow the same switches as the other noise: the browser sends the page a token only when protection is on for the site, and turning it off for the site or for the whole browser gives the real values back. A worker has no token yet, so it always gets the masked values until workers get tokens (issue #113); a worker started from a site with protection off therefore still sees masked values. The chrome://flags entry that sets a fixed WebGL value (SpoofWebGLInfo) still wins over the masking when you set it.
+
 - Default: On.
 - Default provided by: Helium
 - Where the default is set:
   - helium-chromium/patches/helium/core/noise/core.patch: helium.noise.enabled defaults to true
   - helium-chromium/patches/helium/core/noise/canvas.patch and audio.patch: the canvas and audio noise
+  - patches/hardening/0010-mask-the-gpu-in-webgl-and-webgpu.patch: the kHeliumNoiseWebGL feature is on by default
 - Upstream code:
   - `content/browser/helium_noise/noise_token_data.cc`
   - `chrome/browser/helium_noise/helium_noise_settings.cc`
   - third_party/blink/common/features.cc (HeliumNoise)
+  - third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc (getParameter)
+  - third_party/blink/renderer/modules/webgpu/gpu_adapter.cc (CreateAdapterInfoForAdapter)
   - third_party/blink/common/device_memory/approximated_device_memory.cc (the 8 GB cap)
 - Preference: `helium.noise.enabled` (default `true`)
 - Aerie patches:
   - `patches/hardening/0009-stable-audio-noise-per-site-and-session.patch`
+  - `patches/hardening/0010-mask-the-gpu-in-webgl-and-webgpu.patch`
   - `patches/hardening/0011-key-fingerprinting-noise-on-the-site.patch`
   - `patches/hardening/0012-cap-device-memory-at-8gb.patch`
 - Settings row: Toggle
 - Cost: Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page. Turning it off does not lift the 8 GB device memory cap.
-- Bench checks: `hardening_fingerprinting`, `hardening_fingerprinting_site`, `hardening_device_memory`
+- Bench checks: `hardening_fingerprinting`, `hardening_fingerprinting_site`, `hardening_fingerprinting_gpu`, `hardening_device_memory`
 
 ## What Aerie added
 

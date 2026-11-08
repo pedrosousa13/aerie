@@ -1,0 +1,293 @@
+Aerie-Purpose: Report the graphics card as a vendor family in Chrome's own format (WebGL UNMASKED_VENDOR/RENDERER) and give WebGPU adapter info empty vendor, architecture, device and description, so the card model and driver are no fingerprint surface (issue #112).
+Aerie-Upstream-Area: third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc (getParameter), third_party/blink/renderer/modules/webgpu/gpu_adapter.cc (CreateAdapterInfoForAdapter), third_party/blink/renderer/core/execution_context/gpu_info_masking.h, third_party/blink/public/common/helium_noise/ (HeliumNoiseFeature::kWebGL), content/browser/helium_noise/noise_token_data.cc, third_party/blink/common/features.cc (kHeliumNoiseWebGL)
+
+HeliumNoiseFeature::kWebGL is a new surface token. Like the others it is derived per site
+and session and sent only when protection is on for the site, so "token present" means
+"protected here" and the per-site switch and helium.noise.enabled turn this surface off
+without a renderer change. The new feature kHeliumNoiseWebGL (on by default) switches the
+surface off for the Bench's negative control.
+
+The two getParameter branches that read the ungoogled-chromium SpoofWebGLInfo flag are
+replaced by one helper, UnmaskedGpuString: the flag, a value the user chose, still wins;
+otherwise a protected context gets aerie_gpu_info::MaskedVendor/MaskedRenderer for the
+family of the real strings, and an unprotected one gets the real strings. The family
+mapping, the strings and the decision (ShouldMaskGpuInfo) are pure code with unit tests in
+overlay/components/aerie_gpu_info. One Blink helper, ShouldMaskGpuInfoForContext in
+core/execution_context/gpu_info_masking.h, reads the feature switches, the context kind and
+the token and feeds that decision, so WebGL and WebGPU share it. WebGPU adapter info goes
+through the same helper; the driver string, which only developer features expose, is emptied
+too.
+
+A worker has no noise tokens yet, so it masks whenever the features are on (fail closed).
+Until issue #113 gives workers tokens, a worker started from a site that has protection
+off therefore still sees masked values.
+
+--- a/content/browser/helium_noise/noise_token_data.cc
++++ b/content/browser/helium_noise/noise_token_data.cc
+@@ -61,6 +61,8 @@
+       blink::HeliumNoiseToken(base::RandUint64());
+   session_tokens_[blink::HeliumNoiseFeature::kHardware] =
+       blink::HeliumNoiseToken(base::RandUint64());
++  session_tokens_[blink::HeliumNoiseFeature::kWebGL] =
++      blink::HeliumNoiseToken(base::RandUint64());
+ }
+ 
+ // static
+--- a/third_party/blink/common/features.cc
++++ b/third_party/blink/common/features.cc
+@@ -63,6 +63,9 @@
+ // navigator.hardwareConcurrency noising for fingerprint protection.
+ BASE_FEATURE(kHeliumNoiseCpuCores, base::FEATURE_ENABLED_BY_DEFAULT);
+ 
++// WebGL and WebGPU report masked graphics card details (Aerie, issue #112).
++BASE_FEATURE(kHeliumNoiseWebGL, base::FEATURE_ENABLED_BY_DEFAULT);
++
+ // Controls whether to include information about the page's open popup in
+ // AIPageContent.
+ BASE_FEATURE(kAIPageContentIncludePopupWindows,
+--- a/third_party/blink/public/common/features.h
++++ b/third_party/blink/public/common/features.h
+@@ -46,6 +46,7 @@
+ BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kHeliumNoiseCanvas);
+ BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kHeliumNoiseAudio);
+ BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kHeliumNoiseCpuCores);
++BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kHeliumNoiseWebGL);
+ 
+ // Controls whether to include information about the page's open popup in
+ // AIPageContent.
+--- a/third_party/blink/public/common/helium_noise/noise_token.h
++++ b/third_party/blink/public/common/helium_noise/noise_token.h
+@@ -24,6 +24,7 @@
+   kCanvas,
+   kAudio,
+   kHardware,
++  kWebGL,
+ };
+ 
+ // A wrapper class for a uint64_t noise token.
+--- a/third_party/blink/public/common/helium_noise/noise_token_mojom_traits.h
++++ b/third_party/blink/public/common/helium_noise/noise_token_mojom_traits.h
+@@ -32,6 +32,8 @@
+         return blink::mojom::HeliumNoiseFeature::kAudio;
+       case blink::HeliumNoiseFeature::kHardware:
+         return blink::mojom::HeliumNoiseFeature::kHardware;
++      case blink::HeliumNoiseFeature::kWebGL:
++        return blink::mojom::HeliumNoiseFeature::kWebGL;
+     }
+     NOTREACHED();
+   }
+@@ -45,6 +47,8 @@
+         return blink::HeliumNoiseFeature::kAudio;
+       case blink::mojom::HeliumNoiseFeature::kHardware:
+         return blink::HeliumNoiseFeature::kHardware;
++      case blink::mojom::HeliumNoiseFeature::kWebGL:
++        return blink::HeliumNoiseFeature::kWebGL;
+     }
+ 
+     NOTREACHED();
+--- a/third_party/blink/public/mojom/helium_noise/noise_token.mojom
++++ b/third_party/blink/public/mojom/helium_noise/noise_token.mojom
+@@ -9,6 +9,7 @@
+   kCanvas,
+   kAudio,
+   kHardware,
++  kWebGL,
+ };
+ 
+ // Typemapped to blink::HeliumNoiseToken
+--- a/third_party/blink/renderer/core/BUILD.gn
++++ b/third_party/blink/renderer/core/BUILD.gn
+@@ -416,6 +416,7 @@
+     ":make_deprecation_info",
+     ":xml_ffi",
+     "//base",
++    "//components/aerie_gpu_info",
+     "//components/paint_preview/common",
+     "//components/performance_manager/public/mojom:mojom_blink",
+     "//components/shared_highlighting/core/common",
+--- a/third_party/blink/renderer/core/execution_context/build.gni
++++ b/third_party/blink/renderer/core/execution_context/build.gni
+@@ -13,6 +13,7 @@
+   "execution_context_lifecycle_observer.h",
+   "execution_context_lifecycle_state_observer.cc",
+   "execution_context_lifecycle_state_observer.h",
++  "gpu_info_masking.h",
+   "navigator_base.cc",
+   "navigator_base.h",
+   "remote_security_context.cc",
+--- /dev/null
++++ b/third_party/blink/renderer/core/execution_context/gpu_info_masking.h
+@@ -0,0 +1,36 @@
++// Copyright 2026 The Aerie Authors
++// You can use, redistribute, and/or modify this source code under
++// the terms of the GPL-3.0 license that can be found in the LICENSE file.
++
++#ifndef THIRD_PARTY_BLINK_RENDERER_CORE_EXECUTION_CONTEXT_GPU_INFO_MASKING_H_
++#define THIRD_PARTY_BLINK_RENDERER_CORE_EXECUTION_CONTEXT_GPU_INFO_MASKING_H_
++
++#include "base/feature_list.h"
++#include "components/aerie_gpu_info/gpu_info.h"
++#include "third_party/blink/public/common/features.h"
++#include "third_party/blink/public/common/helium_noise/noise_token.h"
++#include "third_party/blink/renderer/core/execution_context/execution_context.h"
++
++namespace blink {
++
++// Whether WebGL and WebGPU report masked graphics card details to this context
++// (Aerie, issue #112). A null context counts as a worker. A worker has no noise
++// tokens yet, so it is always protected while the features are on (fail
++// closed, until issue #113).
++inline bool ShouldMaskGpuInfoForContext(const ExecutionContext* context) {
++  const bool is_worker = !context || context->IsWorkerOrWorkletGlobalScope();
++  const bool has_token =
++      context &&
++      context->GetHeliumNoiseTokens().contains(HeliumNoiseFeature::kWebGL);
++  return aerie_gpu_info::ShouldMaskGpuInfo(
++      is_worker ? aerie_gpu_info::ContextKind::kWorker
++                : aerie_gpu_info::ContextKind::kWindow,
++      {.master_enabled = base::FeatureList::IsEnabled(features::kHeliumNoise),
++       .surface_enabled =
++           base::FeatureList::IsEnabled(features::kHeliumNoiseWebGL),
++       .has_token = has_token});
++}
++
++}  // namespace blink
++
++#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_EXECUTION_CONTEXT_GPU_INFO_MASKING_H_
+--- a/third_party/blink/renderer/modules/webgl/BUILD.gn
++++ b/third_party/blink/renderer/modules/webgl/BUILD.gn
+@@ -195,6 +195,7 @@
+ 
+   public_deps = [ "//device/vr/public/mojom:vr_service_blink" ]
+   deps = [
++    "//components/aerie_gpu_info",
+     "//device/vr/buildflags",
+     "//gpu/command_buffer/client:gles2_implementation",
+     "//gpu/command_buffer/client:gles2_interface",
+--- a/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc
++++ b/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc
+@@ -45,6 +45,7 @@
+ #include "base/trace_event/memory_dump_manager.h"
+ #include "base/trace_event/trace_event.h"
+ #include "build/build_config.h"
++#include "components/aerie_gpu_info/gpu_info.h"
+ #include "components/viz/common/gpu/raster_context_provider.h"
+ #include "components/viz/common/resources/shared_image_format_utils.h"
+ #include "device/vr/buildflags/buildflags.h"
+@@ -75,6 +76,7 @@
+ #include "third_party/blink/renderer/bindings/modules/v8/v8_webgl_copy_element_image_config.h"
+ #include "third_party/blink/renderer/bindings/modules/v8/webgl_any.h"
+ #include "third_party/blink/renderer/core/execution_context/execution_context.h"
++#include "third_party/blink/renderer/core/execution_context/gpu_info_masking.h"
+ #include "third_party/blink/renderer/core/frame/local_dom_window.h"
+ #include "third_party/blink/renderer/core/frame/local_frame.h"
+ #include "third_party/blink/renderer/core/frame/local_frame_client.h"
+@@ -206,6 +208,28 @@
+ 
+ namespace {
+ 
++// What WEBGL_debug_renderer_info reports (Aerie, issue #112). The
++// SpoofWebGLInfo flag, a value the user chose, wins. Otherwise a context under
++// protection reports the vendor family in Chrome's own format, and any other
++// context reports the real string.
++String UnmaskedGpuString(ScriptState* script_state,
++                         bool vendor,
++                         const base::FeatureParam<std::string>& spoofed,
++                         const String& real_vendor,
++                         const String& real_renderer) {
++  if (base::FeatureList::IsEnabled(blink::features::kSpoofWebGLInfo)) {
++    return String(spoofed.Get());
++  }
++  if (!ShouldMaskGpuInfoForContext(ExecutionContext::From(script_state))) {
++    return vendor ? real_vendor : real_renderer;
++  }
++  const aerie_gpu_info::GpuFamily family =
++      aerie_gpu_info::GpuFamilyFromGlStrings(real_vendor.Utf8(),
++                                             real_renderer.Utf8());
++  return String::FromUtf8(vendor ? aerie_gpu_info::MaskedVendor(family)
++                                 : aerie_gpu_info::MaskedRenderer(family));
++}
++
+ enum class WebGLANGLEImplementation {
+   // These values are persisted to logs. Entries should not be renumbered and
+   // numeric values should never be reused.
+@@ -4219,10 +4243,12 @@
+       return ScriptValue::CreateNull(script_state->GetIsolate());
+     case WebGLDebugRendererInfo::kUnmaskedRendererWebgl:
+       if (ExtensionEnabled(kWebGLDebugRendererInfoName)) {
+-        if (base::FeatureList::IsEnabled(blink::features::kSpoofWebGLInfo))
+-          return WebGLAny(script_state, String(blink::features::kSpoofWebGLRendererParam.Get()));
+-        return WebGLAny(script_state,
+-                        String(ContextGL()->GetString(GL_RENDERER)));
++        return WebGLAny(
++            script_state,
++            UnmaskedGpuString(script_state, /*vendor=*/false,
++                              blink::features::kSpoofWebGLRendererParam,
++                              String(ContextGL()->GetString(GL_VENDOR)),
++                              String(ContextGL()->GetString(GL_RENDERER))));
+       }
+       SynthesizeGLError(
+           GL_INVALID_ENUM, "getParameter",
+@@ -4230,10 +4256,12 @@
+       return ScriptValue::CreateNull(script_state->GetIsolate());
+     case WebGLDebugRendererInfo::kUnmaskedVendorWebgl:
+       if (ExtensionEnabled(kWebGLDebugRendererInfoName)) {
+-        if (base::FeatureList::IsEnabled(blink::features::kSpoofWebGLInfo))
+-          return WebGLAny(script_state, String(blink::features::kSpoofWebGLVendorParam.Get()));
+-        return WebGLAny(script_state,
+-                        String(ContextGL()->GetString(GL_VENDOR)));
++        return WebGLAny(
++            script_state,
++            UnmaskedGpuString(script_state, /*vendor=*/true,
++                              blink::features::kSpoofWebGLVendorParam,
++                              String(ContextGL()->GetString(GL_VENDOR)),
++                              String(ContextGL()->GetString(GL_RENDERER))));
+       }
+       SynthesizeGLError(
+           GL_INVALID_ENUM, "getParameter",
+--- a/third_party/blink/renderer/modules/webgpu/gpu_adapter.cc
++++ b/third_party/blink/renderer/modules/webgpu/gpu_adapter.cc
+@@ -11,6 +11,7 @@
+ #include "third_party/blink/renderer/bindings/modules/v8/v8_gpu_queue_descriptor.h"
+ #include "third_party/blink/renderer/bindings/modules/v8/v8_gpu_request_adapter_options.h"
+ #include "third_party/blink/renderer/core/dom/dom_exception.h"
++#include "third_party/blink/renderer/core/execution_context/gpu_info_masking.h"
+ #include "third_party/blink/renderer/core/inspector/console_message.h"
+ #include "third_party/blink/renderer/modules/webgpu/dawn_enum_conversions.h"
+ #include "third_party/blink/renderer/modules/webgpu/gpu.h"
+@@ -126,13 +127,24 @@
+ GPUAdapterInfo* GPUAdapter::CreateAdapterInfoForAdapter() {
+   bool is_fallback_adapter = adapter_type_ == wgpu::AdapterType::CPU;
+ 
++  // Aerie (issue #112): under protection the vendor, architecture, device and
++  // description are empty, as in Brave. So is the driver, which only developer
++  // features expose.
++  const bool masked = ShouldMaskGpuInfoForContext(
++      gpu_ ? gpu_->GetExecutionContext() : nullptr);
++  const String vendor = masked ? g_empty_string : vendor_;
++  const String architecture = masked ? g_empty_string : architecture_;
++  const String device = masked ? g_empty_string : device_;
++  const String description = masked ? g_empty_string : description_;
++  const String driver = masked ? g_empty_string : driver_;
++
+   GPUAdapterInfo* info;
+   if (RuntimeEnabledFeatures::WebGPUDeveloperFeaturesEnabled()) {
+     // If WebGPU developer features have been enabled then provide all available
+     // adapter info values.
+     info = MakeGarbageCollected<GPUAdapterInfo>(
+-        vendor_, architecture_, subgroup_min_size_, subgroup_max_size_,
+-        is_fallback_adapter, device_, description_, driver_,
++        vendor, architecture, subgroup_min_size_, subgroup_max_size_,
++        is_fallback_adapter, device, description, driver,
+         FromDawnEnum(backend_type_), FromDawnEnum(adapter_type_),
+         d3d_shader_model_, vk_driver_version_, FromDawnEnum(power_preference_));
+ 
+@@ -145,7 +157,7 @@
+     }
+   } else {
+     info = MakeGarbageCollected<GPUAdapterInfo>(
+-        vendor_, architecture_, subgroup_min_size_, subgroup_max_size_,
++        vendor, architecture, subgroup_min_size_, subgroup_max_size_,
+         is_fallback_adapter);
+   }
+ 

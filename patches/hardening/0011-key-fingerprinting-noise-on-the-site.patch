@@ -48,7 +48,7 @@ must stay adjacent. The hunk of onboarding/0001 in this file moves down by one l
  // the same BrowserContext.
  blink::HeliumNoiseToken DeriveTokenFromOrigin(blink::HeliumNoiseToken token,
                                                std::string_view domain) {
-@@ -82,9 +83,14 @@
+@@ -84,9 +85,14 @@
      const url::Origin& origin) {
    HeliumNoiseTokenData* data = GetBrowserTokens(context);
  

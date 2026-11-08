@@ -1,0 +1,1553 @@
+{
+ "check": "hardening_fingerprinting_gpu",
+ "cases": [
+  {
+   "name": "synthetic_family_strings_empty_webgpu_and_controls_real",
+   "obs": {
+    "a": {
+     "webgl": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     },
+     "webgpu": {
+      "adapter": true,
+      "vendor": "",
+      "architecture": "",
+      "device": "",
+      "description": ""
+     },
+     "worker": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     }
+    },
+    "b": {
+     "webgl": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     },
+     "webgpu": {
+      "adapter": true,
+      "vendor": "",
+      "architecture": "",
+      "device": "",
+      "description": ""
+     },
+     "worker": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     }
+    },
+    "feature_off": {
+     "a": {
+      "webgl": {
+       "vendor": "Google Inc. (Google)",
+       "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "google",
+       "architecture": "swiftshader",
+       "device": "0x0000c0de",
+       "description": "SwiftShader Device"
+      },
+      "worker": null
+     }
+    },
+    "global_off": {
+     "a": {
+      "webgl": {
+       "vendor": "Google Inc. (Google)",
+       "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "google",
+       "architecture": "swiftshader",
+       "device": "0x0000c0de",
+       "description": "SwiftShader Device"
+      },
+      "worker": null
+     }
+    },
+    "site_off": {
+     "a": {
+      "webgl": {
+       "vendor": "Google Inc. (Google)",
+       "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "google",
+       "architecture": "swiftshader",
+       "device": "0x0000c0de",
+       "description": "SwiftShader Device"
+      },
+      "worker": null
+     },
+     "b": {
+      "webgl": {
+       "vendor": "Google Inc. (Intel)",
+       "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "",
+       "architecture": "",
+       "device": "",
+       "description": ""
+      },
+      "worker": {
+       "vendor": "Google Inc. (Intel)",
+       "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+      }
+     }
+    }
+   },
+   "expect": "pass",
+   "detail_contains": "WebGL reports the Intel family"
+  },
+  {
+   "name": "synthetic_no_webgpu_adapter_is_recorded_and_passes",
+   "obs": {
+    "a": {
+     "webgl": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     },
+     "webgpu": {
+      "adapter": false,
+      "why": "requestAdapter returned null"
+     },
+     "worker": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     }
+    },
+    "b": {
+     "webgl": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     },
+     "webgpu": {
+      "adapter": false,
+      "why": "requestAdapter returned null"
+     },
+     "worker": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     }
+    },
+    "feature_off": {
+     "a": {
+      "webgl": {
+       "vendor": "Google Inc. (Google)",
+       "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+      },
+      "webgpu": {
+       "adapter": false
+      },
+      "worker": null
+     }
+    },
+    "global_off": {
+     "a": {
+      "webgl": {
+       "vendor": "Google Inc. (Google)",
+       "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+      },
+      "webgpu": {
+       "adapter": false
+      },
+      "worker": null
+     }
+    },
+    "site_off": {
+     "a": {
+      "webgl": {
+       "vendor": "Google Inc. (Google)",
+       "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+      },
+      "webgpu": {
+       "adapter": false
+      },
+      "worker": null
+     },
+     "b": {
+      "webgl": {
+       "vendor": "Google Inc. (Intel)",
+       "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+      },
+      "webgpu": {
+       "adapter": false
+      },
+      "worker": {
+       "vendor": "Google Inc. (Intel)",
+       "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+      }
+     }
+    }
+   },
+   "expect": "pass",
+   "detail_contains": "gave no adapter here"
+  },
+  {
+   "name": "real_strings_on_site_a",
+   "obs": {
+    "a": {
+     "webgl": {
+      "vendor": "Google Inc. (Google)",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+     },
+     "webgpu": {
+      "adapter": true,
+      "vendor": "",
+      "architecture": "",
+      "device": "",
+      "description": ""
+     },
+     "worker": {
+      "vendor": "Google Inc. (Google)",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+     }
+    },
+    "b": {
+     "webgl": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     },
+     "webgpu": {
+      "adapter": true,
+      "vendor": "",
+      "architecture": "",
+      "device": "",
+      "description": ""
+     },
+     "worker": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     }
+    },
+    "feature_off": {
+     "a": {
+      "webgl": {
+       "vendor": "Google Inc. (Google)",
+       "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "google",
+       "architecture": "swiftshader",
+       "device": "0x0000c0de",
+       "description": "SwiftShader Device"
+      },
+      "worker": null
+     }
+    },
+    "global_off": {
+     "a": {
+      "webgl": {
+       "vendor": "Google Inc. (Google)",
+       "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "google",
+       "architecture": "swiftshader",
+       "device": "0x0000c0de",
+       "description": "SwiftShader Device"
+      },
+      "worker": null
+     }
+    },
+    "site_off": {
+     "a": {
+      "webgl": {
+       "vendor": "Google Inc. (Google)",
+       "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "google",
+       "architecture": "swiftshader",
+       "device": "0x0000c0de",
+       "description": "SwiftShader Device"
+      },
+      "worker": null
+     },
+     "b": {
+      "webgl": {
+       "vendor": "Google Inc. (Intel)",
+       "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "",
+       "architecture": "",
+       "device": "",
+       "description": ""
+      },
+      "worker": {
+       "vendor": "Google Inc. (Intel)",
+       "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+      }
+     }
+    }
+   },
+   "expect": "fail",
+   "detail_contains": "WebGL is not masked on a"
+  },
+  {
+   "name": "control_still_masked_with_feature_off",
+   "obs": {
+    "a": {
+     "webgl": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     },
+     "webgpu": {
+      "adapter": true,
+      "vendor": "",
+      "architecture": "",
+      "device": "",
+      "description": ""
+     },
+     "worker": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     }
+    },
+    "b": {
+     "webgl": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     },
+     "webgpu": {
+      "adapter": true,
+      "vendor": "",
+      "architecture": "",
+      "device": "",
+      "description": ""
+     },
+     "worker": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     }
+    },
+    "feature_off": {
+     "a": {
+      "webgl": {
+       "vendor": "Google Inc. (Intel)",
+       "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "google",
+       "architecture": "swiftshader",
+       "device": "0x0000c0de",
+       "description": "SwiftShader Device"
+      },
+      "worker": {
+       "vendor": "Google Inc. (Intel)",
+       "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+      }
+     }
+    },
+    "global_off": {
+     "a": {
+      "webgl": {
+       "vendor": "Google Inc. (Google)",
+       "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "google",
+       "architecture": "swiftshader",
+       "device": "0x0000c0de",
+       "description": "SwiftShader Device"
+      },
+      "worker": null
+     }
+    },
+    "site_off": {
+     "a": {
+      "webgl": {
+       "vendor": "Google Inc. (Google)",
+       "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "google",
+       "architecture": "swiftshader",
+       "device": "0x0000c0de",
+       "description": "SwiftShader Device"
+      },
+      "worker": null
+     },
+     "b": {
+      "webgl": {
+       "vendor": "Google Inc. (Intel)",
+       "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "",
+       "architecture": "",
+       "device": "",
+       "description": ""
+      },
+      "worker": {
+       "vendor": "Google Inc. (Intel)",
+       "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+      }
+     }
+    }
+   },
+   "expect": "fail",
+   "detail_contains": "negative control failed"
+  },
+  {
+   "name": "global_off_still_masked",
+   "obs": {
+    "a": {
+     "webgl": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     },
+     "webgpu": {
+      "adapter": true,
+      "vendor": "",
+      "architecture": "",
+      "device": "",
+      "description": ""
+     },
+     "worker": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     }
+    },
+    "b": {
+     "webgl": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     },
+     "webgpu": {
+      "adapter": true,
+      "vendor": "",
+      "architecture": "",
+      "device": "",
+      "description": ""
+     },
+     "worker": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     }
+    },
+    "feature_off": {
+     "a": {
+      "webgl": {
+       "vendor": "Google Inc. (Google)",
+       "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "google",
+       "architecture": "swiftshader",
+       "device": "0x0000c0de",
+       "description": "SwiftShader Device"
+      },
+      "worker": null
+     }
+    },
+    "global_off": {
+     "a": {
+      "webgl": {
+       "vendor": "Google Inc. (Intel)",
+       "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "google",
+       "architecture": "swiftshader",
+       "device": "0x0000c0de",
+       "description": "SwiftShader Device"
+      },
+      "worker": null
+     }
+    },
+    "site_off": {
+     "a": {
+      "webgl": {
+       "vendor": "Google Inc. (Google)",
+       "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "google",
+       "architecture": "swiftshader",
+       "device": "0x0000c0de",
+       "description": "SwiftShader Device"
+      },
+      "worker": null
+     },
+     "b": {
+      "webgl": {
+       "vendor": "Google Inc. (Intel)",
+       "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "",
+       "architecture": "",
+       "device": "",
+       "description": ""
+      },
+      "worker": {
+       "vendor": "Google Inc. (Intel)",
+       "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+      }
+     }
+    }
+   },
+   "expect": "fail",
+   "detail_contains": "protection off (global_off)"
+  },
+  {
+   "name": "per_site_off_still_masked",
+   "obs": {
+    "a": {
+     "webgl": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     },
+     "webgpu": {
+      "adapter": true,
+      "vendor": "",
+      "architecture": "",
+      "device": "",
+      "description": ""
+     },
+     "worker": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     }
+    },
+    "b": {
+     "webgl": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     },
+     "webgpu": {
+      "adapter": true,
+      "vendor": "",
+      "architecture": "",
+      "device": "",
+      "description": ""
+     },
+     "worker": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     }
+    },
+    "feature_off": {
+     "a": {
+      "webgl": {
+       "vendor": "Google Inc. (Google)",
+       "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "google",
+       "architecture": "swiftshader",
+       "device": "0x0000c0de",
+       "description": "SwiftShader Device"
+      },
+      "worker": null
+     }
+    },
+    "global_off": {
+     "a": {
+      "webgl": {
+       "vendor": "Google Inc. (Google)",
+       "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "google",
+       "architecture": "swiftshader",
+       "device": "0x0000c0de",
+       "description": "SwiftShader Device"
+      },
+      "worker": null
+     }
+    },
+    "site_off": {
+     "a": {
+      "webgl": {
+       "vendor": "Google Inc. (Intel)",
+       "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "google",
+       "architecture": "swiftshader",
+       "device": "0x0000c0de",
+       "description": "SwiftShader Device"
+      },
+      "worker": null
+     },
+     "b": {
+      "webgl": {
+       "vendor": "Google Inc. (Intel)",
+       "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "",
+       "architecture": "",
+       "device": "",
+       "description": ""
+      },
+      "worker": {
+       "vendor": "Google Inc. (Intel)",
+       "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+      }
+     }
+    }
+   },
+   "expect": "fail",
+   "detail_contains": "protection off (site_off_a)"
+  },
+  {
+   "name": "per_site_off_leaks_to_other_site",
+   "obs": {
+    "a": {
+     "webgl": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     },
+     "webgpu": {
+      "adapter": true,
+      "vendor": "",
+      "architecture": "",
+      "device": "",
+      "description": ""
+     },
+     "worker": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     }
+    },
+    "b": {
+     "webgl": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     },
+     "webgpu": {
+      "adapter": true,
+      "vendor": "",
+      "architecture": "",
+      "device": "",
+      "description": ""
+     },
+     "worker": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     }
+    },
+    "feature_off": {
+     "a": {
+      "webgl": {
+       "vendor": "Google Inc. (Google)",
+       "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "google",
+       "architecture": "swiftshader",
+       "device": "0x0000c0de",
+       "description": "SwiftShader Device"
+      },
+      "worker": null
+     }
+    },
+    "global_off": {
+     "a": {
+      "webgl": {
+       "vendor": "Google Inc. (Google)",
+       "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "google",
+       "architecture": "swiftshader",
+       "device": "0x0000c0de",
+       "description": "SwiftShader Device"
+      },
+      "worker": null
+     }
+    },
+    "site_off": {
+     "a": {
+      "webgl": {
+       "vendor": "Google Inc. (Google)",
+       "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "google",
+       "architecture": "swiftshader",
+       "device": "0x0000c0de",
+       "description": "SwiftShader Device"
+      },
+      "worker": null
+     },
+     "b": {
+      "webgl": {
+       "vendor": "Google Inc. (Google)",
+       "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "",
+       "architecture": "",
+       "device": "",
+       "description": ""
+      },
+      "worker": null
+     }
+    }
+   },
+   "expect": "fail",
+   "detail_contains": "b.localhost lost protection"
+  },
+  {
+   "name": "worker_reports_real_strings",
+   "obs": {
+    "a": {
+     "webgl": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     },
+     "webgpu": {
+      "adapter": true,
+      "vendor": "",
+      "architecture": "",
+      "device": "",
+      "description": ""
+     },
+     "worker": {
+      "vendor": "Google Inc. (Google)",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+     }
+    },
+    "b": {
+     "webgl": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     },
+     "webgpu": {
+      "adapter": true,
+      "vendor": "",
+      "architecture": "",
+      "device": "",
+      "description": ""
+     },
+     "worker": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     }
+    },
+    "feature_off": {
+     "a": {
+      "webgl": {
+       "vendor": "Google Inc. (Google)",
+       "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "google",
+       "architecture": "swiftshader",
+       "device": "0x0000c0de",
+       "description": "SwiftShader Device"
+      },
+      "worker": null
+     }
+    },
+    "global_off": {
+     "a": {
+      "webgl": {
+       "vendor": "Google Inc. (Google)",
+       "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "google",
+       "architecture": "swiftshader",
+       "device": "0x0000c0de",
+       "description": "SwiftShader Device"
+      },
+      "worker": null
+     }
+    },
+    "site_off": {
+     "a": {
+      "webgl": {
+       "vendor": "Google Inc. (Google)",
+       "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "google",
+       "architecture": "swiftshader",
+       "device": "0x0000c0de",
+       "description": "SwiftShader Device"
+      },
+      "worker": null
+     },
+     "b": {
+      "webgl": {
+       "vendor": "Google Inc. (Intel)",
+       "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "",
+       "architecture": "",
+       "device": "",
+       "description": ""
+      },
+      "worker": {
+       "vendor": "Google Inc. (Intel)",
+       "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+      }
+     }
+    }
+   },
+   "expect": "fail",
+   "detail_contains": "worker on a"
+  },
+  {
+   "name": "worker_missing",
+   "obs": {
+    "a": {
+     "webgl": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     },
+     "webgpu": {
+      "adapter": true,
+      "vendor": "",
+      "architecture": "",
+      "device": "",
+      "description": ""
+     },
+     "worker": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     }
+    },
+    "b": {
+     "webgl": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     },
+     "webgpu": {
+      "adapter": true,
+      "vendor": "",
+      "architecture": "",
+      "device": "",
+      "description": ""
+     },
+     "worker": null
+    },
+    "feature_off": {
+     "a": {
+      "webgl": {
+       "vendor": "Google Inc. (Google)",
+       "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "google",
+       "architecture": "swiftshader",
+       "device": "0x0000c0de",
+       "description": "SwiftShader Device"
+      },
+      "worker": null
+     }
+    },
+    "global_off": {
+     "a": {
+      "webgl": {
+       "vendor": "Google Inc. (Google)",
+       "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "google",
+       "architecture": "swiftshader",
+       "device": "0x0000c0de",
+       "description": "SwiftShader Device"
+      },
+      "worker": null
+     }
+    },
+    "site_off": {
+     "a": {
+      "webgl": {
+       "vendor": "Google Inc. (Google)",
+       "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "google",
+       "architecture": "swiftshader",
+       "device": "0x0000c0de",
+       "description": "SwiftShader Device"
+      },
+      "worker": null
+     },
+     "b": {
+      "webgl": {
+       "vendor": "Google Inc. (Intel)",
+       "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "",
+       "architecture": "",
+       "device": "",
+       "description": ""
+      },
+      "worker": {
+       "vendor": "Google Inc. (Intel)",
+       "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+      }
+     }
+    }
+   },
+   "expect": "fail",
+   "detail_contains": "worker on b"
+  },
+  {
+   "name": "digits_beyond_gl_version",
+   "obs": {
+    "a": {
+     "webgl": {
+      "vendor": "Google Inc. (AMD)",
+      "renderer": "ANGLE (AMD, AMD Radeon RX 6800, OpenGL ES 3.2)"
+     },
+     "webgpu": {
+      "adapter": true,
+      "vendor": "",
+      "architecture": "",
+      "device": "",
+      "description": ""
+     },
+     "worker": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     }
+    },
+    "b": {
+     "webgl": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     },
+     "webgpu": {
+      "adapter": true,
+      "vendor": "",
+      "architecture": "",
+      "device": "",
+      "description": ""
+     },
+     "worker": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     }
+    },
+    "feature_off": {
+     "a": {
+      "webgl": {
+       "vendor": "Google Inc. (Google)",
+       "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "google",
+       "architecture": "swiftshader",
+       "device": "0x0000c0de",
+       "description": "SwiftShader Device"
+      },
+      "worker": null
+     }
+    },
+    "global_off": {
+     "a": {
+      "webgl": {
+       "vendor": "Google Inc. (Google)",
+       "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "google",
+       "architecture": "swiftshader",
+       "device": "0x0000c0de",
+       "description": "SwiftShader Device"
+      },
+      "worker": null
+     }
+    },
+    "site_off": {
+     "a": {
+      "webgl": {
+       "vendor": "Google Inc. (Google)",
+       "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "google",
+       "architecture": "swiftshader",
+       "device": "0x0000c0de",
+       "description": "SwiftShader Device"
+      },
+      "worker": null
+     },
+     "b": {
+      "webgl": {
+       "vendor": "Google Inc. (Intel)",
+       "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "",
+       "architecture": "",
+       "device": "",
+       "description": ""
+      },
+      "worker": {
+       "vendor": "Google Inc. (Intel)",
+       "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+      }
+     }
+    }
+   },
+   "expect": "fail",
+   "detail_contains": "not a family string"
+  },
+  {
+   "name": "webgpu_info_not_empty",
+   "obs": {
+    "a": {
+     "webgl": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     },
+     "webgpu": {
+      "adapter": true,
+      "vendor": "google",
+      "architecture": "swiftshader",
+      "device": "0x0000c0de",
+      "description": "SwiftShader Device"
+     },
+     "worker": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     }
+    },
+    "b": {
+     "webgl": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     },
+     "webgpu": {
+      "adapter": true,
+      "vendor": "",
+      "architecture": "",
+      "device": "",
+      "description": ""
+     },
+     "worker": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     }
+    },
+    "feature_off": {
+     "a": {
+      "webgl": {
+       "vendor": "Google Inc. (Google)",
+       "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "google",
+       "architecture": "swiftshader",
+       "device": "0x0000c0de",
+       "description": "SwiftShader Device"
+      },
+      "worker": null
+     }
+    },
+    "global_off": {
+     "a": {
+      "webgl": {
+       "vendor": "Google Inc. (Google)",
+       "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "google",
+       "architecture": "swiftshader",
+       "device": "0x0000c0de",
+       "description": "SwiftShader Device"
+      },
+      "worker": null
+     }
+    },
+    "site_off": {
+     "a": {
+      "webgl": {
+       "vendor": "Google Inc. (Google)",
+       "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "google",
+       "architecture": "swiftshader",
+       "device": "0x0000c0de",
+       "description": "SwiftShader Device"
+      },
+      "worker": null
+     },
+     "b": {
+      "webgl": {
+       "vendor": "Google Inc. (Intel)",
+       "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "",
+       "architecture": "",
+       "device": "",
+       "description": ""
+      },
+      "worker": {
+       "vendor": "Google Inc. (Intel)",
+       "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+      }
+     }
+    }
+   },
+   "expect": "fail",
+   "detail_contains": "WebGPU adapter info is not empty on a"
+  },
+  {
+   "name": "webgpu_control_still_empty",
+   "obs": {
+    "a": {
+     "webgl": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     },
+     "webgpu": {
+      "adapter": true,
+      "vendor": "",
+      "architecture": "",
+      "device": "",
+      "description": ""
+     },
+     "worker": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     }
+    },
+    "b": {
+     "webgl": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     },
+     "webgpu": {
+      "adapter": true,
+      "vendor": "",
+      "architecture": "",
+      "device": "",
+      "description": ""
+     },
+     "worker": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     }
+    },
+    "feature_off": {
+     "a": {
+      "webgl": {
+       "vendor": "Google Inc. (Google)",
+       "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "",
+       "architecture": "",
+       "device": "",
+       "description": ""
+      },
+      "worker": null
+     }
+    },
+    "global_off": {
+     "a": {
+      "webgl": {
+       "vendor": "Google Inc. (Google)",
+       "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "google",
+       "architecture": "swiftshader",
+       "device": "0x0000c0de",
+       "description": "SwiftShader Device"
+      },
+      "worker": null
+     }
+    },
+    "site_off": {
+     "a": {
+      "webgl": {
+       "vendor": "Google Inc. (Google)",
+       "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "google",
+       "architecture": "swiftshader",
+       "device": "0x0000c0de",
+       "description": "SwiftShader Device"
+      },
+      "worker": null
+     },
+     "b": {
+      "webgl": {
+       "vendor": "Google Inc. (Intel)",
+       "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "",
+       "architecture": "",
+       "device": "",
+       "description": ""
+      },
+      "worker": {
+       "vendor": "Google Inc. (Intel)",
+       "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+      }
+     }
+    }
+   },
+   "expect": "fail",
+   "detail_contains": "negative control failed"
+  },
+  {
+   "name": "two_families_in_one_browser",
+   "obs": {
+    "a": {
+     "webgl": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     },
+     "webgpu": {
+      "adapter": true,
+      "vendor": "",
+      "architecture": "",
+      "device": "",
+      "description": ""
+     },
+     "worker": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     }
+    },
+    "b": {
+     "webgl": {
+      "vendor": "Google Inc. (AMD)",
+      "renderer": "ANGLE (AMD, AMD Radeon Graphics, OpenGL ES 3.2)"
+     },
+     "webgpu": {
+      "adapter": true,
+      "vendor": "",
+      "architecture": "",
+      "device": "",
+      "description": ""
+     },
+     "worker": {
+      "vendor": "Google Inc. (AMD)",
+      "renderer": "ANGLE (AMD, AMD Radeon Graphics, OpenGL ES 3.2)"
+     }
+    },
+    "feature_off": {
+     "a": {
+      "webgl": {
+       "vendor": "Google Inc. (Google)",
+       "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "google",
+       "architecture": "swiftshader",
+       "device": "0x0000c0de",
+       "description": "SwiftShader Device"
+      },
+      "worker": null
+     }
+    },
+    "global_off": {
+     "a": {
+      "webgl": {
+       "vendor": "Google Inc. (Google)",
+       "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "google",
+       "architecture": "swiftshader",
+       "device": "0x0000c0de",
+       "description": "SwiftShader Device"
+      },
+      "worker": null
+     }
+    },
+    "site_off": {
+     "a": {
+      "webgl": {
+       "vendor": "Google Inc. (Google)",
+       "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "google",
+       "architecture": "swiftshader",
+       "device": "0x0000c0de",
+       "description": "SwiftShader Device"
+      },
+      "worker": null
+     },
+     "b": {
+      "webgl": {
+       "vendor": "Google Inc. (Intel)",
+       "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "",
+       "architecture": "",
+       "device": "",
+       "description": ""
+      },
+      "worker": {
+       "vendor": "Google Inc. (Intel)",
+       "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+      }
+     }
+    }
+   },
+   "expect": "fail",
+   "detail_contains": "family differs"
+  },
+  {
+   "name": "page_error",
+   "obs": {
+    "a": {
+     "error": "ReferenceError"
+    },
+    "b": {
+     "webgl": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     },
+     "webgpu": {
+      "adapter": true,
+      "vendor": "",
+      "architecture": "",
+      "device": "",
+      "description": ""
+     },
+     "worker": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     }
+    },
+    "feature_off": {
+     "a": {
+      "webgl": {
+       "vendor": "Google Inc. (Google)",
+       "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "google",
+       "architecture": "swiftshader",
+       "device": "0x0000c0de",
+       "description": "SwiftShader Device"
+      },
+      "worker": null
+     }
+    },
+    "global_off": {
+     "a": {
+      "webgl": {
+       "vendor": "Google Inc. (Google)",
+       "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "google",
+       "architecture": "swiftshader",
+       "device": "0x0000c0de",
+       "description": "SwiftShader Device"
+      },
+      "worker": null
+     }
+    },
+    "site_off": {
+     "a": {
+      "webgl": {
+       "vendor": "Google Inc. (Google)",
+       "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "google",
+       "architecture": "swiftshader",
+       "device": "0x0000c0de",
+       "description": "SwiftShader Device"
+      },
+      "worker": null
+     },
+     "b": {
+      "webgl": {
+       "vendor": "Google Inc. (Intel)",
+       "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "",
+       "architecture": "",
+       "device": "",
+       "description": ""
+      },
+      "worker": {
+       "vendor": "Google Inc. (Intel)",
+       "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+      }
+     }
+    }
+   },
+   "expect": "fail",
+   "detail_contains": "the GPU page failed (a)"
+  },
+  {
+   "name": "no_webgl_here",
+   "obs": {
+    "a": {
+     "webgl": null,
+     "webgpu": {
+      "adapter": true,
+      "vendor": "",
+      "architecture": "",
+      "device": "",
+      "description": ""
+     },
+     "worker": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     }
+    },
+    "b": {
+     "webgl": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     },
+     "webgpu": {
+      "adapter": true,
+      "vendor": "",
+      "architecture": "",
+      "device": "",
+      "description": ""
+     },
+     "worker": {
+      "vendor": "Google Inc. (Intel)",
+      "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+     }
+    },
+    "feature_off": {
+     "a": {
+      "webgl": {
+       "vendor": "Google Inc. (Google)",
+       "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "google",
+       "architecture": "swiftshader",
+       "device": "0x0000c0de",
+       "description": "SwiftShader Device"
+      },
+      "worker": null
+     }
+    },
+    "global_off": {
+     "a": {
+      "webgl": {
+       "vendor": "Google Inc. (Google)",
+       "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "google",
+       "architecture": "swiftshader",
+       "device": "0x0000c0de",
+       "description": "SwiftShader Device"
+      },
+      "worker": null
+     }
+    },
+    "site_off": {
+     "a": {
+      "webgl": {
+       "vendor": "Google Inc. (Google)",
+       "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "google",
+       "architecture": "swiftshader",
+       "device": "0x0000c0de",
+       "description": "SwiftShader Device"
+      },
+      "worker": null
+     },
+     "b": {
+      "webgl": {
+       "vendor": "Google Inc. (Intel)",
+       "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+      },
+      "webgpu": {
+       "adapter": true,
+       "vendor": "",
+       "architecture": "",
+       "device": "",
+       "description": ""
+      },
+      "worker": {
+       "vendor": "Google Inc. (Intel)",
+       "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics, OpenGL ES 3.2)"
+      }
+     }
+    }
+   },
+   "expect": "fail",
+   "detail_contains": "no WebGL"
+  }
+ ]
+}

@@ -1,0 +1,42 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Aerie Bench GPU</title></head>
+<body>
+<p>Reads the graphics card details that WebGL and WebGPU report, on the page and in a worker.</p>
+<script>
+  window.__done = false;
+  function webgl() {
+    const gl = document.createElement('canvas').getContext('webgl');
+    if (!gl) return null;
+    const ext = gl.getExtension('WEBGL_debug_renderer_info');
+    if (!ext) return null;
+    return {vendor: gl.getParameter(ext.UNMASKED_VENDOR_WEBGL), renderer: gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)};
+  }
+  async function webgpu() {
+    if (!navigator.gpu) return {adapter: false, why: 'no navigator.gpu'};
+    const adapter = await navigator.gpu.requestAdapter();
+    if (!adapter) return {adapter: false, why: 'requestAdapter returned null'};
+    const i = adapter.info;
+    return {adapter: true, vendor: i.vendor, architecture: i.architecture, device: i.device, description: i.description};
+  }
+  // The same two reads inside a dedicated worker, which has no noise tokens.
+  function inWorker() {
+    const src = `
+      const gl = new OffscreenCanvas(4, 4).getContext('webgl');
+      const ext = gl && gl.getExtension('WEBGL_debug_renderer_info');
+      postMessage(ext ? {vendor: gl.getParameter(ext.UNMASKED_VENDOR_WEBGL), renderer: gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)} : null);`;
+    return new Promise((resolve) => {
+      try {
+        const w = new Worker(URL.createObjectURL(new Blob([src], {type: 'text/javascript'})));
+        w.onmessage = (e) => resolve(e.data);
+        w.onerror = (e) => resolve({error: String(e.message || e)});
+        setTimeout(() => resolve({error: 'worker timeout'}), 8000);
+      } catch (e) { resolve({error: String(e)}); }
+    });
+  }
+  (async () => {
+    try { window.__result = {webgl: webgl(), webgpu: await webgpu(), worker: await inWorker()}; }
+    catch (e) { window.__result = {error: String(e)}; }
+    window.__done = true;
+  })();
+</script>
+</body></html>
