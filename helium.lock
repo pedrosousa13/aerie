@@ -46,3 +46,30 @@ sha256 = "01dbaa7a2ccdbe2092e190147a5fc28760ba3158816fb9eb2f92ecef64bda30a"
 version = "4.14.2"
 url = "https://github.com/ccache/ccache/releases/download/v4.14.2/ccache-4.14.2-linux-x86_64-musl-static.tar.xz"
 minisign_key_file = "tools/keys/ccache-minisign.pub"
+
+# Benchmark sources for the Bench's perf check (docs/bench.md, "Pinned benchmark copies").
+# Not Chromium inputs: the build never reads these. `./aerie bench --fetch-benchmarks` downloads
+# each archive once into <build root>/downloads, refuses it unless its sha256 matches, and unpacks it
+# into <build root>/bench-vendor/<name>. Nothing here is committed to the repository or shipped in
+# the browser. Neither repository has release tags; each pin is the commit of the named release
+# line (Speedometer's release/3.1 branch) or of main (JetStream 3). sha256 is of the archive
+# GitHub served for that commit on 2026-11-08 (curl, then sha256sum).
+[bench.speedometer]
+title = "Speedometer 3.1"
+repo = "https://github.com/WebKit/Speedometer"
+ref = "release/3.1"
+commit = "1386415be8fef2f6b6bbdbe1828872471c5d802a"
+url = "https://github.com/WebKit/Speedometer/archive/1386415be8fef2f6b6bbdbe1828872471c5d802a.tar.gz"
+archive = "speedometer-3.1-1386415be8fe.tar.gz"
+sha256 = "cfefa818d7789ed2f2b9f3f1bf608cc35e4e8241489eef47049296ce92791313"
+license = "BSD-2-Clause style (Apple, Google, Mozilla, Microsoft); the bundled TodoMVC apps are MIT"
+
+[bench.jetstream]
+title = "JetStream 3"
+repo = "https://github.com/WebKit/JetStream"
+ref = "main"
+commit = "5fb9b4915f47792e6368d54d79ba3ba85e5600cc"
+url = "https://github.com/WebKit/JetStream/archive/5fb9b4915f47792e6368d54d79ba3ba85e5600cc.tar.gz"
+archive = "jetstream-3-5fb9b4915f47.tar.gz"
+sha256 = "ddac483ff83374e8140b954e6bdf85b54e327f85b6effeb8beb8e91570e276b7"
+license = "BSD-2-Clause style (Apple); bundled workloads carry their own licence files (MIT, BSD, Apache-2.0)"

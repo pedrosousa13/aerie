@@ -19,8 +19,6 @@ from urllib.parse import parse_qs, urlsplit
 
 HOST = "127.0.0.1"
 FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures"
-# Vendored benchmark copies (Speedometer, JetStream), served under /vendor/. See docs/bench.md.
-VENDOR_DIR = Path(__file__).resolve().parent / "vendor"
 _TYPES = {".html": "text/html; charset=utf-8", ".css": "text/css", ".js": "text/javascript",
           ".json": "application/json", ".txt": "text/plain; charset=utf-8", ".png": "image/png",
           ".mjs": "text/javascript", ".svg": "image/svg+xml", ".wasm": "application/wasm",
@@ -33,8 +31,10 @@ _PAGE_HEADERS = {"/hardening/device-memory.html": {"Accept-CH": "Sec-CH-Device-M
 class FixtureServer:
     """Binds 127.0.0.1 on an ephemeral port. Never anything else."""
 
-    def __init__(self, root: Path = FIXTURE_DIR) -> None:
+    def __init__(self, root: Path = FIXTURE_DIR, vendor_root: Path | None = None) -> None:
         self.root = Path(root).resolve()
+        # The pinned benchmark copies (aerie_bench.benchmarks), served under /vendor/. None: nothing is.
+        self.vendor_root = Path(vendor_root).resolve() if vendor_root else None
         self.requests: list[dict] = []
         self._lock = threading.Lock()
         outer = self
@@ -169,8 +169,8 @@ class FixtureServer:
     def _lookup(self, path: str) -> tuple[bytes, int, str]:
         rel = path.lstrip("/") or "index.html"
         root = self.root
-        if rel.startswith("vendor/") and self.root == FIXTURE_DIR.resolve():
-            root, rel = VENDOR_DIR.resolve(), rel[len("vendor/"):]
+        if rel.startswith("vendor/") and self.vendor_root is not None:
+            root, rel = self.vendor_root, rel[len("vendor/"):]
         target = (root / rel).resolve()
         if target.is_dir():
             target = target / "index.html"

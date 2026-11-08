@@ -176,3 +176,11 @@ pull request (see [docs/helium-bump.md](docs/helium-bump.md)). To move the pins 
 also update the official
 Chromium tarball pin in the `[fallback.chromium]` section of that file (URL and
 sha256 from the `.hashes` file next to the tarball), and check the ledger.
+
+## Updating the benchmark pins
+
+The Bench's `perf` check runs Speedometer and JetStream from archives pinned in the `[bench.*]` tables of `helium.lock`. They are
+downloaded into the build root and never committed. To move one, change its `commit`, `url`, `archive`, `sha256` and (if it
+changed) `license`, run `./aerie bench --download-benchmarks` on a clean build root, run `./aerie bench --check perf` and check that both scores
+come out, update the pin table and the licence note in [docs/bench.md](docs/bench.md), and record a new perf baseline after the merge (scores of
+different pins do not compare). The pins do not depend on a Helium patch, so they need no row in the ledger above; say that in the pull request.

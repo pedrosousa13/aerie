@@ -9,16 +9,19 @@ from pathlib import Path
 from unittest import mock
 
 from aerie_bench import cli, perf, runner, scenario
-from aerie_bench.checks.perf import AD_PAGES, Perf, load_manifest
+from aerie_bench.session import Session
+from aerie_bench.checks.perf import AD_PAGES, Perf
 
 FAKE = Path(__file__).parent / "bench_fake_browser.py"
 
 
-def doc(memory=800.0, cold=2000.0, warm=1200.0, label="main", **extra):
+def doc(memory=800.0, cold=2000.0, warm=1200.0, label="main", scores=True, **extra):
+    """A perf document with every metric (scores=False: only memory and startup)."""
+    bench = {"speedometer_score": 100.0, "jetstream_score": 50.0} if scores else {}
     return {"schema": 1, "label": label, "binary": {"path": "/x", "version": "1.2.3"},
             "started": "2026-11-08T10:00:00+00:00",
             "metrics": {"memory_after_ad_pages_mb": memory, "startup_cold_ms": cold,
-                        "startup_warm_ms": warm, **extra}, "skipped": {}}
+                        "startup_warm_ms": warm, **bench, **extra}, "skipped": {}, "failed": {}}
 
 
 def status(verdicts):
@@ -53,16 +56,21 @@ class CompareTest(unittest.TestCase):
         v = perf.compare(doc(speedometer_score=120), doc(speedometer_score=100))
         self.assertEqual(status(v)["speedometer_score"], "improved")
 
-    def test_missing_required_metric_fails_and_missing_benchmark_does_not(self):
-        cur = doc()
+    def test_every_metric_is_required_unless_the_run_skipped_it_on_request(self):
+        self.assertTrue(all(m.required for m in perf.METRICS.values()))
+        cur = doc(scores=False)
         del cur["metrics"]["startup_warm_ms"]
-        v = perf.compare(cur, doc(speedometer_score=100))
+        v = perf.compare(cur, doc())
         self.assertEqual(status(v)["startup_warm_ms"], "missing")
-        self.assertEqual(status(v)["speedometer_score"], "not_measured")
-        self.assertEqual([f["metric"] for f in perf.failures(v)], ["startup_warm_ms"])
+        self.assertEqual(status(v)["speedometer_score"], "missing")
+        self.assertEqual({f["metric"] for f in perf.failures(v)},
+                         {"startup_warm_ms", "speedometer_score", "jetstream_score"})
+        cur["skipped"] = {"speedometer_score": "switched off", "jetstream_score": "switched off"}
+        self.assertEqual({f["metric"] for f in perf.failures(perf.compare(cur, doc()))}, {"startup_warm_ms"})
+        self.assertEqual(status(perf.compare(cur, doc()))["speedometer_score"], "not_measured")
 
     def test_a_new_metric_without_a_baseline_value_is_new(self):
-        self.assertEqual(status(perf.compare(doc(jetstream_score=5), doc()))["jetstream_score"], "new")
+        self.assertEqual(status(perf.compare(doc(), doc(scores=False)))["jetstream_score"], "new")
 
     def test_every_metric_documents_its_threshold_and_reason(self):
         text = (Path(__file__).parent.parent / "docs" / "bench.md").read_text()
@@ -128,7 +136,9 @@ class CheckTest(unittest.TestCase):
 
     def run_perf(self, baseline=None, rss_kb=None, **opts):
         sc = scenario.Scenario(checks=("perf",))
-        options = {"perf": {"settle_seconds": 0, "startup_runs": 1, **opts, "baseline": baseline}}
+        # benchmarks=False unless a test says otherwise: the fake browser cannot run Speedometer.
+        options = {"perf": {"settle_seconds": 0, "startup_runs": 1, "benchmarks": False, **opts,
+                            "baseline": baseline}}
         patch = (mock.patch("aerie_bench.procmem.tree_rss_kb", return_value={"total_kb": rss_kb, "processes": []})
                  if rss_kb is not None else contextlib.nullcontext())
         with patch:
@@ -145,6 +155,7 @@ class CheckTest(unittest.TestCase):
         out = perf.load(res.out_dir / "perf.json")
         self.assertEqual(out["metrics"], metrics)
         self.assertIn("perf.json", res.data["files"])
+        self.assertEqual(check["data"]["failed"], {})
 
     def test_the_ad_heavy_pages_were_loaded_before_memory_was_read(self):
         res = self.run_perf(rss_kb=1024)
@@ -153,16 +164,57 @@ class CheckTest(unittest.TestCase):
             self.assertIn(page, paths)
         self.assertLess(paths.index(AD_PAGES[-1]), paths.index("/index.html"))
 
-    def test_benchmarks_not_vendored_are_reported_not_hidden(self):
-        res = self.run_perf(rss_kb=1024)
-        skipped = res.data["checks"][0]["data"]["skipped"]
-        self.assertIn("no vendored copy", skipped["speedometer_score"])
-        self.assertIn("no vendored copy", skipped["jetstream_score"])
-        self.assertIn("not measured", res.data["checks"][0]["detail"])
+    def test_missing_benchmark_copies_fail_the_check_and_say_how_to_fetch_them(self):
+        res = self.run_perf(rss_kb=1024, benchmarks=True)
+        check = res.data["checks"][0]
+        self.assertEqual(check["status"], "fail")
+        self.assertEqual(res.status, "fail")
+        self.assertEqual(set(check["data"]["failed"]), {"speedometer_score", "jetstream_score"})
+        self.assertIn("--download-benchmarks", check["detail"])
+        self.assertEqual(check["data"]["skipped"], {})
+        # what was measured is still written, and the failure is in the document too
+        out = perf.load(res.out_dir / "perf.json")
+        self.assertIn("memory_after_ad_pages_mb", out["metrics"])
+        self.assertEqual(set(out["failed"]), {"speedometer_score", "jetstream_score"})
+
+    def test_skipping_the_benchmarks_is_allowed_only_on_request_and_is_recorded(self):
+        res = self.run_perf(rss_kb=1024, benchmarks=False)
+        check = res.data["checks"][0]
+        self.assertEqual(check["status"], "pass", check["detail"])
+        self.assertEqual(set(check["data"]["skipped"]), {"speedometer_score", "jetstream_score"})
+        self.assertIn("skipped on request", check["detail"])
+        self.assertNotIn("speedometer_score", check["data"]["metrics"])
+
+    def test_the_perf_json_carries_every_metric_when_the_benchmarks_ran(self):
+        stub = {"speedometer": dict(entry="index.html", done="true", score="321", timeout_s=5),
+                "jetstream": dict(entry="index.html", done="true", score="654", timeout_s=5)}
+        (self.root / "bench-vendor").mkdir()
+        for name in stub:
+            (self.root / "bench-vendor" / name).mkdir()
+            (self.root / "bench-vendor" / name / "index.html").write_text("<title>b</title>")
+        sc = scenario.Scenario(checks=("perf",))
+        options = {"perf": {"settle_seconds": 0, "startup_runs": 1, "baseline": None, "drivers": stub}}
+        real_evaluate = Session.evaluate
+
+        def evaluate(session, expression, *args, **kwargs):
+            # the fake browser echoes an expression back as a string; a number is what a real page gives
+            return float(expression) if expression in ("321", "654") else real_evaluate(session, expression, *args, **kwargs)
+
+        with mock.patch("aerie_bench.procmem.tree_rss_kb", return_value={"total_kb": 2048, "processes": []}), \
+                mock.patch.object(Session, "evaluate", evaluate):
+            res = runner.run_bench(FAKE, sc, self.root, timeout=10, check_options=options)
+        check = res.data["checks"][0]
+        self.assertEqual(check["status"], "pass", check["detail"])
+        self.assertEqual(check["data"]["metrics"]["speedometer_score"], 321.0)
+        names = {"memory_after_ad_pages_mb", "startup_cold_ms", "startup_warm_ms",
+                 "speedometer_score", "jetstream_score"}
+        self.assertEqual(set(check["data"]["metrics"]), names)
+        self.assertEqual(set(perf.load(res.out_dir / "perf.json")["metrics"]), names)
+        self.assertEqual(set(perf.METRICS), names)
 
     def test_a_memory_heavy_build_fails_against_the_baseline(self):
         base = self.root / "main.json"
-        base.write_text(json.dumps(doc(memory=500, cold=60000, warm=60000)))
+        base.write_text(json.dumps(doc(memory=500, cold=60000, warm=60000, scores=False)))
         res = self.run_perf(baseline=str(base), rss_kb=900 * 1024)
         check = res.data["checks"][0]
         self.assertEqual(check["status"], "fail")
@@ -171,14 +223,31 @@ class CheckTest(unittest.TestCase):
 
     def test_the_same_memory_passes_against_the_baseline(self):
         base = self.root / "main.json"
-        base.write_text(json.dumps(doc(memory=500, cold=60000, warm=60000)))
+        base.write_text(json.dumps(doc(memory=500, cold=60000, warm=60000, scores=False)))
         res = self.run_perf(baseline=str(base), rss_kb=510 * 1024)
         self.assertEqual(res.data["checks"][0]["status"], "pass", res.data["checks"][0]["detail"])
 
-    def test_no_baseline_file_yet_is_not_a_failure(self):
+    def test_a_baseline_that_does_not_exist_fails_loudly(self):
         res = self.run_perf(baseline=str(self.root / "missing.json"), rss_kb=1024)
+        check = res.data["checks"][0]
+        self.assertEqual(check["status"], "fail")
+        self.assertEqual(res.status, "fail")
+        self.assertIn("no baseline at", check["detail"])
+        self.assertIn("--perf-first-run", check["detail"])
+
+    def test_the_first_run_flag_lets_a_missing_baseline_pass(self):
+        res = self.run_perf(baseline=str(self.root / "missing.json"), rss_kb=1024, first_run=True)
         self.assertEqual(res.data["checks"][0]["status"], "pass")
-        self.assertIn("no baseline yet", res.data["checks"][0]["detail"])
+        self.assertIn("first run", res.data["checks"][0]["detail"])
+
+    def test_the_first_run_flag_does_not_excuse_a_broken_or_regressed_baseline(self):
+        base = self.root / "main.json"
+        base.write_text("not json")
+        self.assertEqual(self.run_perf(baseline=str(base), rss_kb=1024, first_run=True).data["checks"][0]["status"],
+                         "error")
+        base.write_text(json.dumps(doc(memory=500, cold=60000, warm=60000, scores=False)))
+        self.assertEqual(self.run_perf(baseline=str(base), rss_kb=900 * 1024, first_run=True
+                                       ).data["checks"][0]["status"], "fail")
 
     def test_a_broken_baseline_is_an_error_not_a_pass(self):
         base = self.root / "main.json"
@@ -189,7 +258,8 @@ class CheckTest(unittest.TestCase):
     def test_unreadable_process_memory_is_an_error(self):
         with mock.patch("aerie_bench.procmem.tree_rss_kb", return_value=None):
             res = runner.run_bench(FAKE, scenario.Scenario(checks=("perf",)), self.root, timeout=10,
-                                   check_options={"perf": {"settle_seconds": 0, "startup_runs": 1}})
+                                   check_options={"perf": {"settle_seconds": 0, "startup_runs": 1,
+                                                                    "benchmarks": False}})
         self.assertEqual(res.data["checks"][0]["status"], "error")
 
 
@@ -197,53 +267,47 @@ class BenchmarkDriverTest(unittest.TestCase):
     def setUp(self):
         self.vendor = Path(tempfile.mkdtemp())
         self.addCleanup(lambda: __import__("shutil").rmtree(self.vendor, ignore_errors=True))
+        self.drivers = {"speedometer": {"entry": "index.html?x=1", "done": "done()", "score": "score()", "timeout_s": 5}}
 
-    def write(self, name, manifest):
-        (self.vendor / name).mkdir()
-        (self.vendor / name / "aerie-bench.json").write_text(json.dumps(manifest))
+    def copy(self, name="speedometer"):
+        (self.vendor / name).mkdir(exist_ok=True)
+        (self.vendor / name / "index.html").write_text("<title>b</title>")
 
     def session(self, score=123.456, finished=True, load_error=None):
         s = mock.Mock()
         s.fixtures.base_url = "http://127.0.0.1:1"
+        s.fixtures.vendor_root = self.vendor
         s.navigate_url.return_value = {"url": "", "error": load_error}
         s.wait_for.return_value = finished
         s.evaluate.return_value = score
         return s
 
-    def test_missing_and_broken_manifests_say_why(self):
-        self.assertIn("no vendored copy", load_manifest(self.vendor, "speedometer")[1])
-        self.write("jetstream", {"entry": "index.html"})
-        self.assertIn("bad manifest", load_manifest(self.vendor, "jetstream")[1])
+    def perf(self):
+        return Perf(drivers=self.drivers)
 
-    def test_a_vendored_benchmark_is_started_awaited_and_scored(self):
-        self.write("speedometer", {"entry": "index.html?x=1", "start": "run()", "done": "done()", "score": "score()"})
+    def test_a_missing_copy_says_why_and_how_to_fetch_it(self):
+        value, why = self.perf().run_benchmark(self.session(), "speedometer")
+        self.assertIsNone(value)
+        self.assertIn("no local copy", why)
+        self.assertIn("--download-benchmarks", why)
+
+    def test_a_copy_is_loaded_from_vendor_awaited_and_scored(self):
+        self.copy()
         s = self.session()
-        value, why = Perf(vendor=self.vendor).run_benchmark(s, "speedometer")
+        value, why = self.perf().run_benchmark(s, "speedometer")
         self.assertEqual((value, why), (123.46, ""))
         s.navigate_url.assert_called_once_with("http://127.0.0.1:1/vendor/speedometer/index.html?x=1")
-        s.evaluate.assert_any_call("run()")
+        s.wait_for.assert_called_once_with("done()", timeout=5.0, interval=1.0)
+        s.evaluate.assert_called_once_with("score()")
 
-    def test_timeout_load_error_and_non_numeric_score_are_not_measured(self):
-        self.write("speedometer", {"entry": "i.html", "done": "d", "score": "s", "timeout_s": 5})
+    def test_timeout_load_error_and_unusable_score_are_not_measured(self):
+        self.copy()
         for kwargs, text in (({"finished": False}, "did not finish"), ({"load_error": "net::ERR"}, "did not load"),
-                             ({"score": "n/a"}, "no numeric score"), ({"score": True}, "no numeric score")):
-            value, why = Perf(vendor=self.vendor).run_benchmark(self.session(**kwargs), "speedometer")
+                             ({"score": "n/a"}, "no usable score"), ({"score": True}, "no usable score"),
+                             ({"score": None}, "no usable score"), ({"score": 0}, "no usable score")):
+            value, why = self.perf().run_benchmark(self.session(**kwargs), "speedometer")
             self.assertIsNone(value)
             self.assertIn(text, why)
-
-    def test_vendor_files_are_served_under_vendor_and_nothing_escapes(self):
-        import urllib.error
-        import urllib.request
-        from aerie_bench import fixtures
-        name = "zz-test-copy"
-        target = fixtures.VENDOR_DIR / name
-        target.mkdir()
-        self.addCleanup(lambda: __import__("shutil").rmtree(target, ignore_errors=True))
-        (target / "index.html").write_text("<title>vendored</title>")
-        with fixtures.FixtureServer() as srv:
-            self.assertIn(b"vendored", urllib.request.urlopen(f"{srv.base_url}/vendor/{name}/").read())
-            with self.assertRaises(urllib.error.HTTPError):
-                urllib.request.urlopen(f"{srv.base_url}/vendor/../fixtures/index.html")
 
 
 class CliTest(unittest.TestCase):
@@ -256,7 +320,7 @@ class CliTest(unittest.TestCase):
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err), \
                 mock.patch("aerie_bench.procmem.tree_rss_kb", return_value={"total_kb": 100 * 1024, "processes": []}):
             code = cli.main(["--binary", str(FAKE), "--build-root", str(self.root), "--check", "perf",
-                             "--perf-settle", "0", "--timeout", "10", *argv])
+                             "--perf-settle", "0", "--timeout", "10", "--perf-skip-benchmarks", *argv])
         return code, out.getvalue(), err.getvalue()
 
     def test_record_makes_the_baseline_and_the_next_run_compares_against_it(self):
@@ -269,7 +333,7 @@ class CliTest(unittest.TestCase):
 
     def test_a_failing_run_is_not_recorded(self):
         base = self.root / "main.json"
-        base.write_text(json.dumps(doc(memory=10, cold=60000, warm=60000)))
+        base.write_text(json.dumps(doc(memory=10, cold=60000, warm=60000, scores=False)))
         code, out, _ = self.invoke("--perf-baseline", str(base), "--perf-record", str(self.root / "s"))
         self.assertEqual(code, 1)
         self.assertIn("not recorded", out)
@@ -283,6 +347,30 @@ class CliTest(unittest.TestCase):
         self.assertIn("Aerie vs Stock Chromium", report)
         self.assertIn("memory_after_ad_pages_mb", report)
         self.assertTrue((self.root / "r-compare" / "perf.json").is_file())
+
+    def test_a_missing_baseline_fails_unless_the_first_run_flag_is_given(self):
+        missing = str(self.root / "nope" / "main.json")
+        code, out, _ = self.invoke("--perf-baseline", missing)
+        self.assertEqual(code, 1)
+        self.assertIn("no baseline at", out)
+        code, out, _ = self.invoke("--perf-baseline", missing, "--perf-first-run")
+        self.assertEqual(code, 0, out)
+
+    def test_first_run_needs_a_baseline_path(self):
+        code, _, err = self.invoke("--perf-first-run")
+        self.assertEqual(code, 2)
+        self.assertIn("--perf-first-run needs --perf-baseline", err)
+
+    def test_download_benchmarks_fetches_before_the_run_and_a_failure_stops_it(self):
+        with mock.patch("aerie_bench.benchmarks.fetch_all") as fetch:
+            code, _, _ = self.invoke("--download-benchmarks")
+        self.assertEqual(code, 0)
+        fetch.assert_called_once_with(self.root)
+        from aerie_bench import benchmarks
+        with mock.patch("aerie_bench.benchmarks.fetch_all", side_effect=benchmarks.BenchmarkError("offline")):
+            code, _, err = self.invoke("--download-benchmarks")
+        self.assertEqual(code, 2)
+        self.assertIn("offline", err)
 
     def test_perf_flags_need_the_perf_check(self):
         code, _, err = self.invoke_other("--perf-record", str(self.root / "s"))

@@ -5,7 +5,11 @@ Pure logic, no browser. The ``perf`` check (checks/perf.py) measures; this modul
 A metrics document (``perf.json``) is::
 
     {"schema": 1, "label": "...", "binary": {"path": ..., "version": ...}, "started": ISO 8601,
-     "metrics": {"memory_after_ad_pages_mb": 812.4, ...}, "skipped": {"jetstream_score": "reason"}}
+     "metrics": {"memory_after_ad_pages_mb": 812.4, ...},
+     "skipped": {"jetstream_score": "reason it was switched off"},
+     "failed": {"speedometer_score": "reason it could not be measured"}}
+
+A run with anything in ``failed`` fails the perf check and is never recorded as a baseline.
 
 Thresholds and the reasons for them are in ``METRICS``; docs/bench.md prints the same table.
 """
@@ -46,13 +50,13 @@ METRICS: dict[str, Metric] = {
         "ms", "lower", 25.0, 150.0, True,
         "Spawn to first page load when the profile already ran once. Same noise as cold start."),
     "speedometer_score": Metric(
-        "score", "higher", 7.0, 0.0, False,
-        "Speedometer, run locally from the vendored copy. Scores move a few percent between runs. "
-        "Not measured when the copy is not vendored."),
+        "score", "higher", 7.0, 0.0, True,
+        "Speedometer 3.1, run locally from the pinned copy in the build root. Scores move a few percent "
+        "between runs. A run that cannot measure it fails."),
     "jetstream_score": Metric(
-        "score", "higher", 7.0, 0.0, False,
-        "JetStream, run locally from the vendored copy. Same noise as Speedometer. "
-        "Not measured when the copy is not vendored."),
+        "score", "higher", 7.0, 0.0, True,
+        "JetStream 3, run locally from the pinned copy in the build root. Same noise as Speedometer. "
+        "A run that cannot measure it fails."),
 }
 
 
@@ -70,7 +74,8 @@ def compare(current: dict, baseline: dict, metrics: dict[str, Metric] = METRICS)
     """One verdict per metric known to either document.
 
     status: ``ok``, ``regressed``, ``improved``, ``new`` (no baseline value), ``not_measured``
-    (baseline has it, this run does not) and ``missing`` (a required metric this run lacks).
+    (baseline has it, this run skipped it on request) and ``missing`` (a required metric this run
+    lacks without having been told to skip it).
     """
     cur, base = current.get("metrics", {}), baseline.get("metrics", {})
     out = []
@@ -79,7 +84,8 @@ def compare(current: dict, baseline: dict, metrics: dict[str, Metric] = METRICS)
         c, b = cur.get(name), base.get(name)
         row = {"metric": name, "current": c, "baseline": b, "change_pct": None, "status": "ok"}
         if c is None:
-            row["status"] = "missing" if spec and spec.required else "not_measured"
+            skipped = name in (current.get("skipped") or {})
+            row["status"] = "missing" if spec and spec.required and not skipped else "not_measured"
         elif b is None:
             row["status"] = "new"
         else:

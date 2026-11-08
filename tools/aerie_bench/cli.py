@@ -49,7 +49,14 @@ def add_arguments(p: argparse.ArgumentParser, *, binary_required: bool) -> None:
                         "that talks to Google) and require it to FAIL; if it passes the check is vacuous")
     p.add_argument("--perf-baseline", metavar="FILE",
                    help="perf: compare against this perf document (main.json of a --perf-record directory) "
-                        "and fail when a metric regressed past its threshold; no file yet means no comparison")
+                        "and fail when a metric regressed past its threshold. A file that does not exist "
+                        "fails the run, unless --perf-first-run is given")
+    p.add_argument("--perf-first-run", action="store_true",
+                   help="perf: with --perf-baseline, pass when the baseline file does not exist yet "
+                        "(the very first run, before any main build was recorded)")
+    p.add_argument("--download-benchmarks", action="store_true",
+                   help="download the pinned Speedometer and JetStream copies into the build root, check their "
+                        "sha256 and unpack them (helium.lock, docs/bench.md); needs the network, once")
     p.add_argument("--perf-record", metavar="DIR",
                    help="perf: after a passing run, append perf.json to DIR/history.jsonl and make it DIR/main.json "
                         "(use it on main builds only)")
@@ -59,7 +66,8 @@ def add_arguments(p: argparse.ArgumentParser, *, binary_required: bool) -> None:
     p.add_argument("--perf-compare-name", default="Helium", metavar="NAME",
                    help="perf: how the --perf-compare-binary browser is named in the report (default Helium)")
     p.add_argument("--perf-skip-benchmarks", action="store_true",
-                   help="perf: do not run the vendored Speedometer and JetStream copies")
+                   help="perf: do not run Speedometer and JetStream; their metrics are recorded as skipped. "
+                        "Without this flag a benchmark that cannot be measured fails the check")
     p.add_argument("--perf-settle", type=float, default=3.0, metavar="SEC",
                    help="perf: wait after the ad-heavy pages before reading memory (default 3)")
     p.add_argument("--flag", action="append", default=[], metavar="FLAG",
@@ -86,8 +94,20 @@ def run(args: argparse.Namespace, build_root: Path, default_binary: Path | None)
             sc = scenario.Scenario()
         if args.check:
             sc = scenario.Scenario(sc.name, tuple(args.check), sc.steps)
-        if (args.perf_baseline or args.perf_record or args.perf_compare_binary) and "perf" not in sc.checks:
-            raise BenchError("--perf-baseline, --perf-record and --perf-compare-binary need --check perf")
+        if (args.perf_baseline or args.perf_record or args.perf_compare_binary or args.perf_first_run) \
+                and "perf" not in sc.checks:
+            raise BenchError("--perf-baseline, --perf-first-run, --perf-record and --perf-compare-binary "
+                             "need --check perf")
+        if args.perf_first_run and not args.perf_baseline:
+            raise BenchError("--perf-first-run needs --perf-baseline")
+        if args.download_benchmarks:
+            from aerie_build import lock
+
+            from . import benchmarks
+            try:
+                benchmarks.fetch_all(build_root)
+            except (benchmarks.BenchmarkError, lock.VerificationError) as exc:
+                raise BenchError(f"cannot fetch the benchmark copies: {exc}") from exc
         if args.baseline and "zero_traffic" not in sc.checks:
             raise BenchError("--baseline needs --check zero_traffic")
         if skip_note and "browser_requests" in sc.checks:
@@ -100,7 +120,7 @@ def run(args: argparse.Namespace, build_root: Path, default_binary: Path | None)
                    "widevine_opt_in": {"online_seconds": args.widevine_online},
                    "workspace_isolation": {"enforce": args.workspaces_enforce},
                    "perf": {"baseline": args.perf_baseline, "settle_seconds": args.perf_settle,
-                            "benchmarks": not args.perf_skip_benchmarks}}
+                            "first_run": args.perf_first_run, "benchmarks": not args.perf_skip_benchmarks}}
         common = dict(headless=not args.headed, no_sandbox=args.no_sandbox, timeout=args.timeout,
                       extra_flags=tuple(args.flag), check_options=options)
         result = run_bench(binary, sc, build_root, out_dir=Path(args.out) if args.out else None, **common)

@@ -46,6 +46,8 @@ class NightlyTest(unittest.TestCase):
         self.run_nightly()
         bench = [c for c in self.shell.calls if "bench" in c and "--check" in c][-1]
         self.assertEqual(bench[bench.index("--perf-record") + 1], "/mnt/linux2/aerie-perf")
+        self.assertIn("--download-benchmarks", bench)
+        self.assertNotIn("--perf-skip-benchmarks", bench)
 
     def test_results_are_kept_under_a_dated_directory(self):
         self.run_nightly()
