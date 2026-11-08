@@ -29,8 +29,11 @@ TARGETS = [{"type": "page", "url": BASE + "/mv2/index.html", "targetId": "P"},
             "targetId": "B"}]
 
 
+PROBE_OK = {"ready": True, "attempts": 1, "seconds": 0.1}
+
+
 def judge(**over):
-    args = dict(load={"id": EXT_ID}, load_error=None, marker="ran", allowed_ran=True,
+    args = dict(probe=PROBE_OK, load={"id": EXT_ID}, load_error=None, marker="ran", allowed_ran=True,
                 outcomes=mv2.collect(GOOD_EVENTS), targets=TARGETS, extension_cancels=[BASE + "/mv2/ext-block-me.js"])
     args.update(over)
     return mv2.judge(**args)
@@ -107,6 +110,26 @@ class JudgeTest(unittest.TestCase):
         self.assertIn("details.url", text)
         self.assertIn("aerieCancelled", (REPO / "tools/aerie_bench/checks/mv2_extension.py").read_text())
 
+    def test_a_listener_that_never_took_effect_is_reported_as_such_not_as_a_missed_request(self):
+        # The probe is a fetch from the extension's own background page. If even that is not
+        # cancelled, the listener never reached the browser: that is not a proxy-ordering problem.
+        status, detail, data = judge(probe={"ready": False, "attempts": 40, "seconds": 10.0})
+        self.assertEqual(status, "fail")
+        self.assertIn("never took effect", detail)
+        self.assertEqual(data["listener_probe"]["attempts"], 40)
+
+    def test_a_cancel_of_the_probe_url_does_not_count_as_blocking_the_page_request(self):
+        probe_url = BASE + "/mv2/ext-block-me.js?" + mv2.PROBE_QUERY
+        status, detail, _ = judge(extension_cancels=[probe_url])
+        self.assertEqual(status, "fail")
+        self.assertIn("the block was not the extension's", detail)
+
+    def test_the_background_script_offers_a_probe_and_a_ready_flag(self):
+        text = (EXT / "background.js").read_text()
+        self.assertIn("aerieProbe", text)
+        self.assertIn("aerieReady", text)
+        self.assertIn(mv2.PROBE_QUERY, (REPO / "tools/aerie_bench/checks/mv2_extension.py").read_text())
+
     def test_no_background_target_means_the_extension_did_not_start(self):
         status, detail, _ = judge(targets=[TARGETS[0]])
         self.assertEqual(status, "fail")
@@ -124,18 +147,30 @@ class RegistrationTest(unittest.TestCase):
 
 
 class EndToEndWithFakeBrowserTest(unittest.TestCase):
-    def run_check(self, mode):
+    def run_check(self, mode, **extra):
         import tempfile, shutil
         root = Path(tempfile.mkdtemp())
         self.addCleanup(lambda: shutil.rmtree(root, ignore_errors=True))
-        env = {"FAKE_BROWSER_MV2": mode} if mode else {}
+        env = ({"FAKE_BROWSER_MV2": mode} if mode else {}) | extra
         res = runner.run_bench(FAKE, scenario.Scenario(checks=["mv2_extension"]), root, timeout=10, extra_env=env,
-                               check_options={"mv2_extension": {"settle_seconds": 1.0}})
+                               check_options={"mv2_extension": {"settle_seconds": 1.0, "probe_seconds": 1.0}})
         return next(c for c in res.data["checks"] if c["name"] == "mv2_extension")
 
     def test_a_browser_that_installs_and_runs_mv2_passes(self):
         check = self.run_check("works")
         self.assertEqual(check["status"], "pass", check["detail"])
+
+    def test_the_check_waits_for_the_listener_before_loading_the_page(self):
+        # A persistent background page registers its listener some time after the extension
+        # loads. Navigating first (as the check once did) lets the page win that race.
+        check = self.run_check("works", FAKE_BROWSER_MV2_PROBE_FAILS="2")
+        self.assertEqual(check["status"], "pass", check["detail"])
+        self.assertEqual(check["data"]["listener_probe"]["attempts"], 3)
+
+    def test_a_listener_that_never_works_is_reported_distinctly(self):
+        check = self.run_check("inert")
+        self.assertEqual(check["status"], "fail")
+        self.assertIn("never took effect", check["detail"])
 
     def test_a_browser_that_refuses_the_extension_fails_with_its_message(self):
         check = self.run_check("refuse")
