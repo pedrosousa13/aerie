@@ -38,7 +38,7 @@ def _code_cache_hook(profile, browser):
     def hook(ws):
         if "codeCache" in browser.leaks:
             ws = "shared"
-        (Path(profile) / "Storage" / "ext" / "localhost" / ws / "Code Cache").mkdir(parents=True, exist_ok=True)
+        (Path(profile) / "Default" / "Storage" / "ext" / "aerieworkspace" / ws / "Code Cache").mkdir(parents=True, exist_ok=True)
     return hook
 
 
@@ -83,6 +83,21 @@ class EveryLeakIsCaughtTest(unittest.TestCase):
             browser.leaks = {"codeCache"}  # not a state leak the other probes read
             _, _, res = run(browser, profile=tmp)
             self.assertEqual(res.data["probes"]["code_cache"]["raw"], "fail")
+
+    def test_code_cache_directories_made_before_the_probe_still_count(self):
+        # On a real build the partitions exist before the probe runs: earlier probes opened them.
+        with tempfile.TemporaryDirectory() as tmp:
+            for ws in (wi.WS_A, wi.WS_B):
+                (Path(tmp) / "Default" / "Storage" / "ext" / "aerieworkspace" / ws / "Code Cache").mkdir(parents=True)
+            browser = FakeBrowser()
+            _, _, res = run(browser, profile=tmp)
+            self.assertEqual(res.data["probes"]["code_cache"]["raw"], "pass")
+
+    def test_a_code_cache_outside_the_default_profile_is_not_counted(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for ws in (wi.WS_A, wi.WS_B):
+                (Path(tmp) / "Storage" / "ext" / "aerieworkspace" / ws / "Code Cache").mkdir(parents=True)
+            self.assertEqual(wi.code_cache_dirs(Path(tmp)), set())
 
     def test_no_profile_path_fails_the_code_cache_probe(self):
         _, _, res = run(FakeBrowser())

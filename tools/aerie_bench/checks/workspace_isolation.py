@@ -294,9 +294,10 @@ def _http_cache(world: World) -> ProbeResult:
                "only-if-cached), both ways", **seen)
 
 
-def code_cache_dirs(profile: Path) -> set[Path]:
-    """Every ``Code Cache`` directory under the profile's partition directories."""
-    root = Path(profile) / "Storage" / "ext"
+def code_cache_dirs(user_data_dir: Path) -> set[Path]:
+    """Every ``Code Cache`` directory under the partition directories of the Bench's profile. The Bench
+    passes the user data dir; the profile is its ``Default`` directory (``<profile>/Storage/ext``)."""
+    root = Path(user_data_dir) / "Default" / "Storage" / "ext"
     return {p for p in root.rglob("Code Cache") if p.is_dir()} if root.is_dir() else set()
 
 
@@ -305,17 +306,18 @@ def _code_cache(world: World) -> ProbeResult:
     not read the cache entries."""
     if world.profile_path is None:
         return _fail("the Bench did not give the check the profile path")
-    before = code_cache_dirs(world.profile_path)
+    # Count every partition's directory, not only new ones: earlier probes already opened both
+    # Workspaces, so their partitions (and maybe their Code Cache directories) exist by now.
     for ws in (WS_A, WS_B):
         for _ in range(3):
             world.probe_tab(ws).call("loadScript")
-    new = sorted(code_cache_dirs(world.profile_path) - before)
-    owners = {d.parent for d in new}
+    dirs = sorted(code_cache_dirs(world.profile_path))
+    owners = {d.parent for d in dirs}
     if len(owners) < 2:
         return _fail(f"{len(owners)} Workspace partition(s) have their own Code Cache directory; two are needed",
-                     new=[str(d) for d in new])
+                     dirs=[str(d) for d in dirs])
     return _ok(f"two Workspaces have two Code Cache directories ({len(owners)} partitions)",
-               new=[str(d) for d in new])
+               dirs=[str(d) for d in dirs])
 
 
 def _hsts(world: World) -> ProbeResult:

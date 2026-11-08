@@ -30,6 +30,12 @@ class SiteRoutesTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers["set-cookie"], "ws_user=A; Path=/; SameSite=Lax")
 
+    def test_a_probe_token_round_trips_through_login_and_whoami(self):
+        _, headers, _, _ = get(self.server, "/ws/login?user=cookie-ws1-3")
+        self.assertEqual(headers["set-cookie"], "ws_user=cookie-ws1-3; Path=/; SameSite=Lax")
+        _, _, body, _ = get(self.server, "/ws/whoami", {"Cookie": "ws_user=cookie-ws1-3"})
+        self.assertEqual(json.loads(body), {"user": "cookie-ws1-3"})
+
     def test_whoami_echoes_the_cookie_the_server_received(self):
         _, _, body, _ = get(self.server, "/ws/whoami", {"Cookie": "ws_user=B"})
         self.assertEqual(json.loads(body), {"user": "B"})

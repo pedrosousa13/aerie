@@ -123,11 +123,12 @@ class FixtureServer:
         query = parse_qs(urlsplit(raw_path).query)
         text = "text/plain; charset=utf-8"
         if path == "/ws/login":
-            user = re.sub(r"[^A-Za-z0-9_]", "", query.get("user", ["A"])[0]) or "A"
+            # Probe tokens look like "cookie-ws1-3": keep the hyphen, or the probe's read-back control fails.
+            user = re.sub(r"[^A-Za-z0-9_-]", "", query.get("user", ["A"])[0]) or "A"
             # A session cookie: no expiry, so it lives in the Workspace until the browser exits.
             return b"{}", 200, "application/json", {"Set-Cookie": f"ws_user={user}; Path=/; SameSite=Lax"}
         if path == "/ws/whoami":
-            match = re.search(r"(?:^|;\s*)ws_user=([A-Za-z0-9_]*)", headers.get("Cookie", ""))
+            match = re.search(r"(?:^|;\s*)ws_user=([A-Za-z0-9_-]*)", headers.get("Cookie", ""))
             body = json.dumps({"user": match.group(1) if match else ""})
             return body.encode(), 200, "application/json", {}
         if path == "/ws/cached":
