@@ -20,9 +20,9 @@ NIGHTLY_LOCK_WAIT = 12 * 3600.0
 ENV_NIGHTLY_ISSUE = "AERIE_CI_NIGHTLY_ISSUE"
 
 
-def _make_config(args: argparse.Namespace) -> gate.GateConfig:
+def _make_config(args: argparse.Namespace) -> gate.CiConfig:
     root = config.resolve_build_root(args.build_root, os.environ, REPO)
-    return gate.GateConfig(repo=REPO, build_root=root, lock_timeout=args.lock_timeout)
+    return gate.CiConfig(repo=REPO, build_root=root, lock_timeout=args.lock_timeout)
 
 
 def cmd_poll(args: argparse.Namespace) -> int:

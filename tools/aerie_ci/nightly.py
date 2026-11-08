@@ -10,12 +10,12 @@ from typing import Callable
 from aerie_build import buildlock
 
 from . import steps as st
-from .gate import GateConfig
+from .gate import CiConfig
 
 PASS, FAIL, BUSY = "pass", "fail", "busy"
 
 
-def run_nightly(cfg: GateConfig, *, today: Callable[[], str] = lambda: time.strftime("%Y-%m-%d"),
+def run_nightly(cfg: CiConfig, *, today: Callable[[], str] = lambda: time.strftime("%Y-%m-%d"),
                 report_issue: int | None = None) -> str:
     date = today()
     day = cfg.ci_root / "nightly" / date
@@ -24,14 +24,14 @@ def run_nightly(cfg: GateConfig, *, today: Callable[[], str] = lambda: time.strf
     try:
         log.line(f"nightly {date}")
         try:
-            with cfg.lock(cfg.build_root, timeout=cfg.lock_timeout, log=log.line):
+            with cfg.lock(cfg.build_root, timeout=cfg.lock_timeout, log=log.line) as held:
                 sha = st.fetch_ref(cfg.shell, cfg.repo, "main")
                 with st.worktree(cfg.shell, cfg.repo, cfg.ci_root / "worktrees" / f"nightly-{date}", sha) as tree:
-                    env = st.clean_env(cfg.environ)
+                    env = st.clean_env({**cfg.environ, buildlock.ENV_HELD: held})  # see gate.py
                     cmds = st.python_steps(cfg.python, tree, cfg.build_root)
                     # Every registered check, zero_traffic included. --clean drops the source tree and the
                     # pristine snapshot; the compiler cache stays (see docs/ci.md).
-                    checks = st.bench_check_names(cfg.shell, tree, env, exclude=())
+                    checks = st.bench_check_names(cfg.shell, cfg.python, tree, env, exclude=())
                     plan = [st.Step("clean build", cmds["clean_build"]),
                             st.Step("full bench", st.bench_argv(cfg.python, tree, cfg.build_root, checks,
                                                                 out=day / "bench"))]
@@ -56,7 +56,7 @@ def run_nightly(cfg: GateConfig, *, today: Callable[[], str] = lambda: time.strf
         log.close()
 
 
-def _report(cfg: GateConfig, date: str, summary: str, log_path: Path, day: Path, issue: int | None) -> None:
+def _report(cfg: CiConfig, date: str, summary: str, log_path: Path, day: Path, issue: int | None) -> None:
     body = f"Nightly CI {date} on main: {summary}\n\nLog: {log_path}\nBench results: {day / 'bench'}\n"
     if issue is not None:
         cfg.gh.comment_issue(issue, body)

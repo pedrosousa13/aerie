@@ -97,6 +97,12 @@ def fetch_ref(shell: Shell, repo: Path, refspec: str) -> str:
 @contextlib.contextmanager
 def worktree(shell: Shell, repo: Path, path: Path, sha: str) -> Iterator[Path]:
     """A detached worktree of repo at sha, removed afterwards even on failure."""
+    # A gate killed mid-run (timeout, SIGTERM, reboot) leaves its worktree registered. Clear it, or
+    # `add` fails and the SHA is never gated.
+    with contextlib.suppress(Exception):
+        shell.capture(["git", "-C", repo, "worktree", "remove", "--force", path])
+    with contextlib.suppress(Exception):
+        shell.capture(["git", "-C", repo, "worktree", "prune"])
     shell.capture(["git", "-C", repo, "worktree", "add", "--detach", path, sha])
     try:
         shell.capture(["git", "-C", path, "submodule", "update", "--init", "--recursive", "--quiet"])
@@ -132,8 +138,9 @@ def bench_argv(python: str, tree: Path, build_root: Path, checks: Sequence[str],
 _LIST_CHECKS = "from aerie_bench import checks; print(' '.join(sorted(checks.REGISTRY)))"
 
 
-def bench_check_names(shell: Shell, tree: Path, env: Mapping[str, str], exclude: Sequence[str]) -> list[str]:
+def bench_check_names(shell: Shell, python: str, tree: Path, env: Mapping[str, str],
+                      exclude: Sequence[str]) -> list[str]:
     """The Bench checks that exist in this checkout (asked of the checkout itself), minus exclude."""
-    names = shell.capture(["python3", "-I", "-c", f"import sys; sys.path.insert(0, 'tools'); {_LIST_CHECKS}"],
+    names = shell.capture([python, "-I", "-c", f"import sys; sys.path.insert(0, 'tools'); {_LIST_CHECKS}"],
                           cwd=tree, env=env).split()
     return sorted(n for n in names if n not in set(exclude) | {"scenario"})

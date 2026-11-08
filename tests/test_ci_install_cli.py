@@ -67,7 +67,7 @@ class CliTest(unittest.TestCase):
         self.addCleanup(patcher.stop)
 
     def _config(self, args):
-        return gate.GateConfig(repo=self.root / "repo", build_root=self.root, shell=self.shell, gh=self.gh,
+        return gate.CiConfig(repo=self.root / "repo", build_root=self.root, shell=self.shell, gh=self.gh,
                                python="python3", lock_timeout=0, environ={"PATH": "/usr/bin"})
 
     def test_poll_gates_the_maintainers_pr_and_exits_zero(self):

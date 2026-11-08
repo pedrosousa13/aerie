@@ -1,11 +1,12 @@
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
 
 from aerie_build import buildlock
 from aerie_ci import nightly
-from aerie_ci.gate import GateConfig
+from aerie_ci.gate import CiConfig
 
 from .ci_fakes import SHA_A, FakeGh, FakeShell
 
@@ -19,7 +20,7 @@ class NightlyTest(unittest.TestCase):
         self.gh = FakeGh()
 
     def cfg(self, **kw):
-        return GateConfig(repo=Path(self._tmp.name) / "repo", build_root=self.root, shell=self.shell, gh=self.gh,
+        return CiConfig(repo=Path(self._tmp.name) / "repo", build_root=self.root, shell=self.shell, gh=self.gh,
                           python="python3", lock_timeout=0,
                           environ={"PATH": "/usr/bin", "GH_TOKEN": "ghp_" + "Q" * 36}, **kw)
 
@@ -79,6 +80,13 @@ class NightlyTest(unittest.TestCase):
             self.assertEqual(self.run_nightly(), nightly.BUSY)
         self.assertFalse(self.shell.ran("aerie build"))
         self.assertEqual(len(self.gh.issues), 1)  # a night with no run is worth knowing about
+
+    def test_every_step_gets_the_lock_marker_so_its_build_does_not_wait_for_us(self):
+        self.run_nightly()
+        marker = f"{self.root / buildlock.LOCK_NAME}:{os.getpid()}"
+        self.assertTrue(self.shell.envs)
+        for env in self.shell.envs:
+            self.assertEqual(env.get(buildlock.ENV_HELD), marker)
 
     def test_worktree_is_removed(self):
         self.run_nightly()

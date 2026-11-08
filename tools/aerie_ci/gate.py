@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import contextlib
-import fcntl
 import json
 import os
 import sys
@@ -27,7 +26,7 @@ GATE_BENCH_EXCLUDE = ("smoke", "zero_traffic")
 
 
 @dataclass
-class GateConfig:
+class CiConfig:
     repo: Path
     build_root: Path
     maintainer: str = MAINTAINER
@@ -72,7 +71,7 @@ class GatedStore:
         tmp.replace(self.path)
 
 
-def gate_steps(cfg: GateConfig, tree: Path, checks: list[str]) -> list[st.Step]:
+def gate_steps(cfg: CiConfig, tree: Path, checks: list[str]) -> list[st.Step]:
     cmds = st.python_steps(cfg.python, tree, cfg.build_root)
     return [
         st.Step("patch check", cmds["patches"]),
@@ -90,7 +89,7 @@ def _describe(text: str, log_path: Path) -> str:
     return text[: max(0, 140 - len(tail))] + tail
 
 
-def gate_pr(cfg: GateConfig, pr: PullRequest) -> str:
+def gate_pr(cfg: CiConfig, pr: PullRequest) -> str:
     # The author check comes first. Until it passes, nothing from the PR is fetched, checked out or run.
     if pr.author != cfg.maintainer:
         return SKIPPED_AUTHOR
@@ -112,13 +111,15 @@ def gate_pr(cfg: GateConfig, pr: PullRequest) -> str:
     try:
         log.line(f"gate PR #{pr.number} {sha}")
         try:
-            with cfg.lock(cfg.build_root, timeout=cfg.lock_timeout, log=log.line):
+            with cfg.lock(cfg.build_root, timeout=cfg.lock_timeout, log=log.line) as held:
                 if st.fetch_ref(cfg.shell, cfg.repo, f"pull/{pr.number}/head") != sha:
                     post("error", "Superseded by a newer push; the next poll gates the new head.")
                     return STALE  # not recorded
                 with st.worktree(cfg.shell, cfg.repo, cfg.ci_root / "worktrees" / short, sha) as tree:
-                    env = st.clean_env(cfg.environ)
-                    checks = st.bench_check_names(cfg.shell, tree, env, GATE_BENCH_EXCLUDE)
+                    # cfg.environ was copied before the lock; the steps need the marker, or their ./aerie build
+                    # waits for the lock that this process holds.
+                    env = st.clean_env({**cfg.environ, buildlock.ENV_HELD: held})
+                    checks = st.bench_check_names(cfg.shell, cfg.python, tree, env, GATE_BENCH_EXCLUDE)
                     plan = gate_steps(cfg, tree, checks)
                     results = st.run_steps(cfg.shell, plan, cwd=tree, env=env, log=log,
                                            on_start=lambda step: post("pending", f"Running: {step.name}"))
@@ -136,13 +137,14 @@ def gate_pr(cfg: GateConfig, pr: PullRequest) -> str:
         log.line(summary)
         _write_summary(log_dir / "summary.json", cfg, pr, state, summary, results, log_path)
         post(state, summary)
-        store.record(sha, {"pr": pr.number, "state": state, "at": cfg.now()})
+        if state != ERROR:  # a harness error says nothing about the PR; the next poll tries again
+            store.record(sha, {"pr": pr.number, "state": state, "at": cfg.now()})
         return state
     finally:
         log.close()
 
 
-def _write_summary(path: Path, cfg: GateConfig, pr: PullRequest, state: str, summary: str,
+def _write_summary(path: Path, cfg: CiConfig, pr: PullRequest, state: str, summary: str,
                    results: list[st.StepResult], log_path: Path) -> None:
     data = {"pr": pr.number, "sha": pr.head_sha, "state": state, "summary": summary, "log": str(log_path),
             "steps": [{"name": r.name, "rc": r.rc, "seconds": round(r.seconds, 1)} for r in results]}
@@ -152,20 +154,15 @@ def _write_summary(path: Path, cfg: GateConfig, pr: PullRequest, state: str, sum
 @contextlib.contextmanager
 def _poll_lock(path: Path):
     """One poller at a time; a second one exits at once."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o600)
+    fd = buildlock.try_flock(path)
     try:
-        try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            yield False
-            return
-        yield True
+        yield fd is not None
     finally:
-        os.close(fd)
+        if fd is not None:
+            os.close(fd)
 
 
-def poll(cfg: GateConfig) -> list[tuple[PullRequest, str]]:
+def poll(cfg: CiConfig) -> list[tuple[PullRequest, str]]:
     with _poll_lock(cfg.ci_root / "poll.lock") as got:
         if not got:
             return []

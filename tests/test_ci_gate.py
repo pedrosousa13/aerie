@@ -1,4 +1,5 @@
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -21,8 +22,8 @@ class GateTestBase(unittest.TestCase):
     def cfg(self, **kw):
         kw.setdefault("environ", {"PATH": "/usr/bin", "GH_TOKEN": "ghp_" + "Z" * 36, "HOME": "/home/x"})
         kw.setdefault("lock_timeout", 0)
-        return gate.GateConfig(repo=self.repo, build_root=self.root, shell=self.shell, gh=self.gh,
-                               python="python3", **kw)
+        kw.setdefault("python", "python3")
+        return gate.CiConfig(repo=self.repo, build_root=self.root, shell=self.shell, gh=self.gh, **kw)
 
 
 class AuthorFilterTest(GateTestBase):
@@ -114,7 +115,7 @@ class StatusTest(GateTestBase):
         pending = [d for _, s, d in self.gh.statuses if s == "pending"]
         self.assertTrue(any("build" in d for d in pending))
 
-    def test_harness_exception_posts_error_and_is_recorded(self):
+    def test_harness_exception_posts_error_and_is_not_recorded(self):
         class Boom(FakeShell):
             def capture(self, argv, **kw):
                 if "fetch" in argv or "rev-parse" in argv:
@@ -124,6 +125,31 @@ class StatusTest(GateTestBase):
         self.shell = Boom()
         self.assertEqual(gate.gate_pr(self.cfg(), pr()), gate.ERROR)
         self.assertEqual(self.gh.states()[-1], "error")
+        # A harness error says nothing about the PR, so the next poll gates this head again.
+        self.shell = FakeShell()
+        self.assertEqual(gate.gate_pr(self.cfg(), pr()), gate.SUCCESS)
+
+    def test_a_worktree_left_by_a_killed_gate_does_not_block_the_sha(self):
+        wt = str(self.root / "ci" / "worktrees" / SHA_A[:12])
+
+        class Stale(FakeShell):
+            stale = True
+
+            def capture(self, argv, **kw):
+                argv = [str(a) for a in argv]
+                if "remove" in argv and wt in argv:
+                    self.stale = False
+                if "add" in argv and wt in argv and self.stale:
+                    self.calls.append(argv)
+                    raise RuntimeError(f"fatal: '{wt}' already exists")
+                return super().capture(argv, **kw)
+
+        self.shell = Stale()
+        self.assertEqual(gate.gate_pr(self.cfg(), pr()), gate.SUCCESS)
+        j = self.shell.joined()
+        add = next(i for i, c in enumerate(j) if "worktree add" in c)
+        self.assertTrue(any("worktree remove --force" in c for c in j[:add]))
+        self.assertTrue(any("worktree prune" in c for c in j[:add]))
 
     def test_summary_json_is_written_next_to_the_log(self):
         gate.gate_pr(self.cfg(), pr())
@@ -173,6 +199,11 @@ class StepsTest(GateTestBase):
                 self.assertIn(str(wt / "aerie"), call)
                 self.assertIn(str(self.root), call)
 
+    def test_the_check_listing_uses_the_configured_interpreter(self):
+        gate.gate_pr(self.cfg(python="/opt/py/bin/python"), pr())
+        listing = next(c for c in self.shell.calls if "-c" in c)
+        self.assertEqual(listing[0], "/opt/py/bin/python")
+
     def test_steps_do_not_get_tokens(self):
         gate.gate_pr(self.cfg(), pr())
         for env in self.shell.envs:
@@ -194,6 +225,14 @@ class LockTest(GateTestBase):
         self.assertEqual(self.gh.states()[-1], "error")
         self.assertIn("busy", self.gh.statuses[-1][2])
         self.assertEqual(gate.gate_pr(self.cfg(), pr()), gate.SUCCESS)  # not recorded as gated
+
+    def test_every_step_gets_the_lock_marker_so_its_build_does_not_wait_for_us(self):
+        gate.gate_pr(self.cfg(), pr())
+        marker = f"{self.root / buildlock.LOCK_NAME}:{os.getpid()}"
+        self.assertTrue(self.shell.envs)
+        for env in self.shell.envs:
+            self.assertEqual(env.get(buildlock.ENV_HELD), marker)
+        self.assertNotIn(buildlock.ENV_HELD, os.environ)
 
     def test_lock_is_held_while_steps_run_and_released_after(self):
         seen = []
