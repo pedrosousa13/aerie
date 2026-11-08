@@ -173,14 +173,14 @@ Standard library only; runs in well under a second.
 #### C++ unit tests
 
 ```sh
-./aerie test-cpp                          # build and run all five
+./aerie test-cpp                          # build and run all six
 ./aerie test-cpp --target aerie_widevine_unittests
 ```
 
 `./aerie test-cpp` prepares the source tree like `./aerie build`, then builds
 `aerie_adblock_unittests`, `aerie_adblock_content_unittests`,
-`aerie_widevine_unittests`, `aerie_adblock_common_unittests` and
-`aerie_adblock_renderer_unittests` in the same `out/Default` and runs them. It does not
+`aerie_widevine_unittests`, `aerie_adblock_common_unittests`,
+`aerie_adblock_renderer_unittests` and `aerie_fingerprint_unittests` in the same `out/Default` and runs them. It does not
 build `chrome`. The Widevine opt-in cases have their own binary because
 `components_unittests` cannot be built from Helium's tree: Helium prunes the
 binary test data (models, images) that its other members bundle. Every

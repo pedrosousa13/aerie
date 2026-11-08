@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 
 from aerie_bench import checks
-from aerie_bench.checks.hardening import common, cookies, extension, fingerprint, https, isolation, jit, prefetch, settings, webrtc
+from aerie_bench.checks.hardening import common, cookies, extension, fingerprint, fingerprint_site, https, isolation, jit, prefetch, settings, webrtc
 from aerie_bench.session import CheckResult
 
 FIXTURES = Path(__file__).parent / "fixtures" / "hardening"
@@ -61,7 +61,7 @@ class RegistryTest(unittest.TestCase):
         self.assertEqual(sorted(sc.checks), sorted(HARDENING))
 
     def test_checks_declare_control_and_negative_control(self):
-        self.assertEqual(len(HARDENING), 15)
+        self.assertEqual(len(HARDENING), 16)
         for name, cls in HARDENING.items():
             self.assertTrue(cls.control, name)
             self.assertGreater(len(cls.negative_control), 30, name)
@@ -329,6 +329,71 @@ class FingerprintJudgeTest(unittest.TestCase):
         for key in ("a1", "a2"):
             obs[key]["audio"] = obs[key]["audio_again"] = obs["control"]["a"]["audio"]
         self.assertIn("equals the no-noise control", fingerprint.Fingerprinting.judge(obs)[1])
+
+
+class FingerprintSiteJudgeTest(unittest.TestCase):
+    def case(self, name):
+        doc = json.loads((FIXTURES / "hardening_fingerprinting_site.json").read_text())
+        return next(c for c in doc["cases"] if c["name"] == name)
+
+    def test_a_passing_observation_passes(self):
+        status, detail = fingerprint_site.FingerprintingSite.judge(self.case("keyed_on_the_site_and_off_switch_site_wide")["obs"])
+        self.assertEqual(status, "pass", detail)
+
+    def test_negative_control_origin_keyed_values_fail_the_same_site_step(self):
+        # An origin-keyed build gives x.a and y.a different seeds: everything else in the run is fine.
+        obs = json.loads(json.dumps(self.case("keyed_on_the_site_and_off_switch_site_wide")["obs"]))
+        obs["regular"]["y.a"] = {"canvas": "c7", "audio": "u7", "audio_again": "u7", "cores": "6"}
+        self.assertNotEqual(obs["regular"]["x.a"]["canvas"], obs["regular"]["y.a"]["canvas"])
+        status, detail = fingerprint_site.FingerprintingSite.judge(obs)
+        self.assertEqual(status, "fail")
+        self.assertIn("x.a.localhost and y.a.localhost, which are one site", detail)
+
+    def test_the_recorded_origin_keyed_case_fails_the_same_site_step(self):
+        case = self.case("origin_keying_gives_two_hosts_of_one_site_different_values")
+        status, detail = fingerprint_site.FingerprintingSite.judge(case["obs"])
+        self.assertEqual((status, case["expect"]), ("fail", "fail"))
+        self.assertIn("which are one site", detail)
+
+
+class FingerprintSiteDriverTest(unittest.TestCase):
+    def test_seeded_exceptions_are_stored_as_primary_comma_secondary(self):
+        prefs = fingerprint_site.seeded_exceptions({"http://[*.]a.localhost": 2, "http://x.a.localhost:4100": 2})
+        rules = prefs["profile"]["content_settings"]["exceptions"]["helium_noise"]
+        self.assertEqual(rules, {"http://[*.]a.localhost,*": {"setting": 2}, "http://x.a.localhost:4100,*": {"setting": 2}})
+
+    def test_seeded_exceptions_use_the_pref_name_with_an_underscore(self):
+        prefs = fingerprint_site.seeded_exceptions({fingerprint_site.SITE_PATTERN: 2})
+        exceptions = prefs["profile"]["content_settings"]["exceptions"]
+        self.assertEqual(list(exceptions), ["helium_noise"])
+        self.assertIn("http://[*.]a.localhost,*", exceptions["helium_noise"])
+
+    def test_turning_a_site_off_calls_the_site_settings_handler_on_the_settings_page(self):
+        class Fake:
+            def __init__(self):
+                self.urls, self.scripts = [], []
+
+            def navigate_url(self, url):
+                self.urls.append(url)
+                return {"url": url, "error": None}
+
+            def evaluate(self, js):
+                self.scripts.append(js)
+                return True
+        fake = Fake()
+        self.assertTrue(fingerprint_site.turn_off_for_site(fake))
+        self.assertEqual(fake.urls, ["chrome://settings/"])
+        self.assertIn("setCategoryPermissionForPattern", fake.scripts[0])
+        self.assertIn('"http://[*.]a.localhost"', fake.scripts[0])
+        self.assertIn("'helium-noise', 'block', false", fake.scripts[0])
+
+    def test_the_site_pattern_carries_the_scheme_of_the_fixture_site(self):
+        # The key is scheme plus eTLD+1 and the fixture serves plain http, so the switch must be http-only.
+        self.assertEqual(fingerprint_site.SITE_PATTERN, "http://[*.]a.localhost")
+
+    def test_the_fixture_page_reports_the_core_count(self):
+        text = (Path(fingerprint_site.__file__).parents[2] / "fixtures" / "hardening" / "fingerprint.html").read_text()
+        self.assertIn("hardwareConcurrency", text)
 
 
 class FakeFixtures:

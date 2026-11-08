@@ -122,6 +122,49 @@ class VariantTest(unittest.TestCase):
                     return {"v": isinstance(v.browser_pid, int), "differ": v.browser_pid != s.browser_pid}
         self.assertEqual(self.go(body).data["checks"][0]["data"], {"v": True, "differ": True})
 
+    def test_incognito_opens_a_page_in_its_own_browser_context_and_disposes_it(self):
+        log = self.root / "cdp.log"
+
+        def body(s):
+            s.navigate("/index.html")
+            with s.incognito() as inc:
+                inc.navigate("/index.html")
+                title = inc.evaluate("document.title")
+            return {"title": title}
+        res = self.go(body, extra_env={"FAKE_BROWSER_CDP_LOG": str(log)})
+        self.assertEqual(res.status, "pass", res.data["checks"])
+        self.assertEqual(res.data["checks"][0]["data"]["title"], "Aerie Bench Fixture")
+        calls = [json.loads(line) for line in log.read_text().splitlines()]
+        create = [c for c in calls if c["method"] == "Target.createTarget"]
+        self.assertNotIn("browserContextId", create[0]["params"])  # the regular page
+        self.assertEqual(create[1]["params"]["browserContextId"], "C1")  # the incognito page
+        self.assertEqual(calls[-1], {"method": "Target.disposeBrowserContext",
+                                     "params": {"browserContextId": "C1"}})
+
+    def test_incognito_context_is_disposed_when_the_check_raises(self):
+        log = self.root / "cdp.log"
+
+        def body(s):
+            with s.incognito() as inc:
+                inc.navigate("/index.html")
+                raise RuntimeError("boom")
+        res = self.go(body, extra_env={"FAKE_BROWSER_CDP_LOG": str(log)})
+        self.assertEqual(res.data["checks"][0]["status"], "error")
+        self.assertIn("Target.disposeBrowserContext", log.read_text())
+
+    def test_each_incognito_call_is_a_new_context(self):
+        log = self.root / "cdp.log"
+
+        def body(s):
+            for _ in range(2):
+                with s.incognito():
+                    pass
+            return {}
+        self.go(body, extra_env={"FAKE_BROWSER_CDP_LOG": str(log)})
+        methods = [json.loads(line)["method"] for line in log.read_text().splitlines()]
+        self.assertEqual(methods.count("Target.createBrowserContext"), 2)
+        self.assertEqual(methods.count("Target.disposeBrowserContext"), 2)
+
     def test_session_without_launcher_refuses_variants(self):
         from aerie_bench.session import Session
         s = Session(None, None, Path("."))

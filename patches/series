@@ -26,6 +26,7 @@ hardening/0006-lock-hardened-prefs-from-extensions.patch
 hardening/0007-full-https-only-warning-page.patch
 hardening/0008-no-link-prefetch-when-preloading-is-off.patch
 hardening/0009-stable-audio-noise-per-site-and-session.patch
+hardening/0011-key-fingerprinting-noise-on-the-site.patch
 hardening/0012-cap-device-memory-at-8gb.patch
 
 adblock/0001-hook-url-loader-factory.patch

@@ -1,7 +1,7 @@
 <!doctype html>
 <html><head><meta charset="utf-8"><title>Aerie Bench Fingerprint</title></head>
 <body>
-<p>Hashes a canvas drawing and an offline audio render.</p>
+<p>Hashes a canvas drawing and an offline audio render, and reports the core count.</p>
 <script>
   window.__done = false;
   function fnv(str) {
@@ -46,7 +46,8 @@
     return fnv(s);
   }
   (async () => {
-    try { window.__result = {canvas: canvasHash(), audio: await audioHash(), audio_again: await audioHash()}; }
+    try { window.__result = {canvas: canvasHash(), audio: await audioHash(), audio_again: await audioHash(),
+                         cores: navigator.hardwareConcurrency}; }
     catch (e) { window.__result = {error: String(e)}; }
     window.__done = true;
   })();

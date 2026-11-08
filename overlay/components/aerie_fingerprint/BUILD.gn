@@ -1,0 +1,53 @@
+# Copyright 2026 The Aerie Authors
+# You can use, redistribute, and/or modify this source code under
+# the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+# What the fingerprinting noise is keyed on: the site (scheme plus registrable
+# domain), not the origin. The same function gives the per-site switch its
+# content-setting pattern, so the key and the switch always cover the same
+# hosts. No content or chrome dependency, so it has unit tests.
+
+import("//testing/test.gni")
+
+source_set("aerie_fingerprint") {
+  sources = [
+    "site_key.cc",
+    "site_key.h",
+  ]
+
+  public_deps = [
+    "//base",
+    "//components/content_settings/core/common",
+    "//url",
+  ]
+
+  deps = [ "//net" ]
+}
+
+source_set("unit_tests") {
+  testonly = true
+
+  sources = [
+    "noise_switch_unittest.cc",
+    "site_key_unittest.cc",
+  ]
+
+  deps = [
+    ":aerie_fingerprint",
+    "//base",
+    "//base/test:test_support",
+    "//components/content_settings/core/browser",
+    "//components/content_settings/core/common",
+    "//components/prefs",
+    "//components/sync_preferences:test_support",
+    "//testing/gtest",
+    "//url",
+  ]
+}
+
+test("aerie_fingerprint_unittests") {
+  deps = [
+    ":unit_tests",
+    "//base/test:run_all_unittests",
+  ]
+}
