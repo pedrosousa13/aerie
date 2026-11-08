@@ -92,6 +92,8 @@ class FixtureServerTest(unittest.TestCase):
         deliberate = {fixtures.FIXTURE_DIR / "blocking" / "index.html",
                       fixtures.FIXTURE_DIR / "blocking" / "expected.json",
                       fixtures.FIXTURE_DIR / "redirects.json"}
+        # The perf check's ad-heavy pages name the same hosts, so a blocker has something to stop.
+        deliberate |= set((fixtures.FIXTURE_DIR / "perf").glob("ad-heavy-*.html"))
         for f in fixtures.FIXTURE_DIR.rglob("*"):
             if f in deliberate:
                 continue

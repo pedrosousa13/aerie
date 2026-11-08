@@ -47,6 +47,21 @@ def add_arguments(p: argparse.ArgumentParser, *, binary_required: bool) -> None:
     p.add_argument("--baseline", metavar="PATH",
                    help="also run zero_traffic on this browser (an unmodified Helium build, or any browser "
                         "that talks to Google) and require it to FAIL; if it passes the check is vacuous")
+    p.add_argument("--perf-baseline", metavar="FILE",
+                   help="perf: compare against this perf document (main.json of a --perf-record directory) "
+                        "and fail when a metric regressed past its threshold; no file yet means no comparison")
+    p.add_argument("--perf-record", metavar="DIR",
+                   help="perf: after a passing run, append perf.json to DIR/history.jsonl and make it DIR/main.json "
+                        "(use it on main builds only)")
+    p.add_argument("--perf-compare-binary", metavar="PATH",
+                   help="perf: run the same suite on this browser (Helium, stock Chromium) and write "
+                        "perf-comparison.md with both side by side")
+    p.add_argument("--perf-compare-name", default="Helium", metavar="NAME",
+                   help="perf: how the --perf-compare-binary browser is named in the report (default Helium)")
+    p.add_argument("--perf-skip-benchmarks", action="store_true",
+                   help="perf: do not run the vendored Speedometer and JetStream copies")
+    p.add_argument("--perf-settle", type=float, default=3.0, metavar="SEC",
+                   help="perf: wait after the ad-heavy pages before reading memory (default 3)")
     p.add_argument("--flag", action="append", default=[], metavar="FLAG",
                    help="extra browser command-line flag (repeatable)")
 
@@ -71,6 +86,8 @@ def run(args: argparse.Namespace, build_root: Path, default_binary: Path | None)
             sc = scenario.Scenario()
         if args.check:
             sc = scenario.Scenario(sc.name, tuple(args.check), sc.steps)
+        if (args.perf_baseline or args.perf_record or args.perf_compare_binary) and "perf" not in sc.checks:
+            raise BenchError("--perf-baseline, --perf-record and --perf-compare-binary need --check perf")
         if args.baseline and "zero_traffic" not in sc.checks:
             raise BenchError("--baseline needs --check zero_traffic")
         if skip_note and "browser_requests" in sc.checks:
@@ -81,13 +98,17 @@ def run(args: argparse.Namespace, build_root: Path, default_binary: Path | None)
                                     "settle_seconds": args.zero_traffic_settle,
                                     "strict": args.zero_traffic_strict},
                    "widevine_opt_in": {"online_seconds": args.widevine_online},
-                   "workspace_isolation": {"enforce": args.workspaces_enforce}}
+                   "workspace_isolation": {"enforce": args.workspaces_enforce},
+                   "perf": {"baseline": args.perf_baseline, "settle_seconds": args.perf_settle,
+                            "benchmarks": not args.perf_skip_benchmarks}}
         common = dict(headless=not args.headed, no_sandbox=args.no_sandbox, timeout=args.timeout,
                       extra_flags=tuple(args.flag), check_options=options)
         result = run_bench(binary, sc, build_root, out_dir=Path(args.out) if args.out else None, **common)
         print((result.out_dir / "summary.txt").read_text(), end="")
         print(f"results: {result.out_dir / 'results.json'}")
         code = EXIT_PASS if result.status == "pass" else EXIT_FAIL
+        if "perf" in sc.checks:
+            code = max(code, _perf_followup(args, result, sc, binary, build_root, common))
         if args.baseline:
             base_out = Path(str(args.out).rstrip("/") + "-baseline") if args.out else None
             base = run_bench(Path(args.baseline), scenario.Scenario("zero-traffic-baseline", ("zero_traffic",)),
@@ -97,6 +118,35 @@ def run(args: argparse.Namespace, build_root: Path, default_binary: Path | None)
     except (BenchError, scenario.ScenarioError) as exc:
         print(f"aerie bench: error: {exc}", file=sys.stderr)
         return EXIT_HARNESS
+
+
+def _perf_followup(args, result, sc, binary, build_root, common) -> int:
+    """Record the run as the new baseline and run the comparison browser, as asked."""
+    from . import perf
+    code = EXIT_PASS
+    doc_path = result.out_dir / "perf.json"
+    if not doc_path.is_file():
+        return EXIT_PASS  # the check errored before it wrote anything; its own status already failed the run
+    doc = perf.load(doc_path)
+    if args.perf_record:
+        if result.status == "pass":
+            print(f"perf: recorded in {perf.record(Path(args.perf_record), doc)}")
+        else:
+            print("perf: run did not pass; not recorded")
+    if args.perf_compare_binary:
+        out = Path(str(args.out).rstrip("/") + "-compare") if args.out else None
+        other = run_bench(Path(args.perf_compare_binary), scenario.Scenario("perf-comparison", ("perf",)),
+                          build_root, out_dir=out, **{**common, "check_options": {"perf": {
+                              **common["check_options"]["perf"], "baseline": None}}})
+        other_path = other.out_dir / "perf.json"
+        if not other_path.is_file():
+            print(f"perf: the comparison browser gave no metrics ({other.out_dir})")
+            return EXIT_FAIL
+        text = perf.side_by_side(doc, perf.load(other_path), args.perf_compare_name)
+        (result.out_dir / "perf-comparison.md").write_text(text)
+        print("\n" + text + f"report: {result.out_dir / 'perf-comparison.md'}")
+        # The other browser is only a reference: its own checks failing does not fail Aerie's run.
+    return code
 
 
 def _report_baseline(base, binary) -> int:

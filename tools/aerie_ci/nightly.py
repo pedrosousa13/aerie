@@ -33,9 +33,11 @@ def run_nightly(cfg: CiConfig, *, today: Callable[[], str] = lambda: time.strfti
                     # Every registered check, zero_traffic included. --clean drops the source tree and the
                     # pristine snapshot; the compiler cache stays (see docs/ci.md).
                     checks = st.bench_check_names(cfg.shell, cfg.python, tree, env, exclude=())
+                    # A passing run with the perf check becomes the baseline the PR gate compares against.
+                    extra = ("--perf-record", str(cfg.perf_dir)) if "perf" in checks else ()
                     plan = [st.Step("clean build", cmds["clean_build"]),
                             st.Step("full bench", st.bench_argv(cfg.python, tree, cfg.build_root, checks,
-                                                                out=bench_out))]
+                                                                out=bench_out, extra=extra))]
                     results = st.run_steps(cfg.shell, plan, cwd=tree, env=env, log=log)
             failed = next((r for r in results if r.rc != 0), None)
             state = FAIL if failed else PASS

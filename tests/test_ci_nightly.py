@@ -41,6 +41,12 @@ class NightlyTest(unittest.TestCase):
         # the full Bench: everything registered, zero_traffic and smoke included
         self.assertEqual(checks, ["ad_blocking", "branding", "smoke", "zero_traffic"])
 
+    def test_a_registered_perf_check_is_recorded_as_the_baseline(self):
+        self.shell.checks = "smoke perf"
+        self.run_nightly()
+        bench = [c for c in self.shell.calls if "bench" in c and "--check" in c][-1]
+        self.assertEqual(bench[bench.index("--perf-record") + 1], "/mnt/linux2/aerie-perf")
+
     def test_results_are_kept_under_a_dated_directory(self):
         self.run_nightly()
         day = self.ci_root / "nightly" / "2026-11-09"

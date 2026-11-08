@@ -160,7 +160,7 @@ class StatusTest(GateTestBase):
         self.assertEqual(data["sha"], SHA_A)
         self.assertEqual(data["state"], "success")
         self.assertEqual([s["name"] for s in data["steps"]],
-                         ["patch check", "build", "unit tests", "smoke launch", "bench"])
+                         ["patch check", "build", "unit tests", "smoke launch", "bench", "perf"])
 
 
 class StepsTest(GateTestBase):
@@ -189,10 +189,18 @@ class StepsTest(GateTestBase):
 
     def test_bench_runs_every_check_except_smoke_and_the_slow_zero_traffic(self):
         gate.gate_pr(self.cfg(), pr())
-        bench = [c for c in self.shell.calls if "bench" in c and "--check" in c and "smoke" not in c]
+        bench = [c for c in self.shell.calls if "bench" in c and "--check" in c and "smoke" not in c
+                 and "perf" not in c]
         self.assertEqual(len(bench), 1)
         checks = [bench[0][i + 1] for i, a in enumerate(bench[0]) if a == "--check"]
         self.assertEqual(checks, ["ad_blocking", "branding"])
+
+    def test_perf_step_compares_with_the_last_main_build(self):
+        gate.gate_pr(self.cfg(environ={"PATH": "/usr/bin", "AERIE_PERF_DIR": "/p/perf"}), pr())
+        perf = [c for c in self.shell.calls if "bench" in c and "perf" in c]
+        self.assertEqual(len(perf), 1)
+        self.assertEqual(perf[0][perf[0].index("--perf-baseline") + 1], "/p/perf/main.json")
+        self.assertEqual([perf[0][i + 1] for i, a in enumerate(perf[0]) if a == "--check"], ["perf"])
 
     def test_steps_use_the_existing_entry_points_with_the_shared_build_root(self):
         gate.gate_pr(self.cfg(), pr())

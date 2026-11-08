@@ -127,13 +127,14 @@ def python_steps(python: str, tree: Path, build_root: Path, ccache_dir: Path | N
     }
 
 
-def bench_argv(python: str, tree: Path, build_root: Path, checks: Sequence[str], out: Path | None = None) -> tuple:
+def bench_argv(python: str, tree: Path, build_root: Path, checks: Sequence[str], out: Path | None = None,
+               extra: Sequence[str] = ()) -> tuple:
     argv = [python, str(tree / "aerie"), "bench", "--build-root", str(build_root)]
     for name in checks:
         argv += ["--check", name]
     if out is not None:
         argv += ["--out", str(out)]
-    return tuple(argv)
+    return tuple(argv) + tuple(extra)
 
 
 _LIST_CHECKS = "from aerie_bench import checks; print(' '.join(sorted(checks.REGISTRY)))"

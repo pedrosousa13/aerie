@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Ad-heavy fixture 2</title></head>
+<body>
+<h1>Ad-heavy fixture 2</h1>
+<p>Memory fixture. The external URLs are real ad and tracker hosts: a blocker stops them, and without
+one they fail to resolve (the Bench resolves nothing but loopback). The local frames and the script
+stand in for the content an ad would bring when it is not blocked.</p>
+<script src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?n=2" async></script>
+<script src="https://securepubads.g.doubleclick.net/tag/js/gpt.js?n=2" async></script>
+<script src="https://connect.facebook.net/en_US/fbevents.js?n=2" async></script>
+<script src="https://static.hotjar.com/c/hotjar-1.js?n=2" async></script>
+<img src="https://www.google-analytics.com/collect?v=1&t=pageview&n=2" width="1" height="1" alt="">
+<iframe src="https://googleads.g.doubleclick.net/pagead/ads?client=ca-pub-2" width="300" height="250" title="ad"></iframe>
+<iframe src="/perf/ad-frame.html" width="300" height="250" title="local ad 2 a"></iframe>
+<iframe src="/perf/ad-frame.html" width="300" height="250" title="local ad 2 b"></iframe>
+<iframe src="/perf/ad-frame.html" width="300" height="250" title="local ad 2 c"></iframe>
+<div id="feed"></div>
+<script>
+var feed = document.getElementById("feed");
+for (var i = 0; i < 400; i++) {
+  var card = document.createElement("article");
+  card.className = "card ad-box";
+  card.innerHTML = "<h2>Offer " + i + "</h2><p>" + "lorem ipsum ".repeat(20) + "</p>";
+  feed.appendChild(card);
+}
+</script>
+</body>
+</html>
