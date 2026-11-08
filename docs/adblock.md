@@ -189,31 +189,72 @@ proxying of that request, and the hook is the place to look. For that case, run 
 
 Blocking a request leaves an empty box where the ad would have been. The Filter Engine
 also reads EasyList's plain hide rules (`##.ad-slot`, `site.com##.x`, `#@#` exceptions)
-and hides those elements.
+and hides those elements. [ADR 0002](adr/0002-cosmetic-filtering-in-the-browser-process.md) put it in
+the browser process; [ADR 0005](adr/0005-renderer-side-cosmetic-piece.md) (issue #68) added one small
+renderer piece, with Brave Shields as the reference, so that a page cannot remove the hide and late
+elements are hidden too.
 
 ```
-tab ──> AerieCosmeticTabHelper ──> FilterEngineService ──posts──> engine (cosmetic_stylesheet, generic_stylesheet)
-  │        (browser process)                                              │
-  └── isolated world: adoptedStyleSheets <──── CSS: one `sel{display:none!important}` line per selector
+browser process                                                      renderer (one agent per frame)
+tab ──> AerieCosmeticTabHelper ──> FilterEngineService ──> engine    AerieCosmeticAgent
+  │     decides everything                                  │          │  InsertStyleSheet(kUser)
+  ├── SetRules(kind, css, append) ───── Mojo ───────────────┼──────────>  one page sheet, one generic sheet
+  │                                                          │          │
+  ├── isolated world: collect script ─ class/id lookup keys ─┘          │
+  └── isolated world: late-watch script (MutationObserver)              │
+        └─ __aerieCosmeticNotify(classes, ids) ──> agent ──> LateTokens(classes, ids) ──> helper
 ```
 
 - `chrome/browser/aerie_adblock/aerie_cosmetic_tab_helper.*` is a `WebContentsObserver`, one
   per tab (hook patch `0007`, two `CreateForWebContents` calls in `TabFeatures`). When a
   frame commits it asks the service for the stylesheet for that URL (rules for the site, and
-  the generic rules that do not start with a class or id) and injects it. At
-  `DOMContentLoaded` and again at load it reads the frame's class names and ids, asks for the
-  generic rules that match, and injects those. A frame has one such generic sheet: the second
-  pass replaces the rules of the first (the sheet is kept in the isolated world's global). Aerie's
-  per-page (site) sheet is separate. The limits on what is read from a page (5000
-  class names, 5000 ids, 256 bytes each) are the Rust core's `MAX_PAGE_TOKENS` and
-  `MAX_TOKEN_BYTES`; the C++ constants in `cosmetic_scripts.h` must equal them, and
-  `tests/test_cosmetic_limits.py` fails if they do not.
-- Injection runs `ExecuteJavaScriptInIsolatedWorld` and adds a constructed stylesheet
-  (`document.adoptedStyleSheets`). The page's Content-Security-Policy `style-src` does not
-  govern it and no DOM node is added. The page's scripts do not share JavaScript objects
-  with the isolated world, so the Bench fixture tries to hijack `CSSStyleSheet` and the
-  `adoptedStyleSheets` accessor and must see nothing.
-- Nothing in the renderer was added. No Mojo interface, no renderer target.
+  the generic rules that do not start with a class or id) and sends it to the frame's agent. At
+  `DOMContentLoaded` it starts the late watch, then reads the frame's class names and ids, asks
+  for the generic rules that match, and sends those; it does it again at load. Rules for a page are keyed by
+  the document (`WeakDocumentPtr`), so rules asked for one document never land on a later one of the same origin,
+  and only active frames (not in the back-forward cache, not being deleted) are touched.
+- **The agent** (`components/aerie_adblock/renderer`, hook patch `0012`: one `Create()` call in
+  `ChromeContentRendererClient::RenderFrameCreated`) inserts the text as a **user-origin** sheet
+  (`WebDocument::InsertStyleSheet(..., kUser)`). The page cannot see it (it is not in
+  `document.adoptedStyleSheets` or `document.styleSheets`), cannot remove it, and cannot override
+  it: a user-origin `!important` rule beats an author `!important` rule, so the inline
+  `display:block !important` that anti-adblock scripts use loses. A frame has one page sheet
+  (replaced whole on each navigation; a page with no rules clears it) and one generic sheet. The generic calls all
+  append, and a line that is already in the sheet is not added again (`CosmeticSheetState`), so the passes at
+  DOM ready, at load and for late elements can come in any order. Because an append removes and inserts the
+  sheet again (Blink restyles), the agent paces it (`GenericInsertPacer`): the first insertion at once, later
+  ones 250 ms apart at the soonest, 64 per document at most; rules that arrive in between wait and go in with
+  the next one. There is always exactly one generic sheet.
+- **Late elements.** The late-watch script (fixed text in `cosmetic_scripts.cc`, run in the Aerie
+  isolated world) is a `MutationObserver` on the document. For inserted subtrees and for changed
+  `class` or `id` attributes it collects the class names and ids it has not reported before (ASCII only: the
+  engine takes no other, and skips such a token alone) and, `kLateFlushDelayMs` (250 ms) after the last mutation,
+  calls `__aerieCosmeticNotify(classes, ids)`. Mutation records wait in a bounded queue and are read 200 records /
+  2000 elements at a time, and a token leaves its queue only when the renderer accepted the report (the native
+  function returns true), so the cost is bounded, and fair only under those limits: junk classes delay an ad's class, but a hostile page can exhaust them. The
+  agent installs that one native function in the Aerie world only (`DidCreateScriptContext`); the
+  page's world has no such function. The agent checks its two string arguments and sends
+  `CosmeticHost::LateTokens(classes, ids)`. The helper asks the engine for the rules for those
+  tokens and sends them with `append = true`. The patch that lets the report reach the helper is `0013`
+  (one binder call in `chrome_content_browser_client_receiver_bindings.cc`).
+- **The limits** are all in `components/aerie_adblock/common/cosmetic_limits.h`: the token limits
+  of #44 (5000 class names, 5000 ids, 256 bytes each, 50 000 elements scanned: the Rust core's
+  `MAX_PAGE_TOKENS`, `MAX_TOKEN_BYTES`), the sheet cap (1 MiB, the core's `MAX_COSMETIC_CSS_BYTES`) and the late
+  watch's: per turn 200 records and 2000 elements, 5000 queued records, per document 200 000 elements and
+  200 reports, one report per 200 ms from the renderer, at most 16 KiB per list, 32 classes read
+  per element. The browser gates the reports per frame (half the renderer's interval) and for the whole tab
+  with a token bucket (a burst of 64, then one per 25 ms, no lifetime cap; checked before the frame gate and taken
+  from after it). The frame gate is `common/late_report_gate.h`, the same code the renderer uses. `tests/test_cosmetic_limits.py` fails if the shared ones disagree with the Rust core.
+- **What the renderer piece may and may not do** (the terms of ADR 0005, enforced by
+  `tests/test_cosmetic_renderer.py`): apply only CSS the browser sends; no network and no URL; read no
+  filter list; two Mojo calls (`SetRules` in, `LateTokens` out, both in `cosmetic.mojom`); every input
+  bounded. A compromised renderer can send token lists, and the browser treats them as untrusted: it
+  refuses a list over the cap (and reports a bad message), gates the rate per frame, re-reads the policy
+  and the per-site exception on every report, and only uses the tokens as lookup keys. Its visible effect
+  is that it can ask the browser for generic hide rules, which are public list data.
+- Per-site switch and off-switch: no sheet and no watch are started where cosmetic filtering is off (the
+  policy, or a per-site exception, issue #10). Every late report is checked again, so turning blocking off
+  stops the reports at once; sheets already inserted stay until the next navigation.
 - The hook for issue #10: `FilterEngineService::SetCosmeticFilteringPolicy(callback)`. The
   callback gets the top-level page URL and says whether cosmetic filtering is on. The default
   is on. Besides the policy, a site with a per-site "blocking off" exception (issue #10, see
@@ -240,10 +281,13 @@ tab ──> AerieCosmeticTabHelper ──> FilterEngineService ──posts──
   keys; it never reaches a script. The script that reads them only reads the DOM.
 - The engine is the build's, from pinned lists: a page cannot add a rule.
 
-### Limits (first slice)
+### Limits
 
-- Elements whose class or id first appears after the load event are not hidden (no mutation
-  observer yet).
+- A late element is hidden only for rules that match its class or id (or a selector the generic
+  rules cover); a rule that needs a procedural filter is dropped like before.
+- A page that makes more than the bounded number of late insertions (200 000 elements, 200 reports)
+  stops being watched until it navigates.
+- A hide arrives after the first paint of the element: a short flash is possible, as before.
 - `site.*##rule` entity rules use a heuristic registrable domain (`AerieDomainResolver` in the
   core crate), because the embedded public suffix list is not compiled in and adblock-rust
   panics in cosmetic matching without a resolver. An unusual public suffix can miss an
@@ -261,6 +305,8 @@ tab ──> AerieCosmeticTabHelper ──> FilterEngineService ──posts──
 | `rust/ffi` | `aerie_adblock_ffi`: the cxx bridge. Four functions. No `Result` (Chromium has no C++ exceptions). |
 | `rust/tool` | `aerie_adblock_compile`: host tool, lists in, serialized engine out, with self-checks. |
 | `browser/` | C++: classifier, engine wrapper, service, proxying factory, hook, cosmetic scripts, unit tests. |
+| `common/` | The limits of cosmetic filtering, the report gate and the two-call Mojo interface to the renderer piece (ADR 0005). The only targets besides `renderer/` that a renderer may depend on. |
+| `renderer/` | The renderer piece: `AerieCosmeticAgent` (user-origin sheets, the native function for late tokens) and `CosmeticSheetState` (pure code, unit tested). |
 | `selfcheck.json`, `compile_engine.py` | Build-time checks of the compiled engine against the real lists. |
 | `resources/*.grd` | Packs the engine into `resources.pak` (hook patch `0002`). |
 
@@ -361,7 +407,8 @@ the diff, commit it.
 | C++ syntax against the real headers of a built tree (read-only, needs cargo) | `tools/check-overlay-syntax.sh` |
 | C++ unit tests (in the train) | `autoninja -C out/Default aerie_adblock_unittests` |
 | Blocking, for real (in the train) | `./aerie bench --check ad_blocking` |
-| Hiding, for real (in the train) | `./aerie bench --check cosmetic_filtering` |
+| Hiding, for real (in the train) | `./aerie bench --check cosmetic_filtering` (also proves the user-origin sheet and the late elements, see [bench.md](bench.md)) |
+| Renderer piece and gate unit tests (in the train) | `./aerie test-cpp --target aerie_adblock_renderer_unittests --target aerie_adblock_common_unittests` |
 
 ## Credits
 

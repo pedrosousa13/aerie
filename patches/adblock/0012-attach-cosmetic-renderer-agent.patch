@@ -1,0 +1,26 @@
+Aerie-Purpose: Give every frame the renderer piece of cosmetic filtering: it inserts the browser's hide rules as a user-origin sheet and relays late class names and ids, so a page cannot remove the hide and late ad containers are hidden (ADR 0005).
+Aerie-Upstream-Area: chrome/renderer/chrome_content_renderer_client.cc (ChromeContentRendererClient::RenderFrameCreated), chrome/renderer/BUILD.gn (renderer deps)
+Aerie-Kind: hook
+
+One Create() call and one GN dependency. The agent lives in components/aerie_adblock/renderer
+(the overlay). It applies only the CSS the browser sends over the two-call interface in
+components/aerie_adblock/common/cosmetic.mojom and has no network or filter list code.
+See docs/adr/0005-renderer-side-cosmetic-piece.md and docs/adblock.md.
+
+--- a/chrome/renderer/BUILD.gn
++++ b/chrome/renderer/BUILD.gn
+@@ -143,2 +143,3 @@
+     "//components/actor/core:task_id",
++    "//components/aerie_adblock/renderer",
+     "//components/autofill/content/renderer",
+--- a/chrome/renderer/chrome_content_renderer_client.cc
++++ b/chrome/renderer/chrome_content_renderer_client.cc
+@@ -77,2 +77,3 @@
+ #include "chrome/services/speech/buildflags/buildflags.h"
++#include "components/aerie_adblock/renderer/aerie_cosmetic_agent.h"
+ #include "components/autofill/content/renderer/autofill_agent.h"
+@@ -658,2 +659,4 @@
+ 
++  aerie_adblock::AerieCosmeticAgent::Create(render_frame);
++
+   auto content_settings_delegate =

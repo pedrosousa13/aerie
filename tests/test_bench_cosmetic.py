@@ -31,8 +31,11 @@ def good_measurement():
     return ([hidden(h["selector"]) for h in EXPECTED["hidden"]] + [shown(v["selector"]) for v in EXPECTED["visible"]])
 
 
-def judge(measured, engine=ENGINE_OK, hijacked=False, generic_sheets=1):
-    return cf.judge(EXPECTED, measured, engine, hijacked, generic_sheets)
+PAGE_RAN = {"attack_done": True, "late_inserted": True}
+
+
+def judge(measured, engine=ENGINE_OK, hijacked=False, generic_sheets=1, page_flags=PAGE_RAN):
+    return cf.judge(EXPECTED, measured, engine, hijacked, generic_sheets, page_flags)
 
 
 class JudgeTest(unittest.TestCase):
@@ -130,17 +133,113 @@ class GenericSheetCountTest(unittest.TestCase):
         probe = EXPECTED["generic_sheet_probe"]
         self.assertIn(probe, [h["selector"] for h in EXPECTED["hidden"] if h["via"] == "generic class rule"])
 
-    def test_the_script_counts_sheets_that_hold_the_probe_rule(self):
-        script = cf.generic_sheet_count_script(".ad-slot")
-        self.assertIn("adoptedStyleSheets", script)
-        self.assertIn("cssRules", script)
-        self.assertIn('".ad-slot"', script)
 
-    def test_the_script_matches_the_exact_rule_selector_not_a_substring(self):
-        script = cf.generic_sheet_count_script(".ad-slot")
-        self.assertIn("r.selectorText===p", script)
-        self.assertNotIn("indexOf", script)
-        self.assertNotIn("cssText", script)
+class GenericRuleCountTest(unittest.TestCase):
+    """User-origin sheets are not in adoptedStyleSheets, so the count comes from the CSS domain. Blink reports a
+    user-origin rule with origin "user-agent" (user rules are matched before any tree scope, so the CSSOM wrapper
+    has no parent sheet and gets the inspector's default UA sheet; element_rule_collector.cc MatchUserRules,
+    inspector_css_agent.cc). The real UA sheet has no rule for the probe selector."""
+
+    @staticmethod
+    def rule(selector, origin):
+        return {"rule": {"origin": origin, "selectorList": {"selectors": [{"text": selector}], "text": selector}}}
+
+    def test_counts_user_agent_rules_with_exactly_the_probe_selector(self):
+        matched = {"matchedCSSRules": [self.rule(".ad-slot", "user-agent"), self.rule(".ad-slot", "regular"),
+                                       self.rule(".ad-slot, .x", "user-agent"), self.rule(".ad-slot", "injected"),
+                                       self.rule(".other", "user-agent")]}
+        self.assertEqual(cf.count_probe_rules(matched, ".ad-slot"), 1)
+
+    def test_two_generic_sheets_count_two(self):
+        matched = {"matchedCSSRules": [self.rule(".ad-slot", "user-agent"), self.rule(".ad-slot", "user-agent")]}
+        self.assertEqual(cf.count_probe_rules(matched, ".ad-slot"), 2)
+
+    def test_no_matched_rules_count_zero(self):
+        self.assertEqual(cf.count_probe_rules({}, ".ad-slot"), 0)
+        self.assertEqual(cf.count_probe_rules({"matchedCSSRules": []}, ".ad-slot"), 0)
+
+    def test_the_old_name_is_gone(self):
+        self.assertFalse(hasattr(cf, "count_injected_probe_rules"))
+
+
+class PageAttackAndLateElementTest(unittest.TestCase):
+    def test_every_ad_is_either_attacked_or_late(self):
+        for item in EXPECTED["hidden"]:
+            self.assertIn(item["case"], ("attacked", "late", "late-class"), item)
+        self.assertTrue([h for h in EXPECTED["hidden"] if h["case"] == "late"])
+        self.assertTrue([h for h in EXPECTED["hidden"] if h["case"] == "late-class"])
+        self.assertTrue([h for h in EXPECTED["hidden"] if h["case"] == "attacked"])
+
+    def test_a_page_that_did_not_run_its_attack_fails_the_check(self):
+        status, detail, _ = judge(good_measurement(), page_flags={"attack_done": False, "late_inserted": True})
+        self.assertEqual(status, "fail")
+        self.assertIn(EXPECTED["attack_flag"], detail)
+
+    def test_a_page_that_never_inserted_the_late_elements_fails_the_check(self):
+        status, detail, _ = judge(good_measurement(), page_flags={"attack_done": True, "late_inserted": False})
+        self.assertEqual(status, "fail")
+        self.assertIn(EXPECTED["late_flag"], detail)
+
+    def test_unreadable_flags_fail(self):
+        self.assertEqual(judge(good_measurement(), page_flags=None)[0], "fail")
+
+    def test_a_late_ad_that_stays_shown_is_named_as_late(self):
+        late = [h for h in EXPECTED["hidden"] if h["case"] == "late"][0]
+        measured = [shown(h["selector"]) if h is late else hidden(h["selector"]) for h in EXPECTED["hidden"]]
+        measured += [shown(v["selector"]) for v in EXPECTED["visible"]]
+        status, detail, _ = judge(measured)
+        self.assertEqual(status, "fail")
+        self.assertIn(f"NOT HIDDEN (late element", detail)
+        self.assertIn(late["selector"], detail)
+
+    def test_an_attacked_ad_that_came_back_is_named_as_attacked(self):
+        att = [h for h in EXPECTED["hidden"] if h["case"] == "attacked"][0]
+        measured = [shown(h["selector"]) if h is att else hidden(h["selector"]) for h in EXPECTED["hidden"]]
+        measured += [shown(v["selector"]) for v in EXPECTED["visible"]]
+        status, detail, _ = judge(measured)
+        self.assertEqual(status, "fail")
+        self.assertIn("NOT HIDDEN (after the page removed the sheet", detail)
+
+    def test_a_late_class_change_is_named(self):
+        item = [h for h in EXPECTED["hidden"] if h["case"] == "late-class"][0]
+        measured = [shown(h["selector"]) if h is item else hidden(h["selector"]) for h in EXPECTED["hidden"]]
+        measured += [shown(v["selector"]) for v in EXPECTED["visible"]]
+        status, detail, _ = judge(measured)
+        self.assertEqual(status, "fail")
+        self.assertIn("late class change", detail)
+
+    def test_the_attack_removes_the_pages_own_stylesheet_link(self):
+        html = (fixtures.FIXTURE_DIR / "cosmetic" / "index.html").read_text()
+        self.assertIn('link[rel=stylesheet]', html)
+        self.assertIn(".remove()", html)
+
+    def test_a_class_is_added_later_to_an_element_that_exists(self):
+        html = (fixtures.FIXTURE_DIR / "cosmetic" / "index.html").read_text()
+        self.assertIn("classList.add", html)
+
+    def test_a_pass_says_what_was_proved(self):
+        status, detail, _ = judge(good_measurement())
+        self.assertEqual(status, "pass", detail)
+        self.assertIn("removed the sheet", detail)
+        self.assertIn("inserted late", detail)
+        self.assertIn("class added later", detail)
+
+    def test_the_page_attacks_after_the_browser_has_hidden_things(self):
+        html = (fixtures.FIXTURE_DIR / "cosmetic" / "index.html").read_text()
+        self.assertIn("realAdoptedSheets.set.call(document, [])", html)
+        self.assertIn("!important", html.replace("'important'", "!important"))
+        self.assertIn(EXPECTED["attack_flag"], html)
+        self.assertIn(EXPECTED["late_flag"], html)
+        self.assertIn("setTimeout", html)
+
+    def test_late_elements_are_not_in_the_static_markup(self):
+        html = (fixtures.FIXTURE_DIR / "cosmetic" / "index.html").read_text()
+        markup = html[html.index("<body>"):html.index("<script", html.index("<body>"))]
+        for item in EXPECTED["hidden"]:
+            if item["case"] in ("late", "late-class"):
+                name = item["selector"].lstrip("#.")
+                self.assertNotIn(name, markup, item)
+                self.assertIn(name, html, item)
 
 
 class MeasureScriptTest(unittest.TestCase):
@@ -174,6 +273,8 @@ class FixtureTest(unittest.TestCase):
         html = (root / "index.html").read_text()
         for item in EXPECTED["hidden"] + EXPECTED["visible"]:
             sel = item["selector"]
+            if item.get("case") in ("late", "late-class"):
+                continue  # inserted by the page's script; see PageAttackAndLateElementTest
             if sel.startswith("#"):
                 self.assertIn(f'id="{sel[1:]}"', html, sel)
             else:

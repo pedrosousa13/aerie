@@ -1,18 +1,66 @@
 {
-  "comment": "What the cosmetic_filtering check expects of /cosmetic/index.html. 'hidden' are ad containers that the pinned EasyList hides on any site ('rule' is the line in overlay/third_party/filter_lists/easylist.txt; tests/test_bench_cosmetic.py checks that it is there). 'visible' are first-party elements, with names that merely look like ad names, that must stay. 'hijack_flag' is a window property that the page's own scripts set if they can intercept the injection: it must stay unset. 'generic_sheet_probe' is a selector that only the generic hide sheet names; the check counts the adopted sheets that hold it and expects one.",
+  "comment": "What the cosmetic_filtering check expects of /cosmetic/index.html. 'hidden' are ad containers that the pinned EasyList hides on any site ('rule' is the line in overlay/third_party/filter_lists/easylist.txt; tests/test_bench_cosmetic.py checks that it is there). 'case' says how the page attacks the hide: 'attacked' elements are in the markup, and a few seconds after load the page empties adoptedStyleSheets, removes its own style elements and its own link to page.css, and forces 'display:block !important' on them; 'late' elements do not exist until the page's script inserts them, after the browser's load-time passes; a 'late-class' element is in the markup with an ordinary class, and the page's script adds the ad class to it later. 'visible' are first-party elements, with names that merely look like ad names, that must stay. 'hijack_flag' is a window property that the page's own scripts set if they can intercept the injection: it must stay unset. 'attack_flag' and 'late_flag' are set by the page once the attack and the late insert ran; a run where they are unset proves nothing and fails. 'generic_sheet_probe' is a selector that only the generic hide sheet names; the check counts the rules with origin 'user-agent' (where Blink reports user-origin sheets) for it that match the element and expects one.",
   "page": "/cosmetic/index.html",
   "hidden": [
-    {"selector": ".ad-slot", "rule": "##.ad-slot", "via": "generic class rule"},
-    {"selector": "#adbox", "rule": "###adbox", "via": "generic id rule"},
-    {"selector": ".ad-wrapper", "rule": "##.ad-wrapper", "via": "generic class rule"},
-    {"selector": "ins.adsbygoogle", "rule": "##ins.adsbygoogle[data-ad-client]", "via": "page-wide rule"}
+    {
+      "selector": ".ad-slot",
+      "rule": "##.ad-slot",
+      "via": "generic class rule",
+      "case": "attacked"
+    },
+    {
+      "selector": "#adbox",
+      "rule": "###adbox",
+      "via": "generic id rule",
+      "case": "attacked"
+    },
+    {
+      "selector": ".ad-wrapper",
+      "rule": "##.ad-wrapper",
+      "via": "generic class rule",
+      "case": "attacked"
+    },
+    {
+      "selector": "ins.adsbygoogle",
+      "rule": "##ins.adsbygoogle[data-ad-client]",
+      "via": "page-wide rule",
+      "case": "attacked"
+    },
+    {
+      "selector": ".advert-box",
+      "rule": "##.advert-box",
+      "via": "generic class rule, element inserted late",
+      "case": "late"
+    },
+    {
+      "selector": "#adContainer",
+      "rule": "###adContainer",
+      "via": "generic id rule, inside a wrapper inserted late",
+      "case": "late"
+    },
+    {
+      "selector": ".sponsored-links",
+      "rule": "##.sponsored-links",
+      "via": "generic class rule, class added later to an element that was already there",
+      "case": "late-class"
+    }
   ],
   "visible": [
-    {"selector": "#content"},
-    {"selector": ".article"},
-    {"selector": ".adventure"},
-    {"selector": ".sidebar"}
+    {
+      "selector": "#content"
+    },
+    {
+      "selector": ".article"
+    },
+    {
+      "selector": ".adventure"
+    },
+    {
+      "selector": ".sidebar"
+    }
   ],
   "hijack_flag": "cosmeticHijacked",
-  "generic_sheet_probe": ".ad-slot"
+  "generic_sheet_probe": ".ad-slot",
+  "attack_flag": "cosmeticAttackDone",
+  "late_flag": "cosmeticLateInserted"
 }

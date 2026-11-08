@@ -7,7 +7,10 @@
 # //components/aerie_adblock/browser.
 #
 # Nothing here may be used from a renderer. `visibility` below lists the only
-# targets that may depend on these, and none of them is in a renderer.
+# targets that may depend on these, and none of them is in a renderer. The one
+# exception is the renderer piece of cosmetic filtering (ADR 0005): its own
+# targets in //components/aerie_adblock/renderer and /common are the only ones a
+# renderer may depend on, and they depend on nothing of the engine.
 
 import("//build/rust/rust_executable.gni")
 import("//build/rust/rust_static_library.gni")
@@ -197,5 +200,7 @@ group("unit_tests") {
     ":aerie_adblock_rust_tests",
     "//components/aerie_adblock/browser:aerie_adblock_content_unittests",
     "//components/aerie_adblock/browser:aerie_adblock_unittests",
+    "//components/aerie_adblock/common:aerie_adblock_common_unittests",
+    "//components/aerie_adblock/renderer:aerie_adblock_renderer_unittests",
   ]
 }

@@ -33,7 +33,7 @@ aerie_onboarding::AerieThemeHandler.
  
 --- a/chrome/browser/BUILD.gn
 +++ b/chrome/browser/BUILD.gn
-@@ -5461,7 +5461,7 @@
+@@ -5462,7 +5462,7 @@
      "//chrome/browser/ui/webui/user_education_internals:mojo_bindings",
      "//chrome/browser/web_applications/mojom:mojom_web_apps_enum",
      "//chrome/common/request_header_integrity:buildflags",

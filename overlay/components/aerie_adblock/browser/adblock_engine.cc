@@ -57,6 +57,31 @@ rust::Str ToStr(std::string_view text) {
   return rust::Str(text.data(), text.size());
 }
 
+// The whitespace separated tokens of |list| that are ASCII (and hold no NUL),
+// joined with one space. Non-ASCII text never goes to Rust, and a bad token
+// costs only itself.
+std::string AsciiTokens(std::string_view list) {
+  constexpr std::string_view kSeparators = " \t\n\r\f";
+  std::string out;
+  while (!list.empty()) {
+    size_t start = list.find_first_not_of(kSeparators);
+    if (start == std::string_view::npos) {
+      break;
+    }
+    list.remove_prefix(start);
+    std::string_view token = list.substr(0, list.find_first_of(kSeparators));
+    list.remove_prefix(token.size());
+    if (base::IsStringASCII(token) &&
+        token.find('\0') == std::string_view::npos) {
+      if (!out.empty()) {
+        out.push_back(' ');
+      }
+      out.append(token);
+    }
+  }
+  return out;
+}
+
 ListFailure FromRust(ListStatus status) {
   switch (status) {
     case ListStatus::Ok:
@@ -152,12 +177,15 @@ std::string AdblockEngine::CosmeticStylesheet(std::string_view page_url) const {
 std::string AdblockEngine::GenericStylesheet(std::string_view page_url,
                                              std::string_view classes,
                                              std::string_view ids) const {
-  if (!base::IsStringASCII(page_url) || !base::IsStringASCII(classes) ||
-      !base::IsStringASCII(ids)) {
+  if (!base::IsStringASCII(page_url)) {
     return std::string();
   }
-  rust::String css = engine_->generic_stylesheet(ToStr(page_url),
-                                                 ToStr(classes), ToStr(ids));
+  // The lists come from a page, so a token that is not ASCII is skipped on its
+  // own: it never reaches Rust, and it does not void the other tokens.
+  const std::string ascii_classes = AsciiTokens(classes);
+  const std::string ascii_ids = AsciiTokens(ids);
+  rust::String css = engine_->generic_stylesheet(
+      ToStr(page_url), ToStr(ascii_classes), ToStr(ascii_ids));
   return std::string(css.data(), css.size());
 }
 
