@@ -37,7 +37,7 @@ class ScrubTest(unittest.TestCase):
         for url in ("chrome://settings/", "chrome://version/", "chrome://flags/other"):
             self.assertTrue(branding.find_helium(branding.scrub("Noise #helium-x", url)), url)
 
-    def test_build_path_lines_are_exempt_on_the_version_and_about_pages_only(self):
+    def test_build_path_lines_are_exempt_on_the_version_page_only(self):
         self.assertFalse(branding.find_helium(branding.scrub(self.PATHS, "chrome://version/")))
         for url in ("chrome://flags/", "chrome://settings/help", "chrome://management/"):
             self.assertTrue(branding.find_helium(branding.scrub(self.PATHS, url)), url)

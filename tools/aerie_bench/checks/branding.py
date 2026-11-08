@@ -66,7 +66,7 @@ _PATH_LINE_RE = re.compile(r"^(Command Line|Executable Path|Profile Path)\t.*$",
 _FLAG_ID_RE = re.compile(r"#helium-[a-z0-9-]+")
 
 # Aerie is derived from Helium and Chromium, so the copyright line on chrome://version credits
-# "The Helium Authors" by name, on chrome://version and on About (chrome://settings/help). That exact
+# "The Helium Authors" by name, on chrome://version and About (chrome://settings/help). That exact
 # string is attribution, not branding.
 _CREDIT_RE = re.compile(r"The Helium Authors")
 
