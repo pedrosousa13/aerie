@@ -31,14 +31,15 @@ network stack refuses it before any DNS query (ungoogled-chromium's
 | `helium.computer` | `set_ping_enabled_domain` | Extension update pings | `ping-disabled.invalid`: never matches a real host. Patch `services/0003`. |
 | `github.com/imputnet/...` | Crash page link, onboarding page, a macOS help link | Links the user clicks | Not browser-initiated. Listed with a reason in the gates' allowlist (`HOST_ALLOWLIST`). |
 
-The services page in Settings keeps its toggles. They do nothing now. The
-"origin override" field is the extension proxy field: its title, description
-and placeholder say so. Hiding the other toggles is a follow-up.
+Settings has no Helium services page: the toggles did nothing, so the page, its
+route and its row are gone (patch `services/0006`, source gate `services_ui`).
+The "origin override" field lives on as the extension proxy row of Settings >
+Privacy and security.
 
 ### Extension proxy
 
 - Setting: the existing origin override pref, `helium.services.origin_override`
-  (Settings > Privacy and security > Services). Empty by default: **not configured**.
+  (Settings > Privacy and security > Extension proxy). Empty by default: **not configured**.
 - The domain is not decided. It is picked in #19. No domain is built in.
 - Validation (`components/aerie_services/extension_proxy.cc`): https only; ASCII;
   a host; no user info, query or fragment; no path beyond `/`; loopback hosts

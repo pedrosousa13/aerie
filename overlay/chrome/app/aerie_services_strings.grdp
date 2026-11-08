@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright 2026 The Aerie Authors
+     You can use, redistribute, and/or modify this source code under
+     the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+     Strings for the extension proxy (issue #23): its row in Settings > Privacy and security, the
+     dialog that tells the user none is set, and the Languages page note about spell check
+     dictionaries. tests/test_services_ui_strings.py checks that every message is used. -->
+<grit-part>
+  <message name="IDS_AERIE_EXTENSION_PROXY_UNSET_TITLE" desc="Title of the dialog shown when someone starts an extension install and no extension proxy address is set.">
+    Extension proxy not configured
+  </message>
+  <message name="IDS_AERIE_EXTENSION_PROXY_UNSET_BODY" desc="Body of the dialog shown when someone starts an extension install and no extension proxy address is set. Nothing was sent anywhere.">
+    Aerie installs extensions through an HTTPS proxy that you choose, and none is set. Set one under Extension proxy in Privacy and security settings, then try again. Nothing was sent to any server.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_EXTENSION_PROXY_LABEL" desc="Label of the Settings row where the user sets the extension proxy address.">
+    Extension proxy
+  </message>
+  <message name="IDS_SETTINGS_AERIE_EXTENSION_PROXY_DESCRIPTION" desc="Description of the Settings row where the user sets the extension proxy address.">
+    Aerie installs and updates extensions through an HTTPS proxy that you choose. No proxy is set by default, so no extension can be installed until you set one.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_EXTENSION_PROXY_ARIA_LABEL" desc="Accessible label of the text box for the extension proxy address.">
+    Extension proxy address
+  </message>
+  <message name="IDS_SETTINGS_AERIE_EXTENSION_PROXY_INVALID" desc="Error under the extension proxy address box when the text is not an acceptable address.">
+    Enter an https address with no path, for example https://proxy.example.org
+  </message>
+  <message name="IDS_SETTINGS_LANGUAGES_DICTIONARY_DOWNLOAD_FAILED_HELP_AERIE" desc="Note on the Languages page when a spell check dictionary could not be downloaded. The browser never downloads dictionaries.">
+    Aerie does not download spell check dictionaries, so this language cannot be used for spell check.
+  </message>
+</grit-part>

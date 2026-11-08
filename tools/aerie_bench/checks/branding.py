@@ -48,14 +48,6 @@ PAGES = (
     "chrome://setup/",
 )
 
-# Pages whose body text still names Helium's services. Issue #23 removes those settings and the
-# onboarding consent. Their titles are still checked, and the hits in their text are reported.
-PENDING_SERVICES_PAGES = {
-    "chrome://settings/privacy": "the Helium services row",
-    "chrome://settings/privacy/services": "the Helium services page",
-    "chrome://settings/languages": "the spell-check dictionary download messages",
-}
-
 # chrome://version lists the command line, the executable and the profile path. They hold the build root
 # (.../src/helium-<version>/out/Default/aerie), which is a directory name, not branding.
 _PATH_LINE_RE = re.compile(r"^(Command Line|Executable Path|Profile Path)\t.*$", re.MULTILINE)
@@ -144,7 +136,6 @@ class NoHelium(HardeningCheck):
         if not obs["pages"]:
             return "fail", "no pages were scanned"
         problems: list[str] = []
-        pending: list[str] = []
         for p in obs["pages"]:
             if p.get("error"):
                 problems.append(f"{p['url']} did not load ({p['error']})")
@@ -154,17 +145,10 @@ class NoHelium(HardeningCheck):
             hits = find_helium(p["text"])
             if not hits:
                 continue
-            if p["url"] in PENDING_SERVICES_PAGES:
-                pending.append(f"{p['url']} ({len(hits)})")
-            else:
-                problems.append(f"{p['url']} says Helium: ...{hits[0]}... ({len(hits)} hit(s))")
+            problems.append(f"{p['url']} says Helium: ...{hits[0]}... ({len(hits)} hit(s))")
         if problems:
             return "fail", "; ".join(problems)
-        detail = f"no Helium in the titles and text of {len(obs['pages'])} pages"
-        if pending:
-            detail += ("; text on these pages still names Helium services until issue #23 removes them: "
-                       + ", ".join(pending))
-        return "pass", detail
+        return "pass", f"no Helium in the titles and text of {len(obs['pages'])} pages"
 
 
 def open_target(session: Session, url: str, settle: float) -> dict:

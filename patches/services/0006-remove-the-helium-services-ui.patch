@@ -1,0 +1,694 @@
+Aerie-Purpose: Remove Helium's services page, its Settings row and route, and the spell check message that tells users to enable Helium services; keep the extension proxy address as one row on the privacy page.
+Aerie-Upstream-Area: chrome/browser/resources/settings (privacy_page, route, router, lazy_load, BUILD.gn); chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc; chrome/app/generated_resources.grd; chrome/browser/ui/chrome_pages.cc; chrome/browser/download/download_ui_model.cc
+Aerie-Kind: hook
+
+Issue #23. Helium services are off (services/0002), so the page's toggles for bangs, spell
+check files, uBlock Origin assets and browser updates do nothing, its "setup pending" notice
+never goes away, and its crash reporting menu does nothing (crash/0001). The page, the
+settings-helium-services-page element, the route (chrome://settings/privacy/services) and
+the changelog proxy go. The two places that opened that route (ShowHeliumServices and the
+download bubble's "enable Helium services" link) open the privacy page instead, and a saved
+link to the old path falls back to the Settings home page.
+
+The one control that still works, the extension proxy address, becomes a row of the privacy
+page that reads and writes the same pref (helium.services.origin_override). The browser
+validates the value again (aerie services validator, https only), so the pattern on the input
+only stops a bad address from being sent. The pattern is written for Chrome's v flag, where a
+"/" inside [...] must be escaped; in the .html file the backslash is doubled because the
+generated wrapper puts the markup in a template literal (tests/test_extension_proxy_row.py
+compiles it). Its strings and the spell check note are Aerie messages in
+chrome/app/aerie_services_strings.grdp (overlay), included from generated_resources.grd. The
+C++ plumbing of the services (prefs, handlers, strings that no page uses any more) stays, to
+keep Helium bumps cheap.
+
+Depends on the Helium patches services-prefs.patch, onboarding-page.patch,
+reenable-spellcheck-downloads.patch and add-updater-preference.patch (they add the files and
+strings this patch removes or replaces) and on hardening/0003 and onboarding/0001.
+
+--- a/chrome/app/generated_resources.grd
++++ b/chrome/app/generated_resources.grd
+@@ -289,6 +289,9 @@
+       <!-- Aerie setup page strings -->
+       <part file="../../components/aerie_onboarding/aerie_onboarding_strings.grdp" />
+ 
++      <!-- Aerie extension proxy strings -->
++      <part file="aerie_services_strings.grdp" />
++
+       <!-- Media live preview specific strings -->
+       <part file="media_live_preview_strings.grdp" />
+ 
+--- a/chrome/app/generated_resources.grd.gritdeps
++++ b/chrome/app/generated_resources.grd.gritdeps
+@@ -2,6 +2,7 @@
+ #   tools/grit/grit_info.py --all-inputs chrome/app/generated_resources.grd > chrome/app/generated_resources.grd.gritdeps
+ chrome/app/access_code_cast_strings.grdp
+ chrome/app/actor_strings.grdp
++chrome/app/aerie_services_strings.grdp
+ chrome/app/app_management_strings.grdp
+ chrome/app/bookmarks_strings.grdp
+ chrome/app/certificate_manager.grdp
+--- a/chrome/browser/download/download_ui_model.cc
++++ b/chrome/browser/download/download_ui_model.cc
+@@ -766,7 +766,7 @@
+       break;
+     case DownloadCommands::OPEN_HELIUM_SERVICES:
+       download_commands->GetBrowser()->OpenURL(
+-          content::OpenURLParams(GURL("chrome://settings/privacy/services"),
++          content::OpenURLParams(GURL("chrome://settings/privacy"),
+                                  content::Referrer(),
+                                  WindowOpenDisposition::NEW_FOREGROUND_TAB,
+                                  ui::PAGE_TRANSITION_LINK, false),
+--- a/chrome/browser/resources/settings/BUILD.gn
++++ b/chrome/browser/resources/settings/BUILD.gn
+@@ -72,7 +72,6 @@
+     "privacy_page/security/security_keys_set_pin_dialog.ts",
+     "privacy_page/security/security_keys_subpage.ts",
+     "privacy_page/security/security_page.ts",
+-    "privacy_page/services_page.ts",
+     "settings_main/settings_main.ts",
+     "settings_menu/settings_menu.ts",
+     "settings_ui/settings_ui.ts",
+@@ -366,7 +365,6 @@
+     "people_page/sync_encryption_options.ts",
+     "people_page/sync_page.html.ts",
+     "people_page/sync_page.ts",
+-    "privacy_page/changelog_proxy.ts",
+     "privacy_page/do_not_track_toggle.html.ts",
+     "privacy_page/do_not_track_toggle.ts",
+     "privacy_page/hardening_browser_proxy.ts",
+--- a/chrome/browser/resources/settings/lazy_load.ts
++++ b/chrome/browser/resources/settings/lazy_load.ts
+@@ -33,7 +33,6 @@
+ import './privacy_page/privacy_guide/privacy_guide_page.js';
+ import './privacy_page/security/security_keys_subpage.js';
+ import './privacy_page/security/security_page.js';
+-import './privacy_page/services_page.js';
+ import './safety_hub/safety_hub_entry_point.js';
+ import './safety_hub/safety_hub_page.js';
+ import './search_page/search_engines_page.js';
+@@ -283,7 +282,6 @@
+ export {SetPinDialogPage, SettingsSecurityKeysSetPinDialogElement} from './privacy_page/security/security_keys_set_pin_dialog.js';
+ export {SecurityKeysSubpageElement} from './privacy_page/security/security_keys_subpage.js';
+ export {HttpsFirstModeSetting, SettingsSecurityPageElement} from './privacy_page/security/security_page.js';
+-export {SettingsHeliumServicesPageElement} from './privacy_page/services_page.js';
+ export {SettingsResetPageElement} from './reset_page/reset_page.js';
+ export {SettingsResetProfileDialogElement} from './reset_page/reset_profile_dialog.js';
+ export {SettingsSafetyHubExtensionsModuleElement} from './safety_hub/extensions_module.js';
+--- a/chrome/browser/resources/settings/privacy_page/changelog_proxy.ts
++++ /dev/null
+@@ -1,40 +0,0 @@
+-// Copyright 2025 The Helium Authors
+-// You can use, redistribute, and/or modify this source code under
+-// the terms of the GPL-3.0 license that can be found in the LICENSE file.
+-
+-/**
+- * @fileoverview A helper object used from the "Helium services" section
+- * to request a changelog (if one exists).
+- */
+-
+-// clang-format off
+-import {sendWithPromise} from 'chrome://resources/js/cr.js';
+-// clang-format on
+-
+-export interface HeliumServicesChangeHandler {
+-  // Get the pending changes to Helium services to announce
+-  // to the user.
+-  requestChangelog(): Promise<string[]>;
+-  acknowledgeChanges(ignoreAllChangelogs: boolean): void;
+-}
+-
+-export class HeliumServicesChangeHandlerImpl implements
+-    HeliumServicesChangeHandler {
+-  requestChangelog() {
+-    return sendWithPromise<string[]>('getServicesSchemaChangelog');
+-  }
+-
+-  acknowledgeChanges(ignoreAllChangelogs: boolean) {
+-    chrome.send('updateServicesSchemaVersion', [ignoreAllChangelogs]);
+-  }
+-
+-  static getInstance(): HeliumServicesChangeHandler {
+-    return instance || (instance = new HeliumServicesChangeHandlerImpl());
+-  }
+-
+-  static setInstance(obj: HeliumServicesChangeHandler) {
+-    instance = obj;
+-  }
+-}
+-
+-let instance: HeliumServicesChangeHandler|null = null;
+--- a/chrome/browser/resources/settings/privacy_page/privacy_page.html
++++ b/chrome/browser/resources/settings/privacy_page/privacy_page.html
+@@ -53,11 +53,27 @@
+         sub-label="$i18n{siteSettingsSublabel}"
+         @click="${this.onSiteSettingsLinkRowClick_}"
+         role-description="$i18n{subpageArrowRoleDescription}"></cr-link-row>
+-    <cr-link-row id="heliumServicesLinkRow" start-icon="cr:chrome-product"
+-        class="hr" label="$i18n{heliumServicesTitle}"
+-        sub-label="$i18n{heliumServicesDescription}"
+-        @click="${this.onHeliumServicesPageClick_}"
+-        role-description="$i18n{subpageArrowRoleDescription}"></cr-link-row>
++    <div id="extensionProxyRow" class="cr-row hr">
++      <div class="flex">
++        <div class="label">$i18n{aerieExtensionProxyLabel}</div>
++        <div class="cr-secondary-text">
++          $i18n{aerieExtensionProxyDescription}
++        </div>
++        <cr-input id="extensionProxyInput"
++            placeholder="https://proxy.example.org"
++            .value="${this.getExtensionProxy_()}"
++            pattern="https://[^\\/?#@ ]+\\/?"
++            @keydown="${this.onExtensionProxyKeydown_}"
++            @change="${this.onExtensionProxyChange_}"
++            type="url"
++            maxlength="128"
++            aria-label="$i18n{aerieExtensionProxyAriaLabel}"
++            auto-validate
++            error-message="$i18n{aerieExtensionProxyInvalid}"
++            spellcheck="false">
++        </cr-input>
++      </div>
++    </div>
+     <cr-toast id="deleteBrowsingDataToast" duration="5000">
+       <div>${this.dbdDeletionConfirmationToastLabel_}</div>
+     </cr-toast>
+--- a/chrome/browser/resources/settings/privacy_page/privacy_page.ts
++++ b/chrome/browser/resources/settings/privacy_page/privacy_page.ts
+@@ -8,6 +8,7 @@
+  * security settings.
+  */
+ import 'chrome://resources/cr_elements/icons.html.js';
++import 'chrome://resources/cr_elements/cr_input/cr_input.js';
+ import 'chrome://resources/cr_elements/cr_link_row/cr_link_row.js';
+ import 'chrome://resources/cr_elements/cr_toast/cr_toast.js';
+ import '../icons.html.js';
+@@ -15,8 +16,10 @@
+ import '../settings_page/settings_section.js';
+ import './privacy_guide/privacy_guide_dialog.js';
+ 
++import {PrefService} from '/shared/settings/prefs2/pref_service.js';
+ import {PrefServiceObserverMixinLit} from '/shared/settings/prefs2/pref_service_observer_mixin_lit.js';
+ import {getCss as getCrHiddenStyleCss} from 'chrome://resources/cr_elements/cr_hidden_style_lit.css.js';
++import type {CrInputElement} from 'chrome://resources/cr_elements/cr_input/cr_input.js';
+ import type {CrLinkRowElement} from 'chrome://resources/cr_elements/cr_link_row/cr_link_row.js';
+ import {getCss as getCrSharedStyleCss} from 'chrome://resources/cr_elements/cr_shared_style_lit.css.js';
+ import type {CrToastElement} from 'chrome://resources/cr_elements/cr_toast/cr_toast.js';
+@@ -85,6 +88,8 @@
+       showUniversalOptOutSettings_: {type: Boolean},
+ 
+       cookieControlsModePref_: {type: Object},
++
++      extensionProxyPref_: {type: Object},
+     };
+   }
+ 
+@@ -97,6 +102,8 @@
+       loadTimeData.getBoolean('showUniversalOptOutSettings');
+   private accessor cookieControlsModePref_:
+       chrome.settingsPrivate.PrefObject<CookieControlsMode>|undefined;
++  private accessor extensionProxyPref_:
++      chrome.settingsPrivate.PrefObject<string>|undefined;
+ 
+   private shouldShowDbdDeletionConfirmationToast_: boolean = false;
+   private metricsBrowserProxy_: MetricsBrowserProxy =
+@@ -106,6 +113,7 @@
+     super.connectedCallback();
+ 
+     this.mirrorPref('profile.cookie_controls_mode', 'cookieControlsModePref_');
++    this.mirrorPref('helium.services.origin_override', 'extensionProxyPref_');
+   }
+ 
+   override currentRouteChanged(newRoute: Route, oldRoute?: Route) {
+@@ -173,10 +181,32 @@
+     Router.getInstance().navigateTo(routes.SITE_SETTINGS);
+   }
+ 
+-  protected onHeliumServicesPageClick_() {
+-    this.interactedWithPage_();
++  protected getExtensionProxy_(): string {
++    return this.extensionProxyPref_?.value ?? '';
++  }
+ 
+-    Router.getInstance().navigateTo(routes.HELIUM_SERVICES);
++  protected onExtensionProxyKeydown_(event: KeyboardEvent) {
++    if (event.key === 'Escape' || event.key === 'Enter') {
++      (event.target as CrInputElement).blur();
++    }
++  }
++
++  // The pref is validated again in the browser (https only, no path), so this
++  // only keeps an invalid address from being sent.
++  protected onExtensionProxyChange_(event: Event) {
++    const target = event.target as CrInputElement;
++    if (target.invalid) {
++      return;
++    }
++    let value = target.value;
++    try {
++      value = new URL(value).origin;
++    } catch {
++      // An empty or unparsable value is stored as typed.
++    }
++    target.value = value;
++    void PrefService.getInstance().setPrefValue(
++        'helium.services.origin_override', value);
+   }
+ 
+   protected onSecurityPageClick_() {
+@@ -242,10 +272,6 @@
+       map.set(routes.NOISE.path, '#noiseLinkRow');
+     }
+ 
+-    if (routes.HELIUM_SERVICES) {
+-      map.set(routes.HELIUM_SERVICES.path, '#heliumServicesLinkRow');
+-    }
+-
+     map.set(routes.AERIE_HARDENING.path, '#aerieHardeningLinkRow');
+ 
+     if (routes.COOKIES) {
+@@ -277,9 +303,6 @@
+       case 'aerieHardening':
+         triggerId = 'aerieHardeningLinkRow';
+         break;
+-      case 'heliumServices':
+-        triggerId = 'heliumServicesLinkRow';
+-        break;
+       case 'security':
+       case 'securityKeys':
+         triggerId = 'securityLinkRow';
+--- a/chrome/browser/resources/settings/privacy_page/privacy_page_index.html
++++ b/chrome/browser/resources/settings/privacy_page/privacy_page_index.html
+@@ -22,14 +22,6 @@
+     </settings-privacy-page>
+   </template>
+ 
+-  <template is="dom-if" if="[[renderView_(
+-      routes_.HELIUM_SERVICES, currentRoute, inSearchMode)]]">
+-    <settings-helium-services-page slot="view" id="heliumServices"
+-        data-parent-view-id="privacy" prefs="{{prefs}}"
+-        route-path$="[[routes_.HELIUM_SERVICES.path]]">
+-    </settings-helium-services-page>
+-  </template>
+-
+   <!-- Keep entries below sorted based on the route name. -->
+ 
+   <template is="dom-if" if="[[renderView_(
+--- a/chrome/browser/resources/settings/privacy_page/services_page.html
++++ /dev/null
+@@ -1,154 +0,0 @@
+-<style include="cr-shared-style settings-shared">
+-    .label-wrapper {
+-        padding: var(--cr-section-vertical-padding) 0;
+-    }
+-
+-    #changelog-notice {
+-        --cr-changelog-padding: 16px;
+-        border-radius: calc(var(--cr-changelog-padding) / 2);
+-        margin: var(--cr-changelog-padding);
+-        margin-top: 0;
+-        padding: var(--cr-changelog-padding);
+-        background: var(--md-background-color);
+-    }
+-
+-    #changelog-title {
+-        font-size: 15px;
+-        font-weight: 500;
+-    }
+-
+-    #changelog-notice-actions {
+-        --cr-checkbox-label-padding-start: 8px;
+-        display: flex;
+-        gap: var(--cr-changelog-padding);
+-        border-top: var(--cr-separator-line);
+-        margin-top: var(--cr-changelog-padding);
+-        padding-top: calc(var(--cr-changelog-padding) / 2);
+-    }
+-
+-    #onboarding-text {
+-        display: flex;
+-        align-items: center;
+-        max-width: 350px;
+-        gap: calc(var(--cr-section-padding) * 0.8);
+-    }
+-
+-    #onboarding-notice {
+-        padding: calc(var(--cr-section-padding) / 2) var(--cr-section-padding);
+-        justify-content: space-between;
+-    }
+-</style>
+-
+-<settings-subpage page-title="$i18n{heliumServicesTitle}" route-path$="[[routePath]]">
+-<div class="cr-col first">
+-    <template is="dom-if" if="[[!prefs.helium.services.user_consented.value]]">
+-        <div class="cr-row" id="onboarding-notice">
+-            <div id="onboarding-text">
+-                  <cr-icon icon="cr:security" aria-hidden="true"></cr-icon>
+-                  <span>$i18n{heliumServicesSetupPendingText}</span>
+-            </div>
+-            <cr-button
+-                class="action-button"
+-                on-click="onServicesPendingButtonClick_">
+-                $i18n{heliumServicesSetupPendingButton}
+-            </cr-button>
+-        </div>
+-    </template>
+-
+-    <template is="dom-if" if="[[prefs.helium.services.user_consented.value]]">
+-        <template is="dom-if" if="[[changes_.length]]">
+-          <div id="changelog-notice">
+-            <div id="changelog-title">$i18n{heliumSchemaUpdatedTitle}</div>
+-            <ul>
+-                <template is="dom-repeat" items="[[changes_]]" as="change">
+-                    <li>[[change]]</li>
+-                </template>
+-            </ul>
+-            <div id="changelog-description">
+-                $i18n{heliumSchemaUpdatedDescription}
+-            </div>
+-            <div id="changelog-notice-actions">
+-                <cr-button on-click="onAcknowledgedChangelog_">$i18n{heliumGotIt}</cr-button>
+-                <cr-checkbox id="checkbox" checked="{{ignoreChecked_}}">
+-                    $i18n{heliumSchemaIgnore}
+-                </cr-checkbox>
+-            </div>
+-          </div>
+-        </template>
+-    <settings-toggle-button id="servicesToggleButton"
+-        pref="{{prefs.helium.services.enabled}}"
+-        label="$i18n{heliumServicesToggle}"
+-        sub-label="$i18n{heliumServicesToggleDescription}">
+-    </settings-toggle-button>
+-    <div class="cr-col">
+-        <cr-collapse id="servicesCollapse" opened="[[prefs.helium.services.enabled.value]]">
+-            <settings-toggle-button id="extProxyToggleButton"
+-                pref="{{prefs.helium.services.ext_proxy}}"
+-                label="$i18n{heliumExtProxyToggle}"
+-                sub-label="$i18n{heliumExtProxyToggleDescription}">
+-            </settings-toggle-button>
+-            <settings-toggle-button id="bangToggleButton"
+-                pref="{{prefs.helium.services.bangs}}"
+-                label="$i18n{heliumBangsToggle}"
+-                sub-label="$i18n{heliumBangsToggleDescription}">
+-            </settings-toggle-button>
+-            <if expr="use_renderer_spellchecker">
+-                <settings-toggle-button id="spellcheckToggleButton"
+-                    pref="{{prefs.helium.services.spellcheck_files}}"
+-                    label="$i18n{heliumSpellcheckToggle}"
+-                    sub-label="$i18n{heliumSpellcheckToggleDescription}">
+-                </settings-toggle-button>
+-            </if>
+-            <settings-toggle-button id="updatesToggleButton"
+-                pref="{{prefs.helium.services.browser_updates}}"
+-                label="$i18n{heliumUpdatesToggle}"
+-                sub-label="$i18n{heliumUpdatesToggleDescription}">
+-            </settings-toggle-button>
+-        </cr-collapse>
+-    </div>
+-    </template>
+-    <div class="cr-row hr">
+-      <div class="flex label-wrapper" aria-hidden="true">
+-        <div class="label">$i18n{heliumCrashReportingTitle}</div>
+-        <div class="cr-secondary-text label">
+-          $i18n{heliumCrashReportingDescription}
+-        </div>
+-      </div>
+-      <settings-dropdown-menu id="crashReportingControl"
+-        label="$i18n{heliumCrashReportingTitle}"
+-        pref="[[crashReportingPref_]]"
+-        menu-options="[[crashReportingOptions_]]"
+-        no-set-pref
+-        on-settings-control-change="onCrashReportingChange_">
+-      </settings-dropdown-menu>
+-    </div>
+-</div>
+-
+-
+-<div class="cr-row">
+-  <div class="flex">
+-    <div class="flex label-wrapper">
+-        <div class="label">$i18n{heliumOriginOverride}</div>
+-        <div class="cr-secondary-text label">
+-            $i18n{heliumOriginOverrideDescription}
+-            <br><br>
+-            <b>$i18n{heliumOriginOverrideDescriptionWarning}</b>
+-        </div>
+-    </div>
+-    <cr-input
+-        id="heliumOriginOverride"
+-        placeholder="https://proxy.example.org"
+-        value="[[prefs.helium.services.origin_override.value]]"
+-        pattern="https://.*"
+-        on-keydown="onOriginOverrideKeydown_"
+-        on-change="onOriginOverrideChange_"
+-        type="url"
+-        maxlength="128"
+-        aria-label="$i18n{heliumOriginOverrideLabel}"
+-        auto-validate
+-        error-message="$i18n{heliumOriginOverrideInvalidOrigin}"
+-        spellcheck="false">
+-    </cr-input>
+-  </div>
+-</div>
+-</settings-subpage>
+--- a/chrome/browser/resources/settings/privacy_page/services_page.ts
++++ /dev/null
+@@ -1,182 +0,0 @@
+-// Copyright 2025 The Helium Authors
+-// You can use, redistribute, and/or modify this source code under
+-// the terms of the GPL-3.0 license that can be found in the LICENSE file.
+-
+-import '../controls/settings_dropdown_menu.js';
+-import '../controls/settings_toggle_button.js';
+-import '../settings_page/settings_subpage.js';
+-import 'chrome://resources/cr_elements/cr_button/cr_button.js';
+-import 'chrome://resources/cr_elements/cr_checkbox/cr_checkbox.js';
+-import 'chrome://resources/cr_elements/cr_collapse/cr_collapse.js';
+-import 'chrome://resources/cr_elements/cr_icon/cr_icon.js';
+-import 'chrome://resources/cr_elements/cr_input/cr_input.js';
+-
+-import {PrefsMixin} from '/shared/settings/prefs/prefs_mixin.js';
+-import {HelpBubbleMixin} from 'chrome://resources/cr_components/help_bubble/help_bubble_mixin.js';
+-import type {CrInputElement} from 'chrome://resources/cr_elements/cr_input/cr_input.js';
+-import {I18nMixin} from 'chrome://resources/cr_elements/i18n_mixin.js';
+-import {WebUiListenerMixin} from 'chrome://resources/cr_elements/web_ui_listener_mixin.js';
+-import {sendWithPromise} from 'chrome://resources/js/cr.js';
+-import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
+-import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+-
+-import type {
+-  DropdownMenuOptionList,
+-  SettingsDropdownMenuElement,
+-} from '../controls/settings_dropdown_menu.js';
+-import type {HeliumServicesChangeHandler} from './changelog_proxy.js';
+-import {HeliumServicesChangeHandlerImpl} from './changelog_proxy.js';
+-import {getTemplate} from './services_page.html.js';
+-
+-const SettingsHeliumServicesPageElementBase =
+-    HelpBubbleMixin(WebUiListenerMixin(
+-        I18nMixin(PrefsMixin(PolymerElement))));
+-
+-enum CrashReportingMode {
+-  DISABLED = -1,
+-  ASK = 0,
+-  AUTOMATIC = 1,
+-}
+-
+-interface HeliumCrashReportingState {
+-  mode: CrashReportingMode;
+-  managed: boolean;
+-}
+-
+-export class SettingsHeliumServicesPageElement extends
+-    SettingsHeliumServicesPageElementBase {
+-  private changeProxy_: HeliumServicesChangeHandler =
+-      HeliumServicesChangeHandlerImpl.getInstance();
+-
+-  static get is() {
+-    return 'settings-helium-services-page';
+-  }
+-
+-  static get template() {
+-    return getTemplate();
+-  }
+-
+-  static get properties() {
+-    return {
+-      ignoreChecked_: Boolean,
+-      changes_: Array,
+-      crashReportingOptions_: {
+-        type: Array,
+-        readOnly: true,
+-        value: () => [
+-          {
+-            value: CrashReportingMode.DISABLED,
+-            name: loadTimeData.getString('heliumCrashReportingDisabled'),
+-          },
+-          {
+-            value: CrashReportingMode.ASK,
+-            name: loadTimeData.getString('heliumCrashReportingAsk'),
+-          },
+-          {
+-            value: CrashReportingMode.AUTOMATIC,
+-            name: loadTimeData.getString('heliumCrashReportingAutomatic'),
+-          },
+-        ],
+-      },
+-      crashReportingPref_: {
+-        type: Object,
+-        value: () => ({
+-          key: '',
+-          type: chrome.settingsPrivate.PrefType.NUMBER,
+-          value: CrashReportingMode.ASK,
+-        }),
+-      },
+-    };
+-  }
+-
+-  declare private changes_: string[];
+-  declare private crashReportingOptions_: DropdownMenuOptionList;
+-  declare private crashReportingPref_:
+-      chrome.settingsPrivate.PrefObject<number>;
+-  declare private ignoreChecked_: boolean;
+-
+-  private toOrigin(thing: string) {
+-    try {
+-      return new URL(thing).origin;
+-    } catch {
+-      return null;
+-    }
+-  }
+-
+-  private updateChangelogState(changes: string[]) {
+-    this.changes_ = changes.flatMap(ch => ch.split('\n'));
+-  }
+-
+-  private requestChangelog() {
+-    this.changeProxy_.requestChangelog().then(
+-        this.updateChangelogState.bind(this));
+-  }
+-
+-  private onAcknowledgedChangelog_() {
+-    this.changeProxy_.acknowledgeChanges(this.ignoreChecked_);
+-    this.requestChangelog();
+-  }
+-
+-  override ready() {
+-    super.ready();
+-    this.requestChangelog();
+-    const update = (state: HeliumCrashReportingState) =>
+-        this.setCrashReportingState_(state);
+-    this.addWebUiListener('helium-crash-reporting-change', update);
+-    sendWithPromise<HeliumCrashReportingState>('getHeliumCrashReporting')
+-        .then(update);
+-  }
+-
+-  private setCrashReportingState_(state: HeliumCrashReportingState) {
+-    const pref: chrome.settingsPrivate.PrefObject<number> = {
+-      key: '',
+-      type: chrome.settingsPrivate.PrefType.NUMBER,
+-      value: state.mode,
+-    };
+-    if (state.managed) {
+-      pref.enforcement = chrome.settingsPrivate.Enforcement.ENFORCED;
+-      pref.controlledBy = chrome.settingsPrivate.ControlledBy.USER_POLICY;
+-    }
+-    this.crashReportingPref_ = pref;
+-  }
+-
+-  private onCrashReportingChange_(event: Event) {
+-    const control = event.target as SettingsDropdownMenuElement;
+-    const mode = Number.parseInt(control.getSelectedValue(), 10);
+-    chrome.send('setHeliumCrashReportingMode', [mode]);
+-  }
+-
+-  protected onOriginOverrideKeydown_(event: KeyboardEvent) {
+-    const target = event.target as CrInputElement;
+-
+-    if (event.key === 'Escape' || event.key === 'Enter') {
+-      target.blur();
+-    }
+-  }
+-
+-  private onOriginOverrideChange_(event: Event) {
+-    const target = event.target as CrInputElement;
+-    if (target.invalid) {
+-      return;
+-    }
+-
+-    const origin = this.toOrigin(target.value);
+-    if (origin) {
+-      target.value = origin;
+-    }
+-
+-    this.setPrefValue('helium.services.origin_override', target.value);
+-  }
+-
+-  private onServicesPendingButtonClick_() {
+-    window.open('chrome://setup', '_blank');
+-  }
+-}
+-
+-declare global {
+-    interface HTMLElementTagNameMap {
+-      'settings-helium-services-page': SettingsHeliumServicesPageElement;
+-    }
+-}
+-
+-customElements.define(SettingsHeliumServicesPageElement.is, SettingsHeliumServicesPageElement);
+--- a/chrome/browser/resources/settings/route.ts
++++ b/chrome/browser/resources/settings/route.ts
+@@ -24,8 +24,6 @@
+ 
+   r.AERIE_HARDENING = r.PRIVACY.createChild('hardening');
+ 
+-  r.HELIUM_SERVICES = r.PRIVACY.createChild('services');
+-
+   const visibility = pageVisibility || {};
+ 
+   if (visibility.safetyHub = false) {
+--- a/chrome/browser/resources/settings/router.ts
++++ b/chrome/browser/resources/settings/router.ts
+@@ -40,7 +40,6 @@
+   GEMINI_LOGIN: Route;
+   GEMINI_ENTERPRISE: Route;
+   GLIC_SECTION: Route;
+-  HELIUM_SERVICES: Route;
+   HISTORY_SEARCH: Route;
+   IDENTITY_DOCS: Route;
+   INLINE_CUE_MENU: Route;
+--- a/chrome/browser/ui/chrome_pages.cc
++++ b/chrome/browser/ui/chrome_pages.cc
+@@ -621,7 +621,7 @@
+ 
+ void ShowHeliumServices(BrowserWindowInterface* browser) {
+   ShowSingletonTabIgnorePathOverwriteNTP(
+-      browser, GURL("chrome://settings/privacy/services"));
++      browser, GURL("chrome://settings/privacy"));
+ }
+ 
+ void ShowSearchEngineSettings(BrowserWindowInterface* browser) {
+--- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
++++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
+@@ -1552,7 +1552,7 @@
+       {"languagesDictionaryDownloadError",
+        IDS_SETTINGS_LANGUAGES_DICTIONARY_DOWNLOAD_FAILED},
+       {"languagesDictionaryDownloadErrorHelp",
+-       IDS_SETTINGS_LANGUAGES_DICTIONARY_DOWNLOAD_FAILED_HELP_HELIUM},
++       IDS_SETTINGS_LANGUAGES_DICTIONARY_DOWNLOAD_FAILED_HELP_AERIE},
+ #endif
+ #endif  // !BUILDFLAG(IS_CHROMEOS)
+ #if BUILDFLAG(IS_CHROMEOS)
+@@ -2703,6 +2703,13 @@
+         IDS_SETTINGS_HELIUM_SERVICES_OVERRIDE_ARIA_LABEL},
+       {"heliumOriginOverrideInvalidOrigin",
+         IDS_SETTINGS_HELIUM_SERVICES_OVERRIDE_INVALID_ORIGIN},
++      {"aerieExtensionProxyLabel", IDS_SETTINGS_AERIE_EXTENSION_PROXY_LABEL},
++      {"aerieExtensionProxyDescription",
++       IDS_SETTINGS_AERIE_EXTENSION_PROXY_DESCRIPTION},
++      {"aerieExtensionProxyAriaLabel",
++       IDS_SETTINGS_AERIE_EXTENSION_PROXY_ARIA_LABEL},
++      {"aerieExtensionProxyInvalid",
++       IDS_SETTINGS_AERIE_EXTENSION_PROXY_INVALID},
+       {"advancedProtectionProgramTitle",
+        IDS_SETTINGS_ADVANCED_PROTECTION_PROGRAM},
+       {"advancedProtectionProgramDesc",

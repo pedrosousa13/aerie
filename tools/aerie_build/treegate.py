@@ -280,6 +280,57 @@ def check_js_optimizer(root: Path, require: bool = False) -> list[Finding]:
     return out
 
 
+SETTINGS_RES = "chrome/browser/resources/settings/"
+PRIVACY_PAGE = SETTINGS_RES + "privacy_page/"
+OLD_SERVICES_PAGE_FILES = (PRIVACY_PAGE + "services_page.ts", PRIVACY_PAGE + "services_page.html")
+STRINGS_PROVIDER = "chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc"
+# The two callers that opened the old services route (the app menu command and the download bubble).
+SERVICES_URL_OPENERS = ("chrome/browser/ui/chrome_pages.cc", "chrome/browser/download/download_ui_model.cc")
+PROXY_DIALOG = "chrome/browser/extensions/api/webstore_private/chrome_webstore_private_api_delegate.cc"
+
+
+def check_services_ui(root: Path, require: bool = False) -> list[Finding]:
+    """No Helium services in the user interface (#23): no services page, route or row in Settings,
+    the Languages page does not point at Helium servers, and the extension-proxy dialog text is
+    localized. The one working control, the extension proxy address, is a row of the privacy page."""
+    gate = "services_ui"
+    out: list[Finding] = []
+    for rel in OLD_SERVICES_PAGE_FILES:
+        if (Path(root) / rel).exists():
+            out.append(Finding(gate, rel, "the Helium services page must be removed"))
+    # route.ts is not required here: the js_optimizer gate already reports it when it is missing.
+    route, _ = _read(root, SETTINGS_RES + "route.ts", gate, False)
+    if route is not None and "HELIUM_SERVICES" in route:
+        out.append(Finding(gate, SETTINGS_RES + "route.ts", "the Helium services route must be removed"))
+    for rel in SERVICES_URL_OPENERS:
+        text, missing = _read(root, rel, gate, require)
+        out += missing
+        if text is not None and "settings/privacy/services" in text:
+            out.append(Finding(gate, rel, "must open chrome://settings/privacy, not the removed services route"))
+    html, missing = _read(root, PRIVACY_PAGE + "privacy_page.html", gate, require)
+    out += missing
+    if html is not None and "heliumServices" in html:
+        out.append(Finding(gate, PRIVACY_PAGE + "privacy_page.html", "the Helium services row must be removed"))
+    out += _must_match(
+        root, PRIVACY_PAGE + "privacy_page.ts", gate,
+        r"mirrorPref\(\s*'helium\.services\.origin_override'",
+        "the privacy page must show the extension proxy address (helium.services.origin_override)", require)
+    strings, missing = _read(root, STRINGS_PROVIDER, gate, require)
+    out += missing
+    if strings is not None and re.search(
+            r'"languagesDictionaryDownloadErrorHelp",\s*IDS_\w*HELIUM', strings):
+        out.append(Finding(gate, STRINGS_PROVIDER,
+                           "the Languages dictionary message must not use the Helium services text"))
+    dialog, missing = _read(root, PROXY_DIALOG, gate, require)
+    out += missing
+    if dialog is not None:
+        if 'u"' in dialog:
+            out.append(Finding(gate, PROXY_DIALOG, "the extension proxy dialog text must come from grd messages, not u\"...\" literals"))
+        elif "IDS_AERIE_EXTENSION_PROXY_UNSET_" not in dialog:
+            out.append(Finding(gate, PROXY_DIALOG, "the extension proxy dialog must use IDS_AERIE_EXTENSION_PROXY_UNSET_* messages"))
+    return out
+
+
 AUDIO_BUFFER_PATH = "third_party/blink/renderer/modules/webaudio/audio_buffer.cc"
 REALTIME_ANALYSER_PATH = "third_party/blink/renderer/modules/webaudio/realtime_analyser.cc"
 
@@ -305,7 +356,8 @@ def check_audio_noise_stable(root: Path, require: bool = False) -> list[Finding]
 GATES: tuple[Callable[..., list[Finding]], ...] = (
     check_search_list, check_search_suggestions, check_secure_dns_default,
     check_crash_reporting, check_services_off, check_fedcm_resolver, check_widevine_opt_in,
-    check_https_first_dialog_off, check_link_prefetch_off, check_js_optimizer, check_audio_noise_stable,
+    check_https_first_dialog_off, check_link_prefetch_off, check_js_optimizer, check_services_ui,
+    check_audio_noise_stable,
 )
 
 
