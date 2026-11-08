@@ -16,6 +16,7 @@ class NightlyTest(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.root = Path(self._tmp.name) / "build"
+        self.ci_root = Path(self._tmp.name) / "build-ci"  # outside the build root, see docs/ci.md
         self.shell = FakeShell()
         self.gh = FakeGh()
 
@@ -40,7 +41,7 @@ class NightlyTest(unittest.TestCase):
 
     def test_results_are_kept_under_a_dated_directory(self):
         self.run_nightly()
-        day = self.root / "ci" / "nightly" / "2026-11-09"
+        day = self.ci_root / "nightly" / "2026-11-09"
         self.assertTrue((day / "nightly.log").is_file())
         data = json.loads((day / "summary.json").read_text())
         self.assertEqual(data["state"], "pass")

@@ -32,6 +32,7 @@ class CiConfig:
     maintainer: str = MAINTAINER
     python: str = sys.executable
     lock_timeout: float | None = None
+    ci_dir: Path | None = None  # default: a sibling of the build root, see ci_root
     environ: Mapping[str, str] = field(default_factory=lambda: dict(os.environ))
     shell: st.Shell = field(default_factory=st.Shell)
     gh: Gh = field(default_factory=Gh)
@@ -40,7 +41,12 @@ class CiConfig:
 
     @property
     def ci_root(self) -> Path:
-        return self.build_root / "ci"
+        """Logs, results, the gated list and the worktrees.
+
+        Not inside the build root: ./aerie refuses a checkout inside its build root, and every
+        gate worktree is a checkout. The default is a sibling folder, <build root>-ci.
+        """
+        return self.ci_dir or self.build_root.parent / f"{self.build_root.name}-ci"
 
     @property
     def redact(self) -> Redactor:
@@ -48,7 +54,7 @@ class CiConfig:
 
 
 class GatedStore:
-    """Head SHAs already gated, kept in <build root>/ci/gated.json."""
+    """Head SHAs already gated, kept in <CI folder>/gated.json."""
 
     def __init__(self, path: Path):
         self.path = path

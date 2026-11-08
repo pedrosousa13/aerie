@@ -22,11 +22,11 @@ and `--lock-timeout SEC`.
 
 1. **Author check.** Only PRs authored by `pedrosousa13` go on. For every other
    author, nothing runs: no fetch, no checkout, no build, no status.
-2. **Dedupe.** A head SHA that is in `<build root>/ci/gated.json` is not gated again. A new push gives a new SHA, so it is gated.
+2. **Dedupe.** A head SHA that is in `<CI folder>/gated.json` is not gated again. A new push gives a new SHA, so it is gated.
 3. Posts the commit status `aerie/gate` as `pending`.
 4. Takes the build-tree lock, fetches `refs/pull/<n>/head`, checks that it still
    is the SHA that was listed, and makes a detached worktree of it under
-   `<build root>/ci/worktrees/<sha12>`.
+   `<CI folder>/worktrees/<sha12>`.
 5. Runs, in order, and stops at the first failure: patch check
    (`./aerie patches check`), incremental build (`./aerie build`), the Python
    unit tests, a smoke launch (`./aerie bench --check smoke`), and the Bench
@@ -35,7 +35,7 @@ and `--lock-timeout SEC`.
 6. Removes the worktree, posts `success` or `failure`, and records the SHA.
 
 The status description holds a one-line summary and the log path
-(`<build root>/ci/logs/<sha12>/gate.log`; `summary.json` is next to it).
+(`<CI folder>/logs/<sha12>/gate.log`; `summary.json` is next to it).
 If the build tree is busy longer than the lock timeout (default 6 hours), the
 status is `error` ("Build tree busy") and the SHA is not recorded, so the next poll tries again.
 A harness error (git or gh broke) also posts `error`, and that SHA is recorded.
@@ -46,13 +46,21 @@ C++ unit tests join the gate when any can run (#54).
 
 `nightly` fetches `main`, builds it with `./aerie build --clean`, and runs the
 full Bench (every registered check, `zero_traffic` included). Results are in
-`<build root>/ci/nightly/<date>/`: `nightly.log`, `summary.json` and `bench/`.
+`<CI folder>/nightly/<date>/`: `nightly.log`, `summary.json` and `bench/`.
 `--clean` removes the source tree and the pristine snapshot, but the compiler
 cache stays, so it is a clean tree and not a cold cache.
 
 A failure, or a night when the build tree stayed busy, opens an issue titled
 "Nightly CI failed <date>". Set `AERIE_CI_NIGHTLY_ISSUE=<number>` to comment on
 a standing issue instead. A success reports nothing.
+
+## Where CI files live
+
+The CI folder is `<build root>-ci`, a sibling of the build root (for example
+`/mnt/linux2/aerie-build-ci`). It holds `gated.json`, `poll.lock`, `logs/`, `nightly/`
+and `worktrees/`. It is not inside the build root, because `./aerie` refuses a
+checkout inside its build root and each gate worktree is a checkout. The shared tree,
+downloads and `build.lock` stay in the build root.
 
 ## The build-tree lock
 

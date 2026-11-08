@@ -1,5 +1,7 @@
 import json
 import os
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -15,6 +17,7 @@ class GateTestBase(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.root = Path(self._tmp.name) / "build"
+        self.ci_root = Path(self._tmp.name) / "build-ci"  # outside the build root, see docs/ci.md
         self.repo = Path(self._tmp.name) / "repo"
         self.shell = FakeShell()
         self.gh = FakeGh()
@@ -52,7 +55,7 @@ class AuthorFilterTest(GateTestBase):
         """The check is the first thing gate_pr does: nothing at all runs for a stranger."""
         gate.gate_pr(self.cfg(), pr(author="mallory"))
         self.assertFalse(self.shell.ran("worktree"))
-        self.assertFalse((self.root / "ci").exists())
+        self.assertFalse((self.ci_root).exists())
 
 
 class DedupeTest(GateTestBase):
@@ -96,7 +99,7 @@ class StatusTest(GateTestBase):
         self.assertEqual(states[-1], "success")
         self.assertNotIn("success", states[:-1])
         final = self.gh.statuses[-1][2]
-        log = self.root / "ci" / "logs" / SHA_A[:12] / "gate.log"
+        log = self.ci_root / "logs" / SHA_A[:12] / "gate.log"
         self.assertIn(str(log), final)
         self.assertIn("passed", final)
         self.assertTrue(log.is_file())
@@ -130,7 +133,7 @@ class StatusTest(GateTestBase):
         self.assertEqual(gate.gate_pr(self.cfg(), pr()), gate.SUCCESS)
 
     def test_a_worktree_left_by_a_killed_gate_does_not_block_the_sha(self):
-        wt = str(self.root / "ci" / "worktrees" / SHA_A[:12])
+        wt = str(self.ci_root / "worktrees" / SHA_A[:12])
 
         class Stale(FakeShell):
             stale = True
@@ -153,7 +156,7 @@ class StatusTest(GateTestBase):
 
     def test_summary_json_is_written_next_to_the_log(self):
         gate.gate_pr(self.cfg(), pr())
-        data = json.loads((self.root / "ci" / "logs" / SHA_A[:12] / "summary.json").read_text())
+        data = json.loads((self.ci_root / "logs" / SHA_A[:12] / "summary.json").read_text())
         self.assertEqual(data["sha"], SHA_A)
         self.assertEqual(data["state"], "success")
         self.assertEqual([s["name"] for s in data["steps"]],
@@ -168,7 +171,7 @@ class StepsTest(GateTestBase):
                  ("pull/5/head", "worktree add", "patches check", "aerie build", "unittest", "--check smoke", "bench")]
         # 'bench' also matches the smoke line; the last bench call is the full one
         self.assertEqual(order[:6], sorted(order[:6]))
-        wt = str(self.root / "ci" / "worktrees" / SHA_A[:12])
+        wt = str(self.ci_root / "worktrees" / SHA_A[:12])
         self.assertIn(wt, [c for c in j if "worktree add" in c][0])
         self.assertTrue(self.shell.ran(f"worktree remove --force {wt}"))
 
@@ -193,7 +196,7 @@ class StepsTest(GateTestBase):
 
     def test_steps_use_the_existing_entry_points_with_the_shared_build_root(self):
         gate.gate_pr(self.cfg(), pr())
-        wt = self.root / "ci" / "worktrees" / SHA_A[:12]
+        wt = self.ci_root / "worktrees" / SHA_A[:12]
         for call in self.shell.calls:
             if "build" in call or "bench" in call:
                 self.assertIn(str(wt / "aerie"), call)
@@ -267,9 +270,9 @@ class SecretsTest(GateTestBase):
         self.shell = Leaky()
         self.shell.fail = {"unittest": 1}
         gate.gate_pr(self.cfg(), pr())
-        log = (self.root / "ci" / "logs" / SHA_A[:12] / "gate.log").read_text()
+        log = (self.ci_root / "logs" / SHA_A[:12] / "gate.log").read_text()
         self.assertNotIn(token, log)
-        self.assertNotIn(token, (self.root / "ci" / "logs" / SHA_A[:12] / "summary.json").read_text())
+        self.assertNotIn(token, (self.ci_root / "logs" / SHA_A[:12] / "summary.json").read_text())
         for _, _, desc in self.gh.statuses:
             self.assertNotIn(token, desc)
 
@@ -277,7 +280,32 @@ class SecretsTest(GateTestBase):
 class PollLockTest(GateTestBase):
     def test_a_second_poller_exits_at_once(self):
         self.gh.prs = [pr()]
-        with gate._poll_lock(self.root / "ci" / "poll.lock") as got:
+        with gate._poll_lock(self.ci_root / "poll.lock") as got:
             self.assertTrue(got)
             self.assertEqual(gate.poll(self.cfg()), [])
         self.assertEqual(self.shell.calls, [])
+
+
+class WorktreeLayoutTest(GateTestBase):
+    """./aerie refuses a checkout inside the build root, so a gate worktree must not sit in it."""
+
+    def test_the_ci_folder_is_outside_the_build_root(self):
+        cfg = self.cfg()
+        self.assertFalse(cfg.ci_root.is_relative_to(self.root))
+        self.assertFalse(self.root.is_relative_to(cfg.ci_root))
+        self.assertEqual(cfg.ci_root, self.root.parent / "build-ci")
+
+    def test_the_ci_folder_can_be_set(self):
+        self.assertEqual(self.cfg(ci_dir=Path("/srv/ci")).ci_root, Path("/srv/ci"))
+
+    def test_aerie_accepts_a_gate_worktree_as_its_checkout_for_real(self):
+        cfg = self.cfg()
+        tree = cfg.ci_root / "worktrees" / SHA_A[:12]
+        code = ("import sys; sys.path.insert(0, sys.argv[1]);"
+                "from pathlib import Path; from aerie_build import config;"
+                "print(config.resolve_build_root(sys.argv[2], {}, Path(sys.argv[3])))")
+        tools = str(Path(__file__).resolve().parents[1] / "tools")
+        done = subprocess.run([sys.executable, "-I", "-c", code, tools, str(self.root), str(tree)],
+                              capture_output=True, text=True)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(done.stdout.strip(), str(self.root))
