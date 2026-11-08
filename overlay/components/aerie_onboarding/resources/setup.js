@@ -303,7 +303,7 @@ const VIEWS = {
             Object.entries(COLORS).map(([id, [a, b, c, key]]) => h('button', {class: 'sw', type: 'button', role: 'radio', id: `color-${id}`,
               'data-group': 'color', 'data-val': id, 'aria-checked': String(S.color === id), 'aria-label': t(key),
               style: {background: `linear-gradient(140deg, ${a}, ${b} 55%, ${c})`}, onclick: () => choose('color', id)}))))),
-        E(5, h('div', {class: 'actions'}, primary(t('buttonContinue'), () => go(1))))),
+        E(5, h('div', {class: 'actions'}, primary(t('buttonContinue'), () => { applyLook(); go(1); })))),
       preview(3));
   },
 
@@ -452,6 +452,13 @@ onBrowserEvent('import-data-status-changed', status => {
 });
 
 /* ---------- choices ---------- */
+
+// Continuing from the colour step applies what it shows, even untouched, so
+// the summary and the browser agree.
+function applyLook() {
+  chrome.send('aerieSetup.setColorScheme', [S.mode]);
+  chrome.send('aerieSetup.setThemeColor', [S.color]);
+}
 
 function choose(group, val) {
   S[group] = group === 'engine' ? Number(val) : val;
