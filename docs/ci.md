@@ -36,9 +36,12 @@ Options for `poll` and `gate`: `--build-root DIR` (env `AERIE_BUILD_ROOT`) and
    (`./aerie patches check`), incremental build (`./aerie build`), the Python
    unit tests, a smoke launch (`./aerie bench --check smoke`), and the Bench
    with every other check except `zero_traffic` (that one idles for minutes; the nightly runs it) and `perf`.
-   Then the `perf` step. It compares memory and startup with the last main build and fails the PR on a
-   regression past the thresholds (docs/bench.md, "Performance metrics"). The baseline folder is
-   `AERIE_PERF_DIR`, default `/mnt/linux2/aerie-perf`. No baseline yet means it passes.
+   Then the `perf` step. It compares memory and startup with the last recorded baseline and fails the PR on a
+   regression past the thresholds (docs/bench.md, "Performance metrics"). The baseline is the last
+   nightly run that passed, not the last merge to main. The baseline folder is
+   `AERIE_PERF_DIR`, default `/mnt/linux2/aerie-perf`. No baseline yet means it passes. The step is a
+   second browser launch after the full Bench. Once Speedometer and JetStream are vendored, it also runs
+   them, up to 900 s each, on every PR.
    Each step shows in the pending status description.
 6. Removes the worktree, posts `success` or `failure`, and records the SHA.
 
@@ -53,9 +56,9 @@ C++ unit tests join the gate when any can run (#54).
 ## Nightly
 
 `nightly` fetches `main`, builds it with `./aerie build --clean`, and runs the
-full Bench (every registered check, `zero_traffic` included). When `perf` passes, its run is
-recorded as the new baseline in `AERIE_PERF_DIR`. It does this in its
-own build root, so it never replaces the build the maintainer tests from.
+full Bench (every registered check, `zero_traffic` included). When the whole run passes, its `perf`
+result is recorded as the new baseline in `AERIE_PERF_DIR` (a failing check such as `zero_traffic`
+blocks recording). It does this in its own build root, so it never replaces the build the maintainer tests from.
 
 | Setting | Flag | Environment | Default |
 | --- | --- | --- | --- |
