@@ -13,6 +13,7 @@ grayscale pref. The check proves it at run time on a built browser:
 
 from __future__ import annotations
 
+import json
 import time
 
 from ..session import Session
@@ -36,10 +37,34 @@ def theme_colors(session: Session) -> str:
     return str(session.evaluate("document.documentElement.innerText") or "")
 
 
-def choose(session: Session, group: str, value: str) -> None:
-    """Pick a mode or colour on the setup page, the way a click does."""
+LOOK_STEP = "look"
+STEP_JS = "(() => { const s = window.aerieSetup && window.aerieSetup.state; return s ? s.steps[s.step] : null; })()"
+
+
+class SetupPageError(RuntimeError):
+    pass
+
+
+def open_look_step(session: Session, max_clicks: int = 4) -> None:
+    """Open the setup page and press its Continue button until the theme step shows.
+
+    The page opens on the welcome step and renders one step at a time, so the theme step's buttons
+    exist only after the welcome and import steps are passed, as a person does."""
     session.navigate_url(SETUP_URL)
     session.wait_for("!!window.aerieSetup", timeout=20)
+    for _ in range(max_clicks):
+        step = session.evaluate(STEP_JS)
+        if step == LOOK_STEP:
+            session.wait_for("document.querySelectorAll('.sw').length > 0", timeout=10)
+            return
+        session.click("#next")
+        session.wait_for(f"{STEP_JS} !== {json.dumps(step)}", timeout=10)
+    raise SetupPageError(f"the setup page did not reach the {LOOK_STEP!r} step (at {session.evaluate(STEP_JS)!r})")
+
+
+def choose(session: Session, group: str, value: str) -> None:
+    """Pick a mode or colour on the setup page's theme step, the way a click does."""
+    open_look_step(session)
     session.click(f'[data-group="{group}"][data-val="{value}"]')
     time.sleep(SETTLE_SECONDS)
 
@@ -52,8 +77,7 @@ class SetupTheme(HardeningCheck):
                         "equal, so a Neutral that fell back to grayscale is reported.")
 
     def observe(self, session: Session) -> dict:
-        session.navigate_url(SETUP_URL)
-        session.wait_for("!!window.aerieSetup", timeout=20)
+        open_look_step(session)
         obs = {"initial": session.evaluate(STATE_JS)}
         choose(session, "mode", "light")
         choose(session, "color", "graphite")

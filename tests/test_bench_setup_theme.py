@@ -3,7 +3,7 @@
 import unittest
 
 from aerie_bench import checks
-from aerie_bench.checks.setup_theme import SetupTheme
+from aerie_bench.checks.setup_theme import STEP_JS, SetupPageError, SetupTheme, open_look_step
 
 GRAY = "--color-sys-primary: #5f6368;" * 10
 LIGHT = "--color-sys-primary: #e4e5ea;" * 10
@@ -38,6 +38,39 @@ class SetupThemeTest(unittest.TestCase):
 
     def test_fails_when_colours_cannot_be_read(self):
         self.assertEqual(SetupTheme.judge(obs(graphite=""))[0], "fail")
+
+
+class FakeSetupPage:
+    """The setup page as the Bench sees it: one step at a time, #next moves on."""
+
+    def __init__(self, steps=("welcome", "import", "look", "block"), stuck=False):
+        self.steps, self.step, self.stuck, self.clicks = list(steps), 0, stuck, []
+
+    def navigate_url(self, url):
+        self.step = 0
+
+    def wait_for(self, expression, timeout=15.0):
+        return True
+
+    def evaluate(self, expression):
+        return self.steps[self.step] if expression == STEP_JS else None
+
+    def click(self, selector):
+        self.clicks.append(selector)
+        if not self.stuck:
+            self.step += 1
+
+
+class OpenLookStepTest(unittest.TestCase):
+    def test_presses_continue_past_welcome_and_import(self):
+        page = FakeSetupPage()
+        open_look_step(page)
+        self.assertEqual(page.steps[page.step], "look")
+        self.assertEqual(page.clicks, ["#next", "#next"])
+
+    def test_raises_when_the_page_never_reaches_the_theme_step(self):
+        with self.assertRaises(SetupPageError):
+            open_look_step(FakeSetupPage(stuck=True))
 
 
 if __name__ == "__main__":
