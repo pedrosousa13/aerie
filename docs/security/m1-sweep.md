@@ -143,11 +143,12 @@ upstream. The extension proxy's access control is #61.
 - **Mirrors.** `sync-mirrors.sh` never deletes refs or moves tags, and it backs up a rewritten branch in the
   same atomic push.
 
-### A09 Security Logging and Monitoring Failures: not applicable, no finding
+### A09 Security Logging and Monitoring Failures: no finding
 
 A browser that sends no telemetry has no central monitoring. Local signals exist: UMA histograms for
 engine load, list update success, protection blocks and interstitial choices (local only, nothing is
 reported), and `LOG(ERROR)` when a list fails. No log line holds a URL, a host or a user value.
+The one silent case, a list that turns off all blocking and still shows as "updated", is covered by #64.
 
 ### A10 Server-Side Request Forgery: finding #70
 
@@ -219,4 +220,4 @@ it. The impact is a blind GET with no credentials and no response to the publish
   duplicate was filed.
 - **Follow-ups:** #70 (redirect to a private address in the list fetcher, filed by this sweep), and one
   issue for the onboarding page: Helium's `OnboardingMessageHandler` lets the page set any `helium.*` pref
-  and still registers `installExtension` (found while reviewing PR #63) (filed separately).
+  and still registers `installExtension` (found while reviewing PR #63) (#69).
