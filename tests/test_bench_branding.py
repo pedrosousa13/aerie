@@ -86,13 +86,14 @@ class NoHeliumJudgeTest(unittest.TestCase):
         self.assertEqual(status, "fail")
         self.assertIn("negative control failed", detail)
 
-    def test_pending_pages_may_still_say_helium_in_their_text_but_not_in_the_title(self):
-        pending = next(iter(branding.PENDING_SERVICES_PAGES))
-        status, detail = self.judge(scan_obs([page(pending, text="Helium services")]))
-        self.assertEqual(status, "pass", detail)
-        self.assertIn("#23", detail)
-        status, detail = self.judge(scan_obs([page(pending, title="Helium services")]))
-        self.assertEqual(status, "fail")
+    def test_the_privacy_and_languages_pages_are_judged_like_every_other_page(self):
+        # They used to be exempt while Helium services text was on them (issue #23).
+        for url in ("chrome://settings/privacy", "chrome://settings/privacy/services",
+                    "chrome://settings/languages"):
+            with self.subTest(url=url):
+                status, detail = self.judge(scan_obs([page(url, text="Helium services")]))
+                self.assertEqual(status, "fail")
+                self.assertIn(url, detail)
 
     def test_an_empty_scan_fails(self):
         self.assertEqual(self.judge(scan_obs([]))[0], "fail")
@@ -111,8 +112,9 @@ class PageListTest(unittest.TestCase):
         for url in branding.PAGES:
             self.assertRegex(url, r"^chrome://[a-z-]+/")
 
-    def test_the_pending_pages_are_scanned_too(self):
-        self.assertLessEqual(set(branding.PENDING_SERVICES_PAGES), set(branding.PAGES))
+    def test_no_page_is_exempt_from_the_text_scan(self):
+        self.assertFalse(hasattr(branding, "PENDING_SERVICES_PAGES"))
+        self.assertNotIn("PENDING_SERVICES_PAGES", Path(branding.__file__).read_text())
 
     def test_the_control_page_exists_and_says_helium(self):
         path = REPO / "tools/aerie_bench/fixtures" / branding.CONTROL_PATH.lstrip("/")

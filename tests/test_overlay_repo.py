@@ -15,6 +15,7 @@ class RepoOverlayTest(unittest.TestCase):
         for rel in files:
             self.assertTrue(rel.startswith(("components/aerie_adblock/", "third_party/filter_lists/",
                                             "chrome/browser/aerie_adblock/",
+                                            "chrome/app/aerie_services_strings.grdp",
                                             "chrome/browser/ui/views/aerie_adblock/",
                                             "chrome/browser/ui/webui/aerie_filters/",
                                             "chrome/browser/ui/webui/aerie_onboarding/", "components/aerie_onboarding/",

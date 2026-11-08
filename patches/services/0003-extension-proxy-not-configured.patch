@@ -12,19 +12,22 @@ Depends on the Helium patch that adds helium::ShouldAccessExtensionService
 
 --- a/chrome/browser/extensions/api/webstore_private/chrome_webstore_private_api_delegate.cc
 +++ b/chrome/browser/extensions/api/webstore_private/chrome_webstore_private_api_delegate.cc
-@@ -16,9 +16,11 @@
+@@ -16,10 +16,14 @@
  #include "chrome/browser/ui/extensions/extension_install_ask_parent_dialog.h"
  #include "chrome/browser/ui/extensions/extension_install_blocked_dialog.h"
  #include "chrome/browser/ui/extensions/extension_install_friction_dialog.h"
 +#include "chrome/browser/ui/simple_message_box.h"
++#include "chrome/grit/generated_resources.h"
  #include "components/policy/core/common/cloud/cloud_policy_manager.h"
  #include "components/policy/core/common/management/management_service.h"
  #include "components/signin/public/identity_manager/identity_manager.h"
 +#include "content/public/browser/web_contents.h"
  #include "extensions/browser/extension_allowlist.h"
++#include "ui/base/l10n/l10n_util.h"
  
  #if BUILDFLAG(SAFE_BROWSING_AVAILABLE)
-@@ -80,6 +82,19 @@
+ #include "chrome/browser/browser_process.h"
+@@ -80,6 +84,17 @@
                                                     std::move(callback));
  }
  
@@ -35,10 +38,8 @@ Depends on the Helium patch that adds helium::ShouldAccessExtensionService
 +  }
 +  chrome::ShowWarningMessageBoxAsync(
 +      web_contents->GetTopLevelNativeWindow(),
-+      u"Extension proxy not configured",
-+      u"Aerie installs extensions through an HTTPS proxy that you choose, and "
-+      u"none is set. Set one in Settings > Privacy and security > Services, "
-+      u"then try again. Nothing was sent to any server.");
++      l10n_util::GetStringUTF16(IDS_AERIE_EXTENSION_PROXY_UNSET_TITLE),
++      l10n_util::GetStringUTF16(IDS_AERIE_EXTENSION_PROXY_UNSET_BODY));
 +}
 +
  #if BUILDFLAG(IS_ANDROID)
@@ -70,12 +71,13 @@ Depends on the Helium patch that adds helium::ShouldAccessExtensionService
  
 --- a/chrome/browser/extensions/webstore_standalone_installer.cc
 +++ b/chrome/browser/extensions/webstore_standalone_installer.cc
-@@ -71,6 +71,14 @@
+@@ -71,6 +71,15 @@
      return;
    }
  
 +  // Aerie: with no extension proxy configured there is nowhere to fetch the
-+  // item data from. Fail now, without a request.
++  // item data from. Fail now, without a request. The error string is an API
++  // error for the page's script, not UI text.
 +  if (!helium::ShouldAccessExtensionService(*profile_->GetPrefs())) {
 +    CompleteInstall(webstore_install::OTHER_ERROR,
 +                    "Extension proxy not configured");
@@ -105,10 +107,11 @@ Depends on the Helium patch that adds helium::ShouldAccessExtensionService
  #include "components/keyed_service/content/browser_context_keyed_service_shutdown_notifier_factory.h"
  #include "components/keyed_service/core/keyed_service_shutdown_notifier.h"
  #include "components/policy/core/common/cloud/cloud_policy_manager.h"
-@@ -542,6 +543,10 @@
+@@ -542,6 +543,11 @@
    return blocked_by_policy_error_message_;
  }
  
++// An API error for the page's script, not UI text (the dialog is localized).
 +constexpr char kExtensionProxyNotConfiguredError[] =
 +    "Extension proxy not configured. Set an https extension proxy in "
 +    "Settings to install extensions.";
@@ -116,7 +119,7 @@ Depends on the Helium patch that adds helium::ShouldAccessExtensionService
  ExtensionFunction::ResponseAction
  WebstorePrivateBeginInstallWithManifest3Function::Run() {
    params_ = Params::Create(args());
-@@ -553,6 +558,21 @@
+@@ -553,6 +559,21 @@
                                      kWebstoreInvalidIdError));
    }
  

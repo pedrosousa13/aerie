@@ -137,6 +137,30 @@ WIDEVINE_INSTALLER_OK = """const uint8_t kWidevineSha2Hash[] = {
     0xe1, 0x41, 0x04, 0x86, 0x4a};
 """
 
+SERVICES_UI_PRIVACY_HTML_OK = """    <cr-input id="extensionProxyInput" placeholder="https://proxy.example.org"
+        .value="${this.extensionProxy_}" pattern="https://.*"></cr-input>
+"""
+SERVICES_UI_PRIVACY_TS_OK = """    this.mirrorPref('helium.services.origin_override', 'extensionProxyPref_');
+"""
+SERVICES_UI_STRINGS_OK = """      {"languagesDictionaryDownloadErrorHelp",
+       IDS_SETTINGS_LANGUAGES_DICTIONARY_DOWNLOAD_FAILED_HELP_AERIE},
+"""
+SERVICES_UI_DELEGATE_OK = """  chrome::ShowWarningMessageBoxAsync(
+      window,
+      l10n_util::GetStringUTF16(IDS_AERIE_EXTENSION_PROXY_UNSET_TITLE),
+      l10n_util::GetStringUTF16(IDS_AERIE_EXTENSION_PROXY_UNSET_BODY));
+"""
+SERVICES_UI_OPENER_OK = '  ShowSingletonTabIgnorePathOverwriteNTP(browser, GURL("chrome://settings/privacy"));\n'
+SERVICES_UI_GOOD = {
+    treegate.SERVICES_URL_OPENERS[0]: SERVICES_UI_OPENER_OK,
+    treegate.SERVICES_URL_OPENERS[1]: SERVICES_UI_OPENER_OK,
+    "chrome/browser/resources/settings/privacy_page/privacy_page.html": SERVICES_UI_PRIVACY_HTML_OK,
+    "chrome/browser/resources/settings/privacy_page/privacy_page.ts": SERVICES_UI_PRIVACY_TS_OK,
+    "chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc": SERVICES_UI_STRINGS_OK,
+    "chrome/browser/extensions/api/webstore_private/chrome_webstore_private_api_delegate.cc":
+        SERVICES_UI_DELEGATE_OK,
+}
+
 AUDIO_NOISE_OK = """void AudioBuffer::JitterAudioData(ExecutionContext* context) {
   for (unsigned i = 0; i < channels_.size(); ++i) {
     for (size_t frame = 0; frame < samples.size(); ++frame) {
@@ -160,6 +184,7 @@ AUDIO_GOOD = {treegate.AUDIO_BUFFER_PATH: AUDIO_NOISE_OK, treegate.REALTIME_ANAL
 
 GOOD = {
     **JS_OPT_GOOD,
+    **SERVICES_UI_GOOD,
     **AUDIO_GOOD,
     "chrome/browser/component_updater/widevine_cdm_component_installer.cc": WIDEVINE_INSTALLER_OK,
     "chrome/browser/component_updater/registration.cc": WIDEVINE_REG_OK,
@@ -362,6 +387,49 @@ class JsOptimizerGateTest(TreeCase):
                 self.assertEqual([f.gate for f in treegate.check_js_optimizer(self.root)], ["js_optimizer"])
 
 
+class ServicesUiGateTest(TreeCase):
+    PAGE = treegate.PRIVACY_PAGE
+
+    def good(self):
+        self.write(JS_OPT_GOOD)
+        self.write(SERVICES_UI_GOOD)
+
+    def test_passes_on_the_aerie_shape(self):
+        self.good()
+        self.assertEqual(treegate.check_services_ui(self.root, require=True), [])
+
+    def test_each_part_is_guarded(self):
+        route = treegate.SETTINGS_RES + "route.ts"
+        strings = treegate.STRINGS_PROVIDER
+        delegate = treegate.PROXY_DIALOG
+        cases = {
+            "route comes back": (route, JS_OPT_ROUTE_OK + "  r.HELIUM_SERVICES = r.PRIVACY.createChild('services');\n"),
+            "services row comes back": (self.PAGE + "privacy_page.html",
+                                        SERVICES_UI_PRIVACY_HTML_OK + '<cr-link-row id="heliumServicesLinkRow">'),
+            "proxy row is gone": (self.PAGE + "privacy_page.ts", "// nothing\n"),
+            "languages names Helium": (strings, SERVICES_UI_STRINGS_OK.replace("_AERIE", "_HELIUM")),
+            "menu opens the old page": (treegate.SERVICES_URL_OPENERS[0],
+                                        SERVICES_UI_OPENER_OK.replace("privacy", "privacy/services")),
+            "download link opens the old page": (treegate.SERVICES_URL_OPENERS[1],
+                                                 SERVICES_UI_OPENER_OK.replace("privacy", "privacy/services")),
+            "dialog text is a literal": (delegate, SERVICES_UI_DELEGATE_OK.replace(
+                "l10n_util::GetStringUTF16(IDS_AERIE_EXTENSION_PROXY_UNSET_BODY)", 'u"none is set"')),
+        }
+        for what, (rel, bad) in cases.items():
+            with self.subTest(what):
+                self.good()
+                self.write({rel: bad})
+                self.assertEqual([f.path for f in treegate.check_services_ui(self.root)], [rel])
+
+    def test_the_old_services_page_files_must_be_gone(self):
+        self.good()
+        for name in ("services_page.ts", "services_page.html"):
+            with self.subTest(name):
+                self.write({self.PAGE + name: "x"})
+                self.assertEqual([f.path for f in treegate.check_services_ui(self.root)], [self.PAGE + name])
+                (self.root / self.PAGE / name).unlink()
+
+
 class RunTest(TreeCase):
     def test_all_good_tree_passes(self):
         self.write(GOOD)
@@ -374,7 +442,7 @@ class RunTest(TreeCase):
 
     def test_empty_tree_passes_unless_required(self):
         self.assertEqual(self.run_gates(), [])
-        self.assertEqual(len(self.run_gates(require=True)), 23)
+        self.assertEqual(len(self.run_gates(require=True)), 29)
 
     def test_format_report(self):
         self.write({"a.cc": '"https://services.helium.imput.net"\n'})

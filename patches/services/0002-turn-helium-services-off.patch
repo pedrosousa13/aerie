@@ -110,7 +110,7 @@ The plumbing stays, so Helium bumps conflict as little as possible.
  }
  
  std::optional<GURL> GetValidUserOverridenURL(const PrefService& prefs) {
-@@ -64,27 +32,34 @@
+@@ -64,27 +32,35 @@
      );
  }
  
@@ -142,15 +142,16 @@ The plumbing stays, so Helium bumps conflict as little as possible.
  
 +// Aerie: the extension proxy is the one service left. It is available only
 +// when the user configured an https proxy.
++// The ext_proxy pref has no control in Settings any more, so the address alone
++// decides.
  bool ShouldAccessExtensionService(const PrefService& prefs) {
 -    return ShouldAccessServices(prefs) &&
 -            prefs.GetBoolean(prefs::kHeliumExtProxyEnabled);
-+    return prefs.GetBoolean(prefs::kHeliumExtProxyEnabled) &&
-+            GetValidUserOverridenURL(prefs).has_value();
++    return GetValidUserOverridenURL(prefs).has_value();
  }
  
  bool ShouldAccessDictionaryService(const PrefService& prefs) {
-@@ -133,22 +108,9 @@
+@@ -133,22 +109,9 @@
      return GetServicesBaseURL(prefs).Resolve("/dict/");
  }
  
