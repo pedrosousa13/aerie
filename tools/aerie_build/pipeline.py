@@ -22,12 +22,20 @@ from typing import Callable, Sequence
 
 from . import (
     aerie_version, branding, ccache, fallback, filter_lists, helium, helium_deps, helium_inputs, helium_steps,
-    layers, lock, overlay, patch_check, patches, protection_lists, rust_crates, substitution,
+    layers, lock, overlay, patch_check, patches, protection_lists, rust_crates, substitution, test_fonts,
 )
 from .config import BuildPaths, isolated_env
 
 ARCH = "x64"
 TARGETS = ("chrome", "chromedriver")
+# The C++ unit test binaries `./aerie test-cpp` builds and runs, each with its
+# extra arguments. components_unittests is huge and only Aerie's Widevine
+# opt-in cases in it are Aerie's, so it runs with a filter.
+TEST_BINARIES = (
+    ("aerie_adblock_unittests", ()),
+    ("aerie_adblock_content_unittests", ()),
+    ("components_unittests", ("--gtest_filter=*WidevineOptIn*",)),
+)
 HOST_TOOLS = ("git", "tar", "zstd", "patch")
 MIN_FREE_BYTES = 150 * 1024**3
 
@@ -45,6 +53,8 @@ class Context:
     jobs: int | None
     log_path: Path
     source_mode: str = "auto"
+    # Set by test_cpp(): build these instead of TARGETS, and fetch the test fonts they need.
+    test_targets: tuple[str, ...] = ()
     opener: fallback.Opener = fallback.default_opener
 
     @property
@@ -112,7 +122,8 @@ class Logger:
         self._fh.close()
 
 
-def run(log: Logger, cmd: Sequence[str | Path], env: dict, cwd: Path | None = None) -> None:
+def run(log: Logger, cmd: Sequence[str | Path], env: dict, cwd: Path | None = None, check: bool = True) -> int:
+    """Run cmd, streaming its output to the log. Returns the exit code; raises on non-zero unless check is False."""
     cmd = [str(c) for c in cmd]
     log(f"$ {' '.join(cmd)}" + (f"  (in {cwd})" if cwd else ""))
     proc = subprocess.Popen(
@@ -128,8 +139,10 @@ def run(log: Logger, cmd: Sequence[str | Path], env: dict, cwd: Path | None = No
     assert proc.stdout is not None
     for line in proc.stdout:
         log.raw(line)
-    if proc.wait() != 0:
-        raise BuildError(f"command failed with exit code {proc.returncode}: {' '.join(cmd)}")
+    code = proc.wait()
+    if code != 0 and check:
+        raise BuildError(f"command failed with exit code {code}: {' '.join(cmd)}")
+    return code
 
 
 def git_head(path: Path) -> str:
@@ -510,6 +523,14 @@ def prepare_tree(ctx: Context, log: Logger, env: dict) -> None:
     prepare_adblock(ctx, log, env)
 
 
+def fetch_test_fonts(ctx: Context, log: Logger, env: dict) -> None:
+    """Test builds only: put Chromium's test fonts, which Helium prunes, back in the tree."""
+    try:
+        test_fonts.ensure(ctx.tree, ctx.paths.downloads, ctx.opener, log)
+    except test_fonts.TestFontsError as exc:
+        raise BuildError(f"test fonts: {exc}") from exc
+
+
 def configure(ctx: Context, log: Logger, env: dict) -> None:
     marker = ctx.tree / fallback.SOURCE_MARKER
     if marker.is_file() and marker.read_text().strip() == "official":
@@ -535,6 +556,10 @@ def compile_targets(ctx: Context, log: Logger, env: dict) -> None:
            "-C", ctx.out_dir]
     if ctx.jobs:
         cmd += ["-j", str(ctx.jobs)]
+    if ctx.test_targets:
+        run(log, [*cmd, *ctx.test_targets], env, cwd=ctx.tree)
+        run(log, [ctx.ccache_bin, "--show-stats"], env)
+        return
     run(log, [*cmd, *TARGETS], env, cwd=ctx.tree)
     if not os.access(ctx.binary, os.X_OK):
         raise BuildError(f"build finished but {ctx.binary} is missing")
@@ -552,7 +577,21 @@ def show_layer_changes(ctx: Context) -> int:
     return 0
 
 
-def build(ctx: Context, clean: bool = False) -> Path:
+def build_steps(with_tests: bool) -> list[tuple[str, Callable[[Context, Logger, dict], None]]]:
+    steps = [
+        ("install ccache", install_ccache),
+        ("install python env", install_python_env),
+        ("fetch sources", fetch_sources),
+        ("prepare tree", prepare_tree),
+    ]
+    if with_tests:
+        # After the prune in prepare_tree, which would delete the fonts again.
+        steps.append(("test fonts", fetch_test_fonts))
+    return steps + [("configure", configure), ("compile", compile_targets)]
+
+
+def build_tree(ctx: Context, clean: bool = False) -> None:
+    """Run every build step. Builds the browser, or ctx.test_targets when that is set."""
     log = Logger(ctx.log_path)
     started = time.monotonic()
     try:
@@ -566,25 +605,55 @@ def build(ctx: Context, clean: bool = False) -> Path:
             layers.clear_store(ctx.pristine_dir)
         env = isolated_env(ctx.paths, os.environ)
         env["PATH"] = os.pathsep.join([str(ctx.venv / "bin"), env.get("PATH", "")])
-        steps = [
-            ("install ccache", install_ccache),
-            ("install python env", install_python_env),
-            ("fetch sources", fetch_sources),
-            ("prepare tree", prepare_tree),
-            ("configure", configure),
-            ("compile", compile_targets),
-        ]
-        for title, step in steps:
+        for title, step in build_steps(with_tests=bool(ctx.test_targets)):
             step_start = time.monotonic()
             log(f"== {title}")
             step(ctx, log, env)
             log(f"== {title}: done in {_fmt(time.monotonic() - step_start)}")
         log(f"build finished in {_fmt(time.monotonic() - started)}")
-        log(f"binary: {ctx.binary}")
-        return ctx.binary
+        if not ctx.test_targets:
+            log(f"binary: {ctx.binary}")
     except Exception as exc:
         log(f"BUILD FAILED after {_fmt(time.monotonic() - started)}: {exc}")
         raise
+    finally:
+        log.close()
+
+
+def build(ctx: Context, clean: bool = False) -> Path:
+    build_tree(ctx, clean=clean)
+    return ctx.binary
+
+
+def test_cpp(ctx: Context, targets: Sequence[str] | None = None, clean: bool = False) -> int:
+    """./aerie test-cpp: build the C++ unit test targets in the build's output directory and run them.
+
+    Every selected binary runs even if an earlier one fails. Returns 0 only if
+    all of them passed. The test fonts are fetched here and nowhere else.
+    """
+    known = dict(TEST_BINARIES)
+    names = list(targets) if targets else [name for name, _ in TEST_BINARIES]
+    unknown = [name for name in names if name not in known]
+    if unknown:
+        raise BuildError(f"unknown C++ test target(s) {', '.join(unknown)}; choose from {', '.join(known)}")
+    ctx.test_targets = tuple(names)
+    build_tree(ctx, clean=clean)
+    log = Logger(ctx.log_path)
+    try:
+        env = isolated_env(ctx.paths, os.environ)
+        results: dict[str, int] = {}
+        for name in names:
+            binary = ctx.out_dir / name
+            log(f"== run {name}")
+            if not binary.is_file():
+                log(f"{binary} is missing after the build")
+                results[name] = 127
+                continue
+            results[name] = run(log, [binary, *known[name]], env, cwd=ctx.out_dir, check=False)
+        log("== C++ unit test results")
+        for name, code in results.items():
+            log(f"  {'PASS' if code == 0 else 'FAIL'} {name}" + ("" if code == 0 else f" (exit code {code})"))
+        return 0 if all(code == 0 for code in results.values()) else 1
     finally:
         log.close()
 

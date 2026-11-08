@@ -10,7 +10,20 @@ import sys
 import time
 from pathlib import Path
 
-from . import buildlock, ccache, config, fallback, filter_lists, lock, patch_check, pipeline, protection_lists, prune, rust_crates
+from . import (
+    buildlock,
+    ccache,
+    config,
+    fallback,
+    filter_lists,
+    lock,
+    patch_check,
+    pipeline,
+    protection_lists,
+    prune,
+    rust_crates,
+    test_fonts,
+)
 
 REPO = Path(__file__).resolve().parents[2]
 LOCK_PATH = REPO / "helium.lock"
@@ -66,6 +79,11 @@ def cmd_build(args: argparse.Namespace) -> int:
         binary = pipeline.build(ctx, clean=args.clean)
     print(binary)
     return 0
+
+
+def cmd_test_cpp(args: argparse.Namespace) -> int:
+    ctx = _context(args)
+    return pipeline.test_cpp(ctx, targets=args.target, clean=args.clean)
 
 
 def cmd_prune(args: argparse.Namespace) -> int:
@@ -215,6 +233,24 @@ def main(argv: list[str] | None = None) -> int:
     _add_lock_timeout(p_build)
     p_build.set_defaults(func=cmd_build)
 
+    p_test = sub.add_parser(
+        "test-cpp",
+        help="build and run Aerie's C++ unit tests (fetches Chromium's test fonts from Google storage, test builds only)",
+    )
+    _add_common(p_test)
+    p_test.add_argument("--ccache-size", metavar="SIZE", help=f"compiler cache cap (env {config.ENV_CACHE_SIZE})")
+    p_test.add_argument("-j", "--jobs", type=int, help="parallel build jobs (default: autoninja's choice)")
+    p_test.add_argument("--source", choices=fallback.SOURCE_MODES, help="same as ./aerie build --source")
+    p_test.add_argument("--clean", action="store_true", help="same as ./aerie build --clean")
+    p_test.add_argument(
+        "--target",
+        action="append",
+        metavar="NAME",
+        choices=[name for name, _ in pipeline.TEST_BINARIES],
+        help="build and run only this test binary (repeatable; default: all of them)",
+    )
+    p_test.set_defaults(func=cmd_test_cpp)
+
     p_prune = sub.add_parser("prune", help="delete stale downloads, old source trees and old tools")
     _add_common(p_prune)
     p_prune.add_argument("--ccache-size", metavar="SIZE", help="compiler cache cap to enforce")
@@ -288,6 +324,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return args.func(args)
     except (config.ConfigError, lock.VerificationError, pipeline.BuildError, fallback.FetchError,
-            filter_lists.ListError, rust_crates.CratesError, buildlock.BuildTreeBusy) as exc:
+            filter_lists.ListError, rust_crates.CratesError, buildlock.BuildTreeBusy,
+            test_fonts.TestFontsError) as exc:
         print(f"aerie: error: {exc}", file=sys.stderr)
         return 1
