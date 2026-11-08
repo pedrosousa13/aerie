@@ -359,8 +359,14 @@ class FingerprintSiteJudgeTest(unittest.TestCase):
 class FingerprintSiteDriverTest(unittest.TestCase):
     def test_seeded_exceptions_are_stored_as_primary_comma_secondary(self):
         prefs = fingerprint_site.seeded_exceptions({"http://[*.]a.localhost": 2, "http://x.a.localhost:4100": 2})
-        rules = prefs["profile"]["content_settings"]["exceptions"]["helium-noise"]
+        rules = prefs["profile"]["content_settings"]["exceptions"]["helium_noise"]
         self.assertEqual(rules, {"http://[*.]a.localhost,*": {"setting": 2}, "http://x.a.localhost:4100,*": {"setting": 2}})
+
+    def test_seeded_exceptions_use_the_pref_name_with_an_underscore(self):
+        prefs = fingerprint_site.seeded_exceptions({fingerprint_site.SITE_PATTERN: 2})
+        exceptions = prefs["profile"]["content_settings"]["exceptions"]
+        self.assertEqual(list(exceptions), ["helium_noise"])
+        self.assertIn("http://[*.]a.localhost,*", exceptions["helium_noise"])
 
     def test_turning_a_site_off_calls_the_site_settings_handler_on_the_settings_page(self):
         class Fake:

@@ -27,12 +27,19 @@ source_set("aerie_fingerprint") {
 source_set("unit_tests") {
   testonly = true
 
-  sources = [ "site_key_unittest.cc" ]
+  sources = [
+    "noise_switch_unittest.cc",
+    "site_key_unittest.cc",
+  ]
 
   deps = [
     ":aerie_fingerprint",
     "//base",
+    "//base/test:test_support",
+    "//components/content_settings/core/browser",
     "//components/content_settings/core/common",
+    "//components/prefs",
+    "//components/sync_preferences:test_support",
     "//testing/gtest",
     "//url",
   ]
