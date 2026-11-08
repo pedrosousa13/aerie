@@ -19,7 +19,7 @@ page and the Bench checks, so the three cannot drift apart.
 | No prefetch or preloading | Off. | ungoogled-chromium (through Helium) | Dropdown | `hardening_prefetch` |
 | Strict site isolation | Always on. | Chromium | Read-only | `hardening_site_isolation` |
 | JavaScript JIT per site | On for every site. | Chromium | Link to site settings | `hardening_js_optimizer` |
-| Fingerprinting randomization | On. | Helium | Toggle | `hardening_fingerprinting` |
+| Fingerprinting randomization | On. | Helium | Toggle | `hardening_fingerprinting`, `hardening_device_memory` |
 | Widevine DRM | Off. | Aerie | Toggle | `hardening_pref_defaults`, `hardening_settings_page`, `widevine_opt_in` |
 | Extensions cannot loosen these settings | Always on. | Aerie | Read-only | `hardening_extension_prefs` |
 
@@ -142,9 +142,11 @@ Process rule: the optimizer mode is part of the SiteInfo and of the renderer pro
 
 ### Fingerprinting randomization
 
-Canvas and audio output carry small random noise. The noise differs for each site and for each browser session, and can be turned off for a single site.
+Canvas and audio output carry small random noise. The noise differs for each site and for each browser session, and can be turned off for a single site. The reported device memory is capped at 8 GB, and the cap stays when this is turned off.
 
 Audio noise is seeded from the site and session only, so one site gets the same audio output on every render and every AnalyserNode read of the same signal in one session. A tracker cannot average the noise away by reading again.
+
+Device memory (navigator.deviceMemory, in workers, and the Device-Memory and Sec-CH-Device-Memory headers) is capped at 8 GB, where Chromium's desktop maximum is 32 GB. A machine with less than 8 GB keeps its real bucket. There is no noise on this value. The cap is the one exception to the rule that turning fingerprinting protection off restores the real value: it follows the HeliumNoise feature only, so it stays on when the setting is off, globally or for one site, and only --disable-features=HeliumNoise lifts it.
 
 - Default: On.
 - Default provided by: Helium
@@ -154,12 +156,14 @@ Audio noise is seeded from the site and session only, so one site gets the same 
 - Upstream code:
   - `content/browser/helium_noise/noise_token_data.cc`
   - third_party/blink/common/features.cc (HeliumNoise)
+  - third_party/blink/common/device_memory/approximated_device_memory.cc (the 8 GB cap)
 - Preference: `helium.noise.enabled` (default `true`)
 - Aerie patches:
   - `patches/hardening/0009-stable-audio-noise-per-site-and-session.patch`
+  - `patches/hardening/0012-cap-device-memory-at-8gb.patch`
 - Settings row: Toggle
-- Cost: Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page.
-- Bench checks: `hardening_fingerprinting`
+- Cost: Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page. Turning it off does not lift the 8 GB device memory cap.
+- Bench checks: `hardening_fingerprinting`, `hardening_device_memory`
 
 ## What Aerie added
 

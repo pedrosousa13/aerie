@@ -1,0 +1,619 @@
+{
+ "check": "hardening_device_memory",
+ "cases": [
+  {
+   "name": "capped_with_protection_on_off_and_site_off",
+   "expect": "pass",
+   "detail_contains": "",
+   "obs": {
+    "main": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "pref_off": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "site_off": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "control": {
+     "window": 32,
+     "worker": 32,
+     "header": "32",
+     "legacy_header": "32"
+    }
+   }
+  },
+  {
+   "name": "window_not_capped",
+   "expect": "fail",
+   "detail_contains": "navigator.deviceMemory",
+   "obs": {
+    "main": {
+     "window": 32,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "pref_off": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "site_off": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "control": {
+     "window": 32,
+     "worker": 32,
+     "header": "32",
+     "legacy_header": "32"
+    }
+   }
+  },
+  {
+   "name": "worker_not_capped",
+   "expect": "fail",
+   "detail_contains": "worker",
+   "obs": {
+    "main": {
+     "window": 8,
+     "worker": 16,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "pref_off": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "site_off": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "control": {
+     "window": 32,
+     "worker": 32,
+     "header": "32",
+     "legacy_header": "32"
+    }
+   }
+  },
+  {
+   "name": "header_not_capped",
+   "expect": "fail",
+   "detail_contains": "Sec-CH-Device-Memory",
+   "obs": {
+    "main": {
+     "window": 8,
+     "worker": 8,
+     "header": "32",
+     "legacy_header": "32"
+    },
+    "pref_off": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "site_off": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "control": {
+     "window": 32,
+     "worker": 32,
+     "header": "32",
+     "legacy_header": "32"
+    }
+   }
+  },
+  {
+   "name": "header_never_sent",
+   "expect": "fail",
+   "detail_contains": "Sec-CH-Device-Memory",
+   "obs": {
+    "main": {
+     "window": 8,
+     "worker": 8,
+     "header": null,
+     "legacy_header": null
+    },
+    "pref_off": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "site_off": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "control": {
+     "window": 32,
+     "worker": 32,
+     "header": "32",
+     "legacy_header": "32"
+    }
+   }
+  },
+  {
+   "name": "cap_lost_when_pref_off",
+   "expect": "fail",
+   "detail_contains": "pref off",
+   "obs": {
+    "main": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "pref_off": {
+     "window": 32,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "site_off": {
+     "window": 32,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "control": {
+     "window": 32,
+     "worker": 32,
+     "header": "32",
+     "legacy_header": "32"
+    }
+   }
+  },
+  {
+   "name": "negative_control_header_missing",
+   "expect": "fail",
+   "detail_contains": "negative control failed",
+   "obs": {
+    "main": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "pref_off": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "site_off": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "control": {
+     "window": 32,
+     "worker": 32,
+     "header": null,
+     "legacy_header": null
+    }
+   }
+  },
+  {
+   "name": "negative_control_still_capped_header",
+   "expect": "fail",
+   "detail_contains": "negative control failed",
+   "obs": {
+    "main": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "pref_off": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "site_off": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "control": {
+     "window": 32,
+     "worker": 32,
+     "header": "8",
+     "legacy_header": "8"
+    }
+   }
+  },
+  {
+   "name": "small_machine_is_inconclusive",
+   "expect": "error",
+   "detail_contains": "inconclusive",
+   "obs": {
+    "main": {
+     "window": 4,
+     "worker": 4,
+     "header": "4",
+     "legacy_header": "4"
+    },
+    "pref_off": {
+     "window": 4,
+     "worker": 4,
+     "header": "4",
+     "legacy_header": "4"
+    },
+    "site_off": {
+     "window": 4,
+     "worker": 4,
+     "header": "4",
+     "legacy_header": "4"
+    },
+    "control": {
+     "window": 4,
+     "worker": 4,
+     "header": "4",
+     "legacy_header": "4"
+    }
+   }
+  },
+  {
+   "name": "eight_gb_machine_is_inconclusive",
+   "expect": "error",
+   "detail_contains": "inconclusive",
+   "obs": {
+    "main": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "pref_off": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "site_off": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "control": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    }
+   }
+  },
+  {
+   "name": "page_error",
+   "expect": "fail",
+   "detail_contains": "failed",
+   "obs": {
+    "main": {
+     "error": "timeout waiting for the fixture page"
+    },
+    "pref_off": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "site_off": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "control": {
+     "window": 32,
+     "worker": 32,
+     "header": "32",
+     "legacy_header": "32"
+    }
+   }
+  },
+  {
+   "name": "legacy_header_not_capped",
+   "expect": "fail",
+   "detail_contains": "Device-Memory header 32",
+   "obs": {
+    "main": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "32"
+    },
+    "pref_off": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "site_off": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "control": {
+     "window": 32,
+     "worker": 32,
+     "header": "32",
+     "legacy_header": "32"
+    }
+   }
+  },
+  {
+   "name": "legacy_header_never_sent",
+   "expect": "fail",
+   "detail_contains": "no Device-Memory header",
+   "obs": {
+    "main": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "pref_off": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": null
+    },
+    "site_off": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "control": {
+     "window": 32,
+     "worker": 32,
+     "header": "32",
+     "legacy_header": "32"
+    }
+   }
+  },
+  {
+   "name": "cap_lost_when_site_off",
+   "expect": "fail",
+   "detail_contains": "site switched off",
+   "obs": {
+    "main": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "pref_off": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "site_off": {
+     "window": 32,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "control": {
+     "window": 32,
+     "worker": 32,
+     "header": "32",
+     "legacy_header": "32"
+    }
+   }
+  },
+  {
+   "name": "cap_lost_in_header_when_site_off",
+   "expect": "fail",
+   "detail_contains": "Sec-CH-Device-Memory 32",
+   "obs": {
+    "main": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "pref_off": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "site_off": {
+     "window": 8,
+     "worker": 8,
+     "header": "32",
+     "legacy_header": "8"
+    },
+    "control": {
+     "window": 32,
+     "worker": 32,
+     "header": "32",
+     "legacy_header": "32"
+    }
+   }
+  },
+  {
+   "name": "negative_control_legacy_header_missing",
+   "expect": "fail",
+   "detail_contains": "negative control failed",
+   "obs": {
+    "main": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "pref_off": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "site_off": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "control": {
+     "window": 32,
+     "worker": 32,
+     "header": "32",
+     "legacy_header": null
+    }
+   }
+  },
+  {
+   "name": "negative_control_legacy_header_still_capped",
+   "expect": "fail",
+   "detail_contains": "negative control failed",
+   "obs": {
+    "main": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "pref_off": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "site_off": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "control": {
+     "window": 32,
+     "worker": 32,
+     "header": "32",
+     "legacy_header": "8"
+    }
+   }
+  },
+  {
+   "name": "window_api_missing",
+   "expect": "fail",
+   "detail_contains": "navigator.deviceMemory is None",
+   "obs": {
+    "main": {
+     "window": null,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "pref_off": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "site_off": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "control": {
+     "window": 32,
+     "worker": 32,
+     "header": "32",
+     "legacy_header": "32"
+    }
+   }
+  },
+  {
+   "name": "negative_control_api_missing",
+   "expect": "fail",
+   "detail_contains": "negative control failed",
+   "obs": {
+    "main": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "pref_off": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "site_off": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "control": {
+     "window": null,
+     "worker": 32,
+     "header": "32",
+     "legacy_header": "32"
+    }
+   }
+  },
+  {
+   "name": "site_off_page_error",
+   "expect": "fail",
+   "detail_contains": "failed (site_off)",
+   "obs": {
+    "main": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "pref_off": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "site_off": {
+     "error": "timeout waiting for the fixture page"
+    },
+    "control": {
+     "window": 32,
+     "worker": 32,
+     "header": "32",
+     "legacy_header": "32"
+    }
+   }
+  }
+ ]
+}
