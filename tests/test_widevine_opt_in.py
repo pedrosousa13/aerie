@@ -101,6 +101,7 @@ class ScriptedSession:
     def __init__(self, answers, variant=None):
         self.answers, self.variant_session, self.variants = list(answers), variant, []
         self.fixtures = SimpleNamespace(port=1)
+        self.out_dir = Path(tempfile.mkdtemp())
         self.navigated = []
 
     def navigate(self, path):
@@ -118,6 +119,7 @@ class ScriptedSession:
 
     def variant(self, extra_flags=(), prefs=None):
         self.variants.append(prefs)
+        self.variant_flags = getattr(self, "variant_flags", []) + [tuple(extra_flags)]
         outer = self
 
         class Ctx:
@@ -151,6 +153,10 @@ class ObserveTest(unittest.TestCase):
         main.variant_session = control
         obs = wv.WidevineOptIn(online_seconds=1).observe(main)
         self.assertEqual(obs["online"], {"available": True})
+        self.assertEqual(obs["online_hosts"], [])
+        flags = main.variant_flags[-1]
+        self.assertIn("--host-resolver-rules=MAP *.bench.test 127.0.0.1", flags)
+        self.assertTrue(any(f.startswith("--log-net-log=") for f in flags))
 
 
 class RegistryTest(unittest.TestCase):

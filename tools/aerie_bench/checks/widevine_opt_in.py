@@ -92,6 +92,9 @@ def judge(obs: dict) -> tuple[str, str]:
               "present in the component list once opted in")
     if online is not None:
         detail += ", and available to a DRM page after the download"
+        hosts = obs.get("online_hosts")
+        if hosts is not None:
+            detail += f" (the opted-in browser contacted: {', '.join(hosts) or 'no external host'})"
     return "pass", detail
 
 
@@ -107,11 +110,21 @@ class WidevineOptIn:
 
     def observe(self, session: Session) -> dict:
         main = {"key_system": ask_key_system(session), "listed": components_list_widevine(session)}
-        with session.variant((), OPT_IN_PREFS) as opted_in:
+        # Online mode must reach Google, so this one browser gets the real resolver (only the
+        # fixture names stay mapped) and writes its own NetLog, to say which hosts it contacted.
+        # The Bench's default rules refuse every non-loopback host, and Widevine could never download.
+        flags: tuple[str, ...] = ()
+        online_log = session.out_dir / "widevine-online-netlog.json" if self.online_seconds > 0 else None
+        if online_log is not None:
+            flags = ("--host-resolver-rules=MAP *.bench.test 127.0.0.1", f"--log-net-log={online_log}")
+        with session.variant(flags, OPT_IN_PREFS) as opted_in:
             control = {"listed": components_list_widevine(opted_in)}
             obs = {"main": main, "control": control}
             if self.online_seconds > 0:
                 obs["online"] = self._wait_available(opted_in)
+        if self.online_seconds > 0:
+            hosts = sorted({r["host"] for r in netlog.external(netlog.parse_file(online_log)) if r.get("host")})
+            obs["online_hosts"] = hosts
         return obs
 
     def _wait_available(self, session: Session) -> dict:
