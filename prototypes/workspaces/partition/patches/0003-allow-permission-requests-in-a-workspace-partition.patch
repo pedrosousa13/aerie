@@ -1,0 +1,32 @@
+Aerie-Purpose: Make permission prompts work in a Workspace tab.
+Aerie-Upstream-Area: components/permissions/permission_util.cc (IsPermissionBlockedInPartition)
+Aerie-Kind: hook
+
+Prototype for issue 72, option 2. Upstream blocks undelegated permissions (for example notifications) when the process partition is not the requesting origin's home partition. In a Workspace partition every such request would be blocked silently. Brave patches the same function (chromium_src/components/permissions/permission_util.cc). This does NOT split the grants by Workspace: see the ADR, permission grants.
+
+--- a/components/permissions/permission_util.cc
++++ b/components/permissions/permission_util.cc
+@@ -28,6 +28,7 @@
+ #include "content/public/browser/permission_result.h"
+ #include "content/public/browser/render_frame_host.h"
+ #include "content/public/browser/render_process_host.h"
++#include "content/public/browser/storage_partition.h"
+ #include "content/public/browser/web_contents.h"
+ #include "content/public/common/content_features.h"
+ #include "services/network/public/mojom/permissions_policy/permissions_policy_feature.mojom.h"
+@@ -686,6 +687,15 @@
+     case PermissionDelegationMode::kDoubleKeyed:
+       return false;
+     case PermissionDelegationMode::kUndelegated:
++      // Aerie: a Workspace partition is a home for the requesting origin.
++      // Upstream blocks the request because the origin's home partition is the
++      // default one. Partition domain "aerieworkspace" is set in
++      // chrome/browser/aerie_workspaces/workspace_partition.h.
++      if (render_process_host->GetStoragePartition()
++              ->GetConfig()
++              .partition_domain() == "aerieworkspace") {
++        return false;
++      }
+       // TODO(crbug.com/40220503): This will create |requesting_origin|'s home
+       // StoragePartition if it doesn't already exist. Given how
+       // StoragePartitions are used today, this shouldn't actually be a

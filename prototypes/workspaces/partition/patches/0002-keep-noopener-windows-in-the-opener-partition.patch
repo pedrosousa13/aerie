@@ -1,0 +1,21 @@
+Aerie-Purpose: Stop a noopener window from a Workspace tab from landing in the default partition.
+Aerie-Upstream-Area: content/browser/web_contents/web_contents_impl.cc (CreateNewWindow)
+Aerie-Kind: hook
+
+Prototype for issue 72, option 2. Upstream sends a non-guest noopener window to SiteInstance::Create(), which is the default partition, so target=_blank with rel=noopener would open a Workspace link with the other Workspace's logins. Brave solves the same hole with ContentBrowserClient::ShouldInheritStoragePartition. This prototype needs no new embedder hook. Risk: the prerender branch just below DCHECKs equal partitions, so new-tab prerender must be off for Workspace tabs.
+
+--- a/content/browser/web_contents/web_contents_impl.cc
++++ b/content/browser/web_contents/web_contents_impl.cc
+@@ -5825,6 +5825,12 @@
+       // as long as they preserve the guest's StoragePartition.
+       site_instance =
+           SiteInstance::CreateForGuest(GetBrowserContext(), partition_config);
++    } else if (source_site_instance->IsFixedStoragePartition()) {
++      // Aerie: a noopener window must stay in the opener's fixed
++      // StoragePartition (a Workspace). SiteInstance::Create() would put it in
++      // the default partition, with a different set of logins.
++      site_instance = SiteInstance::CreateForFixedStoragePartition(
++          GetBrowserContext(), GURL(), partition_config);
+     } else {
+       site_instance = SiteInstance::Create(GetBrowserContext());
+     }

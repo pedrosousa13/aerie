@@ -1,0 +1,58 @@
+Aerie-Purpose: Let a tab opened without an opener be created in a Workspace StoragePartition, and inherit it from the source tab.
+Aerie-Upstream-Area: chrome/browser/ui/navigator/browser_navigator.cc, browser_navigator_params.h
+Aerie-Kind: hook
+
+Prototype for issue 72, option 2. Not in patches/series. Uses SiteInstance::CreateForFixedStoragePartition, the same entry point Brave Containers uses (brave-core browser/containers/containers_navigator_utils.cc). Needs the overlay file chrome/browser/aerie_workspaces/workspace_partition.h.
+
+--- a/chrome/browser/ui/navigator/browser_navigator.cc
++++ b/chrome/browser/ui/navigator/browser_navigator.cc
+@@ -94,6 +94,7 @@
+ #include "ash/shell.h"
+ #include "chrome/browser/ash/boca/on_task/on_task_locked_controller.h"
+ #include "chrome/browser/ui/ash/system_web_apps/system_web_app_ui_utils.h"
++#include "chrome/browser/aerie_workspaces/workspace_partition.h"
+ #include "components/account_id/account_id.h"
+ #include "content/public/browser/global_routing_id.h"
+ #include "services/network/public/mojom/web_sandbox_flags.mojom.h"
+@@ -574,6 +575,19 @@
+                     : tab_util::GetSiteInstanceForNewTab(
+                           params.browser->GetProfile(), url);
+ 
++  // Aerie: a tab for a Workspace is always created in that Workspace's
++  // StoragePartition, even when the default logic would pick no SiteInstance
++  // (about:blank) or the default partition. The partition is fixed for the life
++  // of the BrowsingInstance.
++  if (!params.opener) {
++    if (auto workspace_partition =
++            aerie_workspaces::GetWorkspacePartitionToInherit(params)) {
++      initial_site_instance_for_new_contents =
++          content::SiteInstance::CreateForFixedStoragePartition(
++              params.browser->GetProfile(), url, *workspace_partition);
++    }
++  }
++
+   WebContents::CreateParams create_params(
+       params.browser->GetProfile(), initial_site_instance_for_new_contents);
+   create_params.main_frame_name = params.frame_name;
+--- a/chrome/browser/ui/navigator/browser_navigator_params.h
++++ b/chrome/browser/ui/navigator/browser_navigator_params.h
+@@ -24,6 +24,7 @@
+ #include "content/public/browser/reload_type.h"
+ #include "content/public/browser/render_frame_host.h"
+ #include "content/public/browser/site_instance.h"
++#include "content/public/browser/storage_partition_config.h"
+ #include "content/public/common/referrer.h"
+ #include "services/network/public/cpp/resource_request_body.h"
+ #include "services/network/public/cpp/shared_url_loader_factory.h"
+@@ -335,6 +336,11 @@
+   // an about:blank or a data url navigation.
+   scoped_refptr<content::SiteInstance> source_site_instance;
+ 
++  // Aerie: when set, a new tab opened without an opener is created in this
++  // non-default StoragePartition (a Workspace). Without it, the tab inherits
++  // the partition of `source_site_instance` if that is a Workspace partition.
++  std::optional<content::StoragePartitionConfig> storage_partition_config;
++
+   // Optional URLLoaderFactory to facilitate blob URL loading.
+   scoped_refptr<network::SharedURLLoaderFactory> blob_url_loader_factory;
+ 
