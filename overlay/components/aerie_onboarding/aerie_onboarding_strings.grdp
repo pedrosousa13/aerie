@@ -99,7 +99,7 @@
   <message name="IDS_AERIE_SETUP_LOOK_COLOUR" desc="Label above the colour choices.">
     Colour
   </message>
-  <message name="IDS_AERIE_SETUP_COLOR_NEUTRAL" desc="Name of the plain theme with no colour. It is white and grey in light mode and near-black and grey in dark mode.">
+  <message name="IDS_AERIE_SETUP_COLOR_NEUTRAL" desc="Name of the theme with no colour tint. It follows the light, dark or system appearance.">
     Neutral
   </message>
   <message name="IDS_AERIE_SETUP_COLOR_ALPENGLOW" desc="Name of a pink and orange colour theme.">

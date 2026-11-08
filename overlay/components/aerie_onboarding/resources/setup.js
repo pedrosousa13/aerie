@@ -70,9 +70,9 @@ const internal = host => `${location.protocol}//${host}/`;
 /* ---------- state ---------- */
 
 const COLORS = {
-  // Neutral is the browser's plain default theme. It follows the appearance,
-  // so its swatch and preview use NEUTRAL_DARK when the page is dark.
-  neutral: ['#FFFFFF', '#E4E5EA', '#B9BBC4', 'colorNeutral'],
+  // Neutral has no tint and follows the appearance. Its fourth entry is the
+  // dark variant, used when the page is dark.
+  neutral: ['#FFFFFF', '#E4E5EA', '#B9BBC4', 'colorNeutral', ['#3A3B42', '#202127', '#0E0F12']],
   alpenglow: ['#FFA463', '#F0466F', '#7B3FE4', 'colorAlpenglow'],
   sky: ['#62D6F5', '#2F6BFF', '#22309A', 'colorSky'],
   moss: ['#3FD19B', '#138476', '#0F3F4D', 'colorMoss'],
@@ -80,7 +80,6 @@ const COLORS = {
   sand: ['#F6D7A7', '#D99A6C', '#8C5A44', 'colorSand'],
   graphite: ['#5A596D', '#2A2936', '#101016', 'colorGraphite'],
 };
-const NEUTRAL_DARK = ['#3A3B42', '#202127', '#0E0F12'];
 const MODES = [['light', 'lookLight'], ['dark', 'lookDark'], ['system', 'lookSystem']];
 const IMPORT_ITEMS = [
   ['bookmarks', 'importBookmarks', 'favorites', 'import_dialog_bookmarks'],
@@ -221,8 +220,11 @@ function retrigger(el, cls) {
   el.classList.add(cls);
 }
 const isDark = () => S.mode === 'dark' || (S.mode === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
-const palette = id => (id === 'neutral' && isDark() ? NEUTRAL_DARK : COLORS[id].slice(0, 3));
+const palette = id => (isDark() && COLORS[id][4]) || COLORS[id].slice(0, 3);
 const swatchBackground = id => { const [a, b, c] = palette(id); return `linear-gradient(140deg, ${a}, ${b} 55%, ${c})`; };
+
+// In system mode an OS theme change while the page is open must re-tint the swatch and preview.
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (S.mode === 'system') { updatePreview(); } });
 
 /* ---------- preview window ---------- */
 

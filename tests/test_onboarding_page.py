@@ -95,14 +95,13 @@ class PageTest(unittest.TestCase):
         self.assertIn("color: 'neutral'", SCRIPT)
         self.assertRegex(SCRIPT, r"mode: 'system', color: 'neutral'")
 
-    def test_neutral_applies_the_default_theme_and_no_colour(self):
+    def test_neutral_is_a_baseline_choice_that_never_calls_use_default_theme(self):
+        # UseDefaultTheme() ends by setting the grayscale pref to true, which is Graphite. The run-time
+        # proof of the resulting theme is the Bench check setup_theme (tests/test_bench_setup_theme.py).
         handler = (REPO / "overlay/chrome/browser/ui/webui/aerie_onboarding/aerie_theme_handler.h").read_text(encoding="utf-8")
         source = (REPO / "overlay/chrome/browser/ui/webui/aerie_onboarding/aerie_theme_handler.cc").read_text(encoding="utf-8")
         self.assertRegex(handler, r'\{"neutral", std::nullopt, true\}')
-        branch = source[source.index("if (choice.use_default_theme)"):source.index("} else if (choice.seed)")]
-        # Neutral must clear a grayscale flag left by Graphite, then reset the theme.
-        self.assertLess(branch.index("SetIsGrayscale(false)"), branch.index("UseDefaultTheme()"))
-        self.assertEqual(len(re.findall(r"std::nullopt, true\}", handler)), 1)
+        self.assertNotIn("UseDefaultTheme()", re.sub(r"//.*", "", source))
 
 
 class HookTest(unittest.TestCase):

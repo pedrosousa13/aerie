@@ -70,10 +70,11 @@ void AerieThemeHandler::HandleSetThemeColor(const base::ListValue& args) {
       continue;
     }
     ThemeService* themes = ThemeServiceFactory::GetForProfile(profile_);
-    if (choice.use_default_theme) {
-      // Clear a grayscale choice (Graphite) first, then drop any user colour.
+    if (choice.baseline) {
+      // SetIsGrayscale(false) clears the user colour and the grayscale pref
+      // and leaves the baseline colour source. UseDefaultTheme() is not used:
+      // it sets the grayscale pref back to true, which is Graphite.
       themes->SetIsGrayscale(false);
-      themes->UseDefaultTheme();
     } else if (choice.seed) {
       themes->SetIsGrayscale(false);
       themes->SetUserColorAndBrowserColorVariant(

@@ -20,12 +20,12 @@ namespace aerie_onboarding {
 // The colours the setup page offers, by id. The page sends an id, never a raw
 // colour, so a page script cannot set an arbitrary theme. Graphite is
 // Chromium's grayscale theme, so it has no seed colour. Neutral is the
-// browser's plain default theme (no user colour): it follows the light, dark
-// or system appearance, so one entry serves both modes.
+// baseline colour source (no user colour, not grayscale). It follows the
+// light, dark or system appearance, so one entry serves both modes.
 struct ThemeChoice {
   std::string_view id;
   std::optional<SkColor> seed;
-  bool use_default_theme = false;
+  bool baseline = false;
 };
 inline constexpr ThemeChoice kThemeChoices[] = {
     {"neutral", std::nullopt, true},
