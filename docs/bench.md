@@ -255,6 +255,7 @@ Bench run, in the same browser or in a variant (see below).
 | `hardening_prefetch` | No prefetch | No request reaches a hinted URL (`rel=prefetch`, `prerender`, speculation rules) and the TCP listener sees no preconnect. | The page's own control fetch and control connection are seen, and a variant with preloading on shows at least one speculative load. |
 | `hardening_site_isolation` | Strict site isolation | The cross-site frame has its own iframe target. | A variant with `--disable-site-isolation-trials` has none. |
 | `hardening_fingerprinting` | Fingerprinting randomization | The canvas hash is stable for one site in one session. Canvas and audio hashes differ across sites and across sessions, and the audio hash differs from the no-noise control. Audio is not required to be stable within a session: Helium salts its noise with a per-render counter, so every render differs. That is accepted for now (issue #38). | A variant with `--disable-features=HeliumNoise` gives equal hashes on both sites. |
+| `hardening_js_optimizer` | JavaScript JIT per site | The JavaScript optimization page loads and its default is on. The JIT is turned off for site a through the Site settings handler (`setOriginPermissions`). Then a hot loop (`hardening/jit.html`) runs at least 2x slower on a than on b, also after a clean restart on the same profile; when one page frames the other site, in either order, the two run at different speeds (so in different processes); a renderer under the browser has `--disable-optimizing-compilers` in its `--js-flags`, and not every renderer has. Site b is not slowed. | A second browser that never changes the setting: a and b run at the same speed and no renderer lacks the optimizing compilers. |
 | `hardening_extension_prefs` | Extension lock | An extension with the privacy permission is refused when it writes the WebRTC policy, the preloading option or the third-party cookie setting. | The same extension changes `referrersEnabled`. |
 | `hardening_pref_defaults` | all | The live pref values (read through `chrome.settingsPrivate` on the settings page) equal the defaults in `controls.json`. | A variant that seeds a different WebRTC policy is reported as a mismatch. |
 | `hardening_settings_page` | all | `chrome://settings/privacy/hardening` has a row for every control with its default and cost text, and the live controls show the default. | A control id that is not in the table is absent. |
@@ -284,6 +285,8 @@ after an error. Variant browser logs are `browser-stderr-variant-<n>.log`.
 To restart a browser on the same profile, make one with `with session.new_profile() as p:` and
 pass it as `session.variant(flags, profile=p)` for each launch (the profile is deleted when the
 `new_profile` block ends). After a variant block, its `netlog` holds that launch's NetLog records.
+Variant sessions have `browser_pid`; `procmem.renderer_modes(pid)` reads
+the renderers under it from `/proc` and says which run without the optimizing compilers.
 `session.stun_probe()` is a loopback STUN server (so ICE gathering has a server). `session.tcp_probe()` is a loopback listener that counts connections (to see
 preconnects). Other helpers: `session.navigate_url(url)` (a failed navigation
 is returned as `{"error": ...}`), `session.wait_for(js)`, `session.targets()`,

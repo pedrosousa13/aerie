@@ -8,11 +8,12 @@ from pathlib import Path
 
 TABLE_PATH = Path(__file__).resolve().parent / "controls.json"
 PROVIDED_BY = ("chromium", "ungoogled", "helium", "aerie")
-UI_KINDS = ("dropdown", "toggle", "readonly")
+UI_KINDS = ("dropdown", "toggle", "readonly", "link")
 REQUIRED = ("id", "title", "summary", "default", "provided_by", "default_set_in", "upstream",
             "aerie_patches", "pref", "cost", "ui", "bench_checks")
 TEXT_KEYS = ("title", "summary", "default", "cost")
 ID_RE = re.compile(r"^[a-z][a-z0-9_]*$")
+ROUTE_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")  # a name in the settings `routes` object
 # Text goes into a Polymer template and a Markdown table: no bindings, no markup.
 FORBIDDEN_TEXT = (("[[", "template binding"), ("{{", "template binding"), ("$i18n", "template binding"),
                   ("${", "template binding"), ("`", "template literal"), ("\\", "backslash"), ("<", "markup"), (">", "markup"), ("&", "markup"), ('"', "quote"), ("|", "table separator"))
@@ -37,6 +38,10 @@ def _ui_problems(cid: str, c: dict) -> list[str]:
     kind = ui["kind"]
     if kind == "readonly":
         out += _text_problems(f"{where}.state", ui.get("state"))
+        return out
+    if kind == "link":
+        if not ROUTE_RE.match(str(ui.get("route", ""))):
+            out.append(f"{where}: route must be a settings route name such as SITE_SETTINGS_JAVASCRIPT_OPTIMIZER")
         return out
     if not ui.get("pref"):
         out.append(f"{where}: pref is required for kind {kind}")

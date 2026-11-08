@@ -34,13 +34,8 @@ def _rss_kb(proc: Path, pid: int) -> int:
     return 0
 
 
-def tree_rss_kb(root_pid: int, proc: Path = Path("/proc")) -> dict | None:
-    """Total VmRSS in KiB of root_pid and all its descendants, with a per-process breakdown.
-
-    Returns None where /proc is not available.
-    """
-    if not proc.is_dir():
-        return None
+def _descendants(proc: Path, root_pid: int) -> list[int]:
+    """root_pid and every process below it, found by walking parent pids under ``proc``."""
     children: dict[int, list[int]] = {}
     for entry in proc.iterdir():
         if not entry.name.isdigit():
@@ -55,6 +50,17 @@ def tree_rss_kb(root_pid: int, proc: Path = Path("/proc")) -> dict | None:
             continue
         pids.append(pid)
         queue.extend(children.get(pid, []))
+    return pids
+
+
+def tree_rss_kb(root_pid: int, proc: Path = Path("/proc")) -> dict | None:
+    """Total VmRSS in KiB of root_pid and all its descendants, with a per-process breakdown.
+
+    Returns None where /proc is not available.
+    """
+    if not proc.is_dir():
+        return None
+    pids = _descendants(proc, root_pid)
     parts = []
     for pid in sorted(pids):
         info = _stat(proc, pid)
@@ -63,3 +69,38 @@ def tree_rss_kb(root_pid: int, proc: Path = Path("/proc")) -> dict | None:
     if not parts:
         return None
     return {"total_kb": sum(p["rss_kb"] for p in parts), "processes": parts}
+
+
+def renderer_modes(root_pid: int, proc: Path = Path("/proc")) -> dict | None:
+    """Which renderers under ``root_pid`` run without V8's optimizing compilers.
+
+    Reads each descendant's command line. A renderer started for a site whose JIT is off
+    carries ``--disable-optimizing-compilers`` in its ``--js-flags`` (``--jitless`` when the
+    whole JIT is off). Returns ``{"total", "noopt", "jitless", "pids"}`` counting renderers
+    only, or None where /proc is not available.
+    """
+    if not proc.is_dir():
+        return None
+    seen = _descendants(proc, root_pid)
+    out = {"total": 0, "noopt": 0, "jitless": 0, "pids": {"noopt": [], "default": []}}
+    for pid in sorted(seen):
+        try:
+            args = (proc / str(pid) / "cmdline").read_bytes().split(b"\0")
+        except OSError:
+            continue
+        # A renderer forked from the zygote rewrites its title, so /proc shows the whole command
+        # line as ONE space-joined argument. Split on whitespace as well (switch values here have
+        # no spaces: AppendToCommaSeparatedSwitch joins js-flags with commas).
+        text = [t for a in args if a for t in a.decode("utf-8", "replace").split()]
+        if "--type=renderer" not in text:
+            continue
+        out["total"] += 1
+        flags = " ".join(a for a in text if a.startswith("--js-flags="))
+        if "--jitless" in flags:
+            out["jitless"] += 1
+        if "--disable-optimizing-compilers" in flags:
+            out["noopt"] += 1
+            out["pids"]["noopt"].append(pid)
+        else:
+            out["pids"]["default"].append(pid)
+    return out

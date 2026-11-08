@@ -80,6 +80,14 @@ class ValidatorTest(unittest.TestCase):
         self.assertEqual(self.problems(table(good_control(ui=ro, pref=None))), [])
         self.assertTrue(any("state" in p for p in self.problems(table(good_control(ui={"kind": "readonly"})))))
 
+    def test_link_kind_needs_a_route_name(self):
+        link = {"kind": "link", "route": "SITE_SETTINGS_JAVASCRIPT_OPTIMIZER"}
+        self.assertEqual(self.problems(table(good_control(ui=link, pref=None))), [])
+        self.assertTrue(any("route" in p for p in self.problems(table(good_control(ui={"kind": "link"}, pref=None)))))
+        for bad in ("site_settings", "A B", "A;B", ""):
+            self.assertTrue(any("route" in p for p in
+                                self.problems(table(good_control(ui={"kind": "link", "route": bad}, pref=None)))), bad)
+
     def test_dropdown_default_must_match_pref_default(self):
         dd = {"kind": "dropdown", "pref": "demo.pref", "default_value": 2,
               "options": [{"value": 1, "label": "One"}, {"value": 2, "label": "Two"}]}
@@ -119,6 +127,10 @@ class RealTableTest(unittest.TestCase):
         self.assertEqual(https["pref"], {"name": "https_only_mode_enabled", "default": True})
         self.assertEqual(https["provided_by"], "aerie")
         self.assertEqual(by_id["site_isolation"]["ui"], {"kind": "readonly", "state": "Always on"})
+        jit = by_id["js_optimizer"]
+        self.assertEqual(jit["ui"], {"kind": "link", "route": "SITE_SETTINGS_JAVASCRIPT_OPTIMIZER"})
+        self.assertEqual(jit["provided_by"], "chromium")
+        self.assertEqual(jit["bench_checks"], ["hardening_js_optimizer"])
         deferred = " ".join(d["title"] for d in self.table["deferred"]).lower()
         for word in ("client rects", "measuretext", "webgl"):
             self.assertIn(word, deferred)

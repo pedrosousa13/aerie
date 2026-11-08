@@ -150,6 +150,35 @@
       "bench_checks": ["hardening_site_isolation"]
     },
     {
+      "id": "js_optimizer",
+      "title": "JavaScript JIT per site",
+      "summary": "The JavaScript optimizing JIT (TurboFan and Maglev) is on for speed. Turn it off for a single site in Site settings, JavaScript optimization. A site with the JIT off never shares a process with a site that has it on.",
+      "default": "On for every site.",
+      "provided_by": "chromium",
+      "default_set_in": [
+        "Chromium: components/content_settings/core/browser/content_settings_registry.cc, the javascript-optimizer content setting is registered with CONTENT_SETTING_ALLOW as its default",
+        "helium-chromium/patches/ungoogled-chromium/move-js-optimizer-unfamiliar-sites.patch: registers the unfamiliar sites pref (default off) in content settings now that the Safe Browsing prefs are gone, so the setting page loads and the default stays allow"
+      ],
+      "upstream": [
+        "chrome/browser/chrome_content_browser_client.cc (AreV8OptimizationsEnabledForSite, SiteIsolationPolicy hook that isolates a site with an exception)",
+        "content/browser/site_info.cc (are_v8_optimizations_disabled is part of the SiteInfo)",
+        "content/browser/renderer_host/render_process_host_impl.cc (IsSuitableHost refuses to reuse a process with a different optimizer mode, and the renderer starts with --disable-optimizing-compilers)",
+        "components/site_isolation/features.cc (kOriginIsolationForJsOptExceptions)"
+      ],
+      "aerie_patches": [
+        "hardening/0003-hardening-settings-page.patch",
+        "hardening/0004-hardening-settings-page-markup.patch"
+      ],
+      "notes": [
+        "The setting is the upstream javascript-optimizer content setting, so it also shows in the site details page and in Settings, Privacy and security, Site settings, Additional content settings. It applies on the next visit to the site in a new tab, or after a restart. An embedded frame, or a page opened from another tab, keeps its current process until you open the site in a new tab, because upstream only swaps the process on a main-frame navigation in a tab with no related windows. An exception for a non-default port (for example `http://host:8080`) does not apply, because the site URL has no port, so the rule is the same for every port of the host. It is kept in the profile across restarts.",
+        "Process rule: the optimizer mode is part of the SiteInfo and of the renderer process flags. IsSuitableHost returns false for a process whose mode differs, so a site with the JIT off is only ever given a process that was started without the optimizing compilers, and a site with the JIT on is never given that process."
+      ],
+      "pref": null,
+      "cost": "Pages that run heavy scripts, such as web apps, games and large spreadsheets, can run several times slower on a site with the JIT off. Turn it off only for sites you do not trust.",
+      "ui": {"kind": "link", "route": "SITE_SETTINGS_JAVASCRIPT_OPTIMIZER"},
+      "bench_checks": ["hardening_js_optimizer"]
+    },
+    {
       "id": "fingerprinting",
       "title": "Fingerprinting randomization",
       "summary": "Canvas and audio output carry small random noise. The noise differs for each site and for each browser session, and can be turned off for a single site.",

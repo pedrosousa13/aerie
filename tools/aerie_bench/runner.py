@@ -160,6 +160,7 @@ def run_bench(binary: Path | str, scenario: Scenario, build_root: Path, *, out_d
                     raise BenchError(f"cannot start {binary}: {exc}") from exc
                 vsession = Session(vproc.client, server, out, timeout=timeout, binary=str(binary),
                                    binary_version=binary_version, netlog_path=vnetlog)
+                vsession.browser_pid = vproc.popen.pid
                 try:
                     yield vsession
                 except BaseException:

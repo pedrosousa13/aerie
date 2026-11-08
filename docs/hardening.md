@@ -18,6 +18,7 @@ page and the Bench checks, so the three cannot drift apart.
 | WebRTC IP leak protection | Default public interface only. | Helium | Dropdown | `hardening_webrtc` |
 | No prefetch or preloading | Off. | ungoogled-chromium (through Helium) | Dropdown | `hardening_prefetch` |
 | Strict site isolation | Always on. | Chromium | Read-only | `hardening_site_isolation` |
+| JavaScript JIT per site | On for every site. | Chromium | Link to site settings | `hardening_js_optimizer` |
 | Fingerprinting randomization | On. | Helium | Toggle | `hardening_fingerprinting` |
 | Widevine DRM | Off. | Aerie | Toggle | `hardening_pref_defaults`, `hardening_settings_page`, `widevine_opt_in` |
 | Extensions cannot loosen these settings | Always on. | Aerie | Read-only | `hardening_extension_prefs` |
@@ -114,6 +115,31 @@ Every site gets its own renderer process, so a compromised page cannot read anot
 - Cost: Uses more memory, because each site runs in its own process.
 - Bench checks: `hardening_site_isolation`
 
+### JavaScript JIT per site
+
+The JavaScript optimizing JIT (TurboFan and Maglev) is on for speed. Turn it off for a single site in Site settings, JavaScript optimization. A site with the JIT off never shares a process with a site that has it on.
+
+The setting is the upstream javascript-optimizer content setting, so it also shows in the site details page and in Settings, Privacy and security, Site settings, Additional content settings. It applies on the next visit to the site in a new tab, or after a restart. An embedded frame, or a page opened from another tab, keeps its current process until you open the site in a new tab, because upstream only swaps the process on a main-frame navigation in a tab with no related windows. An exception for a non-default port (for example `http://host:8080`) does not apply, because the site URL has no port, so the rule is the same for every port of the host. It is kept in the profile across restarts.
+
+Process rule: the optimizer mode is part of the SiteInfo and of the renderer process flags. IsSuitableHost returns false for a process whose mode differs, so a site with the JIT off is only ever given a process that was started without the optimizing compilers, and a site with the JIT on is never given that process.
+
+- Default: On for every site.
+- Default provided by: Chromium
+- Where the default is set:
+  - Chromium: components/content_settings/core/browser/content_settings_registry.cc, the javascript-optimizer content setting is registered with CONTENT_SETTING_ALLOW as its default
+  - helium-chromium/patches/ungoogled-chromium/move-js-optimizer-unfamiliar-sites.patch: registers the unfamiliar sites pref (default off) in content settings now that the Safe Browsing prefs are gone, so the setting page loads and the default stays allow
+- Upstream code:
+  - chrome/browser/chrome_content_browser_client.cc (AreV8OptimizationsEnabledForSite, SiteIsolationPolicy hook that isolates a site with an exception)
+  - content/browser/site_info.cc (are_v8_optimizations_disabled is part of the SiteInfo)
+  - content/browser/renderer_host/render_process_host_impl.cc (IsSuitableHost refuses to reuse a process with a different optimizer mode, and the renderer starts with --disable-optimizing-compilers)
+  - components/site_isolation/features.cc (kOriginIsolationForJsOptExceptions)
+- Aerie patches:
+  - `patches/hardening/0003-hardening-settings-page.patch`
+  - `patches/hardening/0004-hardening-settings-page-markup.patch`
+- Settings row: Link to site settings
+- Cost: Pages that run heavy scripts, such as web apps, games and large spreadsheets, can run several times slower on a site with the JIT off. Turn it off only for sites you do not trust.
+- Bench checks: `hardening_js_optimizer`
+
 ### Fingerprinting randomization
 
 Canvas and audio output carry small random noise. The noise differs for each site and for each browser session, and can be turned off for a single site.
@@ -207,6 +233,21 @@ For any other http site, for example a dev server on the local network, the warn
 Continue to site button. The choice is kept per host name for 15 days after the last visit
 (the `HTTP_ALLOWED` content setting). Settings, Privacy and security, Security hardening, lists
 every host that is allowed over http and has a Remove button for each one.
+
+## Turning off the JIT for one site
+
+The JavaScript optimizing JIT is on for every site. To turn it off for one site, open Settings,
+Privacy and security, Site settings, Additional content settings, JavaScript optimization, and add
+the site under Not allowed to use JavaScript optimization. The same switch is on the site details page.
+The Security hardening page has a row that links to it. The change applies the next time a tab
+navigates to the site, and it is kept after a restart.
+
+This is Chromium's own setting (the `javascript-optimizer` content setting), so Aerie adds no code for it.
+A renderer for a site with the JIT off starts with `--js-flags=--disable-optimizing-compilers`. The
+mode is part of the `SiteInfo`, and `RenderProcessHostImpl::IsSuitableHost` will not give a site a
+process that runs the other mode. Sites with the JIT off therefore never share a process with sites that
+have it on, and never reuse one. A source gate (`js_optimizer` in `tools/aerie_build/treegate.py`)
+and the Bench check `hardening_js_optimizer` keep that true.
 
 ## Extensions
 

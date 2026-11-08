@@ -9,6 +9,7 @@
     "hardening_webrtc",
     "hardening_prefetch",
     "hardening_site_isolation",
+    "hardening_js_optimizer",
     "hardening_fingerprinting",
     "hardening_extension_prefs",
     "hardening_pref_defaults",

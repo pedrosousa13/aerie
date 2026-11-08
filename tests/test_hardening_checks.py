@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 
 from aerie_bench import checks
-from aerie_bench.checks.hardening import common, cookies, extension, fingerprint, https, isolation, prefetch, settings, webrtc
+from aerie_bench.checks.hardening import common, cookies, extension, fingerprint, https, isolation, jit, prefetch, settings, webrtc
 from aerie_bench.session import CheckResult
 
 FIXTURES = Path(__file__).parent / "fixtures" / "hardening"
@@ -61,7 +61,7 @@ class RegistryTest(unittest.TestCase):
         self.assertEqual(sorted(sc.checks), sorted(HARDENING))
 
     def test_checks_declare_control_and_negative_control(self):
-        self.assertEqual(len(HARDENING), 13)
+        self.assertEqual(len(HARDENING), 14)
         for name, cls in HARDENING.items():
             self.assertTrue(cls.control, name)
             self.assertGreater(len(cls.negative_control), 30, name)
@@ -201,27 +201,76 @@ Promise.race([{prefetch.FETCH_CONTROLS_JS % (prefetch.CONTROL_PATH, 100, 1234)},
 
 def real_case(check):
     for _, case in load_cases():
-        if _ == check and case["name"].startswith("real_train1_"):
+        if _ == check and case["name"].startswith("real_train"):
             return case
     raise AssertionError(f"no recorded real case for {check}")
 
 
-# Observed on a real build (train-1 Bench run, hardening-1/results.json).
+# Observed on a real build (train-1 Bench run, hardening-1/results.json; the settings-page case is from train 4).
 REAL_FINGERPRINT = real_case("hardening_fingerprinting")["obs"]
 
 
 class RealRecordingsTest(unittest.TestCase):
-    def test_twelve_checks_have_a_real_recording_that_is_judged_as_recorded(self):
+    def test_every_check_with_a_real_recording_that_is_judged_as_recorded(self):
         got = {}
         for check, case in load_cases():
-            if case["name"].startswith("real_train1_"):
+            if case["name"].startswith("real_train"):
                 got[check] = case
                 self.assertEqual(HARDENING[check].judge(case["obs"])[0], case["expect"], check)
-        self.assertEqual(len(got), 12)  # hardening_prefetch errored in that run: nothing to record
+        self.assertEqual(len(got), 13)  # hardening_prefetch errored in that run: nothing to record
 
     def test_recordings_hold_no_lan_address(self):
         for _, case in load_cases():
             self.assertNotIn("192.168.1.107", json.dumps(case))
+
+
+class SettingsLinkRowTest(unittest.TestCase):
+    def obs(self, **link):
+        base = next(c["obs"] for ch, c in load_cases()
+                    if ch == "hardening_settings_page" and c["name"].startswith("real_train"))
+        obs = json.loads(json.dumps(base))
+        obs["links"] = {"js_optimizer": {"clicked": True, "reached": True, **link}}
+        return obs
+
+    def test_link_that_opens_its_page_passes(self):
+        self.assertEqual(settings.SettingsPage.judge(self.obs())[0], "pass")
+
+    def test_link_whose_page_never_appears_fails(self):
+        status, detail = settings.SettingsPage.judge(self.obs(reached=False))
+        self.assertEqual(status, "fail")
+        self.assertIn("js_optimizer", detail)
+        self.assertIn("never appeared", detail)
+
+    def test_missing_link_row_to_click_fails(self):
+        status, detail = settings.SettingsPage.judge(self.obs(clicked=False, reached=False))
+        self.assertEqual(status, "fail")
+        self.assertIn("no row to click", detail)
+
+    def test_link_with_no_click_result_fails(self):
+        obs = self.obs()
+        obs["links"] = {}
+        self.assertEqual(settings.SettingsPage.judge(obs)[0], "fail")
+
+    def test_follow_link_clicks_the_row_and_waits_for_the_target_page(self):
+        class Fake:
+            def __init__(self, clicked, reached):
+                self.clicked, self.reached, self.scripts = clicked, reached, []
+
+            def evaluate(self, js):
+                self.scripts.append(js)
+                return self.clicked
+
+            def wait_for(self, js, timeout=0):
+                self.scripts.append(js)
+                return self.reached
+
+        control = next(c for c in settings.table()["controls"] if c["id"] == "js_optimizer")
+        ok = Fake(True, True)
+        self.assertEqual(settings.follow_link(ok, control), {"clicked": True, "reached": True})
+        self.assertIn("#control-js_optimizer-setting", ok.scripts[0])
+        self.assertIn("settings-v8-page", ok.scripts[1])
+        self.assertEqual(settings.follow_link(Fake(True, None), control), {"clicked": True, "reached": False})
+        self.assertEqual(settings.follow_link(Fake(False, None), control), {"clicked": False, "reached": False})
 
 
 class FingerprintJudgeTest(unittest.TestCase):
@@ -305,9 +354,14 @@ class FakeSession:
             return (self.current or {}).get("loads_after_click", False)
         return True
 
-    def variant(self, flags=(), prefs=None):
+    def variant(self, flags=(), prefs=None, profile=None):
         self.variant_calls.append((tuple(flags), prefs))
+        self.variant_profiles = getattr(self, "variant_profiles", []) + [profile]
         return contextlib.nullcontext(self.variants[len(self.variant_calls) - 1])
+
+    def new_profile(self):
+        self.profile = object()
+        return contextlib.nullcontext(self.profile)
 
     def targets(self):
         return (self.current or {}).get("targets", [])
@@ -380,6 +434,54 @@ class DriverGlueTest(unittest.TestCase):
         res = isolation.SiteIsolation().run(main)
         self.assertEqual(res.status, "pass", res.detail)
         self.assertEqual(main.variant_calls[0][0], ("--disable-site-isolation-trials",))
+
+    def test_js_optimizer_check_changes_the_setting_restarts_and_runs_a_control(self):
+        fast, slow = {"ms": 30.0}, {"ms": 300.0}
+
+        # The page results depend on the host and on the mode; script them per phase.
+        class JitSession(FakeSession):
+            def __init__(self, mode, variants=()):
+                super().__init__({}, variants=list(variants))
+                self.mode, self.browser_pid = mode, None
+                self.sent = []
+                self.restarted = 0
+
+            def navigate_url(self, url, wait=None):
+                self.log.append(url)
+                self.url = url
+                return {"url": url, "error": None}
+
+            def wait_for(self, expression, timeout=15.0, interval=0.25):
+                return True
+
+            def evaluate(self, expression, await_promise=False, user_gesture=False):
+                if "setOriginPermissions" in expression:
+                    self.sent.append(expression)
+                    self.mode = "off"
+                    return True
+                if "getPref" in expression:
+                    return {"value": 1}
+                if "deepQuery" in expression:
+                    return True
+                host = self.url.split("//")[1].split(":")[0].split(".")[0] if "localhost" in self.url else ""
+                own = slow if (self.mode == "off" and host == "a") else fast
+                if "child=" in self.url:
+                    child = self.url.split("child=")[1].split(".")[0]
+                    kid = slow if (self.mode == "off" and child == "a") else fast
+                    return {**own, "child": kid}
+                return own
+
+        first, restarted, control = JitSession("on"), JitSession("off"), JitSession("on")
+        main = JitSession("on", variants=[first, restarted, control])
+        res = jit.JsOptimizer().run(main)
+        self.assertEqual(res.status, "pass", res.detail)
+        self.assertEqual(len(first.sent), 1)
+        self.assertIn("'javascript-optimizer'", first.sent[0])
+        self.assertIn("a.localhost", first.sent[0])
+        self.assertIn('"block"', first.sent[0])
+        self.assertEqual(main.variant_calls, [((), None)] * 3)
+        # the change and the restart share one profile; the control gets its own
+        self.assertEqual(main.variant_profiles, [main.profile, main.profile, None])
 
     def test_extension_check_loads_the_probe_extension_in_a_variant(self):
         results = json.loads((FIXTURES / "hardening_extension_prefs.json").read_text())["cases"][0]["obs"]["results"]

@@ -69,6 +69,14 @@
       "cost_text": "Cost: Privacy extensions that set these options through chrome.privacy get a permission error. The user can still make the same change in settings.",
       "state_text": "Always on",
       "live": null
+     },
+     "js_optimizer": {
+      "present": true,
+      "default_text": "Default: On for every site.",
+      "cost_text": "Cost: Pages that run heavy scripts, such as web apps, games and large spreadsheets, can run several times slower on a site with the JIT off. Turn it off only for sites you do not trust.",
+      "state_text": null,
+      "live": null,
+      "route": "SITE_SETTINGS_JAVASCRIPT_OPTIMIZER"
      }
     },
     "bogus_present": false,
@@ -223,6 +231,14 @@
       "cost_text": "Cost: Privacy extensions that set these options through chrome.privacy get a permission error. The user can still make the same change in settings.",
       "state_text": "Always on",
       "live": null
+     },
+     "js_optimizer": {
+      "present": true,
+      "default_text": "Default: On for every site.",
+      "cost_text": "Cost: Pages that run heavy scripts, such as web apps, games and large spreadsheets, can run several times slower on a site with the JIT off. Turn it off only for sites you do not trust.",
+      "state_text": null,
+      "live": null,
+      "route": "SITE_SETTINGS_JAVASCRIPT_OPTIMIZER"
      }
     },
     "bogus_present": false,
@@ -297,6 +313,14 @@
       "cost_text": "Cost: Privacy extensions that set these options through chrome.privacy get a permission error. The user can still make the same change in settings.",
       "state_text": "Always on",
       "live": null
+     },
+     "js_optimizer": {
+      "present": true,
+      "default_text": "Default: On for every site.",
+      "cost_text": "Cost: Pages that run heavy scripts, such as web apps, games and large spreadsheets, can run several times slower on a site with the JIT off. Turn it off only for sites you do not trust.",
+      "state_text": null,
+      "live": null,
+      "route": "SITE_SETTINGS_JAVASCRIPT_OPTIMIZER"
      }
     },
     "bogus_present": false,
@@ -371,6 +395,14 @@
       "cost_text": "Cost: Privacy extensions that set these options through chrome.privacy get a permission error. The user can still make the same change in settings.",
       "state_text": "Always on",
       "live": null
+     },
+     "js_optimizer": {
+      "present": true,
+      "default_text": "Default: On for every site.",
+      "cost_text": "Cost: Pages that run heavy scripts, such as web apps, games and large spreadsheets, can run several times slower on a site with the JIT off. Turn it off only for sites you do not trust.",
+      "state_text": null,
+      "live": null,
+      "route": "SITE_SETTINGS_JAVASCRIPT_OPTIMIZER"
      }
     },
     "bogus_present": false,
@@ -445,6 +477,14 @@
       "cost_text": "Cost: Privacy extensions that set these options through chrome.privacy get a permission error. The user can still make the same change in settings.",
       "state_text": "Always on",
       "live": null
+     },
+     "js_optimizer": {
+      "present": true,
+      "default_text": "Default: On for every site.",
+      "cost_text": "Cost: Pages that run heavy scripts, such as web apps, games and large spreadsheets, can run several times slower on a site with the JIT off. Turn it off only for sites you do not trust.",
+      "state_text": null,
+      "live": null,
+      "route": "SITE_SETTINGS_JAVASCRIPT_OPTIMIZER"
      }
     },
     "bogus_present": false,
@@ -519,6 +559,14 @@
       "cost_text": "Cost: Privacy extensions that set these options through chrome.privacy get a permission error. The user can still make the same change in settings.",
       "state_text": "Always on",
       "live": null
+     },
+     "js_optimizer": {
+      "present": true,
+      "default_text": "Default: On for every site.",
+      "cost_text": "Cost: Pages that run heavy scripts, such as web apps, games and large spreadsheets, can run several times slower on a site with the JIT off. Turn it off only for sites you do not trust.",
+      "state_text": null,
+      "live": null,
+      "route": "SITE_SETTINGS_JAVASCRIPT_OPTIMIZER"
      }
     },
     "bogus_present": false,
@@ -593,6 +641,14 @@
       "cost_text": "Cost: Privacy extensions that set these options through chrome.privacy get a permission error. The user can still make the same change in settings.",
       "state_text": "Always on",
       "live": null
+     },
+     "js_optimizer": {
+      "present": true,
+      "default_text": "Default: On for every site.",
+      "cost_text": "Cost: Pages that run heavy scripts, such as web apps, games and large spreadsheets, can run several times slower on a site with the JIT off. Turn it off only for sites you do not trust.",
+      "state_text": null,
+      "live": null,
+      "route": "SITE_SETTINGS_JAVASCRIPT_OPTIMIZER"
      }
     },
     "bogus_present": true,
@@ -600,10 +656,107 @@
    }
   },
   {
-   "name": "real_train1_build",
+   "name": "real_train5_build",
+   "expect": "pass",
+   "detail_contains": "",
+   "real": "Recorded on a real Aerie build, train-5 Bench run (bench/train5/bench/main1/results.json): all 10 controls with the final Widevine (#7) cost text, and the click on the JavaScript optimizer link row reaching settings-v8-page.",
+   "obs": {
+    "rows": {
+     "https_only": {
+      "present": true,
+      "default_text": "Default: On (strict: Always use secure connections).",
+      "cost_text": "Cost: Sites and devices that only speak http (router and NAS admin pages, printers, old intranet apps, captive portals) show a warning page first. The exception is one click and lasts 15 days from the last visit.",
+      "state_text": null,
+      "live": "Always use secure connections",
+      "route": null
+     },
+     "third_party_cookies": {
+      "present": true,
+      "default_text": "Default: Blocked.",
+      "cost_text": "Cost: Cross-site single sign-on that relies on cookies, embedded payment or login widgets and some video embeds can fail. Site exceptions and the Storage Access API are the escape hatches.",
+      "state_text": null,
+      "live": "Block third-party cookies",
+      "route": null
+     },
+     "storage_partitioning": {
+      "present": true,
+      "default_text": "Default: Always on.",
+      "cost_text": "Cost: An embedded widget no longer shares its state between sites, so it can ask the user to sign in again on each site.",
+      "state_text": "Always on",
+      "live": null,
+      "route": null
+     },
+     "webrtc_ip": {
+      "present": true,
+      "default_text": "Default: Default public interface only.",
+      "cost_text": "Cost: Some video calls and peer-to-peer apps cannot find a direct path and fall back to a relay, which adds delay. Stricter values can break calls that have no relay.",
+      "state_text": null,
+      "live": "Default public interface only",
+      "route": null
+     },
+     "prefetch": {
+      "present": true,
+      "default_text": "Default: Off.",
+      "cost_text": "Cost: Page loads are slightly slower, because the browser no longer opens connections or fetches pages ahead of a click.",
+      "state_text": null,
+      "live": "Off",
+      "route": null
+     },
+     "site_isolation": {
+      "present": true,
+      "default_text": "Default: Always on.",
+      "cost_text": "Cost: Uses more memory, because each site runs in its own process.",
+      "state_text": "Always on",
+      "live": null,
+      "route": null
+     },
+     "js_optimizer": {
+      "present": true,
+      "default_text": "Default: On for every site.",
+      "cost_text": "Cost: Pages that run heavy scripts, such as web apps, games and large spreadsheets, can run several times slower on a site with the JIT off. Turn it off only for sites you do not trust.",
+      "state_text": null,
+      "live": null,
+      "route": "SITE_SETTINGS_JAVASCRIPT_OPTIMIZER"
+     },
+     "fingerprinting": {
+      "present": true,
+      "default_text": "Default: On.",
+      "cost_text": "Cost: Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page.",
+      "state_text": null,
+      "live": "on",
+      "route": null
+     },
+     "widevine": {
+      "present": true,
+      "default_text": "Default: Off.",
+      "cost_text": "Cost: Turning it on downloads a closed-source Google module, which is checked against a pinned signing key before it loads, and lets Aerie ask Google for updates to it. Until you do, DRM video does not play. Before this setting, the CRLSet (the list of revoked certificates) got updates only while Widevine was on; now Aerie never sends the CRLSet to Google, so it is not updated.",
+      "state_text": null,
+      "live": "off",
+      "route": null
+     },
+     "extension_lock": {
+      "present": true,
+      "default_text": "Default: Always on.",
+      "cost_text": "Cost: Privacy extensions that set these options through chrome.privacy get a permission error. The user can still make the same change in settings.",
+      "state_text": "Always on",
+      "live": null,
+      "route": null
+     }
+    },
+    "bogus_present": false,
+    "error": null,
+    "links": {
+     "js_optimizer": {
+      "clicked": true,
+      "reached": true
+     }
+    }
+   }
+  },
+  {
+   "name": "link_row_points_elsewhere",
    "expect": "fail",
-   "detail_contains": "no row for widevine",
-   "real": "Recorded on a real Aerie build, train-1 Bench run (bench/train1/hardening-1/results.json); LAN address scrubbed. That build predates the Widevine row (#7), so the page is judged to lack it. Re-record on the next real build and set expect back to pass.",
+   "detail_contains": "js_optimizer: link row goes to",
    "obs": {
     "rows": {
      "https_only": {
@@ -661,6 +814,14 @@
       "cost_text": "Cost: Privacy extensions that set these options through chrome.privacy get a permission error. The user can still make the same change in settings.",
       "state_text": "Always on",
       "live": null
+     },
+     "js_optimizer": {
+      "present": true,
+      "default_text": "Default: On for every site.",
+      "cost_text": "Cost: Pages that run heavy scripts, such as web apps, games and large spreadsheets, can run several times slower on a site with the JIT off. Turn it off only for sites you do not trust.",
+      "state_text": null,
+      "live": null,
+      "route": "SITE_SETTINGS_COOKIES"
      }
     },
     "bogus_present": false,

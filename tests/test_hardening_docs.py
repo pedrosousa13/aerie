@@ -67,6 +67,9 @@ class MarkupTest(unittest.TestCase):
             ui = c["ui"]
             if ui["kind"] == "readonly":
                 self.assertIn(ui["state"], self.html)
+            elif ui["kind"] == "link":
+                self.assertIn(f'data-route="{ui["route"]}"', self.html)
+                self.assertIn("onControlLinkClick_", self.html)
             else:
                 self.assertIn(f'pref-key="{ui["pref"]}"', self.html)
         self.assertIn("settings-toggle-button", self.html)
