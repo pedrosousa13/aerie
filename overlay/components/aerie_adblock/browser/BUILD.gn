@@ -167,6 +167,22 @@ source_set("lists") {
   ]
 }
 
+# What the Aerie Guard icon shows for a tab: visibility, the site's exception
+# state and the badge label (issue #99).
+source_set("guard_state") {
+  visibility = _visibility
+  sources = [
+    "guard_state.cc",
+    "guard_state.h",
+  ]
+  public_deps = [
+    ":classified_request",
+    "//base",
+    "//url",
+  ]
+  deps = [ ":lists" ]
+}
+
 # How many requests were blocked for the page of each tab.
 source_set("page_counter") {
   visibility = _visibility
@@ -258,6 +274,7 @@ test("aerie_adblock_unittests") {
     "filter_list_manager_unittest.cc",
     "filter_list_state_unittest.cc",
     "filter_list_storage_unittest.cc",
+    "guard_state_unittest.cc",
     "protection_engine_unittest.cc",
     "protection_policy_unittest.cc",
     "protection_service_unittest.cc",
@@ -268,6 +285,7 @@ test("aerie_adblock_unittests") {
     ":classifier",
     ":cosmetic_scripts",
     ":engine",
+    ":guard_state",
     ":list_types",
     ":lists",
     ":protection_engine",

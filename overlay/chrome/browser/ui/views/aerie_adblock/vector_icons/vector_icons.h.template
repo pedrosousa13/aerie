@@ -1,0 +1,26 @@
+// Copyright 2026 The Aerie Authors
+// You can use, redistribute, and/or modify this source code under
+// the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+// vector_icons.h.template is used to generate vector_icons.h. Edit the former
+// rather than the latter.
+
+#ifndef CHROME_BROWSER_UI_VIEWS_AERIE_ADBLOCK_VECTOR_ICONS_VECTOR_ICONS_H_
+#define CHROME_BROWSER_UI_VIEWS_AERIE_ADBLOCK_VECTOR_ICONS_VECTOR_ICONS_H_
+
+namespace gfx {
+struct VectorIcon;
+}
+
+#define VECTOR_ICON_TEMPLATE_H(icon_name) \
+  extern const gfx::VectorIcon icon_name;
+
+namespace aerie_guard {
+
+TEMPLATE_PLACEHOLDER
+
+}  // namespace aerie_guard
+
+#undef VECTOR_ICON_TEMPLATE_H
+
+#endif  // CHROME_BROWSER_UI_VIEWS_AERIE_ADBLOCK_VECTOR_ICONS_VECTOR_ICONS_H_

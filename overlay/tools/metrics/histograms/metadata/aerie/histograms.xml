@@ -62,8 +62,8 @@ directory under tools/metrics/histograms/metadata/.
     How many requests the Filter Engine blocked for a page, recorded when the
     user leaves the page (another document commits in the tab) or closes the
     tab. Pages with no blocked request record nothing. Counts above 100 go in
-    the top bucket. The toolbar button shows the same number while the page is
-    open; the Bench reads this to check that the button's count is right.
+    the top bucket. The Aerie Guard icon in the address bar shows the same number while the
+    page is open; the Bench reads this to check that the icon's count is right.
   </summary>
 </histogram>
 

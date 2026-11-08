@@ -38,10 +38,12 @@ adblock/0005-list-aerie-histograms.patch
 adblock/0007-attach-cosmetic-tab-helper.patch
 adblock/0008-pass-frame-to-adblock-hook.patch
 adblock/0009-register-filter-lists-page.patch
-adblock/0010-add-filter-toolbar-button.patch
 adblock/0011-hook-protection-navigation-throttle.patch
 adblock/0012-attach-cosmetic-renderer-agent.patch
 adblock/0013-bind-cosmetic-host.patch
+adblock/0014-register-aerie-guard-page-action.patch
+adblock/0015-add-aerie-guard-action-item.patch
+adblock/0016-attach-aerie-guard-controller.patch
 
 # Widevine is opt-in (#7). The settings toggle is a row of the hardening table (controls.json).
 widevine/0001-register-widevine-only-when-opted-in.patch
@@ -57,3 +59,6 @@ tests/0001-fix-test-support-for-helium-noise.patch
 
 # The Helium services settings are gone; the extension proxy address stays as a privacy row (#23).
 services/0006-remove-the-helium-services-ui.patch
+
+# The Aerie Guard strings join the grd after the other Aerie string parts (#99).
+adblock/0017-add-aerie-guard-strings.patch

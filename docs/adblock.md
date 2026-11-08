@@ -90,7 +90,7 @@ the issue). User controls are in [the section below](#user-controls-issue-10).
 | --- | --- |
 | `chrome://filters` (shown as `aerie://filters` once the scheme rename lands; Helium shows `helium://filters` today) | The page (`chrome/browser/ui/webui/aerie_filters`, patch `0009`): add, remove and update lists, custom list URLs, per-site exceptions, the automatic update switch. Messages: `aerieFilters.getState`, `addList`, `removeList`, `updateList`, `updateAll`, `setException`, `setAutoUpdate`. The page keeps the last state in `aerieFilters.state`. |
 | `FilterListManager` | `components/aerie_adblock/browser/filter_list_manager.*`. Owns the settings, downloads, checks, rebuilds the engine, runs the schedule. Owned by the main parts, next to the service. |
-| Toolbar button | `chrome/browser/ui/views/aerie_adblock` (patch `0010`): a shield with the blocked count of the active page. A menu turns blocking off for the page's site and opens the settings page. |
+| Aerie Guard icon | The icon in the address bar, a page action (issue #99; it replaced the toolbar button). The controller and the icon art are in `chrome/browser/ui/views/aerie_adblock`; patches `0014` to `0017` register the action, add its action item, create a controller for each tab and add its strings. It shows on `http` and `https` pages only (not on `chrome://`, `aerie://`, `file://` or the new tab page): a shield for blocking on, another for blocking off on this site, with the blocked count drawn into the image (empty for 0, 1 to 99, then `99+`; the same number is in the tooltip and the accessible name). What it shows comes from the browser process only: the committed URL of the tab's main frame, the `FilterListManager` exceptions and the `PageBlockCounter` (`components/aerie_adblock/browser/guard_state.*`, which has the unit tests). Pressing it opens a menu that turns blocking off for the page's site, or on again, and reloads the tab, and that opens the settings page. The pop-out panel replaces the menu in issue #100. Helium's hide-page-actions flag hides the whole page action container, this icon included. |
 | `PageBlockCounter` | One per tab. Counts what the engine blocked for the tab's page, from the frame id the factory got (patch `0008`). Resets when the tab commits another document. Recorded in `Aerie.Adblock.PageBlockedCount` when the page is left. |
 
 How it works:
@@ -119,7 +119,7 @@ How it works:
   can click Update for one list or all at any time.
 - **Exceptions** are hosts. A request is never blocked when its top-level site is the host or a
   subdomain of it. They are read before the first request: the service holds requests until the
-  settings are loaded. A change works at once and survives restart. The toolbar button reloads the
+  settings are loaded. A change works at once and survives restart. The Aerie Guard icon reloads the
   page after a change so the effect shows. Turning blocking off for a site also turns cosmetic
   hiding off there: `FilterEngineService::IsCosmeticFilteringEnabled` (which the two stylesheet
   calls use) is false for an excepted site, besides what the policy says. Cosmetic queries wait
@@ -148,7 +148,7 @@ How it works:
   or a regex that excludes `.invalid`) is not caught. The check stops mistakes and lazy abuse,
   not a list author who has read this page. Lists are reviewed before they are pinned, and
   custom lists are the user's own choice.
-- **Incognito.** An exception set from an off-the-record profile (toolbar button or
+- **Incognito.** An exception set from an off-the-record profile (the Aerie Guard icon or
   `chrome://filters` in an incognito window) is kept in memory only, for that profile only
   (`FilterEngineService::SetSessionExceptions`, keyed by the profile). It is never written to
   `state.json`, it does not apply to the regular profile or to another incognito session, and it
@@ -156,7 +156,7 @@ How it works:
   incognito cannot undo it; the page lists a host that is both saved and set in incognito once.
   The session is a `SessionKey` (`session_key.h`), never a bare pointer, and
   `FilterListManager::SetException` owns both rules (it watches the profile's end and refuses
-  the undo), so the toolbar button and the filters page only pass the `BrowserContext`. The
+  the undo), so the Aerie Guard icon and the filters page only pass the `BrowserContext`. The
   `filter_lists` Bench check proves this on a real build with a DevTools browser context, which
   is off the record.
 - **Count.** Workers and requests with no frame are not counted. Another blocker's blocks are not
