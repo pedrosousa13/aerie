@@ -36,8 +36,12 @@ class AerieFiltersHandler : public content::WebUIMessageHandler,
   AerieFiltersHandler& operator=(const AerieFiltersHandler&) = delete;
 
   // The state the page shows, as a dictionary. Public for tests.
+  // |session| is the off-the-record session key of the page's profile (null
+  // for a regular one): its in-memory exceptions are listed with the saved
+  // ones, and no other session's are.
   static base::DictValue StateToValue(const FilterListManager& manager,
-                                      const std::string& add_error);
+                                      const std::string& add_error,
+                                      const void* session = nullptr);
 
   // content::WebUIMessageHandler:
   void RegisterMessages() override;
@@ -55,6 +59,7 @@ class AerieFiltersHandler : public content::WebUIMessageHandler,
   void HandleSetException(const base::ListValue& args);
   void HandleSetAutoUpdate(const base::ListValue& args);
   void PushState();
+  const void* Session();
 
   bool page_ready_ = false;
   std::string add_error_;

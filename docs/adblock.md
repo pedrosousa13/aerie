@@ -108,11 +108,23 @@ How it works:
 - **Schedule.** With automatic updates on (the default), all lists are fetched once a day while the
   browser runs. A fresh install waits a day for the first check, so a new profile makes no request
   at all (the Bench check `zero_traffic` depends on this). The only servers contacted are the
-  lists' own addresses (see [network-endpoints.md](network-endpoints.md)).
+  lists' own addresses (see [network-endpoints.md](network-endpoints.md)). The day counts from
+  the check, not from a success: a list that fails to download or check keeps its old copy, shows
+  its error, and is not tried again until the next check a day later. There is no retry. The user
+  can click Update for one list or all at any time.
 - **Exceptions** are hosts. A request is never blocked when its top-level site is the host or a
   subdomain of it. They are read before the first request: the service holds requests until the
   settings are loaded. A change works at once and survives restart. The toolbar button reloads the
-  page after a change so the effect shows.
+  page after a change so the effect shows. Turning blocking off for a site also turns cosmetic
+  hiding off there: `FilterEngineService::IsCosmeticFilteringEnabled` (which the two stylesheet
+  calls use) is false for an excepted site, besides what the policy says. Cosmetic queries wait
+  for the settings like requests do.
+- **Incognito.** An exception set from an off-the-record profile (toolbar button or
+  `chrome://aerie-filters` in an incognito window) is kept in memory only, for that profile only
+  (`FilterEngineService::SetSessionExceptions`, keyed by the profile). It is never written to
+  `state.json`, it does not apply to the regular profile or to another incognito session, and it
+  is dropped when the profile is destroyed. A saved exception also holds in incognito, and
+  incognito cannot undo it.
 - **Count.** Workers and requests with no frame are not counted. Another blocker's blocks are not
   counted either.
 
@@ -144,7 +156,8 @@ tab ──> AerieCosmeticTabHelper ──> FilterEngineService ──posts──
 - Nothing in the renderer was added. No Mojo interface, no renderer target.
 - The hook for issue #10: `FilterEngineService::SetCosmeticFilteringPolicy(callback)`. The
   callback gets the top-level page URL and says whether cosmetic filtering is on. The default
-  is on. A frame answers to its top-level page, so an ad iframe is not judged by its own
+  is on. Besides the policy, a site with a per-site "blocking off" exception (issue #10, see
+  "Exceptions" above) gets no hide sheet: `IsCosmeticFilteringEnabled` checks both. A frame answers to its top-level page, so an ad iframe is not judged by its own
   host. A policy change reaches a page on its next navigation (stylesheets already
   injected stay).
 - Output size is bounded: `Aerie.Adblock.CosmeticRuleCount` records the rules of each

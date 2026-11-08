@@ -13,6 +13,7 @@
 #include "components/vector_icons/vector_icons.h"
 #include "ui/base/mojom/menu_source_type.mojom.h"
 #include "content/public/browser/navigation_controller.h"
+#include "content/public/browser/web_contents.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/controls/menu/menu_runner.h"
@@ -72,6 +73,11 @@ std::string AerieFilterToolbarButton::ActiveHost() const {
   return url.SchemeIsHTTPOrHTTPS() ? std::string(url.host()) : std::string();
 }
 
+const void* AerieFilterToolbarButton::ActiveSession() const {
+  content::WebContents* contents = ActiveWebContents();
+  return contents ? SessionKeyFor(contents->GetBrowserContext()) : nullptr;
+}
+
 void AerieFilterToolbarButton::OnActiveTabChanged() {
   content::WebContents* contents = ActiveWebContents();
   if (contents != observed_.get()) {
@@ -102,7 +108,8 @@ void AerieFilterToolbarButton::Update() {
   FilterListManager* manager = FilterListManager::Get();
   int count = PageBlockCounter::CountFor(observed_.get());
   std::string host = ActiveHost();
-  bool off = manager && !host.empty() && manager->HasException(host);
+  bool off = manager && !host.empty() &&
+             manager->HasException(host, ActiveSession());
   SetText(LabelForCount(count));
   std::u16string tooltip;
   if (off) {
@@ -122,9 +129,18 @@ void AerieFilterToolbarButton::ButtonPressed() {
   std::string host = ActiveHost();
   menu_model_ = std::make_unique<ui::SimpleMenuModel>(this);
   if (manager && !host.empty()) {
-    bool off = manager->HasException(host);
+    bool off = manager->HasException(host, ActiveSession());
+    // An exception saved in a regular window cannot be undone from incognito.
+    bool locked = off && ActiveSession() && manager->HasSavedException(host);
     menu_model_->AddItem(
-        kToggleSite, base::UTF8ToUTF16((off ? "Turn on blocking for " : "Turn off blocking for ") + host));
+        kToggleSite,
+        base::UTF8ToUTF16(
+            locked ? "Blocking is off here (turn it on in a regular window)"
+                   : (off ? "Turn on blocking for " : "Turn off blocking for ") +
+                         host +
+                         (ActiveSession() ? " (this incognito session only)"
+                                          : "")));
+    menu_model_->SetEnabledAt(menu_model_->GetItemCount() - 1, !locked);
   }
   menu_model_->AddItem(kManageLists, u"Manage filter lists...");
   menu_runner_ = std::make_unique<views::MenuRunner>(
@@ -140,7 +156,12 @@ void AerieFilterToolbarButton::ExecuteCommand(int command_id, int event_flags) {
     case kToggleSite: {
       std::string host = ActiveHost();
       if (manager && !host.empty()) {
-        manager->SetException(host, !manager->HasException(host));
+        const void* session = ActiveSession();
+        if (session) {
+          manager->WatchSession(ActiveWebContents()->GetBrowserContext());
+        }
+        manager->SetException(host, !manager->HasException(host, session),
+                              session);
         // An excepted site loads its ads on the next load; the page that is open
         // keeps what it has. Reload so the change is visible at once.
         if (content::WebContents* contents = ActiveWebContents()) {

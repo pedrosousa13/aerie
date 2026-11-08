@@ -69,6 +69,9 @@ void AdblockProxyingURLLoaderFactory::CreateLoaderAndStart(
     const net::MutableNetworkTrafficAnnotationTag& traffic_annotation) {
   std::optional<ClassifiedRequest> classified =
       ClassifyRequest(request, request_initiator_, isolation_info_);
+  if (classified.has_value()) {
+    classified->session = session_;
+  }
   if (!classified.has_value()) {
     target_factory_->CreateLoaderAndStart(std::move(loader_receiver),
                                           request_id, options, request,
@@ -122,7 +125,7 @@ void AdblockProxyingURLLoaderFactory::OnVerdict(
   AdblockProxyingURLLoader::CreateAndStart(
       target_factory_.get(), std::move(loader_receiver), request_id, options,
       request, std::move(client), traffic_annotation, request_initiator_,
-      isolation_info_, service_, frame_id_);
+      isolation_info_, service_, frame_id_, session_);
 }
 
 void AdblockProxyingURLLoaderFactory::OnTargetFactoryError() {

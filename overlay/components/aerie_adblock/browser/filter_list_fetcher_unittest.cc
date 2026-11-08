@@ -5,12 +5,15 @@
 #include "components/aerie_adblock/browser/filter_list_fetcher.h"
 
 #include <string>
+#include <vector>
 
 #include "base/run_loop.h"
 #include "base/test/bind.h"
 #include "base/test/task_environment.h"
 #include "net/base/load_flags.h"
+#include "net/http/http_response_headers.h"
 #include "net/http/http_status_code.h"
+#include "net/url_request/redirect_info.h"
 #include "net/url_request/referrer_policy.h"
 #include "services/network/public/cpp/weak_wrapper_shared_url_loader_factory.h"
 #include "services/network/test/test_url_loader_factory.h"
@@ -97,6 +100,59 @@ TEST_F(FilterListFetcherTest, ANetworkErrorIsAFailure) {
   auto fetcher = MakeFetcher();
   EXPECT_EQ(Fetch(*fetcher, "https://lists.example/a.txt").failure,
             ListFailure::kDownload);
+}
+
+net::RedirectInfo RedirectTo(const char* new_url) {
+  net::RedirectInfo info;
+  info.new_url = GURL(new_url);
+  info.new_method = "GET";
+  info.status_code = net::HTTP_FOUND;
+  return info;
+}
+
+network::TestURLLoaderFactory::Redirects OneRedirect(const char* new_url) {
+  network::TestURLLoaderFactory::Redirects redirects;
+  auto head = network::mojom::URLResponseHead::New();
+  head->headers = base::MakeRefCounted<net::HttpResponseHeaders>(
+      "HTTP/1.1 302 Found\nLocation: " + std::string(new_url) + "\n\n");
+  redirects.emplace_back(RedirectTo(new_url), std::move(head));
+  return redirects;
+}
+
+TEST_F(FilterListFetcherTest, ARedirectToHttpIsStoppedBeforeAnyRequestToIt) {
+  std::vector<GURL> requested;
+  factory_.SetInterceptor(base::BindLambdaForTesting(
+      [&](const network::ResourceRequest& request) {
+        requested.push_back(request.url);
+      }));
+  factory_.AddResponse(GURL("https://lists.example/a.txt"),
+                       network::mojom::URLResponseHead::New(), "",
+                       network::URLLoaderCompletionStatus(net::OK),
+                       OneRedirect("http://lists.example/b.txt"),
+                       network::TestURLLoaderFactory::
+                           kResponseOnlyRedirectsNoDestination);
+  factory_.AddResponse("http://lists.example/b.txt", "||ads.test^\n");
+  auto fetcher = MakeFetcher();
+  FilterListFetcher::Result result = Fetch(*fetcher, "https://lists.example/a.txt");
+  EXPECT_EQ(result.failure, ListFailure::kInsecureUrl);
+  EXPECT_TRUE(result.body.empty());
+  // Only the original https request was ever made, and nothing is left running.
+  EXPECT_EQ(requested, std::vector<GURL>{GURL("https://lists.example/a.txt")});
+  EXPECT_EQ(factory_.NumPending(), 0);
+}
+
+TEST_F(FilterListFetcherTest, ARedirectToHttpsIsFollowed) {
+  factory_.AddResponse(GURL("https://lists.example/a.txt"),
+                       network::mojom::URLResponseHead::New(), "",
+                       network::URLLoaderCompletionStatus(net::OK),
+                       OneRedirect("https://mirror.example/b.txt"),
+                       network::TestURLLoaderFactory::
+                           kResponseOnlyRedirectsNoDestination);
+  factory_.AddResponse("https://mirror.example/b.txt", "||ads.test^\n");
+  auto fetcher = MakeFetcher();
+  FilterListFetcher::Result result = Fetch(*fetcher, "https://lists.example/a.txt");
+  EXPECT_EQ(result.failure, ListFailure::kNone);
+  EXPECT_EQ(result.body, "||ads.test^\n");
 }
 
 }  // namespace

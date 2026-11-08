@@ -262,6 +262,53 @@ TEST_F(FilterListManagerTest, ASiteExceptionWorksAtOnceAndIsSaved) {
   EXPECT_TRUE(second.exceptions().count("news.test"));
 }
 
+TEST_F(FilterListManagerTest, AnIncognitoExceptionIsMemoryOnlyAndScopedToItsSession) {
+  auto manager = MakeManager();
+  int incognito = 0, other_incognito = 0;
+  ASSERT_TRUE(manager->SetException("News.Test", true, &incognito));
+  EXPECT_TRUE(manager->HasException("news.test", &incognito));
+  EXPECT_TRUE(manager->HasException("www.news.test", &incognito));
+  // Not in the regular profile, not in another incognito session.
+  EXPECT_FALSE(manager->HasException("news.test"));
+  EXPECT_FALSE(manager->HasException("news.test", &other_incognito));
+  EXPECT_FALSE(manager->HasSavedException("news.test"));
+  EXPECT_TRUE(manager->state().exceptions().empty());
+  EXPECT_TRUE(service_.exceptions().empty());
+  EXPECT_EQ(std::set<std::string>{"news.test"}, manager->SessionExceptions(&incognito));
+  EXPECT_FALSE(manager->SetException("not a host", true, &incognito));
+
+  // Nothing reaches the disk, even after the saves have run.
+  manager->SetException("regular.test", true);  // Forces a save of the state.
+  manager.reset();
+  base::RunLoop().RunUntilIdle();
+  task_environment_.RunUntilIdle();
+  EXPECT_EQ(std::set<std::string>{"regular.test"},
+            filter_list_storage::LoadState(dir_.GetPath()).exceptions());
+  std::string file;
+  ASSERT_TRUE(base::ReadFileToString(
+      dir_.GetPath().AppendASCII("state.json"), &file));
+  EXPECT_EQ(std::string::npos, file.find("news.test"));
+}
+
+TEST_F(FilterListManagerTest, ClearingASessionDropsItsExceptions) {
+  auto manager = MakeManager();
+  int incognito = 0;
+  manager->SetException("news.test", true, &incognito);
+  manager->ClearSessionExceptions(&incognito);
+  EXPECT_FALSE(manager->HasException("news.test", &incognito));
+  EXPECT_TRUE(manager->SessionExceptions(&incognito).empty());
+  // The engine side is cleared too: ads are blocked again for that session.
+  EXPECT_FALSE(service_.IsExcepted("news.test", &incognito));
+}
+
+TEST_F(FilterListManagerTest, ASavedExceptionAlsoHoldsInIncognito) {
+  auto manager = MakeManager();
+  int incognito = 0;
+  manager->SetException("news.test", true);
+  EXPECT_TRUE(manager->HasException("news.test", &incognito));
+  EXPECT_TRUE(manager->HasSavedException("news.test"));
+}
+
 TEST_F(FilterListManagerTest, TheScheduledUpdateWaitsADayThenAsksOnlyThePublishers) {
   network_.AddResponse(kEasyListUrl, "! Title: EasyList\n||new-one.example^\n");
   network_.AddResponse(kEasyPrivacyUrl, "||new-two.example^\n");

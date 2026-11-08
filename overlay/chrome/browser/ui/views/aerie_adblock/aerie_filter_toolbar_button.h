@@ -66,6 +66,9 @@ class AerieFilterToolbarButton : public ToolbarButton,
   void Update();
   // The host of the active page when it is an http(s) page, else "".
   std::string ActiveHost() const;
+  // The off-the-record session key of the active tab's profile; null for a
+  // regular profile. Exceptions set in a session are never saved.
+  const void* ActiveSession() const;
   content::WebContents* ActiveWebContents() const;
 
   const raw_ptr<BrowserWindowInterface> browser_;

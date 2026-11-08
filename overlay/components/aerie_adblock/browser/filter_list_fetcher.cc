@@ -123,12 +123,10 @@ void FilterListFetcher::OnRedirect(int id, const GURL& new_url) {
   if (IsAcceptableListUrl(new_url, allow_loopback_)) {
     return;
   }
-  // The callback may delete the loader, but not safely from inside itself:
-  // finish on the next turn.
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-      FROM_HERE, base::BindOnce(&FilterListFetcher::Finish,
-                                weak_factory_.GetWeakPtr(), id,
-                                ListFailure::kInsecureUrl, std::nullopt));
+  // SimpleURLLoader allows deleting the loader inside its redirect callback
+  // and does not follow the redirect if it was deleted. Finish() deletes the
+  // loader now, so no request goes to the unacceptable address.
+  Finish(id, ListFailure::kInsecureUrl, std::nullopt);
 }
 
 void FilterListFetcher::Finish(int id,

@@ -150,12 +150,41 @@ void FilterEngineService::SetExceptions(std::set<std::string> hosts) {
   ReleaseHeldRequests();
 }
 
+void FilterEngineService::SetSessionExceptions(const void* session,
+                                               std::set<std::string> hosts) {
+  if (!session) {
+    return;  // Regular profiles use SetExceptions().
+  }
+  if (hosts.empty()) {
+    session_exceptions_.erase(session);
+  } else {
+    session_exceptions_[session] = std::move(hosts);
+  }
+}
+
+bool FilterEngineService::IsExcepted(std::string_view host,
+                                     const void* session) const {
+  if (HostHasException(host, exceptions_)) {
+    return true;
+  }
+  if (!session) {
+    return false;
+  }
+  auto it = session_exceptions_.find(session);
+  return it != session_exceptions_.end() && HostHasException(host, it->second);
+}
+
 void FilterEngineService::ReleaseHeldRequests() {
   holding_ = false;
   auto held = std::move(held_);
   held_.clear();
+  auto held_cosmetic = std::move(held_cosmetic_);
+  held_cosmetic_.clear();
   for (auto& [request, callback] : held) {
     ShouldBlock(std::move(request), std::move(callback));
+  }
+  for (base::OnceClosure& query : held_cosmetic) {
+    std::move(query).Run();
   }
 }
 
@@ -176,7 +205,7 @@ void FilterEngineService::ShouldBlock(ClassifiedRequest request,
     held_.emplace_back(std::move(request), std::move(callback));
     return;
   }
-  if (!started_ || HostHasException(request.source_hostname, exceptions_)) {
+  if (!started_ || IsExcepted(request.source_hostname, request.session)) {
     std::move(callback).Run(false);
     return;
   }
@@ -187,9 +216,16 @@ void FilterEngineService::ShouldBlock(ClassifiedRequest request,
 
 void FilterEngineService::GetCosmeticStylesheet(const GURL& top_level_url,
                                                 const GURL& page_url,
-                                                StylesheetCallback callback) {
+                                                StylesheetCallback callback,
+                                                const void* session) {
+  if (holding_) {
+    held_cosmetic_.push_back(base::BindOnce(
+        &FilterEngineService::GetCosmeticStylesheet, base::Unretained(this),
+        top_level_url, page_url, std::move(callback), session));
+    return;
+  }
   if (!started_ || !page_url.SchemeIsHTTPOrHTTPS() ||
-      !IsCosmeticFilteringEnabled(top_level_url)) {
+      !IsCosmeticFilteringEnabled(top_level_url, session)) {
     std::move(callback).Run(std::string());
     return;
   }
@@ -202,9 +238,17 @@ void FilterEngineService::GetGenericStylesheet(const GURL& top_level_url,
                                                const GURL& page_url,
                                                std::string classes,
                                                std::string ids,
-                                               StylesheetCallback callback) {
+                                               StylesheetCallback callback,
+                                               const void* session) {
+  if (holding_) {
+    held_cosmetic_.push_back(base::BindOnce(
+        &FilterEngineService::GetGenericStylesheet, base::Unretained(this),
+        top_level_url, page_url, std::move(classes), std::move(ids),
+        std::move(callback), session));
+    return;
+  }
   if (!started_ || !page_url.SchemeIsHTTPOrHTTPS() ||
-      !IsCosmeticFilteringEnabled(top_level_url)) {
+      !IsCosmeticFilteringEnabled(top_level_url, session)) {
     std::move(callback).Run(std::string());
     return;
   }
@@ -219,7 +263,11 @@ void FilterEngineService::SetCosmeticFilteringPolicy(
 }
 
 bool FilterEngineService::IsCosmeticFilteringEnabled(
-    const GURL& top_level_url) const {
+    const GURL& top_level_url,
+    const void* session) const {
+  if (IsExcepted(NormalizeExceptionHost(top_level_url.host()), session)) {
+    return false;  // Blocking is off for this site: no hiding either.
+  }
   return cosmetic_policy_.is_null() || cosmetic_policy_.Run(top_level_url);
 }
 

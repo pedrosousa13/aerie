@@ -1,6 +1,6 @@
 # 1. Block ads natively with adblock-rust, in the browser process
 
-Status: accepted (issue #8)
+Status: accepted (issue #8). Partly superseded by [ADR 0003](0003-user-managed-filter-lists.md) (issue #10): "no user controls" and "the build never fetches" now apply to the shipped lists only.
 
 ## Context
 

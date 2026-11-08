@@ -56,6 +56,9 @@ class AdblockProxyingURLLoaderFactory
   void SetFrameId(content::GlobalRenderFrameHostId frame_id) {
     frame_id_ = frame_id;
   }
+  // The off-the-record session key (see SessionKeyFor()); null for a regular
+  // profile. Requests carry it so that session exceptions reach only them.
+  void SetSession(const void* session) { session_ = session; }
 
   AdblockProxyingURLLoaderFactory(const AdblockProxyingURLLoaderFactory&) =
       delete;
@@ -99,6 +102,7 @@ class AdblockProxyingURLLoaderFactory
   // The frame this factory was made for (invalid for workers), for the
   // per-page blocked count.
   content::GlobalRenderFrameHostId frame_id_;
+  const void* session_ = nullptr;
   base::WeakPtrFactory<AdblockProxyingURLLoaderFactory> weak_factory_{this};
 };
 

@@ -7,6 +7,8 @@
 
 #include <memory>
 #include <string>
+#include <map>
+#include <set>
 #include <string_view>
 
 #include "base/files/file_path.h"
@@ -103,8 +105,28 @@ class FilterListManager {
   void UpdateAll();
 
   // |host| as in FilterListState::SetException. Takes effect at once.
-  bool SetException(std::string_view host, bool excepted);
-  bool HasException(std::string_view host) const;
+  //
+  // |session| is null for a regular profile: the exception is saved to disk
+  // and holds for every profile. For an off-the-record profile it is the key
+  // from SessionKeyFor(): the exception is kept in memory only, holds for that
+  // session only, and is gone when ClearSessionExceptions() runs (the profile's
+  // end, see WatchSession()). It is never written to the state file, so
+  // nothing an incognito window does shows in the regular profile.
+  bool SetException(std::string_view host,
+                    bool excepted,
+                    const void* session = nullptr);
+  // True when blocking is off for |host| (saved, or for |session|).
+  bool HasException(std::string_view host, const void* session = nullptr) const;
+  // True when |host| has a saved exception: one that an off-the-record window
+  // cannot turn back on (the regular profile owns it).
+  bool HasSavedException(std::string_view host) const;
+  // The hosts excepted for |session| only (a copy).
+  std::set<std::string> SessionExceptions(const void* session) const;
+  void ClearSessionExceptions(const void* session);
+  // Calls ClearSessionExceptions() for an off-the-record |context| when it is
+  // destroyed. Idempotent. Do it before the first SetException() for the
+  // context's session.
+  void WatchSession(content::BrowserContext* context);
 
   void SetAutoUpdate(bool enabled);
 
@@ -137,6 +159,8 @@ class FilterListManager {
   // Blocking work: the state file and the list files. Runs in order.
   scoped_refptr<base::SequencedTaskRunner> file_runner_;
   FilterListState state_;
+  // Off-the-record exceptions, by session. Memory only.
+  std::map<const void*, std::set<std::string>> session_exceptions_;
   int pending_ = 0;
   bool loaded_ = false;
   base::RepeatingTimer schedule_timer_;

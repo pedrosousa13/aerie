@@ -36,6 +36,11 @@ struct ClassifiedRequest {
   std::string source_hostname;  // Host of the initiator; empty if opaque.
   RequestKind kind = RequestKind::kOther;
   bool third_party = true;
+  // Which off-the-record session the request is from, as an opaque key that is
+  // only compared (never dereferenced); null for a regular profile. Session
+  // exceptions (see FilterEngineService::SetSessionExceptions) apply only to
+  // requests with their key.
+  const void* session = nullptr;
 };
 
 }  // namespace aerie_adblock

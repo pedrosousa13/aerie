@@ -9,6 +9,7 @@
 
 #include "base/command_line.h"
 #include "base/functional/bind.h"
+#include "base/notreached.h"
 #include "base/memory/self_deleting.h"
 #include "base/task/thread_pool.h"
 #include "content/public/browser/render_frame_host.h"
@@ -32,9 +33,18 @@ std::string_view ShippedEngine() {
 }
 
 // The text of a built-in list, from the resource bundle (decompressed).
+// An id that is not a built-in list has no shipped text: NOTREACHED in debug
+// builds, and an empty text otherwise, which the manager's list check rejects,
+// so an unknown id never silently gets another list's rules.
 std::string ShippedList(std::string_view id) {
-  int resource = id == kEasyListId ? IDR_AERIE_ADBLOCK_EASYLIST
-                                   : IDR_AERIE_ADBLOCK_EASYPRIVACY;
+  int resource;
+  if (id == kEasyListId) {
+    resource = IDR_AERIE_ADBLOCK_EASYLIST;
+  } else if (id == kEasyPrivacyId) {
+    resource = IDR_AERIE_ADBLOCK_EASYPRIVACY;
+  } else {
+    NOTREACHED() << "no shipped text for list " << id;
+  }
   return ui::ResourceBundle::GetSharedInstance().LoadDataResourceString(
       resource);
 }
@@ -73,7 +83,8 @@ void MaybeProxyURLLoaderFactory(
     const url::Origin& request_initiator,
     const net::IsolationInfo& isolation_info,
     network::URLLoaderFactoryBuilder& factory_builder,
-    content::RenderFrameHost* frame) {
+    content::RenderFrameHost* frame,
+    content::BrowserContext* browser_context) {
   if (!AdblockProxyingURLLoaderFactory::IsCoveredType(type)) {
     return;
   }
@@ -88,6 +99,7 @@ void MaybeProxyURLLoaderFactory(
       base::MakeSelfDeleting<AdblockProxyingURLLoaderFactory>(
           std::move(receiver), std::move(remote), request_initiator,
           isolation_info, service->GetWeakPtr());
+  proxy->SetSession(SessionKeyFor(browser_context));
   if (frame) {
     proxy->SetFrameId(frame->GetGlobalId());
   }

@@ -38,14 +38,17 @@ namespace aerie_adblock {
 //
 // |isolation_info| is the one WillCreateURLLoaderFactory() was given; the proxy
 // uses its top-frame origin as the first party. |frame| is the frame the
-// factory is for, if any; the per-page blocked count uses it. Does nothing when no Filter
+// factory is for, if any; the per-page blocked count uses it. |browser_context|
+// is the profile: an off-the-record one gets exceptions of its own that are
+// never saved (SessionKeyFor()). Does nothing when no Filter
 // Engine service is registered (unit tests; before the browser creates it).
 void MaybeProxyURLLoaderFactory(
     content::ContentBrowserClient::URLLoaderFactoryType type,
     const url::Origin& request_initiator,
     const net::IsolationInfo& isolation_info,
     network::URLLoaderFactoryBuilder& factory_builder,
-    content::RenderFrameHost* frame = nullptr);
+    content::RenderFrameHost* frame = nullptr,
+    content::BrowserContext* browser_context = nullptr);
 
 // Creates the browser's Filter Engine service, registers it as the process
 // instance and starts loading the shipped engine. The caller owns it: see

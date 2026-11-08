@@ -286,13 +286,36 @@ TEST_F(FilterEngineServiceTest, RecordBlockedReachesTheCallback) {
   EXPECT_EQ(content::GlobalRenderFrameHostId(3, 4), seen);
 }
 
+TEST_F(FilterEngineServiceTest, ASessionExceptionAppliesToThatSessionOnly) {
+  static const std::string kEngine = SerializedEngine("||ads.example^\n");
+  service_.Start(kEngine);
+  int session_a = 0, session_b = 0;
+  service_.SetSessionExceptions(&session_a, {"news.test"});
+
+  auto ask = [&](const void* session) {
+    ClassifiedRequest request = Script("https://ads.example/a.js", "ads.example");
+    request.source_hostname = "news.test";
+    request.session = session;
+    return Ask(request);
+  };
+  EXPECT_FALSE(ask(&session_a));   // The session that set it: ads load.
+  EXPECT_TRUE(ask(&session_b));    // Another incognito session.
+  EXPECT_TRUE(ask(nullptr));       // The regular profile.
+  EXPECT_TRUE(service_.exceptions().empty());  // Nothing persistable changed.
+
+  service_.SetSessionExceptions(&session_a, {});  // The session ended.
+  EXPECT_TRUE(ask(&session_a));
+}
+
 }  // namespace
 
 // ---- Cosmetic filtering (issue #9) ----
 
 class CosmeticServiceTest : public FilterEngineServiceTest {
  protected:
-  std::string Page(const char* top, const char* page) {
+  std::string Page(const char* top,
+                   const char* page,
+                   const void* session = nullptr) {
     std::string css;
     base::RunLoop loop;
     service_.GetCosmeticStylesheet(
@@ -300,7 +323,8 @@ class CosmeticServiceTest : public FilterEngineServiceTest {
         base::BindLambdaForTesting([&](std::string result) {
           css = std::move(result);
           loop.Quit();
-        }));
+        }),
+        session);
     loop.Run();
     return css;
   }
@@ -308,7 +332,8 @@ class CosmeticServiceTest : public FilterEngineServiceTest {
   std::string Generic(const char* top,
                       const char* page,
                       const char* classes,
-                      const char* ids) {
+                      const char* ids,
+                      const void* session = nullptr) {
     std::string css;
     base::RunLoop loop;
     service_.GetGenericStylesheet(
@@ -316,7 +341,8 @@ class CosmeticServiceTest : public FilterEngineServiceTest {
         base::BindLambdaForTesting([&](std::string result) {
           css = std::move(result);
           loop.Quit();
-        }));
+        }),
+        session);
     loop.Run();
     return css;
   }
@@ -363,6 +389,55 @@ TEST_F(CosmeticServiceTest, ThePolicyCanTurnCosmeticFilteringOffPerSite) {
                   .empty());
   EXPECT_FALSE(Generic("https://news.test/", "https://news.test/", "ad-banner", "")
                    .empty());
+}
+
+TEST_F(CosmeticServiceTest, ASiteWithBlockingOffGetsNoHideSheet) {
+  static const std::string kEngine = SerializedEngine("##.ad-banner\n");
+  service_.Start(kEngine);
+  service_.SetExceptions({"off.test"});
+  EXPECT_FALSE(service_.IsCosmeticFilteringEnabled(GURL("https://off.test/")));
+  EXPECT_FALSE(service_.IsCosmeticFilteringEnabled(GURL("https://www.off.test/")));
+  EXPECT_TRUE(service_.IsCosmeticFilteringEnabled(GURL("https://news.test/")));
+  EXPECT_TRUE(Page("https://off.test/", "https://off.test/").empty());
+  EXPECT_TRUE(Generic("https://off.test/", "https://off.test/", "ad-banner", "")
+                  .empty());
+  // An ad iframe on the excepted page follows the page.
+  EXPECT_TRUE(Generic("https://off.test/", "https://ads.test/", "ad-banner", "")
+                  .empty());
+  EXPECT_FALSE(Generic("https://news.test/", "https://news.test/", "ad-banner", "")
+                   .empty());
+  service_.SetExceptions({});  // Blocking back on: hiding is back.
+  EXPECT_FALSE(Generic("https://off.test/", "https://off.test/", "ad-banner", "")
+                   .empty());
+}
+
+TEST_F(CosmeticServiceTest, ASessionExceptionStopsHidingInThatSessionOnly) {
+  static const std::string kEngine = SerializedEngine("##.ad-banner\n");
+  service_.Start(kEngine);
+  int incognito = 0;
+  service_.SetSessionExceptions(&incognito, {"off.test"});
+  EXPECT_TRUE(Generic("https://off.test/", "https://off.test/", "ad-banner", "",
+                      &incognito)
+                  .empty());
+  EXPECT_FALSE(Generic("https://off.test/", "https://off.test/", "ad-banner", "")
+                   .empty());
+}
+
+TEST_F(CosmeticServiceTest, StylesheetsWaitWhileTheSettingsLoad) {
+  static const std::string kEngine = SerializedEngine("##.ad-banner\n");
+  service_.Start(kEngine);
+  service_.HoldRequestsUntilSettingsLoaded();
+  std::vector<std::string> answers;
+  service_.GetGenericStylesheet(
+      GURL("https://off.test/"), GURL("https://off.test/"), "ad-banner", "",
+      base::BindLambdaForTesting(
+          [&](std::string css) { answers.push_back(std::move(css)); }));
+  task_environment_.RunUntilIdle();
+  EXPECT_TRUE(answers.empty());  // Held, so the exception can still apply.
+  service_.SetExceptions({"off.test"});
+  task_environment_.RunUntilIdle();
+  ASSERT_EQ(1u, answers.size());
+  EXPECT_TRUE(answers[0].empty());
 }
 
 }  // namespace aerie_adblock

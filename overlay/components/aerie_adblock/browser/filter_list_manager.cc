@@ -12,9 +12,11 @@
 #include "base/functional/bind.h"
 #include "base/logging.h"
 #include "base/metrics/histogram_functions.h"
+#include "base/supports_user_data.h"
 #include "base/task/thread_pool.h"
 #include "components/aerie_adblock/browser/adblock_engine.h"
 #include "components/aerie_adblock/browser/filter_list_storage.h"
+#include "content/public/browser/browser_context.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 
 namespace aerie_adblock {
@@ -184,7 +186,52 @@ void FilterListManager::MaybeRunScheduledUpdate(base::Time now) {
   }
 }
 
-bool FilterListManager::SetException(std::string_view host, bool excepted) {
+namespace {
+
+constexpr size_t kMaxSessionExceptions = 1000;
+const char kSessionWatchKey[] = "aerie_adblock.session_watch";
+
+// Lives in the off-the-record profile's user data, so it is destroyed with it.
+class SessionWatch : public base::SupportsUserData::Data {
+ public:
+  explicit SessionWatch(const void* key) : key_(key) {}
+  ~SessionWatch() override {
+    if (FilterListManager* manager = FilterListManager::Get()) {
+      manager->ClearSessionExceptions(key_);
+    }
+  }
+
+ private:
+  const void* const key_;
+};
+
+}  // namespace
+
+bool FilterListManager::SetException(std::string_view host,
+                                     bool excepted,
+                                     const void* session) {
+  if (session) {
+    std::string normalized = NormalizeExceptionHost(host);
+    if (normalized.empty()) {
+      return false;
+    }
+    std::set<std::string>& hosts = session_exceptions_[session];
+    if (!excepted) {
+      hosts.erase(normalized);
+    } else if (hosts.size() < kMaxSessionExceptions || hosts.count(normalized)) {
+      hosts.insert(std::move(normalized));
+    } else {
+      return false;
+    }
+    if (service_) {
+      service_->SetSessionExceptions(session, hosts);
+    }
+    if (hosts.empty()) {
+      session_exceptions_.erase(session);
+    }
+    Notify();
+    return true;  // No Save(): this never reaches the disk.
+  }
   if (!state_.SetException(host, excepted)) {
     return false;
   }
@@ -196,8 +243,45 @@ bool FilterListManager::SetException(std::string_view host, bool excepted) {
   return true;
 }
 
-bool FilterListManager::HasException(std::string_view host) const {
+bool FilterListManager::HasException(std::string_view host,
+                                     const void* session) const {
+  std::string normalized = NormalizeExceptionHost(host);
+  if (HostHasException(normalized, state_.exceptions())) {
+    return true;
+  }
+  auto it = session ? session_exceptions_.find(session)
+                    : session_exceptions_.end();
+  return it != session_exceptions_.end() &&
+         HostHasException(normalized, it->second);
+}
+
+bool FilterListManager::HasSavedException(std::string_view host) const {
   return HostHasException(NormalizeExceptionHost(host), state_.exceptions());
+}
+
+std::set<std::string> FilterListManager::SessionExceptions(
+    const void* session) const {
+  auto it = session ? session_exceptions_.find(session)
+                    : session_exceptions_.end();
+  return it == session_exceptions_.end() ? std::set<std::string>() : it->second;
+}
+
+void FilterListManager::ClearSessionExceptions(const void* session) {
+  if (session_exceptions_.erase(session) == 0) {
+    return;
+  }
+  if (service_) {
+    service_->SetSessionExceptions(session, {});
+  }
+  Notify();
+}
+
+void FilterListManager::WatchSession(content::BrowserContext* context) {
+  if (!SessionKeyFor(context) || context->GetUserData(kSessionWatchKey)) {
+    return;
+  }
+  context->SetUserData(kSessionWatchKey,
+                       std::make_unique<SessionWatch>(SessionKeyFor(context)));
 }
 
 void FilterListManager::SetAutoUpdate(bool enabled) {

@@ -9,6 +9,8 @@
 
 #include "base/functional/bind.h"
 #include "components/aerie_adblock/browser/filter_list_state.h"
+#include "content/public/browser/browser_context.h"
+#include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_ui.h"
 #include "url/gurl.h"
 
@@ -35,7 +37,8 @@ AerieFiltersHandler::~AerieFiltersHandler() = default;
 // static
 base::DictValue AerieFiltersHandler::StateToValue(
     const FilterListManager& manager,
-    const std::string& add_error) {
+    const std::string& add_error,
+    const void* session) {
   const FilterListState& state = manager.state();
   base::DictValue out;
   out.Set("ready", true);
@@ -44,6 +47,9 @@ base::DictValue AerieFiltersHandler::StateToValue(
   out.Set("addError", add_error);
   base::ListValue exceptions;
   for (const std::string& host : state.exceptions()) {
+    exceptions.Append(host);
+  }
+  for (const std::string& host : manager.SessionExceptions(session)) {
     exceptions.Append(host);
   }
   out.Set("exceptions", std::move(exceptions));
@@ -109,6 +115,10 @@ void AerieFiltersHandler::OnFilterListsChanged() {
   PushState();
 }
 
+const void* AerieFiltersHandler::Session() {
+  return SessionKeyFor(web_ui()->GetWebContents()->GetBrowserContext());
+}
+
 void AerieFiltersHandler::PushState() {
   FilterListManager* manager = FilterListManager::Get();
   if (!page_ready_ || !manager) {
@@ -116,7 +126,7 @@ void AerieFiltersHandler::PushState() {
   }
   web_ui()->CallJavascriptFunctionUnsafe(
       "aerieFilters.setState",
-      base::Value(StateToValue(*manager, add_error_)));
+      base::Value(StateToValue(*manager, add_error_, Session())));
 }
 
 void AerieFiltersHandler::HandleGetState(const base::ListValue& args) {
@@ -171,7 +181,19 @@ void AerieFiltersHandler::HandleSetException(const base::ListValue& args) {
     return;
   }
   add_error_.clear();
-  if (!manager->SetException(*host, args[1].GetBool())) {
+  const void* session = Session();
+  bool excepted = args[1].GetBool();
+  if (session && !excepted && manager->HasSavedException(*host)) {
+    // The regular profile owns saved exceptions. Do not undo them from here.
+    add_error_ =
+        "This site was turned off in a regular window. Turn it back on there.";
+    PushState();
+    return;
+  }
+  if (session) {
+    manager->WatchSession(web_ui()->GetWebContents()->GetBrowserContext());
+  }
+  if (!manager->SetException(*host, excepted, session)) {
     add_error_ = "That is not a valid site name.";
     PushState();
   }
