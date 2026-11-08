@@ -37,15 +37,17 @@ class ScrubTest(unittest.TestCase):
         for url in ("chrome://settings/", "chrome://version/", "chrome://flags/other"):
             self.assertTrue(branding.find_helium(branding.scrub("Noise #helium-x", url)), url)
 
-    def test_build_path_lines_are_exempt_on_the_version_page_only(self):
+    def test_build_path_lines_are_exempt_on_the_version_and_about_pages_only(self):
         self.assertFalse(branding.find_helium(branding.scrub(self.PATHS, "chrome://version/")))
         for url in ("chrome://flags/", "chrome://settings/help", "chrome://management/"):
             self.assertTrue(branding.find_helium(branding.scrub(self.PATHS, url)), url)
 
-    def test_the_helium_authors_credit_is_exempt_on_the_version_page_only(self):
+    def test_the_helium_authors_credit_is_exempt_on_the_version_and_about_pages_only(self):
         line = "Copyright 2026 The Aerie Authors, The Helium Authors and The Chromium Authors."
         self.assertFalse(branding.find_helium(branding.scrub(line, "chrome://version/")))
-        self.assertTrue(branding.find_helium(branding.scrub(line, "chrome://settings/help")))
+        self.assertFalse(branding.find_helium(branding.scrub(line, "chrome://settings/help")))
+        self.assertTrue(branding.find_helium(branding.scrub(line, "chrome://settings/privacy")))
+        self.assertTrue(branding.find_helium(branding.scrub("The Helium team", "chrome://settings/help")))
         self.assertTrue(branding.find_helium(branding.scrub("The Helium team", "chrome://version/")))
 
 

@@ -66,7 +66,8 @@ _PATH_LINE_RE = re.compile(r"^(Command Line|Executable Path|Profile Path)\t.*$",
 _FLAG_ID_RE = re.compile(r"#helium-[a-z0-9-]+")
 
 # Aerie is derived from Helium and Chromium, so the copyright line on chrome://version credits
-# "The Helium Authors" by name. That exact string is attribution, not branding.
+# "The Helium Authors" by name, on chrome://version and on About (chrome://settings/help). That exact
+# string is attribution, not branding.
 _CREDIT_RE = re.compile(r"The Helium Authors")
 
 _HELIUM_RE = re.compile(r"(?<![A-Za-z0-9_])helium(?![A-Za-z0-9_])", re.IGNORECASE)
@@ -101,9 +102,11 @@ def find_helium(text: str) -> list[str]:
 
 def scrub(text: str, url: str) -> str:
     """Drop what is not branding, on the one page where it belongs: build paths and the credit to
-    The Helium Authors on chrome://version, internal flag ids on chrome://flags."""
+    The Helium Authors on chrome://version and About, internal flag ids on chrome://flags."""
     if url == "chrome://version/":
         text = _CREDIT_RE.sub("", _PATH_LINE_RE.sub("", text))
+    elif url == "chrome://settings/help":
+        text = _CREDIT_RE.sub("", text)
     elif url == "chrome://flags/":
         text = _FLAG_ID_RE.sub("", text)
     return text
