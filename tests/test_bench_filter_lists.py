@@ -185,6 +185,14 @@ class HelpersTest(unittest.TestCase):
         self.assertIn("filter_lists", REGISTRY)
         self.assertEqual(fl.FLAG, "--aerie-test-allow-loopback-filter-lists")
 
+    def test_the_page_host_is_filters(self):
+        # The page reads aerie://filters; the host in code must stay in step with the check.
+        self.assertEqual(fl.MANAGER_URL, "chrome://filters")
+        header = (Path(__file__).resolve().parent.parent / "overlay/chrome/browser/ui/webui/aerie_filters"
+                  / "aerie_filters_ui.h").read_text()
+        self.assertIn('kAerieFiltersHost[] = "filters";', header)
+        self.assertNotIn("aerie-filters", header)
+
 
 class FixtureTest(unittest.TestCase):
     def test_fixtures_exist_and_the_list_blocks_the_ads_not_the_trap(self):

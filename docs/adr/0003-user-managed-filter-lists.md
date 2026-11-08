@@ -18,7 +18,7 @@ The Filter Engine of #8 blocks with two lists that ship in the build. Users need
 - **Incognito exceptions are memory only.** An exception set from an off-the-record profile is kept in memory for that profile (the engine keys it by the profile, and each request carries the key through patch `0008`). It is not written to `state.json`, does not apply to the regular profile or another incognito session, and is dropped when the profile is destroyed. Writing it to disk would leave the incognito browsing history of the site in the regular profile. A saved exception still applies in incognito, and incognito cannot turn it back on (the page says so).
 - **Blocking off also means no cosmetic hiding** (ADR 0002). `IsCosmeticFilteringEnabled` is false for an excepted site, and cosmetic queries wait for the settings like requests do.
 - **The count** is per tab and per page. The proxy factory learns its frame from the hook (`patches/adblock/0008`); a `WebContentsUserData` counts and resets on the next committed document. Workers are not counted.
-- **UI**: a WebUI page, `chrome://aerie-filters`, and a toolbar button, not the Settings page (a Polymer page would need a Helium-coupled settings patch). The sidebar and command bar take the button's role in M2 and M3.
+- **UI**: a WebUI page, `chrome://filters`, and a toolbar button, not the Settings page (a Polymer page would need a Helium-coupled settings patch). The sidebar and command bar take the button's role in M2 and M3.
 
 ## Consequences
 

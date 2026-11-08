@@ -1,4 +1,4 @@
-"""Filter lists: the user manages lists on chrome://aerie-filters and can turn blocking off per site.
+"""Filter lists: the user manages lists on chrome://filters and can turn blocking off per site.
 
 The browser runs with ``--aerie-test-allow-loopback-filter-lists`` (http list URLs only on
 loopback). The fixture server serves a list (``/filters/custom-list.txt``, one rule that blocks
@@ -41,7 +41,7 @@ from . import register
 from .ad_blocking import boolean_counts
 
 FLAG = "--aerie-test-allow-loopback-filter-lists"
-MANAGER_URL = "chrome://aerie-filters"
+MANAGER_URL = "chrome://filters"
 PAGE_PATH = "/filters/page.html"
 LIST_PATH = "/filters/custom-list.txt"
 HTML_LIST_PATH = "/filters/not-a-list.html"

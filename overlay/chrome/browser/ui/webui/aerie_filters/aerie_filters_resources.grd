@@ -4,7 +4,7 @@
   You can use, redistribute, and/or modify this source code under
   the terms of the GPL-3.0 license that can be found in the LICENSE file.
 
-  Resources of chrome://aerie-filters, the filter list settings page.
+  Resources of chrome://filters, the filter list settings page.
 -->
 <grit latest_public_release="0" current_release="1">
   <outputs>

@@ -11,12 +11,12 @@
 
 namespace aerie_adblock {
 
-inline constexpr char kAerieFiltersHost[] = "aerie-filters";
-inline constexpr char kAerieFiltersURL[] = "chrome://aerie-filters/";
+inline constexpr char kAerieFiltersHost[] = "filters";
+inline constexpr char kAerieFiltersURL[] = "chrome://filters/";
 
 class AerieFiltersUI;
 
-// chrome://aerie-filters: where the user manages filter lists, per-site
+// chrome://filters: where the user manages filter lists, per-site
 // exceptions and the update schedule (issue #10). Registered in
 // chrome_web_ui_configs.cc by patches/adblock/0009.
 class AerieFiltersUIConfig : public content::DefaultWebUIConfig<AerieFiltersUI> {

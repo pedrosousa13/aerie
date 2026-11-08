@@ -4,7 +4,7 @@
 
 import("//tools/grit/grit_rule.gni")
 
-# chrome://aerie-filters (issue #10). Registered by patches/adblock/0009.
+# chrome://filters (issue #10). Registered by patches/adblock/0009.
 source_set("aerie_filters") {
   visibility = [ "//chrome/browser/ui/webui:*" ]
   sources = [

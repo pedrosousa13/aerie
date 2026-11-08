@@ -23,7 +23,7 @@
 namespace aerie_adblock {
 
 namespace {
-constexpr char kManagerPageUrl[] = "chrome://aerie-filters/";
+constexpr char kManagerPageUrl[] = "chrome://filters/";
 }  // namespace
 
 AerieFilterToolbarButton::AerieFilterToolbarButton(

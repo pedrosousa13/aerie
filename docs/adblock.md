@@ -83,7 +83,7 @@ the issue). User controls are in [the section below](#user-controls-issue-10).
 
 | Part | What |
 | --- | --- |
-| `chrome://aerie-filters` | The page (`chrome/browser/ui/webui/aerie_filters`, patch `0009`): add, remove and update lists, custom list URLs, per-site exceptions, the automatic update switch. Messages: `aerieFilters.getState`, `addList`, `removeList`, `updateList`, `updateAll`, `setException`, `setAutoUpdate`. The page keeps the last state in `aerieFilters.state`. |
+| `chrome://filters` (shown as `aerie://filters` once the scheme rename lands; Helium shows `helium://filters` today) | The page (`chrome/browser/ui/webui/aerie_filters`, patch `0009`): add, remove and update lists, custom list URLs, per-site exceptions, the automatic update switch. Messages: `aerieFilters.getState`, `addList`, `removeList`, `updateList`, `updateAll`, `setException`, `setAutoUpdate`. The page keeps the last state in `aerieFilters.state`. |
 | `FilterListManager` | `components/aerie_adblock/browser/filter_list_manager.*`. Owns the settings, downloads, checks, rebuilds the engine, runs the schedule. Owned by the main parts, next to the service. |
 | Toolbar button | `chrome/browser/ui/views/aerie_adblock` (patch `0010`): a shield with the blocked count of the active page. A menu turns blocking off for the page's site and opens the settings page. |
 | `PageBlockCounter` | One per tab. Counts what the engine blocked for the tab's page, from the frame id the factory got (patch `0008`). Resets when the tab commits another document. Recorded in `Aerie.Adblock.PageBlockedCount` when the page is left. |
@@ -120,7 +120,7 @@ How it works:
   calls use) is false for an excepted site, besides what the policy says. Cosmetic queries wait
   for the settings like requests do.
 - **Incognito.** An exception set from an off-the-record profile (toolbar button or
-  `chrome://aerie-filters` in an incognito window) is kept in memory only, for that profile only
+  `chrome://filters` in an incognito window) is kept in memory only, for that profile only
   (`FilterEngineService::SetSessionExceptions`, keyed by the profile). It is never written to
   `state.json`, it does not apply to the regular profile or to another incognito session, and it
   is dropped when the profile is destroyed. A saved exception also holds in incognito, and

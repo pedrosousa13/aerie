@@ -14,7 +14,7 @@
 
 namespace aerie_adblock {
 
-// The messages of chrome://aerie-filters. The page sends
+// The messages of chrome://filters. The page sends
 // chrome.send("aerieFilters.<name>", [args]); the handler answers by calling
 // aerieFilters.setState(state) in the page, now and after every change.
 //

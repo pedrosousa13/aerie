@@ -1,4 +1,4 @@
-Aerie-Purpose: Register chrome://aerie-filters, the page where users manage filter lists and per-site exceptions, and pack its resources.
+Aerie-Purpose: Register chrome://filters, the page where users manage filter lists and per-site exceptions, and pack its resources.
 Aerie-Upstream-Area: chrome/browser/ui/webui/chrome_web_ui_configs.cc, chrome/browser/ui/webui/BUILD.gn, chrome/chrome_paks.gni, tools/gritsettings/resource_ids.spec
 Aerie-Kind: hook
 

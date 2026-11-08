@@ -29,7 +29,7 @@ namespace aerie_adblock {
 // The toolbar button of the Filter Engine (issue #10): a shield with the number
 // of requests blocked on the page of the active tab (nothing while it is 0).
 // Pressing it opens a menu to turn blocking off, or on again, for the page's
-// site, and to open chrome://aerie-filters. The sidebar and the command bar
+// site, and to open chrome://filters. The sidebar and the command bar
 // get this later (M2, M3).
 //
 // Added to the toolbar by patches/adblock/0010.
