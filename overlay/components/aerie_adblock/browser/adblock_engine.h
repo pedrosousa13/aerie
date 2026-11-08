@@ -24,6 +24,9 @@ namespace aerie_adblock {
 struct ListCheck {
   ListFailure failure = ListFailure::kNone;
   int rules = 0;       // Network rules, when |failure| is kNone.
+  // Exception rules that match every address. The engine ignores them; the
+  // caller should log a warning.
+  int ignored_exceptions = 0;
   std::string title;   // The list's own "! Title:", cut short; may be empty.
 };
 
@@ -35,6 +38,9 @@ ListCheck CheckList(base::span<const uint8_t> text, base::TimeDelta budget);
 struct BuildResult {
   ListFailure failure = ListFailure::kNone;
   size_t failed_index = 0;  // Which list failed, when |failure| is not kNone.
+  // Exception rules, over all the lists, that match every address and were
+  // ignored. Set when |failure| is kNone.
+  size_t ignored_exceptions = 0;
 };
 
 // C++ face of the Rust engine (adblock-rust, used unmodified). Not

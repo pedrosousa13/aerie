@@ -107,7 +107,7 @@ How it works:
   a 5 MiB cap and a 60 s timeout. A redirect that leaves https stops it. Loopback http is allowed
   only with `--aerie-test-allow-loopback-filter-lists` (the Bench), like the extension proxy.
 - **A check** (`check_list` in `aerie_adblock_core`) runs before a download replaces anything:
-  UTF-8 text without NUL, not an HTML page, at least one network rule, 10 s to parse. A list that
+  UTF-8 text without NUL, not an HTML page, at least one network rule (an ignored exception rule does not count), 10 s to parse. A list that
   fails keeps the old copy; its error shows on the page. A saved copy that fails to build later is
   dropped and the built-in list goes back to the shipped text.
 - **Schedule.** With automatic updates on (the default), all lists are fetched once a day while the
@@ -124,6 +124,30 @@ How it works:
   hiding off there: `FilterEngineService::IsCosmeticFilteringEnabled` (which the two stylesheet
   calls use) is false for an excepted site, besides what the policy says. Cosmetic queries wait
   for the settings like requests do.
+- **Exception rules that match every address are ignored.** One `@@` rule with no scope can switch
+  off every block for a type of request, for every site, with no error. The core drops a rule when
+  it applies to arbitrary addresses. It tests the effect, not the text: the rule is compiled alone
+  and asked about five reserved `.invalid` addresses (http, https, ws and wss), for each request type, as first party and
+  third party, from a first party that no `$domain=` option names. A rule that applies to any of
+  them is dropped. Examples: `@@http`, `@@|http`, `@@.`, `@@://`, `@@/./`, `@@||*`, `@@*$script`,
+  `@@$image`. Host-anchored rules (`@@||host...`) are scoped by their host and are not tested.
+  Rules scoped by host, path or `$domain=` (`@@||ads.example/ok`, `@@/safe/$domain=news.test`) work
+  as before. The same test runs when a list is compiled (`sanitize_list`) and in `check_list`. A
+  list that has such rules still passes the check, because the engine ignores them, and
+  `ListCheck::ignored_exceptions` counts them. A list made only of them has no network rules and
+  fails with "no blocking rules". `aerie_adblock_compile` prints a warning on stderr for each
+  ignored rule (the first 20 per list). The count also goes through the FFI (`ListReport` and
+  `BuildReport`), and the browser logs a `LOG(WARNING)` when it checks a downloaded list
+  (`FilterListManager`) and when it compiles the lists (`FilterEngineService`). The filter page
+  does not show it yet. The old rule that drops `@@` rules with an empty pattern also drops
+  scoped ones with an empty pattern (`@@$generichide,domain=...`); that is unchanged, and the
+  compile tool reports those under their own reason ("with no URL pattern").
+
+  Known limit: the probe set is fixed and public, so a rule written to dodge it gets through. A
+  rule that matches every address except those five probes (for example `@@.com^`, `@@||com^`,
+  or a regex that excludes `.invalid`) is not caught. The check stops mistakes and lazy abuse,
+  not a list author who has read this page. Lists are reviewed before they are pinned, and
+  custom lists are the user's own choice.
 - **Incognito.** An exception set from an off-the-record profile (toolbar button or
   `chrome://filters` in an incognito window) is kept in memory only, for that profile only
   (`FilterEngineService::SetSessionExceptions`, keyed by the profile). It is never written to

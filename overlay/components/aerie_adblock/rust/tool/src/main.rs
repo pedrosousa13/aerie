@@ -98,6 +98,19 @@ fn run_probe(engine: &FilterEngine, probe: &Probe) -> Result<(), String> {
     Ok(())
 }
 
+/// Why the core ignored an exception rule. A rule with no pattern that is
+/// scoped by `$domain=` (the `@@$generichide,domain=...` rules in EasyList)
+/// does not match every address, so it gets its own reason.
+fn ignored_reason(rule: &str) -> &'static str {
+    let body = rule.trim().strip_prefix("@@").unwrap_or(rule);
+    let (pattern, options) = body.split_once('$').unwrap_or((body, ""));
+    if pattern.trim().is_empty() && options.split(',').any(|o| o.starts_with("domain=")) {
+        "with no URL pattern (the engine needs one)"
+    } else {
+        "that matches every address"
+    }
+}
+
 fn run() -> Result<String, String> {
     let mut out: Option<String> = None;
     let mut probes = Vec::new();
@@ -124,6 +137,9 @@ fn run() -> Result<String, String> {
         let bytes = std::fs::read(path).map_err(|e| format!("cannot read {path}: {e}"))?;
         if bytes.is_empty() {
             return Err(format!("{path} is empty"));
+        }
+        for rule in aerie_adblock_core::sanitize_list_report(&bytes).ignored_exceptions {
+            eprintln!("aerie_adblock_compile: warning: {path}: ignored an exception rule {}: {rule}", ignored_reason(&rule));
         }
         texts.push(bytes);
     }

@@ -350,6 +350,12 @@ void FilterListManager::OnChecked(std::string id, std::string text, ListCheck ch
     End();
     return;
   }
+  if (check.ignored_exceptions > 0) {
+    LOG(WARNING) << "aerie_adblock: filter list " << id << " has "
+                 << check.ignored_exceptions
+                 << " exception rule(s) that match every address; they are "
+                    "ignored";
+  }
   file_runner_->PostTaskAndReplyWithResult(
       FROM_HERE,
       base::BindOnce(
@@ -413,6 +419,11 @@ void FilterListManager::OnRebuilt(std::vector<std::string> ids,
                                   bool retry,
                                   BuildResult result) {
   if (result.failure == ListFailure::kNone) {
+    if (result.ignored_exceptions > 0) {
+      LOG(WARNING) << "aerie_adblock: " << result.ignored_exceptions
+                   << " exception rule(s) that match every address were "
+                      "ignored when the lists were built";
+    }
     End();
     return;
   }

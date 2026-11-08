@@ -13,10 +13,13 @@
 //! `adblock` accepts any text as filter lines (an HTML error page is a pile of
 //! patterns), so "does it parse" is not enough. A list passes when it is
 //! text (UTF-8, no NUL), does not start like an HTML page, and has at least
-//! one network rule.
+//! one network rule. Exception rules that match every address are not network
+//! rules for this count: the engine ignores them (see `is_ignored_exception`),
+//! so a list made only of them has no rules, and a list with some of them
+//! passes with `ListCheck::ignored_exceptions` set so the caller can warn.
 
 use crate::{
-    FilterEngine, LoadError, MAX_LINE_BYTES, MAX_LIST_BYTES, is_match_all_exception, parse_options,
+    FilterEngine, LoadError, MAX_LINE_BYTES, MAX_LIST_BYTES, is_ignored_exception, parse_options,
 };
 use adblock::lists::{ParsedLine, parse_filter, read_list_metadata};
 use std::time::{Duration, Instant};
@@ -60,6 +63,9 @@ impl std::error::Error for ListError {}
 pub struct ListCheck {
     /// Lines that parsed as network (blocking or exception) rules.
     pub network_rules: usize,
+    /// Exception rules left out because they match every address. The list
+    /// still works without them; the caller should warn about it.
+    pub ignored_exceptions: usize,
     /// The list's own `! Title:` line, cut to a short length.
     pub title: Option<String>,
 }
@@ -98,11 +104,16 @@ fn check_list_until(bytes: &[u8], deadline: Instant) -> Result<ListCheck, ListEr
         return Err(ListError::LooksLikeHtml);
     }
     let mut network_rules = 0;
+    let mut ignored_exceptions = 0;
     for (i, line) in text.lines().enumerate() {
         if i % LINES_PER_TIME_CHECK == 0 && Instant::now() >= deadline {
             return Err(ListError::Timeout);
         }
-        if line.len() > MAX_LINE_BYTES || is_match_all_exception(line) {
+        if line.len() > MAX_LINE_BYTES {
+            continue;
+        }
+        if is_ignored_exception(line) {
+            ignored_exceptions += 1;
             continue;
         }
         if let Ok(ParsedLine::Network(_)) = parse_filter(line, false, parse_options()) {
@@ -118,6 +129,7 @@ fn check_list_until(bytes: &[u8], deadline: Instant) -> Result<ListCheck, ListEr
         .filter(|t| !t.is_empty());
     Ok(ListCheck {
         network_rules,
+        ignored_exceptions,
         title,
     })
 }

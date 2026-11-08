@@ -71,7 +71,13 @@ class FilterEngineService::Host {
       }
       texts.push_back(std::move(input.text));
     }
-    return engine_.LoadLists(texts, kBuildBudget);
+    BuildResult result = engine_.LoadLists(texts, kBuildBudget);
+    if (result.failure == ListFailure::kNone && result.ignored_exceptions > 0) {
+      LOG(WARNING) << "aerie_adblock: " << result.ignored_exceptions
+                   << " exception rule(s) that match every address were "
+                      "ignored when the lists were compiled";
+    }
+    return result;
   }
 
  private:

@@ -33,5 +33,15 @@ int main() {
   assert(generic == ".ad-banner{display:none!important}\n");
   assert(c.GenericStylesheet("https://news.test/a", "x", "y").empty());
   assert(c.GenericStylesheet("https://news.test/a", "\xc3\xa9", "").empty());
+  // Ignored match-all exceptions cross the bridge in both check paths.
+  const std::string broad = "||ads.example^\n@@http\n@@|ws\n@@||ads.example/ok\n";
+  ListCheck check = CheckList(base::as_byte_span(broad), base::Seconds(5));
+  assert(check.failure == ListFailure::kNone);
+  assert(check.ignored_exceptions == 2);
+  assert(CheckList(base::as_byte_span(std::string("||ads.example^\n")), base::Seconds(5)).ignored_exceptions == 0);
+  AdblockEngine g;
+  BuildResult built = g.LoadLists({broad, "||t.example^\n@@.\n"}, base::Seconds(5));
+  assert(built.failure == ListFailure::kNone);
+  assert(built.ignored_exceptions == 3);
   std::puts("ok");
 }

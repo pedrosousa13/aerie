@@ -478,6 +478,142 @@ fn a_match_all_exception_line_cannot_switch_blocking_off() {
     )));
 }
 
+/// Exception rules that match every address without being one of the
+/// five empty forms (issue #64).
+const BROAD_EXCEPTIONS: [&str; 14] = [
+    "@@http",
+    "@@|http",
+    "@@.",
+    "@@/./",
+    "@@://",
+    "@@||*",
+    "@@|https://",
+    "@@/",
+    "@@*$third-party",
+    "@@*$script",
+    "@@||*$domain=~never.test",
+    "@@$~third-party",
+    "@@e",
+    "@@/.*/$image",
+];
+
+#[test]
+fn a_broad_exception_rule_cannot_switch_blocking_off() {
+    for bad in BROAD_EXCEPTIONS {
+        let list = format!("||ads.example^\n{bad}\n");
+        let e = FilterEngine::from_lists([list.as_bytes()]).unwrap();
+        for kind in [RequestKind::Script, RequestKind::Image] {
+            for third in [true, false] {
+                assert!(
+                    e.should_block(&req(
+                        "https://ads.example/a.js",
+                        "ads.example",
+                        "news.test",
+                        kind,
+                        third
+                    )),
+                    "{bad:?} switched blocking off ({kind:?}, third_party={third})"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn narrow_exception_rules_still_work() {
+    let list = "\
+||ads.example^
+@@||ads.example/ok$script
+@@/safe-path/$domain=news.test
+@@|https://ads.example/exact.js|
+@@||ads.example^$domain=partner.test|~bad.partner.test
+@@.js$domain=news.test
+";
+    let e = FilterEngine::from_lists([list.as_bytes()]).unwrap();
+    assert!(!e.should_block(&req(
+        "https://ads.example/ok",
+        "ads.example",
+        "x.test",
+        RequestKind::Script,
+        true
+    )));
+    assert!(!e.should_block(&req(
+        "https://ads.example/safe-path/a",
+        "ads.example",
+        "news.test",
+        RequestKind::Image,
+        true
+    )));
+    assert!(e.should_block(&req(
+        "https://ads.example/safe-path/a",
+        "ads.example",
+        "other.test",
+        RequestKind::Image,
+        true
+    )));
+    assert!(!e.should_block(&req(
+        "https://ads.example/exact.js",
+        "ads.example",
+        "x.test",
+        RequestKind::Script,
+        true
+    )));
+    assert!(!e.should_block(&req(
+        "https://ads.example/a",
+        "ads.example",
+        "partner.test",
+        RequestKind::Image,
+        true
+    )));
+    assert!(e.should_block(&req(
+        "https://ads.example/a",
+        "ads.example",
+        "x.test",
+        RequestKind::Image,
+        true
+    )));
+    assert!(!e.should_block(&req(
+        "https://ads.example/a.js",
+        "ads.example",
+        "news.test",
+        RequestKind::Script,
+        true
+    )));
+}
+
+#[test]
+fn websocket_only_match_all_exceptions_are_ignored() {
+    for bad in [
+        "@@|ws",
+        "@@|wss",
+        "@@|ws://",
+        "@@|wss://",
+        "@@ws",
+        "@@wss://",
+    ] {
+        let report = sanitize_list_report(format!("||ads.example^\n{bad}\n").as_bytes());
+        assert_eq!(report.ignored_exceptions, [bad], "{bad}");
+    }
+    let list = "||ads.example^\n@@|ws\n";
+    let e = FilterEngine::from_lists([list.as_bytes()]).unwrap();
+    assert!(e.should_block(&req(
+        "wss://ads.example/s",
+        "ads.example",
+        "news.test",
+        RequestKind::Websocket,
+        true
+    )));
+}
+
+#[test]
+fn ignored_exceptions_are_reported_for_logging() {
+    let list = "||ads.example^\n@@http\n@@||ads.example/ok\n@@.\n";
+    let report = sanitize_list_report(list.as_bytes());
+    assert_eq!(report.ignored_exceptions, ["@@http", "@@."]);
+    assert!(report.text.contains("@@||ads.example/ok"));
+    assert!(!report.text.contains("@@http"));
+}
+
 #[test]
 fn object_type_rules_apply_to_object_requests_only() {
     let e = FilterEngine::from_lists([&b"||plugin.example^$object\n"[..]]).unwrap();

@@ -62,6 +62,8 @@ mod ffi {
     struct ListReport {
         status: ListStatus,
         network_rules: u32,
+        /// Exception rules left out because they match every address.
+        ignored_exceptions: u32,
         /// The list's own title, or "".
         title: String,
     }
@@ -71,6 +73,9 @@ mod ffi {
         status: ListStatus,
         /// Position (0 based, in the order of `add_list`) of the list that failed.
         failed_index: u32,
+        /// Exception rules left out of all the lists because they match
+        /// every address.
+        ignored_exceptions: u32,
     }
 
     extern "Rust" {
@@ -148,9 +153,15 @@ fn check_list(list: &[u8], budget_ms: u32) -> ListReport {
         Ok(check) => ListReport {
             status: ListStatus::Ok,
             network_rules: u32::try_from(check.network_rules).unwrap_or(u32::MAX),
+            ignored_exceptions: u32::try_from(check.ignored_exceptions).unwrap_or(u32::MAX),
             title: check.title.unwrap_or_default(),
         },
-        Err(e) => ListReport { status: status_from_error(e), network_rules: 0, title: String::new() },
+        Err(e) => ListReport {
+            status: status_from_error(e),
+            network_rules: 0,
+            ignored_exceptions: 0,
+            title: String::new(),
+        },
     }
 }
 
@@ -166,13 +177,19 @@ impl EngineBuilder {
     fn build_into(&self, budget_ms: u32, engine: &mut Engine) -> BuildReport {
         let lists = self.0.iter().map(|l| l.as_slice());
         match FilterEngine::from_checked_lists(lists, Duration::from_millis(budget_ms.into())) {
-            Ok((built, _)) => {
+            Ok((built, checks)) => {
                 engine.0 = built;
-                BuildReport { status: ListStatus::Ok, failed_index: 0 }
+                let ignored: usize = checks.iter().map(|c| c.ignored_exceptions).sum();
+                BuildReport {
+                    status: ListStatus::Ok,
+                    failed_index: 0,
+                    ignored_exceptions: u32::try_from(ignored).unwrap_or(u32::MAX),
+                }
             }
             Err((index, e)) => BuildReport {
                 status: status_from_error(e),
                 failed_index: u32::try_from(index).unwrap_or(u32::MAX),
+                ignored_exceptions: 0,
             },
         }
     }
@@ -273,6 +290,25 @@ mod tests {
         assert!(!e.should_block("https://ads.example/ok.js", "ads.example", "news.test", RequestType::Script, true));
         assert!(!e.should_block("https://ads.example/a.png", "ads.example", "news.test", RequestType::Image, true));
         assert!(!e.should_block("https://news.test/a.js", "news.test", "news.test", RequestType::Script, false));
+    }
+
+    #[test]
+    fn check_list_reports_ignored_exceptions() {
+        let r = check_list(b"||ads.example^\n@@http\n@@|ws\n@@||ads.example/ok\n", 1000);
+        assert_eq!(r.status, ListStatus::Ok);
+        assert_eq!(r.ignored_exceptions, 2);
+        assert_eq!(check_list(b"||ads.example^\n", 1000).ignored_exceptions, 0);
+    }
+
+    #[test]
+    fn build_reports_ignored_exceptions_across_lists() {
+        let mut builder = EngineBuilder(Vec::new());
+        builder.add_list(b"||ads.example^\n@@http\n");
+        builder.add_list(b"||tracker.example^\n@@.\n@@|wss\n");
+        let mut engine = new_empty_engine();
+        let r = builder.build_into(1000, &mut engine);
+        assert_eq!(r.status, ListStatus::Ok);
+        assert_eq!(r.ignored_exceptions, 3);
     }
 
     #[test]
