@@ -48,6 +48,10 @@ def good():
             "subframe": {"frame_url": url("sub.localhost"), "listed_hits": 0, "host_title": "Fixture frame host",
                          "frames": [{"url": url("clean.localhost", "/protection/frame.html"), "unreachable": None},
                                     {"url": "chrome-error://chromewebdata/", "unreachable": url("sub.localhost")}]},
+            "subframe_control": {"frame_url": url("clean.localhost"), "host_title": "Fixture frame host",
+                                 "frames": [{"url": url("clean.localhost", "/protection/frame.html"),
+                                             "unreachable": None},
+                                            {"url": url("clean.localhost"), "unreachable": None}]},
             "redirect_main": {"state": interstitial(), "target": url("chain.localhost"), "hop_hits": 1,
                               "listed_hits": 0,
                               "frames": [{"url": "chrome-error://chromewebdata/",
@@ -129,6 +133,32 @@ class JudgeTest(unittest.TestCase):
         self.assertFails(loaded, "subframe: the listed host's frame was not blocked")
         self.assertFails(lambda o: o["listed"]["subframe"].update(listed_hits=1), "subframe: the request reached")
 
+    def test_a_clean_subframe_must_load_or_the_subframe_block_proves_nothing(self):
+        def collapsed(o):
+            del o["listed"]["subframe_control"]["frames"][1]
+        self.assertFails(collapsed, "subframe control")
+
+        def errored(o):
+            o["listed"]["subframe_control"]["frames"][1]["unreachable"] = url("clean.localhost")
+        self.assertFails(errored, "subframe control")
+        self.assertFails(lambda o: o["listed"].pop("subframe_control"), "subframe control")
+
+    def test_hit_counts_start_from_the_baseline_that_is_passed_in(self):
+        class Fixtures:
+            port = PORT
+
+            @staticmethod
+            def snapshot():
+                return [{"host": f"x.localhost:{PORT}", "path": pp.LANDING}] * 3
+
+        class FakeSession:
+            fixtures = Fixtures()
+
+        key = ("x.localhost", pp.LANDING)
+        self.assertEqual(pp.hits(FakeSession(), "x.localhost", pp.LANDING, {key: 2}), 1)
+        self.assertEqual(pp.hits(FakeSession(), "x.localhost", pp.LANDING, {}), 3)
+        self.assertFalse(hasattr(pp, "_BASELINE"))
+
     def test_a_redirect_chain_is_stopped_at_the_listed_hop_in_both_frame_kinds(self):
         def main_passed(o):
             o["listed"]["redirect_main"]["state"] = {"title": pp.LANDING_TITLE, "interstitial": False}
@@ -177,8 +207,10 @@ class SetupTest(unittest.TestCase):
             self.assertTrue(host.endswith(".localhost"), host)
 
     def test_the_switch_matches_the_browser_side(self):
+        switches = (REPO / "overlay/components/aerie_adblock/browser/aerie_adblock_switches.h").read_text()
+        self.assertIn(f'kTestProtectionListSwitch[] = "{pp.LIST_SWITCH.lstrip("-")}"', switches)
         hook = (REPO / "overlay/components/aerie_adblock/browser/aerie_protection_hook.h").read_text()
-        self.assertIn(pp.LIST_SWITCH.lstrip("-"), hook)
+        self.assertNotIn("kTestProtectionListSwitch", hook)
 
     def test_fixture_pages_exist_and_the_landing_page_tries_to_run_and_style(self):
         root = REPO / "tools/aerie_bench/fixtures/protection"

@@ -17,6 +17,7 @@ kept per tab, per host):
 * Continue anyway (``cont.localhost``) loads the page, and the choice lasts for that tab only: the same
   tab loads the host again without a warning, a new tab gets the interstitial.
 * subframe (``sub.localhost``): an iframe to a listed host is blocked and the request never goes out.
+  A control iframe to the clean host in the same frame page must load, so the block is the list's.
 * redirect chains, in the main frame (``chain.localhost``) and in a subframe (``chainsub.localhost``):
   a clean first URL that answers 302 to a listed host is stopped at the hop, and the listed URL never
   reaches the fixture server.
@@ -76,8 +77,9 @@ def origin(session: Session, host: str) -> str:
 
 
 # The fixture server is shared by the control browser and the listed browser. The listed browser's
-# counts start where the control browser stopped: set by ``observe_listed_browser``.
-_BASELINE: dict[tuple[str, str], int] = {}
+# counts start where the control browser stopped: ``observe_listed_browser`` builds the baseline (a
+# ``{(host, path): count}`` dict) and passes it to ``visit`` and ``hits``.
+Baseline = dict[tuple[str, str], int]
 
 
 def _raw_hits(session: Session, host: str, path: str) -> int:
@@ -86,10 +88,10 @@ def _raw_hits(session: Session, host: str, path: str) -> int:
                if r["host"] == want and r["path"].split("?", 1)[0] == path)
 
 
-def hits(session: Session, host: str, path: str) -> int:
+def hits(session: Session, host: str, path: str, baseline: Baseline | None = None) -> int:
     """Requests the fixture server saw for one Host header value and path (query ignored), since the
-    listed browser started."""
-    return _raw_hits(session, host, path) - _BASELINE.get((host, path), 0)
+    listed browser started (the counts in ``baseline``)."""
+    return _raw_hits(session, host, path) - (baseline or {}).get((host, path), 0)
 
 
 def frames(session: Session) -> list[dict]:
@@ -113,7 +115,7 @@ def state(session: Session) -> dict:
         return {"script_error": str(exc)}
 
 
-def visit(session: Session, host: str, path: str = LANDING) -> dict:
+def visit(session: Session, host: str, path: str = LANDING, baseline: Baseline | None = None) -> dict:
     """Navigate the top frame; describe where it ended up."""
     url = origin(session, host) + path
     nav = session.navigate_url(url, wait=10)
@@ -121,7 +123,7 @@ def visit(session: Session, host: str, path: str = LANDING) -> dict:
         # The error page commits a moment after the navigation fails.
         session.wait_for("!!document.querySelector('.interstitial-wrapper')", timeout=5)
     return {"url": url, "nav_error": nav["error"], "state": state(session), "frames": frames(session),
-            "landing_hits": hits(session, host, path)}
+            "landing_hits": hits(session, host, path, baseline)}
 
 
 def wait_title(session: Session, title: str, timeout: float = 10.0) -> bool:
@@ -146,19 +148,26 @@ def new_tab_title(session: Session, url: str, timeout: float = 10.0) -> str | No
 
 def observe_listed_browser(session: Session) -> dict:
     obs: dict = {}
-    _BASELINE.clear()
+    baseline: Baseline = {}
     for host in list(LISTED.values()) + [CLEAN]:
         for path in (LANDING, "/protection/hop"):
-            _BASELINE[(host, path)] = _raw_hits(session, host, path)
-    clean = visit(session, CLEAN)
+            baseline[(host, path)] = _raw_hits(session, host, path)
+
+    def visit_(host: str, path: str = LANDING) -> dict:
+        return visit(session, host, path, baseline)
+
+    def hits_(host: str, path: str) -> int:
+        return hits(session, host, path, baseline)
+
+    clean = visit_(CLEAN)
     obs["clean"] = {"title": clean["state"].get("title"), "landing_hits": clean["landing_hits"]}
 
-    obs["main"] = visit(session, LISTED["main"])
-    obs["subdomain"] = visit(session, LISTED["subdomain"])
+    obs["main"] = visit_(LISTED["main"])
+    obs["subdomain"] = visit_(LISTED["subdomain"])
 
     # Go back: a page first, then the listed site, then the primary button.
-    visit(session, CLEAN)
-    back = visit(session, LISTED["back"])
+    visit_(CLEAN)
+    back = visit_(LISTED["back"])
     clicked = bool(back["state"].get("interstitial")) and bool(session.evaluate(
         "(() => { const b = document.querySelector('#primary-button'); if (!b) return false; b.click(); return true; })()"))
     came_back = bool(clicked and session.wait_for(f"location.hostname === {CLEAN!r}", timeout=10))
@@ -166,7 +175,7 @@ def observe_listed_browser(session: Session) -> dict:
                       "back_on_clean": came_back, "landing_hits": back["landing_hits"]}
 
     # Continue anyway: open the details, click the link, expect the real page; then the same tab again.
-    cont = visit(session, LISTED["continue"])
+    cont = visit_(LISTED["continue"])
     opened = bool(session.evaluate(
         "(() => { const b = document.querySelector('#details-button'); if (!b) return false; b.click(); return true; })()"))
     details_open = bool(opened and session.evaluate(
@@ -175,7 +184,7 @@ def observe_listed_browser(session: Session) -> dict:
         "(() => { const a = document.querySelector('#proceed-link'); if (!a) return false; a.click(); return true; })()"))
     loaded = bool(link and wait_title(session, LANDING_TITLE))
     after = {"title": state(session).get("title"), "href": state(session).get("href")}
-    again = visit(session, LISTED["continue"])
+    again = visit_(LISTED["continue"])
     new_tab = new_tab_title(session, origin(session, LISTED["continue"]) + LANDING)
     obs["continue"] = {"first": {"interstitial": cont["state"].get("interstitial"),
                                  "details_closed": cont["state"].get("details_closed")},
@@ -183,30 +192,38 @@ def observe_listed_browser(session: Session) -> dict:
                        "same_tab_again": {"title": again["state"].get("title"),
                                           "interstitial": again["state"].get("interstitial")},
                        "new_tab_title": new_tab,
-                       "landing_hits": hits(session, LISTED["continue"], LANDING)}
+                       "landing_hits": hits_(LISTED["continue"], LANDING)}
 
     # Subframe: a clean page that embeds a listed host.
     frame_url = origin(session, LISTED["subframe"]) + LANDING
-    host_page = visit(session, CLEAN, "/protection/frame.html?to=" + quote(frame_url, safe=""))
+    host_page = visit_(CLEAN, "/protection/frame.html?to=" + quote(frame_url, safe=""))
     time.sleep(1.0)
     obs["subframe"] = {"frames": frames(session), "frame_url": frame_url,
-                       "listed_hits": hits(session, LISTED["subframe"], LANDING),
+                       "listed_hits": hits_(LISTED["subframe"], LANDING),
                        "host_title": host_page["state"].get("title")}
+
+    # Control for the subframe stop: the same kind of iframe to a clean host must load, or a missing
+    # frame above could be a broken frame page rather than a blocked one.
+    control_url = origin(session, CLEAN) + LANDING
+    control_page = visit_(CLEAN, "/protection/frame.html?to=" + quote(control_url, safe=""))
+    time.sleep(1.0)
+    obs["subframe_control"] = {"frames": frames(session), "frame_url": control_url,
+                               "host_title": control_page["state"].get("title")}
 
     # Redirect chains: clean URL -> 302 -> listed URL.
     chain_url = origin(session, LISTED["chain"]) + LANDING
     hop = "/protection/hop?to=" + quote(chain_url, safe="")
-    main_chain = visit(session, CLEAN, hop)
+    main_chain = visit_(CLEAN, hop)
     obs["redirect_main"] = {"state": main_chain["state"], "frames": main_chain["frames"], "target": chain_url,
-                            "hop_hits": hits(session, CLEAN, "/protection/hop"),
-                            "listed_hits": hits(session, LISTED["chain"], LANDING)}
+                            "hop_hits": hits_(CLEAN, "/protection/hop"),
+                            "listed_hits": hits_(LISTED["chain"], LANDING)}
     sub_url = origin(session, LISTED["chain_subframe"]) + LANDING
     sub_hop = origin(session, CLEAN) + "/protection/hop?to=" + quote(sub_url, safe="")
-    visit(session, CLEAN, "/protection/frame.html?to=" + quote(sub_hop, safe=""))
+    visit_(CLEAN, "/protection/frame.html?to=" + quote(sub_hop, safe=""))
     time.sleep(1.0)
     obs["redirect_subframe"] = {"frames": frames(session), "target": sub_url,
-                                "hop_hits": hits(session, CLEAN, "/protection/hop"),
-                                "listed_hits": hits(session, LISTED["chain_subframe"], LANDING)}
+                                "hop_hits": hits_(CLEAN, "/protection/hop"),
+                                "listed_hits": hits_(LISTED["chain_subframe"], LANDING)}
 
     obs["histograms"] = {"list_load": read_boolean(session, LOAD_HISTOGRAM),
                          "blocked": read_boolean(session, BLOCKED_HISTOGRAM),
@@ -294,6 +311,11 @@ def judge(obs: dict) -> tuple[str, str, dict]:
                         f"(frames: {[f.get('unreachable') or f.get('url') for f in sub.get('frames', [])]})")
     if sub.get("listed_hits"):
         problems.append(f"subframe: the request reached the fixture server ({sub['listed_hits']})")
+    control_frames = listed.get("subframe_control", {}).get("frames", [])
+    control_url = listed.get("subframe_control", {}).get("frame_url")
+    if not any(f.get("url") == control_url and not f.get("unreachable") for f in control_frames[1:]):
+        problems.append("subframe control: an iframe to a clean host did not load, so a blocked subframe "
+                        f"proves nothing (frames: {[f.get('unreachable') or f.get('url') for f in control_frames]})")
 
     chain = listed.get("redirect_main", {})
     if not chain.get("state", {}).get("interstitial"):
