@@ -70,7 +70,9 @@ void AerieThemeHandler::HandleSetThemeColor(const base::ListValue& args) {
       continue;
     }
     ThemeService* themes = ThemeServiceFactory::GetForProfile(profile_);
-    if (choice.seed) {
+    if (choice.use_default_theme) {
+      themes->UseDefaultTheme();
+    } else if (choice.seed) {
       themes->SetIsGrayscale(false);
       themes->SetUserColorAndBrowserColorVariant(
           *choice.seed, ui::mojom::BrowserColorVariant::kTonalSpot);

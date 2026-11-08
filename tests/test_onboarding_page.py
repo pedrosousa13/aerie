@@ -86,7 +86,21 @@ class PageTest(unittest.TestCase):
         block = SCRIPT[SCRIPT.index("const COLORS = {"):SCRIPT.index("};", SCRIPT.index("const COLORS = {"))]
         page = set(re.findall(r"^\s+(\w+): \[", block, re.M))
         self.assertEqual(native, page)
-        self.assertEqual(len(native), 6)
+        self.assertEqual(len(native), 7)
+
+    def test_neutral_comes_first_and_is_the_default(self):
+        block = SCRIPT[SCRIPT.index("const COLORS = {"):SCRIPT.index("};", SCRIPT.index("const COLORS = {"))]
+        ids = re.findall(r"^\s+(\w+): \[", block, re.M)
+        self.assertEqual(ids[0], "neutral")
+        self.assertIn("color: 'neutral'", SCRIPT)
+        self.assertNotIn("color: 'alpenglow'", SCRIPT)
+
+    def test_neutral_applies_the_default_theme_and_no_colour(self):
+        handler = (REPO / "overlay/chrome/browser/ui/webui/aerie_onboarding/aerie_theme_handler.h").read_text(encoding="utf-8")
+        source = (REPO / "overlay/chrome/browser/ui/webui/aerie_onboarding/aerie_theme_handler.cc").read_text(encoding="utf-8")
+        self.assertRegex(handler, r'\{"neutral", std::nullopt, true\}')
+        self.assertIn("UseDefaultTheme()", source)
+        self.assertEqual(len(re.findall(r"std::nullopt, true\}", handler)), 1)
 
 
 class HookTest(unittest.TestCase):

@@ -70,6 +70,9 @@ const internal = host => `${location.protocol}//${host}/`;
 /* ---------- state ---------- */
 
 const COLORS = {
+  // Neutral is the browser's plain default theme. It follows the appearance,
+  // so its swatch and preview use NEUTRAL_DARK when the page is dark.
+  neutral: ['#FFFFFF', '#E4E5EA', '#B9BBC4', 'colorNeutral'],
   alpenglow: ['#FFA463', '#F0466F', '#7B3FE4', 'colorAlpenglow'],
   sky: ['#62D6F5', '#2F6BFF', '#22309A', 'colorSky'],
   moss: ['#3FD19B', '#138476', '#0F3F4D', 'colorMoss'],
@@ -77,6 +80,7 @@ const COLORS = {
   sand: ['#F6D7A7', '#D99A6C', '#8C5A44', 'colorSand'],
   graphite: ['#5A596D', '#2A2936', '#101016', 'colorGraphite'],
 };
+const NEUTRAL_DARK = ['#3A3B42', '#202127', '#0E0F12'];
 const MODES = [['light', 'lookLight'], ['dark', 'lookDark'], ['system', 'lookSystem']];
 const IMPORT_ITEMS = [
   ['bookmarks', 'importBookmarks', 'favorites', 'import_dialog_bookmarks'],
@@ -105,7 +109,7 @@ const S = {
   from: 'none',              // profile index as a string, or 'none'
   items: new Set(['bookmarks', 'passwords', 'history']),
   importing: false, importError: false, imported: null,
-  mode: 'system', color: 'alpenglow',
+  mode: 'system', color: 'neutral',
   engines: [], engine: null,
   isDefault: false, canBeDefault: true,
 };
@@ -217,11 +221,13 @@ function retrigger(el, cls) {
   el.classList.add(cls);
 }
 const isDark = () => S.mode === 'dark' || (S.mode === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+const palette = id => (id === 'neutral' && isDark() ? NEUTRAL_DARK : COLORS[id].slice(0, 3));
+const swatchBackground = id => { const [a, b, c] = palette(id); return `linear-gradient(140deg, ${a}, ${b} 55%, ${c})`; };
 
 /* ---------- preview window ---------- */
 
 function preview(i, {counter = false} = {}) {
-  const [a1, a2, a3] = COLORS[S.color];
+  const [a1, a2, a3] = palette(S.color);
   const engine = S.engines.find(e => e.id === S.engine);
   return E(i, h('div', {class: 'preview', 'aria-hidden': 'true'},
     h('div', {class: `win${isDark() ? ' dark' : ''}`, id: 'win', style: {'--a1': a1, '--a2': a2, '--a3': a3}},
@@ -240,11 +246,12 @@ function updatePreview() {
   if (!win) {
     return;
   }
-  const [a1, a2, a3] = COLORS[S.color];
+  const [a1, a2, a3] = palette(S.color);
   win.style.setProperty('--a1', a1);
   win.style.setProperty('--a2', a2);
   win.style.setProperty('--a3', a3);
   win.classList.toggle('dark', isDark());
+  $$('.sw').forEach(b => { b.style.background = swatchBackground(b.dataset.val); });
   const engine = S.engines.find(e => e.id === S.engine);
   const url = $('#pv-url');
   if (engine && url.textContent !== engine.name) {
@@ -300,9 +307,9 @@ const VIEWS = {
                                                   'aria-checked': String(S.mode === id), onclick: () => choose('mode', id)}, t(key)))))),
         E(4, h('div', {}, h('div', {class: 'label'}, `${t('lookColour')} · `, h('b', {id: 'color-name'}, t(COLORS[S.color][3]))),
           h('div', {class: 'swatches', role: 'radiogroup', 'aria-label': t('lookColour')},
-            Object.entries(COLORS).map(([id, [a, b, c, key]]) => h('button', {class: 'sw', type: 'button', role: 'radio', id: `color-${id}`,
+            Object.entries(COLORS).map(([id, [,,, key]]) => h('button', {class: 'sw', type: 'button', role: 'radio', id: `color-${id}`,
               'data-group': 'color', 'data-val': id, 'aria-checked': String(S.color === id), 'aria-label': t(key),
-              style: {background: `linear-gradient(140deg, ${a}, ${b} 55%, ${c})`}, onclick: () => choose('color', id)}))))),
+              style: {background: swatchBackground(id)}, onclick: () => choose('color', id)}))))),
         E(5, h('div', {class: 'actions'}, primary(t('buttonContinue'), () => { applyLook(); go(1); })))),
       preview(3));
   },

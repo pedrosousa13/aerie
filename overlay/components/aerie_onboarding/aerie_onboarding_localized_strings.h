@@ -46,6 +46,7 @@ inline constexpr webui::LocalizedString kLocalizedStrings[] = {
     {"lookDark", IDS_AERIE_SETUP_LOOK_DARK},
     {"lookSystem", IDS_AERIE_SETUP_LOOK_SYSTEM},
     {"lookColour", IDS_AERIE_SETUP_LOOK_COLOUR},
+    {"colorNeutral", IDS_AERIE_SETUP_COLOR_NEUTRAL},
     {"colorAlpenglow", IDS_AERIE_SETUP_COLOR_ALPENGLOW},
     {"colorSky", IDS_AERIE_SETUP_COLOR_SKY},
     {"colorMoss", IDS_AERIE_SETUP_COLOR_MOSS},

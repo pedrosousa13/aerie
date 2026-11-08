@@ -8,7 +8,7 @@ through seven short steps and then opens a new tab. It replaces Helium's onboard
 | --- | --- | --- |
 | Welcome | Introduces Aerie. | none |
 | Import | Lists the other browsers found on this computer. You pick one and what to bring (bookmarks, saved passwords, history, search engines), or start fresh. | `initializeImportDialog`, `importData` |
-| Make it yours | Light, dark or system appearance, and one of six colours. Both apply straight away and stay changeable in Settings > Appearance. | `aerieSetup.setColorScheme`, `aerieSetup.setThemeColor` |
+| Make it yours | Light, dark or system appearance, and one of seven colours. Neutral is first and is the default. It is the browser's plain default theme with no user colour, so it follows the appearance: white and grey in light, near-black and grey in dark. Alpenglow, High sky, Moss, Dusk, Sand and Graphite follow. Both apply straight away and stay changeable in Settings > Appearance. | `aerieSetup.setColorScheme`, `aerieSetup.setThemeColor` |
 | Ads and trackers | Explains that blocking is on (EasyList, EasyPrivacy, cosmetic hiding) and links to `aerie://filters`. There is no choice to make yet; levels belong to issue #45. | none |
 | Search engine | The built-in engines (DuckDuckGo, Brave Search, Kagi, Startpage). Search suggestions stay off. | `getSearchEnginesList`, `setDefaultSearchEngine` |
 | Privacy | A read-only list of the hardening defaults ([hardening.md](hardening.md)). | none |
@@ -31,7 +31,7 @@ The page never sets `helium.services.user_consented`, so Helium services stay of
 - **Hook.** `patches/onboarding/0001-serve-aerie-setup-page.patch` points Helium's page controller,
   the resource pak list, the resource IDs and the string parts at `components/aerie_onboarding`,
   and registers `AerieThemeHandler`
-  (`overlay/chrome/browser/ui/webui/aerie_onboarding/`). That handler accepts only the six colour
+  (`overlay/chrome/browser/ui/webui/aerie_onboarding/`). That handler accepts only the seven colour
   ids it knows, never a raw colour.
 - **Strings** are in `aerie_onboarding_strings.grdp` (a part of `generated_resources.grd`) with
   their loadTimeData keys in `aerie_onboarding_localized_strings.h`.
