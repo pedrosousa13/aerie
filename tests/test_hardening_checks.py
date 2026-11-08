@@ -354,9 +354,14 @@ class FakeSession:
             return (self.current or {}).get("loads_after_click", False)
         return True
 
-    def variant(self, flags=(), prefs=None):
+    def variant(self, flags=(), prefs=None, profile=None):
         self.variant_calls.append((tuple(flags), prefs))
+        self.variant_profiles = getattr(self, "variant_profiles", []) + [profile]
         return contextlib.nullcontext(self.variants[len(self.variant_calls) - 1])
+
+    def new_profile(self):
+        self.profile = object()
+        return contextlib.nullcontext(self.profile)
 
     def targets(self):
         return (self.current or {}).get("targets", [])
@@ -466,27 +471,17 @@ class DriverGlueTest(unittest.TestCase):
                     return {**own, "child": kid}
                 return own
 
-        class Box:
-            def __init__(self, session):
-                self.session = session
-                self.restarts = 0
-
-            def restart(self):
-                self.restarts += 1
-                return self.session
-
-        main = JitSession("on")
-        box_session = JitSession("on")
-        control = JitSession("on")
-        main.variants = [control]
-        main.restartable = lambda flags=(), prefs=None: contextlib.nullcontext(Box(box_session))
+        first, restarted, control = JitSession("on"), JitSession("off"), JitSession("on")
+        main = JitSession("on", variants=[first, restarted, control])
         res = jit.JsOptimizer().run(main)
         self.assertEqual(res.status, "pass", res.detail)
-        self.assertEqual(len(box_session.sent), 1)
-        self.assertIn("'javascript-optimizer'", box_session.sent[0])
-        self.assertIn("a.localhost", box_session.sent[0])
-        self.assertIn('"block"', box_session.sent[0])
-        self.assertEqual(main.variant_calls, [((), None)])
+        self.assertEqual(len(first.sent), 1)
+        self.assertIn("'javascript-optimizer'", first.sent[0])
+        self.assertIn("a.localhost", first.sent[0])
+        self.assertIn('"block"', first.sent[0])
+        self.assertEqual(main.variant_calls, [((), None)] * 3)
+        # the change and the restart share one profile; the control gets its own
+        self.assertEqual(main.variant_profiles, [main.profile, main.profile, None])
 
     def test_extension_check_loads_the_probe_extension_in_a_variant(self):
         results = json.loads((FIXTURES / "hardening_extension_prefs.json").read_text())["cases"][0]["obs"]["results"]

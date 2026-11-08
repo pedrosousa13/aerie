@@ -150,12 +150,13 @@ class JsOptimizer(HardeningCheck):
 
     def observe(self, session: Session) -> dict:
         defaults = settings_defaults(session)
-        with session.restartable() as box:
-            before = snapshot(box.session)
-            change = set_site_setting(box.session, OFF_SITE, "block")
-            after = snapshot(box.session)
-            box.restart()
-            restarted = snapshot(box.session)
+        with session.new_profile() as p:
+            with session.variant(profile=p) as first:
+                before = snapshot(first)
+                change = set_site_setting(first, OFF_SITE, "block")
+                after = snapshot(first)
+            with session.variant(profile=p) as second:
+                restarted = snapshot(second)
         with session.variant() as v:
             control = {"off_site": measure(v, OFF_SITE), "on_site": measure(v, ON_SITE), "renderers": renderers(v)}
         return {"defaults": defaults, "change": change, "before": before, "after": after,
