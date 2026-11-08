@@ -1,4 +1,6 @@
 import os
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -52,14 +54,10 @@ class BuildLockTest(unittest.TestCase):
                                                monotonic=lambda: next(clock)):
                     pass
 
-    def test_child_of_a_live_holder_does_not_deadlock(self):
-        """A CI run holds the lock and starts ./aerie build, which takes it again."""
-        marker = str(self.root / buildlock.LOCK_NAME)
-        with buildlock.build_tree_lock(self.root):
-            self.assertEqual(os.environ[buildlock.ENV_HELD], f"{marker}:{os.getpid()}")
-            with mock.patch("os.getpid", return_value=os.getpid() + 1):  # pretend to be the child
-                with buildlock.build_tree_lock(self.root, timeout=0):
-                    pass
+    def test_the_lock_yields_the_marker_it_exports(self):
+        with buildlock.build_tree_lock(self.root) as marker:
+            self.assertEqual(marker, f"{self.root / buildlock.LOCK_NAME}:{os.getpid()}")
+            self.assertEqual(os.environ[buildlock.ENV_HELD], marker)
         self.assertNotIn(buildlock.ENV_HELD, os.environ)
 
     def test_holder_itself_is_not_let_through(self):
@@ -68,15 +66,86 @@ class BuildLockTest(unittest.TestCase):
                 with buildlock.build_tree_lock(self.root, timeout=0):
                     pass
 
-    def test_marker_for_another_lock_or_a_dead_process_does_not_bypass(self):
+    def test_marker_for_another_lock_or_a_non_ancestor_does_not_bypass(self):
         mine = str(self.root / buildlock.LOCK_NAME)
         with buildlock.build_tree_lock(self.root):
-            for marker in ("/elsewhere/build.lock:1", f"{mine}:999999999"):
+            # pid 1 is alive but is not a parent of this process in a way we accept (init is excluded)
+            for marker in ("/elsewhere/build.lock:" + str(os.getppid()), f"{mine}:999999999", f"{mine}:1"):
                 with mock.patch.dict(os.environ, {buildlock.ENV_HELD: marker}):
-                    with mock.patch("os.getpid", return_value=os.getpid() + 1):
-                        with self.assertRaises(buildlock.BuildTreeBusy):
-                            with buildlock.build_tree_lock(self.root, timeout=0):
-                                pass
+                    with self.assertRaises(buildlock.BuildTreeBusy):
+                        with buildlock.build_tree_lock(self.root, timeout=0):
+                            pass
+
+    def test_a_live_pid_that_is_not_an_ancestor_does_not_bypass(self):
+        """A marker left in a long-lived shell, or a reused pid: alive, but not our parent."""
+        mine = str(self.root / buildlock.LOCK_NAME)
+        sibling = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+        self.addCleanup(sibling.wait)
+        self.addCleanup(sibling.kill)
+        with buildlock.build_tree_lock(self.root):
+            with mock.patch.dict(os.environ, {buildlock.ENV_HELD: f"{mine}:{sibling.pid}"}):
+                with self.assertRaises(buildlock.BuildTreeBusy):
+                    with buildlock.build_tree_lock(self.root, timeout=0):
+                        pass
+
+    def test_a_permission_error_is_not_a_held_lock(self):
+        mine = self.root / buildlock.LOCK_NAME
+        grandparent = buildlock._parent_of(os.getppid())
+        if not grandparent or grandparent <= 1:
+            self.skipTest("no grandparent process to name")
+        env = {buildlock.ENV_HELD: f"{mine}:{grandparent}"}
+        self.assertTrue(buildlock.held_by_ancestor(mine, env))
+        with mock.patch("builtins.open", side_effect=PermissionError):  # /proc/<ppid>/stat unreadable
+            self.assertFalse(buildlock.held_by_ancestor(mine, env))
+
+
+_TOOLS = str(Path(__file__).resolve().parents[1] / "tools")
+_TRY = """
+import sys
+sys.path.insert(0, sys.argv[1])
+from pathlib import Path
+from aerie_build import buildlock
+try:
+    with buildlock.build_tree_lock(Path(sys.argv[2]), timeout=0):
+        pass
+except buildlock.BuildTreeBusy:
+    sys.exit(3)
+"""
+_HOLDER = """
+import os, subprocess, sys
+sys.path.insert(0, sys.argv[1])
+from pathlib import Path
+from aerie_build import buildlock
+with buildlock.build_tree_lock(Path(sys.argv[2])) as marker:
+    # What the CI does: hand the marker to a child process through its environment.
+    child = subprocess.run([sys.executable, "-c", sys.argv[3], sys.argv[1], sys.argv[2]],
+                           env={**os.environ, buildlock.ENV_HELD: marker})
+    print(marker, child.returncode, flush=True)
+    sys.stdin.readline()
+"""
+
+
+class RealSubprocessTest(unittest.TestCase):
+    """No mocks: a real child of the lock holder, and a real unrelated process."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.root = Path(self._tmp.name) / "root"
+
+    def test_a_child_of_the_holder_gets_through_and_an_unrelated_process_does_not(self):
+        env = {k: v for k, v in os.environ.items() if k != buildlock.ENV_HELD}
+        holder = subprocess.Popen([sys.executable, "-c", _HOLDER, _TOOLS, str(self.root), _TRY],
+                                  stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, env=env)
+        self.addCleanup(holder.wait)
+        self.addCleanup(holder.kill)
+        marker, child_rc = holder.stdout.readline().split()
+        self.assertEqual(child_rc, "0")  # the holder's child took the lock under the marker and did not wait
+        # An unrelated process: it is not a descendant of the holder, even when it carries the marker.
+        for extra in ({}, {buildlock.ENV_HELD: marker}):
+            rc = subprocess.run([sys.executable, "-c", _TRY, _TOOLS, str(self.root)],
+                                env={**env, **extra}, capture_output=True).returncode
+            self.assertEqual(rc, 3)
 
 
 class BuildEntryPointTakesTheLockTest(unittest.TestCase):
