@@ -175,6 +175,22 @@ class BuildEntryPointTakesTheLockTest(unittest.TestCase):
             code = cli.main(["prune", "--build-root", str(self.root), "--lock-timeout", "0", "-n"])
         self.assertEqual(code, 1)
 
+    def test_test_cpp_refuses_while_another_build_holds_the_lock(self):
+        with mock.patch.object(pipeline, "test_cpp", return_value=0) as test_cpp:
+            with buildlock.build_tree_lock(self.root):
+                code = cli.main(["test-cpp", "--build-root", str(self.root), "--lock-timeout", "0"])
+        self.assertEqual(code, 1)
+        test_cpp.assert_not_called()
+
+    def test_test_cpp_runs_under_the_lock_and_releases_it(self):
+        held = []
+        with mock.patch.object(pipeline, "test_cpp",
+                               side_effect=lambda *a, **k: held.append(os.environ.get(buildlock.ENV_HELD)) or 0):
+            self.assertEqual(cli.main(["test-cpp", "--build-root", str(self.root), "--lock-timeout", "0"]), 0)
+        self.assertTrue(held[0])
+        with buildlock.build_tree_lock(self.root, timeout=0):
+            pass
+
     def test_bench_refuses_while_another_build_holds_the_lock(self):
         from aerie_bench import cli as bench_cli
 

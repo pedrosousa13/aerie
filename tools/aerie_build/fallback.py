@@ -129,7 +129,7 @@ def _read(url: str, opener: Opener) -> bytes:
         raise FetchError(f"cannot fetch {url}: {exc}") from exc
 
 
-def _download(url: str, dest: Path, opener: Opener) -> None:
+def download(url: str, dest: Path, opener: Opener) -> None:
     _require_https(url)
     partial = dest.with_name(dest.name + ".partial")
     try:
@@ -170,7 +170,7 @@ def fetch_official(
                 "not downloading. Check the release, then update helium.lock."
             )
         log(f"downloading {url}")
-        _download(url, target, opener)
+        download(url, target, opener)
     try:
         lock.verify_file(target, pinned)
     except lock.VerificationError:

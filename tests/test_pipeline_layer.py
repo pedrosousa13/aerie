@@ -214,7 +214,7 @@ class CleanTest(unittest.TestCase):
                 (d / "f").write_text("x")
             ctx = SimpleNamespace(tree=tree, pristine_dir=pristine, paths=paths,
                                   log_path=paths.logs / "b.log", venv=paths.toolchain / "venv",
-                                  binary=paths.root / "bin")
+                                  binary=paths.root / "bin", test_targets=())
             steps = {n: mock.DEFAULT for n in ("install_ccache", "install_python_env", "fetch_sources",
                                                 "prepare_tree", "configure", "compile_targets")}
             with mock.patch.multiple(pipeline, preflight=mock.DEFAULT, **steps):

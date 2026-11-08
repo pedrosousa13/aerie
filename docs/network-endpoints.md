@@ -7,6 +7,11 @@ and what Aerie does about it. The proof is the Bench check `zero_traffic`
 ([bench.md](bench.md)); the source gates (`./aerie patches gates`) keep the
 text of the fixes from regressing between Bench runs.
 
+This page is about the browser. One build-time download is outside the promise:
+`./aerie test-cpp`, a developer command, fetches Chromium's test fonts from
+`storage.googleapis.com/chromium-fonts`, pinned by the sha256 in the tree's
+`DEPS`. `./aerie build` never does, and the fonts are not part of the browser.
+
 "Dummy origin" below is `https://helium-services-are-disabled.qjz9zk`. The
 network stack refuses it before any DNS query (ungoogled-chromium's
 `block-trk-and-subdomains.patch`).
@@ -135,5 +140,5 @@ rulings allow as a fallback.
 | Denylist matching, the check's verdicts, the baseline demo | Python unit tests against recorded and hand-made NetLogs | now |
 | The check sees traffic | run on a stock Chrome for Testing: fails with Google hosts | now (one run, see the report) |
 | The Aerie build makes no denylisted request in 6 minutes | `./aerie bench --check zero_traffic --baseline <unmodified helium>` | train build |
-| The Aerie C++ compiles and the validator unit tests pass | build, `components_unittests --gtest_filter=AerieExtensionProxy*` | train build |
+| The Aerie C++ compiles and the validator unit tests pass | build; the `AerieExtensionProxy*` tests cannot run yet: they link only into `components_unittests`, which Helium's tree cannot build (#82) | train build |
 | The not-configured dialog shows | by hand on the build; no Bench driver yet (the install API is not reachable from a local page) | train build |

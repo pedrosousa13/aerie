@@ -1,0 +1,40 @@
+Aerie-Purpose: Make Chromium's content and Blink test support compile with Helium's noise patch, so Aerie's C++ unit tests that use content test support build.
+Aerie-Upstream-Area: content/test/test_page_broadcast.h, third_party/blink/renderer/core/testing/dummy_page_holder.cc (test-only code)
+ Helium patch helium/core/noise/core.patch adds UpdateHeliumNoiseTokens to blink.mojom.PageBroadcast and a
+ noise_tokens argument to Page::CreateOrdinary, and leaves these two test helpers as they were.
+Aerie-Kind: hook
+
+Test-only files: nothing in the shipped browser links them. The test page
+broadcast ignores the tokens, and the dummy page starts with none.
+
+--- a/content/test/test_page_broadcast.h
++++ b/content/test/test_page_broadcast.h
+@@ -8,6 +8,7 @@
+ #include "third_party/blink/public/mojom/page/page.mojom.h"
+ 
+ #include "mojo/public/cpp/bindings/associated_receiver.h"
++#include "third_party/blink/public/common/helium_noise/noise_token.h"
+ 
+ namespace content {
+ 
+@@ -51,6 +52,8 @@
+   void UpdateColorProviders(
+       const blink::ColorProviderColorMaps& color_provider_colors) override;
+   void SetSupportsDraggableRegions(bool supports_draggable_regions) override;
++  void UpdateHeliumNoiseTokens(
++      const blink::HeliumNoiseTokenMap& tokens) override {}
+ 
+   mojo::AssociatedReceiver<blink::mojom::PageBroadcast> receiver_;
+ };
+--- a/third_party/blink/renderer/core/testing/dummy_page_holder.cc
++++ b/third_party/blink/renderer/core/testing/dummy_page_holder.cc
+@@ -101,7 +101,8 @@
+   page_ = Page::CreateOrdinary(*chrome_client, /*opener=*/nullptr,
+                                *agent_group_scheduler_,
+                                base::UnguessableToken::Create(),
+-                               /*color_provider_colors=*/nullptr);
++                               /*color_provider_colors=*/nullptr,
++                               /*noise_tokens=*/HeliumNoiseTokenMap());
+   Settings& settings = page_->GetSettings();
+   if (setting_overrider)
+     std::move(setting_overrider).Run(settings);
