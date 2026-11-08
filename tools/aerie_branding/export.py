@@ -2,8 +2,8 @@
 """Exports Aerie's final art (the Soar mark, Alpenglow palette) into branding/art/.
 
 It writes every file that branding/resources.txt maps into the Chromium tree, with
-the same names and sizes as the placeholder art, so the branding layer picks it up
-with no code change (issues #5 and #21).
+fixed names and sizes, so the branding layer picks it up with no code change
+(issues #5 and #21).
 
 Sources, all in branding/source/:
   soar-mark.svg        the mark, master. One stroked path and one circle.

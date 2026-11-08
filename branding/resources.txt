@@ -1,7 +1,7 @@
 # Aerie art that replaces Helium's, as '<file in branding/art> <path in the Chromium tree>'.
 # Same destinations as helium-chromium/resources/helium_resources.txt (the logo, the product
 # icon sizes and the new tab page favicon); a test compares the two lists and the image sizes.
-# Placeholder art, see tools/aerie_branding/generate.py and issue #21.
+# Final art (the Soar mark, Alpenglow palette), exported by tools/aerie_branding/export.py; see branding/source/ and issue #21.
 
 favicon_ntp_16.png chrome/app/theme/default_100_percent/common/favicon_ntp.png
 favicon_ntp_32.png chrome/app/theme/default_200_percent/common/favicon_ntp.png
