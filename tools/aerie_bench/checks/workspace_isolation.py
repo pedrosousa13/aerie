@@ -33,6 +33,10 @@ from . import register
 
 WS_A, WS_B = "ws1", "ws2"
 TEST_FLAG = "--aerie-test-workspaces"
+# Chromium ignores Strict-Transport-Security for localhost and *.localhost (crbug.com/41251622), and the
+# hsts probe's hosts are *.localhost names (other names get the HTTPS-only warning page instead of http).
+# Without this flag the hsts probe's control can never pass.
+HSTS_FLAG = "--disable-features=IgnoreHSTSForLocalhost"
 VISITED_RGB, UNVISITED_RGB = (255, 0, 0), (0, 0, 255)   # link.html: a:visited and a:link
 CACHE_DELAY_MS = 300
 PERMISSION = "notifications"
@@ -607,11 +611,12 @@ class WorkspaceIsolation:
         self._probes: dict[str, dict] = {}
 
     def browser_flags(self, server) -> tuple[str, ...]:
-        """The test switch, and trust for the fixture's self-signed certificate (public key pin only)."""
+        """The test switch, trust for the fixture's self-signed certificate (public key pin only), and
+        HSTS for *.localhost."""
         flags = [TEST_FLAG]
         try:
             self.tls_pin = server.enable_tls()
-            flags.append(f"--ignore-certificate-errors-spki-list={self.tls_pin}")
+            flags += [f"--ignore-certificate-errors-spki-list={self.tls_pin}", HSTS_FLAG]
         except RuntimeError as exc:
             self.tls_error = str(exc)
         return tuple(flags)

@@ -363,7 +363,8 @@ challenges), a page that visits and a page that styles `:visited`. The site's ma
 `http://localhost:<port>`. Its second origin is the https twin on a second loopback port: `FixtureServer.enable_tls()`
 makes a self-signed certificate with the `openssl` command and the check passes its public key hash to the browser as
 `--ignore-certificate-errors-spki-list`, so the browser accepts that one key and no other. It sends the HSTS
-header. Paths under `/ws/` keep the connection open, so the Bench can see which socket carried a request; other
+header. Chromium ignores HSTS headers for `*.localhost`, so the check also starts the browser with
+`--disable-features=IgnoreHSTSForLocalhost`; without it the `hsts` probe's control cannot pass. Paths under `/ws/` keep the connection open, so the Bench can see which socket carried a request; other
 paths still close it.
 
 **The driver.** Aerie has no sidebar yet, so a probe cannot switch Workspaces by clicking. It uses a test page

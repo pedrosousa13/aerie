@@ -267,10 +267,11 @@ class AdrCoverageTest(unittest.TestCase):
 
 
 class FlagsTest(unittest.TestCase):
-    def test_flags_carry_the_test_switch_and_the_certificate_pin(self):
+    def test_flags_carry_the_test_switch_the_certificate_pin_and_localhost_hsts(self):
         server = SimpleNamespace(enable_tls=lambda: "PIN=")
         flags = wi.WorkspaceIsolation().browser_flags(server)
-        self.assertEqual(flags, (wi.TEST_FLAG, "--ignore-certificate-errors-spki-list=PIN="))
+        self.assertEqual(flags, (wi.TEST_FLAG, "--ignore-certificate-errors-spki-list=PIN=",
+                                 "--disable-features=IgnoreHSTSForLocalhost"))
 
     def test_without_tls_the_hsts_probe_says_why(self):
         def broken():
