@@ -114,6 +114,50 @@ class Session:
                 return None
             time.sleep(interval)
 
+    def foreground(self, timeout: float = 10.0) -> str | None:
+        """Bring the page to the front and wait until it is visible. Returns None when it is, else
+        the visibility state it stayed in. A hidden page has its timers throttled and no animation
+        frames, so a benchmark in it crawls or never moves (issue #16)."""
+        sid = self._page()
+        for method, params in (("Page.bringToFront", None), ("Emulation.setFocusEmulationEnabled", {"enabled": True})):
+            try:
+                self.client.send(method, params, session_id=sid, timeout=self.timeout)
+            except CdpError:
+                pass  # a browser without it: the visibility check below decides
+        if self.wait_for("document.visibilityState === 'visible'", timeout=timeout, interval=0.25):
+            return None
+        try:
+            return str(self.evaluate("document.visibilityState"))
+        except CdpError:
+            return "unknown"
+
+    def wait_progress(self, done: str, progress: str, timeout: float, stall: float,
+                      interval: float = 1.0) -> str:
+        """Poll ``done`` until it is truthy. Gives up with "stalled" when the number ``progress``
+        evaluates to has not changed for ``stall`` seconds, or with "timeout" after ``timeout``
+        seconds in all. Returns "done", "stalled" or "timeout"."""
+        start = last_change = time.monotonic()
+        last = object()
+        while True:
+            try:
+                finished = self.evaluate(done)
+            except CdpError:
+                finished = None
+            if finished:
+                return "done"
+            try:
+                value = self.evaluate(progress)
+            except CdpError:
+                value = None
+            now = time.monotonic()
+            if value != last:
+                last, last_change = value, now
+            if now - start >= timeout:
+                return "timeout"
+            if now - last_change >= stall:
+                return "stalled"
+            time.sleep(interval)
+
     def targets(self) -> list[dict]:
         """Every DevTools target the browser knows (pages, OOPIFs, workers)."""
         return self.client.send("Target.getTargets", timeout=self.timeout).get("targetInfos", [])

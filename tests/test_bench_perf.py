@@ -164,6 +164,19 @@ class CheckTest(unittest.TestCase):
             self.assertIn(page, paths)
         self.assertLess(paths.index(AD_PAGES[-1]), paths.index("/index.html"))
 
+    def test_memory_is_read_in_a_browser_of_its_own(self):
+        seen = []
+        real = Session.variant
+
+        def variant(session, *a, **k):
+            seen.append(session.browser_pid)
+            return real(session, *a, **k)
+
+        with mock.patch.object(Session, "variant", variant):
+            self.run_perf(rss_kb=1024)
+        # the memory browser and the two startup launches; the shared browser is never measured
+        self.assertEqual(len(seen), 3)
+
     def test_missing_benchmark_copies_fail_the_check_and_say_how_to_fetch_them(self):
         res = self.run_perf(rss_kb=1024, benchmarks=True)
         check = res.data["checks"][0]
@@ -267,26 +280,36 @@ class BenchmarkDriverTest(unittest.TestCase):
     def setUp(self):
         self.vendor = Path(tempfile.mkdtemp())
         self.addCleanup(lambda: __import__("shutil").rmtree(self.vendor, ignore_errors=True))
-        self.drivers = {"speedometer": {"entry": "index.html?x=1", "done": "done()", "score": "score()", "timeout_s": 5}}
+        self.drivers = {"speedometer": {"entry": "index.html?x=1", "done": "done()", "score": "score()", "progress": "prog()",
+                                    "timeout_s": 5, "stall_s": 2}}
 
     def copy(self, name="speedometer"):
         (self.vendor / name).mkdir(exist_ok=True)
         (self.vendor / name / "index.html").write_text("<title>b</title>")
 
-    def session(self, score=123.456, finished=True, load_error=None):
+    def session(self, score=123.456, finished=True, load_error=None, hidden=None):
         s = mock.Mock()
         s.fixtures.base_url = "http://127.0.0.1:1"
         s.fixtures.vendor_root = self.vendor
         s.navigate_url.return_value = {"url": "", "error": load_error}
-        s.wait_for.return_value = finished
+        s.foreground.return_value = hidden
+        s.wait_progress.return_value = {True: "done", False: "timeout"}.get(finished, finished)
         s.evaluate.return_value = score
+        # each benchmark runs in a browser of its own: the run's session hands out a variant
+        browser = mock.MagicMock()
+        browser.__enter__.return_value = s
+        s.variant.return_value = browser
+        outer = mock.Mock()
+        outer.fixtures = s.fixtures
+        outer.variant = s.variant
+        s.outer = outer
         return s
 
     def perf(self):
         return Perf(drivers=self.drivers)
 
     def test_a_missing_copy_says_why_and_how_to_fetch_it(self):
-        value, why = self.perf().run_benchmark(self.session(), "speedometer")
+        value, why = self.perf().run_benchmark(self.session().outer, "speedometer")
         self.assertIsNone(value)
         self.assertIn("no local copy", why)
         self.assertIn("--download-benchmarks", why)
@@ -294,18 +317,43 @@ class BenchmarkDriverTest(unittest.TestCase):
     def test_a_copy_is_loaded_from_vendor_awaited_and_scored(self):
         self.copy()
         s = self.session()
-        value, why = self.perf().run_benchmark(s, "speedometer")
+        value, why = self.perf().run_benchmark(s.outer, "speedometer")
         self.assertEqual((value, why), (123.46, ""))
         s.navigate_url.assert_called_once_with("http://127.0.0.1:1/vendor/speedometer/index.html?x=1")
-        s.wait_for.assert_called_once_with("done()", timeout=5.0, interval=1.0)
+        s.wait_progress.assert_called_once_with("done()", "prog()", timeout=5.0, stall=2.0, interval=1.0)
         s.evaluate.assert_called_once_with("score()")
+        s.variant.assert_called_once_with()  # a fresh browser, not the run's shared one
+        s.foreground.assert_called_once_with()
+
+    def test_the_page_is_brought_to_the_front_before_the_benchmark_loads(self):
+        self.copy()
+        s = self.session()
+        order = mock.Mock()
+        order.attach_mock(s.foreground, "foreground")
+        order.attach_mock(s.navigate_url, "navigate_url")
+        self.perf().run_benchmark(s.outer, "speedometer")
+        self.assertEqual([c[0] for c in order.mock_calls[:2]], ["foreground", "navigate_url"])
+
+    def test_a_page_that_stays_hidden_fails_fast_and_says_why(self):
+        self.copy()
+        s = self.session(hidden="hidden")
+        value, why = self.perf().run_benchmark(s.outer, "speedometer")
+        self.assertIsNone(value)
+        self.assertIn("hidden", why)
+        s.wait_progress.assert_not_called()
+
+    def test_a_benchmark_that_stops_moving_fails_with_a_stall_not_a_timeout(self):
+        self.copy()
+        value, why = self.perf().run_benchmark(self.session(finished="stalled").outer, "speedometer")
+        self.assertIsNone(value)
+        self.assertIn("no progress for 2 s", why)
 
     def test_timeout_load_error_and_unusable_score_are_not_measured(self):
         self.copy()
         for kwargs, text in (({"finished": False}, "did not finish"), ({"load_error": "net::ERR"}, "did not load"),
                              ({"score": "n/a"}, "no usable score"), ({"score": True}, "no usable score"),
                              ({"score": None}, "no usable score"), ({"score": 0}, "no usable score")):
-            value, why = self.perf().run_benchmark(self.session(**kwargs), "speedometer")
+            value, why = self.perf().run_benchmark(self.session(**kwargs).outer, "speedometer")
             self.assertIsNone(value)
             self.assertIn(text, why)
 
@@ -386,3 +434,52 @@ class CliTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SessionWaitTest(unittest.TestCase):
+    """Session.wait_progress and Session.foreground, with a scripted page instead of a browser."""
+
+    def session(self, values):
+        """A Session whose evaluate() answers from ``values``: {expression: callable or constant}."""
+        s = Session(mock.Mock(), mock.Mock(), Path("."), timeout=1)
+        s._sid = "S"
+        s.evaluate = lambda expr, *a, **k: values[expr]() if callable(values[expr]) else values[expr]
+        return s
+
+    def test_a_finished_benchmark_returns_done(self):
+        s = self.session({"done": True, "prog": 0})
+        self.assertEqual(s.wait_progress("done", "prog", timeout=5, stall=5, interval=0), "done")
+
+    def test_progress_that_never_changes_is_a_stall_long_before_the_timeout(self):
+        s = self.session({"done": False, "prog": 3})
+        with mock.patch("aerie_bench.session.time.sleep"), \
+                mock.patch("aerie_bench.session.time.monotonic", side_effect=iter(range(0, 1000, 10))):
+            self.assertEqual(s.wait_progress("done", "prog", timeout=3600, stall=30, interval=1), "stalled")
+
+    def test_progress_that_keeps_moving_runs_to_the_timeout(self):
+        n = iter(range(10000))
+        s = self.session({"done": False, "prog": lambda: next(n)})
+        with mock.patch("aerie_bench.session.time.sleep"), \
+                mock.patch("aerie_bench.session.time.monotonic", side_effect=iter(range(0, 1000, 10))):
+            self.assertEqual(s.wait_progress("done", "prog", timeout=100, stall=30, interval=1), "timeout")
+
+    def test_foreground_is_none_when_the_page_becomes_visible(self):
+        s = self.session({"document.visibilityState === 'visible'": True})
+        self.assertIsNone(s.foreground())
+        methods = [c.args[0] for c in s.client.send.call_args_list]
+        self.assertIn("Page.bringToFront", methods)
+
+    def test_foreground_reports_the_state_a_hidden_page_stays_in(self):
+        s = self.session({"document.visibilityState === 'visible'": False, "document.visibilityState": "hidden"})
+        with mock.patch("aerie_bench.session.time.sleep"):
+            self.assertEqual(s.foreground(timeout=0), "hidden")
+
+
+class DriverTableTest(unittest.TestCase):
+    def test_every_driver_has_a_total_limit_a_stall_limit_and_a_progress_probe(self):
+        from aerie_bench.benchmarks import DRIVERS
+        for name, d in DRIVERS.items():
+            self.assertIn("progress", d, name)
+            self.assertLessEqual(d["stall_s"], 300, name)
+            self.assertLessEqual(d["timeout_s"], 1200, name)
+            self.assertLess(d["stall_s"], d["timeout_s"], name)

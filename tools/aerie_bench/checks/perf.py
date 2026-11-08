@@ -50,6 +50,12 @@ class Perf:
     # -- measurements ------------------------------------------------------------------------------
 
     def memory_mb(self, session: Session) -> float:
+        """Memory after the ad pages, in a browser of its own: the run's shared browser carries what
+        the other checks left in it (extra pages, an extension), which is not what a user has."""
+        with session.variant() as browser:
+            return self._memory_mb(browser)
+
+    def _memory_mb(self, session: Session) -> float:
         for page in AD_PAGES:
             session.navigate(page)
         time.sleep(self.settle)
@@ -73,17 +79,32 @@ class Perf:
         return median_ms(cold), median_ms(warm)
 
     def run_benchmark(self, session: Session, name: str) -> tuple[float | None, str]:
-        """(score, "") or (None, why it could not be measured)."""
+        """(score, "") or (None, why it could not be measured). Each benchmark gets a fresh browser
+        on a fresh profile, with the page in front. In the run's shared browser the page was hidden
+        (other checks leave pages and an extension behind): its timers were throttled, it got no
+        animation frames, and the benchmarks never finished (issue #16)."""
         driver = self.drivers[name]
         vendor = session.fixtures.vendor_root
         page = driver["entry"].split("?", 1)[0]
         if vendor is None or not (vendor / name / page).is_file():
             return None, f"no local copy of {name} (expected {vendor / name / page if vendor else 'a vendor root'}); {FETCH_HINT}"
+        with session.variant() as browser:
+            return self._run_benchmark(browser, name, driver)
+
+    def _run_benchmark(self, session: Session, name: str, driver: dict) -> tuple[float | None, str]:
+        state = session.foreground()
+        if state is not None:
+            return None, f"{name}: the page is {state}, not visible, so its timers and animation frames are throttled"
         res = session.navigate_url(f"{session.fixtures.base_url}/vendor/{name}/{driver['entry']}")
         if res["error"]:
             return None, f"{name} did not load: {res['error']}"
         timeout = float(driver.get("timeout_s", 900))
-        if not session.wait_for(driver["done"], timeout=timeout, interval=1.0):
+        stall = float(driver.get("stall_s", 180))
+        outcome = session.wait_progress(driver["done"], driver.get("progress", "0"), timeout=timeout,
+                                        stall=stall, interval=1.0)
+        if outcome == "stalled":
+            return None, f"{name} made no progress for {stall:g} s"
+        if outcome == "timeout":
             return None, f"{name} did not finish within {timeout:g} s"
         score = session.evaluate(driver["score"])
         if not isinstance(score, (int, float)) or isinstance(score, bool) or score <= 0:

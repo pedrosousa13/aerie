@@ -146,7 +146,7 @@ reason. The same three maps are in the check's `data` in `results.json`.
 All five metrics are required. The check fails (status `fail`, exit code 1, nothing recorded as a baseline) when:
 
 - a benchmark copy is missing from the build root, the benchmark page does not load, does not
-  finish within its limit (`timeout_s` in `DRIVERS`: 1200 s for Speedometer, 3600 s for JetStream), or
+  make progress for `stall_s` (180 s) or finish within `timeout_s` in `DRIVERS` (600 s for Speedometer, 900 s for JetStream), is not visible, or
   gives no positive number (a JetStream workload that errored, or a Speedometer run that stopped
   on an error). The detail line names the metric and the reason, and `failed` in `perf.json` holds it too;
 - with `--perf-baseline`, any metric is worse than the baseline past its threshold (see "Thresholds"), or

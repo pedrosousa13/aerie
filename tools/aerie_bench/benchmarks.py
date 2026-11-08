@@ -32,8 +32,11 @@ VENDOR_DIRNAME = "bench-vendor"
 PIN_FILE = ".aerie-pin"
 USER_AGENT = "aerie-bench (+https://github.com/pedrosousa13/aerie)"
 
-# How the Bench runs each benchmark: load /vendor/<name>/<entry>, poll ``done`` until it is true
-# (at most ``timeout_s``), then read the number ``score`` evaluates to. A score that is not a
+# How the Bench runs each benchmark: load /vendor/<name>/<entry>, poll ``done`` until it is true,
+# then read the number ``score`` evaluates to. It gives up after ``timeout_s`` in all, or as soon as
+# the number ``progress`` evaluates to (finished iterations or workloads) has not changed for
+# ``stall_s`` seconds, so a hung benchmark costs minutes and not an hour. Each ran in about a
+# minute on a healthy browser. A score that is not a
 # number means the run failed (``score`` gives null for that).
 DRIVERS: dict[str, dict] = {
     # Speedometer 3.1: the page starts itself (startAutomatically) and sets _hasResults when the last
@@ -42,7 +45,9 @@ DRIVERS: dict[str, dict] = {
         "entry": "index.html?startAutomatically",
         "done": "globalThis.benchmarkClient?._hasResults === true",
         "score": "globalThis.benchmarkClient?._metrics?.Score?.mean ?? null",
-        "timeout_s": 1200,
+        "progress": "globalThis.benchmarkClient?._measuredValuesList?.length ?? 0",
+        "timeout_s": 600,
+        "stall_s": 180,
     },
     # JetStream 3: the overall score is the geometric mean of the workload scores (the driver's own
     # "Overall Score"). Any recorded error, or a workload without a positive score, gives null.
@@ -53,7 +58,9 @@ DRIVERS: dict[str, dict] = {
                   " const s = j.benchmarks.map(b => b.score);"
                   " if (!s.length || !s.every(x => x > 0)) return null;"
                   " return Math.exp(s.reduce((a, x) => a + Math.log(x), 0) / s.length); })()"),
-        "timeout_s": 3600,
+        "progress": "globalThis.JetStream?.benchmarks?.filter(b => b.isDone).length ?? 0",
+        "timeout_s": 900,
+        "stall_s": 180,
     },
 }
 
