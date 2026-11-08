@@ -149,6 +149,10 @@ class ScriptedSession:
 
 
 class ObserveTest(unittest.TestCase):
+    @staticmethod
+    def rec(host):
+        return {"host": host, "url": f"https://{host}/x", "urls": [f"https://{host}/x"], "external": True}
+
     def setUp(self):
         old, wv.SETTLE_SECONDS = wv.SETTLE_SECONDS, 0
         self.addCleanup(setattr, wv, "SETTLE_SECONDS", old)
@@ -167,21 +171,24 @@ class ObserveTest(unittest.TestCase):
     def test_online_option_restarts_after_the_download_and_asks_for_widevine(self):
         main = ScriptedSession([{"available": False}, "CRLSet"])
         control = ScriptedSession(["Widevine", {"available": False}, {"available": True}])
+        control.netlog = [self.rec("update.googleapis.com"), self.rec("edgedl.me.gvt1.com"),
+                          self.rec("update.googleapis.com"), {"host": "localhost", "external": False}]
         main.variant_session = control
         obs = wv.WidevineOptIn(online_seconds=30).observe(main)
         self.assertEqual(obs["online"], {"available": True})
         self.assertTrue(obs["online_downloaded"])
-        self.assertEqual(obs["online_hosts"], [])
+        self.assertEqual(obs["online_hosts"], ["edgedl.me.gvt1.com", "update.googleapis.com"])
         # control launch, then the online launch (opted in), then its restart (prefs kept in the profile)
         self.assertEqual(len(main.variants), 3)
         self.assertIsNone(main.variants[2])
         for flags in main.variant_flags[1:]:
             self.assertIn("--host-resolver-rules=MAP *.bench.test 127.0.0.1", flags)
-            self.assertTrue(any(f.startswith("--log-net-log=") for f in flags))
+            self.assertFalse(any(f.startswith("--log-net-log=") for f in flags))
 
     def test_online_option_reports_a_download_that_never_finished(self):
         main = ScriptedSession([{"available": False}, "CRLSet"])
         main.variant_session = ScriptedSession(["Widevine"])
+        main.variant_session.netlog = []
         main.variant = lambda *a, **k: _NullCtx(main.variant_session)  # never writes the hint
         obs = wv.WidevineOptIn(online_seconds=0.1).observe(main)
         self.assertFalse(obs["online_downloaded"])

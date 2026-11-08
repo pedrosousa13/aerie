@@ -9,8 +9,8 @@
 * ``online_seconds`` > 0 (``--widevine-online SEC``) also waits up to that long for an opted-in
   browser to download Widevine, restarts it on the same profile (Linux registers a newly installed
   Widevine at the next start) and asks for the key system. It uses ``Session.new_profile`` and
-  ``variant(profile=...)``, the Bench's restart-on-one-profile support. It needs a network that reaches the component update
-  service, so it is off by default and the default Bench keeps its zero-traffic guarantee.
+  ``variant(profile=...)``, the Bench's restart-on-one-profile support. It needs a network that reaches the
+  component update service, so it is off by default and the default Bench keeps its zero-traffic guarantee.
 """
 
 from __future__ import annotations
@@ -134,27 +134,21 @@ class WidevineOptIn:
         non-loopback host, so these browsers keep only the fixture-name mapping. And on Linux a
         newly installed Widevine is registered at the next start (the installer only writes the
         hint file), so the proof restarts the browser on the same profile after the install.
-        Each launch writes its own NetLog, to say which hosts it contacted.
+        Each launch has its own NetLog (``variant`` parses it after the browser exits), which says
+        which hosts it contacted.
         """
-        if not hasattr(session, "new_profile"):
-            raise RuntimeError("--widevine-online needs Session.new_profile (the Bench's restart-on-one-profile "
-                               "support, which arrives with issue #10)")
-        logs = [session.out_dir / f"widevine-online-netlog-{n}.json" for n in (1, 2)]
-
-        def flags(log):
-            return ("--host-resolver-rules=MAP *.bench.test 127.0.0.1", f"--log-net-log={log}")
-
         deadline = time.monotonic() + self.online_seconds
+        flags = ("--host-resolver-rules=MAP *.bench.test 127.0.0.1",)
         with session.new_profile() as prof:
             hint = prof.path / "WidevineCdm" / HINT_FILE
-            with session.variant(flags(logs[0]), OPT_IN_PREFS, profile=prof):
+            with session.variant(flags, OPT_IN_PREFS, profile=prof) as first:
                 while not hint.exists() and time.monotonic() < deadline:
                     time.sleep(2.0)
                 downloaded = hint.exists()
-            with session.variant(flags(logs[1]), None, profile=prof) as restarted:
+            with session.variant(flags, None, profile=prof) as restarted:
                 answer = (self._wait_available(restarted, deadline) if downloaded
                           else {"available": False, "error": "Widevine was not downloaded in time"})
-        hosts = sorted({r["host"] for log in logs for r in netlog.external(netlog.parse_file(log)) if r.get("host")})
+        hosts = sorted({r["host"] for v in (first, restarted) for r in netlog.external(v.netlog) if r.get("host")})
         return {"online": answer, "online_downloaded": downloaded, "online_hosts": hosts}
 
     def _wait_available(self, session: Session, deadline: float) -> dict:
