@@ -1,0 +1,114 @@
+name: Bump Helium
+
+# Looks for a new Helium release every day. If there is one, and no pull request
+# for it exists yet (open or closed), it moves the pins with `./aerie bump`, runs
+# the patch check, and opens a pull request with the result. With no new release
+# it does nothing. See docs/helium-bump.md.
+#
+# Releases come only from the pinned upstream repositories, tag by tag
+# (tools/aerie_build/bump.py). The pull request is opened with BUMP_PR_TOKEN so
+# that it is authored by the maintainer and the local CI gate picks it up
+# (docs/ci.md); the workflow cannot merge it.
+on:
+  schedule:
+    - cron: "47 3 * * *" # daily, 03:47 UTC, after the mirror sync at 03:17
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bump-helium
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          submodules: recursive
+      - name: Look for a new release
+        id: look
+        shell: bash
+        run: |
+          set +e
+          ./aerie bump --check | tee "$RUNNER_TEMP/check.txt"
+          rc=${PIPESTATUS[0]}
+          set -e
+          case "$rc" in
+            0) echo "found=false" >> "$GITHUB_OUTPUT" ;;
+            20)
+              tag=$(sed -n 's/^latest  *//p' "$RUNNER_TEMP/check.txt")
+              if ! printf '%s' "$tag" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
+                echo "::error::unexpected release tag: $tag"
+                exit 1
+              fi
+              echo "found=true" >> "$GITHUB_OUTPUT"
+              echo "tag=$tag" >> "$GITHUB_OUTPUT"
+              ;;
+            *) exit "$rc" ;;
+          esac
+      - name: Skip a release that already has a pull request
+        id: existing
+        if: steps.look.outputs.found == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.BUMP_PR_TOKEN }}
+          TAG: ${{ steps.look.outputs.tag }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::secret BUMP_PR_TOKEN is not set; see docs/helium-bump.md"
+            exit 1
+          fi
+          count=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "bump-helium-$TAG" --state all --json number --jq length)
+          if [ "$count" != "0" ]; then
+            echo "A pull request for $TAG already exists; nothing to do."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Install patch tools
+        if: steps.look.outputs.found == 'true' && steps.existing.outputs.skip != 'true'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends patch zstd
+      - name: Bump and check the patches
+        id: bump
+        if: steps.look.outputs.found == 'true' && steps.existing.outputs.skip != 'true'
+        shell: bash
+        env:
+          TAG: ${{ steps.look.outputs.tag }}
+        run: |
+          set +e
+          ./aerie bump --to "$TAG" --build-root "$RUNNER_TEMP/aerie-build" --report "$RUNNER_TEMP/report.md"
+          rc=$?
+          set -e
+          case "$rc" in
+            0) echo "draft=false" >> "$GITHUB_OUTPUT" ;;
+            3) echo "draft=true" >> "$GITHUB_OUTPUT" ;;
+            *) exit "$rc" ;;
+          esac
+      - name: Open the pull request
+        if: steps.bump.outcome == 'success'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.BUMP_PR_TOKEN }}
+          TAG: ${{ steps.look.outputs.tag }}
+          DRAFT: ${{ steps.bump.outputs.draft }}
+        run: |
+          chromium=$(sed -n 's/^chromium_version = "\(.*\)"$/\1/p' helium.lock)
+          branch="bump-helium-$TAG"
+          git config user.name "aerie-bump"
+          git config user.email "aerie-bump@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add helium.lock helium-chromium helium-linux
+          git commit -m "Bump Helium to $TAG (Chromium $chromium)"
+          git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$branch"
+          {
+            cat "$RUNNER_TEMP/report.md"
+            printf '\nOpened by .github/workflows/bump-helium.yml. The gate runs the full build and Bench on this pull request. See docs/helium-bump.md for what to fix.\n'
+          } > "$RUNNER_TEMP/body.md"
+          args=()
+          if [ "$DRAFT" = "true" ]; then args+=(--draft); fi
+          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" \
+            --title "Bump Helium to $TAG (Chromium $chromium)" \
+            --body-file "$RUNNER_TEMP/body.md" "${args[@]}"

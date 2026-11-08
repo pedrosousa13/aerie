@@ -544,6 +544,61 @@ def _patch_cmd(tree: Path, patch_file: Path, fuzz: bool, dry_run: bool) -> list[
     return cmd
 
 
+_FILE_LINE_RE = re.compile(r"^(?:checking|patching) file (.+)$")
+_HUNK_FAILED_RE = re.compile(r"^Hunk #(\d+) FAILED at (\d+)\.?$")
+_MAX_HUNK_LINES = 40
+
+
+def _hunks_by_file(patch_text: str) -> dict[str, list[list[str]]]:
+    """Each file's hunks, in order, as lists of lines (from "@@" on), keyed by the path after -p1."""
+    files: dict[str, list[list[str]]] = {}
+    current: list[list[str]] | None = None
+    lines = patch_text.splitlines()
+    for i, line in enumerate(lines):
+        in_hunk = bool(current) and current[-1] is not None
+        if line.startswith("--- ") and i + 1 < len(lines) and lines[i + 1].startswith("+++ "):
+            path = lines[i + 1][4:].split("\t")[0].strip()
+            path = path.split("/", 1)[1] if "/" in path else path
+            current = files.setdefault(path, [])
+        elif line.startswith("+++ ") and i > 0 and lines[i - 1].startswith("--- "):
+            continue
+        elif line.startswith("@@") and current is not None:
+            current.append([line])
+        elif in_hunk:
+            current[-1].append(line)
+    return files
+
+
+def failed_hunks(patch_text: str, output: str) -> str:
+    """The hunks GNU patch said FAILED, with their file, so a failure shows what did not apply.
+
+    output is patch's output; hunk numbers restart in each file. Empty if no hunk failed.
+    """
+    hunks = _hunks_by_file(patch_text)
+    shown: list[str] = []
+    current_file = ""
+    for line in output.splitlines():
+        line = line.strip()
+        file_match = _FILE_LINE_RE.match(line)
+        if file_match:
+            current_file = file_match.group(1)
+            continue
+        failed = _HUNK_FAILED_RE.match(line)
+        if not failed:
+            continue
+        number = int(failed.group(1))
+        file_hunks = hunks.get(current_file, [])
+        if not 1 <= number <= len(file_hunks):
+            continue
+        body = file_hunks[number - 1]
+        if len(body) > _MAX_HUNK_LINES:
+            extra = len(body) - _MAX_HUNK_LINES
+            body = body[:_MAX_HUNK_LINES] + [f"... ({extra} more lines)"]
+        shown.append(f"failed hunk in {current_file} (hunk #{number}, patch said line {failed.group(2)}):")
+        shown += body
+    return "\n".join(shown)
+
+
 def _run_patch(tree: Path, patch_file: Path, fuzz: bool, dry_run: bool) -> tuple[bool, str]:
     """Run GNU patch. With fuzz off, a hunk applied at an offset also counts as a failure."""
     proc = subprocess.run(
@@ -585,7 +640,8 @@ def apply_layers(tree: Path, layers: Sequence[Layer]) -> list[PatchResult]:
             if ok:
                 results.append(PatchResult(name, "ok", ""))
             else:
-                results.append(PatchResult(name, "failed", output))
+                hunks = failed_hunks(path.read_text(encoding="utf-8", errors="replace"), output)
+                results.append(PatchResult(name, "failed", output + ("\n" + hunks if hunks else "")))
                 for f in files:
                     failed_files.setdefault(f, name)
     return results

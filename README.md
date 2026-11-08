@@ -17,6 +17,7 @@ A Google-free, hardened Chromium browser built on top of
 | `tools/aerie_bench/` | The Aerie Bench: `./aerie bench` launches a built browser, drives it and records its traffic. See [docs/bench.md](docs/bench.md). |
 | `tools/aerie_ci/` | The local CI: gates the maintainer's PRs and runs a nightly clean build and full Bench. See [docs/ci.md](docs/ci.md). |
 | `docs/helium-fallback.md` | What Aerie does if Helium disappears: the official-tarball source (`./aerie build --source official`), mirrors, and the dependency ledger. See [docs/helium-fallback.md](docs/helium-fallback.md). |
+| `docs/helium-bump.md` | `./aerie bump`, the fix-up routine after a Helium release, and the daily job that opens bump pull requests. See [docs/helium-bump.md](docs/helium-bump.md). |
 | `tests/` | Unit tests for the build tooling. |
 | `patches/` | Aerie's own patch series, applied on top of Helium's. See [CONTRIBUTING.md](CONTRIBUTING.md). |
 
@@ -202,13 +203,21 @@ downloads it again).
 
 ### Updating Helium
 
-1. Move both submodules to the new release (`helium-linux` to its tag,
-   `helium-chromium` to the matching core tag).
-2. Update `helium.lock`: versions, both commits, and the sha256 of every
-   tarball (from the chromium-tarballs release `SHA256SUMS`) and every
-   `deps.ini` entry.
-3. Run the tests: they fail if the lock and the submodules disagree.
-4. `./aerie build`, then `./aerie prune` to drop the old tree.
+```sh
+./aerie bump --check   # is there a newer Helium release? (exit 20 if so)
+./aerie bump           # move the pins, print old and new Chromium, run the patch check
+```
+
+`./aerie bump` moves both submodules to the newest release tag of the pinned
+upstream repositories, rewrites `helium.lock` (versions, both commits, the sha256
+of every download and of the fallback tarball) and runs `./aerie patches check`.
+Patches that no longer apply are listed by name with the hunk that failed. A daily
+GitHub Actions job runs the same command and opens a pull request when a new
+release exists. See [docs/helium-bump.md](docs/helium-bump.md) for the
+fix-up routine and the one-time setup of the job.
+
+After the pins move: fix the failing patches and the ledger, run the tests, then
+`./aerie build --clean` and `./aerie prune` to drop the old tree.
 
 ### Measured build
 
