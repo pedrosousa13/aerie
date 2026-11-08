@@ -4,9 +4,9 @@
 
 #include "components/aerie_fingerprint/site_key.h"
 
-#include <optional>
 #include <string>
 
+#include "components/content_settings/core/common/content_settings_pattern.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "url/gurl.h"
 #include "url/origin.h"
@@ -69,26 +69,45 @@ TEST(NoiseSiteKeyTest, APartitionComponentSeparatesTheSameSite) {
             NoiseSiteKey(O("https://www.example.com/"), "workspace-1"));
 }
 
-TEST(NoiseSitePatternTest, ARegistrableDomainGetsASubdomainPattern) {
-  EXPECT_EQ(NoiseSitePattern(GURL("https://www.example.com/page")),
-            std::optional<std::string>("[*.]example.com"));
-  EXPECT_EQ(NoiseSitePattern(GURL("http://x.a.localhost:4100/")),
-            std::optional<std::string>("[*.]a.localhost"));
-  EXPECT_EQ(NoiseSitePattern(GURL("https://alice.github.io/")),
-            std::optional<std::string>("[*.]alice.github.io"));
+TEST(NoiseSitePatternTest, ARegistrableDomainGetsASchemeAndSubdomainPattern) {
+  EXPECT_EQ(NoiseSitePattern(GURL("https://www.example.com/page")).ToString(),
+            "https://[*.]example.com");
+  EXPECT_EQ(NoiseSitePattern(GURL("http://x.a.localhost:4100/")).ToString(),
+            "http://[*.]a.localhost");
+  EXPECT_EQ(NoiseSitePattern(GURL("https://alice.github.io/")).ToString(),
+            "https://[*.]alice.github.io");
 }
 
-TEST(NoiseSitePatternTest, AHostWithoutARegistrableDomainIsExact) {
-  EXPECT_EQ(NoiseSitePattern(GURL("http://localhost:3000/")),
-            std::optional<std::string>("localhost"));
-  EXPECT_EQ(NoiseSitePattern(GURL("http://192.168.1.5/")),
-            std::optional<std::string>("192.168.1.5"));
+TEST(NoiseSitePatternTest, AHostWithoutARegistrableDomainIsExactWithItsScheme) {
+  EXPECT_EQ(NoiseSitePattern(GURL("http://localhost:3000/")).ToString(),
+            "http://localhost");
+  EXPECT_EQ(NoiseSitePattern(GURL("http://192.168.1.5/")).ToString(),
+            "http://192.168.1.5");
+  EXPECT_EQ(NoiseSitePattern(GURL("https://192.168.1.5/")).ToString(),
+            "https://192.168.1.5");
+}
+
+TEST(NoiseSitePatternTest, ThePatternCoversExactlyTheHostsOfTheKeysSite) {
+  const GURL base("https://www.example.com/");
+  const ContentSettingsPattern pattern = NoiseSitePattern(base);
+  for (const char* same : {"https://example.com/", "https://a.b.example.com/x",
+                           "https://example.com:8443/"}) {
+    EXPECT_TRUE(pattern.Matches(GURL(same))) << same;
+    EXPECT_EQ(NoiseSiteKey(O(same)), NoiseSiteKey(O(base.spec().c_str())))
+        << same;
+  }
+  // The scheme is part of the key, so it is part of the pattern.
+  EXPECT_FALSE(pattern.Matches(GURL("http://example.com/")));
+  EXPECT_NE(NoiseSiteKey(O("http://example.com/")),
+            NoiseSiteKey(O("https://example.com/")));
+  EXPECT_FALSE(pattern.Matches(GURL("https://example.org/")));
+  EXPECT_FALSE(pattern.Matches(GURL("https://notexample.com/")));
 }
 
 TEST(NoiseSitePatternTest, OnlyWebAddressesHaveOne) {
-  EXPECT_FALSE(NoiseSitePattern(GURL("file:///tmp/a.html")).has_value());
-  EXPECT_FALSE(NoiseSitePattern(GURL("chrome://settings/")).has_value());
-  EXPECT_FALSE(NoiseSitePattern(GURL()).has_value());
+  EXPECT_FALSE(NoiseSitePattern(GURL("file:///tmp/a.html")).IsValid());
+  EXPECT_FALSE(NoiseSitePattern(GURL("chrome://settings/")).IsValid());
+  EXPECT_FALSE(NoiseSitePattern(GURL()).IsValid());
 }
 
 }  // namespace

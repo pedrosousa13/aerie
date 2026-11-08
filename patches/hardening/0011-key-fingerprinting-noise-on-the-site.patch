@@ -10,13 +10,16 @@ script from any number of subdomains, so the origin is the wrong unit; so is a p
 The key function is in the overlay, components/aerie_fingerprint (site_key.h), with unit tests
 (aerie_fingerprint_unittests). NoiseSiteKey(origin, partition) is net::SchemefulSite(origin) and an
 optional partition string; nothing passes a partition yet, and keying on the Workspace (#121) will
-pass one. NoiseSitePattern(url) gives the content-setting pattern for the same hosts, so the key and
-the switch cannot disagree.
+pass one. NoiseSitePattern(url) gives the content-setting pattern for the same hosts (it is
+ContentSettingsPattern::FromURLToSchemefulSitePattern, for http and https only), so the key and the
+switch cannot disagree.
 
-The switch is now "[*.]registrable-domain" (the host itself for an IP address or a name without a
-registrable domain). Origin-scoped "off" exceptions that an earlier build stored are turned into
-site exceptions the first time the profile is used (GetHeliumNoiseState or the setter), once per
-profile object, and the migration is idempotent. The off-the-record profile is not migrated: its
+The switch is now "scheme://[*.]registrable-domain", for example "https://[*.]example.com" (the
+scheme and the host itself for an IP address or a name without a registrable domain). The scheme is
+part of the pattern because it is part of the key: http://example.com and https://example.com are
+two sites, with two seeds and two switches. Origin-scoped "off" exceptions that an earlier build
+stored are turned into site exceptions the first time the setting is read or changed
+(GetHeliumNoiseState or the setter), once per profile object, and the migration is idempotent. The off-the-record profile is not migrated: its
 exceptions live in memory and start empty (HELIUM_NOISE is DONT_INHERIT_IN_INCOGNITO), so a switch
 set in incognito is never written to disk and never reaches the regular profile.
 
@@ -79,12 +82,11 @@ must stay adjacent. The hunk of onboarding/0001 in this file moves down by one l
  
 --- a/chrome/browser/helium_noise/helium_noise_settings.cc
 +++ b/chrome/browser/helium_noise/helium_noise_settings.cc
-@@ -4,12 +4,20 @@
+@@ -4,12 +4,19 @@
  
  #include "chrome/browser/helium_noise/helium_noise_settings.h"
  
 +#include <memory>
-+#include <optional>
 +#include <string>
 +
  #include "base/feature_list.h"
@@ -100,21 +102,20 @@ must stay adjacent. The hunk of onboarding/0001 in this file moves down by one l
  #include "components/content_settings/core/common/content_settings_types.h"
  #include "components/prefs/pref_service.h"
  #include "third_party/blink/public/common/features.h"
-@@ -27,6 +35,57 @@
+@@ -27,6 +34,55 @@
    return Profile::FromBrowserContext(browser_context);
  }
  
-+// Aerie (#114): the per-site switch covers every host of a site, the same
-+// hosts that share a noise token (aerie_fingerprint::NoiseSiteKey). Its
-+// pattern is "[*.]example.com" for a registrable domain and the host itself
-+// for an IP address. Returns an invalid pattern for an address with no site.
-+ContentSettingsPattern GetSitePattern(const GURL& url) {
-+  const std::optional<std::string> spec =
-+      aerie_fingerprint::NoiseSitePattern(url);
-+  if (!spec) {
-+    return ContentSettingsPattern();
-+  }
-+  return ContentSettingsPattern::FromString(*spec);
++// Aerie (#114): removes the exception for one pattern pair (a default setting
++// is no rule). The per-site switch is aerie_fingerprint::NoiseSitePattern:
++// "https://[*.]example.com", the same scheme and hosts that share a noise
++// token (aerie_fingerprint::NoiseSiteKey).
++void ClearRule(HostContentSettingsMap* map,
++               const ContentSettingsPattern& primary,
++               const ContentSettingsPattern& secondary) {
++  map->SetContentSettingCustomScope(primary, secondary,
++                                    ContentSettingsType::HELIUM_NOISE,
++                                    CONTENT_SETTING_DEFAULT);
 +}
 +
 +const void* const kOriginExceptionsMigratedKey =
@@ -142,23 +143,22 @@ must stay adjacent. The hunk of onboarding/0001 in this file moves down by one l
 +      continue;
 +    }
 +    const ContentSettingsPattern site_pattern =
-+        GetSitePattern(GURL(rule.primary_pattern.ToString()));
++        aerie_fingerprint::NoiseSitePattern(
++            GURL(rule.primary_pattern.ToString()));
 +    if (!site_pattern.IsValid() || site_pattern == rule.primary_pattern) {
 +      continue;
 +    }
 +    map->SetContentSettingCustomScope(
 +        site_pattern, ContentSettingsPattern::Wildcard(),
 +        ContentSettingsType::HELIUM_NOISE, CONTENT_SETTING_BLOCK);
-+    map->SetContentSettingCustomScope(
-+        rule.primary_pattern, rule.secondary_pattern,
-+        ContentSettingsType::HELIUM_NOISE, CONTENT_SETTING_DEFAULT);
++    ClearRule(map, rule.primary_pattern, rule.secondary_pattern);
 +  }
 +}
 +
  }  // namespace
  
  HeliumNoiseState GetHeliumNoiseState(
-@@ -55,6 +114,8 @@
+@@ -55,6 +111,8 @@
      return HeliumNoiseState::kEnabled;
    }
  
@@ -167,13 +167,14 @@ must stay adjacent. The hunk of onboarding/0001 in this file moves down by one l
    const ContentSetting noise_setting = settings_map->GetContentSetting(
        url, GURL(), ContentSettingsType::HELIUM_NOISE);
    if (noise_setting == CONTENT_SETTING_BLOCK) {
-@@ -89,23 +150,45 @@
+@@ -89,23 +147,42 @@
      return;
    }
  
 +  MigrateOriginExceptions(profile, settings_map);
 +
-+  const ContentSettingsPattern site_pattern = GetSitePattern(url);
++  const ContentSettingsPattern site_pattern =
++      aerie_fingerprint::NoiseSitePattern(url);
 +  if (!site_pattern.IsValid()) {
 +    return;
 +  }
@@ -190,9 +191,8 @@ must stay adjacent. The hunk of onboarding/0001 in this file moves down by one l
  
 -  settings_map->SetNarrowestContentSetting(
 -      url, GURL(), ContentSettingsType::HELIUM_NOISE,
-+  settings_map->SetContentSettingCustomScope(
-+      site_pattern, any_pattern, ContentSettingsType::HELIUM_NOISE,
-       CONTENT_SETTING_DEFAULT);
+-      CONTENT_SETTING_DEFAULT);
++  ClearRule(settings_map, site_pattern, any_pattern);
  
 -  // If a broader exception still applies, override it for this origin only.
 +  // An exception for one origin of this site (made in Settings) is narrower
@@ -203,9 +203,7 @@ must stay adjacent. The hunk of onboarding/0001 in this file moves down by one l
 +        rule.primary_pattern.Matches(url) &&
 +        rule.primary_pattern.Compare(site_pattern) ==
 +            ContentSettingsPattern::PREDECESSOR) {
-+      settings_map->SetContentSettingCustomScope(
-+          rule.primary_pattern, rule.secondary_pattern,
-+          ContentSettingsType::HELIUM_NOISE, CONTENT_SETTING_DEFAULT);
++      ClearRule(settings_map, rule.primary_pattern, rule.secondary_pattern);
 +    }
 +  }
 +
@@ -226,8 +224,8 @@ must stay adjacent. The hunk of onboarding/0001 in this file moves down by one l
  
  bool CanSetHeliumNoiseForOrigin(const GURL& url);
  
-+// Turns the noise on or off for the whole site of `url` (scheme-less pattern
-+// "[*.]registrable-domain"), not for the one origin.
++// Turns the noise on or off for the whole site of `url` (pattern
++// "scheme://[*.]registrable-domain"), not for the one origin.
  void SetHeliumNoiseEnabledForOrigin(content::BrowserContext* browser_context,
                                      const GURL& url,
                                      bool enabled);

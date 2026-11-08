@@ -5,9 +5,10 @@
 #ifndef COMPONENTS_AERIE_FINGERPRINT_SITE_KEY_H_
 #define COMPONENTS_AERIE_FINGERPRINT_SITE_KEY_H_
 
-#include <optional>
 #include <string>
 #include <string_view>
+
+#include "components/content_settings/core/common/content_settings_pattern.h"
 
 class GURL;
 
@@ -30,11 +31,11 @@ std::string NoiseSiteKey(const url::Origin& origin,
                          std::string_view partition = std::string_view());
 
 // The content-setting pattern that covers exactly the hosts that share
-// NoiseSiteKey's site: "[*.]example.com" for a registrable domain, the host
-// itself for an IP address or a name with no registrable domain ("localhost").
-// The scheme is a wildcard on purpose. Returns nothing for an address that is
-// not http or https.
-std::optional<std::string> NoiseSitePattern(const GURL& url);
+// NoiseSiteKey's site, scheme included: "https://[*.]example.com" for a
+// registrable domain, "http://localhost" (the host itself, with its scheme)
+// for an IP address or a name with no registrable domain. Any port matches.
+// Returns an invalid pattern for an address that is not http or https.
+ContentSettingsPattern NoiseSitePattern(const GURL& url);
 
 }  // namespace aerie_fingerprint
 

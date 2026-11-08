@@ -3,19 +3,21 @@
 ``x.a.localhost`` and ``y.a.localhost`` are one site (scheme plus eTLD+1, and ``localhost`` is an
 unknown registry, so the registrable domain is ``a.localhost``). They must show the same canvas,
 audio and core count; ``a.localhost`` and ``b.localhost`` are two sites and must differ. The seeds
-are in the browser's memory only, so an incognito context (its own browser context, made with CDP
-``Target.createBrowserContext``) has fresh seeds and its per-site switch lives in memory.
+are held in memory per browser context (Helium's ``HeliumNoiseTokenData`` is user data of the
+``BrowserContext``, filled with ``base::RandUint64()``), so an incognito context (its own browser
+context, made with CDP ``Target.createBrowserContext``) has fresh seeds and its per-site switch
+lives in memory. The switch pattern carries the scheme, as the key does.
 
 The check measures, on one browser unless noted:
 
 * the regular profile on ``x.a``, ``y.a``, ``a`` and ``b``;
 * two incognito contexts, one after the other, on ``a`` (S3);
-* an incognito context where protection is turned off for ``[*.]a.localhost`` through the Site
+* an incognito context where protection is turned off for ``http://[*.]a.localhost`` through the Site
   settings handler: both hosts of the site show the real values and ``b`` does not (S4, S6); then
   a new incognito context and the regular profile after it: protection is on there (S4);
 * a browser that starts with an old origin-scoped exception for ``x.a.localhost``: it covers the
   whole site (the migration of #114);
-* a browser that starts with a ``[*.]a.localhost`` exception;
+* a browser that starts with an ``http://[*.]a.localhost`` exception;
 * the negative control: a browser with ``--disable-features=HeliumNoise``. It gives the real values
   that "off" must restore, and the same values on both sites, so a difference really is noise.
 
@@ -25,6 +27,8 @@ for equality with the real value when protection is off, never for difference.
 
 from __future__ import annotations
 
+import json
+
 from ...session import Session
 from .. import register
 from .common import HardeningCheck, Verdict, page_value, site
@@ -32,7 +36,7 @@ from .common import HardeningCheck, Verdict, page_value, site
 KINDS = ("canvas", "audio", "cores")
 DIFFERING_KINDS = ("canvas", "audio")  # a hash that must differ between sites and contexts
 SETTINGS_URL = "chrome://settings/"
-SITE_PATTERN = "[*.]a.localhost"
+SITE_PATTERN = "http://[*.]a.localhost"  # scheme-specific, like the key: the fixture serves plain http
 BLOCK = 2  # CONTENT_SETTING_BLOCK in a profile's content_settings exceptions
 SET_OFF_JS = """((pattern) => {
   chrome.send('setCategoryPermissionForPattern', [pattern, '', 'helium-noise', 'block', false]);
@@ -54,7 +58,6 @@ def seeded_exceptions(patterns: dict[str, int]) -> dict:
 def turn_off_for_site(session: Session, pattern: str = SITE_PATTERN) -> bool:
     """Block the noise for a site pattern through the settings page's own handler (the call its
     'add a site' dialog makes), in the profile that page belongs to."""
-    import json
     nav = session.navigate_url(SETTINGS_URL)
     if nav["error"]:
         return False

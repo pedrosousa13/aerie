@@ -4,7 +4,6 @@
 
 #include "components/aerie_fingerprint/site_key.h"
 
-#include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 #include "net/base/schemeful_site.h"
 #include "url/gurl.h"
 #include "url/origin.h"
@@ -28,17 +27,14 @@ std::string NoiseSiteKey(const url::Origin& origin,
   return key;
 }
 
-std::optional<std::string> NoiseSitePattern(const GURL& url) {
+ContentSettingsPattern NoiseSitePattern(const GURL& url) {
   if (!url.is_valid() || !url.SchemeIsHTTPOrHTTPS()) {
-    return std::nullopt;
+    return ContentSettingsPattern();
   }
-  const std::string domain =
-      net::registry_controlled_domains::GetDomainAndRegistry(
-          url, net::registry_controlled_domains::INCLUDE_PRIVATE_REGISTRIES);
-  if (!domain.empty()) {
-    return "[*.]" + domain;
-  }
-  return std::string(url.host());
+  // The same private-registry rules as net::SchemefulSite, so the pattern and
+  // the key cannot disagree: scheme, then the registrable domain with a domain
+  // wildcard (the host itself when there is none), any port.
+  return ContentSettingsPattern::FromURLToSchemefulSitePattern(url);
 }
 
 }  // namespace aerie_fingerprint

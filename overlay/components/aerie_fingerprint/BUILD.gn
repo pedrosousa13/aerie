@@ -17,6 +17,7 @@ source_set("aerie_fingerprint") {
 
   public_deps = [
     "//base",
+    "//components/content_settings/core/common",
     "//url",
   ]
 
@@ -31,6 +32,7 @@ source_set("unit_tests") {
   deps = [
     ":aerie_fingerprint",
     "//base",
+    "//components/content_settings/core/common",
     "//testing/gtest",
     "//url",
   ]
