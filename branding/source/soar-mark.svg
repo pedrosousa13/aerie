@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <!-- Aerie "Soar" mark, master. The wings sweep up into a peak, so the bird is also an A. The sun sits where the crossbar would be.
+       After editing, re-run tools/aerie_branding/export.py (see its docstring) -->
+  <path d="M48 182 C88 160 110 124 128 66 C146 124 168 160 208 182" fill="none" stroke="#000" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="128" cy="160" r="19" fill="#000"/>
+</svg>

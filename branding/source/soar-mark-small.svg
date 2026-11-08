@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <!-- Aerie "Soar" mark tuned for 16-24 px: heavier wings, and a smaller, lower sun so it stays clear of the wings.
+       After editing, re-run tools/aerie_branding/export.py (see its docstring) -->
+  <path d="M44 186 C86 164 108 124 128 58 C148 124 170 164 212 186" fill="none" stroke="#000" stroke-width="40" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="128" cy="172" r="17" fill="#000"/>
+</svg>
