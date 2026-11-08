@@ -1,0 +1,21 @@
+// Copyright 2026 The Aerie Authors
+// You can use, redistribute, and/or modify this source code under
+// the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+CANVAS_DIMENSIONS, 56,
+FILL_RULE_NONZERO,
+MOVE_TO, 24.93f, 10.21f,
+LINE_TO, 12.25f, 43.46f,
+LINE_TO, 18.38f, 45.79f,
+LINE_TO, 31.07f, 12.54f,
+CLOSE,
+MOVE_TO, 24.93f, 12.54f,
+LINE_TO, 37.62f, 45.79f,
+LINE_TO, 43.75f, 43.46f,
+LINE_TO, 31.07f, 10.21f,
+CLOSE,
+MOVE_TO, 20.56f, 36.31f,
+LINE_TO, 35.44f, 36.31f,
+LINE_TO, 35.44f, 31.06f,
+LINE_TO, 20.56f, 31.06f,
+CLOSE,

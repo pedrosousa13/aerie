@@ -1,0 +1,100 @@
+Aerie-Purpose: Name the Linux desktop entry, app ID, icon, user data directory and audio client Aerie, so the desktop shows Aerie and no Helium data directory is reused.
+Aerie-Upstream-Area: chrome/common/channel_info_posix.cc, chrome/common/chrome_paths_linux.cc, chrome/browser/shell_integration_linux.cc, media/audio/pulse/pulse_util.cc, chrome/installer/linux/common/chromium-browser.info
+Aerie-Kind: branding
+
+The desktop entry is aerie.desktop and the icon theme name is aerie (both
+files are in packaging/linux). The app ID (reverse-DNS name, used as the
+metainfo id and the installer RDN) is me.pedrosousa.Aerie. The user
+data directory is ~/.config/aerie. The HELIUM_DESKTOP and HELIUM_CONFIG_HOME
+environment variables keep their names: they are not shown to users.
+
+--- a/chrome/browser/shell_integration_linux.cc
++++ b/chrome/browser/shell_integration_linux.cc
+@@ -485,7 +485,7 @@
+ }
+ 
+ std::string GetIconName() {
+-  return "helium";
++  return "aerie";
+ }
+ 
+ bool GetExistingShortcutContents(base::Environment* env,
+--- a/chrome/common/channel_info_posix.cc
++++ b/chrome/common/channel_info_posix.cc
+@@ -143,7 +143,7 @@
+   if (name.has_value() && !name.value().empty()) {
+     return name.value();
+   }
+-  return "helium.desktop";
++  return "aerie.desktop";
+ #endif
+ }
+ #endif  // BUILDFLAG(IS_LINUX)
+--- a/chrome/common/chrome_paths_linux.cc
++++ b/chrome/common/chrome_paths_linux.cc
+@@ -90,7 +90,7 @@
+         GetXDGDirectory(env.get(), kXdgConfigHomeEnvVar, kDotConfigDir);
+   }
+ 
+-  std::string data_dir_basename = "net.imput.helium";
++  std::string data_dir_basename = "aerie";
+   *result = config_dir.Append(data_dir_basename + GetChannelSuffixForDataDir());
+   return true;
+ }
+--- a/chrome/installer/linux/common/chromium-browser.info
++++ b/chrome/installer/linux/common/chromium-browser.info
+@@ -6,7 +6,7 @@
+ # chromium-browser packages for various platforms.
+ 
+ # Base name of the package.
+-PACKAGE="helium"
++PACKAGE="aerie"
+ 
+ # Filename of the main executable (for generating launcher scripts, etc.)
+ PROGNAME=chrome
+@@ -18,7 +18,7 @@
+ ENROLLMENTDIR=/etc/chromium/policies/enrollment
+ 
+ # Display string for desktop menu/icon.
+-MENUNAME="Helium"
++MENUNAME="Aerie"
+ 
+ # Brief package description.
+ SHORTDESC="The web browser from the Chromium projects"
+@@ -27,16 +27,16 @@
+ FULLDESC="Chromium is a browser that combines a minimal design with sophisticated technology to make the web faster, safer, and easier."
+ 
+ # Package maintainer information.
+-MAINTNAME="imput"
+-MAINTMAIL="helium@imput.net"
+-PRODUCTURL="https://helium.computer"
++MAINTNAME="The Aerie Authors"
++MAINTMAIL="pedrosousa13@users.noreply.github.com"
++PRODUCTURL="https://github.com/pedrosousa13/aerie"
+ 
+ PROJECT_LICENSE="GPL-3.0 and BSD-3-Clause and LGPL-2.1+ and Apache-2.0 and IJG and MIT and GPL-2.0+ and ISC and OpenSSL and (MPL-1.1 or GPL-2.0 or LGPL-2.0)"
+ 
+-DEVELOPER_NAME="The Helium Authors"
++DEVELOPER_NAME="The Aerie Authors"
+ 
+-BUGTRACKERURL="https://github.com/imputnet/helium-linux/issues"
++BUGTRACKERURL="https://github.com/pedrosousa13/aerie/issues"
+ 
+-HELPURL="https://helium.computer/"
++HELPURL="https://github.com/pedrosousa13/aerie"
+ 
+-RDN="net.imput.helium"
++RDN="me.pedrosousa.Aerie"
+--- a/media/audio/pulse/pulse_util.cc
++++ b/media/audio/pulse/pulse_util.cc
+@@ -39,8 +39,8 @@
+ constexpr char kBrowserDisplayName[] = "google-chrome";
+ #define PRODUCT_STRING "Google Chrome"
+ #else
+-constexpr char kBrowserDisplayName[] = "helium";
+-#define PRODUCT_STRING "Helium"
++constexpr char kBrowserDisplayName[] = "aerie";
++#define PRODUCT_STRING "Aerie"
+ #endif
+ 
+ #if defined(DLOPEN_PULSEAUDIO)

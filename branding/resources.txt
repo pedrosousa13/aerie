@@ -1,0 +1,41 @@
+# Aerie art that replaces Helium's, as '<file in branding/art> <path in the Chromium tree>'.
+# Same destinations as helium-chromium/resources/helium_resources.txt (the logo, the product
+# icon sizes and the new tab page favicon); a test compares the two lists and the image sizes.
+# Placeholder art, see tools/aerie_branding/generate.py and issue #21.
+
+favicon_ntp_16.png chrome/app/theme/default_100_percent/common/favicon_ntp.png
+favicon_ntp_32.png chrome/app/theme/default_200_percent/common/favicon_ntp.png
+product_logo.png components/resources/default_100_percent/chromium/product_logo.png
+product_logo_white.png components/resources/default_100_percent/chromium/product_logo_white.png
+product_logo_200.png components/resources/default_200_percent/chromium/product_logo.png
+product_logo_white_200.png components/resources/default_200_percent/chromium/product_logo_white.png
+product_logo_22_mono.png chrome/app/theme/chromium/product_logo_22_mono.png
+product_logo.svg chrome/app/theme/chromium/product_logo.svg
+product_logo.icon chrome/app/vector_icons/browser_logo.icon
+product_logo.icon chrome/app/vector_icons/browser_logo_old.icon
+product_logo.icon chrome/app/vector_icons/chrome_product.icon
+product_logo.icon components/omnibox/browser/vector_icons/chrome_product.icon
+product_logo.icon components/omnibox/browser/vector_icons/product_chrome_refresh.icon
+product_logo.icon components/omnibox/browser/vector_icons/product_chrome_refresh_old.icon
+product_logo.icon components/omnibox/browser/vector_icons/product_old.icon
+product_logo.icon components/vector_icons/chromium/product.icon
+product_logo_color.icon components/vector_icons/chromium/product_refresh.icon
+product_logo.icon ui/message_center/vector_icons/chrome_product.icon
+product_logo.icon ui/message_center/vector_icons/product_old.icon
+app_icon/16.png chrome/app/theme/chromium/product_logo_16.png
+app_icon/24.png chrome/app/theme/chromium/product_logo_24.png
+app_icon/48.png chrome/app/theme/chromium/product_logo_48.png
+app_icon/64.png chrome/app/theme/chromium/product_logo_64.png
+app_icon/128.png chrome/app/theme/chromium/product_logo_128.png
+app_icon/256.png chrome/app/theme/chromium/product_logo_256.png
+app_icon/16.png chrome/app/theme/default_100_percent/chromium/product_logo_16.png
+app_icon/32.png chrome/app/theme/default_100_percent/chromium/product_logo_32.png
+app_icon/32.png chrome/app/theme/default_200_percent/chromium/product_logo_16.png
+app_icon/64.png chrome/app/theme/default_200_percent/chromium/product_logo_32.png
+app_icon/24.png chrome/app/theme/chromium/linux/product_logo_24.png
+app_icon/48.png chrome/app/theme/chromium/linux/product_logo_48.png
+app_icon/64.png chrome/app/theme/chromium/linux/product_logo_64.png
+app_icon/128.png chrome/app/theme/chromium/linux/product_logo_128.png
+app_icon/256.png chrome/app/theme/chromium/linux/product_logo_256.png
+app_icon/16.png chrome/app/theme/default_100_percent/chromium/linux/product_logo_16.png
+app_icon/32.png chrome/app/theme/default_100_percent/chromium/linux/product_logo_32.png

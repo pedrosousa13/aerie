@@ -1,0 +1,20 @@
+Aerie-Purpose: Make the version that About and chrome://version show next to the Chromium version Aerie's own release number, not Helium's.
+Aerie-Upstream-Area: base/version_info/version_info_values.h.version (HELIUM_PRODUCT_VERSION)
+Aerie-Kind: branding
+
+The AERIE_MAJOR, AERIE_MINOR and AERIE_PATCH values are added to
+chrome/VERSION from the AERIE_VERSION file by the "aerie version" build layer
+(tools/aerie_build/aerie_version.py). The macro keeps Helium's name so that
+Helium's version UI patch needs no change.
+
+--- a/base/version_info/version_info_values.h.version
++++ b/base/version_info/version_info_values.h.version
+@@ -11,7 +11,7 @@
+ #if !BUILDFLAG(IS_ANDROID)
+ #define PRODUCT_VERSION "@MAJOR@.@MINOR@.@BUILD@.@PATCH@"
+ #endif
+-#define HELIUM_PRODUCT_VERSION "@HELIUM_MAJOR@.@HELIUM_MINOR@.@HELIUM_PATCH@.@HELIUM_PLATFORM@"
++#define HELIUM_PRODUCT_VERSION "@AERIE_MAJOR@.@AERIE_MINOR@.@AERIE_PATCH@"
+ #define LAST_CHANGE "@LASTCHANGE@"
+ #define IS_OFFICIAL_BUILD @OFFICIAL_BUILD@
+ 

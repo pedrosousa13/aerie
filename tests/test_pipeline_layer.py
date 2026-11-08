@@ -197,10 +197,11 @@ class HeliumInputsTest(unittest.TestCase):
 
 
 class AerieLayersWiringTest(unittest.TestCase):
-    def test_layer_order_is_patches_then_substitution(self):
+    def test_layer_order_is_patches_overlay_art_version_then_substitution(self):
         ctx = SimpleNamespace(repo=Path(__file__).resolve().parents[1], core=Path("c"), tree=Path("t"))
         names = [layer.name for layer in pipeline.aerie_layers(ctx, lambda _m: None)]
-        self.assertEqual(names, ["aerie patches", "overlay", "helium-to-aerie substitution"])
+        self.assertEqual(
+            names, ["aerie patches", "overlay", "branding", "aerie version", "helium-to-aerie substitution"])
 
 
 class CleanTest(unittest.TestCase):

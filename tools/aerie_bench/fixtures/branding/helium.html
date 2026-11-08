@@ -1,0 +1,14 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Branding control</title></head>
+<body>
+<!-- Negative control for the branding_no_helium check: the scanner must find the word below,
+     which sits inside a shadow root, as the settings pages' text does. -->
+<div id="host"></div>
+<script>
+  const root = document.getElementById('host').attachShadow({mode: 'open'});
+  root.innerHTML = '<p>Powered by Helium inside a shadow root</p>';
+  window.__done = true;
+</script>
+</body>
+</html>

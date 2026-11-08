@@ -1,0 +1,56 @@
+Aerie-Purpose: Make aerie:// the internal URL scheme alias, so helium:// is no longer registered and every omnibox, tab search and status bubble URL reads aerie://.
+Aerie-Upstream-Area: content/public/common/url_constants.h (kHeliumUIScheme), components/url_formatter/url_fixer.cc, components/omnibox/browser/builtin_provider.cc, chrome/browser/resources/tab_search
+Aerie-Kind: branding
+
+Helium registers its alias scheme through one constant, kHeliumUIScheme, and
+rewrites it to chrome:// on navigation. Changing the value is enough for the
+scheme registrations, the URL fixer and the status bubble. A few string
+literals repeat the name and are changed with it. chrome:// stays registered:
+the browser's own code and the WebUI resources still use it.
+
+--- a/chrome/browser/resources/tab_search/tab_search_item.ts
++++ b/chrome/browser/resources/tab_search/tab_search_item.ts
+@@ -216,8 +216,8 @@
+ 
+     // Show chrome:// if it's a chrome internal url
+     const protocol = new URL(normalizeURL(data.tab.url)).protocol;
+-    if (protocol === 'chrome:' || protocol === 'helium:') {
+-      this.$.secondaryTextInner.prepend(document.createTextNode('helium://'));
++    if (protocol === 'chrome:' || protocol === 'aerie:') {
++      this.$.secondaryTextInner.prepend(document.createTextNode('aerie://'));
+     }
+   }
+ 
+--- a/components/omnibox/browser/builtin_provider.cc
++++ b/components/omnibox/browser/builtin_provider.cc
+@@ -74,7 +74,7 @@
+     for (const std::u16string& url :
+          client_->GetBuiltinsToProvideAsUserTypes()) {
+       DCHECK(url.starts_with(u"chrome://"));
+-      AddBuiltinMatch(std::u16string(url).replace(0, 6, u"helium"),
++      AddBuiltinMatch(std::u16string(url).replace(0, 6, u"aerie"),
+                       std::u16string(), styles);
+     }
+   } else {
+--- a/components/url_formatter/url_fixer.cc
++++ b/components/url_formatter/url_fixer.cc
+@@ -40,7 +40,7 @@
+ 
+ // Hardcode these constants to avoid dependences on //chrome and //content.
+ const char kChromeUIScheme[] = "chrome";
+-const char kHeliumUIScheme[] = "helium";
++const char kHeliumUIScheme[] = "aerie";
+ const char kDevToolsScheme[] = "devtools";
+ const char kChromeUIDefaultHost[] = "version";
+ const char kViewSourceScheme[] = "view-source";
+--- a/content/public/common/url_constants.h
++++ b/content/public/common/url_constants.h
+@@ -19,7 +19,7 @@
+ inline constexpr char kChromeDevToolsScheme[] = "devtools";
+ inline constexpr char kChromeErrorScheme[] = "chrome-error";
+ inline constexpr char kChromeUIScheme[] = "chrome";  // Used for WebUIs.
+-inline constexpr char kHeliumUIScheme[] = "helium";  // also used for webuis :3
++inline constexpr char kHeliumUIScheme[] = "aerie";  // Aerie: alias for chrome://.
+ inline constexpr char kChromeNativeScheme[] = "chrome-native";
+ inline constexpr char kChromeUIUntrustedScheme[] = "chrome-untrusted";
+ inline constexpr char kViewSourceScheme[] = "view-source";

@@ -204,6 +204,33 @@ not cover a separate process that makes its own sockets, such as the crash
 handler. Crash upload is removed in the source and checked by the source gates
 (`docs/network-endpoints.md`).
 
+### Branding checks
+
+Three checks for the rebrand (issue #5). Run them with
+`./aerie bench --scenario tools/aerie_bench/scenarios/branding.json`. They read
+internal pages over DevTools, so they need a real build. Each says in
+`negative_control` how it proves that it can fail. Their judging code is tested
+against recorded observations in `tests/test_bench_branding.py`.
+
+| Name | Passes when | Negative control |
+| --- | --- | --- |
+| `branding_no_helium` | The title and the text (including every shadow root, and the `aria-label`, `title`, `placeholder`, `alt` and `label` attributes) of 22 internal pages never contain the whole word Helium, in any case: About (`chrome://version`, `chrome://settings/help`), the settings pages, `chrome://flags`, the chrome-urls list, history, downloads, extensions, bookmarks and the others in `PAGES` (`tools/aerie_bench/checks/branding.py`). A page that does not load fails the check. | A fixture page with the word inside a shadow root is read by the same scanner and must be reported. |
+| `branding_scheme` | A tab opened on `aerie://version` shows the version page, and one opened on `helium://version` does not (it ends on `about:blank` or an error page, like an unknown scheme). | A tab on the made-up scheme `zzz://version` must not load the version page either. |
+| `branding_version` | About and `chrome://version` both show the Aerie release (`AERIE_VERSION`) and the Chromium version (`helium.lock`), and neither shows Helium's own version number. | The Helium version number must be absent, so a build that still shows it fails even with the other two present. |
+
+Until issue #23 removes the Helium services settings and the onboarding
+consent, the text of `chrome://settings/privacy`, `chrome://settings/privacy/services`,
+`chrome://settings/languages` and `chrome://setup` may still name Helium services. `branding_no_helium`
+scans those pages, reports how many hits each has in its detail line, and fails
+only if their title says Helium. Delete `PENDING_SERVICES_PAGES` when #23 lands.
+
+Three other exemptions are each limited to one page. On `chrome://version`, the
+Command Line, Executable Path and Profile Path lines (build directory names)
+and the exact string "The Helium Authors" are ignored: the copyright line
+credits Aerie, Helium and Chromium, because Aerie is derived from both. On
+`chrome://flags`, internal flag ids such as `#helium-noise` are ignored. The same
+text on any other page fails the check.
+
 ### Hardening checks
 
 One check for each control in `docs/hardening.md`, plus three that cover the

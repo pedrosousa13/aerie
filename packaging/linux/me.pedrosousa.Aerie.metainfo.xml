@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>me.pedrosousa.Aerie</id>
+  <launchable type="desktop-id">aerie.desktop</launchable>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-only</project_license>
+  <name>Aerie</name>
+  <summary>A hardened web browser without Google services</summary>
+  <description>
+    <p>
+      Aerie is a hardened web browser based on Chromium. It blocks ads
+      natively, makes no requests to Google, and turns on privacy and security
+      defaults.
+    </p>
+  </description>
+  <url type="homepage">https://github.com/pedrosousa13/aerie</url>
+  <url type="bugtracker">https://github.com/pedrosousa13/aerie/issues</url>
+  <content_rating type="oars-1.1" />
+</component>
