@@ -140,5 +140,5 @@ rulings allow as a fallback.
 | Denylist matching, the check's verdicts, the baseline demo | Python unit tests against recorded and hand-made NetLogs | now |
 | The check sees traffic | run on a stock Chrome for Testing: fails with Google hosts | now (one run, see the report) |
 | The Aerie build makes no denylisted request in 6 minutes | `./aerie bench --check zero_traffic --baseline <unmodified helium>` | train build |
-| The Aerie C++ compiles and the validator unit tests pass | build, `components_unittests --gtest_filter=AerieExtensionProxy*` | train build |
+| The Aerie C++ compiles and the validator unit tests pass | build; the `AerieExtensionProxy*` tests cannot run yet: they link only into `components_unittests`, which Helium's tree cannot build (#82) | train build |
 | The not-configured dialog shows | by hand on the build; no Bench driver yet (the install API is not reachable from a local page) | train build |
