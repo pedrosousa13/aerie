@@ -155,12 +155,82 @@ pub(crate) fn parse_options() -> ParseOptions {
 /// An exception rule with no pattern (`@@`, `@@$image`, `@@*`, `@@||`)
 /// matches every URL, so one such line would switch off all blocking.
 /// No real list needs one, and a malformed list must not get that power.
+///
+/// This only knows the empty forms. `is_ignored_exception` also catches
+/// the rules that match every URL by another pattern.
 pub(crate) fn is_match_all_exception(line: &str) -> bool {
     let Some(rest) = line.strip_prefix("@@") else {
         return false;
     };
     let pattern = rest.split('$').next().unwrap_or("").trim();
     matches!(pattern, "" | "*" | "|" | "||" | "^")
+}
+
+/// Addresses that no real exception rule should cover: the `.invalid` top
+/// level domain is reserved (RFC 2606), so no real site lives there. One
+/// has a path, one has a port and a query, one has no path at all.
+const PROBE_URLS: [(&str, &str); 3] = [
+    ("https://aerie-probe-1.invalid/aerie-probe/0f3a9c71", "aerie-probe-1.invalid"),
+    ("http://aerie-probe-2.invalid:8080/x/y.z?q=1", "aerie-probe-2.invalid"),
+    ("https://aerie-probe-3.invalid/", "aerie-probe-3.invalid"),
+];
+
+/// The first party for the third-party probes.
+const PROBE_SOURCE: &str = "aerie-probe-source.invalid";
+
+const PROBE_KINDS: [RequestKind; 12] = [
+    RequestKind::Other,
+    RequestKind::Document,
+    RequestKind::Subdocument,
+    RequestKind::Script,
+    RequestKind::Stylesheet,
+    RequestKind::Image,
+    RequestKind::Font,
+    RequestKind::Media,
+    RequestKind::XmlHttpRequest,
+    RequestKind::Ping,
+    RequestKind::Websocket,
+    RequestKind::Object,
+];
+
+/// Does this exception rule apply to arbitrary addresses?
+///
+/// It tests the effect, not the pattern text: the rule is compiled alone,
+/// and asked about the probe addresses above, for every request type, as
+/// first party and as third party, from a first party that no `$domain=`
+/// option names. A rule that applies to any of them is not scoped to a
+/// site or a path, so it would switch off blocking for that type of
+/// request everywhere (`@@http`, `@@.`, `@@/./`, `@@||*`, `@@*$script`).
+///
+/// A host-anchored rule (`@@||host...`) needs a literal first character
+/// and is not tested: it is scoped by its host.
+pub(crate) fn exception_matches_every_address(line: &str) -> bool {
+    let Some(rest) = line.trim().strip_prefix("@@") else {
+        return false;
+    };
+    let pattern = rest.split('$').next().unwrap_or("");
+    if pattern.strip_prefix("||").and_then(|p| p.chars().next()).is_some_and(|c| c.is_ascii_alphanumeric()) {
+        return false;
+    }
+    let mut set = FilterSet::new(false);
+    set.add_filter_list(line.to_string(), parse_options());
+    let engine = Engine::new_with_filter_set(set);
+    for (url, host) in PROBE_URLS {
+        for kind in PROBE_KINDS {
+            for source in [host, PROBE_SOURCE] {
+                let req = Request::preparsed(url, host, source, kind.as_filter_type(), source != host, "");
+                if engine.check_network_request_subset(&req, false, true).exception.is_some() {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
+/// Is this line an exception rule that the engine must not apply?
+pub(crate) fn is_ignored_exception(line: &str) -> bool {
+    is_match_all_exception(line) || exception_matches_every_address(line)
 }
 
 /// Finds the registrable domain of a host for `adblock`'s cosmetic
@@ -360,16 +430,43 @@ fn is_web_url(url: &str) -> bool {
         })
 }
 
+/// The result of `sanitize_list_report`.
+#[derive(Debug, PartialEq, Eq)]
+pub struct SanitizedList {
+    /// The list text that is safe to parse.
+    pub text: String,
+    /// The exception rules that were left out because they match every
+    /// address (at most `MAX_REPORTED_RULES`, each cut to `MAX_LINE_BYTES`).
+    pub ignored_exceptions: Vec<String>,
+}
+
+/// Most ignored rules kept in a report, so a hostile list cannot make the
+/// report big.
+pub const MAX_REPORTED_RULES: usize = 20;
+
 /// Make list bytes safe to parse: lossy UTF-8, NULs and carriage returns
-/// gone, over-long lines and match-all exceptions dropped, and every
-/// cosmetic rule that is not a plain hide with a safe selector dropped. Never fails and
-/// never panics.
+/// gone, over-long lines and exception rules that match every address
+/// dropped, and every cosmetic rule that is not a plain hide with a safe
+/// selector dropped. Never fails and never panics.
 pub fn sanitize_list(bytes: &[u8]) -> String {
+    sanitize_list_report(bytes).text
+}
+
+/// Like `sanitize_list`, and also says which exception rules were ignored,
+/// so the caller can log them.
+pub fn sanitize_list_report(bytes: &[u8]) -> SanitizedList {
     let text = String::from_utf8_lossy(bytes);
     let mut out = String::with_capacity(text.len());
+    let mut ignored_exceptions = Vec::new();
     for line in text.split('\n') {
         let line = line.trim_end_matches('\r');
-        if line.len() > MAX_LINE_BYTES || line.contains('\0') || is_match_all_exception(line) {
+        if line.len() > MAX_LINE_BYTES || line.contains('\0') {
+            continue;
+        }
+        if is_ignored_exception(line) {
+            if ignored_exceptions.len() < MAX_REPORTED_RULES {
+                ignored_exceptions.push(line.to_string());
+            }
             continue;
         }
         match classify_line(line) {
@@ -380,7 +477,7 @@ pub fn sanitize_list(bytes: &[u8]) -> String {
         out.push_str(line);
         out.push('\n');
     }
-    out
+    SanitizedList { text: out, ignored_exceptions }
 }
 
 impl FilterEngine {

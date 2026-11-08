@@ -133,3 +133,21 @@ fn the_budget_is_shared_by_all_lists() {
         .unwrap();
     assert_eq!(err, (0, ListError::Timeout));
 }
+
+#[test]
+fn a_list_with_a_broad_exception_passes_with_a_warning_count() {
+    let list = "||real.test^\n@@http\n@@|http\n@@||real.test/ok\n";
+    let check = check_list(list.as_bytes(), BUDGET).unwrap();
+    assert_eq!(check.network_rules, 2);
+    assert_eq!(check.ignored_exceptions, 2);
+    assert_eq!(check_list(GOOD.as_bytes(), BUDGET).unwrap().ignored_exceptions, 0);
+}
+
+#[test]
+fn a_list_of_only_broad_exceptions_fails_the_check() {
+    for bad in ["@@http", "@@|http", "@@.", "@@://", "@@/./", "@@||*", "@@*$third-party"] {
+        let list = format!("! Title: bad\n{bad}\n");
+        assert_eq!(check_list(list.as_bytes(), BUDGET), Err(ListError::NoRules), "{bad}");
+        assert!(FilterEngine::from_checked_lists([list.as_bytes()], BUDGET).is_err(), "{bad}");
+    }
+}
