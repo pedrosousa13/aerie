@@ -157,3 +157,52 @@ class LoadTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SocketIdsTest(unittest.TestCase):
+    """Which sockets carried each URL request (issue #73: no connection is reused across Workspaces)."""
+
+    CONSTS = {"logEventTypes": {"URL_REQUEST_START_JOB": 1, "HTTP_STREAM_REQUEST_BOUND_TO_JOB": 2,
+                                "SOCKET_POOL_BOUND_TO_SOCKET": 3, "HTTP_STREAM_JOB_CONTROLLER_BOUND": 4,
+                                "HTTP_STREAM_JOB_BOUND_TO_REQUEST": 5, "SOCKET_IN_USE": 6},
+              "logSourceType": {"URL_REQUEST": 1, "HTTP_STREAM_JOB": 2, "SOCKET": 3,
+                                "HTTP_STREAM_JOB_CONTROLLER": 4}}
+
+    @staticmethod
+    def dep(src, src_type, kind, dep_id, dep_type):
+        return {"phase": 0, "source": {"id": src, "type": src_type}, "time": "1", "type": kind,
+                "params": {"source_dependency": {"id": dep_id, "type": dep_type}}}
+
+    def request(self, rid, job, sock, url, controller=None):
+        d = self.dep
+        out = [{"phase": 1, "source": {"id": rid, "type": 1}, "time": "1", "type": 1,
+                "params": {"url": url, "method": "GET"}}]
+        if controller:
+            out.append(d(rid, 1, 4, controller, 4))
+        out += [d(rid, 1, 2, job, 2), d(job, 2, 3, sock, 3), d(sock, 3, 6, job, 2),
+                d(job, 2, 5, rid, 1)]
+        return out
+
+    def parse(self, events):
+        return netlog.parse(json.dumps({"constants": self.CONSTS, "events": events}))
+
+    def test_a_request_lists_the_socket_its_stream_job_bound_to(self):
+        recs = self.parse(self.request(10, 11, 12, "http://localhost:1/ws/ping?w=A", controller=13))
+        self.assertEqual(recs[0]["sockets"], [12])
+
+    def test_two_requests_on_one_socket_share_its_id_and_a_third_does_not(self):
+        events = (self.request(10, 11, 50, "http://localhost:1/a") + self.request(20, 21, 50, "http://localhost:1/b")
+                  + self.request(30, 31, 60, "http://localhost:1/c"))
+        recs = {r["url"][-1]: r["sockets"] for r in self.parse(events)}
+        self.assertEqual(recs, {"a": [50], "b": [50], "c": [60]})
+
+    def test_the_walk_does_not_leak_through_a_socket_to_another_request(self):
+        # SOCKET_IN_USE points socket -> job; the socket must not lead to the other request's job.
+        events = self.request(10, 11, 50, "http://localhost:1/a") + self.request(20, 21, 50, "http://localhost:1/b")
+        recs = self.parse(events)
+        self.assertEqual([r["sockets"] for r in recs], [[50], [50]])
+
+    def test_a_request_with_no_connection_has_no_sockets(self):
+        recs = self.parse([{"phase": 1, "source": {"id": 1, "type": 1}, "time": "1", "type": 1,
+                            "params": {"url": "http://localhost:1/x", "method": "GET"}}])
+        self.assertEqual(recs[0]["sockets"], [])

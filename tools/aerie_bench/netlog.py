@@ -81,9 +81,20 @@ def parse(text: str) -> list[dict]:
     src_names = {v: k for k, v in constants.get("logSourceType", {}).items()}
     records: dict[int, dict] = {}
     order: list[int] = []
+    edges: dict[int, set[int]] = {}      # source id -> source ids it depends on (request, job, controller)
+    socket_ids: set[int] = set()
     for ev in events:
         src = ev.get("source", {})
-        if src_names.get(src.get("type")) != "URL_REQUEST":
+        dep = (ev.get("params") or {}).get("source_dependency")
+        src_name = src_names.get(src.get("type"))
+        if dep and src_name in _WALK_SOURCES:
+            dep_name = src_names.get(dep.get("type"))
+            if dep_name == "SOCKET":
+                socket_ids.add(dep["id"])
+                edges.setdefault(src["id"], set()).add(dep["id"])
+            elif dep_name in _WALK_SOURCES and dep_name != "URL_REQUEST":
+                edges.setdefault(src["id"], set()).add(dep["id"])
+        if src_name != "URL_REQUEST":
             continue
         sid = src.get("id")
         params = ev.get("params") or {}
@@ -110,7 +121,28 @@ def parse(text: str) -> list[dict]:
                 records[sid]["external"] = records[sid]["external"] or _external(location)
         if sid in records and params.get("net_error"):
             records[sid]["net_error"] = params["net_error"]
+    for sid in order:
+        records[sid]["sockets"] = sorted(_sockets_of(sid, edges, socket_ids))
     return [records[i] for i in order]
+
+
+# Sources a request's connection hangs off. The walk goes request -> stream job -> socket and stops
+# at a socket: a socket points back at the job that uses it, which would lead to other requests.
+_WALK_SOURCES = ("URL_REQUEST", "HTTP_STREAM_JOB", "HTTP_STREAM_JOB_CONTROLLER")
+
+
+def _sockets_of(start: int, edges: dict[int, set[int]], socket_ids: set[int]) -> set[int]:
+    found: set[int] = set()
+    seen = {start}
+    todo = [start]
+    while todo:
+        for dep in edges.get(todo.pop(), ()):
+            if dep in socket_ids:
+                found.add(dep)
+            elif dep not in seen:
+                seen.add(dep)
+                todo.append(dep)
+    return found
 
 
 def all_urls(records: list[dict]) -> set[str]:

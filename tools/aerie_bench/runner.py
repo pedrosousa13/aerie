@@ -126,8 +126,10 @@ def run_bench(binary: Path | str, scenario: Scenario, build_root: Path, *, out_d
                 _merge(prefs, c.profile_prefs(server))
         if prefs:
             profile.seed_prefs(prefs)
+        # A check can ask for browser flags once the fixture server is up (``browser_flags(server)``).
+        check_flags = tuple(f for c in instances if hasattr(c, "browser_flags") for f in c.browser_flags(server))
         argv = launcher.build_argv(binary, profile.path, netlog_path, headless=headless,
-                                   no_sandbox=no_sandbox, extra=extra_flags)
+                                   no_sandbox=no_sandbox, extra=(*extra_flags, *check_flags))
         env = browser_env(os.environ, profile.path, extra_env)
         binary_version = launcher.version(binary, env=env)
         try:
@@ -136,6 +138,7 @@ def run_bench(binary: Path | str, scenario: Scenario, build_root: Path, *, out_d
             raise BenchError(f"cannot start {binary}: {exc}") from exc
         session = Session(proc.client, server, out, timeout=timeout, binary=str(binary),
                           binary_version=binary_version, netlog_path=netlog_path)
+        session.profile_path = profile.path
         variant_count = [0]
 
         @contextmanager
