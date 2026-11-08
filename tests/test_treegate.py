@@ -74,7 +74,30 @@ LINK_PREFETCH_BLINK_OK = """  if (document.GetSettings() &&
   UseCounter::Count(document, WebFeature::kLinkRelPrefetch);
 """
 
-WIDEVINE_REG_OK = """void RegisterComponentsForUpdate() {
+JS_OPT_REGISTRY_OK = """  Register(ContentSettingsType::JAVASCRIPT_OPTIMIZER, "javascript-optimizer",
+           CONTENT_SETTING_ALLOW, WebsiteSettingsInfo::UNSYNCABLE,
+           /*allowlisted_primary_schemes=*/{},
+"""
+JS_OPT_ROUTE_OK = "  r.SITE_SETTINGS_JAVASCRIPT_OPTIMIZER = r.SITE_SETTINGS.createChild('v8');\n"
+JS_OPT_HOST_OK = """  if (host->AreV8OptimizationsDisabled() !=
+      site_info.are_v8_optimizations_disabled()) {
+    return false;
+  }
+  if (IsJitDisabled()) {
+    AppendToCommaSeparatedSwitch(
+        command_line, blink::switches::kJavaScriptFlags, "--jitless");
+  } else if (AreV8OptimizationsDisabled()) {
+    AppendToCommaSeparatedSwitch(command_line,
+                                 blink::switches::kJavaScriptFlags,
+                                 "--disable-optimizing-compilers");
+  }
+"""
+JS_OPT_SITE_INFO_OK = "      are_v8_optimizations_disabled_ == other.are_v8_optimizations_disabled_ &&\n"
+JS_OPT_FEATURE_OK = """BASE_FEATURE(kOriginIsolationForJsOptExceptions,
+             base::FEATURE_ENABLED_BY_DEFAULT);
+"""
+
+JS_OPT_WIDEVINE_REG_OK = """void RegisterComponentsForUpdate() {
   aerie_widevine::RegisterWhenEnabled(g_browser_process->local_state(),
                                       base::BindRepeating(&RegisterWidevineCdmComponent, cus));
 }
@@ -107,6 +130,7 @@ WIDEVINE_INSTALLER_OK = """const uint8_t kWidevineSha2Hash[] = {
 """
 
 GOOD = {
+    **JS_OPT_GOOD,
     "chrome/browser/component_updater/widevine_cdm_component_installer.cc": WIDEVINE_INSTALLER_OK,
     "chrome/browser/component_updater/registration.cc": WIDEVINE_REG_OK,
     "components/update_client/update_checker.cc": WIDEVINE_CHECKER_OK,
@@ -267,6 +291,33 @@ class DefaultsGatesTest(TreeCase):
         self.assertEqual(len(treegate.check_services_off(self.root)), 1)
 
 
+class JsOptimizerGateTest(TreeCase):
+    def test_passes_on_the_upstream_shape(self):
+        self.write(JS_OPT_GOOD)
+        self.assertEqual(treegate.check_js_optimizer(self.root, require=True), [])
+
+    def test_each_part_is_guarded(self):
+        host = "content/browser/renderer_host/render_process_host_impl.cc"
+        cases = {
+            "components/content_settings/core/browser/content_settings_registry.cc":
+                JS_OPT_REGISTRY_OK.replace("CONTENT_SETTING_ALLOW", "CONTENT_SETTING_BLOCK"),
+            "chrome/browser/resources/settings/route.ts": JS_OPT_ROUTE_OK.replace("'v8'", "'jit'"),
+            "content/browser/site_info.cc": JS_OPT_SITE_INFO_OK.replace("==", "!="),
+            "components/site_isolation/features.cc": JS_OPT_FEATURE_OK.replace("ENABLED", "DISABLED"),
+        }
+        for rel, bad in cases.items():
+            with self.subTest(rel):
+                self.write(JS_OPT_GOOD)
+                self.write({rel: bad})
+                self.assertEqual([f.path for f in treegate.check_js_optimizer(self.root)], [rel])
+        for what, bad in (("reuse", JS_OPT_HOST_OK.replace("return false;", "return true;")),
+                          ("flag", JS_OPT_HOST_OK.replace("--disable-optimizing-compilers", "--other"))):
+            with self.subTest(what):
+                self.write(JS_OPT_GOOD)
+                self.write({host: bad})
+                self.assertEqual([f.gate for f in treegate.check_js_optimizer(self.root)], ["js_optimizer"])
+
+
 class RunTest(TreeCase):
     def test_all_good_tree_passes(self):
         self.write(GOOD)
@@ -279,7 +330,7 @@ class RunTest(TreeCase):
 
     def test_empty_tree_passes_unless_required(self):
         self.assertEqual(self.run_gates(), [])
-        self.assertEqual(len(self.run_gates(require=True)), 15)
+        self.assertEqual(len(self.run_gates(require=True)), 16)
 
     def test_format_report(self):
         self.write({"a.cc": '"https://services.helium.imput.net"\n'})

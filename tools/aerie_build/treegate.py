@@ -247,10 +247,43 @@ def check_widevine_opt_in(root: Path, require: bool = False) -> list[Finding]:
     return out
 
 
+def check_js_optimizer(root: Path, require: bool = False) -> list[Finding]:
+    """The per-site JavaScript JIT toggle (Chromium's javascript-optimizer content setting) is whole:
+    default allow, reachable in settings, and a process never serves two optimizer modes."""
+    gate = "js_optimizer"
+    out = _must_match(
+        root, "components/content_settings/core/browser/content_settings_registry.cc", gate,
+        r'Register\(ContentSettingsType::JAVASCRIPT_OPTIMIZER,\s*"javascript-optimizer",\s*CONTENT_SETTING_ALLOW\b',
+        "the javascript-optimizer content setting must be registered with CONTENT_SETTING_ALLOW as default", require)
+    out += _must_match(
+        root, "chrome/browser/resources/settings/route.ts", gate,
+        r"r\.SITE_SETTINGS_JAVASCRIPT_OPTIMIZER\s*=\s*r\.SITE_SETTINGS\.createChild\('v8'\)",
+        "the JavaScript optimization settings route (content/v8) must exist", require)
+    host = "content/browser/renderer_host/render_process_host_impl.cc"
+    out += _must_match(
+        root, host, gate,
+        r"host->AreV8OptimizationsDisabled\(\)\s*!=\s*site_info\.are_v8_optimizations_disabled\(\)\)\s*\{\s*return false;",
+        "IsSuitableHost must refuse a process whose optimizer mode differs from the site's", require)
+    out += _must_match(
+        root, host, gate,
+        r'else if \(AreV8OptimizationsDisabled\(\)\)\s*\{\s*AppendToCommaSeparatedSwitch\(\s*command_line,\s*'
+        r'blink::switches::kJavaScriptFlags,\s*"--disable-optimizing-compilers"\)',
+        "a renderer with the optimizer off must start with --disable-optimizing-compilers", require)
+    out += _must_match(
+        root, "content/browser/site_info.cc", gate,
+        r"are_v8_optimizations_disabled_\s*==\s*other\.are_v8_optimizations_disabled_",
+        "SiteInfo::IsExactMatch must compare are_v8_optimizations_disabled", require)
+    out += _must_match(
+        root, "components/site_isolation/features.cc", gate,
+        r"BASE_FEATURE\(kOriginIsolationForJsOptExceptions,\s*base::FEATURE_ENABLED_BY_DEFAULT\)",
+        "kOriginIsolationForJsOptExceptions must be enabled by default", require)
+    return out
+
+
 GATES: tuple[Callable[..., list[Finding]], ...] = (
     check_search_list, check_search_suggestions, check_secure_dns_default,
     check_crash_reporting, check_services_off, check_fedcm_resolver, check_widevine_opt_in,
-    check_https_first_dialog_off, check_link_prefetch_off,
+    check_https_first_dialog_off, check_link_prefetch_off, check_js_optimizer,
 )
 
 
