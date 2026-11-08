@@ -1,11 +1,12 @@
 """Fingerprinting randomization: canvas and audio differ per site and per session.
 
-Canvas must also be stable within one site and session. Audio is not held to that rule: Helium's
-audio noise is salted with a process-wide render counter, so every render of the same audio graph
-gets different noise (train-1 run: `352a1c50` then `8e2a574a` for one site in one session). That is
-accepted for now; the follow-up is issue #38. Put it back by
-adding "audio" to STABLE_WITHIN_SESSION when #38 lands.
+Both must also be stable within one site and session, so a tracker cannot average the noise away
+by reading again. Helium first salted audio noise with a process-wide render counter (train-1 run:
+`352a1c50` then `8e2a574a` for one site in one session) and the rule was lifted for audio. Aerie
+patch hardening/0009 (issue #38) seeds audio noise from the site and session alone, so the rule
+is back.
 """
+
 
 from __future__ import annotations
 
@@ -14,13 +15,12 @@ from .. import register
 from .common import HardeningCheck, Verdict, page_value, site
 
 KINDS = ("canvas", "audio")
-STABLE_WITHIN_SESSION = ("canvas",)  # audio dropped on purpose, see the module docstring and issue #38
+STABLE_WITHIN_SESSION = ("canvas", "audio")
 
 
 def fingerprint(session: Session, name: str) -> dict:
     session.navigate_url(f"{site(session, name)}/hardening/fingerprint.html")
     return page_value(session, "window.__result")
-
 
 
 @register
@@ -53,12 +53,16 @@ class Fingerprinting(HardeningCheck):
         for kind in KINDS:
             if kind in STABLE_WITHIN_SESSION and obs["a1"][kind] != obs["a2"][kind]:
                 return "fail", f"{kind} changed between two loads of one site in one session"
+            for key in ("a1", "a2", "b1"):  # a second render in the same page, when the page makes one
+                again = obs[key].get(f"{kind}_again")
+                if kind in STABLE_WITHIN_SESSION and again is not None and again != obs[key][kind]:
+                    return "fail", f"{kind} changed between two renders in one page"
             if obs["a1"][kind] == obs["b1"][kind]:
                 return "fail", f"{kind} is the same on two different sites ({obs['a1'][kind]})"
             if obs["a1"][kind] == obs["next_session"]["a"].get(kind):
                 return "fail", f"{kind} is the same in a new browser session ({obs['a1'][kind]})"
         for kind in KINDS:
-            if kind not in STABLE_WITHIN_SESSION and obs["control"]["a"][kind] in (obs["a1"][kind], obs["a2"][kind]):
+            if obs["control"]["a"][kind] in (obs["a1"][kind], obs["a2"][kind]):
                 return "fail", f"{kind} equals the no-noise control, so the noise did nothing"
-        return "pass", ("canvas is stable within a site and session; canvas and audio differ across sites and "
-                        "across sessions (audio is not stable within a session, see issue #38)")
+        return "pass", ("canvas and audio are stable within a site and session, and differ across sites and "
+                        "across sessions")

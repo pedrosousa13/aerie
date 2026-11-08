@@ -246,10 +246,10 @@
    }
   },
   {
-   "name": "real_train1_audio_changes_every_render",
-   "expect": "pass",
-   "detail_contains": "",
-   "real": "Recorded on a real Aerie build, train-1 Bench run (bench/train1/hardening-1/results.json); LAN address scrubbed.",
+   "name": "real_train1_audio_changes_every_render_now_fails",
+   "expect": "fail",
+   "detail_contains": "audio changed",
+   "real": "Recorded on a real Aerie build, train-1 Bench run (bench/train1/hardening-1/results.json); LAN address scrubbed. Helium salted audio noise with a render counter then, so the stability rule (#38) rejects it.",
    "obs": {
     "a1": {
      "canvas": "d2f4c192",
@@ -277,6 +277,115 @@
      "b": {
       "canvas": "871343e7",
       "audio": "f5c66174"
+     }
+    }
+   }
+  },
+  {
+   "name": "audio_unstable_within_session",
+   "expect": "fail",
+   "detail_contains": "audio changed between two loads",
+   "obs": {
+    "a1": {
+     "canvas": "c1",
+     "audio": "u1"
+    },
+    "a2": {
+     "canvas": "c1",
+     "audio": "uz"
+    },
+    "b1": {
+     "canvas": "c2",
+     "audio": "u2"
+    },
+    "next_session": {
+     "a": {
+      "canvas": "c3",
+      "audio": "u3"
+     }
+    },
+    "control": {
+     "a": {
+      "canvas": "cx",
+      "audio": "ux"
+     },
+     "b": {
+      "canvas": "cx",
+      "audio": "ux"
+     }
+    }
+   }
+  },
+  {
+   "name": "audio_unstable_between_two_renders_in_one_page",
+   "expect": "fail",
+   "detail_contains": "audio changed between two renders",
+   "obs": {
+    "a1": {
+     "canvas": "c1",
+     "audio": "u1",
+     "audio_again": "uq"
+    },
+    "a2": {
+     "canvas": "c1",
+     "audio": "u1"
+    },
+    "b1": {
+     "canvas": "c2",
+     "audio": "u2"
+    },
+    "next_session": {
+     "a": {
+      "canvas": "c3",
+      "audio": "u3"
+     }
+    },
+    "control": {
+     "a": {
+      "canvas": "cx",
+      "audio": "ux"
+     },
+     "b": {
+      "canvas": "cx",
+      "audio": "ux"
+     }
+    }
+   }
+  },
+  {
+   "name": "stable_with_two_renders_in_one_page",
+   "expect": "pass",
+   "detail_contains": "",
+   "obs": {
+    "a1": {
+     "canvas": "c1",
+     "audio": "u1",
+     "audio_again": "u1"
+    },
+    "a2": {
+     "canvas": "c1",
+     "audio": "u1",
+     "audio_again": "u1"
+    },
+    "b1": {
+     "canvas": "c2",
+     "audio": "u2",
+     "audio_again": "u2"
+    },
+    "next_session": {
+     "a": {
+      "canvas": "c3",
+      "audio": "u3"
+     }
+    },
+    "control": {
+     "a": {
+      "canvas": "cx",
+      "audio": "ux"
+     },
+     "b": {
+      "canvas": "cx",
+      "audio": "ux"
      }
     }
    }

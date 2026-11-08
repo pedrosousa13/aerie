@@ -276,15 +276,32 @@ class SettingsLinkRowTest(unittest.TestCase):
 class FingerprintJudgeTest(unittest.TestCase):
     def obs(self, **changes):
         obs = json.loads(json.dumps(REAL_FINGERPRINT))
+        obs["a2"]["audio"] = obs["a1"]["audio"]  # what a build with stable audio noise gives
         for path, value in changes.items():
             kind, key = path.split("__")
             obs[kind][key] = value
         return obs
 
-    def test_real_audio_that_changes_every_render_passes(self):
+    def test_audio_is_held_to_the_same_stability_rule_as_canvas(self):
+        self.assertEqual(fingerprint.STABLE_WITHIN_SESSION, ("canvas", "audio"))
+
+    def test_audio_that_changes_every_render_fails(self):
+        # The train-1 recording: Helium salted the noise with a render counter.
+        status, detail = fingerprint.Fingerprinting.judge(REAL_FINGERPRINT)
+        self.assertEqual(status, "fail")
+        self.assertIn("audio changed between two loads", detail)
+
+    def test_stable_audio_passes(self):
         status, detail = fingerprint.Fingerprinting.judge(self.obs())
         self.assertEqual(status, "pass", detail)
-        self.assertIn("#38", detail)
+        self.assertNotIn("not stable", detail)
+
+    def test_two_audio_renders_in_one_page_must_match(self):
+        obs = self.obs()
+        obs["a1"]["audio_again"] = "00000000"
+        status, detail = fingerprint.Fingerprinting.judge(obs)
+        self.assertEqual(status, "fail")
+        self.assertIn("audio changed between two renders in one page", detail)
 
     def test_canvas_must_stay_stable_within_a_session(self):
         obs = self.obs()
@@ -303,7 +320,7 @@ class FingerprintJudgeTest(unittest.TestCase):
 
     def test_audio_equal_to_the_no_noise_control_fails(self):
         obs = self.obs()
-        obs["a2"]["audio"] = obs["control"]["a"]["audio"]
+        obs["a1"]["audio"] = obs["a2"]["audio"] = obs["control"]["a"]["audio"]
         self.assertIn("equals the no-noise control", fingerprint.Fingerprinting.judge(obs)[1])
 
 
