@@ -64,6 +64,12 @@ that keeps Manifest V2 working is a different patch and stays: none of these
 carries an MV2 enabler (checked hunk by hunk; the Bench check `mv2_extension`
 proves it on a real build).
 
+Manifest V2 support is itself a Helium dependency. It comes from
+`ungoogled-chromium/extensions-manifestv2.patch` in the base. Aerie keeps it only
+as long as Helium carries it, and adds no patch of its own to keep MV2 alive
+([ADR 0001](adr/0001-native-adblock-engine.md#amendment-issue-76-2026-11-08-manifest-v2)).
+When Helium drops it, the `mv2_extension` Bench check is retired in the same bump.
+
 | Helium patch | Action | Why | Portable? |
 | --- | --- | --- | --- |
 | `helium-chromium/patches/helium/core/ublock-setup-sources.patch` | drop | Builds the bundled uBlock Origin into `third_party/ublock` and its resource pack. | `drop`: not needed on another base. |

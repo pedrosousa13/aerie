@@ -1,6 +1,6 @@
 # 1. Block ads natively with adblock-rust, in the browser process
 
-Status: accepted (issue #8). Partly superseded by [ADR 0003](0003-user-managed-filter-lists.md) (issue #10): "no user controls" and "the build never fetches" now apply to the shipped lists only.
+Status: accepted (issue #8). Partly superseded by [ADR 0003](0003-user-managed-filter-lists.md) (issue #10): "no user controls" and "the build never fetches" now apply to the shipped lists only. Amended for Manifest V2 (issue #76, 2026-11-08): see [the amendment](#amendment-issue-76-2026-11-08-manifest-v2).
 
 ## Context
 
@@ -50,3 +50,25 @@ stays when Manifest V2 support is the user's choice.
   client answers a redirect with `FollowRedirect()`, with the first URL's
   top-level-site context. The cost is one extra Mojo hop for judged requests;
   requests that are never judged skip the wrapper.
+
+## Amendment (issue #76, 2026-11-08): Manifest V2
+
+Aerie keeps Manifest V2 extension support for as long as Helium carries it.
+
+- **No revival.** Aerie does not write or keep its own patches to bring MV2 back after Helium drops it.
+- **No hosting.** Aerie does not host MV2 extensions, the way Brave hosts uBlock Origin, AdGuard, uMatrix and NoScript.
+
+Why:
+
+- Native blocking (this ADR) is Aerie's main protection. MV2 is a user's choice on top of it.
+- Chrome removed MV2 in 2026, and Google took MV2 extensions off the Web Store on 2026-08-31. Chromium deletes more MV2 code with each release, so keeping it alive ourselves would cost more on every Helium bump.
+- Hosting extensions needs an update server. It also makes Aerie responsible for the safety of extension code it did not write.
+- The effort goes into the native blocker (issue #45).
+
+When Helium drops MV2:
+
+- The `mv2_extension` Bench check is retired in the same bump.
+- `docs/adblock.md` says MV2 is gone.
+- The dependency ledger drops its MV2 note.
+
+Issue #40 (the MV2 `webRequest` bug) is still fixed while MV2 works.
