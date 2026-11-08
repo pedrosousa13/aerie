@@ -505,7 +505,13 @@ fn a_broad_exception_rule_cannot_switch_blocking_off() {
         for kind in [RequestKind::Script, RequestKind::Image] {
             for third in [true, false] {
                 assert!(
-                    e.should_block(&req("https://ads.example/a.js", "ads.example", "news.test", kind, third)),
+                    e.should_block(&req(
+                        "https://ads.example/a.js",
+                        "ads.example",
+                        "news.test",
+                        kind,
+                        third
+                    )),
                     "{bad:?} switched blocking off ({kind:?}, third_party={third})"
                 );
             }
@@ -524,24 +530,79 @@ fn narrow_exception_rules_still_work() {
 @@.js$domain=news.test
 ";
     let e = FilterEngine::from_lists([list.as_bytes()]).unwrap();
-    assert!(!e.should_block(&req("https://ads.example/ok", "ads.example", "x.test", RequestKind::Script, true)));
-    assert!(!e.should_block(&req("https://ads.example/safe-path/a", "ads.example", "news.test", RequestKind::Image, true)));
-    assert!(e.should_block(&req("https://ads.example/safe-path/a", "ads.example", "other.test", RequestKind::Image, true)));
-    assert!(!e.should_block(&req("https://ads.example/exact.js", "ads.example", "x.test", RequestKind::Script, true)));
-    assert!(!e.should_block(&req("https://ads.example/a", "ads.example", "partner.test", RequestKind::Image, true)));
-    assert!(e.should_block(&req("https://ads.example/a", "ads.example", "x.test", RequestKind::Image, true)));
-    assert!(!e.should_block(&req("https://ads.example/a.js", "ads.example", "news.test", RequestKind::Script, true)));
+    assert!(!e.should_block(&req(
+        "https://ads.example/ok",
+        "ads.example",
+        "x.test",
+        RequestKind::Script,
+        true
+    )));
+    assert!(!e.should_block(&req(
+        "https://ads.example/safe-path/a",
+        "ads.example",
+        "news.test",
+        RequestKind::Image,
+        true
+    )));
+    assert!(e.should_block(&req(
+        "https://ads.example/safe-path/a",
+        "ads.example",
+        "other.test",
+        RequestKind::Image,
+        true
+    )));
+    assert!(!e.should_block(&req(
+        "https://ads.example/exact.js",
+        "ads.example",
+        "x.test",
+        RequestKind::Script,
+        true
+    )));
+    assert!(!e.should_block(&req(
+        "https://ads.example/a",
+        "ads.example",
+        "partner.test",
+        RequestKind::Image,
+        true
+    )));
+    assert!(e.should_block(&req(
+        "https://ads.example/a",
+        "ads.example",
+        "x.test",
+        RequestKind::Image,
+        true
+    )));
+    assert!(!e.should_block(&req(
+        "https://ads.example/a.js",
+        "ads.example",
+        "news.test",
+        RequestKind::Script,
+        true
+    )));
 }
 
 #[test]
 fn websocket_only_match_all_exceptions_are_ignored() {
-    for bad in ["@@|ws", "@@|wss", "@@|ws://", "@@|wss://", "@@ws", "@@wss://"] {
+    for bad in [
+        "@@|ws",
+        "@@|wss",
+        "@@|ws://",
+        "@@|wss://",
+        "@@ws",
+        "@@wss://",
+    ] {
         let report = sanitize_list_report(format!("||ads.example^\n{bad}\n").as_bytes());
         assert_eq!(report.ignored_exceptions, [bad], "{bad}");
     }
     let list = "||ads.example^\n@@|ws\n";
     let e = FilterEngine::from_lists([list.as_bytes()]).unwrap();
-    assert!(e.should_block(&req("wss://ads.example/s", "ads.example", "news.test", RequestKind::Websocket, true)));
+    assert!(e.should_block(&req(
+        "wss://ads.example/s",
+        "ads.example",
+        "news.test",
+        RequestKind::Websocket,
+        true
+    )));
 }
 
 #[test]

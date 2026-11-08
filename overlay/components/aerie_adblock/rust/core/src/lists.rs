@@ -18,7 +18,9 @@
 //! so a list made only of them has no rules, and a list with some of them
 //! passes with `ListCheck::ignored_exceptions` set so the caller can warn.
 
-use crate::{FilterEngine, LoadError, MAX_LINE_BYTES, MAX_LIST_BYTES, is_ignored_exception, parse_options};
+use crate::{
+    FilterEngine, LoadError, MAX_LINE_BYTES, MAX_LIST_BYTES, is_ignored_exception, parse_options,
+};
 use adblock::lists::{ParsedLine, parse_filter, read_list_metadata};
 use std::time::{Duration, Instant};
 
@@ -121,8 +123,15 @@ fn check_list_until(bytes: &[u8], deadline: Instant) -> Result<ListCheck, ListEr
     if network_rules == 0 {
         return Err(ListError::NoRules);
     }
-    let title = read_list_metadata(text).title.map(|t| cut_title(&t)).filter(|t| !t.is_empty());
-    Ok(ListCheck { network_rules, ignored_exceptions, title })
+    let title = read_list_metadata(text)
+        .title
+        .map(|t| cut_title(&t))
+        .filter(|t| !t.is_empty());
+    Ok(ListCheck {
+        network_rules,
+        ignored_exceptions,
+        title,
+    })
 }
 
 impl FilterEngine {

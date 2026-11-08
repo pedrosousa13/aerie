@@ -170,11 +170,23 @@ pub(crate) fn is_match_all_exception(line: &str) -> bool {
 /// level domain is reserved (RFC 2606), so no real site lives there. One
 /// has a path, one has a port and a query, one has no path at all.
 const PROBE_URLS: [(&str, &str); 5] = [
-    ("https://aerie-probe-1.invalid/aerie-probe/0f3a9c71", "aerie-probe-1.invalid"),
-    ("http://aerie-probe-2.invalid:8080/x/y.z?q=1", "aerie-probe-2.invalid"),
+    (
+        "https://aerie-probe-1.invalid/aerie-probe/0f3a9c71",
+        "aerie-probe-1.invalid",
+    ),
+    (
+        "http://aerie-probe-2.invalid:8080/x/y.z?q=1",
+        "aerie-probe-2.invalid",
+    ),
     ("https://aerie-probe-3.invalid/", "aerie-probe-3.invalid"),
-    ("ws://aerie-probe-4.invalid/aerie-probe/socket", "aerie-probe-4.invalid"),
-    ("wss://aerie-probe-5.invalid/aerie-probe/socket", "aerie-probe-5.invalid"),
+    (
+        "ws://aerie-probe-4.invalid/aerie-probe/socket",
+        "aerie-probe-4.invalid",
+    ),
+    (
+        "wss://aerie-probe-5.invalid/aerie-probe/socket",
+        "aerie-probe-5.invalid",
+    ),
 ];
 
 /// The first party for the third-party probes.
@@ -211,7 +223,11 @@ pub(crate) fn exception_matches_every_address(line: &str) -> bool {
         return false;
     };
     let pattern = rest.split('$').next().unwrap_or("");
-    if pattern.strip_prefix("||").and_then(|p| p.chars().next()).is_some_and(|c| c.is_ascii_alphanumeric()) {
+    if pattern
+        .strip_prefix("||")
+        .and_then(|p| p.chars().next())
+        .is_some_and(|c| c.is_ascii_alphanumeric())
+    {
         return false;
     }
     let mut set = FilterSet::new(false);
@@ -220,8 +236,19 @@ pub(crate) fn exception_matches_every_address(line: &str) -> bool {
     for (url, host) in PROBE_URLS {
         for kind in PROBE_KINDS {
             for source in [host, PROBE_SOURCE] {
-                let req = Request::preparsed(url, host, source, kind.as_filter_type(), source != host, "");
-                if engine.check_network_request_subset(&req, false, true).exception.is_some() {
+                let req = Request::preparsed(
+                    url,
+                    host,
+                    source,
+                    kind.as_filter_type(),
+                    source != host,
+                    "",
+                );
+                if engine
+                    .check_network_request_subset(&req, false, true)
+                    .exception
+                    .is_some()
+                {
                     return true;
                 }
             }
@@ -479,7 +506,10 @@ pub fn sanitize_list_report(bytes: &[u8]) -> SanitizedList {
         out.push_str(line);
         out.push('\n');
     }
-    SanitizedList { text: out, ignored_exceptions }
+    SanitizedList {
+        text: out,
+        ignored_exceptions,
+    }
 }
 
 impl FilterEngine {
