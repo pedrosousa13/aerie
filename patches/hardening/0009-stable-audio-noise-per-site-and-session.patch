@@ -1,0 +1,66 @@
+Aerie-Purpose: Seed Helium's AudioBuffer jitter from the site and session noise token and the sample coordinates only, so rendering the same audio graph again gives the same bytes and a tracker cannot average the noise away.
+Aerie-Upstream-Area: third_party/blink/renderer/modules/webaudio/audio_buffer.cc (AudioBuffer::JitterAudioData)
+Aerie-Kind: hook
+
+Amends helium-chromium/patches/helium/core/noise/audio.patch (issue #38). That patch xors
+a process-wide base::AtomicSequenceNumber into the coordinate seed of every rendered
+buffer, so each OfflineAudioContext render of the same graph on the same site got
+different noise. Canvas noise is stable per site per session, which is the stronger design.
+This patch drops the counter. The seed is now the channel (high bits) and the frame index,
+mixed by BaseAudioContext::JitterAudioData with the per-site, per-session kAudio token and
+the sample bits. The noise strength, the kHeliumNoiseAudio feature switch and the per-site
+noise control (the token is absent when noise is off) are untouched.
+
+Not changed: RealtimeAnalyser readbacks (getFloatFrequencyData and friends) still use their
+own per-read counter. See the open question on issue #38.
+
+--- a/third_party/blink/renderer/modules/webaudio/audio_buffer.cc
++++ b/third_party/blink/renderer/modules/webaudio/audio_buffer.cc
+@@ -30,7 +30,6 @@
+ 
+ #include <memory>
+ 
+-#include "base/atomic_sequence_num.h"
+ #include "base/check_op.h"
+ #include "base/compiler_specific.h"
+ #include "base/containers/span.h"
+@@ -57,14 +56,6 @@
+ 
+ }  // namespace
+ 
+-namespace {
+-
+-// Cheap per-render salt. This is not intended to be random; it just keeps
+-// separate rendered buffers from sharing the same coordinate-noise stream.
+-base::AtomicSequenceNumber g_helium_audio_render_sequence;
+-
+-}  // namespace
+-
+ AudioBuffer* AudioBuffer::Create(unsigned number_of_channels,
+                                  uint32_t number_of_frames,
+                                  float sample_rate) {
+@@ -217,17 +208,18 @@
+     return;
+   }
+ 
+-  const uint64_t render_seed =
+-      static_cast<uint64_t>(g_helium_audio_render_sequence.GetNext());
+   for (unsigned i = 0; i < channels_.size(); ++i) {
+     if (NotShared<DOMFloat32Array> channel = getChannelData(i)) {
+       base::span<float> samples = channel->AsSpan();
+       for (size_t frame = 0; frame < samples.size(); ++frame) {
+-        // Include render, channel, and frame coordinates so repeated equal
+-        // sample values do not get identical coordinate jitter. The channel is
+-        // shifted into high bits to avoid colliding with normal frame indices.
++        // Channel and frame coordinates only, so repeated equal sample values
++        // do not get identical coordinate jitter. There is no per-render
++        // salt: rendering the same graph again on the same site in the same
++        // session must give the same bytes, or a tracker can average the noise
++        // away. The channel is shifted into high bits to avoid colliding with
++        // normal frame indices.
+         const uint64_t coordinate_seed =
+-            render_seed ^ (static_cast<uint64_t>(i) << 48) ^ frame;
++            (static_cast<uint64_t>(i) << 48) ^ frame;
+         samples[frame] = BaseAudioContext::JitterAudioData(
+             samples[frame], context, coordinate_seed);
+       }
