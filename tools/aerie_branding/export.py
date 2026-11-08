@@ -11,9 +11,9 @@ Sources, all in branding/source/:
   fonts/               Outfit (SIL OFL 1.1), for the word "Aerie" in the logo images.
 
 The build does not run this. The exported files are committed. You only need it
-after changing a source. It needs Pillow and skia-pathops:
+after changing a source. It needs Pillow 11.3.0 and skia-pathops 0.9.2:
 
-    uv run --no-project --with pillow --with skia-pathops \\
+    uv run --no-project --with pillow==11.3.0 --with skia-pathops==0.9.2 \\
         python3 tools/aerie_branding/export.py [--out DIR]
 """
 
@@ -90,7 +90,10 @@ def parse_master(svg_text: str) -> Master:
     path = paths[0]
     if path.get("stroke-linecap") != "round" or path.get("stroke-linejoin") != "round":
         raise MasterError("the path must use round caps and joins")
-    tokens = re.findall(r"[MC]|-?\d+(?:\.\d+)?", path.get("d", ""))
+    tokens = re.findall(r"[A-Za-z]|-?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?", path.get("d", ""))
+    stray = sorted({t for t in tokens if t.isalpha() and t not in ("M", "C")})
+    if stray:
+        raise MasterError(f"the path may use only M and C, not {', '.join(stray)}")
     if not tokens or tokens[0] != "M":
         raise MasterError("the path must start with an absolute M")
     nums: list[float] = []
@@ -115,8 +118,12 @@ def parse_master(svg_text: str) -> Master:
     if start is None or not cubics:
         raise MasterError("the path needs an M and at least one C")
     c = circles[0]
-    return Master(start, tuple(cubics), float(path.get("stroke-width")),
-                  (float(c.get("cx")), float(c.get("cy")), float(c.get("r"))))
+    try:
+        width = float(path.get("stroke-width"))
+        sun = (float(c.get("cx")), float(c.get("cy")), float(c.get("r")))
+    except (TypeError, ValueError):
+        raise MasterError("the path needs a stroke-width and the circle cx, cy and r") from None
+    return Master(start, tuple(cubics), width, sun)
 
 
 def load_master(name: str) -> Master:

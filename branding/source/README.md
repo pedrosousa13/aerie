@@ -11,7 +11,7 @@ The final Aerie mark is **Soar**: the wings sweep up into a peak, so the bird is
 `tools/aerie_branding/export.py` turns these sources into every file in `branding/art/`. It keeps the names and sizes that `branding/resources.txt` maps into the Chromium tree. The build does not run the exporter, because the exported files are committed. After you change a source, run:
 
 ```sh
-uv run --no-project --with pillow==11.3.0 --with skia-pathops \
+uv run --no-project --with pillow==11.3.0 --with skia-pathops==0.9.2 \
     python3 tools/aerie_branding/export.py
 ```
 

@@ -30,9 +30,15 @@ class MasterTest(unittest.TestCase):
 
     def test_rejects_what_it_cannot_draw(self):
         for bad in (self._svg(view="0 0 100 100"), self._svg(d="m0 0 c1 1 2 2 3 3"),
-                    self._svg(d="M0 0 L5 5"), self._svg(cap="butt"), self._svg(d="M0 0 C1 1 2 2")):
+                    self._svg(d="M0 0 L5 5"), self._svg(cap="butt"), self._svg(d="M0 0 C1 1 2 2"),
+                    self._svg(d="M0 0 C1 1 2 2 3 3 S1 1 2 2 3 3")):
             with self.subTest(svg=bad), self.assertRaises(export.MasterError):
                 export.parse_master(bad)
+
+    def test_missing_numbers_are_a_master_error(self):
+        for drop in ('stroke-width="10"', 'cx="1"', 'r="3"'):
+            with self.subTest(drop=drop), self.assertRaises(export.MasterError):
+                export.parse_master(self._svg().replace(drop, ""))
 
     def test_parses_points(self):
         m = export.parse_master(self._svg(d="M1 2 C3 4 5 6 7 8"))
@@ -44,8 +50,6 @@ class MasterTest(unittest.TestCase):
 class ArtworkListTest(unittest.TestCase):
     def test_covers_every_art_file_the_branding_layer_maps(self):
         listing = REPO / "branding" / "resources.txt"
-        if not listing.is_file():
-            self.skipTest("branding/resources.txt arrives with the rebrand (#5)")
         named = {line.split()[0] for line in listing.read_text(encoding="utf-8").splitlines()
                  if line.strip() and not line.lstrip().startswith("#")}
         self.assertEqual(named - set(export.ARTWORK), set())
@@ -75,6 +79,13 @@ class ExportTest(unittest.TestCase):
                     with Image.open(path) as im:
                         self.assertEqual(im.size, size)
                         self.assertEqual(im.mode, "RGBA")
+
+    def test_text_files_match_the_committed_art(self):
+        for name, size in export.ARTWORK.items():
+            if size is None:
+                with self.subTest(name=name):
+                    self.assertEqual((self.out / name).read_bytes(),
+                                     (REPO / "branding" / "art" / name).read_bytes())
 
     def test_vector_icons_use_known_commands(self):
         known = {"CANVAS_DIMENSIONS", "FILL_RULE_NONZERO", "NEW_PATH", "PATH_COLOR_ARGB",
