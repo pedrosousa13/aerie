@@ -64,7 +64,9 @@ fn normalize_host(raw: &str, allow_wildcard: bool) -> Option<String> {
             && label.len() <= MAX_LABEL_BYTES
             && !label.starts_with('-')
             && !label.ends_with('-')
-            && label.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_');
+            && label
+                .bytes()
+                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_');
         if !ok {
             return None;
         }
@@ -86,7 +88,9 @@ pub struct ProtectionList {
 impl ProtectionList {
     /// A list with no domains. It lists nothing.
     pub fn empty() -> Self {
-        ProtectionList { domains: HashSet::new() }
+        ProtectionList {
+            domains: HashSet::new(),
+        }
     }
 
     /// Number of listed domains.
@@ -129,7 +133,9 @@ impl ProtectionList {
         if bytes.len() > MAX_SERIALIZED_BYTES {
             return Err(LoadError::TooLarge);
         }
-        let body = bytes.strip_prefix(SERIALIZED_MAGIC).ok_or(LoadError::BadEngine)?;
+        let body = bytes
+            .strip_prefix(SERIALIZED_MAGIC)
+            .ok_or(LoadError::BadEngine)?;
         let text = std::str::from_utf8(body).map_err(|_| LoadError::BadEngine)?;
         let mut domains: HashSet<Box<str>> = HashSet::new();
         for line in text.lines() {
@@ -154,7 +160,9 @@ impl ProtectionList {
     pub fn serialize(&self) -> Vec<u8> {
         let mut names: Vec<&str> = self.domains.iter().map(|d| &**d).collect();
         names.sort_unstable();
-        let mut out = Vec::with_capacity(SERIALIZED_MAGIC.len() + names.iter().map(|n| n.len() + 1).sum::<usize>());
+        let mut out = Vec::with_capacity(
+            SERIALIZED_MAGIC.len() + names.iter().map(|n| n.len() + 1).sum::<usize>(),
+        );
         out.extend_from_slice(SERIALIZED_MAGIC);
         for name in names {
             out.extend_from_slice(name.as_bytes());

@@ -95,7 +95,7 @@ void AerieCosmeticTabHelper::InjectPageStylesheet(
       TopLevelUrl(rfh), page_url,
       base::BindOnce(&AerieCosmeticTabHelper::Inject,
                      weak_factory_.GetWeakPtr(), rfh->GetGlobalId(),
-                     page_url),
+                     page_url, aerie_adblock::SheetKind::kPage),
       aerie_adblock::SessionKeyFor(rfh->GetBrowserContext()));
 }
 
@@ -108,7 +108,7 @@ void AerieCosmeticTabHelper::CollectAndInjectGenericStylesheet(
     return;
   }
   rfh->ExecuteJavaScriptInIsolatedWorld(
-      std::u16string(aerie_adblock::CollectClassesAndIdsScript()),
+      aerie_adblock::CollectClassesAndIdsScript(),
       base::BindOnce(&AerieCosmeticTabHelper::OnTokensCollected,
                      weak_factory_.GetWeakPtr(), rfh->GetGlobalId(),
                      rfh->GetLastCommittedURL()),
@@ -133,12 +133,14 @@ void AerieCosmeticTabHelper::OnTokensCollected(
       TopLevelUrl(rfh), page_url, std::move(tokens->classes),
       std::move(tokens->ids),
       base::BindOnce(&AerieCosmeticTabHelper::Inject,
-                     weak_factory_.GetWeakPtr(), id, page_url),
+                     weak_factory_.GetWeakPtr(), id, page_url,
+                     aerie_adblock::SheetKind::kGeneric),
       aerie_adblock::SessionKeyFor(rfh->GetBrowserContext()));
 }
 
 void AerieCosmeticTabHelper::Inject(content::GlobalRenderFrameHostId id,
                                     GURL page_url,
+                                    aerie_adblock::SheetKind kind,
                                     std::string stylesheet) {
   if (stylesheet.empty()) {
     return;
@@ -147,7 +149,7 @@ void AerieCosmeticTabHelper::Inject(content::GlobalRenderFrameHostId id,
   if (!ShouldFilter(rfh) || !StillAt(rfh, page_url)) {
     return;  // Navigated away while the engine worked.
   }
-  std::u16string script = aerie_adblock::BuildInjectionScript(stylesheet);
+  std::u16string script = aerie_adblock::BuildInjectionScript(stylesheet, kind);
   if (script.empty()) {
     return;
   }

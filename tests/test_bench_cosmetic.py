@@ -31,8 +31,8 @@ def good_measurement():
     return ([hidden(h["selector"]) for h in EXPECTED["hidden"]] + [shown(v["selector"]) for v in EXPECTED["visible"]])
 
 
-def judge(measured, engine=ENGINE_OK, hijacked=False):
-    return cf.judge(EXPECTED, measured, engine, hijacked)
+def judge(measured, engine=ENGINE_OK, hijacked=False, generic_sheets=1):
+    return cf.judge(EXPECTED, measured, engine, hijacked, generic_sheets)
 
 
 class JudgeTest(unittest.TestCase):
@@ -102,6 +102,45 @@ class JudgeTest(unittest.TestCase):
         self.assertEqual(status, "fail")
         for item in EXPECTED["hidden"]:
             self.assertIn(item["selector"], detail)
+
+
+class GenericSheetCountTest(unittest.TestCase):
+    def test_exactly_one_generic_sheet_passes_and_is_reported(self):
+        status, detail, data = judge(good_measurement(), generic_sheets=1)
+        self.assertEqual(status, "pass", detail)
+        self.assertIn("one generic hide sheet", detail)
+        self.assertEqual(data["generic_sheets"], 1)
+
+    def test_a_duplicate_generic_sheet_fails(self):
+        status, detail, _ = judge(good_measurement(), generic_sheets=2)
+        self.assertEqual(status, "fail")
+        self.assertIn("2 generic hide sheets", detail)
+
+    def test_no_generic_sheet_fails(self):
+        status, detail, _ = judge(good_measurement(), generic_sheets=0)
+        self.assertEqual(status, "fail")
+        self.assertIn("0 generic hide sheets", detail)
+
+    def test_an_unreadable_count_fails(self):
+        status, detail, _ = judge(good_measurement(), generic_sheets=None)
+        self.assertEqual(status, "fail")
+        self.assertIn("could not count", detail)
+
+    def test_the_probe_selector_is_an_expected_generic_rule(self):
+        probe = EXPECTED["generic_sheet_probe"]
+        self.assertIn(probe, [h["selector"] for h in EXPECTED["hidden"] if h["via"] == "generic class rule"])
+
+    def test_the_script_counts_sheets_that_hold_the_probe_rule(self):
+        script = cf.generic_sheet_count_script(".ad-slot")
+        self.assertIn("adoptedStyleSheets", script)
+        self.assertIn("cssRules", script)
+        self.assertIn('".ad-slot"', script)
+
+    def test_the_script_matches_the_exact_rule_selector_not_a_substring(self):
+        script = cf.generic_sheet_count_script(".ad-slot")
+        self.assertIn("r.selectorText===p", script)
+        self.assertNotIn("indexOf", script)
+        self.assertNotIn("cssText", script)
 
 
 class MeasureScriptTest(unittest.TestCase):

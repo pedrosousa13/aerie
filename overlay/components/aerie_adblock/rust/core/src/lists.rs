@@ -15,7 +15,9 @@
 //! text (UTF-8, no NUL), does not start like an HTML page, and has at least
 //! one network rule.
 
-use crate::{FilterEngine, LoadError, MAX_LINE_BYTES, MAX_LIST_BYTES, is_match_all_exception, parse_options};
+use crate::{
+    FilterEngine, LoadError, MAX_LINE_BYTES, MAX_LIST_BYTES, is_match_all_exception, parse_options,
+};
 use adblock::lists::{ParsedLine, parse_filter, read_list_metadata};
 use std::time::{Duration, Instant};
 
@@ -63,7 +65,10 @@ pub struct ListCheck {
 }
 
 fn looks_like_html(text: &str) -> bool {
-    text.lines().map(str::trim).find(|l| !l.is_empty()).is_some_and(|l| l.starts_with('<'))
+    text.lines()
+        .map(str::trim)
+        .find(|l| !l.is_empty())
+        .is_some_and(|l| l.starts_with('<'))
 }
 
 fn cut_title(title: &str) -> String {
@@ -107,8 +112,14 @@ fn check_list_until(bytes: &[u8], deadline: Instant) -> Result<ListCheck, ListEr
     if network_rules == 0 {
         return Err(ListError::NoRules);
     }
-    let title = read_list_metadata(text).title.map(|t| cut_title(&t)).filter(|t| !t.is_empty());
-    Ok(ListCheck { network_rules, title })
+    let title = read_list_metadata(text)
+        .title
+        .map(|t| cut_title(&t))
+        .filter(|t| !t.is_empty());
+    Ok(ListCheck {
+        network_rules,
+        title,
+    })
 }
 
 impl FilterEngine {
