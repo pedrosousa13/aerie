@@ -10,12 +10,15 @@ while aerie.widevine.enabled is true and the value Helium computed otherwise. Go
 server is the only one that hosts the Widevine component.
 
 Google's server must see nothing but Widevine. The update client has one server for all
-components, so update_client::Configurator gets a new ShouldSendToServer(app_id) (default:
-true). The update check and the event ping leave an app out when it returns false.
-ChromeConfigurator answers through aerie_widevine::ShouldSendToUpdateServer(): while
-opted in only the Widevine app id is sent, so the CRLSet is never named to Google and
-gets no update check, ping or event. Opted out nothing is held back, because the request
-goes to the dummy origin and is refused.
+components, so update_client::Configurator gets a new ShouldSendToServer(app_id, url)
+(default: true). The update check and the event ping leave an app out when it returns
+false for the URL they use. ChromeConfigurator answers through
+aerie_widevine::ShouldSendToUpdateServer(): for Google's update server only the Widevine
+app id is sent, so the CRLSet is never named to Google and gets no update check, ping or
+event; for any other URL (the dummy origin) nothing is held back. The decision takes the
+URL and not the pref, because the update check reads UpdateUrl() when it starts and builds
+the request later: if the user turned Widevine off in between, the URL is still Google's
+and the filter must still apply. The ping manager filters each ping URL the same way.
 
 --- a/chrome/browser/component_updater/chrome_component_updater_configurator.cc
 +++ b/chrome/browser/component_updater/chrome_component_updater_configurator.cc
@@ -27,15 +30,16 @@ goes to the dummy origin and is refused.
  #include "components/component_updater/component_updater_command_line_config_policy.h"
  #include "components/component_updater/configurator_impl.h"
  #include "components/helium_services/helium_services_helpers.h"
-@@ -94,6 +95,7 @@
+@@ -94,6 +95,8 @@
    base::TimeDelta UpdateDelay() const override;
    std::vector<GURL> UpdateUrl() const override;
    std::vector<GURL> PingUrl() const override;
-+  bool ShouldSendToServer(const std::string& app_id) const override;
++  bool ShouldSendToServer(const std::string& app_id,
++                          const GURL& url) const override;
    std::string GetProdId() const override;
    base::Version GetBrowserVersion() const override;
    std::string GetChannel() const override;
-@@ -185,12 +187,22 @@
+@@ -185,12 +188,22 @@
  
  std::vector<GURL> ChromeConfigurator::UpdateUrl() const {
    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
@@ -53,23 +57,26 @@ goes to the dummy origin and is refused.
 +      helium::GetComponentUpdateURL(GetProfilePrefs()))};
 +}
 +
-+bool ChromeConfigurator::ShouldSendToServer(const std::string& app_id) const {
++bool ChromeConfigurator::ShouldSendToServer(const std::string& app_id,
++                                            const GURL& url) const {
 +  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-+  return aerie_widevine::ShouldSendToUpdateServer(
-+      g_browser_process->local_state(), app_id);
++  return aerie_widevine::ShouldSendToUpdateServer(app_id, url);
  }
  
  std::string ChromeConfigurator::GetProdId() const {
 --- a/components/update_client/configurator.h
 +++ b/components/update_client/configurator.h
-@@ -65,6 +65,13 @@
+@@ -65,6 +65,16 @@
    // disabled. Similarly, these URLs have a fall back behavior too.
    virtual std::vector<GURL> PingUrl() const = 0;
  
-+  // Aerie: whether update checks and pings may name `app_id` in a request to
-+  // the update server. An app that this returns false for is left out of the
-+  // request. The default allows every app.
-+  virtual bool ShouldSendToServer(const std::string& app_id) const {
++  // Aerie: whether a request to `url`, the update or ping server that is
++  // actually used, may name `app_id`. An app that this returns false for is
++  // left out of the request. It takes the URL because the URL is read when a
++  // check starts, so it can differ from what UpdateUrl() returns by the time
++  // the request is built. The default allows every app.
++  virtual bool ShouldSendToServer(const std::string& app_id,
++                                  const GURL& url) const {
 +    return true;
 +  }
 +
@@ -78,20 +85,17 @@ goes to the dummy origin and is refused.
    // "chromiumcrx", and "unknown".
 --- a/components/update_client/ping_manager.cc
 +++ b/components/update_client/ping_manager.cc
-@@ -45,6 +45,13 @@
-     return;
-   }
- 
-+  // Aerie: the embedder may keep an app out of requests to the ping server.
-+  if (!config_->ShouldSendToServer(component.app_id)) {
-+    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
-+        FROM_HERE, base::BindOnce(std::move(callback)));
-+    return;
-+  }
-+
-   auto urls(config_->PingUrl());
+@@ -49,6 +49,10 @@
    if (component.requires_network_encryption) {
      RemoveUnsecureUrls(&urls);
+   }
++  // Aerie: the embedder may keep an app out of requests to a ping server.
++  std::erase_if(urls, [&](const GURL& url) {
++    return !config_->ShouldSendToServer(component.app_id, url);
++  });
+ 
+   if (urls.empty()) {
+     base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
 --- a/components/update_client/update_checker.cc
 +++ b/components/update_client/update_checker.cc
 @@ -203,6 +203,11 @@
@@ -99,7 +103,7 @@ goes to the dummy origin and is refused.
      }
  
 +    // Aerie: the embedder may keep an app out of requests to this server.
-+    if (!config_->ShouldSendToServer(app_id)) {
++    if (!config_->ShouldSendToServer(app_id, url)) {
 +      continue;
 +    }
 +

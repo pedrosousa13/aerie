@@ -59,7 +59,7 @@
      "widevine": {
       "present": true,
       "default_text": "Default: Off.",
-      "cost_text": "Cost: Turning it on downloads a closed-source Google module, which is checked against a pinned signing key before it loads, and lets Aerie ask Google for updates to it. Until you do, DRM video does not play.",
+      "cost_text": "Cost: Turning it on downloads a closed-source Google module, which is checked against a pinned signing key before it loads, and lets Aerie ask Google for updates to it. Until you do, DRM video does not play. Before this setting, the CRLSet (the list of revoked certificates) got updates only while Widevine was on; now Aerie never sends the CRLSet to Google, so it is not updated.",
       "state_text": null,
       "live": "off"
      },
@@ -139,7 +139,7 @@
      "widevine": {
       "present": true,
       "default_text": "Default: Off.",
-      "cost_text": "Cost: Turning it on downloads a closed-source Google module, which is checked against a pinned signing key before it loads, and lets Aerie ask Google for updates to it. Until you do, DRM video does not play.",
+      "cost_text": "Cost: Turning it on downloads a closed-source Google module, which is checked against a pinned signing key before it loads, and lets Aerie ask Google for updates to it. Until you do, DRM video does not play. Before this setting, the CRLSet (the list of revoked certificates) got updates only while Widevine was on; now Aerie never sends the CRLSet to Google, so it is not updated.",
       "state_text": null,
       "live": "off"
      },
@@ -213,7 +213,7 @@
      "widevine": {
       "present": true,
       "default_text": "Default: Off.",
-      "cost_text": "Cost: Turning it on downloads a closed-source Google module, which is checked against a pinned signing key before it loads, and lets Aerie ask Google for updates to it. Until you do, DRM video does not play.",
+      "cost_text": "Cost: Turning it on downloads a closed-source Google module, which is checked against a pinned signing key before it loads, and lets Aerie ask Google for updates to it. Until you do, DRM video does not play. Before this setting, the CRLSet (the list of revoked certificates) got updates only while Widevine was on; now Aerie never sends the CRLSet to Google, so it is not updated.",
       "state_text": null,
       "live": "off"
      },
@@ -287,7 +287,7 @@
      "widevine": {
       "present": true,
       "default_text": "Default: Off.",
-      "cost_text": "Cost: Turning it on downloads a closed-source Google module, which is checked against a pinned signing key before it loads, and lets Aerie ask Google for updates to it. Until you do, DRM video does not play.",
+      "cost_text": "Cost: Turning it on downloads a closed-source Google module, which is checked against a pinned signing key before it loads, and lets Aerie ask Google for updates to it. Until you do, DRM video does not play. Before this setting, the CRLSet (the list of revoked certificates) got updates only while Widevine was on; now Aerie never sends the CRLSet to Google, so it is not updated.",
       "state_text": null,
       "live": "off"
      },
@@ -361,7 +361,7 @@
      "widevine": {
       "present": true,
       "default_text": "Default: Off.",
-      "cost_text": "Cost: Turning it on downloads a closed-source Google module, which is checked against a pinned signing key before it loads, and lets Aerie ask Google for updates to it. Until you do, DRM video does not play.",
+      "cost_text": "Cost: Turning it on downloads a closed-source Google module, which is checked against a pinned signing key before it loads, and lets Aerie ask Google for updates to it. Until you do, DRM video does not play. Before this setting, the CRLSet (the list of revoked certificates) got updates only while Widevine was on; now Aerie never sends the CRLSet to Google, so it is not updated.",
       "state_text": null,
       "live": "off"
      },
@@ -435,7 +435,7 @@
      "widevine": {
       "present": true,
       "default_text": "Default: Off.",
-      "cost_text": "Cost: Turning it on downloads a closed-source Google module, which is checked against a pinned signing key before it loads, and lets Aerie ask Google for updates to it. Until you do, DRM video does not play.",
+      "cost_text": "Cost: Turning it on downloads a closed-source Google module, which is checked against a pinned signing key before it loads, and lets Aerie ask Google for updates to it. Until you do, DRM video does not play. Before this setting, the CRLSet (the list of revoked certificates) got updates only while Widevine was on; now Aerie never sends the CRLSet to Google, so it is not updated.",
       "state_text": null,
       "live": "off"
      },
@@ -509,7 +509,7 @@
      "widevine": {
       "present": true,
       "default_text": "Default: Off.",
-      "cost_text": "Cost: Turning it on downloads a closed-source Google module, which is checked against a pinned signing key before it loads, and lets Aerie ask Google for updates to it. Until you do, DRM video does not play.",
+      "cost_text": "Cost: Turning it on downloads a closed-source Google module, which is checked against a pinned signing key before it loads, and lets Aerie ask Google for updates to it. Until you do, DRM video does not play. Before this setting, the CRLSet (the list of revoked certificates) got updates only while Widevine was on; now Aerie never sends the CRLSet to Google, so it is not updated.",
       "state_text": null,
       "live": "off"
      },
@@ -583,7 +583,7 @@
      "widevine": {
       "present": true,
       "default_text": "Default: Off.",
-      "cost_text": "Cost: Turning it on downloads a closed-source Google module, which is checked against a pinned signing key before it loads, and lets Aerie ask Google for updates to it. Until you do, DRM video does not play.",
+      "cost_text": "Cost: Turning it on downloads a closed-source Google module, which is checked against a pinned signing key before it loads, and lets Aerie ask Google for updates to it. Until you do, DRM video does not play. Before this setting, the CRLSet (the list of revoked certificates) got updates only while Widevine was on; now Aerie never sends the CRLSet to Google, so it is not updated.",
       "state_text": null,
       "live": "off"
      },

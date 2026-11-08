@@ -28,6 +28,18 @@ class RepoWiringTest(unittest.TestCase):
         for part in ("IsEnabled", "IsDeclined", "empty()"):
             self.assertIn(part, body)
 
+    def test_prompt_tells_the_window_kind_and_the_user_about_the_restart(self):
+        prompt = self.read("overlay/chrome/browser/aerie_widevine/aerie_widevine_prompt.cc")
+        self.assertRegex(prompt, r"ShouldPrompt\([^;]*off_the_record\)")
+        self.assertIn("restart", prompt)
+        controls = self.read("tools/aerie_hardening/controls.json")
+        self.assertIn("restart", controls)
+        self.assertNotIn("without a restart", self.read("docs/widevine.md"))
+
+    def test_app_id_matches_the_pinned_hash(self):
+        hdr = self.read("overlay/components/aerie_widevine/widevine_opt_in.h")
+        self.assertIn('kWidevineAppId[] = "oimompecagnajdejgnnjijobebaeigek"', hdr)
+
     def test_series_lists_the_widevine_patches_and_they_exist(self):
         series = [l.strip() for l in self.read("patches/series").splitlines() if l.strip() and not l.startswith("#")]
         wvp = [s for s in series if s.startswith("widevine/")]
@@ -73,8 +85,8 @@ class RepoWiringTest(unittest.TestCase):
         for path in ("components/update_client/configurator.h", "components/update_client/update_checker.cc",
                      "components/update_client/ping_manager.cc"):
             self.assertIn(f"+++ b/{path}", patch)
-        self.assertIn("config_->ShouldSendToServer(app_id)", patch)
-        self.assertIn("config_->ShouldSendToServer(component.app_id)", patch)
+        self.assertIn("config_->ShouldSendToServer(app_id, url)", patch)
+        self.assertIn("config_->ShouldSendToServer(component.app_id, url)", patch)
         src = self.read("overlay/components/aerie_widevine/widevine_opt_in.cc")
         body = re.search(r"bool ShouldSendToUpdateServer\(.*?\n}\n", src, re.S).group(0)
         self.assertIn("kWidevineAppId", body)

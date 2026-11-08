@@ -45,7 +45,8 @@ class WidevinePromptDelegate : public ConfirmInfoBarDelegate {
            u"component made by Google that decodes it. If you turn it on, "
            u"Aerie downloads it from Google and checks Google for updates to "
            u"it. Aerie sends nothing else to Google, and nothing at all for "
-           u"this until you agree. You can change this in Settings.";
+           u"this until you agree. Aerie needs a restart to finish turning it "
+           u"on after the download. You can change this in Settings.";
   }
 
   int GetButtons() const override { return BUTTON_OK | BUTTON_CANCEL; }
@@ -94,8 +95,11 @@ void OnEncryptedMediaRequested(content::RenderFrameHost* render_frame_host) {
   }
   // The site is the top-level page, also when the request came from a frame.
   const GURL url = web_contents->GetLastCommittedURL();
+  const bool off_the_record =
+      web_contents->GetBrowserContext()->IsOffTheRecord();
   if (!url.SchemeIsHTTPOrHTTPS() ||
-      !ShouldPrompt(g_browser_process->local_state(), url.host())) {
+      !ShouldPrompt(g_browser_process->local_state(), url.host(),
+                    off_the_record)) {
     return;
   }
   infobars::ContentInfoBarManager* manager =
@@ -105,8 +109,7 @@ void OnEncryptedMediaRequested(content::RenderFrameHost* render_frame_host) {
   }
   manager->AddInfoBar(CreateConfirmInfoBar(
       std::make_unique<WidevinePromptDelegate>(
-          std::string(url.host()),
-          web_contents->GetBrowserContext()->IsOffTheRecord())));
+          std::string(url.host()), off_the_record)));
 }
 
 }  // namespace aerie_widevine

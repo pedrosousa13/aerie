@@ -87,21 +87,23 @@ std::vector<GURL> ChromeConfigurator::PingUrl() const {
   return {aerie_widevine::WidevineUpdateUrl(ls, helium::GetComponentUpdateURL(p))};
 }
 
-bool ChromeConfigurator::ShouldSendToServer(const std::string& app_id) const {
-  return aerie_widevine::ShouldSendToUpdateServer(ls, app_id);
+bool ChromeConfigurator::ShouldSendToServer(const std::string& app_id,
+                                            const GURL& url) const {
+  return aerie_widevine::ShouldSendToUpdateServer(app_id, url);
 }
 """
-WIDEVINE_CHECKER_OK = """    if (!config_->ShouldSendToServer(app_id)) {
+WIDEVINE_CHECKER_OK = """    if (!config_->ShouldSendToServer(app_id, url)) {
       continue;
     }
 """
-WIDEVINE_PING_OK = """  if (!config_->ShouldSendToServer(component.app_id)) {
+WIDEVINE_PING_OK = """  if (!config_->ShouldSendToServer(component.app_id, url)) {
     return;
   }
 """
 
 WIDEVINE_INSTALLER_OK = """const uint8_t kWidevineSha2Hash[] = {
-    0xe8, 0xce, 0xcf, 0x42, 0x06, 0xd0, 0x93, 0x49, 0x6d};
+    0xe8, 0xce, 0xcf, 0x42, 0x06, 0xd0, 0x93, 0x49, 0x6d, 0xd9, 0x89,
+    0xe1, 0x41, 0x04, 0x86, 0x4a};
 """
 
 GOOD = {

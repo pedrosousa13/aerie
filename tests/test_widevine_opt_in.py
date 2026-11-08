@@ -242,24 +242,25 @@ std::vector<GURL> ChromeConfigurator::PingUrl() const {
                                     helium::GetComponentUpdateURL(GetProfilePrefs()))};
 }
 
-bool ChromeConfigurator::ShouldSendToServer(const std::string& app_id) const {
-  return aerie_widevine::ShouldSendToUpdateServer(g_browser_process->local_state(), app_id);
+bool ChromeConfigurator::ShouldSendToServer(const std::string& app_id,
+                                            const GURL& url) const {
+  return aerie_widevine::ShouldSendToUpdateServer(app_id, url);
 }
 """
 CHECKER = "components/update_client/update_checker.cc"
-CHECKER_OK = """    if (!config_->ShouldSendToServer(app_id)) {
+CHECKER_OK = """    if (!config_->ShouldSendToServer(app_id, url)) {
       continue;
     }
 """
 PINGER = "components/update_client/ping_manager.cc"
-PINGER_OK = """  if (!config_->ShouldSendToServer(component.app_id)) {
+PINGER_OK = """  if (!config_->ShouldSendToServer(component.app_id, url)) {
     return;
   }
 """
 INSTALLER = "chrome/browser/component_updater/widevine_cdm_component_installer.cc"
 INSTALLER_OK = """const uint8_t kWidevineSha2Hash[] = {
     0xe8, 0xce, 0xcf, 0x42, 0x06, 0xd0, 0x93, 0x49, 0x6d, 0xd9, 0x89,
-    0xe1, 0x41, 0x04};
+    0xe1, 0x41, 0x04, 0x86, 0x4a};
 """
 REG = "chrome/browser/component_updater/registration.cc"
 CFG = "chrome/browser/component_updater/chrome_component_updater_configurator.cc"
@@ -325,6 +326,16 @@ class GateTest(unittest.TestCase):
         out = treegate.check_widevine_opt_in(self.root)
         self.assertEqual([f.gate for f in out], ["widevine_opt_in"])
         self.assertIn("signing key", out[0].message)
+
+    def test_the_app_id_constant_must_match_the_pinned_hash(self):
+        hdr = "components/aerie_widevine/widevine_opt_in.h"
+        ok = 'inline constexpr char kWidevineAppId[] = "oimompecagnajdejgnnjijobebaeigek";\n'
+        self.write(hdr, ok)
+        self.assertEqual(treegate.check_widevine_opt_in(self.root), [])
+        self.write(hdr, ok.replace("oimomp", "oimomq"))
+        out = treegate.check_widevine_opt_in(self.root)
+        self.assertEqual([f.gate for f in out], ["widevine_opt_in"])
+        self.assertIn("kWidevineAppId", out[0].message)
 
     def test_missing_files_skipped_unless_required(self):
         self.assertEqual(treegate.check_widevine_opt_in(self.root), [])

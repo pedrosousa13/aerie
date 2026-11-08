@@ -14,6 +14,9 @@ download, register or load it until the user opts in.
   "Turn on Widevine" and "No thanks". "No thanks" records the site in
   `aerie.widevine.declined_sites`, and that site is never asked again. Closing the infobar neither
   turns Widevine on nor records a decline, so the next DRM request from that site asks again.
+  A decline in a private (incognito) window is kept in memory only and applies to private windows
+  until Aerie exits; regular windows ignore it. A decline in a regular window applies everywhere.
+  After "Turn on Widevine" the prompt text says Aerie needs a restart to finish.
   Nothing is asked when Widevine is already on.
 
 Both write the same pref, `aerie.widevine.enabled` (Local State, default `false`).
@@ -32,7 +35,9 @@ With the pref off, `RegisterWidevineCdmComponent` is never called, so the compon
 no Widevine entry and nothing asks for it. Helium's component update origin is still the dummy
 host. With the pref on, `RegisterWhenEnabled` registers the component (at startup, or at once
 when the pref turns on), and `WidevineUpdateUrl` gives the updater Google's server. The CDM registers
-itself with the browser when its download finishes, and pages should see it without a restart.
+itself with the browser when its download finishes. On Linux that registration only takes effect at the
+next browser start, so Aerie needs a restart to finish turning Widevine on. The prompt and the
+settings row both say so.
 
 ## Signature check
 
@@ -62,10 +67,13 @@ See `docs/network-endpoints.md`. The zero-traffic Bench run never opts in.
   gets the prompt too. It does so once for a site that declined.
 - **The prompt text is English only**: it is plain text in `aerie_widevine_prompt.cc`, not a grd
   message.
-- **The CRLSet gets no update while Widevine is on.** The updater has one server for all
-  components, so while opted in the update check and event pings leave out every component but
-  Widevine (`update_client::Configurator::ShouldSendToServer`). Without the opt-in the CRLSet's
-  request goes to the dummy origin and is refused, so it is not updated then either.
+- **The CRLSet is never updated.** Before this change the CRLSet got updates only while Widevine was
+  opted in, because Google's server was the only one the updater could reach. Now Aerie never sends
+  the CRLSet to Google. The updater has one server for all components, so a request to Google's
+  server names only Widevine, and any other component is left out
+  (`update_client::Configurator::ShouldSendToServer(app_id, url)`). The decision follows the URL
+  the request uses, not the pref, so turning Widevine off while a check runs cannot let the other
+  components through. Without the opt-in the request goes to the dummy origin and is refused.
 
 ## How it is checked
 

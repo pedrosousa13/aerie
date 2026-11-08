@@ -159,7 +159,7 @@ Every http:// page load is upgraded to https://. If the upgrade fails, a warning
 
 ### Widevine DRM
 
-Widevine decodes protected video and audio (Netflix, Disney+ and similar). It is a component made by Google. Aerie builds it in but neither downloads nor loads it until you turn this on, and Aerie sends nothing else to Google, and nothing at all about it until you turn it on. The first time a site asks for protected content, Aerie asks once whether to turn it on.
+Widevine decodes protected video and audio (Netflix, Disney+ and similar). It is a component made by Google. Aerie builds it in but neither downloads nor loads it until you turn this on, and Aerie sends nothing else to Google, and nothing at all about it until you turn it on. The first time a site asks for protected content, Aerie asks once whether to turn it on. After the download Aerie needs a restart to finish turning it on.
 
 - Default: Off.
 - Default provided by: Aerie
@@ -176,7 +176,7 @@ Widevine decodes protected video and audio (Netflix, Disney+ and similar). It is
   - `patches/widevine/0003-allow-widevine-pref-in-settings.patch`
   - `patches/widevine/0004-ask-before-the-first-drm-request.patch`
 - Settings row: Toggle
-- Cost: Turning it on downloads a closed-source Google module, which is checked against a pinned signing key before it loads, and lets Aerie ask Google for updates to it. Until you do, DRM video does not play.
+- Cost: Turning it on downloads a closed-source Google module, which is checked against a pinned signing key before it loads, and lets Aerie ask Google for updates to it. Until you do, DRM video does not play. Before this setting, the CRLSet (the list of revoked certificates) got updates only while Widevine was on; now Aerie never sends the CRLSet to Google, so it is not updated.
 - Bench checks: `hardening_pref_defaults`, `hardening_settings_page`, `widevine_opt_in`
 
 ### Extensions cannot loosen these settings

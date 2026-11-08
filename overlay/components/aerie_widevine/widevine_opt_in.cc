@@ -82,9 +82,14 @@ void SetEnabled(PrefService* local_state, bool enabled) {
   local_state->SetBoolean(kWidevineEnabled, enabled);
 }
 
-bool IsDeclined(const PrefService* local_state, std::string_view host) {
-  return !host.empty() && (SessionDeclines().contains(host) ||
-                           IsDeclinedInLocalState(local_state, host));
+bool IsDeclined(const PrefService* local_state,
+                std::string_view host,
+                bool off_the_record) {
+  if (host.empty()) {
+    return false;
+  }
+  return (off_the_record && SessionDeclines().contains(host)) ||
+         IsDeclinedInLocalState(local_state, host);
 }
 
 void ClearSessionDeclinesForTesting() {
@@ -108,18 +113,23 @@ void RecordDecline(PrefService* local_state,
   update->Append(std::string(host));
 }
 
-bool ShouldPrompt(const PrefService* local_state, std::string_view host) {
+bool ShouldPrompt(const PrefService* local_state,
+                  std::string_view host,
+                  bool off_the_record) {
   return !IsEnabled(local_state) && !host.empty() &&
-         !IsDeclined(local_state, host);
+         !IsDeclined(local_state, host, off_the_record);
 }
 
 GURL WidevineUpdateUrl(const PrefService* local_state, const GURL& fallback) {
   return IsEnabled(local_state) ? GURL(kComponentUpdateUrl) : fallback;
 }
 
-bool ShouldSendToUpdateServer(const PrefService* local_state,
-                              std::string_view app_id) {
-  return !IsEnabled(local_state) || app_id == kWidevineAppId;
+bool ShouldSendToUpdateServer(std::string_view app_id, const GURL& url) {
+  const GURL google(kComponentUpdateUrl);
+  if (!url.SchemeIs(google.GetScheme()) || url.host() != google.host()) {
+    return true;
+  }
+  return app_id == kWidevineAppId;
 }
 
 void RegisterWhenEnabled(PrefService* local_state,

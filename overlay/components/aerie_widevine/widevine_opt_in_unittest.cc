@@ -13,6 +13,9 @@ namespace aerie_widevine {
 
 namespace {
 
+constexpr bool kRegular = false;
+constexpr bool kIncognito = true;
+
 class WidevineOptInTest : public testing::Test {
  protected:
   WidevineOptInTest() { RegisterLocalStatePrefs(prefs_.registry()); }
@@ -27,10 +30,10 @@ TEST_F(WidevineOptInTest, OffByDefaultWithNoDeclinedSites) {
 }
 
 TEST_F(WidevineOptInTest, PromptsOnTheFirstRequestOnly) {
-  EXPECT_TRUE(ShouldPrompt(&prefs_, "example.org"));
+  EXPECT_TRUE(ShouldPrompt(&prefs_, "example.org", kRegular));
   RecordDecline(&prefs_, "example.org");
-  EXPECT_FALSE(ShouldPrompt(&prefs_, "example.org"));
-  EXPECT_TRUE(ShouldPrompt(&prefs_, "other.example"));
+  EXPECT_FALSE(ShouldPrompt(&prefs_, "example.org", kRegular));
+  EXPECT_TRUE(ShouldPrompt(&prefs_, "other.example", kRegular));
 }
 
 TEST_F(WidevineOptInTest, DecliningTwiceKeepsOneEntry) {
@@ -40,19 +43,34 @@ TEST_F(WidevineOptInTest, DecliningTwiceKeepsOneEntry) {
 }
 
 TEST_F(WidevineOptInTest, NeverPromptsWhenOptedInOrWithoutAHost) {
-  EXPECT_FALSE(ShouldPrompt(&prefs_, ""));
+  EXPECT_FALSE(ShouldPrompt(&prefs_, "", kRegular));
   SetEnabled(&prefs_, true);
-  EXPECT_FALSE(ShouldPrompt(&prefs_, "example.org"));
+  EXPECT_FALSE(ShouldPrompt(&prefs_, "example.org", kRegular));
 }
 
 TEST_F(WidevineOptInTest, OffTheRecordDeclinesStayOutOfLocalState) {
   RecordDecline(&prefs_, "example.org", /*off_the_record=*/true);
   EXPECT_TRUE(prefs_.GetList(kDeclinedSites).empty());
-  EXPECT_TRUE(IsDeclined(&prefs_, "example.org"));
-  EXPECT_FALSE(ShouldPrompt(&prefs_, "example.org"));
-  EXPECT_TRUE(ShouldPrompt(&prefs_, "other.example"));
+  EXPECT_TRUE(IsDeclined(&prefs_, "example.org", kIncognito));
+  EXPECT_FALSE(ShouldPrompt(&prefs_, "example.org", kIncognito));
+  EXPECT_TRUE(ShouldPrompt(&prefs_, "other.example", kIncognito));
   ClearSessionDeclinesForTesting();
-  EXPECT_TRUE(ShouldPrompt(&prefs_, "example.org"));
+  EXPECT_TRUE(ShouldPrompt(&prefs_, "example.org", kIncognito));
+}
+
+TEST_F(WidevineOptInTest, AnIncognitoDeclineDoesNotReachRegularWindows) {
+  RecordDecline(&prefs_, "example.org", /*off_the_record=*/true);
+  EXPECT_FALSE(IsDeclined(&prefs_, "example.org", kRegular));
+  EXPECT_TRUE(ShouldPrompt(&prefs_, "example.org", kRegular));
+  // It still holds in incognito.
+  EXPECT_FALSE(ShouldPrompt(&prefs_, "example.org", kIncognito));
+}
+
+TEST_F(WidevineOptInTest, ARegularDeclineAlsoHoldsInIncognito) {
+  RecordDecline(&prefs_, "example.org");
+  EXPECT_TRUE(IsDeclined(&prefs_, "example.org", kRegular));
+  EXPECT_TRUE(IsDeclined(&prefs_, "example.org", kIncognito));
+  EXPECT_FALSE(ShouldPrompt(&prefs_, "example.org", kIncognito));
 }
 
 TEST_F(WidevineOptInTest, DecliningInANormalWindowStillPersistsAfterAnOtrDecline) {
@@ -70,15 +88,29 @@ TEST_F(WidevineOptInTest, UpdateUrlIsTheFallbackUntilOptedIn) {
   EXPECT_TRUE(WidevineUpdateUrl(&prefs_, fallback).SchemeIs("https"));
 }
 
-TEST_F(WidevineOptInTest, OnlyWidevineMayReachGoogleOnceOptedIn) {
+TEST_F(WidevineOptInTest, OnlyWidevineMayReachGoogleTheUpdateServer) {
   const char kCrlSet[] = "hfnkpimlhhgieaddgfemjhofmfblmnib";
-  // Off: the request goes to the dummy origin, so nothing is held back.
-  EXPECT_TRUE(ShouldSendToUpdateServer(&prefs_, kCrlSet));
-  EXPECT_TRUE(ShouldSendToUpdateServer(nullptr, kCrlSet));
+  const GURL dummy("https://dummy.invalid/com");
+  EXPECT_EQ(dummy, WidevineUpdateUrl(&prefs_, dummy));  // off: the fallback
+  // Not Google's server: nothing is held back.
+  EXPECT_TRUE(ShouldSendToUpdateServer(kCrlSet, dummy));
+  EXPECT_TRUE(ShouldSendToUpdateServer(kWidevineAppId, dummy));
   SetEnabled(&prefs_, true);
-  EXPECT_TRUE(ShouldSendToUpdateServer(&prefs_, kWidevineAppId));
-  EXPECT_FALSE(ShouldSendToUpdateServer(&prefs_, kCrlSet));
-  EXPECT_FALSE(ShouldSendToUpdateServer(&prefs_, ""));
+  const GURL real = WidevineUpdateUrl(&prefs_, dummy);
+  EXPECT_TRUE(ShouldSendToUpdateServer(kWidevineAppId, real));
+  EXPECT_FALSE(ShouldSendToUpdateServer(kCrlSet, real));
+  EXPECT_FALSE(ShouldSendToUpdateServer("", real));
+}
+
+// The URL was read when the check started; the pref may flip before the
+// request is built. The decision follows the URL, not the pref.
+TEST_F(WidevineOptInTest, TheDecisionFollowsTheUrlNotThePref) {
+  const char kCrlSet[] = "hfnkpimlhhgieaddgfemjhofmfblmnib";
+  SetEnabled(&prefs_, true);
+  const GURL real = WidevineUpdateUrl(&prefs_, GURL("https://dummy.invalid/com"));
+  SetEnabled(&prefs_, false);
+  EXPECT_FALSE(ShouldSendToUpdateServer(kCrlSet, real));
+  EXPECT_TRUE(ShouldSendToUpdateServer(kWidevineAppId, real));
 }
 
 TEST_F(WidevineOptInTest, RegistersOnlyAfterTheUserOptsIn) {
