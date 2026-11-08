@@ -43,9 +43,10 @@ Options for `poll` and `gate`: `--build-root DIR` (env `AERIE_BUILD_ROOT`) and
    nightly run that passed, not the last merge to main. The baseline folder is
    `AERIE_PERF_DIR`, default `/mnt/linux2/aerie-perf`. With no `main.json` yet the step fails and says so; set
    `AERIE_PERF_FIRST_RUN=1` for the one run that has to go through before the first baseline is recorded
-   (docs/bench.md says how to record it). The step is a second browser launch after the full Bench. It downloads the
-   pinned Speedometer and JetStream copies into the build root once, and runs them on every PR (a few minutes; the limits
-   are 1200 s and 3600 s).
+   (docs/bench.md says how to record it). The step runs after the full Bench and launches a fresh browser on a fresh
+   profile for the memory run, each benchmark and each startup measurement. It downloads the pinned Speedometer and
+   JetStream copies into the build root once, and runs them on every PR (a few minutes; the limits are 600 s and 900 s,
+   or 180 s without progress).
    Each step shows in the pending status description.
 6. Removes the worktree, posts `success` or `failure`, and records the SHA.
 
