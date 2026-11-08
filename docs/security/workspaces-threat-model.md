@@ -1,6 +1,6 @@
 # Workspaces threat model
 
-Issue #72. Status: draft for review, with [ADR 0006](../adr/0006-workspace-isolation.md) (Proposed). It covers the
+Issue #72. Status: accepted with [ADR 0006](../adr/0006-workspace-isolation.md) (accepted, 2026-11-08; decisions D1 to D4 are applied below). It covers the
 recommended design: one profile, one `StoragePartition` per Workspace, tabs fixed to a Workspace when created.
 Nothing here was run. Mitigations marked "to verify" are Bench or build-train checks (#73).
 
@@ -13,7 +13,7 @@ Nothing here was run. Mitigations marked "to verify" are Bench or build-train ch
 | A3. Network session state: HSTS, HTTP auth, client-certificate use, open connections | Partition `NetworkContext` | Carries a credential or a pinned policy across accounts. |
 | A4. Consent: permission grants (camera, location, notifications) | Profile (shared today, G2) | A grant for one account becomes a grant for the other. |
 | A5. Saved credentials, autofill, passkeys | Profile (shared, decision) | Account B's password offered to a page of A. |
-| A6. History and visited-link state | Profile (shared, D1) | Reveals what the other Workspace visited. |
+| A6. History and visited-link state | A `HistoryService` per Workspace (D1, gap G8) | Reveals what the other Workspace visited. |
 | A7. The fact that one person owns both accounts (linkability) | Fingerprint, shared profile state | A site that sees both Workspaces can join the identities. |
 | A8. The Workspace list (names, ids, which tab is where) | Profile pref and tab model | A name like "Clinic" can be sensitive. |
 
@@ -47,8 +47,8 @@ Goal: read or use Workspace B's data, learn that B exists, or reach the default 
 | Reuse B's connection, client certificate or HTTP auth | Separate `HttpNetworkSession`. | By design, to verify: NetLog socket-reuse check. |
 | `window.open(..., 'noopener')` or `target=_blank rel=noopener` to escape to the default partition, where another account may be logged in | `CreateNewWindow` keeps the opener's fixed partition. | Upstream hole G6. Prototype patch 0002. Bench check needed. |
 | Make the browser fetch for it in the default partition (preconnect, prefetch, prerender, Early Hints) | Aerie turns preloading off by default; the loading predictor uses the default partition. | Closed by default (G5). Bench: keep checking. |
-| Get a permission B granted | Grants are per profile and origin, so site `x.test` in A has B's grant for `x.test`. | **Open: G2, D2.** Mitigation: Workspace-keyed permission layer. |
-| Learn what B visited, with `:visited` | Visited links are keyed by top-level site, so only a site open in both Workspaces learns anything, and only about its own links. | Accepted, R-3. |
+| Get a permission B granted | Grants are per profile and origin, so site `x.test` in A has B's grant for `x.test`. | **Open: G2, required (D2).** Mitigation: Workspace-keyed permission layer. Train 8 confirmed the leak with a notification grant. |
+| Learn what B visited, with `:visited` | History is split per Workspace (D1): each Workspace has its own `HistoryService`, and its visited-link table goes only to renderers of that Workspace. | **Open: G8.** Bench check: a link visited in B is not `:visited` in A. |
 | Join A and B by fingerprint, device id salt | Not mitigated. | Accepted, R-5. |
 | Read clear-data leftovers after the user cleared data | "Clear browsing data" must visit every Workspace partition. | **Open: G3.** |
 
@@ -71,7 +71,7 @@ partition the sender chose.
 
 | Attack | Mitigation | Status |
 | --- | --- | --- |
-| An external link has no source tab, so it lands in the default partition or in the wrong Workspace | Route it by a rule the user chose (D4): the active Workspace of the last active window, always in a **new** tab, never navigating an existing one. | M5, story 94. Prototype only adds the carrier (`NavigateParams::storage_partition_config`). |
+| An external link has no source tab, so it lands in the default partition or in the wrong Workspace | Decision D4: open it in a **new** tab in the active Workspace of the last active window, never navigating an existing tab, and the tab shows its Workspace. | M5, story 94. Prototype only adds the carrier (`NavigateParams::storage_partition_config`). |
 | The link performs an action as whichever account is logged in there | The new tab shows its Workspace before the page can be trusted. No auto-submit changes. An optional "ask which Workspace" mode for external links. | M5 UI. |
 | A link or protocol handler picks a Workspace by name or id (`aerie://open?workspace=...`) | No such URL exists. Workspace ids are not addressable from outside the browser. A command-line `--aerie-test-*` switch exists for the Bench only, as for other test hooks, and is documented there. | By design. |
 | A web page asks the browser to open a Workspace-bound tab through a custom scheme | Web pages cannot name a Workspace. A tab opened by a page inherits that page's Workspace. | By design. |
@@ -82,8 +82,8 @@ Goal: read or change data of a Workspace the user did not mean the extension to 
 
 | Attack | Mitigation | Status |
 | --- | --- | --- |
-| A content script runs in a Workspace B page and reads it, or sends it away | Extensions are one set per profile and are trusted with all browsing. Mitigation M-D1: a per-extension "run in Workspaces" setting, off by default for extensions installed after M5, enforced where Chromium decides page access for a tab (to be placed on the train). | **Open: D3, M-D1.** |
-| `webRequest` sees `Cookie` and `Authorization` headers of B | Same. MV2 stays supported in Aerie (see `docs/adblock.md`), so a blocking `webRequest` extension sees them. | Accepted with M-D1, R-1. |
+| A content script runs in a Workspace B page and reads it, or sends it away | Extensions are one set per profile and are trusted with all browsing. Decision D3 (mitigation M-D1): a per-extension "allow in all Workspaces" setting, off for new installs, enforced where Chromium decides page access for a tab (to be placed on the train). | **Open: M-D1 to build (size M).** |
+| `webRequest` sees `Cookie` and `Authorization` headers of B | Same. MV2 stays supported in Aerie (see `docs/adblock.md`), so a blocking `webRequest` extension sees them. | Accepted for extensions the user allowed (M-D1), R-1. |
 | `chrome.cookies` reads B's cookies | It reads only the default partition (`extensions/browser/api/cookies/cookies_api.cc:120`, `ParseStoreCookieManager`), so it cannot. | By design; a side effect is that cookie-manager extensions do not work in Workspaces. |
 | An extension opens a tab in a chosen Workspace | `chrome.tabs.create` goes through the navigator: no partition is named, so the tab inherits the active Workspace or the default. There is no extension API to name one. | By design. |
 | Extension storage links A and B | Extension storage is per profile. | Accepted, R-1. |
@@ -92,15 +92,14 @@ Goal: read or change data of a Workspace the user did not mean the extension to 
 
 | Id | Risk | Why it is accepted | Review trigger |
 | --- | --- | --- | --- |
-| R-1 | Extensions see all Workspaces | An extension is trusted with all browsing. M-D1 narrows it. | D3 |
+| R-1 | Extensions see all Workspaces | An extension is trusted with all browsing. M-D1 narrows it to extensions the user allowed in Workspaces (D3). | A change to D3 |
 | R-2 | A moved tab loses in-page state | The only way to keep isolation. | Never; it is the design. |
-| R-3 | History and visited links are shared | Product decision D1. A site open in both Workspaces can learn about its own visited links. | D1 |
 | R-4 | The password manager offers all accounts | It is the wanted behaviour. A page needs a gesture to receive a password. | None |
 | R-5 | Fingerprint and device ids link Workspaces | One device. Cannot be split without anti-fingerprinting, which is outside this issue. | An anonymity feature request |
 | R-6 | GPU shader cache, OS DNS cache, font cache are shared | No account data; timing signals only. | A cross-Workspace timing result in the Bench |
-| R-7 | A link from another app acts as the active Workspace's account | The user picks the rule (D4). The Workspace is shown. | D4 |
+| R-7 | A link from another app acts as the active Workspace's account | The rule is decided (D4); the Workspace is shown on the tab. | A change to D4 |
 
 ## Open items for the build train
 
-G1 to G7 and the verifications in the tables are the checklist. They map to #73's `workspace_isolation` suite as
+G1 to G8 and the verifications in the tables are the checklist. They map to #73's `workspace_isolation` suite as
 listed in [prototypes/workspaces/REPORT.md](../../prototypes/workspaces/REPORT.md).

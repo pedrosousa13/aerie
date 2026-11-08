@@ -48,7 +48,7 @@ sessionStorage reads empty in each `/whoami` tab because it is per tab and the l
 | 10 | Clear browsing data empties every Workspace (G3) | **Fail, as expected** | Cookies and cache, all time, from `chrome://settings/clearBrowserData`: the default partition's cookie is gone, ws1 still has `A`. |
 | 11 | Session restore keeps each tab's Workspace (G4) | **Fail, as expected** | Every restored tab is in the default partition (see story 92). |
 | 12 | Preload, prefetch, preconnect (G5) | Not run | Aerie's preloading is off by default; `hardening_prefetch` covers the default. |
-| 13 | History and visited links | Not run | Report only, decision D1. |
+| 13 | History and visited links split (D1, G8) | Not run | Now a required check: expected to fail until G8 lands. |
 | 14 | MV2 extension `webRequest` sees a Workspace tab | Not run | |
 
 Note for #73: calling `clearBrowsingData` from a settings page other than `chrome://settings/clearBrowserData` (we
@@ -177,8 +177,8 @@ credit it as the base of option 2 (already done in the ADR text, conditional on 
 | 10 | Clear browsing data empties every Workspace | G3 | **Expected to fail until G3 is done.** |
 | 11 | Session restore keeps each tab's Workspace | G4 | **Expected to fail** with Chromium's session code alone. |
 | 12 | Preload, prefetch and preconnect from a Workspace page do not touch the default partition | G5 | With Aerie's defaults (preloading off). |
-| 13 | History and visited links | 12 | Report only; shared by decision D1. Becomes a check if D1 says split. |
-| 14 | Extension: `webRequest` in the MV2 fixture extension sees a Workspace tab | 14 | Shows R-1 is real, so D3 can be decided on facts. |
+| 13 | History and visited links split per Workspace | 12 | D1 decided "split": a required check, expected-fail until G8 lands. |
+| 14 | Extension: `webRequest` in the MV2 fixture extension sees a Workspace tab | 14 | Shows R-1 is real; D3 is decided (per-extension setting, off for new installs). |
 
 ## Estimates (reasoned, not measured)
 
@@ -198,7 +198,11 @@ Ten rules for the sidebar and tab model are in the ADR, section "Constraints on 
 two that change M2 work first: the tab model stores `workspace_id` itself (never derived from the `WebContents`), and
 "move to Workspace" returns a new tab id.
 
-## Open questions for the maintainer
+## Decisions (maintainer, 2026-11-08)
 
-D1 (history), D2 (permission grants), D3 (extensions), D4 (external links): see the ADR.
-Also: whether the 10 MB and 100 ms bars are the right ones.
+D1 history: split per Workspace (G8). D2 permission grants: split before Workspaces ship (G2). D3 extensions: a
+per-extension "allow in all Workspaces" setting, off for new installs. D4 external links: a new tab in the active
+Workspace, showing its Workspace. Bars: 10 MB per empty Workspace (measured 7.9 MB, pass) and 100 ms median switch
+(measured 1.7 ms median, 4.3 ms p95, pass). See [ADR 0006](../../docs/adr/0006-workspace-isolation.md).
+
+The memory figures were measured without a history service per Workspace; re-measure with G8.

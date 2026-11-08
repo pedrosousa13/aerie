@@ -2,7 +2,7 @@
 
 Throwaway. **Not in `patches/series`, never built into Aerie.** The patch lint only looks under `patches/`, so these files
 do not affect the build. No Workspace feature code is on `main`. The decision is in
-[ADR 0006](../../docs/adr/0006-workspace-isolation.md) (Proposed); the numbers plan is in [REPORT.md](REPORT.md).
+[ADR 0006](../../docs/adr/0006-workspace-isolation.md) (accepted, 2026-11-08); the measured numbers are in [REPORT.md](REPORT.md).
 
 **Option 2 compiled and was measured in build train 8** (see [REPORT.md](REPORT.md)). Option 1 has not been compiled.
 Every patch in `partition/patches` and `profile/patches` passes `patch -p1 --dry-run --fuzz=0` against
@@ -47,7 +47,8 @@ permission change, a clear-data delegate, session persistence and sync encoding.
 | G2 permission grants split by Workspace | A Workspace-keyed layer in front of the content-settings read; every reader of `HostContentSettingsMap` that is not partition-aware must be audited. | L |
 | G4 session, reopen-closed-tab, sync | Persist `workspace_id` in the M2 tab model and in Chromium's session entries (Brave uses a URL prefix and edits `PageState`). | L |
 | G3 clear browsing data | Run the remover once per Workspace partition and fix the delegate's default-partition calls (lines 295, 468, 521, 705, 986, 1395). | S to M |
-| Workspace-aware extension access (M-D1) | A check where Chromium decides page access for a tab. | M |
+| Workspace-aware extension access (M-D1, decision D3) | A per-extension "allow in all Workspaces" setting, off for new installs, and a check where Chromium decides page access for a tab. | M |
+| G8 history split per Workspace (decision D1) | A `HistoryService` per Workspace under its partition directory, about 25 to 40 call sites made Workspace-aware, 4 to 6 keyed services duplicated, and the visited-link table sent only to that Workspace's renderers. Estimated from the source in the ADR. | L |
 | UI: sidebar labels, hover card, Workspace picker | M2 and M5. | M2/M5 |
 
 Size classes are guesses from reading; they are not measured. S under a day, M a few days, L more than a week.
