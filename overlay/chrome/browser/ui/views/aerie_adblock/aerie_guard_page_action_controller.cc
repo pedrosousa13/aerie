@@ -68,7 +68,8 @@ AerieGuardPageActionController::~AerieGuardPageActionController() {
 // static
 ui::ImageModel AerieGuardPageActionController::DefaultImage() {
   return ui::ImageModel::FromVectorIcon(aerie_guard::kAerieGuardOnIcon,
-                                        ui::kColorIcon, aerie_guard::kGuardImageSize);
+                                        ui::kColorIcon,
+                                        aerie_guard::kGuardImageSize);
 }
 
 aerie_adblock::GuardState AerieGuardPageActionController::CurrentState() const {

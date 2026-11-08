@@ -2,7 +2,6 @@
 is wired by hook patches, and the overlay reads only browser-side state and speaks only through the grd."""
 
 import re
-import subprocess
 import unittest
 import xml.etree.ElementTree as ET
 from pathlib import Path

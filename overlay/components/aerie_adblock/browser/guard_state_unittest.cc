@@ -65,7 +65,8 @@ TEST(GuardBadgeLabelTest, SaturatesAbove99) {
 class GuardStateTest : public testing::Test {
  protected:
   GuardStateTest()
-      : service_(base::ThreadPool::CreateSequencedTaskRunner({base::MayBlock()})) {}
+      : service_(
+            base::ThreadPool::CreateSequencedTaskRunner({base::MayBlock()})) {}
 
   void SetUp() override {
     ASSERT_TRUE(dir_.CreateUniqueTempDir());
@@ -125,7 +126,8 @@ TEST_F(GuardStateTest, CarriesTheBlockedCount) {
   EXPECT_EQ(0, StateFor("https://news.test/", SessionKey::Regular(), -1).count);
 }
 
-TEST_F(GuardStateTest, ASavedExceptionTurnsTheIconOffForTheSiteAndItsSubdomains) {
+TEST_F(GuardStateTest,
+       ASavedExceptionTurnsTheIconOffForTheSiteAndItsSubdomains) {
   ASSERT_EQ(ExceptionResult::kOk,
             manager_->SetExceptionForTesting("news.test", true,
                                              SessionKey::Regular()));
@@ -161,7 +163,8 @@ TEST_F(GuardStateTest, AnIncognitoTabShowsTheIconAndItsOwnException) {
   // It is the session's own: neither another incognito session nor the regular
   // profile sees it.
   EXPECT_FALSE(StateFor("https://news.test/", other).blocking_off);
-  EXPECT_FALSE(StateFor("https://news.test/", SessionKey::Regular()).blocking_off);
+  EXPECT_FALSE(
+      StateFor("https://news.test/", SessionKey::Regular()).blocking_off);
 }
 
 TEST_F(GuardStateTest, ASavedExceptionIsLockedInIncognito) {

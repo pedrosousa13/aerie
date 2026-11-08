@@ -62,8 +62,8 @@ class GuardImageSource : public gfx::CanvasImageSource {
     const int width = std::min(
         kGuardImageSize, gfx::GetStringWidth(badge_label_, font_list) +
                         2 * kBadgePaddingX);
-    const gfx::Rect badge(kGuardImageSize - width, kGuardImageSize - kBadgeHeight, width,
-                          kBadgeHeight);
+    const gfx::Rect badge(kGuardImageSize - width,
+                          kGuardImageSize - kBadgeHeight, width, kBadgeHeight);
     canvas->FillRect(badge, badge_background_);
     canvas->DrawStringRectWithFlags(
         badge_label_, font_list, badge_foreground_, badge,
