@@ -86,7 +86,8 @@ class PageTest(unittest.TestCase):
         block = SCRIPT[SCRIPT.index("const COLORS = {"):SCRIPT.index("};", SCRIPT.index("const COLORS = {"))]
         page = set(re.findall(r"^\s+(\w+): \[", block, re.M))
         self.assertEqual(native, page)
-        self.assertEqual(len(native), 7)
+        self.assertEqual(len(native), 6)
+        self.assertNotIn("graphite", native)
 
     def test_neutral_comes_first_and_is_the_default(self):
         block = SCRIPT[SCRIPT.index("const COLORS = {"):SCRIPT.index("};", SCRIPT.index("const COLORS = {"))]
@@ -95,13 +96,18 @@ class PageTest(unittest.TestCase):
         self.assertIn("color: 'neutral'", SCRIPT)
         self.assertRegex(SCRIPT, r"mode: 'system', color: 'neutral'")
 
-    def test_neutral_is_a_baseline_choice_that_never_calls_use_default_theme(self):
-        # UseDefaultTheme() ends by setting the grayscale pref to true, which is Graphite. The run-time
-        # proof of the resulting theme is the Bench check setup_theme (tests/test_bench_setup_theme.py).
+    def test_neutral_is_the_plain_grayscale_default_and_never_calls_use_default_theme(self):
+        # Neutral is the one choice with no seed: no user colour and the grayscale pref on, which is
+        # Helium's default for a new profile. Grayscale off without a colour is Chromium's blue baseline
+        # palette, so it must not be used for Neutral. UseDefaultTheme() also resets the appearance.
+        # The run-time proof is the Bench check setup_theme (tests/test_bench_setup_theme.py).
         handler = (REPO / "overlay/chrome/browser/ui/webui/aerie_onboarding/aerie_theme_handler.h").read_text(encoding="utf-8")
-        source = (REPO / "overlay/chrome/browser/ui/webui/aerie_onboarding/aerie_theme_handler.cc").read_text(encoding="utf-8")
-        self.assertRegex(handler, r'\{"neutral", std::nullopt, true\}')
-        self.assertNotIn("UseDefaultTheme()", re.sub(r"//.*", "", source))
+        source = re.sub(r"//.*", "", (REPO / "overlay/chrome/browser/ui/webui/aerie_onboarding/aerie_theme_handler.cc").read_text(encoding="utf-8"))
+        self.assertRegex(handler, r'\{"neutral", std::nullopt\}')
+        self.assertNotIn("UseDefaultTheme()", source)
+        self.assertNotIn("baseline", source)
+        self.assertRegex(source, r"else \{\s*themes->SetIsGrayscale\(true\);\s*\}")
+        self.assertEqual(source.count("SetIsGrayscale(true)"), 1)
 
 
 class HookTest(unittest.TestCase):

@@ -52,7 +52,6 @@ inline constexpr webui::LocalizedString kLocalizedStrings[] = {
     {"colorMoss", IDS_AERIE_SETUP_COLOR_MOSS},
     {"colorDusk", IDS_AERIE_SETUP_COLOR_DUSK},
     {"colorSand", IDS_AERIE_SETUP_COLOR_SAND},
-    {"colorGraphite", IDS_AERIE_SETUP_COLOR_GRAPHITE},
     {"previewTab", IDS_AERIE_SETUP_PREVIEW_TAB},
     {"previewTab2", IDS_AERIE_SETUP_PREVIEW_TAB2},
     {"blockTitle", IDS_AERIE_SETUP_BLOCK_TITLE},

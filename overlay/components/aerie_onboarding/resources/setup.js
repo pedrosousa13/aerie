@@ -70,7 +70,7 @@ const internal = host => `${location.protocol}//${host}/`;
 /* ---------- state ---------- */
 
 const COLORS = {
-  // Neutral has no tint and follows the appearance. Its fourth entry is the
+  // Neutral is the plain grey and white default, with no colour of its own, and follows the appearance. Its fourth entry is the
   // dark variant, used when the page is dark.
   neutral: ['#FFFFFF', '#E4E5EA', '#B9BBC4', 'colorNeutral', ['#3A3B42', '#202127', '#0E0F12']],
   alpenglow: ['#FFA463', '#F0466F', '#7B3FE4', 'colorAlpenglow'],
@@ -78,7 +78,6 @@ const COLORS = {
   moss: ['#3FD19B', '#138476', '#0F3F4D', 'colorMoss'],
   dusk: ['#2B2A8F', '#8E4FE8', '#FF9E7A', 'colorDusk'],
   sand: ['#F6D7A7', '#D99A6C', '#8C5A44', 'colorSand'],
-  graphite: ['#5A596D', '#2A2936', '#101016', 'colorGraphite'],
 };
 const MODES = [['light', 'lookLight'], ['dark', 'lookDark'], ['system', 'lookSystem']];
 const IMPORT_ITEMS = [
