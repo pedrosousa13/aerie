@@ -6,8 +6,8 @@
 #define COMPONENTS_AERIE_ADBLOCK_BROWSER_FILTER_LIST_MANAGER_H_
 
 #include <memory>
-#include <string>
 #include <map>
+#include <string>
 #include <set>
 #include <string_view>
 

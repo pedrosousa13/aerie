@@ -99,8 +99,7 @@ void AdblockProxyingURLLoader::FollowRedirect(
       ClassifyRequest(hop, factory_initiator_, factory_isolation_info_);
   if (classified.has_value()) {
     classified->session = session_;
-  }
-  if (!classified.has_value()) {
+  } else {
     // Not something the engine judges (for example a non-http scheme).
     loader_->FollowRedirect(std::move(headers_update_params), new_url);
     return;

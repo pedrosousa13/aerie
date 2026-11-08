@@ -7,9 +7,10 @@
 
 namespace aerie_adblock::switches {
 
-// Lets filter list addresses use http for 127.0.0.1, ::1 and localhost, and for
-// nothing else. The Bench needs it because its fixture server has no TLS;
-// users never need it. Same idea as --aerie-test-allow-loopback-extension-proxy.
+// Lets filter list addresses use http for 127.0.0.1, ::1 and localhost, and
+// for nothing else. The Bench needs it because its fixture server has no TLS;
+// users never need it. Same idea as
+// --aerie-test-allow-loopback-extension-proxy.
 inline constexpr char kAllowLoopbackFilterLists[] =
     "aerie-test-allow-loopback-filter-lists";
 

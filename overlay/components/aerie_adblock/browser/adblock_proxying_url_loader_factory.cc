@@ -71,8 +71,7 @@ void AdblockProxyingURLLoaderFactory::CreateLoaderAndStart(
       ClassifyRequest(request, request_initiator_, isolation_info_);
   if (classified.has_value()) {
     classified->session = session_;
-  }
-  if (!classified.has_value()) {
+  } else {
     target_factory_->CreateLoaderAndStart(std::move(loader_receiver),
                                           request_id, options, request,
                                           std::move(client), traffic_annotation);

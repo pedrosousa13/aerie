@@ -28,6 +28,15 @@
 
 namespace aerie_adblock {
 
+// The key under which the per-site exceptions of an off-the-record profile
+// live (FilterEngineService::SetSessionExceptions): the profile itself, as an
+// opaque pointer. Null for a regular profile (or none), whose exceptions are
+// saved to disk. Never dereferenced.
+inline const void* SessionKeyFor(content::BrowserContext* browser_context) {
+  return browser_context && browser_context->IsOffTheRecord() ? browser_context
+                                                              : nullptr;
+}
+
 // The Filter Engine service: owns the one adblock engine of the browser
 // process and answers "block this request?".
 //
@@ -54,15 +63,6 @@ namespace aerie_adblock {
 // keep a WeakPtr.
 //
 // UI thread only (the public methods), except for the sequence it owns.
-// The key under which the per-site exceptions of an off-the-record profile
-// live (FilterEngineService::SetSessionExceptions): the profile itself, as an
-// opaque pointer. Null for a regular profile (or none), whose exceptions are
-// saved to disk. Never dereferenced.
-inline const void* SessionKeyFor(content::BrowserContext* browser_context) {
-  return browser_context && browser_context->IsOffTheRecord() ? browser_context
-                                                              : nullptr;
-}
-
 class FilterEngineService {
  public:
   using VerdictCallback = base::OnceCallback<void(bool should_block)>;

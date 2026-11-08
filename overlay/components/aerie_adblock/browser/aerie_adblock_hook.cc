@@ -9,8 +9,8 @@
 
 #include "base/command_line.h"
 #include "base/functional/bind.h"
-#include "base/notreached.h"
 #include "base/memory/self_deleting.h"
+#include "base/notreached.h"
 #include "base/task/thread_pool.h"
 #include "content/public/browser/render_frame_host.h"
 #include "components/aerie_adblock/browser/adblock_proxying_url_loader_factory.h"
@@ -33,9 +33,8 @@ std::string_view ShippedEngine() {
 }
 
 // The text of a built-in list, from the resource bundle (decompressed).
-// An id that is not a built-in list has no shipped text: NOTREACHED in debug
-// builds, and an empty text otherwise, which the manager's list check rejects,
-// so an unknown id never silently gets another list's rules.
+// An id that is not a built-in list has no shipped text: NOTREACHED() crashes
+// in every build, so an unknown id never silently gets another list's rules.
 std::string ShippedList(std::string_view id) {
   int resource;
   if (id == kEasyListId) {

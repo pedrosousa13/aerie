@@ -129,16 +129,17 @@ void AerieFilterToolbarButton::ButtonPressed() {
   std::string host = ActiveHost();
   menu_model_ = std::make_unique<ui::SimpleMenuModel>(this);
   if (manager && !host.empty()) {
-    bool off = manager->HasException(host, ActiveSession());
+    const void* session = ActiveSession();
+    bool off = manager->HasException(host, session);
     // An exception saved in a regular window cannot be undone from incognito.
-    bool locked = off && ActiveSession() && manager->HasSavedException(host);
+    bool locked = off && session && manager->HasSavedException(host);
     menu_model_->AddItem(
         kToggleSite,
         base::UTF8ToUTF16(
             locked ? "Blocking is off here (turn it on in a regular window)"
                    : (off ? "Turn on blocking for " : "Turn off blocking for ") +
                          host +
-                         (ActiveSession() ? " (this incognito session only)"
+                         (session ? " (this incognito session only)"
                                           : "")));
     menu_model_->SetEnabledAt(menu_model_->GetItemCount() - 1, !locked);
   }
