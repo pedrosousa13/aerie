@@ -33,6 +33,16 @@ class SharedURLLoaderFactory;
 
 namespace aerie_adblock {
 
+// What SetException() did.
+enum class ExceptionResult {
+  kOk,
+  kInvalidHost,  // Not a site name.
+  kTableFull,    // Too many exceptions already (saved or for the session).
+  // An off-the-record session tried to turn back on a host whose exception was
+  // saved by the regular profile. Nothing changed.
+  kSavedInRegularProfile,
+};
+
 // Lets the user manage the filter lists (issue #10): add, remove and update
 // lists, per-site exceptions, and the scheduled update. It keeps the
 // FilterListState, saves it (filter_list_storage.h), downloads lists
@@ -52,15 +62,6 @@ namespace aerie_adblock {
 // UI thread. Not a singleton: the browser's main parts own it
 // (chrome/browser/aerie_adblock); Get() is for the settings page and the
 // toolbar button and is null outside that window.
-// What SetException() did.
-enum class ExceptionResult {
-  kOk,
-  kInvalidHost,  // Not a site name, or the table is full.
-  // An off-the-record session tried to turn back on a host whose exception was
-  // saved by the regular profile. Nothing changed.
-  kSavedInRegularProfile,
-};
-
 class FilterListManager {
  public:
   // The text of the built-in list the build shipped, for |id|.
@@ -117,7 +118,7 @@ class FilterListManager {
 
   // |host| as in FilterListState::SetException. Takes effect at once.
   //
-  // |session| says where the exception is set from (SessionKeyFor()). For the
+  // The session is SessionKeyFor(|context|). For the
   // regular profile it is saved to disk and holds for every profile. For an
   // off-the-record profile it is kept in memory only, holds for that session
   // only, and is gone when ClearSessionExceptions() runs (the profile's end).
@@ -128,17 +129,19 @@ class FilterListManager {
   // exception: the regular profile owns it (kSavedInRegularProfile, nothing
   // changes).
   //
-  // This overload does not watch the session's end. Callers that have the
-  // BrowserContext use the overload below.
-  ExceptionResult SetException(std::string_view host,
-                               bool excepted,
-                               SessionKey session);
-  // The entry point for UI code: the key is SessionKeyFor(|context|), and for
-  // an off-the-record |context| the manager also arranges for the exception
-  // to go when the context is destroyed. Callers do nothing else.
+  // The entry point for UI code: the session is SessionKeyFor(|context|), and
+  // for an off-the-record |context| the manager also arranges for the
+  // exception to go when the context is destroyed. Callers do nothing else.
   ExceptionResult SetException(std::string_view host,
                                bool excepted,
                                content::BrowserContext* context);
+  // For tests that have no BrowserContext. Does not watch the session's end,
+  // so UI code must not use it.
+  ExceptionResult SetExceptionForTesting(std::string_view host,
+                                         bool excepted,
+                                         SessionKey session) {
+    return SetExceptionForSession(host, excepted, session);
+  }
   // True when blocking is off for |host| (saved, or for |session|).
   bool HasException(std::string_view host, SessionKey session) const;
   // True when |host| has a saved exception: one that an off-the-record window
@@ -163,6 +166,11 @@ class FilterListManager {
   void MaybeRunScheduledUpdate(base::Time now);
 
  private:
+  // The rules of SetException(), for |session|. Does not watch the session's
+  // end: only SetException(..., context) and the test hook call it.
+  ExceptionResult SetExceptionForSession(std::string_view host,
+                                         bool excepted,
+                                         SessionKey session);
   // Calls ClearSessionExceptions() for an off-the-record |context| when it is
   // destroyed. Idempotent. Done by SetException(..., context).
   void WatchSession(content::BrowserContext* context);

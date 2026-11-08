@@ -390,7 +390,7 @@ def observe_incognito(session: Session) -> dict:
     return obs
 
 
-def read_state_file(profile_path) -> str | None:
+def read_state_file(profile_path: str | Path) -> str | None:
     try:
         return (Path(profile_path) / STATE_FILE).read_text()
     except OSError:

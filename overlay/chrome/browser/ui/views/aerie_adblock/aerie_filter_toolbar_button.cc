@@ -137,11 +137,13 @@ void AerieFilterToolbarButton::ButtonPressed() {
     menu_model_->AddItem(
         kToggleSite,
         base::UTF8ToUTF16(
-            locked ? "Blocking is off here (turn it on in a regular window)"
-                   : (off ? "Turn on blocking for " : "Turn off blocking for ") +
-                         host +
-                         (session.is_off_the_record() ? " (this incognito session only)"
-                                          : "")));
+            locked
+                ? "Blocking is off here (turn it on in a regular window)"
+                : (off ? "Turn on blocking for " : "Turn off blocking for ") +
+                      host +
+                      (session.is_off_the_record()
+                           ? " (this incognito session only)"
+                           : "")));
     menu_model_->SetEnabledAt(menu_model_->GetItemCount() - 1, !locked);
   }
   menu_model_->AddItem(kManageLists, u"Manage filter lists...");

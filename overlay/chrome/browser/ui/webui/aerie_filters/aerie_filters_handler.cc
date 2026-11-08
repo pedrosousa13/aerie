@@ -188,6 +188,10 @@ void AerieFiltersHandler::HandleSetException(const base::ListValue& args) {
       add_error_ = "That is not a valid site name.";
       PushState();
       break;
+    case ExceptionResult::kTableFull:
+      add_error_ = "There are too many sites turned off. Turn some back on.";
+      PushState();
+      break;
     case ExceptionResult::kSavedInRegularProfile:
       add_error_ =
           "This site was turned off in a regular window. Turn it back on there.";

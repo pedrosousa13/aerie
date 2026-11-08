@@ -207,11 +207,12 @@ class SessionWatch : public base::SupportsUserData::Data {
 
 }  // namespace
 
-ExceptionResult FilterListManager::SetException(std::string_view host,
-                                                bool excepted,
-                                                SessionKey session) {
+ExceptionResult FilterListManager::SetExceptionForSession(
+    std::string_view host,
+    bool excepted,
+    SessionKey session) {
   if (session.is_off_the_record()) {
-    if (!excepted && HasSavedException(host)) {
+    if (!excepted && IsExceptionLocked(host, session)) {
       return ExceptionResult::kSavedInRegularProfile;
     }
     std::string normalized = NormalizeExceptionHost(host);
@@ -227,7 +228,7 @@ ExceptionResult FilterListManager::SetException(std::string_view host,
       if (hosts.empty()) {
         session_exceptions_.erase(session);
       }
-      return ExceptionResult::kInvalidHost;
+      return ExceptionResult::kTableFull;
     }
     if (service_) {
       service_->SetSessionExceptions(session, hosts);
@@ -238,8 +239,11 @@ ExceptionResult FilterListManager::SetException(std::string_view host,
     Notify();
     return ExceptionResult::kOk;  // No Save(): this never reaches the disk.
   }
-  if (!state_.SetException(host, excepted)) {
+  if (NormalizeExceptionHost(host).empty()) {
     return ExceptionResult::kInvalidHost;
+  }
+  if (!state_.SetException(host, excepted)) {
+    return ExceptionResult::kTableFull;  // The only other way it refuses.
   }
   if (service_) {
     service_->SetExceptions(state_.exceptions());
@@ -249,11 +253,12 @@ ExceptionResult FilterListManager::SetException(std::string_view host,
   return ExceptionResult::kOk;
 }
 
-ExceptionResult FilterListManager::SetException(std::string_view host,
-                                                bool excepted,
-                                                content::BrowserContext* context) {
+ExceptionResult FilterListManager::SetException(
+    std::string_view host,
+    bool excepted,
+    content::BrowserContext* context) {
   WatchSession(context);  // Does nothing for a regular context.
-  return SetException(host, excepted, SessionKeyFor(context));
+  return SetExceptionForSession(host, excepted, SessionKeyFor(context));
 }
 
 bool FilterListManager::HasException(std::string_view host,

@@ -12,6 +12,7 @@
 #include "base/files/scoped_temp_dir.h"
 #include "base/memory/raw_ref.h"
 #include "base/run_loop.h"
+#include "base/strings/string_number_conversions.h"
 #include "base/task/thread_pool.h"
 #include "base/test/bind.h"
 #include "base/test/task_environment.h"
@@ -243,12 +244,13 @@ TEST_F(FilterListManagerTest, ARemovedListStopsBlocking) {
 TEST_F(FilterListManagerTest, ASiteExceptionWorksAtOnceAndIsSaved) {
   auto manager = MakeManager();
   const SessionKey regular = SessionKey::Regular();
-  ASSERT_EQ(ExceptionResult::kOk, manager->SetException("News.Test", true, regular));
+  ASSERT_EQ(ExceptionResult::kOk,
+            manager->SetExceptionForTesting("News.Test", true, regular));
   EXPECT_TRUE(manager->HasException("news.test", regular));
   EXPECT_TRUE(manager->HasException("www.news.test", regular));
   EXPECT_TRUE(service_.exceptions().count("news.test"));
   EXPECT_EQ(ExceptionResult::kInvalidHost,
-            manager->SetException("not a host", true, regular));
+            manager->SetExceptionForTesting("not a host", true, regular));
 
   manager.reset();
   base::RunLoop().RunUntilIdle();
@@ -271,7 +273,8 @@ TEST_F(FilterListManagerTest, AnIncognitoExceptionIsMemoryOnlyAndScopedToItsSess
   int id = 0, other_id = 0;
   const SessionKey incognito = SessionKey::OffTheRecord(&id);
   const SessionKey other_incognito = SessionKey::OffTheRecord(&other_id);
-  ASSERT_EQ(ExceptionResult::kOk, manager->SetException("News.Test", true, incognito));
+  ASSERT_EQ(ExceptionResult::kOk,
+            manager->SetExceptionForTesting("News.Test", true, incognito));
   EXPECT_TRUE(manager->HasException("news.test", incognito));
   EXPECT_TRUE(manager->HasException("www.news.test", incognito));
   // Not in the regular profile, not in another incognito session.
@@ -282,10 +285,11 @@ TEST_F(FilterListManagerTest, AnIncognitoExceptionIsMemoryOnlyAndScopedToItsSess
   EXPECT_TRUE(service_.exceptions().empty());
   EXPECT_EQ(std::set<std::string>{"news.test"}, manager->SessionExceptions(incognito));
   EXPECT_EQ(ExceptionResult::kInvalidHost,
-            manager->SetException("not a host", true, incognito));
+            manager->SetExceptionForTesting("not a host", true, incognito));
 
   // Nothing reaches the disk, even after the saves have run.
-  manager->SetException("regular.test", true, regular);  // Forces a save of the state.
+  manager->SetExceptionForTesting("regular.test", true,
+                                  regular);  // Forces a save of the state.
   manager.reset();
   base::RunLoop().RunUntilIdle();
   task_environment_.RunUntilIdle();
@@ -297,11 +301,38 @@ TEST_F(FilterListManagerTest, AnIncognitoExceptionIsMemoryOnlyAndScopedToItsSess
   EXPECT_EQ(std::string::npos, file.find("news.test"));
 }
 
+TEST_F(FilterListManagerTest, AFullExceptionTableIsNotAnInvalidHost) {
+  auto manager = MakeManager();
+  int id = 0;
+  const SessionKey regular = SessionKey::Regular();
+  const SessionKey incognito = SessionKey::OffTheRecord(&id);
+  for (size_t i = 0; i < kMaxExceptions; ++i) {
+    const std::string host = "host" + base::NumberToString(i) + ".test";
+    ASSERT_EQ(ExceptionResult::kOk,
+              manager->SetExceptionForTesting(host, true, regular));
+    ASSERT_EQ(ExceptionResult::kOk,
+              manager->SetExceptionForTesting(host + "x", true, incognito));
+  }
+  EXPECT_EQ(ExceptionResult::kTableFull,
+            manager->SetExceptionForTesting("one-more.test", true, regular));
+  EXPECT_EQ(ExceptionResult::kTableFull,
+            manager->SetExceptionForTesting("one-more.test", true, incognito));
+  // A bad name is still a bad name, and a host already in the table is fine.
+  EXPECT_EQ(ExceptionResult::kInvalidHost,
+            manager->SetExceptionForTesting("not a host", true, regular));
+  EXPECT_EQ(ExceptionResult::kInvalidHost,
+            manager->SetExceptionForTesting("not a host", true, incognito));
+  EXPECT_EQ(ExceptionResult::kOk,
+            manager->SetExceptionForTesting("host0.test", true, regular));
+  EXPECT_EQ(ExceptionResult::kOk,
+            manager->SetExceptionForTesting("host0.testx", true, incognito));
+}
+
 TEST_F(FilterListManagerTest, ClearingASessionDropsItsExceptions) {
   auto manager = MakeManager();
   int id = 0;
   const SessionKey incognito = SessionKey::OffTheRecord(&id);
-  manager->SetException("news.test", true, incognito);
+  manager->SetExceptionForTesting("news.test", true, incognito);
   manager->ClearSessionExceptions(incognito);
   EXPECT_FALSE(manager->HasException("news.test", incognito));
   EXPECT_TRUE(manager->SessionExceptions(incognito).empty());
@@ -313,7 +344,7 @@ TEST_F(FilterListManagerTest, ASavedExceptionAlsoHoldsInIncognito) {
   auto manager = MakeManager();
   int id = 0;
   const SessionKey incognito = SessionKey::OffTheRecord(&id);
-  manager->SetException("news.test", true, SessionKey::Regular());
+  manager->SetExceptionForTesting("news.test", true, SessionKey::Regular());
   EXPECT_TRUE(manager->HasException("news.test", incognito));
   EXPECT_TRUE(manager->HasSavedException("news.test"));
 }
@@ -323,19 +354,21 @@ TEST_F(FilterListManagerTest, IncognitoCannotRemoveASavedException) {
   int id = 0;
   const SessionKey incognito = SessionKey::OffTheRecord(&id);
   ASSERT_EQ(ExceptionResult::kOk,
-            manager->SetException("news.test", true, SessionKey::Regular()));
+            manager->SetExceptionForTesting("news.test", true,
+                                            SessionKey::Regular()));
   EXPECT_TRUE(manager->IsExceptionLocked("news.test", incognito));
   EXPECT_TRUE(manager->IsExceptionLocked("www.news.test", incognito));
   EXPECT_FALSE(manager->IsExceptionLocked("news.test", SessionKey::Regular()));
   EXPECT_FALSE(manager->IsExceptionLocked("other.test", incognito));
 
   EXPECT_EQ(ExceptionResult::kSavedInRegularProfile,
-            manager->SetException("news.test", false, incognito));
+            manager->SetExceptionForTesting("news.test", false, incognito));
   EXPECT_TRUE(manager->HasSavedException("news.test"));
   EXPECT_TRUE(service_.exceptions().count("news.test"));
   // The regular profile can still remove it.
   EXPECT_EQ(ExceptionResult::kOk,
-            manager->SetException("news.test", false, SessionKey::Regular()));
+            manager->SetExceptionForTesting("news.test", false,
+                                            SessionKey::Regular()));
   EXPECT_FALSE(manager->HasSavedException("news.test"));
 }
 
@@ -343,9 +376,9 @@ TEST_F(FilterListManagerTest, AHostThatIsSavedAndSetInIncognitoIsListedOnce) {
   auto manager = MakeManager();
   int id = 0;
   const SessionKey incognito = SessionKey::OffTheRecord(&id);
-  manager->SetException("news.test", true, SessionKey::Regular());
-  manager->SetException("news.test", true, incognito);
-  manager->SetException("only-here.test", true, incognito);
+  manager->SetExceptionForTesting("news.test", true, SessionKey::Regular());
+  manager->SetExceptionForTesting("news.test", true, incognito);
+  manager->SetExceptionForTesting("only-here.test", true, incognito);
   EXPECT_EQ((std::vector<std::string>{"news.test", "only-here.test"}),
             manager->ExceptionsFor(incognito));
   // The regular page lists only what is saved.
