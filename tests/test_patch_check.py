@@ -193,7 +193,7 @@ class RunCheckTest(unittest.TestCase):
         (self.repo / "helium-chromium" / "downloads.ini").write_text(
             "[c]\ndownload_filename = base.tar\noutput_path = ./\nstrip_leading_dirs = chromium-1\n")
         (self.repo / "helium-linux" / "downloads.ini").write_text("")
-        (self.repo / "helium-chromium" / "deps.ini").write_text("[ublock_origin]\n")
+        (self.repo / "helium-chromium" / "deps.ini").write_text("[ublock_origin]\n[onboarding]\n")
         (self.repo / "patches").mkdir()
         (self.repo / "patches" / "series").write_text("0001.patch\n")
         (self.repo / "patches" / "0001.patch").write_text(PATCH)
@@ -339,7 +339,7 @@ class RealStepsTest(unittest.TestCase):
         (core / "downloads.ini").write_text(
             "[c]\ndownload_filename = base.tar\noutput_path = ./\nstrip_leading_dirs = chromium-1\n")
         (linux / "downloads.ini").write_text("")
-        (core / "deps.ini").write_text("[ublock_origin]\n")
+        (core / "deps.ini").write_text("[ublock_origin]\n[onboarding]\n")
         (self.repo / "patches").mkdir()
         self.pins = lock.Lock("1", "1", "t", "c", "t", "c", downloads={"base.tar": digest})
 

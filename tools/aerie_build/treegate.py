@@ -33,7 +33,7 @@ HOST_ALLOWLIST: tuple[tuple[str, str], ...] = (
     ("net/http/transport_security_state_static.json", "HSTS preload list entry: data, not a request"),
     ("third_party/helium/*", "Helium's own README for the third_party entry"),
     ("third_party/ublock/*", "uBlock Origin fork: list headers and links in its pages, which the user clicks"),
-    ("components/helium_onboarding/*", "onboarding web UI: links the user clicks, build files"),
+    ("components/helium_onboarding/*", "Helium's old onboarding page, still unpacked in trees prepared before issue #46; nothing builds it"),
     ("components/crash/core/browser/resources/crashes.ts", "link the user clicks on chrome://crashes"),
     ("chrome/browser/ui/webui/settings/brave_full_disk_access_confirm_dialog_delegate_mac.mm", "help article link, macOS only, opened by the user"),
 )

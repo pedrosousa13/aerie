@@ -1,0 +1,154 @@
+Aerie-Purpose: Serve Aerie's own first-run setup page (components/aerie_onboarding) from Helium's
+ onboarding page controller, and add the theme handler its colour step needs.
+Aerie-Upstream-Area: chrome/browser/ui/webui/onboarding (Helium's helium/core/onboarding-page.patch),
+ chrome/chrome_paks.gni, chrome/browser/BUILD.gn, chrome/app/generated_resources.grd,
+ tools/gritsettings/resource_ids.spec
+Aerie-Kind: hook
+
+Issue #46. Helium's page is a Svelte app downloaded from deps.ini [onboarding]; Aerie no longer
+downloads it (tools/aerie_build/helium_deps.py). Helium's native side stays: the aerie://setup
+WebUI config, the first-run redirect, OnboardingMessageHandler (prefs, completion) and the
+import, search engine and default browser handlers. This patch swaps every reference to
+components/helium_onboarding for components/aerie_onboarding (an overlay), drops the Svelte
+Trusted Types policy (the Aerie page never assigns HTML), and registers
+aerie_onboarding::AerieThemeHandler.
+
+--- a/chrome/chrome_paks.gni
++++ b/chrome/chrome_paks.gni
+@@ -485,13 +485,13 @@
+       sources += [
+         "$root_gen_dir/chrome/default_browser_modal_resources.pak",
+         "$root_gen_dir/chrome/profile_picker_resources.pak",
+-        "$root_gen_dir/components/helium_onboarding/resources/helium_onboarding_generated.pak",
++        "$root_gen_dir/components/aerie_onboarding/resources/aerie_onboarding_resources.pak",
+       ]
+       deps += [
+         "//chrome/browser/resources/default_browser/default_browser_modal:resources",
+         "//chrome/browser/resources/intro:resources",
+         "//chrome/browser/resources/signin/profile_picker:resources",
+-        "//components/helium_onboarding:generated_resources",
++        "//components/aerie_onboarding:resources",
+       ]
+     }
+ 
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -5461,7 +5461,7 @@
+     "//chrome/browser/ui/webui/user_education_internals:mojo_bindings",
+     "//chrome/browser/web_applications/mojom:mojom_web_apps_enum",
+     "//chrome/common/request_header_integrity:buildflags",
+-    "//components/helium_onboarding:generated_resources",
++    "//components/aerie_onboarding:resources",
+     "//components/autofill/core/browser/ml_model/logging:mojo_bindings",
+     "//components/enterprise/connectors:mojom",
+     "//components/webui/chrome_urls/mojom:mojo_bindings",
+--- a/chrome/browser/ui/webui/BUILD.gn
++++ b/chrome/browser/ui/webui/BUILD.gn
+@@ -714,9 +714,10 @@
+     "//chrome/browser:browser_process",
+     "//chrome/browser/extensions",
+     "//chrome/browser/profiles",
++    "//chrome/browser/ui/webui/aerie_onboarding:theme_handler",
+     "//chrome/browser/ui/webui/settings",
+-    "//components/helium_onboarding:generated_resources",
+-    "//components/helium_onboarding:localized_strings",
++    "//components/aerie_onboarding:localized_strings",
++    "//components/aerie_onboarding:resources",
+     "//components/helium_services",
+     "//extensions/common",
+     "//ui/webui",
+--- a/chrome/browser/ui/webui/onboarding/onboarding_page_ui.cc
++++ b/chrome/browser/ui/webui/onboarding/onboarding_page_ui.cc
+@@ -4,21 +4,20 @@
+ 
+ #include "chrome/browser/ui/webui/onboarding/onboarding_page_ui.h"
+ 
+-#include "base/strings/strcat.h"
+ #include "build/build_config.h"
+ #include "chrome/browser/profiles/profile.h"
++#include "chrome/browser/ui/webui/aerie_onboarding/aerie_theme_handler.h"
+ #include "chrome/browser/ui/webui/onboarding/onboarding_handler.h"
+ #include "chrome/browser/ui/webui/settings/brave_import_data_handler.h"
+ #include "chrome/browser/ui/webui/settings/search_engines_handler.h"
+ #include "chrome/browser/ui/webui/settings/settings_default_browser_handler.h"
+ #include "chrome/common/webui_url_constants.h"
+-#include "components/helium_onboarding/helium_onboarding_localized_strings.h"
+-#include "components/helium_onboarding/resources/grit/helium_onboarding_generated.h"
+-#include "components/helium_onboarding/resources/grit/helium_onboarding_generated_map.h"
++#include "components/aerie_onboarding/aerie_onboarding_localized_strings.h"
++#include "components/aerie_onboarding/resources/grit/aerie_onboarding_resources.h"
++#include "components/aerie_onboarding/resources/grit/aerie_onboarding_resources_map.h"
+ #include "content/public/browser/web_contents.h"
+ #include "content/public/browser/web_ui_controller.h"
+ #include "content/public/browser/web_ui_data_source.h"
+-#include "services/network/public/mojom/content_security_policy.mojom.h"
+ #include "ui/webui/webui_util.h"
+ 
+ #if BUILDFLAG(IS_MAC)
+@@ -33,20 +32,15 @@
+   content::WebUIDataSource* source =
+       content::WebUIDataSource::CreateAndAdd(profile, chrome::kHeliumSetupHost);
+ 
+-  webui::SetupWebUIDataSource(source, kHeliumOnboardingGenerated,
+-                              IDR_HELIUM_ONBOARDING_INDEX_HTML);
+-  source->AddLocalizedStrings(helium_onboarding::kLocalizedStrings);
++  webui::SetupWebUIDataSource(source, kAerieOnboardingResources,
++                              IDR_AERIE_ONBOARDING_INDEX_HTML);
++  source->AddLocalizedStrings(aerie_onboarding::kLocalizedStrings);
+   source->UseStringsJs();
+ 
+ #if BUILDFLAG(IS_MAC)
+   source->AddBoolean("showMacImportPermissionNotice",
+                      base::mac::MacOSMajorVersion() >= 27);
+ #endif
+-
+-  source->OverrideContentSecurityPolicy(
+-      network::mojom::CSPDirectiveName::TrustedTypes,
+-      base::StrCat({webui::kDefaultTrustedTypesPolicies,
+-                    " svelte-trusted-html;"}));
+ 
+   web_ui->AddMessageHandler(
+       std::make_unique<OnboardingMessageHandler>(browser_context));
+@@ -56,6 +50,8 @@
+       std::make_unique<settings::DefaultBrowserHandler>());
+   web_ui->AddMessageHandler(
+       std::make_unique<settings::BraveImportDataHandler>());
++  web_ui->AddMessageHandler(
++      std::make_unique<aerie_onboarding::AerieThemeHandler>(profile));
+ }
+ 
+ HeliumOnboardingPage::~HeliumOnboardingPage() = default;
+--- a/tools/gritsettings/resource_ids.spec
++++ b/tools/gritsettings/resource_ids.spec
+@@ -1405,8 +1405,8 @@
+     "META": {"sizes": {"includes": [50]}},
+     "includes": [7505],
+   },
+-  "<(SHARED_INTERMEDIATE_DIR)/components/helium_onboarding/resources.grd": {
+-   "META": {"sizes": {"includes": [48],}},
++  "components/aerie_onboarding/resources/aerie_onboarding_resources.grd": {
++    "META": {"sizes": {"includes": [10]}},
+     "includes": [7510],
+   },
+   # END components/ section.
+--- a/chrome/app/generated_resources.grd
++++ b/chrome/app/generated_resources.grd
+@@ -286,8 +286,8 @@
+       <!-- Global Media Controls specific strings -->
+       <part file="gmc_strings.grdp" />
+ 
+-      <!-- Helium onboarding strings -->
+-      <part file="../../components/helium_onboarding/helium_onboarding_strings.grdp" />
++      <!-- Aerie setup page strings -->
++      <part file="../../components/aerie_onboarding/aerie_onboarding_strings.grdp" />
+ 
+       <!-- Media live preview specific strings -->
+       <part file="media_live_preview_strings.grdp" />
+--- a/chrome/app/generated_resources.grd.gritdeps
++++ b/chrome/app/generated_resources.grd.gritdeps
+@@ -108,4 +108,4 @@
+ chrome/app/support_tool_strings.grdp
+ chrome/app/vr_strings.grdp
+ chrome/app/whats_new_strings.grdp
+-components/helium_onboarding/helium_onboarding_strings.grdp
++components/aerie_onboarding/aerie_onboarding_strings.grdp

@@ -15,6 +15,11 @@ output_path = third_party/ublock
 version = 2
 url = https://example/o-%(version)s.tgz
 output_path = x/onboarding
+
+[search_engines_data]
+version = 3
+url = https://example/s-%(version)s.tgz
+output_path = x/search
 """
 
 
@@ -30,8 +35,9 @@ class DepsTest(unittest.TestCase):
         out = helium_deps.write_filtered(self.ini, self.dir / "out" / "deps.ini")
         text = out.read_text()
         self.assertNotIn("ublock", text)
-        self.assertIn("[onboarding]\nversion = 2\nurl = https://example/o-%(version)s.tgz", text)
-        self.assertEqual(helium_deps.sections(out), ["onboarding"])
+        self.assertNotIn("onboarding", text)
+        self.assertIn("[search_engines_data]\nversion = 3\nurl = https://example/s-%(version)s.tgz", text)
+        self.assertEqual(helium_deps.sections(out), ["search_engines_data"])
 
     def test_a_section_that_left_helium_is_an_error(self):
         self.ini.write_text(INI.replace("[ublock_origin]", "[ublock_origin_renamed]"))

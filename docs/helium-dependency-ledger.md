@@ -75,6 +75,7 @@ proves it on a real build).
 | `helium-chromium/patches/helium/core/component-updates.patch` | adapt (`patches/helium-adapted/helium/core/component-updates.patch`) | Adds Helium's component update helpers next to the uBlock Origin asset helpers that are dropped; the hunks are re-cut without them. | `copy`: Helium's original on a base that keeps uBlock Origin. |
 | `helium-chromium/patches/helium/core/fixups-component-setup.patch` | adapt (`patches/helium-adapted/helium/core/fixups-component-setup.patch`) | Adds the webstore fixups component next to the uBlock Origin component lines that are dropped; the hunks are re-cut without them. | `copy` |
 | `helium-chromium/deps.ini [ublock_origin]` | not downloaded | The uBlock Origin build that `third_party/ublock` was unpacked from. `./aerie build` reads a copy of deps.ini without that section (`tools/aerie_build/helium_deps.py`). | `drop` |
+| `helium-chromium/deps.ini [onboarding]` | not downloaded | Helium's first-run page, a Svelte app unpacked to `components/helium_onboarding`. Aerie ships its own page in `components/aerie_onboarding` (issue #46, [onboarding.md](onboarding.md)); `patches/onboarding/0001-serve-aerie-setup-page.patch` points Helium's `helium/core/onboarding-page.patch` controller at it. | `rewrite`: Helium's native side (the setup WebUI, first-run redirect, handlers) is what the page needs from another base. |
 
 Issue #6's `services/0002-turn-helium-services-off.patch` has a hunk in
 `chrome/app/settings_strings.grdp` that used to have the uBlock Origin settings

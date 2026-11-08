@@ -23,7 +23,6 @@ platform_commit = "4da5fdc8f90175592f62b6a3f62e90a65e171789"
 "chromium-157.0.8103.38-base.tar.zst" = "a1f8fba6dd1657dc7e7e639b80f9d8419c5523df1f37f7d8d44a3fdeb6f859f3"
 "chromium-157.0.8103.38-linux-x64.tar.zst" = "da5817db6880ee37aa8148517711e461923ad0b749abc71df270c02bf0afcdb2"
 "nonfree-search-engines-data-202609082320.tar.gz" = "2a8d63af41454446d64bb5f19786d908419265f152adaff087132d8e0cda51a7"
-"onboarding-page-202610161403.tar.gz" = "b35de6deb79e0864f53a0a70ea8819cecd46843a3b0518a20dd6a6b7d26900ac"
 
 # Official Chromium release tarball for the same Chromium version. Used only
 # when Helium's tarball host is unreachable (see docs/helium-fallback.md).

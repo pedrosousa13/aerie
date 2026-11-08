@@ -1,0 +1,252 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright 2026 The Aerie Authors
+     You can use, redistribute, and/or modify this source code under
+     the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+     Strings of aerie://setup, the first-run setup page (issue #46). Keep in sync with
+     aerie_onboarding_localized_strings.h; tests/test_onboarding_page.py checks both. -->
+<grit-part>
+  <message name="IDS_AERIE_SETUP_PAGE_TITLE" desc="Title of the first-run setup page.">
+    Aerie Setup
+  </message>
+  <message name="IDS_AERIE_SETUP_BUTTON_CONTINUE" desc="Button that moves to the next setup step.">
+    Continue
+  </message>
+  <message name="IDS_AERIE_SETUP_BUTTON_BACK" desc="Accessible label of the button that returns to the previous setup step.">
+    Back
+  </message>
+  <message name="IDS_AERIE_SETUP_STEP_OF" desc="Progress label above each setup step. $1 is the current step number, $2 the number of steps.">
+    Step <ph name="CURRENT">$1<ex>3</ex></ph> of <ph name="TOTAL">$2<ex>4</ex></ph>
+  </message>
+  <message name="IDS_AERIE_SETUP_KEYBOARD_HINT" desc="Hint at the bottom of the setup page about keyboard shortcuts.">
+    Press Enter to continue, Esc to go back
+  </message>
+  <message name="IDS_AERIE_SETUP_WELCOME_TITLE" desc="Heading of the first setup screen.">
+    Welcome to Aerie.
+  </message>
+  <message name="IDS_AERIE_SETUP_WELCOME_BODY" desc="Introduction on the first setup screen.">
+    A fast, private browser with nothing from Google inside. Setup takes about a minute, and you can change everything later.
+  </message>
+  <message name="IDS_AERIE_SETUP_WELCOME_START" desc="Button on the first setup screen that starts setup.">
+    Get started
+  </message>
+  <message name="IDS_AERIE_SETUP_IMPORT_TITLE" desc="Heading of the setup step that imports data from another browser.">
+    Bring your things with you.
+  </message>
+  <message name="IDS_AERIE_SETUP_IMPORT_LOADING" desc="Shown while the import step searches for other browsers.">
+    Looking for other browsers on this computer…
+  </message>
+  <message name="IDS_AERIE_SETUP_IMPORT_NONE_FOUND" desc="Shown when the import step finds no other browser.">
+    No other browsers found on this computer. You can import later from Settings.
+  </message>
+  <message name="IDS_AERIE_SETUP_IMPORT_FRESH" desc="Option in the import step that imports nothing.">
+    Start fresh
+  </message>
+  <message name="IDS_AERIE_SETUP_IMPORT_FRESH_DESC" desc="Description under the Start fresh option.">
+    Import later from Settings
+  </message>
+  <message name="IDS_AERIE_SETUP_IMPORT_WHAT" desc="Label above the kinds of data to import.">
+    What to bring
+  </message>
+  <message name="IDS_AERIE_SETUP_IMPORT_BOOKMARKS" desc="Kind of data to import.">
+    Bookmarks
+  </message>
+  <message name="IDS_AERIE_SETUP_IMPORT_PASSWORDS" desc="Kind of data to import.">
+    Saved passwords
+  </message>
+  <message name="IDS_AERIE_SETUP_IMPORT_HISTORY" desc="Kind of data to import.">
+    History
+  </message>
+  <message name="IDS_AERIE_SETUP_IMPORT_SEARCH" desc="Kind of data to import.">
+    Search engines
+  </message>
+  <message name="IDS_AERIE_SETUP_IMPORT_BUTTON" desc="Button that starts importing the selected data.">
+    Import
+  </message>
+  <message name="IDS_AERIE_SETUP_IMPORT_SKIP" desc="Link that skips the import step.">
+    Skip for now
+  </message>
+  <message name="IDS_AERIE_SETUP_IMPORT_LOCAL" desc="Reassurance shown in the import step.">
+    Everything is copied on this computer. Nothing is sent anywhere.
+  </message>
+  <message name="IDS_AERIE_SETUP_IMPORT_PICK_ONE" desc="Shown when no kind of data is selected in the import step.">
+    Pick at least one thing to bring, or skip this step.
+  </message>
+  <message name="IDS_AERIE_SETUP_IMPORT_RUNNING" desc="Shown while an import runs.">
+    Importing…
+  </message>
+  <message name="IDS_AERIE_SETUP_IMPORT_FAILED" desc="Shown when an import fails.">
+    The import didn't finish. You can try again from Settings.
+  </message>
+  <message name="IDS_AERIE_SETUP_LOOK_TITLE" desc="Heading of the setup step that picks light or dark mode and a colour.">
+    Make it yours.
+  </message>
+  <message name="IDS_AERIE_SETUP_LOOK_BODY" desc="Introduction of the colour step.">
+    Pick a colour for Aerie. The preview changes as you choose.
+  </message>
+  <message name="IDS_AERIE_SETUP_LOOK_APPEARANCE" desc="Label above the light, dark and system options.">
+    Appearance
+  </message>
+  <message name="IDS_AERIE_SETUP_LOOK_LIGHT" desc="Appearance option.">
+    Light
+  </message>
+  <message name="IDS_AERIE_SETUP_LOOK_DARK" desc="Appearance option.">
+    Dark
+  </message>
+  <message name="IDS_AERIE_SETUP_LOOK_SYSTEM" desc="Appearance option that follows the operating system.">
+    Match system
+  </message>
+  <message name="IDS_AERIE_SETUP_LOOK_COLOUR" desc="Label above the colour choices.">
+    Colour
+  </message>
+  <message name="IDS_AERIE_SETUP_COLOR_ALPENGLOW" desc="Name of a pink and orange colour theme.">
+    Alpenglow
+  </message>
+  <message name="IDS_AERIE_SETUP_COLOR_SKY" desc="Name of a blue colour theme.">
+    High sky
+  </message>
+  <message name="IDS_AERIE_SETUP_COLOR_MOSS" desc="Name of a green colour theme.">
+    Moss
+  </message>
+  <message name="IDS_AERIE_SETUP_COLOR_DUSK" desc="Name of a purple colour theme.">
+    Dusk
+  </message>
+  <message name="IDS_AERIE_SETUP_COLOR_SAND" desc="Name of a warm beige colour theme.">
+    Sandstone
+  </message>
+  <message name="IDS_AERIE_SETUP_COLOR_GRAPHITE" desc="Name of a grey colour theme.">
+    Graphite
+  </message>
+  <message name="IDS_AERIE_SETUP_PREVIEW_TAB" desc="Title of an example tab in the colour preview.">
+    Trail report
+  </message>
+  <message name="IDS_AERIE_SETUP_PREVIEW_TAB2" desc="Title of a second example tab in the colour preview.">
+    Weather
+  </message>
+  <message name="IDS_AERIE_SETUP_BLOCK_TITLE" desc="Heading of the setup step about ad blocking.">
+    Ads and trackers, blocked.
+  </message>
+  <message name="IDS_AERIE_SETUP_BLOCK_BODY" desc="Explanation in the ad blocking step.">
+    Aerie blocks ads and trackers on every site with the EasyList and EasyPrivacy filter lists. It also hides the empty boxes ads leave behind.
+  </message>
+  <message name="IDS_AERIE_SETUP_BLOCK_ADS" desc="Item in the ad blocking step.">
+    Ads blocked
+  </message>
+  <message name="IDS_AERIE_SETUP_BLOCK_TRACKERS" desc="Item in the ad blocking step.">
+    Trackers blocked
+  </message>
+  <message name="IDS_AERIE_SETUP_BLOCK_BOXES" desc="Item in the ad blocking step.">
+    Empty ad boxes hidden
+  </message>
+  <message name="IDS_AERIE_SETUP_BLOCK_PER_SITE" desc="Tip in the ad blocking step.">
+    If a site doesn't work, turn blocking off for that site from the shield in the toolbar.
+  </message>
+  <message name="IDS_AERIE_SETUP_BLOCK_MANAGE" desc="Link to the filter list settings page.">
+    Manage filter lists
+  </message>
+  <message name="IDS_AERIE_SETUP_BLOCK_COUNTER" desc="Example counter in the ad blocking preview. $1 is a number.">
+    <ph name="COUNT">$1<ex>3</ex></ph> blocked on this page
+  </message>
+  <message name="IDS_AERIE_SETUP_SEARCH_TITLE" desc="Heading of the search engine step.">
+    Pick a search engine.
+  </message>
+  <message name="IDS_AERIE_SETUP_SEARCH_DESC_DUCK_DUCK_GO" desc="Description of the DuckDuckGo search engine.">
+    Private search that doesn't build a profile of you
+  </message>
+  <message name="IDS_AERIE_SETUP_SEARCH_DESC_BRAVE" desc="Description of the Brave Search engine.">
+    Its own independent index
+  </message>
+  <message name="IDS_AERIE_SETUP_SEARCH_DESC_KAGI" desc="Description of the Kagi search engine.">
+    Paid, no ads, needs an account
+  </message>
+  <message name="IDS_AERIE_SETUP_SEARCH_DESC_STARTPAGE" desc="Description of the Startpage search engine.">
+    Google results, without the tracking
+  </message>
+  <message name="IDS_AERIE_SETUP_SEARCH_SUGGEST" desc="Note in the search engine step about search suggestions.">
+    Search suggestions stay off: nothing goes to the search engine until you press Enter. You can turn them on in Settings.
+  </message>
+  <message name="IDS_AERIE_SETUP_PRIVACY_TITLE" desc="Heading of the setup step that lists privacy protections.">
+    You're already protected.
+  </message>
+  <message name="IDS_AERIE_SETUP_PRIVACY_BODY" desc="Introduction of the privacy step.">
+    Aerie turns these on for you. You can change each one in Settings, under Privacy and security.
+  </message>
+  <message name="IDS_AERIE_SETUP_PRIVACY_OK" desc="Button that continues from the privacy step.">
+    Sounds good
+  </message>
+  <message name="IDS_AERIE_SETUP_PRIVACY_HTTPS" desc="Privacy protection title.">
+    Secure connections only
+  </message>
+  <message name="IDS_AERIE_SETUP_PRIVACY_HTTPS_DESC" desc="Privacy protection description.">
+    Pages load over HTTPS. Aerie warns you before an insecure site opens.
+  </message>
+  <message name="IDS_AERIE_SETUP_PRIVACY_COOKIES" desc="Privacy protection title.">
+    Third-party cookies blocked
+  </message>
+  <message name="IDS_AERIE_SETUP_PRIVACY_COOKIES_DESC" desc="Privacy protection description.">
+    Sites can't follow you around the web with cookies.
+  </message>
+  <message name="IDS_AERIE_SETUP_PRIVACY_FINGERPRINT" desc="Privacy protection title.">
+    Fingerprinting made harder
+  </message>
+  <message name="IDS_AERIE_SETUP_PRIVACY_FINGERPRINT_DESC" desc="Privacy protection description.">
+    Aerie randomizes the details sites use to recognize your browser.
+  </message>
+  <message name="IDS_AERIE_SETUP_PRIVACY_WEBRTC" desc="Privacy protection title.">
+    Your IP stays private in calls
+  </message>
+  <message name="IDS_AERIE_SETUP_PRIVACY_WEBRTC_DESC" desc="Privacy protection description.">
+    Video calls only use your public connection, not your local network addresses.
+  </message>
+  <message name="IDS_AERIE_SETUP_PRIVACY_PRELOAD" desc="Privacy protection title.">
+    Nothing loads before you click
+  </message>
+  <message name="IDS_AERIE_SETUP_PRIVACY_PRELOAD_DESC" desc="Privacy protection description.">
+    Aerie doesn't load pages you haven't opened.
+  </message>
+  <message name="IDS_AERIE_SETUP_PRIVACY_TELEMETRY" desc="Privacy protection title.">
+    No Google, no telemetry
+  </message>
+  <message name="IDS_AERIE_SETUP_PRIVACY_TELEMETRY_DESC" desc="Privacy protection description.">
+    No Google services, no crash reports, no usage statistics. Aerie sends nothing home.
+  </message>
+  <message name="IDS_AERIE_SETUP_DEFAULT_TITLE" desc="Heading of the default browser step.">
+    Make Aerie your default browser?
+  </message>
+  <message name="IDS_AERIE_SETUP_DEFAULT_BODY" desc="Explanation in the default browser step.">
+    Links from other apps will open in Aerie. Your desktop may ask you to confirm.
+  </message>
+  <message name="IDS_AERIE_SETUP_DEFAULT_YES" desc="Button that makes Aerie the default browser.">
+    Set as default
+  </message>
+  <message name="IDS_AERIE_SETUP_DEFAULT_NO" desc="Button that skips making Aerie the default browser.">
+    Not now
+  </message>
+  <message name="IDS_AERIE_SETUP_DONE_TITLE" desc="Heading of the last setup screen.">
+    You're all set.
+  </message>
+  <message name="IDS_AERIE_SETUP_DONE_START" desc="Button that finishes setup and opens a new tab.">
+    Start browsing
+  </message>
+  <message name="IDS_AERIE_SETUP_SUMMARY_IMPORTED" desc="Summary label: which browser data came from.">
+    Imported
+  </message>
+  <message name="IDS_AERIE_SETUP_SUMMARY_LOOK" desc="Summary label: the chosen colour and appearance.">
+    Look
+  </message>
+  <message name="IDS_AERIE_SETUP_SUMMARY_SEARCH" desc="Summary label: the chosen search engine.">
+    Search
+  </message>
+  <message name="IDS_AERIE_SETUP_SUMMARY_DEFAULT" desc="Summary label: whether Aerie is the default browser.">
+    Default browser
+  </message>
+  <message name="IDS_AERIE_SETUP_SUMMARY_NOTHING" desc="Summary value when nothing was imported.">
+    Nothing
+  </message>
+  <message name="IDS_AERIE_SETUP_SUMMARY_IS_DEFAULT" desc="Summary value when Aerie is the default browser.">
+    Aerie
+  </message>
+  <message name="IDS_AERIE_SETUP_SUMMARY_NOT_DEFAULT" desc="Summary value when Aerie is not the default browser.">
+    Not now
+  </message>
+</grit-part>

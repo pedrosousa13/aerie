@@ -2,7 +2,8 @@
 
 Helium's deps.ini lists assets that are unpacked into the Chromium tree after
 the tarballs: the uBlock Origin build, the onboarding page, search engine data.
-Aerie drops the uBlock Origin build (Aerie blocks natively, see docs/adblock.md).
+Aerie drops the uBlock Origin build (Aerie blocks natively, see docs/adblock.md)
+and the onboarding page (Aerie has its own, see docs/onboarding.md).
 The submodule is never edited, so the build reads a copy of deps.ini without
 those sections.
 
@@ -19,6 +20,7 @@ from pathlib import Path
 # section name -> why Aerie does not download it
 DROPPED_SECTIONS = {
     "ublock_origin": "Aerie blocks natively (issue #8); the bundled uBlock Origin is removed",
+    "onboarding": "Aerie ships its own first-run page, components/aerie_onboarding (issue #46)",
 }
 
 

@@ -40,6 +40,11 @@ class FetchSourcesTest(unittest.TestCase):
                 download_filename = ubo.zip
                 output_path = ./ubo
 
+                [onboarding]
+                url = https://x/onb.tgz
+                download_filename = onb.tgz
+                output_path = ./onb
+
                 [dep]
                 url = https://x/dep.zip
                 download_filename = dep.zip
