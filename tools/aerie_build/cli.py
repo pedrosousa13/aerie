@@ -9,7 +9,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import ccache, config, fallback, filter_lists, lock, patch_check, pipeline, protection_lists, prune, rust_crates
+from . import buildlock, ccache, config, fallback, filter_lists, lock, patch_check, pipeline, protection_lists, prune, rust_crates
 
 REPO = Path(__file__).resolve().parents[2]
 LOCK_PATH = REPO / "helium.lock"
@@ -20,6 +20,22 @@ def _add_common(parser: argparse.ArgumentParser) -> None:
         "--build-root",
         metavar="DIR",
         help=f"where all build files go (env {config.ENV_BUILD_ROOT}; default {config.DEFAULT_BUILD_ROOT})",
+    )
+
+
+def _add_lock_timeout(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--lock-timeout",
+        type=float,
+        metavar="SEC",
+        help="how long to wait for the build-tree lock, which another build or the local CI may hold "
+        "(default: wait; 0 fails at once)",
+    )
+
+
+def _locked(ctx: pipeline.Context, args: argparse.Namespace):
+    return buildlock.build_tree_lock(
+        ctx.paths.root, timeout=args.lock_timeout, log=lambda m: print(f"aerie: {m}", file=sys.stderr, flush=True)
     )
 
 
@@ -45,13 +61,19 @@ def cmd_build(args: argparse.Namespace) -> int:
         if args.clean:
             raise pipeline.BuildError("--dry-run-layers cannot be combined with --clean")
         return pipeline.show_layer_changes(ctx)
-    binary = pipeline.build(ctx, clean=args.clean)
+    with _locked(ctx, args):
+        binary = pipeline.build(ctx, clean=args.clean)
     print(binary)
     return 0
 
 
 def cmd_prune(args: argparse.Namespace) -> int:
     ctx = _context(args)
+    with _locked(ctx, args):
+        return _prune(ctx, args)
+
+
+def _prune(ctx: pipeline.Context, args: argparse.Namespace) -> int:
     plan = prune.plan_prune(
         ctx.paths,
         pinned_downloads=set(ctx.pins.downloads)
@@ -161,12 +183,14 @@ def main(argv: list[str] | None = None) -> int:
         help="list the source-tree files the Aerie layers (patches, substitution) would change, then stop; "
         "writes nothing to the tree",
     )
+    _add_lock_timeout(p_build)
     p_build.set_defaults(func=cmd_build)
 
     p_prune = sub.add_parser("prune", help="delete stale downloads, old source trees and old tools")
     _add_common(p_prune)
     p_prune.add_argument("--ccache-size", metavar="SIZE", help="compiler cache cap to enforce")
     p_prune.add_argument("-n", "--dry-run", action="store_true", help="list what would be deleted")
+    _add_lock_timeout(p_prune)
     p_prune.set_defaults(func=cmd_prune)
 
     p_info = sub.add_parser("info", help="print the build root layout and binary path")
@@ -225,6 +249,6 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return args.func(args)
     except (config.ConfigError, lock.VerificationError, pipeline.BuildError, fallback.FetchError,
-            filter_lists.ListError, rust_crates.CratesError) as exc:
+            filter_lists.ListError, rust_crates.CratesError, buildlock.BuildTreeBusy) as exc:
         print(f"aerie: error: {exc}", file=sys.stderr)
         return 1
