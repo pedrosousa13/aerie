@@ -188,7 +188,7 @@ class FixtureTest(unittest.TestCase):
         for item in EXPECTED["allowed"]:
             self.assertNotRegex(item["path"], r"(?i)ad[sv]?[/._-]|banner|track|analytics|pixel|beacon")
 
-    def test_the_whole_fixture_dir_references_no_external_host_except_the_blocking_page(self):
+    def test_the_whole_fixture_dir_references_no_external_host_except_the_blocking_and_perf_pages(self):
         allowed_hosts = {re.match(r"https?://([^/]+)", b["url"]).group(1) for b in EXPECTED["blocked"]}
         for f in fixtures.FIXTURE_DIR.rglob("*"):
             if not f.is_file() or f.suffix not in (".html", ".css", ".js"):
@@ -197,7 +197,8 @@ class FixtureTest(unittest.TestCase):
                 host = re.sub(r"^(?:https?:)?//", "", url).split("/")[0].split(":")[0]
                 if host in ("127.0.0.1", "localhost"):
                     continue
-                self.assertEqual(f.parent.name, "blocking", f"{f}: {url}")
+                # The perf check's ad-heavy pages name the same hosts (issue #16).
+                self.assertIn(f.parent.name, ("blocking", "perf"), f"{f}: {url}")
                 self.assertIn(host, allowed_hosts, f"{f}: {url}")
 
 

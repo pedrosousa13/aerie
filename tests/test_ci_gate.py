@@ -160,7 +160,7 @@ class StatusTest(GateTestBase):
         self.assertEqual(data["sha"], SHA_A)
         self.assertEqual(data["state"], "success")
         self.assertEqual([s["name"] for s in data["steps"]],
-                         ["patch check", "build", "unit tests", "smoke launch", "bench"])
+                         ["patch check", "build", "unit tests", "smoke launch", "bench", "perf"])
 
 
 class StepsTest(GateTestBase):
@@ -189,10 +189,36 @@ class StepsTest(GateTestBase):
 
     def test_bench_runs_every_check_except_smoke_and_the_slow_zero_traffic(self):
         gate.gate_pr(self.cfg(), pr())
-        bench = [c for c in self.shell.calls if "bench" in c and "--check" in c and "smoke" not in c]
+        bench = [c for c in self.shell.calls if "bench" in c and "--check" in c and "smoke" not in c
+                 and "perf" not in c]
         self.assertEqual(len(bench), 1)
         checks = [bench[0][i + 1] for i, a in enumerate(bench[0]) if a == "--check"]
         self.assertEqual(checks, ["ad_blocking", "branding"])
+
+    def test_perf_step_compares_with_the_last_main_build(self):
+        gate.gate_pr(self.cfg(environ={"PATH": "/usr/bin", "AERIE_PERF_DIR": "/p/perf"}), pr())
+        perf = [c for c in self.shell.calls if "bench" in c and "perf" in c]
+        self.assertEqual(len(perf), 1)
+        self.assertEqual(perf[0][perf[0].index("--perf-baseline") + 1], "/p/perf/main.json")
+        self.assertEqual([perf[0][i + 1] for i, a in enumerate(perf[0]) if a == "--check"], ["perf"])
+
+    def test_perf_step_fetches_the_pinned_benchmarks_and_never_skips_them(self):
+        gate.gate_pr(self.cfg(), pr())
+        perf = next(c for c in self.shell.calls if "bench" in c and "perf" in c)
+        self.assertIn("--download-benchmarks", perf)
+        self.assertNotIn("--perf-skip-benchmarks", perf)
+
+    def test_perf_step_has_no_first_run_flag_unless_asked_for_explicitly(self):
+        def perf_call(value, n):
+            sha = f"{n:x}" * 40
+            self.shell.calls.clear()
+            self.shell.fetched_sha = sha
+            environ = {"PATH": "/usr/bin"} if value is None else {"PATH": "/usr/bin", "AERIE_PERF_FIRST_RUN": value}
+            gate.gate_pr(self.cfg(environ=environ), pr(n, sha))
+            return next(c for c in self.shell.calls if "bench" in c and "perf" in c)
+        for n, value in enumerate((None, "", "0", "no"), 1):
+            self.assertNotIn("--perf-first-run", perf_call(value, n))
+        self.assertIn("--perf-first-run", perf_call("1", 9))
 
     def test_steps_use_the_existing_entry_points_with_the_shared_build_root(self):
         gate.gate_pr(self.cfg(), pr())

@@ -7,7 +7,7 @@ writes machine-readable JSON and a human summary. It is the test seam that the
 zero-Google-traffic proof, the hardening checks, the CI gate and the
 performance metrics build on.
 
-Python 3.11+, standard library only. No Playwright, no Node, no network.
+Python 3.11+, standard library only. No Playwright, no Node, and no network except the one-time download of the pinned benchmark copies (`--download-benchmarks`); the checks themselves use none.
 
 ## Run it
 
@@ -43,6 +43,14 @@ Options:
 | `--widevine-online SEC` | `widevine_opt_in`: also wait up to SEC in an opted-in browser for Widevine to download and become available. It needs a network that reaches Google, so it is off (0) by default. |
 | `--workspaces-enforce` | `workspace_isolation`: judge every probe for real. Without it the probes in `EXPECTED_TO_FAIL` (all of them until Workspaces ship) may fail and the check reports `xfail`. See "Workspace isolation" below. |
 | `--baseline PATH` | `zero_traffic`: also run the check on this browser (an unmodified Helium build, or any browser that talks to Google) and require it to fail. If it passes, the check is vacuous and the command exits 1. |
+| `--perf-baseline FILE` | `perf`: compare with this perf document (`main.json` of a `--perf-record` directory) and fail when a metric regressed past its threshold. A file that does not exist fails the run, unless `--perf-first-run` is given. |
+| `--perf-first-run` | `perf`: with `--perf-baseline`, pass when that file does not exist yet. For the very first run, before any main build was recorded. It does not excuse an unreadable baseline or a regression. |
+| `--download-benchmarks` | Download the pinned Speedometer and JetStream copies into the build root, check their sha256 and unpack them (see "Pinned benchmark copies"). Needs the network; a copy that is already there is not downloaded again. |
+| `--perf-record DIR` | `perf`: after a passing run, append `perf.json` to `DIR/history.jsonl` and make it `DIR/main.json`. Use it on builds of main only. |
+| `--perf-compare-binary PATH` | `perf`: run the same suite on this browser (Helium, stock Chromium) and write `perf-comparison.md`, both side by side. |
+| `--perf-compare-name NAME` | `perf`: how that browser is named in the report (default `Helium`). |
+| `--perf-skip-benchmarks` | `perf`: do not run Speedometer and JetStream. Their metrics are listed under `skipped` in `perf.json`. Without this flag a benchmark that cannot be measured fails the check. |
+| `--perf-settle SEC` | `perf`: wait after the ad-heavy pages before reading memory (default 3). |
 | `--flag FLAG` | Extra browser flag; repeat for several. |
 | `--build-root DIR` | Build root (env `AERIE_BUILD_ROOT`, default `/mnt/linux2/aerie-build`). `./aerie bench` only for the flag; `python3 -m aerie_bench` takes it too. |
 | `--lock-timeout SEC` | `./aerie bench` only. How long to wait for the build-tree lock (default: wait; `0` fails at once). See [ci.md](ci.md). |
@@ -115,7 +123,170 @@ Under `<build root>/bench/<UTC timestamp>/` (mode `0700`):
 | `status` | string | `pass` when every check is `pass`, `skip` or `xfail`, the profile is deleted and the browser exited; else `fail`. |
 | `files` | string[] | Files written to the results directory. |
 
-Results stay in the build root. Committed baselines are issue #16's job.
+Results stay in the build root. Performance baselines are kept outside the repo; see "Performance metrics".
+
+## Performance metrics
+
+`./aerie bench --check perf` measures, and writes `perf.json` next to `results.json`
+(schema 1: `label`, `binary`, `started`, `metrics`, `skipped`, `failed`). `metrics` maps a metric name to a
+number; a run that measured everything has all five. `skipped` maps a metric that
+`--perf-skip-benchmarks` turned off to the reason; `failed` maps a metric that could not be measured to the
+reason. The same three maps are in the check's `data` in `results.json`.
+
+| Metric | How it is measured |
+| --- | --- |
+| `memory_after_ad_pages_mb` | The browser loads the three pages in `fixtures/perf/` one after the other (each names real ad and tracker hosts and has local frames and a script that build page content), waits `--perf-settle` seconds, then the Bench sums `VmRSS` over the browser's process tree from `/proc`. Linux only. A browser that blocks the ad requests loads less, so this number follows the blocker. |
+| `startup_cold_ms` | Median over 3 launches, each on an empty profile: from starting the process to the load event of the first fixture page. The operating system's file cache is not dropped, so "cold" means an empty profile and not an empty disk cache. |
+| `startup_warm_ms` | Median over 3 launches of the same measurement on a profile that already ran once. |
+| `speedometer_score` | The score of Speedometer 3.1 (the "Score" metric, a mean over 10 iterations), run from the pinned local copy; see below. |
+| `jetstream_score` | The overall score of JetStream 3 (the geometric mean of the workload scores, as the driver's own "Overall Score"), run from the pinned local copy. |
+
+### What fails the check
+
+All five metrics are required. The check fails (status `fail`, exit code 1, nothing recorded as a baseline) when:
+
+- a benchmark copy is missing from the build root, the benchmark page does not load, does not
+  make progress for `stall_s` (180 s) or finish within `timeout_s` in `DRIVERS` (600 s for Speedometer, 900 s for JetStream), is not visible, or
+  gives no positive number (a JetStream workload that errored, or a Speedometer run that stopped
+  on an error). The detail line names the metric and the reason, and `failed` in `perf.json` holds it too;
+- with `--perf-baseline`, any metric is worse than the baseline past its threshold (see "Thresholds"), or
+  the baseline file does not exist and `--perf-first-run` was not given.
+
+It errors (also not a pass) when memory cannot be read from `/proc` or the baseline file cannot be parsed.
+
+The only way to skip a metric is `--perf-skip-benchmarks`. The two score metrics are then listed
+under `skipped`, the check can still pass, and a comparison with a baseline that has them reports them
+as `not_measured` instead of failing. Memory and startup cannot be skipped. The PR gate and the nightly never pass
+the flag.
+
+### Pinned benchmark copies
+
+Speedometer and JetStream are not in this repository. `helium.lock` pins one archive of each
+(`[bench.speedometer]`, `[bench.jetstream]`: URL, commit, sha256, licence), the way it pins Chromium's
+tarballs. `./aerie bench --download-benchmarks` (or `PYTHONPATH=tools python3 -m aerie_bench.benchmarks fetch`)
+downloads each archive once into `<build root>/downloads/`, refuses it unless its sha256 matches
+(a mismatch renames the file `.rejected` and nothing is unpacked), then unpacks it into
+`<build root>/bench-vendor/<name>/` through a temporary directory (links, absolute paths and `..` in the archive are
+refused). The Bench fixture server serves that directory read-only under `/vendor/<name>/` and nothing outside it.
+`./aerie prune` keeps the two archives. The build never reads them, and neither is shipped in the browser.
+The Bench itself makes no request to the network; only the download step does, and the benchmark pages
+load every file from the loopback fixture server (the real run for this change saw no external request in the NetLog).
+
+| Benchmark | Pin | Upstream |
+| --- | --- | --- |
+| Speedometer 3.1 | commit `1386415be8fef2f6b6bbdbe1828872471c5d802a`, archive `speedometer-3.1-1386415be8fe.tar.gz`, sha256 `cfefa818d7789ed2f2b9f3f1bf608cc35e4e8241489eef47049296ce92791313` | github.com/WebKit/Speedometer, branch `release/3.1` (no release tags exist upstream) |
+| JetStream 3 | commit `5fb9b4915f47792e6368d54d79ba3ba85e5600cc`, archive `jetstream-3-5fb9b4915f47.tar.gz`, sha256 `ddac483ff83374e8140b954e6bdf85b54e327f85b6effeb8beb8e91570e276b7` | github.com/WebKit/JetStream, `main` at that commit (no release tags exist upstream) |
+
+The archive hash is of the archive GitHub generates for the commit. GitHub does not promise to
+keep those bytes the same forever; if a download ever fails the hash, check that the commit is
+unchanged, then re-pin (below). The commit id, not the hash, is what identifies the source.
+
+**Licences.** Both repositories have a top-level `LICENSE` that is BSD-2-Clause in form (Speedometer:
+Apple, Google, Mozilla and Microsoft; JetStream: Apple). Both bundle third-party workloads that carry their
+own licence files; the ones found (`LICENSE*` and `license.md` files in the archives) are MIT, BSD and Apache-2.0. Aerie
+copies none of it into the repository or the browser: the archives are downloaded for local measurement only.
+This does not depend on any Helium patch, so it has no row in the Helium dependency ledger. To check a licence yourself, unpack the archive and read `LICENSE`.
+
+**How each score is read** (`DRIVERS` in `tools/aerie_bench/benchmarks.py`; the expressions were run against the
+pinned copies, headless, on `out/Default/aerie` of Helium 0.21.1.1, not against stubs only):
+
+| Benchmark | Loads | Done when | Score |
+| --- | --- | --- | --- |
+| Speedometer | `index.html?startAutomatically` | `benchmarkClient._hasResults === true` | `benchmarkClient._metrics.Score.mean`; a run that stopped on an error has no `Score`, which fails. |
+| JetStream | `index.html?startAutomatically=true` | `JetStream.isDone === true` | geometric mean of `JetStream.benchmarks[*].score`; null when `JetStream.errors` is not empty or a score is not positive, which fails. |
+
+To move a pin: change `commit`, `url`, `archive`, `sha256` and, if the licence changed, `license` in `helium.lock`;
+run `--download-benchmarks` on a clean build root; run `./aerie bench --check perf` once to see both scores; update the
+table above. Scores of different pins are not comparable, so record a new baseline (below) after a move.
+
+### Baseline and the PR gate
+
+The baseline is the last recorded main build, a directory with `main.json` (the latest document)
+and `history.jsonl` (every recorded build, one JSON object per line):
+
+```sh
+./aerie bench --download-benchmarks --check perf --perf-record /mnt/linux2/aerie-perf          # on a main build; the nightly does this
+./aerie bench --download-benchmarks --check perf --perf-baseline /mnt/linux2/aerie-perf/main.json   # fails on a regression
+PYTHONPATH=tools python3 -m aerie_bench.perf compare perf.json /mnt/linux2/aerie-perf/main.json
+```
+
+The nightly (docs/ci.md) passes `--perf-record` when it runs the full Bench, and the PR gate has a
+`perf` step with `--perf-baseline`. Both use `AERIE_PERF_DIR` (default `/mnt/linux2/aerie-perf`) and both
+pass `--download-benchmarks`. A run that did not pass is never recorded.
+
+**Recording the first `main.json`.** Until one exists, the gate's `perf` step fails with "no baseline at ..."; it
+does not pass. Record one from a build of main, either by waiting for the first nightly that passes
+the whole Bench or by running, on that build:
+
+```sh
+./aerie bench --download-benchmarks --check perf --perf-record /mnt/linux2/aerie-perf
+```
+
+That writes `main.json` and the first line of `history.jsonl`. To let one gate run through before that (for
+example the PR that introduces the gate), set `AERIE_PERF_FIRST_RUN=1` in the gate's environment; the step then
+passes `--perf-first-run`. Unset it again afterwards: with it set, a missing baseline passes quietly.
+
+A change is a regression when it is worse than the baseline by more than the percentage and by
+more than the absolute floor, so a large percentage of a tiny number is not one.
+
+### Proving the gate trips
+
+`tools/aerie_bench/testdata/memory-hog.patch` is a deliberately bad test patch: the browser process allocates and touches
+768 MB at startup (`chrome/browser/chrome_browser_main_linux.cc`, a file no Helium or Aerie patch edits). It is not in
+`patches/series`, and nothing applies it unless you ask. The unit tests prove the thresholds and the failing exit code
+with a stubbed memory reading and that the patch applies to a copy of the real file; they cannot prove that the real
+browser holds more memory. That takes a build:
+
+```sh
+# 1. a normal build of the commit under test; record its numbers as the baseline in a scratch directory
+./aerie build
+./aerie bench --download-benchmarks --check perf --perf-record /tmp/perf-trip        # writes /tmp/perf-trip/main.json
+# 2. apply the test patch to the tree ./aerie build prepared (<build root>/src/helium-<version>), and rebuild
+PYTHONPATH=tools python3 -m aerie_bench.testpatch apply /mnt/linux2/aerie-build/src/helium-0.21.1.1
+grep -c aerie_bench_memory_hog /mnt/linux2/aerie-build/src/helium-0.21.1.1/chrome/browser/chrome_browser_main_linux.cc   # must print 2
+./aerie build                                                   # no layer touches that file, so it should be kept; ninja rebuilds it
+grep -c aerie_bench_memory_hog /mnt/linux2/aerie-build/src/helium-0.21.1.1/chrome/browser/chrome_browser_main_linux.cc   # still 2, or stop
+# 3. the gate step's own command line against that baseline must exit 1 and name memory
+./aerie bench --check perf --perf-baseline /tmp/perf-trip/main.json; echo "exit $?"
+# 4. take the patch out and rebuild
+PYTHONPATH=tools python3 -m aerie_bench.testpatch revert /mnt/linux2/aerie-build/src/helium-0.21.1.1
+./aerie build
+```
+
+Expected at step 3: `REGRESSED    memory_after_ad_pages_mb: ... against ...` in the check detail, `perf` status `FAIL`, exit
+code 1. A passing exit code there means the gate cannot trip: stop and investigate. `testpatch check TREE` tests the
+patch without changing anything, and refuses the Aerie checkout. `./aerie build --clean` also removes the patch.
+Use a scratch build root (`--build-root`) if the tree must stay untouched, and never leave the patched binary where the gate or the
+maintainer's build uses it. If the second `grep` prints 0, the build undid the edit and the binary is not the patched one.
+
+### Thresholds
+
+These are `perf.METRICS` in `tools/aerie_bench/perf.py`; a test fails when this table and the code
+differ. They were set from the expected noise between two runs of one build, not from measured
+data on the reference machine. Tighten them once the history (below) shows how much a build varies.
+
+<!-- perf-thresholds:start -->
+| metric | better | fails when worse by more than | rationale |
+| --- | --- | --- | --- |
+| `memory_after_ad_pages_mb` | lower | 10% and 30 MB | Resident memory of the whole process tree after the ad-heavy fixture pages load and settle. Repeated runs of one build differ by a few percent; 10% and 30 MB is outside that and still catches a leak or a cache that grew. |
+| `startup_cold_ms` | lower | 25% and 200 ms | Spawn to first page load on an empty profile. Disk and CPU load make it the noisiest metric, and a launch is a few seconds, so the margin is wide. |
+| `startup_warm_ms` | lower | 25% and 150 ms | Spawn to first page load when the profile already ran once. Same noise as cold start. |
+| `speedometer_score` | higher | 7% | Speedometer 3.1, run locally from the pinned copy in the build root. Scores move a few percent between runs. A run that cannot measure it fails. |
+| `jetstream_score` | higher | 7% | JetStream 3, run locally from the pinned copy in the build root. Same noise as Speedometer. A run that cannot measure it fails. |
+<!-- perf-thresholds:end -->
+
+### Reports
+
+```sh
+PYTHONPATH=tools python3 -m aerie_bench.perf series /mnt/linux2/aerie-perf          # Markdown table across builds, with the change from the row above
+PYTHONPATH=tools python3 -m aerie_bench.perf side-by-side aerie/perf.json helium/perf.json
+./aerie bench --check perf --perf-compare-binary /path/to/helium         # runs both, writes perf-comparison.md
+```
+
+Comparison mode runs the whole suite on the second browser with no baseline and puts both in one
+table. The other browser is a reference: its own failures, or a run that gives no metrics, do not fail Aerie's run (a note is printed and no comparison file is written). Stock Chromium
+works the same way (`--perf-compare-name "Stock Chromium"`). Memory and startup are lower-is-better;
+scores are higher-is-better.
 
 ## Checks
 
@@ -132,6 +303,7 @@ Results stay in the build root. Committed baselines are issue #16's job.
 | `workspace_isolation` | Nothing crosses between two Workspaces (issue #73, ADR 0006). Written before the feature: until Workspaces exist every probe is expected to fail, the check reports `xfail` and the run stays green. See "Workspace isolation" below. Not in the default scenario; run `./aerie bench --check workspace_isolation`. |
 | `widevine_opt_in` | Widevine is opt-in (#7). On a fresh profile `requestMediaKeySystemAccess('com.widevine.alpha')` is refused, chrome://components does not list the Widevine component, and the NetLog has no request that could fetch it (a real host, or any URL naming Widevine). Negative control: a second browser whose Local State has `aerie.widevine.enabled` must list the component, so the reader can see Widevine. With `--widevine-online SEC` that browser must also answer the key system query with success within SEC seconds (the download reaches Google). Not in the default scenario; run `./aerie bench --check widevine_opt_in`. |
 | `setup_theme` | The setup page (`chrome://setup/`) starts on Neutral, Neutral is its first swatch, and Neutral is the plain theme (issue #92). After the page's own Continue clicks reach the theme step, the check chooses Alpenglow (the tint control), then Neutral under Light and under Dark. The frame colour `--color-sys-header` in `chrome://theme/colors.css` must be near grey under Neutral (channel gap at most 16; Chromium's grey palette is slightly cool), must be tinted under Alpenglow, and must differ between Light and Dark. Alpenglow is the negative control: a measure that cannot see a tint fails. |
+| `perf` | Performance metrics (issue #16); see "Performance metrics" above. Not in the default scenario. Passes when all five metrics (memory, cold and warm startup, Speedometer and JetStream scores) were measured and, with `--perf-baseline`, none regressed past its threshold and the baseline file exists (or `--perf-first-run` was given). A metric that cannot be measured fails it; only `--perf-skip-benchmarks` skips the two scores. |
 
 `browser_requests` is a self-test for the Bench and for Helium. Aerie makes no
 requests of its own, so a plain `./aerie bench` (no `--binary`, the default

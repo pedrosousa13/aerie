@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import checks as check_registry
-from . import launcher, netlog, report
+from . import benchmarks, launcher, netlog, report
 from .checks.browser_requests import services_prefs
 from .checks.scenario_steps import ScenarioSteps
 from .fixtures import FixtureServer
@@ -119,7 +119,7 @@ def run_bench(binary: Path | str, scenario: Scenario, build_root: Path, *, out_d
     seeded = any(c.seeds_helium_services for c in instances)
     seeding_checks = [c.name for c in instances if hasattr(c, "profile_prefs")]
 
-    with FixtureServer() as server, fresh_profile(Path(build_root) / "bench-tmp") as profile:
+    with FixtureServer(vendor_root=benchmarks.vendor_root(build_root)) as server, fresh_profile(Path(build_root) / "bench-tmp") as profile:
         prefs: dict = services_prefs(server.base_url) if seeded else {}
         for c in instances:
             if hasattr(c, "profile_prefs"):

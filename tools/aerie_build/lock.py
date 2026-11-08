@@ -37,6 +37,8 @@ class Lock:
     tools: dict[str, dict] = field(default_factory=dict)
     # Official Chromium tarball used when Helium's tarball host is down.
     fallback: dict[str, str] = field(default_factory=dict)
+    # Benchmark sources for the Bench's perf check ([bench.<name>] tables; aerie_bench.benchmarks).
+    bench: dict[str, dict] = field(default_factory=dict)
 
 
 def _check_digest(name: str, digest: str) -> str:
@@ -61,6 +63,18 @@ def load_lock(path: Path) -> Lock:
         for key in ("url", "hashes_url"):
             if not str(fallback.get(key, "")).startswith("https://"):
                 raise VerificationError(f"fallback.chromium.{key} must be an https URL")
+    bench = {name: dict(table) for name, table in data.get("bench", {}).items()}
+    for name, table in bench.items():
+        table["sha256"] = _check_digest(f"bench.{name}", table.get("sha256"))
+        if not str(table.get("url", "")).startswith("https://"):
+            raise VerificationError(f"bench.{name}.url must be an https URL")
+        for key in ("archive", "commit", "title", "license"):
+            if not isinstance(table.get(key), str) or not table[key]:
+                raise VerificationError(f"bench.{name}.{key} is missing")
+        if not re.fullmatch(r"[0-9a-f]{40}", table["commit"]):
+            raise VerificationError(f"bench.{name}.commit must be a 40 digit commit id")
+        if table["archive"] != Path(table["archive"]).name or table["archive"].startswith("."):
+            raise VerificationError(f"bench.{name}.archive must be a plain file name")
     return Lock(
         helium_version=helium["version"],
         chromium_version=helium["chromium_version"],
@@ -71,6 +85,7 @@ def load_lock(path: Path) -> Lock:
         downloads=downloads,
         tools=tools,
         fallback=fallback,
+        bench=bench,
     )
 
 

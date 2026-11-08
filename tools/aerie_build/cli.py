@@ -107,7 +107,8 @@ def _prune(ctx: pipeline.Context, args: argparse.Namespace) -> int:
         ctx.paths,
         pinned_downloads=set(ctx.pins.downloads)
         | {Path(ctx.pins.tools["ccache"]["url"]).name}
-        | ({Path(ctx.pins.fallback["url"]).name} if ctx.pins.fallback else set()),
+        | ({Path(ctx.pins.fallback["url"]).name} if ctx.pins.fallback else set())
+        | {table["archive"] for table in ctx.pins.bench.values()},
         current_tree=ctx.tree_name,
         current_tools=ctx.current_tools(),
     )

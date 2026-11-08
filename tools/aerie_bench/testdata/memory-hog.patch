@@ -1,0 +1,26 @@
+Aerie-Purpose: TEST ONLY. Make the browser process hold 768 MB so the perf gate has a regression to catch.
+Aerie-Upstream-Area: chrome/browser/chrome_browser_main_linux.cc
+Aerie-Kind: test-only (never listed in patches/series, never part of a release build)
+
+Applied on demand by `python3 -m aerie_bench.testpatch apply TREE` (docs/bench.md, "Proving the
+gate trips"), never by ./aerie build. The browser process allocates 768 MB at startup and touches
+every page, so memory_after_ad_pages_mb rises by about 768 MB over the same build without it.
+chrome/browser/chrome_browser_main_linux.cc is touched by no Helium or Aerie patch, so no layer
+reads or rewrites it: the hunk applies on a tree whose layers are applied, and a later
+./aerie build (which re-applies layers only) does not undo it. ./aerie build --clean does.
+
+--- a/chrome/browser/chrome_browser_main_linux.cc
++++ b/chrome/browser/chrome_browser_main_linux.cc
+@@ -69,6 +69,12 @@
+ #endif  // !BUILDFLAG(IS_CHROMEOS) && BUILDFLAG(USE_DBUS)
+ 
+ void ChromeBrowserMainPartsLinux::PostCreateMainMessageLoop() {
++  // AERIE BENCH TEST ONLY. Holds 768 MB of touched memory for the life of the
++  // browser process, so the perf gate has a regression to catch.
++  static char* const aerie_bench_memory_hog = new char[768u << 20];
++  for (size_t i = 0; i < (768u << 20); i += 4096) {
++    aerie_bench_memory_hog[i] = 1;
++  }
+ #if BUILDFLAG(IS_CHROMEOS)
+   if (base::CommandLine::ForCurrentProcess()->HasSwitch(
+           metrics::kRecordStackSamplingDataSwitch)) {

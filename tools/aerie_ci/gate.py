@@ -22,7 +22,12 @@ SKIPPED_AUTHOR, SKIPPED_GATED = "skipped-author", "skipped-gated"
 SUCCESS, FAILURE, ERROR, BUSY, STALE = "success", "failure", "error", "busy", "stale"
 
 # Slow checks are left to the nightly: zero_traffic idles for about six minutes.
-GATE_BENCH_EXCLUDE = ("smoke", "zero_traffic")
+GATE_BENCH_EXCLUDE = ("smoke", "zero_traffic", "perf")  # perf has its own step, with the baseline
+ENV_PERF_DIR = "AERIE_PERF_DIR"
+# Set to 1 for the very first gate run, before any main build was recorded. Without it a missing
+# baseline fails the perf step.
+ENV_PERF_FIRST_RUN = "AERIE_PERF_FIRST_RUN"
+DEFAULT_PERF_DIR = Path("/mnt/linux2/aerie-perf")
 
 
 @dataclass
@@ -48,6 +53,15 @@ class CiConfig:
         gate worktree is a checkout. The default is a sibling folder, <build root>-ci.
         """
         return self.ci_dir or self.build_root.parent / f"{self.build_root.name}-ci"
+
+    @property
+    def perf_dir(self) -> Path:
+        """Where the nightly records main's perf documents and the gate reads the baseline (docs/bench.md)."""
+        return Path(self.environ.get(ENV_PERF_DIR) or DEFAULT_PERF_DIR)
+
+    @property
+    def perf_first_run(self) -> bool:
+        return (self.environ.get(ENV_PERF_FIRST_RUN) or "").strip().lower() in ("1", "true", "yes")
 
     @property
     def redact(self) -> Redactor:
@@ -87,7 +101,15 @@ def gate_steps(cfg: CiConfig, tree: Path, checks: list[str]) -> list[st.Step]:
         st.Step("unit tests", cmds["unittest"]),
         st.Step("smoke launch", st.bench_argv(cfg.python, tree, cfg.build_root, ["smoke"])),
         st.Step("bench", st.bench_argv(cfg.python, tree, cfg.build_root, checks)),
+        # Fails the PR when a metric regressed past its threshold against the last main build, when
+        # there is no baseline (unless AERIE_PERF_FIRST_RUN=1), or when a metric cannot be measured.
+        st.Step("perf", st.bench_argv(cfg.python, tree, cfg.build_root, ["perf"], extra=_perf_args(cfg))),
     ]
+
+
+def _perf_args(cfg: CiConfig) -> tuple:
+    args = ("--download-benchmarks", "--perf-baseline", str(cfg.perf_dir / "main.json"))
+    return args + (("--perf-first-run",) if cfg.perf_first_run else ())
 
 
 def _describe(text: str, log_path: Path) -> str:

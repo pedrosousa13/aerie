@@ -35,7 +35,18 @@ Options for `poll` and `gate`: `--build-root DIR` (env `AERIE_BUILD_ROOT`) and
 5. Runs, in order, and stops at the first failure: patch check
    (`./aerie patches check`), incremental build (`./aerie build`), the Python
    unit tests, a smoke launch (`./aerie bench --check smoke`), and the Bench
-   with every other check except `zero_traffic` (that one idles for minutes; the nightly runs it).
+   with every other check except `zero_traffic` (that one idles for minutes; the nightly runs it) and `perf`.
+   Then the `perf` step (`./aerie bench --download-benchmarks --check perf --perf-baseline <AERIE_PERF_DIR>/main.json`).
+   It measures memory, cold and warm startup, Speedometer and JetStream and fails the PR when a metric
+   regressed past its threshold (docs/bench.md, "Performance metrics"), when a metric cannot be measured
+   (the step never skips the benchmarks), or when there is no baseline. The baseline is the last
+   nightly run that passed, not the last merge to main. The baseline folder is
+   `AERIE_PERF_DIR`, default `/mnt/linux2/aerie-perf`. With no `main.json` yet the step fails and says so; set
+   `AERIE_PERF_FIRST_RUN=1` for the one run that has to go through before the first baseline is recorded
+   (docs/bench.md says how to record it). The step runs after the full Bench and launches a fresh browser on a fresh
+   profile for the memory run, each benchmark and each startup measurement. It downloads the pinned Speedometer and
+   JetStream copies into the build root once, and runs them on every PR (a few minutes; the limits are 600 s and 900 s,
+   or 180 s without progress).
    Each step shows in the pending status description.
 6. Removes the worktree, posts `success` or `failure`, and records the SHA.
 
@@ -50,8 +61,9 @@ C++ unit tests join the gate when any can run (#54).
 ## Nightly
 
 `nightly` fetches `main`, builds it with `./aerie build --clean`, and runs the
-full Bench (every registered check, `zero_traffic` included). It does this in its
-own build root, so it never replaces the build the maintainer tests from.
+full Bench (every registered check, `zero_traffic` included). When the whole run passes, its `perf`
+result is recorded as the new baseline in `AERIE_PERF_DIR` (a failing check such as `zero_traffic`
+blocks recording, and so does a perf check that could not measure a metric). It passes `--download-benchmarks` too. It does this in its own build root, so it never replaces the build the maintainer tests from.
 
 | Setting | Flag | Environment | Default |
 | --- | --- | --- | --- |
