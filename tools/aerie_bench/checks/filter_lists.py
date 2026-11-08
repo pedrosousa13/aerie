@@ -372,21 +372,21 @@ def observe_incognito(session: Session) -> dict:
     """In an off-the-record context: set an exception, look at both windows, close it, look again.
     Needs the saved exception for EXCEPTED_HOST (set by observe_first_launch)."""
     obs: dict = {}
-    with session.in_incognito() as incognito:
-        open_manager(session)
-        send(session, "setException", [EXCEPTED_HOST, True])  # Also saved: must be listed once.
-        send(session, "setException", [INCOGNITO_HOST, True])
-        obs["set_state"] = wait_state(session, lambda s: INCOGNITO_HOST in s["exceptions"] and EXCEPTED_HOST in s["exceptions"])
-        obs["incognito_visit"] = visit_page(session, INCOGNITO_HOST, "incognito")
-        open_manager(session)
-        send(session, "setException", [EXCEPTED_HOST, False])  # A saved exception cannot be undone here.
-        obs["locked_state"] = wait_state(session, lambda s: bool(s.get("addError")), timeout=5.0)
-        with incognito.regular():
-            obs["regular_state"] = open_manager(session)
-            obs["regular_visit"] = visit_page(session, INCOGNITO_HOST, "regular-while-incognito")
-    with session.in_incognito():
-        obs["after_close_state"] = open_manager(session)
-        obs["after_close_visit"] = visit_page(session, INCOGNITO_HOST, "after-close")
+    with session.incognito() as inc:
+        open_manager(inc)
+        send(inc, "setException", [EXCEPTED_HOST, True])  # Also saved: must be listed once.
+        send(inc, "setException", [INCOGNITO_HOST, True])
+        obs["set_state"] = wait_state(inc, lambda s: INCOGNITO_HOST in s["exceptions"] and EXCEPTED_HOST in s["exceptions"])
+        obs["incognito_visit"] = visit_page(inc, INCOGNITO_HOST, "incognito")
+        open_manager(inc)
+        send(inc, "setException", [EXCEPTED_HOST, False])  # A saved exception cannot be undone here.
+        obs["locked_state"] = wait_state(inc, lambda s: bool(s.get("addError")), timeout=5.0)
+        # The regular window, while the incognito context is still open.
+        obs["regular_state"] = open_manager(session)
+        obs["regular_visit"] = visit_page(session, INCOGNITO_HOST, "regular-while-incognito")
+    with session.incognito() as inc:
+        obs["after_close_state"] = open_manager(inc)
+        obs["after_close_visit"] = visit_page(inc, INCOGNITO_HOST, "after-close")
     return obs
 
 

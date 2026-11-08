@@ -52,61 +52,20 @@ class Session:
         self.profile_factory: Callable[[], ContextManager] | None = None
         self.browser_pid: int | None = None  # set by the runner; the root of the browser's process tree
         self._sid: str | None = None
+        # Set on the session that incognito() hands out: its page lives in this browser context.
+        self._context_id: str | None = None
 
     def _page(self) -> str:
         if self._sid is None:
-            target = self.client.send("Target.createTarget", {"url": "about:blank"}, timeout=self.timeout)
+            params = {"url": "about:blank"}
+            if self._context_id:
+                params["browserContextId"] = self._context_id
+            target = self.client.send("Target.createTarget", params, timeout=self.timeout)
             att = self.client.send("Target.attachToTarget",
                                    {"targetId": target["targetId"], "flatten": True}, timeout=self.timeout)
             self._sid = att["sessionId"]
             self.client.send("Page.enable", session_id=self._sid, timeout=self.timeout)
         return self._sid
-
-    @contextmanager
-    def in_incognito(self) -> Iterator[None]:
-        """Point this session's page calls (``cdp``, ``navigate_url``, ``evaluate``, ``wait_for``...)
-        at a new tab in a new off-the-record DevTools browser context, for the length of the block.
-
-        The context is a separate off-the-record profile, so it stands in for an incognito window.
-        On exit, also on error, the tab is closed, the context is disposed (the profile is
-        destroyed) and the regular page is current again.
-
-        Yields a handle whose ``regular()`` block makes the regular page current again while the
-        incognito context stays open (to look at the regular profile while the other one lives)."""
-        previous = self._page()  # The regular page exists before the incognito one does.
-        context = self.client.send("Target.createBrowserContext", timeout=self.timeout)["browserContextId"]
-        target_id = None
-        session = self
-
-        class Handle:
-            incognito_sid = ""
-
-            @contextmanager
-            def regular(self) -> Iterator[None]:
-                session._sid = previous
-                try:
-                    yield
-                finally:
-                    session._sid = self.incognito_sid
-
-        try:
-            target = self.client.send("Target.createTarget",
-                                      {"url": "about:blank", "browserContextId": context}, timeout=self.timeout)
-            target_id = target["targetId"]
-            att = self.client.send("Target.attachToTarget", {"targetId": target_id, "flatten": True},
-                                   timeout=self.timeout)
-            handle = Handle()
-            handle.incognito_sid = self._sid = att["sessionId"]
-            self.client.send("Page.enable", session_id=self._sid, timeout=self.timeout)
-            yield handle
-        finally:
-            self._sid = previous
-            if target_id is not None:
-                try:
-                    self.client.send("Target.closeTarget", {"targetId": target_id}, timeout=self.timeout)
-                except CdpError:
-                    pass
-            self.client.send("Target.disposeBrowserContext", {"browserContextId": context}, timeout=self.timeout)
 
     def cdp(self, method: str, params: dict | None = None) -> dict:
         """Send a CDP command to the page."""
@@ -175,6 +134,27 @@ class Session:
         if profile is None:
             return self.variant_launcher(tuple(extra_flags), prefs)
         return self.variant_launcher(tuple(extra_flags), prefs, profile)
+
+    @contextmanager
+    def incognito(self) -> Iterator["Session"]:
+        """A page in a new off-the-record browser context of the same browser (CDP
+        Target.createBrowserContext). The context has its own cookies, storage, in-memory content
+        settings and, for Aerie, its own fingerprint seeds. It is disposed on exit, also on error,
+        and everything it held is gone. Each call is a new context."""
+        context = self.client.send("Target.createBrowserContext", timeout=self.timeout)["browserContextId"]
+        child = Session(self.client, self.fixtures, self.out_dir, timeout=self.timeout, binary=self.binary,
+                        binary_version=self.binary_version)
+        child._context_id = context
+        child.browser_pid = self.browser_pid
+        try:
+            yield child
+        finally:
+            try:
+                self.client.send("Target.disposeBrowserContext", {"browserContextId": context},
+                                 timeout=self.timeout)
+            except CdpError:
+                pass  # the browser is gone; nothing is left to dispose
+            self.artifacts.extend(a for a in child.artifacts if a not in self.artifacts)
 
     def new_profile(self) -> ContextManager:
         """A throwaway profile for variant(profile=...); deleted when this block ends."""
