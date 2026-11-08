@@ -1,6 +1,6 @@
 # Workspaces threat model
 
-Issue #72. Status: draft for review, with [ADR 0005](../adr/0005-workspace-isolation.md) (Proposed). It covers the
+Issue #72. Status: draft for review, with [ADR 0006](../adr/0006-workspace-isolation.md) (Proposed). It covers the
 recommended design: one profile, one `StoragePartition` per Workspace, tabs fixed to a Workspace when created.
 Nothing here was run. Mitigations marked "to verify" are Bench or build-train checks (#73).
 
@@ -27,7 +27,7 @@ Chromium's process and storage design: a `RenderProcessHost` has one `StoragePar
 It is **not** a boundary against:
 
 - Browser-process code with profile access: history, passwords, permissions, extensions, the Filter Engine state. These
-  are trusted, and are shared on purpose (ADR 0005 verdicts 11 to 15).
+  are trusted, and are shared on purpose (ADR 0006 verdicts 11 to 15).
 - The user's own mistakes: moving a tab to the wrong Workspace, or opening a link in the wrong one.
 - A compromised browser process or a stolen unlocked device.
 - Device fingerprinting by a site that sees both Workspaces (A7). The Workspace is a login boundary, not an anonymity

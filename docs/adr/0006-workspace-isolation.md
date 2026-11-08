@@ -1,4 +1,4 @@
-# 5. Isolate Workspaces with a storage partition each, in one profile
+# 6. Isolate Workspaces with a storage partition each, in one profile
 
 Status: proposed (issue #72). The maintainer accepts or changes it at review.
 

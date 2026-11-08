@@ -2,7 +2,7 @@
 
 Throwaway. **Not in `patches/series`, never built into Aerie.** The patch lint only looks under `patches/`, so these files
 do not affect the build. No Workspace feature code is on `main`. The decision is in
-[ADR 0005](../../docs/adr/0005-workspace-isolation.md) (Proposed); the numbers plan is in [REPORT.md](REPORT.md).
+[ADR 0006](../../docs/adr/0006-workspace-isolation.md) (Proposed); the numbers plan is in [REPORT.md](REPORT.md).
 
 **Nothing here has been compiled.** The Chromium tree was read-only for this spike and another agent owned the build.
 What was checked: every patch in `partition/patches` and `profile/patches` passes `patch -p1 --dry-run --fuzz=0`
