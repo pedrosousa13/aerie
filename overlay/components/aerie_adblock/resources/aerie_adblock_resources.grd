@@ -19,6 +19,9 @@
       <include name="IDR_AERIE_ADBLOCK_ENGINE"
                file="${root_gen_dir}/components/aerie_adblock/engine/aerie_adblock_engine.dat"
                use_base_dir="false" type="BINDATA" />
+      <include name="IDR_AERIE_PROTECTION_ENGINE"
+               file="${root_gen_dir}/components/aerie_adblock/engine/aerie_protection_engine.dat"
+               use_base_dir="false" type="BINDATA" />
       <!-- The text of the built-in lists. Only read when the user changes the
            set of lists: the engine is then compiled from text, because a
            serialized engine cannot be merged with another list. -->

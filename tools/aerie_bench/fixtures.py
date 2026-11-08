@@ -54,7 +54,7 @@ class FixtureServer:
                     self.send_header("Cache-Control", "no-store")
                     for key, value in extra.items():
                         self.send_header(key, value)
-                    if status == 302:
+                    if status == 302 and location:
                         self.send_header("Location", location)
                     self.end_headers()
                     self.wfile.write(body)
@@ -81,6 +81,15 @@ class FixtureServer:
             value = re.sub(r"[^A-Za-z0-9_]", "", query.get("value", ["1"])[0]) or "1"
             return b"{}", 200, "application/json", {
                 "Set-Cookie": f"{name}={value}; Path=/; SameSite=None; Secure"}
+        if path == "/protection/hop":
+            # A 302 to ?to=<url>, for redirect-chain checks. The port changes on every run, so a
+            # static redirects.json cannot name it. Only loopback fixture hosts are accepted.
+            target = parse_qs(urlsplit(raw_path).query).get("to", [""])[0]
+            parts = urlsplit(target)
+            host = parts.hostname or ""
+            if parts.scheme == "http" and (host == HOST or host.endswith(".localhost")):
+                return b"", 302, "text/plain; charset=utf-8", {"Location": target}
+            return b"bad target", 400, "text/plain; charset=utf-8", {}
         return None
 
     def _redirects(self) -> dict:

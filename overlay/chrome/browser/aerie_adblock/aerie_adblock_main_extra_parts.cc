@@ -11,8 +11,10 @@
 #include "chrome/browser/net/system_network_context_manager.h"
 #include "chrome/common/chrome_paths.h"
 #include "components/aerie_adblock/browser/aerie_adblock_hook.h"
+#include "components/aerie_adblock/browser/aerie_protection_hook.h"
 #include "components/aerie_adblock/browser/filter_engine_service.h"
 #include "components/aerie_adblock/browser/filter_list_manager.h"
+#include "components/aerie_adblock/browser/protection_service.h"
 
 AerieAdblockMainExtraParts::AerieAdblockMainExtraParts() = default;
 
@@ -31,10 +33,14 @@ void AerieAdblockMainExtraParts::PreProfileInit() {
       *service_, user_data_dir.AppendASCII("AerieFilterLists"),
       g_browser_process->system_network_context_manager()
           ->GetSharedURLLoaderFactory());
+
+  CHECK(!protection_service_);
+  protection_service_ = aerie_adblock::CreateAndStartProtectionService();
 }
 
 void AerieAdblockMainExtraParts::PostMainMessageLoopRun() {
   // Factories that outlive the service hold a WeakPtr and abort new requests.
   list_manager_.reset();
   service_.reset();
+  protection_service_.reset();
 }

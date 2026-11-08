@@ -14,6 +14,12 @@ namespace aerie_adblock::switches {
 inline constexpr char kAllowLoopbackFilterLists[] =
     "aerie-test-allow-loopback-filter-lists";
 
+// Adds one more list of domains (one per line) to the protection list. For the
+// Bench: it lists a fixture domain. It only adds blocked domains and never
+// removes any.
+inline constexpr char kTestProtectionListSwitch[] =
+    "aerie-test-protection-list";
+
 }  // namespace aerie_adblock::switches
 
 #endif  // COMPONENTS_AERIE_ADBLOCK_BROWSER_AERIE_ADBLOCK_SWITCHES_H_

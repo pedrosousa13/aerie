@@ -1,0 +1,22 @@
+Aerie-Purpose: Judge every http(s) navigation against the phishing and malware list by adding Aerie's NavigationThrottle first in ChromeContentBrowserClient::CreateThrottlesForNavigation, so a listed host gets the interstitial before its request goes out.
+Aerie-Upstream-Area: chrome/browser/chrome_content_browser_client.cc (CreateThrottlesForNavigation)
+Aerie-Kind: hook
+
+One call, before Chromium's own throttles. The throttle, the interstitial and
+the per-tab "Continue anyway" state are in chrome/browser/aerie_adblock (the
+overlay), already a dependency of chrome/browser:core through patch 0004. The
+service it asks is owned by AerieAdblockMainExtraParts. See
+docs/phishing-protection.md.
+
+--- a/chrome/browser/chrome_content_browser_client.cc
++++ b/chrome/browser/chrome_content_browser_client.cc
+@@ -61,2 +61,3 @@
+ #include "chrome/browser/actor/actor_commit_deferring_condition.h"
++#include "chrome/browser/aerie_adblock/aerie_protection_throttle.h"
+ #include "chrome/browser/after_startup_task_utils.h"
+@@ -5746,2 +5747,5 @@
+     content::NavigationThrottleRegistry& registry) {
++  // Aerie: judge navigations against the phishing and malware list. First, so
++  // it runs before the throttles that may start a request.
++  AerieProtectionThrottle::MaybeCreateAndAdd(registry);
+   CreateAndAddChromeThrottlesForNavigation(registry);

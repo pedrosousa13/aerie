@@ -25,3 +25,30 @@ pins each by sha256 and size, and `./aerie build` fails if one differs.
 compiles them into a serialized engine at build time. Lines that are over 8 KiB,
 or that are exception rules matching every URL, are dropped at compile time (see
 components/aerie_adblock/rust/core/src/lib.rs).
+
+-------------------- DEPENDENCY DIVIDER --------------------
+
+Name: Phishing Army phishing domain list
+Short Name: phishing_army
+URL: https://phishing.army/
+Version: 2026-11-07T17:00:30Z
+Update Mechanism: Manual
+License: Custom license
+License File: LICENSE.phishing_army
+Shipped: yes
+Security Critical: yes
+
+Description:
+Phishing Army's community phishing domain blocklist (extended list). The Filter
+Engine's protection category (//components/aerie_adblock) compiles it into the
+engine that shows the phishing and malware interstitial for a listed domain and
+its subdomains. The terms are in LICENSE.phishing_army and at
+https://phishing.army/license/.
+
+Local Modifications:
+None. phishing_army.txt is the file that phishing.army served at the time in
+Version above, committed byte for byte. protection_lists.lock.json pins it by
+sha256 and size, and `./aerie build` fails if it differs. `./aerie lists update`
+refreshes the file and the lock. aerie_protection_compile compiles it into a
+serialized engine at build time (see
+components/aerie_adblock/rust/core/src/safety.rs).

@@ -36,3 +36,4 @@ adblock/0007-attach-cosmetic-tab-helper.patch
 adblock/0008-pass-frame-to-adblock-hook.patch
 adblock/0009-register-filter-lists-page.patch
 adblock/0010-add-filter-toolbar-button.patch
+adblock/0011-hook-protection-navigation-throttle.patch

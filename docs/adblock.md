@@ -74,6 +74,9 @@ renderer ──Mojo──> AdblockProxyingURLLoaderFactory ──> network servi
   `Aerie.Adblock.EngineLoadSuccess`, `EngineLoadTime`, `RequestBlocked`. The Bench
   reads them.
 
+Phishing and malware domain lists are a second category of the Filter Engine, with their own interstitial:
+see [phishing-protection.md](phishing-protection.md).
+
 Not covered: WebSocket blocking and main-frame blocking (both out of scope in
 the issue). User controls are in [the section below](#user-controls-issue-10).
 

@@ -3,18 +3,40 @@
 # the terms of the GPL-3.0 license that can be found in the LICENSE file.
 
 # Starts and owns the Filter Engine service from the browser's main parts. Same
-# shape as //chrome/browser/performance_monitor.
+# shape as //chrome/browser/performance_monitor. Also holds the protection
+# category's browser side: the navigation throttle, the interstitial and the
+# per-tab "Continue anyway" state (patches/adblock/0011).
 source_set("aerie_adblock") {
   visibility = [ "//chrome/browser:core" ]
-  public = [ "aerie_adblock_main_extra_parts.h" ]
-  sources = [ "aerie_adblock_main_extra_parts.cc" ]
-  public_deps = [ "//chrome/browser:main_extra_parts" ]
+  public = [
+    "aerie_adblock_main_extra_parts.h",
+    "aerie_protection_throttle.h",
+  ]
+  sources = [
+    "aerie_adblock_main_extra_parts.cc",
+    "aerie_protection_blocking_page.cc",
+    "aerie_protection_blocking_page.h",
+    "aerie_protection_tab_state.cc",
+    "aerie_protection_tab_state.h",
+    "aerie_protection_throttle.cc",
+  ]
+  public_deps = [
+    "//chrome/browser:main_extra_parts",
+    "//content/public/browser",
+  ]
   deps = [
     "//base",
     "//chrome/browser:browser_process",
     "//chrome/browser/net:net",
+    "//chrome/browser/profiles",
+    "//chrome/browser/profiles:profile",
     "//chrome/common:constants",
+    "//chrome/common",
     "//components/aerie_adblock/browser",
+    "//components/security_interstitials/content:security_interstitial_page",
+    "//components/security_interstitials/core",
+    "//net",
+    "//url",
   ]
 }
 

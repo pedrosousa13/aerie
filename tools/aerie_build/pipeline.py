@@ -22,7 +22,7 @@ from typing import Callable, Sequence
 
 from . import (
     aerie_version, branding, ccache, fallback, filter_lists, helium, helium_deps, helium_inputs, helium_steps,
-    layers, lock, overlay, patch_check, patches, rust_crates, substitution,
+    layers, lock, overlay, patch_check, patches, protection_lists, rust_crates, substitution,
 )
 from .config import BuildPaths, isolated_env
 
@@ -445,6 +445,13 @@ def prepare_adblock(ctx: Context, log: Logger, env: dict) -> None:
     except filter_lists.ListError as exc:
         raise BuildError(f"filter lists: {exc}") from exc
     log("filter lists: committed lists verified against the lock")
+
+    protection_pins = filter_lists.load_lock(protection_lists.lock_path(ctx.repo))
+    try:
+        protection_lists.verify_dir(protection_pins, ctx.tree / "third_party" / "filter_lists")
+    except filter_lists.ListError as exc:
+        raise BuildError(f"protection lists: {exc}") from exc
+    log("protection lists: committed phishing and malware lists verified against the lock")
 
     key = hashlib.sha256()
     for path in (ctx.repo / rust_crates.LOCK_FILE, ctx.tree / rust_crates.CARGO_TOML,

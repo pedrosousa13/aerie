@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Fixture frame host</title>
+</head>
+<body>
+<h1>A page that embeds one frame</h1>
+<script>
+// ?to=<url> is the frame's address. Built here because the fixture port changes on every run.
+const to = new URLSearchParams(location.search).get('to');
+const frame = document.createElement('iframe');
+frame.id = 'child';
+frame.src = to;
+document.body.appendChild(frame);
+</script>
+</body>
+</html>
