@@ -156,9 +156,9 @@ void FilterEngineService::SetExceptions(std::set<std::string> hosts) {
   ReleaseHeldRequests();
 }
 
-void FilterEngineService::SetSessionExceptions(const void* session,
+void FilterEngineService::SetSessionExceptions(SessionKey session,
                                                std::set<std::string> hosts) {
-  if (!session) {
+  if (session.is_regular()) {
     return;  // Regular profiles use SetExceptions().
   }
   if (hosts.empty()) {
@@ -169,11 +169,11 @@ void FilterEngineService::SetSessionExceptions(const void* session,
 }
 
 bool FilterEngineService::IsExcepted(std::string_view host,
-                                     const void* session) const {
+                                     SessionKey session) const {
   if (HostHasException(host, exceptions_)) {
     return true;
   }
-  if (!session) {
+  if (session.is_regular()) {
     return false;
   }
   auto it = session_exceptions_.find(session);
@@ -223,7 +223,7 @@ void FilterEngineService::ShouldBlock(ClassifiedRequest request,
 void FilterEngineService::GetCosmeticStylesheet(const GURL& top_level_url,
                                                 const GURL& page_url,
                                                 StylesheetCallback callback,
-                                                const void* session) {
+                                                SessionKey session) {
   if (holding_) {
     held_cosmetic_.push_back(base::BindOnce(
         &FilterEngineService::GetCosmeticStylesheet, base::Unretained(this),
@@ -245,7 +245,7 @@ void FilterEngineService::GetGenericStylesheet(const GURL& top_level_url,
                                                std::string classes,
                                                std::string ids,
                                                StylesheetCallback callback,
-                                               const void* session) {
+                                               SessionKey session) {
   if (holding_) {
     held_cosmetic_.push_back(base::BindOnce(
         &FilterEngineService::GetGenericStylesheet, base::Unretained(this),
@@ -270,7 +270,7 @@ void FilterEngineService::SetCosmeticFilteringPolicy(
 
 bool FilterEngineService::IsCosmeticFilteringEnabled(
     const GURL& top_level_url,
-    const void* session) const {
+    SessionKey session) const {
   if (IsExcepted(NormalizeExceptionHost(top_level_url.host()), session)) {
     return false;  // Blocking is off for this site: no hiding either.
   }

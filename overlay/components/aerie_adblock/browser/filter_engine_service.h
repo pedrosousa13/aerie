@@ -22,19 +22,22 @@
 #include "components/aerie_adblock/browser/adblock_engine.h"
 #include "components/aerie_adblock/browser/list_failure.h"
 #include "components/aerie_adblock/browser/request_classifier.h"
+#include "components/aerie_adblock/browser/session_key.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/global_routing_id.h"
 #include "url/gurl.h"
 
 namespace aerie_adblock {
 
-// The key under which the per-site exceptions of an off-the-record profile
-// live (FilterEngineService::SetSessionExceptions): the profile itself, as an
-// opaque pointer. Null for a regular profile (or none), whose exceptions are
-// saved to disk. Never dereferenced.
-inline const void* SessionKeyFor(content::BrowserContext* browser_context) {
-  return browser_context && browser_context->IsOffTheRecord() ? browser_context
-                                                              : nullptr;
+// The key under which the per-site exceptions of |browser_context| live
+// (FilterEngineService::SetSessionExceptions): the off-the-record profile
+// itself, as an opaque key, or Regular() for a regular profile (or none),
+// whose exceptions are saved to disk. The profile is never dereferenced
+// through the key.
+inline SessionKey SessionKeyFor(content::BrowserContext* browser_context) {
+  return browser_context && browser_context->IsOffTheRecord()
+             ? SessionKey::OffTheRecord(browser_context)
+             : SessionKey::Regular();
 }
 
 // The Filter Engine service: owns the one adblock engine of the browser
@@ -122,14 +125,14 @@ class FilterEngineService {
   const std::set<std::string>& exceptions() const { return exceptions_; }
 
   // Sites where blocking is off for one off-the-record session only (issue
-  // #10). |session| is an opaque key for the session (the incognito profile);
-  // a request or page with the same key is excepted like in SetExceptions(),
-  // any other is not. Memory only: nothing here is ever written to disk. An
-  // empty |hosts| removes the session's entry; the owner calls it when the
-  // session ends.
-  void SetSessionExceptions(const void* session, std::set<std::string> hosts);
+  // #10). |session| is the key of the session (the incognito profile); a
+  // request or page with the same key is excepted like in SetExceptions(), any
+  // other is not. A regular key is ignored (SetExceptions() is for those).
+  // Memory only: nothing here is ever written to disk. An empty |hosts|
+  // removes the session's entry; the owner calls it when the session ends.
+  void SetSessionExceptions(SessionKey session, std::set<std::string> hosts);
   // True when |host| is excepted for everyone, or for |session|.
-  bool IsExcepted(std::string_view host, const void* session) const;
+  bool IsExcepted(std::string_view host, SessionKey session) const;
 
   // From now until SetExceptions() or ReleaseHeldRequests(), every query waits
   // (it is neither answered nor blocked). The filter list manager reads the
@@ -168,19 +171,19 @@ class FilterEngineService {
   //
   // The policy is not the only input: a site with a per-site exception (see
   // SetExceptions(), SetSessionExceptions()) gets no stylesheet either, so
-  // "blocking off" also stops hiding. |session| is the off-the-record session
-  // key of the page's profile, null for a regular one. While the settings load
+  // "blocking off" also stops hiding. |session| is the session key of the
+  // page's profile (SessionKeyFor()). While the settings load
   // (HoldRequestsUntilSettingsLoaded) these calls wait, like ShouldBlock().
   void GetCosmeticStylesheet(const GURL& top_level_url,
                              const GURL& page_url,
                              StylesheetCallback callback,
-                             const void* session = nullptr);
+                             SessionKey session);
   void GetGenericStylesheet(const GURL& top_level_url,
                             const GURL& page_url,
                             std::string classes,
                             std::string ids,
                             StylesheetCallback callback,
-                            const void* session = nullptr);
+                            SessionKey session);
 
   // Installs the policy that GetCosmeticStylesheet() and GetGenericStylesheet()
   // ask. The default (no policy) is: on everywhere. Does not touch
@@ -188,7 +191,7 @@ class FilterEngineService {
   void SetCosmeticFilteringPolicy(CosmeticPolicyCallback policy);
   // True when the policy allows |top_level_url| and the site has no exception.
   bool IsCosmeticFilteringEnabled(const GURL& top_level_url,
-                                  const void* session = nullptr) const;
+                                  SessionKey session) const;
 
  private:
   class Host;
@@ -199,7 +202,7 @@ class FilterEngineService {
 
   base::SequenceBound<Host> host_;
   std::set<std::string> exceptions_;
-  std::map<const void*, std::set<std::string>> session_exceptions_;
+  std::map<SessionKey, std::set<std::string>> session_exceptions_;
   std::vector<base::OnceClosure> held_cosmetic_;
   bool holding_ = false;
   std::vector<std::pair<ClassifiedRequest, VerdictCallback>> held_;

@@ -32,7 +32,7 @@ void AdblockProxyingURLLoader::CreateAndStart(
     const net::IsolationInfo& factory_isolation_info,
     base::WeakPtr<FilterEngineService> service,
     content::GlobalRenderFrameHostId frame_id,
-    const void* session) {
+    SessionKey session) {
   std::unique_ptr<AdblockProxyingURLLoader> loader(new AdblockProxyingURLLoader(
       request, std::move(client), factory_initiator, factory_isolation_info,
       std::move(service), frame_id, session));
@@ -48,7 +48,7 @@ AdblockProxyingURLLoader::AdblockProxyingURLLoader(
     const net::IsolationInfo& factory_isolation_info,
     base::WeakPtr<FilterEngineService> service,
     content::GlobalRenderFrameHostId frame_id,
-    const void* session)
+    SessionKey session)
     : request_(request),
       factory_initiator_(factory_initiator),
       factory_isolation_info_(factory_isolation_info),

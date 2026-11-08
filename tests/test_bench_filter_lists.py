@@ -35,6 +35,20 @@ def record(*urls):
     return {"url": urls[0], "urls": list(urls), "host": "h", "scheme": "https", "external": True}
 
 
+def good_incognito():
+    host = fl.INCOGNITO_HOST
+    return {
+        "set_state": {"exceptions": ["news.localhost", host], "addError": ""},
+        "incognito_visit": visit(False, host),
+        "regular_visit": visit(True, host),
+        "regular_state": {"exceptions": ["news.localhost"]},
+        "locked_state": {"exceptions": ["news.localhost", host], "addError": "This site was turned off in a regular window."},
+        "after_close_state": {"exceptions": ["news.localhost"]},
+        "after_close_visit": visit(True, host),
+        "state_file": '{"exceptions": ["news.localhost"], "lists": []}',
+    }
+
+
 def good():
     state = copy.deepcopy(STATE)
     return {
@@ -52,6 +66,7 @@ def good():
                                       record("http://news.localhost:5000/filters/page.html")]},
         "exception": {"state": state, "excepted_visit": visit(False), "other_visit": visit(True, "other.localhost")},
         "restart": {"state": copy.deepcopy(STATE), "excepted_visit": visit(False), "other_visit": visit(True, "other.localhost")},
+        "incognito": good_incognito(),
     }
 
 
@@ -148,6 +163,63 @@ class JudgeTest(unittest.TestCase):
         obs = good()
         obs["exception"]["excepted_visit"] = visit(True)
         self.fails(obs, f"exception, {fl.EXCEPTED_HOST}: expected 3 ads to load")
+
+
+class IncognitoTest(unittest.TestCase):
+    def problems(self, mutate=None):
+        inc = good_incognito()
+        if mutate:
+            mutate(inc)
+        return fl.judge_incognito(inc)
+
+    def test_good_incognito_passes(self):
+        self.assertEqual(self.problems(), [])
+
+    def test_judge_includes_the_incognito_step(self):
+        obs = good()
+        obs["incognito"]["regular_visit"] = visit(False, fl.INCOGNITO_HOST)
+        status, detail, _ = fl.judge(obs)
+        self.assertEqual(status, "fail")
+        self.assertIn("regular window", detail)
+
+    def test_missing_incognito_observation_fails(self):
+        obs = good()
+        del obs["incognito"]
+        status, detail, _ = fl.judge(obs)
+        self.assertEqual(status, "fail")
+        self.assertIn("incognito", detail)
+
+    def test_exception_must_apply_in_incognito(self):
+        p = self.problems(lambda i: i.update(incognito_visit=visit(True, fl.INCOGNITO_HOST)))
+        self.assertTrue(any("incognito window" in x and "expected 3 ads to load" in x for x in p), p)
+
+    def test_exception_must_not_apply_in_a_regular_window(self):
+        p = self.problems(lambda i: i.update(regular_visit=visit(False, fl.INCOGNITO_HOST)))
+        self.assertTrue(any("regular window" in x and "expected 3 blocked" in x for x in p), p)
+
+    def test_exception_must_not_show_in_regular_state(self):
+        p = self.problems(lambda i: i.update(regular_state={"exceptions": ["news.localhost", fl.INCOGNITO_HOST]}))
+        self.assertTrue(any("regular window's exception list" in x for x in p), p)
+
+    def test_exception_must_be_gone_after_the_window_closes(self):
+        p = self.problems(lambda i: i.update(after_close_state={"exceptions": [fl.INCOGNITO_HOST]}))
+        self.assertTrue(any("after the incognito window closed" in x for x in p), p)
+        p = self.problems(lambda i: i.update(after_close_visit=visit(False, fl.INCOGNITO_HOST)))
+        self.assertTrue(any("after the incognito window closed" in x and "expected 3 blocked" in x for x in p), p)
+
+    def test_exception_must_never_reach_the_state_file(self):
+        p = self.problems(lambda i: i.update(state_file='{"exceptions": ["%s"]}' % fl.INCOGNITO_HOST))
+        self.assertTrue(any("state file" in x for x in p), p)
+        p = self.problems(lambda i: i.update(state_file=None))
+        self.assertTrue(any("state file" in x for x in p), p)
+
+    def test_each_host_is_listed_once_on_the_incognito_page(self):
+        p = self.problems(lambda i: i.update(set_state={"exceptions": ["news.localhost", "news.localhost", fl.INCOGNITO_HOST]}))
+        self.assertTrue(any("more than once" in x for x in p), p)
+
+    def test_incognito_cannot_undo_a_saved_exception(self):
+        p = self.problems(lambda i: i.update(locked_state={"exceptions": [fl.INCOGNITO_HOST], "addError": ""}))
+        self.assertTrue(any("saved exception" in x for x in p), p)
 
 
 class RestartTest(unittest.TestCase):

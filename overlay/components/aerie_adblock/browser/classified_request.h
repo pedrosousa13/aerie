@@ -8,6 +8,8 @@
 #include <cstdint>
 #include <string>
 
+#include "components/aerie_adblock/browser/session_key.h"
+
 namespace aerie_adblock {
 
 // What kind of resource a request fetches, in the filter list vocabulary.
@@ -36,11 +38,11 @@ struct ClassifiedRequest {
   std::string source_hostname;  // Host of the initiator; empty if opaque.
   RequestKind kind = RequestKind::kOther;
   bool third_party = true;
-  // Which off-the-record session the request is from, as an opaque key that is
-  // only compared (never dereferenced); null for a regular profile. Session
-  // exceptions (see FilterEngineService::SetSessionExceptions) apply only to
-  // requests with their key.
-  const void* session = nullptr;
+  // Which profile the request is from. Session exceptions (see
+  // FilterEngineService::SetSessionExceptions) apply only to requests with their
+  // key. The proxy sets it from the request's profile; a request nobody set it
+  // for (a test's) is from the regular profile.
+  SessionKey session = SessionKey::Regular();
 };
 
 }  // namespace aerie_adblock

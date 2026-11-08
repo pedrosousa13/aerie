@@ -47,10 +47,15 @@ source_set("browser") {
   ]
 }
 
-# The value the classifier produces and the engine consumes. No dependencies.
+# The value the classifier produces and the engine consumes, and the session
+# key it carries. Nothing but //base.
 source_set("classified_request") {
   visibility = _visibility
-  sources = [ "classified_request.h" ]
+  sources = [
+    "classified_request.h",
+    "session_key.h",
+  ]
+  public_deps = [ "//base" ]
 }
 
 # Request -> (url, hosts, type, third party). Pure; no Rust.
@@ -257,6 +262,7 @@ test("aerie_adblock_unittests") {
     "protection_policy_unittest.cc",
     "protection_service_unittest.cc",
     "request_classifier_unittest.cc",
+    "session_key_unittest.cc",
   ]
   deps = [
     ":classifier",
@@ -288,9 +294,16 @@ test("aerie_adblock_unittests") {
 test("aerie_adblock_content_unittests") {
   testonly = true
   visibility = [ "//components/aerie_adblock:*" ]
-  sources = [ "page_block_counter_unittest.cc" ]
+  sources = [
+    "filter_list_manager_session_unittest.cc",
+    "page_block_counter_unittest.cc",
+  ]
   deps = [
+    ":classified_request",
+    ":list_types",
+    ":lists",
     ":page_counter",
+    ":service",
     "//base",
     "//base/test:test_support",
     "//components/test:run_all_unittests",

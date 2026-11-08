@@ -67,9 +67,8 @@ class AdblockProxyingURLLoader : public network::mojom::URLLoader,
       const url::Origin& factory_initiator,
       const net::IsolationInfo& factory_isolation_info,
       base::WeakPtr<FilterEngineService> service,
-      content::GlobalRenderFrameHostId frame_id =
-          content::GlobalRenderFrameHostId(),
-      const void* session = nullptr);
+      content::GlobalRenderFrameHostId frame_id,
+      SessionKey session);
 
   AdblockProxyingURLLoader(const AdblockProxyingURLLoader&) = delete;
   AdblockProxyingURLLoader& operator=(const AdblockProxyingURLLoader&) = delete;
@@ -83,7 +82,7 @@ class AdblockProxyingURLLoader : public network::mojom::URLLoader,
       const net::IsolationInfo& factory_isolation_info,
       base::WeakPtr<FilterEngineService> service,
       content::GlobalRenderFrameHostId frame_id,
-      const void* session);
+      SessionKey session);
 
   void Start(network::mojom::URLLoaderFactory* target_factory,
              int32_t request_id,
@@ -130,8 +129,8 @@ class AdblockProxyingURLLoader : public network::mojom::URLLoader,
   base::WeakPtr<FilterEngineService> service_;
   // The frame the request came from, for the per-page blocked count.
   const content::GlobalRenderFrameHostId frame_id_;
-  // The off-the-record session key of the request's profile (null: regular).
-  const void* const session_;
+  // The session key of the request's profile.
+  const SessionKey session_;
 
   mojo::Remote<network::mojom::URLLoader> loader_;
   mojo::Remote<network::mojom::URLLoaderClient> forwarding_client_;
