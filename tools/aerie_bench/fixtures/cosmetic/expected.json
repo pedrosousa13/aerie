@@ -1,5 +1,5 @@
 {
-  "comment": "What the cosmetic_filtering check expects of /cosmetic/index.html. 'hidden' are ad containers that the pinned EasyList hides on any site ('rule' is the line in overlay/third_party/filter_lists/easylist.txt; tests/test_bench_cosmetic.py checks that it is there). 'visible' are first-party elements, with names that merely look like ad names, that must stay. 'hijack_flag' is a window property that the page's own scripts set if they can intercept the injection: it must stay unset.",
+  "comment": "What the cosmetic_filtering check expects of /cosmetic/index.html. 'hidden' are ad containers that the pinned EasyList hides on any site ('rule' is the line in overlay/third_party/filter_lists/easylist.txt; tests/test_bench_cosmetic.py checks that it is there). 'visible' are first-party elements, with names that merely look like ad names, that must stay. 'hijack_flag' is a window property that the page's own scripts set if they can intercept the injection: it must stay unset. 'generic_sheet_probe' is a selector that only the generic hide sheet names; the check counts the adopted sheets that hold it and expects one.",
   "page": "/cosmetic/index.html",
   "hidden": [
     {"selector": ".ad-slot", "rule": "##.ad-slot", "via": "generic class rule"},
@@ -13,5 +13,6 @@
     {"selector": ".adventure"},
     {"selector": ".sidebar"}
   ],
-  "hijack_flag": "cosmeticHijacked"
+  "hijack_flag": "cosmeticHijacked",
+  "generic_sheet_probe": ".ad-slot"
 }
