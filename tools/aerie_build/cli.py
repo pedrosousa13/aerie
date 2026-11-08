@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -164,10 +165,20 @@ def cmd_locked(args: argparse.Namespace) -> int:
     with _locked(ctx, args):
         # The command inherits AERIE_BUILD_LOCK_HELD, so the ./aerie build and ./aerie bench it starts do not wait.
         try:
-            return subprocess.run(command).returncode
+            proc = subprocess.Popen(command)
         except OSError as exc:
             print(f"aerie locked: cannot run {command[0]}: {exc}", file=sys.stderr)
             return 127
+        # A stop signal goes to the command, and the lock stays until the command has exited: a build
+        # that is still shutting down is still using the tree.
+        signals = (signal.SIGTERM, signal.SIGINT)
+        previous = {sig: signal.signal(sig, lambda num, frame: proc.send_signal(num)) for sig in signals}
+        try:
+            code = proc.wait()
+        finally:
+            for sig, handler in previous.items():
+                signal.signal(sig, handler)
+        return 128 - code if code < 0 else code
 
 
 def cmd_hardening(args: argparse.Namespace) -> int:

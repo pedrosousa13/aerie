@@ -229,8 +229,8 @@ class LockedCommandTest(unittest.TestCase):
             except buildlock.BuildTreeBusy:
                 seen.append("held")
 
-        real = subprocess.run
-        with mock.patch.object(subprocess, "run", side_effect=lambda *a, **k: (probe(), real(*a, **k))[1]):
+        real = subprocess.Popen
+        with mock.patch.object(subprocess, "Popen", side_effect=lambda *a, **k: (probe(), real(*a, **k))[1]):
             self.assertEqual(self.run_locked(sys.executable, "-c", "pass"), 0)
         self.assertEqual(seen, ["held"])
         with buildlock.build_tree_lock(self.root, timeout=0):
@@ -242,3 +242,60 @@ class LockedCommandTest(unittest.TestCase):
 
     def test_needs_a_command(self):
         self.assertEqual(self.run_locked(), 2)
+
+
+_LOCKED = """
+import sys
+sys.path.insert(0, sys.argv[1])
+from aerie_build import cli
+sys.exit(cli.main(["locked", "--build-root", sys.argv[2], "--lock-timeout", "0", "--", *sys.argv[3:]]))
+"""
+_SLOW_TO_STOP = """
+import pathlib, signal, sys, time
+signal.signal(signal.SIGTERM, lambda *a: (time.sleep(1.5), pathlib.Path(sys.argv[1]).write_text("stopped"), sys.exit(5)))
+signal.signal(signal.SIGINT, signal.getsignal(signal.SIGTERM))
+pathlib.Path(sys.argv[2]).write_text("ready")
+time.sleep(60)
+"""
+
+
+class LockedSignalTest(unittest.TestCase):
+    """SIGTERM or SIGINT to ./aerie locked reaches the command, and the lock stays until it is gone."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.tmp = Path(self._tmp.name)
+        self.root = self.tmp / "root"
+
+    def check(self, sig):
+        import signal
+        import time
+
+        stopped, ready = self.tmp / "stopped", self.tmp / "ready"
+        proc = subprocess.Popen([sys.executable, "-c", _LOCKED, _TOOLS, str(self.root),
+                                 sys.executable, "-c", _SLOW_TO_STOP, str(stopped), str(ready)])
+        self.addCleanup(proc.wait)
+        self.addCleanup(proc.kill)
+        deadline = time.monotonic() + 20
+        while not ready.exists():
+            self.assertLess(time.monotonic(), deadline, "the command never started")
+            time.sleep(0.05)
+        proc.send_signal(sig)
+        time.sleep(0.4)  # the command is still shutting down (it sleeps 1.5 s in its handler)
+        self.assertIsNone(proc.poll(), "locked exited before its command did")
+        with self.assertRaises(buildlock.BuildTreeBusy):  # so the lock is still held
+            with buildlock.build_tree_lock(self.root, timeout=0):
+                pass
+        self.assertEqual(proc.wait(timeout=20), 5)  # the command's own exit code
+        self.assertEqual(stopped.read_text(), "stopped")
+        with buildlock.build_tree_lock(self.root, timeout=0):
+            pass
+
+    def test_sigterm_is_forwarded_and_the_lock_is_held_until_the_command_exits(self):
+        import signal
+        self.check(signal.SIGTERM)
+
+    def test_sigint_is_forwarded_and_the_lock_is_held_until_the_command_exits(self):
+        import signal
+        self.check(signal.SIGINT)
