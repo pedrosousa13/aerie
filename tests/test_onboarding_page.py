@@ -93,13 +93,15 @@ class PageTest(unittest.TestCase):
         ids = re.findall(r"^\s+(\w+): \[", block, re.M)
         self.assertEqual(ids[0], "neutral")
         self.assertIn("color: 'neutral'", SCRIPT)
-        self.assertNotIn("color: 'alpenglow'", SCRIPT)
+        self.assertRegex(SCRIPT, r"mode: 'system', color: 'neutral'")
 
     def test_neutral_applies_the_default_theme_and_no_colour(self):
         handler = (REPO / "overlay/chrome/browser/ui/webui/aerie_onboarding/aerie_theme_handler.h").read_text(encoding="utf-8")
         source = (REPO / "overlay/chrome/browser/ui/webui/aerie_onboarding/aerie_theme_handler.cc").read_text(encoding="utf-8")
         self.assertRegex(handler, r'\{"neutral", std::nullopt, true\}')
-        self.assertIn("UseDefaultTheme()", source)
+        branch = source[source.index("if (choice.use_default_theme)"):source.index("} else if (choice.seed)")]
+        # Neutral must clear a grayscale flag left by Graphite, then reset the theme.
+        self.assertLess(branch.index("SetIsGrayscale(false)"), branch.index("UseDefaultTheme()"))
         self.assertEqual(len(re.findall(r"std::nullopt, true\}", handler)), 1)
 
 

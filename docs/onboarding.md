@@ -8,7 +8,7 @@ through seven short steps and then opens a new tab. It replaces Helium's onboard
 | --- | --- | --- |
 | Welcome | Introduces Aerie. | none |
 | Import | Lists the other browsers found on this computer. You pick one and what to bring (bookmarks, saved passwords, history, search engines), or start fresh. | `initializeImportDialog`, `importData` |
-| Make it yours | Light, dark or system appearance, and one of seven colours. Neutral is first and is the default. It is the browser's plain default theme with no user colour, so it follows the appearance: white and grey in light, near-black and grey in dark. Alpenglow, High sky, Moss, Dusk, Sand and Graphite follow. Both apply straight away and stay changeable in Settings > Appearance. | `aerieSetup.setColorScheme`, `aerieSetup.setThemeColor` |
+| Make it yours | Light, dark or system appearance, and one of seven colours. Neutral is first and is the default. It is the browser's plain default theme with no user colour, so it follows the appearance. Six colours follow. Both apply straight away and stay changeable in Settings > Appearance. | `aerieSetup.setColorScheme`, `aerieSetup.setThemeColor` |
 | Ads and trackers | Explains that blocking is on (EasyList, EasyPrivacy, cosmetic hiding) and links to `aerie://filters`. There is no choice to make yet; levels belong to issue #45. | none |
 | Search engine | The built-in engines (DuckDuckGo, Brave Search, Kagi, Startpage). Search suggestions stay off. | `getSearchEnginesList`, `setDefaultSearchEngine` |
 | Privacy | A read-only list of the hardening defaults ([hardening.md](hardening.md)). | none |
