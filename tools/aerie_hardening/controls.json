@@ -189,7 +189,11 @@
         "helium-chromium/patches/helium/core/noise/canvas.patch and audio.patch: the canvas and audio noise"
       ],
       "upstream": ["content/browser/helium_noise/noise_token_data.cc", "third_party/blink/common/features.cc (HeliumNoise)"],
-      "aerie_patches": [],
+      "aerie_patches": ["hardening/0009-stable-audio-noise-per-site-and-session.patch"],
+      "notes": [
+        "Audio noise is seeded from the site and session only, so one site gets the same audio output on every render in one session. A tracker cannot average the noise away by rendering again.",
+        "Analyser readbacks (getFloatFrequencyData and similar) still carry a per-read counter in their noise."
+      ],
       "pref": {"name": "helium.noise.enabled", "default": true},
       "cost": "Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page.",
       "ui": {"kind": "toggle", "pref": "helium.noise.enabled"},

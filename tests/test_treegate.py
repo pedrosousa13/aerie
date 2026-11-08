@@ -137,8 +137,22 @@ WIDEVINE_INSTALLER_OK = """const uint8_t kWidevineSha2Hash[] = {
     0xe1, 0x41, 0x04, 0x86, 0x4a};
 """
 
+AUDIO_BUFFER = "third_party/blink/renderer/modules/webaudio/audio_buffer.cc"
+AUDIO_NOISE_OK = """void AudioBuffer::JitterAudioData(ExecutionContext* context) {
+  for (unsigned i = 0; i < channels_.size(); ++i) {
+    for (size_t frame = 0; frame < samples.size(); ++frame) {
+      const uint64_t coordinate_seed =
+          (static_cast<uint64_t>(i) << 48) ^ frame;
+      samples[frame] = BaseAudioContext::JitterAudioData(
+          samples[frame], context, coordinate_seed);
+    }
+  }
+}
+"""
+
 GOOD = {
     **JS_OPT_GOOD,
+    AUDIO_BUFFER: AUDIO_NOISE_OK,
     "chrome/browser/component_updater/widevine_cdm_component_installer.cc": WIDEVINE_INSTALLER_OK,
     "chrome/browser/component_updater/registration.cc": WIDEVINE_REG_OK,
     "components/update_client/update_checker.cc": WIDEVINE_CHECKER_OK,
@@ -291,6 +305,16 @@ class DefaultsGatesTest(TreeCase):
         self.write({blink: LINK_PREFETCH_BLINK_OK, client: LINK_PREFETCH_CLIENT_OK.replace("kEligible", "kUnspecified")})
         self.assertEqual([f.gate for f in treegate.check_link_prefetch_off(self.root)], ["link_prefetch_off"])
 
+    def test_audio_noise_must_not_carry_a_render_counter(self):
+        self.write({AUDIO_BUFFER: AUDIO_NOISE_OK})
+        self.assertEqual(treegate.check_audio_noise_stable(self.root, require=True), [])
+        counter = AUDIO_NOISE_OK.replace("(static_cast<uint64_t>(i) << 48)", "render_seed ^ (static_cast<uint64_t>(i) << 48)")
+        for text in (counter, "base::AtomicSequenceNumber g_helium_audio_render_sequence;\n" + AUDIO_NOISE_OK):
+            self.write({AUDIO_BUFFER: text})
+            self.assertEqual([f.gate for f in treegate.check_audio_noise_stable(self.root)], ["audio_noise_stable"])
+        self.write({AUDIO_BUFFER: "void AudioBuffer::JitterAudioData(ExecutionContext*) {}\n"})
+        self.assertEqual(len(treegate.check_audio_noise_stable(self.root)), 1)  # no per-sample jitter call
+
     def test_helium_services_must_be_off(self):
         self.write({"components/helium_services/helium_services_helpers.cc": SERVICES_OK})
         self.assertEqual(treegate.check_services_off(self.root), [])
@@ -338,7 +362,7 @@ class RunTest(TreeCase):
 
     def test_empty_tree_passes_unless_required(self):
         self.assertEqual(self.run_gates(), [])
-        self.assertEqual(len(self.run_gates(require=True)), 21)
+        self.assertEqual(len(self.run_gates(require=True)), 22)
 
     def test_format_report(self):
         self.write({"a.cc": '"https://services.helium.imput.net"\n'})

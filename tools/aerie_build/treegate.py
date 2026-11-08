@@ -280,10 +280,24 @@ def check_js_optimizer(root: Path, require: bool = False) -> list[Finding]:
     return out
 
 
+def check_audio_noise_stable(root: Path, require: bool = False) -> list[Finding]:
+    """Helium's AudioBuffer jitter is seeded from the site/session token and the sample coordinates
+    only (issue #38). A per-render counter would let a tracker average the noise away."""
+    gate, rel = "audio_noise_stable", "third_party/blink/renderer/modules/webaudio/audio_buffer.cc"
+    text, missing = _read(root, rel, gate, require)
+    if text is None:
+        return missing
+    if re.search(r"AtomicSequenceNumber|render_seed|render_sequence", text):
+        return [Finding(gate, rel, "audio noise must not be salted with a per-render counter")]
+    if not re.search(r"BaseAudioContext::JitterAudioData\(\s*samples\[frame\],\s*context,\s*coordinate_seed\)", text):
+        return [Finding(gate, rel, "AudioBuffer::JitterAudioData must jitter each sample with a coordinate seed")]
+    return []
+
+
 GATES: tuple[Callable[..., list[Finding]], ...] = (
     check_search_list, check_search_suggestions, check_secure_dns_default,
     check_crash_reporting, check_services_off, check_fedcm_resolver, check_widevine_opt_in,
-    check_https_first_dialog_off, check_link_prefetch_off, check_js_optimizer,
+    check_https_first_dialog_off, check_link_prefetch_off, check_js_optimizer, check_audio_noise_stable,
 )
 
 
