@@ -224,7 +224,7 @@ against recorded observations in `tests/test_bench_branding.py`.
 
 Until issue #23 removes the Helium services settings and the onboarding
 consent, the text of `chrome://settings/privacy`, `chrome://settings/privacy/services`,
-`chrome://settings/languages` and `chrome://setup` may still name Helium services. `branding_no_helium`
+and `chrome://settings/languages` may still name Helium services (`chrome://setup` is Aerie's own page since #46 and is checked strictly). `branding_no_helium`
 scans those pages, reports how many hits each has in its detail line, and fails
 only if their title says Helium. Delete `PENDING_SERVICES_PAGES` when #23 lands.
 

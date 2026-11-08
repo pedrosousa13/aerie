@@ -31,7 +31,6 @@ adblock/0002-pack-engine-resource.patch
 adblock/0003-vendor-adblock-crate.patch
 adblock/0004-own-the-filter-engine-service.patch
 adblock/0005-list-aerie-histograms.patch
-adblock/0006-remove-onboarding-ublock-toggle.patch
 adblock/0007-attach-cosmetic-tab-helper.patch
 adblock/0008-pass-frame-to-adblock-hook.patch
 adblock/0009-register-filter-lists-page.patch
@@ -43,3 +42,6 @@ widevine/0001-register-widevine-only-when-opted-in.patch
 widevine/0002-update-widevine-from-google-when-opted-in.patch
 widevine/0003-allow-widevine-pref-in-settings.patch
 widevine/0004-ask-before-the-first-drm-request.patch
+
+# Aerie's own first-run setup page (#46), served by Helium's onboarding page controller.
+onboarding/0001-serve-aerie-setup-page.patch

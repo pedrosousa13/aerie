@@ -1,0 +1,21 @@
+# Copyright 2026 The Aerie Authors
+# You can use, redistribute, and/or modify this source code under
+# the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+# The theme step of aerie://setup (issue #46). Helium's onboarding page
+# controller adds this handler; see patches/onboarding/0001.
+source_set("theme_handler") {
+  visibility = [ "//chrome/browser/ui/webui:*" ]
+  sources = [
+    "aerie_theme_handler.cc",
+    "aerie_theme_handler.h",
+  ]
+  deps = [
+    "//base",
+    "//chrome/browser/profiles:profile",
+    "//chrome/browser/themes",
+    "//content/public/browser",
+    "//skia",
+    "//ui/base/mojom",
+  ]
+}

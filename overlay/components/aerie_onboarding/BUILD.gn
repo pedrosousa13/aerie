@@ -1,0 +1,42 @@
+# Copyright 2026 The Aerie Authors
+# You can use, redistribute, and/or modify this source code under
+# the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+import("//tools/grit/grit_rule.gni")
+
+# aerie://setup, the first-run setup page (issue #46). It replaces the page
+# Helium downloads (deps.ini [onboarding], dropped in
+# tools/aerie_build/helium_deps.py); Helium's page controller in
+# chrome/browser/ui/webui/onboarding serves it instead, see
+# patches/onboarding/0001.
+
+# The page: HTML, script, style, the Outfit font and its licence.
+# Headers: components/aerie_onboarding/resources/grit/
+# aerie_onboarding_resources{,_map}.h. The pak is merged into resources.pak.
+grit("resources") {
+  source = "resources/aerie_onboarding_resources.grd"
+  output_dir = "$target_gen_dir/resources"
+  outputs = [
+    "grit/aerie_onboarding_resources.h",
+    "grit/aerie_onboarding_resources_map.cc",
+    "grit/aerie_onboarding_resources_map.h",
+    "aerie_onboarding_resources.pak",
+  ]
+  inputs = [
+    "resources/OFL.txt",
+    "resources/index.html",
+    "resources/outfit.woff2",
+    "resources/setup.css",
+    "resources/setup.js",
+  ]
+}
+
+# loadTimeData keys of the page. The messages themselves are in
+# aerie_onboarding_strings.grdp, a part of chrome/app/generated_resources.grd.
+source_set("localized_strings") {
+  sources = [ "aerie_onboarding_localized_strings.h" ]
+  deps = [
+    "//chrome/app:generated_resources",
+    "//ui/base",
+  ]
+}

@@ -54,7 +54,6 @@ PENDING_SERVICES_PAGES = {
     "chrome://settings/privacy": "the Helium services row",
     "chrome://settings/privacy/services": "the Helium services page",
     "chrome://settings/languages": "the spell-check dictionary download messages",
-    "chrome://setup/": "the onboarding page",
 }
 
 # chrome://version lists the command line, the executable and the profile path. They hold the build root

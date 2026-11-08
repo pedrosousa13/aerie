@@ -17,6 +17,7 @@ class RepoOverlayTest(unittest.TestCase):
                                             "chrome/browser/aerie_adblock/",
                                             "chrome/browser/ui/views/aerie_adblock/",
                                             "chrome/browser/ui/webui/aerie_filters/",
+                                            "chrome/browser/ui/webui/aerie_onboarding/", "components/aerie_onboarding/",
                                             "components/aerie_widevine/", "chrome/browser/aerie_widevine/",
                                             "tools/metrics/histograms/metadata/aerie/",
                                             "third_party/rust/chromium_crates_io/patches/")), rel)

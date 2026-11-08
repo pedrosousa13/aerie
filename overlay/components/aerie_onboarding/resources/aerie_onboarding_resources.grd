@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Copyright 2026 The Aerie Authors
+  You can use, redistribute, and/or modify this source code under
+  the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+  Resources of aerie://setup, the first-run setup page (issue #46). The map
+  (kAerieOnboardingResources) serves each file at its resource_path;
+  index.html is the default resource.
+-->
+<grit latest_public_release="0" current_release="1">
+  <outputs>
+    <output filename="grit/aerie_onboarding_resources.h" type="rc_header">
+      <emit emit_type='prepend'></emit>
+    </output>
+    <output filename="grit/aerie_onboarding_resources_map.cc" type="resource_file_map_source" />
+    <output filename="grit/aerie_onboarding_resources_map.h" type="resource_map_header" />
+    <output filename="aerie_onboarding_resources.pak" type="data_package" />
+  </outputs>
+  <release seq="1">
+    <includes>
+      <include name="IDR_AERIE_ONBOARDING_INDEX_HTML" file="index.html" resource_path="index.html" type="BINDATA" />
+      <include name="IDR_AERIE_ONBOARDING_SETUP_JS" file="setup.js" resource_path="setup.js" type="BINDATA" />
+      <include name="IDR_AERIE_ONBOARDING_SETUP_CSS" file="setup.css" resource_path="setup.css" type="BINDATA" />
+      <include name="IDR_AERIE_ONBOARDING_OUTFIT_WOFF2" file="outfit.woff2" resource_path="outfit.woff2" type="BINDATA" compress="false" />
+      <include name="IDR_AERIE_ONBOARDING_OFL_TXT" file="OFL.txt" resource_path="OFL.txt" type="BINDATA" />
+    </includes>
+  </release>
+</grit>

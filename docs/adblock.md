@@ -16,8 +16,8 @@ feature and every dropped patch are explained in [helium-dependency-ledger.md](h
 
 The two adapted Helium patches are pinned by sha256 to Helium's originals, so a Helium bump that touches them
 fails `./aerie patches check` until they are re-cut. The method is in CONTRIBUTING.md ("Re-cutting an adapted
-patch"). The onboarding page's uBlock Origin toggle is removed by `patches/adblock/0006` (the asset is not part of
-Helium's patches).
+patch"). Helium's onboarding page, which offered a uBlock Origin toggle, is no longer downloaded: Aerie
+has its own setup page ([onboarding.md](onboarding.md)).
 
 ## How a request is judged
 
