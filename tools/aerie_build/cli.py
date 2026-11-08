@@ -37,6 +37,14 @@ def _add_common(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _add_ccache_dir(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--ccache-dir",
+        metavar="DIR",
+        help=f"compiler cache folder, to share it between build roots (env {config.ENV_CACHE_DIR}; default <build root>/ccache)",
+    )
+
+
 def _add_lock_timeout(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--lock-timeout",
@@ -56,7 +64,7 @@ def _locked(ctx: pipeline.Context, args: argparse.Namespace):
 def _context(args: argparse.Namespace) -> pipeline.Context:
     root = config.resolve_build_root(args.build_root, os.environ, REPO)
     size = config.resolve_cache_size(getattr(args, "ccache_size", None), os.environ)
-    paths = config.BuildPaths(root)
+    paths = config.BuildPaths(root, config.resolve_ccache_dir(getattr(args, "ccache_dir", None), os.environ))
     stamp = time.strftime("%Y%m%d-%H%M%S")
     return pipeline.Context(
         repo=REPO,
@@ -217,6 +225,7 @@ def main(argv: list[str] | None = None) -> int:
         metavar="SIZE",
         help=f"compiler cache cap, e.g. 30G (env {config.ENV_CACHE_SIZE}; default {config.DEFAULT_CACHE_SIZE})",
     )
+    _add_ccache_dir(p_build)
     p_build.add_argument("-j", "--jobs", type=int, help="parallel build jobs (default: autoninja's choice)")
     p_build.add_argument(
         "--source",
@@ -240,6 +249,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     _add_common(p_test)
     p_test.add_argument("--ccache-size", metavar="SIZE", help=f"compiler cache cap (env {config.ENV_CACHE_SIZE})")
+    _add_ccache_dir(p_test)
     p_test.add_argument("-j", "--jobs", type=int, help="parallel build jobs (default: autoninja's choice)")
     p_test.add_argument("--source", choices=fallback.SOURCE_MODES, help="same as ./aerie build --source")
     p_test.add_argument("--clean", action="store_true", help="same as ./aerie build --clean")
@@ -256,6 +266,7 @@ def main(argv: list[str] | None = None) -> int:
     p_prune = sub.add_parser("prune", help="delete stale downloads, old source trees and old tools")
     _add_common(p_prune)
     p_prune.add_argument("--ccache-size", metavar="SIZE", help="compiler cache cap to enforce")
+    _add_ccache_dir(p_prune)
     p_prune.add_argument("-n", "--dry-run", action="store_true", help="list what would be deleted")
     _add_lock_timeout(p_prune)
     p_prune.set_defaults(func=cmd_prune)

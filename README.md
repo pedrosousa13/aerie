@@ -99,6 +99,7 @@ Options:
 | --- | --- | --- | --- |
 | Build root | `--build-root DIR` | `AERIE_BUILD_ROOT` | `/mnt/linux2/aerie-build` |
 | Compiler cache cap | `--ccache-size SIZE` | `AERIE_CCACHE_SIZE` | `30G` |
+| Compiler cache folder | `--ccache-dir DIR` | `AERIE_CCACHE_DIR` | `<build root>/ccache` |
 | Parallel jobs | `-j N` | — | autoninja's choice |
 
 The build root must be an absolute path outside the repo checkout.

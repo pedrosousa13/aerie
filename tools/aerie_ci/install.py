@@ -11,6 +11,7 @@ from . import steps as st
 UNIT_DIR = Path(__file__).resolve().parent / "systemd"
 UNITS = ("aerie-ci-poll.service", "aerie-ci-poll.timer", "aerie-ci-nightly.service", "aerie-ci-nightly.timer")
 TIMERS = ("aerie-ci-poll.timer", "aerie-ci-nightly.timer")
+TIMER_NAMES = ("poll", "nightly")  # for --only; the gate runs from the poll timer
 
 
 def default_dest(environ: Mapping[str, str] = os.environ) -> Path:
@@ -18,7 +19,13 @@ def default_dest(environ: Mapping[str, str] = os.environ) -> Path:
     return Path(config) / "systemd" / "user"
 
 
-def install(dest: Path, repo: Path, *, shell: st.Shell | None = None, enable: bool = False) -> list[Path]:
+def install(dest: Path, repo: Path, *, shell: st.Shell | None = None, enable: bool = False,
+            only: tuple[str, ...] | None = None) -> list[Path]:
+    """Write every unit file. With enable, start the timers: all of them, or just those named in only."""
+    unknown = set(only or ()) - set(TIMER_NAMES)
+    if unknown:
+        raise ValueError(f"unknown timer {sorted(unknown)}; choose from {list(TIMER_NAMES)}")
+    timers = [t for t in TIMERS if only is None or t.split("-")[2].split(".")[0] in only]
     dest.mkdir(parents=True, exist_ok=True)
     written = []
     for name in UNITS:
@@ -29,5 +36,5 @@ def install(dest: Path, repo: Path, *, shell: st.Shell | None = None, enable: bo
     if enable:
         shell = shell or st.Shell()
         shell.capture(["systemctl", "--user", "daemon-reload"])
-        shell.capture(["systemctl", "--user", "enable", "--now", *TIMERS])
+        shell.capture(["systemctl", "--user", "enable", "--now", *timers])
     return written

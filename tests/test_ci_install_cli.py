@@ -3,6 +3,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from aerie_build.config import ConfigError
 from aerie_ci import cli, gate, install
 
 from .ci_fakes import ME, SHA_A, FakeGh, FakeShell, pr
@@ -50,6 +51,22 @@ class InstallTest(unittest.TestCase):
         self.assertEqual(j[1], "systemctl --user enable --now aerie-ci-poll.timer aerie-ci-nightly.timer")
         self.assertFalse(any("sudo" in c for c in j))
 
+    def test_only_nightly_enables_just_the_nightly_timer_and_still_writes_every_unit(self):
+        shell = FakeShell()
+        written = install.install(self.dest, self.repo, shell=shell, enable=True, only=("nightly",))
+        self.assertEqual(len(written), 4)  # poll and gate units stay available, off
+        self.assertEqual(shell.joined()[1], "systemctl --user enable --now aerie-ci-nightly.timer")
+        self.assertFalse(any("poll" in c for c in shell.joined()))
+
+    def test_only_poll_enables_just_the_poll_timer(self):
+        shell = FakeShell()
+        install.install(self.dest, self.repo, shell=shell, enable=True, only=("poll",))
+        self.assertEqual(shell.joined()[1], "systemctl --user enable --now aerie-ci-poll.timer")
+
+    def test_only_rejects_an_unknown_name(self):
+        with self.assertRaises(ValueError):
+            install.install(self.dest, self.repo, enable=True, only=("gate",))
+
     def test_default_destination_is_the_user_systemd_dir(self):
         self.assertEqual(install.default_dest({"HOME": "/home/x"}), Path("/home/x/.config/systemd/user"))
         self.assertEqual(install.default_dest({"HOME": "/h", "XDG_CONFIG_HOME": "/c"}), Path("/c/systemd/user"))
@@ -95,7 +112,52 @@ class CliTest(unittest.TestCase):
         self.shell.fail = {"aerie build": 1}
         self.assertEqual(cli.main(["nightly"]), 1)
 
+    def test_install_command_only_nightly(self):
+        dest = self.root / "units"
+        with mock.patch.object(install.st.Shell, "capture", return_value="") as cap:
+            self.assertEqual(cli.main(["install", "--dest", str(dest), "--enable", "--only", "nightly"]), 0)
+        self.assertEqual(cap.call_args_list[-1].args[0][-1], "aerie-ci-nightly.timer")
+        self.assertTrue((dest / "aerie-ci-poll.timer").is_file())
+
+    def test_install_only_without_enable_is_an_error(self):
+        self.assertEqual(cli.main(["install", "--dest", str(self.root / "u"), "--only", "nightly"]), 1)
+
     def test_install_command_writes_units(self):
         dest = self.root / "units"
         self.assertEqual(cli.main(["install", "--dest", str(dest)]), 0)
         self.assertTrue((dest / "aerie-ci-poll.timer").is_file())
+
+
+class NightlyRootTest(unittest.TestCase):
+    MAIN = "/mnt/x/aerie-build"
+
+    def roots(self, argv, environ):
+        args = cli.build_parser().parse_args(argv)
+        return cli.nightly_roots(args, {"AERIE_BUILD_ROOT": self.MAIN, **environ})
+
+    def test_default_is_a_sibling_root_that_shares_the_main_cache(self):
+        root, cache = self.roots(["nightly"], {})
+        self.assertEqual(root, Path("/mnt/linux2/aerie-build-nightly"))
+        self.assertEqual(cache, Path(self.MAIN) / "ccache")
+
+    def test_the_main_root_environment_is_not_the_nightly_root(self):
+        root, _ = self.roots(["nightly"], {})
+        self.assertNotEqual(root, Path(self.MAIN))
+
+    def test_flag_beats_env_beats_default(self):
+        env = {"AERIE_NIGHTLY_BUILD_ROOT": "/mnt/x/n-env"}
+        self.assertEqual(self.roots(["nightly"], env)[0], Path("/mnt/x/n-env"))
+        self.assertEqual(self.roots(["nightly", "--build-root", "/mnt/x/n-flag"], env)[0], Path("/mnt/x/n-flag"))
+
+    def test_ccache_dir_flag_and_env(self):
+        self.assertEqual(self.roots(["nightly"], {"AERIE_CCACHE_DIR": "/c/e"})[1], Path("/c/e"))
+        self.assertEqual(self.roots(["nightly", "--ccache-dir", "/c/f"], {"AERIE_CCACHE_DIR": "/c/e"})[1], Path("/c/f"))
+
+    def test_refuses_the_main_root_or_a_root_inside_it(self):
+        for bad in (self.MAIN, self.MAIN + "/nightly"):
+            with self.subTest(bad=bad), self.assertRaises(ConfigError):
+                self.roots(["nightly", "--build-root", bad], {})
+
+    def test_refuses_a_root_that_contains_the_main_root(self):
+        with self.assertRaises(ConfigError):
+            self.roots(["nightly", "--build-root", "/mnt/x"], {})

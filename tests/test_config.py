@@ -64,6 +64,30 @@ class CacheSizeTest(unittest.TestCase):
                     config.resolve_cache_size(bad, {})
 
 
+class CcacheDirTest(unittest.TestCase):
+    def test_default_is_none_so_the_cache_stays_in_the_build_root(self):
+        self.assertIsNone(config.resolve_ccache_dir(None, {}))
+
+    def test_env_and_flag_precedence(self):
+        env = {"AERIE_CCACHE_DIR": "/mnt/x/cache"}
+        self.assertEqual(config.resolve_ccache_dir(None, env), Path("/mnt/x/cache"))
+        self.assertEqual(config.resolve_ccache_dir("/mnt/y/cache", env), Path("/mnt/y/cache"))
+
+    def test_must_be_absolute(self):
+        with self.assertRaises(ConfigError):
+            config.resolve_ccache_dir("cache", {})
+
+    def test_paths_use_it_and_the_env_points_ccache_at_it(self):
+        paths = config.BuildPaths(Path("/r/nightly"), ccache_dir=Path("/r/main/ccache"))
+        self.assertEqual(paths.ccache, Path("/r/main/ccache"))
+        self.assertIn(Path("/r/main/ccache"), paths.scratch_dirs())
+        self.assertEqual(config.isolated_env(paths, {})["CCACHE_DIR"], "/r/main/ccache")
+        self.assertEqual(paths.src, Path("/r/nightly/src"))  # everything else stays in its own root
+
+    def test_without_it_the_cache_is_in_the_root(self):
+        self.assertEqual(config.BuildPaths(Path("/r")).ccache, Path("/r/ccache"))
+
+
 class BuildPathsTest(unittest.TestCase):
     def test_everything_lives_under_root(self):
         root = Path("/mnt/x/aerie-build")

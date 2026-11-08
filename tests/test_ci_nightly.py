@@ -19,10 +19,12 @@ class NightlyTest(unittest.TestCase):
         self.ci_root = Path(self._tmp.name) / "build-ci"  # outside the build root, see docs/ci.md
         self.shell = FakeShell()
         self.gh = FakeGh()
+        self.main_root = Path(self._tmp.name) / "main-build"  # the train's build root, which the nightly never uses
+        self.cache = self.main_root / "ccache"
 
     def cfg(self, **kw):
         return CiConfig(repo=Path(self._tmp.name) / "repo", build_root=self.root, shell=self.shell, gh=self.gh,
-                          python="python3", lock_timeout=0,
+                          python="python3", lock_timeout=0, ccache_dir=self.cache,
                           environ={"PATH": "/usr/bin", "GH_TOKEN": "ghp_" + "Q" * 36}, **kw)
 
     def run_nightly(self, **kw):
@@ -48,7 +50,10 @@ class NightlyTest(unittest.TestCase):
         self.assertEqual(data["date"], "2026-11-09")
         self.assertEqual(data["sha"], SHA_A)
         bench = [c for c in self.shell.calls if "bench" in c and "--out" in c][-1]
-        self.assertEqual(bench[bench.index("--out") + 1], str(day / "bench"))
+        # Bench output lives in the nightly build root; the log and summary stay in the CI folder
+        out = self.root / "bench" / "2026-11-09"
+        self.assertEqual(bench[bench.index("--out") + 1], str(out))
+        self.assertEqual(data["bench"], str(out))
 
     def test_success_reports_nothing(self):
         self.run_nightly()
@@ -61,7 +66,7 @@ class NightlyTest(unittest.TestCase):
         self.assertEqual(kind, "create")
         self.assertIn("2026-11-09", title)
         self.assertIn("nightly.log", body)
-        self.assertIn("bench", body)
+        self.assertIn(str(self.root / "bench" / "2026-11-09"), body)
 
     def test_failure_comments_on_a_standing_issue_when_configured(self):
         self.shell.fail = {"aerie build": 2}
@@ -92,3 +97,31 @@ class NightlyTest(unittest.TestCase):
     def test_worktree_is_removed(self):
         self.run_nightly()
         self.assertTrue(self.shell.ran("worktree remove --force"))
+
+
+    def test_every_step_uses_the_nightly_root_never_the_main_one(self):
+        self.run_nightly()
+        for call in self.shell.calls:
+            if "--build-root" in call:
+                self.assertEqual(call[call.index("--build-root") + 1], str(self.root))
+        self.assertFalse(any(str(self.main_root / "src") in c for c in self.shell.joined()))
+
+    def test_the_build_shares_the_compiler_cache_and_the_bench_does_not_need_it(self):
+        self.run_nightly()
+        build = next(c for c in self.shell.calls if "build" in c and "--clean" in c)
+        self.assertEqual(build[build.index("--ccache-dir") + 1], str(self.cache))
+        bench = [c for c in self.shell.calls if "bench" in c and "--check" in c][-1]
+        self.assertNotIn("--ccache-dir", bench)
+
+    def test_no_shared_cache_means_no_flag(self):
+        cfg = CiConfig(repo=Path(self._tmp.name) / "repo", build_root=self.root, shell=self.shell, gh=self.gh,
+                       python="python3", lock_timeout=0, environ={"PATH": "/usr/bin"})
+        nightly.run_nightly(cfg, today=lambda: "2026-11-09")
+        self.assertFalse(any("--ccache-dir" in c for c in self.shell.calls))
+
+    def test_a_busy_main_build_root_does_not_stop_the_nightly(self):
+        # A real flock on the main root. The nightly's lock is the one in its own root.
+        with buildlock.build_tree_lock(self.main_root):
+            self.assertEqual(self.run_nightly(), nightly.PASS)
+        self.assertTrue((self.root / buildlock.LOCK_NAME).is_file())
+        self.assertFalse((self.main_root / "src").exists())

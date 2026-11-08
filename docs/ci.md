@@ -1,7 +1,9 @@
 # Local CI
 
-CI runs on the Linux build machine, as the maintainer's user, from two systemd
-user timers. It uses no GitHub Actions runner and no sudo. The commands are
+CI runs on the Linux build machine, as the maintainer's user, from systemd
+user timers. The recommended setup runs only the nightly (see "Install"); the
+per-PR gate is available but off, because the build train is the merge gate. It uses no GitHub Actions
+runner and no sudo. The commands are
 plain CLI steps, so a later Actions workflow on a self-hosted runner (#14) can
 call the same ones.
 
@@ -13,8 +15,8 @@ python3 -m tools.aerie_ci install     # write the systemd user units
 ```
 
 Run them from the repo root. Python 3.11+, standard library only, plus `gh` and `git`.
-Options for `poll`, `gate` and `nightly`: `--build-root DIR` (env `AERIE_BUILD_ROOT`)
-and `--lock-timeout SEC`.
+Options for `poll` and `gate`: `--build-root DIR` (env `AERIE_BUILD_ROOT`)
+and `--lock-timeout SEC`. `nightly` takes its own root and cache options (see "Nightly").
 
 ## PR gate
 
@@ -45,21 +47,63 @@ C++ unit tests join the gate when any can run (#54).
 ## Nightly
 
 `nightly` fetches `main`, builds it with `./aerie build --clean`, and runs the
-full Bench (every registered check, `zero_traffic` included). Results are in
-`<CI folder>/nightly/<date>/`: `nightly.log`, `summary.json` and `bench/`.
-`--clean` removes the source tree and the pristine snapshot, but the compiler
-cache stays, so it is a clean tree and not a cold cache.
+full Bench (every registered check, `zero_traffic` included). It does this in its
+own build root, so it never replaces the build the maintainer tests from.
 
-A failure, or a night when the build tree stayed busy, opens an issue titled
+| Setting | Flag | Environment | Default |
+| --- | --- | --- | --- |
+| Nightly build root | `--build-root DIR` | `AERIE_NIGHTLY_BUILD_ROOT` | `/mnt/linux2/aerie-build-nightly` |
+| Shared compiler cache | `--ccache-dir DIR` | `AERIE_CCACHE_DIR` | `<main build root>/ccache` |
+
+`AERIE_BUILD_ROOT` names the main root (the build train's). The nightly never uses it as
+its own root, and refuses a root that is the main root, inside it, or around it.
+
+The nightly root holds the source tree, `out/`, downloads, the toolchain and the Bench
+output (`<nightly root>/bench/<date>/`). Only the compiler cache is outside it: the nightly
+points `./aerie build` at the main root's cache with `--ccache-dir`. The log and summary
+are in `<CI folder>/nightly/<date>/` (`nightly.log`, `summary.json`); the CI folder is
+`<nightly root>-ci`, so `/mnt/linux2/aerie-build-nightly-ci` by default.
+
+`--clean` removes the nightly's source tree and pristine snapshot, but the compiler
+cache stays, so it is a clean tree and not a cold cache. Be careful with this claim:
+ccache helps little on this build (see the README timing section: Chromium compiles most C++
+with Clang modules, which ccache does not cache by default). The cache is shared so the nightly
+does not start from nothing, but nobody has measured the hit rate across two different tree paths.
+Check the `ccache --show-stats` lines in the first nightly build log.
+
+### The compiler cache and two trees at once
+
+The nightly and a build train can compile at the same time, both with `CCACHE_DIR` set to
+the main root's `ccache` folder. ccache is built for that: it writes each entry to a
+temporary file and renames it into place, and it takes its own per-file locks. Aerie adds no
+lock for it. Two things to know:
+
+- Both builds write `ccache.conf` at the start (cap from `--ccache-size` or `AERIE_CCACHE_SIZE`,
+  default `30G`). Give the nightly the same cap as the train, or the later writer wins.
+- `./aerie prune` runs `ccache --cleanup` and trims the cache to its cap (ccache also evicts old entries
+  as it writes). A trim while the other build runs can remove entries that build would have used. That costs a miss, not a wrong result.
+
+The nightly takes `build.lock` in its own root only. It does not wait for the main root's
+lock, and a build train does not wait for it, because they share no tree. If you point
+`--build-root` at the main root (this is refused) they would share everything and need that lock.
+
+A failure, or a night when the nightly root stayed busy, opens an issue titled
 "Nightly CI failed <date>". Set `AERIE_CI_NIGHTLY_ISSUE=<number>` to comment on
 a standing issue instead. A success reports nothing.
+
+### Disk space
+
+A second Chromium tree is large: source, `out/Default` and downloads are tens of GB, on top of
+the main root. Check free space on the volume that holds `/mnt/linux2/aerie-build-nightly`
+before the first run (`df -h /mnt/linux2`). `./aerie prune --build-root /mnt/linux2/aerie-build-nightly`
+removes stale downloads and old trees there.
 
 ## Where CI files live
 
 The CI folder is `<build root>-ci`, a sibling of the build root (for example
-`/mnt/linux2/aerie-build-ci`). It holds `gated.json`, `poll.lock`, `logs/`, `nightly/`
+`/mnt/linux2/aerie-build-ci` for the gate, `/mnt/linux2/aerie-build-nightly-ci` for the nightly). It holds `gated.json`, `poll.lock`, `logs/`, `nightly/`
 and `worktrees/`. It is not inside the build root, because `./aerie` refuses a
-checkout inside its build root and each gate worktree is a checkout. The shared tree,
+checkout inside its build root and each gate worktree is a checkout. The tree,
 downloads and `build.lock` stay in the build root.
 
 ## The build-tree lock
@@ -96,10 +140,23 @@ gated, so the next poll gates that head again.
 
 ## Install
 
+Recommended: the nightly only.
+
 ```sh
-python3 -m tools.aerie_ci install            # writes four files to ~/.config/systemd/user/
-python3 -m tools.aerie_ci install --enable   # also daemon-reload and enable --now both timers
+python3 -m tools.aerie_ci install --enable --only nightly
 ```
+
+This writes all four unit files to `~/.config/systemd/user/`, then runs `daemon-reload` and
+`enable --now aerie-ci-nightly.timer`. The poll units are written but not enabled, so the
+gate stays available (`gate N` by hand, or `systemctl --user enable --now aerie-ci-poll.timer`
+later) and off.
+
+```sh
+python3 -m tools.aerie_ci install            # writes four files to ~/.config/systemd/user/, starts nothing
+python3 -m tools.aerie_ci install --enable   # also enable --now both timers
+```
+
+`--only` takes `poll` or `nightly`, can be repeated, and needs `--enable`.
 
 | Unit | Runs |
 | --- | --- |
@@ -107,9 +164,11 @@ python3 -m tools.aerie_ci install --enable   # also daemon-reload and enable --n
 | `aerie-ci-nightly.timer` | `nightly` at 02:30 (with a small random delay; runs at next start if missed) |
 
 The unit templates are in `tools/aerie_ci/systemd/`; `install` fills in the repo path.
-The units run from the repo checkout, so keep that checkout on `main`. To see runs: `journalctl --user -u aerie-ci-poll`.
+The units run from the repo checkout, so keep that checkout on `main`. To see runs: `journalctl --user -u aerie-ci-nightly`.
 
 ## Branch protection
+
+Only if you run the gate. With the nightly-only setup, do not do this: the build train is the merge gate, and a required `aerie/gate` check would block every PR because nothing posts it.
 
 One step, done once by the maintainer after the first `aerie/gate` status exists:
 
@@ -139,4 +198,5 @@ The repo is public, so code from anyone else must never run here.
 python3 -m unittest tests.test_build_lock tests.test_ci_gh tests.test_ci_gate tests.test_ci_nightly tests.test_ci_install_cli -v
 ```
 
-They mock `gh`, `git` and every subprocess, and run in under a second.
+The gate and nightly tests mock `gh`, `git` and the build commands; the lock tests, the
+root and cache option tests and the nightly's separate-root lock test use real files and a real `flock`.

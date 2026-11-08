@@ -32,6 +32,7 @@ class CiConfig:
     maintainer: str = MAINTAINER
     python: str = sys.executable
     lock_timeout: float | None = None
+    ccache_dir: Path | None = None  # a compiler cache shared with another build root (the nightly)
     ci_dir: Path | None = None  # default: a sibling of the build root, see ci_root
     environ: Mapping[str, str] = field(default_factory=lambda: dict(os.environ))
     shell: st.Shell = field(default_factory=st.Shell)
