@@ -15,6 +15,9 @@ HOST = "127.0.0.1"
 FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures"
 _TYPES = {".html": "text/html; charset=utf-8", ".css": "text/css", ".js": "text/javascript",
           ".json": "application/json", ".txt": "text/plain; charset=utf-8", ".png": "image/png"}
+# Headers a static page needs. The device memory page opts in to the device memory client hint, so
+# its next loads and their subresource requests carry it.
+_PAGE_HEADERS = {"/hardening/device-memory.html": {"Accept-CH": "Sec-CH-Device-Memory, Device-Memory"}}
 
 
 class FixtureServer:
@@ -34,7 +37,7 @@ class FixtureServer:
                 path = self.path.split("?", 1)[0].split("#", 1)[0]
                 dynamic = outer._dynamic(path, self.path, self.headers)
                 body, status, ctype = dynamic[:3] if dynamic else outer._lookup(path)
-                extra = dynamic[3] if dynamic else {}
+                extra = dynamic[3] if dynamic else dict(_PAGE_HEADERS.get(path, {}))
                 location = None if dynamic else outer._redirects().get(path)
                 if location:
                     body, status, ctype = b"", 302, "text/plain; charset=utf-8"
@@ -46,6 +49,8 @@ class FixtureServer:
                         "cookie": self.headers.get("Cookie", ""),
                         "sec_purpose": self.headers.get("Sec-Purpose", ""),
                         "purpose": self.headers.get("Purpose", ""),
+                        "sec_ch_device_memory": self.headers.get("Sec-CH-Device-Memory", ""),
+                        "device_memory": self.headers.get("Device-Memory", ""),
                     })
                 try:
                     self.send_response(status)

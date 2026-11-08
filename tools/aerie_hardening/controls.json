@@ -181,22 +181,23 @@
     {
       "id": "fingerprinting",
       "title": "Fingerprinting randomization",
-      "summary": "Canvas and audio output carry small random noise. The noise differs for each site and for each browser session, and can be turned off for a single site.",
+      "summary": "Canvas and audio output carry small random noise. The noise differs for each site and for each browser session, and can be turned off for a single site. The reported device memory is capped at 8 GB.",
       "default": "On.",
       "provided_by": "helium",
       "default_set_in": [
         "helium-chromium/patches/helium/core/noise/core.patch: helium.noise.enabled defaults to true",
         "helium-chromium/patches/helium/core/noise/canvas.patch and audio.patch: the canvas and audio noise"
       ],
-      "upstream": ["content/browser/helium_noise/noise_token_data.cc", "third_party/blink/common/features.cc (HeliumNoise)"],
-      "aerie_patches": ["hardening/0009-stable-audio-noise-per-site-and-session.patch"],
+      "upstream": ["content/browser/helium_noise/noise_token_data.cc", "third_party/blink/common/features.cc (HeliumNoise)", "third_party/blink/common/device_memory/approximated_device_memory.cc (the 8 GB cap)"],
+      "aerie_patches": ["hardening/0009-stable-audio-noise-per-site-and-session.patch", "hardening/0012-cap-device-memory-at-8gb.patch"],
       "notes": [
-        "Audio noise is seeded from the site and session only, so one site gets the same audio output on every render and every AnalyserNode read of the same signal in one session. A tracker cannot average the noise away by reading again."
+        "Audio noise is seeded from the site and session only, so one site gets the same audio output on every render and every AnalyserNode read of the same signal in one session. A tracker cannot average the noise away by reading again.",
+        "Device memory (navigator.deviceMemory, in workers, and the Device-Memory and Sec-CH-Device-Memory headers) is capped at 8 GB, where Chromium's desktop maximum is 32 GB. A machine with less than 8 GB keeps its real bucket. There is no noise on this value. The cap is the one exception to the rule that turning fingerprinting protection off restores the real value: it follows the HeliumNoise feature only, so it stays on when the setting is off, globally or for one site, and only --disable-features=HeliumNoise lifts it."
       ],
       "pref": {"name": "helium.noise.enabled", "default": true},
       "cost": "Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page.",
       "ui": {"kind": "toggle", "pref": "helium.noise.enabled"},
-      "bench_checks": ["hardening_fingerprinting"]
+      "bench_checks": ["hardening_fingerprinting", "hardening_device_memory"]
     },
     {
       "id": "widevine",

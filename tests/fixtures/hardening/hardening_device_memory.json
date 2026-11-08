@@ -1,0 +1,245 @@
+{
+ "check": "hardening_device_memory",
+ "cases": [
+  {
+   "name": "capped_with_protection_on_and_off",
+   "expect": "pass",
+   "detail_contains": "",
+   "obs": {
+    "main": {
+     "window": 8,
+     "worker": 8,
+     "header": "8"
+    },
+    "pref_off": {
+     "window": 8,
+     "worker": 8,
+     "header": "8"
+    },
+    "control": {
+     "window": 32,
+     "worker": 32,
+     "header": "32"
+    }
+   }
+  },
+  {
+   "name": "window_not_capped",
+   "expect": "fail",
+   "detail_contains": "navigator.deviceMemory",
+   "obs": {
+    "main": {
+     "window": 32,
+     "worker": 8,
+     "header": "8"
+    },
+    "pref_off": {
+     "window": 8,
+     "worker": 8,
+     "header": "8"
+    },
+    "control": {
+     "window": 32,
+     "worker": 32,
+     "header": "32"
+    }
+   }
+  },
+  {
+   "name": "worker_not_capped",
+   "expect": "fail",
+   "detail_contains": "worker",
+   "obs": {
+    "main": {
+     "window": 8,
+     "worker": 16,
+     "header": "8"
+    },
+    "pref_off": {
+     "window": 8,
+     "worker": 8,
+     "header": "8"
+    },
+    "control": {
+     "window": 32,
+     "worker": 32,
+     "header": "32"
+    }
+   }
+  },
+  {
+   "name": "header_not_capped",
+   "expect": "fail",
+   "detail_contains": "Sec-CH-Device-Memory",
+   "obs": {
+    "main": {
+     "window": 8,
+     "worker": 8,
+     "header": "32"
+    },
+    "pref_off": {
+     "window": 8,
+     "worker": 8,
+     "header": "8"
+    },
+    "control": {
+     "window": 32,
+     "worker": 32,
+     "header": "32"
+    }
+   }
+  },
+  {
+   "name": "header_never_sent",
+   "expect": "fail",
+   "detail_contains": "Sec-CH-Device-Memory",
+   "obs": {
+    "main": {
+     "window": 8,
+     "worker": 8,
+     "header": null
+    },
+    "pref_off": {
+     "window": 8,
+     "worker": 8,
+     "header": "8"
+    },
+    "control": {
+     "window": 32,
+     "worker": 32,
+     "header": "32"
+    }
+   }
+  },
+  {
+   "name": "cap_lost_when_pref_off",
+   "expect": "fail",
+   "detail_contains": "pref off",
+   "obs": {
+    "main": {
+     "window": 8,
+     "worker": 8,
+     "header": "8"
+    },
+    "pref_off": {
+     "window": 32,
+     "worker": 8,
+     "header": "8"
+    },
+    "control": {
+     "window": 32,
+     "worker": 32,
+     "header": "32"
+    }
+   }
+  },
+  {
+   "name": "negative_control_header_missing",
+   "expect": "fail",
+   "detail_contains": "negative control failed",
+   "obs": {
+    "main": {
+     "window": 8,
+     "worker": 8,
+     "header": "8"
+    },
+    "pref_off": {
+     "window": 8,
+     "worker": 8,
+     "header": "8"
+    },
+    "control": {
+     "window": 32,
+     "worker": 32,
+     "header": null
+    }
+   }
+  },
+  {
+   "name": "negative_control_still_capped_header",
+   "expect": "fail",
+   "detail_contains": "negative control failed",
+   "obs": {
+    "main": {
+     "window": 8,
+     "worker": 8,
+     "header": "8"
+    },
+    "pref_off": {
+     "window": 8,
+     "worker": 8,
+     "header": "8"
+    },
+    "control": {
+     "window": 32,
+     "worker": 32,
+     "header": "8"
+    }
+   }
+  },
+  {
+   "name": "small_machine_is_inconclusive",
+   "expect": "error",
+   "detail_contains": "inconclusive",
+   "obs": {
+    "main": {
+     "window": 4,
+     "worker": 4,
+     "header": "4"
+    },
+    "pref_off": {
+     "window": 4,
+     "worker": 4,
+     "header": "4"
+    },
+    "control": {
+     "window": 4,
+     "worker": 4,
+     "header": "4"
+    }
+   }
+  },
+  {
+   "name": "eight_gb_machine_is_inconclusive",
+   "expect": "error",
+   "detail_contains": "inconclusive",
+   "obs": {
+    "main": {
+     "window": 8,
+     "worker": 8,
+     "header": "8"
+    },
+    "pref_off": {
+     "window": 8,
+     "worker": 8,
+     "header": "8"
+    },
+    "control": {
+     "window": 8,
+     "worker": 8,
+     "header": "8"
+    }
+   }
+  },
+  {
+   "name": "page_error",
+   "expect": "fail",
+   "detail_contains": "failed",
+   "obs": {
+    "main": {
+     "error": "timeout waiting for the fixture page"
+    },
+    "pref_off": {
+     "window": 8,
+     "worker": 8,
+     "header": "8"
+    },
+    "control": {
+     "window": 32,
+     "worker": 32,
+     "header": "32"
+    }
+   }
+  }
+ ]
+}

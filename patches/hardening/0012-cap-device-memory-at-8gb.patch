@@ -1,0 +1,36 @@
+Aerie-Purpose: Cap the reported device memory (navigator.deviceMemory, workers, Device-Memory and Sec-CH-Device-Memory) at 8 GB on desktop, so a machine with more memory looks like the common 8 GB one.
+Aerie-Upstream-Area: third_party/blink/common/device_memory/approximated_device_memory.cc (ApproximatedDeviceMemory::CalculateAndSetApproximatedDeviceMemory)
+Aerie-Kind: hook
+
+Upstream clamps the value to 2..32 GB on desktop (crbug.com/454354290 raised the top
+from 8 to 32) and to 1..8 GB on Android. This patch sets the desktop top to 8 while the
+HeliumNoise feature is enabled. One edit covers navigator.deviceMemory in windows and
+workers and both client hint headers, because they all read the same cached value.
+
+The cap follows the HeliumNoise feature only. It does not read the helium.noise.enabled
+pref or the per-site HELIUM_NOISE content setting, so it stays at 8 when fingerprinting
+protection is turned off, globally or for one site. This is the one exception to "off
+restores the real value", decided in issue #115: a site that sees the real 32 learns
+something about the machine and helps nobody. There is no farbling. A machine with less
+than 8 GB keeps its real bucket (the lower clamp of 2 GB is unchanged). Starting the
+browser with --disable-features=HeliumNoise lifts the cap; the Bench uses that as its
+negative control.
+
+--- a/third_party/blink/common/device_memory/approximated_device_memory.cc
++++ b/third_party/blink/common/device_memory/approximated_device_memory.cc
+@@ -71,6 +71,15 @@
+     kMaxMemory = 8.0f;
+ #endif
+ 
++  // Aerie: cap at 8 GB on desktop too. Machines with more memory are rare, so
++  // a larger value only tells a site more about this one. This follows the
++  // HeliumNoise feature alone, not the fingerprinting pref or the per-site
++  // switch: like the reduced user agent, it is a normalisation that stays on
++  // when the noise is turned off.
++  if (base::FeatureList::IsEnabled(features::kHeliumNoise)) {
++    kMaxMemory = 8.0f;
++  }
++
+   if (approximated_device_memory_gb_ < kMinMemory) {
+     approximated_device_memory_gb_ = kMinMemory;
+   } else if (approximated_device_memory_gb_ > kMaxMemory) {

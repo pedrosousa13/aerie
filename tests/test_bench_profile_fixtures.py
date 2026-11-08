@@ -108,6 +108,20 @@ class FixtureServerTest(unittest.TestCase):
             (rec,) = s.snapshot()
             self.assertEqual((rec["cookie"], rec["sec_purpose"], rec["purpose"]), ("tp=1", "prefetch", "prefetch"))
 
+    def test_request_log_records_the_device_memory_hints(self):
+        with fixtures.FixtureServer() as s:
+            req = urllib.request.Request(s.base_url + "/index.html", headers={
+                "Sec-CH-Device-Memory": "8", "Device-Memory": "8"})
+            urllib.request.urlopen(req).read()
+            (rec,) = s.snapshot()
+            self.assertEqual((rec["sec_ch_device_memory"], rec["device_memory"]), ("8", "8"))
+
+    def test_device_memory_page_asks_for_the_hint_and_other_pages_do_not(self):
+        with fixtures.FixtureServer() as s:
+            page = urllib.request.urlopen(s.base_url + "/hardening/device-memory.html")
+            self.assertIn("Sec-CH-Device-Memory", page.headers["Accept-CH"])
+            self.assertIsNone(urllib.request.urlopen(s.base_url + "/index.html").headers["Accept-CH"])
+
     def test_echo_route_returns_request_cookie_and_host(self):
         with fixtures.FixtureServer() as s:
             req = urllib.request.Request(s.base_url + "/hardening/echo", headers={"Cookie": "tp=1"})
