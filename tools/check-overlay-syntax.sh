@@ -45,6 +45,30 @@ printf '#define IDR_AERIE_ADBLOCK_ENGINE 1\n#define IDR_AERIE_ADBLOCK_EASYLIST 2
 mkdir -p "$WORK/stub/chrome/browser/ui/webui/aerie_filters/grit"
 printf '#define IDR_AERIE_FILTERS_HTML 1\n#define IDR_AERIE_FILTERS_JS 2\n#define IDR_AERIE_FILTERS_CSS 3\n' > "$WORK/stub/chrome/browser/ui/webui/aerie_filters/grit/aerie_filters_resources.h"
 
+# The headers that grit and the vector icon aggregator generate in a real build, as stand-ins: one #define for every
+# message of the overlay's grdp files (the tree's generated_resources.h predates them), and one declaration for every
+# overlay .icon (the generated header is vector_icons.h next to the icons).
+: > "$WORK/stub_ids.h"
+for g in $(find "$O" -name '*.grdp'); do
+  grep -o 'name="IDS_[A-Z0-9_]*"' "$g" | sed 's/name="\(.*\)"/#ifndef \1\n#define \1 1\n#endif/' >> "$WORK/stub_ids.h"
+done
+for d in $(find "$O" -name '*.icon' -printf '%h\n' | sort -u); do
+  rel=${d#"$O"/}; mkdir -p "$WORK/stub/$rel"
+  ns=$(sed -n 's/^namespace \([a-z_]*\) {$/\1/p' "$d/vector_icons.h.template" | tail -1)
+  { printf '#pragma once\nnamespace gfx { struct VectorIcon; }\nnamespace %s {\n' "$ns"
+    for i in "$d"/*.icon; do
+      b=$(basename "$i" .icon); printf 'extern const gfx::VectorIcon k%s;\n' "$(echo "$b" | sed -E 's/(^|_)([a-z0-9])/\U\2/g')Icon"
+    done
+    printf '}\n'; } > "$WORK/stub/$rel/vector_icons.h"
+done
+
+# A tree prepared before patches/adblock/0014 has no kActionAerieGuard: stand in for that patch's one line.
+if ! grep -q kActionAerieGuard "$TREE/chrome/browser/ui/actions/chrome_action_id.h"; then
+  mkdir -p "$WORK/stub/chrome/browser/ui/actions"
+  sed 's/^  E(kActionShowJsOptimizationsIcon) \\$/&\n  E(kActionAerieGuard) \\/' \
+    "$TREE/chrome/browser/ui/actions/chrome_action_id.h" > "$WORK/stub/chrome/browser/ui/actions/chrome_action_id.h"
+fi
+
 # The mojom bindings of the overlay's interfaces, from the tree's own generator (reads the tree, writes only $WORK).
 for m in $(cd "$O" && find components -name '*.mojom' | sort); do
   mkdir -p "$WORK/mj/src/$(dirname "$m")"; cp "$O/$m" "$WORK/mj/src/$m"
@@ -62,7 +86,7 @@ for f in "${FILES[@]}"; do
       -D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_EXTENSIVE -DLIBCXX_BUILDING_LIBCXXABI=0 \
       -nostdinc++ -isystem "$TREE/third_party/libc++/src/include" -isystem "$TREE/third_party/libc++abi/src/include" \
       -isystem "$TREE/buildtools/third_party/libc++" --sysroot="$TREE/build/linux/debian_bullseye_amd64-sysroot" \
-      -I"$WORK/stub" -I"$WORK/mj/gen" -I"$O" -I"$TREE" -I"$GEN" -I"$TREE/v8/include" -I"$GEN/v8/include" \
+      -include "$WORK/stub_ids.h" -I"$WORK/stub" -I"$WORK/mj/gen" -I"$O" -I"$TREE" -I"$GEN" -I"$TREE/v8/include" -I"$GEN/v8/include" \
       -I"$TREE/third_party/abseil-cpp" -I"$TREE/third_party/protobuf/src" -I"$TREE/base/allocator/partition_allocator/src" \
       -I"$GEN/base/allocator/partition_allocator/src" -I"$TREE/third_party/perfetto/include" -I"$GEN/third_party/perfetto" \
       -I"$GEN/third_party/perfetto/build_config" -I"$TREE/third_party/boringssl/src/include" -I"$TREE/third_party/icu/source/common" \

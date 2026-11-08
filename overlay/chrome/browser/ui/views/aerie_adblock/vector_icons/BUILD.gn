@@ -1,0 +1,28 @@
+# Copyright 2026 The Aerie Authors
+# You can use, redistribute, and/or modify this source code under
+# the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+import("//components/vector_icons/vector_icons.gni")
+
+# The two looks of the Aerie Guard icon (issue #99): on, and off for the site.
+# Same shape as //chrome/browser/indigo/resources. The generated header is
+# chrome/browser/ui/views/aerie_adblock/vector_icons/vector_icons.h, namespace
+# aerie_guard.
+aggregate_vector_icons("aerie_guard_vector_icons") {
+  icon_directory = "."
+  sources = [
+    "aerie_guard_off.icon",
+    "aerie_guard_on.icon",
+  ]
+}
+
+source_set("vector_icons") {
+  visibility = [ "//chrome/browser/ui/views/aerie_adblock:*" ]
+  sources = get_target_outputs(":aerie_guard_vector_icons")
+  deps = [
+    ":aerie_guard_vector_icons",
+    "//base",
+    "//skia",
+    "//ui/gfx",
+  ]
+}

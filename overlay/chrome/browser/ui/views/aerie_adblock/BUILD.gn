@@ -2,28 +2,46 @@
 # You can use, redistribute, and/or modify this source code under
 # the terms of the GPL-3.0 license that can be found in the LICENSE file.
 
-# The toolbar button of the Filter Engine (issue #10). Added to the toolbar by
-# patches/adblock/0010.
-source_set("aerie_adblock") {
-  visibility = [ "//chrome/browser/ui/views/toolbar:*" ]
-  sources = [
-    "aerie_filter_toolbar_button.cc",
-    "aerie_filter_toolbar_button.h",
+assert(!is_android, "The Aerie Guard icon is for desktop platforms only")
+
+# The Aerie Guard icon in the address bar (issue #99), as a page action. The
+# per-tab controller is created by TabFeatures (patches/adblock/0016, the only
+# user besides the action item that patches/adblock/0015 adds); the strings are
+# in aerie_guard_strings.grdp, included by patches/adblock/0017.
+source_set("guard") {
+  visibility = [
+    "//chrome/browser/ui:browser_actions_impl",
+    "//chrome/browser/ui/tabs:impl",
   ]
+  sources = [
+    "aerie_guard_image.cc",
+    "aerie_guard_image.h",
+    "aerie_guard_page_action_controller.cc",
+    "aerie_guard_page_action_controller.h",
+  ]
+  # The header includes these.
   public_deps = [
-    "//chrome/browser/ui/views/toolbar:toolbar_button",
+    "//base",
+    "//chrome/browser/ui/tabs",
+    "//components/aerie_adblock/browser:guard_state",
     "//components/aerie_adblock/browser:lists",
     "//components/aerie_adblock/browser:page_counter",
-  ]
-  deps = [
-    "//base",
-    "//chrome/browser/ui/browser_window",
     "//components/tabs:public",
-    "//components/vector_icons",
-    "//content/public/browser",
     "//ui/base",
     "//ui/menus",
     "//ui/views",
+  ]
+  deps = [
+    "//chrome/app:generated_resources",
+    "//chrome/browser/ui/actions",
+    "//chrome/browser/ui/browser_window",
+    "//chrome/browser/ui/color:color_headers",
+    "//chrome/browser/ui/page_action",
+    "//chrome/browser/ui/views/aerie_adblock/vector_icons",
+    "//content/public/browser",
+    "//skia",
+    "//ui/color",
+    "//ui/gfx",
     "//url",
   ]
 }

@@ -61,7 +61,7 @@ enum class ExceptionResult {
 //
 // UI thread. Not a singleton: the browser's main parts own it
 // (chrome/browser/aerie_adblock); Get() is for the settings page and the
-// toolbar button and is null outside that window.
+// Aerie Guard icon and is null outside that window.
 class FilterListManager {
  public:
   // The text of the built-in list the build shipped, for |id|.

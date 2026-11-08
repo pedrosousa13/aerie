@@ -1,0 +1,65 @@
+Aerie-Purpose: Create the Aerie Guard page action controller for every tab that has the Aerie Guard action.
+Aerie-Upstream-Area: chrome/browser/ui/tabs/tab_features.cc, chrome/browser/ui/tabs/public/tab_features.h, chrome/browser/ui/tabs/BUILD.gn
+Aerie-Kind: hook
+
+Issue #99. The controller (overlay, chrome/browser/ui/views/aerie_adblock) shows the icon
+on http and https pages, draws the blocked count into its image and keeps its tooltip and
+accessible name. Modelled on JsOptimizationsPageActionController. Needs patches/adblock/0007
+(it edits the same file next to the lines of the cosmetic tab helper).
+
+--- a/chrome/browser/ui/tabs/public/tab_features.h
++++ b/chrome/browser/ui/tabs/public/tab_features.h
+@@ -43,4 +43,5 @@
+ 
+ class AboutThisSiteTabHelper;
++class AerieGuardPageActionController;
+ class AskBeforeHttpDialogController;
+ class AutoPictureInPictureTabHelper;
+@@ -454,4 +455,10 @@
+   }
+ 
++  // Aerie: the Aerie Guard icon of this tab (null where the action is not
++  // registered).
++  AerieGuardPageActionController* aerie_guard_page_action_controller() {
++    return aerie_guard_page_action_controller_.get();
++  }
++
+   FileSystemAccessPageActionController*
+   file_system_access_page_action_controller() {
+@@ -671,4 +678,8 @@
+       js_optimizations_page_action_controller_;
+ 
++  // Responsible for the Aerie Guard page action (Aerie).
++  std::unique_ptr<AerieGuardPageActionController>
++      aerie_guard_page_action_controller_;
++
+   // Responsible for managing the commerce "Price insights" page action.
+   std::unique_ptr<commerce::PriceInsightsPageActionViewController>
+--- a/chrome/browser/ui/tabs/tab_features.cc
++++ b/chrome/browser/ui/tabs/tab_features.cc
+@@ -180,4 +180,5 @@
+ #include "chrome/browser/ui/ui_features.h"
+ #include "chrome/browser/ui/uma_browsing_activity_observer.h"
++#include "chrome/browser/ui/views/aerie_adblock/aerie_guard_page_action_controller.h"
+ #include "chrome/browser/ui/views/bookmarks/bookmark_page_action_controller.h"
+ #include "chrome/browser/ui/views/commerce/discounts_page_action_view_controller.h"
+@@ -595,4 +596,11 @@
+             tab, *page_action_controller_);
+   }
++
++  // Aerie: the Aerie Guard icon.
++  if (page_action_controller_->ActionExists(kActionAerieGuard)) {
++    aerie_guard_page_action_controller_ =
++        std::make_unique<AerieGuardPageActionController>(
++            tab, *page_action_controller_);
++  }
+ 
+   page_context_eligibility_helper_ =
+--- a/chrome/browser/ui/tabs/BUILD.gn
++++ b/chrome/browser/ui/tabs/BUILD.gn
+@@ -757,4 +757,5 @@
+         "//chrome/browser/record_replay:impl",
+         "//chrome/browser/selection",
++        "//chrome/browser/ui/views/aerie_adblock:guard",
+         "//chrome/browser/ui/views/frame:browser_view_header",
+         "//chrome/browser/ui/views/js_optimization:impl",

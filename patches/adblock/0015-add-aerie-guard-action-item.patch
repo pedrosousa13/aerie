@@ -1,0 +1,59 @@
+Aerie-Purpose: Add the Aerie Guard action item, which opens the Guard menu of the active tab when its address bar icon is pressed.
+Aerie-Upstream-Area: chrome/browser/ui/browser_actions.cc, chrome/browser/ui/BUILD.gn
+Aerie-Kind: hook
+
+Issue #99. One ActionItem::Builder under root_action_item_, modelled on the one for
+kActionShowJsOptimizationsIcon. The action runs AerieGuardPageActionController::ShowMenu()
+(chrome/browser/ui/views/aerie_adblock, the overlay) with the icon as the anchor. The
+image and tooltip here are the defaults; the per-tab controller overrides them.
+
+--- a/chrome/browser/ui/browser_actions.cc
++++ b/chrome/browser/ui/browser_actions.cc
+@@ -159,4 +159,5 @@
+ #include "chrome/browser/ui/ui_features.h"
+ #include "chrome/browser/ui/user_education/browser_user_education_interface.h"
++#include "chrome/browser/ui/views/aerie_adblock/aerie_guard_page_action_controller.h"
+ #include "chrome/browser/ui/views/app_menu/app_menu_action_item.h"
+ #include "chrome/browser/ui/views/bookmarks/bookmark_page_action_controller.h"
+@@ -768,4 +769,33 @@
+           .SetEnabled(true)
+           .Build());
++
++  // Aerie: the Aerie Guard icon in the address bar. Its per-tab controller
++  // sets the image, the tooltip and the visibility.
++  root_action_item_->AddChild(
++      actions::ActionItem::Builder(
++          base::BindRepeating(
++              [](BrowserWindowInterface* bwi, actions::ActionItem* item,
++                 actions::ActionInvocationContext context) {
++                if (!bwi || !bwi->GetActiveTabInterface()) {
++                  return;
++                }
++                auto* controller = bwi->GetActiveTabInterface()
++                                       ->GetTabFeatures()
++                                       ->aerie_guard_page_action_controller();
++                if (!controller) {
++                  return;
++                }
++                controller->ShowMenu(
++                    CHECK_DEREF(BrowserView::GetBrowserViewForBrowser(bwi))
++                        .toolbar_button_provider()
++                        ->GetBubbleAnchor(kActionAerieGuard));
++              },
++              bwi))
++          .SetActionId(kActionAerieGuard)
++          .SetTooltipText(
++              l10n_util::GetStringUTF16(IDS_AERIE_GUARD_TOOLTIP_NONE))
++          .SetImage(AerieGuardPageActionController::DefaultImage())
++          .SetEnabled(true)
++          .Build());
+ 
+   if (base::FeatureList::IsEnabled(
+--- a/chrome/browser/ui/BUILD.gn
++++ b/chrome/browser/ui/BUILD.gn
+@@ -362,4 +362,5 @@
+       "//chrome/browser/ui/toolbar/chrome_labs",
+       "//chrome/browser/ui/user_education",
++      "//chrome/browser/ui/views/aerie_adblock:guard",
+       "//chrome/browser/ui/views/bookmarks",
+       "//chrome/browser/ui/views/commerce",

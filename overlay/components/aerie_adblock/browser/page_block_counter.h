@@ -14,7 +14,7 @@
 namespace aerie_adblock {
 
 // How many requests the Filter Engine blocked for the page a tab shows now
-// (issue #10). The toolbar button shows it. It counts what the engine blocked,
+// (issue #10). The Aerie Guard icon shows it. It counts what the engine blocked,
 // not what another blocker did, and only for requests that came from a frame
 // of this tab; workers and requests with no frame are not counted.
 //

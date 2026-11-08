@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright 2026 The Aerie Authors
+     You can use, redistribute, and/or modify this source code under
+     the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+     Strings of the Aerie Guard icon in the address bar (issue #99): its tooltip, its accessible name
+     and the menu that opens when it is pressed. tests/test_aerie_guard.py checks that every message
+     is used. -->
+<grit-part>
+  <message name="IDS_AERIE_GUARD_TOOLTIP_NONE" desc="Tooltip and accessible name of the Aerie Guard icon in the address bar when blocking is on for the site and nothing was blocked on the page yet.">
+    Aerie Guard: nothing blocked on this page
+  </message>
+  <message name="IDS_AERIE_GUARD_TOOLTIP_BLOCKED" desc="Tooltip and accessible name of the Aerie Guard icon in the address bar when Aerie Guard blocked requests on the page. The number is the exact count, even when the icon shows 99+.">
+    {COUNT, plural,
+      =1 {Aerie Guard: 1 request blocked on this page}
+      other {Aerie Guard: # requests blocked on this page}}
+  </message>
+  <message name="IDS_AERIE_GUARD_TOOLTIP_OFF" desc="Tooltip and accessible name of the Aerie Guard icon in the address bar when the user turned blocking off for the site.">
+    Aerie Guard is off for this site
+  </message>
+  <message name="IDS_AERIE_GUARD_MENU_TURN_OFF" desc="Menu item of the Aerie Guard icon. Turns blocking off for the site of the page and for its subdomains, then reloads the page.">
+    Turn off Aerie Guard for <ph name="HOST">$1<ex>news.example</ex></ph> and its subdomains
+  </message>
+  <message name="IDS_AERIE_GUARD_MENU_TURN_ON" desc="Menu item of the Aerie Guard icon. Turns blocking back on for the site of the page, then reloads the page.">
+    Turn on Aerie Guard for <ph name="HOST">$1<ex>news.example</ex></ph>
+  </message>
+  <message name="IDS_AERIE_GUARD_MENU_TURN_OFF_INCOGNITO" desc="Menu item of the Aerie Guard icon in an incognito window. Turns blocking off for the site and its subdomains in this incognito session only, then reloads the page. Nothing is saved.">
+    Turn off Aerie Guard for <ph name="HOST">$1<ex>news.example</ex></ph> and its subdomains (this incognito session only)
+  </message>
+  <message name="IDS_AERIE_GUARD_MENU_TURN_ON_INCOGNITO" desc="Menu item of the Aerie Guard icon in an incognito window. Turns blocking back on for the site in this incognito session, then reloads the page.">
+    Turn on Aerie Guard for <ph name="HOST">$1<ex>news.example</ex></ph> (this incognito session only)
+  </message>
+  <message name="IDS_AERIE_GUARD_MENU_LOCKED" desc="Disabled menu item of the Aerie Guard icon in an incognito window, shown when the user saved an exception for the site in a regular window. An incognito window cannot undo it.">
+    Aerie Guard is off here (turn it on in a regular window)
+  </message>
+  <message name="IDS_AERIE_GUARD_MENU_MANAGE_LISTS" desc="Menu item of the Aerie Guard icon. Opens the page where the user manages the filter lists.">
+    Manage filter lists…
+  </message>
+</grit-part>

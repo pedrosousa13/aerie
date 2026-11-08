@@ -9,7 +9,7 @@ In scope:
 
 - the Patch Layer (`patches/`), including the adapted Helium patches,
 - the overlay (`overlay/`): the Filter Engine (Rust core, cxx bridge, C++ service, request proxy, list
-  manager, fetcher, storage, `chrome://filters`, toolbar button), cosmetic filtering, phishing protection,
+  manager, fetcher, storage, `chrome://filters`, toolbar button; issue #99 later replaced the button with the Guard address-bar icon), cosmetic filtering, phishing protection,
   Widevine opt-in,
 - the hardening defaults (`tools/aerie_hardening/controls.json` and the `hardening/` patches), including the
   per-site JIT row,

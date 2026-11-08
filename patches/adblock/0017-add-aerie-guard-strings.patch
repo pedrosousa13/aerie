@@ -1,0 +1,26 @@
+Aerie-Purpose: Include the Aerie Guard strings (the tooltip, the accessible name and the menu of the address bar icon) in the browser's string resources.
+Aerie-Upstream-Area: chrome/app/generated_resources.grd, chrome/app/generated_resources.grd.gritdeps
+Aerie-Kind: hook
+
+Issue #99. The messages are in chrome/browser/ui/views/aerie_adblock/aerie_guard_strings.grdp
+(overlay). Same shape as services/0006 does for aerie_services_strings.grdp. It needs
+onboarding/0001 and services/0006 (they add the lines this patch sits between), so the
+series lists it after them.
+
+--- a/chrome/app/generated_resources.grd
++++ b/chrome/app/generated_resources.grd
+@@ -293,4 +293,7 @@
+       <part file="aerie_services_strings.grdp" />
+ 
++      <!-- Aerie Guard strings -->
++      <part file="../browser/ui/views/aerie_adblock/aerie_guard_strings.grdp" />
++
+       <!-- Media live preview specific strings -->
+       <part file="media_live_preview_strings.grdp" />
+--- a/chrome/app/generated_resources.grd.gritdeps
++++ b/chrome/app/generated_resources.grd.gritdeps
+@@ -110,3 +110,4 @@
+ chrome/app/vr_strings.grdp
+ chrome/app/whats_new_strings.grdp
++chrome/browser/ui/views/aerie_adblock/aerie_guard_strings.grdp
+ components/aerie_onboarding/aerie_onboarding_strings.grdp

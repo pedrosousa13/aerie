@@ -1,0 +1,96 @@
+Aerie-Purpose: Register the Aerie Guard page action (the address bar icon of the Filter Engine) with the page action framework.
+Aerie-Upstream-Area: chrome/browser/ui/actions/chrome_action_id.h, chrome/browser/ui/page_action (action_ids.h, page_action_icon_type.h, page_action_properties_provider.cc), components/browser_apis/ui_controllers/toolbar/toolbar_ui_api_data_model.mojom, chrome/browser/ui/webui/webui_toolbar/utils/toolbar_button_utils.cc, tools/metrics/histograms/metadata/page
+Aerie-Kind: hook
+
+Issue #99. kActionAerieGuard sits in kActionIds after the JS optimizations action, so
+the bookmark star stays last (the static_assert is untouched). Its properties are not
+ephemeral (the icon shows on every http and https page) and its type is
+PageActionIconType::kAerieGuard = 50, with the pair in enums.xml and the AerieGuard
+variant of the PageActionType histograms. Helium's kHiddenPageActionIds is not touched,
+so Helium's hide-page-actions flag hides the whole container, Guard included.
+The mojom enum and the two switches in toolbar_button_utils.cc must list every action id
+(the switches have no default), so they get the new id too.
+
+--- a/chrome/browser/ui/actions/chrome_action_id.h
++++ b/chrome/browser/ui/actions/chrome_action_id.h
+@@ -88,4 +88,5 @@
+   E(kActionShowMemorySaverChip) \
+   E(kActionShowJsOptimizationsIcon) \
++  E(kActionAerieGuard) \
+   E(kActionShowCookieControls) \
+   E(kActionShowZoomBubble) \
+--- a/chrome/browser/ui/page_action/action_ids.h
++++ b/chrome/browser/ui/page_action/action_ids.h
+@@ -29,4 +29,5 @@
+     kActionShowMemorySaverChip,
+     kActionShowJsOptimizationsIcon,
++    kActionAerieGuard,
+     kActionRecordReplay,
+     kActionShowIntentPicker,
+--- a/chrome/browser/ui/page_action/page_action_icon_type.h
++++ b/chrome/browser/ui/page_action/page_action_icon_type.h
+@@ -63,5 +63,6 @@
+   kFakePageActionForDebug = 48,
+   kWalletReminderNotice = 49,
+-  kMaxValue = kWalletReminderNotice,
++  kAerieGuard = 50,
++  kMaxValue = kAerieGuard,
+ };
+ // LINT.ThenChange(//tools/metrics/histograms/metadata/page/enums.xml:PageActionIconType)
+--- a/chrome/browser/ui/page_action/page_action_properties_provider.cc
++++ b/chrome/browser/ui/page_action/page_action_properties_provider.cc
+@@ -98,4 +98,14 @@
+     },
+     {
++        kActionAerieGuard,
++        {
++            .histogram_name = "AerieGuard",
++            .is_ephemeral = false,
++            .type = PageActionIconType::kAerieGuard,
++            .priority =
++                page_actions::PageActionPriorityCategory::kPrivacySecurity,
++        },
++    },
++    {
+         kActionRecordReplay,
+         {
+--- a/tools/metrics/histograms/metadata/page/enums.xml
++++ b/tools/metrics/histograms/metadata/page/enums.xml
+@@ -293,4 +293,5 @@
+   <int value="48" label="Fake Page Action For Debug"/>
+   <int value="49" label="Wallet Reminder Notice"/>
++  <int value="50" label="Aerie Guard"/>
+ </enum>
+ 
+--- a/tools/metrics/histograms/metadata/page/histograms.xml
++++ b/tools/metrics/histograms/metadata/page/histograms.xml
+@@ -417,4 +417,5 @@
+ 
+ <variants name="PageActionType">
++  <variant name="AerieGuard"/>
+   <variant name="AiMode"/>
+   <variant name="BookmarksStar"/>
+--- a/components/browser_apis/ui_controllers/toolbar/toolbar_ui_api_data_model.mojom
++++ b/components/browser_apis/ui_controllers/toolbar/toolbar_ui_api_data_model.mojom
+@@ -472,4 +472,5 @@
+   kActionShowMemorySaverChip,
+   kActionShowJsOptimizationsIcon,
++  kActionAerieGuard,
+   kActionRecordReplay,
+   kActionShowIntentPicker,
+--- a/chrome/browser/ui/webui/webui_toolbar/utils/toolbar_button_utils.cc
++++ b/chrome/browser/ui/webui/webui_toolbar/utils/toolbar_button_utils.cc
+@@ -449,4 +449,6 @@
+     case MojomPageActionId::kActionShowJsOptimizationsIcon:
+       return kActionShowJsOptimizationsIcon;
++    case MojomPageActionId::kActionAerieGuard:
++      return kActionAerieGuard;
+     case MojomPageActionId::kActionRecordReplay:
+       return kActionRecordReplay;
+@@ -525,4 +527,6 @@
+     case kActionShowJsOptimizationsIcon:
+       return MojomPageActionId::kActionShowJsOptimizationsIcon;
++    case kActionAerieGuard:
++      return MojomPageActionId::kActionAerieGuard;
+     case kActionRecordReplay:
+       return MojomPageActionId::kActionRecordReplay;

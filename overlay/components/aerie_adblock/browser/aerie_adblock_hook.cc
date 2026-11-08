@@ -58,7 +58,7 @@ std::unique_ptr<FilterEngineService> CreateAndStartFilterEngineService() {
            base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN}));
   service->SetAsProcessInstance();
   service->Start(ShippedEngine());
-  // Blocked requests count toward their tab's page (the toolbar button).
+  // Blocked requests count toward their tab's page (the Aerie Guard icon).
   service->SetBlockedRequestCallback(
       base::BindRepeating(&PageBlockCounter::RecordBlocked));
   return service;
