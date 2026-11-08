@@ -129,6 +129,8 @@ To see what the next build would change, without writing anything:
 
 One build at a time can re-apply layers for a tree (a lock file next to the snapshot enforces it). `./aerie prune` removes the snapshots of old trees.
 
+`./aerie build`, `./aerie prune` and `./aerie bench` also take a build-tree lock, which the local CI shares (see [docs/ci.md](docs/ci.md)). A build train that runs a build and then a Bench should hold the lock across both: `./aerie locked -- sh -c './aerie build && ./aerie bench'`.
+
 To add a layer that touches tree files, implement `layers.Layer` (`apply(workspace)`: read with `workspace.read`, stage results with `workspace.put`) and add it to `aerie_layers()` in `tools/aerie_build/pipeline.py`.
 
 ## Hardening defaults

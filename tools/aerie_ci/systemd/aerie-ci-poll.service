@@ -1,0 +1,12 @@
+[Unit]
+Description=Aerie local CI: gate the maintainer's open PRs
+
+[Service]
+Type=oneshot
+WorkingDirectory=@REPO@
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/usr/bin/env python3 -m tools.aerie_ci poll
+# A gate waits for the build-tree lock, then builds. Allow for both.
+TimeoutStartSec=12h
+Nice=10

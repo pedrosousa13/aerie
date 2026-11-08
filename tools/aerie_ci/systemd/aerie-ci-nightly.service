@@ -1,0 +1,11 @@
+[Unit]
+Description=Aerie local CI: nightly clean build and full Bench on main
+
+[Service]
+Type=oneshot
+WorkingDirectory=@REPO@
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/usr/bin/env python3 -m tools.aerie_ci nightly
+TimeoutStartSec=18h
+Nice=10

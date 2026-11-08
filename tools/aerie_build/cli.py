@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import argparse
 import os
+import signal
 import subprocess
 import sys
 import time
 from pathlib import Path
 
-from . import ccache, config, fallback, filter_lists, lock, patch_check, pipeline, protection_lists, prune, rust_crates
+from . import buildlock, ccache, config, fallback, filter_lists, lock, patch_check, pipeline, protection_lists, prune, rust_crates
 
 REPO = Path(__file__).resolve().parents[2]
 LOCK_PATH = REPO / "helium.lock"
@@ -20,6 +21,22 @@ def _add_common(parser: argparse.ArgumentParser) -> None:
         "--build-root",
         metavar="DIR",
         help=f"where all build files go (env {config.ENV_BUILD_ROOT}; default {config.DEFAULT_BUILD_ROOT})",
+    )
+
+
+def _add_lock_timeout(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--lock-timeout",
+        type=float,
+        metavar="SEC",
+        help="how long to wait for the build-tree lock, which another build or the local CI may hold "
+        "(default: wait; 0 fails at once)",
+    )
+
+
+def _locked(ctx: pipeline.Context, args: argparse.Namespace):
+    return buildlock.build_tree_lock(
+        ctx.paths.root, timeout=args.lock_timeout, log=lambda m: print(f"aerie: {m}", file=sys.stderr, flush=True)
     )
 
 
@@ -45,13 +62,19 @@ def cmd_build(args: argparse.Namespace) -> int:
         if args.clean:
             raise pipeline.BuildError("--dry-run-layers cannot be combined with --clean")
         return pipeline.show_layer_changes(ctx)
-    binary = pipeline.build(ctx, clean=args.clean)
+    with _locked(ctx, args):
+        binary = pipeline.build(ctx, clean=args.clean)
     print(binary)
     return 0
 
 
 def cmd_prune(args: argparse.Namespace) -> int:
     ctx = _context(args)
+    with _locked(ctx, args):
+        return _prune(ctx, args)
+
+
+def _prune(ctx: pipeline.Context, args: argparse.Namespace) -> int:
     plan = prune.plan_prune(
         ctx.paths,
         pinned_downloads=set(ctx.pins.downloads)
@@ -127,7 +150,35 @@ def cmd_bench(args: argparse.Namespace) -> int:
     from aerie_bench import cli as bench_cli
 
     ctx = _context(args)
-    return bench_cli.run(args, ctx.paths.root, ctx.binary)
+    # The Bench drives the binary in the shared tree, so a build must not replace it half way through.
+    with _locked(ctx, args):
+        return bench_cli.run(args, ctx.paths.root, ctx.binary)
+
+
+def cmd_locked(args: argparse.Namespace) -> int:
+    command = args.cmd[1:] if args.cmd[:1] == ["--"] else args.cmd
+    if not command:
+        print("aerie locked: give a command after --, e.g. ./aerie locked -- sh -c './aerie build && ./aerie bench'",
+              file=sys.stderr)
+        return 2
+    ctx = _context(args)
+    with _locked(ctx, args):
+        # The command inherits AERIE_BUILD_LOCK_HELD, so the ./aerie build and ./aerie bench it starts do not wait.
+        try:
+            proc = subprocess.Popen(command)
+        except OSError as exc:
+            print(f"aerie locked: cannot run {command[0]}: {exc}", file=sys.stderr)
+            return 127
+        # A stop signal goes to the command, and the lock stays until the command has exited: a build
+        # that is still shutting down is still using the tree.
+        signals = (signal.SIGTERM, signal.SIGINT)
+        previous = {sig: signal.signal(sig, lambda num, frame: proc.send_signal(num)) for sig in signals}
+        try:
+            code = proc.wait()
+        finally:
+            for sig, handler in previous.items():
+                signal.signal(sig, handler)
+        return 128 - code if code < 0 else code
 
 
 def cmd_hardening(args: argparse.Namespace) -> int:
@@ -161,13 +212,24 @@ def main(argv: list[str] | None = None) -> int:
         help="list the source-tree files the Aerie layers (patches, substitution) would change, then stop; "
         "writes nothing to the tree",
     )
+    _add_lock_timeout(p_build)
     p_build.set_defaults(func=cmd_build)
 
     p_prune = sub.add_parser("prune", help="delete stale downloads, old source trees and old tools")
     _add_common(p_prune)
     p_prune.add_argument("--ccache-size", metavar="SIZE", help="compiler cache cap to enforce")
     p_prune.add_argument("-n", "--dry-run", action="store_true", help="list what would be deleted")
+    _add_lock_timeout(p_prune)
     p_prune.set_defaults(func=cmd_prune)
+
+    p_locked = sub.add_parser(
+        "locked",
+        help="run a command while holding the build-tree lock (a train's build plus Bench, as one unit)",
+    )
+    _add_common(p_locked)
+    _add_lock_timeout(p_locked)
+    p_locked.add_argument("cmd", nargs=argparse.REMAINDER, metavar="-- CMD", help="the command and its arguments")
+    p_locked.set_defaults(func=cmd_locked)
 
     p_info = sub.add_parser("info", help="print the build root layout and binary path")
     _add_common(p_info)
@@ -214,6 +276,7 @@ def main(argv: list[str] | None = None) -> int:
     from aerie_bench import cli as bench_cli
 
     bench_cli.add_arguments(p_bench, binary_required=False)
+    _add_lock_timeout(p_bench)
     p_bench.set_defaults(func=cmd_bench)
 
     p_hardening = sub.add_parser(
@@ -225,6 +288,6 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return args.func(args)
     except (config.ConfigError, lock.VerificationError, pipeline.BuildError, fallback.FetchError,
-            filter_lists.ListError, rust_crates.CratesError) as exc:
+            filter_lists.ListError, rust_crates.CratesError, buildlock.BuildTreeBusy) as exc:
         print(f"aerie: error: {exc}", file=sys.stderr)
         return 1

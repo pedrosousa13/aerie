@@ -44,6 +44,7 @@ Options:
 | `--baseline PATH` | `zero_traffic`: also run the check on this browser (an unmodified Helium build, or any browser that talks to Google) and require it to fail. If it passes, the check is vacuous and the command exits 1. |
 | `--flag FLAG` | Extra browser flag; repeat for several. |
 | `--build-root DIR` | Build root (env `AERIE_BUILD_ROOT`, default `/mnt/linux2/aerie-build`). `./aerie bench` only for the flag; `python3 -m aerie_bench` takes it too. |
+| `--lock-timeout SEC` | `./aerie bench` only. How long to wait for the build-tree lock (default: wait; `0` fails at once). See [ci.md](ci.md). |
 
 ## What a run does
 
