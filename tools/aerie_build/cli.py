@@ -83,7 +83,8 @@ def cmd_build(args: argparse.Namespace) -> int:
 
 def cmd_test_cpp(args: argparse.Namespace) -> int:
     ctx = _context(args)
-    return pipeline.test_cpp(ctx, targets=args.target, clean=args.clean)
+    with _locked(ctx, args):
+        return pipeline.test_cpp(ctx, targets=args.target, clean=args.clean)
 
 
 def cmd_prune(args: argparse.Namespace) -> int:
@@ -249,6 +250,7 @@ def main(argv: list[str] | None = None) -> int:
         choices=[name for name, _ in pipeline.TEST_BINARIES],
         help="build and run only this test binary (repeatable; default: all of them)",
     )
+    _add_lock_timeout(p_test)
     p_test.set_defaults(func=cmd_test_cpp)
 
     p_prune = sub.add_parser("prune", help="delete stale downloads, old source trees and old tools")

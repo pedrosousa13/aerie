@@ -64,9 +64,9 @@ downloads and `build.lock` stay in the build root.
 
 ## The build-tree lock
 
-`<build root>/build.lock` is an exclusive `flock`. `./aerie build`, `./aerie prune`,
-`./aerie bench` and every CI run take it, so a CI run and a build train never use
-the shared tree together. `--lock-timeout SEC` (on all three commands) sets how
+`<build root>/build.lock` is an exclusive `flock`. `./aerie build`, `./aerie test-cpp`,
+`./aerie prune`, `./aerie bench` and every CI run take it, so a CI run and a build train
+never use the shared tree together. `--lock-timeout SEC` (on all four commands) sets how
 long to wait (default: forever; `0` fails at once).
 
 A CI run holds the lock across all its steps. The holder exports
