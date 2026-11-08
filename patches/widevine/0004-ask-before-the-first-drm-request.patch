@@ -53,13 +53,13 @@ the user has not declined the site. The infobar has a new identifier.
        content::BrowserContext& browser_context,
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
-@@ -60,4 +60,5 @@
- #include "chrome/browser/accessibility/page_colors_controller.h"
+@@ -61,4 +61,5 @@
  #include "chrome/browser/actor/actor_commit_deferring_condition.h"
+ #include "chrome/browser/aerie_adblock/aerie_protection_throttle.h"
 +#include "chrome/browser/aerie_widevine/aerie_widevine_prompt.h"
  #include "chrome/browser/after_startup_task_utils.h"
  #include "chrome/browser/ai/ai_manager.h"
-@@ -9952,4 +9953,9 @@
+@@ -9957,4 +9958,9 @@
  }
  
 +void ChromeContentBrowserClient::OnEncryptedMediaRequested(
