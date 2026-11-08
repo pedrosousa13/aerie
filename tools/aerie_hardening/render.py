@@ -29,7 +29,8 @@ GENERATED_NOTE = ("Generated from tools/aerie_hardening/controls.json. Do not ed
 
 def _ui_label(c: dict) -> str:
     kind = c["ui"]["kind"]
-    return {"dropdown": "Dropdown", "toggle": "Toggle", "readonly": "Read-only"}[kind]
+    return {"dropdown": "Dropdown", "toggle": "Toggle", "readonly": "Read-only",
+            "link": "Link to site settings"}[kind]
 
 
 def _control_section(c: dict) -> list[str]:
@@ -99,6 +100,21 @@ def render_docs(table: dict) -> str:
         "(the `HTTP_ALLOWED` content setting). Settings, Privacy and security, Security hardening, lists",
         "every host that is allowed over http and has a Remove button for each one.",
         "",
+        "## Turning off the JIT for one site",
+        "",
+        "The JavaScript optimizing JIT is on for every site. To turn it off for one site, open Settings,",
+        "Privacy and security, Site settings, Additional content settings, JavaScript optimization, and add",
+        "the site under Not allowed to use JavaScript optimization. The same switch is on the site details page.",
+        "The Security hardening page has a row that links to it. The change applies the next time a tab",
+        "navigates to the site, and it is kept after a restart.",
+        "",
+        "This is Chromium's own setting (the `javascript-optimizer` content setting), so Aerie adds no code for it.",
+        "A renderer for a site with the JIT off starts with `--js-flags=--disable-optimizing-compilers`. The",
+        "mode is part of the `SiteInfo`, and `RenderProcessHostImpl::IsSuitableHost` will not give a site a",
+        "process that runs the other mode. Sites with the JIT off therefore never share a process with sites that",
+        "have it on, and never reuse one. A source gate (`js_optimizer` in `tools/aerie_build/treegate.py`)",
+        "and the Bench check `hardening_js_optimizer` keep that true.",
+        "",
         "## Extensions",
         "",
         "An extension cannot loosen these settings. The write permission of these `chrome.privacy` entries",
@@ -158,6 +174,13 @@ def _control_block(c: dict) -> str:
                    f'          label="{_a(c["title"])}"\n'
                    f'          sub-label="{_a(c["summary"])}">\n'
                    f'      </settings-toggle-button>\n')
+    elif ui["kind"] == "link":
+        out.append(f'      <cr-link-row id="{wid}" class="hr"\n'
+                   f'          label="{_a(c["title"])}"\n'
+                   f'          sub-label="{_a(c["summary"])}"\n'
+                   f'          data-route="{_a(ui["route"])}"\n'
+                   '          @click="${this.onControlLinkClick_}">\n'
+                   '      </cr-link-row>\n')
     else:
         out.append('      <div class="cr-row hr">\n'
                    '        <div class="flex label-wrapper">\n'

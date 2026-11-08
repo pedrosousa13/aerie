@@ -47,7 +47,7 @@ and lives in the next patch. The page copies the way Helium's fingerprinting pag
 +}
 --- /dev/null
 +++ b/chrome/browser/resources/settings/privacy_page/hardening_page.ts
-@@ -0,0 +1,111 @@
+@@ -0,0 +1,125 @@
 +// Copyright 2026 The Aerie Authors
 +// You can use, redistribute, and/or modify this source code under
 +// the terms of the GPL-3.0 license that can be found in the LICENSE file.
@@ -61,6 +61,7 @@ and lives in the next patch. The page copies the way Helium's fingerprinting pag
 + */
 +
 +import 'chrome://resources/cr_elements/cr_button/cr_button.js';
++import 'chrome://resources/cr_elements/cr_link_row/cr_link_row.js';
 +import '../controls/settings_dropdown_menu.js';
 +import '../controls/settings_toggle_button.js';
 +import '../settings_page/settings_subpage.js';
@@ -69,6 +70,7 @@ and lives in the next patch. The page copies the way Helium's fingerprinting pag
 +
 +import type {DropdownMenuOptionList} from '../controls/settings_dropdown_menu.js';
 +import {routes} from '../route.js';
++import {Router} from '../router.js';
 +import type {Route} from '../router.js';
 +import {SettingsViewMixinLit} from '../settings_page/settings_view_mixin_lit.js';
 +
@@ -127,6 +129,18 @@ and lives in the next patch. The page copies the way Helium's fingerprinting pag
 +    // again whenever the user comes to this page.
 +    if (route === routes.AERIE_HARDENING) {
 +      this.refreshHttpExceptions_();
++    }
++  }
++
++  // A link row names a settings route, for a control whose setting lives on
++  // another page (for example the per-site JavaScript optimization page).
++  protected onControlLinkClick_(e: Event) {
++    const name = (e.currentTarget as HTMLElement).dataset['route'];
++    const route = name ?
++        (routes as unknown as {[name: string]: Route | undefined})[name] :
++        undefined;
++    if (route) {
++      Router.getInstance().navigateTo(route);
 +    }
 +  }
 +

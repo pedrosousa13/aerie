@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 
 from aerie_bench import checks
-from aerie_bench.checks.hardening import common, cookies, extension, fingerprint, https, isolation, prefetch, settings, webrtc
+from aerie_bench.checks.hardening import common, cookies, extension, fingerprint, https, isolation, jit, prefetch, settings, webrtc
 from aerie_bench.session import CheckResult
 
 FIXTURES = Path(__file__).parent / "fixtures" / "hardening"
@@ -61,7 +61,7 @@ class RegistryTest(unittest.TestCase):
         self.assertEqual(sorted(sc.checks), sorted(HARDENING))
 
     def test_checks_declare_control_and_negative_control(self):
-        self.assertEqual(len(HARDENING), 13)
+        self.assertEqual(len(HARDENING), 14)
         for name, cls in HARDENING.items():
             self.assertTrue(cls.control, name)
             self.assertGreater(len(cls.negative_control), 30, name)
@@ -380,6 +380,64 @@ class DriverGlueTest(unittest.TestCase):
         res = isolation.SiteIsolation().run(main)
         self.assertEqual(res.status, "pass", res.detail)
         self.assertEqual(main.variant_calls[0][0], ("--disable-site-isolation-trials",))
+
+    def test_js_optimizer_check_changes_the_setting_restarts_and_runs_a_control(self):
+        fast, slow = {"ms": 30.0}, {"ms": 300.0}
+
+        # The page results depend on the host and on the mode; script them per phase.
+        class JitSession(FakeSession):
+            def __init__(self, mode, variants=()):
+                super().__init__({}, variants=list(variants))
+                self.mode, self.browser_pid = mode, None
+                self.sent = []
+                self.restarted = 0
+
+            def navigate_url(self, url, wait=None):
+                self.log.append(url)
+                self.url = url
+                return {"url": url, "error": None}
+
+            def wait_for(self, expression, timeout=15.0, interval=0.25):
+                return True
+
+            def evaluate(self, expression, await_promise=False, user_gesture=False):
+                if "setOriginPermissions" in expression:
+                    self.sent.append(expression)
+                    self.mode = "off"
+                    return True
+                if "getPref" in expression:
+                    return {"value": 1}
+                if "deepQuery" in expression:
+                    return True
+                host = self.url.split("//")[1].split(":")[0].split(".")[0] if "localhost" in self.url else ""
+                own = slow if (self.mode == "off" and host == "a") else fast
+                if "child=" in self.url:
+                    child = self.url.split("child=")[1].split(".")[0]
+                    kid = slow if (self.mode == "off" and child == "a") else fast
+                    return {**own, "child": kid}
+                return own
+
+        class Box:
+            def __init__(self, session):
+                self.session = session
+                self.restarts = 0
+
+            def restart(self):
+                self.restarts += 1
+                return self.session
+
+        main = JitSession("on")
+        box_session = JitSession("on")
+        control = JitSession("on")
+        main.variants = [control]
+        main.restartable = lambda flags=(), prefs=None: contextlib.nullcontext(Box(box_session))
+        res = jit.JsOptimizer().run(main)
+        self.assertEqual(res.status, "pass", res.detail)
+        self.assertEqual(len(box_session.sent), 1)
+        self.assertIn("'javascript-optimizer'", box_session.sent[0])
+        self.assertIn("a.localhost", box_session.sent[0])
+        self.assertIn('"block"', box_session.sent[0])
+        self.assertEqual(main.variant_calls, [((), None)])
 
     def test_extension_check_loads_the_probe_extension_in_a_variant(self):
         results = json.loads((FIXTURES / "hardening_extension_prefs.json").read_text())["cases"][0]["obs"]["results"]

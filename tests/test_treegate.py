@@ -97,7 +97,15 @@ JS_OPT_FEATURE_OK = """BASE_FEATURE(kOriginIsolationForJsOptExceptions,
              base::FEATURE_ENABLED_BY_DEFAULT);
 """
 
-JS_OPT_WIDEVINE_REG_OK = """void RegisterComponentsForUpdate() {
+JS_OPT_GOOD = {
+    "components/content_settings/core/browser/content_settings_registry.cc": JS_OPT_REGISTRY_OK,
+    "chrome/browser/resources/settings/route.ts": JS_OPT_ROUTE_OK,
+    "content/browser/renderer_host/render_process_host_impl.cc": JS_OPT_HOST_OK,
+    "content/browser/site_info.cc": JS_OPT_SITE_INFO_OK,
+    "components/site_isolation/features.cc": JS_OPT_FEATURE_OK,
+}
+
+WIDEVINE_REG_OK = """void RegisterComponentsForUpdate() {
   aerie_widevine::RegisterWhenEnabled(g_browser_process->local_state(),
                                       base::BindRepeating(&RegisterWidevineCdmComponent, cus));
 }
@@ -330,7 +338,7 @@ class RunTest(TreeCase):
 
     def test_empty_tree_passes_unless_required(self):
         self.assertEqual(self.run_gates(), [])
-        self.assertEqual(len(self.run_gates(require=True)), 16)
+        self.assertEqual(len(self.run_gates(require=True)), 21)
 
     def test_format_report(self):
         self.write({"a.cc": '"https://services.helium.imput.net"\n'})

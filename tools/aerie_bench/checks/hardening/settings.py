@@ -92,7 +92,7 @@ LIST_ROWS_JS = """((ids) => {
     }
     rows[id] = {present: true, default_text: text('.control-default'), cost_text: text('.control-cost'),
                 state_text: setting && setting.classList.contains('control-state') ? setting.textContent.trim() : null,
-                live: live};
+                live: live, route: setting ? setting.getAttribute('data-route') : null};
   }
   return rows;
 })(%s)"""
@@ -130,7 +130,7 @@ class SettingsPage(HardeningCheck):
     def observe(self, session: Session) -> dict:
         controls = table()["controls"]
         ids = [c["id"] for c in controls]
-        live_ids = [c["id"] for c in controls if c["ui"]["kind"] != "readonly"]
+        live_ids = [c["id"] for c in controls if c["ui"]["kind"] in ("dropdown", "toggle")]
         got = read_rows(session, ids + ["bogus_control"], live_ids)
         rows = got.get("rows", {})
         bogus = rows.pop("bogus_control", {"present": False})
@@ -152,6 +152,8 @@ class SettingsPage(HardeningCheck):
                 return "fail", f"{c['id']}: cost text differs from the table"
             if c["ui"]["kind"] == "readonly" and row["state_text"] != c["ui"]["state"]:
                 return "fail", f"{c['id']}: read-only state shows {row['state_text']!r}, expected {c['ui']['state']!r}"
+            if c["ui"]["kind"] == "link" and row.get("route") != c["ui"]["route"]:
+                return "fail", f"{c['id']}: link row goes to {row.get('route')!r}, table says {c['ui']['route']!r}"
             want = default_label(c)
             if want is not None and row["live"] != want:
                 return "fail", f"{c['id']}: the control shows {row['live']!r} on a fresh profile, default is {want!r}"

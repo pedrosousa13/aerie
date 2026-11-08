@@ -1,0 +1,45 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Aerie Bench JIT</title></head>
+<body>
+<p>Times a hot numeric loop. Query: child (host name): after its own run, embed this page from that host and report its run too.</p>
+<script>
+  window.__done = false;
+  // A hot loop that TurboFan and Maglev make many times faster than Ignition and Sparkplug.
+  function work(n) {
+    let x = 1;
+    for (let i = 0; i < n; i++) { x = (x * 31 + i) % 1000003; }
+    return x;
+  }
+  function measure() {
+    let best = Infinity;
+    const runs = [];
+    for (let r = 0; r < 3; r++) {
+      const t0 = performance.now();
+      work(15000000);
+      const ms = performance.now() - t0;
+      runs.push(Math.round(ms * 10) / 10);
+      best = Math.min(best, ms);
+    }
+    return {ms: Math.round(best * 10) / 10, runs: runs, host: location.hostname};
+  }
+  const q = new URLSearchParams(location.search);
+  window.addEventListener('load', () => setTimeout(() => {
+    const own = measure();
+    if (window.parent !== window) {
+      window.parent.postMessage(own, '*');
+      return;
+    }
+    const child = q.get('child');
+    if (!child) { window.__result = own; window.__done = true; return; }
+    window.addEventListener('message', (e) => {
+      if (!window.__done) { window.__result = {ms: own.ms, host: own.host, child: e.data}; window.__done = true; }
+    });
+    const f = document.createElement('iframe');
+    f.src = location.protocol + '//' + child + ':' + location.port + location.pathname;
+    document.body.appendChild(f);
+    setTimeout(() => {
+      if (!window.__done) { window.__result = {error: 'no message from the frame'}; window.__done = true; }
+    }, 40000);
+  }, 0));
+</script>
+</body></html>

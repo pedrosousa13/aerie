@@ -39,7 +39,7 @@ Generated from tools/aerie_hardening/controls.json. Do not edit by hand. Run: ./
 +};
 --- /dev/null
 +++ b/chrome/browser/resources/settings/privacy_page/hardening_page.html
-@@ -0,0 +1,149 @@
+@@ -0,0 +1,161 @@
 +<!-- Generated from tools/aerie_hardening/controls.json. Do not edit by hand. Run: ./aerie hardening generate -->
 +  <settings-subpage page-title="Security hardening" route-path="${this.routePath}">
 +    <div class="cr-row first"><div class="cr-secondary-text" id="hardeningIntro">Aerie turns these privacy and security protections on by default. Each row shows what the protection does, its default and what it can cost you.</div></div>
@@ -131,6 +131,18 @@ Generated from tools/aerie_hardening/controls.json. Do not edit by hand. Run: ./
 +      <div class="control-meta cr-secondary-text">
 +        <div class="control-default">Default: Always on.</div>
 +        <div class="control-cost">Cost: Uses more memory, because each site runs in its own process.</div>
++      </div>
++    </div>
++    <div class="control" id="control-js_optimizer" data-control-id="js_optimizer">
++      <cr-link-row id="control-js_optimizer-setting" class="hr"
++          label="JavaScript JIT per site"
++          sub-label="The JavaScript optimizing JIT (TurboFan and Maglev) is on for speed. Turn it off for a single site in Site settings, JavaScript optimization. A site with the JIT off never shares a process with a site that has it on."
++          data-route="SITE_SETTINGS_JAVASCRIPT_OPTIMIZER"
++          @click="${this.onControlLinkClick_}">
++      </cr-link-row>
++      <div class="control-meta cr-secondary-text">
++        <div class="control-default">Default: On for every site.</div>
++        <div class="control-cost">Cost: Pages that run heavy scripts, such as web apps, games and large spreadsheets, can run several times slower on a site with the JIT off. Turn it off only for sites you do not trust.</div>
 +      </div>
 +    </div>
 +    <div class="control" id="control-fingerprinting" data-control-id="fingerprinting">
