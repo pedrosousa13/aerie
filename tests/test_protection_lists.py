@@ -166,6 +166,39 @@ class HeaderlessUpdateTest(unittest.TestCase):
         self.update(plain_bytes(body))
 
 
+class SelfCheckAtUpdateTest(unittest.TestCase):
+    """update() checks the build self-check hosts against the new list before it pins it."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.dir = Path(self._tmp.name)
+        self.lock = self.dir / "protection_lists.lock.json"
+        self.lock.write_text(json.dumps({"schema": 1, "lists": [
+            {"name": "Phishing.Database", "file": "plain.txt", "url": URL, "sha256": "0" * 64,
+             "size": 5, "version": "retrieved 2000-01-01"}]}))
+        (self.dir / "plain.txt").write_bytes(b"old\n")
+        self.selfcheck = self.dir / "protection_selfcheck.json"
+        self.selfcheck.write_text(json.dumps({"listed": ["evil.example", "sub.phish.example"],
+                                              "unlisted": ["example.com"]}))
+
+    def run_update(self, data):
+        return pl.update(self.lock, Opener({URL: data}), lambda m: None, today=lambda: "2026-11-08",
+                         selfcheck=self.selfcheck)
+
+    def test_update_accepts_a_list_that_still_holds_the_self_check_hosts(self):
+        # sub.phish.example is covered by its parent domain, as in the engine.
+        self.run_update(PLAIN)
+        pl.verify_dir(fl.load_lock(self.lock), self.dir)
+
+    def test_update_refuses_a_list_that_dropped_a_self_check_host_and_pins_nothing(self):
+        before = self.lock.read_text()
+        with self.assertRaisesRegex(fl.ListError, r"self-check host.*evil\.example"):
+            self.run_update(plain_bytes("phish.example\nother.example\n"))
+        self.assertEqual(self.lock.read_text(), before)
+        self.assertEqual((self.dir / "plain.txt").read_bytes(), b"old\n")
+
+
 class RepoLockTest(unittest.TestCase):
     FILE = "phishing_database_active.txt"
 
