@@ -35,7 +35,10 @@ Options for `poll` and `gate`: `--build-root DIR` (env `AERIE_BUILD_ROOT`) and
 5. Runs, in order, and stops at the first failure: patch check
    (`./aerie patches check`), incremental build (`./aerie build`), the Python
    unit tests, a smoke launch (`./aerie bench --check smoke`), and the Bench
-   with every other check except `zero_traffic` (that one idles for minutes; the nightly runs it) and `perf`; then the `perf` step, which compares memory and startup with the last main build and fails the PR on a regression past the thresholds (docs/bench.md, "Performance metrics"; baseline folder `AERIE_PERF_DIR`, default `/mnt/linux2/aerie-perf`; no baseline yet means it passes).
+   with every other check except `zero_traffic` (that one idles for minutes; the nightly runs it) and `perf`.
+   Then the `perf` step. It compares memory and startup with the last main build and fails the PR on a
+   regression past the thresholds (docs/bench.md, "Performance metrics"). The baseline folder is
+   `AERIE_PERF_DIR`, default `/mnt/linux2/aerie-perf`. No baseline yet means it passes.
    Each step shows in the pending status description.
 6. Removes the worktree, posts `success` or `failure`, and records the SHA.
 
@@ -50,7 +53,8 @@ C++ unit tests join the gate when any can run (#54).
 ## Nightly
 
 `nightly` fetches `main`, builds it with `./aerie build --clean`, and runs the
-full Bench (every registered check, `zero_traffic` included; its `perf` run is recorded as the new baseline in `AERIE_PERF_DIR` when it passes). It does this in its
+full Bench (every registered check, `zero_traffic` included). When `perf` passes, its run is
+recorded as the new baseline in `AERIE_PERF_DIR`. It does this in its
 own build root, so it never replaces the build the maintainer tests from.
 
 | Setting | Flag | Environment | Default |

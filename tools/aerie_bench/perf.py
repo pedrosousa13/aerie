@@ -85,7 +85,7 @@ def compare(current: dict, baseline: dict, metrics: dict[str, Metric] = METRICS)
         else:
             row["change_pct"] = round((c - b) / abs(b) * 100.0, 1) if b else None
             if spec is None:
-                row["status"] = "ok"
+                pass
             elif regressed(spec, c, b):
                 row["status"] = "regressed"
             elif regressed(spec, b, c):
@@ -103,7 +103,7 @@ def _order(name: str) -> tuple[int, str]:
     return (names.index(name) if name in names else len(names), name)
 
 
-def _num(value, unit: str = "") -> str:
+def _num(value) -> str:
     if value is None:
         return "-"
     return f"{value:.1f}"
@@ -116,8 +116,8 @@ def verdict_lines(verdicts: list[dict]) -> list[str]:
         unit = spec.unit if spec else ""
         change = "" if v["change_pct"] is None else f" ({v['change_pct']:+.1f}%)"
         limit = f", limit {spec.max_regression_pct:g}% and {spec.min_abs_change:g} {unit}" if spec else ""
-        lines.append(f"{v['status'].upper():12} {v['metric']}: {_num(v['current'])} {unit} against "
-                     f"{_num(v['baseline'])}{change}{limit}")
+        shown = f"{_num(v['current'])} {unit}".rstrip()
+        lines.append(f"{v['status'].upper():12} {v['metric']}: {shown} against {_num(v['baseline'])}{change}{limit}")
     return lines
 
 

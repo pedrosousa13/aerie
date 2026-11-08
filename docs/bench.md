@@ -199,7 +199,7 @@ PYTHONPATH=tools python3 -m aerie_bench.perf side-by-side aerie/perf.json helium
 ```
 
 Comparison mode runs the whole suite on the second browser with no baseline and puts both in one
-table. The other browser is a reference: its own failures do not fail Aerie's run. Stock Chromium
+table. The other browser is a reference: its own failures, or a run that gives no metrics, do not fail Aerie's run (a note is printed and no comparison file is written). Stock Chromium
 works the same way (`--perf-compare-name "Stock Chromium"`). Memory and startup are lower-is-better;
 scores are higher-is-better.
 

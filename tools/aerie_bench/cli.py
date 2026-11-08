@@ -108,7 +108,7 @@ def run(args: argparse.Namespace, build_root: Path, default_binary: Path | None)
         print(f"results: {result.out_dir / 'results.json'}")
         code = EXIT_PASS if result.status == "pass" else EXIT_FAIL
         if "perf" in sc.checks:
-            code = max(code, _perf_followup(args, result, sc, binary, build_root, common))
+            code = max(code, _perf_followup(args, result, build_root, common))
         if args.baseline:
             base_out = Path(str(args.out).rstrip("/") + "-baseline") if args.out else None
             base = run_bench(Path(args.baseline), scenario.Scenario("zero-traffic-baseline", ("zero_traffic",)),
@@ -120,10 +120,11 @@ def run(args: argparse.Namespace, build_root: Path, default_binary: Path | None)
         return EXIT_HARNESS
 
 
-def _perf_followup(args, result, sc, binary, build_root, common) -> int:
-    """Record the run as the new baseline and run the comparison browser, as asked."""
+def _perf_followup(args, result, build_root, common) -> int:
+    """Record the run as the new baseline and run the comparison browser, as asked.
+
+    Always passes: the comparison browser is a reference, so a crash or missing metrics only prints a note."""
     from . import perf
-    code = EXIT_PASS
     doc_path = result.out_dir / "perf.json"
     if not doc_path.is_file():
         return EXIT_PASS  # the check errored before it wrote anything; its own status already failed the run
@@ -140,13 +141,12 @@ def _perf_followup(args, result, sc, binary, build_root, common) -> int:
                               **common["check_options"]["perf"], "baseline": None}}})
         other_path = other.out_dir / "perf.json"
         if not other_path.is_file():
-            print(f"perf: the comparison browser gave no metrics ({other.out_dir})")
-            return EXIT_FAIL
+            print(f"perf: the comparison browser gave no metrics ({other.out_dir}); no comparison written")
+            return EXIT_PASS
         text = perf.side_by_side(doc, perf.load(other_path), args.perf_compare_name)
         (result.out_dir / "perf-comparison.md").write_text(text)
         print("\n" + text + f"report: {result.out_dir / 'perf-comparison.md'}")
-        # The other browser is only a reference: its own checks failing does not fail Aerie's run.
-    return code
+    return EXIT_PASS
 
 
 def _report_baseline(base, binary) -> int:
