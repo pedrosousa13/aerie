@@ -289,22 +289,36 @@ TEST_F(FilterEngineServiceTest, RecordBlockedReachesTheCallback) {
 TEST_F(FilterEngineServiceTest, ASessionExceptionAppliesToThatSessionOnly) {
   static const std::string kEngine = SerializedEngine("||ads.example^\n");
   service_.Start(kEngine);
-  int session_a = 0, session_b = 0;
-  service_.SetSessionExceptions(&session_a, {"news.test"});
+  int id_a = 0, id_b = 0;
+  const SessionKey session_a = SessionKey::OffTheRecord(&id_a);
+  const SessionKey session_b = SessionKey::OffTheRecord(&id_b);
+  service_.SetSessionExceptions(session_a, {"news.test"});
 
-  auto ask = [&](const void* session) {
+  auto ask = [&](SessionKey session) {
     ClassifiedRequest request = Script("https://ads.example/a.js", "ads.example");
     request.source_hostname = "news.test";
     request.session = session;
     return Ask(request);
   };
-  EXPECT_FALSE(ask(&session_a));   // The session that set it: ads load.
-  EXPECT_TRUE(ask(&session_b));    // Another incognito session.
-  EXPECT_TRUE(ask(nullptr));       // The regular profile.
+  EXPECT_FALSE(ask(session_a));   // The session that set it: ads load.
+  EXPECT_TRUE(ask(session_b));    // Another incognito session.
+  EXPECT_TRUE(ask(SessionKey::Regular()));  // The regular profile.
   EXPECT_TRUE(service_.exceptions().empty());  // Nothing persistable changed.
 
-  service_.SetSessionExceptions(&session_a, {});  // The session ended.
-  EXPECT_TRUE(ask(&session_a));
+  service_.SetSessionExceptions(session_a, {});  // The session ended.
+  EXPECT_TRUE(ask(session_a));
+}
+
+TEST_F(FilterEngineServiceTest, TheRegularSessionIsNotAnOffTheRecordSession) {
+  static const std::string kEngine = SerializedEngine("||ads.example^\n");
+  service_.Start(kEngine);
+  // A regular key can never hold a session exception.
+  service_.SetSessionExceptions(SessionKey::Regular(), {"news.test"});
+  EXPECT_FALSE(service_.IsExcepted("news.test", SessionKey::Regular()));
+  ClassifiedRequest request = Script("https://ads.example/a.js", "ads.example");
+  request.source_hostname = "news.test";
+  EXPECT_EQ(SessionKey::Regular(), request.session);  // Not set: regular.
+  EXPECT_TRUE(Ask(request));
 }
 
 }  // namespace
@@ -315,7 +329,7 @@ class CosmeticServiceTest : public FilterEngineServiceTest {
  protected:
   std::string Page(const char* top,
                    const char* page,
-                   const void* session = nullptr) {
+                   SessionKey session = SessionKey::Regular()) {
     std::string css;
     base::RunLoop loop;
     service_.GetCosmeticStylesheet(
@@ -333,7 +347,7 @@ class CosmeticServiceTest : public FilterEngineServiceTest {
                       const char* page,
                       const char* classes,
                       const char* ids,
-                      const void* session = nullptr) {
+                      SessionKey session = SessionKey::Regular()) {
     std::string css;
     base::RunLoop loop;
     service_.GetGenericStylesheet(
@@ -376,12 +390,12 @@ TEST_F(CosmeticServiceTest, OnlyWebPagesGetAStylesheet) {
 TEST_F(CosmeticServiceTest, ThePolicyCanTurnCosmeticFilteringOffPerSite) {
   static const std::string kEngine = SerializedEngine("##.ad-banner\n");
   service_.Start(kEngine);
-  EXPECT_TRUE(service_.IsCosmeticFilteringEnabled(GURL("https://news.test/")));
+  EXPECT_TRUE(service_.IsCosmeticFilteringEnabled(GURL("https://news.test/"), SessionKey::Regular()));
   service_.SetCosmeticFilteringPolicy(
       base::BindRepeating([](const GURL& top_level_url) {
         return top_level_url.host() != "off.test";
       }));
-  EXPECT_FALSE(service_.IsCosmeticFilteringEnabled(GURL("https://off.test/")));
+  EXPECT_FALSE(service_.IsCosmeticFilteringEnabled(GURL("https://off.test/"), SessionKey::Regular()));
   EXPECT_TRUE(Generic("https://off.test/", "https://off.test/", "ad-banner", "")
                   .empty());
   // An ad iframe on the page is judged by the page's switch, not its own.
@@ -395,9 +409,9 @@ TEST_F(CosmeticServiceTest, ASiteWithBlockingOffGetsNoHideSheet) {
   static const std::string kEngine = SerializedEngine("##.ad-banner\n");
   service_.Start(kEngine);
   service_.SetExceptions({"off.test"});
-  EXPECT_FALSE(service_.IsCosmeticFilteringEnabled(GURL("https://off.test/")));
-  EXPECT_FALSE(service_.IsCosmeticFilteringEnabled(GURL("https://www.off.test/")));
-  EXPECT_TRUE(service_.IsCosmeticFilteringEnabled(GURL("https://news.test/")));
+  EXPECT_FALSE(service_.IsCosmeticFilteringEnabled(GURL("https://off.test/"), SessionKey::Regular()));
+  EXPECT_FALSE(service_.IsCosmeticFilteringEnabled(GURL("https://www.off.test/"), SessionKey::Regular()));
+  EXPECT_TRUE(service_.IsCosmeticFilteringEnabled(GURL("https://news.test/"), SessionKey::Regular()));
   EXPECT_TRUE(Page("https://off.test/", "https://off.test/").empty());
   EXPECT_TRUE(Generic("https://off.test/", "https://off.test/", "ad-banner", "")
                   .empty());
@@ -414,10 +428,11 @@ TEST_F(CosmeticServiceTest, ASiteWithBlockingOffGetsNoHideSheet) {
 TEST_F(CosmeticServiceTest, ASessionExceptionStopsHidingInThatSessionOnly) {
   static const std::string kEngine = SerializedEngine("##.ad-banner\n");
   service_.Start(kEngine);
-  int incognito = 0;
-  service_.SetSessionExceptions(&incognito, {"off.test"});
+  int id = 0;
+  const SessionKey incognito = SessionKey::OffTheRecord(&id);
+  service_.SetSessionExceptions(incognito, {"off.test"});
   EXPECT_TRUE(Generic("https://off.test/", "https://off.test/", "ad-banner", "",
-                      &incognito)
+                      incognito)
                   .empty());
   EXPECT_FALSE(Generic("https://off.test/", "https://off.test/", "ad-banner", "")
                    .empty());
@@ -431,7 +446,8 @@ TEST_F(CosmeticServiceTest, StylesheetsWaitWhileTheSettingsLoad) {
   service_.GetGenericStylesheet(
       GURL("https://off.test/"), GURL("https://off.test/"), "ad-banner", "",
       base::BindLambdaForTesting(
-          [&](std::string css) { answers.push_back(std::move(css)); }));
+          [&](std::string css) { answers.push_back(std::move(css)); }),
+      SessionKey::Regular());
   task_environment_.RunUntilIdle();
   EXPECT_TRUE(answers.empty());  // Held, so the exception can still apply.
   service_.SetExceptions({"off.test"});

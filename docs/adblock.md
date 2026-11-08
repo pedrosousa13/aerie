@@ -153,7 +153,12 @@ How it works:
   (`FilterEngineService::SetSessionExceptions`, keyed by the profile). It is never written to
   `state.json`, it does not apply to the regular profile or to another incognito session, and it
   is dropped when the profile is destroyed. A saved exception also holds in incognito, and
-  incognito cannot undo it.
+  incognito cannot undo it; the page lists a host that is both saved and set in incognito once.
+  The session is a `SessionKey` (`session_key.h`), never a bare pointer, and
+  `FilterListManager::SetException` owns both rules (it watches the profile's end and refuses
+  the undo), so the toolbar button and the filters page only pass the `BrowserContext`. The
+  `filter_lists` Bench check proves this on a real build with a DevTools browser context, which
+  is off the record.
 - **Count.** Workers and requests with no frame are not counted. Another blocker's blocks are not
   counted either.
 

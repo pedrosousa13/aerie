@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import json
 import time
+from pathlib import Path
 from urllib.parse import urlsplit
 
 from .. import netlog
@@ -48,6 +49,8 @@ HTML_LIST_PATH = "/filters/not-a-list.html"
 INSECURE_LIST_URL = "http://lists.bench.example/insecure-list.txt"
 EXCEPTED_HOST = "news.localhost"
 OTHER_HOST = "other.localhost"
+INCOGNITO_HOST = "incognito.localhost"
+STATE_FILE = "AerieFilterLists/state.json"  # inside the profile
 N_ADS = 3
 COUNT_HISTOGRAM = "Aerie.Adblock.PageBlockedCount"
 UPDATE_HISTOGRAM = "Aerie.Adblock.ListUpdateSuccess"  # recorded in the report, no threshold
@@ -172,6 +175,37 @@ def judge_restart(restart: dict | None, list_url: str = "", excepted_host: str =
     return problems
 
 
+def judge_incognito(inc: dict | None) -> list[str]:
+    """The incognito step: an exception set in an off-the-record context stays in it, in memory."""
+    if not inc:
+        return ["no incognito observations: the check never opened an incognito window"]
+    problems: list[str] = []
+    host = INCOGNITO_HOST
+    for label, key in (("incognito page after setting", "set_state"), ("incognito page after undo attempt", "locked_state")):
+        listed = (inc.get(key) or {}).get("exceptions", [])
+        dupes = sorted({h for h in listed if listed.count(h) > 1})
+        if dupes:
+            problems.append(f"{label}: host(s) listed more than once: {', '.join(dupes)}")
+    if host not in (inc.get("set_state") or {}).get("exceptions", []):
+        problems.append(f"incognito page: the exception for {host} is not listed after setting it")
+    judge_visit(inc.get("incognito_visit"), f"incognito window, {host}", False, problems)
+    judge_visit(inc.get("regular_visit"), f"regular window while the incognito exception was set, {host}", True, problems)
+    if host in (inc.get("regular_state") or {}).get("exceptions", []):
+        problems.append(f"the incognito exception for {host} shows in the regular window's exception list")
+    locked = inc.get("locked_state") or {}
+    if EXCEPTED_HOST not in locked.get("exceptions", []) or not locked.get("addError"):
+        problems.append(f"incognito removed or silently ignored the undo of a saved exception ({locked})")
+    if host in (inc.get("after_close_state") or {}).get("exceptions", []):
+        problems.append(f"after the incognito window closed the exception for {host} is still listed")
+    judge_visit(inc.get("after_close_visit"), f"after the incognito window closed, {host}", True, problems)
+    state_file = inc.get("state_file")
+    if state_file is None:
+        problems.append("the state file could not be read, so it is not proven that the exception stayed out of it")
+    elif host in state_file:
+        problems.append(f"the incognito exception for {host} was written to the state file")
+    return problems
+
+
 def judge(obs: dict) -> tuple[str, str, dict]:
     """Return (status, detail, data) for the observations of both launches."""
     problems: list[str] = []
@@ -194,6 +228,7 @@ def judge(obs: dict) -> tuple[str, str, dict]:
         problems.append(f"setException did not put {EXCEPTED_HOST} in the state")
     judge_visit(exc.get("excepted_visit"), f"exception, {EXCEPTED_HOST}", False, problems)
     judge_visit(exc.get("other_visit"), f"exception, {OTHER_HOST}", True, problems)
+    problems += judge_incognito(obs.get("incognito"))
     problems += judge_restart(obs.get("restart"), obs.get("list_url", ""))
     data = {"update": update_data, "page_count_samples": obs.get("page_count_samples"),
             "request_blocked": engine, "restart": (obs.get("restart") or {}).get("state")}
@@ -201,7 +236,8 @@ def judge(obs: dict) -> tuple[str, str, dict]:
         return "fail", f"{len(problems)} problem(s): " + "; ".join(problems), data
     return "pass", (f"custom list took effect without restart, {N_ADS} ads blocked and counted, update contacted only "
                     f"list publishers ({len(update_data['publisher_requests'])} request(s)), exception for "
-                    f"{EXCEPTED_HOST} only and it survived a restart; both negative controls rejected"), data
+                    f"{EXCEPTED_HOST} only and it survived a restart; an incognito exception stayed in its window, "
+                    f"left no trace after it closed and never reached the state file; both negative controls rejected"), data
 
 
 # ---------------------------------------------------------------- browser driving
@@ -328,7 +364,37 @@ def observe_first_launch(session: Session) -> dict:
     obs["exception"] = {"state": state,
                         "excepted_visit": visit_page(session, EXCEPTED_HOST, "excepted"),
                         "other_visit": visit_page(session, OTHER_HOST, "other")}
+    obs["incognito"] = observe_incognito(session)
     return obs
+
+
+def observe_incognito(session: Session) -> dict:
+    """In an off-the-record context: set an exception, look at both windows, close it, look again.
+    Needs the saved exception for EXCEPTED_HOST (set by observe_first_launch)."""
+    obs: dict = {}
+    with session.in_incognito() as incognito:
+        open_manager(session)
+        send(session, "setException", [EXCEPTED_HOST, True])  # Also saved: must be listed once.
+        send(session, "setException", [INCOGNITO_HOST, True])
+        obs["set_state"] = wait_state(session, lambda s: INCOGNITO_HOST in s["exceptions"] and EXCEPTED_HOST in s["exceptions"])
+        obs["incognito_visit"] = visit_page(session, INCOGNITO_HOST, "incognito")
+        open_manager(session)
+        send(session, "setException", [EXCEPTED_HOST, False])  # A saved exception cannot be undone here.
+        obs["locked_state"] = wait_state(session, lambda s: bool(s.get("addError")), timeout=5.0)
+        with incognito.regular():
+            obs["regular_state"] = open_manager(session)
+            obs["regular_visit"] = visit_page(session, INCOGNITO_HOST, "regular-while-incognito")
+    with session.in_incognito():
+        obs["after_close_state"] = open_manager(session)
+        obs["after_close_visit"] = visit_page(session, INCOGNITO_HOST, "after-close")
+    return obs
+
+
+def read_state_file(profile_path) -> str | None:
+    try:
+        return (Path(profile_path) / STATE_FILE).read_text()
+    except OSError:
+        return None
 
 
 def observe_second_launch(session: Session) -> dict:
@@ -349,6 +415,7 @@ class FilterLists:
         with session.new_profile() as profile:
             with session.variant((FLAG,), profile=profile) as first:
                 self._obs = observe_first_launch(first)
+            self._obs["incognito"]["state_file"] = read_state_file(profile.path)
             self._first = first  # exited; first.netlog is the whole first launch
             self._obs["update"]["netlog_records"] = first.netlog
             self.run_second_launch(session, profile)

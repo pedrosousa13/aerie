@@ -73,9 +73,10 @@ std::string AerieFilterToolbarButton::ActiveHost() const {
   return url.SchemeIsHTTPOrHTTPS() ? std::string(url.host()) : std::string();
 }
 
-const void* AerieFilterToolbarButton::ActiveSession() const {
+SessionKey AerieFilterToolbarButton::ActiveSession() const {
   content::WebContents* contents = ActiveWebContents();
-  return contents ? SessionKeyFor(contents->GetBrowserContext()) : nullptr;
+  return contents ? SessionKeyFor(contents->GetBrowserContext())
+                  : SessionKey::Regular();
 }
 
 void AerieFilterToolbarButton::OnActiveTabChanged() {
@@ -129,17 +130,17 @@ void AerieFilterToolbarButton::ButtonPressed() {
   std::string host = ActiveHost();
   menu_model_ = std::make_unique<ui::SimpleMenuModel>(this);
   if (manager && !host.empty()) {
-    const void* session = ActiveSession();
+    SessionKey session = ActiveSession();
     bool off = manager->HasException(host, session);
     // An exception saved in a regular window cannot be undone from incognito.
-    bool locked = off && session && manager->HasSavedException(host);
+    bool locked = manager->IsExceptionLocked(host, session);
     menu_model_->AddItem(
         kToggleSite,
         base::UTF8ToUTF16(
             locked ? "Blocking is off here (turn it on in a regular window)"
                    : (off ? "Turn on blocking for " : "Turn off blocking for ") +
                          host +
-                         (session ? " (this incognito session only)"
+                         (session.is_off_the_record() ? " (this incognito session only)"
                                           : "")));
     menu_model_->SetEnabledAt(menu_model_->GetItemCount() - 1, !locked);
   }
@@ -157,12 +158,11 @@ void AerieFilterToolbarButton::ExecuteCommand(int command_id, int event_flags) {
     case kToggleSite: {
       std::string host = ActiveHost();
       if (manager && !host.empty()) {
-        const void* session = ActiveSession();
-        if (session) {
-          manager->WatchSession(ActiveWebContents()->GetBrowserContext());
-        }
-        manager->SetException(host, !manager->HasException(host, session),
-                              session);
+        // The manager watches the session and refuses to undo a saved
+        // exception from incognito (the menu item is disabled then).
+        manager->SetException(
+            host, !manager->HasException(host, ActiveSession()),
+            ActiveWebContents()->GetBrowserContext());
         // An excepted site loads its ads on the next load; the page that is open
         // keeps what it has. Reload so the change is visible at once.
         if (content::WebContents* contents = ActiveWebContents()) {

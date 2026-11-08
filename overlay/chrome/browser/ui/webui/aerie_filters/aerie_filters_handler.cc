@@ -38,7 +38,7 @@ AerieFiltersHandler::~AerieFiltersHandler() = default;
 base::DictValue AerieFiltersHandler::StateToValue(
     const FilterListManager& manager,
     const std::string& add_error,
-    const void* session) {
+    SessionKey session) {
   const FilterListState& state = manager.state();
   base::DictValue out;
   out.Set("ready", true);
@@ -46,10 +46,7 @@ base::DictValue AerieFiltersHandler::StateToValue(
   out.Set("autoUpdate", state.auto_update());
   out.Set("addError", add_error);
   base::ListValue exceptions;
-  for (const std::string& host : state.exceptions()) {
-    exceptions.Append(host);
-  }
-  for (const std::string& host : manager.SessionExceptions(session)) {
+  for (const std::string& host : manager.ExceptionsFor(session)) {
     exceptions.Append(host);
   }
   out.Set("exceptions", std::move(exceptions));
@@ -115,7 +112,7 @@ void AerieFiltersHandler::OnFilterListsChanged() {
   PushState();
 }
 
-const void* AerieFiltersHandler::Session() {
+SessionKey AerieFiltersHandler::Session() {
   return SessionKeyFor(web_ui()->GetWebContents()->GetBrowserContext());
 }
 
@@ -181,21 +178,21 @@ void AerieFiltersHandler::HandleSetException(const base::ListValue& args) {
     return;
   }
   add_error_.clear();
-  const void* session = Session();
-  bool excepted = args[1].GetBool();
-  if (session && !excepted && manager->HasSavedException(*host)) {
-    // The regular profile owns saved exceptions. Do not undo them from here.
-    add_error_ =
-        "This site was turned off in a regular window. Turn it back on there.";
-    PushState();
-    return;
-  }
-  if (session) {
-    manager->WatchSession(web_ui()->GetWebContents()->GetBrowserContext());
-  }
-  if (!manager->SetException(*host, excepted, session)) {
-    add_error_ = "That is not a valid site name.";
-    PushState();
+  // The manager owns the rules: it watches the session's end and refuses to
+  // undo an exception the regular profile saved.
+  switch (manager->SetException(
+      *host, args[1].GetBool(), web_ui()->GetWebContents()->GetBrowserContext())) {
+    case ExceptionResult::kOk:
+      break;
+    case ExceptionResult::kInvalidHost:
+      add_error_ = "That is not a valid site name.";
+      PushState();
+      break;
+    case ExceptionResult::kSavedInRegularProfile:
+      add_error_ =
+          "This site was turned off in a regular window. Turn it back on there.";
+      PushState();
+      break;
   }
 }
 

@@ -194,7 +194,7 @@ const char kSessionWatchKey[] = "aerie_adblock.session_watch";
 // Lives in the off-the-record profile's user data, so it is destroyed with it.
 class SessionWatch : public base::SupportsUserData::Data {
  public:
-  explicit SessionWatch(const void* key) : key_(key) {}
+  explicit SessionWatch(SessionKey key) : key_(key) {}
   ~SessionWatch() override {
     if (FilterListManager* manager = FilterListManager::Get()) {
       manager->ClearSessionExceptions(key_);
@@ -202,18 +202,21 @@ class SessionWatch : public base::SupportsUserData::Data {
   }
 
  private:
-  const void* const key_;
+  const SessionKey key_;
 };
 
 }  // namespace
 
-bool FilterListManager::SetException(std::string_view host,
-                                     bool excepted,
-                                     const void* session) {
-  if (session) {
+ExceptionResult FilterListManager::SetException(std::string_view host,
+                                                bool excepted,
+                                                SessionKey session) {
+  if (session.is_off_the_record()) {
+    if (!excepted && HasSavedException(host)) {
+      return ExceptionResult::kSavedInRegularProfile;
+    }
     std::string normalized = NormalizeExceptionHost(host);
     if (normalized.empty()) {
-      return false;
+      return ExceptionResult::kInvalidHost;
     }
     std::set<std::string>& hosts = session_exceptions_[session];
     if (!excepted) {
@@ -221,7 +224,10 @@ bool FilterListManager::SetException(std::string_view host,
     } else if (hosts.size() < kMaxSessionExceptions || hosts.count(normalized)) {
       hosts.insert(std::move(normalized));
     } else {
-      return false;
+      if (hosts.empty()) {
+        session_exceptions_.erase(session);
+      }
+      return ExceptionResult::kInvalidHost;
     }
     if (service_) {
       service_->SetSessionExceptions(session, hosts);
@@ -230,27 +236,33 @@ bool FilterListManager::SetException(std::string_view host,
       session_exceptions_.erase(session);
     }
     Notify();
-    return true;  // No Save(): this never reaches the disk.
+    return ExceptionResult::kOk;  // No Save(): this never reaches the disk.
   }
   if (!state_.SetException(host, excepted)) {
-    return false;
+    return ExceptionResult::kInvalidHost;
   }
   if (service_) {
     service_->SetExceptions(state_.exceptions());
   }
   Save();
   Notify();
-  return true;
+  return ExceptionResult::kOk;
+}
+
+ExceptionResult FilterListManager::SetException(std::string_view host,
+                                                bool excepted,
+                                                content::BrowserContext* context) {
+  WatchSession(context);  // Does nothing for a regular context.
+  return SetException(host, excepted, SessionKeyFor(context));
 }
 
 bool FilterListManager::HasException(std::string_view host,
-                                     const void* session) const {
+                                     SessionKey session) const {
   std::string normalized = NormalizeExceptionHost(host);
   if (HostHasException(normalized, state_.exceptions())) {
     return true;
   }
-  auto it = session ? session_exceptions_.find(session)
-                    : session_exceptions_.end();
+  auto it = session_exceptions_.find(session);
   return it != session_exceptions_.end() &&
          HostHasException(normalized, it->second);
 }
@@ -259,14 +271,25 @@ bool FilterListManager::HasSavedException(std::string_view host) const {
   return HostHasException(NormalizeExceptionHost(host), state_.exceptions());
 }
 
+bool FilterListManager::IsExceptionLocked(std::string_view host,
+                                          SessionKey session) const {
+  return session.is_off_the_record() && HasSavedException(host);
+}
+
 std::set<std::string> FilterListManager::SessionExceptions(
-    const void* session) const {
-  auto it = session ? session_exceptions_.find(session)
-                    : session_exceptions_.end();
+    SessionKey session) const {
+  auto it = session_exceptions_.find(session);
   return it == session_exceptions_.end() ? std::set<std::string>() : it->second;
 }
 
-void FilterListManager::ClearSessionExceptions(const void* session) {
+std::vector<std::string> FilterListManager::ExceptionsFor(
+    SessionKey session) const {
+  std::set<std::string> hosts = state_.exceptions();
+  hosts.merge(SessionExceptions(session));  // A host in both stays once.
+  return std::vector<std::string>(hosts.begin(), hosts.end());
+}
+
+void FilterListManager::ClearSessionExceptions(SessionKey session) {
   if (session_exceptions_.erase(session) == 0) {
     return;
   }
@@ -277,11 +300,11 @@ void FilterListManager::ClearSessionExceptions(const void* session) {
 }
 
 void FilterListManager::WatchSession(content::BrowserContext* context) {
-  if (!SessionKeyFor(context) || context->GetUserData(kSessionWatchKey)) {
+  SessionKey key = SessionKeyFor(context);
+  if (key.is_regular() || context->GetUserData(kSessionWatchKey)) {
     return;
   }
-  context->SetUserData(kSessionWatchKey,
-                       std::make_unique<SessionWatch>(SessionKeyFor(context)));
+  context->SetUserData(kSessionWatchKey, std::make_unique<SessionWatch>(key));
 }
 
 void FilterListManager::SetAutoUpdate(bool enabled) {

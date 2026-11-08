@@ -10,6 +10,7 @@
 #include <string>
 #include <set>
 #include <string_view>
+#include <vector>
 
 #include "base/files/file_path.h"
 #include "base/functional/callback.h"
@@ -23,6 +24,7 @@
 #include "components/aerie_adblock/browser/filter_engine_service.h"
 #include "components/aerie_adblock/browser/filter_list_fetcher.h"
 #include "components/aerie_adblock/browser/filter_list_state.h"
+#include "components/aerie_adblock/browser/session_key.h"
 #include "url/gurl.h"
 
 namespace network {
@@ -50,6 +52,15 @@ namespace aerie_adblock {
 // UI thread. Not a singleton: the browser's main parts own it
 // (chrome/browser/aerie_adblock); Get() is for the settings page and the
 // toolbar button and is null outside that window.
+// What SetException() did.
+enum class ExceptionResult {
+  kOk,
+  kInvalidHost,  // Not a site name, or the table is full.
+  // An off-the-record session tried to turn back on a host whose exception was
+  // saved by the regular profile. Nothing changed.
+  kSavedInRegularProfile,
+};
+
 class FilterListManager {
  public:
   // The text of the built-in list the build shipped, for |id|.
@@ -106,27 +117,43 @@ class FilterListManager {
 
   // |host| as in FilterListState::SetException. Takes effect at once.
   //
-  // |session| is null for a regular profile: the exception is saved to disk
-  // and holds for every profile. For an off-the-record profile it is the key
-  // from SessionKeyFor(): the exception is kept in memory only, holds for that
-  // session only, and is gone when ClearSessionExceptions() runs (the profile's
-  // end, see WatchSession()). It is never written to the state file, so
-  // nothing an incognito window does shows in the regular profile.
-  bool SetException(std::string_view host,
-                    bool excepted,
-                    const void* session = nullptr);
+  // |session| says where the exception is set from (SessionKeyFor()). For the
+  // regular profile it is saved to disk and holds for every profile. For an
+  // off-the-record profile it is kept in memory only, holds for that session
+  // only, and is gone when ClearSessionExceptions() runs (the profile's end).
+  // It is never written to the state file, so nothing an incognito window does
+  // shows in the regular profile.
+  //
+  // An off-the-record session cannot turn back on a host that has a saved
+  // exception: the regular profile owns it (kSavedInRegularProfile, nothing
+  // changes).
+  //
+  // This overload does not watch the session's end. Callers that have the
+  // BrowserContext use the overload below.
+  ExceptionResult SetException(std::string_view host,
+                               bool excepted,
+                               SessionKey session);
+  // The entry point for UI code: the key is SessionKeyFor(|context|), and for
+  // an off-the-record |context| the manager also arranges for the exception
+  // to go when the context is destroyed. Callers do nothing else.
+  ExceptionResult SetException(std::string_view host,
+                               bool excepted,
+                               content::BrowserContext* context);
   // True when blocking is off for |host| (saved, or for |session|).
-  bool HasException(std::string_view host, const void* session = nullptr) const;
+  bool HasException(std::string_view host, SessionKey session) const;
   // True when |host| has a saved exception: one that an off-the-record window
   // cannot turn back on (the regular profile owns it).
   bool HasSavedException(std::string_view host) const;
+  // True when |session| cannot change the exception for |host|: it is an
+  // off-the-record session and the host has a saved exception. For a UI that
+  // wants to show the control as disabled; SetException() refuses anyway.
+  bool IsExceptionLocked(std::string_view host, SessionKey session) const;
   // The hosts excepted for |session| only (a copy).
-  std::set<std::string> SessionExceptions(const void* session) const;
-  void ClearSessionExceptions(const void* session);
-  // Calls ClearSessionExceptions() for an off-the-record |context| when it is
-  // destroyed. Idempotent. Do it before the first SetException() for the
-  // context's session.
-  void WatchSession(content::BrowserContext* context);
+  std::set<std::string> SessionExceptions(SessionKey session) const;
+  // Every host blocking is off for as seen from |session|: the saved ones plus
+  // the session's own, each once, sorted. What the filters page lists.
+  std::vector<std::string> ExceptionsFor(SessionKey session) const;
+  void ClearSessionExceptions(SessionKey session);
 
   void SetAutoUpdate(bool enabled);
 
@@ -136,6 +163,9 @@ class FilterListManager {
   void MaybeRunScheduledUpdate(base::Time now);
 
  private:
+  // Calls ClearSessionExceptions() for an off-the-record |context| when it is
+  // destroyed. Idempotent. Done by SetException(..., context).
+  void WatchSession(content::BrowserContext* context);
   void OnStateLoaded(FilterListState state);
   void Save();
   void Notify();
@@ -160,7 +190,7 @@ class FilterListManager {
   scoped_refptr<base::SequencedTaskRunner> file_runner_;
   FilterListState state_;
   // Off-the-record exceptions, by session. Memory only.
-  std::map<const void*, std::set<std::string>> session_exceptions_;
+  std::map<SessionKey, std::set<std::string>> session_exceptions_;
   int pending_ = 0;
   bool loaded_ = false;
   base::RepeatingTimer schedule_timer_;

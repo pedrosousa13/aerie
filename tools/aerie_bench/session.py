@@ -62,6 +62,52 @@ class Session:
             self.client.send("Page.enable", session_id=self._sid, timeout=self.timeout)
         return self._sid
 
+    @contextmanager
+    def in_incognito(self) -> Iterator[None]:
+        """Point this session's page calls (``cdp``, ``navigate_url``, ``evaluate``, ``wait_for``...)
+        at a new tab in a new off-the-record DevTools browser context, for the length of the block.
+
+        The context is a separate off-the-record profile, so it stands in for an incognito window.
+        On exit, also on error, the tab is closed, the context is disposed (the profile is
+        destroyed) and the regular page is current again.
+
+        Yields a handle whose ``regular()`` block makes the regular page current again while the
+        incognito context stays open (to look at the regular profile while the other one lives)."""
+        previous = self._page()  # The regular page exists before the incognito one does.
+        context = self.client.send("Target.createBrowserContext", timeout=self.timeout)["browserContextId"]
+        target_id = None
+        session = self
+
+        class Handle:
+            incognito_sid = ""
+
+            @contextmanager
+            def regular(self) -> Iterator[None]:
+                session._sid = previous
+                try:
+                    yield
+                finally:
+                    session._sid = self.incognito_sid
+
+        try:
+            target = self.client.send("Target.createTarget",
+                                      {"url": "about:blank", "browserContextId": context}, timeout=self.timeout)
+            target_id = target["targetId"]
+            att = self.client.send("Target.attachToTarget", {"targetId": target_id, "flatten": True},
+                                   timeout=self.timeout)
+            handle = Handle()
+            handle.incognito_sid = self._sid = att["sessionId"]
+            self.client.send("Page.enable", session_id=self._sid, timeout=self.timeout)
+            yield handle
+        finally:
+            self._sid = previous
+            if target_id is not None:
+                try:
+                    self.client.send("Target.closeTarget", {"targetId": target_id}, timeout=self.timeout)
+                except CdpError:
+                    pass
+            self.client.send("Target.disposeBrowserContext", {"browserContextId": context}, timeout=self.timeout)
+
     def cdp(self, method: str, params: dict | None = None) -> dict:
         """Send a CDP command to the page."""
         return self.client.send(method, params, session_id=self._page(), timeout=self.timeout)
