@@ -276,15 +276,38 @@ class SettingsLinkRowTest(unittest.TestCase):
 class FingerprintJudgeTest(unittest.TestCase):
     def obs(self, **changes):
         obs = json.loads(json.dumps(REAL_FINGERPRINT))
+        obs["a2"]["audio"] = obs["a1"]["audio"]  # what a build with stable audio noise gives
+        for key in ("a1", "a2", "b1"):
+            obs[key]["audio_again"] = obs[key]["audio"]
         for path, value in changes.items():
             kind, key = path.split("__")
             obs[kind][key] = value
         return obs
 
-    def test_real_audio_that_changes_every_render_passes(self):
+    def test_a_missing_second_audio_render_fails(self):
+        obs = self.obs()
+        del obs["b1"]["audio_again"]
+        status, detail = fingerprint.Fingerprinting.judge(obs)
+        self.assertEqual(status, "fail")
+        self.assertIn("no second audio render", detail)
+
+    def test_audio_that_changes_every_render_fails(self):
+        # The train-1 recording: Helium salted the noise with a render counter.
+        status, detail = fingerprint.Fingerprinting.judge(REAL_FINGERPRINT)
+        self.assertEqual(status, "fail")
+        self.assertIn("audio changed between two loads", detail)
+
+    def test_stable_audio_passes(self):
         status, detail = fingerprint.Fingerprinting.judge(self.obs())
         self.assertEqual(status, "pass", detail)
-        self.assertIn("#38", detail)
+        self.assertNotIn("not stable", detail)
+
+    def test_two_audio_renders_in_one_page_must_match(self):
+        obs = self.obs()
+        obs["a1"]["audio_again"] = "00000000"
+        status, detail = fingerprint.Fingerprinting.judge(obs)
+        self.assertEqual(status, "fail")
+        self.assertIn("audio changed between two renders in one page", detail)
 
     def test_canvas_must_stay_stable_within_a_session(self):
         obs = self.obs()
@@ -295,7 +318,7 @@ class FingerprintJudgeTest(unittest.TestCase):
 
     def test_audio_must_still_differ_across_sites_and_sessions(self):
         obs = self.obs()
-        obs["b1"]["audio"] = obs["a1"]["audio"]
+        obs["b1"]["audio"] = obs["b1"]["audio_again"] = obs["a1"]["audio"]
         self.assertIn("audio is the same on two different sites", fingerprint.Fingerprinting.judge(obs)[1])
         obs = self.obs()
         obs["next_session"]["a"]["audio"] = obs["a1"]["audio"]
@@ -303,7 +326,8 @@ class FingerprintJudgeTest(unittest.TestCase):
 
     def test_audio_equal_to_the_no_noise_control_fails(self):
         obs = self.obs()
-        obs["a2"]["audio"] = obs["control"]["a"]["audio"]
+        for key in ("a1", "a2"):
+            obs[key]["audio"] = obs[key]["audio_again"] = obs["control"]["a"]["audio"]
         self.assertIn("equals the no-noise control", fingerprint.Fingerprinting.judge(obs)[1])
 
 

@@ -25,6 +25,8 @@
     x.stroke();
     return fnv(c.toDataURL());
   }
+  // One render of a fixed graph, hashed. A tracker can render again and average the noise away, so the
+  // page renders twice (audio, audio_again) and the check wants both equal.
   async function audioHash() {
     const Ctx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
     const ctx = new Ctx(1, 44100, 44100);
@@ -44,7 +46,7 @@
     return fnv(s);
   }
   (async () => {
-    try { window.__result = {canvas: canvasHash(), audio: await audioHash()}; }
+    try { window.__result = {canvas: canvasHash(), audio: await audioHash(), audio_again: await audioHash()}; }
     catch (e) { window.__result = {error: String(e)}; }
     window.__done = true;
   })();

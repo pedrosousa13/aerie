@@ -280,10 +280,32 @@ def check_js_optimizer(root: Path, require: bool = False) -> list[Finding]:
     return out
 
 
+AUDIO_BUFFER_PATH = "third_party/blink/renderer/modules/webaudio/audio_buffer.cc"
+REALTIME_ANALYSER_PATH = "third_party/blink/renderer/modules/webaudio/realtime_analyser.cc"
+
+
+def check_audio_noise_stable(root: Path, require: bool = False) -> list[Finding]:
+    """Helium's audio jitter is seeded from the site/session token and the sample coordinates only
+    (issue #38): channel and frame for rendered buffers, domain constant and index for analyser
+    reads. A per-render or per-read counter would let a tracker average the noise away."""
+    gate = "audio_noise_stable"
+    out = _must_match(
+        root, AUDIO_BUFFER_PATH, gate,
+        r"const uint64_t coordinate_seed =\s*\(static_cast<uint64_t>\(i\) << 48\) \^ frame;\s*"
+        r"samples\[frame\] = BaseAudioContext::JitterAudioData\(\s*samples\[frame\],\s*context,\s*coordinate_seed\)",
+        "the AudioBuffer jitter seed must be exactly (static_cast<uint64_t>(i) << 48) ^ frame, with no "
+        "per-render counter", require)
+    out += _must_match(
+        root, REALTIME_ANALYSER_PATH, gate,
+        r"uint64_t CoordinateSeed\(uint64_t domain, uint64_t index\) const \{[^}]*?return domain \^ index;\s*\}",
+        "the analyser jitter seed must be exactly domain ^ index, with no per-read counter", require)
+    return out
+
+
 GATES: tuple[Callable[..., list[Finding]], ...] = (
     check_search_list, check_search_suggestions, check_secure_dns_default,
     check_crash_reporting, check_services_off, check_fedcm_resolver, check_widevine_opt_in,
-    check_https_first_dialog_off, check_link_prefetch_off, check_js_optimizer,
+    check_https_first_dialog_off, check_link_prefetch_off, check_js_optimizer, check_audio_noise_stable,
 )
 
 
