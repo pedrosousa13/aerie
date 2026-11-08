@@ -81,8 +81,24 @@ TEST(AdblockEngineTest, NonAsciiCosmeticInputIsNeverPassedToRust) {
   engine.LoadListForTesting("##.ad-banner\n");
   EXPECT_TRUE(engine.CosmeticStylesheet("https://news.test/\xc3\xa9").empty());
   EXPECT_TRUE(
+      engine.GenericStylesheet("https://news.test/\xc3\xa9", "ad-banner", "")
+          .empty());
+  // Only the token that is not ASCII is skipped, never the whole list.
+  EXPECT_TRUE(
       engine.GenericStylesheet("https://news.test/", "ad-banner\xc3\xa9", "")
           .empty());
+}
+
+// One bad token in a report must not void the others (issue #68 review).
+TEST(AdblockEngineTest, NonAsciiTokensAreSkippedOneAtATime) {
+  AdblockEngine engine;
+  engine.LoadListForTesting("##.ad-banner\n###ad-slot\n");
+  EXPECT_EQ(engine.GenericStylesheet("https://news.test/",
+                                     "caf\xc3\xa9 ad-banner \xe2\x82\xac", ""),
+            ".ad-banner{display:none!important}\n");
+  EXPECT_EQ(engine.GenericStylesheet("https://news.test/", "x",
+                                     "\xc3\xa9 ad-slot"),
+            "#ad-slot{display:none!important}\n");
 }
 
 TEST(AdblockEngineTest, SerializedRoundTripKeepsRules) {

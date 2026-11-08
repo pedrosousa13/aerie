@@ -8,3 +8,10 @@
   border: 1px solid #888;
 }
 #content { color: #123456; }
+.advert-box, #adContainer, .sponsored-links, .promo {
+  display: block;
+  width: 300px;
+  height: 60px;
+  margin: 8px 0;
+  border: 1px solid #888;
+}

@@ -133,6 +133,7 @@ source_set("cosmetic_scripts") {
   ]
   public_deps = [
     "//base",
+    "//components/aerie_adblock/common:limits",
     "//content/public/common",
   ]
 }

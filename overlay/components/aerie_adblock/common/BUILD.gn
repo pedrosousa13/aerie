@@ -1,0 +1,55 @@
+# Copyright 2026 The Aerie Authors
+# You can use, redistribute, and/or modify this source code under
+# the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+import("//mojo/public/tools/bindings/mojom.gni")
+import("//testing/test.gni")
+
+# The only part of cosmetic filtering that a renderer may depend on (ADR 0005),
+# besides the renderer directory itself: the limits, the report gate and the
+# narrow Mojo interface. Nothing here reads a filter list or touches the
+# network.
+_visibility = [
+  "//chrome/browser:core",
+  "//chrome/renderer:renderer",
+  "//chrome/browser/aerie_adblock:*",
+  "//components/aerie_adblock/*",
+]
+
+source_set("limits") {
+  visibility = _visibility
+  sources = [ "cosmetic_limits.h" ]
+  public_deps = [ "//content/public/common" ]
+}
+
+# What lets a token report through, in the renderer and again in the browser.
+source_set("gate") {
+  visibility = _visibility
+  sources = [
+    "late_report_gate.cc",
+    "late_report_gate.h",
+  ]
+  public_deps = [
+    ":limits",
+    "//base",
+  ]
+}
+
+mojom("mojom") {
+  sources = [ "cosmetic.mojom" ]
+  visibility = _visibility
+}
+
+test("aerie_adblock_common_unittests") {
+  testonly = true
+  visibility = [ "//components/aerie_adblock:*" ]
+  sources = [ "late_report_gate_unittest.cc" ]
+  deps = [
+    ":gate",
+    ":limits",
+    "//base",
+    "//base/test:test_support",
+    "//mojo/core/test:run_all_unittests",
+    "//testing/gtest",
+  ]
+}

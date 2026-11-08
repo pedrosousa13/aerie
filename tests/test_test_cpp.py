@@ -73,7 +73,8 @@ class TestCppTest(unittest.TestCase):
         self.assertEqual(result, 0)
         self.assertEqual(
             [Path(c[0]).name for c in calls],
-            ["aerie_adblock_unittests", "aerie_adblock_content_unittests", "aerie_widevine_unittests"])
+            ["aerie_adblock_unittests", "aerie_adblock_content_unittests", "aerie_widevine_unittests",
+             "aerie_adblock_common_unittests", "aerie_adblock_renderer_unittests"])
         build_tree.assert_called_once()
 
     def test_no_binary_needs_components_unittests(self):
@@ -89,7 +90,7 @@ class TestCppTest(unittest.TestCase):
     def test_one_failure_returns_non_zero_but_every_target_still_runs(self):
         result, calls, _ = self.run_tests({"aerie_adblock_unittests": 1})
         self.assertNotEqual(result, 0)
-        self.assertEqual(len(calls), 3)
+        self.assertEqual(len(calls), len(pipeline.TEST_BINARIES))
 
     def test_a_subset_can_be_selected(self):
         result, calls, _ = self.run_tests({}, targets=["aerie_widevine_unittests"])

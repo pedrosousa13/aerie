@@ -1,6 +1,8 @@
 # 2. Hide ad containers from the browser process, in an isolated world
 
-Status: accepted (issue #9)
+Status: accepted (issue #9). Amended by [ADR 0005](0005-renderer-side-cosmetic-piece.md) (issue #68): a small renderer
+piece now inserts the hide rules as a user-origin sheet and watches for late elements. The choices below that say
+"no renderer code", "constructed stylesheet" and "later, if it matters" are replaced by it; the rest stands.
 
 ## Context
 
@@ -27,6 +29,8 @@ Engine keeps everything the user's pages must not influence in the browser proce
   installs `AerieDomainResolver`, a heuristic, instead of vetting the public suffix crate.
 
 ## Consequences
+
+(Written for issue #9. The first two points, and the "no renderer code" line of the decision, are changed by ADR 0005.)
 
 - Elements added after the load event are hidden only if their class or id was on the page by
   then. A mutation observer would need a channel back from the page's world; later, if it matters.

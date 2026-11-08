@@ -4,9 +4,11 @@
 <meta charset="utf-8">
 <title>Aerie Cosmetic Fixture</title>
 <link rel="stylesheet" href="/cosmetic/page.css">
-<!-- A hostile page tries to take over the stylesheet injection. The browser runs it in an isolated world, so none of this
+<!-- A hostile page tries to take over the stylesheet injection. The browser injects in a way the page cannot reach, so none of this
      may be seen by it, and the hide must still work (expected.json: hijack_flag). -->
 <script>
+  // Kept for the attack below: the page's real setter, taken before the hijack replaces it.
+  var realAdoptedSheets = Object.getOwnPropertyDescriptor(Document.prototype, "adoptedStyleSheets");
   window.CSSStyleSheet = function () { window.cosmeticHijacked = true; };
   try {
     Object.defineProperty(Document.prototype, "adoptedStyleSheets", {
@@ -27,5 +29,42 @@ The boxes with ordinary names must stay. Nothing here is loaded from the network
 <ins class="adsbygoogle" data-ad-client="ca-pub-1" data-ad-slot="1">Ad (generic tag rule)</ins>
 <div class="adventure">First-party box whose class starts with "ad"</div>
 <div class="sidebar">First-party sidebar</div>
+<div id="promo-box" class="promo">First-party box that the page later turns into an ad class</div>
+<div id="late-mount"></div>
+<script>
+  // What an anti-adblock script does, a few seconds after load (long after the browser's load-time passes):
+  // drop every sheet it can reach, then force the ad boxes back with inline !important styles. A hide that only
+  // lives in the page's own style system loses. A user-origin hide rule beats author !important.
+  setTimeout(function () {
+    // The accessor is replaced in the head, so the empty list goes through the real setter kept there.
+    try { realAdoptedSheets.set.call(document, []); } catch (e) {}
+    document.querySelectorAll("style").forEach(function (n) { n.remove(); });
+    // Its own stylesheet link too: the boxes lose their sizes, so the hide cannot hang on page CSS.
+    document.querySelectorAll("link[rel=stylesheet]").forEach(function (n) { n.remove(); });
+    ["ad-slot", "ad-wrapper", "adsbygoogle"].forEach(function (c) {
+      document.querySelectorAll("." + c).forEach(function (n) {
+        n.style.setProperty("display", "block", "important");
+      });
+    });
+    var box = document.getElementById("adbox");
+    if (box) { box.style.setProperty("display", "block", "important"); }
+    window.cosmeticAttackDone = true;
+  }, 3000);
+
+  // Ad containers inserted after the load event. Their class and id were not on the page when the browser read it.
+  setTimeout(function () {
+    var mount = document.getElementById("late-mount");
+    var late = document.createElement("div");
+    late.className = "advert-box";
+    late.textContent = "Ad (generic class, inserted late)";
+    mount.appendChild(late);
+    var wrap = document.createElement("div");
+    wrap.innerHTML = '<div id="adContainer">Ad (generic id, inside a wrapper inserted late)</div>';
+    mount.appendChild(wrap);
+    // A class that makes an existing element an ad container, added after load.
+    document.getElementById("promo-box").classList.add("sponsored-links");
+    window.cosmeticLateInserted = true;
+  }, 3500);
+</script>
 </body>
 </html>

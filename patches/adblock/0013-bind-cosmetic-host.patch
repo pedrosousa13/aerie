@@ -1,0 +1,25 @@
+Aerie-Purpose: Let a frame's renderer reach the cosmetic tab helper of its tab, so the renderer's late-element reports arrive in the browser process (ADR 0005).
+Aerie-Upstream-Area: chrome/browser/chrome_content_browser_client_receiver_bindings.cc (RegisterAssociatedInterfaceBindersForRenderFrameHost), chrome/browser/BUILD.gn (core deps)
+Aerie-Kind: hook
+
+One call that registers the CosmeticHost associated interface binder for each RenderFrameHost, next to
+the other tab helpers' binders. Everything it does is in chrome/browser/aerie_adblock/
+aerie_cosmetic_tab_helper.cc (the overlay): the report is untrusted, bounded and rate limited there.
+
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -1109,2 +1109,3 @@
+     "//chrome/browser/aerie_adblock",
++    "//chrome/browser/aerie_adblock:tab_helper",
+     "//chrome/browser/app_mode",
+--- a/chrome/browser/chrome_content_browser_client_receiver_bindings.cc
++++ b/chrome/browser/chrome_content_browser_client_receiver_bindings.cc
+@@ -11,2 +11,3 @@
+ #include "build/build_config.h"
++#include "chrome/browser/aerie_adblock/aerie_cosmetic_tab_helper.h"
+ #include "chrome/browser/browser_process.h"
+@@ -462,2 +463,4 @@
+ #endif
++  AerieCosmeticTabHelper::RegisterBinder(associated_registry,
++                                         render_frame_host);
+   associated_registry.AddInterface<autofill::mojom::PasswordGenerationDriver>(

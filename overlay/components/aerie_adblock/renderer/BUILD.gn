@@ -1,0 +1,64 @@
+# Copyright 2026 The Aerie Authors
+# You can use, redistribute, and/or modify this source code under
+# the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+import("//testing/test.gni")
+
+# The renderer piece of cosmetic filtering (ADR 0005, issue #68). It inserts
+# the browser's hide rules as a user-origin sheet and relays late class and id
+# tokens to the browser. It reads no filter list, has no network access and
+# depends on nothing of the Filter Engine: only the narrow Mojo interface and
+# the limits in //components/aerie_adblock/common. tests/test_cosmetic_renderer.py
+# keeps the dependency list that way.
+source_set("renderer") {
+  visibility = [ "//chrome/renderer:renderer" ]
+  sources = [
+    "aerie_cosmetic_agent.cc",
+    "aerie_cosmetic_agent.h",
+  ]
+
+  # The header includes these.
+  public_deps = [
+    ":sheet_state",
+    "//base",
+    "//components/aerie_adblock/common:gate",
+    "//components/aerie_adblock/common:mojom",
+    "//content/public/renderer",
+    "//mojo/public/cpp/bindings",
+    "//third_party/blink/public:blink",
+    "//v8",
+  ]
+  deps = [ "//components/aerie_adblock/common:limits" ]
+}
+
+# Pure code: the text of the sheets and the pacing of their insertion. No Blink,
+# so it has unit tests.
+source_set("sheet_state") {
+  visibility = [
+    ":*",
+    "//components/aerie_adblock/*",
+  ]
+  sources = [
+    "cosmetic_sheet_state.cc",
+    "cosmetic_sheet_state.h",
+  ]
+  public_deps = [
+    "//base",
+    "//components/aerie_adblock/common:limits",
+    "//components/aerie_adblock/common:mojom",
+  ]
+}
+
+test("aerie_adblock_renderer_unittests") {
+  testonly = true
+  visibility = [ "//components/aerie_adblock:*" ]
+  sources = [ "cosmetic_sheet_state_unittest.cc" ]
+  deps = [
+    ":sheet_state",
+    "//base",
+    "//base/test:test_support",
+    "//components/aerie_adblock/common:limits",
+    "//mojo/core/test:run_all_unittests",
+    "//testing/gtest",
+  ]
+}

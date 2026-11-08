@@ -4,60 +4,28 @@
 
 #include "components/aerie_adblock/browser/cosmetic_scripts.h"
 
-#include "base/json/string_escape.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/strings/string_util.h"
-#include "base/strings/utf_string_conversions.h"
 
 namespace aerie_adblock {
 
 namespace {
 
-// The name of the generic sheet in the isolated world's global.
-constexpr char kGenericSheetProperty[] = "__aerieGenericSheet";
-
-// Each token is at most kMaxTokenBytes bytes, plus a separator. The page
-// decides what is in them, so the browser bounds them.
-constexpr size_t kMaxTokenListBytes = kMaxPageTokens * (kMaxTokenBytes + 1);
+// A number from cosmetic_limits.h, as script text.
+std::u16string Limit(size_t n) {
+  return base::NumberToString16(n);
+}
 
 }  // namespace
 
-std::u16string BuildInjectionScript(std::string_view stylesheet,
-                                    SheetKind kind) {
-  if (stylesheet.empty() || !base::IsStringASCII(stylesheet)) {
-    return std::u16string();
-  }
-  // GetQuotedJSONString escapes quotes, backslashes, control characters and
-  // `<`, `>` and `&`, so the text cannot leave the string literal.
-  std::string literal = base::GetQuotedJSONString(stylesheet);
-  if (kind == SheetKind::kGeneric) {
-    // The sheet lives in the isolated world's global, which the page cannot
-    // reach. It is adopted again if the document no longer holds it.
-    return base::UTF8ToUTF16(base::StrCat(
-        {"(function(css){try{var s=globalThis.", kGenericSheetProperty,
-         ";if(!s){s=new CSSStyleSheet();globalThis.", kGenericSheetProperty,
-         "=s;}s.replaceSync(css);"
-         "if(!document.adoptedStyleSheets.includes(s)){"
-         "document.adoptedStyleSheets=[...document.adoptedStyleSheets,s];}"
-         "}catch(e){}})(",
-         literal, ");"}));
-  }
-  return base::UTF8ToUTF16(base::StrCat(
-      {"(function(css){try{var s=new CSSStyleSheet();s.replaceSync(css);"
-       "document.adoptedStyleSheets=[...document.adoptedStyleSheets,s];"
-       "}catch(e){}})(",
-       literal, ");"}));
-}
-
 std::u16string CollectClassesAndIdsScript() {
-  const std::u16string max_tokens = base::NumberToString16(kMaxPageTokens);
+  const std::u16string max_tokens = Limit(kMaxPageTokens);
   return base::StrCat(
       {u"(function(){"
        u"var c=new Set(),d=new Set(),n=0,"
        u"all=document.querySelectorAll('[class],[id]');"
        u"for(var i=0;i<all.length&&n<",
-       base::NumberToString16(kMaxScannedElements),
+       Limit(kMaxScannedElements),
        u";i++,n++){"
        u"var e=all[i];"
        u"if(e.classList){for(var j=0;j<e.classList.length;j++){"
@@ -71,6 +39,105 @@ std::u16string CollectClassesAndIdsScript() {
        max_tokens,
        u").join(' ')];"
        u"})()"});
+}
+
+std::u16string LateWatchScript() {
+  // Fixed text. It reads class names and ids from inserted elements and gives
+  // them to the renderer's native function; it writes nothing to the page.
+  //
+  // - Tokens that are not ASCII are dropped here: the engine only takes ASCII,
+  //   and one bad token must not void a report.
+  // - Mutation records wait in `work` and are read a bounded amount at a time,
+  //   so the cost is bounded. A flood of junk delays an ad's class, and the
+  //   delay is fair only within the limits: `work`, the token queues, the
+  //   elements read per document and the retries are bounded, and a hostile page
+  //   can exhaust them.
+  // - A token leaves its queue only when `notify` returned true (the renderer
+  //   sent the report), so a report that was dropped is sent again.
+  // - `bud` counts characters; tokens are ASCII (see above), so a character is
+  //   a byte and a report stays under kMaxLateTokenListBytes.
+  return base::StrCat(
+      {uR"JS((function(){
+if(globalThis.__aerieLateWatch){return;}
+var notify=globalThis.__aerieCosmeticNotify;
+if(typeof notify!=='function'||typeof MutationObserver!=='function'||!document.documentElement){return;}
+globalThis.__aerieLateWatch=true;
+var kc=new Set(),ki=new Set(),qc=[],qi=[],work=[],timer=0,turn=0,fails=0,left=)JS",
+       Limit(kMaxLateElementsPerDocument),
+       uR"JS(;
+function ok(t,k){return t.length<=)JS",
+       Limit(kMaxTokenBytes),
+       uR"JS(&&!/[^\x00-\x7f]/.test(t)&&!k.has(t)&&k.size<)JS",
+       Limit(kMaxLateSeenTokens),
+       uR"JS(;}
+function add(e){
+var cl=e.classList;
+if(cl){for(var j=0;j<cl.length&&j<)JS",
+       Limit(kMaxClassesPerElement),
+       uR"JS(;j++){var c=cl[j];if(ok(c,kc)){kc.add(c);qc.push(c);}}}
+var d=e.id;
+if(typeof d==='string'&&d&&ok(d,ki)){ki.add(d);qi.push(d);}
+}
+function take(q){var bud=)JS",
+       Limit(kMaxLateTokenListBytes),
+       uR"JS(,n=0;while(n<q.length&&q[n].length+1<=bud){bud-=q[n].length+1;n++;}return n;}
+function stop(){mo.disconnect();work.length=0;qc.length=0;qi.length=0;}
+function flush(){
+timer=0;
+if(!qc.length&&!qi.length){return;}
+var nc=take(qc),ni=take(qi),sent=false;
+try{sent=notify(qc.slice(0,nc).join(' '),qi.slice(0,ni).join(' '))===true;}catch(e){}
+if(sent){fails=0;qc.splice(0,nc);qi.splice(0,ni);}
+else if(++fails>)JS",
+       Limit(kMaxLateFlushRetries),
+       uR"JS(){stop();return;}
+if(qc.length||qi.length){timer=setTimeout(flush,sent?)JS",
+       Limit(kLateFlushDelayMs),
+       uR"JS(:)JS",
+       Limit(kLateRetryDelayMs),
+       uR"JS();}
+}
+function drain(){
+if(turn){clearTimeout(turn);turn=0;}
+var room=)JS",
+       Limit(kMaxElementsPerMutationBatch),
+       uR"JS(,recs=)JS",
+       Limit(kMaxMutationRecordsPerBatch),
+       uR"JS(;
+while(work.length&&room>0&&recs>0&&left>0){
+var it=work[0];
+if(!it.w){
+add(it.n);room--;left--;recs--;
+if(it.a||!it.n.firstElementChild){work.shift();continue;}
+it.w=document.createTreeWalker(it.n,NodeFilter.SHOW_ELEMENT);
+}
+var x;
+while(room>0&&left>0&&(x=it.w.nextNode())){add(x);room--;left--;}
+if(room>0&&left>0){work.shift();}
+}
+if(left<=0){stop();return;}
+if(work.length){turn=setTimeout(drain,)JS",
+       Limit(kLateFlushDelayMs),
+       uR"JS();}
+if((qc.length||qi.length)&&!timer){timer=setTimeout(flush,)JS",
+       Limit(kLateFlushDelayMs),
+       uR"JS();}
+}
+var mo=new MutationObserver(function(recs){
+for(var k=0;k<recs.length&&work.length<)JS",
+       Limit(kMaxLateBacklogItems),
+       uR"JS(;k++){
+var r=recs[k];
+if(r.type==='attributes'){if(r.target.nodeType===1){work.push({n:r.target,a:true,w:null});}continue;}
+var a=r.addedNodes;
+for(var m=0;m<a.length&&work.length<)JS",
+       Limit(kMaxLateBacklogItems),
+       uR"JS(;m++){if(a[m].nodeType===1){work.push({n:a[m],a:false,w:null});}}
+}
+drain();
+});
+mo.observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['class','id']});
+})())JS"});
 }
 
 std::optional<PageTokens> ParsePageTokens(const base::Value& result) {

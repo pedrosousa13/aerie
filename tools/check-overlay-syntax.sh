@@ -45,6 +45,16 @@ printf '#define IDR_AERIE_ADBLOCK_ENGINE 1\n#define IDR_AERIE_ADBLOCK_EASYLIST 2
 mkdir -p "$WORK/stub/chrome/browser/ui/webui/aerie_filters/grit"
 printf '#define IDR_AERIE_FILTERS_HTML 1\n#define IDR_AERIE_FILTERS_JS 2\n#define IDR_AERIE_FILTERS_CSS 3\n' > "$WORK/stub/chrome/browser/ui/webui/aerie_filters/grit/aerie_filters_resources.h"
 
+# The mojom bindings of the overlay's interfaces, from the tree's own generator (reads the tree, writes only $WORK).
+for m in $(cd "$O" && find components -name '*.mojom' | sort); do
+  mkdir -p "$WORK/mj/src/$(dirname "$m")"; cp "$O/$m" "$WORK/mj/src/$m"
+  (cd "$WORK/mj/src" && python3 "$TREE/mojo/public/tools/mojom/mojom_parser.py" --input-root "$WORK/mj/src" \
+      --output-root "$WORK/mj/gen" --mojoms "$m" && \
+   python3 "$TREE/mojo/public/tools/bindings/mojom_bindings_generator.py" -o "$WORK/mj/gen" generate -d "$WORK/mj/src" \
+      --bytecode_path "$GEN/mojo/public/tools/bindings" -g c++ --gen_dir "$WORK/mj/gen" --generate_non_variant_code \
+      "$WORK/mj/src/$m")
+done
+
 if [ $# -eq 0 ]; then mapfile -t FILES < <(find "$O/components" "$O/chrome" -name '*.cc' | sort); else FILES=("$@"); fi
 status=0
 for f in "${FILES[@]}"; do
@@ -52,7 +62,7 @@ for f in "${FILES[@]}"; do
       -D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_EXTENSIVE -DLIBCXX_BUILDING_LIBCXXABI=0 \
       -nostdinc++ -isystem "$TREE/third_party/libc++/src/include" -isystem "$TREE/third_party/libc++abi/src/include" \
       -isystem "$TREE/buildtools/third_party/libc++" --sysroot="$TREE/build/linux/debian_bullseye_amd64-sysroot" \
-      -I"$WORK/stub" -I"$O" -I"$TREE" -I"$GEN" \
+      -I"$WORK/stub" -I"$WORK/mj/gen" -I"$O" -I"$TREE" -I"$GEN" -I"$TREE/v8/include" -I"$GEN/v8/include" \
       -I"$TREE/third_party/abseil-cpp" -I"$TREE/third_party/protobuf/src" -I"$TREE/base/allocator/partition_allocator/src" \
       -I"$GEN/base/allocator/partition_allocator/src" -I"$TREE/third_party/perfetto/include" -I"$GEN/third_party/perfetto" \
       -I"$GEN/third_party/perfetto/build_config" -I"$TREE/third_party/boringssl/src/include" -I"$TREE/third_party/icu/source/common" \

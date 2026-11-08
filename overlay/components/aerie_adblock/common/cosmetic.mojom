@@ -1,0 +1,35 @@
+// Copyright 2026 The Aerie Authors
+// You can use, redistribute, and/or modify this source code under
+// the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+module aerie_adblock.mojom;
+
+// The whole interface between the browser's cosmetic filtering and the
+// renderer piece (ADR 0005): two frame-associated interfaces with one call
+// each. Keep it that small: a change here widens what a compromised renderer
+// can say to the browser.
+
+enum CosmeticSheetKind {
+  // The rules for one page URL.
+  kPage,
+  // The generic rules for the class names and ids of the page.
+  kGeneric,
+};
+
+// Browser to renderer. Implemented by AerieCosmeticAgent.
+interface CosmeticAgent {
+  // Puts |css| in the frame's user-origin sheet of |kind|. With |append| false
+  // it replaces that sheet's rules (empty |css| clears the sheet); with
+  // |append| true it adds the lines that are not in the sheet yet. The text is
+  // checked by the engine in the browser; the renderer adds no selector and
+  // does not parse it beyond lines.
+  SetRules(CosmeticSheetKind kind, string css, bool append);
+};
+
+// Renderer to browser. Implemented by the browser's per-tab helper, which
+// treats every argument as untrusted.
+interface CosmeticHost {
+  // Class names and ids (each a whitespace separated list) that appeared in
+  // the page after the browser last read it. Lookup keys only.
+  LateTokens(string classes, string ids);
+};
