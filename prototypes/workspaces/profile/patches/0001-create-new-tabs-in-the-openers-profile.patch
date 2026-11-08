@@ -1,0 +1,26 @@
+Aerie-Purpose: Create a new tab in the profile of the tab that opened it, so one window can hold tabs of several profiles.
+Aerie-Upstream-Area: chrome/browser/ui/navigator/browser_navigator.cc (CreateTargetContents)
+Aerie-Kind: hook
+
+Prototype for issue 72, option 1 (a profile per Workspace). Not in patches/series. This is the first of many places that assume Browser::profile() is the profile of every tab: see prototypes/workspaces/README.md for the count. It is the smallest change that lets a link in a tab of profile B open a tab of profile B inside a Browser of profile A. TabStripModel::profile() still says A.
+
+--- a/chrome/browser/ui/navigator/browser_navigator.cc
++++ b/chrome/browser/ui/navigator/browser_navigator.cc
+@@ -574,8 +574,16 @@
+                     : tab_util::GetSiteInstanceForNewTab(
+                           params.browser->GetProfile(), url);
+ 
++  // Aerie (profile-per-Workspace prototype): the new tab belongs to the profile
++  // of the tab it came from, not to the profile of the Browser that shows it.
++  // Without this a link opened from a Workspace-B tab would create its
++  // WebContents in the Browser's profile (Workspace A's logins).
++  Profile* tab_profile = params.opener
++                             ? Profile::FromBrowserContext(
++                                   params.opener->GetBrowserContext())
++                             : params.browser->GetProfile();
+   WebContents::CreateParams create_params(
+-      params.browser->GetProfile(), initial_site_instance_for_new_contents);
++      tab_profile, initial_site_instance_for_new_contents);
+   create_params.main_frame_name = params.frame_name;
+   if (params.opener) {
+     create_params.opener_id = params.opener->GetGlobalId();

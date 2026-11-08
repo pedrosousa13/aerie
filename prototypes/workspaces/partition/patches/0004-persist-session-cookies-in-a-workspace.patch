@@ -1,0 +1,33 @@
+Aerie-Purpose: Give Workspace partitions the main partition's session cookie persistence.
+Aerie-Upstream-Area: chrome/browser/net/profile_network_context_service.cc
+Aerie-Kind: hook
+
+Needs overlay content/public/browser/aerie_workspace_partition.h (IsAerieWorkspacePartitionPath).
+
+Prototype for issue 72, option 2. Upstream sets persist_session_cookies and restore_old_session_cookies to false for every non-main partition, so a login that uses a session cookie would be lost at each restart in a Workspace.
+
+--- a/chrome/browser/net/profile_network_context_service.cc
++++ b/chrome/browser/net/profile_network_context_service.cc
+@@ -76,6 +76,7 @@
+ #include "components/prefs/pref_registry_simple.h"
+ #include "components/prefs/pref_service.h"
+ #include "components/privacy_sandbox/privacy_sandbox_prefs.h"
++#include "content/public/browser/aerie_workspace_partition.h"
+ #include "content/public/browser/browser_context.h"
+ #include "content/public/browser/browser_thread.h"
+ #include "content/public/browser/network_service_instance.h"
+@@ -1453,6 +1454,14 @@
+       network_context_params->restore_old_session_cookies =
+           profile_->ShouldRestoreOldSessionCookies();
+       network_context_params->persist_session_cookies =
++          profile_->ShouldPersistSessionCookies();
++    } else if (content::IsAerieWorkspacePartitionPath(
++                   relative_partition_path)) {
++      // Aerie: a Workspace behaves like the main partition, so a login that
++      // uses a session cookie survives a restart when the user asked for that.
++      network_context_params->restore_old_session_cookies =
++          profile_->ShouldRestoreOldSessionCookies();
++      network_context_params->persist_session_cookies =
+           profile_->ShouldPersistSessionCookies();
+     } else {
+       // Copy behavior of ProfileImplIOData::InitializeAppRequestContext.

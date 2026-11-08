@@ -1,0 +1,46 @@
+Aerie-Purpose: Test builds only: build the Workspace helper and register chrome://workspace-test (enabled by --aerie-test-workspaces).
+Aerie-Upstream-Area: chrome/browser/ui/navigator/BUILD.gn, chrome/browser/ui/webui/BUILD.gn, chrome/browser/ui/webui/chrome_web_ui_configs.cc
+Aerie-Kind: hook
+
+Prototype for issue 72, option 2. Not in patches/series. The helper builds as part of the navigator impl target, because browser_navigator.cc calls it and it needs the tab strip (a separate target would be a dependency cycle).
+
+--- a/chrome/browser/ui/navigator/BUILD.gn
++++ b/chrome/browser/ui/navigator/BUILD.gn
+@@ -81,6 +81,8 @@
+ 
+   if (!is_android) {
+     sources += [
++      "//chrome/browser/aerie_workspaces/workspace_partition.cc",
++      "//chrome/browser/aerie_workspaces/workspace_partition.h",
+       "browser_navigator.cc",
+       "browser_navigator_tab_modal.cc",
+     ]
+--- a/chrome/browser/ui/webui/BUILD.gn
++++ b/chrome/browser/ui/webui/BUILD.gn
+@@ -55,6 +55,7 @@
+     "//chrome/browser/ui/webui/accessibility",
+     "//chrome/browser/ui/webui/actor_internals",
+     "//chrome/browser/ui/webui/aerie_filters",
++    "//chrome/browser/ui/webui/aerie_workspace_test",
+     "//chrome/browser/ui/webui/autofill_and_password_manager_internals",
+     "//chrome/browser/ui/webui/bluetooth_internals",
+     "//chrome/browser/ui/webui/chrome_urls",
+--- a/chrome/browser/ui/webui/chrome_web_ui_configs.cc
++++ b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
+@@ -16,6 +16,7 @@
+ #include "chrome/browser/ui/webui/accessibility/accessibility_ui.h"
+ #include "chrome/browser/ui/webui/actor_internals/actor_internals_ui.h"
+ #include "chrome/browser/ui/webui/aerie_filters/aerie_filters_ui.h"
++#include "chrome/browser/ui/webui/aerie_workspace_test/aerie_workspace_test_ui.h"
+ #include "chrome/browser/ui/webui/autofill_and_password_manager_internals/autofill_internals_ui.h"
+ #include "chrome/browser/ui/webui/autofill_and_password_manager_internals/password_manager_internals_ui.h"
+ #include "chrome/browser/ui/webui/bluetooth_internals/bluetooth_internals_ui.h"
+@@ -273,6 +274,8 @@
+   auto& map = content::WebUIConfigMap::GetInstance();
+   map.AddWebUIConfig(std::make_unique<AccessibilityUIConfig>());
+   map.AddWebUIConfig(std::make_unique<aerie_adblock::AerieFiltersUIConfig>());
++  map.AddWebUIConfig(
++      std::make_unique<aerie_workspaces::WorkspaceTestUIConfig>());
+   map.AddWebUIConfig(std::make_unique<AutofillInternalsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<BluetoothInternalsUIConfig>());
+   map.AddWebUIConfig(
