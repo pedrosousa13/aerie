@@ -174,3 +174,71 @@ class BuildEntryPointTakesTheLockTest(unittest.TestCase):
         with buildlock.build_tree_lock(self.root):
             code = cli.main(["prune", "--build-root", str(self.root), "--lock-timeout", "0", "-n"])
         self.assertEqual(code, 1)
+
+    def test_bench_refuses_while_another_build_holds_the_lock(self):
+        from aerie_bench import cli as bench_cli
+
+        with mock.patch.object(bench_cli, "run", return_value=0) as run:
+            with buildlock.build_tree_lock(self.root):
+                code = cli.main(["bench", "--build-root", str(self.root), "--lock-timeout", "0"])
+        self.assertEqual(code, 1)
+        run.assert_not_called()
+
+    def test_bench_runs_under_the_lock_and_releases_it(self):
+        from aerie_bench import cli as bench_cli
+
+        held = []
+        with mock.patch.object(bench_cli, "run", side_effect=lambda *a: held.append(os.environ.get(buildlock.ENV_HELD)) or 0):
+            self.assertEqual(cli.main(["bench", "--build-root", str(self.root), "--lock-timeout", "0"]), 0)
+        self.assertTrue(held[0])
+        with buildlock.build_tree_lock(self.root, timeout=0):
+            pass
+
+
+class LockedCommandTest(unittest.TestCase):
+    """./aerie locked -- CMD holds the lock across several commands, e.g. a train's build plus Bench."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.root = Path(self._tmp.name)
+
+    def run_locked(self, *command, timeout="0"):
+        return cli.main(["locked", "--build-root", str(self.root), "--lock-timeout", timeout, "--", *command])
+
+    def test_runs_the_command_and_returns_its_exit_code(self):
+        self.assertEqual(self.run_locked(sys.executable, "-c", "raise SystemExit(0)"), 0)
+        self.assertEqual(self.run_locked(sys.executable, "-c", "raise SystemExit(7)"), 7)
+
+    def test_the_command_holds_the_lock_and_its_children_pass_through_it(self):
+        out = self.root / "rc"
+        child = ("import subprocess, sys, pathlib;"
+                 f"sys.path.insert(0, {_TOOLS!r});"
+                 f"rc = subprocess.run([sys.executable, '-c', {_TRY!r}, {_TOOLS!r}, {str(self.root)!r}]).returncode;"
+                 f"pathlib.Path({str(out)!r}).write_text(str(rc))")
+        self.assertEqual(self.run_locked(sys.executable, "-c", child), 0)
+        self.assertEqual(out.read_text(), "0")  # a build started by the command does not wait
+
+    def test_other_builds_wait_while_it_runs_and_get_the_lock_after(self):
+        seen = []
+
+        def probe():
+            try:
+                with buildlock.build_tree_lock(self.root, timeout=0, sleep=lambda s: None):
+                    seen.append("free")
+            except buildlock.BuildTreeBusy:
+                seen.append("held")
+
+        real = subprocess.run
+        with mock.patch.object(subprocess, "run", side_effect=lambda *a, **k: (probe(), real(*a, **k))[1]):
+            self.assertEqual(self.run_locked(sys.executable, "-c", "pass"), 0)
+        self.assertEqual(seen, ["held"])
+        with buildlock.build_tree_lock(self.root, timeout=0):
+            pass
+
+    def test_refuses_while_another_build_holds_the_lock(self):
+        with buildlock.build_tree_lock(self.root):
+            self.assertEqual(self.run_locked(sys.executable, "-c", "pass"), 1)
+
+    def test_needs_a_command(self):
+        self.assertEqual(self.run_locked(), 2)

@@ -56,12 +56,35 @@ a standing issue instead. A success reports nothing.
 
 ## The build-tree lock
 
-`<build root>/build.lock` is an exclusive `flock`. `./aerie build`, `./aerie prune`
-and every CI run take it, so a CI run and a build train never use the shared tree
-together. `./aerie build --lock-timeout SEC` sets how long to wait (default:
-forever; `0` fails at once). A CI run holds the lock across all its steps and
-the `./aerie build` it starts sees `AERIE_BUILD_LOCK_HELD` and does not wait
-for its own parent. (`tools/aerie_build/lock.py` is the source pin lock, a different thing.)
+`<build root>/build.lock` is an exclusive `flock`. `./aerie build`, `./aerie prune`,
+`./aerie bench` and every CI run take it, so a CI run and a build train never use
+the shared tree together. `--lock-timeout SEC` (on all three commands) sets how
+long to wait (default: forever; `0` fails at once).
+
+A CI run holds the lock across all its steps. The holder exports
+`AERIE_BUILD_LOCK_HELD` (lock path and its pid) and the CI passes it on in each
+step's environment. The `./aerie build` or `./aerie bench` a step starts finds the
+marker and does not wait for its parent. A marker counts only when its pid is an
+ancestor of the process (read from `/proc`), so a marker left in a shell, or a
+reused pid, does not skip the lock.
+
+### Holding the lock across a train's build and Bench
+
+`./aerie build` and `./aerie bench` each take the lock for their own run only. Between
+them the lock is free, so the poller could rebuild `out/Default` and the Bench would
+test the PR's binary. A build train that runs both must hold the lock across them:
+
+```sh
+./aerie locked -- sh -c './aerie build && ./aerie bench --check zero_traffic'
+```
+
+`./aerie locked [--lock-timeout SEC] -- CMD...` takes the lock, runs the command
+with the marker set, and exits with the command's exit code. The `./aerie build`
+and `./aerie bench` inside do not wait. (`tools/aerie_build/lock.py` is the source pin lock, a different thing.)
+
+A gate or nightly that is killed mid-run can leave its worktree behind. The next run
+removes and prunes it before it makes a new one. A harness error is not recorded as
+gated, so the next poll gates that head again.
 
 ## Install
 

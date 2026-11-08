@@ -149,7 +149,25 @@ def cmd_bench(args: argparse.Namespace) -> int:
     from aerie_bench import cli as bench_cli
 
     ctx = _context(args)
-    return bench_cli.run(args, ctx.paths.root, ctx.binary)
+    # The Bench drives the binary in the shared tree, so a build must not replace it half way through.
+    with _locked(ctx, args):
+        return bench_cli.run(args, ctx.paths.root, ctx.binary)
+
+
+def cmd_locked(args: argparse.Namespace) -> int:
+    command = args.cmd[1:] if args.cmd[:1] == ["--"] else args.cmd
+    if not command:
+        print("aerie locked: give a command after --, e.g. ./aerie locked -- sh -c './aerie build && ./aerie bench'",
+              file=sys.stderr)
+        return 2
+    ctx = _context(args)
+    with _locked(ctx, args):
+        # The command inherits AERIE_BUILD_LOCK_HELD, so the ./aerie build and ./aerie bench it starts do not wait.
+        try:
+            return subprocess.run(command).returncode
+        except OSError as exc:
+            print(f"aerie locked: cannot run {command[0]}: {exc}", file=sys.stderr)
+            return 127
 
 
 def cmd_hardening(args: argparse.Namespace) -> int:
@@ -192,6 +210,15 @@ def main(argv: list[str] | None = None) -> int:
     p_prune.add_argument("-n", "--dry-run", action="store_true", help="list what would be deleted")
     _add_lock_timeout(p_prune)
     p_prune.set_defaults(func=cmd_prune)
+
+    p_locked = sub.add_parser(
+        "locked",
+        help="run a command while holding the build-tree lock (a train's build plus Bench, as one unit)",
+    )
+    _add_common(p_locked)
+    _add_lock_timeout(p_locked)
+    p_locked.add_argument("cmd", nargs=argparse.REMAINDER, metavar="-- CMD", help="the command and its arguments")
+    p_locked.set_defaults(func=cmd_locked)
 
     p_info = sub.add_parser("info", help="print the build root layout and binary path")
     _add_common(p_info)
@@ -238,6 +265,7 @@ def main(argv: list[str] | None = None) -> int:
     from aerie_bench import cli as bench_cli
 
     bench_cli.add_arguments(p_bench, binary_required=False)
+    _add_lock_timeout(p_bench)
     p_bench.set_defaults(func=cmd_bench)
 
     p_hardening = sub.add_parser(
