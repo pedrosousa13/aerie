@@ -4,7 +4,7 @@
 
 # The filter lists are committed in this directory: easylist.txt and
 # easyprivacy.txt (ad and tracker lists, checked against filter_lists.lock.json)
-# and phishing_database_active.txt (the protection list, checked against
+# and phishing_filter_hosts.txt (the protection list, checked against
 # protection_lists.lock.json). `./aerie build` checks each against its lock.
 # This group exists so that the lists are part of the dependency graph: that is
 # how chrome://credits finds README.chromium and LICENSE.

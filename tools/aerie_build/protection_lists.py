@@ -8,15 +8,17 @@ this module's `update` right after the ad lists', so both kinds follow one
 schedule, and each list comes from its publisher's URL.
 
 These are plain domain lists, not Adblock syntax, so the header is different:
-`# Title:` names the list and `# Generated:` (a timestamp) is its version. A
-list that has no such header (Phishing.Database publishes bare domains) is
-versioned by the day it was retrieved, "retrieved YYYY-MM-DD", and its hash is
-the only identity check.
+`# Title:` names the list and `# Generated:` or `# Updated:` (a timestamp) is
+its version. A list that has no such header is versioned by the day it was
+retrieved, "retrieved YYYY-MM-DD", and its hash is the only identity check.
+Entries are one domain per line, or hosts format (`0.0.0.0 domain`).
 
 Lists:
 
-* Phishing.Database (https://github.com/Phishing-Database/Phishing.Database),
-  the active phishing domain list. MIT licence.
+* malware-filter's phishing-filter, hosts variant
+  (https://gitlab.com/malware-filter/phishing-filter): phishing domains from
+  OpenPhish, IPThreat and PhishTank. The list is CC BY-SA 4.0. See
+  docs/phishing-protection.md.
 * URLhaus (abuse.ch): its unauthenticated host file is gone (410, 2026-11) and
   the new export needs a personal Auth-Key. It is NOT pinned. See
   docs/phishing-protection.md.
@@ -35,12 +37,12 @@ from . import fallback
 from .filter_lists import ListError, ListPin, _download, _write_atomic, load_lock
 
 LOCK_RELATIVE = Path("third_party") / "filter_lists" / "protection_lists.lock.json"
-_GENERATED_RE = re.compile(r"^#\s*Generated:\s*(\S+)\s*$", re.MULTILINE)
+_GENERATED_RE = re.compile(r"^#\s*(?:Generated|Updated):\s*(\S+)\s*$", re.MULTILINE)
 _TITLE_RE = re.compile(r"^#\s*Title:\s*(.+?)\s*$", re.MULTILINE)
 _DOMAIN_LINE_RE = re.compile(r"^[A-Za-z0-9._-]+\.[A-Za-z0-9-]+$")
 # A headerless list must be nearly all domain-shaped lines, so that an error
-# page or another kind of file is not pinned as a list. The real list has a few
-# junk lines in 390 000 (the engine skips them).
+# page or another kind of file is not pinned as a list. A big list can have a
+# few junk lines (the engine skips them).
 MIN_DOMAIN_FRACTION = 0.99
 
 
@@ -77,6 +79,14 @@ def domain_fraction(data: bytes) -> float:
     return sum(1 for line in lines if _DOMAIN_LINE_RE.match(line)) / len(lines)
 
 
+def _entry_domain(line: str) -> str:
+    """The domain on an entry line: the line itself, or the host of a hosts-format line (`0.0.0.0 domain`)."""
+    parts = line.split()
+    if len(parts) == 2 and parts[0] in ("0.0.0.0", "127.0.0.1"):
+        return parts[1].lower()
+    return line.lower()
+
+
 def _selfcheck_path(lock: Path) -> Path:
     """Where the build's self-check file sits, relative to the lock in overlay/third_party/filter_lists/."""
     return lock.resolve().parents[2] / "components" / "aerie_adblock" / "protection_selfcheck.json"
@@ -84,7 +94,7 @@ def _selfcheck_path(lock: Path) -> Path:
 
 def _missing_selfcheck_hosts(selfcheck: Path, datas: list[bytes]) -> list[str]:
     """The 'listed' hosts of the self-check file that no list covers (a host is covered by itself or a parent)."""
-    domains = {line.lower() for data in datas for line in _entry_lines(data)}
+    domains = {_entry_domain(line) for data in datas for line in _entry_lines(data)}
     missing = []
     for host in json.loads(selfcheck.read_text(encoding="utf-8")).get("listed", []):
         root = host.lower()
@@ -154,7 +164,7 @@ def update(path: Path, opener: fallback.Opener = fallback.default_opener,
             if title is None or not title.startswith(pin.name):
                 raise ListError(f"{pin.url}: title {title!r} does not start with {pin.name!r}; refusing to pin it")
             if not version:
-                raise ListError(f"{pin.url}: no '# Generated:' header; refusing to pin it")
+                raise ListError(f"{pin.url}: no '# Generated:' or '# Updated:' header; refusing to pin it")
         downloaded[pin.file] = data
         new_pins.append(ListPin(pin.name, pin.file, pin.url, hashlib.sha256(data).hexdigest(), len(data), version))
     check_file = Path(selfcheck) if selfcheck is not None else _selfcheck_path(path)

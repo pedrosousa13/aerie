@@ -1,7 +1,7 @@
 """The build action that compiles the phishing list (compile_protection.py), and the committed self-checks.
 
 The real tool needs cargo; with AERIE_TEST_CARGO=1 it is built and run on the committed list,
-so the self-check hosts are proven against the real Phishing.Database file.
+so the self-check hosts are proven against the real pinned phishing-filter file.
 """
 
 import hashlib
@@ -30,8 +30,8 @@ class ActionTest(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.tmp = Path(self._tmp.name)
-        self.data = self.tmp / "phishing_database_active.txt"
-        self.data.write_bytes(b"# Title: Phishing.Database\nevil.example\n")
+        self.data = self.tmp / "phishing_filter_hosts.txt"
+        self.data.write_bytes(b"# Title: Phishing Hosts Blocklist\nevil.example\n")
         self.lock = self.tmp / "lock.json"
         self.set_lock(hashlib.sha256(self.data.read_bytes()).hexdigest())
         self.selfcheck = self.tmp / "selfcheck.json"
@@ -40,7 +40,7 @@ class ActionTest(unittest.TestCase):
         self.out = self.tmp / "out" / "engine.dat"
 
     def set_lock(self, sha):
-        self.lock.write_text(json.dumps({"lists": [{"file": "phishing_database_active.txt", "sha256": sha}]}))
+        self.lock.write_text(json.dumps({"lists": [{"file": "phishing_filter_hosts.txt", "sha256": sha}]}))
 
     def tool_script(self, body):
         self.tool.write_text("#!/bin/sh\n" + body)
@@ -97,7 +97,7 @@ class ActionTest(unittest.TestCase):
 class RepoTest(unittest.TestCase):
     def test_the_gn_action_uses_the_committed_files_and_the_resource_is_packed(self):
         gn = (COMPONENT / "BUILD.gn").read_text()
-        self.assertIn("$_lists_dir/phishing_database_active.txt", gn)
+        self.assertIn("$_lists_dir/phishing_filter_hosts.txt", gn)
         self.assertIn("$_lists_dir/protection_lists.lock.json", gn)
         self.assertIn(":protection_engine", gn)
         grd = (COMPONENT / "resources" / "aerie_adblock_resources.grd").read_text()
@@ -112,7 +112,7 @@ class RepoTest(unittest.TestCase):
     def test_the_floor_in_gn_is_below_the_committed_list_size(self):
         import re
         floor = int(re.search(r'"--min-entries",\s*"(\d+)"', (COMPONENT / "BUILD.gn").read_text()).group(1))
-        lines = [line for line in (LISTS / "phishing_database_active.txt").read_text().splitlines()
+        lines = [line for line in (LISTS / "phishing_filter_hosts.txt").read_text().splitlines()
                  if line.strip() and not line.startswith("#")]
         self.assertGreater(len(lines), floor)
         self.assertLess(floor, len(lines))
@@ -132,20 +132,20 @@ class RealToolTest(unittest.TestCase):
             out = Path(tmp) / "engine.dat"
             proc = run_script("--tool", str(tool), "--out", str(out), "--selfcheck",
                               str(COMPONENT / "protection_selfcheck.json"), "--lock",
-                              str(LISTS / "protection_lists.lock.json"), "--min-entries", "50000", "--list",
-                              str(LISTS / "phishing_database_active.txt"))
+                              str(LISTS / "protection_lists.lock.json"), "--min-entries", "10000", "--list",
+                              str(LISTS / "phishing_filter_hosts.txt"))
             self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
             self.assertIn("domain(s)", proc.stdout)
-            self.assertGreater(out.stat().st_size, 1_000_000)
+            self.assertGreater(out.stat().st_size, 100_000)
             # An unlisted host that is in the list would be caught: a poisoned copy fails the build.
             poisoned = Path(tmp) / "poisoned.txt"
-            poisoned.write_bytes((LISTS / "phishing_database_active.txt").read_bytes() + b"example.com\n")
+            poisoned.write_bytes((LISTS / "phishing_filter_hosts.txt").read_bytes() + b"example.com\n")
             lock = Path(tmp) / "lock.json"
             lock.write_text(json.dumps({"lists": [{"file": "poisoned.txt",
                                                    "sha256": hashlib.sha256(poisoned.read_bytes()).hexdigest()}]}))
             bad = run_script("--tool", str(tool), "--out", str(Path(tmp) / "bad.dat"), "--selfcheck",
                              str(COMPONENT / "protection_selfcheck.json"), "--lock", str(lock),
-                             "--min-entries", "50000", "--list", str(poisoned))
+                             "--min-entries", "10000", "--list", str(poisoned))
             self.assertNotEqual(bad.returncode, 0)
             self.assertIn("must not be listed", bad.stderr)
             self.assertFalse((Path(tmp) / "bad.dat").exists())

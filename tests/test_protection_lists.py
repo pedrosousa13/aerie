@@ -22,7 +22,7 @@ def list_bytes(title="Example List | Community phishing domain blocklist", gener
 
 
 def plain_bytes(body="evil.example\nphish.example\nlogin.bank-secure.example\n"):
-    """A list as Phishing.Database serves it: domains, no header at all."""
+    """A bare domain list: no header at all."""
     return body.encode()
 
 
@@ -30,7 +30,7 @@ DATA = list_bytes()
 PIN = fl.ListPin("Example List", "example_list.txt", URL, hashlib.sha256(DATA).hexdigest(), len(DATA),
                  "2026-11-07T17:00:30Z")
 PLAIN = plain_bytes()
-PLAIN_PIN = fl.ListPin("Phishing.Database", "plain.txt", URL, hashlib.sha256(PLAIN).hexdigest(), len(PLAIN),
+PLAIN_PIN = fl.ListPin("Plain List", "plain.txt", URL, hashlib.sha256(PLAIN).hexdigest(), len(PLAIN),
                        "retrieved 2026-11-08")
 
 
@@ -138,7 +138,7 @@ class HeaderlessUpdateTest(unittest.TestCase):
         self.dir = Path(self._tmp.name)
         self.lock = self.dir / "protection_lists.lock.json"
         self.lock.write_text(json.dumps({"schema": 1, "lists": [
-            {"name": "Phishing.Database", "file": "plain.txt", "url": URL, "sha256": "0" * 64,
+            {"name": "Plain List", "file": "plain.txt", "url": URL, "sha256": "0" * 64,
              "size": 5, "version": "retrieved 2000-01-01"}]}))
         (self.dir / "plain.txt").write_bytes(b"old\n")
 
@@ -166,6 +166,47 @@ class HeaderlessUpdateTest(unittest.TestCase):
         self.update(plain_bytes(body))
 
 
+def hosts_bytes(body="0.0.0.0 evil.example\n0.0.0.0 phish.example\n", updated="2026-11-08T00:02:34Z"):
+    """A list as malware-filter serves its hosts file: `# Updated:` and `0.0.0.0 domain` lines."""
+    return (f"# Title: Phishing Hosts Blocklist\n# Updated: {updated}\n# Expires: 12 hours (update frequency)\n"
+            f"# Sources: openphish.com, ipthreat.net, phishtank.org\n{body}").encode()
+
+
+class HostsListTest(unittest.TestCase):
+    """A hosts-format list with an `# Updated:` header (the malware-filter lists)."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.dir = Path(self._tmp.name)
+        self.lock = self.dir / "protection_lists.lock.json"
+        self.lock.write_text(json.dumps({"schema": 1, "lists": [
+            {"name": "Phishing Hosts Blocklist", "file": "hosts.txt", "url": URL, "sha256": "0" * 64,
+             "size": 5, "version": "2000-01-01T00:00:00Z"}]}))
+        (self.dir / "hosts.txt").write_bytes(b"old\n")
+        self.selfcheck = self.dir / "protection_selfcheck.json"
+        self.selfcheck.write_text(json.dumps({"listed": ["evil.example", "sub.phish.example"], "unlisted": []}))
+
+    def update(self, data):
+        return pl.update(self.lock, Opener({URL: data}), lambda m: None, selfcheck=self.selfcheck)
+
+    def test_the_updated_header_is_the_version(self):
+        self.assertEqual(pl.header_version(hosts_bytes()), "2026-11-08T00:02:34Z")
+        self.update(hosts_bytes())
+        self.assertEqual(json.loads(self.lock.read_text())["lists"][0]["version"], "2026-11-08T00:02:34Z")
+        pl.verify_dir(fl.load_lock(self.lock), self.dir)
+
+    def test_self_check_hosts_are_found_in_hosts_lines(self):
+        before = self.lock.read_text()
+        with self.assertRaisesRegex(fl.ListError, r"self-check host.*evil\.example"):
+            self.update(hosts_bytes("0.0.0.0 phish.example\n"))
+        self.assertEqual(self.lock.read_text(), before)
+
+    def test_a_hosts_list_with_no_domains_is_refused(self):
+        with self.assertRaisesRegex(fl.ListError, "no domains"):
+            self.update(hosts_bytes(""))
+
+
 class SelfCheckAtUpdateTest(unittest.TestCase):
     """update() checks the build self-check hosts against the new list before it pins it."""
 
@@ -175,7 +216,7 @@ class SelfCheckAtUpdateTest(unittest.TestCase):
         self.dir = Path(self._tmp.name)
         self.lock = self.dir / "protection_lists.lock.json"
         self.lock.write_text(json.dumps({"schema": 1, "lists": [
-            {"name": "Phishing.Database", "file": "plain.txt", "url": URL, "sha256": "0" * 64,
+            {"name": "Plain List", "file": "plain.txt", "url": URL, "sha256": "0" * 64,
              "size": 5, "version": "retrieved 2000-01-01"}]}))
         (self.dir / "plain.txt").write_bytes(b"old\n")
         self.selfcheck = self.dir / "protection_selfcheck.json"
@@ -200,48 +241,57 @@ class SelfCheckAtUpdateTest(unittest.TestCase):
 
 
 class RepoLockTest(unittest.TestCase):
-    FILE = "phishing_database_active.txt"
+    FILE = "phishing_filter_hosts.txt"
 
-    def test_the_committed_lock_names_phishing_database(self):
+    def test_the_committed_lock_names_phishing_filter(self):
         pins = fl.load_lock(pl.lock_path(REPO))
-        self.assertEqual([p.name for p in pins], ["Phishing.Database"])
+        self.assertEqual([p.name for p in pins], ["Phishing Hosts Blocklist"])
         self.assertEqual(pins[0].file, self.FILE)
         self.assertEqual(
             pins[0].url,
-            "https://raw.githubusercontent.com/Phishing-Database/Phishing.Database/master/"
-            "phishing-domains-ACTIVE.txt")
+            "https://malware-filter.gitlab.io/malware-filter/phishing-filter-hosts.txt")
 
     def test_the_committed_list_matches_the_lock_and_holds_domains(self):
         pl.verify_dir(fl.load_lock(pl.lock_path(REPO)), pl.lock_path(REPO).parent)
 
     def test_the_self_check_hosts_are_in_the_pinned_list(self):
         # The build self-check (compile_protection.py) needs the listed hosts to be in the list.
-        lines = set((pl.lock_path(REPO).parent / self.FILE).read_text().split("\n"))
+        data = (pl.lock_path(REPO).parent / self.FILE).read_bytes()
+        domains = {pl._entry_domain(line) for line in pl._entry_lines(data)}
         checks = json.loads((REPO / "overlay/components/aerie_adblock/protection_selfcheck.json").read_text())
         for host in checks["listed"]:
             root = host
-            while root not in lines and "." in root:
+            while root not in domains and "." in root:
                 root = root.split(".", 1)[1]
-            self.assertIn(root, lines, host)
+            self.assertIn(root, domains, host)
+        self.assertEqual(pl._missing_selfcheck_hosts(
+            REPO / "overlay/components/aerie_adblock/protection_selfcheck.json", [data]), [])
+
+    def test_the_committed_list_has_the_headers_the_lock_reads(self):
+        data = (pl.lock_path(REPO).parent / self.FILE).read_bytes()
+        pin = fl.load_lock(pl.lock_path(REPO))[0]
+        self.assertTrue(pl.header_title(data).startswith(pin.name))
+        self.assertEqual(pl.header_version(data), pin.version)
 
     def test_credits_name_the_list_its_licence_and_version(self):
         readme = (pl.lock_path(REPO).parent / "README.chromium").read_text()
         for pin in fl.load_lock(pl.lock_path(REPO)):
             self.assertIn(pin.version, readme)
-        self.assertIn("Phishing.Database", readme)
-        self.assertIn("License: MIT", readme)
-        self.assertIn("LICENSE.phishing_database", readme)
+        for text in ("malware-filter (curbengh)", "OpenPhish", "IPThreat", "PhishTank", "License: CC-BY-SA-4.0",
+                     "LICENSE.phishing_filter", "one-way compatible with the GPLv3"):
+            self.assertIn(text, readme)
 
-    def test_the_licence_file_is_the_mit_text_of_the_publisher(self):
-        text = (pl.lock_path(REPO).parent / "LICENSE.phishing_database").read_text()
-        self.assertIn("MIT License", text)
-        self.assertIn("Permission is hereby granted, free of charge", text)
-        self.assertIn("https://github.com/Phishing-Database/Phishing.Database", text)
+    def test_the_licence_file_holds_the_publishers_statement_and_the_cc_by_sa_text(self):
+        text = (pl.lock_path(REPO).parent / "LICENSE.phishing_filter").read_text()
+        self.assertIn("filters: CC BY-SA 4.0", text)
+        self.assertIn("https://gitlab.com/malware-filter/phishing-filter", text)
+        self.assertIn("Attribution-ShareAlike 4.0 International", text)
 
     def test_the_docs_quote_the_licence_and_link_its_source(self):
         doc = (REPO / "docs" / "phishing-protection.md").read_text()
-        self.assertIn("Permission is hereby granted, free of charge", doc)
-        self.assertIn("https://github.com/Phishing-Database/Phishing.Database/blob/master/LICENSE", doc)
+        self.assertIn("filters: [CC BY-SA 4.0]", doc)
+        self.assertIn("https://gitlab.com/malware-filter/phishing-filter", doc)
+        self.assertIn("one-way", doc)
 
     def test_the_replaced_list_is_gone_from_the_repo(self):
         old = "phishing" + "[ _.]?" + "army"

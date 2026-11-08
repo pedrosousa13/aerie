@@ -33,10 +33,10 @@ class PrepareAdblockTest(unittest.TestCase):
              "sha256": hashlib.sha256(A).hexdigest(), "size": len(A), "version": "100"},
             {"name": "EasyPrivacy", "file": "easyprivacy.txt", "url": "https://l.example/easyprivacy.txt",
              "sha256": hashlib.sha256(B).hexdigest(), "size": len(B), "version": "200"}]}))
-        PA = b"# Title: Phishing.Database | test\n# Generated: 2026-01-01T00:00:00Z\nevil.example\n"
-        (lists_dir / "phishing_database_active.txt").write_bytes(PA)
+        PA = b"# Title: Phishing Hosts Blocklist | test\n# Updated: 2026-01-01T00:00:00Z\nevil.example\n"
+        (lists_dir / "phishing_filter_hosts.txt").write_bytes(PA)
         (lists_dir / "protection_lists.lock.json").write_text(json.dumps({"schema": 1, "lists": [
-            {"name": "Phishing.Database", "file": "phishing_database_active.txt", "url": "https://l.example/pa.txt",
+            {"name": "Phishing Hosts Blocklist", "file": "phishing_filter_hosts.txt", "url": "https://l.example/pa.txt",
              "sha256": hashlib.sha256(PA).hexdigest(), "size": len(PA), "version": "2026-01-01T00:00:00Z"}]}))
         (self.repo / "rust").mkdir()
         (self.repo / rust_crates.LOCK_FILE).write_text(trc.make_lock())
@@ -45,7 +45,7 @@ class PrepareAdblockTest(unittest.TestCase):
         # What the overlay layer puts in the tree (see test_overlay.py).
         tree_lists = self.tree / "third_party" / "filter_lists"
         tree_lists.mkdir(parents=True)
-        for name in ("easylist.txt", "easyprivacy.txt", "phishing_database_active.txt"):
+        for name in ("easylist.txt", "easyprivacy.txt", "phishing_filter_hosts.txt"):
             (tree_lists / name).write_bytes((lists_dir / name).read_bytes())
         script = self.tree / "tools/crates/run_gnrt.py"
         script.parent.mkdir(parents=True)
@@ -123,7 +123,7 @@ class PrepareAdblockTest(unittest.TestCase):
         self.assertEqual(self.gnrt_calls, [])
 
     def test_a_phishing_list_in_the_tree_that_differs_from_the_lock_stops_the_build_before_crates(self):
-        tampered = self.tree / "third_party/filter_lists/phishing_database_active.txt"
+        tampered = self.tree / "third_party/filter_lists/phishing_filter_hosts.txt"
         tampered.write_bytes(tampered.read_bytes() + b"google.example\n")
         with self.assertRaisesRegex(pipeline.BuildError, "protection lists: .*aerie lists update"):
             self.prepare()

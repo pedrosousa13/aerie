@@ -16,7 +16,7 @@ combined build is the proof.
 
 | List | Publisher | Where it is | Status |
 | --- | --- | --- | --- |
-| Phishing.Database, active domains | Phishing.Database project | `overlay/third_party/filter_lists/phishing_database_active.txt` | Pinned. About 390 000 lines; the engine skips the few that are not plain domains. |
+| Phishing Hosts Blocklist (malware-filter, hosts variant) | malware-filter (curbengh) | `overlay/third_party/filter_lists/phishing_filter_hosts.txt` | Pinned. About 20 700 domains, `0.0.0.0 domain` lines; the engine skips any that are not plain domains. |
 | URLhaus | abuse.ch | not pinned | Open question, below. |
 
 The lists are the protection category of the Filter Engine. They sit next to the ad lists and
@@ -26,40 +26,69 @@ follow the same rules (see [adblock.md](adblock.md)): committed in the repo, pin
 checks the files in the tree against the lock, and `compile_protection.py` checks them again before it
 compiles them.
 
-Phishing.Database refreshes its list many times a day. Aerie does not update lists at run time (ADR 0001),
-so the list in a build is as old as its last reviewed update. The file has no version header: the version
-in the lock is the day it was retrieved (`retrieved YYYY-MM-DD`), and `./aerie lists update` refuses a
-download that is not nearly all domain-shaped lines, so an error page is never pinned.
+malware-filter updates its list twice a day (its README; the pinned copy says `# Updated: 2026-11-08T00:02:34Z`
+and `# Expires: 12 hours`). Aerie does not update lists at run time (ADR 0001), so the list in a build is as old as
+its last reviewed update. The version in the lock is the list's own `# Updated:` time. `./aerie lists update` refuses
+a download that has no title and time header and is not nearly all domain-shaped lines, so an error page is never
+pinned. It also checks the hosts in `protection_selfcheck.json` against the new list before it pins it, so a host
+that dropped out fails at update time and not at build time. The list churns, so the self-check hosts will drop out
+now and then. Pick new ones from the new file when that happens.
+
+The hosts variant is used because it holds domains only. The URL-based and wildcard variants also hold IP
+addresses, which the engine does not match. The file comes from the project's first mirror,
+<https://malware-filter.gitlab.io/malware-filter/phishing-filter-hosts.txt>. The project is also on GitHub
+(<https://github.com/curbengh/phishing-filter>) and Codeberg.
+
+**Size and memory.** The list is small. `phishing_filter_hosts.txt` is 744 KB (20 670 domains). The first list Aerie
+pinned was 3.1 MB. The list Aerie held before this one, Phishing.Database, was 11 MB. The compiled engine
+(`IDR_AERIE_PROTECTION_ENGINE` in `resources.pak`) is about 0.6 MB uncompressed (578 254 bytes, measured with
+`aerie_protection_compile` on 2026-11-08), against about 3 MB for the first list and about 10.5 MB for
+Phishing.Database. The browser needs an estimated 0.5 MB to 1 MB of memory for the domain set (the 9 MB to 21 MB
+estimate for Phishing.Database, scaled to 20 670 entries; not measured in a browser). The engine loads at
+start-up, and the first navigations wait for the load. With this size the wait is short, but it has not been
+measured in a browser.
 
 **URLhaus.** abuse.ch removed the public host file (`urlhaus.abuse.ch/downloads/hostfile/` answers `410 Gone`,
 checked 2026-11-07). Its exports now need a personal Auth-Key in the URL. A key in the repo or in a
-build cannot be public, so Aerie pins only Phishing.Database for now. The parser already reads the host file
+build cannot be public, so Aerie pins only the phishing-filter list for now. The parser already reads the host file
 format (`0.0.0.0 domain`), so adding URLhaus later is one lock entry once someone decides how the key is kept.
 
-**Licence.** The shipped list is `phishing-domains-ACTIVE.txt` from
-[Phishing.Database](https://github.com/Phishing-Database/Phishing.Database), under the MIT licence. The
-licence text was fetched from its source on 2026-11-08
-(<https://github.com/Phishing-Database/Phishing.Database/blob/master/LICENSE>; GitHub reports it as MIT).
-Its grant:
+**Licence.** The shipped list is `phishing-filter-hosts.txt` from
+[malware-filter's phishing-filter](https://gitlab.com/malware-filter/phishing-filter) (mirrored at
+<https://github.com/curbengh/phishing-filter>). The licence statement was read at its source on 2026-11-08
+(<https://gitlab.com/malware-filter/phishing-filter#license>). The project licenses its code and its lists
+differently:
 
-> Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
-> associated documentation files (the "Software"), to deal in the Software without restriction, including
-> without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-> copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the
-> following conditions: The above copyright notice and this permission notice shall be included in all
-> copies or substantial portions of the Software.
+> src/: Creative Commons Zero v1.0 Universal and MIT License
+>
+> filters: [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)
 
-This allows Aerie to commit the list to its public repo and to ship it in a binary, if the copyright
-notice and the licence text stay with it. They do: `overlay/third_party/filter_lists/LICENSE.phishing_database`
-holds the full text, and `README.chromium` in the same folder credits the list (both reach `chrome://credits`
-through the `filter_lists` dependency). The copyright line is "Copyright (c) 2018-2025 Mitchell Krog, Nissar
-Chababy and Phishing.Database Contributors".
+The list is under CC BY-SA 4.0. The upstream feeds are credited the same way in the README:
+[OpenPhish](https://openphish.com/) is "available free of charge by OpenPhish",
+[IPThreat](https://ipthreat.net) is CC BY-SA 4.0, and [PhishTank](https://phishtank.org/) is "available free of
+charge by PhishTank". The README adds: "This repository is not endorsed by any of the upstream sources."
+
+CC BY-SA 4.0 requires credit, a link to the licence and a note of changes, and it requires that an adaptation is
+shared under the same licence or a compatible one. The GPLv3, which is the licence of Aerie, was declared a
+BY-SA-compatible licence for version 4.0 on 8 October 2015. The compatibility is one-way: material under CC BY-SA
+4.0 can go into a GPLv3 work, and not the other way round
+(<https://creativecommons.org/share-your-work/licensing-considerations/compatible-licenses/>). The compiled
+engine is an adaptation of the list. It ships inside the GPLv3 browser, so the share-alike condition holds. The
+list itself stays CC BY-SA 4.0 in the repo.
+
+Credit: "malware-filter (curbengh)", and its upstream feeds OpenPhish, IPThreat and PhishTank.
+`overlay/third_party/filter_lists/LICENSE.phishing_filter` holds the publisher's statement and the full CC BY-SA 4.0
+text, and `README.chromium` in the same folder credits the list and the feeds (both reach `chrome://credits`
+through the `filter_lists` dependency). The file in the repo is the file the project served, with no change.
 
 What this check did not cover: the licence is a statement by the project about its own repository.
 Aerie did not audit where each domain in the list came from, and the licence is not a legal opinion.
 
 Other candidates, checked 2026-11-08 and not used:
 
+- **Phishing.Database** (MIT) was pinned for a short time. Its list is 11 MB, and the GitHub copy of
+  `phishing-domains-ACTIVE.txt` was last committed on 2026-10-02 (`gh api
+  repos/Phishing-Database/Phishing.Database/commits?per_page=1`). Its own site `phish.co.za` answered 503.
 - **URLhaus (abuse.ch)** has no public feed now (above).
 - **OpenPhish's community feed** gave no licence at its feed URL (`openphish.com/phishing_feed.txt` answered
   404 when fetched), so there was no licence text to rely on.
@@ -101,9 +130,11 @@ lists have false positives. Continue anyway is the answer.
 
 `./aerie build` verifies the committed list (`prepare_adblock`). GN then runs `compile_protection.py` with
 `aerie_protection_compile` (Rust, same crates as the browser): it checks the hash, builds the engine,
-loads it back and runs the self-checks in `protection_selfcheck.json` (three hosts taken from the pinned list must be listed, big legitimate sites must not, and the list must hold
-at least 50 000 domains; Phishing.Database has no harmless test domain, so `./aerie lists update` can drop a
-self-check host and stop the build until a person picks another). An empty, truncated or poisoned list stops the build. The engine goes into `resources.pak` as
+loads it back and runs the self-checks in `protection_selfcheck.json`: three hosts taken from the pinned
+list must be listed, big legitimate sites must not, and the list must hold at least 10 000 domains.
+The pinned list has no harmless test domain, so a self-check host can drop out of the list.
+`./aerie lists update` checks for that before it pins the list and stops there until a person picks
+another host. An empty, truncated or poisoned list stops the build. The engine goes into `resources.pak` as
 `IDR_AERIE_PROTECTION_ENGINE`.
 
 ## The Bench check

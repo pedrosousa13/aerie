@@ -28,31 +28,36 @@ components/aerie_adblock/rust/core/src/lib.rs).
 
 -------------------- DEPENDENCY DIVIDER --------------------
 
-Name: Phishing.Database phishing domain list
-Short Name: phishing_database
-URL: https://github.com/Phishing-Database/Phishing.Database
-Version: retrieved 2026-11-08
+Name: malware-filter phishing-filter (hosts)
+Short Name: phishing_filter
+URL: https://gitlab.com/malware-filter/phishing-filter
+Version: 2026-11-08T00:02:34Z
 Update Mechanism: Manual
-License: MIT
-License File: LICENSE.phishing_database
+License: CC-BY-SA-4.0
+License File: LICENSE.phishing_filter
 Shipped: yes
 Security Critical: yes
 
 Description:
-Phishing.Database's list of active phishing domains
-(phishing-domains-ACTIVE.txt). The Filter Engine's protection category
-(//components/aerie_adblock) compiles it into the engine that shows the phishing
-and malware interstitial for a listed domain and its subdomains. The project
-is MIT licensed, which allows use, copying and distribution in source and
-binary form if the copyright notice and licence text stay (LICENSE.phishing_database).
+malware-filter (curbengh) phishing-filter, "Phishing Hosts Blocklist"
+(phishing-filter-hosts.txt). It lists phishing domains from OpenPhish, IPThreat
+and PhishTank. Credit: malware-filter (curbengh), and its upstream feeds
+OpenPhish (https://openphish.com/), IPThreat (https://ipthreat.net, CC BY-SA 4.0)
+and PhishTank (https://phishtank.org/). The project is not endorsed by them, and
+Aerie is not endorsed by the project. The Filter Engine's protection category
+(//components/aerie_adblock) compiles the list into the engine that shows the
+phishing and malware interstitial for a listed domain and its subdomains. The
+list is CC BY-SA 4.0 (the project's code is CC0 and MIT). CC BY-SA 4.0 is
+one-way compatible with the GPLv3, which is the licence of Aerie, so the
+compiled engine can ship with it. The licence text and the credits are in
+LICENSE.phishing_filter.
 
 Local Modifications:
-None. phishing_database_active.txt is the file that
-https://raw.githubusercontent.com/Phishing-Database/Phishing.Database/master/phishing-domains-ACTIVE.txt
-served on the date in Version above, committed byte for byte. The file has no
-version header, so Version is the day it was retrieved. protection_lists.lock.json
-pins it by sha256 and size, and `./aerie build` fails if it differs.
-`./aerie lists update` refreshes the file and the lock. aerie_protection_compile
-compiles it into a serialized engine at build time (see
-components/aerie_adblock/rust/core/src/safety.rs). The compiler skips lines that
-are not plain domain names (the file has a few).
+None. phishing_filter_hosts.txt is the file that
+https://malware-filter.gitlab.io/malware-filter/phishing-filter-hosts.txt
+served on the date in Version above, committed byte for byte. Version is the
+list's own `# Updated:` time. protection_lists.lock.json pins it by sha256 and
+size, and `./aerie build` fails if it differs. `./aerie lists update` refreshes
+the file and the lock. aerie_protection_compile compiles it into a serialized
+engine at build time (see components/aerie_adblock/rust/core/src/safety.rs).
+The compiler skips lines that are not plain domain names.

@@ -6,7 +6,7 @@
 //! serialized protection engine.
 //!
 //! ```text
-//! aerie_protection_compile --out protection.dat --min-entries 50000 \
+//! aerie_protection_compile --out protection.dat --min-entries 10000 \
 //!     [--expect-listed HOST ...] [--expect-unlisted HOST ...] \
 //!     list1.txt list2.txt ...
 //! ```
