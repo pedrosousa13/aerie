@@ -2,8 +2,10 @@
 # You can use, redistribute, and/or modify this source code under
 # the terms of the GPL-3.0 license that can be found in the LICENSE file.
 
-# The filter lists (easylist.txt, easyprivacy.txt) are committed in this
-# directory. `./aerie build` checks them against filter_lists.lock.json.
+# The filter lists are committed in this directory: easylist.txt and
+# easyprivacy.txt (ad and tracker lists, checked against filter_lists.lock.json)
+# and phishing_army.txt (the protection list, checked against
+# protection_lists.lock.json). `./aerie build` checks each against its lock.
 # This group exists so that the lists are part of the dependency graph: that is
 # how chrome://credits finds README.chromium and LICENSE.
 group("filter_lists") {

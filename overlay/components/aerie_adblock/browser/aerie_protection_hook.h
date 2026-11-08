@@ -11,12 +11,6 @@
 
 namespace aerie_adblock {
 
-// The command line switch that adds one more list of domains (one per line) to
-// the protection list. For the Bench: it lists a fixture domain. It only adds
-// blocked domains and never removes any.
-inline constexpr char kTestProtectionListSwitch[] =
-    "aerie-test-protection-list";
-
 // Creates the browser's protection service, registers it as the process
 // instance and starts loading the shipped list (and the test list, if the
 // switch is given). The caller owns it: see chrome/browser/aerie_adblock. UI

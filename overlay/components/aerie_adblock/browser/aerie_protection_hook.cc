@@ -9,6 +9,7 @@
 #include "base/command_line.h"
 #include "base/files/file_path.h"
 #include "base/task/thread_pool.h"
+#include "components/aerie_adblock/browser/aerie_adblock_switches.h"
 #include "components/aerie_adblock/resources/grit/aerie_adblock_resources.h"
 #include "ui/base/resource/resource_bundle.h"
 
@@ -35,7 +36,7 @@ std::unique_ptr<ProtectionService> CreateAndStartProtectionService() {
   service->Start(
       ShippedProtectionEngine(),
       base::CommandLine::ForCurrentProcess()->GetSwitchValuePath(
-          kTestProtectionListSwitch));
+          switches::kTestProtectionListSwitch));
   return service;
 }
 

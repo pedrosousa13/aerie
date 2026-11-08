@@ -15,9 +15,10 @@ class FilterListManager;
 class ProtectionService;
 }  // namespace aerie_adblock
 
-// Owns the browser's Filter Engine service, the filter list manager and the protection service. The service is created before any
-// profile (so before any URLLoaderFactory for web content) and destroyed after
-// the main message loop ends. Added in chrome_browser_main.cc by
+// Owns the browser's Filter Engine service, the filter list manager and the
+// protection service. The services are created before any profile (so before
+// any URLLoaderFactory for web content) and destroyed after the main message
+// loop ends. Added in chrome_browser_main.cc by
 // patches/adblock/0004-own-the-filter-engine-service.patch, in the same way as
 // ChromeBrowserMainExtraPartsMemory.
 class AerieAdblockMainExtraParts : public ChromeBrowserMainExtraParts {
