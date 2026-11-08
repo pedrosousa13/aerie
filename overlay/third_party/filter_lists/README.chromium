@@ -28,27 +28,31 @@ components/aerie_adblock/rust/core/src/lib.rs).
 
 -------------------- DEPENDENCY DIVIDER --------------------
 
-Name: Phishing Army phishing domain list
-Short Name: phishing_army
-URL: https://phishing.army/
-Version: 2026-11-07T17:00:30Z
+Name: Phishing.Database phishing domain list
+Short Name: phishing_database
+URL: https://github.com/Phishing-Database/Phishing.Database
+Version: retrieved 2026-11-08
 Update Mechanism: Manual
-License: Custom license
-License File: LICENSE.phishing_army
+License: MIT
+License File: LICENSE.phishing_database
 Shipped: yes
 Security Critical: yes
 
 Description:
-Phishing Army's community phishing domain blocklist (extended list). The Filter
-Engine's protection category (//components/aerie_adblock) compiles it into the
-engine that shows the phishing and malware interstitial for a listed domain and
-its subdomains. The terms are in LICENSE.phishing_army and at
-https://phishing.army/license/.
+Phishing.Database's list of active phishing domains
+(phishing-domains-ACTIVE.txt). The Filter Engine's protection category
+(//components/aerie_adblock) compiles it into the engine that shows the phishing
+and malware interstitial for a listed domain and its subdomains. The project
+is MIT licensed, which allows use, copying and distribution in source and
+binary form if the copyright notice and licence text stay (LICENSE.phishing_database).
 
 Local Modifications:
-None. phishing_army.txt is the file that phishing.army served at the time in
-Version above, committed byte for byte. protection_lists.lock.json pins it by
-sha256 and size, and `./aerie build` fails if it differs. `./aerie lists update`
-refreshes the file and the lock. aerie_protection_compile compiles it into a
-serialized engine at build time (see
-components/aerie_adblock/rust/core/src/safety.rs).
+None. phishing_database_active.txt is the file that
+https://raw.githubusercontent.com/Phishing-Database/Phishing.Database/master/phishing-domains-ACTIVE.txt
+served on the date in Version above, committed byte for byte. The file has no
+version header, so Version is the day it was retrieved. protection_lists.lock.json
+pins it by sha256 and size, and `./aerie build` fails if it differs.
+`./aerie lists update` refreshes the file and the lock. aerie_protection_compile
+compiles it into a serialized engine at build time (see
+components/aerie_adblock/rust/core/src/safety.rs). The compiler skips lines that
+are not plain domain names (the file has a few).

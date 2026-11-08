@@ -133,7 +133,7 @@ void AerieProtectionBlockingPage::PopulateInterstitialStrings(
   load_time_data.Set(
       "explanationParagraph",
       "Aerie checked this address on your computer, against a list from "
-      "Phishing Army that Aerie ships. It sent nothing about this page to "
+      "Phishing.Database that Aerie ships. It sent nothing about this page to "
       "anyone. Lists can be wrong.");
   load_time_data.Set(
       "finalParagraph",
