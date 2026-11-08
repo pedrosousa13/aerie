@@ -63,3 +63,48 @@ def tree_rss_kb(root_pid: int, proc: Path = Path("/proc")) -> dict | None:
     if not parts:
         return None
     return {"total_kb": sum(p["rss_kb"] for p in parts), "processes": parts}
+
+
+def renderer_modes(root_pid: int, proc: Path = Path("/proc")) -> dict | None:
+    """Which renderers under ``root_pid`` run without V8's optimizing compilers.
+
+    Reads each descendant's command line. A renderer started for a site whose JIT is off
+    carries ``--disable-optimizing-compilers`` in its ``--js-flags`` (``--jitless`` when the
+    whole JIT is off). Returns ``{"total", "noopt", "jitless", "pids"}`` counting renderers
+    only, or None where /proc is not available.
+    """
+    if not proc.is_dir():
+        return None
+    children: dict[int, list[int]] = {}
+    for entry in proc.iterdir():
+        if not entry.name.isdigit():
+            continue
+        info = _stat(proc, int(entry.name))
+        if info:
+            children.setdefault(info[0], []).append(int(entry.name))
+    seen, queue = [], [root_pid]
+    while queue:
+        pid = queue.pop()
+        if pid in seen:
+            continue
+        seen.append(pid)
+        queue.extend(children.get(pid, []))
+    out = {"total": 0, "noopt": 0, "jitless": 0, "pids": {"noopt": [], "default": []}}
+    for pid in sorted(seen):
+        try:
+            args = (proc / str(pid) / "cmdline").read_bytes().split(b"\0")
+        except OSError:
+            continue
+        text = [a.decode("utf-8", "replace") for a in args if a]
+        if "--type=renderer" not in text:
+            continue
+        out["total"] += 1
+        flags = " ".join(a for a in text if a.startswith("--js-flags="))
+        if "--jitless" in flags:
+            out["jitless"] += 1
+        if "--disable-optimizing-compilers" in flags:
+            out["noopt"] += 1
+            out["pids"]["noopt"].append(pid)
+        else:
+            out["pids"]["default"].append(pid)
+    return out

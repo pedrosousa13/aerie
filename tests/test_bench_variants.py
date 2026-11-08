@@ -115,6 +115,13 @@ class VariantTest(unittest.TestCase):
         self.assertEqual(data["netlogs"], ["list", "list"])
         self.assertEqual(list((self.root / "bench-tmp").iterdir()), [])
 
+    def test_variant_sessions_know_their_browser_pid(self):
+        def body(s):
+            with s.new_profile() as prof:
+                with s.variant((), profile=prof) as v:
+                    return {"v": isinstance(v.browser_pid, int), "differ": v.browser_pid != s.browser_pid}
+        self.assertEqual(self.go(body).data["checks"][0]["data"], {"v": True, "differ": True})
+
     def test_session_without_launcher_refuses_variants(self):
         from aerie_bench.session import Session
         s = Session(None, None, Path("."))
