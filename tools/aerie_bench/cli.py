@@ -38,6 +38,9 @@ def add_arguments(p: argparse.ArgumentParser, *, binary_required: bool) -> None:
                    help="zero_traffic: quiet time after the first page, the first-launch phase (default 60)")
     p.add_argument("--zero-traffic-strict", action="store_true",
                    help="zero_traffic: also fail on blocked attempts to .qjz9zk dummy hosts and trk: URLs")
+    p.add_argument("--widevine-online", type=float, default=0.0, metavar="SEC",
+                   help="widevine_opt_in: also wait up to SEC in an opted-in browser for Widevine to download "
+                        "and become available (needs a network that reaches Google; default 0, off)")
     p.add_argument("--baseline", metavar="PATH",
                    help="also run zero_traffic on this browser (an unmodified Helium build, or any browser "
                         "that talks to Google) and require it to FAIL; if it passes the check is vacuous")
@@ -73,7 +76,8 @@ def run(args: argparse.Namespace, build_root: Path, default_binary: Path | None)
                                         "skip_note": skip_note},
                    "zero_traffic": {"idle_seconds": args.zero_traffic_idle,
                                     "settle_seconds": args.zero_traffic_settle,
-                                    "strict": args.zero_traffic_strict}}
+                                    "strict": args.zero_traffic_strict},
+                   "widevine_opt_in": {"online_seconds": args.widevine_online}}
         common = dict(headless=not args.headed, no_sandbox=args.no_sandbox, timeout=args.timeout,
                       extra_flags=tuple(args.flag), check_options=options)
         result = run_bench(binary, sc, build_root, out_dir=Path(args.out) if args.out else None, **common)

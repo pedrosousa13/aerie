@@ -1,0 +1,95 @@
+Aerie-Purpose: Ask the user, once for each site, whether to turn on Widevine when a page first uses encrypted media.
+Aerie-Upstream-Area: content/browser/media/key_system_support_impl.cc, content/public/browser/content_browser_client.{h,cc}, chrome/browser/chrome_content_browser_client.{h,cc}, components/infobars/core/infobar_delegate.h, tools/metrics/histograms/metadata/browser/enums.xml, chrome/browser/BUILD.gn
+Aerie-Kind: hook
+
+A frame asks the browser for key system support (KeySystemSupportImpl::SetObserver) when
+it first uses encrypted media. The new ContentBrowserClient::OnEncryptedMediaRequested()
+does nothing by default; ChromeContentBrowserClient forwards it to
+chrome/browser/aerie_widevine (overlay), which shows the infobar if Widevine is off and
+the user has not declined the site. The infobar has a new identifier.
+
+--- a/content/browser/media/key_system_support_impl.cc
++++ b/content/browser/media/key_system_support_impl.cc
+@@ -73,4 +73,9 @@
+ 
+   observer_remote_.Bind(std::move(observer));
++
++  // Aerie: tell the embedder that this frame uses encrypted media. Chrome
++  // asks the user once whether to turn on Widevine.
++  GetContentClient()->browser()->OnEncryptedMediaRequested(
++      &render_frame_host());
+ 
+   // If `key_system_support_` is already available, notify the new observer
+--- a/content/public/browser/content_browser_client.h
++++ b/content/public/browser/content_browser_client.h
+@@ -3380,4 +3380,8 @@
+   virtual std::string GetDnsTxtResolverUrlPrefix();
+ 
++  // Aerie: called on the UI thread when a frame first uses encrypted media
++  // (it asks for key system support). The default does nothing.
++  virtual void OnEncryptedMediaRequested(RenderFrameHost* render_frame_host);
++
+   // Returns true if the given redirected destination url `url` of the given
+   // `browser_context` should be allowed for prefetch redirect.
+--- a/content/public/browser/content_browser_client.cc
++++ b/content/public/browser/content_browser_client.cc
+@@ -2068,4 +2068,7 @@
+ }
+ 
++void ContentBrowserClient::OnEncryptedMediaRequested(
++    RenderFrameHost* render_frame_host) {}
++
+ bool ContentBrowserClient::ShouldAllowPrefetchRedirection(
+     content::BrowserContext& browser_context,
+--- a/chrome/browser/chrome_content_browser_client.h
++++ b/chrome/browser/chrome_content_browser_client.h
+@@ -1263,4 +1263,7 @@
+   std::string GetDnsTxtResolverUrlPrefix() override;
+ 
++  void OnEncryptedMediaRequested(
++      content::RenderFrameHost* render_frame_host) override;
++
+   bool ShouldAllowPrefetchRedirection(
+       content::BrowserContext& browser_context,
+--- a/chrome/browser/chrome_content_browser_client.cc
++++ b/chrome/browser/chrome_content_browser_client.cc
+@@ -61,4 +61,5 @@
+ #include "chrome/browser/actor/actor_commit_deferring_condition.h"
+ #include "chrome/browser/aerie_adblock/aerie_protection_throttle.h"
++#include "chrome/browser/aerie_widevine/aerie_widevine_prompt.h"
+ #include "chrome/browser/after_startup_task_utils.h"
+ #include "chrome/browser/ai/ai_manager.h"
+@@ -9957,4 +9958,9 @@
+ }
+ 
++void ChromeContentBrowserClient::OnEncryptedMediaRequested(
++    content::RenderFrameHost* render_frame_host) {
++  aerie_widevine::OnEncryptedMediaRequested(render_frame_host);
++}
++
+ bool ChromeContentBrowserClient::ShouldAllowPrefetchRedirection(
+     content::BrowserContext& browser_context,
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -1106,4 +1106,5 @@
+     "//chrome/browser/actor",
+     "//chrome/browser/actor:impl",
++    "//chrome/browser/aerie_widevine",
+     "//chrome/browser/ai",
+     "//chrome/browser/aerie_adblock",
+--- a/components/infobars/core/infobar_delegate.h
++++ b/components/infobars/core/infobar_delegate.h
+@@ -214,4 +214,5 @@
+     PASSWORD_SAVED_INFOBAR_DELEGATE_IOS = 139,
+     CONTEXTUAL_CUE_INFOBAR_DELEGATE_IOS = 140,
++    AERIE_WIDEVINE_PROMPT_INFOBAR_DELEGATE = 141,
+   };
+   // LINT.ThenChange(//tools/metrics/histograms/metadata/browser/enums.xml:InfoBarIdentifier)
+--- a/tools/metrics/histograms/metadata/browser/enums.xml
++++ b/tools/metrics/histograms/metadata/browser/enums.xml
+@@ -374,4 +374,5 @@
+   <int value="139" label="PASSWORD_SAVED_INFOBAR_DELEGATE_IOS"/>
+   <int value="140" label="CONTEXTUAL_CUE_INFOBAR_DELEGATE_IOS"/>
++  <int value="141" label="AERIE_WIDEVINE_PROMPT_INFOBAR_DELEGATE"/>
+ </enum>
+ 

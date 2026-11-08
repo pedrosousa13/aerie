@@ -167,6 +167,28 @@
       "bench_checks": ["hardening_fingerprinting"]
     },
     {
+      "id": "widevine",
+      "title": "Widevine DRM",
+      "summary": "Widevine decodes protected video and audio (Netflix, Disney+ and similar). It is a component made by Google. Aerie builds it in but neither downloads nor loads it until you turn this on, and Aerie sends nothing else to Google, and nothing at all about it until you turn it on. The first time a site asks for protected content, Aerie asks once whether to turn it on. After the download Aerie needs a restart to finish turning it on.",
+      "default": "Off.",
+      "provided_by": "aerie",
+      "default_set_in": [
+        "overlay/components/aerie_widevine/widevine_opt_in.cc: aerie.widevine.enabled is registered in Local State with default false",
+        "patches/widevine/0001-register-widevine-only-when-opted-in.patch: the Widevine component is registered with the component updater only once the pref is true"
+      ],
+      "upstream": ["chrome/browser/component_updater/widevine_cdm_component_installer.cc", "chrome/browser/component_updater/registration.cc"],
+      "aerie_patches": [
+        "widevine/0001-register-widevine-only-when-opted-in.patch",
+        "widevine/0002-update-widevine-from-google-when-opted-in.patch",
+        "widevine/0003-allow-widevine-pref-in-settings.patch",
+        "widevine/0004-ask-before-the-first-drm-request.patch"
+      ],
+      "pref": {"name": "aerie.widevine.enabled", "default": false},
+      "cost": "Turning it on downloads a closed-source Google module, which is checked against a pinned signing key before it loads, and lets Aerie ask Google for updates to it. Until you do, DRM video does not play. Before this setting, the CRLSet (the list of revoked certificates) got updates only while Widevine was on; now Aerie never sends the CRLSet to Google, so it is not updated.",
+      "ui": {"kind": "toggle", "pref": "aerie.widevine.enabled"},
+      "bench_checks": ["hardening_pref_defaults", "hardening_settings_page", "widevine_opt_in"]
+    },
+    {
       "id": "extension_lock",
       "title": "Extensions cannot loosen these settings",
       "summary": "An extension with the privacy permission cannot write the WebRTC policy, the preloading option or the third-party cookie setting. Only the user can change them, in settings. Reading them and being told about changes still works.",

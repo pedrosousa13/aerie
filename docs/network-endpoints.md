@@ -16,7 +16,7 @@ network stack refuses it before any DNS query (ungoogled-chromium's
 | Endpoint | Where it was | What it did | Aerie |
 | --- | --- | --- | --- |
 | `https://services.helium.imput.net` | `components/helium_services` (`kHeliumDefaultOrigin`) | Base of all services below | The constant is gone. `ShouldAccessServices()` is `false`, whatever the prefs say. Patch `services/0002`. |
-| `{origin}/com` | `GetComponentUpdateURL` | Component updates (CRLSet, CT logs, Widevine CDM) | Dummy origin. See "Known blocked attempts". |
+| `{origin}/com` | `GetComponentUpdateURL` | Component updates (CRLSet, CT logs, Widevine CDM) | Dummy origin. See "Known blocked attempts". Only after the user opts in to Widevine, the update URL is Google's (next section). |
 | `{origin}/ext`, `{origin}/ext/cws_snippet` | `GetExtensionUpdateURL`, `GetWebstoreSnippetURL` | Web Store download proxy, extension updates | Only the user's extension proxy, https, set in Settings. Not configured: the dummy origin and a dialog (below). |
 | `{origin}/ubo/assets.json` | `GetUBlockAssetsURL` | uBlock Origin asset list | Dummy origin; uBlock Origin uses the lists it ships with. It stays until #8 replaces it. |
 | `{origin}/bangs.json` | `template_url_bang_manager.cc` | Search bangs | Not fetched (`ShouldFetchBangs()` is `false`). |
@@ -78,10 +78,25 @@ user or a site starts one, that request is theirs.
 
 If a Bench run ever shows one of these at idle, it needs its own patch.
 
+### Only after opting in to Widevine
+
+Nothing here runs on a fresh profile. When the user turns on `aerie.widevine.enabled`
+(Settings, or the one-time prompt), `aerie_widevine::WidevineUpdateUrl()` gives the component
+updater Google's update server, and the Widevine component is registered. The update check and
+the event ping name only the Widevine component (`ShouldSendToServer` in `update_client`); the
+CRLSet and any other component are left out of what Google gets.
+
+| Host | Request | Why |
+| --- | --- | --- |
+| `update.googleapis.com` | `POST /service/update2/json`: update check and ping, naming the Widevine component only | The only server that offers the Widevine component |
+| The download host named in the update reply (Google's) | The Widevine CRX | The component itself. The updater checks its signature against the pinned key before it unpacks it |
+
 Left alone on purpose:
 
-- **Widevine** stays as it is until #7. Its CDM comes through the component
-  updater, which has only the dummy origin now.
+- **Widevine** is opt-in (#7, [widevine.md](widevine.md)). Until the user turns
+  it on, the component updater is not told about it and gets only the dummy
+  origin. After opt-in, the update check and the download go to Google (see
+  "Only after opting in to Widevine"). The Bench's zero-traffic run never opts in.
 - **uBlock Origin** stays until #8, with asset updates off.
 
 ## Aerie-owned endpoints

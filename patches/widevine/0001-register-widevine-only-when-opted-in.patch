@@ -1,0 +1,73 @@
+Aerie-Purpose: Register the Widevine component with the component updater only after the user opts in, and register the opt-in prefs in Local State.
+Aerie-Upstream-Area: chrome/browser/component_updater/registration.cc (RegisterComponentsForUpdate), chrome/browser/prefs/browser_prefs.cc (RegisterLocalState), the two BUILD.gn files and components/BUILD.gn (unit tests)
+Aerie-Kind: hook
+
+Widevine is built (enable_widevine=true) but is not downloaded, registered or enabled
+until the user turns it on. RegisterWidevineCdmComponent(cus) used to run at every
+startup; it now runs through aerie_widevine::RegisterWhenEnabled(), which calls it once,
+at startup if aerie.widevine.enabled is true, or when the pref later turns true. With the
+pref off the component updater never learns about Widevine, so nothing fetches it. The
+CDM hint file that an earlier opt-in left in the profile is still read at startup; see
+docs/widevine.md.
+
+The component update URL for an opted-in browser is the next patch.
+
+--- a/chrome/browser/component_updater/registration.cc
++++ b/chrome/browser/component_updater/registration.cc
+@@ -88,4 +88,5 @@
+ #if BUILDFLAG(ENABLE_WIDEVINE_CDM_COMPONENT)
+ #include "chrome/browser/component_updater/widevine_cdm_component_installer.h"
++#include "components/aerie_widevine/widevine_opt_in.h"
+ #endif  // BUILDFLAG(ENABLE_WIDEVINE_CDM_COMPONENT)
+ 
+@@ -148,5 +149,9 @@
+ 
+ #if BUILDFLAG(ENABLE_WIDEVINE_CDM_COMPONENT)
+-  RegisterWidevineCdmComponent(cus);
++  // Aerie: Widevine is opt-in. It is registered, and so downloaded, only once
++  // the user turns it on (Settings, or the prompt on the first DRM request).
++  aerie_widevine::RegisterWhenEnabled(
++      g_browser_process->local_state(),
++      base::BindRepeating(&RegisterWidevineCdmComponent, cus));
+ #endif  // BUILDFLAG(ENABLE_WIDEVINE_CDM_COMPONENT)
+ 
+--- a/chrome/browser/component_updater/BUILD.gn
++++ b/chrome/browser/component_updater/BUILD.gn
+@@ -162,6 +162,7 @@
+     "//chrome/browser/update_client",
+     "//chrome/common",
+     "//chrome/common/request_header_integrity:buildflags",
++    "//components/aerie_widevine",
+     "//components/certificate_transparency",
+     "//components/certificate_transparency:proto_gen",
+     "//components/commerce/core:commerce_heuristics_data",
+--- a/chrome/browser/prefs/browser_prefs.cc
++++ b/chrome/browser/prefs/browser_prefs.cc
+@@ -110,4 +110,5 @@
+ #include "chrome/common/pref_names.h"
+ #include "chrome/common/secure_origin_allowlist.h"
++#include "components/aerie_widevine/widevine_opt_in.h"
+ #include "components/autofill/core/common/autofill_prefs.h"
+ #include "components/blocked_content/safe_browsing_triggered_popup_blocker.h"
+@@ -1674,4 +1675,5 @@
+       static_cast<int>(helium::CrashReportingMode::kAsk));
+   ChromeContentBrowserClient::RegisterLocalStatePrefs(registry);
++  aerie_widevine::RegisterLocalStatePrefs(registry);
+ #if BUILDFLAG(CHROME_FOR_TESTING)
+   chrome_for_testing::RegisterPrefs(registry);
+--- a/chrome/browser/prefs/BUILD.gn
++++ b/chrome/browser/prefs/BUILD.gn
+@@ -133,4 +133,5 @@
+     "//chrome/browser/updates/announcement_notification",
+     "//chrome/browser/webauthn",
++    "//components/aerie_widevine",
+     "//components/blocked_content",
+     "//components/bookmarks/common",
+--- a/components/BUILD.gn
++++ b/components/BUILD.gn
+@@ -189,4 +189,5 @@
+     "//components/actor/transport:unit_tests",
+     "//components/aerie_services:unit_tests",
++    "//components/aerie_widevine:unit_tests",
+     "//components/affiliations/core/browser:unit_tests",
+     "//components/affiliations/core/browser/domain_matching:unit_tests",

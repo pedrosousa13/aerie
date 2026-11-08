@@ -1,0 +1,35 @@
+# Copyright 2026 The Aerie Authors
+# You can use, redistribute, and/or modify this source code under
+# the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+# Widevine is opt-in: the preferences, the rules for when to ask the user, the
+# component update URL while opted in, and the gate that registers the Widevine
+# component only after the user opts in. No content or chrome dependency, so it
+# has unit tests.
+source_set("aerie_widevine") {
+  sources = [
+    "widevine_opt_in.cc",
+    "widevine_opt_in.h",
+  ]
+
+  public_deps = [
+    "//base",
+    "//components/prefs",
+    "//url",
+  ]
+}
+
+source_set("unit_tests") {
+  testonly = true
+
+  sources = [ "widevine_opt_in_unittest.cc" ]
+
+  deps = [
+    ":aerie_widevine",
+    "//base",
+    "//base/test:test_support",
+    "//components/prefs:test_support",
+    "//testing/gtest",
+    "//url",
+  ]
+}

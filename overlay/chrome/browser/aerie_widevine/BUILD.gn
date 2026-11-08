@@ -1,0 +1,22 @@
+# Copyright 2026 The Aerie Authors
+# You can use, redistribute, and/or modify this source code under
+# the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+# The one-time prompt that offers to turn on Widevine when a site first uses
+# encrypted media. Same shape as //chrome/browser/aerie_adblock.
+source_set("aerie_widevine") {
+  visibility = [ "//chrome/browser:core" ]
+  public = [ "aerie_widevine_prompt.h" ]
+  sources = [ "aerie_widevine_prompt.cc" ]
+  deps = [
+    "//base",
+    "//chrome/browser:browser_process",
+    "//chrome/browser/infobars",
+    "//components/aerie_widevine",
+    "//components/infobars/content",
+    "//components/infobars/core",
+    "//components/prefs",
+    "//content/public/browser",
+    "//url",
+  ]
+}

@@ -88,7 +88,10 @@ search suggestions, secure DNS, crash upload or Helium services are no longer of
 FedCM DNS resolver prefix is no longer empty, if `kHttpsFirstDialogUi` is on again
 (the full HTTPS-only warning page needs it off), or if link prefetch no longer follows
 the preloading pref (`dns_prefetching_enabled` set in `OverrideWebPreferences` and
-honoured by `PrefetchIfNeeded`). The same gates
+honoured by `PrefetchIfNeeded`), or if Widevine is no longer opt-in (`widevine_opt_in`: it must be
+registered only through `aerie_widevine::RegisterWhenEnabled`, the component update URL and the
+update check and ping must go through the opt-in so Google is sent only Widevine, and the pinned
+Widevine signing-key hash `kWidevineSha2Hash` must be unchanged). The same gates
 run on a real tree with `./aerie patches gates [--tree DIR]`. They live in
 `tools/aerie_build/treegate.py`; the endpoints they protect are listed in
 [docs/network-endpoints.md](docs/network-endpoints.md).
