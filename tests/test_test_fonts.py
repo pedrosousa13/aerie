@@ -197,6 +197,27 @@ class EnsureTest(unittest.TestCase):
                     self.ensure()
                 self.assertFalse((self.tree / "escape.ttf").exists())
 
+    def test_symlink_and_hardlink_members_are_refused(self):
+        for kind in (tarfile.SYMTYPE, tarfile.LNKTYPE):
+            with self.subTest(kind=kind):
+                buffer = io.BytesIO()
+                with tarfile.open(fileobj=buffer, mode="w:gz") as tar:
+                    ahem = tarfile.TarInfo("Ahem.ttf")
+                    ahem.size = 4
+                    tar.addfile(ahem, io.BytesIO(b"ahem"))
+                    link = tarfile.TarInfo("link.ttf")
+                    link.type = kind
+                    link.linkname = "Ahem.ttf"
+                    tar.addfile(link)
+                self.served = buffer.getvalue()
+                (self.tree / "DEPS").write_text(deps_for(self.served))
+                if self.downloads.exists():
+                    for p in self.downloads.iterdir():
+                        p.unlink()
+                with self.assertRaisesRegex(test_fonts.TestFontsError, "unsafe"):
+                    self.ensure()
+                self.assertFalse((self.tree / test_fonts.FONT_DIR / "link.ttf").exists())
+
     def test_an_archive_without_ahem_is_an_error(self):
         self.served = make_archive({"Arimo-Regular.ttf": b"x"})
         (self.tree / "DEPS").write_text(deps_for(self.served))

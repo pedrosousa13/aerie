@@ -18,7 +18,6 @@ only copied into test output.
 from __future__ import annotations
 
 import ast
-import hashlib
 import os
 import re
 import shutil
@@ -27,7 +26,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from . import fallback
+from . import fallback, lock
 
 DEPS_KEY = "src/third_party/test_fonts/test_fonts"
 FONT_DIR = Path("third_party") / "test_fonts" / "test_fonts"
@@ -93,16 +92,8 @@ def parse_deps(text: str) -> FontPin:
     return FontPin(bucket, name, sha)
 
 
-def _sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with open(path, "rb") as fh:
-        for block in iter(lambda: fh.read(1 << 20), b""):
-            digest.update(block)
-    return digest.hexdigest()
-
-
 def _verify(pin: FontPin, archive: Path) -> None:
-    actual = _sha256_file(archive)
+    actual = lock.sha256_file(archive)
     if actual != pin.sha256:
         archive.replace(archive.with_name(archive.name + ".rejected"))
         raise TestFontsError(
@@ -165,7 +156,7 @@ def ensure(
         log(f"test fonts: {archive.name} already downloaded; verifying")
     else:
         log(f"test fonts: downloading {pin.url} (test builds only; DEPS pins sha256 {pin.sha256})")
-        fallback._download(pin.url, archive, opener)
+        fallback.download(pin.url, archive, opener)
     _verify(pin, archive)
     log(f"test fonts: {archive.name}: sha256 matches DEPS")
     _unpack(archive, target)
