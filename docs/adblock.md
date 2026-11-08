@@ -133,7 +133,33 @@ How it works:
 - **Count.** Workers and requests with no frame are not counted. Another blocker's blocks are not
   counted either.
 
-Open: Issue #40 (MV2 extension `webRequest` is broken by the hook) is not touched here.
+### MV2 extensions and the hook (issue #40)
+
+`mv2_extension` failed on every real build from train 2 to train 4: the extension loaded and its
+content script ran, but its blocking `webRequest` listener never saw `/mv2/ext-block-me.js`.
+The first guess, that Aerie's proxy hides requests from the extensions' proxy, does not fit the
+code. In `ChromeContentBrowserClient::WillCreateURLLoaderFactory` the extensions' proxy is
+appended first, Aerie's after it, so a request reaches the extension before the Filter Engine.
+
+What the evidence shows (train 2, 3 and 4 results; the NetLog of train 4):
+
+* the whole check took 24 to 82 ms, and the NetLog has the page request and its two scripts
+  within 10 ms of each other;
+* the extension's persistent background page existed in the target list at the end;
+* the check navigated to the fixture page right after `Extensions.loadUnpacked` returned.
+
+A persistent background page starts in its own process and registers its listener some time
+after the extension loads, and the browser learns of the listener later still. So the most
+likely cause is a race in the check: the page loaded before the listener was live. This is
+not proven without a real build. Aerie's hook and the extensions' proxy are not changed.
+
+The check now waits first: it fetches a probe URL from the extension's own background page until
+the extension cancels it, and only then loads the page. The result data has `listener_probe`
+(`ready`, `attempts`, `seconds`). If the probe is never cancelled, the failure says the listener
+never took effect, which points at MV2 `webRequestBlocking` gating or how the extension was
+loaded. If the probe is cancelled but the page request still loads, the cause is in the
+proxying of that request, and the hook is the place to look. For that case, run with
+`--enable-logging=stderr --vmodule=aerie_adblock_hook=1` to log which factories get Aerie's proxy.
 
 ## Cosmetic filtering (hiding leftover ad containers)
 

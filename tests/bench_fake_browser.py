@@ -62,6 +62,7 @@ rd, wr = os.fdopen(3, "rb", buffering=0), os.fdopen(4, "wb", buffering=0)
 buf = b""
 titles = {}
 requests = []
+probes = {}
 if os.environ.get("FAKE_BROWSER_EXTERNAL"):
     requests.append("https://update.example.invalid/check")
 if os.environ.get("FAKE_BROWSER_EXTERNAL_URL"):
@@ -224,10 +225,11 @@ def handle(msg):
             out = {"id": i, "error": {"code": -32000, "message": "Manifest version 2 is not supported"}}
         elif mode:
             out["result"] = {"id": "a" * 32}
+            probes["left"] = int(os.environ.get("FAKE_BROWSER_MV2_PROBE_FAILS", "0"))
     elif m == "Target.getTargets":
         mode = os.environ.get("FAKE_BROWSER_MV2")
         infos = [{"type": "page", "url": current, "targetId": "P1"}]
-        if mode in ("works", "with-ubo"):
+        if mode in ("works", "with-ubo", "inert"):
             infos.append({"type": "background_page", "url": "chrome-extension://" + "a" * 32 + "/_generated_background_page.html", "targetId": "B1"})
         if mode == "with-ubo":
             infos.append({"type": "service_worker", "url": "chrome-extension://blockjmkbacgjkknlgpkjjiijinjdanf/js/background.js", "targetId": "U1"})
@@ -235,12 +237,21 @@ def handle(msg):
     elif m == "Runtime.evaluate":
         expr = p["expression"]
         val = titles.get(current, "") if expr == "document.title" else expr
+        if "aerieProbe" in expr:
+            # The extension's background page fetching a URL its own listener cancels. "inert":
+            # the listener never takes effect. FAKE_BROWSER_MV2_PROBE_FAILS=n: it takes effect late.
+            probes["calls"] = probes.get("calls", 0) + 1
+            val = os.environ.get("FAKE_BROWSER_MV2") != "inert" and probes.get("left", 0) <= 0
+            probes["left"] = probes.get("left", 0) - 1
+            out["result"] = {"result": {"type": "boolean", "value": val}}
+            reply(out)
+            return
         if "aerieCancelled" in expr:
             # What the MV2 fixture extension's background page recorded.
             val = json.dumps([f"{fake_base}/mv2/ext-block-me.js"]) \
                 if os.environ.get("FAKE_BROWSER_MV2") in ("works", "with-ubo") else "[]"
         elif "data-aerie-mv2" in expr:
-            val = "ran" if os.environ.get("FAKE_BROWSER_MV2") in ("works", "with-ubo") else None
+            val = "ran" if os.environ.get("FAKE_BROWSER_MV2") in ("works", "with-ubo", "inert") else None
         elif "mv2AllowedRan" in expr:
             val = os.environ.get("FAKE_BROWSER_MV2") in ("works", "with-ubo")
         if p.get("awaitPromise"):
