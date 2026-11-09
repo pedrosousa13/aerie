@@ -112,12 +112,13 @@ void AdblockProxyingURLLoader::FollowRedirect(
       std::move(*classified),
       base::BindOnce(&AdblockProxyingURLLoader::OnRedirectVerdict,
                      weak_factory_.GetWeakPtr(), std::move(headers_update_params),
-                     new_url));
+                     new_url, target));
 }
 
 void AdblockProxyingURLLoader::OnRedirectVerdict(
     network::HttpRequestHeadersUpdateParams headers_update_params,
     std::optional<GURL> new_url,
+    GURL blocked_target,
     bool should_block) {
   base::UmaHistogramBoolean("Aerie.Adblock.RequestBlocked", should_block);
   base::UmaHistogramBoolean("Aerie.Adblock.RedirectHopBlocked", should_block);
@@ -129,7 +130,7 @@ void AdblockProxyingURLLoader::OnRedirectVerdict(
   }
   if (should_block) {
     if (service_) {
-      service_->RecordBlocked(frame_id_);
+      service_->RecordBlocked(frame_id_, blocked_target);
     }
     FailRequest(net::ERR_BLOCKED_BY_CLIENT);
     return;

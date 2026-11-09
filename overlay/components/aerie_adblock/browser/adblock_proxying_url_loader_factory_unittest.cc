@@ -105,7 +105,7 @@ TEST_F(AdblockProxyingURLLoaderFactoryTest, ASiteExceptionLetsThatSitesAdsLoad) 
 TEST_F(AdblockProxyingURLLoaderFactoryTest, OnlyBlockedRequestsAreCounted) {
   int blocked = 0;
   service_.SetBlockedRequestCallback(base::BindLambdaForTesting(
-      [&](content::GlobalRenderFrameHostId) { ++blocked; }));
+      [&](content::GlobalRenderFrameHostId, const GURL&) { ++blocked; }));
   target_.AddResponse("https://news.test/app.js", "ok");
   EXPECT_EQ(net::OK, Fetch("https://news.test/app.js"));
   EXPECT_EQ(0, blocked);

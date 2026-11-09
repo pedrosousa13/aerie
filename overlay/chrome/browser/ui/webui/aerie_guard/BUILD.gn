@@ -73,6 +73,7 @@ source_set("browser_tests") {
     "//chrome/test:test_support_ui",
     "//chrome/test/base:chrome_test_utils",
     "//components/aerie_adblock/browser:guard_target",
+    "//components/aerie_adblock/browser:page_counter",
     "//content/test:test_support",
     "//mojo/public/cpp/bindings",
     "//net:test_support",

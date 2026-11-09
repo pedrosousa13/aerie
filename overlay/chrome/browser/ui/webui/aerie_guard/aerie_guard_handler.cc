@@ -135,6 +135,10 @@ mojom::PanelStatePtr AerieGuardHandler::ResolveState() {
   if (out->blocking_on) {
     out->blocked_summary = base::UTF16ToUTF8(l10n_util::GetPluralStringFUTF16(
         IDS_AERIE_GUARD_PANEL_BLOCKED, state->count));
+    // Plain strings, read from the captured tab's counter: the page names
+    // nothing here.
+    out->blocked_urls =
+        aerie_adblock::PageBlockCounter::BlockedUrlsFor(target_.tab());
   }
   out->fingerprinting = FingerprintingStateOfTarget();
   return out;

@@ -111,6 +111,12 @@
   <message name="IDS_AERIE_GUARD_PANEL_SURFACE_GRAPHICS_CARD" desc="Item of the list of what fingerprinting protection changes. The graphics card name that WebGL and WebGPU report is reduced to the vendor family.">
     The graphics card is reported as its vendor family only
   </message>
+  <message name="IDS_AERIE_GUARD_PANEL_BLOCKED_LIST" desc="Heading of the expandable list under the blocked count in the Aerie Guard panel. The list shows the addresses of the requests Aerie Guard blocked on the open page.">
+    Show what was blocked
+  </message>
+  <message name="IDS_AERIE_GUARD_PANEL_BLOCKED_LIST_CUT" desc="Line under the list of blocked addresses in the Aerie Guard panel when the page blocked more requests than the list keeps. The first number is how many addresses the list shows, the second how many requests were blocked in all.">
+    Showing the first <ph name="SHOWN">$1<ex>200</ex></ph> of <ph name="TOTAL">$2<ex>300</ex></ph> blocked requests
+  </message>
   <message name="IDS_AERIE_GUARD_PANEL_SURFACE_SCREEN" desc="Item of the list of what fingerprinting protection changes. The screen size is reported as a common size and the window position as 0,0.">
     The screen size is reported as a common size, and the window position as 0,0
   </message>

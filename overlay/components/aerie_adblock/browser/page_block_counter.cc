@@ -25,7 +25,8 @@ PageBlockCounter::PageBlockCounter(content::WebContents* web_contents)
 PageBlockCounter::~PageBlockCounter() = default;
 
 // static
-void PageBlockCounter::RecordBlocked(content::GlobalRenderFrameHostId frame_id) {
+void PageBlockCounter::RecordBlocked(content::GlobalRenderFrameHostId frame_id,
+                                     const GURL& url) {
   content::RenderFrameHost* frame = content::RenderFrameHost::FromID(frame_id);
   content::WebContents* web_contents =
       frame ? content::WebContents::FromRenderFrameHost(frame) : nullptr;
@@ -33,7 +34,7 @@ void PageBlockCounter::RecordBlocked(content::GlobalRenderFrameHostId frame_id) 
     return;
   }
   PageBlockCounter::CreateForWebContents(web_contents);
-  PageBlockCounter::FromWebContents(web_contents)->Increment();
+  PageBlockCounter::FromWebContents(web_contents)->Increment(url);
 }
 
 // static
@@ -41,6 +42,14 @@ int PageBlockCounter::CountFor(content::WebContents* web_contents) {
   PageBlockCounter* counter =
       web_contents ? PageBlockCounter::FromWebContents(web_contents) : nullptr;
   return counter ? counter->count_ : 0;
+}
+
+// static
+std::vector<std::string> PageBlockCounter::BlockedUrlsFor(
+    content::WebContents* web_contents) {
+  PageBlockCounter* counter =
+      web_contents ? PageBlockCounter::FromWebContents(web_contents) : nullptr;
+  return counter ? counter->urls_.urls() : std::vector<std::string>();
 }
 
 // static
@@ -58,8 +67,9 @@ void PageBlockCounter::RemoveObserverFor(content::WebContents* web_contents,
   }
 }
 
-void PageBlockCounter::Increment() {
+void PageBlockCounter::Increment(const GURL& url) {
   ++count_;
+  urls_.Add(url);
   for (Observer& observer : observers_) {
     observer.OnPageBlockedCountChanged(web_contents(), count_);
   }
@@ -71,6 +81,7 @@ void PageBlockCounter::RecordAndReset() {
                                   std::min(count_, kHistogramMax),
                                   kHistogramMax + 1);
   }
+  urls_.Clear();
   if (count_ != 0) {
     count_ = 0;
     for (Observer& observer : observers_) {
@@ -91,6 +102,7 @@ void PageBlockCounter::WebContentsDestroyed() {
                                   kHistogramMax + 1);
     count_ = 0;
   }
+  urls_.Clear();
 }
 
 }  // namespace aerie_adblock

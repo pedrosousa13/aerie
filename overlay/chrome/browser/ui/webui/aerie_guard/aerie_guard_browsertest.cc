@@ -13,6 +13,8 @@
 
 #include "base/functional/bind.h"
 #include "base/run_loop.h"
+#include "base/task/single_thread_task_runner.h"
+#include "base/time/time.h"
 #include "base/values.h"
 #include "base/test/bind.h"
 #include "chrome/browser/chrome_browser_interface_binders.h"
@@ -22,6 +24,7 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/webui/aerie_guard/aerie_guard_handler.h"
 #include "components/aerie_adblock/browser/guard_target.h"
+#include "components/aerie_adblock/browser/page_block_counter.h"
 #include "components/content_settings/core/browser/host_content_settings_map.h"
 #include "components/content_settings/core/common/content_settings.h"
 #include "components/content_settings/core/common/content_settings_types.h"
@@ -416,6 +419,52 @@ IN_PROC_BROWSER_TEST_F(AerieGuardFingerprintingTest,
   EXPECT_EQ(before,
             regular->GetPrefs()->GetDict(
                 "profile.content_settings.exceptions.helium_noise"));
+}
+
+// The list of blocked addresses (issue #110). A page makes 300 blocked requests,
+// one with a 2000-character address. The count reaches 300; the panel's list
+// holds 200 entries and cuts the long address to 256 characters.
+//
+// To see this test fail without the bound, raise BlockedUrlList::kMaxEntries
+// and kMaxUrlLength (blocked_url_list.h) and run it: the size and length
+// checks below fail.
+class AerieGuardBlockedListTest : public AerieGuardFingerprintingTest {};
+
+IN_PROC_BROWSER_TEST_F(AerieGuardBlockedListTest, TheListIsBoundedAndCut) {
+  ASSERT_TRUE(content::NavigateToURL(web_contents(), Url("news.test")));
+  // Real ad addresses that the shipped lists block, as the Bench's blocking
+  // fixture uses. The long one is the sixth, so it is inside the first 200.
+  ASSERT_TRUE(content::ExecJs(web_contents(), R"(
+      const base = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?n=';
+      for (let i = 0; i < 300; ++i) {
+        const s = document.createElement('script');
+        s.src = i === 5 ? base + 'x'.repeat(2000) : base + i;
+        document.body.appendChild(s);
+      }
+  )"));
+  while (aerie_adblock::PageBlockCounter::CountFor(web_contents()) < 300) {
+    base::RunLoop run_loop;
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+        FROM_HERE, run_loop.QuitClosure(), base::Milliseconds(50));
+    run_loop.Run();
+  }
+
+  OpenPanelFor(web_contents());
+  aerie_guard::mojom::PanelStatePtr state = GetState();
+  ASSERT_TRUE(state);
+  EXPECT_EQ(300, state->blocked_count);
+  ASSERT_EQ(200u, state->blocked_urls.size());
+  EXPECT_EQ(256u, state->blocked_urls[5].size());
+  for (size_t i = 0; i < state->blocked_urls.size(); ++i) {
+    if (i != 5) {
+      EXPECT_LT(state->blocked_urls[i].size(), 256u);
+    }
+  }
+
+  // A new page drops the list.
+  ASSERT_TRUE(content::NavigateToURL(web_contents(), Url("shop.test")));
+  EXPECT_TRUE(
+      aerie_adblock::PageBlockCounter::BlockedUrlsFor(web_contents()).empty());
 }
 
 }  // namespace

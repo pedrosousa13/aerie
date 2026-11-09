@@ -173,3 +173,48 @@ class PanelHelpersTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BlockedListTest(unittest.TestCase):
+    """Issue #110: the panel's list of blocked addresses is bounded and cut."""
+
+    @staticmethod
+    def state(entries=200, count=300, long_len=256):
+        urls = [f"https://ads.test/{i}" for i in range(entries)]
+        if entries > ag.LONG_URL_INDEX:
+            urls[ag.LONG_URL_INDEX] = "https://ads.test/" + "x" * (long_len - len("https://ads.test/"))
+        return {"blocked_count": count, "blocked_urls": urls}
+
+    def test_a_bounded_list_passes(self):
+        self.assertEqual(ag.judge_blocked_list(self.state()), [])
+
+    def test_no_site_fails(self):
+        self.assertTrue(ag.judge_blocked_list(None))
+
+    def test_a_list_with_no_bound_fails(self):
+        # Negative control: a store that keeps every address.
+        problems = ag.judge_blocked_list(self.state(entries=300))
+        self.assertTrue(any("300 entries" in p for p in problems))
+
+    def test_an_address_that_is_not_cut_fails(self):
+        problems = ag.judge_blocked_list(self.state(long_len=2017))
+        self.assertTrue(any("longer than 256" in p for p in problems))
+
+    def test_a_count_below_300_fails(self):
+        self.assertTrue(any("blocked count" in p for p in ag.judge_blocked_list(self.state(count=200))))
+
+    def test_a_count_that_stops_at_the_list_size_fails(self):
+        # The count must not be bounded with the list.
+        self.assertTrue(ag.judge_blocked_list(self.state(count=200)))
+
+    def test_the_fixture_makes_300_requests_one_with_2000_characters(self):
+        from aerie_bench.fixtures import FIXTURE_DIR
+        text = (FIXTURE_DIR / "blocking" / "many-blocked.html").read_text()
+        self.assertIn("i < 300", text)
+        self.assertIn("i === 5 ? new Array(2001).join(\"x\")", text)
+        self.assertEqual(ag.BLOCKED_PAGE, "/blocking/many-blocked.html")
+
+    def test_part_three_reads_the_panel_state(self):
+        import inspect
+        src = inspect.getsource(ag.AerieGuardPanel.blocked_list)
+        self.assertIn("judge_blocked_list", src)

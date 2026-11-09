@@ -113,6 +113,7 @@ class AdblockProxyingURLLoader : public network::mojom::URLLoader,
   void OnRedirectVerdict(
       network::HttpRequestHeadersUpdateParams headers_update_params,
       std::optional<GURL> new_url,
+      GURL blocked_target,
       bool should_block);
   // True while the network loader can still be talked to. Remote::is_connected() must
   // not be called on an unbound remote (it DCHECKs, and in official builds reports true), so

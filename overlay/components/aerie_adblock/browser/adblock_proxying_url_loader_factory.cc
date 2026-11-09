@@ -109,7 +109,7 @@ void AdblockProxyingURLLoaderFactory::OnVerdict(
   base::UmaHistogramBoolean("Aerie.Adblock.RequestBlocked", should_block);
   if (should_block) {
     if (service_) {
-      service_->RecordBlocked(frame_id_);
+      service_->RecordBlocked(frame_id_, request.url);
     }
     // Dropping |loader_receiver| closes the loader pipe. The client learns why
     // from the completion status.

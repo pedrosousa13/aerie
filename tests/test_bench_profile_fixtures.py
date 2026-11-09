@@ -91,6 +91,7 @@ class FixtureServerTest(unittest.TestCase):
         # before they leave the browser, and the check fails if one reaches the network stack.
         deliberate = {fixtures.FIXTURE_DIR / "blocking" / "index.html",
                       fixtures.FIXTURE_DIR / "blocking" / "expected.json",
+                      fixtures.FIXTURE_DIR / "blocking" / "many-blocked.html",
                       fixtures.FIXTURE_DIR / "redirects.json"}
         # The perf check's ad-heavy pages name the same hosts, so a blocker has something to stop.
         deliberate |= set((fixtures.FIXTURE_DIR / "perf").glob("ad-heavy-*.html"))
