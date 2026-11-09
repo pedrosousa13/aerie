@@ -24,10 +24,9 @@ Three more things are judged:
   so a pass does not rest on process counts alone;
 * the rule is also written the way the Site settings "Add site" dialog writes it
   (``setCategoryPermissionForPattern`` with a host pattern), in a profile of its own;
-* a rule for a subdomain only is visited twice. Upstream isolates the subdomain's origin for
-  BrowsingInstances created after the first navigation, so the first visit runs with the JIT on
-  and the second, after leaving the page, with it off. The check asserts that (docs/hardening.md
-  says the same) and fails if the first visit turns out different.
+* a rule for a subdomain only is visited twice, leaving the page (about:blank) in between. A real
+  build ran the JIT off on both visits, because the rule is read when the navigation starts; the
+  check asserts that and fails if either visit runs with the JIT on.
 
 Timing is the detector and the process flags are a second witness. The judge needs a slowdown of
 at least ``MIN_SLOWDOWN`` between the modes; the default mode on both sites must stay below it.
@@ -220,16 +219,13 @@ def mode_verdict(label: str, snap: dict) -> str | None:
 
 
 def subdomain_verdict(sub: dict) -> str | None:
-    """None if a subdomain-only rule behaved as documented: JIT on at the first visit, off at the second."""
+    """None if a subdomain-only rule behaved as documented: the JIT is off on both visits, and site b stays on."""
     first, second, parent = sub["first"], sub["second"], sub["parent"]
-    if slowdown(first, parent) >= MIN_SLOWDOWN:
-        return (f"subdomain rule: the first visit to {SUB_SITE} already ran with the JIT off "
-                f"({slowdown(first, parent):.1f}x slower than {SUB_PARENT}), but docs/hardening.md says the "
-                "first visit runs with it on; fix the documentation and this check together")
-    if slowdown(second, parent) < MIN_SLOWDOWN:
-        return (f"subdomain rule: the second visit to {SUB_SITE} ran only {slowdown(second, parent):.1f}x slower "
-                f"than {SUB_PARENT} (need {MIN_SLOWDOWN}x), so the rule did not apply even after leaving the page")
-    return (pinned_problem(f"subdomain rule, first visit to {SUB_SITE}", first, False)
+    for label, m in (("first", first), ("second", second)):
+        if slowdown(m, parent) < MIN_SLOWDOWN:
+            return (f"subdomain rule: the {label} visit to {SUB_SITE} ran only {slowdown(m, parent):.1f}x slower "
+                    f"than {SUB_PARENT} (need {MIN_SLOWDOWN}x), so the rule did not apply")
+    return (pinned_problem(f"subdomain rule, first visit to {SUB_SITE}", first, True)
             or pinned_problem(f"subdomain rule, second visit to {SUB_SITE}", second, True)
             or pinned_problem(f"subdomain rule, site {SUB_PARENT}", parent, False))
 
@@ -257,6 +253,7 @@ class JsOptimizer(HardeningCheck):
                 add_site = snapshot(third)
                 sub_rule = add_site_rule(third, f"{SUB_SITE}.localhost")
                 subdomain = {"rule": sub_rule, "first": measure_pinned(third, SUB_SITE)}
+                third.navigate_url("about:blank")  # leave the page before the second visit
                 subdomain["second"] = measure_pinned(third, SUB_SITE)
                 subdomain["parent"] = measure_pinned(third, SUB_PARENT)
         with session.variant() as v:
@@ -310,7 +307,7 @@ class JsOptimizer(HardeningCheck):
         extra = ""
         if "add_site" in obs:
             extra = ("a rule added like the Add site dialog does it gave the same result; "
-                     "a subdomain-only rule: JIT on at the first visit, off at the second; ")
+                     "a subdomain-only rule: JIT off at the first visit and at the second; ")
         return "pass", (f"JIT off for site {OFF_SITE} only: {slowdown(a, obs['after']['on_site']):.1f}x slower than "
                         f"site {ON_SITE}, {slowdown(r, obs['restarted']['on_site']):.1f}x after a restart; framed in "
                         "one page the two sites ran at different speeds, so in different processes; "

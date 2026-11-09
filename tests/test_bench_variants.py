@@ -245,6 +245,8 @@ class RendererModesTest(unittest.TestCase):
         self.assertIsNone(procmem.busiest(before, {12: 11, 13: 22, 14: 4}))
         self.assertIsNone(procmem.busiest(None, before))
         self.assertIsNone(procmem.busiest(before, {}))
+        # a first measurement after a restart has no renderer yet: every renderer that shows up is new
+        self.assertEqual(procmem.busiest({}, {20: 40}), 20)
 
 
 if __name__ == "__main__":

@@ -589,7 +589,7 @@ class DriverGlueTest(unittest.TestCase):
                 self.mode, self.browser_pid = mode, None
                 self.sent = []
                 self.restarted = 0
-                self.rules, self.visited = set(), set()
+                self.rules = set()
 
             def navigate_url(self, url, wait=None):
                 self.log.append(url)
@@ -606,7 +606,6 @@ class DriverGlueTest(unittest.TestCase):
                     return True
                 if "setCategoryPermissionForPattern" in expression:
                     self.sent.append(expression)
-                    # a pattern for a subdomain only takes effect after the first visit
                     pattern = expression.split("chrome.send")[1].split('"')[1]
                     self.rules.add(pattern.replace("[*.]", "").replace(".localhost", ""))
                     return True
@@ -616,12 +615,7 @@ class DriverGlueTest(unittest.TestCase):
                     return True
                 def speed(host):
                     if host in self.rules:
-                        # a rule for a subdomain only applies from the second visit (upstream
-                        # isolates the origin for BrowsingInstances created after the first navigation)
-                        if "." in host and host not in self.visited:
-                            self.visited.add(host)
-                            return fast
-                        return slow
+                        return slow  # measured on a real build: a subdomain rule applies at once
                     return slow if (self.mode == "off" and host == "a") else fast
 
                 host = self.url.split("//")[1].split(":")[0].replace(".localhost", "") if "localhost" in self.url else ""
@@ -652,6 +646,12 @@ class DriverGlueTest(unittest.TestCase):
         self.assertIn("setCategoryPermissionForPattern", added.sent[0])
         self.assertIn("'javascript-optimizer'", added.sent[0])
         self.assertIn("[*.]a.localhost", added.sent[0])
+        # the argument order the V8 page dialog sends: pattern, secondary pattern, type, value, incognito
+        # (SiteSettingsHandler::HandleSetCategoryPermissionForPattern reads exactly these five)
+        self.assertIn("[pattern, '', 'javascript-optimizer', value, false]", added.sent[0])
+        self.assertTrue(added.sent[0].rstrip().endswith('("[*.]a.localhost", "block")'))
+        # the second subdomain visit comes after leaving the page
+        self.assertIn("about:blank", added.log)
         self.assertIn("s.b.localhost", added.sent[1])
 
     def test_extension_check_loads_the_probe_extension_in_a_variant(self):

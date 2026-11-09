@@ -119,9 +119,7 @@ Every site gets its own renderer process, so a compromised page cannot read anot
 
 The JavaScript optimizing JIT (TurboFan and Maglev) is on for speed. Turn it off for a single site in Site settings, JavaScript optimization. A site with the JIT off never shares a process with a site that has it on.
 
-The setting is the upstream javascript-optimizer content setting, so it also shows in the site details page and in Settings, Privacy and security, Site settings, Additional content settings. It applies on the next visit to the site in a new tab, or after a restart. An embedded frame, or a page opened from another tab, keeps its current process until you open the site in a new tab, because upstream only swaps the process on a main-frame navigation in a tab with no related windows. An exception for a non-default port (for example `http://host:8080`) does not apply, because the site URL has no port, so the rule is the same for every port of the host. It is kept in the profile across restarts.
-
-A rule that names a subdomain only (for example `sub.example.com`, with no rule for the site) does not apply to the first visit. Upstream isolates the subdomain's origin only for browsing contexts created after the navigation that notices the rule (the comment in chrome_content_browser_client.cc says so), so the first visit to it runs with the JIT on. The next visit, after leaving the page, runs with it off. A rule for the whole site (`[*.]example.com`) applies from the next visit. The Bench check `hardening_js_optimizer` asserts this and fails if a build behaves differently, so a failure there means this text is wrong.
+The setting is the upstream javascript-optimizer content setting, so it also shows in the site details page and in Settings, Privacy and security, Site settings, Additional content settings. It applies on the next visit to the site in a new tab, or after a restart. An embedded frame, or a page opened from another tab, keeps its current process until you open the site in a new tab, because upstream only swaps the process on a main-frame navigation in a tab with no related windows. An exception for a non-default port (for example `http://host:8080`) does not apply, because the site URL has no port, so the rule is the same for every port of the host. A rule that names only a subdomain (for example `sub.example.com`) applies the same way; the Bench measured it on a real build, on the first visit and after leaving the page. It is kept in the profile across restarts.
 
 Process rule: the optimizer mode is part of the SiteInfo and of the renderer process flags. IsSuitableHost returns false for a process whose mode differs, so a site with the JIT off is only ever given a process that was started without the optimizing compilers, and a site with the JIT on is never given that process.
 
@@ -309,10 +307,7 @@ The JavaScript optimizing JIT is on for every site. To turn it off for one site,
 Privacy and security, Site settings, Additional content settings, JavaScript optimization, and add
 the site under Not allowed to use JavaScript optimization. The same switch is on the site details page.
 The Security hardening page has a row that links to it. The change applies the next time a tab
-navigates to the site, and it is kept after a restart. A rule that names a subdomain only does not
-apply to the first visit to it (upstream isolates the origin only for contexts created afterwards), so
-that visit runs with the JIT on; the next visit, after leaving the page, runs with it off. Add the
-whole site (`[*.]example.com`) to avoid the gap.
+navigates to the site, and it is kept after a restart.
 
 This is Chromium's own setting (the `javascript-optimizer` content setting), so Aerie adds no code for it.
 A renderer for a site with the JIT off starts with `--js-flags=--disable-optimizing-compilers`. The

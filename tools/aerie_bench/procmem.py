@@ -139,7 +139,7 @@ def busiest(before: dict[int, int] | None, after: dict[int, int] | None, min_tic
     None when either reading is missing or no renderer grew by at least ``min_ticks`` (a tick is
     10 ms on Linux), so an idle or ambiguous window never names a host.
     """
-    if not before or not after:
+    if before is None or not after:
         return None
     growth = {pid: ticks - before.get(pid, 0) for pid, ticks in after.items()}
     if not growth:
