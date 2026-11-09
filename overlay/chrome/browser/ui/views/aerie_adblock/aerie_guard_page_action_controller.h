@@ -12,12 +12,16 @@
 #include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
 #include "chrome/browser/ui/tabs/contents_observing_tab_feature.h"
+#include "chrome/browser/ui/views/bubble/webui_bubble_manager.h"
+#include "chrome/browser/ui/views/bubble/webui_bubble_manager_observer.h"
 #include "components/aerie_adblock/browser/filter_list_manager.h"
 #include "components/aerie_adblock/browser/guard_state.h"
 #include "components/aerie_adblock/browser/page_block_counter.h"
+#include "ui/actions/actions.h"
 #include "ui/base/models/image_model.h"
-#include "ui/menus/simple_menu_model.h"
 #include "ui/views/bubble/bubble_anchor.h"
+#include "ui/views/widget/widget.h"
+#include "ui/views/widget/widget_observer.h"
 
 namespace page_actions {
 class PageActionController;
@@ -26,10 +30,6 @@ class PageActionController;
 namespace tabs {
 class TabInterface;
 }  // namespace tabs
-
-namespace views {
-class MenuRunner;
-}  // namespace views
 
 // The Aerie Guard icon of one tab (issue #99): the address bar icon. It
 // shows on http and https pages only. The icon is the shield "on" or "off for
@@ -40,9 +40,12 @@ class MenuRunner;
 // the tab's primary main frame, the FilterListManager's exceptions and the
 // PageBlockCounter's count (see aerie_adblock::ComputeGuardState()).
 //
-// Pressing the icon opens a menu to turn Guard off, or on again, for the site
-// (then the tab reloads) and to open chrome://filters. The pop-out panel
-// replaces the menu in issue #100.
+// Pressing the icon opens the Guard panel (issue #100): a bubble that hosts
+// chrome://aerie-guard.top-chrome, anchored to the icon. The panel acts on the
+// tab and site this controller captures when it opens it. Pressing the icon
+// again closes the panel: while it is open the action item says it shows a
+// bubble, so the click that deactivates the bubble does not open it again
+// (the pattern of MemorySaverBubbleController).
 //
 // Created for every tab by TabFeatures (patches/adblock/0016), modelled on
 // JsOptimizationsPageActionController.
@@ -50,7 +53,8 @@ class AerieGuardPageActionController
     : public tabs::ContentsObservingTabFeature,
       public aerie_adblock::PageBlockCounter::Observer,
       public aerie_adblock::FilterListManager::Observer,
-      public ui::SimpleMenuModel::Delegate {
+      public WebUIBubbleManagerObserver,
+      public views::WidgetObserver {
  public:
   AerieGuardPageActionController(
       tabs::TabInterface& tab_interface,
@@ -64,9 +68,12 @@ class AerieGuardPageActionController
   // The image of the action item before any tab overrides it.
   static ui::ImageModel DefaultImage();
 
-  // Opens the menu at |anchor| (the icon). Does nothing for a page the icon
-  // does not show on.
-  void ShowMenu(views::BubbleAnchor anchor);
+  // Opens the panel at |anchor| (the icon), or closes it if it is open. Does
+  // nothing for a page the icon does not show on.
+  void ShowPanel(views::BubbleAnchor anchor);
+
+  // The widget of the open panel, or null.
+  views::Widget* panel_widget_for_testing() const;
 
   // content::WebContentsObserver:
   void PrimaryPageChanged(content::Page& page) override;
@@ -77,8 +84,11 @@ class AerieGuardPageActionController
   // aerie_adblock::FilterListManager::Observer:
   void OnFilterListsChanged() override;
 
-  // ui::SimpleMenuModel::Delegate:
-  void ExecuteCommand(int command_id, int event_flags) override;
+  // WebUIBubbleManagerObserver:
+  void BeforeBubbleWidgetShowed(views::Widget* widget) override;
+
+  // views::WidgetObserver:
+  void OnWidgetDestroying(views::Widget* widget) override;
 
  protected:
   // tabs::ContentsObservingTabFeature:
@@ -87,8 +97,6 @@ class AerieGuardPageActionController
                          content::WebContents* new_contents) override;
 
  private:
-  enum Command { kToggleSite = 1, kManageLists = 2 };
-
   // The state of the icon right now.
   aerie_adblock::GuardState CurrentState() const;
   // Starts counting for |contents| (and stops for the one before).
@@ -101,11 +109,22 @@ class AerieGuardPageActionController
   base::ScopedObservation<aerie_adblock::FilterListManager,
                           aerie_adblock::FilterListManager::Observer>
       manager_observation_{this};
-  // The host the open menu was built for. A press on the menu acts on it only
-  // while the tab still shows it.
-  std::string menu_host_;
-  std::unique_ptr<ui::SimpleMenuModel> menu_model_;
-  std::unique_ptr<views::MenuRunner> menu_runner_;
+  // Tells the action item that no bubble shows any more.
+  void BubbleClosed();
+  // Stops observing the bubble manager, then destroys it. The only way the
+  // manager goes: destroying it while it is still observed leaves the
+  // observation pointing at freed memory, and the next Reset() (a new press,
+  // or this controller's destruction) crashed the browser.
+  void DestroyBubbleManager();
+
+  // A new manager for every press, so every panel is a new page that gets its
+  // own captured target: no page outlives the site it was opened for.
+  std::unique_ptr<WebUIBubbleManager> bubble_manager_;
+  base::ScopedObservation<WebUIBubbleManager, WebUIBubbleManagerObserver>
+      bubble_manager_observation_{this};
+  base::ScopedObservation<views::Widget, views::WidgetObserver>
+      widget_observation_{this};
+  base::WeakPtr<actions::ActionItem> action_item_;
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_AERIE_ADBLOCK_AERIE_GUARD_PAGE_ACTION_CONTROLLER_H_

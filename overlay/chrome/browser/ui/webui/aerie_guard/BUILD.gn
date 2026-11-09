@@ -1,0 +1,76 @@
+# Copyright 2026 The Aerie Authors
+# You can use, redistribute, and/or modify this source code under
+# the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+import("//mojo/public/tools/bindings/mojom.gni")
+
+assert(!is_android, "The Aerie Guard panel is for desktop platforms only")
+
+# chrome://aerie-guard.top-chrome (issue #100), the panel the Guard icon opens.
+# The first Aerie Lit WebUI: its page is in chrome/browser/resources/aerie_guard.
+# Registered by patches/adblock/0018, bound by 0019.
+mojom("mojo_bindings") {
+  sources = [ "aerie_guard.mojom" ]
+  webui_module_path = "/"
+}
+
+source_set("aerie_guard") {
+  visibility = [
+    "//chrome/browser:chrome_browser_interface_binders_webui_parts_desktop",
+    "//chrome/browser/ui/views/aerie_adblock:*",
+    "//chrome/browser/ui/webui:*",
+  ]
+  sources = [
+    "aerie_guard_handler.cc",
+    "aerie_guard_handler.h",
+    "aerie_guard_panel_target.cc",
+    "aerie_guard_panel_target.h",
+    "aerie_guard_ui.cc",
+    "aerie_guard_ui.h",
+  ]
+  public_deps = [
+    ":mojo_bindings",
+    "//base",
+    "//chrome/browser/ui/webui/top_chrome",
+    "//components/aerie_adblock/browser:guard_target",
+    "//components/aerie_adblock/browser:lists",
+    "//components/aerie_adblock/browser:page_counter",
+    "//content/public/browser",
+    "//mojo/public/cpp/bindings",
+  ]
+  deps = [
+    "//chrome/app:generated_resources",
+    "//chrome/browser/profiles:profile",
+    "//chrome/browser/resources/aerie_guard:resources",
+    "//chrome/browser/ui/browser_window",
+    "//chrome/browser/ui/webui:favicon_source",
+    "//chrome/common",
+    "//components/favicon_base",
+    "//components/tabs:public",
+    "//content/public/common",
+    "//net",
+    "//ui/base",
+    "//ui/webui",
+    "//url",
+  ]
+}
+
+source_set("browser_tests") {
+  testonly = true
+  sources = [ "aerie_guard_browsertest.cc" ]
+  deps = [
+    ":mojo_bindings",
+    "//chrome/browser:browser",
+    "//chrome/browser/ui/tabs:tabs_public",
+    "//chrome/browser/ui/views/aerie_adblock:guard",
+    "//chrome/test:test_support",
+    "//chrome/test:test_support_ui",
+    "//chrome/test/base:chrome_test_utils",
+    "//content/test:test_support",
+    "//mojo/public/cpp/bindings",
+    "//net:test_support",
+    "//ui/base",
+    "//ui/views",
+    "//ui/views:test_support",
+  ]
+}

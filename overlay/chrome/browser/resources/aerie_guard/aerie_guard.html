@@ -1,0 +1,24 @@
+<!doctype html>
+<html dir="$i18n{textdirection}" lang="$i18n{language}">
+  <head>
+    <meta charset="utf-8">
+    <title>$i18n{title}</title>
+    <link rel="stylesheet" href="chrome://resources/css/text_defaults_md.css">
+    <link rel="stylesheet" href="chrome://theme/colors.css?sets=ui,chrome">
+    <style>
+      html,
+      body {
+        width: 320px;
+      }
+
+      body {
+        background-color: var(--color-sys-base-container-elevated, Canvas);
+        margin: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <aerie-guard-app></aerie-guard-app>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

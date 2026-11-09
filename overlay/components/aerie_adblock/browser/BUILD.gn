@@ -12,6 +12,7 @@ _visibility = [
   "//chrome/browser/aerie_adblock:*",
   "//chrome/browser/ui/views/aerie_adblock:*",
   "//chrome/browser/ui/webui/aerie_filters:*",
+  "//chrome/browser/ui/webui/aerie_guard:*",
   "//components/aerie_adblock/*",
 ]
 
@@ -183,6 +184,27 @@ source_set("guard_state") {
   deps = [ ":lists" ]
 }
 
+# The tab and site a Guard panel acts on, captured when the panel opens, and the
+# Guard state of a tab (issue #100).
+source_set("guard_target") {
+  visibility = _visibility
+  sources = [
+    "guard_target.cc",
+    "guard_target.h",
+  ]
+  public_deps = [
+    ":guard_state",
+    "//base",
+    "//content/public/browser",
+  ]
+  deps = [
+    ":lists",
+    ":page_counter",
+    ":service",
+    "//url",
+  ]
+}
+
 # How many requests were blocked for the page of each tab.
 source_set("page_counter") {
   visibility = _visibility
@@ -314,10 +336,13 @@ test("aerie_adblock_content_unittests") {
   visibility = [ "//components/aerie_adblock:*" ]
   sources = [
     "filter_list_manager_session_unittest.cc",
+    "guard_target_unittest.cc",
     "page_block_counter_unittest.cc",
   ]
   deps = [
     ":classified_request",
+    ":guard_state",
+    ":guard_target",
     ":list_types",
     ":lists",
     ":page_counter",

@@ -1,0 +1,36 @@
+Aerie-Purpose: Build the Aerie Guard panel's Lit page (chrome/browser/resources/aerie_guard) into the browser's resources: list its target, pack its pak, give its grd an id range and let it use the Lit build.
+Aerie-Upstream-Area: chrome/browser/resources/BUILD.gn, chrome/chrome_paks.gni, tools/gritsettings/resource_ids.spec, third_party/lit/v3_0/BUILD.gn
+Aerie-Kind: hook
+
+Issue #100. The grd of the page gets the ids 10280 to 10299, after the 10270 range of
+patches/adblock/0009 (Aerie reserves ids from 10270). third_party/lit/v3_0 limits who may depend on
+its build_ts target, so the page's build_ts is added to that list.
+
+--- a/chrome/browser/resources/BUILD.gn
++++ b/chrome/browser/resources/BUILD.gn
+@@ -63,2 +63,3 @@
+       "actor_overlay:resources",
++      "aerie_guard:resources",
+       "app_service_internals:resources",
+--- a/chrome/chrome_paks.gni
++++ b/chrome/chrome_paks.gni
+@@ -226,2 +226,3 @@
+         "$root_gen_dir/chrome/access_code_cast_resources.pak",
++        "$root_gen_dir/chrome/aerie_guard_resources.pak",
+         "$root_gen_dir/chrome/app_service_internals_resources.pak",
+--- a/tools/gritsettings/resource_ids.spec
++++ b/tools/gritsettings/resource_ids.spec
+@@ -1807,2 +1807,7 @@
+ 
++  "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/aerie_guard/resources.grd": {
++    "META": {"sizes": {"includes": [20]}},
++    "includes": [10280],
++  },
++
+   "<(SHARED_INTERMEDIATE_DIR)/THIS_IS_A_PLACEHOLDER.grd": {
+--- a/third_party/lit/v3_0/BUILD.gn
++++ b/third_party/lit/v3_0/BUILD.gn
+@@ -29,2 +29,3 @@
+     "//chrome/browser/resources/actor_overlay:build_ts",
++    "//chrome/browser/resources/aerie_guard:build_ts",
+     "//chrome/browser/resources/app_home:build_ts",

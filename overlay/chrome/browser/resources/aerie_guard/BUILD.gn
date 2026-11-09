@@ -1,0 +1,39 @@
+# Copyright 2026 The Aerie Authors
+# You can use, redistribute, and/or modify this source code under
+# the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+import("//ui/webui/resources/tools/build_webui.gni")
+
+assert(!is_android, "The Aerie Guard panel is for desktop platforms only")
+
+# The page of chrome://aerie-guard.top-chrome (issue #100): the first Aerie Lit
+# WebUI. Its controller, handler and Mojo interface are in
+# chrome/browser/ui/webui/aerie_guard. patches/adblock/0018 lists this target in
+# chrome/browser/resources/BUILD.gn, the pak in chrome/chrome_paks.gni and the
+# grd id range in tools/gritsettings/resource_ids.spec.
+build_webui("build") {
+  grd_prefix = "aerie_guard"
+
+  static_files = [ "aerie_guard.html" ]
+
+  ts_files = [
+    "app.html.ts",
+    "app.ts",
+    "browser_proxy.ts",
+  ]
+  css_files = [ "app.css" ]
+
+  webui_context_type = "trusted"
+
+  ts_composite = true
+  ts_deps = [
+    "//third_party/lit/v3_0:build_ts",
+    "//ui/webui/resources/cr_elements:build_ts",
+    "//ui/webui/resources/js:build_ts",
+    "//ui/webui/resources/mojo:build_ts",
+  ]
+
+  mojo_files_deps =
+      [ "//chrome/browser/ui/webui/aerie_guard:mojo_bindings_ts__generator" ]
+  mojo_files = [ "$root_gen_dir/chrome/browser/ui/webui/aerie_guard/aerie_guard.mojom-webui.ts" ]
+}

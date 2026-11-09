@@ -1,0 +1,65 @@
+// Copyright 2026 The Aerie Authors
+// You can use, redistribute, and/or modify this source code under
+// the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+module aerie_guard.mojom;
+
+// What the panel shows. The browser builds it from its own state about the tab
+// and site the panel was opened for; the page never sends a host, a URL or a
+// tab id.
+struct PanelState {
+  // The host of the site, as the exception keys it. Shown as text.
+  string host;
+  // The image URL of the site's favicon, for an <img>. It only reads the
+  // local favicon store (no request to any server).
+  string favicon_url;
+  // False while the site has an exception.
+  bool blocking_on;
+  // The tab is in an incognito window: a change lasts for this private
+  // session only and is never saved.
+  bool incognito;
+  // An incognito tab cannot turn Guard back on for this site, because a
+  // regular window saved the exception. The switch is disabled.
+  bool locked;
+  // Requests blocked on the page. 0 while blocking is off.
+  int32 blocked_count;
+  // The count in words, in the user's language ("12 requests blocked on this
+  // page"). Empty while blocking is off.
+  string blocked_summary;
+};
+
+// The links in the panel. The page names one by this value; the browser
+// decides what it opens.
+enum Link {
+  kFilterLists,
+};
+
+// The page calls this once when it loads.
+interface PageHandlerFactory {
+  CreatePageHandler(pending_remote<Page> page,
+                    pending_receiver<PageHandler> handler);
+};
+
+// Requests from the panel. Every input is an enum or a bool; the browser
+// validates it and acts only on the tab and site it captured when the panel
+// opened. A request for a tab or site that has changed is refused and the
+// browser closes the panel.
+interface PageHandler {
+  // The state of the captured site. Null when the panel has no site: it was
+  // loaded in an ordinary tab, or its site is gone.
+  GetState() => (PanelState? state);
+  // The page has rendered; the browser shows the bubble.
+  ShowUI();
+  // Turns Guard on or off for the captured site and its subdomains, then
+  // reloads the tab.
+  SetGuardOn(bool on);
+  // Opens a link in a new tab and closes the panel.
+  OpenLink(Link link);
+};
+
+// Messages from the browser to the panel.
+interface Page {
+  // The state changed (the blocked count, the exception). Null when the panel
+  // has no site.
+  OnStateChanged(PanelState? state);
+};

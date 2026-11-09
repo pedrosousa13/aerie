@@ -3,8 +3,8 @@
      You can use, redistribute, and/or modify this source code under
      the terms of the GPL-3.0 license that can be found in the LICENSE file.
 
-     Strings of the Aerie Guard icon in the address bar (issue #99): its tooltip, its accessible name
-     and the menu that opens when it is pressed. tests/test_aerie_guard.py checks that every message
+     Strings of the Aerie Guard icon in the address bar (issue #99): its tooltip and its accessible name,
+     and of the panel that opens when it is pressed (issue #100). tests/test_aerie_guard.py checks that every message
      is used. -->
 <grit-part>
   <message name="IDS_AERIE_GUARD_TOOLTIP_NONE" desc="Tooltip and accessible name of the Aerie Guard icon in the address bar when blocking is on for the site and nothing was blocked on the page yet.">
@@ -18,22 +18,43 @@
   <message name="IDS_AERIE_GUARD_TOOLTIP_OFF" desc="Tooltip and accessible name of the Aerie Guard icon in the address bar when the user turned blocking off for the site.">
     Aerie Guard is off for this site
   </message>
-  <message name="IDS_AERIE_GUARD_MENU_TURN_OFF" desc="Menu item of the Aerie Guard icon. Turns blocking off for the site of the page and for its subdomains, then reloads the page.">
-    Turn off Aerie Guard for <ph name="HOST">$1<ex>news.example</ex></ph> and its subdomains
+  <message name="IDS_AERIE_GUARD_PANEL_ACCNAME" desc="Accessible name and task manager title of the Aerie Guard panel, the pop-out that opens from the Aerie Guard icon in the address bar.">
+    Aerie Guard
   </message>
-  <message name="IDS_AERIE_GUARD_MENU_TURN_ON" desc="Menu item of the Aerie Guard icon. Turns blocking back on for the site of the page, then reloads the page.">
-    Turn on Aerie Guard for <ph name="HOST">$1<ex>news.example</ex></ph>
+  <message name="IDS_AERIE_GUARD_PANEL_TITLE" desc="Heading of the Aerie Guard panel.">
+    Aerie Guard
   </message>
-  <message name="IDS_AERIE_GUARD_MENU_TURN_OFF_INCOGNITO" desc="Menu item of the Aerie Guard icon in an incognito window. Turns blocking off for the site and its subdomains in this incognito session only, then reloads the page. Nothing is saved.">
-    Turn off Aerie Guard for <ph name="HOST">$1<ex>news.example</ex></ph> and its subdomains (this incognito session only)
+  <message name="IDS_AERIE_GUARD_PANEL_SWITCH_LABEL" desc="Label of the switch in the Aerie Guard panel. It turns blocking on or off for the site of the open page.">
+    Guard on this site
   </message>
-  <message name="IDS_AERIE_GUARD_MENU_TURN_ON_INCOGNITO" desc="Menu item of the Aerie Guard icon in an incognito window. Turns blocking back on for the site in this incognito session, then reloads the page.">
-    Turn on Aerie Guard for <ph name="HOST">$1<ex>news.example</ex></ph> (this incognito session only)
+  <message name="IDS_AERIE_GUARD_PANEL_STATUS_ON" desc="Status line of the Aerie Guard panel when blocking is on for the site of the open page.">
+    Guard is on for this site
   </message>
-  <message name="IDS_AERIE_GUARD_MENU_LOCKED" desc="Disabled menu item of the Aerie Guard icon in an incognito window, shown when the user saved an exception for the site in a regular window. An incognito window cannot undo it.">
-    Aerie Guard is off here (turn it on in a regular window)
+  <message name="IDS_AERIE_GUARD_PANEL_STATUS_OFF" desc="Status line of the Aerie Guard panel when the user turned blocking off for the site of the open page.">
+    Guard is off for this site
   </message>
-  <message name="IDS_AERIE_GUARD_MENU_MANAGE_LISTS" desc="Menu item of the Aerie Guard icon. Opens the page where the user manages the filter lists.">
-    Manage filter lists…
+  <message name="IDS_AERIE_GUARD_PANEL_SCOPE" desc="Line under the switch of the Aerie Guard panel. It says what the switch changes: the site and every subdomain of it. The exception covers both.">
+    Applies to <ph name="HOST">$1<ex>news.example</ex></ph> and its subdomains
+  </message>
+  <message name="IDS_AERIE_GUARD_PANEL_INCOGNITO" desc="Line under the switch of the Aerie Guard panel in an incognito window. A change lasts for this incognito session only and is not saved.">
+    For this private session only. Nothing is saved.
+  </message>
+  <message name="IDS_AERIE_GUARD_PANEL_LOCKED" desc="Line under the disabled switch of the Aerie Guard panel in an incognito window, shown when the user saved an exception for the site in a regular window. An incognito window cannot undo it.">
+    Guard was turned off for this site in a regular window. Turn it on there.
+  </message>
+  <message name="IDS_AERIE_GUARD_PANEL_BLOCKED" desc="Line of the Aerie Guard panel that says how many requests Aerie Guard blocked on the open page.">
+    {COUNT, plural,
+      =0 {Nothing blocked on this page}
+      =1 {1 request blocked on this page}
+      other {# requests blocked on this page}}
+  </message>
+  <message name="IDS_AERIE_GUARD_PANEL_NO_SITE" desc="Text of the Aerie Guard panel when it was opened in an ordinary tab, or its page is gone, so it has no site to show.">
+    Open Aerie Guard from the icon in the address bar to see the settings of a site.
+  </message>
+  <message name="IDS_AERIE_GUARD_PANEL_ADVANCED" desc="Heading of the collapsed Advanced section of the Aerie Guard panel.">
+    Advanced
+  </message>
+  <message name="IDS_AERIE_GUARD_PANEL_FILTER_LISTS" desc="Link at the bottom of the Aerie Guard panel. Opens the page where the user manages the filter lists.">
+    Filter lists…
   </message>
 </grit-part>
