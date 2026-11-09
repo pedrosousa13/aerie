@@ -5,6 +5,8 @@
 #ifndef CHROME_BROWSER_UI_WEBUI_AERIE_GUARD_AERIE_GUARD_HANDLER_H_
 #define CHROME_BROWSER_UI_WEBUI_AERIE_GUARD_AERIE_GUARD_HANDLER_H_
 
+#include <optional>
+
 #include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
 #include "chrome/browser/ui/webui/aerie_guard/aerie_guard.mojom.h"
@@ -47,6 +49,8 @@ class AerieGuardHandler : public mojom::PageHandler,
   void ShowUI() override;
   void SetGuardOn(bool on) override;
   void SetCosmeticHidingOn(bool on) override;
+  void SetFingerprintingOn(bool on) override;
+  void Reload() override;
   void OpenLink(mojom::Link link) override;
 
   // aerie_adblock::PageBlockCounter::Observer:
@@ -59,6 +63,8 @@ class AerieGuardHandler : public mojom::PageHandler,
   // The state of the captured site, or null. Closes the panel when the target
   // was good once and is stale now.
   mojom::PanelStatePtr ResolveState();
+  // The fingerprinting row of the captured tab's site now.
+  mojom::FingerprintingStatePtr FingerprintingStateOfTarget();
   // Sends the current state to the page.
   void PushState();
   void ClosePanel();
@@ -67,6 +73,10 @@ class AerieGuardHandler : public mojom::PageHandler,
   void FinishToggle(aerie_adblock::GuardTarget::Toggle result);
 
   const aerie_adblock::GuardTarget target_;
+  // Whether fingerprinting protection was on for the site when the panel first
+  // read it. The tab shows that state until it reloads, so the "Reload to
+  // apply" prompt is shown while the switch differs from it.
+  std::optional<bool> loaded_fingerprinting_on_;
   base::WeakPtr<TopChromeWebUIController::Embedder> embedder_;
   mojo::Receiver<mojom::PageHandler> receiver_;
   mojo::Remote<mojom::Page> page_;

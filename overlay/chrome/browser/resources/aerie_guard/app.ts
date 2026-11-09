@@ -11,7 +11,7 @@ import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
 import {CrLitElement} from 'chrome://resources/lit/v3_0/lit.rollup.js';
 import type {PropertyValues} from 'chrome://resources/lit/v3_0/lit.rollup.js';
 
-import {Link} from './aerie_guard.mojom-webui.js';
+import {FingerprintingMode, Link, ProtectedSurface} from './aerie_guard.mojom-webui.js';
 import type {PanelState} from './aerie_guard.mojom-webui.js';
 import {getCss} from './app.css.js';
 import {getHtml} from './app.html.js';
@@ -90,8 +90,7 @@ export class AerieGuardAppElement extends CrLitElement {
   override updated(changedProperties: PropertyValues<this>) {
     super.updated(changedProperties);
     // The browser's answer is the truth: a switch it refused snaps back.
-    const toggle =
-        this.shadowRoot.querySelector<CrToggleElement>('#toggle');
+    const toggle = this.shadowRoot.querySelector<CrToggleElement>('#toggle');
     if (toggle && this.state_) {
       toggle.checked = this.state_.blockingOn;
     }
@@ -99,6 +98,12 @@ export class AerieGuardAppElement extends CrLitElement {
         this.shadowRoot.querySelector<CrToggleElement>('#cosmeticToggle');
     if (cosmetic && this.state_) {
       cosmetic.checked = this.cosmeticChecked_();
+    }
+    const fpToggle =
+        this.shadowRoot.querySelector<CrToggleElement>('#fpToggle');
+    if (fpToggle && this.state_) {
+      fpToggle.checked =
+          this.state_.fingerprinting.mode === FingerprintingMode.kOn;
     }
     // Rendered: the browser may show the bubble now.
     if (this.loaded_ && !this.shown_) {
@@ -151,6 +156,60 @@ export class AerieGuardAppElement extends CrLitElement {
   protected onAdvancedToggle_(e: Event) {
     this.advancedOpen_ = (e.target as HTMLDetailsElement).open;
     writeAdvancedOpen(this.advancedOpen_);
+  }
+
+  protected fingerprintingHasSwitch_(): boolean {
+    const mode = this.state_?.fingerprinting.mode;
+    return mode === FingerprintingMode.kOn ||
+        mode === FingerprintingMode.kOffForSite;
+  }
+
+  protected fingerprintingStatus_(): string {
+    switch (this.state_?.fingerprinting.mode) {
+      case FingerprintingMode.kOn:
+        return this.i18n_('fingerprintingOn');
+      case FingerprintingMode.kOffForSite:
+        return this.i18n_('fingerprintingOff');
+      case FingerprintingMode.kOffInSettings:
+        return this.i18n_('fingerprintingOffInSettings');
+      default:
+        return this.i18n_('fingerprintingUnavailable');
+    }
+  }
+
+  // What the switch covers.
+  protected fingerprintingScopeText_(): string {
+    return loadTimeData.getStringF(
+        'fingerprintingScope', this.state_?.host ?? '');
+  }
+
+  protected surfaceText_(surface: ProtectedSurface): string {
+    switch (surface) {
+      case ProtectedSurface.kCanvas:
+        return this.i18n_('surfaceCanvas');
+      case ProtectedSurface.kAudio:
+        return this.i18n_('surfaceAudio');
+      case ProtectedSurface.kCpuCores:
+        return this.i18n_('surfaceCpuCores');
+      case ProtectedSurface.kDeviceMemory:
+        return this.i18n_('surfaceDeviceMemory');
+      case ProtectedSurface.kGraphicsCard:
+        return this.i18n_('surfaceGraphicsCard');
+      case ProtectedSurface.kScreen:
+        return this.i18n_('surfaceScreen');
+    }
+  }
+
+  protected onFingerprintingChange_(e: CustomEvent<boolean>) {
+    this.proxy_.handler.setFingerprintingOn(e.detail);
+  }
+
+  protected onReloadClick_() {
+    this.proxy_.handler.reload();
+  }
+
+  protected onNoiseSettingsClick_() {
+    this.proxy_.handler.openLink(Link.kNoiseSettings);
   }
 
   protected onToggleChange_(e: CustomEvent<boolean>) {

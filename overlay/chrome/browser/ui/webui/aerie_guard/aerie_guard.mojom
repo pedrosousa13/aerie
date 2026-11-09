@@ -4,6 +4,42 @@
 
 module aerie_guard.mojom;
 
+// What the fingerprinting row shows for the site. The browser reads it from
+// helium_noise::GetHeliumNoiseState.
+enum FingerprintingMode {
+  // Protection is on for the site.
+  kOn,
+  // The user turned it off for this site (or, in an incognito tab, for this
+  // private session).
+  kOffForSite,
+  // It is off for the whole browser, in Settings. The row is a link, not a
+  // switch.
+  kOffInSettings,
+  // This build has no fingerprinting protection to switch.
+  kUnavailable,
+};
+
+// What the fingerprinting protection changes. The page maps each value to a
+// string of its own.
+enum ProtectedSurface {
+  kCanvas,
+  kAudio,
+  kCpuCores,
+  kDeviceMemory,
+  kGraphicsCard,
+  kScreen,
+};
+
+struct FingerprintingState {
+  FingerprintingMode mode;
+  // Every surface the protection covers, in display order. The same list for
+  // every mode.
+  array<ProtectedSurface> surfaces;
+  // The switch changed after the page loaded. The noise tokens are fixed when
+  // a navigation commits, so the tab shows the old values until it reloads.
+  bool needs_reload;
+};
+
 // What the panel shows. The browser builds it from its own state about the tab
 // and site the panel was opened for; the page never sends a host, a URL or a
 // tab id.
@@ -32,12 +68,15 @@ struct PanelState {
   // The count in words, in the user's language ("12 requests blocked on this
   // page"). Empty while blocking is off.
   string blocked_summary;
+  FingerprintingState fingerprinting;
 };
 
 // The links in the panel. The page names one by this value; the browser
 // decides what it opens.
 enum Link {
   kFilterLists,
+  // The fingerprinting protection page of Settings.
+  kNoiseSettings,
 };
 
 // The page calls this once when it loads.
@@ -62,6 +101,15 @@ interface PageHandler {
   // Turns cosmetic hiding on or off for the captured site and its subdomains,
   // then reloads the tab. Network blocking stays as it is.
   SetCosmeticHidingOn(bool on);
+  // Turns fingerprinting protection on or off for the captured site and its
+  // subdomains. It does not reload the tab: the page shows "Reload to apply"
+  // and calls Reload(). Refused, with the panel's state sent again, when
+  // protection is off in Settings or unavailable. In an incognito tab the
+  // change is in memory only.
+  SetFingerprintingOn(bool on);
+  // Reloads the captured tab, so the change of SetFingerprintingOn applies, and
+  // closes the panel.
+  Reload();
   // Opens a link in a new tab and closes the panel.
   OpenLink(Link link);
 };

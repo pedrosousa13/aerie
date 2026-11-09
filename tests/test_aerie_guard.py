@@ -217,7 +217,8 @@ class CosmeticRowTest(unittest.TestCase):
     def test_the_handler_acts_on_its_captured_target_and_nothing_else(self):
         code = (WEBUI / "aerie_guard_handler.cc").read_text()
         self.assertIn("target_.SetCosmeticHidingOn(on)", code)
-        body = code[code.index("void AerieGuardHandler::FinishToggle"):code.index("void AerieGuardHandler::OpenLink")]
+        start = code.index("void AerieGuardHandler::FinishToggle")
+        body = code[start:code.index("void AerieGuardHandler::SetFingerprintingOn")]
         self.assertIn("ClosePanel()", body)  # A stale target closes the bubble.
         self.assertNotRegex(body, r"GURL|host\(")
 
@@ -238,6 +239,87 @@ class CosmeticRowTest(unittest.TestCase):
         self.assertEqual(text.count(".Add<"), 1)
         for n in ("0022", "0023"):
             self.assertEqual(list(PATCHES.glob(f"{n}-*")), [])
+
+
+class FingerprintingRowTest(unittest.TestCase):
+    """Issue #102: the fingerprinting row goes through the helper and the captured target, and says only what
+    the code does."""
+
+    def setUp(self):
+        self.handler = (WEBUI / "aerie_guard_handler.cc").read_text()
+        self.mojom = (WEBUI / "aerie_guard.mojom").read_text()
+        self.ts = (REPO / "overlay/chrome/browser/resources/aerie_guard/app.ts").read_text()
+
+    def body(self, name):
+        start = self.handler.index(f"AerieGuardHandler::{name}(")
+        return self.handler[start:self.handler.index("\n}\n", start)]
+
+    def test_the_setter_goes_through_the_helium_helper_and_the_target(self):
+        body = self.body("SetFingerprintingOn")
+        self.assertIn("helium_noise::SetHeliumNoiseEnabledForOrigin", body)
+        self.assertIn("helium_noise::CanSetHeliumNoiseForOrigin", body)
+        self.assertIn("target_.Resolve()", body)
+        self.assertIn("ClosePanel()", body)
+
+    def test_the_url_is_the_committed_url_of_the_captured_tab(self):
+        self.assertIn("GetPrimaryMainFrame()->GetLastCommittedURL()", self.handler)
+        self.assertNotIn("GetVisibleURL", self.handler)
+
+    def test_only_a_state_with_a_switch_can_change(self):
+        body = self.body("SetFingerprintingOn")
+        self.assertIn("kEnabled", body)
+        self.assertIn("kDisabledForSite", body)
+        self.assertNotIn("kGloballyDisabled", body)
+
+    def test_the_state_comes_from_the_helper(self):
+        self.assertIn("helium_noise::GetHeliumNoiseState", self.handler)
+        for mode in ("kOn", "kOffForSite", "kOffInSettings", "kUnavailable"):
+            self.assertIn(mode, self.mojom)
+
+    def test_the_surface_list_is_the_one_helper_and_the_enum_is_complete(self):
+        self.assertIn("aerie_fingerprint::ProtectedSurfaces()", self.handler)
+        header = (REPO / "overlay/components/aerie_fingerprint/protected_surfaces.h").read_text()
+        cpp = re.findall(r"^  (k\w+),$", header, re.M)
+        mojom = re.search(r"enum ProtectedSurface \{(.*?)\};", self.mojom, re.S).group(1)
+        self.assertEqual(cpp, re.findall(r"(k\w+),", mojom))
+        listing = (REPO / "overlay/components/aerie_fingerprint/protected_surfaces.cc").read_text()
+        for name in cpp:
+            self.assertIn(f"ProtectedSurface::{name}", listing)
+            self.assertIn(f"mojom::ProtectedSurface::{name}", self.handler)
+            self.assertIn(f"ProtectedSurface.{name}", self.ts)
+
+    def test_the_new_calls_take_a_bool_and_nothing_else(self):
+        self.assertIn("SetFingerprintingOn(bool on);", self.mojom)
+        self.assertIn("Reload();", self.mojom)
+        self.assertIn("setFingerprintingOn(e.detail)", self.ts)
+
+    def test_the_page_has_no_switch_when_protection_is_off_in_settings(self):
+        html = (REPO / "overlay/chrome/browser/resources/aerie_guard/app.html.ts").read_text()
+        self.assertIn("fingerprintingHasSwitch_()", html)
+        self.assertIn("kOffInSettings", html)
+        self.assertIn("Link.kNoiseSettings", self.ts)
+
+    def test_no_new_interface_is_bound_and_there_is_still_one_binder(self):
+        self.assertEqual(self.mojom.count("PageHandlerFactory {"), 1)
+        text = added("adblock/0019-bind-aerie-guard-handler-factory.patch")
+        self.assertEqual(text.count(".Add<"), 1)
+
+    def test_the_browser_tests_cover_the_acceptance_cases(self):
+        text = (WEBUI / "aerie_guard_browsertest.cc").read_text()
+        for needle in ("a.localhost", "b.localhost", "CreateIncognitoBrowser", "toDataURL", "SetFingerprintingOn(false)",
+                       "IsOffTheRecord", "helium_noise"):
+            self.assertIn(needle, text)
+
+    def test_the_switch_gets_its_scope_and_reload_prompt_from_the_grd(self):
+        for name in ("IDS_AERIE_GUARD_PANEL_FINGERPRINTING", "IDS_AERIE_GUARD_PANEL_RELOAD_TO_APPLY",
+                     "IDS_AERIE_GUARD_PANEL_FINGERPRINTING_OFF_IN_SETTINGS"):
+            self.assertIn(name, messages())
+        self.assertIn("subdomains", "".join(messages()["IDS_AERIE_GUARD_PANEL_FINGERPRINTING_SCOPE"].itertext()))
+        self.assertEqual(messages()["IDS_AERIE_GUARD_PANEL_FINGERPRINTING"].text.strip(), "Fingerprinting protection")
+
+    def test_the_page_has_no_hard_coded_sentence(self):
+        html = (REPO / "overlay/chrome/browser/resources/aerie_guard/app.html.ts").read_text()
+        self.assertNotRegex(html, r">\s*[A-Z][a-z]+ [a-z]+")
 
 
 class IconTest(unittest.TestCase):
