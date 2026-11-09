@@ -14,6 +14,7 @@
     "hardening_fingerprinting_gpu",
     "hardening_fingerprinting_site",
     "hardening_fingerprinting_worker",
+    "hardening_fingerprinting_popup",
     "hardening_fingerprinting_screen",
     "hardening_device_memory",
     "hardening_extension_prefs",

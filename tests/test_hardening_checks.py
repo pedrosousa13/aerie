@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 
 from aerie_bench import checks
-from aerie_bench.checks.hardening import common, cookies, extension, fingerprint, fingerprint_site, fingerprint_worker, https, isolation, jit, prefetch, settings, webrtc
+from aerie_bench.checks.hardening import common, cookies, extension, fingerprint, fingerprint_popup, fingerprint_site, fingerprint_worker, https, isolation, jit, prefetch, settings, webrtc
 from aerie_bench.session import CheckResult
 
 FIXTURES = Path(__file__).parent / "fixtures" / "hardening"
@@ -61,7 +61,7 @@ class RegistryTest(unittest.TestCase):
         self.assertEqual(sorted(sc.checks), sorted(HARDENING))
 
     def test_checks_declare_control_and_negative_control(self):
-        self.assertEqual(len(HARDENING), 19)
+        self.assertEqual(len(HARDENING), 20)
         for name, cls in HARDENING.items():
             self.assertTrue(cls.control, name)
             self.assertGreater(len(cls.negative_control), 30, name)
@@ -719,3 +719,44 @@ import unittest.mock  # noqa: E402  (used above through unittest.mock.patch)
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FingerprintPopupTest(unittest.TestCase):
+    DIR = Path(fingerprint_worker.__file__).parents[2] / "fixtures" / "hardening"
+
+    def test_the_page_reads_four_surfaces_through_the_window_it_opens(self):
+        page = (self.DIR / "fingerprint_popup.html").read_text()
+        self.assertIn("window.open('', '_blank', FEATURES)", page)
+        for needle in ("w.document.createElement('canvas')", "UNMASKED_RENDERER_WEBGL", "w.navigator.deviceMemory",
+                       "w.screen.width", "window.opener.postMessage"):
+            self.assertIn(needle, page)
+
+    def test_the_check_runs_four_browsers_with_the_same_window_size_and_gestures(self):
+        calls = []
+
+        class Fake:
+            def __init__(self):
+                self.fixtures = FakeFixtures()
+
+            @contextlib.contextmanager
+            def variant(self, flags=(), prefs=None):
+                calls.append((flags, prefs))
+                yield self
+
+            def navigate_url(self, url, wait=None):
+                return {"url": url, "error": None}
+
+            def wait_for(self, expr, timeout=0):
+                return True
+
+            def evaluate(self, js, await_promise=False, user_gesture=False):
+                if js == "window.__result":
+                    return {"self": {"canvas": "c", "renderer": "r", "memory": 8, "screen": "1x1"}}
+                self.opened = getattr(self, "opened", []) + [(js, user_gesture)]
+                return {"canvas": "c", "renderer": "r", "memory": 8, "screen": "1x1"}
+        fake = Fake()
+        fingerprint_popup.FingerprintingPopup().observe(fake)
+        self.assertEqual(len(calls), 4)
+        self.assertTrue(all(fingerprint_popup.WINDOW_FLAG in flags for flags, _ in calls))
+        self.assertIn(("--disable-features=HeliumNoise",), [tuple(f for f in flags if f != fingerprint_popup.WINDOW_FLAG) for flags, _ in calls])
+        self.assertTrue(fake.opened and all(gesture for _, gesture in fake.opened), "window.open needs a user gesture")

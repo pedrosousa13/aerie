@@ -1,0 +1,78 @@
+Aerie-Purpose: Give a window opened with window.open() its opener's fingerprinting noise tokens from creation, so the initial empty document that the opener can script is noised like the opener and no longer reads the real canvas, GPU, device memory and screen values.
+Aerie-Upstream-Area: content/browser/renderer_host/render_frame_host_impl.cc (RenderFrameHostImpl::CreateNewWindow), content/renderer/render_frame_impl.cc (RenderFrameImpl::CreateNewWindow), content/common/frame.mojom (CreateNewWindowReply)
+Aerie-Kind: hook
+
+Amends helium-chromium/patches/helium/core/noise/core.patch (issue #156, found by the M1 security sweep #122).
+Helium gives a main frame its tokens when its first navigation commits: the browser derives them from the origin
+to commit, tells the blink::Page and sets them on the content::Page. A popup that a renderer creates has an
+initial empty document that never goes through that commit, and the renderer builds its blink::Page from
+CreateViewParams, where RenderFrameImpl::CreateNewWindow left noise_tokens empty. Every surface reads an empty map as
+"protection off", and the initial empty document is same-origin with its opener, so the opener read the real
+values through window.open(''). One click undid all of the protection of the page.
+
+The browser now puts the opener's page tokens in the new content::Page and in CreateNewWindowReply (a new
+noise_tokens field, the same map type as CreateViewParams), and the renderer copies them into the
+CreateViewParams of the new view. Source of the tokens: the opener's content::Page. A subframe's page holds the
+top-level site's tokens, so a popup from an iframe gets those. An empty map (protection off for the browser or for
+the opener's site) stays empty, so the popup reads the real values like its opener. The tokens are per-site derived
+tokens, never the session tokens. A popup in another browsing instance (noopener) is not scriptable by its
+opener and gets its tokens at its first commit as before.
+
+The first commit of the popup replaces the tokens as for any main frame: DidCommitNavigation broadcasts the tokens
+of the committing site (an empty map when protection is off for it) to the page, so a popup that navigates
+cross-site does not keep the opener's tokens. The content::Page copy matters for an out-of-process iframe that a
+script inserts into the initial empty document: its view is created from the page's tokens.
+
+--- a/content/common/frame.mojom
++++ b/content/common/frame.mojom
+@@ -705,6 +705,12 @@
+   // Initial window geometry.
+   gfx.mojom.Rect? widget_screen_rect;
+   gfx.mojom.Rect? window_screen_rect;
++
++  // Aerie (#156): the fingerprinting noise tokens of the opener's page. The
++  // renderer gives them to the new view, so the initial empty document of a
++  // popup (same origin as its opener, so scriptable by it) is noised like the
++  // opener. Empty means protection is off for the opener, so it stays off.
++  map<blink.mojom.HeliumNoiseFeature, blink.mojom.HeliumNoiseToken> noise_tokens;
+ };
+ 
+ // A per-navigation interface passed along with the BeginNavigation call, used
+--- a/content/browser/renderer_host/render_frame_host_impl.cc
++++ b/content/browser/renderer_host/render_frame_host_impl.cc
+@@ -10785,6 +10785,13 @@
+       new_frame_tree->root()->current_frame_host();
+ 
+   new_main_rfh->opener_had_user_gesture_ = was_consumed;
++
++  // Aerie (#156): the popup's initial empty document is scriptable by this
++  // frame and does not go through a navigation commit, so it would start with
++  // no noise tokens and read the real values. Give its page the opener's tokens
++  // (a subframe's page holds the top-level site's). The first real commit
++  // replaces them with the tokens of the site that commits.
++  new_main_rfh->GetPage().set_noise_tokens(GetPage().noise_tokens());
+   new_main_rfh->virtual_browsing_context_group_ =
+       popup_virtual_browsing_context_group;
+   new_main_rfh->soap_by_default_virtual_browsing_context_group_ =
+@@ -10858,7 +10865,8 @@
+       new_main_rfh->GetSiteInstance()->browsing_instance_token(),
+       delegate_->GetColorProviderColorMaps(),
+       /*widget_screen_rect=*/std::nullopt,
+-      /*window_screen_rect=*/std::nullopt);
++      /*window_screen_rect=*/std::nullopt,
++      new_main_rfh->GetPage().noise_tokens());
+ 
+   new_main_rfh->render_view_host()->RenderViewCreated(new_main_rfh);
+ 
+--- a/content/renderer/render_frame_impl.cc
++++ b/content/renderer/render_frame_impl.cc
+@@ -7259,6 +7259,9 @@
+   view_params->browsing_context_group_token =
+       reply->browsing_context_group_token;
+   view_params->color_provider_colors = reply->color_provider_colors;
++  // Aerie (#156): the initial empty document of the popup gets the opener's
++  // noise tokens when the page is created, not at the first commit.
++  view_params->noise_tokens = reply->noise_tokens;
+ 
+   auto widget_params = mojom::CreateFrameWidgetParams::New();
+   widget_params->routing_id = reply->widget_routing_id;

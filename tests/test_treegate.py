@@ -270,12 +270,31 @@ WORKER_GOOD = {
     treegate.WORKER_GPU_PATH: WORKER_GPU_OK,
 }
 
+POPUP_MOJOM_OK = """struct CreateNewWindowReply {
+  gfx.mojom.Rect? window_screen_rect;
+  map<blink.mojom.HeliumNoiseFeature, blink.mojom.HeliumNoiseToken> noise_tokens;
+};
+"""
+POPUP_BROWSER_OK = """  new_main_rfh->GetPage().set_noise_tokens(GetPage().noise_tokens());
+  mojom::CreateNewWindowReplyPtr reply = mojom::CreateNewWindowReply::New(
+      /*window_screen_rect=*/std::nullopt,
+      new_main_rfh->GetPage().noise_tokens());
+"""
+POPUP_RENDERER_OK = """  view_params->noise_tokens = reply->noise_tokens;
+"""
+POPUP_GOOD = {
+    treegate.POPUP_MOJOM_PATH: POPUP_MOJOM_OK,
+    treegate.POPUP_BROWSER_PATH: POPUP_BROWSER_OK,
+    treegate.POPUP_RENDERER_PATH: POPUP_RENDERER_OK,
+}
+
 GOOD = {
     **JS_OPT_GOOD,
     **SERVICES_UI_GOOD,
     **AUDIO_GOOD,
     **GPU_GOOD,
     **WORKER_GOOD,
+    **POPUP_GOOD,
     "chrome/browser/component_updater/widevine_cdm_component_installer.cc": WIDEVINE_INSTALLER_OK,
     "chrome/browser/component_updater/registration.cc": WIDEVINE_REG_OK,
     "components/update_client/update_checker.cc": WIDEVINE_CHECKER_OK,
@@ -523,6 +542,36 @@ class WorkerNoiseTokensGateTest(TreeCase):
         self.assertIn(treegate.check_worker_noise_tokens, treegate.GATES)
 
 
+class PopupNoiseTokensGateTest(TreeCase):
+    """Issue #156: a window that a page opens gets its opener's tokens when it is created."""
+
+    def test_passes_when_the_tokens_reach_the_new_view(self):
+        self.write(POPUP_GOOD)
+        self.assertEqual(treegate.check_popup_noise_tokens(self.root, require=True), [])
+
+    def test_each_hand_off_is_reported_on_its_file(self):
+        bad = {
+            treegate.POPUP_MOJOM_PATH: POPUP_MOJOM_OK.replace("noise_tokens", "tokens"),
+            treegate.POPUP_BROWSER_PATH: POPUP_BROWSER_OK.replace(
+                "new_main_rfh->GetPage().set_noise_tokens(GetPage().noise_tokens());\n", ""),
+            treegate.POPUP_RENDERER_PATH: "",
+        }
+        for path, text in bad.items():
+            with self.subTest(path=path):
+                self.write(POPUP_GOOD)
+                self.write({path: text})
+                self.assertEqual({f.path for f in treegate.check_popup_noise_tokens(self.root)}, {path})
+
+    def test_the_browser_must_send_the_tokens_in_the_reply(self):
+        self.write(POPUP_GOOD)
+        self.write({treegate.POPUP_BROWSER_PATH: POPUP_BROWSER_OK.replace(
+            "      new_main_rfh->GetPage().noise_tokens());", "      {});")})
+        self.assertEqual({f.path for f in treegate.check_popup_noise_tokens(self.root)}, {treegate.POPUP_BROWSER_PATH})
+
+    def test_the_gate_runs_with_the_others(self):
+        self.assertIn(treegate.check_popup_noise_tokens, treegate.GATES)
+
+
 class JsOptimizerGateTest(TreeCase):
     def test_passes_on_the_upstream_shape(self):
         self.write(JS_OPT_GOOD)
@@ -605,7 +654,7 @@ class RunTest(TreeCase):
 
     def test_empty_tree_passes_unless_required(self):
         self.assertEqual(self.run_gates(), [])
-        self.assertEqual(len(self.run_gates(require=True)), 40)
+        self.assertEqual(len(self.run_gates(require=True)), 44)
 
     def test_format_report(self):
         self.write({"a.cc": '"https://services.helium.imput.net"\n'})

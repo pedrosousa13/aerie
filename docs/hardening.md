@@ -19,7 +19,7 @@ page and the Bench checks, so the three cannot drift apart.
 | No prefetch or preloading | Off. | ungoogled-chromium (through Helium) | Dropdown | `hardening_prefetch` |
 | Strict site isolation | Always on. | Chromium | Read-only | `hardening_site_isolation` |
 | JavaScript JIT per site | On for every site. | Chromium | Link to site settings | `hardening_js_optimizer` |
-| Fingerprinting protection | On. | Helium | Toggle | `hardening_fingerprinting`, `hardening_fingerprinting_site`, `hardening_fingerprinting_worker`, `hardening_fingerprinting_gpu`, `hardening_fingerprinting_screen`, `hardening_device_memory` |
+| Fingerprinting protection | On. | Helium | Toggle | `hardening_fingerprinting`, `hardening_fingerprinting_site`, `hardening_fingerprinting_worker`, `hardening_fingerprinting_popup`, `hardening_fingerprinting_gpu`, `hardening_fingerprinting_screen`, `hardening_device_memory` |
 | Widevine DRM | Off. | Aerie | Toggle | `hardening_pref_defaults`, `hardening_settings_page`, `widevine_opt_in` |
 | Extensions cannot loosen these settings | Always on. | Aerie | Read-only | `hardening_extension_prefs` |
 
@@ -158,6 +158,8 @@ WebGPU adapter info has an empty vendor, architecture, device and description. A
 
 Workers get the noise of their site (issue #113). A dedicated worker takes the tokens of the page that created it, and a worker started by a worker takes its parent's. A shared worker and a service worker get theirs from the browser, derived from the top-level site of the worker's storage key, which is the same site that keys a window, so a worker shows the same canvas and core count as its page on one site and different ones on another site. A worker in a frame of another site gets the tokens of the page that embeds it. The browser sends a worker the derived per-site tokens only, never the seeds, and sends none when protection is off for the browser or for the site, so the worker sees the real values. A change of the setting applies to workers started after it; a running worker keeps the tokens it started with, and a service worker takes new ones when it next starts. Worklets (audio, paint, layout and animation) get no tokens and are not noised; none of them can read a canvas or the core count.
 
+A window that a page opens with window.open() gets the noise of its opener from the moment it is created (issue #156). Its first, empty document belongs to the same origin as the opener, so the opener can script it before anything loads in it; without the opener's noise it would read the real canvas, graphics card, device memory and screen size. The popup shows the same values as its opener. When the popup goes to a page, that page gets the noise of its own site, so a popup that goes to another site does not keep the opener's. With protection off for the browser or for the opener's site, the popup shows the real values, like the opener. A window opened with noopener or noreferrer cannot be scripted by its opener, and this change does not touch it.
+
 The WebGL and WebGPU values follow the same switches as the other noise: the browser sends the page a token only when protection is on for the site, and turning it off for the site or for the whole browser gives the real values back. A worker follows the token it was given, like a window, so protection turned off for the site or the browser also gives the real values in its workers. The chrome://flags entry that sets a fixed WebGL value (SpoofWebGLInfo) still wins over the masking when you set it.
 
 Screen: while protection is on for a site, window.screen reports the smallest of 1280x800, 1366x768, 1440x900, 1680x1050, 1920x1080, 2560x1440 and 3840x2160 that is at least as wide and as tall as the browser window (a window larger than all of them keeps its own size, so the screen is never smaller than the window). The available size equals the screen size, availLeft and availTop are 0, colorDepth and pixelDepth are 24, isExtended is false, and window.screenX and screenY are 0. The device-width and device-height media features give the same size, so matchMedia agrees with screen.width. The list follows Brave's. Nothing is letterboxed: the page is not shrunk and there are no grey bars. devicePixelRatio, outerWidth, outerHeight, the user agent, the platform and the time zone are not changed. The Window Management API stays behind its permission. Full screen is not changed. Workers have no screen. Turning protection off, for the whole browser or for the site, gives the real screen back. The sizes and the choice are Aerie's own code with unit tests (components/aerie_screen). A page that lays itself out from screen.width gets the size from the list instead of the real one.
@@ -192,9 +194,10 @@ Screen: while protection is on for a site, window.screen reports the smallest of
   - `patches/hardening/0013-give-dedicated-workers-the-pages-noise-tokens.patch`
   - `patches/hardening/0014-give-shared-and-service-workers-noise-tokens.patch`
   - `patches/hardening/0015-report-a-common-screen-size.patch`
+  - `patches/hardening/0017-give-popups-the-openers-noise-tokens.patch`
 - Settings row: Toggle
 - Cost: Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page.
-- Bench checks: `hardening_fingerprinting`, `hardening_fingerprinting_site`, `hardening_fingerprinting_worker`, `hardening_fingerprinting_gpu`, `hardening_fingerprinting_screen`, `hardening_device_memory`
+- Bench checks: `hardening_fingerprinting`, `hardening_fingerprinting_site`, `hardening_fingerprinting_worker`, `hardening_fingerprinting_popup`, `hardening_fingerprinting_gpu`, `hardening_fingerprinting_screen`, `hardening_device_memory`
 
 ## What Aerie added
 

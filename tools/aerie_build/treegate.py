@@ -462,11 +462,42 @@ def check_worker_noise_tokens(root: Path, require: bool = False) -> list[Finding
     return out
 
 
+POPUP_MOJOM_PATH = "content/common/frame.mojom"
+POPUP_BROWSER_PATH = "content/browser/renderer_host/render_frame_host_impl.cc"
+POPUP_RENDERER_PATH = "content/renderer/render_frame_impl.cc"
+
+
+def check_popup_noise_tokens(root: Path, require: bool = False) -> list[Finding]:
+    """A window opened with window.open() gets its opener's noise tokens when it is created (issue #156).
+    Its initial empty document is same-origin with the opener and never goes through a navigation commit,
+    so without the tokens the opener reads the real canvas, GPU, memory and screen values through it. The
+    browser sends the opener page's tokens in CreateNewWindowReply and sets them on the new content::Page;
+    the renderer puts them in the CreateViewParams of the new view."""
+    gate = "popup_noise_tokens"
+    out: list[Finding] = []
+    for rel, pattern, message in (
+        (POPUP_MOJOM_PATH,
+         r"struct CreateNewWindowReply \{[^}]*?map<blink\.mojom\.HeliumNoiseFeature,\s*blink\.mojom\.HeliumNoiseToken>"
+         r"\s+noise_tokens;",
+         "CreateNewWindowReply must carry the noise tokens"),
+        (POPUP_BROWSER_PATH,
+         r"new_main_rfh->GetPage\(\)\.set_noise_tokens\(\s*GetPage\(\)\.noise_tokens\(\)\s*\)",
+         "the browser must give the popup's page its opener's noise tokens"),
+        (POPUP_BROWSER_PATH,
+         r"mojom::CreateNewWindowReply::New\([^;]*?new_main_rfh->GetPage\(\)\.noise_tokens\(\)\s*\)",
+         "the browser must send the noise tokens in CreateNewWindowReply"),
+        (POPUP_RENDERER_PATH, r"view_params->noise_tokens\s*=\s*reply->noise_tokens",
+         "the renderer must create the popup's view with the tokens from the reply"),
+    ):
+        out += _must_match(root, rel, gate, pattern, message, require)
+    return out
+
+
 GATES: tuple[Callable[..., list[Finding]], ...] = (
     check_search_list, check_search_suggestions, check_secure_dns_default,
     check_crash_reporting, check_services_off, check_fedcm_resolver, check_widevine_opt_in,
     check_https_first_dialog_off, check_link_prefetch_off, check_js_optimizer, check_services_ui,
-    check_audio_noise_stable, check_gpu_masking, check_worker_noise_tokens,
+    check_audio_noise_stable, check_gpu_masking, check_worker_noise_tokens, check_popup_noise_tokens,
 )
 
 
