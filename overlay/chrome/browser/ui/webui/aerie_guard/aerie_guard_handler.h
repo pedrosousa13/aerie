@@ -46,6 +46,7 @@ class AerieGuardHandler : public mojom::PageHandler,
   void GetState(GetStateCallback callback) override;
   void ShowUI() override;
   void SetGuardOn(bool on) override;
+  void SetCosmeticHidingOn(bool on) override;
   void OpenLink(mojom::Link link) override;
 
   // aerie_adblock::PageBlockCounter::Observer:
@@ -61,6 +62,9 @@ class AerieGuardHandler : public mojom::PageHandler,
   // Sends the current state to the page.
   void PushState();
   void ClosePanel();
+  // Pushes the state after a target's change, or closes the panel when the
+  // target went stale. Shared by the two switches.
+  void FinishToggle(aerie_adblock::GuardTarget::Toggle result);
 
   const aerie_adblock::GuardTarget target_;
   base::WeakPtr<TopChromeWebUIController::Embedder> embedder_;

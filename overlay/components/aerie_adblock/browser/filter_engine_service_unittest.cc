@@ -392,7 +392,7 @@ TEST_F(CosmeticServiceTest, ThePolicyCanTurnCosmeticFilteringOffPerSite) {
   service_.Start(kEngine);
   EXPECT_TRUE(service_.IsCosmeticFilteringEnabled(GURL("https://news.test/"), SessionKey::Regular()));
   service_.SetCosmeticFilteringPolicy(
-      base::BindRepeating([](const GURL& top_level_url) {
+      base::BindRepeating([](const GURL& top_level_url, SessionKey) {
         return top_level_url.host() != "off.test";
       }));
   EXPECT_FALSE(service_.IsCosmeticFilteringEnabled(GURL("https://off.test/"), SessionKey::Regular()));

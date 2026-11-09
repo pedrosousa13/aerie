@@ -74,4 +74,22 @@ GuardTarget::Toggle GuardTarget::SetBlockingOn(bool blocking_on) const {
   return Toggle::kApplied;
 }
 
+GuardTarget::Toggle GuardTarget::SetCosmeticHidingOn(bool hiding_on) const {
+  const std::optional<GuardState> state = Resolve();
+  FilterListManager* manager = FilterListManager::Get();
+  if (!state || !manager) {
+    return Toggle::kStale;
+  }
+  if (state->cosmetic_locked && hiding_on) {
+    return Toggle::kRefused;
+  }
+  if (manager->SetCosmeticHidingOff(host_, !hiding_on,
+                                    tab_->GetBrowserContext()) !=
+      ExceptionResult::kOk) {
+    return Toggle::kRefused;
+  }
+  tab_->GetController().Reload(content::ReloadType::NORMAL, true);
+  return Toggle::kApplied;
+}
+
 }  // namespace aerie_adblock

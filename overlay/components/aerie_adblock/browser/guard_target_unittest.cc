@@ -199,5 +199,54 @@ TEST_F(GuardTargetTest, AnIncognitoTabCannotUndoASavedException) {
   tab.reset();
 }
 
+TEST_F(GuardTargetTest, TurnsCosmeticHidingOffAndOnWithBlockingStayingOn) {
+  NavigateAndCommit(GURL("https://news.test/"));
+  const GuardTarget target = GuardTarget::Capture(web_contents());
+  EXPECT_EQ(GuardTarget::Toggle::kApplied, target.SetCosmeticHidingOn(false));
+  EXPECT_TRUE(manager_->IsCosmeticHidingOff("news.test", SessionKey::Regular()));
+  EXPECT_FALSE(manager_->HasSavedException("news.test"));
+  EXPECT_TRUE(target.Resolve()->cosmetic_off);
+  EXPECT_FALSE(target.Resolve()->blocking_off);
+  EXPECT_EQ(GuardTarget::Toggle::kApplied, target.SetCosmeticHidingOn(true));
+  EXPECT_FALSE(manager_->IsCosmeticHidingOff("news.test", SessionKey::Regular()));
+}
+
+TEST_F(GuardTargetTest, ACosmeticChangeOnAStaleTargetChangesNothing) {
+  NavigateAndCommit(GURL("https://news.test/"));
+  const GuardTarget target = GuardTarget::Capture(web_contents());
+  NavigateAndCommit(GURL("https://other.test/"));
+  EXPECT_EQ(GuardTarget::Toggle::kStale, target.SetCosmeticHidingOn(false));
+  EXPECT_FALSE(manager_->IsCosmeticHidingOff("news.test", SessionKey::Regular()));
+  EXPECT_FALSE(manager_->IsCosmeticHidingOff("other.test", SessionKey::Regular()));
+  EXPECT_EQ(GuardTarget::Toggle::kStale, GuardTarget().SetCosmeticHidingOn(false));
+}
+
+TEST_F(GuardTargetTest, AnIncognitoCosmeticChoiceStaysInMemoryAndCannotUndoASavedOne) {
+  content::TestBrowserContext incognito;
+  incognito.set_is_off_the_record(true);
+  std::unique_ptr<content::WebContents> tab =
+      content::WebContentsTester::CreateTestWebContents(&incognito, nullptr);
+  content::NavigationSimulator::NavigateAndCommitFromBrowser(
+      tab.get(), GURL("https://news.test/"));
+  const GuardTarget target = GuardTarget::Capture(tab.get());
+  ASSERT_EQ(GuardTarget::Toggle::kApplied, target.SetCosmeticHidingOn(false));
+  EXPECT_TRUE(manager_->IsCosmeticHidingOff("news.test", SessionKeyFor(&incognito)));
+  EXPECT_FALSE(manager_->IsCosmeticHidingOff("news.test", SessionKey::Regular()));
+  EXPECT_TRUE(manager_->state().cosmetic_off_hosts().empty());
+
+  // A choice the regular profile saved holds in incognito.
+  ASSERT_EQ(ExceptionResult::kOk,
+            manager_->SetCosmeticHidingOffForTesting("saved.test", true,
+                                                     SessionKey::Regular()));
+  content::NavigationSimulator::NavigateAndCommitFromBrowser(
+      tab.get(), GURL("https://saved.test/"));
+  const GuardTarget saved = GuardTarget::Capture(tab.get());
+  ASSERT_TRUE(saved.Resolve());
+  EXPECT_TRUE(saved.Resolve()->cosmetic_locked);
+  EXPECT_EQ(GuardTarget::Toggle::kRefused, saved.SetCosmeticHidingOn(true));
+  EXPECT_TRUE(manager_->IsCosmeticHidingOff("saved.test", SessionKey::Regular()));
+  tab.reset();
+}
+
 }  // namespace
 }  // namespace aerie_adblock

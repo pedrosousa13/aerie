@@ -86,6 +86,8 @@ mojom::PanelStatePtr AerieGuardHandler::ResolveState() {
   out->blocking_on = !state->blocking_off;
   out->incognito = target_.tab()->GetBrowserContext()->IsOffTheRecord();
   out->locked = state->locked;
+  out->cosmetic_hiding_on = !state->cosmetic_off;
+  out->cosmetic_locked = state->cosmetic_locked;
   out->blocked_count = state->count;
   if (out->blocking_on) {
     out->blocked_summary = base::UTF16ToUTF8(l10n_util::GetPluralStringFUTF16(
@@ -120,8 +122,9 @@ void AerieGuardHandler::ShowUI() {
   embedder_->ShowUI();
 }
 
-void AerieGuardHandler::SetGuardOn(bool on) {
-  switch (target_.SetBlockingOn(on)) {
+void AerieGuardHandler::FinishToggle(
+    aerie_adblock::GuardTarget::Toggle result) {
+  switch (result) {
     case aerie_adblock::GuardTarget::Toggle::kApplied:
     case aerie_adblock::GuardTarget::Toggle::kRefused:
       // The page shows the state as it is now: a refused switch snaps back.
@@ -135,6 +138,14 @@ void AerieGuardHandler::SetGuardOn(bool on) {
       }
       break;
   }
+}
+
+void AerieGuardHandler::SetGuardOn(bool on) {
+  FinishToggle(target_.SetBlockingOn(on));
+}
+
+void AerieGuardHandler::SetCosmeticHidingOn(bool on) {
+  FinishToggle(target_.SetCosmeticHidingOn(on));
 }
 
 void AerieGuardHandler::OpenLink(mojom::Link link) {

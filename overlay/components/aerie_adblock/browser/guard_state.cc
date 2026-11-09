@@ -31,6 +31,9 @@ GuardState ComputeGuardState(const GURL& committed_url,
   if (manager) {
     state.blocking_off = manager->HasException(state.host, session);
     state.locked = manager->IsExceptionLocked(state.host, session);
+    state.cosmetic_off = manager->IsCosmeticHidingOff(state.host, session);
+    state.cosmetic_locked =
+        manager->IsCosmeticHidingLocked(state.host, session);
   }
   state.count =
       state.blocking_off ? 0 : (blocked_count > 0 ? blocked_count : 0);

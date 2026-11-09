@@ -37,7 +37,7 @@ GuardState GuardStateOfTab(content::WebContents* tab);
 class GuardTarget {
  public:
   enum class Toggle {
-    kApplied,   // The exception changed and the tab reloads.
+    kApplied,   // The setting changed and the tab reloads.
     kStale,     // The tab is gone or shows another site. Nothing changed.
     kRefused,   // The session cannot make this change. Nothing changed.
   };
@@ -66,6 +66,14 @@ class GuardTarget {
   // unless Resolve() succeeds and the session may make the change (a saved
   // exception holds in an incognito tab: that is kRefused).
   Toggle SetBlockingOn(bool blocking_on) const;
+
+  // Turns cosmetic hiding ("Hide leftover ad boxes") on or off for the
+  // captured site and its subdomains, then reloads the tab, because a sheet that
+  // is already in the page stays until the next navigation (issue #101).
+  // Network blocking is not touched. Same rules as SetBlockingOn(): nothing
+  // happens unless Resolve() succeeds, an off-the-record tab keeps the change
+  // in memory, and it cannot undo a choice the regular profile saved (kRefused).
+  Toggle SetCosmeticHidingOn(bool hiding_on) const;
 
  private:
   base::WeakPtr<content::WebContents> tab_;

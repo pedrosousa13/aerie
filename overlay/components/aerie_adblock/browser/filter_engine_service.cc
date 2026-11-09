@@ -274,7 +274,7 @@ bool FilterEngineService::IsCosmeticFilteringEnabled(
   if (IsExcepted(NormalizeExceptionHost(top_level_url.host()), session)) {
     return false;  // Blocking is off for this site: no hiding either.
   }
-  return cosmetic_policy_.is_null() || cosmetic_policy_.Run(top_level_url);
+  return cosmetic_policy_.is_null() || cosmetic_policy_.Run(top_level_url, session);
 }
 
 void FilterEngineService::OnLoaded(bool ok, base::TimeDelta elapsed) {

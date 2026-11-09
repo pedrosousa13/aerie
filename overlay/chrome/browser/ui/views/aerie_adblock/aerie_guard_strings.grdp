@@ -54,6 +54,15 @@
   <message name="IDS_AERIE_GUARD_PANEL_ADVANCED" desc="Heading of the collapsed Advanced section of the Aerie Guard panel.">
     Advanced
   </message>
+  <message name="IDS_AERIE_GUARD_PANEL_COSMETIC_LABEL" desc="Label of the switch in the Advanced section of the Aerie Guard panel. It turns on or off the hiding of the empty boxes that blocked ads leave behind, for the site of the open page.">
+    Hide leftover ad boxes
+  </message>
+  <message name="IDS_AERIE_GUARD_PANEL_COSMETIC_DESC" desc="Line under the cosmetic switch in the Advanced section of the Aerie Guard panel. It says what the switch changes and that blocking stays as it is. The page reloads when the switch changes.">
+    Hides the empty space blocked ads leave behind. Blocking is not affected. The page reloads when you change this.
+  </message>
+  <message name="IDS_AERIE_GUARD_PANEL_COSMETIC_LOCKED" desc="Line under the disabled cosmetic switch in the Aerie Guard panel in an incognito window, shown when the user turned hiding off for the site in a regular window. An incognito window cannot undo it.">
+    Hiding was turned off for this site in a regular window. Turn it on there.
+  </message>
   <message name="IDS_AERIE_GUARD_PANEL_FILTER_LISTS" desc="Link at the bottom of the Aerie Guard panel. Opens the page where the user manages the filter lists.">
     Filter lists…
   </message>

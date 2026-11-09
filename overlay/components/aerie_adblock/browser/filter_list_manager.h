@@ -158,6 +158,32 @@ class FilterListManager {
   std::vector<std::string> ExceptionsFor(SessionKey session) const;
   void ClearSessionExceptions(SessionKey session);
 
+  // Per-site cosmetic hiding (issue #101): "Hide leftover ad boxes" off for a
+  // site while network blocking stays on. Same shape as the exceptions: host
+  // plus subdomains, saved for the regular profile, memory-only per session
+  // for an off-the-record one (gone with ClearSessionExceptions()), and an
+  // off-the-record session cannot turn hiding back on for a host the regular
+  // profile saved (kSavedInRegularProfile). Takes effect for the next
+  // stylesheet at once; sheets already in open pages stay until the next
+  // navigation. |context| as in SetException().
+  ExceptionResult SetCosmeticHidingOff(std::string_view host,
+                                       bool off,
+                                       content::BrowserContext* context);
+  // For tests that have no BrowserContext. Does not watch the session's end.
+  ExceptionResult SetCosmeticHidingOffForTesting(std::string_view host,
+                                                 bool off,
+                                                 SessionKey session) {
+    return SetCosmeticHidingOffForSession(host, off, session);
+  }
+  // True when hiding is off for |host| (saved, or for |session|). Says nothing
+  // about a blocking exception, which also stops hiding.
+  bool IsCosmeticHidingOff(std::string_view host, SessionKey session) const;
+  // True when |host| has a saved "hiding off" that |session| cannot undo.
+  bool IsCosmeticHidingLocked(std::string_view host, SessionKey session) const;
+  // The policy FilterEngineService asks (SetCosmeticFilteringPolicy()): false
+  // for a page whose host has hiding off. Installed by Init().
+  bool AllowsCosmeticHiding(const GURL& top_level_url, SessionKey session) const;
+
   void SetAutoUpdate(bool enabled);
 
   // Runs UpdateAll() if automatic updates are on and kUpdateInterval has
@@ -174,6 +200,9 @@ class FilterListManager {
   // Calls ClearSessionExceptions() for an off-the-record |context| when it is
   // destroyed. Idempotent. Done by SetException(..., context).
   void WatchSession(content::BrowserContext* context);
+  ExceptionResult SetCosmeticHidingOffForSession(std::string_view host,
+                                                 bool off,
+                                                 SessionKey session);
   void OnStateLoaded(FilterListState state);
   void Save();
   void Notify();
@@ -199,6 +228,8 @@ class FilterListManager {
   FilterListState state_;
   // Off-the-record exceptions, by session. Memory only.
   std::map<SessionKey, std::set<std::string>> session_exceptions_;
+  // Off-the-record sessions' hosts with cosmetic hiding off. Memory only.
+  std::map<SessionKey, std::set<std::string>> session_cosmetic_off_;
   int pending_ = 0;
   bool loaded_ = false;
   base::RepeatingTimer schedule_timer_;

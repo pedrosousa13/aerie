@@ -138,6 +138,74 @@ TEST(FilterListStateTest, ExceptionsAreNormalizedAndCapped) {
   EXPECT_TRUE(state.SetException("h1.test", false));  // Removing still works.
 }
 
+TEST(FilterListStateTest, CosmeticOffHostsAreNormalizedAndCapped) {
+  FilterListState state;
+  EXPECT_TRUE(state.cosmetic_off_hosts().empty());
+  EXPECT_TRUE(state.SetCosmeticOff("News.Test", true));
+  EXPECT_EQ(state.cosmetic_off_hosts().count("news.test"), 1u);
+  EXPECT_FALSE(state.SetCosmeticOff("not a host", true));
+  // The set is separate from the blocking exceptions.
+  EXPECT_TRUE(state.exceptions().empty());
+  EXPECT_TRUE(state.SetCosmeticOff("news.test", false));
+  EXPECT_TRUE(state.cosmetic_off_hosts().empty());
+  for (size_t i = 0; i < kMaxCosmeticOffHosts; ++i) {
+    ASSERT_TRUE(state.SetCosmeticOff("h" + std::to_string(i) + ".test", true));
+  }
+  EXPECT_FALSE(state.SetCosmeticOff("one-more.test", true));
+  EXPECT_TRUE(state.SetCosmeticOff("h1.test", true));   // Already in: fine.
+  EXPECT_TRUE(state.SetCosmeticOff("h1.test", false));  // Removing still works.
+}
+
+TEST(FilterListStateTest, CosmeticOffHostsSurviveASaveAndLoad) {
+  FilterListState state;
+  state.SetCosmeticOff("a.test", true);
+  state.SetCosmeticOff("b.test", true);
+  std::optional<base::Value> json =
+      base::JSONReader::Read(*base::WriteJson(state.ToValue()), base::JSON_PARSE_RFC);
+  ASSERT_TRUE(json && json->is_dict());
+  FilterListState back = FilterListState::FromValue(json->GetDict());
+  EXPECT_EQ(back.cosmetic_off_hosts(), (std::set<std::string>{"a.test", "b.test"}));
+  EXPECT_TRUE(back.exceptions().empty());
+}
+
+TEST(FilterListStateTest, HostileCosmeticOffContentFallsBackToSafeValues) {
+  // Wrong types for the whole field, then for its items.
+  for (const char* text : {R"({"cosmetic_off": "a.test"})", R"({"cosmetic_off": 5})",
+                           R"({"cosmetic_off": {"a.test": true}})",
+                           R"({"cosmetic_off": null})"}) {
+    std::optional<base::Value> json = base::JSONReader::Read(text, base::JSON_PARSE_RFC);
+    ASSERT_TRUE(json && json->is_dict()) << text;
+    FilterListState state = FilterListState::FromValue(json->GetDict());
+    EXPECT_TRUE(state.cosmetic_off_hosts().empty()) << text;
+    EXPECT_EQ(state.lists().size(), 2u) << text;
+  }
+  std::optional<base::Value> json = base::JSONReader::Read(
+      R"({"cosmetic_off": ["ok.test", "bad host", 5, null, [], "../x", "OK2.test", ".lead.test"]})",
+      base::JSON_PARSE_RFC);
+  ASSERT_TRUE(json && json->is_dict());
+  EXPECT_EQ(FilterListState::FromValue(json->GetDict()).cosmetic_off_hosts(),
+            (std::set<std::string>{"ok.test", "ok2.test"}));
+  // A huge string is dropped, not stored.
+  base::DictValue huge;
+  base::ListValue hosts;
+  hosts.Append(std::string(100000, 'a'));
+  hosts.Append("fine.test");
+  huge.Set("cosmetic_off", std::move(hosts));
+  EXPECT_EQ(FilterListState::FromValue(huge).cosmetic_off_hosts(),
+            (std::set<std::string>{"fine.test"}));
+}
+
+TEST(FilterListStateTest, TooManyCosmeticOffHostsAreCut) {
+  base::DictValue dict;
+  base::ListValue hosts;
+  for (size_t i = 0; i < kMaxCosmeticOffHosts + 500; ++i) {
+    hosts.Append("h" + std::to_string(i) + ".test");
+  }
+  dict.Set("cosmetic_off", std::move(hosts));
+  EXPECT_EQ(FilterListState::FromValue(dict).cosmetic_off_hosts().size(),
+            kMaxCosmeticOffHosts);
+}
+
 TEST(FilterListStateTest, SurvivesASaveAndLoad) {
   FilterListState state;
   std::string id;

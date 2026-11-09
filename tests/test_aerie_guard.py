@@ -193,6 +193,53 @@ class PanelTest(unittest.TestCase):
             self.assertIn(f"adblock/{n}.patch", SERIES)
 
 
+class CosmeticRowTest(unittest.TestCase):
+    """Issue #101: the "Hide leftover ad boxes" row in the Advanced section."""
+
+    TS = (REPO / "overlay/chrome/browser/resources/aerie_guard/app.ts").read_text()
+    HTML = (REPO / "overlay/chrome/browser/resources/aerie_guard/app.html.ts").read_text()
+
+    def test_the_row_is_in_the_collapsed_advanced_section_that_remembers_its_state(self):
+        self.assertIn('<details id="advanced" ?open="${this.advancedOpen_}"', self.HTML)
+        self.assertIn("advancedOpen_: boolean = readAdvancedOpen()", self.TS)
+        self.assertIn("cosmeticToggle", self.HTML)
+        self.assertIn("setCosmeticHidingOn(e.detail)", self.TS)
+        # Storage can be missing: every access is guarded.
+        self.assertEqual(self.TS.count("localStorage"), 2)
+        self.assertEqual(self.TS.count("try {"), 2)
+
+    def test_the_mojo_call_takes_a_bool_and_the_state_carries_only_bools(self):
+        text = (WEBUI / "aerie_guard.mojom").read_text()
+        self.assertIn("SetCosmeticHidingOn(bool on);", text)
+        self.assertIn("bool cosmetic_hiding_on;", text)
+        self.assertIn("bool cosmetic_locked;", text)
+
+    def test_the_handler_acts_on_its_captured_target_and_nothing_else(self):
+        code = (WEBUI / "aerie_guard_handler.cc").read_text()
+        self.assertIn("target_.SetCosmeticHidingOn(on)", code)
+        body = code[code.index("void AerieGuardHandler::FinishToggle"):code.index("void AerieGuardHandler::OpenLink")]
+        self.assertIn("ClosePanel()", body)  # A stale target closes the bubble.
+        self.assertNotRegex(body, r"GURL|host\(")
+
+    def test_the_target_reloads_and_refuses_what_incognito_may_not_undo(self):
+        code = (BROWSER / "guard_target.cc").read_text()
+        body = code[code.index("GuardTarget::SetCosmeticHidingOn"):]
+        for needle in ("Resolve()", "cosmetic_locked", "SetCosmeticHidingOff", "Reload("):
+            self.assertIn(needle, body)
+
+    def test_the_manager_installs_the_policy_in_init(self):
+        code = (BROWSER / "filter_list_manager.cc").read_text()
+        init = code[code.index("void FilterListManager::Init()"):code.index("void FilterListManager::OnStateLoaded")]
+        self.assertIn("SetCosmeticFilteringPolicy", init)
+        self.assertIn("AllowsCosmeticHiding", init)
+
+    def test_no_new_mojo_interface_is_bound_for_another_controller(self):
+        text = added("adblock/0019-bind-aerie-guard-handler-factory.patch")
+        self.assertEqual(text.count(".Add<"), 1)
+        for n in ("0022", "0023"):
+            self.assertEqual(list(PATCHES.glob(f"{n}-*")), [])
+
+
 class IconTest(unittest.TestCase):
     def test_the_two_icons_exist_and_are_aggregated(self):
         gn = (VIEWS / "vector_icons" / "BUILD.gn").read_text()

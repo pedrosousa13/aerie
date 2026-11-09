@@ -188,5 +188,29 @@ TEST(GuardStateWithoutManagerTest, BlockingIsOn) {
   EXPECT_EQ(2, state.count);
 }
 
+TEST_F(GuardStateTest, CosmeticHidingOffShowsInTheStateAndNotAsBlockingOff) {
+  EXPECT_FALSE(StateFor("https://news.test/").cosmetic_off);
+  ASSERT_EQ(ExceptionResult::kOk,
+            manager_->SetCosmeticHidingOffForTesting("news.test", true,
+                                                     SessionKey::Regular()));
+  GuardState state = StateFor("https://www.news.test/", SessionKey::Regular(), 3);
+  EXPECT_TRUE(state.cosmetic_off);
+  EXPECT_FALSE(state.cosmetic_locked);
+  EXPECT_FALSE(state.blocking_off);
+  EXPECT_EQ(3, state.count);  // Blocking is on: the count stays.
+  EXPECT_FALSE(StateFor("https://other.test/").cosmetic_off);
+}
+
+TEST_F(GuardStateTest, ASavedCosmeticChoiceIsLockedInIncognito) {
+  int id = 0;
+  const SessionKey incognito = SessionKey::OffTheRecord(&id);
+  ASSERT_EQ(ExceptionResult::kOk,
+            manager_->SetCosmeticHidingOffForTesting("news.test", true,
+                                                     SessionKey::Regular()));
+  GuardState state = StateFor("https://news.test/", incognito);
+  EXPECT_TRUE(state.cosmetic_off);
+  EXPECT_TRUE(state.cosmetic_locked);
+}
+
 }  // namespace
 }  // namespace aerie_adblock

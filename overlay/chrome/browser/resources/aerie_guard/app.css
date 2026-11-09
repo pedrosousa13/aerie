@@ -100,6 +100,29 @@
   margin: 0 4px 8px;
 }
 
+#advanced summary {
+  cursor: pointer;
+}
+
+#advanced .row {
+  align-items: center;
+  background: var(--aerie-card);
+  border-radius: var(--aerie-radius);
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  margin-top: 8px;
+  padding: 12px 16px;
+}
+
+#advanced .label {
+  font-weight: 500;
+}
+
+#advanced .muted {
+  color: var(--aerie-muted);
+}
+
 footer {
   display: flex;
   justify-content: flex-start;

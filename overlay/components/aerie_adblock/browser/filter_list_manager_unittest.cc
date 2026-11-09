@@ -372,6 +372,124 @@ TEST_F(FilterListManagerTest, IncognitoCannotRemoveASavedException) {
   EXPECT_FALSE(manager->HasSavedException("news.test"));
 }
 
+TEST_F(FilterListManagerTest, CosmeticHidingOffIsSavedAndKeepsBlockingOn) {
+  auto manager = MakeManager();
+  const SessionKey regular = SessionKey::Regular();
+  ASSERT_EQ(ExceptionResult::kOk,
+            manager->SetCosmeticHidingOffForTesting("News.Test", true, regular));
+  EXPECT_TRUE(manager->IsCosmeticHidingOff("news.test", regular));
+  EXPECT_TRUE(manager->IsCosmeticHidingOff("www.news.test", regular));
+  EXPECT_FALSE(manager->IsCosmeticHidingOff("other.test", regular));
+  EXPECT_FALSE(manager->IsCosmeticHidingOff("notnews.test", regular));
+  EXPECT_EQ(ExceptionResult::kInvalidHost,
+            manager->SetCosmeticHidingOffForTesting("not a host", true, regular));
+  // This is not a blocking exception.
+  EXPECT_FALSE(manager->HasException("news.test", regular));
+  EXPECT_TRUE(service_.exceptions().empty());
+
+  manager.reset();
+  base::RunLoop().RunUntilIdle();
+  task_environment_.RunUntilIdle();
+  EXPECT_EQ(std::set<std::string>{"news.test"},
+            filter_list_storage::LoadState(dir_.GetPath()).cosmetic_off_hosts());
+}
+
+TEST_F(FilterListManagerTest, TheInstalledPolicyTurnsHidingOffForThatSiteOnly) {
+  auto manager = MakeManager();
+  const SessionKey regular = SessionKey::Regular();
+  EXPECT_TRUE(service_.IsCosmeticFilteringEnabled(GURL("https://news.test/"), regular));
+  ASSERT_EQ(ExceptionResult::kOk,
+            manager->SetCosmeticHidingOffForTesting("news.test", true, regular));
+  EXPECT_FALSE(service_.IsCosmeticFilteringEnabled(GURL("https://news.test/"), regular));
+  EXPECT_FALSE(service_.IsCosmeticFilteringEnabled(GURL("https://www.news.test/"), regular));
+  EXPECT_TRUE(service_.IsCosmeticFilteringEnabled(GURL("https://other.test/"), regular));
+  // Network blocking is unchanged there: no blocking exception was made.
+  EXPECT_FALSE(manager->HasException("news.test", regular));
+  EXPECT_FALSE(service_.IsExcepted("news.test", regular));
+  // Turning it back on restores hiding.
+  ASSERT_EQ(ExceptionResult::kOk,
+            manager->SetCosmeticHidingOffForTesting("news.test", false, regular));
+  EXPECT_TRUE(service_.IsCosmeticFilteringEnabled(GURL("https://news.test/"), regular));
+  // Once the manager is gone the policy fails open: hiding is on.
+  ASSERT_EQ(ExceptionResult::kOk,
+            manager->SetCosmeticHidingOffForTesting("news.test", true, regular));
+  manager.reset();
+  EXPECT_TRUE(service_.IsCosmeticFilteringEnabled(GURL("https://news.test/"), regular));
+}
+
+TEST_F(FilterListManagerTest, AnIncognitoCosmeticChoiceIsMemoryOnlyAndScopedToItsSession) {
+  auto manager = MakeManager();
+  const SessionKey regular = SessionKey::Regular();
+  int id = 0, other_id = 0;
+  const SessionKey incognito = SessionKey::OffTheRecord(&id);
+  const SessionKey other_incognito = SessionKey::OffTheRecord(&other_id);
+  ASSERT_EQ(ExceptionResult::kOk,
+            manager->SetCosmeticHidingOffForTesting("News.Test", true, incognito));
+  EXPECT_TRUE(manager->IsCosmeticHidingOff("news.test", incognito));
+  EXPECT_FALSE(manager->IsCosmeticHidingOff("news.test", regular));
+  EXPECT_FALSE(manager->IsCosmeticHidingOff("news.test", other_incognito));
+  EXPECT_TRUE(manager->state().cosmetic_off_hosts().empty());
+  EXPECT_FALSE(service_.IsCosmeticFilteringEnabled(GURL("https://news.test/"), incognito));
+  EXPECT_TRUE(service_.IsCosmeticFilteringEnabled(GURL("https://news.test/"), regular));
+
+  manager->SetCosmeticHidingOffForTesting("regular.test", true, regular);  // Saves.
+  manager.reset();
+  base::RunLoop().RunUntilIdle();
+  task_environment_.RunUntilIdle();
+  std::string file;
+  ASSERT_TRUE(base::ReadFileToString(dir_.GetPath().AppendASCII("state.json"), &file));
+  EXPECT_EQ(std::string::npos, file.find("news.test"));
+  EXPECT_NE(std::string::npos, file.find("regular.test"));
+}
+
+TEST_F(FilterListManagerTest, ClearingASessionDropsItsCosmeticChoices) {
+  auto manager = MakeManager();
+  int id = 0;
+  const SessionKey incognito = SessionKey::OffTheRecord(&id);
+  manager->SetCosmeticHidingOffForTesting("news.test", true, incognito);
+  manager->ClearSessionExceptions(incognito);
+  EXPECT_FALSE(manager->IsCosmeticHidingOff("news.test", incognito));
+  EXPECT_TRUE(service_.IsCosmeticFilteringEnabled(GURL("https://news.test/"), incognito));
+}
+
+TEST_F(FilterListManagerTest, IncognitoCannotTurnHidingBackOnForASavedChoice) {
+  auto manager = MakeManager();
+  int id = 0;
+  const SessionKey incognito = SessionKey::OffTheRecord(&id);
+  ASSERT_EQ(ExceptionResult::kOk,
+            manager->SetCosmeticHidingOffForTesting("news.test", true, SessionKey::Regular()));
+  EXPECT_TRUE(manager->IsCosmeticHidingOff("news.test", incognito));
+  EXPECT_TRUE(manager->IsCosmeticHidingLocked("news.test", incognito));
+  EXPECT_FALSE(manager->IsCosmeticHidingLocked("news.test", SessionKey::Regular()));
+  EXPECT_EQ(ExceptionResult::kSavedInRegularProfile,
+            manager->SetCosmeticHidingOffForTesting("news.test", false, incognito));
+  EXPECT_TRUE(manager->IsCosmeticHidingOff("news.test", incognito));
+  EXPECT_EQ(ExceptionResult::kOk,
+            manager->SetCosmeticHidingOffForTesting("news.test", false, SessionKey::Regular()));
+  EXPECT_FALSE(manager->IsCosmeticHidingOff("news.test", incognito));
+}
+
+TEST_F(FilterListManagerTest, AFullCosmeticTableRefusesNewHostsButStillRemoves) {
+  auto manager = MakeManager();
+  int id = 0;
+  const SessionKey regular = SessionKey::Regular();
+  const SessionKey incognito = SessionKey::OffTheRecord(&id);
+  for (size_t i = 0; i < kMaxCosmeticOffHosts; ++i) {
+    const std::string host = "host" + std::to_string(i) + ".test";
+    ASSERT_EQ(ExceptionResult::kOk, manager->SetCosmeticHidingOffForTesting(host, true, regular));
+    ASSERT_EQ(ExceptionResult::kOk,
+              manager->SetCosmeticHidingOffForTesting(host + "x", true, incognito));
+  }
+  EXPECT_EQ(ExceptionResult::kTableFull,
+            manager->SetCosmeticHidingOffForTesting("one-more.test", true, regular));
+  EXPECT_EQ(ExceptionResult::kTableFull,
+            manager->SetCosmeticHidingOffForTesting("one-more.test", true, incognito));
+  EXPECT_EQ(ExceptionResult::kOk,
+            manager->SetCosmeticHidingOffForTesting("host0.test", false, regular));
+  EXPECT_EQ(ExceptionResult::kOk,
+            manager->SetCosmeticHidingOffForTesting("host0.testx", false, incognito));
+}
+
 TEST_F(FilterListManagerTest, AHostThatIsSavedAndSetInIncognitoIsListedOnce) {
   auto manager = MakeManager();
   int id = 0;
