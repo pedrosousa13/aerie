@@ -16,6 +16,7 @@ mojom("mojo_bindings") {
 
 source_set("aerie_guard") {
   visibility = [
+    ":browser_tests",
     "//chrome/browser:chrome_browser_interface_binders_webui_parts_desktop",
     "//chrome/browser/ui/views/aerie_adblock:*",
     "//chrome/browser/ui/webui:*",
@@ -64,13 +65,13 @@ source_set("browser_tests") {
     ":aerie_guard",
     ":mojo_bindings",
     "//chrome/browser:browser",
-    "//components/aerie_adblock/browser:guard_target",
+    "//chrome/browser/profiles:profile",
     "//chrome/browser/ui/tabs:tabs_public",
     "//chrome/browser/ui/views/aerie_adblock:guard",
-    "//chrome/browser/profiles:profile",
     "//chrome/test:test_support",
     "//chrome/test:test_support_ui",
     "//chrome/test/base:chrome_test_utils",
+    "//components/aerie_adblock/browser:guard_target",
     "//content/test:test_support",
     "//mojo/public/cpp/bindings",
     "//net:test_support",
