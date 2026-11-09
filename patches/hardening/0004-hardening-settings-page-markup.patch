@@ -171,13 +171,13 @@ Generated from tools/aerie_hardening/controls.json. Do not edit by hand. Run: ./
 +      <div class="cr-row hr">
 +        <div class="flex label-wrapper">
 +          <div class="label">Extensions cannot loosen these settings</div>
-+          <div class="cr-secondary-text label">An extension with the privacy permission cannot write the WebRTC policy, the preloading option or the third-party cookie setting. Only the user can change them, in settings. Reading them and being told about changes still works.</div>
++          <div class="cr-secondary-text label">An extension with the privacy permission cannot write the WebRTC policy, the preloading option or the third-party cookie setting. An extension with the contentSettings permission cannot allow cookies (chrome.contentSettings.cookies.set refuses any setting but block), which would otherwise let third-party cookies through for the sites it names. Only the user can change these, in settings. Reading them, being told about changes, and blocking cookies through the contentSettings API still work. Other content setting types are not changed.</div>
 +        </div>
 +        <div class="cr-secondary-text control-state" id="control-extension_lock-setting">Always on</div>
 +      </div>
 +      <div class="control-meta cr-secondary-text">
 +        <div class="control-default">Default: Always on.</div>
-+        <div class="control-cost">Cost: Privacy extensions that set these options through chrome.privacy get a permission error. The user can still make the same change in settings.</div>
++        <div class="control-cost">Cost: Privacy extensions that set these options through chrome.privacy get a permission error. An extension that allows cookies for a site through chrome.contentSettings (for example a cookie manager that keeps a whitelist) gets an error too; blocking still works. The user can still make the same changes in settings.</div>
 +      </div>
 +    </div>
 +    <div class="cr-row hr">

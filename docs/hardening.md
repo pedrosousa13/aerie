@@ -246,19 +246,22 @@ Widevine decodes protected video and audio (Netflix, Disney+ and similar). It is
 
 ### Extensions cannot loosen these settings
 
-An extension with the privacy permission cannot write the WebRTC policy, the preloading option or the third-party cookie setting. Only the user can change them, in settings. Reading them and being told about changes still works.
+An extension with the privacy permission cannot write the WebRTC policy, the preloading option or the third-party cookie setting. An extension with the contentSettings permission cannot allow cookies (chrome.contentSettings.cookies.set refuses any setting but block), which would otherwise let third-party cookies through for the sites it names. Only the user can change these, in settings. Reading them, being told about changes, and blocking cookies through the contentSettings API still work. Other content setting types are not changed.
 
 - Default: Always on.
 - Default provided by: Aerie
 - Where the default is set:
   - patches/hardening/0006-lock-hardened-prefs-from-extensions.patch: the write permission of three chrome.privacy entries is removed in chrome/browser/extensions/pref_mapping.cc
+  - patches/hardening/0016-refuse-extension-cookie-allow-settings.patch: ContentSettingsContentSettingSetFunction::Run in chrome/browser/extensions/api/content_settings/content_settings_api.cc refuses every cookie setting but block
 - Upstream code:
   - `chrome/browser/extensions/pref_mapping.cc`
   - `chrome/browser/extensions/api/preference/preference_api.cc`
+  - `chrome/browser/extensions/api/content_settings/content_settings_api.cc`
 - Aerie patches:
   - `patches/hardening/0006-lock-hardened-prefs-from-extensions.patch`
+  - `patches/hardening/0016-refuse-extension-cookie-allow-settings.patch`
 - Settings row: Read-only
-- Cost: Privacy extensions that set these options through chrome.privacy get a permission error. The user can still make the same change in settings.
+- Cost: Privacy extensions that set these options through chrome.privacy get a permission error. An extension that allows cookies for a site through chrome.contentSettings (for example a cookie manager that keeps a whitelist) gets an error too; blocking still works. The user can still make the same changes in settings.
 - Bench checks: `hardening_extension_prefs`
 
 ## Manual fingerprint test

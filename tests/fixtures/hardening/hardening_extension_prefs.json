@@ -35,6 +35,20 @@
       "set_error": null,
       "level": "controlled_by_this_extension",
       "value": false
+     },
+     {
+      "name": "contentSettings.cookies.allow",
+      "role": "content_setting_refused",
+      "set_error": "You do not have permission to change third-party cookie settings",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.block",
+      "role": "content_setting_control",
+      "set_error": null,
+      "level": null,
+      "value": null
      }
     ]
    }
@@ -73,6 +87,20 @@
       "set_error": null,
       "level": "controlled_by_this_extension",
       "value": false
+     },
+     {
+      "name": "contentSettings.cookies.allow",
+      "role": "content_setting_refused",
+      "set_error": "You do not have permission to change third-party cookie settings",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.block",
+      "role": "content_setting_control",
+      "set_error": null,
+      "level": null,
+      "value": null
      }
     ]
    }
@@ -111,6 +139,20 @@
       "set_error": null,
       "level": "controlled_by_this_extension",
       "value": false
+     },
+     {
+      "name": "contentSettings.cookies.allow",
+      "role": "content_setting_refused",
+      "set_error": "You do not have permission to change third-party cookie settings",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.block",
+      "role": "content_setting_control",
+      "set_error": null,
+      "level": null,
+      "value": null
      }
     ]
    }
@@ -159,6 +201,20 @@
       "set_error": "denied",
       "level": "controllable_by_this_extension",
       "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow",
+      "role": "content_setting_refused",
+      "set_error": "You do not have permission to change third-party cookie settings",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.block",
+      "role": "content_setting_control",
+      "set_error": null,
+      "level": null,
+      "value": null
      }
     ]
    }
@@ -190,6 +246,20 @@
       "set_error": null,
       "level": "controlled_by_this_extension",
       "value": false
+     },
+     {
+      "name": "contentSettings.cookies.allow",
+      "role": "content_setting_refused",
+      "set_error": "You do not have permission to change third-party cookie settings",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.block",
+      "role": "content_setting_control",
+      "set_error": null,
+      "level": null,
+      "value": null
      }
     ]
    }
@@ -220,6 +290,162 @@
       "name": "thirdPartyCookiesAllowed",
       "role": "hardened",
       "set_error": "You do not have permission to access the preference 'thirdPartyCookiesAllowed'. Be sure to declare in your manifest what permissions you need.",
+      "level": "controllable_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "referrersEnabled",
+      "role": "control",
+      "set_error": null,
+      "level": "controlled_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "contentSettings.cookies.allow",
+      "role": "content_setting_refused",
+      "set_error": "You do not have permission to change third-party cookie settings",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.block",
+      "role": "content_setting_control",
+      "set_error": null,
+      "level": null,
+      "value": null
+     }
+    ]
+   }
+  },
+  {
+   "name": "cookie_allow_via_content_settings_succeeds",
+   "expect": "fail",
+   "detail_contains": "could allow cookies through contentSettings",
+   "obs": {
+    "loaded": true,
+    "results": [
+     {
+      "name": "webRTCIPHandlingPolicy",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference",
+      "level": "controllable_by_this_extension",
+      "value": "default_public_interface_only"
+     },
+     {
+      "name": "networkPredictionEnabled",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference",
+      "level": "controllable_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "thirdPartyCookiesAllowed",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference",
+      "level": "controllable_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "referrersEnabled",
+      "role": "control",
+      "set_error": null,
+      "level": "controlled_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "contentSettings.cookies.allow",
+      "role": "content_setting_refused",
+      "set_error": null,
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.block",
+      "role": "content_setting_control",
+      "set_error": null,
+      "level": null,
+      "value": null
+     }
+    ]
+   }
+  },
+  {
+   "name": "cookie_block_via_content_settings_refused",
+   "expect": "fail",
+   "detail_contains": "negative control failed",
+   "obs": {
+    "loaded": true,
+    "results": [
+     {
+      "name": "webRTCIPHandlingPolicy",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference",
+      "level": "controllable_by_this_extension",
+      "value": "default_public_interface_only"
+     },
+     {
+      "name": "networkPredictionEnabled",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference",
+      "level": "controllable_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "thirdPartyCookiesAllowed",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference",
+      "level": "controllable_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "referrersEnabled",
+      "role": "control",
+      "set_error": null,
+      "level": "controlled_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "contentSettings.cookies.allow",
+      "role": "content_setting_refused",
+      "set_error": "You do not have permission to change third-party cookie settings",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.block",
+      "role": "content_setting_control",
+      "set_error": "refused",
+      "level": null,
+      "value": null
+     }
+    ]
+   }
+  },
+  {
+   "name": "content_settings_probe_missing",
+   "expect": "fail",
+   "detail_contains": "contentSettings",
+   "obs": {
+    "loaded": true,
+    "results": [
+     {
+      "name": "webRTCIPHandlingPolicy",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference",
+      "level": "controllable_by_this_extension",
+      "value": "default_public_interface_only"
+     },
+     {
+      "name": "networkPredictionEnabled",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference",
+      "level": "controllable_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "thirdPartyCookiesAllowed",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference",
       "level": "controllable_by_this_extension",
       "value": false
      },

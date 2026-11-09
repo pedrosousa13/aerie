@@ -30,5 +30,23 @@ window.__probe = async function() {
               value: got.data ? got.data.value : null});
     await callSetting(a.api, 'clear', {});
   }
+  // chrome.contentSettings.cookies: allowing is refused (it would let third-party cookies through),
+  // blocking is the control and must still work.
+  const setCookies = (setting) => new Promise((resolve) => {
+    try {
+      chrome.contentSettings.cookies.set(
+          {primaryPattern: 'http://127.0.0.1/*', setting},
+          () => resolve(chrome.runtime.lastError ? chrome.runtime.lastError.message : null));
+    } catch (e) {
+      resolve('threw: ' + e);
+    }
+  });
+  const allowError = await setCookies('allow');
+  out.push({name: 'contentSettings.cookies.allow', role: 'content_setting_refused', set_error: allowError,
+            level: null, value: null});
+  const blockError = await setCookies('block');
+  out.push({name: 'contentSettings.cookies.block', role: 'content_setting_control', set_error: blockError,
+            level: null, value: null});
+  await new Promise((resolve) => chrome.contentSettings.cookies.clear({}, resolve));
   return out;
 };

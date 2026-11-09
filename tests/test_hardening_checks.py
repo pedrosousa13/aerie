@@ -654,6 +654,14 @@ class DriverGlueTest(unittest.TestCase):
         self.assertIn("about:blank", added.log)
         self.assertIn("s.b.localhost", added.sent[1])
 
+    def test_probe_extension_has_the_content_settings_permission_and_tries_cookies(self):
+        root = Path(extension.__file__).parents[2] / "fixtures" / "hardening" / "extension"
+        manifest = json.loads((root / "manifest.json").read_text())
+        self.assertIn("contentSettings", manifest["permissions"])
+        script = (root / "probe.js").read_text()
+        self.assertIn("chrome.contentSettings.cookies.set", script)
+        self.assertIn("'allow'", script)
+
     def test_extension_check_loads_the_probe_extension_in_a_variant(self):
         results = json.loads((FIXTURES / "hardening_extension_prefs.json").read_text())["cases"][0]["obs"]["results"]
         variant = FakeSession({"probe.html": {"eval": results}})

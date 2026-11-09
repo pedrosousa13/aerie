@@ -1,0 +1,31 @@
+Aerie-Purpose: Stop an extension from allowing cookies through chrome.contentSettings.cookies.set, which would let third-party cookies through although the user blocks them.
+Aerie-Upstream-Area: chrome/browser/extensions/api/content_settings/content_settings_api.cc (ContentSettingsContentSettingSetFunction::Run)
+Aerie-Kind: hook
+
+Patch 0006 locks chrome.privacy.websites.thirdPartyCookiesAllowed, but an extension with the
+contentSettings permission could still set an ALLOW or SESSION_ONLY cookie exception. An
+explicit exception wins over the third-party block (cookie_settings_base.cc,
+kAllowByExplicitSetting), and a pattern such as *://*.com/* covers whole domains. The set
+function now returns an error for every cookie setting other than "block", for any pattern
+and either scope. Blocking cookies through the API, and reading, getting and clearing,
+still work. Other content setting types are not changed.
+
+--- a/chrome/browser/extensions/api/content_settings/content_settings_api.cc
++++ b/chrome/browser/extensions/api/content_settings/content_settings_api.cc
+@@ -234,6 +234,16 @@
+           ->Get(content_type)
+           ->IsSettingValid(setting));
+ 
++  // Aerie: an extension cannot allow cookies, because an allow (or a session
++  // only allow) for a pattern lets third-party cookies through although the
++  // user blocks them. Blocking cookies still works.
++  if (content_type == ContentSettingsType::COOKIES &&
++      setting != CONTENT_SETTING_BLOCK) {
++    return RespondNow(Error(
++        "Aerie blocks third-party cookies. An extension cannot allow cookies; "
++        "only the user can, in settings."));
++  }
++
+   const content_settings::ContentSettingsInfo* info =
+       content_settings::ContentSettingsRegistry::GetInstance()->Get(
+           content_type);
