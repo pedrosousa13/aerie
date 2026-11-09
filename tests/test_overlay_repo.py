@@ -20,7 +20,7 @@ class RepoOverlayTest(unittest.TestCase):
                                             "chrome/browser/ui/webui/aerie_filters/",
                                             "chrome/browser/ui/webui/aerie_onboarding/", "components/aerie_onboarding/",
                                             "components/aerie_widevine/", "chrome/browser/aerie_widevine/",
-                                            "components/aerie_fingerprint/", "components/aerie_gpu_info/",
+                                            "components/aerie_fingerprint/", "components/aerie_gpu_info/", "components/aerie_screen/",
                                             "tools/metrics/histograms/metadata/aerie/",
                                             "third_party/rust/chromium_crates_io/patches/")), rel)
             self.assertNotIn("/target/", rel)

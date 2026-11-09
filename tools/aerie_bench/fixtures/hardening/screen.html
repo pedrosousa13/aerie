@@ -1,0 +1,24 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Aerie Bench Screen</title></head>
+<body>
+<p>Reads window.screen, the window size and position, devicePixelRatio and the device-width and
+device-height media features.</p>
+<script>
+  window.__done = false;
+  function reading() {
+    const s = screen;
+    return {
+      width: s.width, height: s.height, availWidth: s.availWidth, availHeight: s.availHeight,
+      availLeft: s.availLeft, availTop: s.availTop, colorDepth: s.colorDepth, pixelDepth: s.pixelDepth,
+      isExtended: s.isExtended, screenX: window.screenX, screenY: window.screenY,
+      outerWidth: window.outerWidth, outerHeight: window.outerHeight,
+      innerWidth: window.innerWidth, innerHeight: window.innerHeight,
+      devicePixelRatio: window.devicePixelRatio,
+      mqWidth: matchMedia('(device-width: ' + s.width + 'px)').matches,
+      mqHeight: matchMedia('(device-height: ' + s.height + 'px)').matches,
+    };
+  }
+  try { window.__result = reading(); } catch (e) { window.__result = {error: String(e)}; }
+  window.__done = true;
+</script>
+</body></html>
