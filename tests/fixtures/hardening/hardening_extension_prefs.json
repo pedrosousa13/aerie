@@ -72,7 +72,8 @@
       "value": null
      }
     ]
-   }
+   },
+   "handwritten": "Hand-written from the probe's result shape and patch 0016's refusal text. A real 0016 recording (Bench run after the next build) replaces it."
   },
   {
    "name": "webrtc_write_succeeds",
@@ -145,7 +146,8 @@
       "value": null
      }
     ]
-   }
+   },
+   "handwritten": "Hand-written from the probe's result shape and patch 0016's refusal text. A real 0016 recording (Bench run after the next build) replaces it."
   },
   {
    "name": "cookie_write_succeeds_silently",
@@ -218,7 +220,8 @@
       "value": null
      }
     ]
-   }
+   },
+   "handwritten": "Hand-written from the probe's result shape and patch 0016's refusal text. A real 0016 recording (Bench run after the next build) replaces it."
   },
   {
    "name": "extension_not_loaded",
@@ -228,7 +231,8 @@
     "loaded": false,
     "error": "net::ERR_BLOCKED_BY_CLIENT",
     "results": []
-   }
+   },
+   "handwritten": "Hand-written from the probe's result shape and patch 0016's refusal text. A real 0016 recording (Bench run after the next build) replaces it."
   },
   {
    "name": "control_also_refused",
@@ -301,7 +305,8 @@
       "value": null
      }
     ]
-   }
+   },
+   "handwritten": "Hand-written from the probe's result shape and patch 0016's refusal text. A real 0016 recording (Bench run after the next build) replaces it."
   },
   {
    "name": "hardened_setting_not_tried",
@@ -367,12 +372,13 @@
       "value": null
      }
     ]
-   }
+   },
+   "handwritten": "Hand-written from the probe's result shape and patch 0016's refusal text. A real 0016 recording (Bench run after the next build) replaces it."
   },
   {
    "name": "real_train1_build",
-   "expect": "pass",
-   "detail_contains": "",
+   "expect": "fail",
+   "detail_contains": "probes are missing",
    "real": "Recorded on a real Aerie build, train-1 Bench run (bench/train1/hardening-1/results.json); LAN address scrubbed.",
    "obs": {
     "loaded": true,
@@ -404,44 +410,10 @@
       "set_error": null,
       "level": "controlled_by_this_extension",
       "value": false
-     },
-     {
-      "name": "contentSettings.cookies.allow",
-      "role": "content_setting_refused",
-      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
-      "level": null,
-      "value": null
-     },
-     {
-      "name": "contentSettings.cookies.session_only",
-      "role": "content_setting_refused",
-      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
-      "level": null,
-      "value": null
-     },
-     {
-      "name": "contentSettings.cookies.allow_domain_wildcard",
-      "role": "content_setting_refused",
-      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
-      "level": null,
-      "value": null
-     },
-     {
-      "name": "contentSettings.cookies.allow_first_party",
-      "role": "content_setting_first_party",
-      "set_error": null,
-      "level": null,
-      "value": null
-     },
-     {
-      "name": "contentSettings.cookies.block",
-      "role": "content_setting_control",
-      "set_error": null,
-      "level": null,
-      "value": null
      }
     ]
-   }
+   },
+   "note": "Verdict re-judged: the recording predates patch 0016, so it has no contentSettings rows and the current judge fails it on purpose."
   },
   {
    "name": "cookie_allow_via_content_settings_succeeds",
@@ -514,7 +486,8 @@
       "value": null
      }
     ]
-   }
+   },
+   "handwritten": "Hand-written from the probe's result shape and patch 0016's refusal text. A real 0016 recording (Bench run after the next build) replaces it."
   },
   {
    "name": "cookie_block_via_content_settings_refused",
@@ -587,7 +560,8 @@
       "value": null
      }
     ]
-   }
+   },
+   "handwritten": "Hand-written from the probe's result shape and patch 0016's refusal text. A real 0016 recording (Bench run after the next build) replaces it."
   },
   {
    "name": "content_settings_probe_missing",
@@ -625,13 +599,13 @@
       "value": false
      }
     ]
-   }
+   },
+   "handwritten": "Hand-written from the probe's result shape and patch 0016's refusal text. A real 0016 recording (Bench run after the next build) replaces it."
   },
   {
    "name": "first_party_allow_refused",
    "expect": "fail",
    "detail_contains": "first-party cookie allow",
-   "real": "Recorded on a real Aerie build, train-1 Bench run (bench/train1/hardening-1/results.json); LAN address scrubbed.",
    "obs": {
     "loaded": true,
     "results": [
@@ -699,13 +673,13 @@
       "value": null
      }
     ]
-   }
+   },
+   "handwritten": "Hand-written from the probe's result shape and patch 0016's refusal text. A real 0016 recording (Bench run after the next build) replaces it."
   },
   {
    "name": "domain_wildcard_allow_succeeds",
    "expect": "fail",
    "detail_contains": "allow_domain_wildcard returned no error",
-   "real": "Recorded on a real Aerie build, train-1 Bench run (bench/train1/hardening-1/results.json); LAN address scrubbed.",
    "obs": {
     "loaded": true,
     "results": [
@@ -773,7 +747,8 @@
       "value": null
      }
     ]
-   }
+   },
+   "handwritten": "Hand-written from the probe's result shape and patch 0016's refusal text. A real 0016 recording (Bench run after the next build) replaces it."
   }
  ]
 }

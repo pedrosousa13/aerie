@@ -219,6 +219,32 @@ class RealRecordingsTest(unittest.TestCase):
                 self.assertEqual(HARDENING[check].judge(case["obs"])[0], case["expect"], check)
         self.assertEqual(len(got), 13)  # hardening_prefetch errored in that run: nothing to record
 
+    def test_a_case_claiming_a_real_recording_holds_no_hand_written_rows(self):
+        # patch 0016 came after the train-1 run, so a recording from it cannot hold contentSettings rows
+        for check, case in load_cases():
+            roles = {r.get("role", "") for r in case["obs"].get("results", []) if isinstance(r, dict)}
+            if "real" in case:
+                with self.subTest(check=check, case=case["name"]):
+                    self.assertTrue(case["name"].startswith("real_train"), "only a recording may carry a real note")
+                    self.assertFalse({r for r in roles if r.startswith("content_setting")},
+                                     "hand-written contentSettings rows under a real provenance note")
+
+    def test_extension_prefs_cases_with_content_settings_rows_say_they_are_hand_written(self):
+        for check, case in load_cases():
+            if check != "hardening_extension_prefs":
+                continue
+            has_cs = any(r.get("role", "").startswith("content_setting") for r in case["obs"]["results"])
+            with self.subTest(case=case["name"]):
+                if has_cs:
+                    self.assertNotIn("real", case)
+                    self.assertIn("0016", case.get("handwritten", ""))
+                    self.assertIn("real", case["handwritten"].lower())
+
+    def test_the_train_1_extension_recording_predates_the_cookie_probes(self):
+        case = real_case("hardening_extension_prefs")
+        self.assertEqual({r["role"] for r in case["obs"]["results"]}, {"hardened", "control"})
+        self.assertEqual(HARDENING["hardening_extension_prefs"].judge(case["obs"])[0], "fail")
+
     def test_recordings_hold_no_lan_address(self):
         for _, case in load_cases():
             self.assertNotIn("192.168.1.107", json.dumps(case))
