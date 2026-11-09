@@ -1,0 +1,33 @@
+# Copyright 2026 The Aerie Authors
+# You can use, redistribute, and/or modify this source code under
+# the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+import("//testing/test.gni")
+
+# The screen size that window.screen and the device-width media features report
+# while fingerprinting protection is on (issue #116): the bucket for a window
+# and the decision whether a window is protected. Pure code with no Blink and no
+# base, so it has unit tests. Blink's Screen, MediaValues and LocalDOMWindow
+# call it (patches/hardening/0015-report-a-common-screen-size.patch).
+source_set("aerie_screen") {
+  sources = [
+    "screen_size.cc",
+    "screen_size.h",
+  ]
+}
+
+source_set("unit_tests") {
+  testonly = true
+  sources = [ "screen_size_unittest.cc" ]
+  deps = [
+    ":aerie_screen",
+    "//testing/gtest",
+  ]
+}
+
+test("aerie_screen_unittests") {
+  deps = [
+    ":unit_tests",
+    "//base/test:run_all_unittests",
+  ]
+}

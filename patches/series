@@ -31,6 +31,7 @@ hardening/0011-key-fingerprinting-noise-on-the-site.patch
 hardening/0012-cap-device-memory-at-8gb.patch
 hardening/0013-give-dedicated-workers-the-pages-noise-tokens.patch
 hardening/0014-give-shared-and-service-workers-noise-tokens.patch
+hardening/0015-report-a-common-screen-size.patch
 
 adblock/0001-hook-url-loader-factory.patch
 adblock/0002-pack-engine-resource.patch

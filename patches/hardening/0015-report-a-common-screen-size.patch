@@ -1,0 +1,293 @@
+Aerie-Purpose: Report a common screen size (the smallest of seven common sizes that fits the window) from window.screen, device-width and device-height, put the window at 0,0 and report 24-bit colour and one screen, so the real display is no fingerprint surface (issue #116).
+Aerie-Upstream-Area: third_party/blink/renderer/core/frame/screen.cc (Screen::GetRect, colorDepth, isExtended), third_party/blink/renderer/core/frame/local_dom_window.cc (screenX, screenY), third_party/blink/renderer/core/css/media_values.cc (CalculateDeviceWidth, CalculateDeviceHeight), third_party/blink/renderer/core/frame/screen_masking.h, third_party/blink/public/common/helium_noise/ (HeliumNoiseFeature::kScreen), content/browser/helium_noise/noise_token_data.cc, third_party/blink/common/features.cc (kHeliumNoiseScreen)
+Aerie-Kind: hook
+
+HeliumNoiseFeature::kScreen is a new surface token, added the way hardening/0010 adds kWebGL: a
+session token in HeliumNoiseTokenData that GetTokens derives per site, and a renderer that receives
+it only when protection is on for the site. "Token present" therefore means "protected here", and
+the global switch and the per-site switch give the real values back without a renderer change. The new
+feature kHeliumNoiseScreen (on by default) switches the surface off for the Bench's negative control.
+
+A protected window reports the smallest of 1280x800, 1366x768, 1440x900, 1680x1050, 1920x1080,
+2560x1440 and 3840x2160 that is at least as wide and as tall as the window's outer size (a window
+larger than the last one keeps its own size, so the screen is never smaller than the window).
+availWidth/availHeight equal the screen size, availLeft/availTop and screenX/screenY are 0,
+colorDepth and pixelDepth are 24 and isExtended is false. The device-width and device-height media
+features read the same value, so matchMedia agrees with screen.width. outerWidth, outerHeight and
+devicePixelRatio are not changed: the outer size is the inner size plus the real browser chrome
+already, and a false pixel ratio breaks image selection and canvas sizing. There is no letterboxing.
+
+The bucket list, the choice and the decision (ShouldProtectScreen) are pure code with unit tests in
+overlay/components/aerie_screen. One Blink helper, screen_masking.h in core/frame, reads the feature
+switches, the token and the window rectangle (the one outerWidth reads, so it needs no layout and is
+safe during style recalculation). Full screen is not touched: it sizes the page from the real
+display on the browser side.
+
+Workers have no screen. A frame of another site in the same window reads its own site's token.
+
+--- a/content/browser/helium_noise/noise_token_data.cc
++++ b/content/browser/helium_noise/noise_token_data.cc
+@@ -69,6 +69,8 @@
+       blink::HeliumNoiseToken(base::RandUint64());
+   session_tokens_[blink::HeliumNoiseFeature::kWebGL] =
+       blink::HeliumNoiseToken(base::RandUint64());
++  session_tokens_[blink::HeliumNoiseFeature::kScreen] =
++      blink::HeliumNoiseToken(base::RandUint64());
+ }
+ 
+ // static
+--- a/third_party/blink/common/features.cc
++++ b/third_party/blink/common/features.cc
+@@ -66,6 +66,10 @@
+ // WebGL and WebGPU report masked graphics card details (Aerie, issue #112).
+ BASE_FEATURE(kHeliumNoiseWebGL, base::FEATURE_ENABLED_BY_DEFAULT);
+ 
++// window.screen, the device-width and device-height media features and
++// window.screenX/screenY report a common screen size (Aerie, issue #116).
++BASE_FEATURE(kHeliumNoiseScreen, base::FEATURE_ENABLED_BY_DEFAULT);
++
+ // Controls whether to include information about the page's open popup in
+ // AIPageContent.
+ BASE_FEATURE(kAIPageContentIncludePopupWindows,
+--- a/third_party/blink/public/common/features.h
++++ b/third_party/blink/public/common/features.h
+@@ -47,6 +47,7 @@
+ BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kHeliumNoiseAudio);
+ BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kHeliumNoiseCpuCores);
+ BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kHeliumNoiseWebGL);
++BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kHeliumNoiseScreen);
+ 
+ // Controls whether to include information about the page's open popup in
+ // AIPageContent.
+--- a/third_party/blink/public/common/helium_noise/noise_token.h
++++ b/third_party/blink/public/common/helium_noise/noise_token.h
+@@ -25,6 +25,7 @@
+   kAudio,
+   kHardware,
+   kWebGL,
++  kScreen,
+ };
+ 
+ // A wrapper class for a uint64_t noise token.
+--- a/third_party/blink/public/common/helium_noise/noise_token_mojom_traits.h
++++ b/third_party/blink/public/common/helium_noise/noise_token_mojom_traits.h
+@@ -34,6 +34,8 @@
+         return blink::mojom::HeliumNoiseFeature::kHardware;
+       case blink::HeliumNoiseFeature::kWebGL:
+         return blink::mojom::HeliumNoiseFeature::kWebGL;
++      case blink::HeliumNoiseFeature::kScreen:
++        return blink::mojom::HeliumNoiseFeature::kScreen;
+     }
+     NOTREACHED();
+   }
+@@ -49,6 +51,8 @@
+         return blink::HeliumNoiseFeature::kHardware;
+       case blink::mojom::HeliumNoiseFeature::kWebGL:
+         return blink::HeliumNoiseFeature::kWebGL;
++      case blink::mojom::HeliumNoiseFeature::kScreen:
++        return blink::HeliumNoiseFeature::kScreen;
+     }
+ 
+     NOTREACHED();
+--- a/third_party/blink/public/mojom/helium_noise/noise_token.mojom
++++ b/third_party/blink/public/mojom/helium_noise/noise_token.mojom
+@@ -10,6 +10,7 @@
+   kAudio,
+   kHardware,
+   kWebGL,
++  kScreen,
+ };
+ 
+ // Typemapped to blink::HeliumNoiseToken
+--- a/third_party/blink/renderer/core/BUILD.gn
++++ b/third_party/blink/renderer/core/BUILD.gn
+@@ -417,6 +417,7 @@
+     ":xml_ffi",
+     "//base",
+     "//components/aerie_gpu_info",
++    "//components/aerie_screen",
+     "//components/paint_preview/common",
+     "//components/performance_manager/public/mojom:mojom_blink",
+     "//components/shared_highlighting/core/common",
+--- a/third_party/blink/renderer/core/frame/build.gni
++++ b/third_party/blink/renderer/core/frame/build.gni
+@@ -195,6 +195,7 @@
+   "scheduling.cc",
+   "scheduling.h",
+   "screen.cc",
++  "screen_masking.h",
+   "screen.h",
+   "screen_metrics_emulator.cc",
+   "screen_metrics_emulator.h",
+--- a/third_party/blink/renderer/core/frame/screen.cc
++++ b/third_party/blink/renderer/core/frame/screen.cc
+@@ -34,6 +34,7 @@
+ #include "third_party/blink/renderer/core/event_target_names.h"
+ #include "third_party/blink/renderer/core/frame/local_dom_window.h"
+ #include "third_party/blink/renderer/core/frame/local_frame.h"
++#include "third_party/blink/renderer/core/frame/screen_masking.h"
+ #include "third_party/blink/renderer/core/frame/settings.h"
+ #include "third_party/blink/renderer/core/page/chrome_client.h"
+ #include "ui/display/screen_info.h"
+@@ -109,6 +110,10 @@
+   if (!DomWindow()) {
+     return unknown_color_depth;
+   }
++  // Aerie (#116): a protected window reports 24, as most screens do.
++  if (IsScreenProtected(DomWindow())) {
++    return aerie_screen::kColorDepth;
++  }
+   return GetScreenInfo().depth == 0
+              ? unknown_color_depth
+              : base::saturated_cast<unsigned>(GetScreenInfo().depth);
+@@ -165,6 +170,10 @@
+           network::mojom::PermissionsPolicyFeature::kWindowManagement)) {
+     return false;
+   }
++  // Aerie (#116): a protected window reports one screen.
++  if (IsScreenProtected(DomWindow())) {
++    return false;
++  }
+ 
+   return GetScreenInfo().is_extended;
+ }
+@@ -173,6 +182,11 @@
+   if (!DomWindow())
+     return gfx::Rect();
+   LocalFrame* frame = DomWindow()->GetFrame();
++  // Aerie (#116): a protected window reports a common screen size, and the
++  // available area is all of it.
++  if (std::optional<aerie_screen::Size> size = ProtectedScreenSize(frame)) {
++    return gfx::Rect(0, 0, size->width, size->height);
++  }
+   const display::ScreenInfo& screen_info = GetScreenInfo();
+   gfx::Rect rect = available ? screen_info.available_rect : screen_info.rect;
+   if (frame->GetSettings()->GetReportScreenSizeInPhysicalPixelsQuirk())
+--- a/third_party/blink/renderer/core/frame/local_dom_window.cc
++++ b/third_party/blink/renderer/core/frame/local_dom_window.cc
+@@ -104,6 +104,7 @@
+ #include "third_party/blink/renderer/core/frame/report.h"
+ #include "third_party/blink/renderer/core/frame/reporting_context.h"
+ #include "third_party/blink/renderer/core/frame/screen.h"
++#include "third_party/blink/renderer/core/frame/screen_masking.h"
+ #include "third_party/blink/renderer/core/frame/settings.h"
+ #include "third_party/blink/renderer/core/frame/viewport_data.h"
+ #include "third_party/blink/renderer/core/frame/visual_viewport.h"
+@@ -1812,6 +1813,12 @@
+     return 0;
+   }
+ 
++  // Aerie (#116): a protected window reports its position as 0,0, where the
++  // reported screen begins.
++  if (IsScreenProtected(this)) {
++    return 0;
++  }
++
+   Page* page = frame->GetPage();
+   if (!page) {
+     return 0;
+@@ -1837,6 +1844,12 @@
+     return 0;
+   }
+ 
++  // Aerie (#116): a protected window reports its position as 0,0, where the
++  // reported screen begins.
++  if (IsScreenProtected(this)) {
++    return 0;
++  }
++
+   Page* page = frame->GetPage();
+   if (!page) {
+     return 0;
+--- a/third_party/blink/renderer/core/css/media_values.cc
++++ b/third_party/blink/renderer/core/css/media_values.cc
+@@ -18,6 +18,7 @@
+ #include "third_party/blink/renderer/core/execution_context/execution_context.h"
+ #include "third_party/blink/renderer/core/frame/local_frame.h"
+ #include "third_party/blink/renderer/core/frame/local_frame_view.h"
++#include "third_party/blink/renderer/core/frame/screen_masking.h"
+ #include "third_party/blink/renderer/core/frame/settings.h"
+ #include "third_party/blink/renderer/core/layout/adjust_for_absolute_zoom.h"
+ #include "third_party/blink/renderer/core/layout/layout_view.h"
+@@ -164,6 +165,10 @@
+ 
+ int MediaValues::CalculateDeviceWidth(LocalFrame* frame) {
+   DCHECK(frame && frame->View() && frame->GetSettings() && frame->GetPage());
++  // Aerie (#116): agrees with screen.width.
++  if (std::optional<aerie_screen::Size> size = ProtectedScreenSize(frame)) {
++    return size->width;
++  }
+   const display::ScreenInfo& screen_info =
+       frame->GetPage()->GetChromeClient().GetScreenInfo(*frame);
+   int device_width = screen_info.rect.width();
+@@ -176,6 +181,10 @@
+ 
+ int MediaValues::CalculateDeviceHeight(LocalFrame* frame) {
+   DCHECK(frame && frame->View() && frame->GetSettings() && frame->GetPage());
++  // Aerie (#116): agrees with screen.height.
++  if (std::optional<aerie_screen::Size> size = ProtectedScreenSize(frame)) {
++    return size->height;
++  }
+   const display::ScreenInfo& screen_info =
+       frame->GetPage()->GetChromeClient().GetScreenInfo(*frame);
+   int device_height = screen_info.rect.height();
+--- /dev/null
++++ b/third_party/blink/renderer/core/frame/screen_masking.h
+@@ -0,0 +1,57 @@
++// Copyright 2026 The Aerie Authors
++// You can use, redistribute, and/or modify this source code under
++// the terms of the GPL-3.0 license that can be found in the LICENSE file.
++
++#ifndef THIRD_PARTY_BLINK_RENDERER_CORE_FRAME_SCREEN_MASKING_H_
++#define THIRD_PARTY_BLINK_RENDERER_CORE_FRAME_SCREEN_MASKING_H_
++
++#include <optional>
++
++#include "base/feature_list.h"
++#include "components/aerie_screen/screen_size.h"
++#include "third_party/blink/public/common/features.h"
++#include "third_party/blink/public/common/helium_noise/noise_token.h"
++#include "third_party/blink/renderer/core/execution_context/execution_context.h"
++#include "third_party/blink/renderer/core/frame/local_dom_window.h"
++#include "third_party/blink/renderer/core/frame/local_frame.h"
++#include "third_party/blink/renderer/core/page/chrome_client.h"
++#include "third_party/blink/renderer/core/page/page.h"
++
++namespace blink {
++
++// Whether window.screen, the device-width and device-height media features and
++// window.screenX/screenY report a common screen to this context (Aerie, issue
++// #116). The browser sends a kScreen token only when protection is on for the
++// site, so "token present" means "protected here": turning protection off,
++// globally or for the site, gives the real values back.
++inline bool IsScreenProtected(const ExecutionContext* context) {
++  if (!context) {
++    return false;
++  }
++  return aerie_screen::ShouldProtectScreen(
++      {.master_enabled = base::FeatureList::IsEnabled(features::kHeliumNoise),
++       .surface_enabled =
++           base::FeatureList::IsEnabled(features::kHeliumNoiseScreen),
++       .has_token = context->GetHeliumNoiseTokens().contains(
++           HeliumNoiseFeature::kScreen)});
++}
++
++// The screen size a protected frame reports: the smallest common size that
++// fits the browser window (see aerie_screen::ScreenSizeForWindow). Empty when
++// the frame is not protected. It reads only the window rectangle that
++// outerWidth and outerHeight read, so it needs no layout and is safe during
++// style recalculation.
++inline std::optional<aerie_screen::Size> ProtectedScreenSize(
++    LocalFrame* frame) {
++  if (!frame || !frame->DomWindow() || !frame->GetPage() ||
++      !IsScreenProtected(frame->DomWindow())) {
++    return std::nullopt;
++  }
++  const gfx::Rect window =
++      frame->GetPage()->GetChromeClient().RootWindowRect(*frame);
++  return aerie_screen::ScreenSizeForWindow(window.width(), window.height());
++}
++
++}  // namespace blink
++
++#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_FRAME_SCREEN_MASKING_H_
