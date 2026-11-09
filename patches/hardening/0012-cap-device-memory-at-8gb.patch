@@ -175,7 +175,7 @@ profile is never written to disk), see hardening/0011.
  }  // namespace blink
 --- a/third_party/blink/renderer/core/frame/navigator_device_memory.h
 +++ b/third_party/blink/renderer/core/frame/navigator_device_memory.h
-@@ -9,9 +9,15 @@
+@@ -9,9 +9,18 @@
  
  namespace blink {
  
@@ -186,7 +186,10 @@ profile is never written to disk), see hardening/0011.
    float deviceMemory() const;
 +
 +  // Aerie (issue #124): whether the 8 GB cap applies to `context`. Shared with
-+  // the Device-Memory request headers that the renderer adds.
++  // the Device-Memory request headers that the renderer adds. It lives on this
++  // mixin, beside the value it guards, so the window and its requests (via
++  // FrameFetchContext) cannot decide differently. deviceMemory() finds its
++  // context through NavigatorBase, the only class that includes this mixin.
 +  static bool ShouldCapDeviceMemory(const ExecutionContext* context);
  };
  
