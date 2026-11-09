@@ -142,7 +142,7 @@ Process rule: the optimizer mode is part of the SiteInfo and of the renderer pro
 
 ### Fingerprinting protection
 
-Canvas and audio output and the reported number of CPU cores carry small random noise. The noise differs for each site and for each browser session, and is the same on every address of one site (www.example.com and shop.example.com share it). A private window starts with its own noise. Dedicated workers, shared workers and service workers get the same noise as their site, so a script cannot get clean values by moving into a worker. You can turn it off for a single site, and that covers every address of the site and its workers. WebGL reports only the vendor family of the graphics card (for example Google Inc. (AMD)), and WebGPU reports no adapter details. The screen size is reported as the smallest of seven common sizes that fits the window, and the window position as 0,0. The reported device memory is capped at 8 GB, and the cap stays when this is turned off.
+Canvas and audio output and the reported number of CPU cores carry small random noise. The noise differs for each site and for each browser session, and is the same on every address of one site (www.example.com and shop.example.com share it). A private window starts with its own noise. Dedicated workers, shared workers and service workers get the same noise as their site, so a script cannot get clean values by moving into a worker. You can turn it off for a single site, and that covers every address of the site and its workers. WebGL reports only the vendor family of the graphics card (for example Google Inc. (AMD)), and WebGPU reports no adapter details. The screen size is reported as the smallest of seven common sizes that fits the window, and the window position as 0,0. While this is on, the reported device memory is capped at 8 GB. Turning it off, globally or for one site, reports the real value (web workers stay capped for now).
 
 Audio noise is seeded from the site and session only, so one site gets the same audio output on every render and every AnalyserNode read of the same signal in one session. A tracker cannot average the noise away by reading again.
 
@@ -150,7 +150,7 @@ The noise is keyed on the site: the scheme plus the registrable domain (the publ
 
 The seeds are created from random numbers when a browser context first asks for noise tokens and are held as data of that browser context (Helium's HeliumNoiseTokenData in content/browser/helium_noise/noise_token_data.cc, from base::RandUint64() in its constructor); that code writes no seed to disk. Only per-site values derived from a seed reach web pages, never the seed itself. A private window has its own seeds, different from the normal profile's and from every earlier private window. A per-site off setting made in a private window is kept in memory only, is gone when the window closes, and never applies to the normal profile (unit tests in components/aerie_fingerprint).
 
-Device memory (navigator.deviceMemory, in workers, and the Device-Memory and Sec-CH-Device-Memory headers) is capped at 8 GB, where Chromium's desktop maximum is 32 GB. A machine with less than 8 GB keeps its real bucket. There is no noise on this value. The cap is the one exception to the rule that turning fingerprinting protection off restores the real value: it follows the HeliumNoise feature only, so it stays on when the setting is off, globally or for one site, and only --disable-features=HeliumNoise lifts it.
+Device memory (navigator.deviceMemory, in workers, and the Device-Memory and Sec-CH-Device-Memory headers) is capped at 8 GB while protection is on for the page, where Chromium's desktop maximum is 32 GB. A machine with less than 8 GB keeps its real bucket. There is no noise on this value. Like every other part of this control, the cap lifts when the setting is off, globally or for one site, and the real bucket is reported. A window decides this from its noise tokens (present only while protection is on for the site, the same rule as the graphics card masking). The two headers decide it in the browser process from the setting and the per-site exception of the site you are on, and never from anything the page can set. A worker has no noise tokens yet, so it stays capped even when protection is off, until issue #113 gives workers tokens. With --disable-features=HeliumNoise the cap is off everywhere.
 
 WebGL vendor and renderer (WEBGL_debug_renderer_info) report the vendor family in Chrome's own format, for example Google Inc. (AMD) and ANGLE (AMD, AMD Radeon Graphics, OpenGL ES 3.2). The families are AMD, Intel, NVIDIA and Mesa (llvmpipe); a card that matches none of them reports Intel, because Chrome never reports an other family and Intel is the most common one on Linux. The model, driver and LLVM version are dropped. Other WebGL parameters and extension lists are not changed. A site that picks graphics quality from the card model gets the generic family instead.
 
@@ -176,6 +176,8 @@ Screen: while protection is on for a site, window.screen reports the smallest of
   - third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc (getParameter)
   - third_party/blink/renderer/modules/webgpu/gpu_adapter.cc (CreateAdapterInfoForAdapter)
   - third_party/blink/common/device_memory/approximated_device_memory.cc (the 8 GB cap)
+  - `third_party/blink/renderer/core/frame/navigator_device_memory.cc`
+  - content/browser/client_hints/client_hints.cc (AddDeviceMemoryHeader)
   - third_party/blink/renderer/core/workers/worker_global_scope.cc and dedicated_worker.cc (the tokens of a dedicated worker)
   - content/browser/worker_host/shared_worker_host.cc and content/browser/service_worker/service_worker_version.cc (the tokens of a shared and a service worker)
   - third_party/blink/renderer/core/frame/screen.cc (Screen::GetRect, colorDepth, isExtended)
@@ -191,7 +193,7 @@ Screen: while protection is on for a site, window.screen reports the smallest of
   - `patches/hardening/0014-give-shared-and-service-workers-noise-tokens.patch`
   - `patches/hardening/0015-report-a-common-screen-size.patch`
 - Settings row: Toggle
-- Cost: Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page. Turning it off does not lift the 8 GB device memory cap.
+- Cost: Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page.
 - Bench checks: `hardening_fingerprinting`, `hardening_fingerprinting_site`, `hardening_fingerprinting_worker`, `hardening_fingerprinting_gpu`, `hardening_fingerprinting_screen`, `hardening_device_memory`
 
 ## What Aerie added

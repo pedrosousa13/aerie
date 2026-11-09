@@ -1,9 +1,13 @@
-"""Device memory cap: navigator.deviceMemory and Sec-CH-Device-Memory are at most 8 (issue #115).
+"""Device memory cap: navigator.deviceMemory and the headers are at most 8 only while protection is on (issues #115, #124).
 
-Aerie patch hardening/0012 lowers the desktop maximum from 32 to 8, behind the HeliumNoise feature
-only. The cap does not follow the fingerprinting pref or the per-site switch, so the check runs
-once with the pref off and once with a per-site HELIUM_NOISE exception for the fixture origin. A machine with 8 GB or less reports its real bucket either way, so
-the check cannot tell the cap from the machine: it is inconclusive there, never a pass.
+Aerie patch hardening/0012 lowers the desktop maximum from 32 to 8 for a context under fingerprinting
+protection: the global pref is on and the site has no per-site off. The window decides it from its Helium
+noise tokens, the headers decide it browser-side from the pref and the helium_noise content setting.
+The check runs with protection on (capped), with the pref off and with a per-site HELIUM_NOISE exception for
+the fixture origin (both report the real value in the window and in both headers). A worker has no noise tokens
+yet (issue #113), so it fails closed and may stay capped when protection is off; it must still report a number.
+A machine with 8 GB or less reports its real bucket either way, so the check cannot tell the cap from the
+machine: it is inconclusive there, never a pass.
 """
 
 from __future__ import annotations
@@ -57,7 +61,8 @@ class DeviceMemory(HardeningCheck):
     control = "fingerprinting"
     negative_control = ("A second browser with the noise feature disabled reports the machine's own bucket in the "
                         "window, in a worker and in the Sec-CH-Device-Memory header, so a value of 8 or less in the "
-                        "first browser really comes from the cap.")
+                        "first browser really comes from the cap, and the pref-off and site-off variants are "
+                        "compared with that real value.")
 
     def observe(self, session: Session) -> dict:
         main = read(session, "main")
@@ -70,7 +75,7 @@ class DeviceMemory(HardeningCheck):
         return {"main": main, "pref_off": pref_off, "site_off": site_off, "control": control}
 
     @staticmethod
-    def _problem(label: str, side: dict) -> str | None:
+    def _capped_problem(label: str, side: dict) -> str | None:
         window, worker = side.get("window"), side.get("worker")
         header, legacy = parse_hint(side.get("header")), parse_hint(side.get("legacy_header"))
         if window is None or window > CAP:
@@ -85,6 +90,28 @@ class DeviceMemory(HardeningCheck):
             return f"{label}: the server saw no Device-Memory header after the Accept-CH opt-in"
         if legacy > CAP:
             return f"{label}: the server saw Device-Memory header {legacy:g}, not at most {CAP:g}"
+        return None
+
+    @staticmethod
+    def _real_problem(label: str, side: dict, real: float) -> str | None:
+        """Protection is off here: the window and both headers report the machine's own bucket. The worker is
+        not held to it (it has no noise tokens until issue #113 and stays capped), but it must report a number."""
+        window, worker = side.get("window"), side.get("worker")
+        header, legacy = parse_hint(side.get("header")), parse_hint(side.get("legacy_header"))
+        if window is None:
+            return f"{label}: navigator.deviceMemory is missing"
+        if window != real:
+            return f"{label}: navigator.deviceMemory is {window:g}, not the real {real:g}"
+        if worker is None:
+            return f"{label}: the worker saw no navigator.deviceMemory"
+        if header is None:
+            return f"{label}: the server saw no Sec-CH-Device-Memory header after the Accept-CH opt-in"
+        if header != real:
+            return f"{label}: the server saw Sec-CH-Device-Memory {header:g}, not the real {real:g}"
+        if legacy is None:
+            return f"{label}: the server saw no Device-Memory header after the Accept-CH opt-in"
+        if legacy != real:
+            return f"{label}: the server saw Device-Memory header {legacy:g}, not the real {real:g}"
         return None
 
     @staticmethod
@@ -106,11 +133,14 @@ class DeviceMemory(HardeningCheck):
         if header <= CAP or legacy <= CAP or (control.get("worker") or 0) <= CAP:
             return "fail", (f"negative control failed: with the cap off the headers were {header:g} and {legacy:g} "
                             f"and the worker saw {control.get('worker')}, not the machine's {control['window']:g}")
-        for key, label in (("main", "protection on"), ("pref_off", "fingerprinting pref off"),
-                           ("site_off", "site switched off")):
-            problem = DeviceMemory._problem(label, obs[key])
+        problem = DeviceMemory._capped_problem("protection on", obs["main"])
+        if problem:
+            return "fail", problem
+        for key, label in (("pref_off", "fingerprinting pref off"), ("site_off", "site switched off")):
+            problem = DeviceMemory._real_problem(label, obs[key], control["window"])
             if problem:
                 return "fail", problem
-        return "pass", (f"with the cap off this machine reports {control['window']:g} GB; with the cap it reports at "
-                        f"most {CAP:g} in the window, in a worker, in Sec-CH-Device-Memory and in Device-Memory, "
-                        "also with the fingerprinting pref off and with the site switched off")
+        return "pass", (f"with the cap off this machine reports {control['window']:g} GB; with protection on it "
+                        f"reports at most {CAP:g} in the window, in a worker, in Sec-CH-Device-Memory and in "
+                        f"Device-Memory; with the fingerprinting pref off and with the site switched off the "
+                        f"window and both headers report the real {control['window']:g}")
