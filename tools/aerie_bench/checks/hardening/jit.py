@@ -16,6 +16,19 @@ makes), then measures a hot loop on that site and on another one:
 * after a clean restart on the same profile it is still so;
 * a second browser that never changed the setting shows no difference between the sites.
 
+Three more things are judged:
+
+* every measurement is tied to a renderer by pid: the renderer whose CPU time grew during the
+  hot loop is the one that hosts the page, and it must be the one started without the
+  optimizing compilers for the site with the JIT off (and a different one for the other site),
+  so a pass does not rest on process counts alone;
+* the rule is also written the way the Site settings "Add site" dialog writes it
+  (``setCategoryPermissionForPattern`` with a host pattern), in a profile of its own;
+* a rule for a subdomain only is visited twice. Upstream isolates the subdomain's origin for
+  BrowsingInstances created after the first navigation, so the first visit runs with the JIT on
+  and the second, after leaving the page, with it off. The check asserts that (docs/hardening.md
+  says the same) and fails if the first visit turns out different.
+
 Timing is the detector and the process flags are a second witness. The judge needs a slowdown of
 at least ``MIN_SLOWDOWN`` between the modes; the default mode on both sites must stay below it.
 """
@@ -35,6 +48,8 @@ V8_PAGE_URL = "chrome://settings/content/v8"
 OFF_SITE = "a"
 ON_SITE = "b"
 MIN_SLOWDOWN = 2.0  # off must be at least this many times slower than on; on must stay below it
+SUB_PARENT = "b"  # the site that has no rule
+SUB_SITE = "s.b"  # a subdomain of SUB_PARENT: the only host the subdomain rule names
 JAVASCRIPT_OPTIMIZER_ALLOWED = 1  # JavascriptOptimizerSetting::kAllowed
 MEASURE_TIMEOUT = 90.0
 
@@ -49,6 +64,12 @@ def slowdown(slow: dict, fast: dict) -> float:
     return slow["ms"] / max(fast["ms"], 0.1)
 
 
+ADD_SITE_JS = """((pattern, value) => {
+  chrome.send('setCategoryPermissionForPattern', [pattern, '', 'javascript-optimizer', value, false]);
+  return true;
+})(%s, %s)"""
+
+
 def measure(session: Session, name: str, child: str | None = None) -> dict:
     """Run the timing page on a fixture site, optionally with another site embedded in it."""
     query = f"?child={child}.localhost" if child else ""
@@ -57,6 +78,20 @@ def measure(session: Session, name: str, child: str | None = None) -> dict:
         return {"error": nav["error"]}
     got = page_value(session, "window.__result", timeout=MEASURE_TIMEOUT)
     return got if isinstance(got, dict) else {"error": f"no result: {got!r}"}
+
+
+def measure_pinned(session: Session, name: str) -> dict:
+    """``measure`` plus the pid of the renderer that hosted the page and the renderer table.
+
+    The pid is the renderer whose CPU time grew most while the page ran its loop. Both are None
+    where /proc is not available, and the pid is None when no renderer clearly did the work.
+    """
+    before = procmem.renderer_cpu(session.browser_pid) if session.browser_pid else None
+    got = measure(session, name)
+    if "error" in got:
+        return got
+    after = procmem.renderer_cpu(session.browser_pid) if session.browser_pid else None
+    return {**got, "pid": procmem.busiest(before, after), "renderers": renderers(session)}
 
 
 def set_site_setting(session: Session, name: str, value: str) -> dict:
@@ -75,13 +110,25 @@ def set_site_setting(session: Session, name: str, value: str) -> dict:
     return {"ok": True, "origin": origin, "value": value}
 
 
+def add_site_rule(session: Session, pattern: str, value: str = "block") -> dict:
+    """Write a javascript-optimizer rule the way the Site settings "Add site" dialog does."""
+    nav = session.navigate_url(SETTINGS_URL)
+    if nav["error"]:
+        return {"ok": False, "error": nav["error"]}
+    if not session.wait_for("typeof chrome !== 'undefined' && typeof chrome.send === 'function'", timeout=20):
+        return {"ok": False, "error": "chrome.send is not available on the settings page"}
+    session.evaluate(ADD_SITE_JS % (json.dumps(pattern), json.dumps(value)))
+    time.sleep(1.0)
+    return {"ok": True, "pattern": pattern, "value": value}
+
+
 def renderers(session: Session) -> dict | None:
     return procmem.renderer_modes(session.browser_pid) if session.browser_pid else None
 
 
 def snapshot(session: Session) -> dict:
     """What the two sites measure right now, in one page and across a frame, plus the renderers."""
-    return {"off_site": measure(session, OFF_SITE), "on_site": measure(session, ON_SITE),
+    return {"off_site": measure_pinned(session, OFF_SITE), "on_site": measure_pinned(session, ON_SITE),
             "off_top": measure(session, OFF_SITE, child=ON_SITE),
             "on_top": measure(session, ON_SITE, child=OFF_SITE),
             "renderers": renderers(session)}
@@ -107,7 +154,7 @@ def _frames(m: dict) -> tuple[dict, dict]:
 
 def problems_in(obs: dict) -> list[str]:
     errors = []
-    for where in ("before", "after", "restarted", "control"):
+    for where in ("before", "after", "restarted", "control", "add_site", "subdomain"):
         for key, m in obs.get(where, {}).items():
             if key != "renderers" and isinstance(m, dict) and "error" in m:
                 errors.append(f"{where}.{key}: {m['error']}")
@@ -117,12 +164,44 @@ def problems_in(obs: dict) -> list[str]:
     return errors
 
 
-def mode_verdict(label: str, snap: dict) -> str | None:
-    """None if this snapshot shows the JIT off on the chosen site only, else why not."""
+def pinned_problem(label: str, m: dict, want_off: bool) -> str | None:
+    """None if the renderer that hosted measurement ``m`` has the JIT in the wanted state.
+
+    ``m["pid"]`` is the renderer that ran the page and ``m["renderers"]["pids"]`` lists the
+    renderers started with (``noopt``) and without (``default``) the optimizing compilers. A
+    measurement without a renderer table (no /proc) is not judged here.
+    """
+    procs = m.get("renderers")
+    if procs is None:
+        return None
+    pid = m.get("pid")
+    noopt, default = procs["pids"]["noopt"], procs["pids"]["default"]
+    if pid is None:
+        return f"{label}: could not tell which renderer hosted the page"
+    if pid not in noopt and pid not in default:
+        return f"{label}: the renderer that hosted the page (pid {pid}) is not in the process table"
+    if want_off and pid not in noopt:
+        return (f"{label}: the renderer that hosted the site with the JIT off (pid {pid}) still has the "
+                f"optimizing compilers on; the renderers without them are {noopt or 'none'}")
+    if not want_off and pid in noopt:
+        return f"{label}: the renderer that hosted the site (pid {pid}) runs without the optimizing compilers"
+    return None
+
+
+def site_verdict(label: str, snap: dict) -> str | None:
+    """None if this snapshot shows the JIT off for the chosen site only, by speed and by renderer pid."""
     off, on = snap["off_site"], snap["on_site"]
     ratio = slowdown(off, on)
     if ratio < MIN_SLOWDOWN:
         return f"{label}: the site with the JIT off ran only {ratio:.1f}x slower than the other (need {MIN_SLOWDOWN}x)"
+    return pinned_problem(f"{label}, site {OFF_SITE}", off, True) or pinned_problem(f"{label}, site {ON_SITE}", on, False)
+
+
+def mode_verdict(label: str, snap: dict) -> str | None:
+    """None if this snapshot shows the JIT off on the chosen site only, else why not."""
+    why = site_verdict(label, snap)
+    if why:
+        return why
     top, framed = _frames(snap["off_top"])
     if slowdown(top, framed) < MIN_SLOWDOWN:
         return (f"{label}: with the JIT-on site framed in the JIT-off page both ran at the same speed "
@@ -138,6 +217,21 @@ def mode_verdict(label: str, snap: dict) -> str | None:
         if procs["total"] - procs["noopt"] < 1:
             return f"{label}: every renderer runs without the optimizing compilers"
     return None
+
+
+def subdomain_verdict(sub: dict) -> str | None:
+    """None if a subdomain-only rule behaved as documented: JIT on at the first visit, off at the second."""
+    first, second, parent = sub["first"], sub["second"], sub["parent"]
+    if slowdown(first, parent) >= MIN_SLOWDOWN:
+        return (f"subdomain rule: the first visit to {SUB_SITE} already ran with the JIT off "
+                f"({slowdown(first, parent):.1f}x slower than {SUB_PARENT}), but docs/hardening.md says the "
+                "first visit runs with it on; fix the documentation and this check together")
+    if slowdown(second, parent) < MIN_SLOWDOWN:
+        return (f"subdomain rule: the second visit to {SUB_SITE} ran only {slowdown(second, parent):.1f}x slower "
+                f"than {SUB_PARENT} (need {MIN_SLOWDOWN}x), so the rule did not apply even after leaving the page")
+    return (pinned_problem(f"subdomain rule, first visit to {SUB_SITE}", first, False)
+            or pinned_problem(f"subdomain rule, second visit to {SUB_SITE}", second, True)
+            or pinned_problem(f"subdomain rule, site {SUB_PARENT}", parent, False))
 
 
 @register
@@ -157,10 +251,19 @@ class JsOptimizer(HardeningCheck):
                 after = snapshot(first)
             with session.variant(profile=p) as second:
                 restarted = snapshot(second)
+        with session.new_profile() as p2:
+            with session.variant(profile=p2) as third:
+                add_rule = add_site_rule(third, f"[*.]{OFF_SITE}.localhost")
+                add_site = snapshot(third)
+                sub_rule = add_site_rule(third, f"{SUB_SITE}.localhost")
+                subdomain = {"rule": sub_rule, "first": measure_pinned(third, SUB_SITE)}
+                subdomain["second"] = measure_pinned(third, SUB_SITE)
+                subdomain["parent"] = measure_pinned(third, SUB_PARENT)
         with session.variant() as v:
             control = {"off_site": measure(v, OFF_SITE), "on_site": measure(v, ON_SITE), "renderers": renderers(v)}
         return {"defaults": defaults, "change": change, "before": before, "after": after,
-                "restarted": restarted, "control": control}
+                "restarted": restarted, "control": control,
+                "add_rule": add_rule, "add_site": add_site, "subdomain": subdomain}
 
     @staticmethod
     def judge(obs: dict) -> Verdict:
@@ -189,11 +292,26 @@ class JsOptimizer(HardeningCheck):
             why = mode_verdict(label, obs[key])
             if why:
                 return "fail", why
+        # Observations recorded before the Add site and subdomain subcases existed lack these keys.
+        if "add_site" in obs:
+            if not obs["add_rule"].get("ok") or not obs["subdomain"]["rule"].get("ok"):
+                return "fail", "could not add a rule through the Add site call: " + str(
+                    obs["add_rule"].get("error") or obs["subdomain"]["rule"].get("error"))
+            why = mode_verdict("after a rule added like the Add site dialog does", obs["add_site"])
+            if why:
+                return "fail", why
+            why = subdomain_verdict(obs["subdomain"])
+            if why:
+                return "fail", why
         # The other site must not have been slowed by the change.
         if slowdown(obs["after"]["on_site"], before["on_site"]) >= MIN_SLOWDOWN:
             return "fail", f"site {ON_SITE} got slower after the setting changed for site {OFF_SITE}"
         a, r = obs["after"]["off_site"], obs["restarted"]["off_site"]
+        extra = ""
+        if "add_site" in obs:
+            extra = ("a rule added like the Add site dialog does it gave the same result; "
+                     "a subdomain-only rule: JIT on at the first visit, off at the second; ")
         return "pass", (f"JIT off for site {OFF_SITE} only: {slowdown(a, obs['after']['on_site']):.1f}x slower than "
                         f"site {ON_SITE}, {slowdown(r, obs['restarted']['on_site']):.1f}x after a restart; framed in "
                         "one page the two sites ran at different speeds, so in different processes; "
-                        f"control {slowdown(c['off_site'], c['on_site']):.1f}x")
+                        f"{extra}control {slowdown(c['off_site'], c['on_site']):.1f}x")

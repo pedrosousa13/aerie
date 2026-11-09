@@ -5059,6 +5059,4514 @@
      }
     }
    }
+  },
+  {
+   "name": "synthetic_add_site_and_subdomain_with_pids",
+   "expect": "pass",
+   "detail_contains": "Add site dialog",
+   "obs": {
+    "defaults": {
+     "page": true,
+     "pref_value": 1
+    },
+    "change": {
+     "ok": true,
+     "origin": "http://a.localhost",
+     "value": "block"
+    },
+    "before": {
+     "off_site": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost"
+     },
+     "on_site": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost"
+     },
+     "off_top": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 38.0,
+       "runs": [
+        38.0,
+        43.0,
+        47.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "on_top": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 38.0,
+       "runs": [
+        38.0,
+        43.0,
+        47.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "renderers": {
+      "total": 3,
+      "noopt": 0,
+      "jitless": 0,
+      "pids": {
+       "noopt": [],
+       "default": [
+        200,
+        201,
+        202
+       ]
+      }
+     }
+    },
+    "after": {
+     "off_site": {
+      "ms": 300.0,
+      "runs": [
+       300.0,
+       300.0,
+       300.0
+      ],
+      "host": "x.localhost",
+      "pid": 300,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "on_site": {
+      "ms": 30.0,
+      "runs": [
+       30.0,
+       30.0,
+       30.0
+      ],
+      "host": "x.localhost",
+      "pid": 200,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "off_top": {
+      "ms": 310.0,
+      "runs": [
+       310.0,
+       315.0,
+       319.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 38.0,
+       "runs": [
+        38.0,
+        43.0,
+        47.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "on_top": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 310.0,
+       "runs": [
+        310.0,
+        315.0,
+        319.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "renderers": {
+      "total": 3,
+      "noopt": 1,
+      "jitless": 0,
+      "pids": {
+       "noopt": [
+        100
+       ],
+       "default": [
+        200,
+        201
+       ]
+      }
+     }
+    },
+    "restarted": {
+     "off_site": {
+      "ms": 300.0,
+      "runs": [
+       300.0,
+       300.0,
+       300.0
+      ],
+      "host": "x.localhost",
+      "pid": 300,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "on_site": {
+      "ms": 30.0,
+      "runs": [
+       30.0,
+       30.0,
+       30.0
+      ],
+      "host": "x.localhost",
+      "pid": 200,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "off_top": {
+      "ms": 310.0,
+      "runs": [
+       310.0,
+       315.0,
+       319.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 38.0,
+       "runs": [
+        38.0,
+        43.0,
+        47.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "on_top": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 310.0,
+       "runs": [
+        310.0,
+        315.0,
+        319.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "renderers": {
+      "total": 3,
+      "noopt": 1,
+      "jitless": 0,
+      "pids": {
+       "noopt": [
+        100
+       ],
+       "default": [
+        200,
+        201
+       ]
+      }
+     }
+    },
+    "control": {
+     "off_site": {
+      "ms": 40.0,
+      "runs": [
+       40.0,
+       45.0,
+       49.0
+      ],
+      "host": "x.localhost"
+     },
+     "on_site": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost"
+     },
+     "renderers": {
+      "total": 2,
+      "noopt": 0,
+      "jitless": 0,
+      "pids": {
+       "noopt": [],
+       "default": [
+        200,
+        201
+       ]
+      }
+     }
+    },
+    "add_rule": {
+     "ok": true,
+     "pattern": "[*.]a.localhost",
+     "value": "block"
+    },
+    "add_site": {
+     "off_site": {
+      "ms": 300.0,
+      "runs": [
+       300.0,
+       300.0,
+       300.0
+      ],
+      "host": "x.localhost",
+      "pid": 300,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "on_site": {
+      "ms": 30.0,
+      "runs": [
+       30.0,
+       30.0,
+       30.0
+      ],
+      "host": "x.localhost",
+      "pid": 200,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "off_top": {
+      "ms": 310.0,
+      "runs": [
+       310.0,
+       315.0,
+       319.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 38.0,
+       "runs": [
+        38.0,
+        43.0,
+        47.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "on_top": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 310.0,
+       "runs": [
+        310.0,
+        315.0,
+        319.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "renderers": {
+      "total": 3,
+      "noopt": 1,
+      "jitless": 0,
+      "pids": {
+       "noopt": [
+        100
+       ],
+       "default": [
+        200,
+        201
+       ]
+      }
+     }
+    },
+    "subdomain": {
+     "rule": {
+      "ok": true,
+      "pattern": "s.b.localhost",
+      "value": "block"
+     },
+     "first": {
+      "ms": 30.0,
+      "runs": [
+       30.0,
+       30.0,
+       30.0
+      ],
+      "host": "x.localhost",
+      "pid": 400,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "second": {
+      "ms": 300.0,
+      "runs": [
+       300.0,
+       300.0,
+       300.0
+      ],
+      "host": "x.localhost",
+      "pid": 300,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "parent": {
+      "ms": 30.0,
+      "runs": [
+       30.0,
+       30.0,
+       30.0
+      ],
+      "host": "x.localhost",
+      "pid": 200,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "synthetic_off_renderer_is_not_the_one_hosting_the_site",
+   "expect": "fail",
+   "detail_contains": "still has the optimizing compilers on",
+   "obs": {
+    "defaults": {
+     "page": true,
+     "pref_value": 1
+    },
+    "change": {
+     "ok": true,
+     "origin": "http://a.localhost",
+     "value": "block"
+    },
+    "before": {
+     "off_site": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost"
+     },
+     "on_site": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost"
+     },
+     "off_top": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 38.0,
+       "runs": [
+        38.0,
+        43.0,
+        47.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "on_top": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 38.0,
+       "runs": [
+        38.0,
+        43.0,
+        47.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "renderers": {
+      "total": 3,
+      "noopt": 0,
+      "jitless": 0,
+      "pids": {
+       "noopt": [],
+       "default": [
+        200,
+        201,
+        202
+       ]
+      }
+     }
+    },
+    "after": {
+     "off_site": {
+      "ms": 300.0,
+      "runs": [
+       300.0,
+       300.0,
+       300.0
+      ],
+      "host": "x.localhost",
+      "pid": 200,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "on_site": {
+      "ms": 30.0,
+      "runs": [
+       30.0,
+       30.0,
+       30.0
+      ],
+      "host": "x.localhost",
+      "pid": 200,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "off_top": {
+      "ms": 310.0,
+      "runs": [
+       310.0,
+       315.0,
+       319.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 38.0,
+       "runs": [
+        38.0,
+        43.0,
+        47.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "on_top": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 310.0,
+       "runs": [
+        310.0,
+        315.0,
+        319.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "renderers": {
+      "total": 3,
+      "noopt": 1,
+      "jitless": 0,
+      "pids": {
+       "noopt": [
+        100
+       ],
+       "default": [
+        200,
+        201
+       ]
+      }
+     }
+    },
+    "restarted": {
+     "off_site": {
+      "ms": 300.0,
+      "runs": [
+       300.0,
+       300.0,
+       300.0
+      ],
+      "host": "x.localhost",
+      "pid": 300,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "on_site": {
+      "ms": 30.0,
+      "runs": [
+       30.0,
+       30.0,
+       30.0
+      ],
+      "host": "x.localhost",
+      "pid": 200,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "off_top": {
+      "ms": 310.0,
+      "runs": [
+       310.0,
+       315.0,
+       319.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 38.0,
+       "runs": [
+        38.0,
+        43.0,
+        47.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "on_top": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 310.0,
+       "runs": [
+        310.0,
+        315.0,
+        319.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "renderers": {
+      "total": 3,
+      "noopt": 1,
+      "jitless": 0,
+      "pids": {
+       "noopt": [
+        100
+       ],
+       "default": [
+        200,
+        201
+       ]
+      }
+     }
+    },
+    "control": {
+     "off_site": {
+      "ms": 40.0,
+      "runs": [
+       40.0,
+       45.0,
+       49.0
+      ],
+      "host": "x.localhost"
+     },
+     "on_site": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost"
+     },
+     "renderers": {
+      "total": 2,
+      "noopt": 0,
+      "jitless": 0,
+      "pids": {
+       "noopt": [],
+       "default": [
+        200,
+        201
+       ]
+      }
+     }
+    },
+    "add_rule": {
+     "ok": true,
+     "pattern": "[*.]a.localhost",
+     "value": "block"
+    },
+    "add_site": {
+     "off_site": {
+      "ms": 300.0,
+      "runs": [
+       300.0,
+       300.0,
+       300.0
+      ],
+      "host": "x.localhost",
+      "pid": 300,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "on_site": {
+      "ms": 30.0,
+      "runs": [
+       30.0,
+       30.0,
+       30.0
+      ],
+      "host": "x.localhost",
+      "pid": 200,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "off_top": {
+      "ms": 310.0,
+      "runs": [
+       310.0,
+       315.0,
+       319.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 38.0,
+       "runs": [
+        38.0,
+        43.0,
+        47.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "on_top": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 310.0,
+       "runs": [
+        310.0,
+        315.0,
+        319.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "renderers": {
+      "total": 3,
+      "noopt": 1,
+      "jitless": 0,
+      "pids": {
+       "noopt": [
+        100
+       ],
+       "default": [
+        200,
+        201
+       ]
+      }
+     }
+    },
+    "subdomain": {
+     "rule": {
+      "ok": true,
+      "pattern": "s.b.localhost",
+      "value": "block"
+     },
+     "first": {
+      "ms": 30.0,
+      "runs": [
+       30.0,
+       30.0,
+       30.0
+      ],
+      "host": "x.localhost",
+      "pid": 400,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "second": {
+      "ms": 300.0,
+      "runs": [
+       300.0,
+       300.0,
+       300.0
+      ],
+      "host": "x.localhost",
+      "pid": 300,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "parent": {
+      "ms": 30.0,
+      "runs": [
+       30.0,
+       30.0,
+       30.0
+      ],
+      "host": "x.localhost",
+      "pid": 200,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "synthetic_on_site_hosted_by_the_jit_off_renderer",
+   "expect": "fail",
+   "detail_contains": "runs without the optimizing compilers",
+   "obs": {
+    "defaults": {
+     "page": true,
+     "pref_value": 1
+    },
+    "change": {
+     "ok": true,
+     "origin": "http://a.localhost",
+     "value": "block"
+    },
+    "before": {
+     "off_site": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost"
+     },
+     "on_site": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost"
+     },
+     "off_top": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 38.0,
+       "runs": [
+        38.0,
+        43.0,
+        47.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "on_top": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 38.0,
+       "runs": [
+        38.0,
+        43.0,
+        47.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "renderers": {
+      "total": 3,
+      "noopt": 0,
+      "jitless": 0,
+      "pids": {
+       "noopt": [],
+       "default": [
+        200,
+        201,
+        202
+       ]
+      }
+     }
+    },
+    "after": {
+     "off_site": {
+      "ms": 300.0,
+      "runs": [
+       300.0,
+       300.0,
+       300.0
+      ],
+      "host": "x.localhost",
+      "pid": 300,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "on_site": {
+      "ms": 30.0,
+      "runs": [
+       30.0,
+       30.0,
+       30.0
+      ],
+      "host": "x.localhost",
+      "pid": 200,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "off_top": {
+      "ms": 310.0,
+      "runs": [
+       310.0,
+       315.0,
+       319.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 38.0,
+       "runs": [
+        38.0,
+        43.0,
+        47.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "on_top": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 310.0,
+       "runs": [
+        310.0,
+        315.0,
+        319.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "renderers": {
+      "total": 3,
+      "noopt": 1,
+      "jitless": 0,
+      "pids": {
+       "noopt": [
+        100
+       ],
+       "default": [
+        200,
+        201
+       ]
+      }
+     }
+    },
+    "restarted": {
+     "off_site": {
+      "ms": 300.0,
+      "runs": [
+       300.0,
+       300.0,
+       300.0
+      ],
+      "host": "x.localhost",
+      "pid": 300,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "on_site": {
+      "ms": 30.0,
+      "runs": [
+       30.0,
+       30.0,
+       30.0
+      ],
+      "host": "x.localhost",
+      "pid": 300,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "off_top": {
+      "ms": 310.0,
+      "runs": [
+       310.0,
+       315.0,
+       319.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 38.0,
+       "runs": [
+        38.0,
+        43.0,
+        47.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "on_top": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 310.0,
+       "runs": [
+        310.0,
+        315.0,
+        319.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "renderers": {
+      "total": 3,
+      "noopt": 1,
+      "jitless": 0,
+      "pids": {
+       "noopt": [
+        100
+       ],
+       "default": [
+        200,
+        201
+       ]
+      }
+     }
+    },
+    "control": {
+     "off_site": {
+      "ms": 40.0,
+      "runs": [
+       40.0,
+       45.0,
+       49.0
+      ],
+      "host": "x.localhost"
+     },
+     "on_site": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost"
+     },
+     "renderers": {
+      "total": 2,
+      "noopt": 0,
+      "jitless": 0,
+      "pids": {
+       "noopt": [],
+       "default": [
+        200,
+        201
+       ]
+      }
+     }
+    },
+    "add_rule": {
+     "ok": true,
+     "pattern": "[*.]a.localhost",
+     "value": "block"
+    },
+    "add_site": {
+     "off_site": {
+      "ms": 300.0,
+      "runs": [
+       300.0,
+       300.0,
+       300.0
+      ],
+      "host": "x.localhost",
+      "pid": 300,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "on_site": {
+      "ms": 30.0,
+      "runs": [
+       30.0,
+       30.0,
+       30.0
+      ],
+      "host": "x.localhost",
+      "pid": 200,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "off_top": {
+      "ms": 310.0,
+      "runs": [
+       310.0,
+       315.0,
+       319.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 38.0,
+       "runs": [
+        38.0,
+        43.0,
+        47.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "on_top": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 310.0,
+       "runs": [
+        310.0,
+        315.0,
+        319.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "renderers": {
+      "total": 3,
+      "noopt": 1,
+      "jitless": 0,
+      "pids": {
+       "noopt": [
+        100
+       ],
+       "default": [
+        200,
+        201
+       ]
+      }
+     }
+    },
+    "subdomain": {
+     "rule": {
+      "ok": true,
+      "pattern": "s.b.localhost",
+      "value": "block"
+     },
+     "first": {
+      "ms": 30.0,
+      "runs": [
+       30.0,
+       30.0,
+       30.0
+      ],
+      "host": "x.localhost",
+      "pid": 400,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "second": {
+      "ms": 300.0,
+      "runs": [
+       300.0,
+       300.0,
+       300.0
+      ],
+      "host": "x.localhost",
+      "pid": 300,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "parent": {
+      "ms": 30.0,
+      "runs": [
+       30.0,
+       30.0,
+       30.0
+      ],
+      "host": "x.localhost",
+      "pid": 200,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "synthetic_host_renderer_unknown",
+   "expect": "fail",
+   "detail_contains": "could not tell which renderer hosted",
+   "obs": {
+    "defaults": {
+     "page": true,
+     "pref_value": 1
+    },
+    "change": {
+     "ok": true,
+     "origin": "http://a.localhost",
+     "value": "block"
+    },
+    "before": {
+     "off_site": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost"
+     },
+     "on_site": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost"
+     },
+     "off_top": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 38.0,
+       "runs": [
+        38.0,
+        43.0,
+        47.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "on_top": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 38.0,
+       "runs": [
+        38.0,
+        43.0,
+        47.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "renderers": {
+      "total": 3,
+      "noopt": 0,
+      "jitless": 0,
+      "pids": {
+       "noopt": [],
+       "default": [
+        200,
+        201,
+        202
+       ]
+      }
+     }
+    },
+    "after": {
+     "off_site": {
+      "ms": 300.0,
+      "runs": [
+       300.0,
+       300.0,
+       300.0
+      ],
+      "host": "x.localhost",
+      "pid": null,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "on_site": {
+      "ms": 30.0,
+      "runs": [
+       30.0,
+       30.0,
+       30.0
+      ],
+      "host": "x.localhost",
+      "pid": 200,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "off_top": {
+      "ms": 310.0,
+      "runs": [
+       310.0,
+       315.0,
+       319.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 38.0,
+       "runs": [
+        38.0,
+        43.0,
+        47.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "on_top": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 310.0,
+       "runs": [
+        310.0,
+        315.0,
+        319.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "renderers": {
+      "total": 3,
+      "noopt": 1,
+      "jitless": 0,
+      "pids": {
+       "noopt": [
+        100
+       ],
+       "default": [
+        200,
+        201
+       ]
+      }
+     }
+    },
+    "restarted": {
+     "off_site": {
+      "ms": 300.0,
+      "runs": [
+       300.0,
+       300.0,
+       300.0
+      ],
+      "host": "x.localhost",
+      "pid": 300,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "on_site": {
+      "ms": 30.0,
+      "runs": [
+       30.0,
+       30.0,
+       30.0
+      ],
+      "host": "x.localhost",
+      "pid": 200,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "off_top": {
+      "ms": 310.0,
+      "runs": [
+       310.0,
+       315.0,
+       319.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 38.0,
+       "runs": [
+        38.0,
+        43.0,
+        47.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "on_top": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 310.0,
+       "runs": [
+        310.0,
+        315.0,
+        319.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "renderers": {
+      "total": 3,
+      "noopt": 1,
+      "jitless": 0,
+      "pids": {
+       "noopt": [
+        100
+       ],
+       "default": [
+        200,
+        201
+       ]
+      }
+     }
+    },
+    "control": {
+     "off_site": {
+      "ms": 40.0,
+      "runs": [
+       40.0,
+       45.0,
+       49.0
+      ],
+      "host": "x.localhost"
+     },
+     "on_site": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost"
+     },
+     "renderers": {
+      "total": 2,
+      "noopt": 0,
+      "jitless": 0,
+      "pids": {
+       "noopt": [],
+       "default": [
+        200,
+        201
+       ]
+      }
+     }
+    },
+    "add_rule": {
+     "ok": true,
+     "pattern": "[*.]a.localhost",
+     "value": "block"
+    },
+    "add_site": {
+     "off_site": {
+      "ms": 300.0,
+      "runs": [
+       300.0,
+       300.0,
+       300.0
+      ],
+      "host": "x.localhost",
+      "pid": 300,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "on_site": {
+      "ms": 30.0,
+      "runs": [
+       30.0,
+       30.0,
+       30.0
+      ],
+      "host": "x.localhost",
+      "pid": 200,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "off_top": {
+      "ms": 310.0,
+      "runs": [
+       310.0,
+       315.0,
+       319.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 38.0,
+       "runs": [
+        38.0,
+        43.0,
+        47.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "on_top": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 310.0,
+       "runs": [
+        310.0,
+        315.0,
+        319.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "renderers": {
+      "total": 3,
+      "noopt": 1,
+      "jitless": 0,
+      "pids": {
+       "noopt": [
+        100
+       ],
+       "default": [
+        200,
+        201
+       ]
+      }
+     }
+    },
+    "subdomain": {
+     "rule": {
+      "ok": true,
+      "pattern": "s.b.localhost",
+      "value": "block"
+     },
+     "first": {
+      "ms": 30.0,
+      "runs": [
+       30.0,
+       30.0,
+       30.0
+      ],
+      "host": "x.localhost",
+      "pid": 400,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "second": {
+      "ms": 300.0,
+      "runs": [
+       300.0,
+       300.0,
+       300.0
+      ],
+      "host": "x.localhost",
+      "pid": 300,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "parent": {
+      "ms": 30.0,
+      "runs": [
+       30.0,
+       30.0,
+       30.0
+      ],
+      "host": "x.localhost",
+      "pid": 200,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "synthetic_add_site_call_failed",
+   "expect": "fail",
+   "detail_contains": "could not add a rule through the Add site call",
+   "obs": {
+    "defaults": {
+     "page": true,
+     "pref_value": 1
+    },
+    "change": {
+     "ok": true,
+     "origin": "http://a.localhost",
+     "value": "block"
+    },
+    "before": {
+     "off_site": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost"
+     },
+     "on_site": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost"
+     },
+     "off_top": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 38.0,
+       "runs": [
+        38.0,
+        43.0,
+        47.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "on_top": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 38.0,
+       "runs": [
+        38.0,
+        43.0,
+        47.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "renderers": {
+      "total": 3,
+      "noopt": 0,
+      "jitless": 0,
+      "pids": {
+       "noopt": [],
+       "default": [
+        200,
+        201,
+        202
+       ]
+      }
+     }
+    },
+    "after": {
+     "off_site": {
+      "ms": 300.0,
+      "runs": [
+       300.0,
+       300.0,
+       300.0
+      ],
+      "host": "x.localhost",
+      "pid": 300,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "on_site": {
+      "ms": 30.0,
+      "runs": [
+       30.0,
+       30.0,
+       30.0
+      ],
+      "host": "x.localhost",
+      "pid": 200,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "off_top": {
+      "ms": 310.0,
+      "runs": [
+       310.0,
+       315.0,
+       319.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 38.0,
+       "runs": [
+        38.0,
+        43.0,
+        47.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "on_top": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 310.0,
+       "runs": [
+        310.0,
+        315.0,
+        319.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "renderers": {
+      "total": 3,
+      "noopt": 1,
+      "jitless": 0,
+      "pids": {
+       "noopt": [
+        100
+       ],
+       "default": [
+        200,
+        201
+       ]
+      }
+     }
+    },
+    "restarted": {
+     "off_site": {
+      "ms": 300.0,
+      "runs": [
+       300.0,
+       300.0,
+       300.0
+      ],
+      "host": "x.localhost",
+      "pid": 300,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "on_site": {
+      "ms": 30.0,
+      "runs": [
+       30.0,
+       30.0,
+       30.0
+      ],
+      "host": "x.localhost",
+      "pid": 200,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "off_top": {
+      "ms": 310.0,
+      "runs": [
+       310.0,
+       315.0,
+       319.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 38.0,
+       "runs": [
+        38.0,
+        43.0,
+        47.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "on_top": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 310.0,
+       "runs": [
+        310.0,
+        315.0,
+        319.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "renderers": {
+      "total": 3,
+      "noopt": 1,
+      "jitless": 0,
+      "pids": {
+       "noopt": [
+        100
+       ],
+       "default": [
+        200,
+        201
+       ]
+      }
+     }
+    },
+    "control": {
+     "off_site": {
+      "ms": 40.0,
+      "runs": [
+       40.0,
+       45.0,
+       49.0
+      ],
+      "host": "x.localhost"
+     },
+     "on_site": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost"
+     },
+     "renderers": {
+      "total": 2,
+      "noopt": 0,
+      "jitless": 0,
+      "pids": {
+       "noopt": [],
+       "default": [
+        200,
+        201
+       ]
+      }
+     }
+    },
+    "add_rule": {
+     "ok": false,
+     "error": "net::ERR_FAILED"
+    },
+    "add_site": {
+     "off_site": {
+      "ms": 300.0,
+      "runs": [
+       300.0,
+       300.0,
+       300.0
+      ],
+      "host": "x.localhost",
+      "pid": 300,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "on_site": {
+      "ms": 30.0,
+      "runs": [
+       30.0,
+       30.0,
+       30.0
+      ],
+      "host": "x.localhost",
+      "pid": 200,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "off_top": {
+      "ms": 310.0,
+      "runs": [
+       310.0,
+       315.0,
+       319.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 38.0,
+       "runs": [
+        38.0,
+        43.0,
+        47.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "on_top": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 310.0,
+       "runs": [
+        310.0,
+        315.0,
+        319.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "renderers": {
+      "total": 3,
+      "noopt": 1,
+      "jitless": 0,
+      "pids": {
+       "noopt": [
+        100
+       ],
+       "default": [
+        200,
+        201
+       ]
+      }
+     }
+    },
+    "subdomain": {
+     "rule": {
+      "ok": true,
+      "pattern": "s.b.localhost",
+      "value": "block"
+     },
+     "first": {
+      "ms": 30.0,
+      "runs": [
+       30.0,
+       30.0,
+       30.0
+      ],
+      "host": "x.localhost",
+      "pid": 400,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "second": {
+      "ms": 300.0,
+      "runs": [
+       300.0,
+       300.0,
+       300.0
+      ],
+      "host": "x.localhost",
+      "pid": 300,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "parent": {
+      "ms": 30.0,
+      "runs": [
+       30.0,
+       30.0,
+       30.0
+      ],
+      "host": "x.localhost",
+      "pid": 200,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "synthetic_add_site_rule_has_no_effect",
+   "expect": "fail",
+   "detail_contains": "Add site dialog does: the site with the JIT off ran only",
+   "obs": {
+    "defaults": {
+     "page": true,
+     "pref_value": 1
+    },
+    "change": {
+     "ok": true,
+     "origin": "http://a.localhost",
+     "value": "block"
+    },
+    "before": {
+     "off_site": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost"
+     },
+     "on_site": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost"
+     },
+     "off_top": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 38.0,
+       "runs": [
+        38.0,
+        43.0,
+        47.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "on_top": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 38.0,
+       "runs": [
+        38.0,
+        43.0,
+        47.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "renderers": {
+      "total": 3,
+      "noopt": 0,
+      "jitless": 0,
+      "pids": {
+       "noopt": [],
+       "default": [
+        200,
+        201,
+        202
+       ]
+      }
+     }
+    },
+    "after": {
+     "off_site": {
+      "ms": 300.0,
+      "runs": [
+       300.0,
+       300.0,
+       300.0
+      ],
+      "host": "x.localhost",
+      "pid": 300,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "on_site": {
+      "ms": 30.0,
+      "runs": [
+       30.0,
+       30.0,
+       30.0
+      ],
+      "host": "x.localhost",
+      "pid": 200,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "off_top": {
+      "ms": 310.0,
+      "runs": [
+       310.0,
+       315.0,
+       319.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 38.0,
+       "runs": [
+        38.0,
+        43.0,
+        47.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "on_top": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 310.0,
+       "runs": [
+        310.0,
+        315.0,
+        319.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "renderers": {
+      "total": 3,
+      "noopt": 1,
+      "jitless": 0,
+      "pids": {
+       "noopt": [
+        100
+       ],
+       "default": [
+        200,
+        201
+       ]
+      }
+     }
+    },
+    "restarted": {
+     "off_site": {
+      "ms": 300.0,
+      "runs": [
+       300.0,
+       300.0,
+       300.0
+      ],
+      "host": "x.localhost",
+      "pid": 300,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "on_site": {
+      "ms": 30.0,
+      "runs": [
+       30.0,
+       30.0,
+       30.0
+      ],
+      "host": "x.localhost",
+      "pid": 200,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "off_top": {
+      "ms": 310.0,
+      "runs": [
+       310.0,
+       315.0,
+       319.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 38.0,
+       "runs": [
+        38.0,
+        43.0,
+        47.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "on_top": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 310.0,
+       "runs": [
+        310.0,
+        315.0,
+        319.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "renderers": {
+      "total": 3,
+      "noopt": 1,
+      "jitless": 0,
+      "pids": {
+       "noopt": [
+        100
+       ],
+       "default": [
+        200,
+        201
+       ]
+      }
+     }
+    },
+    "control": {
+     "off_site": {
+      "ms": 40.0,
+      "runs": [
+       40.0,
+       45.0,
+       49.0
+      ],
+      "host": "x.localhost"
+     },
+     "on_site": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost"
+     },
+     "renderers": {
+      "total": 2,
+      "noopt": 0,
+      "jitless": 0,
+      "pids": {
+       "noopt": [],
+       "default": [
+        200,
+        201
+       ]
+      }
+     }
+    },
+    "add_rule": {
+     "ok": true,
+     "pattern": "[*.]a.localhost",
+     "value": "block"
+    },
+    "add_site": {
+     "off_site": {
+      "ms": 35.0,
+      "runs": [
+       35.0,
+       35.0,
+       35.0
+      ],
+      "host": "x.localhost",
+      "pid": 300,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "on_site": {
+      "ms": 30.0,
+      "runs": [
+       30.0,
+       30.0,
+       30.0
+      ],
+      "host": "x.localhost",
+      "pid": 200,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "off_top": {
+      "ms": 310.0,
+      "runs": [
+       310.0,
+       315.0,
+       319.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 38.0,
+       "runs": [
+        38.0,
+        43.0,
+        47.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "on_top": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 310.0,
+       "runs": [
+        310.0,
+        315.0,
+        319.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "renderers": {
+      "total": 3,
+      "noopt": 1,
+      "jitless": 0,
+      "pids": {
+       "noopt": [
+        100
+       ],
+       "default": [
+        200,
+        201
+       ]
+      }
+     }
+    },
+    "subdomain": {
+     "rule": {
+      "ok": true,
+      "pattern": "s.b.localhost",
+      "value": "block"
+     },
+     "first": {
+      "ms": 30.0,
+      "runs": [
+       30.0,
+       30.0,
+       30.0
+      ],
+      "host": "x.localhost",
+      "pid": 400,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "second": {
+      "ms": 300.0,
+      "runs": [
+       300.0,
+       300.0,
+       300.0
+      ],
+      "host": "x.localhost",
+      "pid": 300,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "parent": {
+      "ms": 30.0,
+      "runs": [
+       30.0,
+       30.0,
+       30.0
+      ],
+      "host": "x.localhost",
+      "pid": 200,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "synthetic_subdomain_first_visit_already_off",
+   "expect": "fail",
+   "detail_contains": "first visit to s.b already ran with the JIT off",
+   "obs": {
+    "defaults": {
+     "page": true,
+     "pref_value": 1
+    },
+    "change": {
+     "ok": true,
+     "origin": "http://a.localhost",
+     "value": "block"
+    },
+    "before": {
+     "off_site": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost"
+     },
+     "on_site": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost"
+     },
+     "off_top": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 38.0,
+       "runs": [
+        38.0,
+        43.0,
+        47.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "on_top": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 38.0,
+       "runs": [
+        38.0,
+        43.0,
+        47.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "renderers": {
+      "total": 3,
+      "noopt": 0,
+      "jitless": 0,
+      "pids": {
+       "noopt": [],
+       "default": [
+        200,
+        201,
+        202
+       ]
+      }
+     }
+    },
+    "after": {
+     "off_site": {
+      "ms": 300.0,
+      "runs": [
+       300.0,
+       300.0,
+       300.0
+      ],
+      "host": "x.localhost",
+      "pid": 300,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "on_site": {
+      "ms": 30.0,
+      "runs": [
+       30.0,
+       30.0,
+       30.0
+      ],
+      "host": "x.localhost",
+      "pid": 200,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "off_top": {
+      "ms": 310.0,
+      "runs": [
+       310.0,
+       315.0,
+       319.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 38.0,
+       "runs": [
+        38.0,
+        43.0,
+        47.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "on_top": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 310.0,
+       "runs": [
+        310.0,
+        315.0,
+        319.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "renderers": {
+      "total": 3,
+      "noopt": 1,
+      "jitless": 0,
+      "pids": {
+       "noopt": [
+        100
+       ],
+       "default": [
+        200,
+        201
+       ]
+      }
+     }
+    },
+    "restarted": {
+     "off_site": {
+      "ms": 300.0,
+      "runs": [
+       300.0,
+       300.0,
+       300.0
+      ],
+      "host": "x.localhost",
+      "pid": 300,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "on_site": {
+      "ms": 30.0,
+      "runs": [
+       30.0,
+       30.0,
+       30.0
+      ],
+      "host": "x.localhost",
+      "pid": 200,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "off_top": {
+      "ms": 310.0,
+      "runs": [
+       310.0,
+       315.0,
+       319.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 38.0,
+       "runs": [
+        38.0,
+        43.0,
+        47.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "on_top": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 310.0,
+       "runs": [
+        310.0,
+        315.0,
+        319.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "renderers": {
+      "total": 3,
+      "noopt": 1,
+      "jitless": 0,
+      "pids": {
+       "noopt": [
+        100
+       ],
+       "default": [
+        200,
+        201
+       ]
+      }
+     }
+    },
+    "control": {
+     "off_site": {
+      "ms": 40.0,
+      "runs": [
+       40.0,
+       45.0,
+       49.0
+      ],
+      "host": "x.localhost"
+     },
+     "on_site": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost"
+     },
+     "renderers": {
+      "total": 2,
+      "noopt": 0,
+      "jitless": 0,
+      "pids": {
+       "noopt": [],
+       "default": [
+        200,
+        201
+       ]
+      }
+     }
+    },
+    "add_rule": {
+     "ok": true,
+     "pattern": "[*.]a.localhost",
+     "value": "block"
+    },
+    "add_site": {
+     "off_site": {
+      "ms": 300.0,
+      "runs": [
+       300.0,
+       300.0,
+       300.0
+      ],
+      "host": "x.localhost",
+      "pid": 300,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "on_site": {
+      "ms": 30.0,
+      "runs": [
+       30.0,
+       30.0,
+       30.0
+      ],
+      "host": "x.localhost",
+      "pid": 200,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "off_top": {
+      "ms": 310.0,
+      "runs": [
+       310.0,
+       315.0,
+       319.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 38.0,
+       "runs": [
+        38.0,
+        43.0,
+        47.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "on_top": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 310.0,
+       "runs": [
+        310.0,
+        315.0,
+        319.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "renderers": {
+      "total": 3,
+      "noopt": 1,
+      "jitless": 0,
+      "pids": {
+       "noopt": [
+        100
+       ],
+       "default": [
+        200,
+        201
+       ]
+      }
+     }
+    },
+    "subdomain": {
+     "rule": {
+      "ok": true,
+      "pattern": "s.b.localhost",
+      "value": "block"
+     },
+     "first": {
+      "ms": 300.0,
+      "runs": [
+       300.0,
+       300.0,
+       300.0
+      ],
+      "host": "x.localhost",
+      "pid": 300,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "second": {
+      "ms": 300.0,
+      "runs": [
+       300.0,
+       300.0,
+       300.0
+      ],
+      "host": "x.localhost",
+      "pid": 300,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "parent": {
+      "ms": 30.0,
+      "runs": [
+       30.0,
+       30.0,
+       30.0
+      ],
+      "host": "x.localhost",
+      "pid": 200,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "synthetic_subdomain_rule_never_applies",
+   "expect": "fail",
+   "detail_contains": "the rule did not apply even after leaving the page",
+   "obs": {
+    "defaults": {
+     "page": true,
+     "pref_value": 1
+    },
+    "change": {
+     "ok": true,
+     "origin": "http://a.localhost",
+     "value": "block"
+    },
+    "before": {
+     "off_site": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost"
+     },
+     "on_site": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost"
+     },
+     "off_top": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 38.0,
+       "runs": [
+        38.0,
+        43.0,
+        47.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "on_top": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 38.0,
+       "runs": [
+        38.0,
+        43.0,
+        47.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "renderers": {
+      "total": 3,
+      "noopt": 0,
+      "jitless": 0,
+      "pids": {
+       "noopt": [],
+       "default": [
+        200,
+        201,
+        202
+       ]
+      }
+     }
+    },
+    "after": {
+     "off_site": {
+      "ms": 300.0,
+      "runs": [
+       300.0,
+       300.0,
+       300.0
+      ],
+      "host": "x.localhost",
+      "pid": 300,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "on_site": {
+      "ms": 30.0,
+      "runs": [
+       30.0,
+       30.0,
+       30.0
+      ],
+      "host": "x.localhost",
+      "pid": 200,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "off_top": {
+      "ms": 310.0,
+      "runs": [
+       310.0,
+       315.0,
+       319.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 38.0,
+       "runs": [
+        38.0,
+        43.0,
+        47.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "on_top": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 310.0,
+       "runs": [
+        310.0,
+        315.0,
+        319.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "renderers": {
+      "total": 3,
+      "noopt": 1,
+      "jitless": 0,
+      "pids": {
+       "noopt": [
+        100
+       ],
+       "default": [
+        200,
+        201
+       ]
+      }
+     }
+    },
+    "restarted": {
+     "off_site": {
+      "ms": 300.0,
+      "runs": [
+       300.0,
+       300.0,
+       300.0
+      ],
+      "host": "x.localhost",
+      "pid": 300,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "on_site": {
+      "ms": 30.0,
+      "runs": [
+       30.0,
+       30.0,
+       30.0
+      ],
+      "host": "x.localhost",
+      "pid": 200,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "off_top": {
+      "ms": 310.0,
+      "runs": [
+       310.0,
+       315.0,
+       319.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 38.0,
+       "runs": [
+        38.0,
+        43.0,
+        47.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "on_top": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 310.0,
+       "runs": [
+        310.0,
+        315.0,
+        319.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "renderers": {
+      "total": 3,
+      "noopt": 1,
+      "jitless": 0,
+      "pids": {
+       "noopt": [
+        100
+       ],
+       "default": [
+        200,
+        201
+       ]
+      }
+     }
+    },
+    "control": {
+     "off_site": {
+      "ms": 40.0,
+      "runs": [
+       40.0,
+       45.0,
+       49.0
+      ],
+      "host": "x.localhost"
+     },
+     "on_site": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost"
+     },
+     "renderers": {
+      "total": 2,
+      "noopt": 0,
+      "jitless": 0,
+      "pids": {
+       "noopt": [],
+       "default": [
+        200,
+        201
+       ]
+      }
+     }
+    },
+    "add_rule": {
+     "ok": true,
+     "pattern": "[*.]a.localhost",
+     "value": "block"
+    },
+    "add_site": {
+     "off_site": {
+      "ms": 300.0,
+      "runs": [
+       300.0,
+       300.0,
+       300.0
+      ],
+      "host": "x.localhost",
+      "pid": 300,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "on_site": {
+      "ms": 30.0,
+      "runs": [
+       30.0,
+       30.0,
+       30.0
+      ],
+      "host": "x.localhost",
+      "pid": 200,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "off_top": {
+      "ms": 310.0,
+      "runs": [
+       310.0,
+       315.0,
+       319.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 38.0,
+       "runs": [
+        38.0,
+        43.0,
+        47.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "on_top": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 310.0,
+       "runs": [
+        310.0,
+        315.0,
+        319.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "renderers": {
+      "total": 3,
+      "noopt": 1,
+      "jitless": 0,
+      "pids": {
+       "noopt": [
+        100
+       ],
+       "default": [
+        200,
+        201
+       ]
+      }
+     }
+    },
+    "subdomain": {
+     "rule": {
+      "ok": true,
+      "pattern": "s.b.localhost",
+      "value": "block"
+     },
+     "first": {
+      "ms": 30.0,
+      "runs": [
+       30.0,
+       30.0,
+       30.0
+      ],
+      "host": "x.localhost",
+      "pid": 400,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "second": {
+      "ms": 30.0,
+      "runs": [
+       30.0,
+       30.0,
+       30.0
+      ],
+      "host": "x.localhost",
+      "pid": 400,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "parent": {
+      "ms": 30.0,
+      "runs": [
+       30.0,
+       30.0,
+       30.0
+      ],
+      "host": "x.localhost",
+      "pid": 200,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "synthetic_subdomain_second_visit_wrong_renderer",
+   "expect": "fail",
+   "detail_contains": "second visit to s.b: the renderer that hosted",
+   "obs": {
+    "defaults": {
+     "page": true,
+     "pref_value": 1
+    },
+    "change": {
+     "ok": true,
+     "origin": "http://a.localhost",
+     "value": "block"
+    },
+    "before": {
+     "off_site": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost"
+     },
+     "on_site": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost"
+     },
+     "off_top": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 38.0,
+       "runs": [
+        38.0,
+        43.0,
+        47.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "on_top": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 38.0,
+       "runs": [
+        38.0,
+        43.0,
+        47.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "renderers": {
+      "total": 3,
+      "noopt": 0,
+      "jitless": 0,
+      "pids": {
+       "noopt": [],
+       "default": [
+        200,
+        201,
+        202
+       ]
+      }
+     }
+    },
+    "after": {
+     "off_site": {
+      "ms": 300.0,
+      "runs": [
+       300.0,
+       300.0,
+       300.0
+      ],
+      "host": "x.localhost",
+      "pid": 300,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "on_site": {
+      "ms": 30.0,
+      "runs": [
+       30.0,
+       30.0,
+       30.0
+      ],
+      "host": "x.localhost",
+      "pid": 200,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "off_top": {
+      "ms": 310.0,
+      "runs": [
+       310.0,
+       315.0,
+       319.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 38.0,
+       "runs": [
+        38.0,
+        43.0,
+        47.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "on_top": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 310.0,
+       "runs": [
+        310.0,
+        315.0,
+        319.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "renderers": {
+      "total": 3,
+      "noopt": 1,
+      "jitless": 0,
+      "pids": {
+       "noopt": [
+        100
+       ],
+       "default": [
+        200,
+        201
+       ]
+      }
+     }
+    },
+    "restarted": {
+     "off_site": {
+      "ms": 300.0,
+      "runs": [
+       300.0,
+       300.0,
+       300.0
+      ],
+      "host": "x.localhost",
+      "pid": 300,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "on_site": {
+      "ms": 30.0,
+      "runs": [
+       30.0,
+       30.0,
+       30.0
+      ],
+      "host": "x.localhost",
+      "pid": 200,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "off_top": {
+      "ms": 310.0,
+      "runs": [
+       310.0,
+       315.0,
+       319.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 38.0,
+       "runs": [
+        38.0,
+        43.0,
+        47.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "on_top": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 310.0,
+       "runs": [
+        310.0,
+        315.0,
+        319.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "renderers": {
+      "total": 3,
+      "noopt": 1,
+      "jitless": 0,
+      "pids": {
+       "noopt": [
+        100
+       ],
+       "default": [
+        200,
+        201
+       ]
+      }
+     }
+    },
+    "control": {
+     "off_site": {
+      "ms": 40.0,
+      "runs": [
+       40.0,
+       45.0,
+       49.0
+      ],
+      "host": "x.localhost"
+     },
+     "on_site": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost"
+     },
+     "renderers": {
+      "total": 2,
+      "noopt": 0,
+      "jitless": 0,
+      "pids": {
+       "noopt": [],
+       "default": [
+        200,
+        201
+       ]
+      }
+     }
+    },
+    "add_rule": {
+     "ok": true,
+     "pattern": "[*.]a.localhost",
+     "value": "block"
+    },
+    "add_site": {
+     "off_site": {
+      "ms": 300.0,
+      "runs": [
+       300.0,
+       300.0,
+       300.0
+      ],
+      "host": "x.localhost",
+      "pid": 300,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "on_site": {
+      "ms": 30.0,
+      "runs": [
+       30.0,
+       30.0,
+       30.0
+      ],
+      "host": "x.localhost",
+      "pid": 200,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "off_top": {
+      "ms": 310.0,
+      "runs": [
+       310.0,
+       315.0,
+       319.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 38.0,
+       "runs": [
+        38.0,
+        43.0,
+        47.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "on_top": {
+      "ms": 38.0,
+      "runs": [
+       38.0,
+       43.0,
+       47.0
+      ],
+      "host": "x.localhost",
+      "child": {
+       "ms": 310.0,
+       "runs": [
+        310.0,
+        315.0,
+        319.0
+       ],
+       "host": "x.localhost"
+      }
+     },
+     "renderers": {
+      "total": 3,
+      "noopt": 1,
+      "jitless": 0,
+      "pids": {
+       "noopt": [
+        100
+       ],
+       "default": [
+        200,
+        201
+       ]
+      }
+     }
+    },
+    "subdomain": {
+     "rule": {
+      "ok": true,
+      "pattern": "s.b.localhost",
+      "value": "block"
+     },
+     "first": {
+      "ms": 30.0,
+      "runs": [
+       30.0,
+       30.0,
+       30.0
+      ],
+      "host": "x.localhost",
+      "pid": 400,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "second": {
+      "ms": 300.0,
+      "runs": [
+       300.0,
+       300.0,
+       300.0
+      ],
+      "host": "x.localhost",
+      "pid": 400,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     },
+     "parent": {
+      "ms": 30.0,
+      "runs": [
+       30.0,
+       30.0,
+       30.0
+      ],
+      "host": "x.localhost",
+      "pid": 200,
+      "renderers": {
+       "total": 3,
+       "noopt": 1,
+       "jitless": 0,
+       "pids": {
+        "noopt": [
+         300
+        ],
+        "default": [
+         200,
+         400
+        ]
+       }
+      }
+     }
+    }
+   }
   }
  ]
 }

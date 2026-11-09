@@ -219,6 +219,33 @@ class RendererModesTest(unittest.TestCase):
         from aerie_bench import procmem
         self.assertIsNone(procmem.renderer_modes(1, Path("/nonexistent-proc")))
 
+    def cpu_proc(self, root, pid, ppid, args, utime, stime):
+        d = Path(root) / str(pid)
+        d.mkdir(exist_ok=True)
+        (d / "stat").write_text(f"{pid} (chrome) S {ppid} 1 1 0 -1 0 0 0 0 0 {utime} {stime} 0\n")
+        (d / "cmdline").write_bytes(b"\0".join(a.encode() for a in args) + b"\0")
+
+    def test_renderer_cpu_reads_ticks_of_renderers_only(self):
+        from aerie_bench import procmem
+        with tempfile.TemporaryDirectory() as d:
+            self.cpu_proc(d, 10, 1, ["chrome"], 900, 900)
+            self.cpu_proc(d, 11, 10, ["chrome", "--type=gpu-process"], 500, 5)
+            self.cpu_proc(d, 12, 10, ["chrome", "--type=renderer"], 7, 3)
+            self.cpu_proc(d, 13, 10, ["chrome --type=renderer --lang=en"], 20, 1)
+            self.assertEqual(procmem.renderer_cpu(10, Path(d)), {12: 10, 13: 21})
+        self.assertIsNone(procmem.renderer_cpu(1, Path("/nonexistent-proc")))
+
+    def test_busiest_names_the_renderer_that_ran_the_loop(self):
+        from aerie_bench import procmem
+        before = {12: 10, 13: 21, 14: 3}
+        self.assertEqual(procmem.busiest(before, {12: 12, 13: 21, 14: 80}), 14)
+        # a renderer that started during the window counts from zero
+        self.assertEqual(procmem.busiest(before, {12: 10, 13: 21, 14: 3, 15: 60}), 15)
+        # nothing grew enough to tell, or no reading: no answer
+        self.assertIsNone(procmem.busiest(before, {12: 11, 13: 22, 14: 4}))
+        self.assertIsNone(procmem.busiest(None, before))
+        self.assertIsNone(procmem.busiest(before, {}))
+
 
 if __name__ == "__main__":
     unittest.main()
