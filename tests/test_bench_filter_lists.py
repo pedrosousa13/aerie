@@ -43,6 +43,29 @@ def good_validation():
     return {"probes": [dict(p) for p in PROBES], "state_before": STATE_FILE, "state_after": STATE_FILE}
 
 
+INC = "incognito.localhost"
+
+
+def panel_state(blocking_on, incognito=True, host=INC, locked=False):
+    return {"host": host, "incognito": incognito, "blocking_on": blocking_on, "locked": locked}
+
+
+def good_incognito():
+    """What observe_incognito returns: the panel of an incognito window turned Guard off for INC."""
+    saved = '{"exceptions": ["news.localhost"], "lists": []}'
+    return {
+        "before_visit": visit(True, INC),
+        "panel_before": panel_state(True),
+        "panel_after": panel_state(False),
+        "incognito_visit": visit(False, INC),
+        "regular_visit": visit(True, INC),
+        "regular_state": copy.deepcopy(STATE),
+        "state_file_open": saved,
+        "state_file_closed": saved,
+        "after_close_visit": visit(True, INC),
+    }
+
+
 def good():
     state = copy.deepcopy(STATE)
     return {
@@ -61,6 +84,7 @@ def good():
         "exception": {"state": state, "excepted_visit": visit(False), "other_visit": visit(True, "other.localhost")},
         "restart": {"state": copy.deepcopy(STATE), "excepted_visit": visit(False), "other_visit": visit(True, "other.localhost")},
         "validation": good_validation(),
+        "incognito": good_incognito(),
     }
 
 
@@ -213,6 +237,101 @@ class ValidationTest(unittest.TestCase):
         for key in ("state_before", "state_after"):
             p = self.problems(lambda v: v.update({key: None}))
             self.assertTrue(any("state file could not be read" in x for x in p), p)
+
+
+class IncognitoTest(unittest.TestCase):
+    """Guard turned off through the panel in an incognito window: it applies there, and nowhere else."""
+
+    def problems(self, mutate=None):
+        inc = good_incognito()
+        if mutate:
+            mutate(inc)
+        return fl.judge_incognito(inc)
+
+    def mentions(self, mutate, needle):
+        p = self.problems(mutate)
+        self.assertTrue(any(needle in x for x in p), p)
+
+    def test_a_good_run_has_no_problem(self):
+        self.assertEqual(self.problems(), [])
+
+    def test_judge_includes_the_incognito_step(self):
+        obs = good()
+        obs["incognito"]["state_file_open"] = '{"exceptions": ["news.localhost", "%s"]}' % INC
+        status, detail, _ = fl.judge(obs)
+        self.assertEqual(status, "fail")
+        self.assertIn("state file", detail)
+
+    def test_no_incognito_observations_fail(self):
+        obs = good()
+        del obs["incognito"]
+        self.assertEqual(fl.judge(obs)[0], "fail")
+        self.assertEqual(len(fl.judge_incognito(None)), 1)
+
+    def test_a_run_that_stopped_names_why(self):
+        p = fl.judge_incognito({"error": "CdpError: no Guard icon in the address bar"})
+        self.assertTrue(any("no Guard icon" in x for x in p), p)
+
+    # Negative controls: each leak or lost step must fail.
+    def test_an_exception_that_leaks_to_state_json_while_the_window_is_open_fails(self):
+        self.mentions(lambda i: i.update(state_file_open='{"exceptions": ["news.localhost", "%s"]}' % INC),
+                      "written to the state file")
+
+    def test_an_exception_that_leaks_to_state_json_by_the_time_the_window_closed_fails(self):
+        self.mentions(lambda i: i.update(state_file_closed='{"exceptions": ["%s"]}' % INC),
+                      "written to the state file")
+
+    def test_an_unreadable_state_file_fails(self):
+        for key in ("state_file_open", "state_file_closed"):
+            self.mentions(lambda i: i.update({key: None}), "state file could not be read")
+
+    def test_an_exception_that_does_not_apply_in_the_incognito_window_fails(self):
+        self.mentions(lambda i: i.update(incognito_visit=visit(True, INC)), "incognito window")
+
+    def test_a_list_that_did_not_block_in_incognito_before_the_switch_fails(self):
+        # Otherwise the ads loading afterwards prove nothing.
+        self.mentions(lambda i: i.update(before_visit=visit(False, INC)), "before the switch")
+
+    def test_an_exception_that_reaches_the_regular_window_fails(self):
+        self.mentions(lambda i: i.update(regular_visit=visit(False, INC)), "regular window")
+
+    def test_an_exception_listed_in_the_settings_state_of_the_regular_window_fails(self):
+        def leak(i):
+            i["regular_state"]["exceptions"] = ["news.localhost", INC]
+        self.mentions(leak, "regular window's exception list")
+
+    def test_an_exception_that_survives_the_window_fails(self):
+        self.mentions(lambda i: i.update(after_close_visit=visit(False, INC)), "after the first closed")
+
+    def test_a_panel_of_the_regular_window_does_not_count(self):
+        # The panel that was driven must be the incognito one, or nothing here is about incognito.
+        self.mentions(lambda i: i.update(panel_before=panel_state(True, incognito=False)), "not the incognito window")
+
+    def test_a_panel_for_another_site_does_not_count(self):
+        self.mentions(lambda i: i.update(panel_before=panel_state(True, host="news.localhost")), "named")
+
+    def test_a_panel_switch_that_did_not_take_effect_fails(self):
+        self.mentions(lambda i: i.update(panel_after=panel_state(True)), "still shows Guard on")
+
+    def test_the_step_never_opens_settings_in_an_incognito_context(self):
+        # chrome://settings crashes in a CDP incognito context.
+        import inspect
+        src = inspect.getsource(fl.observe_incognito)
+        self.assertNotIn("open_manager(inc", src)
+        self.assertNotIn("MANAGER_URL", src)
+        self.assertNotIn("chrome://settings", src)
+
+    def test_the_step_runs_in_a_launch_with_ui_devtools_and_the_check_wires_it(self):
+        import inspect
+        src = inspect.getsource(fl.FilterLists.run)
+        self.assertIn("ui_devtools.FLAGS", src)
+        self.assertIn("observe_incognito", src)
+        self.assertNotIn("ui_devtools", inspect.getsource(fl.observe_first_launch))
+
+    def test_an_incognito_exception_that_is_in_the_state_after_a_restart_fails(self):
+        r = good()["restart"]
+        r["state"]["exceptions"] = ["news.localhost", INC]
+        self.assertTrue(any(INC in p for p in fl.judge_restart(r, LIST_URL)))
 
 
 class RestartTest(unittest.TestCase):

@@ -138,15 +138,19 @@ class UiDevTools:
                 props.setdefault(prop["name"], prop["value"])
         return props
 
-    def find_view(self, cls: str, tooltip_prefix: str) -> tuple[int, dict] | None:
-        """The first visible view of class ``cls`` whose tooltip starts with ``tooltip_prefix``."""
+    def find_views(self, cls: str, tooltip_prefix: str) -> Iterator[tuple[int, dict]]:
+        """Every visible view of class ``cls`` whose tooltip starts with ``tooltip_prefix``, in window order
+        (one per browser window when the view is in the toolbar)."""
         for node_id, name in self.nodes():
             if name != cls:
                 continue
             props = self.properties(node_id)
             if props.get("Visible") == "true" and props.get("TooltipText", "").startswith(tooltip_prefix):
-                return node_id, props
-        return None
+                yield node_id, props
+
+    def find_view(self, cls: str, tooltip_prefix: str) -> tuple[int, dict] | None:
+        """The first of ``find_views``, or None."""
+        return next(self.find_views(cls, tooltip_prefix), None)
 
     def find_by_text(self, text: str) -> tuple[int, dict] | None:
         """The first visible view of any class whose ``Text`` property is exactly ``text``.

@@ -137,6 +137,67 @@ def judge(obs: dict | None) -> list[str]:
     return problems
 
 
+# Driving the open panel's own Mojo handler. The bubble's page captured the tab of the window whose icon was
+# pressed, so the handler acts on that tab's site (and, in an incognito window, on the session's exceptions).
+PANEL_PROXY_URL = "chrome://aerie-guard.top-chrome/browser_proxy.js"
+PANEL_STATE_JS = f"""(async () => {{
+  const m = await import({json.dumps(PANEL_PROXY_URL)});
+  return (await m.BrowserProxy.getInstance().handler.getState()).state;
+}})()"""
+PANEL_SET_GUARD_JS = f"""(async () => {{
+  const m = await import({json.dumps(PANEL_PROXY_URL)});
+  m.BrowserProxy.getInstance().handler.setGuardOn(%s);
+}})()"""
+
+
+def evaluate_in_panel(browser: Session, expression: str):
+    """Run ``expression`` (awaited) in the visible panel page; its value."""
+    target = AerieGuardPanel._panel(browser, shown=True)
+    sid = browser.client.send("Target.attachToTarget", {"targetId": target["targetId"], "flatten": True},
+                              timeout=browser.timeout)["sessionId"]
+    try:
+        res = browser.client.send("Runtime.evaluate", {"expression": expression, "returnByValue": True,
+                                                       "awaitPromise": True}, session_id=sid, timeout=browser.timeout)
+        if "exceptionDetails" in res:
+            raise CdpError(f"the panel page raised: {res['exceptionDetails'].get('text', 'exception')}")
+        return res.get("result", {}).get("value")
+    finally:
+        browser.client.send("Target.detachFromTarget", {"sessionId": sid}, timeout=browser.timeout)
+
+
+def panel_state(browser: Session) -> dict | None:
+    """What the open panel shows: ``host``, ``incognito``, ``blocking_on``, ``locked``, ... (None: no site)."""
+    return evaluate_in_panel(browser, PANEL_STATE_JS)
+
+
+def set_guard_in_panel(browser: Session, on: bool, timeout: float = 10.0) -> dict | None:
+    """The Guard switch of the open panel, through its handler; the state once it shows the new value."""
+    evaluate_in_panel(browser, PANEL_SET_GUARD_JS % json.dumps(on))
+    deadline = time.monotonic() + timeout
+    while True:
+        state = panel_state(browser)
+        if state is not None and state.get("blocking_on") is on:
+            return state
+        if time.monotonic() >= deadline:
+            return state
+        time.sleep(0.25)
+
+
+def open_panel_where(browser: Session, ui: ui_devtools.UiDevTools, accept) -> dict:
+    """Press each window's Guard icon in turn until the panel's state satisfies ``accept(state)``; leave that
+    panel open and return its state. A panel that does not fit is closed with Escape. Raises when none does."""
+    seen = []
+    for node_id, props in list(ui.find_views(GUARD_ICON_CLASS, GUARD_TOOLTIP_PREFIX)):
+        ui.press(node_id, props)
+        AerieGuardPanel._panel(browser, shown=True)
+        state = panel_state(browser)
+        if state is not None and accept(state):
+            return state
+        seen.append(state)
+        AerieGuardPanel._escape(browser)
+    raise CdpError(f"no window's Guard panel fit; the panels showed {seen}")
+
+
 @register
 class AerieGuardPanel:
     name = "aerie_guard_panel"
@@ -254,9 +315,10 @@ class AerieGuardPanel:
         ui.press(*found)
         return self._panel(browser, shown=True)
 
-    def _escape(self, browser: Session) -> bool:
+    @staticmethod
+    def _escape(browser: Session) -> bool:
         """Escape in the panel, as a user closes it. The panel's page may stay cached, hidden."""
-        target = self._panel(browser, shown=True)
+        target = AerieGuardPanel._panel(browser, shown=True)
         sid = browser.client.send("Target.attachToTarget", {"targetId": target["targetId"], "flatten": True},
                                   timeout=browser.timeout)["sessionId"]
         for kind in ("rawKeyDown", "keyUp"):
@@ -264,5 +326,5 @@ class AerieGuardPanel:
             browser.client.send("Input.dispatchKeyEvent", {
                 "type": kind, "key": "Escape", "code": "Escape",
                 "windowsVirtualKeyCode": 27, "nativeVirtualKeyCode": 27}, session_id=sid, timeout=browser.timeout)
-        self._panel(browser, shown=False)
+        AerieGuardPanel._panel(browser, shown=False)
         return True

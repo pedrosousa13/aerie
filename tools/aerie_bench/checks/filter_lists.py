@@ -28,14 +28,22 @@ What it proves (the numbers are the issue #10 acceptance criteria, then the ones
    non-string list id and a non-boolean switch are each refused (the promise rejects) and
    ``AerieFilterLists/state.json`` is byte for byte the same afterwards. A handler without the length
    check accepts the long host, so this step fails against it: see ``judge_validation``.
-7. The browser restarts on the same profile (``session.new_profile`` and ``session.variant(profile=)``)
-   and the list and the exception are still in effect. This is a separate, tested half: see
-   ``judge_restart`` and ``FilterLists.run_second_launch``.
+7. Incognito (the step the old ``chrome://filters`` page had, now through the Guard panel): Settings always
+   opens in the regular profile and never shows or sets an incognito exception, and ``chrome://settings``
+   must not be opened in a CDP incognito context (it crashes). So a third launch on the same profile, with UI
+   DevTools (only that browser opens its socket), opens an incognito window on ``incognito.localhost``, presses
+   the Guard icon of that window and turns Guard off through the panel's Mojo handler (the one that sets
+   per-session incognito exceptions). Ads that were blocked there now load; they are still blocked in the
+   regular window; the exception is not in the regular window's exception list; ``state.json`` does not
+   hold the host while the window is open and after it closed; a new incognito window blocks the ads again.
+   See ``judge_incognito`` and ``observe_incognito``. The wiring sits here, not in ``aerie_guard_panel``,
+   because this check already has the loaded list, the ad page, the profile and ``state.json``; the panel
+   helpers (``open_panel_where``, ``set_guard_in_panel``) come from ``aerie_guard_panel``.
+8. The browser restarts on the same profile (``session.new_profile`` and ``session.variant(profile=)``)
+   and the list and the exception are still in effect, and the incognito exception is not. This is a
+   separate, tested half: see ``judge_restart`` and ``FilterLists.run_second_launch``.
 
-The incognito step of the old ``chrome://filters`` page is not here: Settings always opens in the regular
-profile and never shows or sets an incognito exception, and ``chrome://settings`` must not be opened in a
-CDP incognito context (it crashes). The session rules (an incognito exception stays in memory, cannot undo a
-saved one) stay covered by the manager's unit tests.
+What stays with the unit tests: that an incognito tab cannot undo an exception that a regular window saved.
 
 Decision logic is in plain functions (``judge``, ``judge_restart``, ``judge_validation``, ...) that the tests
 run on recorded observations; ``observe_first_launch`` and ``observe_second_launch`` do the browser driving.
@@ -48,10 +56,12 @@ import time
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from .. import netlog
+from .. import netlog, ui_devtools
+from ..cdp import CdpError
 from ..session import CheckResult, Session
 from . import register
 from .ad_blocking import boolean_counts
+from .aerie_guard_panel import open_panel_where, set_guard_in_panel
 
 FLAG = "--aerie-test-allow-loopback-filter-lists"
 MANAGER_URL = "chrome://settings/aerieGuard"
@@ -61,6 +71,7 @@ HTML_LIST_PATH = "/filters/not-a-list.html"
 INSECURE_LIST_URL = "http://lists.bench.example/insecure-list.txt"
 EXCEPTED_HOST = "news.localhost"
 OTHER_HOST = "other.localhost"
+INCOGNITO_HOST = "incognito.localhost"
 LONG_ARG = "a" * 5000  # over the handler's limit of 4096
 STATE_FILE = "AerieFilterLists/state.json"  # inside the profile
 N_ADS = 3
@@ -185,6 +196,49 @@ def judge_restart(restart: dict | None, list_url: str = "", excepted_host: str =
             problems.append(f"after restart the custom list has an error: {entry['error']}")
     judge_visit(restart.get("excepted_visit"), f"after restart, {excepted_host}", False, problems)
     judge_visit(restart.get("other_visit"), f"after restart, {OTHER_HOST}", True, problems)
+    if INCOGNITO_HOST in state.get("exceptions", []):
+        problems.append(f"after restart the incognito exception for {INCOGNITO_HOST} is in the state")
+    return problems
+
+
+def judge_incognito(inc: dict | None) -> list[str]:
+    """The incognito step: Guard turned off through the panel of an incognito window applies in that window
+    only, in memory. Returns the problems.
+
+    ``inc`` holds ``before_visit`` (incognito, list on), ``panel_before`` and ``panel_after`` (the panel's
+    state: ``host``, ``incognito``, ``blocking_on``), ``incognito_visit`` (after the switch),
+    ``regular_visit`` and ``regular_state`` (the regular window, Settings handler state, while the incognito
+    window is open), ``state_file_open`` and ``state_file_closed`` (the text of ``state.json`` with the
+    window open and after it closed), ``after_close_visit`` (a new incognito window) and, if the run stopped,
+    ``error``."""
+    if not inc:
+        return ["no incognito observations: the check never opened an incognito window"]
+    if inc.get("error"):
+        return [f"the incognito step stopped: {inc['error']}"]
+    problems: list[str] = []
+    host = INCOGNITO_HOST
+    before, after = inc.get("panel_before") or {}, inc.get("panel_after") or {}
+    if before.get("incognito") is not True:
+        problems.append("the panel that was driven is not the incognito window's, so nothing here is about incognito "
+                        f"({before})")
+    if before.get("host") != host:
+        problems.append(f"the panel named {before.get('host')!r}, expected {host}")
+    if before.get("blocking_on") is not True:
+        problems.append(f"the panel did not show Guard on before the switch ({before})")
+    if after.get("blocking_on") is not False:
+        problems.append(f"the panel still shows Guard on after the switch ({after})")
+    judge_visit(inc.get("before_visit"), f"incognito window before the switch, {host}", True, problems)
+    judge_visit(inc.get("incognito_visit"), f"incognito window, {host}", False, problems)
+    judge_visit(inc.get("regular_visit"), f"regular window while the incognito exception was set, {host}", True, problems)
+    if host in (inc.get("regular_state") or {}).get("exceptions", []):
+        problems.append(f"the incognito exception for {host} shows in the regular window's exception list")
+    for key, when in (("state_file_open", "while the window was open"), ("state_file_closed", "after the window closed")):
+        text = inc.get(key)
+        if text is None:
+            problems.append(f"the state file could not be read {when}, so it is not proven that the exception stayed out of it")
+        elif host in text:
+            problems.append(f"the incognito exception for {host} was written to the state file ({when})")
+    judge_visit(inc.get("after_close_visit"), f"a new incognito window after the first closed, {host}", True, problems)
     return problems
 
 
@@ -232,6 +286,7 @@ def judge(obs: dict) -> tuple[str, str, dict]:
     judge_visit(exc.get("excepted_visit"), f"exception, {EXCEPTED_HOST}", False, problems)
     judge_visit(exc.get("other_visit"), f"exception, {OTHER_HOST}", True, problems)
     problems += judge_validation(obs.get("validation"))
+    problems += judge_incognito(obs.get("incognito"))
     problems += judge_restart(obs.get("restart"), obs.get("list_url", ""))
     data = {"update": update_data, "page_count_samples": obs.get("page_count_samples"),
             "request_blocked": engine, "restart": (obs.get("restart") or {}).get("state")}
@@ -240,7 +295,8 @@ def judge(obs: dict) -> tuple[str, str, dict]:
     return "pass", (f"custom list took effect without restart, {N_ADS} ads blocked and counted, update contacted only "
                     f"list publishers ({len(update_data['publisher_requests'])} request(s)), exception for "
                     f"{EXCEPTED_HOST} only and it survived a restart; {len(obs['validation']['probes'])} bad arguments were refused "
-                    f"and left state.json unchanged; both negative controls rejected"), data
+                    f"and left state.json unchanged; Guard turned off in an incognito window through the panel applied there only "
+                    f"and never reached state.json; both negative controls rejected"), data
 
 
 # ---------------------------------------------------------------- browser driving
@@ -405,6 +461,37 @@ def observe_validation(session: Session, profile_path: str | Path | None) -> dic
     return {"probes": probes, "state_before": before, "state_after": after}
 
 
+def observe_incognito(session: Session, profile_path: str | Path) -> dict:
+    """In an off-the-record context of a browser that has UI DevTools: ads blocked, turn Guard off through the
+    panel of that window, look at both windows and ``state.json``, close the context, look at a new one.
+    Never opens Settings in the incognito context. Stops with ``error`` set when the UI cannot be driven."""
+    obs: dict = {}
+    ui = None
+    try:
+        ui = ui_devtools.connect(profile_path)
+        with session.incognito() as inc:
+            obs["before_visit"] = visit_page(inc, INCOGNITO_HOST, "incognito-before")
+            obs["panel_before"] = open_panel_where(
+                session, ui, lambda s: s.get("incognito") is True and s.get("host") == INCOGNITO_HOST)
+            obs["panel_after"] = set_guard_in_panel(session, False)
+            time.sleep(SETTLE)
+            obs["state_file_open"] = read_state_file(profile_path)
+            obs["incognito_visit"] = visit_page(inc, INCOGNITO_HOST, "incognito")
+            # The regular window, while the incognito context is still open.
+            obs["regular_state"] = open_manager(session)
+            obs["regular_visit"] = visit_page(session, INCOGNITO_HOST, "regular-while-incognito")
+        time.sleep(SETTLE)
+        obs["state_file_closed"] = read_state_file(profile_path)
+        with session.incognito() as inc:
+            obs["after_close_visit"] = visit_page(inc, INCOGNITO_HOST, "after-close")
+    except (CdpError, ui_devtools.UiDevToolsError, OSError) as exc:
+        obs["error"] = f"{type(exc).__name__}: {exc}"
+    finally:
+        if ui is not None:
+            ui.close()
+    return obs
+
+
 def read_state_file(profile_path: str | Path) -> str | None:
     try:
         return (Path(profile_path) / STATE_FILE).read_text()
@@ -430,6 +517,8 @@ class FilterLists:
         with session.new_profile() as profile:
             with session.variant((FLAG,), profile=profile) as first:
                 self._obs = observe_first_launch(first, profile.path)
+            with session.variant((FLAG, *ui_devtools.FLAGS), profile=profile) as third:
+                self._obs["incognito"] = observe_incognito(third, profile.path)
             self._first = first  # exited; first.netlog is the whole first launch
             self._obs["update"]["netlog_records"] = first.netlog
             self.run_second_launch(session, profile)

@@ -108,5 +108,56 @@ class JudgeReopenTest(unittest.TestCase):
         self.assertIn("--enable-ui-devtools=0", ui_devtools.FLAGS)
 
 
+class PanelHelpersTest(unittest.TestCase):
+    """open_panel_where picks the window whose panel fits, and closes the ones that do not."""
+
+    class Ui:
+        def __init__(self, n):
+            self.pressed, self.n = [], n
+
+        def find_views(self, cls, prefix):
+            return iter((i, {}) for i in range(self.n))
+
+        def press(self, node_id, props):
+            self.pressed.append(node_id)
+
+    def run_with(self, states):
+        from unittest import mock
+        ui, closed = self.Ui(len(states)), []
+        shown = iter(states)
+        with mock.patch.object(ag.AerieGuardPanel, "_panel", staticmethod(lambda b, shown, timeout=10.0: {})), \
+                mock.patch.object(ag, "panel_state", lambda b: next(shown)), \
+                mock.patch.object(ag.AerieGuardPanel, "_escape", staticmethod(lambda b: closed.append(1) or True)):
+            try:
+                result = ag.open_panel_where(None, ui, lambda s: s.get("incognito") is True)
+            except Exception as exc:  # noqa: BLE001
+                result = exc
+        return result, ui.pressed, len(closed)
+
+    def test_the_second_window_fits_and_the_first_panel_is_closed(self):
+        result, pressed, closed = self.run_with([{"incognito": False}, {"incognito": True}])
+        self.assertEqual((result, pressed, closed), ({"incognito": True}, [0, 1], 1))
+
+    def test_a_panel_with_no_site_does_not_fit(self):
+        result, pressed, closed = self.run_with([None, {"incognito": True}])
+        self.assertEqual((result, closed), ({"incognito": True}, 1))
+
+    def test_no_window_fits(self):
+        result, pressed, closed = self.run_with([{"incognito": False}])
+        self.assertIsInstance(result, ag.CdpError)
+        self.assertEqual(closed, 1)
+
+    def test_set_guard_waits_for_the_new_value(self):
+        from unittest import mock
+        states = iter([{"blocking_on": True}, {"blocking_on": False}])
+        calls = []
+        with mock.patch.object(ag, "evaluate_in_panel", lambda b, js: calls.append(js)), \
+                mock.patch.object(ag, "panel_state", lambda b: next(states)), \
+                mock.patch.object(ag.time, "sleep", lambda s: None):
+            state = ag.set_guard_in_panel(None, False)
+        self.assertEqual(state, {"blocking_on": False})
+        self.assertIn("setGuardOn(false)", calls[0])
+
+
 if __name__ == "__main__":
     unittest.main()
