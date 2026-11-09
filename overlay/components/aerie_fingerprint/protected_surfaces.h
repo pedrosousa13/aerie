@@ -15,7 +15,8 @@ namespace aerie_fingerprint {
 // value here in the same change that adds the protection, and remove it when a
 // protection goes. docs/hardening.md describes each one.
 enum class ProtectedSurface {
-  // Canvas pixel readback (Helium's canvas noise).
+  // Canvas pixel readback (Helium's canvas noise), and WebGL readPixels from
+  // the default framebuffer (issue #119).
   kCanvas,
   // AudioBuffer and AnalyserNode output (stable per site and session).
   kAudio,

@@ -1,0 +1,200 @@
+Aerie-Purpose: Give WebGL readPixels from the default framebuffer (RGBA, UNSIGNED_BYTE) the same per-site, per-session canvas noise as getImageData, and leave reads from framebuffer objects and other formats exact (issue #119).
+Aerie-Upstream-Area: third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc (ReadPixelsHelper), third_party/blink/renderer/modules/webgl/BUILD.gn, third_party/blink/renderer/core/helium_noise/canvas_noising_helper.{h,cc}
+Aerie-Kind: hook
+
+Amends helium-chromium/patches/helium/core/noise/canvas.patch (issue #119, part of #87). Helium noises
+2D canvas readback (getImageData, toBlob, toDataURL) and nothing in WebGL, so readPixels on a WebGL
+canvas gave the real pixels, which differ by driver and GPU.
+
+ReadPixelsHelper decides with aerie_webgl_readback::ShouldNoiseReadPixels(!framebuffer, format, type),
+which is true only for the default framebuffer in RGBA/UNSIGNED_BYTE, and then calls the new
+CanvasNoisingHelper::MaybeNoiseReadPixels. That function takes the kCanvas token through
+GetCanvasTokenHash, the same gate as getImageData: it does nothing without the token (protection off
+for the browser or for the site, or kHeliumNoiseCanvas disabled) and without kHeliumNoiseCanvas, so the
+real bytes come back. The token is derived per site and session in the browser and the renderer never
+sees the session token; a worker (OffscreenCanvas) uses its own tokens (issue #113). The noise is
+keyed on the pixel position in the framebuffer, so two reads of overlapping areas agree. Which reads
+count and where the pixels lie in the destination (PACK_ROW_LENGTH, PACK_SKIP_PIXELS, PACK_SKIP_ROWS,
+PACK_ALIGNMENT) are pure code with unit tests in overlay/components/aerie_webgl_readback. A read with
+padded rows is noised on a tightly packed copy and copied back, so the padding bytes are not touched.
+
+Brave (checked in brave-core): it does not noise readPixels. Its Maximum (strict) level makes
+ReadPixelsHelper return early, so the destination buffer is left unwritten, and its other levels leave
+the call alone. Aerie noises the default framebuffer instead, so scripts still get a usable image.
+
+Not changed: readPixels from framebuffer objects, float and other formats, into a pixel pack buffer,
+and WebGPU readback. Limits: the bytes are noised after the GL call returns, so a call that wrote
+nothing (a GL error, or pixels outside the framebuffer) still gets noise on the bytes the script
+passed in, which is at most one level on a channel.
+
+--- a/third_party/blink/renderer/core/helium_noise/canvas_noising_helper.h
++++ b/third_party/blink/renderer/core/helium_noise/canvas_noising_helper.h
+@@ -9,6 +9,10 @@
+ #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_HELIUM_NOISE_CANVAS_NOISING_HELPER_H_
+ #define THIRD_PARTY_BLINK_RENDERER_CORE_HELIUM_NOISE_CANVAS_NOISING_HELPER_H_
+ 
++#include <cstddef>
++#include <cstdint>
++
++#include "base/containers/span.h"
+ #include "third_party/blink/renderer/core/core_export.h"
+ #include "third_party/blink/renderer/core/execution_context/execution_context.h"
+ #include "third_party/blink/renderer/platform/graphics/static_bitmap_image.h"
+@@ -31,6 +35,21 @@
+                                   int source_x,
+                                   int source_y);
+ 
++  // Aerie (#119): if allowed, performs noising in place on the RGBA bytes a
++  // WebGL readPixels call wrote from the default framebuffer. |buffer| is the
++  // destination, |first_pixel_offset| and |row_stride| are where the pixels sit
++  // in it, and |x| and |y| are the framebuffer position the read started at, so
++  // two reads of overlapping areas get the same noise. Returns true if noise
++  // was applied.
++  static bool MaybeNoiseReadPixels(ExecutionContext* execution_context,
++                                   base::span<uint8_t> buffer,
++                                   int width,
++                                   int height,
++                                   int x,
++                                   int y,
++                                   size_t first_pixel_offset,
++                                   size_t row_stride);
++
+  private:
+   CanvasNoisingHelper() = delete;
+ };
+--- a/third_party/blink/renderer/core/helium_noise/canvas_noising_helper.cc
++++ b/third_party/blink/renderer/core/helium_noise/canvas_noising_helper.cc
+@@ -19,6 +19,7 @@
+ 
+ #include "base/check_op.h"
+ #include "base/containers/span.h"
++#include "base/numerics/checked_math.h"
+ #include "base/memory/scoped_refptr.h"
+ #include "base/numerics/byte_conversions.h"
+ #include "base/numerics/safe_conversions.h"
+@@ -632,4 +633,64 @@
+                                 source_x, source_y);
+ }
+ 
++// static
++bool CanvasNoisingHelper::MaybeNoiseReadPixels(
++    ExecutionContext* execution_context,
++    base::span<uint8_t> buffer,
++    int width,
++    int height,
++    int x,
++    int y,
++    size_t first_pixel_offset,
++    size_t row_stride) {
++  std::optional<HeliumNoiseHash> token_hash =
++      GetCanvasTokenHash(execution_context);
++  if (!token_hash) {
++    return false;
++  }
++  if (width <= 0 || height <= 0) {
++    return false;
++  }
++
++  // Check that the rows lie inside the buffer before touching them.
++  const size_t row_bytes = static_cast<size_t>(width) * kChannelsPerPixel;
++  base::CheckedNumeric<size_t> needed = static_cast<size_t>(height - 1);
++  needed *= row_stride;
++  needed += row_bytes;
++  needed += first_pixel_offset;
++  if (!needed.IsValid() || needed.ValueOrDie() > buffer.size() ||
++      row_stride < row_bytes) {
++    return false;
++  }
++
++  if (row_stride == row_bytes) {
++    return HeliumNoisePixelBuffer(
++        *token_hash, kRGBA_8888_SkColorType,
++        buffer.subspan(first_pixel_offset, row_bytes * height), width, height,
++        x, y);
++  }
++
++  // Rows with padding or a wider PACK_ROW_LENGTH: noise a tightly packed copy,
++  // so the neighbourhood of each pixel is the same as for a tight read, and
++  // copy the rows back without touching the padding.
++  std::vector<uint8_t> packed(row_bytes * height);
++  for (int row = 0; row < height; ++row) {
++    auto source = buffer.subspan(first_pixel_offset + row * row_stride,
++                                 row_bytes);
++    std::ranges::copy(source, packed.begin() + row * row_bytes);
++  }
++  if (!HeliumNoisePixelBuffer(*token_hash, kRGBA_8888_SkColorType, packed,
++                              width, height, x, y)) {
++    return false;
++  }
++  for (int row = 0; row < height; ++row) {
++    auto destination = buffer.subspan(first_pixel_offset + row * row_stride,
++                                      row_bytes);
++    std::ranges::copy(
++        base::span(packed).subspan(row * row_bytes, row_bytes),
++        destination.begin());
++  }
++  return true;
++}
++
+ }  // namespace blink
+--- a/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc
++++ b/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc
+@@ -33,6 +33,7 @@
+ #include "base/bit_cast.h"
+ #include "base/byte_size.h"
+ #include "base/compiler_specific.h"
++#include "base/containers/span.h"
+ #include "base/feature_list.h"
+ #include "base/memory/scoped_refptr.h"
+ #include "base/metrics/histogram_functions.h"
+@@ -46,6 +47,7 @@
+ #include "base/trace_event/trace_event.h"
+ #include "build/build_config.h"
+ #include "components/aerie_gpu_info/gpu_info.h"
++#include "components/aerie_webgl_readback/read_pixels_policy.h"
+ #include "components/viz/common/gpu/raster_context_provider.h"
+ #include "components/viz/common/resources/shared_image_format_utils.h"
+ #include "device/vr/buildflags/buildflags.h"
+@@ -83,6 +85,7 @@
+ #include "third_party/blink/renderer/core/frame/settings.h"
+ #include "third_party/blink/renderer/core/frame/web_feature.h"
+ #include "third_party/blink/renderer/core/geometry/dom_rect_read_only.h"
++#include "third_party/blink/renderer/core/helium_noise/canvas_noising_helper.h"
+ #include "third_party/blink/renderer/core/html/canvas/canvas_rendering_context_host.h"
+ #include "third_party/blink/renderer/core/html/canvas/html_canvas_element.h"
+ #include "third_party/blink/renderer/core/html/canvas/image_data.h"
+@@ -5408,6 +5411,24 @@
+     }
+     ContextGL()->ReadPixels(x, y, width, height, format, type, data);
+   }
++
++  // Aerie (#119): fingerprinting noise on the bytes of a read from the default
++  // framebuffer in RGBA/UNSIGNED_BYTE, with the canvas token. A read from a
++  // framebuffer object (|framebuffer| is set) and any other format stay exact.
++  if (data && aerie_webgl_readback::ShouldNoiseReadPixels(
++                  /*default_framebuffer=*/!framebuffer, format, type)) {
++    const WebGLImageConversion::PixelStoreParams pack =
++        GetPackPixelStoreParams();
++    if (std::optional<aerie_webgl_readback::RgbaLayout> layout =
++            aerie_webgl_readback::ComputeRgbaLayout(
++                width, height, pack.alignment, pack.row_length,
++                pack.skip_pixels, pack.skip_rows)) {
++      CanvasNoisingHelper::MaybeNoiseReadPixels(
++          Host()->GetTopExecutionContext(),
++          UNSAFE_TODO(base::span<uint8_t>(data, layout->total_bytes)), width,
++          height, x, y, layout->first_pixel_offset, layout->row_stride);
++    }
++  }
+ }
+ 
+ void WebGLRenderingContextBase::RenderbufferStorageImpl(
+--- a/third_party/blink/renderer/modules/webgl/BUILD.gn
++++ b/third_party/blink/renderer/modules/webgl/BUILD.gn
+@@ -196,6 +196,7 @@
+   public_deps = [ "//device/vr/public/mojom:vr_service_blink" ]
+   deps = [
+     "//components/aerie_gpu_info",
++    "//components/aerie_webgl_readback",
+     "//device/vr/buildflags",
+     "//gpu/command_buffer/client:gles2_implementation",
+     "//gpu/command_buffer/client:gles2_interface",

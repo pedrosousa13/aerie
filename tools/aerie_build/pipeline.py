@@ -48,6 +48,8 @@ TEST_BINARIES = (
     ("aerie_screen_unittests", ()),
     # The measureText noise factor and the decision to apply it (issue #118).
     ("aerie_text_metrics_unittests", ()),
+    # Which WebGL readPixels calls get noise, and where their pixels sit in the buffer (issue #119).
+    ("aerie_webgl_readback_unittests", ()),
 )
 HOST_TOOLS = ("git", "tar", "zstd", "patch")
 MIN_FREE_BYTES = 150 * 1024**3
