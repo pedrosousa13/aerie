@@ -153,11 +153,11 @@ const W = {
 };
 /* extra Today tabs for the crowded state and the "open tab" control */
 const EXTRA = [
-  ['Rust async book', 'rust-lang.github.io', '#F76B15'], ['MDN: Web Animations API', 'developer.mozilla.org', '#0091FF'],
+  ['Async patterns, chapter 3', 'books.deepcuts.dev', '#F76B15'], ['Web Animations reference', 'docs.webref.example', '#0091FF'],
   ['Tide tables, Cascais', 'tides.atlas.io', '#12A594'], ['Bread flour, 5 kg', 'shop.millhouse.eu', '#F5A524'],
-  ['Train times to Porto', 'rail.comboios.pt', '#4F7CFF'], ['Sourdough starter FAQ', 'bread.crumb.recipes', '#F76B15'],
+  ['Train times to Porto', 'trains.atlas.io', '#4F7CFF'], ['Sourdough starter FAQ', 'bread.crumb.recipes', '#F76B15'],
   ['Kernel mailing list', 'lore.kernel.example', '#5B6B7F'], ['Cat photos, weekly', 'whiskers.photos', '#D6409F'],
-  ['Visa checklist', 'consulate.gov.example', '#5B6B7F'], ['Chart.js cookbook', 'charts.toolbox.dev', '#8E4EC6'],
+  ['Visa checklist', 'consulate.gov.example', '#5B6B7F'], ['Charting cookbook', 'charts.toolbox.dev', '#8E4EC6'],
   ['Keyboard review: Frost 65', 'switch.cycling.review', '#E5484D'], ['Local weather, 10 days', 'sky.forecast.app', '#0091FF'],
 ];
 let extraN = 0;
