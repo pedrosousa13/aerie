@@ -27,7 +27,7 @@ Workers have no screen. A frame of another site in the same window reads its own
 
 --- a/content/browser/helium_noise/noise_token_data.cc
 +++ b/content/browser/helium_noise/noise_token_data.cc
-@@ -64,6 +64,8 @@
+@@ -69,6 +69,8 @@
        blink::HeliumNoiseToken(base::RandUint64());
    session_tokens_[blink::HeliumNoiseFeature::kWebGL] =
        blink::HeliumNoiseToken(base::RandUint64());
