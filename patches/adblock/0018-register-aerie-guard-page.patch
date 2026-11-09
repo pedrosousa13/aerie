@@ -1,0 +1,45 @@
+Aerie-Purpose: Register chrome://aerie-guard.top-chrome, the pop-out panel of the Aerie Guard icon, with the WebUI config map, and name its host and its metrics name.
+Aerie-Upstream-Area: chrome/browser/ui/webui/chrome_web_ui_configs.cc, chrome/browser/ui/webui/BUILD.gn, chrome/common/webui_url_constants.h, tools/metrics/histograms/metadata/page/histograms.xml, tools/metrics/histograms/metadata/ui/histograms.xml
+Aerie-Kind: hook
+
+Issue #100. The page is a top-chrome WebUI (AerieGuardUIConfig, in the overlay under
+chrome/browser/ui/webui/aerie_guard). The host and URL constants sit next to the ones of Tab Search.
+WebUIContentsWrapperT static_asserts that ".AerieGuard" is a WebUIName variant in page/histograms.xml,
+so the variant is added there and (LINT.IfChange) in ui/histograms.xml. The config is not preloadable.
+
+--- a/chrome/browser/ui/webui/chrome_web_ui_configs.cc
++++ b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
+@@ -143,2 +143,3 @@
+ #include "chrome/browser/ui/webui/tab_search/tab_search_ui.h"
++#include "chrome/browser/ui/webui/aerie_guard/aerie_guard_ui.h"
+ #include "chrome/browser/ui/webui/user_education_internals/user_education_internals_ui.h"
+@@ -410,2 +411,3 @@
+   map.AddWebUIConfig(std::make_unique<TabSearchUIConfig>());
++  map.AddWebUIConfig(std::make_unique<aerie_guard::AerieGuardUIConfig>());
+   map.AddWebUIConfig(std::make_unique<TermsUIConfig>());
+--- a/chrome/browser/ui/webui/BUILD.gn
++++ b/chrome/browser/ui/webui/BUILD.gn
+@@ -57,2 +57,3 @@
+     "//chrome/browser/ui/webui/aerie_filters",
++    "//chrome/browser/ui/webui/aerie_guard",
+     "//chrome/browser/ui/webui/autofill_and_password_manager_internals",
+--- a/chrome/common/webui_url_constants.h
++++ b/chrome/common/webui_url_constants.h
+@@ -435,2 +435,5 @@
+     "chrome://tab-search.top-chrome/";
++inline constexpr char kChromeUIAerieGuardHost[] = "aerie-guard.top-chrome";
++inline constexpr char kChromeUIAerieGuardURL[] =
++    "chrome://aerie-guard.top-chrome/";
+ inline constexpr char kChromeUIUntrustedReadAnythingSidePanelHost[] =
+--- a/tools/metrics/histograms/metadata/page/histograms.xml
++++ b/tools/metrics/histograms/metadata/page/histograms.xml
+@@ -1077,2 +1077,3 @@
+   <variant name=""/>
++  <variant name=".AerieGuard"/>
+   <variant name=".BookmarksSidePanel"/>
+--- a/tools/metrics/histograms/metadata/ui/histograms.xml
++++ b/tools/metrics/histograms/metadata/ui/histograms.xml
+@@ -144,2 +144,3 @@
+   <variant name=""/>
++  <variant name=".AerieGuard"/>
+   <variant name=".BookmarksSidePanel"/>

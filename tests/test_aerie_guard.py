@@ -32,6 +32,13 @@ def messages():
     return {m.get("name"): m for m in ET.parse(GRDP).getroot().iter("message")}
 
 
+WEBUI = REPO / "overlay" / "chrome" / "browser" / "ui" / "webui" / "aerie_guard"
+
+
+def panel_code() -> str:
+    return "".join(p.read_text(encoding="utf-8") for p in sorted(WEBUI.glob("*.cc")))
+
+
 def views_code() -> str:
     return "".join(p.read_text(encoding="utf-8") for p in sorted(VIEWS.glob("*.cc")) + sorted(VIEWS.glob("*.h")))
 
@@ -122,7 +129,7 @@ class StringsTest(unittest.TestCase):
             self.assertNotRegex(GRDP.read_text(encoding="utf-8"), rf"\b{word}\b")
 
     def test_every_message_is_used_and_every_id_asked_for_exists(self):
-        code = views_code() + added(ITEM_PATCH)
+        code = views_code() + panel_code() + added(ITEM_PATCH)
         used = set(re.findall(r"\bIDS_AERIE_GUARD_\w+", code))
         self.assertEqual(used, set(messages()))
 
@@ -135,6 +142,55 @@ class StringsTest(unittest.TestCase):
         code = (VIEWS / "aerie_guard_page_action_controller.cc").read_text(encoding="utf-8")
         literals = re.findall(r'u"([^"]*)"', code)
         self.assertEqual(literals, [])
+
+
+class PanelTest(unittest.TestCase):
+    """Issue #100: the panel is Mojo-only and acts only on what the browser captured."""
+
+    def test_no_chrome_send_and_no_message_handler(self):
+        code = panel_code() + "".join(p.read_text() for p in WEBUI.glob("*.h"))
+        code = "\n".join(l for l in code.splitlines() if not l.strip().startswith("//") and "TheDirectPage" not in l)
+        code = re.sub(r'"[^"\n]*"', '""', code)
+        self.assertNotIn("WebUIMessageHandler", code)
+        self.assertNotIn("AddMessageHandler", code)
+        self.assertNotIn("enable_chrome_send", code)
+        self.assertNotIn("chrome.send", (REPO / "overlay/chrome/browser/resources/aerie_guard/app.ts").read_text())
+
+    def test_mojom_inputs_are_bools_and_enums_only(self):
+        text = (WEBUI / "aerie_guard.mojom").read_text()
+        handler = text[text.index("interface PageHandler "):text.index("interface Page {")]
+        for line in handler.splitlines():
+            if "(" in line and "GetState" not in line and "{" not in line:
+                self.assertRegex(line, r"\((bool \w+|Link \w+)?\)", line)
+
+    def test_config_is_not_preloadable(self):
+        code = (WEBUI / "aerie_guard_ui.cc").read_text()
+        self.assertRegex(code, r"IsPreloadable\(\) \{\s*return false;")
+
+    def test_binder_hook_names_only_the_panel(self):
+        text = added("adblock/0019-bind-aerie-guard-handler-factory.patch")
+        self.assertIn("ForWebUI<aerie_guard::AerieGuardUI>", text)
+        self.assertEqual(text.count(".Add<"), 1)
+
+    def test_page_never_sends_a_host(self):
+        ts = (REPO / "overlay/chrome/browser/resources/aerie_guard/app.ts").read_text()
+        self.assertIn("setGuardOn(e.detail)", ts)
+        self.assertNotRegex(ts, r"handler\.\w+\([^)]*(host|url|tab)", )
+
+    def test_menu_strings_gone_and_subdomain_wording_is_symmetric(self):
+        self.assertNotIn("IDS_AERIE_GUARD_MENU_TURN_ON", GRDP.read_text())
+        self.assertIn("subdomains", "".join(messages()["IDS_AERIE_GUARD_PANEL_SCOPE"].itertext()))
+
+    def test_panel_strings_from_the_issue(self):
+        text = GRDP.read_text()
+        self.assertIn("Guard is on for this site", text)
+        self.assertIn("Guard is off for this site", text)
+        self.assertIn("Guard on this site", text)
+
+    def test_panel_patches_are_in_the_series(self):
+        for n in ("0018-register-aerie-guard-page", "0019-bind-aerie-guard-handler-factory",
+                  "0020-build-aerie-guard-resources", "0021-build-aerie-guard-browser-tests"):
+            self.assertIn(f"adblock/{n}.patch", SERIES)
 
 
 class IconTest(unittest.TestCase):
@@ -154,7 +210,7 @@ class IconTest(unittest.TestCase):
 
 class BrowserSideStateTest(unittest.TestCase):
     def test_the_host_comes_from_the_primary_main_frames_committed_url(self):
-        code = (VIEWS / "aerie_guard_page_action_controller.cc").read_text(encoding="utf-8")
+        code = (BROWSER / "guard_target.cc").read_text(encoding="utf-8")
         self.assertIn("GetPrimaryMainFrame()->GetLastCommittedURL()", code)
         self.assertNotIn("GetVisibleURL", code)
         self.assertNotIn("GetURL()", code)
@@ -164,7 +220,7 @@ class BrowserSideStateTest(unittest.TestCase):
         self.assertIn("SchemeIsHTTPOrHTTPS()", code)
 
     def test_the_toggle_goes_through_the_context_api(self):
-        code = (VIEWS / "aerie_guard_page_action_controller.cc").read_text(encoding="utf-8")
+        code = (BROWSER / "guard_target.cc").read_text(encoding="utf-8")
         self.assertRegex(code, r"manager->SetException\([^;]*GetBrowserContext\(\)\)")
         self.assertNotIn("ForTesting", views_code())
 

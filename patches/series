@@ -65,3 +65,9 @@ services/0006-remove-the-helium-services-ui.patch
 
 # The Aerie Guard strings join the grd after the other Aerie string parts (#99).
 adblock/0017-add-aerie-guard-strings.patch
+
+# The Aerie Guard panel (#100): the first Aerie Lit WebUI, a top-chrome page that the Guard icon opens.
+adblock/0018-register-aerie-guard-page.patch
+adblock/0019-bind-aerie-guard-handler-factory.patch
+adblock/0020-build-aerie-guard-resources.patch
+adblock/0021-build-aerie-guard-browser-tests.patch

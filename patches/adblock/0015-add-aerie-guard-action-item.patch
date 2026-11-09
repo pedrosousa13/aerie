@@ -1,9 +1,9 @@
-Aerie-Purpose: Add the Aerie Guard action item, which opens the Guard menu of the active tab when its address bar icon is pressed.
+Aerie-Purpose: Add the Aerie Guard action item, which opens the Guard panel of the active tab when its address bar icon is pressed.
 Aerie-Upstream-Area: chrome/browser/ui/browser_actions.cc, chrome/browser/ui/BUILD.gn
 Aerie-Kind: hook
 
 Issue #99. One ActionItem::Builder under root_action_item_, modelled on the one for
-kActionShowJsOptimizationsIcon. The action runs AerieGuardPageActionController::ShowMenu()
+kActionShowJsOptimizationsIcon. The action runs AerieGuardPageActionController::ShowPanel()
 (chrome/browser/ui/views/aerie_adblock, the overlay) with the icon as the anchor. The
 image and tooltip here are the defaults; the per-tab controller overrides them.
 
@@ -35,7 +35,7 @@ image and tooltip here are the defaults; the per-tab controller overrides them.
 +                if (!controller) {
 +                  return;
 +                }
-+                controller->ShowMenu(
++                controller->ShowPanel(
 +                    CHECK_DEREF(BrowserView::GetBrowserViewForBrowser(bwi))
 +                        .toolbar_button_provider()
 +                        ->GetBubbleAnchor(kActionAerieGuard));

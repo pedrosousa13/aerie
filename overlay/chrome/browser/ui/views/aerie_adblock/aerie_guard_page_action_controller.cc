@@ -7,46 +7,23 @@
 #include <string>
 #include <utility>
 
-#include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/ui/actions/chrome_action_id.h"
+#include "chrome/browser/ui/browser_actions.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/page_action/page_action_controller.h"
 #include "chrome/browser/ui/views/aerie_adblock/aerie_guard_image.h"
 #include "chrome/browser/ui/views/aerie_adblock/vector_icons/vector_icons.h"
+#include "chrome/browser/ui/webui/aerie_guard/aerie_guard_panel_target.h"
+#include "chrome/browser/ui/webui/aerie_guard/aerie_guard_ui.h"
 #include "chrome/grit/generated_resources.h"
+#include "chrome/common/webui_url_constants.h"
+#include "components/aerie_adblock/browser/guard_target.h"
 #include "components/tabs/public/tab_interface.h"
-#include "content/public/browser/navigation_controller.h"
-#include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/mojom/menu_source_type.mojom.h"
-#include "ui/base/window_open_disposition.h"
 #include "ui/color/color_id.h"
-#include "ui/views/controls/menu/menu_runner.h"
 #include "ui/views/view.h"
-#include "ui/views/widget/widget.h"
 #include "url/gurl.h"
-
-namespace {
-
-constexpr char kManagerPageUrl[] = "chrome://filters/";
-
-// The text of the toggle item. A locked item names no host.
-std::u16string ToggleLabel(const aerie_adblock::GuardState& state,
-                           bool incognito) {
-  if (state.locked) {
-    // An exception saved in a regular window cannot be undone from incognito.
-    return l10n_util::GetStringUTF16(IDS_AERIE_GUARD_MENU_LOCKED);
-  }
-  const int id = state.blocking_off
-                     ? (incognito ? IDS_AERIE_GUARD_MENU_TURN_ON_INCOGNITO
-                                  : IDS_AERIE_GUARD_MENU_TURN_ON)
-                     : (incognito ? IDS_AERIE_GUARD_MENU_TURN_OFF_INCOGNITO
-                                  : IDS_AERIE_GUARD_MENU_TURN_OFF);
-  return l10n_util::GetStringFUTF16(id, base::UTF8ToUTF16(state.host));
-}
-
-}  // namespace
 
 AerieGuardPageActionController::AerieGuardPageActionController(
     tabs::TabInterface& tab_interface,
@@ -62,6 +39,10 @@ AerieGuardPageActionController::AerieGuardPageActionController(
 }
 
 AerieGuardPageActionController::~AerieGuardPageActionController() {
+  // The tab is going away: the panel that acts on it goes too.
+  widget_observation_.Reset();
+  bubble_manager_.reset();
+  BubbleClosed();
   ObserveCounterOf(nullptr);
 }
 
@@ -73,17 +54,7 @@ ui::ImageModel AerieGuardPageActionController::DefaultImage() {
 }
 
 aerie_adblock::GuardState AerieGuardPageActionController::CurrentState() const {
-  content::WebContents* contents = web_contents();
-  if (!contents) {
-    return aerie_adblock::GuardState();
-  }
-  // The committed URL of the primary main frame: what the browser process
-  // knows, never a URL a renderer proposes.
-  const GURL& url = contents->GetPrimaryMainFrame()->GetLastCommittedURL();
-  return aerie_adblock::ComputeGuardState(
-      url, aerie_adblock::SessionKeyFor(contents->GetBrowserContext()),
-      aerie_adblock::FilterListManager::Get(),
-      aerie_adblock::PageBlockCounter::CountFor(contents));
+  return aerie_adblock::GuardStateOfTab(web_contents());
 }
 
 void AerieGuardPageActionController::ObserveCounterOf(
@@ -153,58 +124,48 @@ void AerieGuardPageActionController::OnFilterListsChanged() {
   Update();
 }
 
-void AerieGuardPageActionController::ShowMenu(views::BubbleAnchor anchor) {
+void AerieGuardPageActionController::ShowPanel(views::BubbleAnchor anchor) {
   views::View* anchor_view = anchor.GetIfView();
-  const aerie_adblock::GuardState state = CurrentState();
-  if (!anchor_view || !anchor_view->GetWidget() || !state.visible) {
+  if (!anchor_view || !anchor_view->GetWidget() || !CurrentState().visible) {
     return;
   }
-  const bool incognito = aerie_adblock::SessionKeyFor(
-                             web_contents()->GetBrowserContext())
-                             .is_off_the_record();
-  menu_host_ = state.host;
-  menu_model_ = std::make_unique<ui::SimpleMenuModel>(this);
-  menu_model_->AddItem(kToggleSite, ToggleLabel(state, incognito));
-  menu_model_->SetEnabledAt(menu_model_->GetItemCount() - 1, !state.locked);
-  menu_model_->AddItem(
-      kManageLists,
-      l10n_util::GetStringUTF16(IDS_AERIE_GUARD_MENU_MANAGE_LISTS));
-  menu_runner_ = std::make_unique<views::MenuRunner>(
-      menu_model_.get(), views::MenuRunner::HAS_MNEMONICS);
-  menu_runner_->RunMenuAt(anchor_view->GetWidget(), nullptr,
-                          anchor.GetAnchorRect(),
-                          views::MenuAnchorPosition::kTopRight,
-                          ui::mojom::MenuSourceType::kMouse);
+  if (bubble_manager_ && bubble_manager_->GetBubbleWidget()) {
+    bubble_manager_->CloseBubble();
+    return;
+  }
+  BrowserWindowInterface* browser = tab().GetBrowserWindowInterface();
+  action_item_ = actions::ActionManager::Get()
+                     .FindAction(kActionAerieGuard,
+                                 BrowserActions::From(browser)->root_action_item())
+                     ->GetAsWeakPtr();
+  bubble_manager_ = WebUIBubbleManager::Create<aerie_guard::AerieGuardUI>(
+      browser, GURL(chrome::kChromeUIAerieGuardURL), IDS_AERIE_GUARD_PANEL_ACCNAME);
+  bubble_manager_observation_.Reset();
+  bubble_manager_observation_.Observe(bubble_manager_.get());
+  bubble_manager_->ShowBubble(anchor_view, views::BubbleBorder::TOP_RIGHT);
+  // The panel's page asks for this once it loads, after this call returns. It
+  // is the browser's own capture of the tab and site shown now.
+  aerie_guard::AerieGuardPanelTarget::Set(
+      bubble_manager_->GetContentsWrapper()->web_contents(),
+      aerie_adblock::GuardTarget::Capture(web_contents()));
 }
 
-void AerieGuardPageActionController::ExecuteCommand(int command_id,
-                                                    int event_flags) {
-  switch (command_id) {
-    case kToggleSite: {
-      aerie_adblock::FilterListManager* manager =
-          aerie_adblock::FilterListManager::Get();
-      content::WebContents* contents = web_contents();
-      const aerie_adblock::GuardState state = CurrentState();
-      // Act only on the site the menu was built for, and never on one an
-      // incognito window cannot change.
-      if (!manager || !contents || !state.visible || state.locked ||
-          state.host != menu_host_) {
-        return;
-      }
-      // The manager watches the session and refuses to undo a saved exception
-      // from incognito. An incognito toggle is memory only.
-      if (manager->SetException(state.host, !state.blocking_off,
-                                contents->GetBrowserContext()) ==
-          aerie_adblock::ExceptionResult::kOk) {
-        // An excepted site loads its ads on the next load; the page that is
-        // open keeps what it has. Reload so the change is visible at once.
-        contents->GetController().Reload(content::ReloadType::NORMAL, true);
-      }
-      break;
-    }
-    case kManageLists:
-      tab().GetBrowserWindowInterface()->OpenGURL(
-          GURL(kManagerPageUrl), WindowOpenDisposition::NEW_FOREGROUND_TAB);
-      break;
+void AerieGuardPageActionController::BeforeBubbleWidgetShowed(
+    views::Widget* widget) {
+  widget_observation_.Reset();
+  widget_observation_.Observe(widget);
+  if (action_item_) {
+    action_item_->SetIsShowingBubble(true);
+  }
+}
+
+void AerieGuardPageActionController::OnWidgetDestroying(views::Widget* widget) {
+  widget_observation_.Reset();
+  BubbleClosed();
+}
+
+void AerieGuardPageActionController::BubbleClosed() {
+  if (action_item_) {
+    action_item_->SetIsShowingBubble(false);
   }
 }

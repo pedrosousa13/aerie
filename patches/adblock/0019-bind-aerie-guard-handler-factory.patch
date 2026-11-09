@@ -1,0 +1,27 @@
+Aerie-Purpose: Let only the Aerie Guard panel's own WebUI bind aerie_guard.mojom.PageHandlerFactory.
+Aerie-Upstream-Area: chrome/browser/chrome_browser_interface_binders_webui_parts_desktop.cc, chrome/browser/BUILD.gn
+Aerie-Kind: hook
+
+Issue #100. One registry.ForWebUI<AerieGuardUI>().Add<PageHandlerFactory>() line, after the one of
+Tab Search. It binds no interface for any other controller and none for ordinary frames: the panel
+stays Mojo-only (no chrome.send, no WebUIMessageHandler).
+
+--- a/chrome/browser/chrome_browser_interface_binders_webui_parts_desktop.cc
++++ b/chrome/browser/chrome_browser_interface_binders_webui_parts_desktop.cc
+@@ -30,2 +30,4 @@
+ #include "chrome/browser/ui/webui/app_service_internals/app_service_internals.mojom.h"
++#include "chrome/browser/ui/webui/aerie_guard/aerie_guard.mojom.h"
++#include "chrome/browser/ui/webui/aerie_guard/aerie_guard_ui.h"
+ #include "chrome/browser/ui/webui/app_service_internals/app_service_internals_ui.h"
+@@ -587,2 +589,4 @@
+       .Add<tab_search::mojom::SearchHandler>();
++  registry.ForWebUI<aerie_guard::AerieGuardUI>()
++      .Add<aerie_guard::mojom::PageHandlerFactory>();
+   registry.ForWebUI<OrganizerPanelUI>()
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -531,2 +531,4 @@
+       "//chrome/browser/contextual_cueing/internals:mojo_bindings",
++      "//chrome/browser/ui/webui/aerie_guard",
++      "//chrome/browser/ui/webui/aerie_guard:mojo_bindings",
+       "//chrome/browser/contextual_tasks:mojo_bindings",

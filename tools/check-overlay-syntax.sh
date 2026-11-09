@@ -69,20 +69,35 @@ if ! grep -q kActionAerieGuard "$TREE/chrome/browser/ui/actions/chrome_action_id
     "$TREE/chrome/browser/ui/actions/chrome_action_id.h" > "$WORK/stub/chrome/browser/ui/actions/chrome_action_id.h"
 fi
 
+# A tree prepared before patches/adblock/0018 has no Aerie Guard host constants, WebUI name or resource ids: stand in
+# for those lines (the grit headers of the page, the host and URL, and the ".AerieGuard" WebUI name variant).
+mkdir -p "$WORK/stub/chrome/grit" "$WORK/stub/chrome/common" "$WORK/stub/chrome/browser/ui"
+printf '#define IDR_AERIE_GUARD_AERIE_GUARD_HTML 1\n' > "$WORK/stub/chrome/grit/aerie_guard_resources.h"
+printf '#include "ui/base/webui/resource_path.h"\nextern const webui::ResourcePath kAerieGuardResources[1];\n' > "$WORK/stub/chrome/grit/aerie_guard_resources_map.h"
+if ! grep -q kChromeUIAerieGuardURL "$TREE/chrome/common/webui_url_constants.h"; then
+  sed 's|^    "chrome://tab-search.top-chrome/";$|&\ninline constexpr char kChromeUIAerieGuardHost[] = "aerie-guard.top-chrome";\ninline constexpr char kChromeUIAerieGuardURL[] = "chrome://aerie-guard.top-chrome/";|' \
+    "$TREE/chrome/common/webui_url_constants.h" > "$WORK/stub/chrome/common/webui_url_constants.h"
+fi
+if ! grep -q '"\.AerieGuard"' "$GEN/chrome/browser/ui/webui_name_variants.h"; then
+  sed 's|^  "",$|&\n  ".AerieGuard",|' "$GEN/chrome/browser/ui/webui_name_variants.h" > "$WORK/stub/chrome/browser/ui/webui_name_variants.h"
+fi
+
 # The mojom bindings of the overlay's interfaces, from the tree's own generator (reads the tree, writes only $WORK).
-for m in $(cd "$O" && find components -name '*.mojom' | sort); do
+for m in $(cd "$O" && find components chrome -name '*.mojom' | sort); do
   mkdir -p "$WORK/mj/src/$(dirname "$m")"; cp "$O/$m" "$WORK/mj/src/$m"
   (cd "$WORK/mj/src" && python3 "$TREE/mojo/public/tools/mojom/mojom_parser.py" --input-root "$WORK/mj/src" \
       --output-root "$WORK/mj/gen" --mojoms "$m" && \
    python3 "$TREE/mojo/public/tools/bindings/mojom_bindings_generator.py" -o "$WORK/mj/gen" generate -d "$WORK/mj/src" \
       --bytecode_path "$GEN/mojo/public/tools/bindings" -g c++ --gen_dir "$WORK/mj/gen" --generate_non_variant_code \
-      "$WORK/mj/src/$m")
+      "$WORK/mj/src/$m" && \
+   python3 "$TREE/mojo/public/tools/bindings/mojom_bindings_generator.py" -o "$WORK/mj/gen" generate -d "$WORK/mj/src" \
+      --bytecode_path "$GEN/mojo/public/tools/bindings" -g c++ --gen_dir "$WORK/mj/gen" "$WORK/mj/src/$m")
 done
 
 if [ $# -eq 0 ]; then mapfile -t FILES < <(find "$O/components" "$O/chrome" -name '*.cc' | sort); else FILES=("$@"); fi
 status=0
 for f in "${FILES[@]}"; do
-  if "$CLANG" -std=c++23 -w -fsyntax-only -fno-exceptions -DNDEBUG -DUNIT_TEST -DUSE_UDEV -DUSE_AURA=1 -DUSE_OZONE=1 \
+  if "$CLANG" -std=c++23 -w -fsyntax-only -fno-exceptions -DNDEBUG -DUNIT_TEST -DHAS_OUT_OF_PROC_TEST_RUNNER -DUSE_UDEV -DUSE_AURA=1 -DUSE_OZONE=1 \
       -D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_EXTENSIVE -DLIBCXX_BUILDING_LIBCXXABI=0 \
       -nostdinc++ -isystem "$TREE/third_party/libc++/src/include" -isystem "$TREE/third_party/libc++abi/src/include" \
       -isystem "$TREE/buildtools/third_party/libc++" --sysroot="$TREE/build/linux/debian_bullseye_amd64-sysroot" \

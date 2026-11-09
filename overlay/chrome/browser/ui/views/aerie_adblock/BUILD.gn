@@ -4,10 +4,11 @@
 
 assert(!is_android, "The Aerie Guard icon is for desktop platforms only")
 
-# The Aerie Guard icon in the address bar (issue #99), as a page action. The
-# per-tab controller is created by TabFeatures (patches/adblock/0016, the only
-# user besides the action item that patches/adblock/0015 adds); the strings are
-# in aerie_guard_strings.grdp, included by patches/adblock/0017.
+# The Aerie Guard icon in the address bar (issue #99), as a page action, and the
+# bubble it opens (issue #100). The per-tab controller is created by TabFeatures
+# (patches/adblock/0016, the only user besides the action item that
+# patches/adblock/0015 adds); the strings are in aerie_guard_strings.grdp,
+# included by patches/adblock/0017.
 source_set("guard") {
   visibility = [
     "//chrome/browser/ui:browser_actions_impl",
@@ -23,21 +24,25 @@ source_set("guard") {
   public_deps = [
     "//base",
     "//chrome/browser/ui/tabs",
+    "//chrome/browser/ui/views/bubble",
     "//components/aerie_adblock/browser:guard_state",
+    "//components/aerie_adblock/browser:guard_target",
     "//components/aerie_adblock/browser:lists",
     "//components/aerie_adblock/browser:page_counter",
     "//components/tabs:public",
     "//ui/base",
-    "//ui/menus",
     "//ui/views",
   ]
   deps = [
     "//chrome/app:generated_resources",
+    "//chrome/browser/ui:browser_actions",
     "//chrome/browser/ui/actions",
     "//chrome/browser/ui/browser_window",
     "//chrome/browser/ui/color:color_headers",
     "//chrome/browser/ui/page_action",
     "//chrome/browser/ui/views/aerie_adblock/vector_icons",
+    "//chrome/browser/ui/webui/aerie_guard",
+    "//chrome/common",
     "//content/public/browser",
     "//skia",
     "//ui/color",
