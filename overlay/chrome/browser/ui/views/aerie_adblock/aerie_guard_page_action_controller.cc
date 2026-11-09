@@ -41,7 +41,7 @@ AerieGuardPageActionController::AerieGuardPageActionController(
 AerieGuardPageActionController::~AerieGuardPageActionController() {
   // The tab is going away: the panel that acts on it goes too.
   widget_observation_.Reset();
-  bubble_manager_.reset();
+  DestroyBubbleManager();
   BubbleClosed();
   ObserveCounterOf(nullptr);
 }
@@ -138,9 +138,11 @@ void AerieGuardPageActionController::ShowPanel(views::BubbleAnchor anchor) {
                      .FindAction(kActionAerieGuard,
                                  BrowserActions::From(browser)->root_action_item())
                      ->GetAsWeakPtr();
+  // The manager of the last panel (closed, its page perhaps still cached) goes
+  // before the new one takes its place.
+  DestroyBubbleManager();
   bubble_manager_ = WebUIBubbleManager::Create<aerie_guard::AerieGuardUI>(
       browser, GURL(chrome::kChromeUIAerieGuardURL), IDS_AERIE_GUARD_PANEL_ACCNAME);
-  bubble_manager_observation_.Reset();
   bubble_manager_observation_.Observe(bubble_manager_.get());
   bubble_manager_->ShowBubble(anchor_view, views::BubbleBorder::TOP_RIGHT);
   // The panel's page asks for this once it loads, after this call returns. It
@@ -167,6 +169,13 @@ void AerieGuardPageActionController::BeforeBubbleWidgetShowed(
 void AerieGuardPageActionController::OnWidgetDestroying(views::Widget* widget) {
   widget_observation_.Reset();
   BubbleClosed();
+}
+
+void AerieGuardPageActionController::DestroyBubbleManager() {
+  // Stop observing first: the observation removes itself from the manager,
+  // which must still be alive then.
+  bubble_manager_observation_.Reset();
+  bubble_manager_.reset();
 }
 
 void AerieGuardPageActionController::BubbleClosed() {

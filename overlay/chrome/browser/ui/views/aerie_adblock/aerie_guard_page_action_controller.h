@@ -111,6 +111,11 @@ class AerieGuardPageActionController
       manager_observation_{this};
   // Tells the action item that no bubble shows any more.
   void BubbleClosed();
+  // Stops observing the bubble manager, then destroys it. The only way the
+  // manager goes: destroying it while it is still observed leaves the
+  // observation pointing at freed memory, and the next Reset() (a new press,
+  // or this controller's destruction) crashed the browser.
+  void DestroyBubbleManager();
 
   // A new manager for every press, so every panel is a new page that gets its
   // own captured target: no page outlives the site it was opened for.
