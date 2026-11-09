@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright 2026 The Aerie Authors
+     You can use, redistribute, and/or modify this source code under
+     the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+     Strings of the one-time prompt that offers to turn on Widevine when a site first uses
+     encrypted media (issue #7, translated in issue #56). tests/test_widevine_wiring.py checks that
+     the prompt uses every message. -->
+<grit-part>
+  <message name="IDS_AERIE_WIDEVINE_PROMPT_BODY" desc="Text of the infobar that asks whether to turn on Widevine, shown once for each site when a page first plays protected (DRM) content. Widevine is a closed-source module made by Google. It says what turning it on does and that Aerie must be restarted afterwards.">
+    This site wants to play protected (DRM) content. Widevine is a component made by Google that decodes it. If you turn it on, Aerie downloads it from Google and checks Google for updates to it. Aerie sends nothing else to Google, and nothing at all for this until you agree. Aerie needs a restart to finish turning it on after the download. You can change this in Settings.
+  </message>
+  <message name="IDS_AERIE_WIDEVINE_PROMPT_ACCEPT" desc="Label of the button of the Widevine infobar that turns Widevine on. Widevine is a product name.">
+    Turn on Widevine
+  </message>
+  <message name="IDS_AERIE_WIDEVINE_PROMPT_DECLINE" desc="Label of the button of the Widevine infobar that declines. The prompt does not ask again for this site.">
+    No thanks
+  </message>
+</grit-part>

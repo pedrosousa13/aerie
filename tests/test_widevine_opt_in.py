@@ -60,6 +60,69 @@ class JudgeTest(unittest.TestCase):
         self.assertIn("opted in", detail)
 
 
+    def test_update_request_body_must_name_only_widevine(self):
+        ok = self.obs(online={"available": True})
+        ok["online_app_ids"] = {"ids": [wv.WIDEVINE_APP_ID], "readable": 1}
+        self.assertEqual(wv.judge(ok)[0], "pass")
+        bad = self.obs(online={"available": True})
+        bad["online_app_ids"] = {"ids": [wv.WIDEVINE_APP_ID, "hfnkpimlhhgieaddgfemjhofmfblmnib"], "readable": 1}
+        status, detail = wv.judge(bad)
+        self.assertEqual(status, "fail")
+        self.assertIn("hfnkpimlhhgieaddgfemjhofmfblmnib", detail)
+
+    def test_an_unreadable_update_body_is_not_a_pass(self):
+        o = self.obs(online={"available": True})
+        o["online_app_ids"] = {"ids": [], "readable": 0}
+        status, detail = wv.judge(o)
+        self.assertEqual(status, "fail")
+        self.assertIn("could not read", detail)
+
+    def test_widevine_app_id_is_the_pinned_one(self):
+        hdr = (REPO / "overlay/components/aerie_widevine/widevine_opt_in.h").read_text()
+        self.assertIn(f'kWidevineAppId[] = "{wv.WIDEVINE_APP_ID}"', hdr)
+
+    def test_toggle_in_a_running_browser_must_list_widevine_like_the_seeded_pref(self):
+        o = self.obs()
+        o["toggle"] = {"before": False, "pref": True, "listed": True}
+        self.assertEqual(wv.judge(o)[0], "pass")
+        for bad in ({"before": True, "pref": True, "listed": True},
+                    {"before": False, "pref": False, "listed": True},
+                    {"before": False, "pref": True, "listed": False}):
+            o["toggle"] = bad
+            status, detail = wv.judge(o)
+            self.assertEqual(status, "fail", bad)
+            self.assertIn("toggle", detail)
+
+
+class BodyReaderTest(unittest.TestCase):
+    @staticmethod
+    def doc(body: bytes, host="update.googleapis.com", mode=True):
+        import base64
+        ev = [{"type": 1, "source": {"id": 7, "type": 2}, "params": {"bytes": base64.b64encode(body).decode()}}] if mode else []
+        return {"constants": {"logEventTypes": {"SSL_SOCKET_BYTES_SENT": 1}, "logSourceType": {"SOCKET": 2}},
+                "events": ev}
+
+    def test_app_ids_come_from_the_bytes_sent_on_the_requests_socket(self):
+        from aerie_bench import netlog
+        body = b'POST /service/update2/json HTTP/1.1\r\n\r\n{"request":{"apps":[{"appid":"aaa"},{"appid": "bbb"}]}}'
+        parsed = netlog.load(json.dumps(self.doc(body)))
+        self.assertEqual(parsed.sent[7], body)
+        rec = {"host": "update.googleapis.com", "sockets": [7]}
+        ids, readable = netlog.request_app_ids([rec, {"host": "other.example", "sockets": [7]}], parsed.sent,
+                                               "update.googleapis.com")
+        self.assertEqual((ids, readable), ({"aaa", "bbb"}, 1))
+
+    def test_xml_appid_attribute_is_read_too(self):
+        from aerie_bench import netlog
+        ids, _ = netlog.request_app_ids([{"host": "h", "sockets": [7]}], {7: b'<app appid="xyz" version="1"/>'}, "h")
+        self.assertEqual(ids, {"xyz"})
+
+    def test_no_bytes_means_nothing_readable(self):
+        from aerie_bench import netlog
+        parsed = netlog.load(json.dumps(self.doc(b"", mode=False)))
+        self.assertEqual(netlog.request_app_ids([{"host": "h", "sockets": [7]}], parsed.sent, "h"), (set(), 0))
+
+
 class NetlogTest(unittest.TestCase):
     def rec(self, host, url=None):
         return {"host": host, "url": url or f"https://{host}/x", "urls": [url or f"https://{host}/x"],
@@ -132,7 +195,7 @@ class ScriptedSession:
     def variant(self, extra_flags=(), prefs=None, profile=None):
         self.variants.append(prefs)
         self.variant_flags = getattr(self, "variant_flags", []) + [tuple(extra_flags)]
-        if profile is not None and self.variant_session is not None and len(self.variants) == 2:
+        if profile is not None and self.variant_session is not None and len(self.variants) == 3:
             # the first online launch "downloads" Widevine: the installer writes the hint file
             hint = profile.path / "WidevineCdm"
             hint.mkdir(exist_ok=True)
@@ -159,35 +222,43 @@ class ObserveTest(unittest.TestCase):
 
     def test_control_variant_is_seeded_with_the_local_state_opt_in(self):
         main = ScriptedSession([{"available": False, "error": "NotSupportedError"}, "CRLSet Subresource Filter"])
-        control = ScriptedSession(["Widevine Content Decryption Module 0.0.0.0"])
+        control = ScriptedSession(["Widevine Content Decryption Module 0.0.0.0", False, None, True, "Widevine"])
         main.variant_session = control
         obs = wv.WidevineOptIn().observe(main)
         self.assertEqual(obs["main"], {"key_system": {"available": False, "error": "NotSupportedError"},
                                        "listed": False})
         self.assertEqual(obs["control"], {"listed": True})
-        self.assertEqual(main.variants, [{profile.LOCAL_STATE_KEY: {"aerie": {"widevine": {"enabled": True}}}}])
+        # the control launch is seeded; the toggle launch starts from a fresh profile and flips the pref
+        self.assertEqual(main.variants, [{profile.LOCAL_STATE_KEY: {"aerie": {"widevine": {"enabled": True}}}}, None])
+        self.assertEqual(obs["toggle"], {"before": False, "pref": True, "listed": True})
+        self.assertIn("chrome://settings/", control.navigated)
         self.assertNotIn("online", obs)
 
     def test_online_option_restarts_after_the_download_and_asks_for_widevine(self):
         main = ScriptedSession([{"available": False}, "CRLSet"])
-        control = ScriptedSession(["Widevine", {"available": False}, {"available": True}])
+        control = ScriptedSession(["Widevine", False, None, True, "Widevine", {"available": False}, {"available": True}])
         control.netlog = [self.rec("update.googleapis.com"), self.rec("edgedl.me.gvt1.com"),
                           self.rec("update.googleapis.com"), {"host": "localhost", "external": False}]
+        control.netlog[0]["sockets"] = [5]
+        control.netlog_sent = {5: b'{"request":{"apps":[{"appid":"%s"}]}}' % wv.WIDEVINE_APP_ID.encode()}
         main.variant_session = control
         obs = wv.WidevineOptIn(online_seconds=30).observe(main)
+        self.assertEqual(obs["online_app_ids"], {"ids": [wv.WIDEVINE_APP_ID], "readable": 2})
         self.assertEqual(obs["online"], {"available": True})
         self.assertTrue(obs["online_downloaded"])
         self.assertEqual(obs["online_hosts"], ["edgedl.me.gvt1.com", "update.googleapis.com"])
-        # control launch, then the online launch (opted in), then its restart (prefs kept in the profile)
-        self.assertEqual(len(main.variants), 3)
-        self.assertIsNone(main.variants[2])
-        for flags in main.variant_flags[1:]:
+        # control launch, toggle launch, then the online launch (opted in), then its restart (prefs kept in the profile)
+        self.assertEqual(len(main.variants), 4)
+        self.assertIsNone(main.variants[3])
+        for flags in main.variant_flags[-2:]:
             self.assertIn("--host-resolver-rules=MAP *.bench.test 127.0.0.1", flags)
+            self.assertIn("--net-log-capture-mode=Everything", flags)
+            self.assertIn("--disable-quic", flags)
             self.assertFalse(any(f.startswith("--log-net-log=") for f in flags))
 
     def test_online_option_reports_a_download_that_never_finished(self):
         main = ScriptedSession([{"available": False}, "CRLSet"])
-        main.variant_session = ScriptedSession(["Widevine"])
+        main.variant_session = ScriptedSession(["Widevine", False, None, True, "Widevine"])
         main.variant_session.netlog = []
         main.variant = lambda *a, **k: _NullCtx(main.variant_session)  # never writes the hint
         obs = wv.WidevineOptIn(online_seconds=0.1).observe(main)
@@ -240,12 +311,12 @@ REG_OK = """void RegisterComponentsForUpdate() {
 }
 """
 CFG_OK = """std::vector<GURL> ChromeConfigurator::UpdateUrl() const {
-  return {aerie_widevine::WidevineUpdateUrl(g_browser_process->local_state(),
+  return {aerie_widevine::ComponentUpdateUrl(g_browser_process->local_state(),
                                     helium::GetComponentUpdateURL(GetProfilePrefs()))};
 }
 
 std::vector<GURL> ChromeConfigurator::PingUrl() const {
-  return {aerie_widevine::WidevineUpdateUrl(g_browser_process->local_state(),
+  return {aerie_widevine::ComponentUpdateUrl(g_browser_process->local_state(),
                                     helium::GetComponentUpdateURL(GetProfilePrefs()))};
 }
 
@@ -322,7 +393,7 @@ class GateTest(unittest.TestCase):
         self.assertEqual(len(treegate.check_widevine_opt_in(self.root)), 1)
 
     def test_update_url_must_go_through_the_opt_in_for_both_urls(self):
-        self.write(CFG, CFG_OK.replace("aerie_widevine::WidevineUpdateUrl", "Id", 1))
+        self.write(CFG, CFG_OK.replace("aerie_widevine::ComponentUpdateUrl", "Id", 1))
         out = treegate.check_widevine_opt_in(self.root)
         self.assertEqual([f.gate for f in out], ["widevine_opt_in"])
 

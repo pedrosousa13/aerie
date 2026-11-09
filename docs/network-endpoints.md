@@ -87,7 +87,7 @@ If a Bench run ever shows one of these at idle, it needs its own patch.
 ### Only after opting in to Widevine
 
 Nothing here runs on a fresh profile. When the user turns on `aerie.widevine.enabled`
-(Settings, or the one-time prompt), `aerie_widevine::WidevineUpdateUrl()` gives the component
+(Settings, or the one-time prompt), `aerie_widevine::ComponentUpdateUrl()` gives the component
 updater Google's update server, and the Widevine component is registered. The update check and
 the event ping name only the Widevine component (`ShouldSendToServer` in `update_client`); the
 CRLSet and any other component are left out of what Google gets.

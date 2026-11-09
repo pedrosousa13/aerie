@@ -11,6 +11,13 @@
   Widevine at the next start) and asks for the key system. It uses ``Session.new_profile`` and
   ``variant(profile=...)``, the Bench's restart-on-one-profile support. It needs a network that reaches the
   component update service, so it is off by default and the default Bench keeps its zero-traffic guarantee.
+  Those browsers log the NetLog in capture mode Everything, and the check reads the update request body
+  from the bytes sent to ``update.googleapis.com``: it fails if the body names an app id other than
+  Widevine's, or if no body could be read.
+* Toggle subcase: a third browser starts with a fresh profile, sets the pref through
+  ``chrome.settingsPrivate`` (what the settings row calls) and must then list the Widevine component
+  without a restart, like the seeded browser. Accepting the prompt is not driven: CDP cannot press an
+  infobar button (docs/widevine.md).
 """
 
 from __future__ import annotations
@@ -23,6 +30,9 @@ from ..profile import LOCAL_STATE_KEY
 from ..session import CheckResult, Session
 from . import register
 
+WIDEVINE_APP_ID = "oimompecagnajdejgnnjijobebaeigek"  # kWidevineAppId in widevine_opt_in.h (a test pins both)
+UPDATE_HOST = "update.googleapis.com"                  # the update server after the opt-in
+PREF = "aerie.widevine.enabled"
 HINT_FILE = "latest-component-updated-widevine-cdm"  # written once the component is installed
 SETTLE_SECONDS = 1.0  # the components list fills in after the page shell
 OPT_IN_PREFS = {LOCAL_STATE_KEY: {"aerie": {"widevine": {"enabled": True}}}}
@@ -45,6 +55,10 @@ KEY_SYSTEM_JS = """(async () => {
   }
   return {available: false, error: last};
 })()"""
+
+# The settings row sets the pref through chrome.settingsPrivate; so does this, on the settings page.
+GET_PREF_JS = ("new Promise(r => chrome.settingsPrivate.getPref('%s', p => r(!!(p && p.value))))" % PREF)
+SET_PREF_JS = ("new Promise(r => chrome.settingsPrivate.setPref('%s', true, '', ok => r(!!ok)))" % PREF)
 
 # All text of chrome://components, shadow roots included.
 COMPONENTS_TEXT_JS = """(() => {
@@ -72,6 +86,16 @@ def components_list_widevine(session: Session) -> bool:
     return "widevine" in str(session.evaluate(COMPONENTS_TEXT_JS)).lower()
 
 
+def toggle_mid_session(session: Session) -> dict:
+    """Turn the pref on in a running browser the way the settings row does, and look at the result."""
+    session.navigate_url("chrome://settings/")
+    session.wait_for("typeof chrome !== 'undefined' && !!chrome.settingsPrivate", timeout=15.0)
+    before = session.evaluate(GET_PREF_JS, await_promise=True)
+    session.evaluate(SET_PREF_JS, await_promise=True)
+    after = session.evaluate(GET_PREF_JS, await_promise=True)
+    return {"before": before, "pref": after, "listed": components_list_widevine(session)}
+
+
 def escaped_requests(records: list[dict]) -> list[dict]:
     """Requests that could fetch Widevine: to a real host, or naming Widevine even at a dummy host."""
     out = []
@@ -94,12 +118,32 @@ def judge(obs: dict) -> tuple[str, str]:
     if not control["listed"]:
         return "fail", ("negative control failed: with Widevine opted in, chrome://components still did not "
                         "list it, so its absence on the fresh profile proves nothing")
+    toggle = obs.get("toggle")
+    if toggle is not None:
+        if toggle.get("before"):
+            return "fail", "toggle subcase: the pref was already on before the toggle, so it proves nothing"
+        if not toggle.get("pref"):
+            return "fail", "toggle subcase: turning the pref on in a running browser did not stick"
+        if not toggle.get("listed"):
+            return "fail", ("toggle subcase: after turning the pref on in a running browser, chrome://components "
+                            "does not list Widevine, unlike a browser seeded with the pref")
     online = obs.get("online")
     if online is not None and not online.get("available"):
         return "fail", (f"opted in, but Widevine did not become available ({online.get('error', 'no error')}); "
                         "needs a network that reaches the component update service")
+    app_ids = obs.get("online_app_ids")
+    if app_ids is not None:
+        if not app_ids.get("readable"):
+            return "fail", ("the Widevine download worked, but the check could not read the update request body "
+                            "from the NetLog (capture mode Everything), so it cannot say which apps it names")
+        others = sorted(set(app_ids.get("ids", [])) - {WIDEVINE_APP_ID})
+        if others or WIDEVINE_APP_ID not in app_ids.get("ids", []):
+            return "fail", ("the update request to Google names app ids other than Widevine's: "
+                            f"{', '.join(others) or 'none of its ids is Widevine'}")
     detail = ("Widevine absent on a fresh profile (key system refused, component not registered); "
               "present in the component list once opted in")
+    if toggle is not None:
+        detail += "; turning the toggle on in a running browser lists it too"
     if online is not None:
         detail += ", and, after the download and a restart, available to a DRM page"
         hosts = obs.get("online_hosts")
@@ -123,6 +167,8 @@ class WidevineOptIn:
         with session.variant((), OPT_IN_PREFS) as opted_in:
             control = {"listed": components_list_widevine(opted_in)}
         obs = {"main": main, "control": control}
+        with session.variant((), None) as toggled:
+            obs["toggle"] = toggle_mid_session(toggled)
         if self.online_seconds > 0:
             obs.update(self._online(session))
         return obs
@@ -138,7 +184,10 @@ class WidevineOptIn:
         which hosts it contacted.
         """
         deadline = time.monotonic() + self.online_seconds
-        flags = ("--host-resolver-rules=MAP *.bench.test 127.0.0.1",)
+        # Everything puts the bytes of each TLS write in the NetLog, which is how the update request body is read.
+        # QUIC writes are not logged that way, so it is off.
+        flags = ("--host-resolver-rules=MAP *.bench.test 127.0.0.1", "--net-log-capture-mode=Everything",
+                 "--disable-quic")
         with session.new_profile() as prof:
             hint = prof.path / "WidevineCdm" / HINT_FILE
             with session.variant(flags, OPT_IN_PREFS, profile=prof) as first:
@@ -149,7 +198,14 @@ class WidevineOptIn:
                 answer = (self._wait_available(restarted, deadline) if downloaded
                           else {"available": False, "error": "Widevine was not downloaded in time"})
         hosts = sorted({r["host"] for v in (first, restarted) for r in netlog.external(v.netlog) if r.get("host")})
-        return {"online": answer, "online_downloaded": downloaded, "online_hosts": hosts}
+        ids: set[str] = set()
+        readable = 0
+        for v in (first, restarted):
+            got, n = netlog.request_app_ids(v.netlog, getattr(v, "netlog_sent", {}), UPDATE_HOST)
+            ids |= got
+            readable += n
+        return {"online": answer, "online_downloaded": downloaded, "online_hosts": hosts,
+                "online_app_ids": {"ids": sorted(ids), "readable": readable}}
 
     def _wait_available(self, session: Session, deadline: float) -> dict:
         while True:

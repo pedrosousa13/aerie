@@ -172,6 +172,7 @@ def run_bench(binary: Path | str, scenario: Scenario, build_root: Path, *, out_d
                 vsession.exit = vproc.shutdown()
                 vparsed = netlog.load_file(vnetlog)
                 vsession.netlog, vsession.netlog_lookups = vparsed.records, vparsed.lookups
+                vsession.netlog_sent = vparsed.sent
                 vsession.netlog_complete = vparsed.complete
 
         session.variant_launcher = variant

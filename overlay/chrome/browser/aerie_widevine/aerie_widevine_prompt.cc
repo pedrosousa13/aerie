@@ -10,6 +10,7 @@
 
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/infobars/confirm_infobar_creator.h"
+#include "chrome/grit/generated_resources.h"
 #include "components/aerie_widevine/widevine_opt_in.h"
 #include "components/infobars/content/content_infobar_manager.h"
 #include "components/infobars/core/confirm_infobar_delegate.h"
@@ -19,14 +20,13 @@
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
+#include "ui/base/l10n/l10n_util.h"
 #include "url/gurl.h"
 
 namespace aerie_widevine {
 
 namespace {
 
-// The strings are plain text here, not grd messages: a grd message of Aerie's
-// would need its own translation ids, and this prompt is English only for now.
 class WidevinePromptDelegate : public ConfirmInfoBarDelegate {
  public:
   WidevinePromptDelegate(std::string host, bool off_the_record)
@@ -41,18 +41,15 @@ class WidevinePromptDelegate : public ConfirmInfoBarDelegate {
   }
 
   std::u16string GetMessageText() const override {
-    return u"This site wants to play protected (DRM) content. Widevine is a "
-           u"component made by Google that decodes it. If you turn it on, "
-           u"Aerie downloads it from Google and checks Google for updates to "
-           u"it. Aerie sends nothing else to Google, and nothing at all for "
-           u"this until you agree. Aerie needs a restart to finish turning it "
-           u"on after the download. You can change this in Settings.";
+    return l10n_util::GetStringUTF16(IDS_AERIE_WIDEVINE_PROMPT_BODY);
   }
 
   int GetButtons() const override { return BUTTON_OK | BUTTON_CANCEL; }
 
   std::u16string GetButtonLabel(InfoBarButton button) const override {
-    return button == BUTTON_OK ? u"Turn on Widevine" : u"No thanks";
+    return l10n_util::GetStringUTF16(button == BUTTON_OK
+                                         ? IDS_AERIE_WIDEVINE_PROMPT_ACCEPT
+                                         : IDS_AERIE_WIDEVINE_PROMPT_DECLINE);
   }
 
   bool Accept() override {

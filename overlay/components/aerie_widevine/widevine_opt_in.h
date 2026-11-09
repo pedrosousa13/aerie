@@ -59,11 +59,11 @@ bool ShouldPrompt(const PrefService* local_state,
 // The component update server URL. While the user is opted in it is Google's
 // (the only server that hosts the Widevine component); otherwise `fallback`,
 // which is Helium's dummy origin that the network stack refuses.
-GURL WidevineUpdateUrl(const PrefService* local_state, const GURL& fallback);
+GURL ComponentUpdateUrl(const PrefService* local_state, const GURL& fallback);
 
 // Whether the component updater may name `app_id` in a request to `url`, the
 // update or ping server it actually uses (update check or event ping). Only
-// Google's update server (what WidevineUpdateUrl gives after the opt-in) is
+// Google's update server (what ComponentUpdateUrl gives after the opt-in) is
 // restricted, to the Widevine component: the CRLSet and every other registered
 // component never reach Google. Any other URL, such as Helium's dummy origin
 // that the network stack refuses, may be sent every app. This looks at the URL

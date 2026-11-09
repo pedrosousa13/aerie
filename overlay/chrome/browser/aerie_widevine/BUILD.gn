@@ -10,6 +10,7 @@ source_set("aerie_widevine") {
   sources = [ "aerie_widevine_prompt.cc" ]
   deps = [
     "//base",
+    "//chrome/app:generated_resources",
     "//chrome/browser:browser_process",
     "//chrome/browser/infobars",
     "//components/aerie_widevine",
@@ -17,6 +18,7 @@ source_set("aerie_widevine") {
     "//components/infobars/core",
     "//components/prefs",
     "//content/public/browser",
+    "//ui/base",
     "//url",
   ]
 }

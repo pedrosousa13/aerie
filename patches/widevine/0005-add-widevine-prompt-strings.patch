@@ -1,0 +1,28 @@
+Aerie-Purpose: Include the Widevine prompt strings (the text and the two buttons of the infobar that asks to turn on Widevine) in the browser's string resources, so the prompt is translatable.
+Aerie-Upstream-Area: chrome/app/generated_resources.grd, chrome/app/generated_resources.grd.gritdeps
+Aerie-Kind: hook
+
+Issue #56. The messages are in chrome/browser/aerie_widevine/aerie_widevine_strings.grdp
+(overlay). Same shape as adblock/0017 does for aerie_guard_strings.grdp. It sits between the
+lines that patch adds, so the series lists it right after adblock/0017.
+
+--- a/chrome/app/generated_resources.grd
++++ b/chrome/app/generated_resources.grd
+@@ -295,6 +295,9 @@
+       <!-- Aerie Guard strings -->
+       <part file="../browser/ui/views/aerie_adblock/aerie_guard_strings.grdp" />
+ 
++      <!-- Aerie Widevine prompt strings -->
++      <part file="../browser/aerie_widevine/aerie_widevine_strings.grdp" />
++
+       <!-- Media live preview specific strings -->
+       <part file="media_live_preview_strings.grdp" />
+ 
+--- a/chrome/app/generated_resources.grd.gritdeps
++++ b/chrome/app/generated_resources.grd.gritdeps
+@@ -110,4 +110,5 @@
+ chrome/app/vr_strings.grdp
+ chrome/app/whats_new_strings.grdp
++chrome/browser/aerie_widevine/aerie_widevine_strings.grdp
+ chrome/browser/ui/views/aerie_adblock/aerie_guard_strings.grdp
+ components/aerie_onboarding/aerie_onboarding_strings.grdp

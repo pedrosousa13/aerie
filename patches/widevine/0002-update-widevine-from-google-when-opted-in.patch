@@ -5,7 +5,7 @@ Aerie-Kind: hook
 Helium's component-updates patch sends every component update and ping to its services
 origin, which Aerie turned off (services/0002), so the component updater has only the
 dummy origin and the Widevine component cannot be downloaded. UpdateUrl() and PingUrl()
-now go through aerie_widevine::WidevineUpdateUrl(), which returns Google's update server
+now go through aerie_widevine::ComponentUpdateUrl(), which returns Google's update server
 while aerie.widevine.enabled is true and the value Helium computed otherwise. Google's
 server is the only one that hosts the Widevine component.
 
@@ -44,7 +44,7 @@ and the filter must still apply. The ping manager filters each ping URL the same
  std::vector<GURL> ChromeConfigurator::UpdateUrl() const {
    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 -  return {helium::GetComponentUpdateURL(GetProfilePrefs())};
-+  return {aerie_widevine::WidevineUpdateUrl(
++  return {aerie_widevine::ComponentUpdateUrl(
 +      g_browser_process->local_state(),
 +      helium::GetComponentUpdateURL(GetProfilePrefs()))};
  }
@@ -52,7 +52,7 @@ and the filter must still apply. The ping manager filters each ping URL the same
  std::vector<GURL> ChromeConfigurator::PingUrl() const {
    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 -  return {helium::GetComponentUpdateURL(GetProfilePrefs())};
-+  return {aerie_widevine::WidevineUpdateUrl(
++  return {aerie_widevine::ComponentUpdateUrl(
 +      g_browser_process->local_state(),
 +      helium::GetComponentUpdateURL(GetProfilePrefs()))};
 +}
