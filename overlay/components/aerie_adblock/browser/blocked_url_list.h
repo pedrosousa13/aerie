@@ -27,6 +27,14 @@ class BlockedUrlList {
   static constexpr size_t kMaxEntries = 200;
   static constexpr size_t kMaxUrlLength = 256;
 
+  // Test seam: raises the bounds while it lives, so a test can show that the
+  // bound is what limits a list. Never used outside tests.
+  class ScopedLimitsForTesting {
+   public:
+    ScopedLimitsForTesting(size_t max_entries, size_t max_url_length);
+    ~ScopedLimitsForTesting();
+  };
+
   BlockedUrlList();
   ~BlockedUrlList();
 

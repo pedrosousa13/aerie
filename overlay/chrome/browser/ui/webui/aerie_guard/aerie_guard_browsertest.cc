@@ -23,6 +23,7 @@
 #include "chrome/common/pref_names.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/webui/aerie_guard/aerie_guard_handler.h"
+#include "components/aerie_adblock/browser/blocked_url_list.h"
 #include "components/aerie_adblock/browser/guard_target.h"
 #include "components/aerie_adblock/browser/page_block_counter.h"
 #include "components/content_settings/core/browser/host_content_settings_map.h"
@@ -425,46 +426,86 @@ IN_PROC_BROWSER_TEST_F(AerieGuardFingerprintingTest,
 // one with a 2000-character address. The count reaches 300; the panel's list
 // holds 200 entries and cuts the long address to 256 characters.
 //
-// To see this test fail without the bound, raise BlockedUrlList::kMaxEntries
-// and kMaxUrlLength (blocked_url_list.h) and run it: the size and length
-// checks below fail.
-class AerieGuardBlockedListTest : public AerieGuardFingerprintingTest {};
+// The negative control is TheUnboundedStoreShowsWhatTheBoundCuts: the same page
+// with the bounds raised through BlockedUrlList::ScopedLimitsForTesting keeps
+// 300 entries and the full address, so the bounded test's checks fail without
+// the bound.
+class AerieGuardBlockedListTest : public AerieGuardFingerprintingTest {
+ protected:
+  // Makes 300 blocked requests from |tab|; the sixth has a 2000-character
+  // address. Real ad addresses that the shipped lists block, as the Bench's
+  // blocking fixture uses. Fails (not hangs) if the count does not reach 300.
+  void MakeThreeHundredBlockedRequests(content::WebContents* tab) {
+    ASSERT_TRUE(content::ExecJs(tab, R"(
+        const base = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?n=';
+        for (let i = 0; i < 300; ++i) {
+          const s = document.createElement('script');
+          s.src = i === 5 ? base + 'x'.repeat(2000) : base + i;
+          document.body.appendChild(s);
+        }
+    )"));
+    const base::TimeTicks deadline = base::TimeTicks::Now() + base::Seconds(30);
+    while (aerie_adblock::PageBlockCounter::CountFor(tab) < 300 &&
+           base::TimeTicks::Now() < deadline) {
+      base::RunLoop run_loop;
+      base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+          FROM_HERE, run_loop.QuitClosure(), base::Milliseconds(50));
+      run_loop.Run();
+    }
+    ASSERT_EQ(300, aerie_adblock::PageBlockCounter::CountFor(tab))
+        << "blocking never reached 300 requests";
+  }
+
+  void ExpectBoundedList(content::WebContents* tab) {
+    OpenPanelFor(tab);
+    aerie_guard::mojom::PanelStatePtr state = GetState();
+    ASSERT_TRUE(state);
+    EXPECT_EQ(300, state->blocked_count);
+    ASSERT_EQ(200u, state->blocked_urls.size());
+    EXPECT_EQ(256u, state->blocked_urls[5].size());
+    for (size_t i = 0; i < state->blocked_urls.size(); ++i) {
+      if (i != 5) {
+        EXPECT_LT(state->blocked_urls[i].size(), 256u);
+      }
+    }
+  }
+};
 
 IN_PROC_BROWSER_TEST_F(AerieGuardBlockedListTest, TheListIsBoundedAndCut) {
   ASSERT_TRUE(content::NavigateToURL(web_contents(), Url("news.test")));
-  // Real ad addresses that the shipped lists block, as the Bench's blocking
-  // fixture uses. The long one is the sixth, so it is inside the first 200.
-  ASSERT_TRUE(content::ExecJs(web_contents(), R"(
-      const base = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?n=';
-      for (let i = 0; i < 300; ++i) {
-        const s = document.createElement('script');
-        s.src = i === 5 ? base + 'x'.repeat(2000) : base + i;
-        document.body.appendChild(s);
-      }
-  )"));
-  while (aerie_adblock::PageBlockCounter::CountFor(web_contents()) < 300) {
-    base::RunLoop run_loop;
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
-        FROM_HERE, run_loop.QuitClosure(), base::Milliseconds(50));
-    run_loop.Run();
-  }
-
-  OpenPanelFor(web_contents());
-  aerie_guard::mojom::PanelStatePtr state = GetState();
-  ASSERT_TRUE(state);
-  EXPECT_EQ(300, state->blocked_count);
-  ASSERT_EQ(200u, state->blocked_urls.size());
-  EXPECT_EQ(256u, state->blocked_urls[5].size());
-  for (size_t i = 0; i < state->blocked_urls.size(); ++i) {
-    if (i != 5) {
-      EXPECT_LT(state->blocked_urls[i].size(), 256u);
-    }
-  }
+  MakeThreeHundredBlockedRequests(web_contents());
+  ExpectBoundedList(web_contents());
 
   // A new page drops the list.
   ASSERT_TRUE(content::NavigateToURL(web_contents(), Url("shop.test")));
   EXPECT_TRUE(
       aerie_adblock::PageBlockCounter::BlockedUrlsFor(web_contents()).empty());
+}
+
+// Negative control: without the bound the same page keeps everything.
+IN_PROC_BROWSER_TEST_F(AerieGuardBlockedListTest,
+                       TheUnboundedStoreShowsWhatTheBoundCuts) {
+  aerie_adblock::BlockedUrlList::ScopedLimitsForTesting unbounded(100000,
+                                                                  100000);
+  ASSERT_TRUE(content::NavigateToURL(web_contents(), Url("news.test")));
+  MakeThreeHundredBlockedRequests(web_contents());
+  const std::vector<std::string>& urls =
+      aerie_adblock::PageBlockCounter::BlockedUrlsFor(web_contents());
+  EXPECT_EQ(300u, urls.size());
+  ASSERT_GT(urls.size(), 5u);
+  EXPECT_GT(urls[5].size(), 2000u);
+}
+
+// An incognito tab stores the list the same way (PageBlockCounter is per tab and
+// clears the list in WebContentsDestroyed). Only the same-way storage is
+// tested here; the drop with the tab is not tested.
+IN_PROC_BROWSER_TEST_F(AerieGuardBlockedListTest, IncognitoStoresTheSameWay) {
+  BrowserWindowInterface* incognito = CreateIncognitoBrowser();
+  content::WebContents* tab = incognito->GetActiveTabInterface()->GetContents();
+  ASSERT_TRUE(tab->GetBrowserContext()->IsOffTheRecord());
+  ASSERT_TRUE(content::NavigateToURL(tab, Url("news.test")));
+  MakeThreeHundredBlockedRequests(tab);
+  ExpectBoundedList(tab);
 }
 
 }  // namespace

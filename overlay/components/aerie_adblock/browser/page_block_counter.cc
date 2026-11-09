@@ -6,6 +6,7 @@
 
 #include <algorithm>
 
+#include "base/no_destructor.h"
 #include "base/metrics/histogram_functions.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
@@ -45,11 +46,12 @@ int PageBlockCounter::CountFor(content::WebContents* web_contents) {
 }
 
 // static
-std::vector<std::string> PageBlockCounter::BlockedUrlsFor(
+const std::vector<std::string>& PageBlockCounter::BlockedUrlsFor(
     content::WebContents* web_contents) {
+  static const base::NoDestructor<std::vector<std::string>> kNone;
   PageBlockCounter* counter =
       web_contents ? PageBlockCounter::FromWebContents(web_contents) : nullptr;
-  return counter ? counter->urls_.urls() : std::vector<std::string>();
+  return counter ? counter->urls_.urls() : *kNone;
 }
 
 // static

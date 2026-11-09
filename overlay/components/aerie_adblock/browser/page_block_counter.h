@@ -55,8 +55,9 @@ class PageBlockCounter
   static int CountFor(content::WebContents* web_contents);
 
   // The URLs kept for |web_contents|' page (at most 200, each at most 256
-  // characters), oldest first. Empty if it has none.
-  static std::vector<std::string> BlockedUrlsFor(
+  // characters), oldest first. Empty if it has none. The reference is valid
+  // until the page changes or the tab closes: copy it before then.
+  static const std::vector<std::string>& BlockedUrlsFor(
       content::WebContents* web_contents);
 
   // Observers of |web_contents|' count. Creates the counter if needed.

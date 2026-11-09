@@ -8,16 +8,33 @@
 
 namespace aerie_adblock {
 
+namespace {
+size_t g_max_entries = BlockedUrlList::kMaxEntries;
+size_t g_max_url_length = BlockedUrlList::kMaxUrlLength;
+}  // namespace
+
+BlockedUrlList::ScopedLimitsForTesting::ScopedLimitsForTesting(
+    size_t max_entries,
+    size_t max_url_length) {
+  g_max_entries = max_entries;
+  g_max_url_length = max_url_length;
+}
+
+BlockedUrlList::ScopedLimitsForTesting::~ScopedLimitsForTesting() {
+  g_max_entries = kMaxEntries;
+  g_max_url_length = kMaxUrlLength;
+}
+
 BlockedUrlList::BlockedUrlList() = default;
 BlockedUrlList::~BlockedUrlList() = default;
 
 void BlockedUrlList::Add(const GURL& url) {
-  if (urls_.size() >= kMaxEntries) {
+  if (urls_.size() >= g_max_entries) {
     return;
   }
   // GURL::spec() is ASCII (everything else is escaped), so a byte cut is a
   // character cut.
-  urls_.push_back(url.spec().substr(0, kMaxUrlLength));
+  urls_.push_back(url.spec().substr(0, g_max_url_length));
 }
 
 void BlockedUrlList::Clear() {

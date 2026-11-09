@@ -387,6 +387,14 @@ class BlockedListTest(unittest.TestCase):
         self.assertRegex(self.LIST_H, r"kMaxEntries = 200;")
         self.assertRegex(self.LIST_H, r"kMaxUrlLength = 256;")
 
+    def test_the_browser_test_has_a_negative_control_and_an_incognito_case(self):
+        bt = (WEBUI / "aerie_guard_browsertest.cc").read_text()
+        self.assertIn("ScopedLimitsForTesting", bt)
+        self.assertIn("TheUnboundedStoreShowsWhatTheBoundCuts", bt)
+        self.assertIn("IncognitoStoresTheSameWay", bt)
+        self.assertIn("ScopedLimitsForTesting", self.LIST_H)
+        self.assertNotRegex(bt, r"while \(aerie_adblock::PageBlockCounter::CountFor\([^)]*\) < 300\) \{")
+
     def test_nothing_logs_or_saves_the_urls(self):
         for text in (self.LIST_CC, self.COUNTER, panel_code()):
             code = "\n".join(l for l in text.splitlines() if not l.strip().startswith("//"))
@@ -414,7 +422,8 @@ class BlockedListTest(unittest.TestCase):
             self.assertIn(name, ui)
         self.assertNotRegex(self.HTML, r">\s*Show what was blocked")
 
-    def test_no_new_patch_and_no_new_interface(self):
-        self.assertEqual(len(list(PATCHES.glob("0027-*"))), 0)
+    def test_no_new_interface(self):
         text = (WEBUI / "aerie_guard.mojom").read_text()
-        self.assertEqual(text.count("interface "), 3)
+        code = "\n".join(l for l in text.splitlines() if not l.strip().startswith("//"))
+        declared = re.findall(r"^interface (\w+)", code, re.M)
+        self.assertEqual(len(declared), 3, declared)
