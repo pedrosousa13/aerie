@@ -73,7 +73,7 @@ export class AerieGuardAppElement extends CrLitElement {
   override updated(changedProperties: PropertyValues<this>) {
     super.updated(changedProperties);
     // The browser's answer is the truth: a switch it refused snaps back.
-    const toggle = this.shadowRoot!.querySelector<CrToggleElement>('cr-toggle');
+    const toggle = this.shadowRoot.querySelector<CrToggleElement>('cr-toggle');
     if (toggle && this.state_) {
       toggle.checked = this.state_.blockingOn;
     }

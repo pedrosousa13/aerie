@@ -38,9 +38,9 @@ ${this.state_ ? html`
       <summary>${this.i18n_('advanced')}</summary>
       ${this.advancedRows_.map(row => html`<div class="row">${row}</div>`)}
     </details>` : ''}
-` : this.loaded_ ? html`
+` : html`${this.loaded_ ? html`
   <p id="empty">${this.i18n_('noSite')}</p>
-` : ''}
+` : ''}`}
 <footer>
   <cr-button id="filterLists" class="text-button"
       @click="${this.onFilterListsClick_}">
