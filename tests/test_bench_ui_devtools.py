@@ -87,6 +87,10 @@ class FakeServer:
             self.calls.append(msg)
             if msg["method"] == "DOM.getDocument":
                 result = {"root": self.TREE}
+            elif msg["method"] == "CSS.getMatchedStylesForNode" and msg["params"]["nodeId"] not in self.PROPS:
+                conn.sendall(server_frame(json.dumps(
+                    {"id": msg["id"], "error": {"message": "no such node"}}).encode()))
+                continue
             elif msg["method"] == "CSS.getMatchedStylesForNode":
                 props = [{"name": k, "value": v} for k, v in self.PROPS[msg["params"]["nodeId"]].items()]
                 result = {"matchedCSSRules": [{"rule": {"style": {"cssProperties": props}}}]}
@@ -94,6 +98,46 @@ class FakeServer:
                 result = {}
             conn.sendall(server_frame(json.dumps({"method": "DOM.event", "params": {}}).encode()))
             conn.sendall(server_frame(json.dumps({"id": msg["id"], "result": result}).encode()))
+
+
+class ToolbarServer(FakeServer):
+    """An infobar: a text button with a label view inside it, and an unrelated label with the same text."""
+
+    TREE = {"nodeId": 1, "nodeName": "root", "children": [
+        {"nodeId": 2, "attributes": ["class", "Label"], "children": []},
+        {"nodeId": 3, "attributes": ["class", "MdTextButton"], "children": [
+            {"nodeId": 4, "attributes": ["class", "Label"]}]},
+        {"nodeId": 5, "attributes": ["class", "MdTextButton"]},
+    ]}
+    PROPS = {2: {"Visible": "true", "Text": "Turn on Widevine soon", "Width": "80", "Height": "20"},
+             3: {"Visible": "true", "Text": "Turn on Widevine", "Width": "120", "Height": "32"},
+             4: {"Visible": "true", "Text": "Turn on Widevine", "Width": "100", "Height": "16"},
+             5: {"Visible": "false", "Text": "No thanks", "Width": "80", "Height": "32"}}
+
+
+class FindByTextTest(unittest.TestCase):
+    def find(self, text):
+        server = ToolbarServer()
+        ui = ui_devtools.UiDevTools(server.port, timeout=5)
+        try:
+            return ui.find_by_text(text)
+        finally:
+            ui.close()
+
+    def test_the_button_comes_before_the_label_inside_it(self):
+        node_id, props = self.find("Turn on Widevine")
+        self.assertEqual(node_id, 3)
+        self.assertEqual(props["Width"], "120")
+
+    def test_the_text_must_match_whole(self):
+        self.assertIsNone(self.find("Turn on"))
+
+    def test_a_node_the_server_has_no_style_for_is_skipped(self):
+        # ToolbarServer has no style for the root (node 1): the server answers with an error for it.
+        self.assertIsNotNone(self.find("Turn on Widevine"))
+
+    def test_a_hidden_view_is_not_found(self):
+        self.assertIsNone(self.find("No thanks"))
 
 
 class ClientTest(unittest.TestCase):

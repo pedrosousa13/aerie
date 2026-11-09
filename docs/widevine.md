@@ -74,9 +74,6 @@ module is not unloaded.
   at startup and registers the CDM it names. The toggle stops new downloads and updates; delete
   the `WidevineCdm` folder in the profile to remove the module. Fixing this needs a hook in
   `chrome/common/media/cdm_registration.cc`, which has no pref access.
-- **The Bench does not press the prompt's button.** An infobar is browser UI, not a page, so CDP cannot
-  click it. Nothing automated presses "Turn on
-  Widevine": the unit tests cover the pref and the prompt rules, and the accept path itself is checked by hand.
 - **The prompt fires on the first use of any encrypted media**, not only Widevine (the browser
   does not say which key system was asked for at that point). A site that only uses Clear Key
   gets the prompt too. It does so once for a site that declined.
@@ -99,6 +96,6 @@ module is not unloaded.
 | Registration and update URL go through the gate; the update check and ping leave out every app but Widevine; signing key hash unchanged | source gate `widevine_opt_in` | now, on the patched tree |
 | The update request body names only the Widevine app id | `--widevine-online SEC` on the same check: the opted-in browser logs its NetLog with `--net-log-capture-mode=Everything` and QUIC off, and the check reads the request body from the bytes sent to `update.googleapis.com`. It fails if the body names another app id, and also if it cannot read a body. | needs a build and a network |
 | Turning the toggle on in a running browser opts in like the seeded pref | Bench check `widevine_opt_in`, subcase `toggle`: the settings page sets `aerie.widevine.enabled` through `chrome.settingsPrivate`, as the row does, and chrome://components then lists Widevine at once, with no restart | needs a build |
-| Accepting the prompt opts in | not driven by the Bench yet: CDP cannot press an infobar button (see "Known limits") | |
+| Accepting the prompt opts in | Bench check `widevine_opt_in`, subcase `accept`: a browser started with UI DevTools loads `drm.html` (it asks for `com.widevine.alpha`), the check finds the infobar's accept button by its label, presses it through `DOM.dispatchMouseEvent` (an infobar is browser UI, so CDP cannot click it), and chrome://components then lists Widevine with no restart. It fails if the pref was on before the page, if no button appears, or if none was pressed | needs a build |
 | Opt-in rules (prompt once, decline sticks, URL, registration) | `aerie_widevine_unittests` (`./aerie test-cpp`) | needs a build |
 | The zero-Google check still passes with Widevine off | `./aerie bench --check zero_traffic` | needs a build |

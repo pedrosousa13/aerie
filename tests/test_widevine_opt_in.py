@@ -19,6 +19,7 @@ REPO = Path(__file__).resolve().parent.parent
 
 FRESH_OK = {"key_system": {"available": False, "error": "NotSupportedError"}, "listed": False}
 CONTROL_OK = {"listed": True}
+GOOD = {"main": FRESH_OK, "control": CONTROL_OK}
 
 
 class JudgeTest(unittest.TestCase):
@@ -92,6 +93,139 @@ class JudgeTest(unittest.TestCase):
             status, detail = wv.judge(o)
             self.assertEqual(status, "fail", bad)
             self.assertIn("toggle", detail)
+
+
+class AcceptLabelTest(unittest.TestCase):
+    def test_the_label_is_the_accept_string_of_the_grdp(self):
+        self.assertEqual(wv.accept_label(), "Turn on Widevine")
+
+    def test_it_is_not_the_decline_or_the_body(self):
+        label = wv.accept_label()
+        self.assertNotIn("No thanks", label)
+        self.assertLess(len(label), 40)
+
+    def test_a_grdp_without_the_message_is_an_error(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "x.grdp"
+            path.write_text("<grit-part></grit-part>")
+            with self.assertRaises(ValueError):
+                wv.accept_label(path)
+
+
+ACCEPTED = {"before": False, "infobar": True, "pressed": True, "pref": True, "listed": True}
+
+
+class AcceptJudgeTest(unittest.TestCase):
+    def verdict(self, accept):
+        return wv.judge({**GOOD, "accept": accept})
+
+    def test_pressing_the_button_and_listing_widevine_passes(self):
+        status, detail = self.verdict(ACCEPTED)
+        self.assertEqual(status, "pass")
+        self.assertIn("accepting the prompt", detail)
+
+    def test_no_accept_subcase_is_still_a_pass(self):
+        self.assertEqual(wv.judge(GOOD)[0], "pass")
+
+    def test_negative_control_a_button_never_pressed_means_no_opt_in(self):
+        status, detail = self.verdict({**ACCEPTED, "pressed": False, "pref": False, "listed": False})
+        self.assertEqual(status, "fail")
+        self.assertIn("never pressed", detail)
+
+    def test_a_pref_that_is_on_without_a_press_is_not_the_prompt(self):
+        status, detail = self.verdict({**ACCEPTED, "pressed": False})
+        self.assertEqual(status, "fail")
+        self.assertIn("never pressed", detail)
+
+    def test_a_press_that_leaves_the_pref_off_fails(self):
+        status, detail = self.verdict({**ACCEPTED, "pref": False, "listed": False})
+        self.assertEqual(status, "fail")
+        self.assertIn("did not turn the pref on", detail)
+
+    def test_a_pref_on_that_does_not_list_widevine_fails(self):
+        status, detail = self.verdict({**ACCEPTED, "listed": False})
+        self.assertEqual(status, "fail")
+        self.assertIn("chrome://components", detail)
+
+    def test_no_infobar_fails(self):
+        status, detail = self.verdict({**ACCEPTED, "infobar": False, "pressed": False, "pref": False,
+                                       "listed": False})
+        self.assertEqual(status, "fail")
+        self.assertIn("never appeared", detail)
+
+    def test_a_pref_already_on_before_proves_nothing(self):
+        status, detail = self.verdict({**ACCEPTED, "before": True})
+        self.assertEqual(status, "fail")
+        self.assertIn("already on", detail)
+
+    def test_an_error_fails_with_its_text(self):
+        status, detail = self.verdict({"before": False, "infobar": False, "pressed": False,
+                                       "error": "UiDevToolsError: no port"})
+        self.assertEqual(status, "fail")
+        self.assertIn("UiDevToolsError: no port", detail)
+
+
+class FakeUi:
+    """Stands in for UiDevTools: the button shows up after ``appears_after`` looks."""
+
+    def __init__(self, appears_after=0, label_seen=None):
+        self.looks, self.appears_after, self.pressed, self.closed = 0, appears_after, [], False
+        self.asked = label_seen if label_seen is not None else []
+
+    def find_by_text(self, text):
+        self.asked.append(text)
+        self.looks += 1
+        return (7, {"Width": "100"}) if self.looks > self.appears_after else None
+
+    def press(self, node_id, props):
+        self.pressed.append(node_id)
+
+    def close(self):
+        self.closed = True
+
+
+class AcceptDriverTest(unittest.TestCase):
+    def setUp(self):
+        for name in ("SETTLE_SECONDS", "INFOBAR_POLL_SECONDS"):
+            self.addCleanup(setattr, wv, name, getattr(wv, name))
+            setattr(wv, name, 0)
+
+    def drive(self, ui, answers, wait=0.3):
+        # answers: the pref before, the pref after the press, the components list text
+        browser = ScriptedSession(answers)
+        got = wv.accept_prompt(browser, Path("/nonexistent"), connect=lambda path: ui, wait=wait)
+        return got, browser
+
+    def test_opens_the_drm_fixture_presses_the_accept_label_and_reads_the_state(self):
+        ui = FakeUi()
+        got, browser = self.drive(ui, [False, True, "Widevine Content Decryption Module"])
+        self.assertEqual(ui.asked, ["Turn on Widevine"])
+        self.assertEqual(ui.pressed, [7])
+        self.assertTrue(ui.closed)
+        self.assertEqual(got, {"before": False, "infobar": True, "pressed": True, "pref": True, "listed": True})
+        self.assertIn("/drm.html", browser.navigated)
+        self.assertIn("chrome://components", browser.navigated)
+
+    def test_waits_for_the_infobar(self):
+        ui = FakeUi(appears_after=2)
+        got, _ = self.drive(ui, [False, True, "Widevine"])
+        self.assertTrue(got["pressed"])
+        self.assertEqual(ui.looks, 3)
+
+    def test_no_button_means_nothing_pressed_and_no_opt_in_is_read(self):
+        ui = FakeUi(appears_after=10 ** 6)
+        got, _ = self.drive(ui, [False, False], wait=0.6)
+        self.assertEqual((got["infobar"], got["pressed"], got["pref"]), (False, False, False))
+        self.assertEqual(ui.pressed, [])
+        self.assertEqual(wv.judge({**GOOD, "accept": got})[0], "fail")
+
+    def test_a_ui_devtools_error_is_reported_not_raised(self):
+        def boom(path):
+            raise wv.ui_devtools.UiDevToolsError("no port")
+        browser = ScriptedSession([False, False])
+        got = wv.accept_prompt(browser, Path("/nonexistent"), connect=boom, wait=0.1)
+        self.assertIn("no port", got["error"])
+        self.assertFalse(got["pressed"])
 
 
 class BodyReaderTest(unittest.TestCase):
@@ -195,7 +329,7 @@ class ScriptedSession:
     def variant(self, extra_flags=(), prefs=None, profile=None):
         self.variants.append(prefs)
         self.variant_flags = getattr(self, "variant_flags", []) + [tuple(extra_flags)]
-        if profile is not None and self.variant_session is not None and len(self.variants) == 3:
+        if profile is not None and self.variant_session is not None and len(self.variants) == 4:
             # the first online launch "downloads" Widevine: the installer writes the hint file
             hint = profile.path / "WidevineCdm"
             hint.mkdir(exist_ok=True)
@@ -220,36 +354,49 @@ class ObserveTest(unittest.TestCase):
         old, wv.SETTLE_SECONDS = wv.SETTLE_SECONDS, 0
         self.addCleanup(setattr, wv, "SETTLE_SECONDS", old)
 
+    @staticmethod
+    def check(**kwargs):
+        check = wv.WidevineOptIn(**kwargs)
+        check.ui_connect = lambda path: FakeUi()
+        return check
+
     def test_control_variant_is_seeded_with_the_local_state_opt_in(self):
         main = ScriptedSession([{"available": False, "error": "NotSupportedError"}, "CRLSet Subresource Filter"])
-        control = ScriptedSession(["Widevine Content Decryption Module 0.0.0.0", False, None, True, "Widevine"])
+        control = ScriptedSession(["Widevine Content Decryption Module 0.0.0.0", False, None, True, "Widevine",
+                                   False, True, "Widevine"])
         main.variant_session = control
-        obs = wv.WidevineOptIn().observe(main)
+        obs = self.check().observe(main)
         self.assertEqual(obs["main"], {"key_system": {"available": False, "error": "NotSupportedError"},
                                        "listed": False})
         self.assertEqual(obs["control"], {"listed": True})
         # the control launch is seeded; the toggle launch starts from a fresh profile and flips the pref
-        self.assertEqual(main.variants, [{profile.LOCAL_STATE_KEY: {"aerie": {"widevine": {"enabled": True}}}}, None])
+        self.assertEqual(main.variants, [{profile.LOCAL_STATE_KEY: {"aerie": {"widevine": {"enabled": True}}}}, None, None])
         self.assertEqual(obs["toggle"], {"before": False, "pref": True, "listed": True})
+        self.assertEqual(obs["accept"], {"before": False, "infobar": True, "pressed": True, "pref": True,
+                                         "listed": True})
+        # the accept launch has UI DevTools, on a profile of its own; no other launch has it
+        self.assertEqual([f for f in main.variant_flags if "--enable-ui-devtools=0" in f],
+                         [tuple(wv.ui_devtools.FLAGS)])
         self.assertIn("chrome://settings/", control.navigated)
         self.assertNotIn("online", obs)
 
     def test_online_option_restarts_after_the_download_and_asks_for_widevine(self):
         main = ScriptedSession([{"available": False}, "CRLSet"])
-        control = ScriptedSession(["Widevine", False, None, True, "Widevine", {"available": False}, {"available": True}])
+        control = ScriptedSession(["Widevine", False, None, True, "Widevine", False, True, "Widevine",
+                                   {"available": False}, {"available": True}])
         control.netlog = [self.rec("update.googleapis.com"), self.rec("edgedl.me.gvt1.com"),
                           self.rec("update.googleapis.com"), {"host": "localhost", "external": False}]
         control.netlog[0]["sockets"] = [5]
         control.netlog_sent = {5: b'{"request":{"apps":[{"appid":"%s"}]}}' % wv.WIDEVINE_APP_ID.encode()}
         main.variant_session = control
-        obs = wv.WidevineOptIn(online_seconds=30).observe(main)
+        obs = self.check(online_seconds=30).observe(main)
         self.assertEqual(obs["online_app_ids"], {"ids": [wv.WIDEVINE_APP_ID], "readable": 2})
         self.assertEqual(obs["online"], {"available": True})
         self.assertTrue(obs["online_downloaded"])
         self.assertEqual(obs["online_hosts"], ["edgedl.me.gvt1.com", "update.googleapis.com"])
         # control launch, toggle launch, then the online launch (opted in), then its restart (prefs kept in the profile)
-        self.assertEqual(len(main.variants), 4)
-        self.assertIsNone(main.variants[3])
+        self.assertEqual(len(main.variants), 5)
+        self.assertIsNone(main.variants[4])
         for flags in main.variant_flags[-2:]:
             self.assertIn("--host-resolver-rules=MAP *.bench.test 127.0.0.1", flags)
             self.assertIn("--net-log-capture-mode=Everything", flags)
@@ -258,10 +405,10 @@ class ObserveTest(unittest.TestCase):
 
     def test_online_option_reports_a_download_that_never_finished(self):
         main = ScriptedSession([{"available": False}, "CRLSet"])
-        main.variant_session = ScriptedSession(["Widevine", False, None, True, "Widevine"])
+        main.variant_session = ScriptedSession(["Widevine", False, None, True, "Widevine", False, True, "Widevine"])
         main.variant_session.netlog = []
         main.variant = lambda *a, **k: _NullCtx(main.variant_session)  # never writes the hint
-        obs = wv.WidevineOptIn(online_seconds=0.1).observe(main)
+        obs = self.check(online_seconds=0.1).observe(main)
         self.assertFalse(obs["online_downloaded"])
         self.assertFalse(obs["online"]["available"])
 

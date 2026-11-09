@@ -148,6 +148,24 @@ class UiDevTools:
                 return node_id, props
         return None
 
+    def find_by_text(self, text: str) -> tuple[int, dict] | None:
+        """The first visible view of any class whose ``Text`` property is exactly ``text``.
+
+        That is how a button with no tooltip is found (an infobar button). Views come parent first, so
+        a button is found before the label view inside it.
+        """
+        for node_id, _ in self.nodes():
+            try:
+                props = self.properties(node_id)
+            except UiDevToolsError as exc:
+                # The server refused one node's style (a reply with an error): go on. A lost connection is not that.
+                if not str(exc).startswith("CSS.getMatchedStylesForNode:"):
+                    raise
+                continue
+            if props.get("Visible") == "true" and props.get("Text") == text:
+                return node_id, props
+        return None
+
     def press(self, node_id: int, props: dict) -> None:
         """A left click in the middle of the view: press, then release."""
         x, y = int(props.get("Width", "2")) // 2, int(props.get("Height", "2")) // 2

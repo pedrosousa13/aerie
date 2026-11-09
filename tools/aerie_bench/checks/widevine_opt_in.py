@@ -16,15 +16,24 @@
   Widevine's, or if no body could be read.
 * Toggle subcase: a third browser starts with a fresh profile, sets the pref through
   ``chrome.settingsPrivate`` (what the settings row calls) and must then list the Widevine component
-  without a restart, like the seeded browser. Accepting the prompt is not driven: CDP cannot press an
-  infobar button (docs/widevine.md).
+  without a restart, like the seeded browser.
+* Accept subcase: a fourth browser (fresh profile, started with UI DevTools, ``ui_devtools.FLAGS``) loads
+  ``/drm.html``, a fixture that calls ``requestMediaKeySystemAccess('com.widevine.alpha')``. That raises the
+  prompt, an infobar: browser UI that CDP cannot reach. The check finds the accept button in the views tree
+  by its label (``IDS_AERIE_WIDEVINE_PROMPT_ACCEPT``, read from ``aerie_widevine_strings.grdp``), presses it
+  with ``DOM.dispatchMouseEvent`` and must then see the pref on and the component listed, as for the
+  seeded browser. The pref is read before the page loads (it must be off) and the check fails if the button
+  is not found or was not pressed, so a pref that is on for another reason is not a pass.
 """
 
 from __future__ import annotations
 
+import re
 import time
+from pathlib import Path
 
-from .. import netlog
+from .. import netlog, ui_devtools
+from ..cdp import CdpError
 from ..denylist import DUMMY_TLD
 from ..profile import LOCAL_STATE_KEY
 from ..session import CheckResult, Session
@@ -36,6 +45,13 @@ PREF = "aerie.widevine.enabled"
 HINT_FILE = "latest-component-updated-widevine-cdm"  # written once the component is installed
 SETTLE_SECONDS = 1.0  # the components list fills in after the page shell
 OPT_IN_PREFS = {LOCAL_STATE_KEY: {"aerie": {"widevine": {"enabled": True}}}}
+
+GRDP = (Path(__file__).resolve().parents[3] / "overlay" / "chrome" / "browser" / "aerie_widevine"
+        / "aerie_widevine_strings.grdp")
+ACCEPT_MESSAGE = "IDS_AERIE_WIDEVINE_PROMPT_ACCEPT"
+DRM_PAGE = "/drm.html"  # tools/aerie_bench/fixtures/drm.html: asks for the key system on load
+INFOBAR_WAIT_SECONDS = 15.0
+INFOBAR_POLL_SECONDS = 0.5
 
 # The query asks for VP9 in WebM first: it needs no proprietary codec in the build. H.264 in MP4
 # is the second try. "Available" means one of them was granted; `config` says which.
@@ -73,6 +89,15 @@ COMPONENTS_TEXT_JS = """(() => {
 })()"""
 
 
+def accept_label(grdp: Path = GRDP) -> str:
+    """The text of the prompt's accept button: the grd message, which the prompt shows as the button label."""
+    match = re.search(r'<message name="%s"[^>]*>(.*?)</message>' % ACCEPT_MESSAGE,
+                      grdp.read_text(encoding="utf-8"), re.S)
+    if not match or not match.group(1).strip():
+        raise ValueError(f"{ACCEPT_MESSAGE} not found in {grdp}")
+    return " ".join(match.group(1).split())
+
+
 def ask_key_system(session: Session) -> dict:
     session.navigate("/index.html")
     answer = session.evaluate(KEY_SYSTEM_JS, await_promise=True)
@@ -86,11 +111,49 @@ def components_list_widevine(session: Session) -> bool:
     return "widevine" in str(session.evaluate(COMPONENTS_TEXT_JS)).lower()
 
 
-def toggle_mid_session(session: Session) -> dict:
-    """Turn the pref on in a running browser the way the settings row does, and look at the result."""
+def read_pref(session: Session) -> bool:
+    """The opt-in pref, read on the settings page the way the settings row reads it."""
     session.navigate_url("chrome://settings/")
     session.wait_for("typeof chrome !== 'undefined' && !!chrome.settingsPrivate", timeout=15.0)
-    before = session.evaluate(GET_PREF_JS, await_promise=True)
+    return session.evaluate(GET_PREF_JS, await_promise=True)
+
+
+def accept_prompt(session: Session, profile_path: Path, connect=ui_devtools.connect,
+                  wait: float = INFOBAR_WAIT_SECONDS) -> dict:
+    """Raise the prompt with a DRM page, press its accept button through UI DevTools, read the opt-in state.
+
+    ``session`` is a browser started with ``ui_devtools.FLAGS`` on a fresh profile at ``profile_path``.
+    """
+    obs: dict = {"before": None, "infobar": False, "pressed": False, "pref": None, "listed": None}
+    ui = None
+    try:
+        obs["before"] = read_pref(session)
+        session.navigate(DRM_PAGE)
+        ui = connect(profile_path)
+        label = accept_label()
+        deadline = time.monotonic() + wait
+        found = ui.find_by_text(label)
+        while found is None and time.monotonic() < deadline:
+            time.sleep(INFOBAR_POLL_SECONDS)
+            found = ui.find_by_text(label)
+        if found is not None:
+            obs["infobar"] = True
+            ui.press(*found)
+            obs["pressed"] = True
+        obs["pref"] = read_pref(session)
+        if obs["pressed"]:
+            obs["listed"] = components_list_widevine(session)
+    except (CdpError, ui_devtools.UiDevToolsError, OSError, ValueError) as exc:
+        obs["error"] = f"{type(exc).__name__}: {exc}"
+    finally:
+        if ui is not None:
+            ui.close()
+    return obs
+
+
+def toggle_mid_session(session: Session) -> dict:
+    """Turn the pref on in a running browser the way the settings row does, and look at the result."""
+    before = read_pref(session)
     session.evaluate(SET_PREF_JS, await_promise=True)
     after = session.evaluate(GET_PREF_JS, await_promise=True)
     return {"before": before, "pref": after, "listed": components_list_widevine(session)}
@@ -127,6 +190,22 @@ def judge(obs: dict) -> tuple[str, str]:
         if not toggle.get("listed"):
             return "fail", ("toggle subcase: after turning the pref on in a running browser, chrome://components "
                             "does not list Widevine, unlike a browser seeded with the pref")
+    accept = obs.get("accept")
+    if accept is not None:
+        if accept.get("error"):
+            return "fail", f"accept subcase: {accept['error']}"
+        if accept.get("before"):
+            return "fail", "accept subcase: the pref was already on before the prompt, so it proves nothing"
+        if not accept.get("infobar"):
+            return "fail", ("accept subcase: the prompt never appeared: no visible view with the accept label "
+                            "after the DRM page asked for the key system")
+        if not accept.get("pressed"):
+            return "fail", "accept subcase: the accept button was never pressed, so no opt-in can be judged"
+        if not accept.get("pref"):
+            return "fail", "accept subcase: pressing the accept button did not turn the pref on"
+        if not accept.get("listed"):
+            return "fail", ("accept subcase: after accepting the prompt, chrome://components does not list "
+                            "Widevine, unlike a browser seeded with the pref")
     online = obs.get("online")
     if online is not None and not online.get("available"):
         return "fail", (f"opted in, but Widevine did not become available ({online.get('error', 'no error')}); "
@@ -144,6 +223,8 @@ def judge(obs: dict) -> tuple[str, str]:
               "present in the component list once opted in")
     if toggle is not None:
         detail += "; turning the toggle on in a running browser lists it too"
+    if accept is not None:
+        detail += "; accepting the prompt (button pressed through UI DevTools) lists it too"
     if online is not None:
         detail += ", and, after the download and a restart, available to a DRM page"
         hosts = obs.get("online_hosts")
@@ -161,6 +242,7 @@ class WidevineOptIn:
 
     def __init__(self, online_seconds: float = 0.0):
         self.online_seconds = online_seconds
+        self.ui_connect = ui_devtools.connect  # a test swaps this for a fake
 
     def observe(self, session: Session) -> dict:
         main = {"key_system": ask_key_system(session), "listed": components_list_widevine(session)}
@@ -169,6 +251,8 @@ class WidevineOptIn:
         obs = {"main": main, "control": control}
         with session.variant((), None) as toggled:
             obs["toggle"] = toggle_mid_session(toggled)
+        with session.new_profile() as prof, session.variant(ui_devtools.FLAGS, None, profile=prof) as accepting:
+            obs["accept"] = accept_prompt(accepting, prof.path, connect=self.ui_connect)
         if self.online_seconds > 0:
             obs.update(self._online(session))
         return obs
