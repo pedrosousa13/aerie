@@ -7,6 +7,8 @@
 #include <string>
 #include <utility>
 
+#include "base/functional/bind.h"
+#include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/actions/chrome_action_id.h"
 #include "chrome/browser/ui/browser_actions.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
@@ -17,7 +19,9 @@
 #include "chrome/browser/ui/webui/aerie_guard/aerie_guard_ui.h"
 #include "chrome/grit/generated_resources.h"
 #include "chrome/common/webui_url_constants.h"
+#include "components/aerie_adblock/browser/aerie_guard_prefs.h"
 #include "components/aerie_adblock/browser/guard_target.h"
+#include "components/prefs/pref_service.h"
 #include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -33,6 +37,15 @@ AerieGuardPageActionController::AerieGuardPageActionController(
   if (aerie_adblock::FilterListManager* manager =
           aerie_adblock::FilterListManager::Get()) {
     manager_observation_.Observe(manager);
+  }
+  if (content::WebContents* contents = web_contents()) {
+    PrefService* prefs =
+        Profile::FromBrowserContext(contents->GetBrowserContext())->GetPrefs();
+    pref_registrar_.Init(prefs);
+    pref_registrar_.Add(
+        aerie_guard::kShowBlockedCount,
+        base::BindRepeating(&AerieGuardPageActionController::Update,
+                            base::Unretained(this)));
   }
   ObserveCounterOf(web_contents());
   Update();
@@ -55,6 +68,16 @@ ui::ImageModel AerieGuardPageActionController::DefaultImage() {
 
 aerie_adblock::GuardState AerieGuardPageActionController::CurrentState() const {
   return aerie_adblock::GuardStateOfTab(web_contents());
+}
+
+bool AerieGuardPageActionController::ShowsBlockedCount() const {
+  content::WebContents* contents = web_contents();
+  if (!contents) {
+    return true;
+  }
+  return Profile::FromBrowserContext(contents->GetBrowserContext())
+      ->GetPrefs()
+      ->GetBoolean(aerie_guard::kShowBlockedCount);
 }
 
 void AerieGuardPageActionController::ObserveCounterOf(
@@ -88,11 +111,13 @@ void AerieGuardPageActionController::Update() {
   } else {
     tooltip = l10n_util::GetStringUTF16(IDS_AERIE_GUARD_TOOLTIP_NONE);
   }
-  // The label is empty while blocking is off: the count is 0 then.
+  // The label is empty while blocking is off (the count is 0 then) and when
+  // the user hid the count. The tooltip above states it either way.
   page_action_controller_->OverrideImage(
       kActionAerieGuard,
-      aerie_guard::GuardImage(state.blocking_off,
-                              aerie_adblock::GuardBadgeLabel(state.count)));
+      aerie_guard::GuardImage(
+          state.blocking_off,
+          aerie_adblock::GuardBadgeLabel(state.count, ShowsBlockedCount())));
   page_action_controller_->OverrideTooltip(kActionAerieGuard, tooltip);
   page_action_controller_->OverrideAccessibleName(kActionAerieGuard, tooltip);
   page_action_controller_->Show(kActionAerieGuard);

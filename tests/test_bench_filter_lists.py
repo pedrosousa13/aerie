@@ -35,18 +35,12 @@ def record(*urls):
     return {"url": urls[0], "urls": list(urls), "host": "h", "scheme": "https", "external": True}
 
 
-def good_incognito():
-    host = fl.INCOGNITO_HOST
-    return {
-        "set_state": {"exceptions": ["news.localhost", host], "addError": ""},
-        "incognito_visit": visit(False, host),
-        "regular_visit": visit(True, host),
-        "regular_state": {"exceptions": ["news.localhost"]},
-        "locked_state": {"exceptions": ["news.localhost", host], "addError": "This site was turned off in a regular window."},
-        "after_close_state": {"exceptions": ["news.localhost"]},
-        "after_close_visit": visit(True, host),
-        "state_file": '{"exceptions": ["news.localhost"], "lists": []}',
-    }
+PROBES = [{"name": name, "refused": True} for name, _, _ in fl.VALIDATION_PROBES]
+STATE_FILE = '{"exceptions": ["news.localhost"], "lists": []}'
+
+
+def good_validation():
+    return {"probes": [dict(p) for p in PROBES], "state_before": STATE_FILE, "state_after": STATE_FILE}
 
 
 def good():
@@ -66,7 +60,7 @@ def good():
                                       record("http://news.localhost:5000/filters/page.html")]},
         "exception": {"state": state, "excepted_visit": visit(False), "other_visit": visit(True, "other.localhost")},
         "restart": {"state": copy.deepcopy(STATE), "excepted_visit": visit(False), "other_visit": visit(True, "other.localhost")},
-        "incognito": good_incognito(),
+        "validation": good_validation(),
     }
 
 
@@ -165,61 +159,60 @@ class JudgeTest(unittest.TestCase):
         self.fails(obs, f"exception, {fl.EXCEPTED_HOST}: expected 3 ads to load")
 
 
-class IncognitoTest(unittest.TestCase):
+class ValidationTest(unittest.TestCase):
     def problems(self, mutate=None):
-        inc = good_incognito()
+        val = good_validation()
         if mutate:
-            mutate(inc)
-        return fl.judge_incognito(inc)
+            mutate(val)
+        return fl.judge_validation(val)
 
-    def test_good_incognito_passes(self):
+    def test_good_validation_passes(self):
         self.assertEqual(self.problems(), [])
 
-    def test_judge_includes_the_incognito_step(self):
+    def test_judge_includes_the_validation_step(self):
         obs = good()
-        obs["incognito"]["regular_visit"] = visit(False, fl.INCOGNITO_HOST)
+        obs["validation"]["probes"][0]["refused"] = False
         status, detail, _ = fl.judge(obs)
         self.assertEqual(status, "fail")
-        self.assertIn("regular window", detail)
+        self.assertIn("validation", detail)
 
-    def test_missing_incognito_observation_fails(self):
+    def test_missing_validation_fails(self):
         obs = good()
-        del obs["incognito"]
+        del obs["validation"]
         status, detail, _ = fl.judge(obs)
         self.assertEqual(status, "fail")
-        self.assertIn("incognito", detail)
+        self.assertIn("never sent a bad argument", detail)
 
-    def test_exception_must_apply_in_incognito(self):
-        p = self.problems(lambda i: i.update(incognito_visit=visit(True, fl.INCOGNITO_HOST)))
-        self.assertTrue(any("incognito window" in x and "expected 3 ads to load" in x for x in p), p)
+    def test_the_probes_cover_a_non_string_and_a_5000_character_host(self):
+        by_name = {name: (msg, args) for name, msg, args in fl.VALIDATION_PROBES}
+        self.assertEqual(by_name["setException with a number as the host"], ("setException", [123, True]))
+        msg, args = by_name["setException with a 5000-character host"]
+        self.assertEqual(msg, "setException")
+        self.assertEqual(len(args[0]), 5000)
+        self.assertGreater(len(args[0]), 4096)
 
-    def test_exception_must_not_apply_in_a_regular_window(self):
-        p = self.problems(lambda i: i.update(regular_visit=visit(False, fl.INCOGNITO_HOST)))
-        self.assertTrue(any("regular window" in x and "expected 3 blocked" in x for x in p), p)
+    def test_a_handler_without_the_length_check_fails(self):
+        # Without the check the long host is not refused: the manager answers with a state and an error.
+        def accept_the_long_host(val):
+            for probe in val["probes"]:
+                if "5000-character host" in probe["name"]:
+                    probe["refused"] = False
+        p = self.problems(accept_the_long_host)
+        self.assertEqual(p, ["validation: setException with a 5000-character host was not refused"])
 
-    def test_exception_must_not_show_in_regular_state(self):
-        p = self.problems(lambda i: i.update(regular_state={"exceptions": ["news.localhost", fl.INCOGNITO_HOST]}))
-        self.assertTrue(any("regular window's exception list" in x for x in p), p)
+    def test_a_handler_without_the_type_check_fails(self):
+        def accept_a_number(val):
+            val["probes"][0]["refused"] = False
+        self.assertEqual(len(self.problems(accept_a_number)), 1)
 
-    def test_exception_must_be_gone_after_the_window_closes(self):
-        p = self.problems(lambda i: i.update(after_close_state={"exceptions": [fl.INCOGNITO_HOST]}))
-        self.assertTrue(any("after the incognito window closed" in x for x in p), p)
-        p = self.problems(lambda i: i.update(after_close_visit=visit(False, fl.INCOGNITO_HOST)))
-        self.assertTrue(any("after the incognito window closed" in x and "expected 3 blocked" in x for x in p), p)
+    def test_a_refused_message_that_still_changed_the_state_file_fails(self):
+        p = self.problems(lambda v: v.update(state_after='{"exceptions": ["news.localhost", "%s"]}' % ("a" * 5000)))
+        self.assertTrue(any("state.json changed" in x for x in p), p)
 
-    def test_exception_must_never_reach_the_state_file(self):
-        p = self.problems(lambda i: i.update(state_file='{"exceptions": ["%s"]}' % fl.INCOGNITO_HOST))
-        self.assertTrue(any("state file" in x for x in p), p)
-        p = self.problems(lambda i: i.update(state_file=None))
-        self.assertTrue(any("state file" in x for x in p), p)
-
-    def test_each_host_is_listed_once_on_the_incognito_page(self):
-        p = self.problems(lambda i: i.update(set_state={"exceptions": ["news.localhost", "news.localhost", fl.INCOGNITO_HOST]}))
-        self.assertTrue(any("more than once" in x for x in p), p)
-
-    def test_incognito_cannot_undo_a_saved_exception(self):
-        p = self.problems(lambda i: i.update(locked_state={"exceptions": [fl.INCOGNITO_HOST], "addError": ""}))
-        self.assertTrue(any("saved exception" in x for x in p), p)
+    def test_an_unreadable_state_file_fails(self):
+        for key in ("state_before", "state_after"):
+            p = self.problems(lambda v: v.update({key: None}))
+            self.assertTrue(any("state file could not be read" in x for x in p), p)
 
 
 class RestartTest(unittest.TestCase):
@@ -257,13 +250,20 @@ class HelpersTest(unittest.TestCase):
         self.assertIn("filter_lists", REGISTRY)
         self.assertEqual(fl.FLAG, "--aerie-test-allow-loopback-filter-lists")
 
-    def test_the_page_host_is_filters(self):
-        # The page reads aerie://filters; the host in code must stay in step with the check.
-        self.assertEqual(fl.MANAGER_URL, "chrome://filters")
-        header = (Path(__file__).resolve().parent.parent / "overlay/chrome/browser/ui/webui/aerie_filters"
-                  / "aerie_filters_ui.h").read_text()
-        self.assertIn('kAerieFiltersHost[] = "filters";', header)
-        self.assertNotIn("aerie-filters", header)
+    def test_the_check_drives_the_settings_section_through_its_handler(self):
+        # The check reads chrome://settings/aerieGuard; the route and the message names must stay in step.
+        self.assertEqual(fl.MANAGER_URL, "chrome://settings/aerieGuard")
+        root = Path(__file__).resolve().parent.parent
+        handler = (root / "overlay/chrome/browser/ui/webui/aerie_guard_settings/aerie_guard_settings_handler.cc").read_text()
+        for message in ("getState", "addList", "removeList", "updateList", "updateAll", "setException", "setAutoUpdate"):
+            self.assertIn(f'"aerieGuard.{message}"', handler)
+        source = Path(fl.__file__).read_text()
+        self.assertNotIn("aerieFilters", source.replace("``aerieFilters``", ""))
+        self.assertNotIn("chrome://filters", source.split('"""', 2)[2])
+        self.assertIn("'/aerieGuard', 'aerieGuard'", (root / "patches/adblock/0023-add-aerie-guard-settings-page.patch").read_text())
+
+    def test_the_old_page_is_gone(self):
+        self.assertFalse((Path(__file__).resolve().parent.parent / "overlay/chrome/browser/ui/webui/aerie_filters").exists())
 
 
 class FixtureTest(unittest.TestCase):

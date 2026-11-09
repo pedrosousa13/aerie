@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright 2026 The Aerie Authors
+     You can use, redistribute, and/or modify this source code under
+     the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+     Strings of the Aerie Guard section of Settings (issue #103). patches/adblock/0022 gives each one to the
+     settings page under the name tests/test_aerie_guard_settings.py checks. -->
+<grit-part>
+  <message name="IDS_SETTINGS_AERIE_GUARD_TITLE" desc="Title of the Aerie Guard section of Settings and the text of its entry in the menu on the left.">
+    Aerie Guard
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_SHOW_COUNT" desc="Label of the switch that decides whether the Aerie Guard icon in the address bar shows the number of blocked items drawn on it.">
+    Show the number of blocked items on the Guard icon
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_SHOW_COUNT_DESC" desc="Line under the switch that shows or hides the number on the Aerie Guard icon. It says that the number stays in the tooltip.">
+    When this is off, the icon has no number. Its tooltip still says how many items were blocked on the page.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_AUTO_UPDATE" desc="Label of the switch that turns the automatic update of the filter lists on or off.">
+    Update filter lists automatically
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_AUTO_UPDATE_DESC" desc="Line under the switch for the automatic update of the filter lists. It says what the browser contacts and how often, and what happens when the switch is off.">
+    Once a day, Aerie downloads each list again from the address of its publisher. When this is off, Aerie does not download lists on its own.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_SITES_HEADING" desc="Heading of the list of sites where the user turned off blocking.">
+    Sites where blocking is off
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_SITES_DESC" desc="Text under the heading of the list of sites where blocking is off. It says that subdomains are included, that the Guard icon can also change one site, and that sites turned off in a private window are not listed.">
+    Aerie Guard does not block on these sites or on their subdomains. You can also change one site from the Guard icon in the address bar. Sites you turn off in a private window are not shown here.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_SITES_EMPTY" desc="Text shown instead of the list when the user turned blocking off for no site.">
+    Blocking is on for every site.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_ADD_SITE_LABEL" desc="Label of the text field where the user types a site name to turn blocking off for it.">
+    Turn blocking off for a site
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_ADD_SITE_PLACEHOLDER" desc="Example site name shown in the empty text field where the user types a site to turn blocking off for.">
+    example.org
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_ADD_SITE_BUTTON" desc="Button next to the text field. It turns blocking off for the site that was typed.">
+    Turn off
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_REMOVE_SITE" desc="Button on a row of the list of sites where blocking is off. It turns blocking on again for that site.">
+    Turn on
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_REMOVE_SITE_ARIA" desc="Accessible name of the button that turns blocking on again for one site of the list. The placeholder is the site name.">
+    Turn blocking back on for <ph name="SITE">$1<ex>news.example</ex></ph>
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_ERROR_INVALID_SITE" desc="Error under the site field when the text typed is not a site name.">
+    That is not a valid site name.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_ERROR_TOO_MANY_SITES" desc="Error under the site field when the list of sites where blocking is off is full.">
+    There are too many sites turned off. Turn some back on.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_ERROR_GENERIC" desc="Error under the site field when the change was refused for a reason that has no message of its own.">
+    Aerie Guard could not change this site.
+  </message>
+</grit-part>

@@ -216,8 +216,8 @@ export class AerieGuardAppElement extends CrLitElement {
     this.proxy_.handler.setGuardOn(e.detail);
   }
 
-  protected onFilterListsClick_() {
-    this.proxy_.handler.openLink(Link.kFilterLists);
+  protected onGuardSettingsClick_() {
+    this.proxy_.handler.openLink(Link.kAerieGuardSettings);
   }
 }
 

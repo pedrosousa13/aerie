@@ -237,8 +237,10 @@ class CosmeticRowTest(unittest.TestCase):
     def test_no_new_mojo_interface_is_bound_for_another_controller(self):
         text = added("adblock/0019-bind-aerie-guard-handler-factory.patch")
         self.assertEqual(text.count(".Add<"), 1)
-        for n in ("0022", "0023"):
-            self.assertEqual(list(PATCHES.glob(f"{n}-*")), [])
+        # Issue #103 added patches 0022 to 0024 (the Settings section); none of them binds an interface.
+        for path in sorted(PATCHES.glob("00[2-9][0-9]-*")):
+            if path.name >= "0022":
+                self.assertNotIn(".Add<", added(f"adblock/{path.name}"), path.name)
 
 
 class FingerprintingRowTest(unittest.TestCase):

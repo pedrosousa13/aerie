@@ -1,0 +1,84 @@
+Aerie-Purpose: Send chrome://filters to the Aerie Guard section of Settings and take the old filter lists page out of the browser.
+Aerie-Upstream-Area: chrome/browser/chrome_content_browser_client.cc (HandleWebUI), chrome/browser/ui/webui/chrome_web_ui_configs.cc, chrome/browser/ui/webui/BUILD.gn, chrome/chrome_paks.gni, tools/gritsettings/resource_ids.spec
+Aerie-Kind: hook
+
+Issue #103. HandleWebUI() rewrites chrome://filters to chrome://settings/aerieGuard, the
+way it rewrites chrome://help, so the old address, the bookmarks that use it and the setup
+page keep working. The rest of this patch removes what adblock/0009 added for the old
+page: its WebUI config, its BUILD.gn label, its pak and its resource id range (10270 to
+10279, which stays unused). The page's overlay directory is gone and its handler
+is replaced by the one of adblock/0022.
+
+--- a/chrome/browser/chrome_content_browser_client.cc
++++ b/chrome/browser/chrome_content_browser_client.cc
+@@ -6599,4 +6599,9 @@
+ constexpr char kLegacyOmniboxInternalsHost[] = "omnibox";
+ 
++// The former host of the filter lists page, chrome://filters. HandleWebUI()
++// rewrites it into the Aerie Guard section of Settings (issue #103).
++constexpr char kLegacyAerieFiltersHost[] = "filters";
++constexpr char kAerieGuardSettingsPath[] = "aerieGuard";
++
+ bool IsDisabledInternalWebUI(const GURL& url) {
+   if (!content::IsInternalWebUI(url)) {
+@@ -7658,4 +7663,12 @@
+   }
+ 
++  // Rewrite chrome://filters to chrome://settings/aerieGuard. The old page is
++  // gone; links, bookmarks and the setup page still use the address.
++  if (url->SchemeIs(content::kChromeUIScheme) &&
++      url->host() == kLegacyAerieFiltersHost) {
++    *url = ReplaceURLHostAndPath(*url, chrome::kChromeUISettingsHost,
++                                 kAerieGuardSettingsPath);
++  }
++
+ #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || \
+     BUILDFLAG(IS_CHROMEOS)
+--- a/chrome/browser/ui/webui/BUILD.gn
++++ b/chrome/browser/ui/webui/BUILD.gn
+@@ -55,5 +55,4 @@
+     "//chrome/browser/ui/webui/accessibility",
+     "//chrome/browser/ui/webui/actor_internals",
+-    "//chrome/browser/ui/webui/aerie_filters",
+     "//chrome/browser/ui/webui/aerie_guard",
+     "//chrome/browser/ui/webui/autofill_and_password_manager_internals",
+--- a/chrome/browser/ui/webui/chrome_web_ui_configs.cc
++++ b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
+@@ -16,5 +16,4 @@
+ #include "chrome/browser/ui/webui/accessibility/accessibility_ui.h"
+ #include "chrome/browser/ui/webui/actor_internals/actor_internals_ui.h"
+-#include "chrome/browser/ui/webui/aerie_filters/aerie_filters_ui.h"
+ #include "chrome/browser/ui/webui/autofill_and_password_manager_internals/autofill_internals_ui.h"
+ #include "chrome/browser/ui/webui/autofill_and_password_manager_internals/password_manager_internals_ui.h"
+@@ -274,5 +273,4 @@
+   auto& map = content::WebUIConfigMap::GetInstance();
+   map.AddWebUIConfig(std::make_unique<AccessibilityUIConfig>());
+-  map.AddWebUIConfig(std::make_unique<aerie_adblock::AerieFiltersUIConfig>());
+   map.AddWebUIConfig(std::make_unique<AutofillInternalsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<BluetoothInternalsUIConfig>());
+--- a/chrome/chrome_paks.gni
++++ b/chrome/chrome_paks.gni
+@@ -128,5 +128,4 @@
+       "$root_gen_dir/chrome/common_resources.pak",
+       "$root_gen_dir/chrome/saved_tab_groups_unsupported_resources.pak",
+-      "$root_gen_dir/chrome/browser/ui/webui/aerie_filters/aerie_filters_resources.pak",
+       "$root_gen_dir/components/aerie_adblock/resources/aerie_adblock_resources.pak",
+       "$root_gen_dir/components/autofill/core/browser/geo/autofill_address_rewriter_resources.pak",
+@@ -176,5 +175,4 @@
+       "//chrome/browser/glic/resources:browser_resources",
+       "//chrome/browser/resources",
+-      "//chrome/browser/ui/webui/aerie_filters:resources",
+       "//chrome/common:resources",
+       "//components/aerie_adblock:resources",
+--- a/tools/gritsettings/resource_ids.spec
++++ b/tools/gritsettings/resource_ids.spec
+@@ -1801,9 +1801,4 @@
+   },
+ 
+-  "chrome/browser/ui/webui/aerie_filters/aerie_filters_resources.grd": {
+-    "META": {"sizes": {"includes": [10]}},
+-    "includes": [10270],
+-  },
+-
+   "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/aerie_guard/resources.grd": {
+     "META": {"sizes": {"includes": [20]}},

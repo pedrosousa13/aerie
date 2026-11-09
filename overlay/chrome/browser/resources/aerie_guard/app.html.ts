@@ -94,9 +94,9 @@ ${this.state_ ? html`
   <p id="empty">${this.i18n_('noSite')}</p>
 ` : ''}`}
 <footer>
-  <cr-button id="filterLists" class="text-button"
-      @click="${this.onFilterListsClick_}">
-    ${this.i18n_('filterLists')}
+  <cr-button id="guardSettings" class="text-button"
+      @click="${this.onGuardSettingsClick_}">
+    ${this.i18n_('guardSettings')}
   </cr-button>
 </footer>
 <!--_html_template_end_-->`;

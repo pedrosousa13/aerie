@@ -25,16 +25,15 @@
 #include "content/public/common/url_constants.h"
 #include "mojo/public/cpp/bindings/message.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/window_open_disposition.h"
 #include "url/gurl.h"
 
 namespace aerie_guard {
 
 namespace {
 
-// The page Filter lists... opens. It moves to the settings section of issue
-// #103 when that exists.
-constexpr char kFilterListsUrl[] = "chrome://filters/";
+// The Aerie Guard section of Settings (issue #103), under chrome://settings/.
+// Settings always opens in the regular profile, also from an incognito window.
+constexpr char kAerieGuardSubPage[] = "aerieGuard";
 
 // The favicon of |page| from the local favicon store. The Google server
 // fallback is off: reading the icon makes no network request.
@@ -260,7 +259,7 @@ void AerieGuardHandler::OpenLink(mojom::Link link) {
   // Mojo already rejects a value that is not in the enum. This switch keeps
   // the browser's own answer if one is ever added and not handled here.
   switch (link) {
-    case mojom::Link::kFilterLists:
+    case mojom::Link::kAerieGuardSettings:
     case mojom::Link::kNoiseSettings: {
       if (!target_.Resolve()) {
         if (!target_.empty()) {
@@ -275,8 +274,8 @@ void AerieGuardHandler::OpenLink(mojom::Link link) {
           chrome::ShowSettingsSubPage(tab->GetBrowserWindowInterface(),
                                       chrome::kNoiseSubPage);
         } else {
-          tab->GetBrowserWindowInterface()->OpenGURL(
-              GURL(kFilterListsUrl), WindowOpenDisposition::NEW_FOREGROUND_TAB);
+          chrome::ShowSettingsSubPage(tab->GetBrowserWindowInterface(),
+                                      kAerieGuardSubPage);
         }
       }
       ClosePanel();

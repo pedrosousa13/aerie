@@ -42,8 +42,6 @@ echo "fn main() { cxx_build::bridges([\"$O/components/aerie_adblock/rust/ffi/src
 cp "$(find "$WORK/target" -path '*include/ffitest*' -name lib.rs.h | head -1)" "$WORK/stub/components/aerie_adblock/rust/ffi/src/lib.rs.h"
 cp "$(find "$WORK/target" -path '*include/ffitest*' -name protection.rs.h | head -1)" "$WORK/stub/components/aerie_adblock/rust/ffi/src/protection.rs.h"
 printf '#define IDR_AERIE_ADBLOCK_ENGINE 1\n#define IDR_AERIE_ADBLOCK_EASYLIST 2\n#define IDR_AERIE_ADBLOCK_EASYPRIVACY 3\n#define IDR_AERIE_PROTECTION_ENGINE 4\n' > "$WORK/stub/components/aerie_adblock/resources/grit/aerie_adblock_resources.h"
-mkdir -p "$WORK/stub/chrome/browser/ui/webui/aerie_filters/grit"
-printf '#define IDR_AERIE_FILTERS_HTML 1\n#define IDR_AERIE_FILTERS_JS 2\n#define IDR_AERIE_FILTERS_CSS 3\n' > "$WORK/stub/chrome/browser/ui/webui/aerie_filters/grit/aerie_filters_resources.h"
 
 # The headers that grit and the vector icon aggregator generate in a real build, as stand-ins: one #define for every
 # message of the overlay's grdp files (the tree's generated_resources.h predates them), and one declaration for every

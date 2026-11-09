@@ -17,7 +17,8 @@ class RepoOverlayTest(unittest.TestCase):
                                             "chrome/browser/aerie_adblock/",
                                             "chrome/app/aerie_services_strings.grdp",
                                             "chrome/browser/ui/views/aerie_adblock/",
-                                            "chrome/browser/ui/webui/aerie_filters/", "chrome/browser/ui/webui/aerie_guard/",
+                                            "chrome/browser/ui/webui/aerie_guard_settings/", "chrome/browser/ui/webui/aerie_guard/",
+                                            "chrome/browser/resources/settings/aerie_guard_page/",
                                             "chrome/browser/resources/aerie_guard/",
                                             "chrome/browser/ui/webui/aerie_onboarding/", "components/aerie_onboarding/",
                                             "components/aerie_widevine/", "chrome/browser/aerie_widevine/",
@@ -31,7 +32,7 @@ class RepoOverlayTest(unittest.TestCase):
         files = overlay.collect(overlay.overlay_root(REPO))
         for gn in ("components/aerie_adblock/BUILD.gn", "components/aerie_adblock/browser/BUILD.gn",
                    "chrome/browser/aerie_adblock/BUILD.gn", "chrome/browser/ui/views/aerie_adblock/BUILD.gn",
-                   "chrome/browser/ui/webui/aerie_filters/BUILD.gn",
+                   "chrome/browser/ui/webui/aerie_guard_settings/BUILD.gn",
                    "components/aerie_widevine/BUILD.gn", "chrome/browser/aerie_widevine/BUILD.gn"):
             base = gn.rsplit("/", 1)[0]
             text = (overlay.overlay_root(REPO) / gn).read_text()

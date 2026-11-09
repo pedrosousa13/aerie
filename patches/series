@@ -74,3 +74,8 @@ adblock/0018-register-aerie-guard-page.patch
 adblock/0019-bind-aerie-guard-handler-factory.patch
 adblock/0020-build-aerie-guard-resources.patch
 adblock/0021-build-aerie-guard-browser-tests.patch
+
+# The Aerie Guard section of Settings (#103): its handler, pref and strings, the page, and the redirect of chrome://filters.
+adblock/0022-add-aerie-guard-settings-backend.patch
+adblock/0023-add-aerie-guard-settings-page.patch
+adblock/0024-redirect-filters-to-aerie-guard-settings.patch

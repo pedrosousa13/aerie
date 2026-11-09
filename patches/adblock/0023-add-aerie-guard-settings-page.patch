@@ -1,0 +1,84 @@
+Aerie-Purpose: Add the Aerie Guard section to Settings: a top-level route, its menu entry and its place in the page switcher.
+Aerie-Upstream-Area: chrome/browser/resources/settings (route.ts, router.ts, lazy_load.ts, BUILD.gn, settings_menu/settings_menu.html, settings_main/settings_main.html)
+Aerie-Kind: hook
+
+Issue #103. The page, settings-aerie-guard-page, is a Lit element
+(SettingsViewMixinLit(CrLitElement)) in the overlay, chrome/browser/resources/settings/
+aerie_guard_page. The route /aerieGuard is a section of the basic page, like Search. The
+page is imported by lazy_load.ts and wired the way patches/hardening/0003 wires the
+Security hardening page (route, router type, lazy load, BUILD.gn). The menu entry follows
+the Privacy entry, so the hunk in settings_menu.html sits next to the order Helium's
+reorder-settings-menu.patch sets. The entry uses the settings20:shield icon that Chromium
+already has; its text is the grd string aerieGuardPageTitle (patches/adblock/0022).
+
+--- a/chrome/browser/resources/settings/BUILD.gn
++++ b/chrome/browser/resources/settings/BUILD.gn
+@@ -171,4 +171,7 @@
+     "about_page/about_page.ts",
+     "active_timer.ts",
++    "aerie_guard_page/aerie_guard_browser_proxy.ts",
++    "aerie_guard_page/aerie_guard_page.html.ts",
++    "aerie_guard_page/aerie_guard_page.ts",
+     "ai_page/ai_info_card.html.ts",
+     "ai_page/ai_info_card.ts",
+--- a/chrome/browser/resources/settings/lazy_load.ts
++++ b/chrome/browser/resources/settings/lazy_load.ts
+@@ -24,4 +24,5 @@
+ import './clear_browsing_data_dialog/clear_browsing_data_account_indicator.js';
+ // </if>
++import './aerie_guard_page/aerie_guard_page.js';
+ import './clear_browsing_data_dialog/clear_browsing_data_dialog.js';
+ import './clear_browsing_data_dialog/clear_browsing_data_time_picker.js';
+@@ -258,4 +259,5 @@
+ export {NetworkPredictionOptions} from './performance_page/constants.js';
+ export {SettingsCookiesPageElement} from './privacy_page/cookies_page.js';
++export {SettingsAerieGuardPageElement} from './aerie_guard_page/aerie_guard_page.js';
+ export {SettingsAerieHardeningPageElement} from './privacy_page/hardening_page.js';
+ export {SettingsDoNotTrackToggleElement} from './privacy_page/do_not_track_toggle.js';
+--- a/chrome/browser/resources/settings/route.ts
++++ b/chrome/browser/resources/settings/route.ts
+@@ -160,4 +160,9 @@
+   }
+ 
++  // Aerie Guard section (issue #103). A top-level section, like Search.
++  r.AERIE_GUARD = r.BASIC.createSection(
++      '/aerieGuard', 'aerieGuard',
++      loadTimeData.getString('aerieGuardPageTitle'));
++
+   const visibility = pageVisibility || {};
+ 
+--- a/chrome/browser/resources/settings/router.ts
++++ b/chrome/browser/resources/settings/router.ts
+@@ -35,4 +35,5 @@
+   EDIT_DICTIONARY: Route;
+   NOISE: Route;
++  AERIE_GUARD: Route;
+   AERIE_HARDENING: Route;
+   FONTS: Route;
+--- a/chrome/browser/resources/settings/settings_main/settings_main.html
++++ b/chrome/browser/resources/settings/settings_main/settings_main.html
+@@ -70,4 +70,11 @@
+   </template>
+ 
++  <div slot="view" id="aerieGuard">
++    <template is="dom-if" if="[[renderPlugin_(
++        routes_.AERIE_GUARD, lastRoute_, inSearchMode_)]]" update-when-false>
++      <settings-aerie-guard-page></settings-aerie-guard-page>
++    </template>
++  </div>
++
+   <template is="dom-if" if="[[false]]">
+     <div slot="view" id="yourSavedInfo">
+--- a/chrome/browser/resources/settings/settings_menu/settings_menu.html
++++ b/chrome/browser/resources/settings/settings_menu/settings_menu.html
+@@ -30,4 +30,10 @@
+           <cr-ripple></cr-ripple>
+         </a>
++        <a role="menuitem" id="aerieGuard" href="/aerieGuard"
++            class="cr-nav-menu-item">
++          <cr-icon icon="settings20:shield"></cr-icon>
++          <span class="menu-label">$i18n{aerieGuardPageTitle}</span>
++          <cr-ripple></cr-ripple>
++        </a>
+         <a role="menuitem" id="performance" href="/performance"
+             class="cr-nav-menu-item"

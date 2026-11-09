@@ -45,6 +45,11 @@ struct GuardState {
 // the number from 1 to 99, "99+" above.
 std::u16string GuardBadgeLabel(int count);
 
+// The same, for a user who may have hidden the number (the pref
+// aerie_guard::kShowBlockedCount, issue #103): "" when |show_count| is false.
+// The tooltip does not use this and still states the count.
+std::u16string GuardBadgeLabel(int count, bool show_count);
+
 // The state of the icon. Reads only browser-side state: |committed_url| is the
 // committed URL of the tab's primary main frame (never a URL the renderer
 // proposes), |session| the tab's profile (SessionKeyFor()), |manager| the

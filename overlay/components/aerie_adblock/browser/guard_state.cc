@@ -17,6 +17,13 @@ std::u16string GuardBadgeLabel(int count) {
   return count > 99 ? u"99+" : base::NumberToString16(count);
 }
 
+std::u16string GuardBadgeLabel(int count, bool show_count) {
+  if (!show_count) {
+    return std::u16string();
+  }
+  return GuardBadgeLabel(count);
+}
+
 GuardState ComputeGuardState(const GURL& committed_url,
                              SessionKey session,
                              const FilterListManager* manager,

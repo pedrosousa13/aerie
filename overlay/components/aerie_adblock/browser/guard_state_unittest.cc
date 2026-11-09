@@ -57,6 +57,18 @@ TEST(GuardBadgeLabelTest, IsTheNumberUpTo99) {
   EXPECT_EQ(u"99", GuardBadgeLabel(99));
 }
 
+TEST(GuardBadgeLabelTest, IsEmptyWhenTheUserHidTheCount) {
+  EXPECT_EQ(u"", GuardBadgeLabel(7, false));
+  EXPECT_EQ(u"", GuardBadgeLabel(100, false));
+  EXPECT_EQ(u"", GuardBadgeLabel(0, false));
+}
+
+TEST(GuardBadgeLabelTest, IsTheSameWhenTheCountIsShown) {
+  for (int count : {-1, 0, 1, 42, 99, 100, 5000}) {
+    EXPECT_EQ(GuardBadgeLabel(count), GuardBadgeLabel(count, true));
+  }
+}
+
 TEST(GuardBadgeLabelTest, SaturatesAbove99) {
   EXPECT_EQ(u"99+", GuardBadgeLabel(100));
   EXPECT_EQ(u"99+", GuardBadgeLabel(123456));
