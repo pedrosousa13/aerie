@@ -83,9 +83,13 @@ class FilterListManagerTest : public testing::Test {
     return manager;
   }
 
+  // busy() covers downloads, checks and rebuilds, not the saves and deletes
+  // the manager posts to its file sequence. Without the second step a test
+  // reads the disk, or ends and removes dir_, while one is still in flight.
   void WaitUntilIdle(FilterListManager& manager) {
     IdleWaiter waiter(manager);
     waiter.Wait();
+    task_environment_.RunUntilIdle();  // Also runs the thread pool dry.
   }
 
   bool Blocks(const char* host) {
