@@ -72,8 +72,11 @@ TEST(RgbaLayoutTest, RejectsEmptyAndNegativeInputs) {
 }
 
 TEST(RgbaLayoutTest, RejectsAnOverflow) {
-  EXPECT_FALSE(
-      ComputeRgbaLayout(0x7fffffff, 0x7fffffff, 4, 0, 0, 0).has_value());
+  // On a 64-bit size_t a 2^31 by 2^31 area still fits, so the sum of the skip
+  // rows and the last row start is what overflows.
+  EXPECT_FALSE(ComputeRgbaLayout(0x7fffffff, 0x7fffffff, 4, 0, 0x7fffffff,
+                                 0x7fffffff)
+                   .has_value());
 }
 
 }  // namespace
