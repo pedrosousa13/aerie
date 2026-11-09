@@ -26,6 +26,7 @@ import os
 import re
 import urllib.error
 import urllib.parse
+import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
@@ -120,19 +121,82 @@ def verify_bytes(pin: ListPin, data: bytes) -> None:
         raise ListError(f"{pin.file}: header version {version!r} does not match the lock ({pin.version!r})")
 
 
-def _download(url: str, opener: fallback.Opener) -> bytes:
-    request = fallback._request(url)
-    try:
-        response = opener(request)
-        data = response.read(MAX_BYTES + 1)
-        close = getattr(response, "close", None)
-        if close:
-            close()
-    except (urllib.error.URLError, OSError, TimeoutError) as exc:
-        raise ListError(f"cannot download {url}: {exc}") from exc
+MAX_REDIRECTS = 5
+_REDIRECT_STATUSES = (301, 302, 303, 307, 308)
+
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Leave a redirect unfollowed, so `_download` can check each hop itself."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+_list_opener = urllib.request.build_opener(NoRedirect)
+
+
+def list_opener(request: urllib.request.Request):
+    """The default opener for list downloads: it never follows a redirect on its own."""
+    return _list_opener.open(request, timeout=30)
+
+
+def _require_https(url: str, what: str) -> None:
+    if urllib.parse.urlsplit(url).scheme != "https":
+        raise ListError(f"{what} is not https ({url}); refusing it, nothing was pinned")
+
+
+def _redirect_target(response, current: str) -> str | None:
+    """The absolute URL a 3xx answer points to, or None if the answer is not a redirect."""
+    status = getattr(response, "status", None)
+    if status is None:
+        status = getattr(response, "code", None)
+    if status not in _REDIRECT_STATUSES:
+        return None
+    headers = getattr(response, "headers", None)
+    location = headers.get("Location") if headers is not None else None
+    if not location:
+        raise ListError(f"{current}: redirect ({status}) without a Location header")
+    return urllib.parse.urljoin(current, location)
+
+
+def _download(url: str, opener: fallback.Opener = list_opener) -> tuple[bytes, str]:
+    """Fetch a list over https, following redirects only to other https URLs.
+
+    Returns (bytes, final URL). A redirect to a URL that is not https, a missing Location,
+    more than MAX_REDIRECTS hops, or an opener that ended on a non-https URL all raise
+    ListError. Shared by filter_lists and protection_lists.
+    """
+    current = url
+    _require_https(current, "the list URL")
+    for _ in range(MAX_REDIRECTS + 1):
+        request = fallback._request(current)
+        try:
+            try:
+                response = opener(request)
+            except urllib.error.HTTPError as exc:
+                if exc.code not in _REDIRECT_STATUSES:
+                    raise
+                response = exc
+            target = _redirect_target(response, current)
+            if target is None:
+                data = response.read(MAX_BYTES + 1)
+                geturl = getattr(response, "geturl", None)
+                final = geturl() if geturl else current
+            close = getattr(response, "close", None)
+            if close:
+                close()
+        except (urllib.error.URLError, OSError, TimeoutError) as exc:
+            raise ListError(f"cannot download {current}: {exc}") from exc
+        if target is None:
+            break
+        _require_https(target, f"the redirect from {current}")
+        current = target
+    else:
+        raise ListError(f"{url}: too many redirects (more than {MAX_REDIRECTS}); refusing it")
+    _require_https(final, "the final URL")
     if len(data) > MAX_BYTES:
         raise ListError(f"{url} is larger than {MAX_BYTES} bytes; refusing it")
-    return data
+    return data, final
 
 
 def _write_atomic(path: Path, data: bytes) -> None:
@@ -151,7 +215,7 @@ def verify_dir(pins: list[ListPin], directory: Path) -> None:
         verify_bytes(pin, path.read_bytes())
 
 
-def update(path: Path, opener: fallback.Opener = fallback.default_opener,
+def update(path: Path, opener: fallback.Opener = list_opener,
            log: Callable[[str], None] = print) -> list[tuple[ListPin, ListPin]]:
     """Download each list at its URL, write the list files next to the lock, rewrite the lock.
 
@@ -162,9 +226,10 @@ def update(path: Path, opener: fallback.Opener = fallback.default_opener,
     path = Path(path)
     old_pins = load_lock(path)
     downloaded: dict[str, bytes] = {}
+    finals: dict[str, str] = {}
     new_pins = []
     for pin in old_pins:
-        data = _download(pin.url, opener)
+        data, finals[pin.file] = _download(pin.url, opener)
         if not data:
             raise ListError(f"{pin.url}: empty list; refusing to pin it")
         version = header_version(data)
@@ -179,7 +244,7 @@ def update(path: Path, opener: fallback.Opener = fallback.default_opener,
     by_file = {p.file: p for p in new_pins}
     for entry in doc["lists"]:
         new = by_file[entry["file"]]
-        entry.update(sha256=new.sha256, size=new.size, version=new.version)
+        entry.update(sha256=new.sha256, size=new.size, version=new.version, final_url=finals[new.file])
     for name, data in downloaded.items():
         _write_atomic(path.parent / name, data)
     path.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")

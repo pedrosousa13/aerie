@@ -34,7 +34,7 @@ from pathlib import Path
 from typing import Callable
 
 from . import fallback
-from .filter_lists import ListError, ListPin, _download, _write_atomic, load_lock, verify_hash
+from .filter_lists import ListError, ListPin, _download, list_opener, _write_atomic, load_lock, verify_hash
 
 LOCK_RELATIVE = Path("third_party") / "filter_lists" / "protection_lists.lock.json"
 _GENERATED_RE = re.compile(r"^#\s*(?:Generated|Updated):\s*(\S+)\s*$", re.MULTILINE)
@@ -128,7 +128,7 @@ def _today() -> str:
     return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
 
 
-def update(path: Path, opener: fallback.Opener = fallback.default_opener,
+def update(path: Path, opener: fallback.Opener = list_opener,
            log: Callable[[str], None] = print, today: Callable[[], str] = _today,
            selfcheck: Path | None = None) -> list[tuple[ListPin, ListPin]]:
     """Download each list from its publisher, write the files next to the lock, rewrite the lock.
@@ -141,9 +141,10 @@ def update(path: Path, opener: fallback.Opener = fallback.default_opener,
     path = Path(path)
     old_pins = load_lock(path)
     downloaded: dict[str, bytes] = {}
+    finals: dict[str, str] = {}
     new_pins = []
     for pin in old_pins:
-        data = _download(pin.url, opener)
+        data, finals[pin.file] = _download(pin.url, opener)
         if not data:
             raise ListError(f"{pin.url}: empty list; refusing to pin it")
         if entry_count(data) == 0:
@@ -174,7 +175,7 @@ def update(path: Path, opener: fallback.Opener = fallback.default_opener,
     by_file = {p.file: p for p in new_pins}
     for entry in doc["lists"]:
         new = by_file[entry["file"]]
-        entry.update(sha256=new.sha256, size=new.size, version=new.version)
+        entry.update(sha256=new.sha256, size=new.size, version=new.version, final_url=finals[new.file])
     for name, data in downloaded.items():
         _write_atomic(path.parent / name, data)
     path.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
