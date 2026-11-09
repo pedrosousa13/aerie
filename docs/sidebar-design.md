@@ -531,23 +531,24 @@ The run on this branch reports 0 failing combinations. In M2 the check runs in C
 
 ## Open points carried into M2 planning
 
-The sources do not settle these. They are not decided in this page.
+Rows marked "Decided" were settled in the M2 planning session (maintainer, 2026-11-09). The rest stay open.
 
 | Point | Detail |
 | --- | --- |
 | Sleeping-tab desaturate | The desaturate is a static filter that snaps on after the opacity fade, because filters are never animated. A smoother option is a second grey favicon layer crossfaded over the colour one. It costs one extra layer per sleeping tab. Judge it in the native build. |
 | High contrast auto-switch | The switch under `prefers-contrast: more`, and `forced-colors`, are untested in a native build. The mockup only simulates them. |
-| Rule grammar details | The four rule types are set. Whether a regular expression is allowed, how patterns capture (`$1`) in rename rules, and the exact grammar are open in #139 and #146. |
+| Rule grammar details | Decided for M2: no regular expressions. The four rule types only. How rename-rule patterns capture (`$1`) is still open in #146. |
 | Folder rule against routing rule | What wins when a folder rule and a Workspace routing rule both match is open in #172. |
 | Horizontal drag between groups | Dragging a tab between Pinned and Today, and into folders, in the horizontal strip is not designed in detail. |
-| Idle sleep timeout | The mockup shows sleeping tabs but no default timeout. #141 adds a per-folder "sleep after N". The global default is not set. |
-| Favorites cap | Zen caps Essentials at 12. Aerie has 4 columns and no stated cap or scroll behaviour. |
-| Archive exceptions | Whether a selected tab or a tab playing audio is exempt from auto-archive is not stated in the sources. |
-| Workspace wrap-around | Zen wraps from the last Workspace to the first. The mockup does not wrap. Ctrl+Shift+] on the last Workspace is not decided. |
+| Idle sleep timeout | Decided: a tab sleeps after 1 hour idle. The setting offers 15 minutes to 8 hours, and never. #141 can override it per folder. |
+| Favorites cap | Decided: 12 Favorites (3 rows of 4). |
+| Archive exceptions | Decided: auto-archive skips the selected tab and tabs playing audio. |
+| Workspace wrap-around | Decided: no wrap. Ctrl+Shift+] on the last Workspace does nothing. |
 | Whole-chrome crossfade in Views | The mockup uses View Transitions. Views needs an equivalent that fades two complete layers, such as a snapshot layer. How is not decided. |
-| Folder editor surface | The folder editor sheet is a popover. Whether it is native Views or WebUI is not decided. The "WebUI only for settings-like surfaces" rule leans to Views. |
+| Folder editor surface | Decided: native Views. |
 | macOS shortcuts | The mockup lists Ctrl shortcuts only. The macOS map (Cmd and Option) is not set. |
 | Custom colour and contrast | The mockup adjusts a custom colour that fails contrast and shows a chip. The adjustment rule (which channel moves, and by how much) is not specified. |
 | Smart folder rows in two places | A tab matching a smart folder shows both there and in its real place. The mockup draws both. Selection and drag rules across the two are not fully specified. |
 | Zen light and dark from colour | Zen picks light or dark from the Space colour. The maintainer decided against it for Aerie. Only the readable-text idea (accent tinted toward black or white) remains a candidate. |
-| Later work | Import from Arc and Zen (#171, M5). Link routing by domain (#172, M5). On-device AI titles (#147). Mobile companions. |
+| Workspace UI | Decided: M2 builds one Workspace record in the Tab Model (colour, theme, mode). The switcher, swipe, Workspace editor and per-Workspace overrides ship in M5 with isolation (ADR 0006). |
+| Later work | Import from Arc and Zen (#171, M5). Link routing by domain (#172, M5). On-device AI titles (#147, moved to Post-M5). Mobile companions. |
