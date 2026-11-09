@@ -1,0 +1,758 @@
+{
+ "check": "hardening_fingerprinting_fonts",
+ "source": "hand-written observations of the shape observe() returns; none is a recording of a real browser",
+ "cases": [
+  {
+   "name": "synthetic_restricted_with_controls_finding_the_font",
+   "expect": "pass",
+   "detail_contains": "Aerie Bench Probe",
+   "obs": {
+    "default": {
+     "a": {
+      "probe": true,
+      "probe_local": true,
+      "probe_worker": true,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     }
+    },
+    "on": {
+     "a": {
+      "probe": false,
+      "probe_local": false,
+      "probe_worker": false,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     },
+     "b": {
+      "probe": false,
+      "probe_local": false,
+      "probe_worker": false,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     }
+    },
+    "feature_off": {
+     "a": {
+      "probe": true,
+      "probe_local": true,
+      "probe_worker": true,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     }
+    },
+    "global_off": {
+     "a": {
+      "probe": true,
+      "probe_local": true,
+      "probe_worker": true,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     }
+    },
+    "site_off": {
+     "a": {
+      "probe": true,
+      "probe_local": true,
+      "probe_worker": true,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     },
+     "b": {
+      "probe": false,
+      "probe_local": false,
+      "probe_worker": false,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     }
+    }
+   }
+  },
+  {
+   "name": "synthetic_worker_finds_the_unlisted_font",
+   "expect": "fail",
+   "detail_contains": "not on the list",
+   "obs": {
+    "default": {
+     "a": {
+      "probe": true,
+      "probe_local": true,
+      "probe_worker": true,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     }
+    },
+    "on": {
+     "a": {
+      "probe": false,
+      "probe_local": false,
+      "probe_worker": true,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     },
+     "b": {
+      "probe": false,
+      "probe_local": false,
+      "probe_worker": false,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     }
+    },
+    "feature_off": {
+     "a": {
+      "probe": true,
+      "probe_local": true,
+      "probe_worker": true,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     }
+    },
+    "global_off": {
+     "a": {
+      "probe": true,
+      "probe_local": true,
+      "probe_worker": true,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     }
+    },
+    "site_off": {
+     "a": {
+      "probe": true,
+      "probe_local": true,
+      "probe_worker": true,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     },
+     "b": {
+      "probe": false,
+      "probe_local": false,
+      "probe_worker": false,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     }
+    }
+   }
+  },
+  {
+   "name": "synthetic_allowlisted_font_lost",
+   "expect": "fail",
+   "detail_contains": "allowlisted",
+   "obs": {
+    "default": {
+     "a": {
+      "probe": true,
+      "probe_local": true,
+      "probe_worker": true,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     }
+    },
+    "on": {
+     "a": {
+      "probe": false,
+      "probe_local": false,
+      "probe_worker": false,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     },
+     "b": {
+      "probe": false,
+      "probe_local": false,
+      "probe_worker": false,
+      "allowed": true,
+      "allowed_local": false,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     }
+    },
+    "feature_off": {
+     "a": {
+      "probe": true,
+      "probe_local": true,
+      "probe_worker": true,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     }
+    },
+    "global_off": {
+     "a": {
+      "probe": true,
+      "probe_local": true,
+      "probe_worker": true,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     }
+    },
+    "site_off": {
+     "a": {
+      "probe": true,
+      "probe_local": true,
+      "probe_worker": true,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     },
+     "b": {
+      "probe": false,
+      "probe_local": false,
+      "probe_worker": false,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     }
+    }
+   }
+  },
+  {
+   "name": "synthetic_other_script_does_not_render",
+   "expect": "fail",
+   "detail_contains": "another script",
+   "obs": {
+    "default": {
+     "a": {
+      "probe": true,
+      "probe_local": true,
+      "probe_worker": true,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     }
+    },
+    "on": {
+     "a": {
+      "probe": false,
+      "probe_local": false,
+      "probe_worker": false,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 0,
+      "nonlatin_base": 2000
+     },
+     "b": {
+      "probe": false,
+      "probe_local": false,
+      "probe_worker": false,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     }
+    },
+    "feature_off": {
+     "a": {
+      "probe": true,
+      "probe_local": true,
+      "probe_worker": true,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     }
+    },
+    "global_off": {
+     "a": {
+      "probe": true,
+      "probe_local": true,
+      "probe_worker": true,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     }
+    },
+    "site_off": {
+     "a": {
+      "probe": true,
+      "probe_local": true,
+      "probe_worker": true,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     },
+     "b": {
+      "probe": false,
+      "probe_local": false,
+      "probe_worker": false,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     }
+    }
+   }
+  },
+  {
+   "name": "synthetic_negative_control_feature_off_stays_restricted",
+   "expect": "fail",
+   "detail_contains": "negative control failed",
+   "obs": {
+    "default": {
+     "a": {
+      "probe": true,
+      "probe_local": true,
+      "probe_worker": true,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     }
+    },
+    "on": {
+     "a": {
+      "probe": false,
+      "probe_local": false,
+      "probe_worker": false,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     },
+     "b": {
+      "probe": false,
+      "probe_local": false,
+      "probe_worker": false,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     }
+    },
+    "feature_off": {
+     "a": {
+      "probe": false,
+      "probe_local": false,
+      "probe_worker": false,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     }
+    },
+    "global_off": {
+     "a": {
+      "probe": true,
+      "probe_local": true,
+      "probe_worker": true,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     }
+    },
+    "site_off": {
+     "a": {
+      "probe": true,
+      "probe_local": true,
+      "probe_worker": true,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     },
+     "b": {
+      "probe": false,
+      "probe_local": false,
+      "probe_worker": false,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     }
+    }
+   }
+  },
+  {
+   "name": "synthetic_negative_control_site_off_stays_restricted",
+   "expect": "fail",
+   "detail_contains": "negative control failed",
+   "obs": {
+    "default": {
+     "a": {
+      "probe": true,
+      "probe_local": true,
+      "probe_worker": true,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     }
+    },
+    "on": {
+     "a": {
+      "probe": false,
+      "probe_local": false,
+      "probe_worker": false,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     },
+     "b": {
+      "probe": false,
+      "probe_local": false,
+      "probe_worker": false,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     }
+    },
+    "feature_off": {
+     "a": {
+      "probe": true,
+      "probe_local": true,
+      "probe_worker": true,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     }
+    },
+    "global_off": {
+     "a": {
+      "probe": true,
+      "probe_local": true,
+      "probe_worker": true,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     }
+    },
+    "site_off": {
+     "a": {
+      "probe": false,
+      "probe_local": false,
+      "probe_worker": false,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     },
+     "b": {
+      "probe": false,
+      "probe_local": false,
+      "probe_worker": false,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     }
+    }
+   }
+  },
+  {
+   "name": "synthetic_other_site_loses_the_restriction",
+   "expect": "fail",
+   "detail_contains": "only a.localhost",
+   "obs": {
+    "default": {
+     "a": {
+      "probe": true,
+      "probe_local": true,
+      "probe_worker": true,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     }
+    },
+    "on": {
+     "a": {
+      "probe": false,
+      "probe_local": false,
+      "probe_worker": false,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     },
+     "b": {
+      "probe": false,
+      "probe_local": false,
+      "probe_worker": false,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     }
+    },
+    "feature_off": {
+     "a": {
+      "probe": true,
+      "probe_local": true,
+      "probe_worker": true,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     }
+    },
+    "global_off": {
+     "a": {
+      "probe": true,
+      "probe_local": true,
+      "probe_worker": true,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     }
+    },
+    "site_off": {
+     "a": {
+      "probe": true,
+      "probe_local": true,
+      "probe_worker": true,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     },
+     "b": {
+      "probe": true,
+      "probe_local": true,
+      "probe_worker": true,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     }
+    }
+   }
+  },
+  {
+   "name": "synthetic_detector_cannot_see_the_test_font",
+   "expect": "fail",
+   "detail_contains": "detector failed",
+   "obs": {
+    "default": {
+     "a": {
+      "probe": false,
+      "probe_local": false,
+      "probe_worker": false,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     }
+    },
+    "on": {
+     "a": {
+      "probe": false,
+      "probe_local": false,
+      "probe_worker": false,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     },
+     "b": {
+      "probe": false,
+      "probe_local": false,
+      "probe_worker": false,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     }
+    },
+    "feature_off": {
+     "a": {
+      "probe": true,
+      "probe_local": true,
+      "probe_worker": true,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     }
+    },
+    "global_off": {
+     "a": {
+      "probe": true,
+      "probe_local": true,
+      "probe_worker": true,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     }
+    },
+    "site_off": {
+     "a": {
+      "probe": true,
+      "probe_local": true,
+      "probe_worker": true,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     },
+     "b": {
+      "probe": false,
+      "probe_local": false,
+      "probe_worker": false,
+      "allowed": true,
+      "allowed_local": true,
+      "allowed_worker": true,
+      "generic": 1200,
+      "nonlatin": 2000,
+      "nonlatin_base": 2000
+     }
+    }
+   }
+  }
+ ]
+}

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import time
 from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
@@ -52,6 +53,18 @@ _ENV_ALLOW = ("PATH", "LANG", "LANGUAGE", "TZ", "DISPLAY", "WAYLAND_DISPLAY", "X
               "XDG_RUNTIME_DIR", "XDG_SESSION_TYPE", "XDG_CURRENT_DESKTOP", "LD_LIBRARY_PATH")
 
 
+TEST_FONT_DIR = Path(__file__).resolve().parent / "fixtures" / "fonts"
+
+
+def install_test_fonts(target: Path) -> None:
+    """Put the Bench test fonts (fixtures/fonts/*.ttf, made by make_fonts.py) where fontconfig looks for the
+    user's fonts, inside the throwaway profile (``$XDG_DATA_HOME/fonts``). The fonts check (issue #117) needs a
+    font that is installed but not on the allowlist, and does not want to depend on the machine's own fonts."""
+    target.mkdir(parents=True, exist_ok=True, mode=0o700)
+    for font in sorted(TEST_FONT_DIR.glob("*.ttf")):
+        shutil.copyfile(font, target / font.name)
+
+
 def browser_env(environ, profile_path: Path, extra: dict | None = None) -> dict:
     """The browser's environment: an allowlist, with HOME/XDG/TMPDIR inside the throwaway profile,
     so no tokens from the caller's shell leak in and nothing is written to the real home."""
@@ -62,6 +75,7 @@ def browser_env(environ, profile_path: Path, extra: dict | None = None) -> dict:
     for key, path in dirs.items():
         path.mkdir(parents=True, exist_ok=True, mode=0o700)
         env[key] = str(path)
+    install_test_fonts(home / ".local" / "share" / "fonts")
     env.update(extra or {})
     return env
 

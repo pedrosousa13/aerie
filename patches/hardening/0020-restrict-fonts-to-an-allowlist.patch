@@ -1,0 +1,500 @@
+Aerie-Purpose: Add an opt-in pref, "Restrict fonts" (aerie.fonts.restrict, off by default), that lets a page match only the CSS generic families and an allowlist of common fonts, so the fonts installed on the machine are no fingerprint surface (issue #117).
+Aerie-Upstream-Area: third_party/blink/renderer/core/css/ (css_font_selector.cc, offscreen_font_selector.cc, css_font_selector_base.cc, local_font_face_source.cc, font_restriction.h), third_party/blink/public/common/helium_noise/ (HeliumNoiseFeature::kFonts), content/browser/helium_noise/noise_token_data.cc, content/public/browser/content_browser_client.cc, chrome/browser/chrome_content_browser_client.cc, components/permissions/contexts/local_fonts_permission_context.cc, chrome/browser/extensions/api/settings_private/prefs_util.cc
+Aerie-Kind: hook
+
+HeliumNoiseFeature::kFonts is a new surface token. The browser puts it in the per-site tokens
+(HeliumNoiseTokenData::GetTokens) only when the profile's aerie.fonts.restrict pref is on, read
+through the new ContentBrowserClient::HeliumFontRestrictionEnabled (false by default; Chrome reads
+the pref). GetTokens runs only while fingerprinting protection is on for the browser and for the
+site, so "token present" means "restricted here": the pref off, protection off for the whole
+browser, or protection off for the site gives the real fonts, with no renderer change. Windows,
+dedicated workers, shared and service workers and popups already receive these tokens (hardening/0013,
+0014, 0017). The kFonts value is a derived per-site token like the others and is never read as a
+number: only its presence matters. The new feature kHeliumNoiseFonts (on by default) lets the Bench
+turn the surface off for its negative control.
+
+A restricted context cannot find an installed font family that is not in the allowlist: the CSS
+generic keywords, the approved list and the Microsoft aliases that fontconfig maps to Liberation
+(components/aerie_fonts, one data file with unit tests). CSSFontSelector::GetFontData and
+OffscreenFontSelector::GetFontData (workers' OffscreenCanvas) return no font for such a family, after
+they looked for an @font-face of that name, so web fonts the page loads are never hidden. A generic
+family is never filtered: the settings map it to a family of the system. FontFallbackList asks the selector (FontSelector::IsInstalledFamilyHidden) before it falls back to the system fonts for a family the selector had no font for, because that fallback would find the hidden font again. IsPlatformFamilyMatchAvailable
+agrees. @font-face local() (LocalFontFaceSource) finds a font only when its full name or PostScript
+name is an allowed family, or one followed by style words (for example "DejaVu Sans Bold"). The
+code does not touch system fallback for missing glyphs (FontFallbackList), so text in any script
+still renders, and it does not filter in FontCache itself, which has no document to ask.
+
+Local Font Access (queryLocalFonts) is blocked by default while the pref is on:
+LocalFontsPermissionContext turns "no saved choice" (ask) into block. A choice the user saved for a
+site still applies, so the permission stays grantable per site.
+
+The pref is a profile pref registered in ChromeContentBrowserClient::RegisterProfilePrefs. The
+settings_private allowlist line lets the hardening page's toggle write it; the name is a string
+literal there, the same as aerie_fonts::kRestrictFonts, and a test compares the two.
+
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -1299,6 +1299,7 @@
+     "//components/aerie_adblock/browser",
+     "//components/application_locale_storage",
+     "//components/aerie_fingerprint",
++    "//components/aerie_fonts:prefs",
+     "//components/blocked_content",
+     "//components/breadcrumbs/core",
+     "//components/breadcrumbs/core:status",
+--- a/chrome/browser/chrome_content_browser_client.cc
++++ b/chrome/browser/chrome_content_browser_client.cc
+@@ -251,6 +251,7 @@
+ #include "chrome/common/webui_url_utils.h"
+ #include "chrome/installer/util/google_update_settings.h"
+ #include "components/aerie_adblock/browser/aerie_adblock_hook.h"
++#include "components/aerie_fonts/fonts_prefs.h"
+ #include "components/autofill/core/common/autofill_features.h"
+ #include "components/autofill/core/common/autofill_switches.h"
+ #include "components/blocked_content/popup_blocker.h"
+@@ -1661,6 +1662,7 @@
+   registry->RegisterBooleanPref(prefs::kDisable3DAPIs, false);
+   registry->RegisterBooleanPref(prefs::kEnableHyperlinkAuditing, false);
+   registry->RegisterBooleanPref(prefs::kHeliumNoiseEnabled, true);
++  aerie_fonts::RegisterProfilePrefs(registry);
+   // Register user prefs for mapping SitePerProcess and IsolateOrigins in
+   // user policy in addition to the same named ones in Local State (which are
+   // used for mapping the command-line flags).
+@@ -9856,6 +9858,13 @@
+   return helium_noise::IsHeliumNoiseEnabled(browser_context, origin);
+ }
+ 
++bool ChromeContentBrowserClient::HeliumFontRestrictionEnabled(
++    content::BrowserContext* browser_context) {
++  Profile* profile = Profile::FromBrowserContext(browser_context);
++  return profile &&
++         profile->GetPrefs()->GetBoolean(aerie_fonts::kRestrictFonts);
++}
++
+ bool ChromeContentBrowserClient::UsePrefetchPrerenderIntegration() {
+   return base::FeatureList::IsEnabled(features::kBookmarkTriggerForPrefetch) ||
+          base::FeatureList::IsEnabled(
+--- a/chrome/browser/chrome_content_browser_client.h
++++ b/chrome/browser/chrome_content_browser_client.h
+@@ -1232,6 +1232,9 @@
+   bool HeliumNoiseEnabled(content::BrowserContext* browser_context,
+                           const GURL& origin) override;
+ 
++  bool HeliumFontRestrictionEnabled(
++      content::BrowserContext* browser_context) override;
++
+   bool UsePrefetchPrerenderIntegration() override;
+ 
+ #if !BUILDFLAG(IS_ANDROID)
+--- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
++++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
+@@ -481,6 +481,9 @@
+   // is aerie_guard::kShowBlockedCount; a test compares the two.
+   (*s_allowlist)["aerie.guard.show_blocked_count"] =
+       settings_api::PrefType::kBoolean;
++  // Aerie: restrict the fonts a page can match to an allowlist (issue #117).
++  // The name is aerie_fonts::kRestrictFonts; a test compares the two.
++  (*s_allowlist)["aerie.fonts.restrict"] = settings_api::PrefType::kBoolean;
+ 
+   // Privacy page
+   (*s_allowlist)[::prefs::kDnsOverHttpsMode] = settings_api::PrefType::kString;
+--- a/components/permissions/BUILD.gn
++++ b/components/permissions/BUILD.gn
+@@ -134,6 +134,7 @@
+   ]
+   deps = [
+     "//base",
++    "//components/aerie_fonts:prefs",
+     "//components/back_forward_cache",
+     "//components/content_settings/browser",
+     "//components/content_settings/core/browser",
+--- a/components/permissions/contexts/local_fonts_permission_context.cc
++++ b/components/permissions/contexts/local_fonts_permission_context.cc
+@@ -4,7 +4,12 @@
+ 
+ #include "components/permissions/contexts/local_fonts_permission_context.h"
+ 
++#include "components/aerie_fonts/fonts_prefs.h"
++#include "components/content_settings/core/common/content_settings.h"
+ #include "components/content_settings/core/common/content_settings_types.h"
++#include "components/prefs/pref_service.h"
++#include "components/user_prefs/user_prefs.h"
++#include "content/public/browser/browser_context.h"
+ #include "services/network/public/mojom/permissions_policy/permissions_policy_feature.mojom.h"
+ 
+ LocalFontsPermissionContext::LocalFontsPermissionContext(
+@@ -15,3 +19,20 @@
+           network::mojom::PermissionsPolicyFeature::kLocalFonts) {}
+ 
+ LocalFontsPermissionContext::~LocalFontsPermissionContext() = default;
++
++ContentSetting LocalFontsPermissionContext::GetContentSettingStatusInternal(
++    content::RenderFrameHost* render_frame_host,
++    const GURL& requesting_origin,
++    const GURL& embedding_origin) const {
++  const ContentSetting setting =
++      ContentSettingPermissionContextBase::GetContentSettingStatusInternal(
++          render_frame_host, requesting_origin, embedding_origin);
++  if (setting != CONTENT_SETTING_ASK) {
++    return setting;
++  }
++  PrefService* prefs = user_prefs::UserPrefs::Get(browser_context());
++  if (prefs && prefs->GetBoolean(aerie_fonts::kRestrictFonts)) {
++    return CONTENT_SETTING_BLOCK;
++  }
++  return setting;
++}
+--- a/components/permissions/contexts/local_fonts_permission_context.h
++++ b/components/permissions/contexts/local_fonts_permission_context.h
+@@ -17,6 +17,15 @@
+   LocalFontsPermissionContext(const LocalFontsPermissionContext&) = delete;
+   LocalFontsPermissionContext& operator=(const LocalFontsPermissionContext&) =
+       delete;
++
++ protected:
++  // Aerie (#117): while "Restrict fonts" is on, a site with no saved choice for
++  // Local Font Access is blocked instead of asked. A choice the user saved for
++  // the site (allow, block or ask) still applies.
++  ContentSetting GetContentSettingStatusInternal(
++      content::RenderFrameHost* render_frame_host,
++      const GURL& requesting_origin,
++      const GURL& embedding_origin) const override;
+ };
+ 
+ #endif  // COMPONENTS_PERMISSIONS_CONTEXTS_LOCAL_FONTS_PERMISSION_CONTEXT_H_
+--- a/content/browser/helium_noise/noise_token_data.cc
++++ b/content/browser/helium_noise/noise_token_data.cc
+@@ -73,6 +73,8 @@
+       blink::HeliumNoiseToken(base::RandUint64());
+   session_tokens_[blink::HeliumNoiseFeature::kTextMetrics] =
+       blink::HeliumNoiseToken(base::RandUint64());
++  session_tokens_[blink::HeliumNoiseFeature::kFonts] =
++      blink::HeliumNoiseToken(base::RandUint64());
+ }
+ 
+ // static
+@@ -103,8 +105,18 @@
+     domain = base::UnguessableToken::Create().ToString();
+   }
+ 
++  // Aerie (#117): the kFonts token says "restrict fonts to the allowlist
++  // here". Only a profile with the "Restrict fonts" pref on gets one; this
++  // function is reached only while protection is on for the site, so the
++  // per-site switch and the global switch lift the restriction too.
++  const bool restrict_fonts =
++      GetContentClient()->browser()->HeliumFontRestrictionEnabled(context);
++
+   blink::HeliumNoiseTokenMap result;
+   for (const auto& [feature, session_token] : data->session_tokens_) {
++    if (feature == blink::HeliumNoiseFeature::kFonts && !restrict_fonts) {
++      continue;
++    }
+     result.insert({feature, DeriveTokenFromOrigin(session_token, domain)});
+   }
+ 
+--- a/content/public/browser/content_browser_client.cc
++++ b/content/public/browser/content_browser_client.cc
+@@ -2033,6 +2033,11 @@
+   return base::FeatureList::IsEnabled(blink::features::kHeliumNoise);
+ }
+ 
++bool ContentBrowserClient::HeliumFontRestrictionEnabled(
++    BrowserContext* browser_context) {
++  return false;
++}
++
+ bool ContentBrowserClient::UsePrefetchPrerenderIntegration() {
+   return false;
+ }
+--- a/content/public/browser/content_browser_client.h
++++ b/content/public/browser/content_browser_client.h
+@@ -3327,6 +3327,11 @@
+   virtual bool HeliumNoiseEnabled(BrowserContext* browser_context,
+                                   const GURL& origin);
+ 
++  // Returns true if pages of `browser_context` can match only the allowlist of
++  // common fonts (Aerie, issue #117). The embedder reads the "Restrict fonts"
++  // pref; the default is off.
++  virtual bool HeliumFontRestrictionEnabled(BrowserContext* browser_context);
++
+   // Returns true if PrefetchPrerenderIntegration should be allowed, this
+   // allows a prerender fall back to prefetch if available.
+   virtual bool UsePrefetchPrerenderIntegration();
+--- a/third_party/blink/common/features.cc
++++ b/third_party/blink/common/features.cc
+@@ -74,6 +74,11 @@
+ // noise that is stable per site and session (Aerie, issue #118).
+ BASE_FEATURE(kHeliumNoiseTextMetrics, base::FEATURE_ENABLED_BY_DEFAULT);
+ 
++// Pages can match only an allowlist of common fonts while the "Restrict fonts"
++// pref is on (Aerie, issue #117). The pref decides; this feature is the
++// Bench's negative control.
++BASE_FEATURE(kHeliumNoiseFonts, base::FEATURE_ENABLED_BY_DEFAULT);
++
+ // Controls whether to include information about the page's open popup in
+ // AIPageContent.
+ BASE_FEATURE(kAIPageContentIncludePopupWindows,
+--- a/third_party/blink/public/common/features.h
++++ b/third_party/blink/public/common/features.h
+@@ -49,6 +49,7 @@
+ BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kHeliumNoiseWebGL);
+ BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kHeliumNoiseScreen);
+ BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kHeliumNoiseTextMetrics);
++BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kHeliumNoiseFonts);
+ 
+ // Controls whether to include information about the page's open popup in
+ // AIPageContent.
+--- a/third_party/blink/public/common/helium_noise/noise_token.h
++++ b/third_party/blink/public/common/helium_noise/noise_token.h
+@@ -27,6 +27,7 @@
+   kWebGL,
+   kScreen,
+   kTextMetrics,
++  kFonts,
+ };
+ 
+ // A wrapper class for a uint64_t noise token.
+--- a/third_party/blink/public/common/helium_noise/noise_token_mojom_traits.h
++++ b/third_party/blink/public/common/helium_noise/noise_token_mojom_traits.h
+@@ -38,6 +38,8 @@
+         return blink::mojom::HeliumNoiseFeature::kScreen;
+       case blink::HeliumNoiseFeature::kTextMetrics:
+         return blink::mojom::HeliumNoiseFeature::kTextMetrics;
++      case blink::HeliumNoiseFeature::kFonts:
++        return blink::mojom::HeliumNoiseFeature::kFonts;
+     }
+     NOTREACHED();
+   }
+@@ -57,6 +59,8 @@
+         return blink::HeliumNoiseFeature::kScreen;
+       case blink::mojom::HeliumNoiseFeature::kTextMetrics:
+         return blink::HeliumNoiseFeature::kTextMetrics;
++      case blink::mojom::HeliumNoiseFeature::kFonts:
++        return blink::HeliumNoiseFeature::kFonts;
+     }
+ 
+     NOTREACHED();
+--- a/third_party/blink/public/mojom/helium_noise/noise_token.mojom
++++ b/third_party/blink/public/mojom/helium_noise/noise_token.mojom
+@@ -12,6 +12,7 @@
+   kWebGL,
+   kScreen,
+   kTextMetrics,
++  kFonts,
+ };
+ 
+ // Typemapped to blink::HeliumNoiseToken
+--- a/third_party/blink/renderer/core/BUILD.gn
++++ b/third_party/blink/renderer/core/BUILD.gn
+@@ -416,6 +416,7 @@
+     ":make_deprecation_info",
+     ":xml_ffi",
+     "//base",
++    "//components/aerie_fonts",
+     "//components/aerie_gpu_info",
+     "//components/aerie_screen",
+     "//components/aerie_text_metrics",
+--- a/third_party/blink/renderer/core/css/build.gni
++++ b/third_party/blink/renderer/core/css/build.gni
+@@ -526,6 +526,7 @@
+   "font_face_set_load_event.h",
+   "font_face_set_worker.cc",
+   "font_face_set_worker.h",
++  "font_restriction.h",
+   "font_size_functions.cc",
+   "font_size_functions.h",
+   "hash_tools.h",
+--- a/third_party/blink/renderer/core/css/css_font_selector_base.cc
++++ b/third_party/blink/renderer/core/css/css_font_selector_base.cc
+@@ -6,6 +6,7 @@
+ 
+ #include "build/build_config.h"
+ #include "third_party/blink/renderer/core/css/css_segmented_font_face.h"
++#include "third_party/blink/renderer/core/css/font_restriction.h"
+ #include "third_party/blink/renderer/core/frame/web_feature.h"
+ #include "third_party/blink/renderer/platform/fonts/font_cache.h"
+ #include "third_party/blink/renderer/platform/instrumentation/use_counter.h"
+@@ -23,9 +24,18 @@
+       GetUseCounter());
+ }
+ 
++bool CSSFontSelectorBase::IsInstalledFamilyHidden(
++    const FontFamily& family) const {
++  return !family.FamilyIsGeneric() &&
++         IsInstalledFontFamilyHidden(GetExecutionContext(), family.FamilyName());
++}
++
+ bool CSSFontSelectorBase::IsPlatformFamilyMatchAvailable(
+     const FontDescription& font_description,
+     const FontFamily& passed_family) {
++  if (IsInstalledFamilyHidden(passed_family)) {
++    return false;
++  }
+   AtomicString family = FamilyNameFromSettings(font_description, passed_family);
+   if (family.empty()) {
+     family = passed_family.FamilyName();
+--- a/third_party/blink/renderer/core/css/css_font_selector_base.h
++++ b/third_party/blink/renderer/core/css/css_font_selector_base.h
+@@ -25,6 +25,11 @@
+   bool IsPlatformFamilyMatchAvailable(const FontDescription&,
+                                       const FontFamily& family) override;
+ 
++  // Aerie (#117): whether the installed font of this family must not be found
++  // because the page is restricted to the allowlist. A generic family is never
++  // hidden: the settings map it to a family of the system.
++  bool IsInstalledFamilyHidden(const FontFamily& family) const override;
++
+   void WillUseFontData(const FontDescription&,
+                        const FontFamily& family,
+                        const String& text) override;
+--- a/third_party/blink/renderer/core/css/css_font_selector.cc
++++ b/third_party/blink/renderer/core/css/css_font_selector.cc
+@@ -242,6 +242,11 @@
+             font_face_cache_->Get(request_description, family_name)) {
+       return face->GetFontData(request_description);
+     }
++    // Aerie (#117): an installed font that the allowlist does not name is not
++    // there. Web fonts (found above) are not affected.
++    if (IsInstalledFamilyHidden(font_family)) {
++      return nullptr;
++    }
+   }
+ 
+   // Try to return the correct font based off our settings, in case we were
+--- /dev/null
++++ b/third_party/blink/renderer/core/css/font_restriction.h
+@@ -0,0 +1,53 @@
++// Copyright 2026 The Aerie Authors
++// You can use, redistribute, and/or modify this source code under
++// the terms of the GPL-3.0 license that can be found in the LICENSE file.
++
++#ifndef THIRD_PARTY_BLINK_RENDERER_CORE_CSS_FONT_RESTRICTION_H_
++#define THIRD_PARTY_BLINK_RENDERER_CORE_CSS_FONT_RESTRICTION_H_
++
++#include "base/feature_list.h"
++#include "components/aerie_fonts/font_allowlist.h"
++#include "third_party/blink/public/common/features.h"
++#include "third_party/blink/public/common/helium_noise/noise_token.h"
++#include "third_party/blink/renderer/core/execution_context/execution_context.h"
++#include "third_party/blink/renderer/platform/wtf/text/atomic_string.h"
++#include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
++
++namespace blink {
++
++// Whether this context can match only the allowlist of common fonts (Aerie,
++// issue #117). The browser sends a kFonts token only while the "Restrict fonts"
++// pref is on and protection is on for the site, so "token present" means
++// "restricted here": turning either off, or protection off for the site, gives
++// the real fonts back without a renderer change.
++inline bool AreFontsRestricted(const ExecutionContext* context) {
++  if (!context) {
++    return false;
++  }
++  return aerie_fonts::ShouldRestrictFonts(
++      {.master_enabled = base::FeatureList::IsEnabled(features::kHeliumNoise),
++       .surface_enabled =
++           base::FeatureList::IsEnabled(features::kHeliumNoiseFonts),
++       .has_token = context->GetHeliumNoiseTokens().contains(
++           HeliumNoiseFeature::kFonts)});
++}
++
++// Whether a lookup of the installed font family `family` must find nothing in
++// this context. Callers pass only non-generic families, and only after they
++// found no @font-face of that name, so web fonts a page loads are never hidden.
++inline bool IsInstalledFontFamilyHidden(const ExecutionContext* context,
++                                        const AtomicString& family) {
++  return AreFontsRestricted(context) &&
++         !aerie_fonts::IsFontFamilyAllowed(family.Utf8());
++}
++
++// Whether `@font-face { src: local(name) }` must find nothing in this context.
++inline bool IsLocalFontNameHidden(const ExecutionContext* context,
++                                  const String& name) {
++  return AreFontsRestricted(context) &&
++         !aerie_fonts::IsLocalFontNameAllowed(name.Utf8());
++}
++
++}  // namespace blink
++
++#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_CSS_FONT_RESTRICTION_H_
+--- a/third_party/blink/renderer/core/css/local_font_face_source.cc
++++ b/third_party/blink/renderer/core/css/local_font_face_source.cc
+@@ -8,6 +8,7 @@
+ #include "build/build_config.h"
+ #include "third_party/blink/renderer/core/css/css_custom_font_data.h"
+ #include "third_party/blink/renderer/core/css/css_font_face.h"
++#include "third_party/blink/renderer/core/css/font_restriction.h"
+ #include "third_party/blink/renderer/core/probe/core_probes.h"
+ #include "third_party/blink/renderer/platform/fonts/bitmap_glyphs_block_list.h"
+ #include "third_party/blink/renderer/platform/fonts/font_cache.h"
+@@ -42,6 +43,11 @@
+ 
+ bool LocalFontFaceSource::IsLocalFontAvailable(
+     const FontDescription& font_description) const {
++  // Aerie (#117): a local font that the allowlist does not name is not there.
++  if (IsLocalFontNameHidden(font_selector_->GetExecutionContext(),
++                            font_name_)) {
++    return false;
++  }
+   // TODO(crbug.com/1025945): Properly handle Windows prior to 10 and Android.
+   bool font_available = FontCache::Get().IsPlatformFontUniqueNameMatchAvailable(
+       font_description, font_name_);
+@@ -77,6 +83,13 @@
+     return nullptr;
+   }
+ 
++  // Aerie (#117): the same decision as IsLocalFontAvailable, before the font is
++  // loaded or looked up.
++  if (IsLocalFontNameHidden(font_selector_->GetExecutionContext(),
++                            font_name_)) {
++    return nullptr;
++  }
++
+   if (IsValid() && IsLoading()) {
+     const SimpleFontData* fallback_font_data =
+         CreateLoadingFallbackFontData(font_description);
+--- a/third_party/blink/renderer/core/css/offscreen_font_selector.cc
++++ b/third_party/blink/renderer/core/css/offscreen_font_selector.cc
+@@ -44,6 +44,12 @@
+     return face->GetFontData(font_description);
+   }
+ 
++  // Aerie (#117): an installed font that the allowlist does not name is not
++  // there. Web fonts (found above) are not affected.
++  if (IsInstalledFamilyHidden(font_family)) {
++    return nullptr;
++  }
++
+   // Try to return the correct font based off our settings, in case we were
+   // handed the generic font family name.
+   AtomicString settings_family_name =
+--- a/third_party/blink/renderer/platform/fonts/font_selector.h
++++ b/third_party/blink/renderer/platform/fonts/font_selector.h
+@@ -78,6 +78,13 @@
+       const FontDescription&,
+       const FontFamily& passed_family) = 0;
+ 
++  // Aerie (#117): whether the installed (system) font of this family must not
++  // be found, because the page is restricted to an allowlist of fonts. Only a
++  // non-generic family can be hidden.
++  virtual bool IsInstalledFamilyHidden(const FontFamily&) const {
++    return false;
++  }
++
+   FontFallbackMap& GetFontFallbackMap();
+ 
+   void Trace(Visitor* visitor) const override;
+--- a/third_party/blink/renderer/platform/fonts/font_fallback_list.cc
++++ b/third_party/blink/renderer/platform/fonts/font_fallback_list.cc
+@@ -166,7 +166,10 @@
+     const FontData* result =
+         font_selector_->GetFontData(font_description, *curr_family);
+     // Don't query system fonts for empty font family name.
+-    if (!result && !curr_family->FamilyName().empty()) {
++    // Aerie (#117): a family the selector hides is not looked up in the system
++    // fonts either.
++    if (!result && !curr_family->FamilyName().empty() &&
++        !font_selector_->IsInstalledFamilyHidden(*curr_family)) {
+       result = FontCache::Get().GetFontData(font_description,
+                                             curr_family->FamilyName());
+     }

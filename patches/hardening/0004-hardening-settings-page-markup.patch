@@ -39,7 +39,7 @@ Generated from tools/aerie_hardening/controls.json. Do not edit by hand. Run: ./
 +};
 --- /dev/null
 +++ b/chrome/browser/resources/settings/privacy_page/hardening_page.html
-@@ -0,0 +1,161 @@
+@@ -0,0 +1,172 @@
 +<!-- Generated from tools/aerie_hardening/controls.json. Do not edit by hand. Run: ./aerie hardening generate -->
 +  <settings-subpage page-title="Security hardening" route-path="${this.routePath}">
 +    <div class="cr-row first"><div class="cr-secondary-text" id="hardeningIntro">Aerie turns these privacy and security protections on by default. Each row shows what the protection does, its default and what it can cost you.</div></div>
@@ -154,6 +154,17 @@ Generated from tools/aerie_hardening/controls.json. Do not edit by hand. Run: ./
 +      <div class="control-meta cr-secondary-text">
 +        <div class="control-default">Default: On.</div>
 +        <div class="control-cost">Cost: Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page.</div>
++      </div>
++    </div>
++    <div class="control" id="control-font_restriction" data-control-id="font_restriction">
++      <settings-toggle-button id="control-font_restriction-setting" class="hr"
++          pref-key="aerie.fonts.restrict"
++          label="Restrict fonts"
++          sub-label="Off by default. When you turn it on, a page can match only the CSS generic families (serif, sans-serif, monospace and the like) and a short list of common fonts: DejaVu, Liberation, Noto (including Noto Sans CJK and Noto Serif CJK and Noto Color Emoji), Cantarell, Ubuntu, FreeSans, FreeSerif, FreeMono and Droid, plus Arial, Helvetica, Times New Roman, Times, Courier New and Courier, which fontconfig maps to Liberation on most Linux systems. Every other font that is installed on your computer is invisible to the page, so the list of installed fonts is no longer a fingerprint. A font that is on the list but not installed stays absent, so computers with different fonts still differ a little. Web fonts that a page loads itself, and the fonts the system uses for characters that no listed font has, are not touched, so text in any script still shows. The Local Font Access permission (queryLocalFonts) is blocked for sites with no saved choice and can still be allowed for a site in Site settings; this part follows the setting only, not the per-site switch of Fingerprinting protection. While this is off, fonts behave as they always did, and installed fonts cost about 6.8 bits in the fingerprint baseline (Cover Your Tracks). The restriction follows Fingerprinting protection: turning that off for one site, or for the whole browser, gives that site the real fonts again. A page that is already open keeps the fonts it was loaded with until it is loaded again.">
++      </settings-toggle-button>
++      <div class="control-meta cr-secondary-text">
++        <div class="control-default">Default: Off.</div>
++        <div class="control-cost">Cost: Pages that ask for a font by name, such as a design tool, a code editor with a font picker, a document editor or a site that lays itself out for a particular font, get the fallback font instead when that font is not on the list. Web fonts the page loads itself are not affected. Turn it on only if you accept that.</div>
 +      </div>
 +    </div>
 +    <div class="control" id="control-widevine" data-control-id="widevine">

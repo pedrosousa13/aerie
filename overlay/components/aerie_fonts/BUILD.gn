@@ -1,0 +1,47 @@
+# Copyright 2026 The Aerie Authors
+# You can use, redistribute, and/or modify this source code under
+# the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+import("//testing/test.gni")
+
+# The font families a page can match while "Restrict fonts" is on (issue #117),
+# and the decision whether a context is restricted. Pure code with no Blink and
+# no base, so it has unit tests. Blink's CSS font selectors and local font faces
+# call it (patches/hardening/0020-restrict-fonts-to-an-allowlist.patch).
+source_set("aerie_fonts") {
+  sources = [
+    "allowed_font_families.inc",
+    "font_allowlist.cc",
+    "font_allowlist.h",
+  ]
+}
+
+# The pref that turns the restriction on (off by default). Registered by
+# chrome::RegisterProfilePrefs and read by the browser, which sends a font
+# token to a page only while it is on.
+source_set("prefs") {
+  sources = [
+    "fonts_prefs.cc",
+    "fonts_prefs.h",
+  ]
+  public_deps = [
+    "//base",
+    "//components/prefs",
+  ]
+}
+
+source_set("unit_tests") {
+  testonly = true
+  sources = [ "font_allowlist_unittest.cc" ]
+  deps = [
+    ":aerie_fonts",
+    "//testing/gtest",
+  ]
+}
+
+test("aerie_fonts_unittests") {
+  deps = [
+    ":unit_tests",
+    "//base/test:run_all_unittests",
+  ]
+}

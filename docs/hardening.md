@@ -20,6 +20,7 @@ page and the Bench checks, so the three cannot drift apart.
 | Strict site isolation | Always on. | Chromium | Read-only | `hardening_site_isolation` |
 | JavaScript JIT per site | On for every site. | Chromium | Link to site settings | `hardening_js_optimizer` |
 | Fingerprinting protection | On. | Helium | Toggle | `hardening_fingerprinting`, `hardening_fingerprinting_site`, `hardening_fingerprinting_worker`, `hardening_fingerprinting_popup`, `hardening_fingerprinting_gpu`, `hardening_fingerprinting_readpixels`, `hardening_fingerprinting_screen`, `hardening_fingerprinting_textmetrics`, `hardening_device_memory` |
+| Restrict fonts | Off. | Aerie | Toggle | `hardening_fingerprinting_fonts`, `hardening_pref_defaults`, `hardening_settings_page` |
 | Widevine DRM | Off. | Aerie | Toggle | `hardening_pref_defaults`, `hardening_settings_page`, `widevine_opt_in` |
 | Extensions cannot loosen these settings | Always on. | Aerie | Read-only | `hardening_extension_prefs` |
 
@@ -168,6 +169,8 @@ Screen: while protection is on for a site, window.screen reports the smallest of
 
 measureText: while protection is on for a site, every metric that CanvasRenderingContext2D.measureText returns (the width, the actual and font bounding boxes, the baselines) is scaled by one factor, between 0.9999985 and 1.0000015 times the real value (at most 0.00015% off, so at most 0.0003% between two sites). The factor comes from the site's own text-metrics token, so it is the same on every load of a site in one session, in its workers (OffscreenCanvas), and differs between sites and between sessions; a private window has its own. Upstream's patch drew the factor with a random number once per page load, so it changed on every load, and it was off. Turning protection off, for the whole browser or the site, gives the real metrics back. Layout is not touched: only the numbers a script reads from measureText change, and the Bench lays out a sticky header and a virtual list under the noise to show it. The chrome://flags entry for measureText noise no longer changes anything. The getClientRects and getBoundingClientRect noise reads the same kind of factor now (also from the site's token) but is still off by default. The factor range and the decision are Aerie's own code with unit tests (components/aerie_text_metrics).
 
+Fonts are not farbled. The separate, opt-in Restrict fonts setting (off by default) limits which fonts a page can match to an allowlist, and it uses the same per-site switch as the rest of this control: with it on, a site that has fingerprinting protection turned off sees all installed fonts. With Restrict fonts off, fonts behave as they always did. The row below describes it.
+
 - Default: On.
 - Default provided by: Helium
 - Where the default is set:
@@ -176,6 +179,7 @@ measureText: while protection is on for a site, every metric that CanvasRenderin
   - patches/hardening/0010-mask-the-gpu-in-webgl-and-webgpu.patch: the kHeliumNoiseWebGL feature is on by default
   - patches/hardening/0015-report-a-common-screen-size.patch: the kHeliumNoiseScreen feature is on by default
   - patches/hardening/0018-seed-measuretext-noise-per-site.patch: the kHeliumNoiseTextMetrics feature is on by default, and measureText takes its factor from the site's token
+  - patches/hardening/0020-restrict-fonts-to-an-allowlist.patch: the kHeliumNoiseFonts feature is on by default; it matters only when the Restrict fonts setting is on
 - Upstream code:
   - `content/browser/helium_noise/noise_token_data.cc`
   - `chrome/browser/helium_noise/helium_noise_settings.cc`
@@ -206,6 +210,7 @@ measureText: while protection is on for a site, every metric that CanvasRenderin
   - `patches/hardening/0017-give-popups-the-openers-noise-tokens.patch`
   - `patches/hardening/0018-seed-measuretext-noise-per-site.patch`
   - `patches/hardening/0019-noise-webgl-readpixels-on-the-default-framebuffer.patch`
+  - `patches/hardening/0020-restrict-fonts-to-an-allowlist.patch`
 - Settings row: Toggle
 - Cost: Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page.
 - Bench checks: `hardening_fingerprinting`, `hardening_fingerprinting_site`, `hardening_fingerprinting_worker`, `hardening_fingerprinting_popup`, `hardening_fingerprinting_gpu`, `hardening_fingerprinting_readpixels`, `hardening_fingerprinting_screen`, `hardening_fingerprinting_textmetrics`, `hardening_device_memory`
@@ -235,6 +240,29 @@ Every http:// page load is upgraded to https://. If the upgrade fails, a warning
 - Settings row: Dropdown
 - Cost: Sites and devices that only speak http (router and NAS admin pages, printers, old intranet apps, captive portals) show a warning page first. The exception is one click and lasts 15 days from the last visit.
 - Bench checks: `hardening_https_only`, `hardening_localhost_dev`, `hardening_http_exception`
+
+### Restrict fonts
+
+Off by default. When you turn it on, a page can match only the CSS generic families (serif, sans-serif, monospace and the like) and a short list of common fonts: DejaVu, Liberation, Noto (including Noto Sans CJK and Noto Serif CJK and Noto Color Emoji), Cantarell, Ubuntu, FreeSans, FreeSerif, FreeMono and Droid, plus Arial, Helvetica, Times New Roman, Times, Courier New and Courier, which fontconfig maps to Liberation on most Linux systems. Every other font that is installed on your computer is invisible to the page, so the list of installed fonts is no longer a fingerprint. A font that is on the list but not installed stays absent, so computers with different fonts still differ a little. Web fonts that a page loads itself, and the fonts the system uses for characters that no listed font has, are not touched, so text in any script still shows. The Local Font Access permission (queryLocalFonts) is blocked for sites with no saved choice and can still be allowed for a site in Site settings; this part follows the setting only, not the per-site switch of Fingerprinting protection. While this is off, fonts behave as they always did, and installed fonts cost about 6.8 bits in the fingerprint baseline (Cover Your Tracks). The restriction follows Fingerprinting protection: turning that off for one site, or for the whole browser, gives that site the real fonts again. A page that is already open keeps the fonts it was loaded with until it is loaded again.
+
+- Default: Off.
+- Default provided by: Aerie
+- Where the default is set:
+  - overlay/components/aerie_fonts/fonts_prefs.cc: aerie.fonts.restrict is registered as a profile pref with default false
+  - patches/hardening/0020-restrict-fonts-to-an-allowlist.patch: the browser sends a page the fonts token only while the pref is on and fingerprinting protection is on for the site, and the font selectors hide every installed family that is not on the list for a page that has the token
+- Upstream code:
+  - third_party/blink/renderer/core/css/css_font_selector.cc (GetFontData)
+  - third_party/blink/renderer/core/css/offscreen_font_selector.cc (GetFontData)
+  - third_party/blink/renderer/core/css/css_font_selector_base.cc (IsPlatformFamilyMatchAvailable)
+  - third_party/blink/renderer/core/css/local_font_face_source.cc (IsLocalFontAvailable, CreateFontData)
+  - content/browser/helium_noise/noise_token_data.cc (GetTokens)
+  - `components/permissions/contexts/local_fonts_permission_context.cc`
+- Preference: `aerie.fonts.restrict` (default `false`)
+- Aerie patches:
+  - `patches/hardening/0020-restrict-fonts-to-an-allowlist.patch`
+- Settings row: Toggle
+- Cost: Pages that ask for a font by name, such as a design tool, a code editor with a font picker, a document editor or a site that lays itself out for a particular font, get the fallback font instead when that font is not on the list. Web fonts the page loads itself are not affected. Turn it on only if you accept that.
+- Bench checks: `hardening_fingerprinting_fonts`, `hardening_pref_defaults`, `hardening_settings_page`
 
 ### Widevine DRM
 
@@ -354,7 +382,7 @@ by this rule.
 - Device memory above 8 GB: The baseline showed 32 GB because upstream raised the desktop maximum from 8 to 32 GB (crbug.com/454354290). Aerie caps it at 8 GB, and that cap stays when protection is off, so a site never learns the real value.
 - Client rects noise: getClientRects and getBoundingClientRect noise exists upstream and now takes its factor from the site's text-metrics token, but it stays off until fonts are handled and it is measured again.
 - WebGL readback beyond the default framebuffer: readPixels from framebuffer objects, in float formats and into pixel pack buffers, and WebGPU readback, stay exact because GPGPU, TF.js and video readback need exact values (issue #119).
-- Fonts, screen metrics and client hints are not randomized.
+- Client hints are not randomized. Fonts are not randomized either: the opt-in Restrict fonts setting (off by default) limits which fonts a page can match instead.
 - Helium keys its noise on the full origin, not on the registrable domain, so `a.example.com`
   and `b.example.com` see different canvas values.
 
