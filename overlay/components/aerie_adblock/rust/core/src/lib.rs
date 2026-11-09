@@ -27,7 +27,7 @@
 //!   `adblock` panics without one, so `AerieDomainResolver` is
 //!   installed first. See its documentation for the limits.
 
-pub mod safety;
+pub mod protection;
 
 use adblock::Engine;
 use adblock::lists::{FilterSet, ParseOptions, RuleTypes};
@@ -127,6 +127,9 @@ pub enum LoadError {
     TooLarge,
     /// The bytes are not a serialized engine this build can read.
     BadEngine,
+    /// A protection list has fewer domains than the floor: an empty or
+    /// truncated list that would protect (almost) nothing.
+    TooFewEntries { found: usize, required: usize },
 }
 
 impl fmt::Display for LoadError {
@@ -134,6 +137,10 @@ impl fmt::Display for LoadError {
         match self {
             LoadError::TooLarge => f.write_str("input is larger than the allowed limit"),
             LoadError::BadEngine => f.write_str("not a valid serialized engine"),
+            LoadError::TooFewEntries { found, required } => write!(
+                f,
+                "the protection list holds {found} domain(s), at least {required} are required (empty or truncated list?)"
+            ),
         }
     }
 }

@@ -126,6 +126,13 @@ def visit(session: Session, host: str, path: str = LANDING, baseline: Baseline |
             "landing_hits": hits(session, host, path, baseline)}
 
 
+def click(session: Session, selector: str) -> bool:
+    """Click the element the selector names on the current page; False if there is none."""
+    return bool(session.evaluate(
+        f"(() => {{ const e = document.querySelector({selector!r}); "
+        "if (!e) return false; e.click(); return true; })()"))
+
+
 def wait_title(session: Session, title: str, timeout: float = 10.0) -> bool:
     return bool(session.wait_for(f"document.title === {title!r}", timeout=timeout))
 
@@ -168,20 +175,17 @@ def observe_listed_browser(session: Session) -> dict:
     # Go back: a page first, then the listed site, then the primary button.
     visit_(CLEAN)
     back = visit_(LISTED["back"])
-    clicked = bool(back["state"].get("interstitial")) and bool(session.evaluate(
-        "(() => { const b = document.querySelector('#primary-button'); if (!b) return false; b.click(); return true; })()"))
+    clicked = bool(back["state"].get("interstitial")) and click(session, "#primary-button")
     came_back = bool(clicked and session.wait_for(f"location.hostname === {CLEAN!r}", timeout=10))
     obs["go_back"] = {"interstitial": back["state"].get("interstitial"), "clicked": clicked,
                       "back_on_clean": came_back, "landing_hits": back["landing_hits"]}
 
     # Continue anyway: open the details, click the link, expect the real page; then the same tab again.
     cont = visit_(LISTED["continue"])
-    opened = bool(session.evaluate(
-        "(() => { const b = document.querySelector('#details-button'); if (!b) return false; b.click(); return true; })()"))
+    opened = click(session, "#details-button")
     details_open = bool(opened and session.evaluate(
         "!document.querySelector('#details').classList.contains('hidden')"))
-    link = bool(session.evaluate(
-        "(() => { const a = document.querySelector('#proceed-link'); if (!a) return false; a.click(); return true; })()"))
+    link = click(session, "#proceed-link")
     loaded = bool(link and wait_title(session, LANDING_TITLE))
     after = {"title": state(session).get("title"), "href": state(session).get("href")}
     again = visit_(LISTED["continue"])
@@ -286,7 +290,8 @@ def judge(obs: dict) -> tuple[str, str, dict]:
     if not back.get("interstitial"):
         problems.append("go back: no interstitial to go back from")
     elif not back.get("back_on_clean"):
-        problems.append(f"go back: the primary button did not return to the previous page (clicked={back.get('clicked')})")
+        problems.append("go back: the primary button did not return to the previous page "
+                        f"(clicked={back.get('clicked')})")
 
     cont = listed.get("continue", {})
     if not cont.get("first", {}).get("interstitial"):

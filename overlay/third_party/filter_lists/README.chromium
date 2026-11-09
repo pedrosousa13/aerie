@@ -59,5 +59,5 @@ served on the date in Version above, committed byte for byte. Version is the
 list's own `# Updated:` time. protection_lists.lock.json pins it by sha256 and
 size, and `./aerie build` fails if it differs. `./aerie lists update` refreshes
 the file and the lock. aerie_protection_compile compiles it into a serialized
-engine at build time (see components/aerie_adblock/rust/core/src/safety.rs).
+engine at build time (see components/aerie_adblock/rust/core/src/protection.rs).
 The compiler skips lines that are not plain domain names.

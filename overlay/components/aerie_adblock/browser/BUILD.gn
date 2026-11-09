@@ -22,6 +22,7 @@ source_set("browser") {
   sources = [
     "aerie_adblock_hook.cc",
     "aerie_adblock_hook.h",
+    "aerie_adblock_switches.h",
     "aerie_protection_hook.cc",
     "aerie_protection_hook.h",
   ]

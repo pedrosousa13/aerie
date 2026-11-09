@@ -5,6 +5,7 @@
 #ifndef COMPONENTS_AERIE_ADBLOCK_BROWSER_PROTECTION_SERVICE_H_
 #define COMPONENTS_AERIE_ADBLOCK_BROWSER_PROTECTION_SERVICE_H_
 
+#include <cstddef>
 #include <string>
 #include <string_view>
 
@@ -28,7 +29,10 @@ namespace aerie_adblock {
 //     "not listed" because the engine is still loading.
 //   - If the shipped engine cannot be loaded the browser crashes with a CHECK.
 //     The engine ships inside the build and the build self-checks it, so a
-//     failure means a broken build, and failing open is not allowed.
+//     failure means a broken build, and failing open is not allowed. A list
+//     with fewer entries than the floor (ProtectionEngine::MinEntries()) is
+//     such a failure: it is logged with the count and reported as false in
+//     Aerie.Protection.ListLoadSuccess, which the Bench reads.
 //   - Owned by the browser's ChromeBrowserMainExtraParts, not a singleton.
 //     SetAsProcessInstance() lets the navigation throttle find it; Get() is
 //     null in tests and outside that window.
@@ -47,9 +51,13 @@ class ProtectionService {
 
   // |on_load_failure| runs on the UI thread if the engine cannot be loaded.
   // The default is a CHECK failure. Tests pass their own.
+  // |min_entries| is the fewest domains the shipped list may hold; a list
+  // below it is a load failure (an empty or truncated list must fail loudly,
+  // not protect nothing). Tests with tiny lists pass a smaller floor.
   explicit ProtectionService(
       scoped_refptr<base::SequencedTaskRunner> task_runner,
-      base::OnceClosure on_load_failure = base::BindOnce(&CrashOnLoadFailure));
+      base::OnceClosure on_load_failure = base::BindOnce(&CrashOnLoadFailure),
+      size_t min_entries = DefaultMinEntries());
   ~ProtectionService();
 
   ProtectionService(const ProtectionService&) = delete;
@@ -79,9 +87,11 @@ class ProtectionService {
   class Host;
 
   static void CrashOnLoadFailure();
+  static size_t DefaultMinEntries();
 
   void OnLoaded(bool ok);
 
+  const size_t min_entries_;
   base::SequenceBound<Host> host_;
   base::OnceClosure on_load_failure_;
   bool started_ = false;

@@ -17,7 +17,7 @@
 //! failed check exits non-zero and writes nothing, so a bad list stops the
 //! build (fail closed).
 
-use aerie_adblock_core::safety::ProtectionList;
+use aerie_adblock_core::protection::ProtectionList;
 use std::process::ExitCode;
 
 #[derive(Debug, Default)]
@@ -132,7 +132,7 @@ mod tests {
     fn compiles_and_passes_checks() {
         let (bytes, n) = compile(&[LIST.to_vec()], &args(&["x.evil.example"], &["good.example"], 2)).unwrap();
         assert_eq!(n, 2);
-        assert!(bytes.starts_with(aerie_adblock_core::safety::SERIALIZED_MAGIC));
+        assert!(bytes.starts_with(aerie_adblock_core::protection::SERIALIZED_MAGIC));
     }
 
     #[test]

@@ -192,3 +192,66 @@ fn load_rejects_too_many_entries() {
     let mut l = ProtectionList::empty();
     assert_eq!(l.load_serialized(&bytes), Err(LoadError::TooLarge));
 }
+
+#[test]
+fn a_serialized_list_under_the_floor_is_rejected_and_the_old_domains_stay() {
+    let mut target = list();
+    let small = ProtectionList::from_lists([b"one.example\ntwo.example\n".as_slice()]).unwrap();
+    let err = target
+        .load_serialized_with_floor(&small.serialize(), 3)
+        .unwrap_err();
+    assert_eq!(
+        err,
+        LoadError::TooFewEntries {
+            found: 2,
+            required: 3
+        }
+    );
+    assert_eq!(
+        err.to_string(),
+        "the protection list holds 2 domain(s), at least 3 are required (empty or truncated list?)"
+    );
+    assert!(
+        target.is_listed("evil.example"),
+        "a rejected load keeps the old domains"
+    );
+    assert!(!target.is_listed("one.example"));
+}
+
+#[test]
+fn a_serialized_list_at_the_floor_loads() {
+    let mut target = ProtectionList::empty();
+    let small = ProtectionList::from_lists([b"one.example\ntwo.example\n".as_slice()]).unwrap();
+    target
+        .load_serialized_with_floor(&small.serialize(), 2)
+        .unwrap();
+    assert!(target.is_listed("two.example"));
+}
+
+#[test]
+fn an_empty_serialized_list_is_rejected_whatever_the_floor() {
+    let mut target = ProtectionList::empty();
+    let empty = ProtectionList::empty().serialize();
+    assert!(target.load_serialized_with_floor(&empty, 0).is_err());
+}
+
+#[test]
+fn the_shipped_floor_is_well_below_the_real_list_and_not_trivial() {
+    assert!(MIN_ENTRIES >= 10_000 && MIN_ENTRIES <= 50_000);
+}
+
+#[test]
+fn the_build_gn_floor_matches_the_runtime_floor() {
+    let gn = include_str!("../../../BUILD.gn");
+    let at = gn
+        .find("\"--min-entries\"")
+        .expect("BUILD.gn passes --min-entries");
+    let value = gn[at..]
+        .lines()
+        .nth(1)
+        .expect("a value line")
+        .trim()
+        .trim_end_matches(',')
+        .trim_matches('"');
+    assert_eq!(value.parse::<usize>().unwrap(), MIN_ENTRIES);
+}

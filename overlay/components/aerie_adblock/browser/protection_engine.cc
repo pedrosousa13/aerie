@@ -17,6 +17,17 @@ bool ProtectionEngine::LoadSerialized(base::span<const uint8_t> data) {
   return engine_->load_serialized(base::SpanToRustSlice(data));
 }
 
+bool ProtectionEngine::LoadSerializedAtLeast(base::span<const uint8_t> data,
+                                             size_t min_entries) {
+  return engine_->load_serialized_with_floor(base::SpanToRustSlice(data),
+                                             min_entries);
+}
+
+// static
+size_t ProtectionEngine::MinEntries() {
+  return protection_min_entries();
+}
+
 void ProtectionEngine::LoadListForTesting(std::string_view list) {
   engine_ = new_protection_engine_from_list(
       base::SpanToRustSlice(base::as_byte_span(list)));

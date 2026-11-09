@@ -217,6 +217,15 @@ class RunCheckTest(unittest.TestCase):
         self.assertEqual([p.name for p in (self.build.root / "check").iterdir()
                           if p.name not in ("sparse", "sparse.lock")], [])
 
+    def test_check_fails_when_the_gn_flags_enable_safe_browsing(self):
+        (self.repo / "helium-chromium" / "flags.gn").write_text("safe_browsing_mode=0\n")
+        (self.repo / "helium-linux" / "flags.linux.gn").write_text("is_debug=false\n")
+        self.assertEqual(self.run_check()[0], 0)  # still off: fine
+        (self.repo / "helium-linux" / "flags.linux.gn").write_text("safe_browsing_mode=1\n")
+        status, logs = self.run_check()
+        self.assertEqual(status, 1, logs)
+        self.assertTrue(any("safe_browsing_mode=1" in l for l in logs), logs)
+
     def test_an_unrelated_lint_problem_still_uses_the_filtered_deps_ini(self):
         (self.repo / "patches" / "stray.patch").write_text(PATCH)  # not in series: a lint problem
         with mock.patch.object(patch_check.helium_deps, "write_filtered",

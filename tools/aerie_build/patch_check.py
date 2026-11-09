@@ -33,7 +33,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Sequence
 
-from . import helium_deps, helium_inputs, helium_steps, layers as tree_layers, lock, patches, treegate
+from . import helium, helium_deps, helium_inputs, helium_steps, layers as tree_layers, lock, patches, treegate
 from .config import BuildPaths
 
 MANIFEST = ".aerie-sparse.json"
@@ -190,6 +190,15 @@ def run_check(
     problems = problems + drop_issues
     for problem in problems:
         log(f"LINT    {problem.patch}: {problem.message}")
+        status = 1
+
+    # Google Safe Browsing must stay compiled out: the local list is the only check (ADR 0004).
+    flag_files = [core / "flags.gn", platform / "flags.linux.gn"]
+    # (A fixture repo without Helium's flag files has nothing to read; a real one always has them.)
+    sb_problems = [] if not all(f.is_file() for f in flag_files) else helium.safe_browsing_problems(
+        "\n".join(f.read_text(encoding="utf-8") for f in flag_files))
+    for message in sb_problems:
+        log(f"GATE    safe_browsing: {message}")
         status = 1
 
     version = pins.chromium_version
