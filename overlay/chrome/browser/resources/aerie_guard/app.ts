@@ -80,7 +80,7 @@ export class AerieGuardAppElement extends CrLitElement {
     // Rendered: the browser may show the bubble now.
     if (this.loaded_ && !this.shown_) {
       this.shown_ = true;
-      this.proxy_.handler.showUi();
+      this.proxy_.handler.showUI();
     }
   }
 
