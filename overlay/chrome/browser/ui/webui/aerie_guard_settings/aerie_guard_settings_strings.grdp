@@ -3,7 +3,7 @@
      You can use, redistribute, and/or modify this source code under
      the terms of the GPL-3.0 license that can be found in the LICENSE file.
 
-     Strings of the Aerie Guard section of Settings (issue #103). patches/adblock/0022 gives each one to the
+     Strings of the Aerie Guard section of Settings (issues #103 and #104). patches/adblock/0022 gives each one to the
      settings page under the name tests/test_aerie_guard_settings.py checks. -->
 <grit-part>
   <message name="IDS_SETTINGS_AERIE_GUARD_TITLE" desc="Title of the Aerie Guard section of Settings and the text of its entry in the menu on the left.">
@@ -53,5 +53,83 @@
   </message>
   <message name="IDS_SETTINGS_AERIE_GUARD_ERROR_GENERIC" desc="Error under the site field when the change was refused for a reason that has no message of its own.">
     Aerie Guard could not change this site.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_LISTS_HEADING" desc="Heading of the list of filter lists on the Aerie Guard page.">
+    Filter lists
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_LISTS_DESC" desc="Text under the heading of the filter lists. It says that a list that is off stays on the computer but is not used.">
+    Aerie Guard blocks with these lists. A list that is off stays on this computer but is not used.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_LIST_RULES" desc="Line of a filter list that says how many blocking rules it has. The placeholder is a number.">
+    Rules: <ph name="COUNT">$1<ex>52000</ex></ph>
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_LIST_RULES_COUNTING" desc="Line of a filter list shown while the browser still counts the blocking rules of the list.">
+    Rules: counting
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_LIST_IGNORED" desc="Line of a filter list that says how many of its exception rules the browser ignores. The placeholder is a number. An exception rule that matches every address is ignored because it would turn blocking off everywhere.">
+    Ignored exception rules: <ph name="COUNT">$1<ex>2</ex></ph>
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_LIST_UPDATED" desc="Line of a filter list that says when it was last downloaded. The placeholder is a date.">
+    Updated <ph name="DATE">$1<ex>3 Nov 2026</ex></ph>
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_LIST_SHIPPED" desc="Line of a filter list that says it was not downloaded and that the copy that came with this version of the browser is in use.">
+    Using the copy that came with this version of Aerie
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_LIST_OFF" desc="Line of a filter list that is turned off. It says the list is not used and that its file is kept.">
+    Off. The list is not used. Its file stays on this computer.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_LIST_REQUIRED" desc="Line of the filter list that cannot be turned off. It says why.">
+    Always on. Most of the hiding of leftover ad boxes comes from this list.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_LIST_TOGGLE_ARIA" desc="Accessible name of the switch that turns one filter list on or off. The placeholder is the name of the list.">
+    Use <ph name="LIST">$1<ex>EasyPrivacy</ex></ph> for blocking
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_LIST_STATUS_UPDATING" desc="Status of a filter list while it is being downloaded again.">
+    Updating
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_LIST_STATUS_UPDATED" desc="Status of a filter list after it was downloaded again without a problem.">
+    Updated
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_LIST_STATUS_FAILED" desc="Status of a filter list after the download failed. The list in use stays as it was.">
+    Update failed
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_LIST_UPDATE_NOW" desc="Button that downloads one filter list again at once.">
+    Update now
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_LIST_UPDATE_NOW_ARIA" desc="Accessible name of the button that downloads one filter list again at once. The placeholder is the name of the list.">
+    Update <ph name="LIST">$1<ex>EasyList</ex></ph> now
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_LIST_RETRY" desc="Button that tries again to download a filter list after a failed update.">
+    Retry
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_LIST_RETRY_ARIA" desc="Accessible name of the button that tries again to download a filter list after a failed update. The placeholder is the name of the list.">
+    Try to update <ph name="LIST">$1<ex>EasyList</ex></ph> again
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_LIST_ERROR_TOO_LARGE" desc="Error of a filter list: the list is larger than the allowed limit.">
+    The list is larger than the allowed limit.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_LIST_ERROR_TIMEOUT" desc="Error of a filter list: the list took too long to parse.">
+    The list took too long to parse.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_LIST_ERROR_NOT_TEXT" desc="Error of a filter list: the downloaded data is not text.">
+    The list is not text.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_LIST_ERROR_LOOKS_LIKE_HTML" desc="Error of a filter list: the address gave a web page and not a filter list.">
+    The address gave a web page, not a filter list.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_LIST_ERROR_NO_RULES" desc="Error of a filter list: the list has no blocking rules.">
+    The list has no blocking rules.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_LIST_ERROR_UNREADABLE" desc="Error of a filter list: the saved copy of the list could not be read from disk.">
+    The saved copy of the list could not be read.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_LIST_ERROR_DOWNLOAD" desc="Error of a filter list: the download failed.">
+    The list could not be downloaded.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_LIST_ERROR_INSECURE_URL" desc="Error of a filter list: the address is not https.">
+    Only https addresses are allowed.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_LIST_ERROR_REQUIRED" desc="Error shown when a request to turn off the list that cannot be turned off was refused.">
+    This list cannot be turned off.
   </message>
 </grit-part>

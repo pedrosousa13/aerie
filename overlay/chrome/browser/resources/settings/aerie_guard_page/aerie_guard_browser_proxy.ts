@@ -11,6 +11,15 @@ export interface AerieGuardList {
   title: string;
   builtin: boolean;
   rules: number;
+  /** Exception rules that match every address; the engine ignores them. */
+  ignoredExceptions: number;
+  /** False when the user turned the list off. */
+  enabled: boolean;
+  /** True for a list that cannot be turned off (EasyList). */
+  required: boolean;
+  status: 'idle'|'updating'|'updated'|'failed';
+  /** A fixed code for the last error ('' for none); the page owns the words. */
+  errorCode: string;
   /** Milliseconds since the epoch, or null (the shipped copy is in use). */
   updated: number|null;
   error: string;
@@ -28,6 +37,8 @@ export interface AerieGuardState {
   addError: string;
   /** '', 'invalid_host', 'table_full' or 'locked'. */
   exceptionError: string;
+  /** '', 'required' or 'unknown_list'. */
+  listError: string;
   /** Hosts where blocking is off, saved ones only, sorted. */
   exceptions: string[];
   lists: AerieGuardList[];
@@ -35,13 +46,13 @@ export interface AerieGuardState {
 
 /**
  * Every call rejects its promise when the browser refuses an argument.
- * Lists have no rows on the page yet; the calls are here because the handler
- * is the one door to FilterListManager, and the Bench drives it.
+ * The handler is the one door to FilterListManager; the Bench drives it too.
  */
 export interface AerieGuardBrowserProxy {
   getState(): Promise<AerieGuardState>;
   addList(url: string): Promise<AerieGuardState>;
   removeList(id: string): Promise<AerieGuardState>;
+  setListEnabled(id: string, enabled: boolean): Promise<AerieGuardState>;
   updateList(id: string): Promise<AerieGuardState>;
   updateAll(): Promise<AerieGuardState>;
   setException(host: string, enabled: boolean): Promise<AerieGuardState>;
@@ -61,6 +72,10 @@ export class AerieGuardBrowserProxyImpl implements AerieGuardBrowserProxy {
 
   removeList(id: string): Promise<AerieGuardState> {
     return sendWithPromise('aerieGuard.removeList', id);
+  }
+
+  setListEnabled(id: string, enabled: boolean): Promise<AerieGuardState> {
+    return sendWithPromise('aerieGuard.setListEnabled', id, enabled);
   }
 
   updateList(id: string): Promise<AerieGuardState> {

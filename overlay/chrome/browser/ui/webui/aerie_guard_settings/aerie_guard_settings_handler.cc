@@ -10,6 +10,7 @@
 #include "base/functional/bind.h"
 #include "chrome/browser/profiles/profile.h"
 #include "components/aerie_adblock/browser/filter_list_state.h"
+#include "components/aerie_adblock/browser/list_failure.h"
 #include "content/public/browser/web_ui.h"
 #include "url/gurl.h"
 
@@ -46,6 +47,20 @@ const std::string* StringArg(const base::ListValue& args, size_t index) {
   return text.size() <= kMaxArgLength ? &text : nullptr;
 }
 
+const char* UpdateStatusName(FilterListManager::UpdateStatus status) {
+  switch (status) {
+    case FilterListManager::UpdateStatus::kIdle:
+      return "idle";
+    case FilterListManager::UpdateStatus::kUpdating:
+      return "updating";
+    case FilterListManager::UpdateStatus::kUpdated:
+      return "updated";
+    case FilterListManager::UpdateStatus::kFailed:
+      return "failed";
+  }
+  return "idle";
+}
+
 }  // namespace
 
 AerieGuardSettingsHandler::AerieGuardSettingsHandler(Profile* profile)
@@ -56,7 +71,8 @@ AerieGuardSettingsHandler::~AerieGuardSettingsHandler() = default;
 base::DictValue AerieGuardSettingsHandler::StateToValue(
     const FilterListManager& manager,
     std::string_view add_error,
-    std::string_view exception_error) {
+    std::string_view exception_error,
+    std::string_view list_error) {
   const aerie_adblock::FilterListState& state = manager.state();
   base::DictValue out;
   out.Set("ready", true);
@@ -64,6 +80,7 @@ base::DictValue AerieGuardSettingsHandler::StateToValue(
   out.Set("autoUpdate", state.auto_update());
   out.Set("addError", std::string(add_error));
   out.Set("exceptionError", std::string(exception_error));
+  out.Set("listError", std::string(list_error));
   // Settings runs in the regular profile: the saved exceptions only, never
   // the in-memory ones of an incognito window.
   base::ListValue exceptions;
@@ -80,6 +97,10 @@ base::DictValue AerieGuardSettingsHandler::StateToValue(
     item.Set("title", entry.title);
     item.Set("builtin", entry.builtin);
     item.Set("rules", entry.rules);
+    item.Set("ignoredExceptions", entry.ignored_exceptions);
+    item.Set("enabled", entry.enabled);
+    item.Set("required", !aerie_adblock::CanBeDisabled(entry));
+    item.Set("status", UpdateStatusName(manager.UpdateStatusFor(entry.id)));
     // Milliseconds since the epoch, or null when this list still uses the copy
     // that shipped in the build (or has not been downloaded).
     if (entry.updated.is_null()) {
@@ -88,6 +109,8 @@ base::DictValue AerieGuardSettingsHandler::StateToValue(
       item.Set("updated", entry.updated.InMillisecondsFSinceUnixEpoch());
     }
     item.Set("error", entry.error);
+    // The page shows its own text for the code, not the manager's sentence.
+    item.Set("errorCode", aerie_adblock::ListFailureCodeForMessage(entry.error));
     lists.Append(std::move(item));
   }
   out.Set("lists", std::move(lists));
@@ -106,6 +129,10 @@ void AerieGuardSettingsHandler::RegisterMessages() {
   web_ui()->RegisterMessageCallback(
       "aerieGuard.removeList",
       base::BindRepeating(&AerieGuardSettingsHandler::HandleRemoveList,
+                          base::Unretained(this)));
+  web_ui()->RegisterMessageCallback(
+      "aerieGuard.setListEnabled",
+      base::BindRepeating(&AerieGuardSettingsHandler::HandleSetListEnabled,
                           base::Unretained(this)));
   web_ui()->RegisterMessageCallback(
       "aerieGuard.updateList",
@@ -154,14 +181,15 @@ FilterListManager* AerieGuardSettingsHandler::Begin(
 
 void AerieGuardSettingsHandler::Resolve(const base::ListValue& args,
                                         std::string_view add_error,
-                                        std::string_view exception_error) {
+                                        std::string_view exception_error,
+                                        std::string_view list_error) {
   FilterListManager* manager = FilterListManager::Get();
   const std::string* id = CallbackId(args);
   if (!manager || !id) {
     return;
   }
   ResolveJavascriptCallback(
-      base::Value(*id), StateToValue(*manager, add_error, exception_error));
+      base::Value(*id), StateToValue(*manager, add_error, exception_error, list_error));
 }
 
 void AerieGuardSettingsHandler::Reject(const base::ListValue& args,
@@ -213,6 +241,35 @@ void AerieGuardSettingsHandler::HandleRemoveList(const base::ListValue& args) {
     manager->RemoveList(*id);
     Resolve(args, std::string_view(), std::string_view());
   }
+}
+
+void AerieGuardSettingsHandler::HandleSetListEnabled(
+    const base::ListValue& args) {
+  const std::string* id = StringArg(args, 1);
+  if (!CallbackId(args)) {
+    return;
+  }
+  if (!id || args.size() != 3 || !args[2].is_bool()) {
+    Reject(args, "bad_argument");
+    return;
+  }
+  FilterListManager* manager = Begin(args);
+  if (!manager) {
+    return;
+  }
+  // The manager refuses EasyList whatever the page sends.
+  std::string_view error;
+  switch (manager->SetListEnabled(*id, args[2].GetBool())) {
+    case aerie_adblock::FilterListState::EnableResult::kOk:
+      break;
+    case aerie_adblock::FilterListState::EnableResult::kRequired:
+      error = "required";
+      break;
+    case aerie_adblock::FilterListState::EnableResult::kUnknownList:
+      error = "unknown_list";
+      break;
+  }
+  Resolve(args, std::string_view(), std::string_view(), error);
 }
 
 void AerieGuardSettingsHandler::HandleUpdateList(const base::ListValue& args) {

@@ -571,5 +571,129 @@ TEST_F(FilterListManagerTest, ACorruptSavedCopyFallsBackToTheShippedList) {
   EXPECT_EQ(ListFailureMessage(ListFailure::kLooksLikeHtml), entry->error);
 }
 
+TEST_F(FilterListManagerTest, TheShippedListsHaveARealRuleCount) {
+  auto manager = MakeManager();
+  for (const FilterListEntry& entry : manager->state().lists()) {
+    EXPECT_EQ(1, entry.rules) << entry.id;
+    EXPECT_TRUE(entry.updated.is_null()) << entry.id;
+  }
+  EXPECT_EQ(0u, network_.total_requests());
+}
+
+TEST_F(FilterListManagerTest, TurningEasyPrivacyOffTakesItOutOfTheEngine) {
+  auto manager = MakeManager();
+  ASSERT_EQ(FilterListState::EnableResult::kOk,
+            manager->SetListEnabled(kEasyPrivacyId, false));
+  WaitUntilIdle(*manager);
+  EXPECT_TRUE(Blocks("builtin-one.example"));
+  EXPECT_FALSE(Blocks("builtin-two.example"));
+  EXPECT_FALSE(manager->state().Find(kEasyPrivacyId)->enabled);
+
+  ASSERT_EQ(FilterListState::EnableResult::kOk,
+            manager->SetListEnabled(kEasyPrivacyId, true));
+  WaitUntilIdle(*manager);
+  EXPECT_TRUE(Blocks("builtin-two.example"));
+}
+
+TEST_F(FilterListManagerTest, EasyListCannotBeTurnedOff) {
+  auto manager = MakeManager();
+  EXPECT_EQ(FilterListState::EnableResult::kRequired,
+            manager->SetListEnabled(kEasyListId, false));
+  WaitUntilIdle(*manager);
+  EXPECT_TRUE(manager->state().Find(kEasyListId)->enabled);
+  EXPECT_TRUE(Blocks("builtin-one.example"));
+  EXPECT_EQ(FilterListState::EnableResult::kUnknownList,
+            manager->SetListEnabled("nosuchlist", false));
+}
+
+TEST_F(FilterListManagerTest, TurningAListOffKeepsItsFile) {
+  network_.AddResponse(kCustomUrl, "||custom.example^\n");
+  auto manager = MakeManager();
+  std::string error;
+  ASSERT_TRUE(manager->AddList(GURL(kCustomUrl), &error));
+  WaitUntilIdle(*manager);
+  const std::string id = manager->state().lists().back().id;
+  const base::FilePath file = filter_list_storage::ListPath(dir_.GetPath(), id);
+  ASSERT_TRUE(base::PathExists(file));
+
+  manager->SetListEnabled(id, false);
+  WaitUntilIdle(*manager);
+  EXPECT_FALSE(Blocks("custom.example"));
+  EXPECT_TRUE(base::PathExists(file));
+  ASSERT_TRUE(manager->state().Find(id));  // Still listed.
+
+  manager->SetListEnabled(id, true);
+  WaitUntilIdle(*manager);
+  EXPECT_TRUE(Blocks("custom.example"));
+  // Removal is what deletes the file.
+  manager->RemoveList(id);
+  WaitUntilIdle(*manager);
+  EXPECT_FALSE(base::PathExists(file));
+}
+
+TEST_F(FilterListManagerTest, AListThatIsOffStaysOffAfterARestart) {
+  {
+    auto manager = MakeManager();
+    manager->SetListEnabled(kEasyPrivacyId, false);
+    WaitUntilIdle(*manager);
+  }
+  auto manager = MakeManager();
+  EXPECT_FALSE(manager->state().Find(kEasyPrivacyId)->enabled);
+  EXPECT_TRUE(Blocks("builtin-one.example"));
+  EXPECT_FALSE(Blocks("builtin-two.example"));
+}
+
+TEST_F(FilterListManagerTest, UpdateAllSkipsAListThatIsOff) {
+  network_.AddResponse(kEasyListUrl, "||new-one.example^\n");
+  network_.AddResponse(kEasyPrivacyUrl, "||new-two.example^\n");
+  auto manager = MakeManager();
+  manager->SetListEnabled(kEasyPrivacyId, false);
+  WaitUntilIdle(*manager);
+  manager->UpdateAll();
+  WaitUntilIdle(*manager);
+  EXPECT_EQ(1u, network_.total_requests());
+  EXPECT_FALSE(manager->state().Find(kEasyPrivacyId)->enabled);
+  EXPECT_FALSE(Blocks("new-two.example"));
+}
+
+TEST_F(FilterListManagerTest, UpdateStatusGoesFromUpdatingToUpdatedOrFailed) {
+  network_.AddResponse(kEasyListUrl, "||new-one.example^\n");
+  network_.AddResponse(kEasyPrivacyUrl, "nope", net::HTTP_NOT_FOUND);
+  auto manager = MakeManager();
+  EXPECT_EQ(FilterListManager::UpdateStatus::kIdle,
+            manager->UpdateStatusFor(kEasyListId));
+
+  manager->UpdateList(kEasyListId);
+  manager->UpdateList(kEasyPrivacyId);
+  EXPECT_EQ(FilterListManager::UpdateStatus::kUpdating,
+            manager->UpdateStatusFor(kEasyListId));
+  WaitUntilIdle(*manager);
+  EXPECT_EQ(FilterListManager::UpdateStatus::kUpdated,
+            manager->UpdateStatusFor(kEasyListId));
+  EXPECT_EQ(FilterListManager::UpdateStatus::kFailed,
+            manager->UpdateStatusFor(kEasyPrivacyId));
+  EXPECT_EQ(ListFailureMessage(ListFailure::kDownload),
+            manager->state().Find(kEasyPrivacyId)->error);
+
+  // Retry: the same call. A good answer clears the error.
+  network_.ClearResponses();
+  network_.AddResponse(kEasyPrivacyUrl, "||new-two.example^\n");
+  manager->UpdateList(kEasyPrivacyId);
+  WaitUntilIdle(*manager);
+  EXPECT_EQ(FilterListManager::UpdateStatus::kUpdated,
+            manager->UpdateStatusFor(kEasyPrivacyId));
+  EXPECT_EQ("", manager->state().Find(kEasyPrivacyId)->error);
+}
+
+TEST_F(FilterListManagerTest, AnUpdatedListReportsItsIgnoredExceptions) {
+  network_.AddResponse(kEasyListUrl, "||new-one.example^\n@@http\n@@|http\n");
+  auto manager = MakeManager();
+  manager->UpdateList(kEasyListId);
+  WaitUntilIdle(*manager);
+  const FilterListEntry* entry = manager->state().Find(kEasyListId);
+  EXPECT_EQ(1, entry->rules);
+  EXPECT_EQ(2, entry->ignored_exceptions);
+}
+
 }  // namespace
 }  // namespace aerie_adblock

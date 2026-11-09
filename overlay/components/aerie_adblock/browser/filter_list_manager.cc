@@ -92,6 +92,7 @@ void FilterListManager::OnStateLoaded(FilterListState state) {
   if (state_.NeedsRebuild()) {
     Rebuild();
   }
+  MeasureShippedLists();
   schedule_timer_.Start(
       FROM_HERE, kScheduleCheckInterval,
       base::BindRepeating(
@@ -150,10 +151,39 @@ bool FilterListManager::AddList(const GURL& url, std::string* error) {
   return true;
 }
 
+FilterListState::EnableResult FilterListManager::SetListEnabled(
+    std::string_view id,
+    bool enabled) {
+  const FilterListEntry* entry = state_.Find(id);
+  const bool changed = entry && entry->enabled != enabled;
+  FilterListState::EnableResult result = state_.SetEnabled(id, enabled);
+  if (result != FilterListState::EnableResult::kOk || !changed) {
+    return result;
+  }
+  Save();
+  Notify();
+  Rebuild();
+  return result;
+}
+
+FilterListManager::UpdateStatus FilterListManager::UpdateStatusFor(
+    std::string_view id) const {
+  const std::string key(id);
+  if (updating_.count(key)) {
+    return UpdateStatus::kUpdating;
+  }
+  const FilterListEntry* entry = state_.Find(id);
+  if (entry && !entry->error.empty()) {
+    return UpdateStatus::kFailed;
+  }
+  return updated_ok_.count(key) ? UpdateStatus::kUpdated : UpdateStatus::kIdle;
+}
+
 void FilterListManager::RemoveList(std::string_view id) {
   if (!state_.RemoveList(id)) {
     return;
   }
+  updated_ok_.erase(std::string(id));
   file_runner_->PostTask(
       FROM_HERE, base::BindOnce(&filter_list_storage::DeleteList, dir_,
                                 std::string(id)));
@@ -173,7 +203,9 @@ void FilterListManager::UpdateAll() {
   Save();
   std::vector<std::string> ids;
   for (const FilterListEntry& entry : state_.lists()) {
-    ids.push_back(entry.id);
+    if (entry.enabled) {  // A list that is off is not fetched on its own.
+      ids.push_back(entry.id);
+    }
   }
   for (const std::string& id : ids) {
     FetchList(id);
@@ -401,10 +433,12 @@ void FilterListManager::SetAutoUpdate(bool enabled) {
 
 void FilterListManager::FetchList(const std::string& id) {
   const FilterListEntry* entry = state_.Find(id);
-  if (!entry) {
-    return;
+  if (!entry || !updating_.insert(id).second) {
+    return;  // Unknown, or already being updated.
   }
+  updated_ok_.erase(id);
   Begin();
+  Notify();  // The page shows "Updating" at once.
   fetcher_.Fetch(GURL(entry->url),
                  base::BindOnce(&FilterListManager::OnFetched,
                                 weak_factory_.GetWeakPtr(), id));
@@ -414,18 +448,24 @@ void FilterListManager::SetError(const std::string& id, ListFailure failure) {
   if (FilterListEntry* entry = state_.Find(id)) {
     entry->error = ListFailureMessage(failure);
   }
+  updated_ok_.erase(id);
   base::UmaHistogramBoolean("Aerie.Adblock.ListUpdateSuccess", false);
   Save();
 }
 
+void FilterListManager::FinishFetch(const std::string& id) {
+  updating_.erase(id);
+  End();
+}
+
 void FilterListManager::OnFetched(std::string id, FilterListFetcher::Result result) {
   if (!state_.Find(id)) {  // Removed while downloading.
-    End();
+    FinishFetch(id);
     return;
   }
   if (result.failure != ListFailure::kNone) {
     SetError(id, result.failure);
-    End();
+    FinishFetch(id);
     return;
   }
   // The parse runs off the UI thread, with a time budget.
@@ -450,13 +490,13 @@ void FilterListManager::OnFetched(std::string id, FilterListFetcher::Result resu
 
 void FilterListManager::OnChecked(std::string id, std::string text, ListCheck check) {
   if (!state_.Find(id)) {
-    End();
+    FinishFetch(id);
     return;
   }
   if (check.failure != ListFailure::kNone) {
     // The copy in use stays. Only the message changes.
     SetError(id, check.failure);
-    End();
+    FinishFetch(id);
     return;
   }
   if (check.ignored_exceptions > 0) {
@@ -479,24 +519,26 @@ void FilterListManager::OnChecked(std::string id, std::string text, ListCheck ch
 void FilterListManager::OnWritten(std::string id, ListCheck check, bool written) {
   FilterListEntry* entry = state_.Find(id);
   if (!entry) {
-    End();
+    FinishFetch(id);
     return;
   }
   if (!written) {
     SetError(id, ListFailure::kUnreadable);
-    End();
+    FinishFetch(id);
     return;
   }
   entry->rules = check.rules;
+  entry->ignored_exceptions = check.ignored_exceptions;
   entry->updated = base::Time::Now();
   entry->error.clear();
   if (!entry->builtin && !check.title.empty()) {
     entry->title = check.title;
   }
+  updated_ok_.insert(id);
   base::UmaHistogramBoolean("Aerie.Adblock.ListUpdateSuccess", true);
   Save();
   Rebuild();
-  End();
+  FinishFetch(id);
 }
 
 void FilterListManager::Rebuild(bool retry) {
@@ -506,6 +548,9 @@ void FilterListManager::Rebuild(bool retry) {
   std::vector<FilterEngineService::ListInput> inputs;
   std::vector<std::string> ids;
   for (const FilterListEntry& entry : state_.lists()) {
+    if (!entry.enabled) {
+      continue;  // Off: its file stays on disk, the engine does not get it.
+    }
     FilterEngineService::ListInput input;
     if (!entry.updated.is_null()) {
       input.path = filter_list_storage::ListPath(dir_, entry.id);
@@ -522,6 +567,39 @@ void FilterListManager::Rebuild(bool retry) {
       std::move(inputs),
       base::BindOnce(&FilterListManager::OnRebuilt, weak_factory_.GetWeakPtr(),
                      std::move(ids), retry));
+}
+
+void FilterListManager::MeasureShippedLists() {
+  for (const FilterListEntry& entry : state_.lists()) {
+    if (entry.builtin && entry.updated.is_null()) {
+      MeasureShippedList(entry.id);
+    }
+  }
+}
+
+void FilterListManager::MeasureShippedList(const std::string& id) {
+  // The count saved by an earlier run is not trusted: the build may have
+  // changed. The shipped text is parsed again, off the UI thread.
+  Begin();
+  base::ThreadPool::PostTaskAndReplyWithResult(
+      FROM_HERE, {base::TaskPriority::BEST_EFFORT},
+      base::BindOnce(
+          [](std::string text) {
+            return CheckList(base::as_byte_span(text), kCheckBudget);
+          },
+          builtin_lists_.Run(id)),
+      base::BindOnce(&FilterListManager::OnShippedMeasured,
+                     weak_factory_.GetWeakPtr(), id));
+}
+
+void FilterListManager::OnShippedMeasured(std::string id, ListCheck check) {
+  FilterListEntry* entry = state_.Find(id);
+  // A download that finished meanwhile has its own, newer count.
+  if (entry && entry->updated.is_null() && check.failure == ListFailure::kNone) {
+    entry->rules = check.rules;
+    entry->ignored_exceptions = check.ignored_exceptions;
+  }
+  End();
 }
 
 void FilterListManager::OnRebuilt(std::vector<std::string> ids,
@@ -547,10 +625,14 @@ void FilterListManager::OnRebuilt(std::vector<std::string> ids,
       entry->error = ListFailureMessage(result.failure);
       entry->updated = base::Time();
       entry->rules = 0;
+      entry->ignored_exceptions = 0;
       file_runner_->PostTask(
           FROM_HERE,
           base::BindOnce(&filter_list_storage::DeleteList, dir_, id));
       Save();
+      if (entry->builtin) {
+        MeasureShippedList(id);  // The shipped copy is in use again.
+      }
       if (retry) {
         Rebuild(/*retry=*/false);
       }

@@ -1,0 +1,57 @@
+Aerie-Purpose: Give the Aerie Guard page the strings of its filter list rows: rule counts, ignored exception rules, update status, retry and list errors.
+Aerie-Upstream-Area: chrome/browser/ui/webui/settings (settings_localized_strings_provider.cc)
+Aerie-Kind: hook
+
+Issue #104. The strings are in the overlay's aerie_guard_settings_strings.grdp, which
+adblock/0022 already includes. This patch only hands each one to the Settings page, in the
+function adblock/0022 added. A test compares the names with the grdp.
+
+--- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
++++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
+@@ -1597,6 +1597,46 @@
+       {"aerieGuardErrorTooManySites",
+        IDS_SETTINGS_AERIE_GUARD_ERROR_TOO_MANY_SITES},
+       {"aerieGuardErrorGeneric", IDS_SETTINGS_AERIE_GUARD_ERROR_GENERIC},
++      {"aerieGuardListsHeading", IDS_SETTINGS_AERIE_GUARD_LISTS_HEADING},
++      {"aerieGuardListsDesc", IDS_SETTINGS_AERIE_GUARD_LISTS_DESC},
++      {"aerieGuardListRules", IDS_SETTINGS_AERIE_GUARD_LIST_RULES},
++      {"aerieGuardListRulesCounting",
++       IDS_SETTINGS_AERIE_GUARD_LIST_RULES_COUNTING},
++      {"aerieGuardListIgnored", IDS_SETTINGS_AERIE_GUARD_LIST_IGNORED},
++      {"aerieGuardListUpdated", IDS_SETTINGS_AERIE_GUARD_LIST_UPDATED},
++      {"aerieGuardListShipped", IDS_SETTINGS_AERIE_GUARD_LIST_SHIPPED},
++      {"aerieGuardListOff", IDS_SETTINGS_AERIE_GUARD_LIST_OFF},
++      {"aerieGuardListRequired", IDS_SETTINGS_AERIE_GUARD_LIST_REQUIRED},
++      {"aerieGuardListToggleAria", IDS_SETTINGS_AERIE_GUARD_LIST_TOGGLE_ARIA},
++      {"aerieGuardListStatusUpdating",
++       IDS_SETTINGS_AERIE_GUARD_LIST_STATUS_UPDATING},
++      {"aerieGuardListStatusUpdated",
++       IDS_SETTINGS_AERIE_GUARD_LIST_STATUS_UPDATED},
++      {"aerieGuardListStatusFailed",
++       IDS_SETTINGS_AERIE_GUARD_LIST_STATUS_FAILED},
++      {"aerieGuardListUpdateNow", IDS_SETTINGS_AERIE_GUARD_LIST_UPDATE_NOW},
++      {"aerieGuardListUpdateNowAria",
++       IDS_SETTINGS_AERIE_GUARD_LIST_UPDATE_NOW_ARIA},
++      {"aerieGuardListRetry", IDS_SETTINGS_AERIE_GUARD_LIST_RETRY},
++      {"aerieGuardListRetryAria", IDS_SETTINGS_AERIE_GUARD_LIST_RETRY_ARIA},
++      {"aerieGuardListErrorTooLarge",
++       IDS_SETTINGS_AERIE_GUARD_LIST_ERROR_TOO_LARGE},
++      {"aerieGuardListErrorTimeout",
++       IDS_SETTINGS_AERIE_GUARD_LIST_ERROR_TIMEOUT},
++      {"aerieGuardListErrorNotText",
++       IDS_SETTINGS_AERIE_GUARD_LIST_ERROR_NOT_TEXT},
++      {"aerieGuardListErrorLooksLikeHtml",
++       IDS_SETTINGS_AERIE_GUARD_LIST_ERROR_LOOKS_LIKE_HTML},
++      {"aerieGuardListErrorNoRules",
++       IDS_SETTINGS_AERIE_GUARD_LIST_ERROR_NO_RULES},
++      {"aerieGuardListErrorUnreadable",
++       IDS_SETTINGS_AERIE_GUARD_LIST_ERROR_UNREADABLE},
++      {"aerieGuardListErrorDownload",
++       IDS_SETTINGS_AERIE_GUARD_LIST_ERROR_DOWNLOAD},
++      {"aerieGuardListErrorInsecureUrl",
++       IDS_SETTINGS_AERIE_GUARD_LIST_ERROR_INSECURE_URL},
++      {"aerieGuardListErrorRequired",
++       IDS_SETTINGS_AERIE_GUARD_LIST_ERROR_REQUIRED},
+   };
+   html_source->AddLocalizedStrings(kLocalizedStrings);
+ }

@@ -4,6 +4,7 @@
 
 #include "components/aerie_adblock/browser/filter_list_state.h"
 
+#include <optional>
 #include <set>
 #include <string>
 
@@ -274,9 +275,89 @@ TEST(FilterListStateTest, HostileFileContentFallsBackToSafeValues) {
   EXPECT_EQ(custom->error, "");  // Only known messages come back.
 }
 
+TEST(FilterListStateTest, EveryListStartsOn) {
+  FilterListState state;
+  for (const FilterListEntry& entry : state.lists()) {
+    EXPECT_TRUE(entry.enabled) << entry.id;
+  }
+  EXPECT_FALSE(state.NeedsRebuild());
+}
+
+TEST(FilterListStateTest, EasyPrivacyCanBeTurnedOffAndOn) {
+  FilterListState state;
+  EXPECT_EQ(state.SetEnabled(kEasyPrivacyId, false),
+            FilterListState::EnableResult::kOk);
+  EXPECT_FALSE(state.Find(kEasyPrivacyId)->enabled);
+  EXPECT_TRUE(state.NeedsRebuild());  // The shipped engine has it.
+  EXPECT_EQ(state.SetEnabled(kEasyPrivacyId, true),
+            FilterListState::EnableResult::kOk);
+  EXPECT_TRUE(state.Find(kEasyPrivacyId)->enabled);
+  EXPECT_FALSE(state.NeedsRebuild());
+}
+
+TEST(FilterListStateTest, EasyListCannotBeTurnedOff) {
+  FilterListState state;
+  EXPECT_EQ(state.SetEnabled(kEasyListId, false),
+            FilterListState::EnableResult::kRequired);
+  EXPECT_TRUE(state.Find(kEasyListId)->enabled);
+  EXPECT_EQ(state.SetEnabled(kEasyListId, true),
+            FilterListState::EnableResult::kOk);
+  EXPECT_EQ(state.SetEnabled("nosuchlist", false),
+            FilterListState::EnableResult::kUnknownList);
+}
+
+TEST(FilterListStateTest, ACustomListCanBeTurnedOffAndStaysListed) {
+  FilterListState state;
+  std::string id;
+  ASSERT_EQ(state.AddCustomList(GURL("https://lists.example/a.txt"), false, &id),
+            FilterListState::AddResult::kAdded);
+  EXPECT_EQ(state.SetEnabled(id, false), FilterListState::EnableResult::kOk);
+  ASSERT_TRUE(state.Find(id));
+  EXPECT_FALSE(state.Find(id)->enabled);
+  EXPECT_EQ(state.lists().size(), 3u);  // Off is not removed.
+}
+
+TEST(FilterListStateTest, EnabledAndIgnoredCountSurviveASaveAndLoad) {
+  FilterListState state;
+  state.SetEnabled(kEasyPrivacyId, false);
+  state.Find(kEasyListId)->ignored_exceptions = 4;
+  FilterListState loaded = FilterListState::FromValue(state.ToValue());
+  EXPECT_FALSE(loaded.Find(kEasyPrivacyId)->enabled);
+  EXPECT_TRUE(loaded.Find(kEasyListId)->enabled);
+  EXPECT_EQ(loaded.Find(kEasyListId)->ignored_exceptions, 4);
+}
+
+TEST(FilterListStateTest, ADamagedEnabledFieldGivesOn) {
+  for (const char* bad : {"\"enabled\": \"no\"", "\"enabled\": 0",
+                          "\"enabled\": null", "\"enabled\": []"}) {
+    std::string text = std::string(R"json({"lists": [
+      {"id": "easyprivacy", "url": "x", "ignored_exceptions": -3, )json") +
+                       bad + "}]}";
+    std::optional<base::Value> json =
+        base::JSONReader::Read(text, base::JSON_PARSE_RFC);
+    ASSERT_TRUE(json && json->is_dict()) << bad;
+    FilterListState state = FilterListState::FromValue(json->GetDict());
+    EXPECT_TRUE(state.Find(kEasyPrivacyId)->enabled) << bad;
+    EXPECT_EQ(state.Find(kEasyPrivacyId)->ignored_exceptions, 0) << bad;
+  }
+}
+
+TEST(FilterListStateTest, AFileThatTurnsEasyListOffIsIgnoredForEasyList) {
+  std::optional<base::Value> json = base::JSONReader::Read(
+      R"json({"lists": [{"id": "easylist", "url": "x", "enabled": false},
+                        {"id": "easyprivacy", "url": "x", "enabled": false}]})json",
+      base::JSON_PARSE_RFC);
+  ASSERT_TRUE(json && json->is_dict());
+  FilterListState state = FilterListState::FromValue(json->GetDict());
+  EXPECT_TRUE(state.Find(kEasyListId)->enabled);
+  EXPECT_FALSE(state.Find(kEasyPrivacyId)->enabled);
+}
+
 TEST(FilterListStateTest, GarbageGivesDefaults) {
   FilterListState state = FilterListState::FromValue(base::DictValue());
   EXPECT_EQ(state.lists().size(), 2u);
+  EXPECT_TRUE(state.Find(kEasyListId)->enabled);
+  EXPECT_TRUE(state.Find(kEasyPrivacyId)->enabled);
   EXPECT_TRUE(state.auto_update());
 }
 

@@ -20,6 +20,7 @@ SERIES = [l.strip() for l in (REPO / "patches/series").read_text().splitlines()
 BACKEND = "adblock/0022-add-aerie-guard-settings-backend.patch"
 PAGE = "adblock/0023-add-aerie-guard-settings-page.patch"
 REDIRECT = "adblock/0024-redirect-filters-to-aerie-guard-settings.patch"
+LIST_STRINGS = "adblock/0025-add-aerie-guard-list-strings.patch"
 PREF = "aerie.guard.show_blocked_count"
 
 
@@ -71,7 +72,8 @@ class HandlerTest(unittest.TestCase):
         text = code(HANDLER_CC)
         names = re.findall(r'"(aerieGuard\.\w+)"', text)
         self.assertEqual(sorted(names), sorted([
-            "aerieGuard.getState", "aerieGuard.addList", "aerieGuard.removeList", "aerieGuard.updateList",
+            "aerieGuard.getState", "aerieGuard.addList", "aerieGuard.removeList", "aerieGuard.setListEnabled",
+            "aerieGuard.updateList",
             "aerieGuard.updateAll", "aerieGuard.setException", "aerieGuard.setAutoUpdate"]))
         self.assertGreaterEqual(text.count("ResolveJavascriptCallback"), 1)
 
@@ -162,7 +164,7 @@ class StringsTest(unittest.TestCase):
         self.assertEqual(text.strip(), "Aerie Guard")
 
     def test_every_message_is_given_to_the_page_and_every_name_exists(self):
-        used = set(re.findall(r"\bIDS_SETTINGS_AERIE_GUARD_\w+", added(BACKEND)))
+        used = set(re.findall(r"\bIDS_SETTINGS_AERIE_GUARD_\w+", added(BACKEND) + added(LIST_STRINGS)))
         self.assertEqual(used, set(self.messages()))
 
     def test_no_upstream_product_name(self):
@@ -230,6 +232,74 @@ class PageTest(unittest.TestCase):
         handler = set(re.findall(r'"(aerieGuard\.\w+)"', code(HANDLER_CC)))
         used = set(re.findall(r"sendWithPromise\('(aerieGuard\.\w+)'", proxy))
         self.assertEqual(used, handler)
+
+
+class ListRowsTest(unittest.TestCase):
+    """Issue #104: per-list status, on/off, rule count, ignored exception rules, update state."""
+    TS = (PAGE_DIR / "aerie_guard_page.ts").read_text(encoding="utf-8")
+    HTML = (PAGE_DIR / "aerie_guard_page.html.ts").read_text(encoding="utf-8")
+    STATE_CC = code(BROWSER / "filter_list_state.cc")
+    MANAGER_CC = code(BROWSER / "filter_list_manager.cc")
+
+    def test_the_handler_turns_a_list_on_or_off_through_the_manager_and_names_the_refusal(self):
+        text = code(HANDLER_CC)
+        self.assertIn("manager->SetListEnabled(", text)
+        self.assertIn('error = "required"', text)
+        self.assertIn("is_bool()", text)
+
+    def test_the_guard_against_turning_easylist_off_is_in_the_state_not_the_page(self):
+        self.assertRegex(self.STATE_CC, r"bool CanBeDisabled\(const FilterListEntry& entry\)\s*\{\s*return entry\.id != kEasyListId;")
+        self.assertRegex(self.STATE_CC, r"!enabled\s*&&\s*!CanBeDisabled\(\*entry\)")
+        # A damaged file cannot turn it off either.
+        self.assertIn("|| !CanBeDisabled(*entry)", self.STATE_CC)
+
+    def test_an_off_list_is_left_out_of_the_engine_and_never_deleted_by_turning_it_off(self):
+        rebuild = self.MANAGER_CC[self.MANAGER_CC.index("void FilterListManager::Rebuild("):]
+        self.assertRegex(rebuild[:600], r"if \(!entry\.enabled\)")
+        toggle = self.MANAGER_CC[self.MANAGER_CC.index("FilterListManager::SetListEnabled("):]
+        toggle = toggle[:toggle.index("UpdateStatusFor")]
+        self.assertNotIn("DeleteList", toggle)
+
+    def test_the_scheduled_update_does_not_fetch_a_list_that_is_off(self):
+        update_all = self.MANAGER_CC[self.MANAGER_CC.index("void FilterListManager::UpdateAll()"):]
+        self.assertIn("if (entry.enabled)", update_all[:500])
+
+    def test_the_handler_reports_what_the_page_shows(self):
+        text = code(HANDLER_CC)
+        for key in ("enabled", "required", "ignoredExceptions", "status", "errorCode", "rules", "listError"):
+            self.assertIn(f'"{key}"', text)
+
+    def test_every_error_the_page_can_show_is_a_grd_string(self):
+        failure = code(BROWSER / "list_failure.h")
+        codes = re.findall(r'return "([a-z_]+)";', failure.split("ListFailureCode(")[1].split("ListFailureCodeForMessage")[0])
+        codes = [c for c in codes if c]
+        self.assertEqual(len(codes), 8)
+        given = added(LIST_STRINGS)
+        for c in codes:
+            key = "aerieGuardListError" + "".join(w.capitalize() for w in c.split("_"))
+            self.assertIn(f'"{key}"', given, c)
+
+    def test_every_string_key_the_page_reads_is_given_to_the_page(self):
+        given = set(re.findall(r'\{"(aerieGuard\w+)"', added(BACKEND) + added(LIST_STRINGS)))
+        read = set(re.findall(r"\$i18n\{(aerieGuard\w+)\}", self.HTML))
+        read |= set(re.findall(r"(?:getString|getStringF)\(\s*'(aerieGuard\w+)'", self.TS))
+        self.assertTrue(read)
+        self.assertEqual(read - given, set())
+
+    def test_the_page_has_a_switch_and_an_update_button_per_list_and_a_retry(self):
+        for needle in ("lists_", "onListToggleChange_", "onListUpdateClick_", "list-toggle", "list-update",
+                       "?disabled=\"${list.required}\"", "listIgnoredText_",
+                       "listRulesText_", "listStatusText_", "listFailureText_", "aerieGuardListRetry"):
+            self.assertIn(needle, self.HTML + self.TS, needle)
+
+    def test_the_page_never_shows_a_dash_for_a_missing_count(self):
+        self.assertNotRegex(self.TS + self.HTML, r"['\"]-['\"]")
+        self.assertIn("aerieGuardListRulesCounting", self.TS)
+
+    def test_no_new_endpoint(self):
+        text = "".join(p.read_text(errors="ignore") for p in
+                        (list(PAGE_DIR.glob("*.ts")) + [HANDLER_CC, BROWSER / "filter_list_manager.cc"]))
+        self.assertNotRegex(text, r"https?://(?!lists\.|easylist\.to)[a-z]")
 
 
 class RedirectTest(unittest.TestCase):

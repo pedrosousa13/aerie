@@ -81,3 +81,6 @@ adblock/0021-build-aerie-guard-browser-tests.patch
 adblock/0022-add-aerie-guard-settings-backend.patch
 adblock/0023-add-aerie-guard-settings-page.patch
 adblock/0024-redirect-filters-to-aerie-guard-settings.patch
+
+# Per-list status and on/off (#104): the strings of the list rows.
+adblock/0025-add-aerie-guard-list-strings.patch
