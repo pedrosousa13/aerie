@@ -1,4 +1,4 @@
-"""Fingerprinting randomization, graphics card (issue #112): WebGL reports a vendor family, WebGPU nothing.
+"""Fingerprinting protection, graphics card (issue #112): WebGL reports a vendor family, WebGPU nothing.
 
 With protection on, UNMASKED_VENDOR_WEBGL and UNMASKED_RENDERER_WEBGL are one of the family strings
 (Chrome's format, for example ``Google Inc. (AMD)``), with no digit beyond the GL ES version, in the page

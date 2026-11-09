@@ -39,6 +39,20 @@ class ValidatorTest(unittest.TestCase):
     def test_good_table_has_no_problems(self):
         self.assertEqual(self.problems(table(good_control())), [])
 
+    def test_manual_test_is_optional_but_checked_when_present(self):
+        tbl = table(good_control())
+        good = {"intro": "I", "procedure": ["step"],
+                "baseline": {"label": "L", "total_bits": "1.00",
+                             "rows": [{"surface": "S", "value": "V", "bits": "1.00"}]}}
+        tbl["manual_test"] = good
+        self.assertEqual(self.problems(tbl), [])
+        for broken in ({**good, "procedure": []},
+                       {**good, "baseline": {**good["baseline"], "rows": []}},
+                       {**good, "baseline": {**good["baseline"], "rows": [{"surface": "S|x", "value": "V", "bits": "1"}]}},
+                       {k: v for k, v in good.items() if k != "intro"}):
+            tbl["manual_test"] = broken
+            self.assertTrue(any("manual_test" in p for p in self.problems(tbl)), broken)
+
     def test_missing_required_key_is_reported(self):
         c = good_control()
         del c["cost"]
