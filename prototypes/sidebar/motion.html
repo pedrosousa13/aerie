@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en" data-mode="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aerie sidebar: motion spec</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="specs.css">
+</head>
+<body data-page="motion" data-ready="0">
+<div class="shell">
+  <nav class="toc" id="toc" aria-label="Contents"></nav>
+  <main>
+    <header>
+      <h1>Motion spec</h1>
+      <p>How every sidebar interaction moves: what animates, for how long, on which curve, what changes under reduced motion. All values are read live from <code>tokens.json</code>, so this page cannot drift from the tokens. Arc is the reference for feel; no Arc assets are used. Press Play on a card to run a small demo with the real values, or switch on Reduced motion (top right) to replay the reduced version everywhere.</p>
+    </header>
+    <section class="sec">
+      <h2>How to read a card</h2>
+      <div class="note"><p><b>What moves</b> lists properties. Everything is <code>transform</code> and <code>opacity</code> unless the card calls out an exception. <b>Tokens</b> shows each motion token with its value and, where it differs, its reduced value. The curves are drawn from the easing token itself: x is time, y is progress; the dashed line is 1.0, so a spring that overshoots rises above it. <b>Reduced</b> is the version that runs under <code>prefers-reduced-motion</code> or the in-app setting.</p></div>
+    </section>
+    <section class="sec">
+      <h2>Interactions</h2>
+      <div class="cards" id="cards"></div>
+    </section>
+    <section class="sec" id="perf">
+      <h2>Performance rules</h2>
+      <div id="perf-body"></div>
+    </section>
+    <section class="sec" id="open-points">
+      <h2>Open points</h2>
+      <div id="open-body"></div>
+    </section>
+  </main>
+</div>
+<script src="specs.js"></script>
+</body>
+</html>

@@ -50,3 +50,10 @@ out = ["/* Generated from tokens.json by gen_tokens_css.py. Do not edit by hand.
   "@media (prefers-reduced-motion: reduce) {\n" + block("  :root", ["  "+l for l in reduced]) + "}\n",
   block(":root[data-reduced-motion]", reduced)]
 (here / "tokens.css").write_text("\n".join(out))
+
+# Container queries cannot read var(), so horizontal.css repeats size-hz-tab-icon-only. Fail if they drift apart.
+thr = data["size"]["hz-tab-icon-only"]["value"]
+hcss = (here / "horizontal.css").read_text()
+for want in (f"@container (max-width:{thr}px)", f"@container (min-width:{thr + 1}px)"):
+    if want not in hcss:
+        raise SystemExit(f"horizontal.css is missing '{want}' (size-hz-tab-icon-only = {thr})")

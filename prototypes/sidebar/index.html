@@ -30,6 +30,11 @@
     <symbol id="i-ws-wave" viewBox="0 0 16 16"><path d="M2.5 9c1.5-3 3-3 4.5 0s3 3 4.5 0M2.5 12.5c1.5-3 3-3 4.5 0s3 3 4.5 0"/></symbol>
     <symbol id="i-globe" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"/><path d="M2.5 8h11M8 2.5c2 2 2 9 0 11M8 2.5c-2 2-2 9 0 11"/></symbol>
     <symbol id="i-arrow" viewBox="0 0 16 16"><path d="M3 8h10M9 4l4 4-4 4"/></symbol>
+    <symbol id="i-pencil" viewBox="0 0 16 16"><path d="M10.5 3.5l2 2L6 12l-2.6.6L4 10z"/></symbol>
+    <symbol id="i-rule" viewBox="0 0 16 16"><path d="M2.5 3.5h11L9.5 8.5V12l-3 1.5V8.5z"/></symbol>
+    <symbol id="i-folder-smart" viewBox="0 0 16 16"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3H6l1.5 1.5h5A1.5 1.5 0 0 1 14 6v5.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5z" stroke-dasharray="2.2 1.8"/><path d="M9 7.2l.7 1.6 1.6.7-1.6.7L9 11.8l-.7-1.6-1.6-.7 1.6-.7z" fill="currentColor" stroke-width="1"/></symbol>
+    <symbol id="i-chev-down" viewBox="0 0 16 16"><path d="M4.5 6.5 8 10l3.5-3.5"/></symbol>
+    <symbol id="i-check" viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-6.5"/></symbol>
   </defs>
 </svg>
 
@@ -87,15 +92,18 @@
   <p class="pop-p">Guard panel &mdash; see Guard design</p>
   <div class="pop-stub"><i></i><i></i><i></i></div>
 </div>
-<div class="pop pop-archive" id="popArchive" role="dialog" aria-label="Archived tabs" hidden>
-  <div class="pop-h"><strong>Archived tabs</strong></div>
-  <div class="pop-search"><svg class="ic"><use href="#i-search"/></svg><input type="text" placeholder="Search archive" aria-label="Search archive"></div>
+<div class="pop pop-archive" id="popArchive" role="dialog" aria-label="Archive" hidden>
+  <div class="pop-h"><svg class="ic"><use href="#i-archive"/></svg><strong>Archive</strong><span class="arch-count" id="archCount"></span></div>
+  <button class="arch-setting" id="archSetting" aria-haspopup="menu"></button>
+  <div class="pop-search"><svg class="ic"><use href="#i-search"/></svg><input id="archSearch" type="text" placeholder="Search archive" aria-label="Search archive" autocomplete="off" spellcheck="false"></div>
   <div class="pop-list" id="archiveList"></div>
 </div>
+<div class="pop sheet" id="folderSheet" role="dialog" aria-label="Edit folder" hidden></div>
 <div class="menu" id="menu" role="menu" hidden></div>
 <div class="menu" id="submenu" role="menu" hidden></div>
 <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
 <div class="toast" id="toast" role="status" aria-live="polite" hidden><span></span></div>
+<div class="toast act" id="toastAct" role="status" aria-live="polite" hidden></div>
 <div class="drag-hint" id="dragHint" hidden></div>
 <div id="focusBadges" aria-hidden="true"></div>
 <div class="mock" id="mock"></div>

@@ -11,10 +11,11 @@ const params = new URLSearchParams(location.search);
 const tok = n => getComputedStyle(root).getPropertyValue('--aerie-' + n).trim();
 const tnum = n => parseFloat(tok(n));
 const isReduced = () => root.hasAttribute('data-reduced-motion') || matchMedia('(prefers-reduced-motion: reduce)').matches;
+const hideOffset = () => tnum('motion-distance-sidebar-hide-offset');
 const durMs = n => n === 'spring' ? tnum('motion-spring-duration') : tnum('motion-duration-' + n);
 
 /* ---------- state ---------- */
-const S = { ws: 'personal', gTheme: 'vivid', gMode: 'light', explicitTheme: false, look: null, density: 'comfortable', side: 'left', hidden: false, peek: false, sbW: null, instant: true, tintOn: 'A', focus: false, drag: false };
+const S = { ws: 'personal', gTheme: 'vivid', gMode: 'light', explicitTheme: false, look: null, density: 'comfortable', side: 'left', hidden: false, peek: false, sbW: null, rulesGlobal: true, tidyOn: true, archAfter: '12h', instant: true, tintOn: 'A', focus: false, drag: false };
 const PRESET_STOPS = { dusk: 3, tide: 2, moss: 2, ember: 2, lilac: 2, slate: 2, sand: 2, mint: 2 };
 const PRESET_CYCLE = ['ember', 'lilac', 'slate', 'sand', 'mint'];
 const WS_ORDER = ['personal', 'work', 'side'];
@@ -56,11 +57,16 @@ const tabs = {};
 let nextId = 1;
 const hash = s => [...s].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
 function mk(id, title, domain, path, color, x = {}) {
-  tabs[id] = { id, title, domain, path, color, pinnedPath: null, asleep: false, audio: false, blocked: 6 + hash(id) % 47, ...x };
+  tabs[id] = { id, title, domain, path, color, pinnedPath: null, asleep: false, audio: false, mem: 130, name: null, filedBy: null, blocked: 6 + hash(id) % 47, ...x };
   return id;
 }
 const T = (id, title, domain, color, x) => ({ t: mk(id, title, domain, x && x.path || '/', color, x) });
-const F = (id, name, open, kids) => ({ f: id, name, open, kids });
+/* Folder kinds (#139 #140 #141). kind: manual | auto (files new tabs matching its rules into itself) | smart (live view, holds nothing).
+   rules: [{ id, type: domain|prefix|contains|title, value, on }]. rulesOn switches all of a folder's rules off at once. except: exceptions made from
+   "Don't file this site" / "Stop this rule matching this tab". beh: behaviour overrides; null = inherits the global setting (#141). */
+let ruleSeq = 1;
+const R = (type, value, on = true) => ({ id: 'r' + (ruleSeq++), type, value, on });
+const F = (id, name, open, kids, x = {}) => ({ f: id, name, open, kids, kind: 'manual', icon: 'i-folder', rules: [], rulesOn: true, except: [], ...x, beh: { archive: null, sleep: null, links: null, ...(x.beh || {}) } });
 const favs = (...a) => a;
 const W = {
   personal: {
@@ -83,11 +89,16 @@ const W = {
       T('p-home', 'Home dashboard', 'hearth.local', '#12A594', { path: '/' }),
     ],
     today: [
-      T('p-trail', 'Trail map: Serra de Sintra', 'trails.atlas.io', '#30A46C', { path: '/sintra', asleep: true }),
-      T('p-flights', 'Flights to Lisbon, 12 Dec', 'fly.skyward.travel', '#0091FF', { path: '/results' }),
+      F('f-trips', 'Trips', true, [
+        T('p-trail', 'Trail map: Serra de Sintra', 'trails.atlas.io', '#30A46C', { path: '/sintra', asleep: true, mem: 140, filedBy: 'f-trips' }),
+        T('p-flights', 'Flights to Lisbon, 12 Dec', 'fly.skyward.travel', '#0091FF', { path: '/results', filedBy: 'f-trips' }),
+      ], { kind: 'auto', rules: [R('domain', 'skyward.travel'), R('domain', 'trails.atlas.io'), R('contains', '/itinerary', false)], beh: { sleep: '30m' } }),
       T('p-lofi', 'lofi study beats, 24/7', 'play.reverb.fm', '#8E4EC6', { audio: true, path: '/live' }),
-      T('p-plant', 'How to repot a monstera', 'leafy.garden.guide', '#30A46C'),
-      T('p-bike', 'Winter tyres compared', 'spoke.cycling.review', '#F76B15'),
+      T('p-plant', 'How to repot a monstera', 'leafy.garden.guide', '#30A46C', { asleep: true, mem: 120 }),
+      /* manual name (precedence 1): the page title stays what the page says */
+      T('p-bike', 'Winter tyres compared', 'spoke.cycling.review', '#F76B15', { name: 'Tyres: decide by Friday', asleep: true, mem: 150 }),
+      /* built-in tidy (precedence 3): "(3) Inbox - Fjord Mail" shows as "Inbox" */
+      T('p-tidy', '(3) Inbox - Fjord Mail', 'mail.fjord.app', '#4F7CFF', { path: '/inbox' }),
     ],
     selected: 'p-flights',
   },
@@ -110,6 +121,7 @@ const W = {
       T('w-road', 'Roadmap Q4', 'docs.northwind.work', '#30A46C', { path: '/roadmap' }),
     ],
     today: [
+      F('f-docs', 'Northwind docs', true, [], { kind: 'smart', rules: [R('domain', 'docs.northwind.work')] }),
       T('w-pr', 'PR #2841: retry budget for sync', 'code.northwind.work', '#5B6B7F', { path: '/pr/2841' }),
       T('w-inc', 'Incident review, 28 Oct', 'meet.northwind.work', '#E5484D', { audio: true, path: '/r/inc-28' }),
       F('f-q4', 'Q4 research', true, [
@@ -142,14 +154,44 @@ const W = {
     selected: 's-main',
   },
 };
+/* day: today | yesterday | lastweek (the panel groups by it). wsId says where Restore puts the tab. */
 const archive = [
-  { id: 'a1', title: 'Visa application checklist', domain: 'consulate.gov.example', color: '#5B6B7F', ws: 'Personal', when: 'Yesterday' },
-  { id: 'a2', title: 'Q3 planning doc', domain: 'docs.northwind.work', color: '#4F7CFF', ws: 'Work', when: '2 days ago' },
-  { id: 'a3', title: 'Allotment layout ideas', domain: 'leafy.garden.guide', color: '#30A46C', ws: 'Personal', when: 'Last week' },
-  { id: 'a4', title: 'Build cache sizing', domain: 'blog.deepcuts.dev', color: '#8E4EC6', ws: 'Side project', when: 'Last week' },
+  { id: 'a0', title: 'Standup notes, 4 Nov', domain: 'docs.northwind.work', color: '#4F7CFF', ws: 'Work', wsId: 'work', day: 'today', when: '4 h ago' },
+  { id: 'a1', title: 'Visa application checklist', domain: 'consulate.gov.example', color: '#5B6B7F', ws: 'Personal', wsId: 'personal', day: 'yesterday', when: 'Yesterday' },
+  { id: 'a2', title: 'Q3 planning doc', domain: 'docs.northwind.work', color: '#4F7CFF', ws: 'Work', wsId: 'work', day: 'yesterday', when: 'Yesterday' },
+  { id: 'a3', title: 'Allotment layout ideas', domain: 'leafy.garden.guide', color: '#30A46C', ws: 'Personal', wsId: 'personal', day: 'lastweek', when: 'Last week' },
+  { id: 'a4', title: 'Build cache sizing', domain: 'blog.deepcuts.dev', color: '#8E4EC6', ws: 'Side project', wsId: 'side', day: 'lastweek', when: 'Last week' },
+  { id: 'a5', title: 'Heat pump quotes compared', domain: 'warmth.homeguide.eu', color: '#F76B15', ws: 'Personal', wsId: 'personal', day: 'lastweek', when: 'Last week' },
 ];
 const cur = () => W[S.ws];
 const curTab = () => tabs[cur().selected];
+
+/* ---------- tab titles: what the sidebar shows ----------
+   Precedence (#145 #146 #147, maintainer decision): manual name > rename rule > built-in tidy > on-device AI title > page title.
+   Only the sidebar changes; the page's own document.title stays as it is. This mockup has no rename rules or AI titles
+   set up, so layers 2 and 4 show as "none" / "off" in the tooltip. */
+const tidyTitle = t => t.replace(/^\(\d+\)\s*/, '').replace(/\s+[-|\u2013\u2014]\s+[^-|\u2013\u2014]{2,24}$/, '').replace(/\s{2,}/g, ' ').trim() || t;
+const titleSource = t => t.name ? 'manual' : (S.tidyOn && tidyTitle(t.title) !== t.title) ? 'tidy' : 'page';
+const displayTitle = t => t.name || (S.tidyOn ? tidyTitle(t.title) : t.title);
+
+/* ---------- folder rules (shared grammar for auto-filing #139 and smart folders #140) ----------
+   domain is = the host or any subdomain of it; URL starts with = scheme-less URL prefix; URL contains; title contains (page title, case-insensitive). */
+const RULE_TYPES = [['domain', 'Domain is', 'example.com'], ['prefix', 'URL starts with', 'github.com/org/'], ['contains', 'URL contains', '/jira/'], ['title', 'Title contains', 'invoice']];
+const ruleLabel = ty => RULE_TYPES.find(r => r[0] === ty)[1];
+const ruleTest = (r, t) => {
+  const v = r.value.trim().toLowerCase().replace(/^https?:\/\//, ''), url = (t.domain + t.path).toLowerCase(), host = t.domain.toLowerCase();
+  if (!v) return false;
+  return r.type === 'domain' ? (host === v || host.endsWith('.' + v)) : r.type === 'prefix' ? url.startsWith(v) : r.type === 'contains' ? url.includes(v) : t.title.toLowerCase().includes(v);
+};
+const rulesActive = f => S.rulesGlobal && f.rulesOn && f.rules.some(r => r.on && r.value.trim());
+const excepted = (f, t) => f.except.some(e => e.kind === 'tab' ? e.id === t.id : t.domain === e.value || t.domain.endsWith('.' + e.value));
+const folderMatches = (f, t) => rulesActive(f) && !excepted(f, t) && f.rules.some(r => r.on && ruleTest(r, t));
+/* A new tab goes to the first matching auto-filing folder, top to bottom (Pinned before Today). New tabs only: browsing inside an existing tab never re-files it, so rows don't jump while you read. */
+function autoFolderFor(wsId, t) { for (const a of ['pinned', 'today']) for (const e of walk(W[wsId][a])) if (e.n.f && e.n.kind === 'auto' && folderMatches(e.n, t)) return e.n; return null; }
+/* Smart folder view: every open Pinned and Today tab that matches, in sidebar order, without moving anything. Per Workspace. */
+function smartMatches(f) { const out = []; for (const a of ['pinned', 'today']) for (const e of walk(cur()[a])) if (e.n.t && folderMatches(f, tabs[e.n.t])) out.push({ id: e.n.t, area: a }); return out; }
+const areaName = a => a === 'pinned' ? 'Pinned' : 'Today';
+const memLabel = () => { let n = 0, mb = 0; for (const e of walk(cur().today)) if (e.n.t && tabs[e.n.t].asleep) { n++; mb += tabs[e.n.t].mem; } for (const e of walk(cur().pinned)) if (e.n.t && tabs[e.n.t].asleep) { n++; mb += tabs[e.n.t].mem; } return { n, mb: Math.round(mb / 10) * 10 }; };
 
 /* ---------- tree helpers ---------- */
 function* walk(list, parent = null, area = null) {
@@ -178,7 +220,7 @@ function el(tag, cls, attrs) {
 }
 const icon = (id, cls = '') => { const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); s.setAttribute('class', 'ic ' + cls); const u = document.createElementNS('http://www.w3.org/2000/svg', 'use'); u.setAttribute('href', '#' + id); s.appendChild(u); return s; };
 function favEl(t, asleepBadge) {
-  const w = el('span', 'fav-wrap'); const f = el('span', 'fav'); f.style.setProperty('--c', t.color); f.textContent = t.title[0].toUpperCase();
+  const w = el('span', 'fav-wrap'); const f = el('span', 'fav'); f.style.setProperty('--c', t.color); f.textContent = tidyTitle(t.title)[0].toUpperCase();
   w.appendChild(f);
   if (t.asleep && asleepBadge !== false) { const m = el('span', 'moon'); m.appendChild(icon('i-moon')); w.appendChild(m); w.dataset.tip = 'Asleep — frees memory'; }
   return w;
@@ -206,8 +248,9 @@ function fx(target, from, to, dur, ease, o = {}) {
   const a = target.animate([kf(f), kf(t)], { duration: durMs(dur), easing: tok('motion-easing-' + ease), delay: o.delay || 0, fill: o.fill || 'none' });
   const p = a.finished.then(() => a, () => a); p.anim = a; return p;
 }
+/* The one layout animation (tab-list row height). Snaps under reduced motion, like folders: the caller's later DOM change is the snap. */
 function heightFx(node, from, to, dur, ease, o = {}) {
-  if (S.instant) return Promise.resolve();
+  if (S.instant || isReduced()) return Promise.resolve();
   const a = node.animate([{ height: from + 'px' }, { height: to + 'px' }], { duration: durMs(dur), easing: tok('motion-easing-' + ease), fill: o.fill || 'none' });
   node.style.overflow = 'hidden';
   return a.finished.then(() => { node.style.overflow = ''; return a; }, () => a);
@@ -233,42 +276,61 @@ function setPreset(key, animate) {
 
 /* ---------- building the sidebar pane ---------- */
 const cols = () => S.density === 'collapsed' ? 1 : tnum('size-favorites-columns');
-function tabRow(id, lvl, area) {
-  const t = tabs[id], sel = cur().selected === id;
-  const node = el('div', 'node'); node.dataset.id = 't:' + id;
-  const row = el('div', 'row' + (sel ? ' sel' : '') + (t.asleep ? ' asleep' : ''), { role: 'treeitem', 'aria-level': lvl + 1, 'aria-selected': sel, tabindex: -1, 'aria-label': t.title + (t.asleep ? ', asleep' : '') });
-  row.dataset.id = id; row.dataset.area = area; row.dataset.lvl = lvl; if (S.density === 'collapsed') row.dataset.tip = t.title;
+/* view = id of the smart folder this row is drawn for (a live view: the tab lives elsewhere, see data-area). */
+function tabRow(id, lvl, area, view = null) {
+  const t = tabs[id], sel = cur().selected === id, shown = displayTitle(t), src = titleSource(t);
+  const node = el('div', 'node' + (view ? ' view' : '')); node.dataset.id = view ? `v:${view}:${id}` : 't:' + id; node.dataset.tab = id; if (view) node.dataset.view = view;
+  const row = el('div', 'row' + (sel ? ' sel' : '') + (t.asleep ? ' asleep' : '') + (view ? ' viewrow' : ''), { role: 'treeitem', 'aria-level': lvl + 1, 'aria-selected': sel, tabindex: -1, 'aria-label': shown + (t.asleep ? ', asleep' : '') + (view ? `, shown from ${areaName(area)}` : '') });
+  row.dataset.id = id; row.dataset.area = area; row.dataset.lvl = lvl; if (view) row.dataset.view = view;
+  if (S.density === 'collapsed') row.dataset.tip = shown;
+  else if (src !== 'page') { row.dataset.tipkind = 'title'; row.dataset.tipid = id; }
   const inn = el('div', 'row-in'); inn.style.setProperty('--lvl', lvl);
   if (area === 'pinned' && t.pinnedPath && t.path !== t.pinnedPath) {
     const b = el('button', 'back-pinned', { tabindex: -1, 'aria-label': 'Back to pinned page', 'data-tip': 'Back to pinned page' }); b.appendChild(icon('i-return')); b.dataset.act = 'back-pinned'; inn.appendChild(b);
   }
   inn.appendChild(favEl(t));
-  const title = el('span', 'title'); title.textContent = t.title; inn.appendChild(title);
+  const title = el('span', 'title'); title.textContent = shown; inn.appendChild(title);
+  if (src === 'manual') { const pb = el('button', 'renamed', { tabindex: -1, 'aria-label': 'Renamed. Reset name', 'data-tip': 'Reset name' }); pb.dataset.act = 'reset-name'; pb.appendChild(icon('i-pencil')); inn.appendChild(pb); }
+  if (view) { const w = el('span', 'where'); w.textContent = areaName(area); inn.appendChild(w); }
   const trail = el('span', 'trail');
   if (t.audio) { const a = el('span', 'audio', { 'aria-label': 'Playing audio' }); a.appendChild(icon('i-speaker')); trail.appendChild(a); }
-  const cl = area === 'pinned' ? pinnedCloseLabel(id) : 'Close tab'; const c = el('button', 'close', { tabindex: -1, 'aria-label': cl, 'data-tip': cl }); c.dataset.act = 'close'; c.appendChild(icon('i-x')); trail.appendChild(c);
+  let cl = area === 'pinned' ? pinnedCloseLabel(id) : 'Close tab';
+  if (view) cl += `: closes the real tab in ${areaName(area)}`;
+  const c = el('button', 'close', { tabindex: -1, 'aria-label': cl, 'data-tip': cl }); c.dataset.act = 'close'; c.appendChild(icon('i-x')); trail.appendChild(c);
   inn.appendChild(trail); row.appendChild(inn); node.appendChild(row);
   return node;
 }
 function folderRow(f, lvl, area) {
-  const node = el('div', 'node folder-node'); node.dataset.id = 'f:' + f.f;
-  const row = el('div', 'row folder' + (f.open ? ' open' : ''), { role: 'treeitem', 'aria-level': lvl + 1, 'aria-expanded': !!f.open, tabindex: -1, 'aria-label': f.name + ' folder', 'aria-owns': 'g-' + f.f });
-  row.dataset.id = f.f; row.dataset.area = area; row.dataset.folder = '1'; row.dataset.lvl = lvl; row.dataset.depth = lvl + 1; if (S.density === 'collapsed') row.dataset.tip = f.name;
+  const smart = f.kind === 'smart', auto = f.kind === 'auto';
+  const node = el('div', 'node folder-node kind-' + f.kind); node.dataset.id = 'f:' + f.f;
+  const view = smart ? smartMatches(f) : null;
+  const row = el('div', 'row folder' + (f.open ? ' open' : '') + ' kind-' + f.kind, { role: 'treeitem', 'aria-level': lvl + 1, 'aria-expanded': !!f.open, tabindex: -1, 'aria-label': f.name + (smart ? ' smart folder, ' + view.length + ' matching tabs' : auto ? ' auto-filing folder' : ' folder') + ((smart || auto) && !rulesActive(f) ? ', rules off' : ''), 'aria-owns': 'g-' + f.f });
+  row.dataset.id = f.f; row.dataset.area = area; row.dataset.folder = '1'; row.dataset.lvl = lvl; row.dataset.depth = lvl + 1; row.dataset.kind = f.kind;
+  if (S.density === 'collapsed') row.dataset.tip = f.name + (smart ? ' (smart folder)' : auto ? ' (auto-filing)' : '');
+  else if (smart) { row.dataset.tipkind = 'folder'; row.dataset.tipid = f.f; }
   const inn = el('div', 'row-in'); inn.style.setProperty('--lvl', lvl);
   const ch = el('span', 'chev'); ch.appendChild(icon('i-chevron')); inn.appendChild(ch);
-  const fi = el('span', 'fav-wrap folder-ic'); fi.style.width = 'var(--fav)'; fi.appendChild(icon('i-folder')); inn.appendChild(fi);
+  const fi = el('span', 'fav-wrap folder-ic'); fi.style.width = 'var(--fav)'; fi.appendChild(icon(smart ? 'i-folder-smart' : (f.icon || 'i-folder'))); inn.appendChild(fi);
   const title = el('span', 'title'); title.textContent = f.name; inn.appendChild(title);
+  if (smart) { const c = el('span', 'count'); c.textContent = view.length; c.setAttribute('aria-hidden', 'true'); inn.appendChild(c); }
+  if (auto || smart) {
+    const off = !rulesActive(f);
+    if (auto) { const g = el('button', 'rule-glyph' + (off ? ' off' : ''), { tabindex: -1, 'aria-label': off ? 'Auto-filing rules are off. Edit rules' : 'Auto-filing rules. Edit rules' }); g.dataset.act = 'edit-folder'; g.dataset.tipkind = 'folder'; g.dataset.tipid = f.f; g.appendChild(icon('i-rule')); inn.appendChild(g); }
+    else if (off) { const g = el('span', 'rule-glyph off static', { 'aria-hidden': 'true' }); g.appendChild(icon('i-rule')); inn.appendChild(g); }
+  }
   row.appendChild(inn); node.appendChild(row);
   const kids = el('div', 'children', { role: 'group', id: 'g-' + f.f }); if (!f.open) kids.hidden = true;
-  f.kids.forEach(k => kids.appendChild(nodeEl(k, lvl + 1, area)));
+  if (smart) view.forEach(v => kids.appendChild(tabRow(v.id, lvl + 1, v.area, f.f)));
+  else f.kids.forEach(k => kids.appendChild(nodeEl(k, lvl + 1, area)));
   node.appendChild(kids);
   return node;
 }
 const nodeEl = (n, lvl, area) => n.f ? folderRow(n, lvl, area) : tabRow(n.t, lvl, area);
 
-function secHead(label, action) {
+function secHead(label, action, meta) {
   const h = el('div', 'sec-head' + (label === 'Pinned' ? ' plain' : ''));
   if (label) { const l = el('span', 'sec-label'); l.textContent = label; h.appendChild(l); }
+  if (meta) { const m = el('span', 'sec-meta'); m.textContent = meta.text; m.dataset.tipkind = 'sleep'; h.appendChild(m); h.dataset.tipkind = 'sleep'; }
   h.appendChild(el('span', 'sec-line'));
   if (action) { const b = el('button', 'sec-act', { 'aria-label': 'Clear unpinned tabs' }); b.textContent = action; b.dataset.act = 'clear'; h.appendChild(b); }
   return h;
@@ -295,7 +357,8 @@ function buildPane(wsId) {
   const ni = el('div', 'row-in'); const pl = el('span', 'plus'); pl.appendChild(icon('i-plus')); ni.appendChild(pl);
   const nl = el('span', 'title'); nl.textContent = 'New Tab'; ni.appendChild(nl); nt.appendChild(ni);
   pane.appendChild(nt);
-  pane.appendChild(secHead('Today', 'Clear'));
+  const sl = memLabel();
+  const th = secHead('Today', 'Clear', sl.n ? { text: `${sl.n} asleep \u00b7 ~${sl.mb} MB freed` } : null); if (S.forceSleepHead) th.classList.add('forced'); pane.appendChild(th);
   const tt = el('div', 'tree', { role: 'tree', 'aria-label': 'Today' }); tt.dataset.area = 'today';
   w.today.forEach(n => tt.appendChild(nodeEl(n, 0, 'today')));
   pane.appendChild(tt);
@@ -373,8 +436,9 @@ function selectTab(id, { animate = true, focus = false } = {}) {
   if (loc.ws !== S.ws) { W[loc.ws].selected = id; switchWs(loc.ws); return; }
   cur().selected = id;
   $$('.row.sel, .tile.sel', scroll).forEach(e => { e.classList.remove('sel'); if (e.matches('.row')) e.setAttribute('aria-selected', false); });
-  const e = $(`[data-id="${CSS.escape(id)}"]`, pane());
-  if (e) { e.classList.add('sel'); if (e.matches('.row')) e.setAttribute('aria-selected', true); setRove(e); if (focus) e.focus(); }
+  const all = $$(`[data-id="${CSS.escape(id)}"]`, pane()), e = all[0];
+  all.forEach(x => { x.classList.add('sel'); if (x.matches('.row')) x.setAttribute('aria-selected', true); });
+  if (e) { setRove(e); if (focus) e.focus(); }
   if (tabs[id].asleep && false) tabs[id].asleep = false;
   updateChrome(); renderPage(animate);
 }
@@ -473,9 +537,9 @@ function setHidden(h, { animate = true } = {}) {
   if (S.density === 'autohide' && !h) S.density = 'comfortable', win.dataset.density = 'comfortable', syncControls();
   sidebar.inert = h;
   if (animate && was !== h) {
-    if (h) { sidebar.inert = false; fx(sidebar, { x: 0 }, { x: dir * (Wd + 24) }, 'base', 'accelerate', { role: 'out', fill: 'forwards' }).then(a => { if (a) a.cancel(); sidebar.inert = true; });
+    if (h) { sidebar.inert = false; fx(sidebar, { x: 0 }, { x: dir * (Wd + hideOffset()) }, 'base', 'accelerate', { role: 'out', fill: 'forwards' }).then(a => { if (a) a.cancel(); sidebar.inert = true; });
       fx(card, { x: -dir * Wd }, { x: 0 }, 'base', 'accelerate', { role: 'move' }); }
-    else { fx(sidebar, { x: dir * (Wd + 24) }, { x: 0 }, 'slow', 'decelerate', { role: 'in' }); fx(card, { x: dir * Wd }, { x: 0 }, 'slow', 'decelerate', { role: 'move' }); }
+    else { fx(sidebar, { x: dir * (Wd + hideOffset()) }, { x: 0 }, 'slow', 'decelerate', { role: 'in' }); fx(card, { x: dir * Wd }, { x: 0 }, 'slow', 'decelerate', { role: 'move' }); }
   }
   updateChrome(); renderFocusBadges();
 }
@@ -540,7 +604,7 @@ const Peek = (() => {
   const inGrace = (x, y) => { const b = box(), dx = Math.max(0, b.l - x, x - b.r), dy = Math.max(0, b.t - y, y - b.b); return dx <= tnum('motion-distance-peek-grace-x') && dy <= tnum('motion-distance-peek-grace-y'); };
   const away = () => outside ? !inGrace(outside.x, outside.y) : (pt ? zone(pt.x, pt.y) === 'out' : true);
   const busy = () => !!($$('.pop:not([hidden]), .menu:not([hidden])').length || S.drag || $('.rename', sidebar) || cmdOpen || $('#resizer').classList.contains('active') || holdKbd || document.activeElement === $('#addr'));
-  const offX = () => dirOut() * (sbWidth() + 24);
+  const offX = () => dirOut() * (sbWidth() + hideOffset());
 
   function startShow(why) {
     let from = offX();
@@ -615,6 +679,17 @@ function toast(msg) {
   m.getAnimations().forEach(a => a.cancel()); fx(m, { y: 6, o: 0 }, { y: 0, o: 1 }, 'fast', 'decelerate', { role: 'in' });
   setTimeout(() => { if (my !== toastSeq) return; fx(m, { o: 1 }, { o: 0 }, 'fast', 'accelerate', { role: 'out', fill: 'forwards' }).then(a => { if (my !== toastSeq) return; if (a) a.cancel(); t.hidden = true; }); if (S.instant) t.hidden = true; }, tnum('motion-timing-toast'));
 }
+/* Toast with actions (Undo, Don't file this site, ...). Stays motion-timing-toast-action (6s), one at a time, Esc dismisses. */
+let atSeq = 0;
+function actionToast(msg, actions) {
+  const t = $('#toastAct'), my = ++atSeq; t.textContent = '';
+  const m = el('span', 'at-msg'); m.textContent = msg; const box = el('div', 'at'); box.appendChild(m);
+  actions.forEach(([label, fn]) => { const b = el('button', 'at-btn'); b.textContent = label; b.addEventListener('click', () => { hide(true); fn(); }); box.appendChild(b); });
+  t.appendChild(box); t.hidden = false; box.getAnimations().forEach(a => a.cancel());
+  fx(box, { y: 6, o: 0 }, { y: 0, o: 1 }, 'fast', 'decelerate', { role: 'in' });
+  function hide(now) { if (my !== atSeq) return; if (now || S.instant) { t.hidden = true; return; } fx(box, { o: 1 }, { o: 0 }, 'fast', 'accelerate', { role: 'out', fill: 'forwards' }).then(a => { if (my !== atSeq) return; if (a) a.cancel(); t.hidden = true; }); }
+  setTimeout(() => hide(false), tnum('motion-timing-toast-action'));
+}
 const toggleSidebar = () => { if (S.hidden) setHidden(false); else setHidden(true); };
 
 /* resizer */
@@ -638,18 +713,38 @@ function newTabData(text) {
   else mk(id, text.trim()[0].toUpperCase() + text.trim().slice(1), 'search.aerie.example', '/?q=' + encodeURIComponent(text.trim()), c);
   return id;
 }
-async function openTab(text = '') {
-  const id = newTabData(text);
+async function openTab(text = '', { data = null } = {}) {
+  const id = data ? mk('n' + (nextId++), data.title, data.domain, data.path || '/', data.color || '#0091FF') : newTabData(text);
   cur().today.unshift({ t: id }); cur().selected = id;
   render(); updateChrome(); renderPage(true);
   const node = $(`.node[data-id="t:${id}"]`, pane()); if (!node) return id;
   const h = node.getBoundingClientRect().height;
   heightFx(node, 0, h, 'base', 'standard');
   fx($('.row-in', node), { s: tnum('motion-scale-enter'), o: 0 }, { s: 1, o: 1 }, 'fast', 'decelerate', { role: 'in', delay: tnum('motion-timing-enter-delay'), fill: 'backwards' });
+  const f = autoFolderFor(S.ws, tabs[id]);
+  if (f) { await new Promise(r => setTimeout(r, S.instant ? 0 : tnum('motion-timing-autofile-delay'))); fileInto(id, f); }
   return id;
 }
+/* Auto-filing (#139): the new tab first lands at the top of Today as usual, then flies into the matching folder (FLIP with the spring)
+   and the folder row pulses once. A toast offers Undo and "Don't file this site". Reduced motion: the row fades in place of flying. */
+function fileInto(id, f) {
+  const t = tabs[id], from = locate(id, S.ws); if (!from || !locate(f.f, S.ws)) return;
+  mutate(() => { from.list.splice(from.i, 1); f.kids.unshift({ t: id }); f.open = true; t.filedBy = f.f; }, ['t:' + id]);
+  const node = $(`.node[data-id="t:${id}"]`, pane()), frow = $(`.row[data-id="${CSS.escape(f.f)}"] > .row-in`, pane());
+  if (isReduced() && node) fx($('.row-in', node), { o: 0 }, { o: 1 }, 'fast', 'standard', { role: 'in' });
+  if (frow && !S.instant) frow.animate([{ background: 'color-mix(in srgb, var(--ws-accent) 30%, transparent)' }, { background: 'transparent' }], { duration: durMs('autofile-pulse'), easing: tok('motion-easing-standard') });
+  actionToast(`Filed into ${f.name}`, [
+    ['Undo', () => { const l = locate(id, S.ws); if (!l) return; mutate(() => { l.list.splice(l.i, 1); cur().today.unshift({ t: id }); t.filedBy = null; }, ['t:' + id]); }],
+    ["Don't file this site", () => { const l = locate(id, S.ws); f.except.push({ kind: 'domain', value: t.domain }); if (l && l.parent === f) mutate(() => { l.list.splice(l.i, 1); cur().today.unshift({ t: id }); t.filedBy = null; }, ['t:' + id]); toast(`${t.domain} won't be filed into ${f.name} any more`); }],
+  ]);
+}
+/* Dragged out of an auto-filing folder: offer to stop the rule matching this tab. */
+function offerStopRule(id, f) {
+  actionToast(`Moved out of ${f.name}`, [['Stop this rule matching this tab', () => { stopRuleForTab(id, f); toast(`${f.name} won't match this tab again`); }]]);
+}
+function stopRuleForTab(id, f) { if (!f.except.some(e => e.kind === 'tab' && e.id === id)) f.except.push({ kind: 'tab', id, label: tabs[id].title }); tabs[id].filedBy = null; render(); }
 function neighbourOf(id) {
-  const items = $$('[role=treeitem]:not([data-folder])', pane()).filter(e => !e.closest('.children[hidden]'));
+  const items = $$('[role=treeitem]:not([data-folder]):not([data-view])', pane()).filter(e => !e.closest('.children[hidden]'));
   const i = items.findIndex(e => e.dataset.id === id);
   const n = items[i + 1] || items[i - 1]; return n ? n.dataset.id : null;
 }
@@ -665,25 +760,29 @@ function pinnedCloseAction(id) {
   return pinnedCloseMode === 'sleep' ? 'sleep' : 'reset-sleep';
 }
 const pinnedCloseLabel = id => ({ close: 'Close', sleep: 'Sleep', 'reset-sleep': 'Reset and sleep' })[pinnedCloseAction(id)];
-async function closeTab(id, { toWorkspace = null } = {}) {
+async function closeTab(id, { toWorkspace = null, fly = false } = {}) {
   const loc = locate(id, S.ws); if (!loc) return;
   const t = tabs[id];
   if (loc.area === 'pinned' && !toWorkspace && pinnedCloseAction(id) !== 'close') {
     const act = pinnedCloseAction(id), wasSel0 = cur().selected === id, nb0 = wasSel0 ? neighbourOf(id) : null;
     t.asleep = true; t.audio = false; if (act === 'reset-sleep' && t.pinnedPath) t.path = t.pinnedPath;
     if (nb0) { cur().selected = nb0; tabs[nb0].asleep = false; }
-    render(); if (nb0) { updateChrome(); renderPage(true); }
+    render(); sleepFade(id); if (nb0) { updateChrome(); renderPage(true); }
     return;
   }
-  const node = $(`.node[data-id="t:${id}"]`, pane()) || $(`.tile[data-id="${CSS.escape(id)}"]`, pane());
+  /* every copy of the tab: the real row, plus its rows in smart folders (a view closes the real tab) */
+  const nodes = $$(`.node[data-tab="${CSS.escape(id)}"]`, pane());
   const wasSel = cur().selected === id, nb = wasSel ? neighbourOf(id) : null;
-  if (node && !S.instant && loc.area !== 'fav') {
-    const inn = $('.row-in', node), h = node.getBoundingClientRect().height;
-    await fx(inn, { x: 0, o: 1 }, { x: dirOut() * tnum('motion-distance-close-slide'), o: 0 }, 'fast', 'accelerate', { role: 'out', fill: 'forwards' });
-    await heightFx(node, h, 0, 'base', 'standard', { fill: 'forwards' });
+  if (nodes.length && !S.instant && loc.area !== 'fav') {
+    if (fly) { flyToArchive(nodes.find(n => !n.dataset.view) || nodes[0]); nodes.forEach(n => { $('.row-in', n).style.opacity = 0; }); await Promise.all(nodes.map(n => heightFx(n, n.getBoundingClientRect().height, 0, 'base', 'standard', { fill: 'forwards' }))); }
+    else await Promise.all(nodes.map(async node => {
+      const inn = $('.row-in', node), h = node.getBoundingClientRect().height;
+      await fx(inn, { x: 0, o: 1 }, { x: dirOut() * tnum('motion-distance-close-slide'), o: 0 }, 'fast', 'accelerate', { role: 'out', fill: 'forwards' });
+      await heightFx(node, h, 0, 'base', 'standard', { fill: 'forwards' });
+    }));
   }
   loc.list.splice(loc.list.indexOf(loc.list.find(n => n.t === id || n === id)), 1);
-  if (toWorkspace) W[toWorkspace].today.unshift({ t: id }); else archive.unshift({ id, title: t.title, domain: t.domain, color: t.color, ws: WS[S.ws].name, when: 'Just now' });
+  if (toWorkspace) W[toWorkspace].today.unshift({ t: id }); else archive.unshift({ id, title: t.title, domain: t.domain, color: t.color, ws: WS[S.ws].name, wsId: S.ws, day: 'today', when: 'just now' });
   if (wasSel) cur().selected = nb || (cur().today[0] && cur().today[0].t) || null;
   render(); if (wasSel) renderPage(true);
 }
@@ -719,25 +818,57 @@ function addFavorite(id) {
 function removeFavorite(id) {
   mutate(() => { const l = cur().favorites; l.splice(l.indexOf(id), 1); cur().today.unshift({ t: id }); });
 }
-function sleepNow(id) { tabs[id].asleep = true; if (tabs[id].audio) tabs[id].audio = false; render(); }
-function startRename(id) {
-  const row = $(`[role=treeitem][data-id="${CSS.escape(id)}"]`, pane()); if (!row) return;
-  const title = $('.title', row), isF = !!row.dataset.folder, f = isF ? locate(id).n : null, old = isF ? f.name : tabs[id].title;
-  const inp = el('input', 'rename', { 'aria-label': 'Rename', value: old }); inp.value = old; title.replaceWith(inp); inp.focus(); inp.select();
+function sleepNow(id) { tabs[id].asleep = true; if (tabs[id].audio) tabs[id].audio = false; render(); sleepFade(id); }
+/* A tab falling asleep (Sleep now, closing a pinned tab): the favicon fades to motion-opacity-sleeping (fast, standard), then the desaturate applies
+   as a static filter (filters are never animated). Call after render(). Reduced motion and startup: instant. */
+function sleepFade(id) {
+  if (S.instant || isReduced()) return;
+  $$(`.node[data-tab="${CSS.escape(id)}"] .fav`, pane()).forEach(f => {
+    f.style.filter = 'none';
+    fx(f, { o: 1 }, { o: tnum('motion-opacity-sleeping') }, 'fast', 'standard', { role: 'out' }).then(() => { f.style.filter = ''; });
+  });
+}
+/* Rename (#145). Double-click the title, F2 or the context menu. Enter keeps, Esc cancels, an empty name resets. A manual name wins over
+   every other source and survives navigation until reset. The caption under the field says so. */
+function startRename(id, rowEl) {
+  const row = rowEl || $(`[role=treeitem][data-id="${CSS.escape(id)}"]`, pane()); if (!row) return;
+  const title = $('.title', row), isF = !!row.dataset.folder, f = isF ? locate(id).n : null, t = isF ? null : tabs[id], old = isF ? f.name : (t.name || displayTitle(t));
+  const inn = title.parentElement;
+  const inp = el('input', 'rename', { 'aria-label': isF ? 'Folder name' : 'Tab name', value: old }); inp.value = old; title.replaceWith(inp);
+  const hint = el('div', 'rename-hint', { role: 'note' }); hint.textContent = isF ? 'Enter keeps · Esc cancels' : 'Enter keeps · Esc cancels · empty resets'; row.appendChild(hint);
+  const pb = $('.renamed', inn); if (pb) pb.hidden = true;
+  inp.focus(); inp.select();
   let done = false;
-  const fin = ok => { if (done) return; done = true; setTimeout(() => Peek.poke(), 0); if (ok && inp.value.trim()) { if (isF) f.name = inp.value.trim(); else tabs[id].title = inp.value.trim(); } render(); const r = $(`[role=treeitem][data-id="${CSS.escape(id)}"]`, pane()); if (r) r.focus(); if (!isF && cur().selected === id) renderPage(false); };
+  const fin = ok => {
+    if (done) return; done = true; setTimeout(() => Peek.poke(), 0);
+    const v = inp.value.trim();
+    if (ok) {
+      if (isF) { if (v) f.name = v; }
+      else if (!v) t.name = null;                               // empty resets
+      else if (v !== old) t.name = v === t.title ? null : v;   // typing the page title back is a reset; unchanged text is not a rename
+    }
+    render(); const r = $(`[role=treeitem][data-id="${CSS.escape(id)}"]`, pane()); if (r) r.focus(); if (!isF && cur().selected === id) renderPage(false);
+  };
   inp.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') fin(true); if (e.key === 'Escape') fin(false); });
   inp.addEventListener('blur', () => fin(true));
 }
+function resetName(id) { if (!tabs[id] || !tabs[id].name) return; tabs[id].name = null; render(); if (cur().selected === id) renderPage(false); }
 async function clearToday() {
   const ids = cur().today.filter(n => n.t && n.t !== cur().selected).map(n => n.t);
   for (let i = 0; i < ids.length; i++) { closeTab(ids[i]); await new Promise(r => setTimeout(r, S.instant ? 0 : 60)); }
 }
-/* Folder collapse: opacity + height, motion-duration-folder-collapse (180ms) with motion-easing-in-out (Zen). Reveal: folder-reveal (200ms).
-   Reduced motion: opacity only, height snaps. */
+/* Folder collapse: opacity + height, motion-duration-folder-collapse (180ms) with motion-easing-in-out (Zen). Reveal: folder-reveal (200ms)
+   on the height, and the first motion-timing-stagger-cap (6) children fade in motion-timing-stagger (15ms) apart, so a long folder opens as a short cascade.
+   Reduced motion: opacity only on the container, no stagger, height snaps. */
 function folderFx(node, from, to, open) {
   node.getAnimations().forEach(a => a.cancel());
   if (S.instant) return Promise.resolve(null);
+  if (open && !isReduced()) {
+    const dur = durMs('folder-reveal'), easing = tok('motion-easing-in-out'), step = tnum('motion-timing-stagger'), cap = tnum('motion-timing-stagger-cap');
+    [...node.children].slice(0, cap).forEach((c, i) => c.animate([{ opacity: 0 }, { opacity: 1 }], { duration: dur, easing, delay: i * step, fill: 'backwards' }));
+    const a = node.animate([{ height: from + 'px' }, { height: to + 'px' }], { duration: dur, easing });
+    return a.finished.then(() => a, () => a);
+  }
   const kf = isReduced() ? [{ opacity: open ? 0 : 1 }, { opacity: open ? 1 : 0 }] : [{ height: from + 'px', opacity: open ? 0 : 1 }, { height: to + 'px', opacity: open ? 1 : 0 }];
   const a = node.animate(kf, { duration: durMs(open ? 'folder-reveal' : 'folder-collapse'), easing: tok('motion-easing-in-out'), fill: open ? 'none' : 'forwards' });
   return a.finished.then(() => a, () => a);
@@ -764,11 +895,23 @@ sidebar.addEventListener('click', e => {
   if (act && row) {
     e.stopPropagation();
     if (act.dataset.act === 'close') closeTab(row.dataset.id);
+    if (act.dataset.act === 'reset-name') resetName(row.dataset.id);
+    if (act.dataset.act === 'edit-folder') openFolderEditor(row.dataset.id);
     if (act.dataset.act === 'back-pinned') { const t = tabs[row.dataset.id]; t.path = t.pinnedPath; render(); if (cur().selected === row.dataset.id) { updateChrome(); renderPage(true); } }
     return;
   }
   if (act && act.dataset.act === 'clear') return clearToday();
-  if (row) { if (row.dataset.folder) toggleFolder(row.dataset.id); else { wake(row.dataset.id); selectTab(row.dataset.id); } return; }
+  if (row) {
+    if (row.dataset.folder) {
+      if (e.detail === 2 && e.target.closest('.folder-ic')) { toggleFolder(row.dataset.id); return openFolderEditor(row.dataset.id); } // double-click the icon: folder editor (the first click's toggle is undone)
+      if (e.detail === 2 && e.target.closest('.title')) { toggleFolder(row.dataset.id); return startRename(row.dataset.id, row); }
+      toggleFolder(row.dataset.id);
+    } else {
+      if (e.detail === 2 && e.target.closest('.title')) return startRename(row.dataset.id, row); // double-click the title: rename
+      wake(row.dataset.id); selectTab(row.dataset.id);
+    }
+    return;
+  }
   if (tile) { wake(tile.dataset.id); selectTab(tile.dataset.id); return; }
   if (e.target.closest('#newTab')) return openCmd();
   const ws = e.target.closest('.ws-btn'); if (ws) return switchWs(ws.dataset.ws);
@@ -780,8 +923,8 @@ sidebar.addEventListener('auxclick', e => {
 });
 sidebar.addEventListener('mousedown', e => { if (e.button === 1) e.preventDefault(); });
 sidebar.addEventListener('contextmenu', e => {
-  const r = e.target.closest('[role=treeitem]:not([data-folder]), .tile'); if (!r) return;
-  e.preventDefault(); openMenu(r.dataset.id, e.clientX, e.clientY);
+  const r = e.target.closest('[role=treeitem], .tile'); if (!r) return;
+  e.preventDefault(); r.dataset.folder ? openFolderMenu(r.dataset.id, e.clientX, e.clientY, false, r) : openMenu(r.dataset.id, e.clientX, e.clientY, false, r);
 });
 sidebar.addEventListener('wheel', onWheel, { passive: false });
 $('#btnNewWs').addEventListener('click', () => {
@@ -822,9 +965,9 @@ scroll.addEventListener('keydown', e => {
     case 'ArrowRight': if (isF) { e.preventDefault(); if (row.getAttribute('aria-expanded') === 'false') toggleFolder(row.dataset.id, true); else go(items[i + 1]); } break;
     case 'ArrowLeft': if (isF && row.getAttribute('aria-expanded') === 'true') { e.preventDefault(); toggleFolder(row.dataset.id, false); } else { const p = row.closest('.children')?.parentElement.querySelector(':scope > [role=treeitem]'); go(p); } break;
     case 'Enter': case ' ': e.preventDefault(); if (isF) toggleFolder(row.dataset.id); else { wake(row.dataset.id); selectTab(row.dataset.id); } break;
-    case 'F2': e.preventDefault(); startRename(row.dataset.id); break;
+    case 'F2': e.preventDefault(); startRename(row.dataset.id, row); break;
     case 'Delete': if (!isF) { e.preventDefault(); const nb = items[i + 1] || items[i - 1]; closeTab(row.dataset.id).then(() => { if (nb) { const n = $(`[role=treeitem][data-id="${CSS.escape(nb.dataset.id)}"]`, pane()); if (n) { setRove(n); n.focus(); } } }); } break;
-    case 'ContextMenu': if (!isF) { e.preventDefault(); const r = row.getBoundingClientRect(); openMenu(row.dataset.id, r.left + 40, r.bottom - 4, true); } break;
+    case 'ContextMenu': { e.preventDefault(); const r = row.getBoundingClientRect(); isF ? openFolderMenu(row.dataset.id, r.left + 40, r.bottom - 4, true, row) : openMenu(row.dataset.id, r.left + 40, r.bottom - 4, true, row); break; }
   }
 });
 function gridKey(e, t) {
@@ -865,35 +1008,131 @@ function closePops(except) {
   Peek.poke();
 }
 function openGuard() { const b = $('#btnGuard'); openPop($('#popGuard'), b, 'below', $('#pill').getBoundingClientRect()); }
-function openArchive() {
-  const l = $('#archiveList'); l.textContent = '';
-  archive.slice(0, 6).forEach(a => { const r = el('div', 'it'); const f = el('span', 'fav'); f.style.setProperty('--c', a.color); f.textContent = a.title[0].toUpperCase();
-    const t = el('span', 't'); t.textContent = a.title; const s = el('span', 's'); s.textContent = a.ws + ' · ' + a.when; r.append(f, t, s); l.appendChild(r); });
-  const b = $('#btnArchive'), r = b.getBoundingClientRect();
-  openPop($('#popArchive'), b, S.density === 'collapsed' ? 'side' : 'above', S.density === 'collapsed' ? r : r);
+/* ---------- archive panel ---------- */
+const ARCH_OPTS = [['12h', '12 hours'], ['24h', '24 hours'], ['7d', '7 days'], ['never', 'never']];
+const archLabel = v => (ARCH_OPTS.find(o => o[0] === v) || ARCH_OPTS[0])[1];
+const DAYS = [['today', 'Today'], ['yesterday', 'Yesterday'], ['lastweek', 'Last week']];
+function renderArchiveList() {
+  const q = $('#archSearch').value.trim().toLowerCase(), l = $('#archiveList'); l.textContent = '';
+  const hit = archive.filter(a => !q || (a.title + ' ' + a.domain + ' ' + a.ws).toLowerCase().includes(q));
+  $('#archCount').textContent = archive.length;
+  $('#archSetting').innerHTML = ''; const sa = $('#archSetting'); sa.append('Archive Today tabs after '); const b = el('b'); b.textContent = archLabel(S.archAfter); sa.appendChild(b); sa.appendChild(icon('i-chev-down'));
+  if (!hit.length) { const e = el('div', 'arch-empty'); e.textContent = q ? 'No archived tabs match' : 'Nothing archived yet'; l.appendChild(e); return; }
+  DAYS.forEach(([k, label]) => {
+    const g = hit.filter(a => a.day === k); if (!g.length) return;
+    const h = el('div', 'arch-day', { role: 'presentation' }); h.textContent = label; l.appendChild(h);
+    g.forEach(a => {
+      const r = el('button', 'it', { 'aria-label': `Restore ${a.title}, ${a.ws}, ${a.when}` }); r.dataset.aid = a.id;
+      const f = el('span', 'fav'); f.style.setProperty('--c', a.color); f.textContent = a.title[0].toUpperCase();
+      const t = el('span', 't'); t.textContent = a.title;
+      const w = el('span', 'wslab'); w.style.setProperty('--wc', `var(--aerie-workspace-${(WS[a.wsId] || WS.personal).preset}-accent)`); w.textContent = a.ws;
+      const re = el('span', 'restore'); re.textContent = 'Restore'; re.setAttribute('aria-hidden', 'true');
+      r.append(f, t, w, re); r.addEventListener('click', () => restoreArchived(a, r)); l.appendChild(r);
+    });
+  });
 }
+function openArchive() {
+  $('#archSearch').value = ''; renderArchiveList();
+  const b = $('#btnArchive'), r = b.getBoundingClientRect();
+  openPop($('#popArchive'), b, S.density === 'collapsed' ? 'side' : 'above', r);
+}
+$('#archSearch').addEventListener('input', renderArchiveList);
+$('#archSetting').addEventListener('click', e => {
+  e.stopPropagation(); closeMenu(); menuFor = 'arch'; const m = $('#menu'); m.textContent = '';
+  ARCH_OPTS.forEach(([k, label]) => {
+    const b = el('button', 'mi' + (k === S.archAfter ? ' checked' : ''), { role: 'menuitemradio', 'aria-checked': k === S.archAfter, tabindex: -1 });
+    const ck = el('span', 'ck'); if (k === S.archAfter) ck.appendChild(icon('i-check')); b.append(ck, document.createTextNode(k === 'never' ? 'Never archive' : `After ${label}`));
+    b.addEventListener('click', () => { S.archAfter = k; closeMenu(); renderArchiveList(); }); m.appendChild(b);
+  });
+  const r = e.currentTarget.getBoundingClientRect(); placeMenu(m, r.left, r.bottom + 4);
+});
+/* Restore: the row flies from the panel into the new row at the top of Today (spring), the panel row closes up behind it.
+   The tab goes back to the Workspace it came from (the label on the row), switching there if needed. Reduced motion: fades. */
+async function restoreArchived(a, rowEl) {
+  const rect = rowEl.getBoundingClientRect(), ghost = el('div', 'pop-list fly-ghost'); ghost.appendChild(rowEl.cloneNode(true));
+  const dest = W[a.wsId] ? a.wsId : S.ws;
+  archive.splice(archive.indexOf(a), 1);
+  const id = mk('r' + nextId++, a.title, a.domain, '/', a.color);
+  W[dest].today.unshift({ t: id }); W[dest].selected = id;
+  if (dest !== S.ws) { toast(`Restored to ${WS[dest].name}`); await switchWs(dest); } else { render(); updateChrome(); renderPage(true); }
+  renderArchiveList();
+  const node = $(`.node[data-id="t:${id}"]`, pane()); if (!node || S.instant) return;
+  const h = node.getBoundingClientRect().height, to = $('.row-in', node).getBoundingClientRect();
+  heightFx(node, 0, h, 'base', 'standard');
+  ghost.style.cssText = `position:fixed;left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;height:${rect.height}px;margin:0;z-index:85;pointer-events:none;color:var(--aerie-color-text)`;
+  win.appendChild(ghost);
+  const rowIn = $('.row-in', node);
+  fx(rowIn, { o: 0 }, { o: 1 }, 'archive-restore', 'accelerate', { role: 'in', fill: 'backwards' });
+  const p = fx(ghost, { x: 0, y: 0, o: 1 }, { x: to.left - rect.left, y: to.top - rect.top, o: 0 }, 'archive-restore', 'spring', { role: 'out', fill: 'forwards' });
+  p.then(() => ghost.remove());
+}
+/* Archive moment: the tab shrinks and flies toward the Archive button (fade + scale toward it), then the button pulses once.
+   Reduced motion: the copy only fades, and the button flashes colour without scaling. A ghost copy is used because the list clips overflow. */
+function flyToArchive(node) {
+  const src = $('.row', node), rect = $('.row-in', node).getBoundingClientRect(), btn = $('#btnArchive').getBoundingClientRect();
+  const ghost = src.cloneNode(true); ghost.classList.remove('sel'); ghost.classList.add('fly-ghost');
+  ghost.style.cssText = `position:fixed;left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;height:${rect.height}px;margin:0;z-index:85;pointer-events:none;transform-origin:50% 50%`;
+  win.appendChild(ghost);
+  const dx = btn.left + btn.width / 2 - (rect.left + rect.width / 2), dy = btn.top + btn.height / 2 - (rect.top + rect.height / 2);
+  const p = fx(ghost, { x: 0, y: 0, s: 1, o: 1 }, { x: dx, y: dy, s: tnum('motion-scale-archive-collapse'), o: 0 }, 'archive-collapse', 'accelerate', { role: 'out', fill: 'forwards' });
+  p.then(() => { ghost.remove(); pulseArchive(); });
+  return p;
+}
+function pulseArchive() {
+  const b = $('#btnArchive'); if (S.instant) return;
+  const red = isReduced(), peak = tnum('motion-scale-archive-pulse');
+  b.animate(red ? [{ background: 'color-mix(in srgb, var(--ws-accent) 34%, transparent)' }, { background: 'transparent' }]
+    : [{ transform: 'scale(1)', background: 'color-mix(in srgb, var(--ws-accent) 34%, transparent)' }, { transform: `scale(${peak})`, offset: .4 }, { transform: 'scale(1)', background: 'transparent' }],
+    { duration: durMs('archive-pulse'), easing: tok('motion-easing-standard') });
+}
+function pickArchivable() {
+  const top = cur().today.filter(n => n.t && n.t !== cur().selected && !tabs[n.t].name && titleSource(tabs[n.t]) === 'page').map(n => n.t);
+  return top[top.length - 1] || null;
+}
+/* Debug action: pretend the auto-archive timer fired for one Today tab. */
+function archiveNow() { const id = pickArchivable(); if (!id) return toast('No Today tab to archive'); return closeTab(id, { fly: true }); }
 $('#btnGuard').addEventListener('click', e => { e.stopPropagation(); $('#popGuard').hidden ? openGuard() : closePops(); });
 $('#btnArchive').addEventListener('click', e => { e.stopPropagation(); $('#popArchive').hidden ? openArchive() : closePops(); });
 document.addEventListener('pointerdown', e => {
-  if (!e.target.closest('.pop, #btnGuard, #btnArchive')) closePops();
+  if (!e.target.closest('.pop, .menu, #btnGuard, #btnArchive')) closePops();
+  if (!e.target.closest('.pop, .menu')) closeSheet();
   if (!e.target.closest('.menu')) closeMenu();
 });
 
 /* ---------- context menu ---------- */
 let menuFor = null;
-function openMenu(id, x, y, kbd = false) {
+function openMenu(id, x, y, kbd = false, rowEl = null) {
   closeMenu(); closePops(); menuFor = id;
   const loc = locate(id, S.ws), m = $('#menu'); m.textContent = '';
-  const isFav = loc.area === 'fav', isPin = loc.area === 'pinned';
+  const isFav = loc.area === 'fav', isPin = loc.area === 'pinned', t = tabs[id], filed = loc.parent && loc.parent.kind === 'auto' && t.filedBy === loc.parent.f ? loc.parent : null;
   const items = [
     [isPin ? 'Unpin' : 'Pin', () => isFav ? removeFavorite(id) : pinTab(id), 'Ctrl+Shift+P'],
-    ['Rename', () => setTimeout(() => startRename(id), 0), 'F2'],
+    ['Rename', () => setTimeout(() => startRename(id, rowEl && rowEl.isConnected ? rowEl : null), 0), 'F2'],
+    ...(t.name ? [['Reset name', () => resetName(id)]] : []),
+    ...(filed ? [[`Stop ${filed.name} rule matching this tab`, () => { stopRuleForTab(id, filed); toast(`${filed.name} won't match this tab again`); }]] : []),
     [isFav ? 'Remove from Favorites' : 'Add to Favorites', () => isFav ? removeFavorite(id) : addFavorite(id)],
     ...(WS_ORDER.length > 1 ? [['Move to workspace', null, null, true]] : []),
     ['Sleep now', () => sleepNow(id)],
     ['-'],
     [isPin ? pinnedCloseLabel(id) : 'Close', () => closeTab(id), 'Ctrl+W', false, true],
   ];
+  fillMenu(m, items); placeMenu(m, x, y);
+  if (kbd) $('.mi', m).focus();
+}
+/* Folder context menu (#141): Edit folder... opens the folder editor sheet. */
+function openFolderMenu(id, x, y, kbd = false, rowEl = null) {
+  closeMenu(); closePops(); menuFor = id;
+  const f = locate(id, S.ws).n, m = $('#menu'); m.textContent = '';
+  const items = [
+    ['Edit folder\u2026', () => setTimeout(() => openFolderEditor(id), 0)],
+    ['Rename', () => setTimeout(() => startRename(id, rowEl && rowEl.isConnected ? rowEl : null), 0), 'F2'],
+    ...(f.kind !== 'manual' && f.rules.length ? [[f.rulesOn ? 'Switch rules off' : 'Switch rules on', () => { f.rulesOn = !f.rulesOn; render(); }]] : []),
+    ['-'],
+    [f.open ? 'Collapse' : 'Expand', () => toggleFolder(id)],
+  ];
+  fillMenu(m, items); placeMenu(m, x, y); if (kbd) $('.mi', m).focus();
+}
+function fillMenu(m, items) {
   items.forEach(it => {
     if (it[0] === '-') return m.appendChild(el('div', 'msep'));
     const b = el('button', 'mi' + (it[4] ? ' danger' : ''), { role: 'menuitem', tabindex: -1 }); b.textContent = it[0];
@@ -903,10 +1142,11 @@ function openMenu(id, x, y, kbd = false) {
     b.addEventListener('pointerenter', () => { if (it[3]) openSub(b); else closeSub(); });
     m.appendChild(b);
   });
+}
+function placeMenu(m, x, y) {
   m.hidden = false; const w = m.offsetWidth, h = m.offsetHeight;
   m.style.left = Math.min(x, innerWidth - w - 8) + 'px'; m.style.top = Math.min(y, innerHeight - h - 8) + 'px';
   fx(m, { s: .97, o: 0 }, { s: 1, o: 1 }, 'xfast', 'decelerate', { role: 'in' });
-  if (kbd) $('.mi', m).focus();
 }
 function openSub(btn) {
   const s = $('#submenu'); s.textContent = ''; const id = menuFor;
@@ -926,6 +1166,133 @@ $('#menu').addEventListener('keydown', e => {
   else if (e.key === 'ArrowRight' && document.activeElement.dataset.sub) { openSub(document.activeElement); $('.mi', $('#submenu')).focus(); }
 });
 $('#submenu').addEventListener('keydown', e => { if (e.key === 'ArrowLeft') { closeSub(); $('[data-sub]', $('#menu')).focus(); } if (e.key === 'ArrowDown') { e.preventDefault(); const its = $$('.mi', $('#submenu')); its[(its.indexOf(document.activeElement) + 1) % its.length].focus(); } });
+
+/* ---------- folder editor sheet (#141) ----------
+   A popover sheet anchored to the sidebar's inner edge with an arrow at the folder row, not a web page: opens from the folder context
+   menu ("Edit folder…"), from double-clicking the folder icon, or from clicking the rule glyph. Edits apply live. Sections: name and icon, kind
+   (Manual / Auto-file / Smart), rules (simple chips: Domain is, URL starts with, URL contains, Title contains; each rule and all of them
+   switch off), behaviour (each switchable; when off it shows "Inherits global"). Smart folders have no behaviour section: they own no tabs,
+   so each tab keeps the behaviour of the place it lives in. Folders in Pinned cannot auto-archive (pinned tabs never do). */
+let sheetFid = null, sheetReturn = null, sheetIcons = false;
+const ARCH_FOLDER_OPTS = [['never', 'Never archive'], ['1h', 'After 1 hour'], ['12h', 'After 12 hours'], ['24h', 'After 24 hours'], ['7d', 'After 7 days']];
+const SLEEP_OPTS = [['5m', 'After 5 minutes'], ['30m', 'After 30 minutes'], ['1h', 'After 1 hour'], ['2h', 'After 2 hours'], ['4h', 'After 4 hours']];
+const LINK_OPTS = [['new', 'Open in a new tab'], ['same', 'Open in place']];
+const FOLDER_ICONS = ['i-folder', 'i-ws-case', 'i-ws-spark', 'i-globe', 'i-ws-wave', 'i-ws-ring'];
+const KINDS = [['manual', 'Manual', 'Holds what you put in it.'], ['auto', 'Auto-file', 'New tabs that match a rule move in by themselves.'], ['smart', 'Smart', 'A live view of every open tab that matches. Nothing moves.']];
+const GLOBAL_BEH = { sleep: () => 'sleep tabs after 2 hours', links: () => 'open links in place', archive: () => S.archAfter === 'never' ? 'never archive Today tabs' : `archive Today tabs after ${archLabel(S.archAfter)}` };
+const matchCount = f => { let n = 0; for (const a of ['pinned', 'today']) for (const e of walk(cur()[a])) if (e.n.t && folderMatches(f, tabs[e.n.t])) n++; return n; };
+function mkSwitch(on, label, fk, fn, disabled) {
+  const b = el('button', 'sw', { role: 'switch', 'aria-checked': !!on, 'aria-label': label, 'data-fk': fk }); if (disabled) b.disabled = true;
+  b.appendChild(el('i')); b.addEventListener('click', () => fn(!on)); return b;
+}
+function mkSelect(opts, val, label, fk, fn) {
+  const sel = el('select', 'chip', { 'aria-label': label, 'data-fk': fk }); opts.forEach(o => { const op = el('option'); op.value = o[0]; op.textContent = o[1]; sel.appendChild(op); }); sel.value = val; sel.addEventListener('change', () => fn(sel.value)); return sel;
+}
+function sheetFolder() { const loc = locate(sheetFid, S.ws); return loc && loc.n.f ? { f: loc.n, loc } : null; }
+function setKind(k) {
+  const { f, loc } = sheetFolder(); if (f.kind === k) return;
+  if (k === 'smart' && f.kids.length) { const n = f.kids.length; loc.list.splice(loc.i + 1, 0, ...f.kids); f.kids = []; toast(`${n} item${n > 1 ? 's' : ''} moved out of ${f.name}`); }
+  f.kind = k; if (k !== 'manual' && !f.rules.length) f.rules.push(R('domain', ''));
+  render(); renderSheet(); placeSheet();
+}
+function renderSheet() {
+  const sh = $('#folderSheet'), cur0 = sheetFolder(); if (!cur0) return closeSheet(true);
+  const { f, loc } = cur0, inPinned = loc.area === 'pinned';
+  const fk = document.activeElement && sh.contains(document.activeElement) ? document.activeElement.dataset.fk : null, st = ($('.sh-body', sh) || {}).scrollTop || 0;
+  sh.textContent = '';
+  const live = () => { render(); const m = $('#shMatch'); if (m) m.textContent = matchText(f); const c = $('#shRuleCount'); if (c) c.textContent = ruleCount(f); };
+  /* header: icon, name, close */
+  const hd = el('div', 'sh-head');
+  const ib = el('button', 'sh-icon', { 'aria-label': 'Folder icon', 'aria-expanded': sheetIcons, 'data-fk': 'icon' }); ib.appendChild(icon(f.kind === 'smart' ? 'i-folder-smart' : (f.icon || 'i-folder'))); if (f.kind === 'smart') { ib.disabled = true; ib.dataset.tip = 'Smart folders keep the dashed icon'; }
+  ib.addEventListener('click', () => { sheetIcons = !sheetIcons; renderSheet(); placeSheet(); });
+  const nm = el('input', 'sh-name', { type: 'text', 'aria-label': 'Folder name', 'data-fk': 'name', spellcheck: 'false' }); nm.value = f.name; nm.addEventListener('input', () => { if (nm.value.trim()) { f.name = nm.value.trim(); live(); } });
+  const cx = el('button', 'sh-x', { 'aria-label': 'Close', 'data-tip': 'Close', 'data-fk': 'x' }); cx.appendChild(icon('i-x')); cx.addEventListener('click', () => closeSheet());
+  hd.append(ib, nm, cx); sh.appendChild(hd);
+  const body = el('div', 'sh-body'); sh.appendChild(body);
+  if (sheetIcons && f.kind !== 'smart') { const strip = el('div', 'sh-icons', { role: 'radiogroup', 'aria-label': 'Icon' }); FOLDER_ICONS.forEach(ic => { const b = el('button', 'sh-ic' + (ic === (f.icon || 'i-folder') ? ' on' : ''), { role: 'radio', 'aria-checked': ic === (f.icon || 'i-folder'), 'aria-label': ic.replace('i-ws-', '').replace('i-', ''), 'data-fk': 'ic-' + ic }); b.appendChild(icon(ic)); b.addEventListener('click', () => { f.icon = ic; render(); renderSheet(); }); strip.appendChild(b); }); body.appendChild(strip); }
+  /* kind */
+  const kd = el('div', 'sh-sec'); const seg = el('div', 'seg', { role: 'radiogroup', 'aria-label': 'Folder kind' });
+  KINDS.forEach(([k, label]) => { const b = el('button', 'seg-b' + (f.kind === k ? ' on' : ''), { role: 'radio', 'aria-checked': f.kind === k, 'data-fk': 'kind-' + k }); if (k === 'smart') b.appendChild(icon('i-folder-smart')); else if (k === 'auto') b.appendChild(icon('i-rule')); else b.appendChild(icon('i-folder')); b.append(label); b.addEventListener('click', () => setKind(k)); seg.appendChild(b); });
+  kd.appendChild(seg); const kn = el('p', 'sh-note'); kn.textContent = KINDS.find(k => k[0] === f.kind)[2]; kd.appendChild(kn); body.appendChild(kd);
+  /* rules */
+  const rs = el('div', 'sh-sec');
+  if (f.kind === 'manual') { const n = el('p', 'sh-note faint'); n.textContent = 'Switch to Auto-file or Smart to add rules.'; rs.appendChild(n); }
+  else {
+    const rh = el('div', 'sh-h'); const t = el('span', 'sh-t'); t.textContent = 'Rules'; const c = el('span', 'sh-sub', { id: 'shRuleCount' }); c.textContent = ruleCount(f);
+    const all = el('label', 'sh-all'); all.append('All', mkSwitch(f.rulesOn, 'All rules in this folder', 'all', v => { f.rulesOn = v; render(); renderSheet(); })); 
+    rh.append(t, c, el('span', 'spacer'), all); rs.appendChild(rh);
+    if (!f.rulesOn) { const b = el('p', 'sh-banner'); b.textContent = f.kind === 'auto' ? 'Rules are off. Nothing is filed here. The list is kept.' : 'Rules are off. This view is empty. The list is kept.'; rs.appendChild(b); }
+    if (!S.rulesGlobal) { const b = el('p', 'sh-banner'); b.textContent = 'All folder rules are switched off below.'; rs.appendChild(b); }
+    const list = el('div', 'rules' + (f.rulesOn ? '' : ' alloff'));
+    f.rules.forEach(r => {
+      const row = el('div', 'rule' + (r.on ? '' : ' off'));
+      const ty = mkSelect(RULE_TYPES.map(x => [x[0], x[1]]), r.type, 'Rule type', 'rt-' + r.id, v => { r.type = v; live(); renderSheet(); });
+      const vi = el('input', 'rv', { type: 'text', 'aria-label': ruleLabel(r.type) + ' value', placeholder: RULE_TYPES.find(x => x[0] === r.type)[2], 'data-fk': 'rv-' + r.id, spellcheck: 'false' }); vi.value = r.value; vi.addEventListener('input', () => { r.value = vi.value; live(); });
+      const dx = el('button', 'rx', { 'aria-label': 'Delete rule', 'data-tip': 'Delete rule', 'data-fk': 'rd-' + r.id }); dx.appendChild(icon('i-x')); dx.addEventListener('click', () => { f.rules.splice(f.rules.indexOf(r), 1); render(); renderSheet(); });
+      row.append(mkSwitch(r.on, `${ruleLabel(r.type)} ${r.value}`, 'rs-' + r.id, v => { r.on = v; render(); renderSheet(); }), ty, vi, dx); list.appendChild(row);
+    });
+    rs.appendChild(list);
+    const add = el('div', 'rule-add');
+    RULE_TYPES.forEach(([k, label]) => { const b = el('button', 'chipbtn', { 'data-fk': 'add-' + k }); b.append('+ ' + label); b.addEventListener('click', () => { const r = R(k, ''); f.rules.push(r); render(); renderSheet(); placeSheet(); const i = $(`[data-fk="rv-${r.id}"]`, sh); if (i) i.focus(); }); add.appendChild(b); });
+    rs.appendChild(add);
+    if (f.except.length) {
+      const eh = el('div', 'sh-h tight'); const et = el('span', 'sh-t'); et.textContent = 'Exceptions'; eh.appendChild(et); rs.appendChild(eh);
+      f.except.forEach(e => { const r = el('div', 'exc'); const tx = el('span', 'exc-t'); tx.textContent = e.kind === 'domain' ? `Never file ${e.value}` : `Not this tab: ${e.label}`; const x = el('button', 'rx', { 'aria-label': 'Remove exception', 'data-tip': 'Remove exception' }); x.appendChild(icon('i-x')); x.addEventListener('click', () => { f.except.splice(f.except.indexOf(e), 1); render(); renderSheet(); }); r.append(tx, x); rs.appendChild(r); });
+    }
+    const m = el('p', 'sh-match', { id: 'shMatch' }); m.textContent = matchText(f); rs.appendChild(m);
+  }
+  body.appendChild(rs);
+  /* behaviour (not for smart folders) */
+  if (f.kind !== 'smart') {
+    const bs = el('div', 'sh-sec'); const bh = el('div', 'sh-h'); const bt = el('span', 'sh-t'); bt.textContent = 'Behaviour'; const bsu = el('span', 'sh-sub'); bsu.textContent = 'Tabs in this folder'; bh.append(bt, bsu); bs.appendChild(bh);
+    const row = (key, label, opts, first) => {
+      const dis = key === 'archive' && inPinned, on = f.beh[key] !== null && !dis;
+      const r = el('div', 'beh' + (on ? ' on' : '')); const top = el('div', 'beh-top'); const l = el('span', 'beh-l'); l.textContent = label; top.append(l, mkSwitch(on, label, 'b-' + key, v => { f.beh[key] = v ? first : null; renderSheet(); placeSheet(); }, dis)); r.appendChild(top);
+      const sub = el('div', 'beh-sub');
+      if (dis) { sub.classList.add('inherit'); sub.textContent = 'Not used here: tabs in Pinned never archive by themselves.'; }
+      else if (!on) { sub.classList.add('inherit'); const b = el('span', 'inh'); b.textContent = 'Inherits global'; sub.append(b, ' · ' + GLOBAL_BEH[key]()); }
+      else sub.appendChild(mkSelect(opts, f.beh[key], label, 'bv-' + key, v => { f.beh[key] = v; renderSheet(); }));
+      r.appendChild(sub); bs.appendChild(r);
+    };
+    row('archive', 'Auto-archive', ARCH_FOLDER_OPTS, 'never');
+    row('sleep', 'Sleep tabs', SLEEP_OPTS, '30m');
+    row('links', 'Links from these tabs', LINK_OPTS, 'new');
+    body.appendChild(bs);
+  }
+  /* footer: the global switch and Done */
+  const ft = el('div', 'sh-foot'); const gl = el('label', 'sh-all'); const gt = el('span'); gt.textContent = 'Folder rules everywhere'; gl.append(gt, mkSwitch(S.rulesGlobal, 'Folder rules everywhere', 'global', v => { S.rulesGlobal = v; render(); renderSheet(); }));
+  const dn = el('button', 'sh-done', { 'data-fk': 'done' }); dn.textContent = 'Done'; dn.addEventListener('click', () => closeSheet());
+  ft.append(gl, el('span', 'spacer'), dn); sh.appendChild(ft);
+  $('.sh-body', sh).scrollTop = st;
+  if (fk) { const n = $(`[data-fk="${CSS.escape(fk)}"]`, sh); if (n && !n.disabled) n.focus({ preventScroll: true }); }
+}
+const ruleCount = f => { const on = f.rules.filter(r => r.on).length; return f.rules.length ? `${on} of ${f.rules.length} on` : 'none yet'; };
+const matchText = f => { const n = matchCount(f); return f.kind === 'smart' ? `Showing ${n} open tab${n === 1 ? '' : 's'} now.` : `${n} open tab${n === 1 ? '' : 's'} match now. Only new tabs are filed; tabs already open stay put.`; };
+function placeSheet() {
+  const sh = $('#folderSheet'); if (sh.hidden) return;
+  const w = sh.offsetWidth, h = sh.offsetHeight, sb = sidebar.getBoundingClientRect(), row = $(`.row[data-id="${CSS.escape(sheetFid)}"]`, pane()), rr = row ? row.getBoundingClientRect() : null;
+  const left = S.side === 'left';
+  const x = left ? sb.right + 10 : sb.left - w - 10, rc = rr ? rr.top + rr.height / 2 : sb.top + 80;
+  const y = Math.max(8, Math.min(innerHeight - h - 8, rc - 30));
+  sh.style.left = Math.max(8, Math.min(innerWidth - w - 8, x)) + 'px'; sh.style.top = y + 'px';
+  sh.dataset.side = left ? 'left' : 'right'; sh.style.setProperty('--arrow-y', Math.max(20, Math.min(h - 20, rc - y)) + 'px');
+}
+function openFolderEditor(fid) {
+  if (!locate(fid, S.ws)) return; closeMenu(); closePops();
+  const was = sheetFid; sheetFid = fid; sheetReturn = document.activeElement; sheetIcons = false;
+  const sh = $('#folderSheet'); sh.hidden = false; renderSheet(); placeSheet();
+  if (was !== fid || sh.dataset.open !== '1') { sh.dataset.open = '1'; sh.getAnimations().forEach(a => a.cancel()); fx(sh, { x: dirOut() * 10, o: 0 }, { x: 0, o: 1 }, 'sheet-enter', 'decelerate', { role: 'in' }); }
+  const n = $('[data-fk="name"]', sh); if (n && !S.instant) n.focus({ preventScroll: true });
+}
+function closeSheet(quiet) {
+  const sh = $('#folderSheet'); if (sh.hidden) return; sh.dataset.open = '0'; sheetFid = null;
+  const fin = () => { if (sh.dataset.open === '0') { sh.hidden = true; sh.getAnimations().forEach(a => a.cancel()); } Peek.poke(); };
+  if (S.instant || quiet) fin(); else fx(sh, { x: 0, o: 1 }, { x: dirOut() * 10, o: 0 }, 'sheet-exit', 'accelerate', { role: 'out', fill: 'forwards' }).then(fin);
+  /* focus goes back to where it was, unless the user already clicked somewhere else */
+  if (!quiet && sheetReturn && sheetReturn.isConnected && sheetReturn.focus && sheet_wasFocused()) sheetReturn.focus();
+}
+const sheet_wasFocused = () => { const a = document.activeElement; return !a || a === document.body || !!a.closest('#folderSheet'); };
+addEventListener('resize', () => placeSheet());
 
 /* ---------- command bar ---------- */
 let cmdItems = [], cmdSel = 0, cmdOpen = false, cmdReturn = null;
@@ -986,7 +1353,7 @@ $('#scrim').addEventListener('pointerdown', () => closeCmd());
 /* ---------- global keys ---------- */
 document.addEventListener('keydown', e => {
   const ctrl = e.ctrlKey || e.metaKey;
-  if (e.key === 'Escape') { if (cmdOpen) { closeCmd(); e.preventDefault(); } else if (!$('#menu').hidden) { closeMenu(); } else if ($$('.pop:not([hidden])').length) closePops(); return; }
+  if (e.key === 'Escape') { if (cmdOpen) { closeCmd(); e.preventDefault(); } else if (!$('#menu').hidden) { closeMenu(); } else if (!$('#folderSheet').hidden) { closeSheet(); e.preventDefault(); } else if ($$('.pop:not([hidden])').length) closePops(); return; }
   if (e.ctrlKey && e.altKey && !e.shiftKey && e.code === 'KeyS') { e.preventDefault(); Peek.togglePin(); return; }
   if (e.altKey && !e.ctrlKey && !e.metaKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { e.preventDefault(); pageNav(e.key === 'ArrowLeft' ? -1 : 1); return; }
   if (ctrl && !e.shiftKey && !e.altKey && (e.key === 's' || e.key === 'S')) { e.preventDefault(); toggleSidebar(); return; }
@@ -1008,7 +1375,7 @@ const firstTab = wsId => { const w = W[wsId]; for (const a of ['today', 'pinned'
 sidebar.addEventListener('pointerdown', e => {
   if (e.button !== 0 || S.density === 'collapsed') return;
   if (e.target.closest('[data-act], input, .sec-head, #newTab')) return;
-  const src = e.target.closest('[role=treeitem], .tile'); if (!src) return;
+  const src = e.target.closest('[role=treeitem], .tile'); if (!src || src.dataset.view) return; // a smart folder's rows are a view: nothing to reorder
   const x0 = e.clientX, y0 = e.clientY; let started = false, d = null;
   const mv = ev => {
     if (!started) { if (Math.hypot(ev.clientX - x0, ev.clientY - y0) < 5) return; started = true; d = dragBegin(src, ev); }
@@ -1045,9 +1412,9 @@ function resolveTarget(d, x, y) {
     return { type: 'fav', idx };
   }
   const edge = tnum('motion-ratio-folder-edge');
-  const check = t => { const depth = (t.type === 'into' || t.type === 'into-first') ? +t.row.dataset.depth : +t.row.dataset.lvl; if (d.h && depth + d.h > MAX_FOLDER_DEPTH) t.denied = true; return t; };
+  const check = t => { if (t.row && t.row.dataset.kind === 'smart' && (t.type === 'into' || t.type === 'into-first')) { t.denied = true; t.msg = 'Smart folders show tabs, they don\u2019t hold them'; return t; } const depth = (t.type === 'into' || t.type === 'into-first') ? +t.row.dataset.depth : +t.row.dataset.lvl; if (d.h && depth + d.h > MAX_FOLDER_DEPTH) t.denied = true; return t; };
   for (let i = 0; i < d.rows.length; i++) {
-    const r = d.rows[i], rect = r.getBoundingClientRect(); if (y < rect.top || y > rect.bottom) continue;
+    const r = d.rows[i], rect = r.getBoundingClientRect(); if (y < rect.top || y > rect.bottom || r.dataset.view) continue;
     const loc = locate(r.dataset.id, S.ws), rel = (y - rect.top) / rect.height;
     if (r.dataset.folder) {
       if (rel > edge && rel < 1 - edge) return check({ type: 'into', row: r, loc, refPos: nextAfterSubtree(d, r) });
@@ -1099,7 +1466,7 @@ async function dragSwitchWs(d, id) {
   dragMove(d, { clientX: d.lastX, clientY: d.lastY });
 }
 function dragHintText(d, t) {
-  if (t && t.denied) return `Can't nest deeper than ${MAX_FOLDER_DEPTH} levels`;
+  if (t && t.denied) return t.msg || `Can't nest deeper than ${MAX_FOLDER_DEPTH} levels`;
   const dest = d.hoverWs || (S.ws !== d.fromWs ? S.ws : null);
   if (dest) { const n = WS[dest].name; return `Moves to ${n} — uses ${n}'s logins`; }
   return '';
@@ -1147,7 +1514,7 @@ function dragEnd(d, ev) {
   const unlift = () => { if (d.lifted) { d.lifted.classList.remove('lifted'); d.lifted.style.visibility = ''; } if (tgt) tgt.style.cssText = ''; };
   if (isF && t.loc && (t.type === 'into' || t.type === 'into-first') && isDesc(node, t.loc.n.f)) { unlift(); return; }
   if (isF && t.type === 'fav') { unlift(); return; }
-  const wasSel = W[srcWs].selected === id;
+  const wasSel = W[srcWs].selected === id, srcFolder = loc.parent;
   loc.list.splice(loc.i, 1); // remove from source
   const dest = t.type === 'ws' ? t.ws : S.ws, w = W[dest];
   const insert = (list, i) => list.splice(i, 0, node);
@@ -1164,6 +1531,10 @@ function dragEnd(d, ev) {
   unlift();
   render();
   if (dest !== srcWs || (wasSel && dest !== S.ws)) { updateChrome(); renderPage(true); }
+  if (!isF && srcFolder && srcFolder.kind === 'auto' && tabs[id].filedBy === srcFolder.f) {
+    const nl = locate(id, S.ws);
+    if (t.type === 'ws' || !nl || nl.parent !== srcFolder) { offerStopRule(id, srcFolder); tabs[id].filedBy = null; }
+  }
   if (t.type === 'ws') return;
   const key = isF ? 'f:' + id : 't:' + id;
   const ne = t.type === 'fav' ? $(`.tile[data-id="${CSS.escape(id)}"]`, pane()) : $(`.node[data-id="${CSS.escape(key)}"]`, pane());
@@ -1175,17 +1546,47 @@ sidebar.addEventListener('dragstart', e => e.preventDefault());
 
 /* ---------- tooltips ---------- */
 let tipTimer = null; const tip = $('#tooltip');
+/* Rich tooltips (data-tipkind): the title precedence for renamed and tidied tabs, folder rules, the Today sleep summary. */
+const tt = (cls, txt) => { const d = el('div', cls); d.textContent = txt; return d; };
+function richTip(kind, id) {
+  const f = document.createDocumentFragment();
+  if (kind === 'title') {
+    const t = tabs[id], src = titleSource(t), manual = src === 'manual';
+    f.appendChild(tt('tt-h', manual ? `Renamed · page title: ${t.title}` : `Tidied · original: ${t.title}`));
+    f.appendChild(el('div', 'tt-sep'));
+    f.appendChild(tt('tt-sub', 'Shown in the sidebar, first match wins'));
+    [['Your name', manual ? `“${t.name}”` : 'not set', manual], ['Rename rule', 'no rule matches', false], ['Built-in tidy', src === 'tidy' ? `“${tidyTitle(t.title)}”` : S.tidyOn ? 'nothing to tidy' : 'off', src === 'tidy'], ['On-device AI title', 'off', false], ['Page title', manual || src === 'tidy' ? 'not used' : t.title, src === 'page']].forEach(([l, v, on], i) => {
+      const r = el('div', 'tt-row' + (on ? ' on' : '')); const n = el('span', 'tt-n'); n.textContent = on ? '✓' : String(i + 1); const a = el('span', 'tt-l'); a.textContent = l; const b = el('span', 'tt-v'); b.textContent = v; r.append(n, a, b); f.appendChild(r);
+    });
+    if (manual) { f.appendChild(el('div', 'tt-sep')); f.appendChild(tt('tt-act', 'Reset name')); const k = el('kbd'); k.textContent = 'Click the pencil'; f.lastChild.appendChild(k); }
+  } else if (kind === 'folder') {
+    const loc = locate(id, S.ws), fo = loc && loc.n; if (!fo) return f;
+    const smart = fo.kind === 'smart', off = !rulesActive(fo);
+    f.appendChild(tt('tt-h', smart ? 'Smart folder: a live view' : 'Auto-filing folder'));
+    f.appendChild(tt('tt-sub', off ? (S.rulesGlobal && fo.rulesOn ? 'No rule is on, so nothing matches' : 'Rules are off. Click to edit') : smart ? 'Shows every open tab that matches. Tabs stay where they are.' : 'New tabs that match a rule move in'));
+    f.appendChild(el('div', 'tt-sep'));
+    if (!fo.rules.length) f.appendChild(tt('tt-sub', 'No rules yet'));
+    fo.rules.forEach(r => { const row = el('div', 'tt-row' + (r.on && !off ? ' on' : ' dim')); const n = el('span', 'tt-n'); n.textContent = r.on ? '•' : '○'; const a = el('span', 'tt-l'); a.textContent = ruleLabel(r.type); const b = el('span', 'tt-v'); b.textContent = r.value || '(empty)'; row.append(n, a, b); f.appendChild(row); });
+    if (smart) { f.appendChild(el('div', 'tt-sep')); f.appendChild(tt('tt-sub', 'Closing a tab here closes the real tab')); }
+  } else if (kind === 'sleep') {
+    const m = memLabel(); f.appendChild(tt('tt-h', `${m.n} asleep · ~${m.mb} MB freed`)); f.appendChild(tt('tt-sub', 'Estimate. Sleeping tabs are unloaded until you open them.'));
+  }
+  return f;
+}
 function showTip(t) {
-  tip.textContent = t.dataset.tip; if (t.dataset.keys) { const k = el('kbd'); k.textContent = t.dataset.keys; tip.appendChild(k); }
-  tip.hidden = false; const r = t.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight;
+  tip.textContent = ''; tip.classList.toggle('rich', !!t.dataset.tipkind);
+  if (t.dataset.tipkind) tip.appendChild(richTip(t.dataset.tipkind, t.dataset.tipid));
+  else { tip.textContent = t.dataset.tip; if (t.dataset.keys) { const k = el('kbd'); k.textContent = t.dataset.keys; tip.appendChild(k); } }
+  tip.hidden = false; fx(tip, { o: 0 }, { o: 1 }, 'xfast', 'decelerate', { role: 'in' }); const r = t.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight;
   let x, y;
   const collapsed = S.density === 'collapsed' && t.closest('.sidebar') && !t.closest('.bottom') || t.matches('.ws-btn') && S.density === 'collapsed';
   if (collapsed) { x = S.side === 'left' ? r.right + 8 : r.left - w - 8; y = r.top + r.height / 2 - h / 2; }
+  else if (t.dataset.tipkind) { const sb = sidebar.getBoundingClientRect(); x = S.side === 'left' ? sb.right + 6 : sb.left - w - 6; y = r.top + r.height / 2 - h / 2; } // beside the sidebar, so it never covers the rows it describes
   else { x = r.left + r.width / 2 - w / 2; y = t.closest('.bottom') ? r.top - h - 8 : r.bottom + 8; }
   tip.style.left = Math.max(6, Math.min(innerWidth - w - 6, x)) + 'px'; tip.style.top = Math.max(6, Math.min(innerHeight - h - 6, y)) + 'px';
 }
-document.addEventListener('pointerover', e => { const t = e.target.closest('[data-tip]'); clearTimeout(tipTimer); tip.hidden = true; if (t && !S.drag) tipTimer = setTimeout(() => showTip(t), tnum('motion-timing-tooltip-delay')); });
-document.addEventListener('pointerdown', () => { clearTimeout(tipTimer); tip.hidden = true; });
+document.addEventListener('pointerover', e => { if (tip.dataset.pinned) return; const t = e.target.closest('[data-tip],[data-tipkind]'); clearTimeout(tipTimer); tip.hidden = true; if (t && !S.drag && !(t.closest('#folderSheet') && t.dataset.tipkind)) tipTimer = setTimeout(() => showTip(t), tnum('motion-timing-tooltip-delay')); });
+document.addEventListener('pointerdown', () => { clearTimeout(tipTimer); tip.hidden = true; delete tip.dataset.pinned; });
 
 /* ---------- focus order badges ---------- */
 function renderFocusBadges() {
@@ -1201,11 +1602,19 @@ function renderFocusBadges() {
 addEventListener('resize', renderFocusBadges);
 
 /* ---------- mockup controls ---------- */
+/* Pages row: links to the other mockup pages, keeping the colour mode. Relative links, so they also work inside a multi-file Artifact. */
+function pagesRow(body, here, getMode) {
+  const PAGES = [['index.html', 'Sidebar'], ['horizontal.html', 'Horizontal'], ['workspace-editor.html', 'Workspace editor'], ['motion.html', 'Motion spec'], ['tokens.html', 'Token spec']];
+  const r = document.createElement('div'); r.className = 'mrow pages'; const l = document.createElement('span'); l.textContent = 'Pages'; r.appendChild(l);
+  const w = document.createElement('span'); w.className = 'plinks';
+  PAGES.forEach(([h, n]) => { const a = document.createElement('a'); a.textContent = n; a.href = h + '?mode=' + getMode(); if (h === here) a.setAttribute('aria-current', 'page'); a.addEventListener('click', () => { a.href = h + '?mode=' + getMode(); }); w.appendChild(a); });
+  r.appendChild(w); body.appendChild(r);
+}
 const mock = $('#mock');
 function buildControls() {
   mock.textContent = '';
   const h = el('div', 'mh'); h.innerHTML = '<span>Mockup controls</span><span id="mockToggle">[-]</span>'; mock.appendChild(h);
-  const body = el('div', 'mbody'); mock.appendChild(body);
+  const body = el('div', 'mbody'); mock.appendChild(body); pagesRow(body, 'index.html', () => S.gMode);
   const sel = (key, label, opts, val, fn) => { const r = el('label', 'mrow'); r.textContent = label; const s = el('select'); opts.forEach(o => { const op = el('option'); op.value = o[0]; op.textContent = o[1]; s.appendChild(op); }); s.value = val; s.id = 'm-' + key; s.addEventListener('change', () => { fn(s.value); }); r.appendChild(s); body.appendChild(r); };
   const chk = (key, label, val, fn) => { const r = el('label', 'mrow'); r.textContent = label; const c = el('input'); c.type = 'checkbox'; c.checked = val; c.id = 'm-' + key; c.addEventListener('change', () => fn(c.checked)); r.appendChild(c); body.appendChild(r); };
   sel('theme', 'theme (global)', THEMES, S.gTheme, v => changeLook({ gTheme: v }, () => { S.gTheme = v; S.explicitTheme = true; }));
@@ -1217,6 +1626,12 @@ function buildControls() {
   sel('wsmode', 'workspace mode', [['default', 'default'], ['light', 'light'], ['dark', 'dark'], ['system', 'system']], WS[S.ws].mode, v => changeLook({ mode: v }, () => { WS[S.ws].mode = v; }));
   sel('wscount', 'workspaces', [['n', '3 (all)'], ['1', '1 (single)']], WS_ORDER.length < 2 ? '1' : 'n', v => setWsCount(v === '1' ? 1 : 3));
   sel('pinnedclose', 'pinned tab close', [['reset-sleep-switch', 'reset, sleep, next'], ['sleep', 'sleep, next'], ['close', 'close']], pinnedCloseMode, v => { pinnedCloseMode = v; render(); });
+  const btn = (label, fn) => { const r = el('div', 'mrow'); const b = el('button', 'mbtn'); b.textContent = label; b.addEventListener('click', fn); r.appendChild(b); body.appendChild(r); };
+  sel('archafter', 'archive Today after', ARCH_OPTS.map(o => [o[0], o[1]]), S.archAfter, v => { S.archAfter = v; });
+  chk('tidy', 'tidy tab titles', S.tidyOn, v => { S.tidyOn = v; render(); });
+  chk('folderrules', 'folder rules on', S.rulesGlobal, v => { S.rulesGlobal = v; render(); if (sheetFid) renderSheet(); });
+  btn('Open a tab that matches a folder rule', demoMatchingTab);
+  btn('Archive now (debug)', archiveNow);
   const note = el('small'); note.id = 'themeNote'; note.className = 'theme-note'; body.appendChild(note);
   chk('reduced', 'reduced motion', root.hasAttribute('data-reduced-motion'), v => { v ? root.setAttribute('data-reduced-motion', '') : root.removeAttribute('data-reduced-motion'); });
   chk('focus', 'show focus order', S.focus, v => { S.focus = v; renderFocusBadges(); });
@@ -1224,6 +1639,14 @@ function buildControls() {
   h.addEventListener('click', () => { mock.classList.toggle('collapsed'); $('#mockToggle').textContent = mock.classList.contains('collapsed') ? '[+]' : '[-]'; });
 }
 function syncControls() { const m = (k, v) => { const e = $('#m-' + k); if (e) e.value = v; }; m('theme', S.gTheme); m('mode', S.gMode); m('wstheme', WS[S.ws].theme); m('wsmode', WS[S.ws].mode); const tn = $('#themeNote'); if (tn && S.look) tn.textContent = 'showing: ' + themeName(S.look.theme) + ' ' + S.look.mode + (S.look.fell ? ' (OLED is dark only, so light mode shows Clean)' : '') + (contrastMore.matches && !S.explicitTheme ? ' (system asks for more contrast)' : ''); m('ws', S.ws); m('wscount', WS_ORDER.length < 2 ? '1' : 'n'); m('density', S.density); m('side', S.side); mock.classList.toggle('left', S.side === 'right'); }
+/* Debug: opens a tab that matches the first auto-filing folder in this Workspace, so the filing flow can be replayed. */
+let demoSeq = 0;
+function demoMatchingTab() {
+  let f = null; for (const a of ['pinned', 'today']) for (const e of walk(cur()[a])) if (!f && e.n.f && e.n.kind === 'auto' && rulesActive(e.n)) f = e.n;
+  const r = f && f.rules.find(x => x.on && x.type === 'domain' && x.value); if (!f || !r) return toast('This Workspace has no auto-filing folder with a domain rule');
+  const names = ['Hotels in Lisbon, Dec 12-19', 'Rail pass options', 'Airport transfer deals', 'Travel insurance quotes'];
+  return openTab('', { data: { title: names[demoSeq++ % names.length], domain: 'stay.' + r.value.replace(/^[^.]+\.(?=[^.]+\.[^.]+$)/, ''), path: '/search', color: '#0091FF' } });
+}
 /* Demo control and `wscount=1` URL parameter. With one Workspace the dots are hidden and only "+ New workspace" shows. */
 let wsStash = [];
 function setWsCount(n) {
@@ -1266,16 +1689,29 @@ function init() {
   applyLook(); setPreset(WS[S.ws].preset, false);
   contrastMore.addEventListener('change', () => { if (!S.explicitTheme) changeLook({}, () => {}); });
   renderSwitcher(); render(); renderPage(false);
+  if (params.get('tidy') === '0') S.tidyOn = false;
+  if (params.get('folderrules') === '0') S.rulesGlobal = false;
+  if (['12h', '24h', '7d', 'never'].includes(params.get('archiveafter'))) S.archAfter = params.get('archiveafter');
+  if (params.get('rules') === 'off') $$('.row[data-folder]', pane()).forEach(r => { const l = locate(r.dataset.id, S.ws); if (l && l.n.kind !== 'manual' && (!params.get('folder') || params.get('folder') === l.n.f)) l.n.rulesOn = false; });
+  if (params.get('archived') === '1') archiveNow();
   const open = params.get('open');
+  if (open === 'smart') { const d = locate('f-design', S.ws); if (d) d.n.open = false; }
+  if (open === 'today-sleep') S.forceSleepHead = true;
+  if (params.get('rules') === 'off' || open === 'smart' || open === 'today-sleep') render();
   if (open === 'peek') { S.hidden = true; win.dataset.sidebar = 'hidden'; sidebar.inert = false; if (S.density !== 'autohide') S.density = S.density; Peek.forceShown(); }
   if (open === 'cmdbar') openCmd();
   if (open === 'archive') openArchive();
   if (open === 'guard') openGuard();
+  if (open === 'folder-editor') openFolderEditor(params.get('folder') || 'f-trips');
+  if (open === 'tip-renamed' || open === 'tip-tidied') { const r = $(`.row[data-id="${open === 'tip-renamed' ? 'p-bike' : 'p-tidy'}"]`, pane()); if (r) { r.scrollIntoView({ block: 'center' }); showTip(r); tip.dataset.pinned = '1'; } }
+  if (open === 'autofile-toast') demoMatchingTab();
+  if (open === 'smart') { const r = $('.row[data-id="w-comp"]', pane()); if (r) { r.classList.add('force-hover'); r.scrollIntoView({ block: 'center' }); } }
+  if (open === 'smart-tip') { const r = $('.row[data-id="f-docs"]', pane()); if (r) { showTip(r); tip.dataset.pinned = '1'; } }
   if (open === 'contextmenu') { const r = $('.node[data-id="t:' + (cur().today.find(n => n.t)?.t) + '"] .row-in', pane()); const b = r ? r.getBoundingClientRect() : { left: 60, top: 300 }; openMenu(cur().today.find(n => n.t).t, b.left + 120, b.top + 20); $('.mi', $('#menu')).classList.add('hot'); }
   if (params.get('controls') !== '0') { buildControls(); syncControls(); } else mock.hidden = true;
   renderFocusBadges();
   requestAnimationFrame(() => requestAnimationFrame(() => { S.instant = false; document.body.dataset.ready = '1'; }));
 }
 init();
-window.__aerie = { S, W, WS, WS_ORDER, tabs, render, swipe }; // test hook for the mockup's Playwright script
+window.__aerie = { S, W, WS, WS_ORDER, tabs, render, swipe, archive, displayTitle, autoFolderFor, openFolderEditor, demoMatchingTab, archiveNow }; // test hook for the mockup's Playwright script
 })();
