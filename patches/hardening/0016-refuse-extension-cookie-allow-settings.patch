@@ -1,4 +1,4 @@
-Aerie-Purpose: Stop an extension from allowing cookies through chrome.contentSettings.cookies.set, which would let third-party cookies through although the user blocks them.
+Aerie-Purpose: Stop an extension from allowing cookies through chrome.contentSettings.cookies.set in a way that lets third-party cookies through while the user blocks them.
 Aerie-Upstream-Area: chrome/browser/extensions/api/content_settings/content_settings_api.cc (ContentSettingsContentSettingSetFunction::Run)
 Aerie-Kind: hook
 
@@ -6,26 +6,49 @@ Patch 0006 locks chrome.privacy.websites.thirdPartyCookiesAllowed, but an extens
 contentSettings permission could still set an ALLOW or SESSION_ONLY cookie exception. An
 explicit exception wins over the third-party block (cookie_settings_base.cc,
 kAllowByExplicitSetting), and a pattern such as *://*.com/* covers whole domains. The set
-function now returns an error for every cookie setting other than "block", for any pattern
-and either scope. Blocking cookies through the API, and reading, getting and clearing,
-still work. Other content setting types are not changed.
+function now returns an error for a cookie ALLOW or SESSION_ONLY setting, in either scope,
+only when the cookie settings of that profile block third-party cookies
+(CookieSettings::ShouldBlockThirdPartyCookies, so it follows the user's choice in settings)
+and the exception could apply to a third-party context. An exception applies to the first
+party only when the secondary pattern equals the primary pattern and that pattern names one
+host (it is not <all_urls> and has no domain wildcard); such a first-party allow is
+accepted, so an extension that keeps a cookie whitelist for its own sites keeps working.
+Blocking cookies, reading, getting and clearing, and the other content setting types are
+not changed. When the user allows third-party cookies, nothing is refused. An exception that
+an extension sets while the user allows third-party cookies stays in force if the user later
+blocks them again.
 
 --- a/chrome/browser/extensions/api/content_settings/content_settings_api.cc
 +++ b/chrome/browser/extensions/api/content_settings/content_settings_api.cc
-@@ -234,6 +234,16 @@
-           ->Get(content_type)
-           ->IsSettingValid(setting));
+@@ -320,6 +320,31 @@
+     return RespondNow(Error(extension_misc::kIncognitoSessionOnlyErrorMessage));
+   }
  
-+  // Aerie: an extension cannot allow cookies, because an allow (or a session
-+  // only allow) for a pattern lets third-party cookies through although the
-+  // user blocks them. Blocking cookies still works.
++  // Aerie: while third-party cookies are blocked, an extension cannot allow
++  // cookies (or allow them for the session) for a pattern that could apply to
++  // a third-party context, because an explicit allow wins over the block. An
++  // allow whose secondary pattern equals its primary pattern, naming one
++  // host, only applies to that site's own cookies, so it stays possible.
 +  if (content_type == ContentSettingsType::COOKIES &&
-+      setting != CONTENT_SETTING_BLOCK) {
-+    return RespondNow(Error(
-+        "Aerie blocks third-party cookies. An extension cannot allow cookies; "
-+        "only the user can, in settings."));
++      (setting == CONTENT_SETTING_ALLOW ||
++       setting == CONTENT_SETTING_SESSION_ONLY)) {
++    Profile* cookie_profile = Profile::FromBrowserContext(browser_context());
++    if (incognito) {
++      cookie_profile =
++          cookie_profile->GetPrimaryOTRProfile(/*create_if_needed=*/true);
++    }
++    const bool first_party_only = secondary_pattern == primary_pattern &&
++                                  !primary_pattern.MatchesAllHosts() &&
++                                  !primary_pattern.HasDomainWildcard();
++    if (!first_party_only &&
++        CookieSettingsFactory::GetForProfile(cookie_profile)
++            ->ShouldBlockThirdPartyCookies()) {
++      return RespondNow(Error(
++          "An extension cannot allow cookies for this pattern while "
++          "third-party cookies are blocked. Only the user can, in settings."));
++    }
 +  }
 +
-   const content_settings::ContentSettingsInfo* info =
-       content_settings::ContentSettingsRegistry::GetInstance()->Get(
-           content_type);
+   scoped_refptr<ContentSettingsStore> store =
+       ContentSettingsService::Get(browser_context())->content_settings_store();
+   store->SetExtensionContentSetting(extension_id(), primary_pattern,

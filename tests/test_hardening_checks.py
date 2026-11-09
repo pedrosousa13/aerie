@@ -661,6 +661,7 @@ class DriverGlueTest(unittest.TestCase):
         script = (root / "probe.js").read_text()
         self.assertIn("chrome.contentSettings.cookies.set", script)
         self.assertIn("'allow'", script)
+        self.assertIn("secondaryPattern: site", script)
 
     def test_extension_check_loads_the_probe_extension_in_a_variant(self):
         results = json.loads((FIXTURES / "hardening_extension_prefs.json").read_text())["cases"][0]["obs"]["results"]

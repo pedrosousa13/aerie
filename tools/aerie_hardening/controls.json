@@ -241,17 +241,17 @@
     {
       "id": "extension_lock",
       "title": "Extensions cannot loosen these settings",
-      "summary": "An extension with the privacy permission cannot write the WebRTC policy, the preloading option or the third-party cookie setting. An extension with the contentSettings permission cannot allow cookies (chrome.contentSettings.cookies.set refuses any setting but block), which would otherwise let third-party cookies through for the sites it names. Only the user can change these, in settings. Reading them, being told about changes, and blocking cookies through the contentSettings API still work. Other content setting types are not changed.",
+      "summary": "An extension with the privacy permission cannot write the WebRTC policy, the preloading option or the third-party cookie setting. While third-party cookies are blocked, an extension with the contentSettings permission cannot allow cookies (or allow them for the session) for a pattern that could apply to a third-party context, because chrome.contentSettings.cookies.set would otherwise let third-party cookies through for the sites it names. An allow for one site's own cookies (the secondary pattern equal to the primary pattern, one host, no domain wildcard) and blocking cookies still work, and nothing is refused while the user allows third-party cookies. Only the user can change these, in settings. Reading them and being told about changes still works. Other content setting types are not changed.",
       "default": "Always on.",
       "provided_by": "aerie",
       "default_set_in": [
         "patches/hardening/0006-lock-hardened-prefs-from-extensions.patch: the write permission of three chrome.privacy entries is removed in chrome/browser/extensions/pref_mapping.cc",
-        "patches/hardening/0016-refuse-extension-cookie-allow-settings.patch: ContentSettingsContentSettingSetFunction::Run in chrome/browser/extensions/api/content_settings/content_settings_api.cc refuses every cookie setting but block"
+        "patches/hardening/0016-refuse-extension-cookie-allow-settings.patch: ContentSettingsContentSettingSetFunction::Run in chrome/browser/extensions/api/content_settings/content_settings_api.cc refuses a cookie allow or session-only setting for a pattern that could apply to a third-party context while third-party cookies are blocked"
       ],
       "upstream": ["chrome/browser/extensions/pref_mapping.cc", "chrome/browser/extensions/api/preference/preference_api.cc", "chrome/browser/extensions/api/content_settings/content_settings_api.cc"],
       "aerie_patches": ["hardening/0006-lock-hardened-prefs-from-extensions.patch", "hardening/0016-refuse-extension-cookie-allow-settings.patch"],
       "pref": null,
-      "cost": "Privacy extensions that set these options through chrome.privacy get a permission error. An extension that allows cookies for a site through chrome.contentSettings (for example a cookie manager that keeps a whitelist) gets an error too; blocking still works. The user can still make the same changes in settings.",
+      "cost": "Privacy extensions that set these options through chrome.privacy get a permission error. An extension that allows cookies through chrome.contentSettings for a pattern that is not one site's own cookies (for example a whole domain, or a site in any context) gets an error while third-party cookies are blocked. The user can still make the same changes in settings.",
       "ui": {"kind": "readonly", "state": "Always on"},
       "bench_checks": ["hardening_extension_prefs"]
     }

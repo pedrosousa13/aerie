@@ -34,8 +34,8 @@ class ExtensionPrefs(HardeningCheck):
     name = "hardening_extension_prefs"
     control = "extension_lock"
     negative_control = ("The same extension changes an unlocked setting (referrersEnabled) and blocks cookies "
-                        "through contentSettings in the same run, so a refused write to a hardened setting "
-                        "or a refused allow is the lock, not a broken extension.")
+                        "and allows one site's own cookies through contentSettings in the same run, so a refused write "
+                        "to a hardened setting or a refused allow is the lock, not a broken extension.")
 
     def observe(self, session: Session) -> dict:
         with session.variant(flags_for(extension_dir(session))) as v:
@@ -57,13 +57,17 @@ class ExtensionPrefs(HardeningCheck):
                 return "fail", f"the extension could change {r['name']} (error {r['set_error']}, level {r['level']})"
         cs_control = [r for r in obs["results"] if r["role"] == "content_setting_control"]
         cs_refused = [r for r in obs["results"] if r["role"] == "content_setting_refused"]
-        if not cs_control or not cs_refused:
+        cs_first_party = [r for r in obs["results"] if r["role"] == "content_setting_first_party"]
+        if not cs_control or not cs_refused or not cs_first_party:
             return "fail", "the contentSettings cookie probes are missing from the results"
         if any(r["set_error"] for r in cs_control):
             return "fail", f"negative control failed: blocking cookies through contentSettings was refused: {cs_control}"
+        for r in cs_first_party:
+            if r["set_error"]:
+                return "fail", f"a first-party cookie allow through contentSettings was refused ({r['name']}: {r['set_error']}); first-party cookie settings must keep working"
         for r in cs_refused:
             if not r["set_error"]:
-                return "fail", "the extension could allow cookies through contentSettings (chrome.contentSettings.cookies.set returned no error)"
+                return "fail", f"the extension could allow cookies through contentSettings ({r['name']} returned no error)"
         return "pass", ("the extension was refused for " + ", ".join(r["name"] for r in hardened)
-                        + " and for allowing cookies through contentSettings, and could still change referrersEnabled"
-                        + " and block cookies through contentSettings")
+                        + " and for allowing cookies for third-party contexts through contentSettings, and could still change referrersEnabled,"
+                        + " block cookies and allow a site's own cookies through contentSettings")

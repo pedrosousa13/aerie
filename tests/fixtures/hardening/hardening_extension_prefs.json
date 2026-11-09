@@ -39,7 +39,28 @@
      {
       "name": "contentSettings.cookies.allow",
       "role": "content_setting_refused",
-      "set_error": "You do not have permission to change third-party cookie settings",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.session_only",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow_domain_wildcard",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow_first_party",
+      "role": "content_setting_first_party",
+      "set_error": null,
       "level": null,
       "value": null
      },
@@ -91,7 +112,28 @@
      {
       "name": "contentSettings.cookies.allow",
       "role": "content_setting_refused",
-      "set_error": "You do not have permission to change third-party cookie settings",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.session_only",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow_domain_wildcard",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow_first_party",
+      "role": "content_setting_first_party",
+      "set_error": null,
       "level": null,
       "value": null
      },
@@ -143,7 +185,28 @@
      {
       "name": "contentSettings.cookies.allow",
       "role": "content_setting_refused",
-      "set_error": "You do not have permission to change third-party cookie settings",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.session_only",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow_domain_wildcard",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow_first_party",
+      "role": "content_setting_first_party",
+      "set_error": null,
       "level": null,
       "value": null
      },
@@ -205,7 +268,28 @@
      {
       "name": "contentSettings.cookies.allow",
       "role": "content_setting_refused",
-      "set_error": "You do not have permission to change third-party cookie settings",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.session_only",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow_domain_wildcard",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow_first_party",
+      "role": "content_setting_first_party",
+      "set_error": null,
       "level": null,
       "value": null
      },
@@ -250,7 +334,28 @@
      {
       "name": "contentSettings.cookies.allow",
       "role": "content_setting_refused",
-      "set_error": "You do not have permission to change third-party cookie settings",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.session_only",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow_domain_wildcard",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow_first_party",
+      "role": "content_setting_first_party",
+      "set_error": null,
       "level": null,
       "value": null
      },
@@ -303,7 +408,28 @@
      {
       "name": "contentSettings.cookies.allow",
       "role": "content_setting_refused",
-      "set_error": "You do not have permission to change third-party cookie settings",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.session_only",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow_domain_wildcard",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow_first_party",
+      "role": "content_setting_first_party",
+      "set_error": null,
       "level": null,
       "value": null
      },
@@ -360,6 +486,27 @@
       "value": null
      },
      {
+      "name": "contentSettings.cookies.session_only",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow_domain_wildcard",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow_first_party",
+      "role": "content_setting_first_party",
+      "set_error": null,
+      "level": null,
+      "value": null
+     },
+     {
       "name": "contentSettings.cookies.block",
       "role": "content_setting_control",
       "set_error": null,
@@ -407,7 +554,28 @@
      {
       "name": "contentSettings.cookies.allow",
       "role": "content_setting_refused",
-      "set_error": "You do not have permission to change third-party cookie settings",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.session_only",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow_domain_wildcard",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow_first_party",
+      "role": "content_setting_first_party",
+      "set_error": null,
       "level": null,
       "value": null
      },
@@ -455,6 +623,154 @@
       "set_error": null,
       "level": "controlled_by_this_extension",
       "value": false
+     }
+    ]
+   }
+  },
+  {
+   "name": "first_party_allow_refused",
+   "expect": "fail",
+   "detail_contains": "first-party cookie allow",
+   "real": "Recorded on a real Aerie build, train-1 Bench run (bench/train1/hardening-1/results.json); LAN address scrubbed.",
+   "obs": {
+    "loaded": true,
+    "results": [
+     {
+      "name": "webRTCIPHandlingPolicy",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference 'webRTCIPHandlingPolicy'. Be sure to declare in your manifest what permissions you need.",
+      "level": "controllable_by_this_extension",
+      "value": "default_public_interface_only"
+     },
+     {
+      "name": "networkPredictionEnabled",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference 'networkPredictionEnabled'. Be sure to declare in your manifest what permissions you need.",
+      "level": "controllable_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "thirdPartyCookiesAllowed",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference 'thirdPartyCookiesAllowed'. Be sure to declare in your manifest what permissions you need.",
+      "level": "controllable_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "referrersEnabled",
+      "role": "control",
+      "set_error": null,
+      "level": "controlled_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "contentSettings.cookies.allow",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.session_only",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow_domain_wildcard",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow_first_party",
+      "role": "content_setting_first_party",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.block",
+      "role": "content_setting_control",
+      "set_error": null,
+      "level": null,
+      "value": null
+     }
+    ]
+   }
+  },
+  {
+   "name": "domain_wildcard_allow_succeeds",
+   "expect": "fail",
+   "detail_contains": "allow_domain_wildcard returned no error",
+   "real": "Recorded on a real Aerie build, train-1 Bench run (bench/train1/hardening-1/results.json); LAN address scrubbed.",
+   "obs": {
+    "loaded": true,
+    "results": [
+     {
+      "name": "webRTCIPHandlingPolicy",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference 'webRTCIPHandlingPolicy'. Be sure to declare in your manifest what permissions you need.",
+      "level": "controllable_by_this_extension",
+      "value": "default_public_interface_only"
+     },
+     {
+      "name": "networkPredictionEnabled",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference 'networkPredictionEnabled'. Be sure to declare in your manifest what permissions you need.",
+      "level": "controllable_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "thirdPartyCookiesAllowed",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference 'thirdPartyCookiesAllowed'. Be sure to declare in your manifest what permissions you need.",
+      "level": "controllable_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "referrersEnabled",
+      "role": "control",
+      "set_error": null,
+      "level": "controlled_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "contentSettings.cookies.allow",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.session_only",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow_domain_wildcard",
+      "role": "content_setting_refused",
+      "set_error": null,
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow_first_party",
+      "role": "content_setting_first_party",
+      "set_error": null,
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.block",
+      "role": "content_setting_control",
+      "set_error": null,
+      "level": null,
+      "value": null
      }
     ]
    }

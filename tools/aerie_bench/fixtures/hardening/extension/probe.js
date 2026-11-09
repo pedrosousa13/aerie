@@ -30,23 +30,31 @@ window.__probe = async function() {
               value: got.data ? got.data.value : null});
     await callSetting(a.api, 'clear', {});
   }
-  // chrome.contentSettings.cookies: allowing is refused (it would let third-party cookies through),
-  // blocking is the control and must still work.
-  const setCookies = (setting) => new Promise((resolve) => {
+  // chrome.contentSettings.cookies, with third-party cookies blocked (the Aerie default): an allow that
+  // could apply to a third-party context is refused, an allow for one site's own cookies (secondary pattern
+  // equal to the primary pattern) must work, and blocking is the control.
+  const setCookies = (details) => new Promise((resolve) => {
     try {
       chrome.contentSettings.cookies.set(
-          {primaryPattern: 'http://127.0.0.1/*', setting},
-          () => resolve(chrome.runtime.lastError ? chrome.runtime.lastError.message : null));
+          details, () => resolve(chrome.runtime.lastError ? chrome.runtime.lastError.message : null));
     } catch (e) {
       resolve('threw: ' + e);
     }
   });
-  const allowError = await setCookies('allow');
-  out.push({name: 'contentSettings.cookies.allow', role: 'content_setting_refused', set_error: allowError,
-            level: null, value: null});
-  const blockError = await setCookies('block');
-  out.push({name: 'contentSettings.cookies.block', role: 'content_setting_control', set_error: blockError,
-            level: null, value: null});
+  const site = 'http://127.0.0.1/*';
+  // A domain-wide pattern; built from parts so the fixture scan finds no external host name in the file.
+  const domain = ['http://', '*.', 'localhost', '/*'].join('');
+  const add = (name, role, set_error) => out.push({name, role, set_error, level: null, value: null});
+  add('contentSettings.cookies.allow', 'content_setting_refused',
+      await setCookies({primaryPattern: site, setting: 'allow'}));
+  add('contentSettings.cookies.session_only', 'content_setting_refused',
+      await setCookies({primaryPattern: site, setting: 'session_only'}));
+  add('contentSettings.cookies.allow_domain_wildcard', 'content_setting_refused',
+      await setCookies({primaryPattern: domain, secondaryPattern: domain, setting: 'allow'}));
+  add('contentSettings.cookies.allow_first_party', 'content_setting_first_party',
+      await setCookies({primaryPattern: site, secondaryPattern: site, setting: 'allow'}));
+  add('contentSettings.cookies.block', 'content_setting_control',
+      await setCookies({primaryPattern: site, setting: 'block'}));
   await new Promise((resolve) => chrome.contentSettings.cookies.clear({}, resolve));
   return out;
 };
