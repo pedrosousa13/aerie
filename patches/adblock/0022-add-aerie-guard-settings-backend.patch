@@ -10,7 +10,8 @@ aerie.guard.show_blocked_count is a profile pref, on by default. The settings_pr
 allowlist line lets the page's settings-toggle-button write it; the name is a string
 literal there, as for aerie.widevine.enabled, and a test compares it with
 aerie_guard::kShowBlockedCount. The strings part sits after the Aerie Guard strings of
-adblock/0017, so the series lists this patch after it.
+adblock/0017 and before the Widevine prompt strings of widevine/0005, so the series
+lists this patch after both.
 
 --- a/chrome/app/generated_resources.grd
 +++ b/chrome/app/generated_resources.grd
@@ -19,11 +20,11 @@ adblock/0017, so the series lists this patch after it.
        <part file="../browser/ui/views/aerie_adblock/aerie_guard_strings.grdp" />
 +      <part file="../browser/ui/webui/aerie_guard_settings/aerie_guard_settings_strings.grdp" />
  
-       <!-- Media live preview specific strings -->
+       <!-- Aerie Widevine prompt strings -->
 --- a/chrome/app/generated_resources.grd.gritdeps
 +++ b/chrome/app/generated_resources.grd.gritdeps
-@@ -111,3 +111,4 @@
- chrome/app/whats_new_strings.grdp
+@@ -112,3 +112,4 @@
+ chrome/browser/aerie_widevine/aerie_widevine_strings.grdp
  chrome/browser/ui/views/aerie_adblock/aerie_guard_strings.grdp
 +chrome/browser/ui/webui/aerie_guard_settings/aerie_guard_settings_strings.grdp
  components/aerie_onboarding/aerie_onboarding_strings.grdp
