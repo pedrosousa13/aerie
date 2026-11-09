@@ -5,12 +5,15 @@
 # What the fingerprinting noise is keyed on: the site (scheme plus registrable
 # domain), not the origin. The same function gives the per-site switch its
 # content-setting pattern, so the key and the switch always cover the same
-# hosts. No content or chrome dependency, so it has unit tests.
+# hosts. Also the list of surfaces the protection covers, which the Guard panel
+# shows. No content or chrome dependency, so it has unit tests.
 
 import("//testing/test.gni")
 
 source_set("aerie_fingerprint") {
   sources = [
+    "protected_surfaces.cc",
+    "protected_surfaces.h",
     "site_key.cc",
     "site_key.h",
   ]
@@ -29,6 +32,7 @@ source_set("unit_tests") {
 
   sources = [
     "noise_switch_unittest.cc",
+    "protected_surfaces_unittest.cc",
     "site_key_unittest.cc",
   ]
 

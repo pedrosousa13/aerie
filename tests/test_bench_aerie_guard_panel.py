@@ -6,7 +6,9 @@ from aerie_bench import ui_devtools
 from aerie_bench.checks import REGISTRY, aerie_guard_panel as ag
 
 GOOD = {"chromeSend": "undefined", "firstState": None, "secondState": None,
-        "state_before": '{"exceptions": []}', "state_after": '{"exceptions": []}', "hosts": ["localhost"]}
+        "state_before": '{"exceptions": []}', "state_after": '{"exceptions": []}', "hosts": ["localhost"],
+        "prefs_before": "{}", "prefs_after": "{}", "canvas_before": "data:abc", "canvas_after": "data:abc"}
+NOISE_OFF = '{"profile": {"content_settings": {"exceptions": {"helium_noise": {"http://[*.]localhost,*": {"setting": 2}}}}}}'
 
 
 class JudgeTest(unittest.TestCase):
@@ -38,6 +40,34 @@ class JudgeTest(unittest.TestCase):
     def test_an_exception_written_into_a_new_state_json_fails(self):
         problems = ag.judge({**GOOD, "state_before": None, "state_after": '{"exceptions": ["news.test"]}'})
         self.assertTrue(any("state.json" in p for p in problems))
+
+
+class FingerprintingCallTest(unittest.TestCase):
+    """Issue #102: a fingerprinting call through a handler with no captured tab changes no HELIUM_NOISE setting."""
+
+    def test_a_handler_that_takes_the_site_from_the_page_fails(self):
+        # Negative control: such a handler writes an exception for a host the page named, and that site loses its
+        # noise, so the canvas the fixture page reads changes.
+        bad = {**GOOD, "prefs_after": NOISE_OFF, "canvas_after": "data:real"}
+        problems = ag.judge(bad)
+        self.assertTrue(any("HELIUM_NOISE setting in Preferences" in p for p in problems))
+        self.assertTrue(any("never named" in p for p in problems))
+        self.assertTrue(any("canvas" in p for p in problems))
+
+    def test_a_lost_noise_exception_is_seen_before_the_preferences_file_is_written(self):
+        # The file is written after a delay; the canvas shows the change at once.
+        problems = ag.judge({**GOOD, "canvas_after": "data:real"})
+        self.assertEqual(len(problems), 1)
+        self.assertIn("canvas", problems[0])
+
+    def test_an_exception_that_was_already_there_is_not_a_change(self):
+        self.assertEqual(ag.judge({**GOOD, "prefs_before": NOISE_OFF, "prefs_after": NOISE_OFF}), [])
+
+    def test_the_probe_calls_the_fingerprinting_setter(self):
+        self.assertIn("setFingerprintingOn(false)", ag.IMPORT_PROBE)
+
+    def test_no_preferences_file_is_no_change(self):
+        self.assertEqual(ag.noise_exceptions(None), {})
 
 
 REOPENED = {**{step: True for step in ag.REOPEN_STEPS}, "exit": {"clean": True, "code": 0}}

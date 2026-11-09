@@ -7,6 +7,10 @@ It proves, on the real browser:
 2. The page's own Mojo handler answers ``getState`` with null (no site).
 3. A ``setGuardOn(false)`` call through that handler changes no exception in
    ``AerieFilterLists/state.json`` and no exception appears for the host of any open tab.
+4. A ``setFingerprintingOn(false)`` call (and a ``setFingerprintingOn(true)`` call) through it changes no
+   ``HELIUM_NOISE`` setting (``profile.content_settings.exceptions.helium_noise`` in ``Default/Preferences``),
+   and the canvas a fixture page reads stays the same, so no site lost its noise. The canvas is the live
+   observable: the preferences file is written after a delay.
 
 Part two uses the bubble, in a second browser started with UI DevTools (``ui_devtools.FLAGS``), which
 presses the Guard icon in the address bar as a user does. It opens the panel, closes it with Escape,
@@ -30,11 +34,15 @@ from . import register
 
 PANEL_URL = "chrome://aerie-guard.top-chrome/"
 STATE_FILE = "AerieFilterLists/state.json"
+PREFS_FILE = "Default/Preferences"
+FIXTURE_PAGE = "/hardening/fingerprint.html"
 IMPORT_PROBE = """(async () => {
   const m = await import('./browser_proxy.js');
   const p = m.BrowserProxy.getInstance();
   const first = await p.handler.getState();
   p.handler.setGuardOn(false);
+  p.handler.setFingerprintingOn(false);
+  p.handler.setFingerprintingOn(true);
   await new Promise(r => setTimeout(r, 1500));
   const second = await p.handler.getState();
   return {chromeSend: typeof (window.chrome && window.chrome.send),
@@ -85,8 +93,23 @@ def exceptions(state: str | None):
         return state
 
 
+def noise_exceptions(prefs: str | None):
+    """The ``helium_noise`` exceptions of a Preferences text (none for no file); the raw text if it is not JSON."""
+    if prefs is None:
+        return {}
+    try:
+        node = json.loads(prefs)
+        for key in ("profile", "content_settings", "exceptions", "helium_noise"):
+            node = node.get(key, {})
+        return node
+    except (ValueError, AttributeError):
+        return prefs
+
+
 def judge(obs: dict | None) -> list[str]:
-    """Return the problems. ``obs``: chromeSend, firstState, secondState, state_before, state_after."""
+    """Return the problems. ``obs``: chromeSend, firstState, secondState, state_before, state_after,
+    prefs_before, prefs_after (the Preferences text) and canvas_before, canvas_after (the fixture page's canvas
+    before and after the calls)."""
     if not obs:
         return ["no observations: the panel page did not load"]
     problems: list[str] = []
@@ -102,6 +125,15 @@ def judge(obs: dict | None) -> list[str]:
         problems.append("a switch call from the page changed the exceptions in state.json")
     if after and any(h in after for h in obs.get("hosts", [])):
         problems.append("an exception for a host the page never named appeared in state.json")
+    # The fingerprinting switch: the handler has no site, so the call must change nothing.
+    noise_before, noise_after = noise_exceptions(obs.get("prefs_before")), noise_exceptions(obs.get("prefs_after"))
+    if noise_after != noise_before:
+        problems.append("a fingerprinting call from the page changed a HELIUM_NOISE setting in Preferences")
+    if any(h in json.dumps(noise_after) and h not in json.dumps(noise_before) for h in obs.get("hosts", [])):
+        problems.append("a HELIUM_NOISE setting for a host the page never named appeared in Preferences")
+    if obs.get("canvas_before") != obs.get("canvas_after"):
+        problems.append("the canvas of the fixture page changed after a fingerprinting call from the page "
+                        "(a site lost or gained its noise)")
     return problems
 
 
@@ -120,6 +152,23 @@ class AerieGuardPanel:
             except OSError:
                 return None
 
+        prefs_file = Path(profile) / PREFS_FILE if profile else None
+
+        def read_prefs() -> str | None:
+            try:
+                return prefs_file.read_text() if prefs_file else None
+            except OSError:
+                return None
+
+        def canvas() -> str | None:
+            """The canvas the fixture page reads: noise changes it, so it shows a lost exception at once."""
+            session.navigate_url(f"http://localhost:{session.fixtures.port}{FIXTURE_PAGE}")
+            if not session.wait_for("window.__done === true", timeout=15.0):
+                return None
+            return session.evaluate("window.__result && window.__result.canvas")
+
+        canvas_before = canvas()
+        prefs_before = read_prefs()
         before = read()
         nav = session.navigate_url(PANEL_URL)
         if nav.get("error"):
@@ -127,7 +176,9 @@ class AerieGuardPanel:
         obs = session.evaluate(IMPORT_PROBE, await_promise=True)
         time.sleep(1.0)
         if obs is not None:
-            obs = {**obs, "state_before": before, "state_after": read(), "hosts": ["localhost", "127.0.0.1"]}
+            obs = {**obs, "state_before": before, "state_after": read(), "hosts": ["localhost", "127.0.0.1"],
+                   "prefs_before": prefs_before, "prefs_after": read_prefs(),
+                   "canvas_before": canvas_before, "canvas_after": canvas()}
         problems = judge(obs)
         reopen = self.reopen(session)
         problems += judge_reopen(reopen)
@@ -136,7 +187,7 @@ class AerieGuardPanel:
             return CheckResult(self.name, "fail", "; ".join(problems), data=data)
         return CheckResult(self.name, "pass",
                            "chrome.send is undefined, the handler has no site without a captured tab, "
-                           "a switch call left state.json unchanged, and the icon opened the panel again "
+                           "a switch call and a fingerprinting call left state.json and the noise settings unchanged, and the icon opened the panel again "
                            "after it closed and the tab navigated, with the browser alive", data=data)
 
     def reopen(self, session: Session) -> dict:

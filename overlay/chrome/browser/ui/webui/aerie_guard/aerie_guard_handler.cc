@@ -7,13 +7,19 @@
 #include <string>
 #include <utility>
 
+#include "base/notreached.h"
 #include "base/strings/escape.h"
 #include "base/strings/strcat.h"
 #include "base/strings/utf_string_conversions.h"
+#include "chrome/browser/helium_noise/helium_noise_settings.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/chrome_pages.h"
+#include "chrome/common/webui_url_constants.h"
 #include "chrome/grit/generated_resources.h"
+#include "components/aerie_fingerprint/protected_surfaces.h"
 #include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/browser_context.h"
+#include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/url_constants.h"
@@ -38,6 +44,44 @@ std::string FaviconUrl(const GURL& page) {
                        "allowGoogleServerFallback=0&pageUrl=",
                        base::EscapeQueryParamValue(page.GetWithEmptyPath().spec(),
                                                    /*use_plus=*/false)});
+}
+
+mojom::ProtectedSurface ToMojo(aerie_fingerprint::ProtectedSurface surface) {
+  switch (surface) {
+    case aerie_fingerprint::ProtectedSurface::kCanvas:
+      return mojom::ProtectedSurface::kCanvas;
+    case aerie_fingerprint::ProtectedSurface::kAudio:
+      return mojom::ProtectedSurface::kAudio;
+    case aerie_fingerprint::ProtectedSurface::kCpuCores:
+      return mojom::ProtectedSurface::kCpuCores;
+    case aerie_fingerprint::ProtectedSurface::kDeviceMemory:
+      return mojom::ProtectedSurface::kDeviceMemory;
+    case aerie_fingerprint::ProtectedSurface::kGraphicsCard:
+      return mojom::ProtectedSurface::kGraphicsCard;
+    case aerie_fingerprint::ProtectedSurface::kScreen:
+      return mojom::ProtectedSurface::kScreen;
+  }
+  NOTREACHED();
+}
+
+mojom::FingerprintingMode ToMojo(helium_noise::HeliumNoiseState state) {
+  switch (state) {
+    case helium_noise::HeliumNoiseState::kEnabled:
+      return mojom::FingerprintingMode::kOn;
+    case helium_noise::HeliumNoiseState::kDisabledForSite:
+      return mojom::FingerprintingMode::kOffForSite;
+    case helium_noise::HeliumNoiseState::kGloballyDisabled:
+      return mojom::FingerprintingMode::kOffInSettings;
+    case helium_noise::HeliumNoiseState::kUnavailable:
+      return mojom::FingerprintingMode::kUnavailable;
+  }
+  NOTREACHED();
+}
+
+// The committed URL of the tab's primary main frame: what the browser knows,
+// never something the page sent.
+GURL CommittedUrl(content::WebContents* tab) {
+  return tab->GetPrimaryMainFrame()->GetLastCommittedURL();
 }
 
 }  // namespace
@@ -92,6 +136,29 @@ mojom::PanelStatePtr AerieGuardHandler::ResolveState() {
   if (out->blocking_on) {
     out->blocked_summary = base::UTF16ToUTF8(l10n_util::GetPluralStringFUTF16(
         IDS_AERIE_GUARD_PANEL_BLOCKED, state->count));
+  }
+  out->fingerprinting = FingerprintingStateOfTarget();
+  return out;
+}
+
+mojom::FingerprintingStatePtr AerieGuardHandler::FingerprintingStateOfTarget() {
+  content::WebContents* tab = target_.tab();
+  const helium_noise::HeliumNoiseState state =
+      helium_noise::GetHeliumNoiseState(tab->GetBrowserContext(),
+                                        CommittedUrl(tab));
+  auto out = mojom::FingerprintingState::New();
+  out->mode = ToMojo(state);
+  for (aerie_fingerprint::ProtectedSurface surface :
+       aerie_fingerprint::ProtectedSurfaces()) {
+    out->surfaces.push_back(ToMojo(surface));
+  }
+  const bool on = state == helium_noise::HeliumNoiseState::kEnabled;
+  if (state == helium_noise::HeliumNoiseState::kEnabled ||
+      state == helium_noise::HeliumNoiseState::kDisabledForSite) {
+    if (!loaded_fingerprinting_on_) {
+      loaded_fingerprinting_on_ = on;
+    }
+    out->needs_reload = *loaded_fingerprinting_on_ != on;
   }
   return out;
 }
@@ -148,11 +215,53 @@ void AerieGuardHandler::SetCosmeticHidingOn(bool on) {
   FinishToggle(target_.SetCosmeticHidingOn(on));
 }
 
+void AerieGuardHandler::SetFingerprintingOn(bool on) {
+  // A page with no target has nothing to change.
+  if (target_.empty()) {
+    return;
+  }
+  // Refuse, and close the panel, unless the tab is alive and still shows the
+  // host the panel captured.
+  if (!target_.Resolve()) {
+    ClosePanel();
+    return;
+  }
+  content::WebContents* tab = target_.tab();
+  const GURL url = CommittedUrl(tab);
+  // Only a state that has a switch can change: not "off in Settings" (the
+  // switch is in Settings) and not "unavailable".
+  const helium_noise::HeliumNoiseState state =
+      helium_noise::GetHeliumNoiseState(tab->GetBrowserContext(), url);
+  if (helium_noise::CanSetHeliumNoiseForOrigin(url) &&
+      (state == helium_noise::HeliumNoiseState::kEnabled ||
+       state == helium_noise::HeliumNoiseState::kDisabledForSite)) {
+    // For an incognito tab this is the off-the-record content-settings map:
+    // in memory, and the regular profile never sees it.
+    helium_noise::SetHeliumNoiseEnabledForOrigin(tab->GetBrowserContext(), url,
+                                                 on);
+  }
+  // The page shows the state as it is now: a refused switch snaps back.
+  PushState();
+}
+
+void AerieGuardHandler::Reload() {
+  if (target_.empty()) {
+    return;
+  }
+  if (!target_.Resolve()) {
+    ClosePanel();
+    return;
+  }
+  target_.tab()->GetController().Reload(content::ReloadType::NORMAL, true);
+  ClosePanel();
+}
+
 void AerieGuardHandler::OpenLink(mojom::Link link) {
   // Mojo already rejects a value that is not in the enum. This switch keeps
   // the browser's own answer if one is ever added and not handled here.
   switch (link) {
-    case mojom::Link::kFilterLists: {
+    case mojom::Link::kFilterLists:
+    case mojom::Link::kNoiseSettings: {
       if (!target_.Resolve()) {
         if (!target_.empty()) {
           ClosePanel();
@@ -162,8 +271,13 @@ void AerieGuardHandler::OpenLink(mojom::Link link) {
       tabs::TabInterface* tab =
           tabs::TabInterface::MaybeGetFromContents(target_.tab());
       if (tab && tab->GetBrowserWindowInterface()) {
-        tab->GetBrowserWindowInterface()->OpenGURL(
-            GURL(kFilterListsUrl), WindowOpenDisposition::NEW_FOREGROUND_TAB);
+        if (link == mojom::Link::kNoiseSettings) {
+          chrome::ShowSettingsSubPage(tab->GetBrowserWindowInterface(),
+                                      chrome::kNoiseSubPage);
+        } else {
+          tab->GetBrowserWindowInterface()->OpenGURL(
+              GURL(kFilterListsUrl), WindowOpenDisposition::NEW_FOREGROUND_TAB);
+        }
       }
       ClosePanel();
       return;

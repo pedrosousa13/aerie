@@ -63,6 +63,57 @@
   <message name="IDS_AERIE_GUARD_PANEL_COSMETIC_LOCKED" desc="Line under the disabled cosmetic switch in the Aerie Guard panel in an incognito window, shown when the user turned hiding off for the site in a regular window. An incognito window cannot undo it.">
     Hiding was turned off for this site in a regular window. Turn it on there.
   </message>
+  <message name="IDS_AERIE_GUARD_PANEL_FINGERPRINTING" desc="Name of the fingerprinting row in the Advanced section of the Aerie Guard panel. The same name as the global setting in Settings. The row has a switch that turns fingerprinting protection on or off for the site of the open page.">
+    Fingerprinting protection
+  </message>
+  <message name="IDS_AERIE_GUARD_PANEL_FINGERPRINTING_ON" desc="Status line under the fingerprinting row of the Aerie Guard panel when fingerprinting protection is on for the site of the open page.">
+    On for this site
+  </message>
+  <message name="IDS_AERIE_GUARD_PANEL_FINGERPRINTING_OFF" desc="Status line under the fingerprinting row of the Aerie Guard panel when the user turned fingerprinting protection off for the site of the open page. The page then sees the real values.">
+    Off for this site
+  </message>
+  <message name="IDS_AERIE_GUARD_PANEL_FINGERPRINTING_SCOPE" desc="Line under the fingerprinting switch of the Aerie Guard panel. It says what the switch changes: the site and every subdomain of it.">
+    Applies to <ph name="HOST">$1<ex>news.example</ex></ph> and its subdomains
+  </message>
+  <message name="IDS_AERIE_GUARD_PANEL_FINGERPRINTING_INCOGNITO" desc="Line under the fingerprinting switch of the Aerie Guard panel in an incognito window. A change lasts for this incognito session only and is not saved.">
+    For this private session only. Nothing is saved.
+  </message>
+  <message name="IDS_AERIE_GUARD_PANEL_FINGERPRINTING_OFF_IN_SETTINGS" desc="Status of the fingerprinting row of the Aerie Guard panel when fingerprinting protection is off for the whole browser. There is no switch then, because the switch is in Settings.">
+    Off in Settings
+  </message>
+  <message name="IDS_AERIE_GUARD_PANEL_FINGERPRINTING_SETTINGS_LINK" desc="Link next to Off in Settings in the fingerprinting row of the Aerie Guard panel. Opens the Settings page where the user turns fingerprinting protection on.">
+    Open Settings
+  </message>
+  <message name="IDS_AERIE_GUARD_PANEL_FINGERPRINTING_UNAVAILABLE" desc="Status of the fingerprinting row of the Aerie Guard panel when this build of the browser has no fingerprinting protection to switch.">
+    Not available
+  </message>
+  <message name="IDS_AERIE_GUARD_PANEL_RELOAD_TO_APPLY" desc="Prompt in the Aerie Guard panel after the user changed the fingerprinting switch. The open page still shows the old values until it reloads.">
+    Reload this page to apply the change.
+  </message>
+  <message name="IDS_AERIE_GUARD_PANEL_RELOAD" desc="Button in the Aerie Guard panel that reloads the open page so a changed setting applies.">
+    Reload
+  </message>
+  <message name="IDS_AERIE_GUARD_PANEL_SURFACES_HEADING" desc="Heading of the list in the Aerie Guard panel that shows what fingerprinting protection changes on a page. The list is collapsed until the user opens it.">
+    What this protects
+  </message>
+  <message name="IDS_AERIE_GUARD_PANEL_SURFACE_CANVAS" desc="Item of the list of what fingerprinting protection changes. Canvas: the pixels a page reads back from a canvas get small random noise.">
+    Canvas image data gets small random noise
+  </message>
+  <message name="IDS_AERIE_GUARD_PANEL_SURFACE_AUDIO" desc="Item of the list of what fingerprinting protection changes. Audio: the samples a page reads from the audio engine get small random noise.">
+    Audio output gets small random noise
+  </message>
+  <message name="IDS_AERIE_GUARD_PANEL_SURFACE_CPU_CORES" desc="Item of the list of what fingerprinting protection changes. The number of processor cores a page can read is changed.">
+    The reported number of CPU cores gets small random noise
+  </message>
+  <message name="IDS_AERIE_GUARD_PANEL_SURFACE_DEVICE_MEMORY" desc="Item of the list of what fingerprinting protection changes. The amount of memory a page can read is capped at 8 GB.">
+    The reported device memory is capped at 8 GB
+  </message>
+  <message name="IDS_AERIE_GUARD_PANEL_SURFACE_GRAPHICS_CARD" desc="Item of the list of what fingerprinting protection changes. The graphics card name that WebGL and WebGPU report is reduced to the vendor family.">
+    The graphics card is reported as its vendor family only
+  </message>
+  <message name="IDS_AERIE_GUARD_PANEL_SURFACE_SCREEN" desc="Item of the list of what fingerprinting protection changes. The screen size is reported as a common size and the window position as 0,0.">
+    The screen size is reported as a common size, and the window position as 0,0
+  </message>
   <message name="IDS_AERIE_GUARD_PANEL_FILTER_LISTS" desc="Link at the bottom of the Aerie Guard panel. Opens the page where the user manages the filter lists.">
     Filter lists…
   </message>
