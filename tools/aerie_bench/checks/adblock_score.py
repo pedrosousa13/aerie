@@ -7,7 +7,8 @@ offline, so a train can record the number and later work (#103 to #110) can be c
 * The list is not in the repo (CC BY-NC-SA 4.0). ``adblock_hosts.lock.json`` pins its URL, sha256, size
   and date. The Bench downloads and verifies it, or uses the verified copy in ``<build root>/downloads``
   (``aerie_bench.adblock_hosts``). With neither, the check skips and says why.
-* Every listed host is mapped to the loopback fixture server (``--host-resolver-rules``). The page
+* Every listed host is mapped to the loopback fixture server (``--host-resolver-rules``) in a browser of its own,
+  so the shared browser's NetLog (judged by ``zero_traffic`` and others) never holds these requests. The page
   ``/adblock/index.html`` sends one HEAD ``fetch`` (``mode: 'no-cors'``) per host, as the source test does.
   Nothing leaves the machine: a blocked request fails with ``net::ERR_BLOCKED_BY_CLIENT`` and never reaches the
   network stack (no NetLog request and no host lookup for it), and a request that gets through only reaches the
@@ -106,6 +107,19 @@ def compare(score: dict, baseline: dict, hostlist_sha256: str | None,
             "baseline": {"blocked": was["blocked"], "total": was["total"]}}
 
 
+def _final_outcome(host: str, outcomes: dict[str, dict], port: int) -> tuple[dict | None, bool]:
+    """The outcome of a host's request, and whether it is the https hop of a browser upgrade. A host under an
+    HSTS preload entry (ads.youtube.com, ads.pinterest.com) answers the http request with an internal 307 to
+    the same address over https. The filter judged the first hop and let it by; the https hop then fails (the
+    fixture server speaks http) or is blocked, and that hop is the outcome."""
+    oc = outcomes.get(probe_url(host, port))
+    if oc is not None and oc["state"] == "redirected":
+        upgraded = outcomes.get(probe_url(host, port).replace("http://", "https://", 1))
+        if upgraded is not None:
+            return upgraded, True
+    return oc, False
+
+
 def judge(categories: dict[str, list[str]], outcomes: dict[str, dict], port: int, netlog_hosts: set[str],
           fixture_hosts: set[str], baseline: dict | None, hostlist_sha256: str | None = None,
           threshold_points: float = DROP_THRESHOLD_POINTS) -> tuple[str, str, dict]:
@@ -117,14 +131,15 @@ def judge(categories: dict[str, list[str]], outcomes: dict[str, dict], port: int
     unjudged: dict[str, str] = {}
     for hosts in categories.values():
         for host in hosts:
-            oc = outcomes.get(probe_url(host, port))
+            oc, upgraded = _final_outcome(host, outcomes, port)
             if oc is not None and oc["state"] == "blocked":
                 if host in fixture_hosts:
                     problems.append(f"blocked in DevTools but the request reached the fixture server: {host}")
                 elif host in netlog_hosts:
                     problems.append(f"blocked in DevTools but the NetLog has a request or lookup for it: {host}")
                 state[host] = "blocked"
-            elif (oc is not None and oc["state"] == "loaded") or host in fixture_hosts:
+            elif (oc is not None and (oc["state"] == "loaded" or (upgraded and oc["state"] == "failed"))) \
+                    or host in fixture_hosts:
                 state[host] = "through"
             else:
                 why = "never requested" if oc is None else f"{oc['state']}: {oc['error'] or oc['status']}"
@@ -189,9 +204,9 @@ class AdblockScore:
         self._online: dict | None = None
         self._live: dict | None = None
 
-    def browser_flags(self, server) -> tuple[str, ...]:
-        """Resolve the pinned list and map every host in it to the fixture server (asked once, before launch)."""
-        self._port = server.port
+    def resolver_flags(self, port: int) -> tuple[str, ...]:
+        """Resolve the pinned list and map every host in it to the fixture server."""
+        self._port = port
         try:
             self.pin = adblock_hosts.load_pin(self.pin_path)
             kwargs = {"opener": self.opener} if self.opener else {}
@@ -211,12 +226,24 @@ class AdblockScore:
     def run(self, session: Session) -> CheckResult:
         if self.baseline_path:
             self._baseline()  # a baseline that cannot be read fails before the browser does any work
+        flags = self.resolver_flags(session.fixtures.port)
         if self.online_seconds > 0:
             self._online = self._run_online(session)
         if self._error:
             return CheckResult(self.name, "error", self._error)
         if self._skip:
             return CheckResult(self.name, "skip", self._skip)
+        # A browser of its own: the host rules and the requests to 127 fake hosts stay out of the NetLog that
+        # the shared browser's checks (zero_traffic, widevine_opt_in) judge.
+        with session.variant(flags, None) as browser:
+            outcomes = self._load_page(browser)
+        netlog_hosts = {_host_of(u) for u in netlog.all_urls(browser.netlog)}
+        netlog_hosts |= {l["host"] for l in browser.netlog_lookups}
+        other = sorted({r["host"] for r in netlog.external(browser.netlog) if r.get("host")})
+        self._live = {"outcomes": outcomes, "netlog_hosts": netlog_hosts, "other_external_hosts": other}
+        return CheckResult(self.name, "pending")
+
+    def _load_page(self, session: Session) -> dict[str, dict]:
         hosts = [h for hs in self.categories.values() for h in hs]
         session.cdp("Network.enable")
         session.navigate(PAGE)
@@ -230,10 +257,8 @@ class AdblockScore:
             done = bool(session.evaluate("window.adblockDone === true"))
             if (done and not any(o["state"] == "pending" for o in outcomes.values())) \
                     or time.monotonic() > deadline:
-                break
+                return outcomes
             time.sleep(0.2)
-        self._live = {"outcomes": outcomes}
-        return CheckResult(self.name, "pending")
 
     def _run_online(self, session: Session) -> dict:
         """The live page in a second browser (the main one resolves nothing but loopback)."""
@@ -252,8 +277,7 @@ class AdblockScore:
                 result.data = {**result.data, "online": online}
                 result.detail = (result.detail + " | " if result.detail else "") + "online (informational): " + _online_line(online)
             return result
-        netlog_hosts = {_host_of(u) for u in netlog.all_urls(session.netlog)}
-        netlog_hosts |= {l["host"] for l in session.netlog_lookups}
+        netlog_hosts = self._live["netlog_hosts"]
         listed = {h for hs in self.categories.values() for h in hs}
         fixture_hosts = set()
         for r in session.fixtures.snapshot():
@@ -267,8 +291,7 @@ class AdblockScore:
                                      fixture_hosts, baseline, self.pin.sha256 if self.pin else None)
         data["hostlist"] = {"url": self.pin.url, "sha256": self.pin.sha256, "date": self.pin.date,
                             "source": self.hostlist.source, "note": self.hostlist.note, "hosts": len(listed)}
-        data["other_external_hosts"] = sorted({r["host"] for r in netlog.external(session.netlog)
-                                               if r.get("host") and r["host"] not in listed})
+        data["other_external_hosts"] = [h for h in self._live["other_external_hosts"] if h not in listed]
         if online is not None:
             data["online"] = online
             detail += " | online (informational): " + _online_line(online)

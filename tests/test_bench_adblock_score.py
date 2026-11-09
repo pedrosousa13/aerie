@@ -95,6 +95,32 @@ class ScoreTest(unittest.TestCase):
         self.assertIn("could not be judged", detail)
         self.assertIn("ERR_CONNECTION_REFUSED", detail)
 
+    def test_an_hsts_upgrade_is_judged_by_its_https_hop(self):
+        # Real build, train 14: ads.youtube.com and ads.pinterest.com sit under an HSTS preload entry, so the
+        # http request gets an internal 307 to https and DevTools reports two hops under one request id.
+        def hop(host, state, error=None):
+            return {"url": sc.probe_url(host, PORT).replace("http://", "https://", 1), "type": "Fetch",
+                    "state": state, "error": error, "status": None}
+        redirected = lambda host: {**loaded(host), "state": "redirected", "status": 307}
+        oc = outcomes(blocked=ALL[:2], loaded=ALL[4:])
+        oc[url("a3.example.net")] = redirected("a3.example.net")
+        oc[hop("a3.example.net", "failed", "net::ERR_SSL_PROTOCOL_ERROR")["url"]] = hop("a3.example.net", "failed", "net::ERR_SSL_PROTOCOL_ERROR")
+        oc[url("a4.example.net")] = redirected("a4.example.net")
+        oc[hop("a4.example.net", "blocked", sc.BLOCKED_ERROR)["url"]] = hop("a4.example.net", "blocked", sc.BLOCKED_ERROR)
+        status, detail, data = judge(oc)
+        self.assertEqual(status, "pass", detail)
+        self.assertIn("a3.example.net", data["score"]["through_hosts"])
+        self.assertIn("a4.example.net", data["score"]["blocked_hosts"])
+        self.assertEqual(data["score"]["unjudged"], [])
+
+    def test_a_redirect_with_no_https_hop_cannot_be_judged(self):
+        oc = outcomes(blocked=ALL[:2], loaded=ALL[4:])
+        oc[url("a3.example.net")] = {**loaded("a3.example.net"), "state": "redirected", "status": 302}
+        oc.update(outcomes(blocked=["a4.example.net"]))
+        status, detail, data = judge(oc)
+        self.assertEqual(status, "fail")
+        self.assertEqual(data["score"]["unjudged"], ["a3.example.net"])
+
     def test_the_data_records_which_list_was_used(self):
         _, _, data = judge(outcomes(blocked=ALL))
         self.assertEqual(data["hostlist_sha256"], "f" * 64)
@@ -242,11 +268,9 @@ def offline_opener(request):
     raise urllib.error.URLError("no route")
 
 
-class FakeServer:
+class FakeFixtures:
     port = PORT
 
-
-class FakeFixtures:
     def __init__(self, hosts):
         self.hosts = hosts
 
@@ -265,6 +289,7 @@ class FakeSession:
         self.netlog_lookups = []
         self.variant_launcher = None if online is None else (lambda *a, **k: None)
         self.online = online
+        self.variant_calls = []
         self.fixtures = FakeFixtures([])
 
     def cdp(self, method, params=None):
@@ -295,12 +320,17 @@ class FakeSession:
         return events
 
     def variant(self, flags, prefs, profile=None):
+        """The offline page loads in a browser of its own (this fake plays it); the online page in `online`."""
         import contextlib
 
         @contextlib.contextmanager
         def ctx():
-            self.variant_flags = flags
-            yield self.online
+            self.variant_calls.append(flags)
+            if flags == sc.ONLINE_FLAGS:
+                self.variant_flags = flags
+                yield self.online
+            else:
+                yield self
         return ctx()
 
 
@@ -323,16 +353,26 @@ class CheckTest(unittest.TestCase):
                                settle_seconds=2.0, **kw)
 
     def run_check(self, check, session):
-        flags = check.browser_flags(FakeServer())
         result = check.run(session)
-        return flags, check.finalize(session, result)
+        return session.variant_calls, check.finalize(session, result)
 
     def test_flags_map_the_listed_hosts_to_loopback(self):
         check = self.check()
-        flags = check.browser_flags(FakeServer())
+        flags = check.resolver_flags(PORT)
         self.assertEqual(len(flags), 1)
         for host in ("a1.example.net", "a2.example.net", "t1.example.org"):
             self.assertIn(f"MAP {host} 127.0.0.1", flags[0])
+
+    def test_the_hosts_are_mapped_in_a_browser_of_its_own_not_in_the_shared_one(self):
+        # The shared browser's NetLog is what zero_traffic and widevine_opt_in judge: requests to a
+        # hundred ad hosts must not land in it (train 14: they made both fail).
+        check = self.check()
+        self.assertFalse(hasattr(check, "browser_flags"))
+        session = FakeSession(["a1.example.net"], self.dir)
+        calls, result = self.run_check(check, session)
+        self.assertEqual(len(calls), 1)
+        self.assertIn("MAP a1.example.net 127.0.0.1", calls[0][0])
+        self.assertEqual(result.status, "pass", result.detail)
 
     def test_a_blocking_browser_scores_and_writes_the_baseline_artifact(self):
         session = FakeSession(["a1.example.net", "a2.example.net"], self.dir)
@@ -371,7 +411,7 @@ class CheckTest(unittest.TestCase):
     def test_no_network_and_no_cache_skips_with_the_reason_and_touches_no_page(self):
         session = FakeSession([], self.dir)
         flags, result = self.run_check(self.check(opener=offline_opener), session)
-        self.assertEqual((flags, result.status), ((), "skip"))
+        self.assertEqual((flags, result.status), ([], "skip"))  # no browser was started
         self.assertIn("no usable cache", result.detail)
         self.assertEqual(session.sent, [])
 
@@ -390,7 +430,6 @@ class CheckTest(unittest.TestCase):
 
     def test_an_unreadable_baseline_is_an_error(self):
         check = self.check(baseline=str(self.dir / "missing.json"))
-        check.browser_flags(FakeServer())
         with self.assertRaises(sc.BaselineError):
             check.run(FakeSession([], self.dir))
 

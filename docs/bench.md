@@ -534,7 +534,7 @@ sha256. A verified download is cached in `<build root>/downloads/adblock-hosts-<
 current one). A train without a network uses that verified copy. With neither a network nor a verified copy the check
 reports `skip` and says why; it never passes silently. A download that does not match the pin is an `error`, not a skip.
 
-Every listed host is mapped to the loopback fixture server with `--host-resolver-rules`, and the page
+Every listed host is mapped to the loopback fixture server with `--host-resolver-rules` in a browser of its own (the shared browser's NetLog, which `zero_traffic` and `widevine_opt_in` judge, never holds these requests), and the page
 `/adblock/index.html` sends one request per host, as the source test does: a HEAD `fetch` with `mode: 'no-cors'` for
 `/fakepage.html`. The request goes over plain http to the fixture server, because that server is http. A host rule such as `||host^` matches either scheme; a rule anchored to `https://` would not match here. The check reads each request's outcome from DevTools and from the fixture server's log:
 
@@ -544,6 +544,8 @@ Every listed host is mapped to the loopback fixture server with `--host-resolver
 | got through | A response arrived, or the fixture server saw the request. |
 | leak | Blocked in DevTools but the NetLog or the fixture server saw the host. Fails the check. |
 | not judged | Never requested, or failed for another reason. Fails the check, so a broken run never gives a score. |
+
+A host under an HSTS preload entry (`ads.youtube.com`, `ads.pinterest.com`) gets an internal 307 to https from the browser; the check judges the https hop (blocked, or failed because the fixture server speaks http, which counts as got through).
 
 The score is blocked / total, overall and per category, in the check's message and in `checks[].data.score` of
 `results.json` (`overall`, `categories`, `blocked_hosts`, `through_hosts`, `unjudged`). The message lists every host that
