@@ -125,6 +125,18 @@ class UpdateTest(unittest.TestCase):
             self.assertEqual(self.lock.read_text(), before)
             self.assertEqual((self.dir / "example_list.txt").read_bytes(), b"old\n")
 
+    def test_update_refuses_a_redirect_to_http_and_pins_nothing(self):
+        before = self.lock.read_text()
+
+        class ToHttp(io.BytesIO):
+            status = 302
+            headers = {"Location": "http://evil.example/list.txt"}
+
+        with self.assertRaisesRegex(fl.ListError, "not https"):
+            pl.update(self.lock, lambda request: ToHttp(), lambda m: None)
+        self.assertEqual(self.lock.read_text(), before)
+        self.assertEqual((self.dir / "example_list.txt").read_bytes(), b"old\n")
+
     def test_update_refuses_a_list_without_a_generated_header(self):
         data = b"# Title: Example List | x\nevil.example\n"
         with self.assertRaisesRegex(fl.ListError, "Generated"):

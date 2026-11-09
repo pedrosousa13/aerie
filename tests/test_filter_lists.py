@@ -42,6 +42,69 @@ class Opener:
         return io.BytesIO(self.files[request.full_url])
 
 
+class Redirect(io.BytesIO):
+    """A 3xx answer from a fake opener that does not follow redirects."""
+
+    def __init__(self, location, status=302):
+        super().__init__(b"")
+        self.status = status
+        self.headers = {"Location": location}
+
+
+class RedirectingOpener:
+    def __init__(self, answers):
+        self.answers = answers
+        self.requested = []
+
+    def __call__(self, request):
+        self.requested.append(request.full_url)
+        answer = self.answers[request.full_url]
+        return answer() if callable(answer) else (io.BytesIO(answer) if isinstance(answer, bytes) else answer)
+
+
+class DownloadRedirectTest(unittest.TestCase):
+    def test_https_to_http_is_refused(self):
+        opener = RedirectingOpener({URL_A: Redirect("http://evil.example/a.txt")})
+        with self.assertRaisesRegex(fl.ListError, "not https"):
+            fl._download(URL_A, opener)
+        self.assertEqual(opener.requested, [URL_A])  # the http URL is never requested
+
+    def test_https_to_https_is_followed_and_the_final_url_returned(self):
+        final = "https://cdn.example/a.txt"
+        opener = RedirectingOpener({URL_A: Redirect(final, 301), final: A})
+        data, final_url = fl._download(URL_A, opener)
+        self.assertEqual((data, final_url), (A, final))
+
+    def test_a_relative_location_resolves_against_the_current_url(self):
+        opener = RedirectingOpener({URL_A: Redirect("/moved/a.txt", 308), "https://lists.example/moved/a.txt": A})
+        self.assertEqual(fl._download(URL_A, opener)[1], "https://lists.example/moved/a.txt")
+
+    def test_too_many_redirects_are_refused(self):
+        opener = RedirectingOpener({URL_A: Redirect(URL_A)})
+        with self.assertRaisesRegex(fl.ListError, "too many redirects"):
+            fl._download(URL_A, opener)
+
+    def test_an_opener_that_followed_to_http_by_itself_is_caught_by_the_final_url(self):
+        class Followed(io.BytesIO):
+            def geturl(self):
+                return "http://evil.example/a.txt"
+        with self.assertRaisesRegex(fl.ListError, "not https"):
+            fl._download(URL_A, lambda request: Followed(A))
+
+    def test_a_redirect_without_a_location_is_refused(self):
+        class Bare(io.BytesIO):
+            status = 302
+            headers = {}
+        with self.assertRaisesRegex(fl.ListError, "Location"):
+            fl._download(URL_A, lambda request: Bare())
+
+    def test_the_default_list_opener_does_not_follow_redirects(self):
+        import urllib.request
+        handler = fl.NoRedirect()
+        req = urllib.request.Request(URL_A)
+        self.assertIsNone(handler.redirect_request(req, None, 302, "Found", {}, "http://evil.example/"))
+
+
 class VerifyDirTest(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -132,6 +195,19 @@ class UpdateTest(unittest.TestCase):
         self.assertEqual(doc["lists"][0]["sha256"], hashlib.sha256(newer).hexdigest())
         self.assertEqual((self.dir / "a.txt").read_bytes(), newer)
         fl.verify_dir(fl.load_lock(self.lock), self.dir)  # what was written is what the lock says
+
+    def test_update_refuses_a_redirect_to_http_and_pins_nothing(self):
+        before = self.lock.read_text()
+        with self.assertRaisesRegex(fl.ListError, "not https"):
+            fl.update(self.lock, RedirectingOpener({URL_A: Redirect("http://evil.example/a.txt")}), lambda m: None)
+        self.assertEqual(self.lock.read_text(), before)
+        self.assertEqual((self.dir / "a.txt").read_bytes(), b"old\n")
+
+    def test_update_records_where_the_bytes_came_from(self):
+        final = "https://cdn.example/a.txt"
+        newer = list_bytes("List A", "101")
+        fl.update(self.lock, RedirectingOpener({URL_A: Redirect(final), final: newer}), lambda m: None)
+        self.assertEqual(json.loads(self.lock.read_text())["lists"][0]["final_url"], final)
 
     def test_update_refuses_a_list_with_the_wrong_title_and_changes_nothing(self):
         before = self.lock.read_text()

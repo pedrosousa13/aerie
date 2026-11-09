@@ -359,7 +359,7 @@ easylist.to stays the recorded source, but it always serves the newest list, so
 the lists change only through a reviewed commit:
 
 ```
-./aerie lists update      # downloads both, checks title and version, writes the files and the lock
+./aerie lists update      # downloads both over https only (a redirect to http is refused), checks title and version, writes the files and the lock (with the final URL)
 git diff --stat overlay/third_party/filter_lists/
 ```
 
