@@ -29,6 +29,8 @@ hardening/0009-stable-audio-noise-per-site-and-session.patch
 hardening/0010-mask-the-gpu-in-webgl-and-webgpu.patch
 hardening/0011-key-fingerprinting-noise-on-the-site.patch
 hardening/0012-cap-device-memory-at-8gb.patch
+hardening/0013-give-dedicated-workers-the-pages-noise-tokens.patch
+hardening/0014-give-shared-and-service-workers-noise-tokens.patch
 
 adblock/0001-hook-url-loader-factory.patch
 adblock/0002-pack-engine-resource.patch

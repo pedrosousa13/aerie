@@ -7,8 +7,8 @@ come from components/aerie_gpu_info/gpu_info.cc; a unit test keeps ``MASKED`` eq
 
 Negative controls, each a second browser: ``--disable-features=HeliumNoiseWebGL`` must show the real
 strings, and so must protection turned off for the whole browser or for one site. The site that still has
-protection on in the per-site browser must stay masked. Workers are not judged in those browsers: a worker
-has no tokens yet (issue #113), so it masks even when its site has protection off.
+protection on in the per-site browser must stay masked. A worker follows the same switches as its page (issue
+#113): where the page shows the real strings so does its worker, and b.localhost's worker stays masked.
 """
 
 from __future__ import annotations
@@ -133,6 +133,16 @@ class FingerprintingGpu(HardeningCheck):
             worker = readings[key].get("worker")
             if family_of(worker) != families[key]:
                 return "fail", f"a worker on {key} did not report the family strings: {worker}"
+        # A worker follows the same switches as its page (issue #113). A null worker reading means this
+        # build has no WebGL in workers, which the masked case above already ruled out for the protected sites.
+        site_off_b_worker = readings["site_off_b"].get("worker")
+        if site_off_b_worker and family_of(site_off_b_worker) != families["site_off_b"]:
+            return "fail", f"a worker on b.localhost lost protection when only a.localhost was turned off: {site_off_b_worker}"
+        for key in ("global_off", "site_off_a"):
+            worker = readings[key].get("worker")
+            if worker and "error" not in worker and worker != control:
+                return "fail", (f"a worker with protection off ({key}) did not give the real strings: "
+                                f"{worker.get('vendor')} / {worker.get('renderer')}")
         # WebGPU.
         states = {key: webgpu_state(readings[key]) for key in readings}
         for key in ("a", "b", "site_off_b"):
@@ -150,4 +160,4 @@ class FingerprintingGpu(HardeningCheck):
         webgpu = ("WebGPU adapter info empty" if states["a"] == "empty"
                   else "WebGPU gave no adapter here, so its info was not tested")
         return "pass", (f"WebGL reports the {families['a']} family strings, on the page and in a worker; {webgpu}; "
-                        "the real strings come back with the feature, the whole browser or the site turned off")
+                        "the real strings come back with the feature, the whole browser or the site turned off, in workers too")

@@ -18,7 +18,7 @@
     const i = adapter.info;
     return {adapter: true, vendor: i.vendor, architecture: i.architecture, device: i.device, description: i.description};
   }
-  // The same two reads inside a dedicated worker, which has no noise tokens.
+  // The same two reads inside a dedicated worker, which gets its page's noise tokens (issue #113).
   function inWorker() {
     const src = `
       const gl = new OffscreenCanvas(4, 4).getContext('webgl');

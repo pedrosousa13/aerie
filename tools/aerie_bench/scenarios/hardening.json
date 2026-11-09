@@ -13,6 +13,7 @@
     "hardening_fingerprinting",
     "hardening_fingerprinting_gpu",
     "hardening_fingerprinting_site",
+    "hardening_fingerprinting_worker",
     "hardening_device_memory",
     "hardening_extension_prefs",
     "hardening_pref_defaults",

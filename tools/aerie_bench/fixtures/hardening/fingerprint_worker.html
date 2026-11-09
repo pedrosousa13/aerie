@@ -1,0 +1,36 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Aerie Bench Worker Fingerprint</title></head>
+<body>
+<p>Measures a canvas read-back and the core count in the page, in a dedicated worker and in a shared worker.</p>
+<script src="fingerprint_measure.js"></script>
+<script>
+  window.__done = false;
+  const timeout = (ms) => new Promise((resolve) => setTimeout(() => resolve({error: 'timeout'}), ms));
+  function dedicated() {
+    return Promise.race([new Promise((resolve) => {
+      try {
+        const w = new Worker('fingerprint_worker.js');
+        w.onmessage = (e) => resolve(e.data);
+        w.onerror = (e) => resolve({error: String(e.message || e)});
+      } catch (e) { resolve({error: String(e)}); }
+    }), timeout(8000)]);
+  }
+  function shared() {
+    return Promise.race([new Promise((resolve) => {
+      try {
+        const w = new SharedWorker('fingerprint_worker.js');
+        w.port.onmessage = (e) => resolve(e.data);
+        w.onerror = (e) => resolve({error: String(e.message || e)});
+        w.port.start();
+      } catch (e) { resolve({error: String(e)}); }
+    }), timeout(8000)]);
+  }
+  (async () => {
+    try {
+      window.__result = {window: measureContext(document.createElement('canvas')),
+                         dedicated: await dedicated(), shared: await shared()};
+    } catch (e) { window.__result = {error: String(e)}; }
+    window.__done = true;
+  })();
+</script>
+</body></html>
