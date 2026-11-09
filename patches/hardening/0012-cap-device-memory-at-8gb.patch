@@ -1,41 +1,237 @@
-Aerie-Purpose: Cap the reported device memory (navigator.deviceMemory, workers, Device-Memory and Sec-CH-Device-Memory) at 8 GB on desktop, so a machine with more memory looks like the common 8 GB one.
-Aerie-Upstream-Area: third_party/blink/common/device_memory/approximated_device_memory.cc (ApproximatedDeviceMemory::CalculateAndSetApproximatedDeviceMemory)
+Aerie-Purpose: Cap the reported device memory (navigator.deviceMemory, workers, Device-Memory and Sec-CH-Device-Memory) at 8 GB on desktop only while fingerprinting protection is on for the page, so a machine with more memory looks like the common 8 GB one and the real bucket is reported when protection is off (issues #115 and #124).
+Aerie-Upstream-Area: third_party/blink/common/device_memory/approximated_device_memory.cc, third_party/blink/renderer/core/frame/navigator_device_memory.cc, third_party/blink/renderer/core/loader/frame_fetch_context.cc (client hints), content/browser/client_hints/client_hints.cc (AddDeviceMemoryHeader)
 Aerie-Kind: hook
 
 Upstream clamps the value to 2..32 GB on desktop (crbug.com/454354290 raised the top
-from 8 to 32) and to 1..8 GB on Android. This patch sets the desktop top to 8 while the
-HeliumNoise feature is enabled. One edit covers navigator.deviceMemory in windows and
-workers and both client hint headers, because they all read the same cached value.
+from 8 to 32) and to 1..8 GB on Android. The cached process-wide value is left at
+upstream's real bucket. A new overload, GetApproximatedDeviceMemory(bool), applies the
+8 GB cap for a caller that says its context is protected. The process-wide static does not
+decide anything, because one process can serve a protected page and an unprotected one.
 
-The cap follows the HeliumNoise feature only. It does not read the helium.noise.enabled
-pref or the per-site HELIUM_NOISE content setting, so it stays at 8 when fingerprinting
-protection is turned off, globally or for one site. This is the one exception to "off
-restores the real value", decided in issue #115: a site that sees the real 32 learns
-something about the machine and helps nobody. There is no farbling. A machine with less
-than 8 GB keeps its real bucket (the lower clamp of 2 GB is unchanged). Starting the
-browser with --disable-features=HeliumNoise lifts the cap; the Bench uses that as its
-negative control.
+Every reader decides per context:
+- navigator.deviceMemory (NavigatorDeviceMemory::ShouldCapDeviceMemory): capped when the
+  HeliumNoise feature is on and the window has a Helium noise token (kHardware). The browser
+  sends noise tokens only when the helium.noise.enabled pref is on and the site has no per-site
+  off, so a token means "protected here", the same rule as ShouldMaskGpuInfoForContext
+  (#112). A worker has no tokens yet, so it fails closed and is capped while the feature is
+  on, even when protection is off, until issue #113 gives workers tokens. The decision reads
+  nothing the page can set.
+- Device-Memory and Sec-CH-Device-Memory on requests that the renderer builds
+  (FrameFetchContext): the same helper, on the requesting window.
+- The two headers that the browser adds to navigations (client_hints.cc): decided in the
+  browser process for the main frame site, with ContentBrowserClient::HeliumNoiseEnabled, which
+  reads the pref and the helium_noise content setting (and is false when the HeliumNoise
+  feature is off). A missing browser context is capped while the feature is on.
 
-The value is computed lazily, on the first Initialize(), which the browser reaches from
-client hint header code (after base::FeatureList is set up) and the renderer from
-Platform::InitializeMainThreadCommon (after the child process feature list), so the feature
-check reads a live FeatureList in both.
+When protection is off, globally or for the site, the real bucket is reported. There is no
+farbling. A machine with less than 8 GB keeps its real bucket (the lower clamp of 2 GB is
+unchanged). Starting the browser with --disable-features=HeliumNoise lifts the cap
+everywhere; the Bench uses that as its negative control. A per-site setting made in a private
+window stays in memory (HELIUM_NOISE does not inherit into incognito and the off-the-record
+profile is never written to disk), see hardening/0011.
 
+--- a/content/browser/client_hints/client_hints.cc
++++ b/content/browser/client_hints/client_hints.cc
+@@ -237,12 +237,29 @@
+   headers->RemoveHeader(network::GetClientHintToNameMap().at(client_hint_type));
+ }
+ 
++// Aerie (issue #124): the 8 GB cap applies only while fingerprinting protection
++// is on for the site the user is on. The decision is the one that gives the
++// page its noise tokens: the pref and the per-site setting, read in the browser
++// process (HeliumNoiseEnabled is false when either is off, or when the
++// HeliumNoise feature is off). A missing browser context is capped while the
++// feature is on, so this fails closed.
++bool ShouldCapDeviceMemoryHeader(BrowserContext* context,
++                                 const url::Origin& main_frame_origin) {
++  if (!context) {
++    return base::FeatureList::IsEnabled(blink::features::kHeliumNoise);
++  }
++  return GetContentClient()->browser()->HeliumNoiseEnabled(
++      context, main_frame_origin.GetURL());
++}
++
+ void AddDeviceMemoryHeader(net::HttpRequestHeaders* headers,
++                           bool cap_device_memory,
+                            bool use_deprecated_version = false) {
+   CHECK(headers, base::NotFatalUntil::M160);
+   blink::ApproximatedDeviceMemory::Initialize();
+   const float device_memory =
+-      blink::ApproximatedDeviceMemory::GetApproximatedDeviceMemory();
++      blink::ApproximatedDeviceMemory::GetApproximatedDeviceMemory(
++          cap_device_memory);
+   CHECK_LT(0.0, device_memory, base::NotFatalUntil::M160);
+   SetHeaderToDouble(headers,
+                     use_deprecated_version
+@@ -879,11 +896,14 @@
+   GURL url = origin.GetURL();
+ 
+   // Add Headers
++  const bool cap_device_memory =
++      ShouldCapDeviceMemoryHeader(context, data.main_frame_origin);
+   if (ShouldAddClientHint(data, WebClientHintsType::kDeviceMemory_DEPRECATED)) {
+-    AddDeviceMemoryHeader(headers, /*use_deprecated_version*/ true);
++    AddDeviceMemoryHeader(headers, cap_device_memory,
++                          /*use_deprecated_version*/ true);
+   }
+   if (ShouldAddClientHint(data, WebClientHintsType::kDeviceMemory)) {
+-    AddDeviceMemoryHeader(headers);
++    AddDeviceMemoryHeader(headers, cap_device_memory);
+   }
+   if (ShouldAddClientHint(data, WebClientHintsType::kDpr_DEPRECATED)) {
+     AddDPRHeader(headers, context, url, /*use_deprecated_version*/ true);
 --- a/third_party/blink/common/device_memory/approximated_device_memory.cc
 +++ b/third_party/blink/common/device_memory/approximated_device_memory.cc
-@@ -71,6 +71,15 @@
-     kMaxMemory = 8.0f;
- #endif
+@@ -31,6 +31,16 @@
+ }
  
-+  // Aerie: cap at 8 GB on desktop too. Machines with more memory are rare, so
-+  // a larger value only tells a site more about this one. This follows the
-+  // HeliumNoise feature alone, not the fingerprinting pref or the per-site
-+  // switch: like the reduced user agent, it is a normalisation that stays on
-+  // when the noise is turned off.
-+  if (base::FeatureList::IsEnabled(features::kHeliumNoise)) {
-+    kMaxMemory = 8.0f;
-+  }
+ // static
++float ApproximatedDeviceMemory::GetApproximatedDeviceMemory(
++    bool protected_context) {
++  // Aerie: Machines with more than 8 GB are rare, so a larger value only tells
++  // a site more about this one. The cap is not applied to the cached value, so
++  // a context without protection still reads the real bucket.
++  const float real = approximated_device_memory_gb_;
++  return protected_context && real > kProtectedMaxGb ? kProtectedMaxGb : real;
++}
 +
-   if (approximated_device_memory_gb_ < kMinMemory) {
-     approximated_device_memory_gb_ = kMinMemory;
-   } else if (approximated_device_memory_gb_ > kMaxMemory) {
++// static
+ void ApproximatedDeviceMemory::CalculateAndSetApproximatedDeviceMemory() {
+   // The calculations in this method are described in the specification:
+   // https://w3c.github.io/device-memory/.
+--- a/third_party/blink/public/common/device_memory/approximated_device_memory.h
++++ b/third_party/blink/public/common/device_memory/approximated_device_memory.h
+@@ -13,6 +13,9 @@
+ 
+ class ApproximatedDeviceMemory {
+  public:
++  // The most a context under fingerprinting protection reports (Aerie).
++  static constexpr float kProtectedMaxGb = 8.0f;
++
+   // Caches the device's physical memory in static members.
+   static void BLINK_COMMON_EXPORT Initialize();
+ 
+@@ -22,6 +25,14 @@
+   // device memory.
+   static float BLINK_COMMON_EXPORT GetApproximatedDeviceMemory();
+ 
++  // Aerie: the value a context reports. `protected_context` is true when
++  // fingerprinting protection is on for it; the desktop value is then capped at
++  // kProtectedMaxGb. Otherwise it is the real bucket. The caller decides, per
++  // execution context or per navigation, from the noise tokens or from the
++  // pref and the per-site setting; this class holds no process-wide decision.
++  static float BLINK_COMMON_EXPORT
++  GetApproximatedDeviceMemory(bool protected_context);
++
+   // Override the value of the physical memory for testing.
+   static void BLINK_COMMON_EXPORT SetPhysicalMemoryMBForTesting(int64_t);
+ 
+--- a/third_party/blink/renderer/core/frame/navigator_device_memory.cc
++++ b/third_party/blink/renderer/core/frame/navigator_device_memory.cc
+@@ -4,15 +4,43 @@
+ 
+ #include "third_party/blink/renderer/core/frame/navigator_device_memory.h"
+ 
++#include "base/feature_list.h"
+ #include "third_party/blink/public/common/device_memory/approximated_device_memory.h"
++#include "third_party/blink/public/common/features.h"
++#include "third_party/blink/public/common/helium_noise/noise_token.h"
+ #include "third_party/blink/public/mojom/use_counter/metrics/web_feature.mojom-shared.h"
+ #include "third_party/blink/renderer/core/dom/document.h"
++#include "third_party/blink/renderer/core/execution_context/execution_context.h"
++#include "third_party/blink/renderer/core/execution_context/navigator_base.h"
+ #include "third_party/blink/renderer/core/frame/local_dom_window.h"
+ 
+ namespace blink {
+ 
++// Aerie (issue #124): whether the 8 GB cap applies to this context. The
++// browser sends noise tokens only when fingerprinting protection is on for the
++// page (the pref is on and the site has no per-site off), so a token means
++// "protected here", as for the GPU (ShouldMaskGpuInfoForContext). A worker has
++// no tokens yet (issue #113) and fails closed: it is capped while the feature
++// is on. Nothing here reads a value the page can set.
++// static
++bool NavigatorDeviceMemory::ShouldCapDeviceMemory(
++    const ExecutionContext* context) {
++  if (!base::FeatureList::IsEnabled(features::kHeliumNoise)) {
++    return false;
++  }
++  if (!context || context->IsWorkerOrWorkletGlobalScope()) {
++    return true;
++  }
++  return context->GetHeliumNoiseTokens().contains(
++      HeliumNoiseFeature::kHardware);
++}
++
+ float NavigatorDeviceMemory::deviceMemory() const {
+-  return ApproximatedDeviceMemory::GetApproximatedDeviceMemory();
++  // NavigatorBase is the only class that includes this mixin.
++  const ExecutionContext* context =
++      static_cast<const NavigatorBase*>(this)->GetExecutionContext();
++  return ApproximatedDeviceMemory::GetApproximatedDeviceMemory(
++      ShouldCapDeviceMemory(context));
+ }
+ 
+ }  // namespace blink
+--- a/third_party/blink/renderer/core/frame/navigator_device_memory.h
++++ b/third_party/blink/renderer/core/frame/navigator_device_memory.h
+@@ -9,9 +9,18 @@
+ 
+ namespace blink {
+ 
++class ExecutionContext;
++
+ class CORE_EXPORT NavigatorDeviceMemory {
+  public:
+   float deviceMemory() const;
++
++  // Aerie (issue #124): whether the 8 GB cap applies to `context`. Shared with
++  // the Device-Memory request headers that the renderer adds. It lives on this
++  // mixin, beside the value it guards, so the window and its requests (via
++  // FrameFetchContext) cannot decide differently. deviceMemory() finds its
++  // context through NavigatorBase, the only class that includes this mixin.
++  static bool ShouldCapDeviceMemory(const ExecutionContext* context);
+ };
+ 
+ }  // namespace blink
+--- a/third_party/blink/renderer/core/loader/frame_fetch_context.cc
++++ b/third_party/blink/renderer/core/loader/frame_fetch_context.cc
+@@ -82,6 +82,7 @@
+ #include "third_party/blink/renderer/core/frame/local_frame.h"
+ #include "third_party/blink/renderer/core/frame/local_frame_client.h"
+ #include "third_party/blink/renderer/core/frame/local_frame_view.h"
++#include "third_party/blink/renderer/core/frame/navigator_device_memory.h"
+ #include "third_party/blink/renderer/core/frame/navigator.h"
+ #include "third_party/blink/renderer/core/frame/settings.h"
+ #include "third_party/blink/renderer/core/html/html_frame_owner_element.h"
+@@ -669,13 +670,19 @@
+ 
+   using network::mojom::blink::WebClientHintsType;
+ 
++  // Aerie (issue #124): capped only while protection is on for this window.
++  const bool cap_device_memory =
++      NavigatorDeviceMemory::ShouldCapDeviceMemory(
++          document_->domWindow());
++
+   if (ShouldSendClientHint(*policy, resource_origin,
+                            WebClientHintsType::kDeviceMemory_DEPRECATED,
+                            hints_preferences)) {
+     request.SetHttpHeaderField(
+         http_names::kDeviceMemory_DEPRECATED,
+         AtomicString(String::Number(
+-            ApproximatedDeviceMemory::GetApproximatedDeviceMemory())));
++            ApproximatedDeviceMemory::GetApproximatedDeviceMemory(
++                cap_device_memory))));
+   }
+ 
+   if (ShouldSendClientHint(*policy, resource_origin,
+@@ -684,7 +691,8 @@
+     request.SetHttpHeaderField(
+         http_names::kDeviceMemory,
+         AtomicString(String::Number(
+-            ApproximatedDeviceMemory::GetApproximatedDeviceMemory())));
++            ApproximatedDeviceMemory::GetApproximatedDeviceMemory(
++                cap_device_memory))));
+   }
+ 
+   if (ShouldSendClientHint(*policy, resource_origin,

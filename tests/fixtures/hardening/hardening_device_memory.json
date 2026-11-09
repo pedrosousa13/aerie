@@ -2,7 +2,7 @@
  "check": "hardening_device_memory",
  "cases": [
   {
-   "name": "capped_with_protection_on_off_and_site_off",
+   "name": "capped_when_on_and_real_when_pref_off_or_site_off",
    "expect": "pass",
    "detail_contains": "",
    "obs": {
@@ -13,16 +13,16 @@
      "legacy_header": "8"
     },
     "pref_off": {
-     "window": 8,
+     "window": 32,
      "worker": 8,
-     "header": "8",
-     "legacy_header": "8"
+     "header": "32",
+     "legacy_header": "32"
     },
     "site_off": {
-     "window": 8,
+     "window": 32,
      "worker": 8,
-     "header": "8",
-     "legacy_header": "8"
+     "header": "32",
+     "legacy_header": "32"
     },
     "control": {
      "window": 32,
@@ -44,16 +44,16 @@
      "legacy_header": "8"
     },
     "pref_off": {
-     "window": 8,
+     "window": 32,
      "worker": 8,
-     "header": "8",
-     "legacy_header": "8"
+     "header": "32",
+     "legacy_header": "32"
     },
     "site_off": {
-     "window": 8,
+     "window": 32,
      "worker": 8,
-     "header": "8",
-     "legacy_header": "8"
+     "header": "32",
+     "legacy_header": "32"
     },
     "control": {
      "window": 32,
@@ -75,16 +75,16 @@
      "legacy_header": "8"
     },
     "pref_off": {
-     "window": 8,
+     "window": 32,
      "worker": 8,
-     "header": "8",
-     "legacy_header": "8"
+     "header": "32",
+     "legacy_header": "32"
     },
     "site_off": {
-     "window": 8,
+     "window": 32,
      "worker": 8,
-     "header": "8",
-     "legacy_header": "8"
+     "header": "32",
+     "legacy_header": "32"
     },
     "control": {
      "window": 32,
@@ -106,16 +106,16 @@
      "legacy_header": "32"
     },
     "pref_off": {
-     "window": 8,
+     "window": 32,
      "worker": 8,
-     "header": "8",
-     "legacy_header": "8"
+     "header": "32",
+     "legacy_header": "32"
     },
     "site_off": {
-     "window": 8,
+     "window": 32,
      "worker": 8,
-     "header": "8",
-     "legacy_header": "8"
+     "header": "32",
+     "legacy_header": "32"
     },
     "control": {
      "window": 32,
@@ -137,16 +137,16 @@
      "legacy_header": null
     },
     "pref_off": {
-     "window": 8,
+     "window": 32,
      "worker": 8,
-     "header": "8",
-     "legacy_header": "8"
+     "header": "32",
+     "legacy_header": "32"
     },
     "site_off": {
-     "window": 8,
+     "window": 32,
      "worker": 8,
-     "header": "8",
-     "legacy_header": "8"
+     "header": "32",
+     "legacy_header": "32"
     },
     "control": {
      "window": 32,
@@ -157,9 +157,9 @@
    }
   },
   {
-   "name": "cap_lost_when_pref_off",
+   "name": "cap_kept_when_pref_off",
    "expect": "fail",
-   "detail_contains": "pref off",
+   "detail_contains": "fingerprinting pref off",
    "obs": {
     "main": {
      "window": 8,
@@ -168,7 +168,7 @@
      "legacy_header": "8"
     },
     "pref_off": {
-     "window": 32,
+     "window": 8,
      "worker": 8,
      "header": "8",
      "legacy_header": "8"
@@ -176,8 +176,8 @@
     "site_off": {
      "window": 32,
      "worker": 8,
-     "header": "8",
-     "legacy_header": "8"
+     "header": "32",
+     "legacy_header": "32"
     },
     "control": {
      "window": 32,
@@ -199,16 +199,16 @@
      "legacy_header": "8"
     },
     "pref_off": {
-     "window": 8,
+     "window": 32,
      "worker": 8,
-     "header": "8",
-     "legacy_header": "8"
+     "header": "32",
+     "legacy_header": "32"
     },
     "site_off": {
-     "window": 8,
+     "window": 32,
      "worker": 8,
-     "header": "8",
-     "legacy_header": "8"
+     "header": "32",
+     "legacy_header": "32"
     },
     "control": {
      "window": 32,
@@ -230,16 +230,16 @@
      "legacy_header": "8"
     },
     "pref_off": {
-     "window": 8,
+     "window": 32,
      "worker": 8,
-     "header": "8",
-     "legacy_header": "8"
+     "header": "32",
+     "legacy_header": "32"
     },
     "site_off": {
-     "window": 8,
+     "window": 32,
      "worker": 8,
-     "header": "8",
-     "legacy_header": "8"
+     "header": "32",
+     "legacy_header": "32"
     },
     "control": {
      "window": 32,
@@ -320,16 +320,16 @@
      "error": "timeout waiting for the fixture page"
     },
     "pref_off": {
-     "window": 8,
+     "window": 32,
      "worker": 8,
-     "header": "8",
-     "legacy_header": "8"
+     "header": "32",
+     "legacy_header": "32"
     },
     "site_off": {
-     "window": 8,
+     "window": 32,
      "worker": 8,
-     "header": "8",
-     "legacy_header": "8"
+     "header": "32",
+     "legacy_header": "32"
     },
     "control": {
      "window": 32,
@@ -351,16 +351,16 @@
      "legacy_header": "32"
     },
     "pref_off": {
-     "window": 8,
+     "window": 32,
      "worker": 8,
-     "header": "8",
-     "legacy_header": "8"
+     "header": "32",
+     "legacy_header": "32"
     },
     "site_off": {
-     "window": 8,
+     "window": 32,
      "worker": 8,
-     "header": "8",
-     "legacy_header": "8"
+     "header": "32",
+     "legacy_header": "32"
     },
     "control": {
      "window": 32,
@@ -382,16 +382,16 @@
      "legacy_header": "8"
     },
     "pref_off": {
-     "window": 8,
+     "window": 32,
      "worker": 8,
-     "header": "8",
+     "header": "32",
      "legacy_header": null
     },
     "site_off": {
-     "window": 8,
+     "window": 32,
      "worker": 8,
-     "header": "8",
-     "legacy_header": "8"
+     "header": "32",
+     "legacy_header": "32"
     },
     "control": {
      "window": 32,
@@ -402,7 +402,7 @@
    }
   },
   {
-   "name": "cap_lost_when_site_off",
+   "name": "cap_kept_when_site_off",
    "expect": "fail",
    "detail_contains": "site switched off",
    "obs": {
@@ -413,13 +413,13 @@
      "legacy_header": "8"
     },
     "pref_off": {
-     "window": 8,
+     "window": 32,
      "worker": 8,
-     "header": "8",
-     "legacy_header": "8"
+     "header": "32",
+     "legacy_header": "32"
     },
     "site_off": {
-     "window": 32,
+     "window": 8,
      "worker": 8,
      "header": "8",
      "legacy_header": "8"
@@ -433,9 +433,9 @@
    }
   },
   {
-   "name": "cap_lost_in_header_when_site_off",
+   "name": "cap_kept_in_header_when_site_off",
    "expect": "fail",
-   "detail_contains": "Sec-CH-Device-Memory 32",
+   "detail_contains": "Sec-CH-Device-Memory 8",
    "obs": {
     "main": {
      "window": 8,
@@ -444,16 +444,16 @@
      "legacy_header": "8"
     },
     "pref_off": {
-     "window": 8,
-     "worker": 8,
-     "header": "8",
-     "legacy_header": "8"
-    },
-    "site_off": {
-     "window": 8,
+     "window": 32,
      "worker": 8,
      "header": "32",
-     "legacy_header": "8"
+     "legacy_header": "32"
+    },
+    "site_off": {
+     "window": 32,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "32"
     },
     "control": {
      "window": 32,
@@ -475,16 +475,16 @@
      "legacy_header": "8"
     },
     "pref_off": {
-     "window": 8,
+     "window": 32,
      "worker": 8,
-     "header": "8",
-     "legacy_header": "8"
+     "header": "32",
+     "legacy_header": "32"
     },
     "site_off": {
-     "window": 8,
+     "window": 32,
      "worker": 8,
-     "header": "8",
-     "legacy_header": "8"
+     "header": "32",
+     "legacy_header": "32"
     },
     "control": {
      "window": 32,
@@ -506,16 +506,16 @@
      "legacy_header": "8"
     },
     "pref_off": {
-     "window": 8,
+     "window": 32,
      "worker": 8,
-     "header": "8",
-     "legacy_header": "8"
+     "header": "32",
+     "legacy_header": "32"
     },
     "site_off": {
-     "window": 8,
+     "window": 32,
      "worker": 8,
-     "header": "8",
-     "legacy_header": "8"
+     "header": "32",
+     "legacy_header": "32"
     },
     "control": {
      "window": 32,
@@ -537,16 +537,16 @@
      "legacy_header": "8"
     },
     "pref_off": {
-     "window": 8,
+     "window": 32,
      "worker": 8,
-     "header": "8",
-     "legacy_header": "8"
+     "header": "32",
+     "legacy_header": "32"
     },
     "site_off": {
-     "window": 8,
+     "window": 32,
      "worker": 8,
-     "header": "8",
-     "legacy_header": "8"
+     "header": "32",
+     "legacy_header": "32"
     },
     "control": {
      "window": 32,
@@ -599,13 +599,168 @@
      "legacy_header": "8"
     },
     "pref_off": {
+     "window": 32,
+     "worker": 8,
+     "header": "32",
+     "legacy_header": "32"
+    },
+    "site_off": {
+     "error": "timeout waiting for the fixture page"
+    },
+    "control": {
+     "window": 32,
+     "worker": 32,
+     "header": "32",
+     "legacy_header": "32"
+    }
+   }
+  },
+  {
+   "name": "legacy_header_capped_when_pref_off",
+   "expect": "fail",
+   "detail_contains": "Device-Memory header 8",
+   "obs": {
+    "main": {
      "window": 8,
      "worker": 8,
      "header": "8",
      "legacy_header": "8"
     },
+    "pref_off": {
+     "window": 32,
+     "worker": 8,
+     "header": "32",
+     "legacy_header": "8"
+    },
     "site_off": {
-     "error": "timeout waiting for the fixture page"
+     "window": 32,
+     "worker": 8,
+     "header": "32",
+     "legacy_header": "32"
+    },
+    "control": {
+     "window": 32,
+     "worker": 32,
+     "header": "32",
+     "legacy_header": "32"
+    }
+   }
+  },
+  {
+   "name": "window_differs_from_real_when_site_off",
+   "expect": "fail",
+   "detail_contains": "not the real",
+   "obs": {
+    "main": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "pref_off": {
+     "window": 32,
+     "worker": 8,
+     "header": "32",
+     "legacy_header": "32"
+    },
+    "site_off": {
+     "window": 16,
+     "worker": 8,
+     "header": "32",
+     "legacy_header": "32"
+    },
+    "control": {
+     "window": 32,
+     "worker": 32,
+     "header": "32",
+     "legacy_header": "32"
+    }
+   }
+  },
+  {
+   "name": "worker_capped_when_off_is_accepted_until_workers_get_tokens",
+   "expect": "pass",
+   "detail_contains": "",
+   "obs": {
+    "main": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "pref_off": {
+     "window": 32,
+     "worker": 8,
+     "header": "32",
+     "legacy_header": "32"
+    },
+    "site_off": {
+     "window": 32,
+     "worker": 8,
+     "header": "32",
+     "legacy_header": "32"
+    },
+    "control": {
+     "window": 32,
+     "worker": 32,
+     "header": "32",
+     "legacy_header": "32"
+    }
+   }
+  },
+  {
+   "name": "worker_real_when_off_is_accepted",
+   "expect": "pass",
+   "detail_contains": "",
+   "obs": {
+    "main": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "pref_off": {
+     "window": 32,
+     "worker": 32,
+     "header": "32",
+     "legacy_header": "32"
+    },
+    "site_off": {
+     "window": 32,
+     "worker": 32,
+     "header": "32",
+     "legacy_header": "32"
+    },
+    "control": {
+     "window": 32,
+     "worker": 32,
+     "header": "32",
+     "legacy_header": "32"
+    }
+   }
+  },
+  {
+   "name": "worker_missing_when_site_off",
+   "expect": "fail",
+   "detail_contains": "worker",
+   "obs": {
+    "main": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "pref_off": {
+     "window": 32,
+     "worker": 8,
+     "header": "32",
+     "legacy_header": "32"
+    },
+    "site_off": {
+     "window": 32,
+     "worker": null,
+     "header": "32",
+     "legacy_header": "32"
     },
     "control": {
      "window": 32,
