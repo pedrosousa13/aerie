@@ -31,10 +31,30 @@ class RepoWiringTest(unittest.TestCase):
     def test_prompt_tells_the_window_kind_and_the_user_about_the_restart(self):
         prompt = self.read("overlay/chrome/browser/aerie_widevine/aerie_widevine_prompt.cc")
         self.assertRegex(prompt, r"ShouldPrompt\([^;]*off_the_record\)")
-        self.assertIn("restart", prompt)
+        self.assertIn("restart", self.read("overlay/chrome/browser/aerie_widevine/aerie_widevine_strings.grdp"))
         controls = self.read("tools/aerie_hardening/controls.json")
         self.assertIn("restart", controls)
         self.assertNotIn("without a restart", self.read("docs/widevine.md"))
+
+    def test_a_second_register_when_enabled_trips_a_dcheck(self):
+        src = self.read("overlay/components/aerie_widevine/widevine_opt_in.cc")
+        body = re.search(r"void RegisterWhenEnabled\(.*?\n}\n", src, re.S).group(0)
+        self.assertIn("DCHECK(", body)
+        self.assertIn('#include "base/check.h"', src)
+
+    def test_prompt_text_is_grd_messages_not_literals(self):
+        prompt = self.read("overlay/chrome/browser/aerie_widevine/aerie_widevine_prompt.cc")
+        self.assertNotRegex(prompt, r'u"')
+        for name in ("BODY", "ACCEPT", "DECLINE"):
+            self.assertIn(f"IDS_AERIE_WIDEVINE_PROMPT_{name}", prompt)
+        grdp = self.read("overlay/chrome/browser/aerie_widevine/aerie_widevine_strings.grdp")
+        for name in ("BODY", "ACCEPT", "DECLINE"):
+            self.assertIn(f'name="IDS_AERIE_WIDEVINE_PROMPT_{name}"', grdp)
+        self.assertIn("restart", grdp)
+        self.assertNotIn("Chrome", grdp)
+        part = self.read("patches/widevine/0005-add-widevine-prompt-strings.patch")
+        self.assertIn("aerie_widevine/aerie_widevine_strings.grdp", part)
+        self.assertIn("widevine/0005-add-widevine-prompt-strings.patch", self.read("patches/series"))
 
     def test_app_id_matches_the_pinned_hash(self):
         hdr = self.read("overlay/components/aerie_widevine/widevine_opt_in.h")
@@ -43,7 +63,7 @@ class RepoWiringTest(unittest.TestCase):
     def test_series_lists_the_widevine_patches_and_they_exist(self):
         series = [l.strip() for l in self.read("patches/series").splitlines() if l.strip() and not l.startswith("#")]
         wvp = [s for s in series if s.startswith("widevine/")]
-        self.assertGreaterEqual(len(wvp), 4)
+        self.assertGreaterEqual(len(wvp), 5)
         for s in wvp:
             self.assertTrue((REPO / "patches" / s).is_file(), s)
 

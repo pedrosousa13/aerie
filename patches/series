@@ -66,6 +66,9 @@ services/0006-remove-the-helium-services-ui.patch
 # The Aerie Guard strings join the grd after the other Aerie string parts (#99).
 adblock/0017-add-aerie-guard-strings.patch
 
+# The Widevine prompt strings (#56) join the grd right after the Guard strings.
+widevine/0005-add-widevine-prompt-strings.patch
+
 # The Aerie Guard panel (#100): the first Aerie Lit WebUI, a top-chrome page that the Guard icon opens.
 adblock/0018-register-aerie-guard-page.patch
 adblock/0019-bind-aerie-guard-handler-factory.patch

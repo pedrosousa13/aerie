@@ -11,21 +11,47 @@
   Widevine at the next start) and asks for the key system. It uses ``Session.new_profile`` and
   ``variant(profile=...)``, the Bench's restart-on-one-profile support. It needs a network that reaches the
   component update service, so it is off by default and the default Bench keeps its zero-traffic guarantee.
+  Those browsers log the NetLog in capture mode Everything, and the check reads the update request body
+  from the bytes sent to ``update.googleapis.com``: it fails if the body names an app id other than
+  Widevine's, or if no body could be read.
+* Toggle subcase: a third browser starts with a fresh profile, sets the pref through
+  ``chrome.settingsPrivate`` (what the settings row calls) and must then list the Widevine component
+  without a restart, like the seeded browser.
+* Accept subcase: a fourth browser (fresh profile, started with UI DevTools, ``ui_devtools.FLAGS``) loads
+  ``/drm.html``, a fixture that calls ``requestMediaKeySystemAccess('com.widevine.alpha')``. That raises the
+  prompt, an infobar: browser UI that CDP cannot reach. The check finds the accept button in the views tree
+  by its label (``IDS_AERIE_WIDEVINE_PROMPT_ACCEPT``, read from ``aerie_widevine_strings.grdp``), presses it
+  with ``DOM.dispatchMouseEvent`` and must then see the pref on and the component listed, as for the
+  seeded browser. The pref is read before the page loads (it must be off) and the check fails if the button
+  is not found or was not pressed, so a pref that is on for another reason is not a pass.
 """
 
 from __future__ import annotations
 
+import re
 import time
+from pathlib import Path
 
-from .. import netlog
+from .. import netlog, ui_devtools
+from ..cdp import CdpError
 from ..denylist import DUMMY_TLD
 from ..profile import LOCAL_STATE_KEY
 from ..session import CheckResult, Session
 from . import register
 
+WIDEVINE_APP_ID = "oimompecagnajdejgnnjijobebaeigek"  # kWidevineAppId in widevine_opt_in.h (a test pins both)
+UPDATE_HOST = "update.googleapis.com"                  # the update server after the opt-in
+PREF = "aerie.widevine.enabled"
 HINT_FILE = "latest-component-updated-widevine-cdm"  # written once the component is installed
 SETTLE_SECONDS = 1.0  # the components list fills in after the page shell
 OPT_IN_PREFS = {LOCAL_STATE_KEY: {"aerie": {"widevine": {"enabled": True}}}}
+
+GRDP = (Path(__file__).resolve().parents[3] / "overlay" / "chrome" / "browser" / "aerie_widevine"
+        / "aerie_widevine_strings.grdp")
+ACCEPT_MESSAGE = "IDS_AERIE_WIDEVINE_PROMPT_ACCEPT"
+DRM_PAGE = "/drm.html"  # tools/aerie_bench/fixtures/drm.html: asks for the key system on load
+INFOBAR_WAIT_SECONDS = 15.0
+INFOBAR_POLL_SECONDS = 0.5
 
 # The query asks for VP9 in WebM first: it needs no proprietary codec in the build. H.264 in MP4
 # is the second try. "Available" means one of them was granted; `config` says which.
@@ -46,6 +72,10 @@ KEY_SYSTEM_JS = """(async () => {
   return {available: false, error: last};
 })()"""
 
+# The settings row sets the pref through chrome.settingsPrivate; so does this, on the settings page.
+GET_PREF_JS = ("new Promise(r => chrome.settingsPrivate.getPref('%s', p => r(!!(p && p.value))))" % PREF)
+SET_PREF_JS = ("new Promise(r => chrome.settingsPrivate.setPref('%s', true, '', ok => r(!!ok)))" % PREF)
+
 # All text of chrome://components, shadow roots included.
 COMPONENTS_TEXT_JS = """(() => {
   let text = '';
@@ -59,6 +89,15 @@ COMPONENTS_TEXT_JS = """(() => {
 })()"""
 
 
+def accept_label(grdp: Path = GRDP) -> str:
+    """The text of the prompt's accept button: the grd message, which the prompt shows as the button label."""
+    match = re.search(r'<message name="%s"[^>]*>(.*?)</message>' % ACCEPT_MESSAGE,
+                      grdp.read_text(encoding="utf-8"), re.S)
+    if not match or not match.group(1).strip():
+        raise ValueError(f"{ACCEPT_MESSAGE} not found in {grdp}")
+    return " ".join(match.group(1).split())
+
+
 def ask_key_system(session: Session) -> dict:
     session.navigate("/index.html")
     answer = session.evaluate(KEY_SYSTEM_JS, await_promise=True)
@@ -70,6 +109,54 @@ def components_list_widevine(session: Session) -> bool:
     session.wait_for(f"{COMPONENTS_TEXT_JS}.length > 200", timeout=15.0)
     time.sleep(SETTLE_SECONDS)
     return "widevine" in str(session.evaluate(COMPONENTS_TEXT_JS)).lower()
+
+
+def read_pref(session: Session) -> bool:
+    """The opt-in pref, read on the settings page the way the settings row reads it."""
+    session.navigate_url("chrome://settings/")
+    session.wait_for("typeof chrome !== 'undefined' && !!chrome.settingsPrivate", timeout=15.0)
+    return session.evaluate(GET_PREF_JS, await_promise=True)
+
+
+def accept_prompt(session: Session, profile_path: Path, connect=ui_devtools.connect,
+                  wait: float = INFOBAR_WAIT_SECONDS) -> dict:
+    """Raise the prompt with a DRM page, press its accept button through UI DevTools, read the opt-in state.
+
+    ``session`` is a browser started with ``ui_devtools.FLAGS`` on a fresh profile at ``profile_path``.
+    """
+    obs: dict = {"before": None, "infobar": False, "pressed": False, "pref": None, "listed": None}
+    ui = None
+    try:
+        obs["before"] = read_pref(session)
+        session.navigate(DRM_PAGE)
+        ui = connect(profile_path)
+        label = accept_label()
+        deadline = time.monotonic() + wait
+        found = ui.find_by_text(label)
+        while found is None and time.monotonic() < deadline:
+            time.sleep(INFOBAR_POLL_SECONDS)
+            found = ui.find_by_text(label)
+        if found is not None:
+            obs["infobar"] = True
+            ui.press(*found)
+            obs["pressed"] = True
+        obs["pref"] = read_pref(session)
+        if obs["pressed"]:
+            obs["listed"] = components_list_widevine(session)
+    except (CdpError, ui_devtools.UiDevToolsError, OSError, ValueError) as exc:
+        obs["error"] = f"{type(exc).__name__}: {exc}"
+    finally:
+        if ui is not None:
+            ui.close()
+    return obs
+
+
+def toggle_mid_session(session: Session) -> dict:
+    """Turn the pref on in a running browser the way the settings row does, and look at the result."""
+    before = read_pref(session)
+    session.evaluate(SET_PREF_JS, await_promise=True)
+    after = session.evaluate(GET_PREF_JS, await_promise=True)
+    return {"before": before, "pref": after, "listed": components_list_widevine(session)}
 
 
 def escaped_requests(records: list[dict]) -> list[dict]:
@@ -94,12 +181,50 @@ def judge(obs: dict) -> tuple[str, str]:
     if not control["listed"]:
         return "fail", ("negative control failed: with Widevine opted in, chrome://components still did not "
                         "list it, so its absence on the fresh profile proves nothing")
+    toggle = obs.get("toggle")
+    if toggle is not None:
+        if toggle.get("before"):
+            return "fail", "toggle subcase: the pref was already on before the toggle, so it proves nothing"
+        if not toggle.get("pref"):
+            return "fail", "toggle subcase: turning the pref on in a running browser did not stick"
+        if not toggle.get("listed"):
+            return "fail", ("toggle subcase: after turning the pref on in a running browser, chrome://components "
+                            "does not list Widevine, unlike a browser seeded with the pref")
+    accept = obs.get("accept")
+    if accept is not None:
+        if accept.get("error"):
+            return "fail", f"accept subcase: {accept['error']}"
+        if accept.get("before"):
+            return "fail", "accept subcase: the pref was already on before the prompt, so it proves nothing"
+        if not accept.get("infobar"):
+            return "fail", ("accept subcase: the prompt never appeared: no visible view with the accept label "
+                            "after the DRM page asked for the key system")
+        if not accept.get("pressed"):
+            return "fail", "accept subcase: the accept button was never pressed, so no opt-in can be judged"
+        if not accept.get("pref"):
+            return "fail", "accept subcase: pressing the accept button did not turn the pref on"
+        if not accept.get("listed"):
+            return "fail", ("accept subcase: after accepting the prompt, chrome://components does not list "
+                            "Widevine, unlike a browser seeded with the pref")
     online = obs.get("online")
     if online is not None and not online.get("available"):
         return "fail", (f"opted in, but Widevine did not become available ({online.get('error', 'no error')}); "
                         "needs a network that reaches the component update service")
+    app_ids = obs.get("online_app_ids")
+    if app_ids is not None:
+        if not app_ids.get("readable"):
+            return "fail", ("the Widevine download worked, but the check could not read the update request body "
+                            "from the NetLog (capture mode Everything), so it cannot say which apps it names")
+        others = sorted(set(app_ids.get("ids", [])) - {WIDEVINE_APP_ID})
+        if others or WIDEVINE_APP_ID not in app_ids.get("ids", []):
+            return "fail", ("the update request to Google names app ids other than Widevine's: "
+                            f"{', '.join(others) or 'none of its ids is Widevine'}")
     detail = ("Widevine absent on a fresh profile (key system refused, component not registered); "
               "present in the component list once opted in")
+    if toggle is not None:
+        detail += "; turning the toggle on in a running browser lists it too"
+    if accept is not None:
+        detail += "; accepting the prompt (button pressed through UI DevTools) lists it too"
     if online is not None:
         detail += ", and, after the download and a restart, available to a DRM page"
         hosts = obs.get("online_hosts")
@@ -117,12 +242,17 @@ class WidevineOptIn:
 
     def __init__(self, online_seconds: float = 0.0):
         self.online_seconds = online_seconds
+        self.ui_connect = ui_devtools.connect  # a test swaps this for a fake
 
     def observe(self, session: Session) -> dict:
         main = {"key_system": ask_key_system(session), "listed": components_list_widevine(session)}
         with session.variant((), OPT_IN_PREFS) as opted_in:
             control = {"listed": components_list_widevine(opted_in)}
         obs = {"main": main, "control": control}
+        with session.variant((), None) as toggled:
+            obs["toggle"] = toggle_mid_session(toggled)
+        with session.new_profile() as prof, session.variant(ui_devtools.FLAGS, None, profile=prof) as accepting:
+            obs["accept"] = accept_prompt(accepting, prof.path, connect=self.ui_connect)
         if self.online_seconds > 0:
             obs.update(self._online(session))
         return obs
@@ -138,7 +268,10 @@ class WidevineOptIn:
         which hosts it contacted.
         """
         deadline = time.monotonic() + self.online_seconds
-        flags = ("--host-resolver-rules=MAP *.bench.test 127.0.0.1",)
+        # Everything puts the bytes of each TLS write in the NetLog, which is how the update request body is read.
+        # QUIC writes are not logged that way, so it is off.
+        flags = ("--host-resolver-rules=MAP *.bench.test 127.0.0.1", "--net-log-capture-mode=Everything",
+                 "--disable-quic")
         with session.new_profile() as prof:
             hint = prof.path / "WidevineCdm" / HINT_FILE
             with session.variant(flags, OPT_IN_PREFS, profile=prof) as first:
@@ -149,7 +282,14 @@ class WidevineOptIn:
                 answer = (self._wait_available(restarted, deadline) if downloaded
                           else {"available": False, "error": "Widevine was not downloaded in time"})
         hosts = sorted({r["host"] for v in (first, restarted) for r in netlog.external(v.netlog) if r.get("host")})
-        return {"online": answer, "online_downloaded": downloaded, "online_hosts": hosts}
+        ids: set[str] = set()
+        readable = 0
+        for v in (first, restarted):
+            got, n = netlog.request_app_ids(v.netlog, getattr(v, "netlog_sent", {}), UPDATE_HOST)
+            ids |= got
+            readable += n
+        return {"online": answer, "online_downloaded": downloaded, "online_hosts": hosts,
+                "online_app_ids": {"ids": sorted(ids), "readable": readable}}
 
     def _wait_available(self, session: Session, deadline: float) -> dict:
         while True:

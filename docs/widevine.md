@@ -29,12 +29,12 @@ Both write the same pref, `aerie.widevine.enabled` (Local State, default `false`
 | Registration only after opt-in | `patches/widevine/0001-register-widevine-only-when-opted-in.patch` |
 | Google update URL after opt-in, and only Widevine in what Google gets | `patches/widevine/0002-update-widevine-from-google-when-opted-in.patch` |
 | Settings can read and write the pref | `patches/widevine/0003-allow-widevine-pref-in-settings.patch` |
-| The prompt | `patches/widevine/0004-ask-before-the-first-drm-request.patch` and `overlay/chrome/browser/aerie_widevine` |
+| The prompt | `patches/widevine/0004-ask-before-the-first-drm-request.patch` and `overlay/chrome/browser/aerie_widevine`. Its text is three grd messages in `aerie_widevine_strings.grdp`, which `patches/widevine/0005-add-widevine-prompt-strings.patch` adds to the browser's strings |
 
 With the pref off, `RegisterWidevineCdmComponent` is never called, so the component updater has
 no Widevine entry and nothing asks for it. Helium's component update origin is still the dummy
 host. With the pref on, `RegisterWhenEnabled` registers the component (at startup, or at once
-when the pref turns on), and `WidevineUpdateUrl` gives the updater Google's server. The CDM registers
+when the pref turns on), and `ComponentUpdateUrl` gives the updater Google's server. The CDM registers
 itself with the browser when its download finishes. On Linux that registration only takes effect at the
 next browser start, so Aerie needs a restart to finish turning Widevine on. The prompt and the
 settings row both say so.
@@ -56,6 +56,18 @@ protected video also contacts the license server of the site, as it does in any 
 traffic, not Aerie's.
 See `docs/network-endpoints.md`. The zero-traffic Bench run never opts in.
 
+## Why a restart stays required on Linux
+
+A Widevine that finishes downloading is installed by the component updater, which writes the
+hint file (`WidevineCdm/latest-component-updated-widevine-cdm`) into the profile. Chromium on
+Linux reads that file only while the browser process starts, in `chrome/common/media/cdm_registration.cc`,
+and registers the CDM it names with the content layer then. That code runs in the browser and
+renderer start-up path and has no pref or component updater to ask. Registering a CDM in a running
+browser would need a new hook there and a way to tell renderer processes that already started. #56
+leaves that out, so the prompt, the settings row and the hardening text say Aerie needs a restart to
+finish turning Widevine on. Turning it off stays as described under "Known limits": a downloaded
+module is not unloaded.
+
 ## Known limits
 
 - **Turning it off does not unload a downloaded CDM.** Chromium reads a hint file in the profile
@@ -65,8 +77,6 @@ See `docs/network-endpoints.md`. The zero-traffic Bench run never opts in.
 - **The prompt fires on the first use of any encrypted media**, not only Widevine (the browser
   does not say which key system was asked for at that point). A site that only uses Clear Key
   gets the prompt too. It does so once for a site that declined.
-- **The prompt text is English only**: it is plain text in `aerie_widevine_prompt.cc`, not a grd
-  message.
 - **The CRLSet is never updated.** Before this change the CRLSet got updates only while Widevine was
   opted in, because Google's server was the only one the updater could reach. Now Aerie never sends
   the CRLSet to Google. The updater has one server for all components, so a request to Google's
@@ -84,5 +94,8 @@ See `docs/network-endpoints.md`. The zero-traffic Bench run never opts in.
 | Opt-in makes a DRM page report Widevine available | `--widevine-online SEC` on the same check, on a network that reaches Google | needs a build and a network |
 | Default is off and the row is on the settings page | `hardening_pref_defaults`, `hardening_settings_page` | needs a build |
 | Registration and update URL go through the gate; the update check and ping leave out every app but Widevine; signing key hash unchanged | source gate `widevine_opt_in` | now, on the patched tree |
+| The update request body names only the Widevine app id | `--widevine-online SEC` on the same check: the opted-in browser logs its NetLog with `--net-log-capture-mode=Everything` and QUIC off, and the check reads the request body from the bytes sent to `update.googleapis.com`. It fails if the body names another app id, and also if it cannot read a body. | needs a build and a network |
+| Turning the toggle on in a running browser opts in like the seeded pref | Bench check `widevine_opt_in`, subcase `toggle`: the settings page sets `aerie.widevine.enabled` through `chrome.settingsPrivate`, as the row does, and chrome://components then lists Widevine at once, with no restart | needs a build |
+| Accepting the prompt opts in | Bench check `widevine_opt_in`, subcase `accept`: a browser started with UI DevTools loads `drm.html` (it asks for `com.widevine.alpha`), the check finds the infobar's accept button by its label, presses it through `DOM.dispatchMouseEvent` (an infobar is browser UI, so CDP cannot click it), and chrome://components then lists Widevine with no restart. It fails if the pref was on before the page, if no button appears, or if none was pressed | needs a build |
 | Opt-in rules (prompt once, decline sticks, URL, registration) | `aerie_widevine_unittests` (`./aerie test-cpp`) | needs a build |
 | The zero-Google check still passes with Widevine off | `./aerie bench --check zero_traffic` | needs a build |

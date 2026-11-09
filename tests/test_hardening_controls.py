@@ -164,9 +164,11 @@ class RealTableTest(unittest.TestCase):
         named = {n for c in self.table["controls"] for n in c["bench_checks"]}
         named |= set(self.table.get("cross_cutting_checks", []))
         hardening = {n: cls for n, cls in checks.REGISTRY.items() if n.startswith("hardening_")}
-        # A control may also name a check of its own feature (widevine_opt_in), which is not a
-        # "hardening_" check and has no control id; it must still be registered.
-        self.assertEqual(set(hardening), {n for n in named if n.startswith("hardening_")})
+        # Every "hardening_" check belongs to a control, and every check a control names is either one
+        # of those or a feature check listed here on purpose (it has no control id of its own).
+        feature_checks = {"widevine_opt_in"}
+        self.assertEqual(set(hardening), named - feature_checks)
+        self.assertLessEqual(feature_checks, named)
         self.assertLessEqual(named, set(checks.REGISTRY))
         for name, cls in hardening.items():
             self.assertIn(cls.control, ids, name)

@@ -218,9 +218,9 @@ def check_widevine_opt_in(root: Path, require: bool = False) -> list[Finding]:
     if text is not None:
         for fn in ("UpdateUrl", "PingUrl"):
             m = re.search(r"ChromeConfigurator::%s\(\)\s*const\s*\{(.*?)\n\}" % fn, text, re.S)
-            if not m or "aerie_widevine::WidevineUpdateUrl(" not in m.group(1):
+            if not m or "aerie_widevine::ComponentUpdateUrl(" not in m.group(1):
                 out.append(Finding(gate, WIDEVINE_CONFIGURATOR,
-                                   f"{fn}() must go through aerie_widevine::WidevineUpdateUrl()"))
+                                   f"{fn}() must go through aerie_widevine::ComponentUpdateUrl()"))
         m = re.search(r"ChromeConfigurator::ShouldSendToServer\([^)]*\)\s*const\s*\{(.*?)\n\}", text, re.S)
         if not m or "aerie_widevine::ShouldSendToUpdateServer(" not in m.group(1):
             out.append(Finding(gate, WIDEVINE_CONFIGURATOR,

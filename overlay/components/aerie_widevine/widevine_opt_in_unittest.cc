@@ -81,22 +81,22 @@ TEST_F(WidevineOptInTest, DecliningInANormalWindowStillPersistsAfterAnOtrDecline
 
 TEST_F(WidevineOptInTest, UpdateUrlIsTheFallbackUntilOptedIn) {
   const GURL fallback("https://dummy.invalid/com");
-  EXPECT_EQ(fallback, WidevineUpdateUrl(&prefs_, fallback));
-  EXPECT_EQ(fallback, WidevineUpdateUrl(nullptr, fallback));
+  EXPECT_EQ(fallback, ComponentUpdateUrl(&prefs_, fallback));
+  EXPECT_EQ(fallback, ComponentUpdateUrl(nullptr, fallback));
   SetEnabled(&prefs_, true);
-  EXPECT_NE(fallback, WidevineUpdateUrl(&prefs_, fallback));
-  EXPECT_TRUE(WidevineUpdateUrl(&prefs_, fallback).SchemeIs("https"));
+  EXPECT_NE(fallback, ComponentUpdateUrl(&prefs_, fallback));
+  EXPECT_TRUE(ComponentUpdateUrl(&prefs_, fallback).SchemeIs("https"));
 }
 
 TEST_F(WidevineOptInTest, OnlyWidevineMayReachGoogleTheUpdateServer) {
   const char kCrlSet[] = "hfnkpimlhhgieaddgfemjhofmfblmnib";
   const GURL dummy("https://dummy.invalid/com");
-  EXPECT_EQ(dummy, WidevineUpdateUrl(&prefs_, dummy));  // off: the fallback
+  EXPECT_EQ(dummy, ComponentUpdateUrl(&prefs_, dummy));  // off: the fallback
   // Not Google's server: nothing is held back.
   EXPECT_TRUE(ShouldSendToUpdateServer(kCrlSet, dummy));
   EXPECT_TRUE(ShouldSendToUpdateServer(kWidevineAppId, dummy));
   SetEnabled(&prefs_, true);
-  const GURL real = WidevineUpdateUrl(&prefs_, dummy);
+  const GURL real = ComponentUpdateUrl(&prefs_, dummy);
   EXPECT_TRUE(ShouldSendToUpdateServer(kWidevineAppId, real));
   EXPECT_FALSE(ShouldSendToUpdateServer(kCrlSet, real));
   EXPECT_FALSE(ShouldSendToUpdateServer("", real));
@@ -107,7 +107,7 @@ TEST_F(WidevineOptInTest, OnlyWidevineMayReachGoogleTheUpdateServer) {
 TEST_F(WidevineOptInTest, TheDecisionFollowsTheUrlNotThePref) {
   const char kCrlSet[] = "hfnkpimlhhgieaddgfemjhofmfblmnib";
   SetEnabled(&prefs_, true);
-  const GURL real = WidevineUpdateUrl(&prefs_, GURL("https://dummy.invalid/com"));
+  const GURL real = ComponentUpdateUrl(&prefs_, GURL("https://dummy.invalid/com"));
   SetEnabled(&prefs_, false);
   EXPECT_FALSE(ShouldSendToUpdateServer(kCrlSet, real));
   EXPECT_TRUE(ShouldSendToUpdateServer(kWidevineAppId, real));

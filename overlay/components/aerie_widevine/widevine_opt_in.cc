@@ -9,6 +9,7 @@
 #include <string>
 #include <utility>
 
+#include "base/check.h"
 #include "base/functional/bind.h"
 #include "base/no_destructor.h"
 #include "base/values.h"
@@ -120,7 +121,7 @@ bool ShouldPrompt(const PrefService* local_state,
          !IsDeclined(local_state, host, off_the_record);
 }
 
-GURL WidevineUpdateUrl(const PrefService* local_state, const GURL& fallback) {
+GURL ComponentUpdateUrl(const PrefService* local_state, const GURL& fallback) {
   return IsEnabled(local_state) ? GURL(kComponentUpdateUrl) : fallback;
 }
 
@@ -137,7 +138,14 @@ void RegisterWhenEnabled(PrefService* local_state,
   if (!local_state) {
     return;
   }
-  // One gate for the browser process; a second call is ignored.
+  // One gate for the browser process. A second call is a bug in the caller:
+  // it trips a DCHECK, and in a release build it is ignored.
+  static bool called = false;
+  DCHECK(!called) << "aerie_widevine::RegisterWhenEnabled called twice";
+  if (called) {
+    return;
+  }
+  called = true;
   static base::NoDestructor<RegistrationGate> gate(
       local_state, std::move(register_widevine));
 }

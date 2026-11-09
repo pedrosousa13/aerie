@@ -111,11 +111,11 @@ WIDEVINE_REG_OK = """void RegisterComponentsForUpdate() {
 }
 """
 WIDEVINE_CFG_OK = """std::vector<GURL> ChromeConfigurator::UpdateUrl() const {
-  return {aerie_widevine::WidevineUpdateUrl(ls, helium::GetComponentUpdateURL(p))};
+  return {aerie_widevine::ComponentUpdateUrl(ls, helium::GetComponentUpdateURL(p))};
 }
 
 std::vector<GURL> ChromeConfigurator::PingUrl() const {
-  return {aerie_widevine::WidevineUpdateUrl(ls, helium::GetComponentUpdateURL(p))};
+  return {aerie_widevine::ComponentUpdateUrl(ls, helium::GetComponentUpdateURL(p))};
 }
 
 bool ChromeConfigurator::ShouldSendToServer(const std::string& app_id,

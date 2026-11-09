@@ -8,7 +8,10 @@ truncated tail.
 
 from __future__ import annotations
 
+import base64
+import binascii
 import json
+import re
 from dataclasses import dataclass, field
 from urllib.parse import urlsplit
 
@@ -168,6 +171,7 @@ class Parsed:
     records: list[dict] = field(default_factory=list)   # URL requests, as ``parse`` returns them
     lookups: list[dict] = field(default_factory=list)   # host names seen in DNS, socket and connect events
     complete: bool = False                              # the file was whole, valid JSON
+    sent: dict[int, bytes] = field(default_factory=dict)  # socket id -> bytes sent (capture mode Everything)
 
 
 def load(text: str) -> Parsed:
@@ -191,7 +195,53 @@ def load(text: str) -> Parsed:
             if host and host.lower() not in seen:
                 seen.add(host.lower())
                 lookups.append({"host": host.lower(), "source_type": src, "event": name, "time": ev.get("time")})
-    return Parsed(parse(text), lookups, complete)
+    return Parsed(parse(text), lookups, complete, sent_bytes(constants, events))
+
+
+# NetLog events that carry the bytes written to a socket. A TLS socket logs the plain bytes under
+# SSL_SOCKET_BYTES_SENT, so a request body shows there. Only capture mode Everything (the browser flag
+# --net-log-capture-mode=Everything) records the bytes; in the other modes the events hold no payload.
+_SENT_EVENTS = ("SOCKET_BYTES_SENT", "SSL_SOCKET_BYTES_SENT")
+
+
+def sent_bytes(constants: dict, events: list[dict]) -> dict[int, bytes]:
+    names = {v: k for k, v in constants.get("logEventTypes", {}).items()}
+    out: dict[int, bytearray] = {}
+    for ev in events:
+        if names.get(ev.get("type")) not in _SENT_EVENTS:
+            continue
+        raw = (ev.get("params") or {}).get("bytes")
+        if not isinstance(raw, str):
+            continue
+        try:
+            out.setdefault(ev["source"]["id"], bytearray()).extend(base64.b64decode(raw, validate=False))
+        except (binascii.Error, KeyError, TypeError):
+            continue
+    return {k: bytes(v) for k, v in out.items()}
+
+
+_APP_ID = re.compile(rb'"appid"\s*:\s*"([^"]*)"|\bappid="([^"]*)"')
+
+
+def request_app_ids(records: list[dict], sent: dict[int, bytes], host: str) -> tuple[set[str], int]:
+    """App ids named in what the browser sent to ``host``, and how many requests had readable bytes.
+
+    A record's ``sockets`` say which connections carried it. The update client posts JSON (an ``appid``
+    member for each app) or XML (an ``appid`` attribute). A request whose connection left no bytes (the
+    NetLog was not in capture mode Everything, or the transport is not logged) counts for nothing, so a
+    caller that needs proof must also require the count to be above zero."""
+    ids: set[str] = set()
+    readable = 0
+    for r in records:
+        if (r.get("host") or "") != host:
+            continue
+        data = b"".join(sent.get(sock, b"") for sock in r.get("sockets", ()))
+        if not data:
+            continue
+        readable += 1
+        for m in _APP_ID.finditer(data):
+            ids.add((m.group(1) or m.group(2)).decode("utf-8", "replace"))
+    return ids, readable
 
 
 def load_file(path) -> Parsed:

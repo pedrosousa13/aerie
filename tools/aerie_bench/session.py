@@ -42,6 +42,7 @@ class Session:
         self.netlog_path = netlog_path  # being written while the browser runs; may be partial
         self.netlog: list[dict] = []
         self.netlog_lookups: list[dict] = []   # host names in resolver, socket and connect events
+        self.netlog_sent: dict[int, bytes] = {}  # socket id -> bytes sent, when logged with capture mode Everything
         self.netlog_complete = False           # the NetLog was whole, valid JSON
         self.exit: dict = {}
         self.artifacts: list[str] = []

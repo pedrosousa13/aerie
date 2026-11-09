@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Aerie Bench DRM</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<h1>DRM</h1>
+<p>Asks for the Widevine key system on load, which raises the opt-in prompt. References only local pages.</p>
+<script>
+  // VP9 in WebM needs no proprietary codec. Only the request matters here, not the answer.
+  navigator.requestMediaKeySystemAccess('com.widevine.alpha', [{
+    initDataTypes: ['webm'],
+    videoCapabilities: [{contentType: 'video/webm; codecs="vp9"'}],
+  }]).then(() => { window.drmAnswer = 'available'; },
+           (e) => { window.drmAnswer = String((e && e.name) || e); });
+</script>
+</body>
+</html>
