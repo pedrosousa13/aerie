@@ -44,6 +44,7 @@ source_set("aerie_guard") {
     "//chrome/browser:helium_noise_settings_headers",
     "//chrome/browser/profiles:profile",
     "//chrome/browser/resources/aerie_guard:resources",
+    "//chrome/browser/ui:chrome_pages",
     "//chrome/browser/ui/browser_window",
     "//chrome/browser/ui/webui:favicon_source",
     "//chrome/common",
