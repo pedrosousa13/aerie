@@ -24,6 +24,7 @@ takes a host from the page, and a browser that dies on the second open (the nega
 from __future__ import annotations
 
 import json
+import re
 import time
 from pathlib import Path
 
@@ -166,8 +167,14 @@ def evaluate_in_panel(browser: Session, expression: str):
 
 
 def panel_state(browser: Session) -> dict | None:
-    """What the open panel shows: ``host``, ``incognito``, ``blocking_on``, ``locked``, ... (None: no site)."""
-    return evaluate_in_panel(browser, PANEL_STATE_JS)
+    """What the open panel shows: ``host``, ``incognito``, ``blocking_on``, ``locked``, ... (None: no site).
+
+    The JS bindings name the fields in camelCase (``blockingOn``); the top-level keys come back with the
+    mojom's names."""
+    state = evaluate_in_panel(browser, PANEL_STATE_JS)
+    if not isinstance(state, dict):
+        return state
+    return {re.sub(r"(?<!^)(?=[A-Z])", "_", key).lower(): value for key, value in state.items()}
 
 
 def set_guard_in_panel(browser: Session, on: bool, timeout: float = 10.0) -> dict | None:

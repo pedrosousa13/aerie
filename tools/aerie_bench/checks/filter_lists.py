@@ -370,10 +370,12 @@ def visit_page(session: Session, host: str, visit_id: str) -> dict:
     session.navigate_url(f"http://{host}:{port}{PAGE_PATH}?visit={visit_id}")
     session.wait_for("window.__filterResults && window.__filterResults.done === true", timeout=15.0)
     result = session.evaluate("window.__filterResults") or {}
-    marker = f"visit={visit_id}"
+    # The page puts "?visit=ID" last on every ad URL. Match the end: "visit=incognito" is also the start of
+    # "visit=incognito-before", and that page asks again when the Guard switch reloads its tab.
+    marker = f"?visit={visit_id}"
     result["fixture_ad_requests"] = sum(
         1 for r in session.fixtures.snapshot()
-        if r["path"].startswith("/filters/ads/") and marker in r["path"] and r["status"] == 200)
+        if r["path"].startswith("/filters/ads/") and r["path"].endswith(marker) and r["status"] == 200)
     return result
 
 

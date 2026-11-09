@@ -407,5 +407,33 @@ class FixtureTest(unittest.TestCase):
                 self.assertTrue(resp.headers["Content-Type"].startswith(ctype), path)
 
 
+class VisitPageTest(unittest.TestCase):
+    def test_only_the_visits_own_ad_requests_count(self):
+        # Turning Guard off reloads the tab, so the earlier visit's page asks for its ads again; its marker
+        # "visit=incognito-before" holds "visit=incognito", and those requests are not the later visit's.
+        class FakeFixtures:
+            port = 1
+
+            @staticmethod
+            def snapshot():
+                return ([{"path": f"/filters/ads/ad{i}.js?visit=incognito-before", "status": 200} for i in range(3)]
+                        + [{"path": f"/filters/ads/ad{i}.js?visit=incognito", "status": 200} for i in range(3)])
+
+        class FakeSession:
+            fixtures = FakeFixtures()
+
+            def navigate_url(self, url):
+                pass
+
+            def wait_for(self, expr, timeout):
+                pass
+
+            def evaluate(self, expr):
+                return {"done": True}
+
+        self.assertEqual(fl.visit_page(FakeSession(), fl.INCOGNITO_HOST, "incognito")["fixture_ad_requests"], 3)
+        self.assertEqual(fl.visit_page(FakeSession(), fl.INCOGNITO_HOST, "incognito-before")["fixture_ad_requests"], 3)
+
+
 if __name__ == "__main__":
     unittest.main()

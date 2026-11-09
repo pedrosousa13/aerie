@@ -158,6 +158,18 @@ class PanelHelpersTest(unittest.TestCase):
         self.assertEqual(state, {"blocking_on": False})
         self.assertIn("setGuardOn(false)", calls[0])
 
+    def test_panel_state_names_the_fields_as_the_mojom_does(self):
+        # The JS bindings hand the Mojo struct over in camelCase (blockingOn); the checks read the mojom names.
+        from unittest import mock
+        raw = {"host": "a.localhost", "blockingOn": False, "incognito": True, "cosmeticHidingOn": True,
+               "fingerprinting": {"needsReload": False}}
+        with mock.patch.object(ag, "evaluate_in_panel", lambda b, js: raw):
+            state = ag.panel_state(None)
+        self.assertEqual(state, {"host": "a.localhost", "blocking_on": False, "incognito": True,
+                                 "cosmetic_hiding_on": True, "fingerprinting": {"needsReload": False}})
+        with mock.patch.object(ag, "evaluate_in_panel", lambda b, js: None):
+            self.assertIsNone(ag.panel_state(None))
+
 
 if __name__ == "__main__":
     unittest.main()
