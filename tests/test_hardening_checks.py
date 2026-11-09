@@ -220,14 +220,16 @@ class RealRecordingsTest(unittest.TestCase):
         self.assertEqual(len(got), 13)  # hardening_prefetch errored in that run: nothing to record
 
     def test_a_case_claiming_a_real_recording_holds_no_hand_written_rows(self):
-        # patch 0016 came after the train-1 run, so a recording from it cannot hold contentSettings rows
+        # patch 0016 and its contentSettings probes came after the train-1 run: only a recording from train 13b
+        # (the first build with 0016) or later can hold contentSettings rows
         for check, case in load_cases():
             roles = {r.get("role", "") for r in case["obs"].get("results", []) if isinstance(r, dict)}
             if "real" in case:
                 with self.subTest(check=check, case=case["name"]):
                     self.assertTrue(case["name"].startswith("real_train"), "only a recording may carry a real note")
-                    self.assertFalse({r for r in roles if r.startswith("content_setting")},
-                                     "hand-written contentSettings rows under a real provenance note")
+                    if not case["name"].startswith("real_train13b_"):
+                        self.assertFalse({r for r in roles if r.startswith("content_setting")},
+                                         "contentSettings rows under a recording older than the probes")
 
     def test_extension_prefs_cases_with_content_settings_rows_say_they_are_hand_written(self):
         for check, case in load_cases():
@@ -235,10 +237,22 @@ class RealRecordingsTest(unittest.TestCase):
                 continue
             has_cs = any(r.get("role", "").startswith("content_setting") for r in case["obs"]["results"])
             with self.subTest(case=case["name"]):
-                if has_cs:
+                if has_cs and case["name"].startswith("real_train13b_"):
+                    self.assertIn("0016", case["real"])
+                elif has_cs:
                     self.assertNotIn("real", case)
                     self.assertIn("0016", case.get("handwritten", ""))
                     self.assertIn("real", case["handwritten"].lower())
+
+    def test_the_train_13b_recordings_judge_the_cookie_probes(self):
+        cases = {c["name"]: c for ch, c in load_cases() if ch == "hardening_extension_prefs"}
+        judge = HARDENING["hardening_extension_prefs"].judge
+        with_0016 = cases["real_train13b_build"]["obs"]
+        self.assertEqual(judge(with_0016)[0], "pass")
+        self.assertTrue(any(r["role"] == "content_setting_refused" and r["set_error"] for r in with_0016["results"]))
+        status, detail = judge(cases["real_train13b_main_without_0016"]["obs"])[:2]
+        self.assertEqual(status, "fail")
+        self.assertIn("could allow cookies through contentSettings", detail)
 
     def test_the_train_1_extension_recording_predates_the_cookie_probes(self):
         case = real_case("hardening_extension_prefs")
@@ -690,7 +704,8 @@ class DriverGlueTest(unittest.TestCase):
         self.assertIn("secondaryPattern: site", script)
 
     def test_extension_check_loads_the_probe_extension_in_a_variant(self):
-        results = json.loads((FIXTURES / "hardening_extension_prefs.json").read_text())["cases"][0]["obs"]["results"]
+        results = next(c for c in json.loads((FIXTURES / "hardening_extension_prefs.json").read_text())["cases"]
+                       if c["name"] == "real_train13b_build")["obs"]["results"]
         variant = FakeSession({"probe.html": {"eval": results}})
         main = FakeSession({}, variants=[variant])
         res = extension.ExtensionPrefs().run(main)

@@ -2,80 +2,6 @@
  "check": "hardening_extension_prefs",
  "cases": [
   {
-   "name": "hardened_refused_control_allowed",
-   "expect": "pass",
-   "detail_contains": "",
-   "obs": {
-    "loaded": true,
-    "results": [
-     {
-      "name": "webRTCIPHandlingPolicy",
-      "role": "hardened",
-      "set_error": "You do not have permission to access the preference",
-      "level": "controllable_by_this_extension",
-      "value": "default_public_interface_only"
-     },
-     {
-      "name": "networkPredictionEnabled",
-      "role": "hardened",
-      "set_error": "You do not have permission to access the preference",
-      "level": "controllable_by_this_extension",
-      "value": false
-     },
-     {
-      "name": "thirdPartyCookiesAllowed",
-      "role": "hardened",
-      "set_error": "You do not have permission to access the preference",
-      "level": "controllable_by_this_extension",
-      "value": false
-     },
-     {
-      "name": "referrersEnabled",
-      "role": "control",
-      "set_error": null,
-      "level": "controlled_by_this_extension",
-      "value": false
-     },
-     {
-      "name": "contentSettings.cookies.allow",
-      "role": "content_setting_refused",
-      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
-      "level": null,
-      "value": null
-     },
-     {
-      "name": "contentSettings.cookies.session_only",
-      "role": "content_setting_refused",
-      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
-      "level": null,
-      "value": null
-     },
-     {
-      "name": "contentSettings.cookies.allow_domain_wildcard",
-      "role": "content_setting_refused",
-      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
-      "level": null,
-      "value": null
-     },
-     {
-      "name": "contentSettings.cookies.allow_first_party",
-      "role": "content_setting_first_party",
-      "set_error": null,
-      "level": null,
-      "value": null
-     },
-     {
-      "name": "contentSettings.cookies.block",
-      "role": "content_setting_control",
-      "set_error": null,
-      "level": null,
-      "value": null
-     }
-    ]
-   },
-   "handwritten": "Hand-written from the probe's result shape and patch 0016's refusal text. A real 0016 recording (Bench run after the next build) replaces it."
-  },
-  {
    "name": "webrtc_write_succeeds",
    "expect": "fail",
    "detail_contains": "could change webRTCIPHandlingPolicy",
@@ -147,7 +73,7 @@
      }
     ]
    },
-   "handwritten": "Hand-written from the probe's result shape and patch 0016's refusal text. A real 0016 recording (Bench run after the next build) replaces it."
+   "handwritten": "Hand-written from the probe's result shape and patch 0016's refusal text, for a failure a real build does not show. The real recordings with 0016 rows are real_train13b_build and real_train13b_main_without_0016."
   },
   {
    "name": "cookie_write_succeeds_silently",
@@ -221,7 +147,7 @@
      }
     ]
    },
-   "handwritten": "Hand-written from the probe's result shape and patch 0016's refusal text. A real 0016 recording (Bench run after the next build) replaces it."
+   "handwritten": "Hand-written from the probe's result shape and patch 0016's refusal text, for a failure a real build does not show. The real recordings with 0016 rows are real_train13b_build and real_train13b_main_without_0016."
   },
   {
    "name": "extension_not_loaded",
@@ -232,7 +158,7 @@
     "error": "net::ERR_BLOCKED_BY_CLIENT",
     "results": []
    },
-   "handwritten": "Hand-written from the probe's result shape and patch 0016's refusal text. A real 0016 recording (Bench run after the next build) replaces it."
+   "handwritten": "Hand-written from the probe's result shape and patch 0016's refusal text, for a failure a real build does not show. The real recordings with 0016 rows are real_train13b_build and real_train13b_main_without_0016."
   },
   {
    "name": "control_also_refused",
@@ -306,7 +232,7 @@
      }
     ]
    },
-   "handwritten": "Hand-written from the probe's result shape and patch 0016's refusal text. A real 0016 recording (Bench run after the next build) replaces it."
+   "handwritten": "Hand-written from the probe's result shape and patch 0016's refusal text, for a failure a real build does not show. The real recordings with 0016 rows are real_train13b_build and real_train13b_main_without_0016."
   },
   {
    "name": "hardened_setting_not_tried",
@@ -373,7 +299,7 @@
      }
     ]
    },
-   "handwritten": "Hand-written from the probe's result shape and patch 0016's refusal text. A real 0016 recording (Bench run after the next build) replaces it."
+   "handwritten": "Hand-written from the probe's result shape and patch 0016's refusal text, for a failure a real build does not show. The real recordings with 0016 rows are real_train13b_build and real_train13b_main_without_0016."
   },
   {
    "name": "real_train1_build",
@@ -416,30 +342,31 @@
    "note": "Verdict re-judged: the recording predates patch 0016, so it has no contentSettings rows and the current judge fails it on purpose."
   },
   {
-   "name": "cookie_allow_via_content_settings_succeeds",
-   "expect": "fail",
-   "detail_contains": "could allow cookies through contentSettings",
+   "name": "real_train13b_build",
+   "expect": "pass",
+   "detail_contains": "",
+   "real": "Recorded on a real Aerie build with patch 0016 (train 13b, combined build e77b610), full Bench run train13b/bench/full/results.json, 2026-11-09; copied unchanged.",
    "obs": {
     "loaded": true,
     "results": [
      {
       "name": "webRTCIPHandlingPolicy",
       "role": "hardened",
-      "set_error": "You do not have permission to access the preference",
+      "set_error": "You do not have permission to access the preference 'webRTCIPHandlingPolicy'. Be sure to declare in your manifest what permissions you need.",
       "level": "controllable_by_this_extension",
       "value": "default_public_interface_only"
      },
      {
       "name": "networkPredictionEnabled",
       "role": "hardened",
-      "set_error": "You do not have permission to access the preference",
+      "set_error": "You do not have permission to access the preference 'networkPredictionEnabled'. Be sure to declare in your manifest what permissions you need.",
       "level": "controllable_by_this_extension",
       "value": false
      },
      {
       "name": "thirdPartyCookiesAllowed",
       "role": "hardened",
-      "set_error": "You do not have permission to access the preference",
+      "set_error": "You do not have permission to access the preference 'thirdPartyCookiesAllowed'. Be sure to declare in your manifest what permissions you need.",
       "level": "controllable_by_this_extension",
       "value": false
      },
@@ -453,7 +380,7 @@
      {
       "name": "contentSettings.cookies.allow",
       "role": "content_setting_refused",
-      "set_error": null,
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
       "level": null,
       "value": null
      },
@@ -486,8 +413,81 @@
       "value": null
      }
     ]
-   },
-   "handwritten": "Hand-written from the probe's result shape and patch 0016's refusal text. A real 0016 recording (Bench run after the next build) replaces it."
+   }
+  },
+  {
+   "name": "real_train13b_main_without_0016",
+   "expect": "fail",
+   "detail_contains": "could allow cookies through contentSettings",
+   "real": "Recorded on a real Aerie build without patch 0016 (main 773b2fe C++, the train-13 build), with the train-13b Bench: train13b/bench/without-patches/results.json, 2026-11-09; copied unchanged. The fails-without-patch proof for 0016.",
+   "obs": {
+    "loaded": true,
+    "results": [
+     {
+      "name": "webRTCIPHandlingPolicy",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference 'webRTCIPHandlingPolicy'. Be sure to declare in your manifest what permissions you need.",
+      "level": "controllable_by_this_extension",
+      "value": "default_public_interface_only"
+     },
+     {
+      "name": "networkPredictionEnabled",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference 'networkPredictionEnabled'. Be sure to declare in your manifest what permissions you need.",
+      "level": "controllable_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "thirdPartyCookiesAllowed",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference 'thirdPartyCookiesAllowed'. Be sure to declare in your manifest what permissions you need.",
+      "level": "controllable_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "referrersEnabled",
+      "role": "control",
+      "set_error": null,
+      "level": "controlled_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "contentSettings.cookies.allow",
+      "role": "content_setting_refused",
+      "set_error": null,
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.session_only",
+      "role": "content_setting_refused",
+      "set_error": null,
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow_domain_wildcard",
+      "role": "content_setting_refused",
+      "set_error": null,
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow_first_party",
+      "role": "content_setting_first_party",
+      "set_error": null,
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.block",
+      "role": "content_setting_control",
+      "set_error": null,
+      "level": null,
+      "value": null
+     }
+    ]
+   }
   },
   {
    "name": "cookie_block_via_content_settings_refused",
@@ -561,7 +561,7 @@
      }
     ]
    },
-   "handwritten": "Hand-written from the probe's result shape and patch 0016's refusal text. A real 0016 recording (Bench run after the next build) replaces it."
+   "handwritten": "Hand-written from the probe's result shape and patch 0016's refusal text, for a failure a real build does not show. The real recordings with 0016 rows are real_train13b_build and real_train13b_main_without_0016."
   },
   {
    "name": "content_settings_probe_missing",
@@ -600,7 +600,7 @@
      }
     ]
    },
-   "handwritten": "Hand-written from the probe's result shape and patch 0016's refusal text. A real 0016 recording (Bench run after the next build) replaces it."
+   "handwritten": "Hand-written from the probe's result shape and patch 0016's refusal text, for a failure a real build does not show. The real recordings with 0016 rows are real_train13b_build and real_train13b_main_without_0016."
   },
   {
    "name": "first_party_allow_refused",
@@ -674,7 +674,7 @@
      }
     ]
    },
-   "handwritten": "Hand-written from the probe's result shape and patch 0016's refusal text. A real 0016 recording (Bench run after the next build) replaces it."
+   "handwritten": "Hand-written from the probe's result shape and patch 0016's refusal text, for a failure a real build does not show. The real recordings with 0016 rows are real_train13b_build and real_train13b_main_without_0016."
   },
   {
    "name": "domain_wildcard_allow_succeeds",
@@ -748,7 +748,7 @@
      }
     ]
    },
-   "handwritten": "Hand-written from the probe's result shape and patch 0016's refusal text. A real 0016 recording (Bench run after the next build) replaces it."
+   "handwritten": "Hand-written from the probe's result shape and patch 0016's refusal text, for a failure a real build does not show. The real recordings with 0016 rows are real_train13b_build and real_train13b_main_without_0016."
   }
  ]
 }
