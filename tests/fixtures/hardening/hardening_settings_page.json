@@ -66,7 +66,7 @@
      "extension_lock": {
       "present": true,
       "default_text": "Default: Always on.",
-      "cost_text": "Cost: Privacy extensions that set these options through chrome.privacy get a permission error. The user can still make the same change in settings.",
+      "cost_text": "Cost: Privacy extensions that set these options through chrome.privacy get a permission error. An extension that allows cookies through chrome.contentSettings for a pattern that is not one site's own cookies (for example a whole domain, or a site in any context) gets an error while third-party cookies are blocked. The user can still make the same changes in settings.",
       "state_text": "Always on",
       "live": null
      },
@@ -154,7 +154,7 @@
      "extension_lock": {
       "present": true,
       "default_text": "Default: Always on.",
-      "cost_text": "Cost: Privacy extensions that set these options through chrome.privacy get a permission error. The user can still make the same change in settings.",
+      "cost_text": "Cost: Privacy extensions that set these options through chrome.privacy get a permission error. An extension that allows cookies through chrome.contentSettings for a pattern that is not one site's own cookies (for example a whole domain, or a site in any context) gets an error while third-party cookies are blocked. The user can still make the same changes in settings.",
       "state_text": "Always on",
       "live": null
      }
@@ -228,7 +228,7 @@
      "extension_lock": {
       "present": true,
       "default_text": "Default: Always on.",
-      "cost_text": "Cost: Privacy extensions that set these options through chrome.privacy get a permission error. The user can still make the same change in settings.",
+      "cost_text": "Cost: Privacy extensions that set these options through chrome.privacy get a permission error. An extension that allows cookies through chrome.contentSettings for a pattern that is not one site's own cookies (for example a whole domain, or a site in any context) gets an error while third-party cookies are blocked. The user can still make the same changes in settings.",
       "state_text": "Always on",
       "live": null
      },
@@ -310,7 +310,7 @@
      "extension_lock": {
       "present": true,
       "default_text": "Default: Always on.",
-      "cost_text": "Cost: Privacy extensions that set these options through chrome.privacy get a permission error. The user can still make the same change in settings.",
+      "cost_text": "Cost: Privacy extensions that set these options through chrome.privacy get a permission error. An extension that allows cookies through chrome.contentSettings for a pattern that is not one site's own cookies (for example a whole domain, or a site in any context) gets an error while third-party cookies are blocked. The user can still make the same changes in settings.",
       "state_text": "Always on",
       "live": null
      },
@@ -392,7 +392,7 @@
      "extension_lock": {
       "present": true,
       "default_text": "Default: Always on.",
-      "cost_text": "Cost: Privacy extensions that set these options through chrome.privacy get a permission error. The user can still make the same change in settings.",
+      "cost_text": "Cost: Privacy extensions that set these options through chrome.privacy get a permission error. An extension that allows cookies through chrome.contentSettings for a pattern that is not one site's own cookies (for example a whole domain, or a site in any context) gets an error while third-party cookies are blocked. The user can still make the same changes in settings.",
       "state_text": "Always on",
       "live": null
      },
@@ -474,7 +474,7 @@
      "extension_lock": {
       "present": true,
       "default_text": "Default: Always on.",
-      "cost_text": "Cost: Privacy extensions that set these options through chrome.privacy get a permission error. The user can still make the same change in settings.",
+      "cost_text": "Cost: Privacy extensions that set these options through chrome.privacy get a permission error. An extension that allows cookies through chrome.contentSettings for a pattern that is not one site's own cookies (for example a whole domain, or a site in any context) gets an error while third-party cookies are blocked. The user can still make the same changes in settings.",
       "state_text": "Always on",
       "live": null
      },
@@ -556,7 +556,7 @@
      "extension_lock": {
       "present": true,
       "default_text": "Default: Always on.",
-      "cost_text": "Cost: Privacy extensions that set these options through chrome.privacy get a permission error. The user can still make the same change in settings.",
+      "cost_text": "Cost: Privacy extensions that set these options through chrome.privacy get a permission error. An extension that allows cookies through chrome.contentSettings for a pattern that is not one site's own cookies (for example a whole domain, or a site in any context) gets an error while third-party cookies are blocked. The user can still make the same changes in settings.",
       "state_text": "Always on",
       "live": null
      },
@@ -638,7 +638,7 @@
      "extension_lock": {
       "present": true,
       "default_text": "Default: Always on.",
-      "cost_text": "Cost: Privacy extensions that set these options through chrome.privacy get a permission error. The user can still make the same change in settings.",
+      "cost_text": "Cost: Privacy extensions that set these options through chrome.privacy get a permission error. An extension that allows cookies through chrome.contentSettings for a pattern that is not one site's own cookies (for example a whole domain, or a site in any context) gets an error while third-party cookies are blocked. The user can still make the same changes in settings.",
       "state_text": "Always on",
       "live": null
      },
@@ -737,7 +737,7 @@
      "extension_lock": {
       "present": true,
       "default_text": "Default: Always on.",
-      "cost_text": "Cost: Privacy extensions that set these options through chrome.privacy get a permission error. The user can still make the same change in settings.",
+      "cost_text": "Cost: Privacy extensions that set these options through chrome.privacy get a permission error. An extension that allows cookies through chrome.contentSettings for a pattern that is not one site's own cookies (for example a whole domain, or a site in any context) gets an error while third-party cookies are blocked. The user can still make the same changes in settings.",
       "state_text": "Always on",
       "live": null,
       "route": null
@@ -811,7 +811,7 @@
      "extension_lock": {
       "present": true,
       "default_text": "Default: Always on.",
-      "cost_text": "Cost: Privacy extensions that set these options through chrome.privacy get a permission error. The user can still make the same change in settings.",
+      "cost_text": "Cost: Privacy extensions that set these options through chrome.privacy get a permission error. An extension that allows cookies through chrome.contentSettings for a pattern that is not one site's own cookies (for example a whole domain, or a site in any context) gets an error while third-party cookies are blocked. The user can still make the same changes in settings.",
       "state_text": "Always on",
       "live": null
      },

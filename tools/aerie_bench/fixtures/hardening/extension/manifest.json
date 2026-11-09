@@ -4,5 +4,5 @@
   "version": "1.0",
   "description": "Tries to change privacy settings. Only the Bench loads it.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApzcku6coIWrDW94gFx8/HlnJ/pFERx8vO7gY4ptzkiIWMkstXcPc2/87W/gFoWbbMmAgW9NLhh2dIHEUtnCUL5IDQTUdFv49nHpRXbyLOHHlPLkC18bD3eYhDq7yIo20igalXjj7THzyHzy233XDqEL7sGGqWH8xMJgJlfussxZK4MwJItpL3LYiXlLzqlsHeboHfB+zlLMB2VXi2d5KHHG9Y7plhqaodj4aMCojVb9mXobD1UdT51Rz3ntuWpE3H/kPIqnCZBtvQkbX3O8iYwccR3n/ORwDpW941QmwMwCoRtmouj+s4bShi6GIQ8Xk8FOfFaM0jchrMfjCOfeaWwIDAQAB",
-  "permissions": ["privacy"]
+  "permissions": ["privacy", "contentSettings"]
 }
