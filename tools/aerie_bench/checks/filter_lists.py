@@ -83,6 +83,10 @@ INCOGNITO_HOST = "incognito.localhost"
 LONG_ARG = "a" * 5000  # over the handler's limit of 4096
 TRACKER_URL = "https://static.hotjar.com/c/hotjar-1.js"  # EasyPrivacy only (||hotjar.com^$third-party)
 AD_URL = "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"  # EasyList
+# The per-list step asks for one tracker and one ad URL (``probe_request``). With EasyPrivacy off the tracker
+# request passes the filter, so the NetLog records an attempt for it; the Bench's resolver refuses the name, so
+# nothing leaves the machine (train 14: the update step counted it as a request no publisher owns).
+PROBE_PREFIXES = (TRACKER_URL + "?probe=", AD_URL + "?probe=")
 STATE_FILE = "AerieFilterLists/state.json"  # inside the profile
 N_ADS = 3
 COUNT_HISTOGRAM = "Aerie.Adblock.PageBlockedCount"
@@ -161,6 +165,8 @@ def update_requests(records: list[dict], state_lists: list[dict]) -> tuple[list[
     list_urls = {x["url"] for x in state_lists}
     ok, bad = [], []
     for url in sorted(netlog.all_urls(records)):
+        if url.startswith(PROBE_PREFIXES):
+            continue  # The check's own probe (issue #104); see PROBE_PREFIXES.
         parts = urlsplit(url)
         if parts.scheme not in ("http", "https", "ws", "wss", "ftp") or netlog.is_loopback(parts.hostname or ""):
             continue

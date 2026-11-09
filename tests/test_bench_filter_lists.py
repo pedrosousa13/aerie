@@ -199,6 +199,16 @@ class JudgeTest(unittest.TestCase):
         self.assertEqual(ok, ["https://lists.example/mine.txt"])
         self.assertEqual(bad, ["http://lists.example/mine.txt"])
 
+    def test_the_checks_own_list_step_probes_are_not_foreign_requests(self):
+        # Real build, train 14: with EasyPrivacy off the hotjar probe passes the filter and the NetLog holds it.
+        probe = fl.TRACKER_URL + "?probe=off"
+        obs = good()
+        obs["update"]["netlog_records"].append(record(probe))
+        status, detail, _ = fl.judge(obs)
+        self.assertEqual(status, "pass", detail)
+        _, bad = fl.update_requests([record(probe, fl.TRACKER_URL + "?other=1")], STATE["lists"])
+        self.assertEqual(bad, [fl.TRACKER_URL + "?other=1"])
+
     def test_redirect_hop_to_a_foreign_host_is_caught(self):
         _, bad = fl.update_requests([record("https://easylist.to/a", "https://evil.example/b")], STATE["lists"])
         self.assertEqual(bad, ["https://evil.example/b"])
