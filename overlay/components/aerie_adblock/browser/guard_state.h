@@ -26,6 +26,13 @@ struct GuardState {
   // and the regular profile saved the exception (FilterListManager::
   // IsExceptionLocked()).
   bool locked = false;
+  // Cosmetic hiding ("Hide leftover ad boxes") is off for the page's site
+  // while blocking may stay on (a saved choice, or one of this session). Issue
+  // #101.
+  bool cosmetic_off = false;
+  // The tab's session cannot turn cosmetic hiding back on: it is an incognito
+  // session and the regular profile saved the choice.
+  bool cosmetic_locked = false;
   // The host of the page, as exceptions key it. Empty when not |visible|.
   std::string host;
   // Requests blocked on the page. 0 while blocking is off.

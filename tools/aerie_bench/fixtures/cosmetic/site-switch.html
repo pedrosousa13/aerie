@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Aerie Cosmetic Switch Fixture</title>
+</head>
+<body>
+<h1 id="content">First-party content</h1>
+<!-- Opened as a.localhost and as b.localhost (checks/cosmetic_site_switch.py). The box has the class of an ad container that
+     EasyList hides on any site. The script has a file name that a generic EasyList rule blocks (/ad_header.js$script). The fixture
+     server has no such file, so a request that is not blocked is a 404, and one that is blocked ends with
+     net::ERR_BLOCKED_BY_CLIENT. Nothing here names an outside host. -->
+<div class="ad-slot" style="height: 60px">Ad box (generic class)</div>
+<script src="/cosmetic/ad_header.js" async></script>
+</body>
+</html>

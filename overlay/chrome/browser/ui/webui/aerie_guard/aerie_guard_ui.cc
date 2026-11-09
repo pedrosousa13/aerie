@@ -58,6 +58,9 @@ AerieGuardUI::AerieGuardUI(content::WebUI* web_ui)
       {"locked", IDS_AERIE_GUARD_PANEL_LOCKED},
       {"noSite", IDS_AERIE_GUARD_PANEL_NO_SITE},
       {"advanced", IDS_AERIE_GUARD_PANEL_ADVANCED},
+      {"cosmeticLabel", IDS_AERIE_GUARD_PANEL_COSMETIC_LABEL},
+      {"cosmeticDesc", IDS_AERIE_GUARD_PANEL_COSMETIC_DESC},
+      {"cosmeticLocked", IDS_AERIE_GUARD_PANEL_COSMETIC_LOCKED},
       {"filterLists", IDS_AERIE_GUARD_PANEL_FILTER_LISTS},
   };
   source->AddLocalizedStrings(kStrings);

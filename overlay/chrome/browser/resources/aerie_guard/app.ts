@@ -17,6 +17,24 @@ import {getCss} from './app.css.js';
 import {getHtml} from './app.html.js';
 import {BrowserProxy} from './browser_proxy.js';
 
+const ADVANCED_OPEN_KEY = 'advancedOpen';
+
+function readAdvancedOpen(): boolean {
+  try {
+    return window.localStorage.getItem(ADVANCED_OPEN_KEY) === '1';
+  } catch (e) {
+    return false;  // No storage: the section stays collapsed.
+  }
+}
+
+function writeAdvancedOpen(open: boolean) {
+  try {
+    window.localStorage.setItem(ADVANCED_OPEN_KEY, open ? '1' : '0');
+  } catch (e) {
+    // Not remembered. The panel still works.
+  }
+}
+
 export class AerieGuardAppElement extends CrLitElement {
   static get is() {
     return 'aerie-guard-app';
@@ -34,17 +52,16 @@ export class AerieGuardAppElement extends CrLitElement {
     return {
       state_: {type: Object},
       loaded_: {type: Boolean},
-      advancedRows_: {type: Array},
+      advancedOpen_: {type: Boolean},
     };
   }
 
   // What the browser says about the captured site. Null: no site.
   protected accessor state_: PanelState|null = null;
   protected accessor loaded_: boolean = false;
-  // The rows of the Advanced section. Empty in this slice: the cosmetic row
-  // (#101) and the fingerprinting row (#102) join it. The section is not drawn
-  // while it has no rows, and is collapsed when it has.
-  protected accessor advancedRows_: string[] = [];
+  // Whether the Advanced section is open. Collapsed until the user opens it,
+  // then remembered (this panel's own storage; nothing about a site).
+  protected accessor advancedOpen_: boolean = readAdvancedOpen();
 
   private proxy_: BrowserProxy = BrowserProxy.getInstance();
   private listenerId_: number|null = null;
@@ -73,9 +90,15 @@ export class AerieGuardAppElement extends CrLitElement {
   override updated(changedProperties: PropertyValues<this>) {
     super.updated(changedProperties);
     // The browser's answer is the truth: a switch it refused snaps back.
-    const toggle = this.shadowRoot.querySelector<CrToggleElement>('cr-toggle');
+    const toggle =
+        this.shadowRoot.querySelector<CrToggleElement>('#toggle');
     if (toggle && this.state_) {
       toggle.checked = this.state_.blockingOn;
+    }
+    const cosmetic =
+        this.shadowRoot.querySelector<CrToggleElement>('#cosmeticToggle');
+    if (cosmetic && this.state_) {
+      cosmetic.checked = this.cosmeticChecked_();
     }
     // Rendered: the browser may show the bubble now.
     if (this.loaded_ && !this.shown_) {
@@ -103,6 +126,31 @@ export class AerieGuardAppElement extends CrLitElement {
       return this.i18n_('locked');
     }
     return this.state_?.incognito ? this.i18n_('incognito') : '';
+  }
+
+  // The row shows what is in force: with blocking off there is no hiding
+  // either, so it reads off and cannot be changed.
+  protected cosmeticChecked_(): boolean {
+    return !!this.state_ && this.state_.blockingOn &&
+        this.state_.cosmeticHidingOn;
+  }
+
+  protected cosmeticDisabled_(): boolean {
+    return !this.state_ || !this.state_.blockingOn ||
+        this.state_.cosmeticLocked;
+  }
+
+  protected cosmeticNoteText_(): string {
+    return this.state_?.cosmeticLocked ? this.i18n_('cosmeticLocked') : '';
+  }
+
+  protected onCosmeticChange_(e: CustomEvent<boolean>) {
+    this.proxy_.handler.setCosmeticHidingOn(e.detail);
+  }
+
+  protected onAdvancedToggle_(e: Event) {
+    this.advancedOpen_ = (e.target as HTMLDetailsElement).open;
+    writeAdvancedOpen(this.advancedOpen_);
   }
 
   protected onToggleChange_(e: CustomEvent<boolean>) {

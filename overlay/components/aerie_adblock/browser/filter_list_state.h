@@ -31,6 +31,8 @@ inline constexpr char kEasyPrivacyUrl[] =
 
 inline constexpr size_t kMaxCustomLists = 20;
 inline constexpr size_t kMaxExceptions = 1000;
+// Hosts that have cosmetic hiding turned off while blocking stays on (#101).
+inline constexpr size_t kMaxCosmeticOffHosts = 1000;
 inline constexpr size_t kMaxHostLength = 253;
 inline constexpr size_t kMaxErrorLength = 200;
 
@@ -76,6 +78,11 @@ class FilterListState {
 
   const std::vector<FilterListEntry>& lists() const { return lists_; }
   const std::set<std::string>& exceptions() const { return exceptions_; }
+  // Hosts (and their subdomains) where cosmetic hiding is off but network
+  // blocking is on (issue #101). Keyed like exceptions().
+  const std::set<std::string>& cosmetic_off_hosts() const {
+    return cosmetic_off_hosts_;
+  }
   bool auto_update() const { return auto_update_; }
   base::Time last_update_check() const { return last_update_check_; }
 
@@ -90,6 +97,10 @@ class FilterListState {
   // |host| is normalized. False if it is not a valid host or the table is
   // full (only when adding).
   bool SetException(std::string_view host, bool excepted);
+  // Turns cosmetic hiding off (|off|) or on for |host|. Same rules as
+  // SetException(): normalized, at most kMaxCosmeticOffHosts, and removing
+  // always works.
+  bool SetCosmeticOff(std::string_view host, bool off);
   void SetAutoUpdate(bool enabled) { auto_update_ = enabled; }
   void set_last_update_check(base::Time time) { last_update_check_ = time; }
 
@@ -105,6 +116,7 @@ class FilterListState {
  private:
   std::vector<FilterListEntry> lists_;
   std::set<std::string> exceptions_;
+  std::set<std::string> cosmetic_off_hosts_;
   bool auto_update_ = true;
   base::Time last_update_check_;
 };

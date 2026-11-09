@@ -72,9 +72,12 @@ class FilterEngineService {
   // |stylesheet| is CSS text, or empty when nothing is to be hidden.
   using StylesheetCallback = base::OnceCallback<void(std::string stylesheet)>;
   // Says whether cosmetic filtering is on for the page whose top-level URL is
-  // given. The hook for the per-site switch (issue #10): that code installs
-  // its own policy with SetCosmeticFilteringPolicy().
-  using CosmeticPolicyCallback = base::RepeatingCallback<bool(const GURL&)>;
+  // given, in the session of the page's profile. The hook for the per-site
+  // switch (issues #10 and #101): FilterListManager installs its policy with
+  // SetCosmeticFilteringPolicy(). The session is there because an incognito
+  // window keeps its own choices in memory.
+  using CosmeticPolicyCallback =
+      base::RepeatingCallback<bool(const GURL&, SessionKey)>;
 
   // The instance the browser registered with SetAsProcessInstance(), or null.
   static FilterEngineService* Get();

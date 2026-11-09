@@ -33,11 +33,24 @@ ${this.state_ ? html`
   </section>
   <p id="scope">${this.scopeText_()}</p>
   ${this.noteText_() ? html`<p id="note">${this.noteText_()}</p>` : ''}
-  ${this.advancedRows_.length ? html`
-    <details id="advanced">
-      <summary>${this.i18n_('advanced')}</summary>
-      ${this.advancedRows_.map(row => html`<div class="row">${row}</div>`)}
-    </details>` : ''}
+  <details id="advanced" ?open="${this.advancedOpen_}"
+      @toggle="${this.onAdvancedToggle_}">
+    <summary>${this.i18n_('advanced')}</summary>
+    <div class="row">
+      <div class="texts">
+        <div id="cosmeticLabel" class="label">${this.i18n_('cosmeticLabel')}</div>
+        <div id="cosmeticDesc" class="muted">${this.i18n_('cosmeticDesc')}</div>
+        ${this.cosmeticNoteText_() ? html`
+          <div id="cosmeticNote" class="muted">${this.cosmeticNoteText_()}</div>
+        ` : ''}
+      </div>
+      <cr-toggle id="cosmeticToggle" ?checked="${this.cosmeticChecked_()}"
+          ?disabled="${this.cosmeticDisabled_()}"
+          aria-labelledby="cosmeticLabel"
+          @change="${this.onCosmeticChange_}">
+      </cr-toggle>
+    </div>
+  </details>
 ` : html`${this.loaded_ ? html`
   <p id="empty">${this.i18n_('noSite')}</p>
 ` : ''}`}

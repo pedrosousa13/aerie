@@ -24,7 +24,8 @@ Engine keeps everything the user's pages must not influence in the browser proce
 - **Generic rules** need the page's classes and ids. The helper reads them with a fixed script
   at `DOMContentLoaded` and at load, and sends them to the engine as lookup keys only.
 - **Per-site switch.** `FilterEngineService::SetCosmeticFilteringPolicy` takes the top-level
-  URL. Issue #10 installs its policy there. Default: on.
+  URL. Issue #10 installs its policy there. Default: on. (Issue #101: the callback also takes the page's `SessionKey`, so an incognito
+  window's choice stays in memory, and the filter list manager installs the policy in `Init()`.)
 - **Domain resolver.** adblock-rust panics in cosmetic matching without one, so the core
   installs `AerieDomainResolver`, a heuristic, instead of vetting the public suffix crate.
 

@@ -124,6 +124,15 @@ How it works:
   hiding off there: `FilterEngineService::IsCosmeticFilteringEnabled` (which the two stylesheet
   calls use) is false for an excepted site, besides what the policy says. Cosmetic queries wait
   for the settings like requests do.
+- **Cosmetic hiding off for one site** (issue #101) is a second host set, `cosmetic_off` in the state file, with
+  the same rules as exceptions: host plus subdomains, normalised by `NormalizeExceptionHost`, at most 1000 hosts,
+  checked in `FromValue` (wrong types, bad or huge hosts are dropped, extra entries are cut). It turns only the
+  hide sheets and the late watch off; network blocking stays on. An incognito window keeps its choices in memory
+  per session (`SessionKey`), never writes them to the state file and drops them with the window. A choice the
+  regular profile saved holds in incognito and cannot be undone there. `FilterListManager::Init()` installs the
+  policy that reads these sets with `SetCosmeticFilteringPolicy`. The switch is the "Hide leftover ad boxes" row
+  in the Advanced section of the Guard panel; changing it reloads the tab. The Bench check `cosmetic_site_switch`
+  proves it.
 - **Exception rules that match every address are ignored.** One `@@` rule with no scope can switch
   off every block for a type of request, for every site, with no error. The core drops a rule when
   it applies to arbitrary addresses. It tests the effect, not the text: the rule is compiled alone
@@ -261,8 +270,8 @@ tab ──> AerieCosmeticTabHelper ──> FilterEngineService ──> engine   
   policy, or a per-site exception, issue #10). Every late report is checked again, so turning blocking off
   stops the reports at once; sheets already inserted stay until the next navigation.
 - The hook for issue #10: `FilterEngineService::SetCosmeticFilteringPolicy(callback)`. The
-  callback gets the top-level page URL and says whether cosmetic filtering is on. The default
-  is on. Besides the policy, a site with a per-site "blocking off" exception (issue #10, see
+  callback gets the top-level page URL and the page's `SessionKey` and says whether cosmetic filtering is on.
+  The default is on; `FilterListManager` installs the per-site policy of issue #101. Besides the policy, a site with a per-site "blocking off" exception (issue #10, see
   "Exceptions" above) gets no hide sheet: `IsCosmeticFilteringEnabled` checks both. A frame answers to its top-level page, so an ad iframe is not judged by its own
   host. A policy change reaches a page on its next navigation (stylesheets already
   injected stay).

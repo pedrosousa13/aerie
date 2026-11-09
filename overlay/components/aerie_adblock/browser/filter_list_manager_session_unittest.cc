@@ -113,5 +113,17 @@ TEST_F(FilterListManagerSessionTest, AnOffTheRecordContextCannotRemoveASavedExce
   EXPECT_TRUE(manager_->HasSavedException("news.test"));
 }
 
+TEST_F(FilterListManagerSessionTest, ACosmeticChoiceSetFromAContextGoesWhenTheContextDoes) {
+  auto incognito = std::make_unique<content::TestBrowserContext>();
+  incognito->set_is_off_the_record(true);
+  const SessionKey key = SessionKeyFor(incognito.get());
+  ASSERT_EQ(ExceptionResult::kOk,
+            manager_->SetCosmeticHidingOff("news.test", true, incognito.get()));
+  EXPECT_TRUE(manager_->IsCosmeticHidingOff("news.test", key));
+  EXPECT_FALSE(manager_->IsCosmeticHidingOff("news.test", SessionKey::Regular()));
+  incognito.reset();  // The window closed.
+  EXPECT_FALSE(manager_->IsCosmeticHidingOff("news.test", key));
+}
+
 }  // namespace
 }  // namespace aerie_adblock

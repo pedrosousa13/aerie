@@ -21,6 +21,12 @@ struct PanelState {
   // An incognito tab cannot turn Guard back on for this site, because a
   // regular window saved the exception. The switch is disabled.
   bool locked;
+  // False while cosmetic hiding ("Hide leftover ad boxes") is off for the
+  // site. Network blocking is not affected.
+  bool cosmetic_hiding_on;
+  // An incognito tab cannot turn cosmetic hiding back on for this site,
+  // because a regular window saved the choice. The row is disabled.
+  bool cosmetic_locked;
   // Requests blocked on the page. 0 while blocking is off.
   int32 blocked_count;
   // The count in words, in the user's language ("12 requests blocked on this
@@ -53,6 +59,9 @@ interface PageHandler {
   // Turns Guard on or off for the captured site and its subdomains, then
   // reloads the tab.
   SetGuardOn(bool on);
+  // Turns cosmetic hiding on or off for the captured site and its subdomains,
+  // then reloads the tab. Network blocking stays as it is.
+  SetCosmeticHidingOn(bool on);
   // Opens a link in a new tab and closes the panel.
   OpenLink(Link link);
 };

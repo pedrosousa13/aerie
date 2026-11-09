@@ -188,6 +188,23 @@ bool FilterListState::SetException(std::string_view host, bool excepted) {
   return true;
 }
 
+bool FilterListState::SetCosmeticOff(std::string_view host, bool off) {
+  std::string normalized = NormalizeExceptionHost(host);
+  if (normalized.empty()) {
+    return false;
+  }
+  if (!off) {
+    cosmetic_off_hosts_.erase(normalized);
+    return true;
+  }
+  if (cosmetic_off_hosts_.size() >= kMaxCosmeticOffHosts &&
+      !cosmetic_off_hosts_.count(normalized)) {
+    return false;
+  }
+  cosmetic_off_hosts_.insert(std::move(normalized));
+  return true;
+}
+
 bool FilterListState::NeedsRebuild() const {
   return std::any_of(lists_.begin(), lists_.end(), [](const auto& e) {
     return !e.builtin || !e.updated.is_null();
@@ -204,6 +221,11 @@ base::DictValue FilterListState::ToValue() const {
     exceptions.Append(host);
   }
   out.Set("exceptions", std::move(exceptions));
+  base::ListValue cosmetic_off;
+  for (const std::string& host : cosmetic_off_hosts_) {
+    cosmetic_off.Append(host);
+  }
+  out.Set("cosmetic_off", std::move(cosmetic_off));
   base::ListValue lists;
   for (const FilterListEntry& entry : lists_) {
     base::DictValue item;
@@ -246,6 +268,14 @@ FilterListState FilterListState::FromValue(const base::DictValue& dict) {
     for (const base::Value& host : *hosts) {
       if (host.is_string()) {
         state.SetException(host.GetString(), true);
+      }
+    }
+  }
+
+  if (const base::ListValue* hosts = dict.FindList("cosmetic_off")) {
+    for (const base::Value& host : *hosts) {
+      if (host.is_string()) {
+        state.SetCosmeticOff(host.GetString(), true);
       }
     }
   }

@@ -62,6 +62,15 @@ void FilterListManager::SetAsProcessInstance() {
 void FilterListManager::Init() {
   if (service_) {
     service_->HoldRequestsUntilSettingsLoaded();
+    // The per-site "Hide leftover ad boxes" switch (issue #101). Every late
+    // report asks the policy again, so a change needs no renderer work. The
+    // policy holds a WeakPtr: once the manager is gone, hiding is on.
+    service_->SetCosmeticFilteringPolicy(base::BindRepeating(
+        [](base::WeakPtr<FilterListManager> self, const GURL& top_level_url,
+           SessionKey session) {
+          return !self || self->AllowsCosmeticHiding(top_level_url, session);
+        },
+        weak_factory_.GetWeakPtr()));
   }
   Begin();
   file_runner_->PostTaskAndReplyWithResult(
@@ -295,13 +304,85 @@ std::vector<std::string> FilterListManager::ExceptionsFor(
 }
 
 void FilterListManager::ClearSessionExceptions(SessionKey session) {
+  const bool had_cosmetic = session_cosmetic_off_.erase(session) > 0;
   if (session_exceptions_.erase(session) == 0) {
+    if (had_cosmetic) {
+      Notify();
+    }
     return;
   }
   if (service_) {
     service_->SetSessionExceptions(session, {});
   }
   Notify();
+}
+
+ExceptionResult FilterListManager::SetCosmeticHidingOffForSession(
+    std::string_view host,
+    bool off,
+    SessionKey session) {
+  std::string normalized = NormalizeExceptionHost(host);
+  if (normalized.empty()) {
+    return ExceptionResult::kInvalidHost;
+  }
+  if (session.is_off_the_record()) {
+    if (!off && IsCosmeticHidingLocked(normalized, session)) {
+      return ExceptionResult::kSavedInRegularProfile;
+    }
+    std::set<std::string>& hosts = session_cosmetic_off_[session];
+    if (!off) {
+      hosts.erase(normalized);
+    } else if (hosts.size() < kMaxCosmeticOffHosts || hosts.count(normalized)) {
+      hosts.insert(std::move(normalized));
+    } else {
+      if (hosts.empty()) {
+        session_cosmetic_off_.erase(session);
+      }
+      return ExceptionResult::kTableFull;
+    }
+    if (hosts.empty()) {
+      session_cosmetic_off_.erase(session);
+    }
+    Notify();
+    return ExceptionResult::kOk;  // No Save(): this never reaches the disk.
+  }
+  if (!state_.SetCosmeticOff(normalized, off)) {
+    return ExceptionResult::kTableFull;
+  }
+  Save();
+  Notify();
+  return ExceptionResult::kOk;
+}
+
+ExceptionResult FilterListManager::SetCosmeticHidingOff(
+    std::string_view host,
+    bool off,
+    content::BrowserContext* context) {
+  WatchSession(context);  // Does nothing for a regular context.
+  return SetCosmeticHidingOffForSession(host, off, SessionKeyFor(context));
+}
+
+bool FilterListManager::IsCosmeticHidingOff(std::string_view host,
+                                            SessionKey session) const {
+  std::string normalized = NormalizeExceptionHost(host);
+  if (HostHasException(normalized, state_.cosmetic_off_hosts())) {
+    return true;
+  }
+  auto it = session_cosmetic_off_.find(session);
+  return it != session_cosmetic_off_.end() &&
+         HostHasException(normalized, it->second);
+}
+
+bool FilterListManager::IsCosmeticHidingLocked(std::string_view host,
+                                               SessionKey session) const {
+  return session.is_off_the_record() &&
+         HostHasException(NormalizeExceptionHost(host),
+                          state_.cosmetic_off_hosts());
+}
+
+bool FilterListManager::AllowsCosmeticHiding(const GURL& top_level_url,
+                                             SessionKey session) const {
+  return !IsCosmeticHidingOff(top_level_url.host(), session);
 }
 
 void FilterListManager::WatchSession(content::BrowserContext* context) {
