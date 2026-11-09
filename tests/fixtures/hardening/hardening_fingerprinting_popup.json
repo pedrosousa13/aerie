@@ -1,0 +1,1667 @@
+{
+ "check": "hardening_fingerprinting_popup",
+ "cases": [
+  {
+   "name": "synthetic_popup_matches_opener_per_site_and_off_reaches_it",
+   "expect": "pass",
+   "detail_contains": "",
+   "obs": {
+    "regular": {
+     "a": {
+      "self": {
+       "canvas": "ca",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "blank": {
+       "canvas": "ca",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "to_b": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "blank_then_b": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     },
+     "b": {
+      "self": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "blank": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     }
+    },
+    "site_off": {
+     "a": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "blank": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "to_b": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     },
+     "b": {
+      "self": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     }
+    },
+    "global_off": {
+     "a": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "blank": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      }
+     }
+    },
+    "control": {
+     "a": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "blank": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "synthetic_empty_popup_reads_real_values_like_the_unpatched_build",
+   "expect": "fail",
+   "detail_contains": "the empty popup of a.localhost reads different canvas, renderer, memory, screen from its opener",
+   "obs": {
+    "regular": {
+     "a": {
+      "self": {
+       "canvas": "ca",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "blank": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "to_b": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "blank_then_b": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     },
+     "b": {
+      "self": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "blank": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     }
+    },
+    "site_off": {
+     "a": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "blank": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "to_b": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     },
+     "b": {
+      "self": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     }
+    },
+    "global_off": {
+     "a": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "blank": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      }
+     }
+    },
+    "control": {
+     "a": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "blank": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "synthetic_empty_popup_reads_uncapped_device_memory",
+   "expect": "fail",
+   "detail_contains": "reads different memory from its opener",
+   "obs": {
+    "regular": {
+     "a": {
+      "self": {
+       "canvas": "ca",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "blank": {
+       "canvas": "ca",
+       "renderer": "masked",
+       "memory": 32,
+       "screen": "1280x800"
+      },
+      "to_b": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "blank_then_b": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     },
+     "b": {
+      "self": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "blank": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     }
+    },
+    "site_off": {
+     "a": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "blank": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "to_b": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     },
+     "b": {
+      "self": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     }
+    },
+    "global_off": {
+     "a": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "blank": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      }
+     }
+    },
+    "control": {
+     "a": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "blank": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "synthetic_empty_popup_reads_another_screen_size",
+   "expect": "fail",
+   "detail_contains": "reads different screen from its opener",
+   "obs": {
+    "regular": {
+     "a": {
+      "self": {
+       "canvas": "ca",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "blank": {
+       "canvas": "ca",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1366x768"
+      },
+      "to_b": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "blank_then_b": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     },
+     "b": {
+      "self": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "blank": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     }
+    },
+    "site_off": {
+     "a": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "blank": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "to_b": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     },
+     "b": {
+      "self": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     }
+    },
+    "global_off": {
+     "a": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "blank": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      }
+     }
+    },
+    "control": {
+     "a": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "blank": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "synthetic_empty_popup_of_the_second_site_reads_real_values",
+   "expect": "fail",
+   "detail_contains": "the empty popup of b.localhost",
+   "obs": {
+    "regular": {
+     "a": {
+      "self": {
+       "canvas": "ca",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "blank": {
+       "canvas": "ca",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "to_b": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "blank_then_b": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     },
+     "b": {
+      "self": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "blank": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      }
+     }
+    },
+    "site_off": {
+     "a": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "blank": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "to_b": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     },
+     "b": {
+      "self": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     }
+    },
+    "global_off": {
+     "a": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "blank": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      }
+     }
+    },
+    "control": {
+     "a": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "blank": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "synthetic_two_sites_share_one_canvas_through_the_popup",
+   "expect": "fail",
+   "detail_contains": "read the same canvas",
+   "obs": {
+    "regular": {
+     "a": {
+      "self": {
+       "canvas": "ca",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "blank": {
+       "canvas": "ca",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "to_b": {
+       "canvas": "ca",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "blank_then_b": {
+       "canvas": "ca",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     },
+     "b": {
+      "self": {
+       "canvas": "ca",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "blank": {
+       "canvas": "ca",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     }
+    },
+    "site_off": {
+     "a": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "blank": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "to_b": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     },
+     "b": {
+      "self": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     }
+    },
+    "global_off": {
+     "a": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "blank": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      }
+     }
+    },
+    "control": {
+     "a": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "blank": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "synthetic_popup_keeps_the_openers_tokens_after_going_cross_site",
+   "expect": "fail",
+   "detail_contains": "still reads the opener's canvas",
+   "obs": {
+    "regular": {
+     "a": {
+      "self": {
+       "canvas": "ca",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "blank": {
+       "canvas": "ca",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "to_b": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "blank_then_b": {
+       "canvas": "ca",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     },
+     "b": {
+      "self": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "blank": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     }
+    },
+    "site_off": {
+     "a": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "blank": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "to_b": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     },
+     "b": {
+      "self": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     }
+    },
+    "global_off": {
+     "a": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "blank": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      }
+     }
+    },
+    "control": {
+     "a": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "blank": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "synthetic_popup_opened_on_the_other_site_reads_a_third_canvas",
+   "expect": "fail",
+   "detail_contains": "reads different canvas from b.localhost itself",
+   "obs": {
+    "regular": {
+     "a": {
+      "self": {
+       "canvas": "ca",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "blank": {
+       "canvas": "ca",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "to_b": {
+       "canvas": "cx",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "blank_then_b": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     },
+     "b": {
+      "self": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "blank": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     }
+    },
+    "site_off": {
+     "a": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "blank": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "to_b": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     },
+     "b": {
+      "self": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     }
+    },
+    "global_off": {
+     "a": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "blank": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      }
+     }
+    },
+    "control": {
+     "a": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "blank": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "synthetic_site_off_does_not_reach_the_popup",
+   "expect": "fail",
+   "detail_contains": "with protection off for http://[*.]a.localhost the empty popup",
+   "obs": {
+    "regular": {
+     "a": {
+      "self": {
+       "canvas": "ca",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "blank": {
+       "canvas": "ca",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "to_b": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "blank_then_b": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     },
+     "b": {
+      "self": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "blank": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     }
+    },
+    "site_off": {
+     "a": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "blank": {
+       "canvas": "ca",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "to_b": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     },
+     "b": {
+      "self": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     }
+    },
+    "global_off": {
+     "a": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "blank": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      }
+     }
+    },
+    "control": {
+     "a": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "blank": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "synthetic_site_off_turns_off_another_site",
+   "expect": "fail",
+   "detail_contains": "another site",
+   "obs": {
+    "regular": {
+     "a": {
+      "self": {
+       "canvas": "ca",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "blank": {
+       "canvas": "ca",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "to_b": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "blank_then_b": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     },
+     "b": {
+      "self": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "blank": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     }
+    },
+    "site_off": {
+     "a": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "blank": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "to_b": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     },
+     "b": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      }
+     }
+    },
+    "global_off": {
+     "a": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "blank": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      }
+     }
+    },
+    "control": {
+     "a": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "blank": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "synthetic_site_off_popup_to_the_other_site_loses_its_protection",
+   "expect": "fail",
+   "detail_contains": "a popup that went to b.localhost reads different",
+   "obs": {
+    "regular": {
+     "a": {
+      "self": {
+       "canvas": "ca",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "blank": {
+       "canvas": "ca",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "to_b": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "blank_then_b": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     },
+     "b": {
+      "self": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "blank": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     }
+    },
+    "site_off": {
+     "a": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "blank": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "to_b": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      }
+     },
+     "b": {
+      "self": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     }
+    },
+    "global_off": {
+     "a": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "blank": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      }
+     }
+    },
+    "control": {
+     "a": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "blank": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "synthetic_global_off_does_not_reach_the_popup",
+   "expect": "fail",
+   "detail_contains": "whole browser the empty popup still differs",
+   "obs": {
+    "regular": {
+     "a": {
+      "self": {
+       "canvas": "ca",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "blank": {
+       "canvas": "ca",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "to_b": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "blank_then_b": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     },
+     "b": {
+      "self": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "blank": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     }
+    },
+    "site_off": {
+     "a": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "blank": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "to_b": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     },
+     "b": {
+      "self": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     }
+    },
+    "global_off": {
+     "a": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "blank": {
+       "canvas": "ca",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     }
+    },
+    "control": {
+     "a": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "blank": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "synthetic_negative_control_failed_noise_off_popup_still_differs",
+   "expect": "fail",
+   "detail_contains": "negative control failed",
+   "obs": {
+    "regular": {
+     "a": {
+      "self": {
+       "canvas": "ca",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "blank": {
+       "canvas": "ca",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "to_b": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "blank_then_b": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     },
+     "b": {
+      "self": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "blank": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     }
+    },
+    "site_off": {
+     "a": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "blank": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "to_b": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     },
+     "b": {
+      "self": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     }
+    },
+    "global_off": {
+     "a": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "blank": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      }
+     }
+    },
+    "control": {
+     "a": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "blank": {
+       "canvas": "ca",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "synthetic_page_is_not_protected_so_the_check_cannot_tell",
+   "expect": "fail",
+   "detail_contains": "equals the no-noise control",
+   "obs": {
+    "regular": {
+     "a": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "blank": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "to_b": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "blank_then_b": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     },
+     "b": {
+      "self": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "blank": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     }
+    },
+    "site_off": {
+     "a": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "blank": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "to_b": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     },
+     "b": {
+      "self": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     }
+    },
+    "global_off": {
+     "a": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "blank": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      }
+     }
+    },
+    "control": {
+     "a": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "blank": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "synthetic_popup_was_blocked",
+   "expect": "fail",
+   "detail_contains": "window.open returned null",
+   "obs": {
+    "regular": {
+     "a": {
+      "self": {
+       "canvas": "ca",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "blank": {
+       "error": "window.open returned null"
+      },
+      "to_b": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "blank_then_b": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     },
+     "b": {
+      "self": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      },
+      "blank": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     }
+    },
+    "site_off": {
+     "a": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "blank": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "to_b": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     },
+     "b": {
+      "self": {
+       "canvas": "cb",
+       "renderer": "masked",
+       "memory": 8,
+       "screen": "1280x800"
+      }
+     }
+    },
+    "global_off": {
+     "a": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "blank": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      }
+     }
+    },
+    "control": {
+     "a": {
+      "self": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      },
+      "blank": {
+       "canvas": "r0",
+       "renderer": "swiftshader",
+       "memory": 32,
+       "screen": "800x600"
+      }
+     }
+    }
+   }
+  }
+ ]
+}

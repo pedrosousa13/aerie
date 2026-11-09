@@ -1,0 +1,65 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Aerie Bench Popup Fingerprint</title></head>
+<body>
+<p>Reads canvas, graphics card, device memory and screen through a window that this page opens with
+window.open() (issue #156). The page opened as a popup reports its own reading to its opener.</p>
+<script src="fingerprint_measure.js"></script>
+<script>
+  window.__done = false;
+  // One reading of one window. The canvas and the WebGL context are made in w's document, so the noise that
+  // applies is the one of w's own execution context, whoever runs this code.
+  function readWindow(w) {
+    const out = {canvas: measureContext(w.document.createElement('canvas')).canvas};
+    const gl = w.document.createElement('canvas').getContext('webgl');
+    const ext = gl && gl.getExtension('WEBGL_debug_renderer_info');
+    out.renderer = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : null;
+    out.memory = w.navigator.deviceMemory;
+    out.screen = w.screen.width + 'x' + w.screen.height;
+    return out;
+  }
+  const FEATURES = 'width=500,height=400';
+  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  function nextReport(timeoutMs) {
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => resolve({error: 'the popup did not report'}), timeoutMs);
+      window.addEventListener('message', function once(e) {
+        if (!e.data || e.data.aerie !== 'popup-reading') return;
+        clearTimeout(timer);
+        window.removeEventListener('message', once);
+        resolve(e.data.reading);
+      });
+    });
+  }
+  // The popup is read at once, before anything can load in it: it is its initial empty document.
+  function blank() {
+    const w = window.open('', '_blank', FEATURES);
+    if (!w) return {error: 'window.open returned null'};
+    try { return readWindow(w); } catch (e) { return {error: String(e)}; } finally { w.close(); }
+  }
+  // Opens an empty popup, reads it, then navigates it to url (another site) and takes the reading that
+  // page makes of itself.
+  async function blankThenNavigate(url) {
+    const w = window.open('', '_blank', FEATURES);
+    if (!w) return {error: 'window.open returned null'};
+    try {
+      const report = nextReport(10000);
+      w.location.href = url;
+      return await report;
+    } catch (e) { return {error: String(e)}; } finally { w.close(); }
+  }
+  async function openAt(url) {
+    const report = nextReport(10000);
+    const w = window.open(url, '_blank', FEATURES);
+    if (!w) return {error: 'window.open returned null'};
+    try { return await report; } finally { w.close(); }
+  }
+  window.blank = blank;
+  window.blankThenNavigate = blankThenNavigate;
+  window.openAt = openAt;
+  try {
+    window.__result = {self: readWindow(window)};
+    if (window.opener) window.opener.postMessage({aerie: 'popup-reading', reading: window.__result.self}, '*');
+  } catch (e) { window.__result = {error: String(e)}; }
+  window.__done = true;
+</script>
+</body></html>
