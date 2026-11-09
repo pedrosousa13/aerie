@@ -97,7 +97,7 @@ done
 if [ $# -eq 0 ]; then mapfile -t FILES < <(find "$O/components" "$O/chrome" -name '*.cc' | sort); else FILES=("$@"); fi
 status=0
 for f in "${FILES[@]}"; do
-  if "$CLANG" -std=c++23 -w -fsyntax-only -fno-exceptions -DNDEBUG -DUNIT_TEST -DHAS_OUT_OF_PROC_TEST_RUNNER -DUSE_UDEV -DUSE_AURA=1 -DUSE_OZONE=1 \
+  if "$CLANG" -std=c++23 -w -fsyntax-only -fno-exceptions -DNDEBUG -DUNIT_TEST -DHAS_OUT_OF_PROC_TEST_RUNNER -DUSE_UDEV -DUSE_AURA=1 -DTOOLKIT_VIEWS=1 -DUSE_OZONE=1 \
       -D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_EXTENSIVE -DLIBCXX_BUILDING_LIBCXXABI=0 \
       -nostdinc++ -isystem "$TREE/third_party/libc++/src/include" -isystem "$TREE/third_party/libc++abi/src/include" \
       -isystem "$TREE/buildtools/third_party/libc++" --sysroot="$TREE/build/linux/debian_bullseye_amd64-sysroot" \
