@@ -58,6 +58,7 @@ class FakeServer:
     PROPS = {2: {"Visible": "true", "TooltipText": "Bookmark this tab", "Width": "24", "Height": "24"},
              3: {"Visible": "true", "TooltipText": "Aerie Guard: nothing blocked on this page",
                  "Width": "24", "Height": "20"}}
+    CLOSES_ON: frozenset = frozenset()
 
     def __init__(self) -> None:
         self.sock = socket.socket()
@@ -87,6 +88,9 @@ class FakeServer:
             self.calls.append(msg)
             if msg["method"] == "DOM.getDocument":
                 result = {"root": self.TREE}
+            elif msg["method"] == "CSS.getMatchedStylesForNode" and msg["params"]["nodeId"] in self.CLOSES_ON:
+                conn.close()
+                return
             elif msg["method"] == "CSS.getMatchedStylesForNode" and msg["params"]["nodeId"] not in self.PROPS:
                 conn.sendall(server_frame(json.dumps(
                     {"id": msg["id"], "error": {"message": "no such node"}}).encode()))
@@ -101,9 +105,14 @@ class FakeServer:
 
 
 class ToolbarServer(FakeServer):
-    """An infobar: a text button with a label view inside it, and an unrelated label with the same text."""
+    """An infobar: a text button with a label view inside it, and an unrelated label with the same text.
+
+    Like the real server (train 13 build), it closes the connection when asked for the root's style.
+    Node 6 has no style: the server answers that query with an error.
+    """
 
     TREE = {"nodeId": 1, "nodeName": "root", "children": [
+        {"nodeId": 6, "attributes": ["class", "Widget"], "children": []},
         {"nodeId": 2, "attributes": ["class", "Label"], "children": []},
         {"nodeId": 3, "attributes": ["class", "MdTextButton"], "children": [
             {"nodeId": 4, "attributes": ["class", "Label"]}]},
@@ -113,6 +122,7 @@ class ToolbarServer(FakeServer):
              3: {"Visible": "true", "Text": "Turn on Widevine", "Width": "120", "Height": "32"},
              4: {"Visible": "true", "Text": "Turn on Widevine", "Width": "100", "Height": "16"},
              5: {"Visible": "false", "Text": "No thanks", "Width": "80", "Height": "32"}}
+    CLOSES_ON = frozenset({1})
 
 
 class FindByTextTest(unittest.TestCase):
@@ -133,8 +143,19 @@ class FindByTextTest(unittest.TestCase):
         self.assertIsNone(self.find("Turn on"))
 
     def test_a_node_the_server_has_no_style_for_is_skipped(self):
-        # ToolbarServer has no style for the root (node 1): the server answers with an error for it.
+        # ToolbarServer has no style for node 6: the server answers with an error for it.
         self.assertIsNotNone(self.find("Turn on Widevine"))
+
+    def test_the_root_is_never_asked_for_its_style(self):
+        # The real server drops the connection on that query, which made the accept subcase fail.
+        server = ToolbarServer()
+        ui = ui_devtools.UiDevTools(server.port, timeout=5)
+        try:
+            self.assertIsNotNone(ui.find_by_text("Turn on Widevine"))
+        finally:
+            ui.close()
+        styled = [c["params"]["nodeId"] for c in server.calls if c["method"] == "CSS.getMatchedStylesForNode"]
+        self.assertNotIn(1, styled)
 
     def test_a_hidden_view_is_not_found(self):
         self.assertIsNone(self.find("No thanks"))

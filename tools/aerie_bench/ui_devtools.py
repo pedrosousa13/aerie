@@ -152,9 +152,12 @@ class UiDevTools:
         """The first visible view of any class whose ``Text`` property is exactly ``text``.
 
         That is how a button with no tooltip is found (an infobar button). Views come parent first, so
-        a button is found before the label view inside it.
+        a button is found before the label view inside it. The document root (the first node) is skipped:
+        it is no view, and a real server closes the connection when asked for its style.
         """
-        for node_id, _ in self.nodes():
+        for index, (node_id, _) in enumerate(self.nodes()):
+            if index == 0:
+                continue
             try:
                 props = self.properties(node_id)
             except UiDevToolsError as exc:
