@@ -589,6 +589,7 @@ class DriverGlueTest(unittest.TestCase):
                 self.mode, self.browser_pid = mode, None
                 self.sent = []
                 self.restarted = 0
+                self.rules = set()
 
             def navigate_url(self, url, wait=None):
                 self.log.append(url)
@@ -603,29 +604,55 @@ class DriverGlueTest(unittest.TestCase):
                     self.sent.append(expression)
                     self.mode = "off"
                     return True
+                if "setCategoryPermissionForPattern" in expression:
+                    self.sent.append(expression)
+                    pattern = expression.split("chrome.send")[1].split('"')[1]
+                    self.rules.add(pattern.replace("[*.]", "").replace(".localhost", ""))
+                    return True
                 if "getPref" in expression:
                     return {"value": 1}
                 if "deepQuery" in expression:
                     return True
-                host = self.url.split("//")[1].split(":")[0].split(".")[0] if "localhost" in self.url else ""
-                own = slow if (self.mode == "off" and host == "a") else fast
+                def speed(host):
+                    if host in self.rules:
+                        return slow  # measured on a real build: a subdomain rule applies at once
+                    return slow if (self.mode == "off" and host == "a") else fast
+
+                host = self.url.split("//")[1].split(":")[0].replace(".localhost", "") if "localhost" in self.url else ""
+                own = speed(host)
                 if "child=" in self.url:
                     child = self.url.split("child=")[1].split(".")[0]
-                    kid = slow if (self.mode == "off" and child == "a") else fast
-                    return {**own, "child": kid}
+                    return {**own, "child": speed(child)}
                 return own
 
         first, restarted, control = JitSession("on"), JitSession("off"), JitSession("on")
-        main = JitSession("on", variants=[first, restarted, control])
+        added = JitSession("on")
+        main = JitSession("on", variants=[first, restarted, added, control])
         res = jit.JsOptimizer().run(main)
         self.assertEqual(res.status, "pass", res.detail)
         self.assertEqual(len(first.sent), 1)
         self.assertIn("'javascript-optimizer'", first.sent[0])
         self.assertIn("a.localhost", first.sent[0])
         self.assertIn('"block"', first.sent[0])
-        self.assertEqual(main.variant_calls, [((), None)] * 3)
-        # the change and the restart share one profile; the control gets its own
-        self.assertEqual(main.variant_profiles, [main.profile, main.profile, None])
+        self.assertEqual(main.variant_calls, [((), None)] * 4)
+        # the change and the restart share one profile; the Add site rules and the control get their own
+        profiles = main.variant_profiles
+        self.assertIsNotNone(profiles[0])
+        self.assertEqual(profiles[0], profiles[1])
+        self.assertIsNotNone(profiles[2])
+        self.assertIsNone(profiles[3])
+        # the Add site call writes a host pattern for the site, then one for a subdomain only
+        self.assertEqual(len(added.sent), 2)
+        self.assertIn("setCategoryPermissionForPattern", added.sent[0])
+        self.assertIn("'javascript-optimizer'", added.sent[0])
+        self.assertIn("[*.]a.localhost", added.sent[0])
+        # the argument order the V8 page dialog sends: pattern, secondary pattern, type, value, incognito
+        # (SiteSettingsHandler::HandleSetCategoryPermissionForPattern reads exactly these five)
+        self.assertIn("[pattern, '', 'javascript-optimizer', value, false]", added.sent[0])
+        self.assertTrue(added.sent[0].rstrip().endswith('("[*.]a.localhost", "block")'))
+        # the second subdomain visit comes after leaving the page
+        self.assertIn("about:blank", added.log)
+        self.assertIn("s.b.localhost", added.sent[1])
 
     def test_extension_check_loads_the_probe_extension_in_a_variant(self):
         results = json.loads((FIXTURES / "hardening_extension_prefs.json").read_text())["cases"][0]["obs"]["results"]

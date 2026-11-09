@@ -104,3 +104,45 @@ def renderer_modes(root_pid: int, proc: Path = Path("/proc")) -> dict | None:
         else:
             out["pids"]["default"].append(pid)
     return out
+
+
+def renderer_cpu(root_pid: int, proc: Path = Path("/proc")) -> dict[int, int] | None:
+    """CPU ticks (utime + stime) used so far by each renderer under ``root_pid``.
+
+    A renderer's command line does not say which site it hosts, so the Bench finds the host of a
+    page that ran a hot loop by the renderer whose ticks grew during the loop (see ``busiest``).
+    Returns None where /proc is not available.
+    """
+    if not proc.is_dir():
+        return None
+    out: dict[int, int] = {}
+    for pid in sorted(_descendants(proc, root_pid)):
+        try:
+            args = (proc / str(pid) / "cmdline").read_bytes().split(b"\0")
+            text = (proc / str(pid) / "stat").read_text()
+        except OSError:
+            continue
+        words = [t for a in args if a for t in a.decode("utf-8", "replace").split()]
+        if "--type=renderer" not in words:
+            continue
+        fields = text.rpartition(")")[2].split()  # fields[0] is the state, field 14 (utime) is [11]
+        try:
+            out[pid] = int(fields[11]) + int(fields[12])
+        except (IndexError, ValueError):
+            continue
+    return out
+
+
+def busiest(before: dict[int, int] | None, after: dict[int, int] | None, min_ticks: int = 5) -> int | None:
+    """The pid whose CPU ticks grew most between two ``renderer_cpu`` readings.
+
+    None when either reading is missing or no renderer grew by at least ``min_ticks`` (a tick is
+    10 ms on Linux), so an idle or ambiguous window never names a host.
+    """
+    if before is None or not after:
+        return None
+    growth = {pid: ticks - before.get(pid, 0) for pid, ticks in after.items()}
+    if not growth:
+        return None
+    pid = max(growth, key=lambda p: (growth[p], -p))
+    return pid if growth[pid] >= min_ticks else None
