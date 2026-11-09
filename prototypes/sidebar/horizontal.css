@@ -1,0 +1,254 @@
+/* Aerie horizontal tabs mockup (spec story 51). Values come from tokens.css (size-hz-* tokens).
+   The --h-* properties below only pick which token applies for the density and row count. They hold no numbers. */
+*{box-sizing:border-box}
+:root{--ws-accent:color-mix(in srgb,var(--ws-hue,#888) var(--aerie-theme-accent-hue-share),var(--aerie-theme-accent-base));
+  --ws-marker:color-mix(in srgb,var(--ws-hue,#888) var(--aerie-theme-marker-hue-share),var(--aerie-theme-accent-base))}
+html,body{height:100%;margin:0;overflow:hidden;background:var(--aerie-color-frame-base);color:var(--aerie-color-text);
+  font:var(--aerie-type-weight-regular) var(--aerie-type-size-body)/var(--aerie-type-line-body) var(--aerie-type-family);-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;margin:0;cursor:default}
+input{font:inherit;color:inherit}
+[hidden]{display:none!important}
+.ic{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;flex:none}
+:focus-visible{outline:var(--aerie-size-focus-ring-width) solid var(--ws-accent);outline-offset:var(--aerie-size-focus-ring-offset)}
+:focus:not(:focus-visible){outline:none}
+kbd{font:inherit;font-size:10px;padding:1px 5px;border-radius:var(--aerie-radius-xs);background:var(--aerie-color-page-block);margin-right:3px}
+
+.window{
+  --h-strip:var(--aerie-size-hz-strip-height);--h-tab:var(--aerie-size-hz-tab-height);--h-tile:var(--aerie-size-hz-tile-strip);--h-fav:var(--aerie-size-hz-favicon);--h-inset:var(--aerie-size-inset-comfortable);
+  --h-tab-w:var(--aerie-size-hz-tab-max);--h-tab-min:var(--aerie-size-hz-tab-min);--h-tab-sel-min:var(--aerie-size-hz-tab-selected-min);--h-pinned-w:var(--aerie-size-hz-tab-pinned);--h-flare:var(--aerie-size-hz-flare-radius);
+  --h-pill:var(--aerie-size-hz-address-pill);--h-pill-min:var(--aerie-size-hz-address-pill-min);--h-fade:var(--aerie-size-hz-scroll-fade);
+  --tint:var(--aerie-theme-tint-strength);--sb-text:var(--aerie-theme-text);--sb-muted:var(--aerie-theme-text-muted);
+  position:fixed;inset:0;overflow:hidden;color:var(--sb-text);
+}
+.window[data-density=compact]{--h-strip:var(--aerie-size-hz-strip-height-compact);--h-tab:var(--aerie-size-hz-tab-height-compact);--h-tile:var(--aerie-size-hz-tile-strip-compact);--h-fav:var(--aerie-size-hz-favicon-compact);--h-inset:var(--aerie-size-inset-compact);--h-tab-w:var(--aerie-size-hz-tab-max-compact)}
+
+/* ---------- frame: Workspace tint under the theme ---------- */
+.frame-bg{position:absolute;inset:0;background:var(--aerie-color-frame-base)}
+.tint{position:absolute;inset:0;opacity:0;z-index:0}
+.tint.on{opacity:var(--tint)}
+.frame-bg::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:2;
+  background:radial-gradient(120% 80% at 0% 0%,rgba(255,255,255,1),rgba(255,255,255,0) 60%);opacity:var(--aerie-theme-glow)}
+.frame-bg::before{content:"";position:absolute;inset:0;background:#000;opacity:var(--aerie-theme-shade);z-index:1;pointer-events:none}
+
+/* ---------- strip ---------- */
+.strip{position:absolute;left:0;right:0;top:0;height:var(--h-strip);z-index:5;display:flex;align-items:center;gap:var(--aerie-space-6);padding:0 10px 0 12px;color:var(--sb-text)}
+.strip::after{content:"";position:absolute;left:0;right:0;top:0;height:var(--aerie-theme-strip-height);background:var(--aerie-theme-strip-fill);pointer-events:none}
+.wc{display:flex;gap:var(--aerie-space-6);padding:0 var(--aerie-space-4);align-items:center;flex:none}
+.wc-btn{width:var(--aerie-size-window-control);height:var(--aerie-size-window-control);border-radius:var(--aerie-radius-full);background:color-mix(in srgb,var(--sb-text) 22%,transparent);transition:background var(--aerie-motion-duration-fast)}
+.wc-btn:hover{background:color-mix(in srgb,var(--sb-text) 40%,transparent)}
+.wc-close:hover{background:var(--aerie-color-status-danger)}
+.ibtn{width:28px;height:28px;border-radius:var(--aerie-radius-md);display:grid;place-items:center;color:var(--sb-muted);flex:none;
+  transition:background var(--aerie-motion-duration-xfast),color var(--aerie-motion-duration-xfast)}
+.ibtn:hover{background:var(--aerie-color-row-hover);color:var(--sb-text)}
+.ibtn:active{background:color-mix(in srgb,var(--sb-text) 12%,transparent)}
+.plus{margin-left:2px}
+.pane>.plus{flex:none;align-self:flex-end;margin-bottom:calc((var(--h-tab) - 3px - 28px)/2 + 3px)}
+.navgrp{display:flex;gap:var(--aerie-space-2);flex:none}
+
+.chip{flex:none;display:flex;align-items:center;gap:var(--aerie-space-6);height:28px;padding:0 10px 0 8px;border-radius:var(--aerie-radius-lg);
+  background:color-mix(in srgb,var(--ws-accent) 22%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--ws-accent) 30%,transparent);
+  color:var(--sb-text);font-weight:var(--aerie-type-weight-medium);font-size:var(--aerie-type-size-body);white-space:nowrap;
+  transition:background var(--aerie-motion-duration-fast)}
+.chip:hover,.chip[aria-expanded=true]{background:color-mix(in srgb,var(--ws-accent) 34%,transparent)}
+.chip .ic{color:var(--ws-accent)}
+.chip .cv{width:12px;height:12px;color:var(--sb-muted);margin-left:2px}
+.chip .nm{max-width:110px;overflow:hidden;text-overflow:ellipsis}
+
+/* ---------- panes: one per Workspace, slid as a strip ---------- */
+.panes{position:relative;flex:1 1 0;min-width:0;align-self:stretch;overflow-x:clip;margin:0 2px 0 6px}
+.pane{position:absolute;inset:0;display:flex;align-items:flex-end;gap:var(--aerie-space-4);padding:0 2px}
+.pane.leaving{pointer-events:none}
+.grp{display:flex;align-items:flex-end;gap:2px;flex:none;height:var(--h-tab);min-width:0}
+.grp.favs{align-items:flex-end;gap:2px;margin-right:0}
+.today-wrap{position:relative;display:flex;align-items:flex-end;flex:0 1 calc(var(--n,1)*(var(--h-tab-w) + 2px) + 2*var(--h-flare) - 2px);min-width:0;margin:0 calc(var(--h-flare)*-1) -2px}
+/* scroller: padded so the selected tab's flares are not clipped; fades and chevrons appear only when it overflows */
+.grp.today{flex:1 1 auto;gap:2px;position:relative;height:calc(var(--h-tab) + 2px);padding:0 var(--h-flare) 2px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;min-width:0}
+.grp.today::-webkit-scrollbar{display:none}
+.grp.today.ovf{-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 var(--fl,0px),#000 calc(100% - var(--fr,0px)),transparent 100%);mask-image:linear-gradient(90deg,transparent 0,#000 var(--fl,0px),#000 calc(100% - var(--fr,0px)),transparent 100%)}
+.sc{position:absolute;top:2px;bottom:8px;width:20px;display:grid;place-items:center;border-radius:var(--aerie-radius-md);color:var(--sb-muted);z-index:4;opacity:0;pointer-events:none;
+  transition:opacity var(--aerie-motion-duration-fast),background var(--aerie-motion-duration-xfast)}
+.sc.l{left:var(--h-flare)}.sc.r{right:var(--h-flare)}
+.sc .ic{width:12px;height:12px}.sc .flip{transform:scaleX(-1)}
+.sc:hover{background:var(--aerie-color-row-hover);color:var(--sb-text)}
+.today-wrap[data-l="1"] .sc.l,.today-wrap[data-r="1"] .sc.r{opacity:1;pointer-events:auto}
+.divider{width:1px;height:18px;background:var(--aerie-color-divider);align-self:center;margin:0 4px;flex:none;position:relative;top:-2px}
+.divider.hc{background:var(--sb-text)}
+.pane-plus-gap{flex:none}
+
+/* ---------- tabs ---------- */
+.tab{position:relative;height:var(--h-tab);display:flex;align-items:center;gap:var(--aerie-space-8);padding:0 8px 3px;border-radius:var(--aerie-radius-lg) var(--aerie-radius-lg) 0 0;
+  flex:0 1 var(--h-tab-w);min-width:var(--h-tab-min);max-width:var(--h-tab-w);container-type:inline-size;color:var(--sb-text);user-select:none;-webkit-user-select:none;touch-action:none;
+  transition:color var(--aerie-motion-duration-fast)}
+/* hover wash: a pill 6px above the strip bottom, so the selected tab (full height) reads as raised */
+.tab::before{content:"";position:absolute;left:0;right:0;top:0;bottom:6px;border-radius:var(--aerie-radius-lg);background:var(--aerie-color-row-hover);opacity:0;
+  transition:opacity var(--aerie-motion-duration-xfast);pointer-events:none}
+.tab:hover::before,.tab[aria-expanded=true]::before{opacity:1}
+/* raised surface: same colour as the page card so the tab joins it */
+.tab .bg{position:absolute;left:0;right:0;top:0;bottom:-1px;border-radius:var(--aerie-radius-lg) var(--aerie-radius-lg) 0 0;background:var(--aerie-color-content-surface);
+  border:var(--aerie-theme-card-border);border-bottom:0;opacity:0;transition:opacity var(--aerie-motion-duration-fast) var(--aerie-motion-easing-standard);pointer-events:none;box-shadow:var(--aerie-shadow-card)}
+.tab .bg::before,.tab .bg::after{content:"";position:absolute;bottom:0;width:var(--h-flare);height:var(--h-flare);pointer-events:none}
+.tab .bg::before{left:calc(var(--h-flare)*-1);background:radial-gradient(circle at 0 0,transparent calc(var(--h-flare) - .5px),var(--aerie-color-content-surface) var(--h-flare))}
+.tab .bg::after{right:calc(var(--h-flare)*-1);background:radial-gradient(circle at 100% 0,transparent calc(var(--h-flare) - .5px),var(--aerie-color-content-surface) var(--h-flare))}
+.window[data-bordered] .tab .bg::before,.window[data-bordered] .tab .bg::after{display:none}
+.tab.sel{color:var(--aerie-color-text);z-index:2}
+.tab.today.sel{min-width:var(--h-tab-sel-min)}
+.tab.today.sel .close{display:grid}
+.tab.sel .bg{opacity:1}
+.tab.sel::before{opacity:0}
+.tab>*:not(.bg){position:relative}
+.tab .title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
+.tab.sel .title{font-weight:var(--aerie-type-weight-medium)}
+.tab .close{width:20px;height:20px;border-radius:var(--aerie-radius-sm);display:grid;place-items:center;color:var(--sb-muted);flex:none;opacity:0;
+  transition:opacity var(--aerie-motion-duration-xfast),background var(--aerie-motion-duration-xfast)}
+.tab.sel .close{color:var(--aerie-color-text-muted)}
+.tab:hover .close,.tab.sel .close,.tab:focus-visible .close{opacity:1}
+.tab .close:hover{background:color-mix(in srgb,var(--sb-text) 14%,transparent)}
+.tab .close .ic{width:12px;height:12px}
+.tab:focus-visible{outline-offset:-2px;border-radius:var(--aerie-radius-lg)}
+.tab.pinned,.tab.tile{flex:none;justify-content:center;padding:0 0 3px}
+.tab.pinned{width:var(--h-pinned-w);min-width:0}
+.tab.pinned .title,.tab.tile .title,.tab.pinned .close,.tab.tile .close{display:none}
+.tab.tile{width:var(--h-tile);min-width:0;height:var(--h-tab);padding:0}
+.tab.tile::before{display:none}
+/* favourite tiles: a rounded fill that sits like a key, selected one rises like a tab */
+.tab.tile .tl{position:absolute;left:0;right:0;top:calc((var(--h-tab) - var(--h-tile) - 6px)/2 + 3px);height:var(--h-tile);border-radius:var(--aerie-radius-md);
+  background:color-mix(in srgb,var(--aerie-color-content-surface) 45%,transparent);transition:background var(--aerie-motion-duration-xfast);pointer-events:none}
+.tab.tile:hover .tl{background:var(--aerie-color-row-selected)}
+.tab.tile.sel .tl{opacity:0}
+.tab.tile .fav-wrap{margin-bottom:0}
+.tab.tile{align-items:center;padding-bottom:0}
+.tab.tile .fav-wrap{position:relative;top:-1px}
+/* a tile that is selected rises, so give it a bit more width */
+.tab.tile.sel{width:calc(var(--h-tile) + 6px);margin:0 -3px}
+.tab.has-sel::after{content:"";position:absolute;bottom:7px;left:50%;width:10px;height:var(--aerie-theme-marker-width);margin-left:-5px;border-radius:2px;background:var(--ws-marker)}
+.tab.folder .fico{color:var(--sb-muted)}
+.tab.sel .fico{color:var(--aerie-color-text-muted)}
+.tab .cv{width:10px;height:10px;color:var(--sb-muted);flex:none}
+.tab.pinned .cv{display:none}
+/* icon-only when crowded: the tab itself is the container. 72px = size-hz-tab-icon-only (container queries cannot read var(); gen_tokens_css.py checks they match) */
+@container (max-width:72px){
+  .tab .title,.tab .cv{display:none}
+  .tab .close{display:none}
+  .tab{justify-content:center;padding-left:0;padding-right:0}
+}
+@container (min-width:73px) and (max-width:100px){.tab .close{display:none}.tab.sel .close{display:grid}}
+
+.fav-wrap{position:relative;flex:none;display:grid;place-items:center}
+.fav{width:var(--h-fav);height:var(--h-fav);border-radius:var(--aerie-radius-sm);display:grid;place-items:center;flex:none;color:#fff;
+  font-size:calc(var(--h-fav)*.55);font-weight:var(--aerie-type-weight-semibold);line-height:1;
+  background:linear-gradient(160deg,color-mix(in srgb,var(--c) 78%,#fff),var(--c));box-shadow:inset 0 0 0 1px rgba(0,0,0,.08)}
+.asleep .fav{filter:saturate(0);opacity:var(--aerie-motion-opacity-sleeping)}
+.asleep .title{opacity:var(--aerie-motion-opacity-sleeping)}
+.badge{position:absolute;right:-5px;bottom:-5px;width:12px;height:12px;border-radius:var(--aerie-radius-full);display:grid;place-items:center;box-shadow:0 0 0 1.5px var(--bd-ring,var(--aerie-color-frame-base))}
+.tab.sel{--bd-ring:var(--aerie-color-content-surface)}
+.badge.moon{background:var(--aerie-color-surface-popover);color:var(--aerie-color-text-muted);box-shadow:0 0 0 1px var(--aerie-color-divider)}
+.badge.audio{background:var(--ws-accent);color:var(--aerie-color-text-on-accent)}
+.badge .ic{width:8px;height:8px;stroke-width:1.8}
+
+/* drag + open/close helpers */
+.tab.lifted{z-index:10;box-shadow:var(--aerie-shadow-lift);border-radius:var(--aerie-radius-lg);background:var(--aerie-color-surface-popover);transition:none}
+.tab.lifted.sel .bg,.tab.lifted::before{opacity:0}
+.tab.lifted{color:var(--aerie-color-text)}
+.tab.lifted .bg::before,.tab.lifted .bg::after{display:none}
+.tab.closing{pointer-events:none;overflow:hidden}
+
+/* ---------- address pill (merged into the strip) ---------- */
+.pill{position:relative;flex:0 1 var(--h-pill);min-width:var(--h-pill-min);height:32px;border-radius:var(--aerie-radius-lg);background:var(--aerie-color-field);display:flex;align-items:center;
+  box-shadow:inset 0 0 0 1px var(--aerie-color-divider);transition:box-shadow var(--aerie-motion-duration-fast)}
+.pill:focus-within{box-shadow:inset 0 0 0 2px var(--ws-accent);background:var(--aerie-color-surface-popover)}
+.pill input{flex:1;min-width:0;height:100%;border:0;background:transparent;outline:0;padding:0 44px 0 12px;text-align:center;
+  font-weight:var(--aerie-type-weight-medium);text-overflow:ellipsis;color:var(--sb-text)}
+.pill:focus-within input{text-align:left;font-weight:var(--aerie-type-weight-regular);color:var(--aerie-color-text)}
+.guard{position:absolute;right:3px;top:3px;bottom:3px;min-width:26px;padding:0 7px 0 6px;border-radius:var(--aerie-radius-md);display:flex;align-items:center;gap:4px;
+  color:var(--ws-accent);font-size:var(--aerie-type-size-caption);font-weight:var(--aerie-type-weight-semibold);font-variant-numeric:tabular-nums}
+.guard:hover,.guard[aria-expanded=true]{background:color-mix(in srgb,var(--ws-accent) 14%,transparent)}
+.guard .ic{width:15px;height:15px}
+.window[data-density=compact] .pill{height:28px}.window[data-density=compact] .chip{height:26px}
+
+/* ---------- page card ---------- */
+.card{position:absolute;top:var(--h-strip);left:var(--h-inset);right:var(--h-inset);bottom:var(--h-inset);border-radius:var(--aerie-radius-lg);background:var(--aerie-color-content-surface);
+  box-shadow:var(--aerie-shadow-card);border:var(--aerie-theme-card-border);overflow:hidden;z-index:3}
+.page{padding:56px 8% 0;max-width:980px;margin:0 auto}
+.page .dom{font-size:var(--aerie-type-size-label);color:var(--aerie-color-text-muted);margin-bottom:8px}
+.page h1{margin:0 0 20px;font-size:var(--aerie-type-size-heading);line-height:var(--aerie-type-line-heading);font-weight:var(--aerie-type-weight-semibold)}
+.page .blk{border-radius:var(--aerie-radius-md);background:var(--aerie-color-page-block);height:12px;margin-bottom:10px}
+.page .hero{height:180px;border-radius:var(--aerie-radius-xl);background:var(--aerie-color-page-block);margin-bottom:20px;display:grid;place-items:center}
+.page .hero .fav{width:56px;height:56px;font-size:28px;border-radius:var(--aerie-radius-xl)}
+.page .cols{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:24px}
+.page .cols div{height:96px;border-radius:var(--aerie-radius-lg);background:var(--aerie-color-page-block)}
+
+/* ---------- command bar (same visual as the sidebar mockup, simplified) ---------- */
+.cmd-layer{position:absolute;inset:0;z-index:40;display:flex;justify-content:center;align-items:flex-start;padding-top:13vh}
+.scrim{position:absolute;inset:0;background:var(--aerie-color-scrim)}
+.cmd{position:relative;width:min(620px,calc(100% - 48px));border-radius:var(--aerie-radius-2xl);background:var(--aerie-color-surface-popover);box-shadow:var(--aerie-shadow-command);overflow:hidden;color:var(--aerie-color-text)}
+.cmd-in{display:flex;align-items:center;gap:12px;padding:0 20px;height:60px;color:var(--aerie-color-text-muted);border-bottom:1px solid var(--aerie-color-divider)}
+.cmd-in .ic{width:18px;height:18px}
+.cmd-in input{flex:1;height:100%;border:0;outline:0;background:transparent;font-size:var(--aerie-type-size-title);line-height:var(--aerie-type-line-title);color:var(--aerie-color-text)}
+.cmd-in input::placeholder{color:var(--aerie-color-text-muted)}
+.cmd-list{padding:8px;max-height:46vh;overflow:auto}
+.cmd-grp{padding:8px 12px 4px;font-size:var(--aerie-type-size-caption);color:var(--aerie-color-text-muted);font-weight:var(--aerie-type-weight-medium)}
+.cmd-item{display:flex;align-items:center;gap:12px;height:44px;padding:0 12px;border-radius:var(--aerie-radius-lg)}
+.cmd-item[aria-selected=true]{background:color-mix(in srgb,var(--ws-accent) 14%,transparent)}
+.cmd-item .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cmd-item .s{flex:none;color:var(--aerie-color-text-muted);font-size:var(--aerie-type-size-label)}
+.cmd-item .fav{width:24px;height:24px;font-size:13px}
+.cmd-act{width:24px;height:24px;border-radius:var(--aerie-radius-sm);display:grid;place-items:center;background:color-mix(in srgb,var(--ws-accent) 16%,transparent);color:var(--ws-accent);flex:none}
+.cmd-foot{display:flex;gap:16px;padding:10px 20px;border-top:1px solid var(--aerie-color-divider);font-size:var(--aerie-type-size-caption);color:var(--aerie-color-text-muted)}
+
+/* ---------- menus and popovers ---------- */
+.pop{position:fixed;z-index:60;width:280px;border-radius:var(--aerie-radius-xl);background:var(--aerie-color-surface-popover);box-shadow:var(--aerie-shadow-popover);padding:14px;color:var(--aerie-color-text)}
+.pop-h{display:flex;align-items:center;gap:8px;color:var(--ws-accent)}.pop-h strong{color:var(--aerie-color-text)}
+.pop-p{margin:8px 0 0;color:var(--aerie-color-text-muted)}
+.menu{position:fixed;z-index:70;min-width:220px;padding:6px;border-radius:var(--aerie-radius-xl);background:var(--aerie-color-surface-popover);box-shadow:var(--aerie-shadow-popover);color:var(--aerie-color-text);transform-origin:top left}
+.mi{display:flex;align-items:center;width:100%;height:32px;padding:0 10px;border-radius:var(--aerie-radius-md);text-align:left;gap:8px;font-size:var(--aerie-type-size-body);white-space:nowrap}
+.mi:hover,.mi:focus-visible,.mi.hot{background:color-mix(in srgb,var(--ws-accent) 14%,transparent);outline:0}
+.mi .k{margin-left:auto;padding-left:16px;color:var(--aerie-color-text-muted);font-size:var(--aerie-type-size-caption)}
+.mi .ck{width:12px;height:12px;margin-left:auto;color:var(--ws-accent)}
+.mi .wsdot{width:18px;height:18px;border-radius:var(--aerie-radius-sm);display:grid;place-items:center;color:var(--aerie-color-text-on-accent);flex:none;background:var(--ws-bg)}
+.mi .wsdot .ic{width:12px;height:12px}
+.mi.dim{color:var(--aerie-color-text-muted)}
+.menu hr{border:0;height:1px;background:var(--aerie-color-divider);margin:6px 4px}
+.drop{min-width:260px;max-width:340px;max-height:60vh;overflow:auto}
+.drop .dh{padding:6px 10px 4px;font-size:var(--aerie-type-size-caption);color:var(--aerie-color-text-muted);font-weight:var(--aerie-type-weight-medium);display:flex;align-items:center;gap:6px}
+.drop .dh .ic{width:12px;height:12px}
+.drop .mi .tt{overflow:hidden;text-overflow:ellipsis}
+.drop .mi .fav{width:16px;height:16px;font-size:9px}
+.drop .mi[aria-checked=true]{background:color-mix(in srgb,var(--ws-accent) 10%,transparent);font-weight:var(--aerie-type-weight-medium)}
+
+::view-transition-group(root),::view-transition-old(root),::view-transition-new(root){animation-duration:var(--vt-dur,380ms);animation-timing-function:var(--aerie-motion-easing-standard)}
+
+/* ---------- mockup controls (not part of the browser) ---------- */
+.mock{position:fixed;bottom:14px;right:14px;z-index:200;width:236px;font:11px/1.4 ui-monospace,Menlo,Consolas,monospace;color:#222;background:rgba(255,253,235,.96);
+  border:1.5px dashed #8a7f3a;border-radius:6px;padding:6px 8px;box-shadow:0 2px 8px rgba(0,0,0,.18)}
+.mock .mh{cursor:pointer;font-weight:700;letter-spacing:.04em;text-transform:uppercase;font-size:10px;display:flex;justify-content:space-between;color:#6b6224;user-select:none}
+.mock .mrow{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:5px}
+.mock select,.mock button{font:inherit;padding:1px 4px;background:#fff;border:1px solid #aaa;border-radius:3px;max-width:130px;color:#222;cursor:pointer}
+.mock.collapsed .mbody{display:none}
+.mock .pages{align-items:flex-start}.mock .plinks{display:flex;flex-wrap:wrap;gap:2px 8px;justify-content:flex-end;max-width:150px}.mock .plinks a{color:#4b44b8;text-decoration:underline;cursor:pointer}.mock .plinks a[aria-current]{color:#222;font-weight:700;text-decoration:none}
+.mock small{display:block;margin-top:6px;color:#7a7240}
+
+/* ---------- two-row variant: tabs on row 1, toolbar inside the card's top so the selected tab joins it ---------- */
+.toolbar{display:none}
+.tbfavs{display:none}
+.window[data-rows="2"]{--h-strip:var(--aerie-size-hz-strip-height-two-row);--h-tab:var(--aerie-size-hz-tab-height-two-row);--h-tb:var(--aerie-size-hz-toolbar-height)}
+.window[data-rows="2"][data-density=compact]{--h-strip:var(--aerie-size-hz-strip-height-two-row-compact);--h-tab:var(--aerie-size-hz-tab-height-two-row-compact);--h-tb:var(--aerie-size-hz-toolbar-height-compact);--h-tile:var(--aerie-size-hz-tile-strip-two-row-compact)}
+.window[data-rows="2"] .toolbar{display:flex;align-items:center;gap:var(--aerie-space-6);height:var(--h-tb);padding:0 10px 0 8px;color:var(--aerie-color-text);flex:none}
+.window[data-rows="2"] .tbfavs{display:block;position:relative;align-self:stretch;overflow-x:clip;flex:none;margin-left:8px}
+.window[data-rows="2"] .card{display:flex;flex-direction:column}
+.window[data-rows="2"] .page{flex:1;min-height:0;width:100%;padding-top:40px}
+.toolbar .ibtn{color:var(--aerie-color-text-muted)}
+.toolbar .ibtn:hover{color:var(--aerie-color-text)}
+.toolbar .pill{flex:1 1 0;max-width:none;min-width:200px;height:30px;background:var(--aerie-color-row-hover);box-shadow:none}
+.toolbar .pill input{color:var(--aerie-color-text)}
+.toolbar .pill:focus-within{box-shadow:inset 0 0 0 2px var(--ws-accent);background:var(--aerie-color-surface-popover)}
+.window[data-density=compact] .toolbar .pill{height:26px}
+.favpane{position:absolute;inset:0;display:flex;align-items:center;justify-content:flex-end;gap:0;padding:0}
+.favpane .grp{height:100%;align-items:center;gap:2px}
+.favpane .tab{height:var(--h-tile);padding:0;align-self:center;border-radius:var(--aerie-radius-md);color:var(--aerie-color-text)}
+.favpane .tab .bg,.favpane .tab::before{display:none}
+.favpane .tab.tile{width:var(--h-tile);margin:0}
+.favpane .tab.tile .tl{top:0;height:100%;background:var(--aerie-color-row-hover)}
+.favpane .tab.tile:hover .tl{background:color-mix(in srgb,var(--aerie-color-text) 12%,transparent)}
+.favpane .tab.tile.sel .tl{opacity:1;box-shadow:inset 0 0 0 1.5px var(--ws-accent)}
+.favpane .tab.tile .fav-wrap{top:0}
+.favpane .tab.tile{--bd-ring:var(--aerie-color-content-surface)}

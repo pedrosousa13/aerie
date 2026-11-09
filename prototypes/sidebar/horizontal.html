@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en" data-mode="light" data-theme="vivid">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aerie Horizontal Tabs Mockup</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="horizontal.css">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-back" viewBox="0 0 16 16"><path d="M9.5 3.5 5 8l4.5 4.5"/></symbol>
+    <symbol id="i-forward" viewBox="0 0 16 16"><path d="M6.5 3.5 11 8l-4.5 4.5"/></symbol>
+    <symbol id="i-reload" viewBox="0 0 16 16"><path d="M13 8a5 5 0 1 1-1.6-3.7M13 2.5v2.8h-2.8"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 16 16"><path d="M8 1.8 3 3.6v4c0 3 2.2 5 5 6.6 2.8-1.6 5-3.6 5-6.6v-4z"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 16 16"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3H6l1.5 1.5h5A1.5 1.5 0 0 1 14 6v5.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5z"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 16 16"><path d="M6 4l4 4-4 4"/></symbol>
+    <symbol id="i-chevron-down" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></symbol>
+    <symbol id="i-x" viewBox="0 0 16 16"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 16 16"><path d="M12.5 9.5A5 5 0 0 1 6.5 3.5a5 5 0 1 0 6 6z"/></symbol>
+    <symbol id="i-speaker" viewBox="0 0 16 16"><path d="M3 6.5h2L8 4v8L5 9.5H3zM10.5 6a3 3 0 0 1 0 4"/></symbol>
+    <symbol id="i-search" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4"/><path d="m10 10 3 3"/></symbol>
+    <symbol id="i-check" viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7"/></symbol>
+    <symbol id="i-ws-ring" viewBox="0 0 16 16"><circle cx="8" cy="8" r="4"/><circle cx="8" cy="8" r="1" fill="currentColor"/></symbol>
+    <symbol id="i-ws-case" viewBox="0 0 16 16"><rect x="2.5" y="5" width="11" height="8" rx="2"/><path d="M6 5V4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1"/></symbol>
+    <symbol id="i-ws-spark" viewBox="0 0 16 16"><path d="M8 2.5l1.8 3.7 3.7 1.8-3.7 1.8L8 13.5l-1.8-3.7L2.5 8l3.7-1.8z"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"/><path d="M2.5 8h11M8 2.5c2 2 2 9 0 11M8 2.5c-2 2-2 9 0 11"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 16 16"><path d="M3 8h10M9 4l4 4-4 4"/></symbol>
+  </defs>
+</svg>
+
+<div class="window" id="window" data-density="comfortable">
+  <div class="frame-bg"><div class="tint" id="tintA"></div><div class="tint" id="tintB"></div></div>
+  <header class="strip" id="strip">
+    <div class="wc" role="group" aria-label="Window controls">
+      <button class="wc-btn" aria-label="Minimize" tabindex="-1"></button>
+      <button class="wc-btn" aria-label="Maximize" tabindex="-1"></button>
+      <button class="wc-btn wc-close" aria-label="Close window" tabindex="-1"></button>
+    </div>
+    <button class="chip" id="chip" aria-haspopup="menu" aria-expanded="false" title="Workspace (Ctrl+Shift+1 to 3)"></button>
+    <div class="panes" id="panes"></div>
+    <div class="navgrp">
+      <button class="ibtn" aria-label="Back" tabindex="-1"><svg class="ic"><use href="#i-back"/></svg></button>
+      <button class="ibtn" aria-label="Forward" tabindex="-1"><svg class="ic"><use href="#i-forward"/></svg></button>
+      <button class="ibtn" aria-label="Reload" tabindex="-1"><svg class="ic"><use href="#i-reload"/></svg></button>
+    </div>
+    <div class="tbfavs" id="tbFavs"></div>
+    <div class="pill" id="pill">
+      <input id="url" type="text" aria-label="Address" autocomplete="off" spellcheck="false">
+      <button class="guard" id="guard" aria-haspopup="dialog" aria-expanded="false" aria-label="Aerie Guard"><svg class="ic"><use href="#i-shield"/></svg><span id="guardN">0</span></button>
+    </div>
+  </header>
+  <main class="card" id="card" aria-label="Page"><div class="toolbar" id="toolbar"></div><div class="page" id="page"></div></main>
+
+  <div class="cmd-layer" id="cmdLayer" hidden>
+    <div class="scrim" id="cmdScrim"></div>
+    <div class="cmd" id="cmd" role="dialog" aria-label="Command bar">
+      <div class="cmd-in"><svg class="ic"><use href="#i-search"/></svg><input id="cmdInput" type="text" role="combobox" aria-expanded="true" aria-controls="cmdList" placeholder="Search tabs, workspaces, or type a URL" autocomplete="off" spellcheck="false"></div>
+      <div class="cmd-list" id="cmdList" role="listbox"></div>
+      <div class="cmd-foot"><span><kbd>Enter</kbd> open</span><span><kbd>Up</kbd><kbd>Down</kbd> move</span><span><kbd>Esc</kbd> close</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="pop" id="popGuard" role="dialog" aria-label="Guard" hidden>
+  <div class="pop-h"><svg class="ic"><use href="#i-shield"/></svg><strong>Aerie Guard</strong></div>
+  <p class="pop-p">Guard panel &mdash; see Guard design</p>
+</div>
+<div class="menu" id="wsMenu" role="menu" aria-label="Workspaces" hidden></div>
+<div class="menu drop" id="drop" role="menu" hidden></div>
+<div class="mock" id="mock"></div>
+<script src="horizontal.js"></script>
+</body>
+</html>

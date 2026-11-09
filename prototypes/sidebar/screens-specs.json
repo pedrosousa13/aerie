@@ -1,0 +1,18 @@
+[
+  {
+    "id": "motion-spec",
+    "title": "Motion spec: every sidebar interaction",
+    "page": "motion.html",
+    "query": "",
+    "fullPage": true,
+    "note": "Per interaction: what moves, duration and easing tokens with values, curve plots, delays, reduced-motion version and a live demo. Plus the peek state machine and performance rules."
+  },
+  {
+    "id": "token-spec",
+    "title": "Token spec: tokens, themes, contrast",
+    "page": "tokens.html",
+    "query": "",
+    "fullPage": true,
+    "note": "Every token group as a table, the theme catalogue side by side, the 8 Workspace presets, type, spacing and radius scales, and the contrast matrix for every theme, mode and preset."
+  }
+]

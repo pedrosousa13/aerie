@@ -18,6 +18,7 @@ A Google-free, hardened Chromium browser built on top of
 | `tools/aerie_ci/` | The local CI: gates the maintainer's PRs and runs a nightly clean build and full Bench. See [docs/ci.md](docs/ci.md). |
 | `docs/helium-fallback.md` | What Aerie does if Helium disappears: the official-tarball source (`./aerie build --source official`), mirrors, and the dependency ledger. See [docs/helium-fallback.md](docs/helium-fallback.md). |
 | `docs/helium-bump.md` | `./aerie bump`, the fix-up routine after a Helium release, and the daily job that opens bump pull requests. See [docs/helium-bump.md](docs/helium-bump.md). |
+| `docs/sidebar-design.md` | The approved sidebar, Workspaces, themes and motion design (issue #142), with its mockup in `prototypes/sidebar/`. Decision record: [docs/adr/0007-single-design-token-source.md](docs/adr/0007-single-design-token-source.md). Terms: [GLOSSARY.md](GLOSSARY.md). See [docs/sidebar-design.md](docs/sidebar-design.md). |
 | `tests/` | Unit tests for the build tooling. |
 | `patches/` | Aerie's own patch series, applied on top of Helium's. See [CONTRIBUTING.md](CONTRIBUTING.md). |
 

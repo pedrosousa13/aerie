@@ -1,0 +1,37 @@
+[
+  {
+    "id": "editor-presets",
+    "title": "Editor: colour presets",
+    "page": "workspace-editor.html",
+    "query": "ws=personal&tab=preset&controls=0",
+    "note": "Editing Personal. Live preview on top, 8 colour presets plus Custom, theme cards, mode, link routing placeholder (#172, later) and the cookies note."
+  },
+  {
+    "id": "editor-custom-triad",
+    "title": "Editor: custom triad",
+    "page": "workspace-editor.html",
+    "query": "ws=personal&tab=custom&harmony=triad&hue=265&sat=0.75&controls=0",
+    "note": "Custom colour wheel with three dots in Triad harmony, lightness, intensity and grain sliders. Contrast chip shows AA. Dots move with the mouse or the arrow keys."
+  },
+  {
+    "id": "editor-custom-adjusted",
+    "title": "Editor: custom colour adjusted for contrast",
+    "page": "workspace-editor.html",
+    "query": "ws=personal&tab=custom&harmony=analogous&hue=255&sat=0.9&lightness=30&intensity=100&controls=0",
+    "note": "A dark gradient that would fail AA under Vivid's dark text. The chip turns into a warning and says how much Aerie lightened the colours. The dots stay where the user put them."
+  },
+  {
+    "id": "editor-theme-oled",
+    "title": "Editor: OLED theme",
+    "page": "workspace-editor.html",
+    "query": "ws=side&tab=custom&harmony=complementary&hue=150&sat=0.7&controls=0",
+    "note": "OLED selected: mode is forced to Dark with an explanation, Grain is disabled with a note, and the custom colour shows only in the accent and strip."
+  },
+  {
+    "id": "editor-delete-confirm",
+    "title": "Editor: delete confirmation",
+    "page": "workspace-editor.html",
+    "query": "ws=work&confirm=1&controls=0",
+    "note": "In-page confirmation (never a browser dialog). Focus starts on Keep workspace; Esc closes the confirmation."
+  }
+]

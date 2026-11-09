@@ -1,0 +1,86 @@
+[
+  {
+    "id": "horizontal-default",
+    "title": "Horizontal: two rows",
+    "page": "horizontal.html",
+    "query": "ws=personal&controls=0",
+    "note": "Default layout. Row 1 holds the Workspace chip, pinned tabs and Today tabs with full-width titles. Row 2 is the toolbar, drawn at the top of the page card so the selected tab joins it: back/forward/reload, a flexible address pill with the Guard shield, and Favorites tiles on the right."
+  },
+  {
+    "id": "horizontal-work",
+    "title": "Horizontal: two rows, Work Workspace",
+    "page": "horizontal.html",
+    "query": "ws=work&controls=0",
+    "note": "Two-row layout in the Work Workspace (Clean theme override, Tide tint, six Favorites, a folder in Today)."
+  },
+  {
+    "id": "horizontal-onerow",
+    "title": "Horizontal: one row, dense",
+    "page": "horizontal.html",
+    "query": "ws=personal&rows=1&controls=0",
+    "note": "The dense option. Address pill, Guard shield, navigation and Favorites tiles are merged into the single tab strip. Dusk tint in Vivid, pinned tabs and a Reading folder, a sleeping tab and an audio tab."
+  },
+  {
+    "id": "horizontal-onerow-work",
+    "title": "Horizontal: one row, Work Workspace",
+    "page": "horizontal.html",
+    "query": "ws=work&rows=1&controls=0",
+    "note": "Dense layout in Work, with its own Clean theme override."
+  },
+  {
+    "id": "horizontal-crowded",
+    "title": "Horizontal: crowded, icon-only tabs",
+    "page": "horizontal.html",
+    "query": "ws=personal&crowd=12&controls=0",
+    "note": "Seventeen Today tabs. Tabs shrink to the minimum width and drop titles and close buttons; the selected tab keeps its raised shape."
+  },
+  {
+    "id": "horizontal-crowded-onerow",
+    "title": "Horizontal: crowded, one row",
+    "page": "horizontal.html",
+    "query": "ws=personal&rows=1&crowd=12&controls=0",
+    "note": "The same seventeen tabs in the dense layout, where the strip also has to hold the address pill and Favorites."
+  },
+  {
+    "id": "horizontal-folder-open",
+    "title": "Horizontal: folder dropdown",
+    "page": "horizontal.html",
+    "query": "ws=personal&open=folder&controls=0",
+    "note": "The Reading folder tab open, listing its tabs and the nested Recipes folder."
+  },
+  {
+    "id": "horizontal-wsmenu",
+    "title": "Horizontal: Workspace menu",
+    "page": "horizontal.html",
+    "query": "ws=personal&open=wsmenu&controls=0",
+    "note": "The Workspace chip menu with Ctrl+Shift+1 to 3 hints."
+  },
+  {
+    "id": "horizontal-compact",
+    "title": "Horizontal: two rows, compact",
+    "page": "horizontal.html",
+    "query": "ws=personal&density=compact&controls=0",
+    "note": "Compact density in the two-row layout: 34px tab strip, 34px toolbar, 22px Favorites tiles, 16px favicons."
+  },
+  {
+    "id": "horizontal-compact-onerow",
+    "title": "Horizontal: one row, compact",
+    "page": "horizontal.html",
+    "query": "ws=personal&rows=1&density=compact&controls=0",
+    "note": "38px strip, 24px Favorites tiles, 16px favicons."
+  },
+  {
+    "id": "horizontal-oled",
+    "title": "Horizontal: OLED theme",
+    "page": "horizontal.html",
+    "query": "ws=personal&theme=oled&mode=dark&controls=0",
+    "note": "OLED is dark only. The page card gets a hairline border, so the selected tab is outlined instead of flared."
+  },
+  {
+    "id": "horizontal-overflow",
+    "title": "Horizontal: overflow, scrolled",
+    "page": "horizontal.html",
+    "query": "ws=personal&crowd=20&select=last&controls=0",
+    "note": "About 25 Today tabs. Even icon-only tabs do not fit, so the Today group scrolls with fade edges and chevrons; the selected (last) tab is kept in view and keeps a 120px minimum."
+  }
+]

@@ -1,0 +1,224 @@
+[
+  {
+    "id": "sidebar-default",
+    "title": "Sidebar: Personal, comfortable",
+    "query": "ws=personal&density=comfortable&side=left&controls=0",
+    "note": "Default state. Dusk tint, favorites, pinned folders two levels deep, a pinned tab away from its pinned page, sleeping and audio tabs."
+  },
+  {
+    "id": "workspace-work",
+    "title": "Sidebar: Work Workspace",
+    "query": "ws=work&wstheme=default&wsmode=default&controls=0",
+    "note": "Tide tint in the default theme (Vivid), different favorites, pinned and Today content, folders in both sections."
+  },
+  {
+    "id": "workspace-side",
+    "title": "Sidebar: Side project Workspace",
+    "query": "ws=side&wstheme=default&wsmode=default&controls=0",
+    "note": "Moss tint in the default theme (Vivid), small favorites set, a collapsed folder in Today."
+  },
+  {
+    "id": "density-compact",
+    "title": "Sidebar: compact density",
+    "query": "density=compact&controls=0",
+    "note": "28px rows, 36px tiles, 4px content inset."
+  },
+  {
+    "id": "density-collapsed",
+    "title": "Sidebar: collapsed rail",
+    "query": "density=collapsed&controls=0",
+    "note": "56px rail: icon favorites, favicon-only tabs, vertical workspace dots."
+  },
+  {
+    "id": "density-autohide-peek",
+    "title": "Sidebar: auto-hide, peeking",
+    "query": "density=autohide&open=peek&controls=0",
+    "note": "Sidebar hidden; floating peek panel over the page from the edge hot zone."
+  },
+  {
+    "id": "side-right",
+    "title": "Sidebar: on the right",
+    "query": "side=right&controls=0",
+    "note": "Everything mirrored; window controls stay at the outer edge."
+  },
+  {
+    "id": "command-bar",
+    "title": "Sidebar: command bar",
+    "query": "open=cmdbar&controls=0",
+    "note": "Centred bar over a dimmed page with workspace, tab and archive results."
+  },
+  {
+    "id": "context-menu",
+    "title": "Sidebar: tab context menu",
+    "query": "open=contextmenu&controls=0",
+    "note": "Pin, Rename, Add to Favorites, Move to workspace, Sleep now, Close."
+  },
+  {
+    "id": "archive-panel",
+    "title": "Sidebar: archive panel",
+    "query": "open=archive&controls=0",
+    "note": "Archive panel: header with the auto-archive setting (\"Archive Today tabs after 12 hours\"), search, rows grouped by Today / Yesterday / Last week, each with a Workspace label; click a row to restore it."
+  },
+  {
+    "id": "focus-order",
+    "title": "Sidebar: focus order overlay",
+    "query": "focus=1&controls=0",
+    "note": "Numbered badges for tab and screen-reader order."
+  },
+  {
+    "id": "guard-stub",
+    "title": "Sidebar: Guard popover",
+    "query": "open=guard&controls=0",
+    "note": "Stub popover from the address pill: Guard panel, see Guard design."
+  },
+  {
+    "id": "theme-vivid",
+    "title": "Themes: Vivid, Personal",
+    "query": "theme=vivid&ws=personal&wstheme=default&wsmode=default&density=comfortable&side=left&controls=0",
+    "note": "Theme Vivid: default; strong Workspace gradient across sidebar and frame. Personal (Dusk)."
+  },
+  {
+    "id": "theme-soft",
+    "title": "Themes: Soft, Personal",
+    "query": "theme=soft&ws=personal&wstheme=default&wsmode=default&density=comfortable&side=left&controls=0",
+    "note": "Theme Soft: gentle Workspace gradient. Personal (Dusk)."
+  },
+  {
+    "id": "theme-clean",
+    "title": "Themes: Clean, Personal",
+    "query": "theme=clean&ws=personal&wstheme=default&wsmode=default&density=comfortable&side=left&controls=0",
+    "note": "Theme Clean: near-neutral frame, identity via accent and a thin gradient strip. Personal (Dusk)."
+  },
+  {
+    "id": "theme-oled",
+    "title": "Themes: OLED, Personal",
+    "query": "theme=oled&ws=personal&wstheme=default&wsmode=default&density=comfortable&side=left&controls=0",
+    "note": "Theme OLED: dark only; pure black, hairline card, no gradients (screenshot dark only). Personal (Dusk)."
+  },
+  {
+    "id": "theme-high-contrast",
+    "title": "Themes: High contrast, Personal",
+    "query": "theme=high-contrast&ws=personal&wstheme=default&wsmode=default&density=comfortable&side=left&controls=0",
+    "note": "Theme High contrast: text 7:1 or better, 2px borders on selected rows and focus, solid strip and marker. Personal (Dusk)."
+  },
+  {
+    "id": "theme-mono",
+    "title": "Themes: Mono, Personal",
+    "query": "theme=mono&ws=personal&wstheme=default&wsmode=default&density=comfortable&side=left&controls=0",
+    "note": "Theme Mono: greyscale; hue only in the active Workspace icon. Personal (Dusk)."
+  },
+  {
+    "id": "theme-vivid-work",
+    "title": "Themes: Vivid, Work",
+    "query": "theme=vivid&ws=work&wstheme=default&wsmode=default&density=comfortable&side=left&controls=0",
+    "note": "Theme Vivid on Work (Tide), to show how the theme uses a different Workspace colour."
+  },
+  {
+    "id": "theme-soft-work",
+    "title": "Themes: Soft, Work",
+    "query": "theme=soft&ws=work&wstheme=default&wsmode=default&density=comfortable&side=left&controls=0",
+    "note": "Theme Soft on Work (Tide), to show how the theme uses a different Workspace colour."
+  },
+  {
+    "id": "theme-clean-work",
+    "title": "Themes: Clean, Work",
+    "query": "theme=clean&ws=work&wstheme=default&wsmode=default&density=comfortable&side=left&controls=0",
+    "note": "Theme Clean on Work (Tide), to show how the theme uses a different Workspace colour."
+  },
+  {
+    "id": "theme-oled-work",
+    "title": "Themes: OLED, Work",
+    "query": "theme=oled&ws=work&wstheme=default&wsmode=default&density=comfortable&side=left&controls=0",
+    "note": "Theme OLED on Work (Tide), to show how the theme uses a different Workspace colour."
+  },
+  {
+    "id": "theme-high-contrast-work",
+    "title": "Themes: High contrast, Work",
+    "query": "theme=high-contrast&ws=work&wstheme=default&wsmode=default&density=comfortable&side=left&controls=0",
+    "note": "Theme High contrast on Work (Tide), to show how the theme uses a different Workspace colour."
+  },
+  {
+    "id": "theme-mono-work",
+    "title": "Themes: Mono, Work",
+    "query": "theme=mono&ws=work&wstheme=default&wsmode=default&density=comfortable&side=left&controls=0",
+    "note": "Theme Mono on Work (Tide), to show how the theme uses a different Workspace colour."
+  },
+  {
+    "id": "ws-override-switch",
+    "title": "Workspaces: Work uses its own Clean theme",
+    "query": "ws=work&controls=0",
+    "note": "Global default is Vivid; Work carries its own theme (Clean), so switching Personal to Work crossfades the whole chrome."
+  },
+  {
+    "id": "ws-override-oled",
+    "title": "Workspaces: Side project uses OLED dark",
+    "query": "ws=side&controls=0",
+    "note": "Global default is Vivid light; Side project overrides to OLED and dark mode."
+  },
+  {
+    "id": "single-workspace",
+    "title": "Sidebar: one Workspace",
+    "query": "wscount=1&controls=0",
+    "note": "Only one Workspace exists: the switcher dots are hidden and only \"+ New workspace\" shows at the bottom."
+  },
+  {
+    "id": "folder-autofile-toast",
+    "title": "Folders: auto-file toast",
+    "query": "ws=personal&open=autofile-toast&controls=0",
+    "note": "A new tab matching the Trips rules was filed into the Trips folder (funnel glyph on the row). Toast: Filed into Trips, Undo, Don't file this site."
+  },
+  {
+    "id": "folder-smart",
+    "title": "Folders: smart folder",
+    "query": "ws=work&open=smart&controls=0",
+    "note": "Smart folder 'Northwind docs' (dashed sparkle glyph, italic count) lists matching tabs from Pinned and Today without moving them. The hovered row shows where it lives (Today)."
+  },
+  {
+    "id": "folder-smart-tooltip",
+    "title": "Folders: smart folder tooltip",
+    "query": "ws=work&open=smart-tip&controls=0",
+    "note": "Tooltip on a smart folder: it is a live view, its rules, closing a tab here closes the real tab."
+  },
+  {
+    "id": "folder-editor",
+    "title": "Folders: editor, auto-file",
+    "query": "open=folder-editor&folder=f-trips&controls=0",
+    "note": "Sheet anchored to the sidebar: name and icon, kind, rules as chips (one rule off), exception list, behaviour toggles (sleep after 30 minutes set; others show Inherits global)."
+  },
+  {
+    "id": "folder-editor-smart",
+    "title": "Folders: editor, smart",
+    "query": "ws=work&open=folder-editor&folder=f-docs&controls=0",
+    "note": "Smart folders have rules but no behaviour section; the sheet says how many tabs match now."
+  },
+  {
+    "id": "folder-rules-off",
+    "title": "Folders: editor, rules off",
+    "query": "open=folder-editor&folder=f-trips&rules=off&controls=0",
+    "note": "All of the folder's rules are off: the rule glyph on the row is struck through, the sheet shows a banner, rows are dimmed, the list is kept."
+  },
+  {
+    "id": "tab-renamed-tooltip",
+    "title": "Tabs: renamed tooltip",
+    "query": "open=tip-renamed&controls=0",
+    "note": "A renamed tab has a small pencil marker. The tooltip shows the real page title, the precedence list (your name wins) and Reset name."
+  },
+  {
+    "id": "tab-tidied-tooltip",
+    "title": "Tabs: tidied title tooltip",
+    "query": "open=tip-tidied&controls=0",
+    "note": "'(3) Inbox - Fjord Mail' shows as 'Inbox'. Tooltip: Tidied, original title, and the five-step precedence."
+  },
+  {
+    "id": "archive-moment",
+    "title": "Tabs: archive after archiving",
+    "query": "open=archive&archived=1&controls=0",
+    "note": "After Archive now: the Today tab is gone and sits at the top of the Today group in the archive (the fly-to-button animation runs from the mockup control Archive now)."
+  },
+  {
+    "id": "today-sleep-summary",
+    "title": "Tabs: sleeping summary in Today",
+    "query": "open=today-sleep&controls=0",
+    "note": "Hovering the Today header shows '3 asleep · ~410 MB freed' (estimate)."
+  }
+]

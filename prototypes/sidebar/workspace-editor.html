@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aerie Workspace editor mockup</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="workspace-editor.css">
+</head>
+<body>
+<!-- Static browser frame behind the sheet. Blurred and dimmed, not interactive. -->
+<div class="bd" aria-hidden="true" inert>
+  <div class="bd-tint"></div><div class="bd-glow"></div>
+  <div class="bd-sb">
+    <div class="bd-wc"><i></i><i></i><i></i></div>
+    <div class="bd-url"></div>
+    <div class="bd-row"></div><div class="bd-row sel"></div><div class="bd-row"></div>
+    <div class="bd-sep"></div>
+    <div class="bd-row"></div><div class="bd-row"></div><div class="bd-row"></div><div class="bd-row"></div>
+  </div>
+  <div class="bd-page"><div class="bd-b w1"></div><div class="bd-b w2"></div><div class="bd-b w3"></div><div class="bd-b w2"></div></div>
+</div>
+<div class="scrim" id="scrim" aria-hidden="true"></div>
+
+<div class="reopen" id="reopen" hidden>
+  <p id="reopenMsg"></p>
+  <button type="button" class="btn" id="reopenBtn">Reopen editor (mockup)</button>
+</div>
+
+<section class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="shTitle">
+  <header class="sh-head">
+    <h1 id="shTitle">Edit Workspace</h1>
+    <span class="sh-sub" id="shSub"></span>
+  </header>
+
+  <div class="sh-body" id="shBody">
+    <div class="col col-l">
+      <div class="pv" id="pv" role="img">
+        <div class="pv-tint"></div><div class="pv-glow"></div><div class="pv-shade"></div>
+        <div class="pv-strip"></div>
+        <div class="pv-sb" aria-hidden="true">
+          <div class="pv-head"><span class="pv-ico" id="pvIcon"></span><b id="pvName"></b></div>
+          <div class="pv-row"><i></i>Inbox</div>
+          <div class="pv-row sel"><i></i>Roadmap</div>
+          <div class="pv-row"><i></i>Notes</div>
+          <div class="pv-dots"><span class="on"></span><span></span><span></span></div>
+        </div>
+        <div class="pv-page" aria-hidden="true">
+          <div class="pv-bar"><span class="pv-url"></span></div>
+          <div class="pv-line l1"></div><div class="pv-line l2"></div><div class="pv-line l3"></div>
+          <span class="pv-btn"></span>
+        </div>
+        <div class="pv-grain"></div>
+      </div>
+      <p class="pv-cap" id="pvCap">Preview</p>
+
+      <div class="field">
+        <label for="wsName" class="lbl">Name</label>
+        <input id="wsName" class="input" type="text" maxlength="24" autocomplete="off" spellcheck="false" aria-describedby="nameErr">
+        <p class="err" id="nameErr" role="alert" hidden>Give the Workspace a name.</p>
+      </div>
+
+      <div class="field">
+        <span class="lbl" id="iconLbl">Icon</span>
+        <div class="icons" id="icons" role="radiogroup" aria-labelledby="iconLbl"></div>
+      </div>
+
+      <section class="field" aria-labelledby="mdLbl">
+        <h2 class="lbl" id="mdLbl">Mode</h2>
+        <div class="seg" id="modes" role="radiogroup" aria-labelledby="mdLbl"></div>
+        <p class="hint" id="modeNote"></p>
+      </section>
+
+      <fieldset class="field routing" disabled aria-describedby="routeNote">
+        <legend class="lbl">Open links from these sites here <span class="tag">Later</span></legend>
+        <div class="route-row">
+          <input class="input" type="text" value="example.com" disabled aria-label="Site (not available yet)">
+          <button type="button" class="btn" disabled>Add site</button>
+        </div>
+        <p class="hint" id="routeNote">Coming later. Links to the sites you list will open in this Workspace.</p>
+      </fieldset>
+
+      <p class="privacy"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>This Workspace has its own cookies and logins.</p>
+    </div>
+
+    <div class="col col-r">
+      <section class="field" aria-labelledby="colLbl">
+        <div class="lbl-row">
+          <h2 class="lbl" id="colLbl">Colour</h2>
+          <span class="chip" id="chip" role="status" aria-live="polite"></span>
+        </div>
+        <div class="swatches" id="swatches" role="radiogroup" aria-labelledby="colLbl"></div>
+
+        <div class="custom" id="custom" hidden>
+          <div class="wheel-wrap">
+            <div class="wheel" id="wheel" aria-label="Colour wheel">
+              <canvas id="wheelCv" width="168" height="168" aria-hidden="true"></canvas>
+            </div>
+            <p class="hint wheel-hint">Drag a dot, or focus it and use the arrow keys. Left and right change hue, up and down change saturation. Shift moves faster.</p>
+          </div>
+          <div class="ctl">
+            <div class="lbl-sm" id="harmLbl">Harmony</div>
+            <div class="chips" id="harmony" role="radiogroup" aria-labelledby="harmLbl"></div>
+            <label class="slider"><span>Lightness <output id="oLight"></output></span><input type="range" id="rLight" min="10" max="90" step="1"></label>
+            <label class="slider"><span>Intensity <output id="oInt"></output></span><input type="range" id="rInt" min="0" max="100" step="1"></label>
+            <label class="slider"><span>Grain (optional) <output id="oGrain"></output></span><input type="range" id="rGrain" min="0" max="100" step="1"></label>
+            <p class="hint" id="grainNote" hidden>Grain is off in OLED and High contrast so edges and text stay crisp.</p>
+            <p class="hint" id="tintNote" hidden></p>
+          </div>
+        </div>
+        <p class="explain" id="explain" hidden></p>
+      </section>
+
+      <section class="field" aria-labelledby="thLbl">
+        <h2 class="lbl" id="thLbl">Theme</h2>
+        <div class="themes" id="themes" role="radiogroup" aria-labelledby="thLbl"></div>
+      </section>
+
+    </div>
+  </div>
+
+  <div class="confirm" id="confirm" role="alertdialog" aria-labelledby="cfTitle" aria-describedby="cfText" hidden>
+    <div>
+      <b id="cfTitle"></b>
+      <p id="cfText"></p>
+    </div>
+    <div class="cf-btns">
+      <button type="button" class="btn" id="cfKeep">Keep workspace</button>
+      <button type="button" class="btn danger solid" id="cfDelete">Delete workspace</button>
+    </div>
+  </div>
+
+  <footer class="sh-foot" id="shFoot">
+    <button type="button" class="btn danger" id="btnDelete">Delete workspace</button>
+    <span class="grow"></span>
+    <button type="button" class="btn" id="btnCancel">Cancel</button>
+    <button type="button" class="btn primary" id="btnSave">Save</button>
+  </footer>
+</section>
+
+<div class="mock" id="mock"></div>
+<script src="workspace-editor.js"></script>
+</body>
+</html>
