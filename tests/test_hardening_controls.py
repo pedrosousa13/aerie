@@ -146,8 +146,9 @@ class RealTableTest(unittest.TestCase):
         self.assertEqual(jit["provided_by"], "chromium")
         self.assertEqual(jit["bench_checks"], ["hardening_js_optimizer"])
         deferred = " ".join(d["title"] for d in self.table["deferred"]).lower()
-        for word in ("client rects", "measuretext", "webgl"):
+        for word in ("client rects", "webgl"):
             self.assertIn(word, deferred)
+        self.assertNotIn("measuretext", deferred)  # on since issue #118
         locked = {e["browser_pref"] for e in self.table["locked_from_extensions"]}
         self.assertTrue({"webrtc.ip_handling_policy", "net.network_prediction_options",
                          "profile.cookie_controls_mode"} <= locked)

@@ -11,6 +11,7 @@ std::vector<ProtectedSurface> ProtectedSurfaces() {
       ProtectedSurface::kCanvas,        ProtectedSurface::kAudio,
       ProtectedSurface::kCpuCores,      ProtectedSurface::kDeviceMemory,
       ProtectedSurface::kGraphicsCard,  ProtectedSurface::kScreen,
+      ProtectedSurface::kTextMetrics,
   };
 }
 

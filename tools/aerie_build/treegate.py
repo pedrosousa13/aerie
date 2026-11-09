@@ -493,11 +493,45 @@ def check_popup_noise_tokens(root: Path, require: bool = False) -> list[Finding]
     return out
 
 
+TEXT_METRICS_CANVAS_PATH = "third_party/blink/renderer/modules/canvas/canvas2d/base_rendering_context_2d.cc"
+TEXT_METRICS_DOCUMENT_PATH = "third_party/blink/renderer/core/dom/document.cc"
+TEXT_METRICS_FACTOR_PATH = "third_party/blink/renderer/core/helium_noise/text_metrics_noise.cc"
+
+
+def check_text_metrics_noise(root: Path, require: bool = False) -> list[Finding]:
+    """measureText and client rect noise come from the site's kTextMetrics token (issue #118): stable for a
+    site in a session, 1 without a token. The Bromite patch drew the factor with base::RandDouble() once per
+    Document, which changes on every load and is itself a fingerprint."""
+    gate = "text_metrics_noise"
+    out: list[Finding] = []
+    for rel, pattern, message in (
+        (TEXT_METRICS_CANVAS_PATH,
+         r"TextMetricsNoiseFactor\(\s*GetExecutionContext\(\),\s*TextMetricsNoiseKind::kMeasureText\)",
+         "measureText must take its factor from TextMetricsNoiseFactor"),
+        (TEXT_METRICS_DOCUMENT_PATH,
+         r"double Document::GetNoiseFactorX\(\) \{\s*return TextMetricsNoiseFactor\([^;]*?kClientRectsX\);\s*\}"
+         r"\s*double Document::GetNoiseFactorY\(\) \{\s*return TextMetricsNoiseFactor\([^;]*?kClientRectsY\);\s*\}",
+         "the client rect factors must come from TextMetricsNoiseFactor"),
+        (TEXT_METRICS_FACTOR_PATH,
+         r"HeliumNoiseHash hash\(tokens\.at\(HeliumNoiseFeature::kTextMetrics\)\)",
+         "the factor must be hashed from the kTextMetrics token"),
+    ):
+        text, missing = _read(root, rel, gate, require)
+        if text is None:
+            out += missing
+        elif not re.search(pattern, text, re.S):
+            out.append(Finding(gate, rel, message))
+        elif re.search(r"base::Rand\w*\(", text):
+            out.append(Finding(gate, rel, "a random number must not feed the factor: it would change on every load"))
+    return out
+
+
 GATES: tuple[Callable[..., list[Finding]], ...] = (
     check_search_list, check_search_suggestions, check_secure_dns_default,
     check_crash_reporting, check_services_off, check_fedcm_resolver, check_widevine_opt_in,
     check_https_first_dialog_off, check_link_prefetch_off, check_js_optimizer, check_services_ui,
     check_audio_noise_stable, check_gpu_masking, check_worker_noise_tokens, check_popup_noise_tokens,
+    check_text_metrics_noise,
 )
 
 

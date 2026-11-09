@@ -15,14 +15,15 @@ TEST(ProtectedSurfacesTest, EverySurfaceIsListedOnce) {
   const std::vector<ProtectedSurface> surfaces = ProtectedSurfaces();
   const std::set<ProtectedSurface> unique(surfaces.begin(), surfaces.end());
   EXPECT_EQ(surfaces.size(), unique.size());
-  // kScreen is the last value of the enum. A surface added after it must be
+  // kTextMetrics is the last value of the enum. A surface added after it must be
   // added to the list too.
-  EXPECT_EQ(static_cast<size_t>(ProtectedSurface::kScreen) + 1,
+  EXPECT_EQ(static_cast<size_t>(ProtectedSurface::kTextMetrics) + 1,
             surfaces.size());
   for (ProtectedSurface surface :
        {ProtectedSurface::kCanvas, ProtectedSurface::kAudio,
         ProtectedSurface::kCpuCores, ProtectedSurface::kDeviceMemory,
-        ProtectedSurface::kGraphicsCard, ProtectedSurface::kScreen}) {
+        ProtectedSurface::kGraphicsCard, ProtectedSurface::kScreen,
+        ProtectedSurface::kTextMetrics}) {
     EXPECT_TRUE(std::ranges::contains(surfaces, surface));
   }
 }

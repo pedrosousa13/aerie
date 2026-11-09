@@ -34,6 +34,7 @@ hardening/0014-give-shared-and-service-workers-noise-tokens.patch
 hardening/0015-report-a-common-screen-size.patch
 hardening/0016-refuse-extension-cookie-allow-settings.patch
 hardening/0017-give-popups-the-openers-noise-tokens.patch
+hardening/0018-seed-measuretext-noise-per-site.patch
 
 adblock/0001-hook-url-loader-factory.patch
 adblock/0002-pack-engine-resource.patch

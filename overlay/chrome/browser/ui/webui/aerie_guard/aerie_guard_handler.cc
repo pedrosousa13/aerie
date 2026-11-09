@@ -59,6 +59,8 @@ mojom::ProtectedSurface ToMojo(aerie_fingerprint::ProtectedSurface surface) {
       return mojom::ProtectedSurface::kGraphicsCard;
     case aerie_fingerprint::ProtectedSurface::kScreen:
       return mojom::ProtectedSurface::kScreen;
+    case aerie_fingerprint::ProtectedSurface::kTextMetrics:
+      return mojom::ProtectedSurface::kTextMetrics;
   }
   NOTREACHED();
 }

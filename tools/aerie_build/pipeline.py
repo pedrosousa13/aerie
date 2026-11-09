@@ -46,6 +46,8 @@ TEST_BINARIES = (
     ("aerie_gpu_info_unittests", ()),
     # The bucketed screen size and the decision to report it (issue #116).
     ("aerie_screen_unittests", ()),
+    # The measureText noise factor and the decision to apply it (issue #118).
+    ("aerie_text_metrics_unittests", ()),
 )
 HOST_TOOLS = ("git", "tar", "zstd", "patch")
 MIN_FREE_BYTES = 150 * 1024**3
