@@ -29,13 +29,14 @@
     return out;
   }
 
-  // A virtual list: only the rows around the viewport exist. The rows sit below a sticky header.
+  // A virtual list: only the rows around the viewport exist. The list starts right below a sticky header, so after
+  // scrolling to row FIRST that row's top is the header's bottom.
   function layout() {
     const list = document.getElementById('list');
     for (let i = FIRST - 5; i < FIRST + 30; i++) {
       const d = document.createElement('div');
       d.className = 'row';
-      d.style.top = (HEAD + i * ROW) + 'px';
+      d.style.top = (i * ROW) + 'px';  // #list itself starts below the 30px header
       d.textContent = 'row ' + i;
       d.dataset.i = i;
       list.appendChild(d);
