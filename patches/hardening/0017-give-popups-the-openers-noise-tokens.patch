@@ -15,8 +15,9 @@ noise_tokens field, the same map type as CreateViewParams), and the renderer cop
 CreateViewParams of the new view. Source of the tokens: the opener's content::Page. A subframe's page holds the
 top-level site's tokens, so a popup from an iframe gets those. An empty map (protection off for the browser or for
 the opener's site) stays empty, so the popup reads the real values like its opener. The tokens are per-site derived
-tokens, never the session tokens. A popup in another browsing instance (noopener) is not scriptable by its
-opener and gets its tokens at its first commit as before.
+tokens, never the session tokens. A popup opened with noopener or noreferrer is created by the same
+CreateNewWindow call, so it also starts with the opener's tokens; its opener cannot script it, and its first
+commit replaces the tokens as below.
 
 The first commit of the popup replaces the tokens as for any main frame: DidCommitNavigation broadcasts the tokens
 of the committing site (an empty map when protection is off for it) to the page, so a popup that navigates
