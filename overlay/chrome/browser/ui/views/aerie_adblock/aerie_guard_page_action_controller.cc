@@ -150,6 +150,11 @@ void AerieGuardPageActionController::ShowPanel(views::BubbleAnchor anchor) {
       aerie_adblock::GuardTarget::Capture(web_contents()));
 }
 
+views::Widget* AerieGuardPageActionController::panel_widget_for_testing()
+    const {
+  return bubble_manager_ ? bubble_manager_->GetBubbleWidget() : nullptr;
+}
+
 void AerieGuardPageActionController::BeforeBubbleWidgetShowed(
     views::Widget* widget) {
   widget_observation_.Reset();

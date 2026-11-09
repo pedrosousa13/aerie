@@ -72,6 +72,9 @@ class AerieGuardPageActionController
   // nothing for a page the icon does not show on.
   void ShowPanel(views::BubbleAnchor anchor);
 
+  // The widget of the open panel, or null.
+  views::Widget* panel_widget_for_testing() const;
+
   // content::WebContentsObserver:
   void PrimaryPageChanged(content::Page& page) override;
 
