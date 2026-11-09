@@ -19,7 +19,7 @@ page and the Bench checks, so the three cannot drift apart.
 | No prefetch or preloading | Off. | ungoogled-chromium (through Helium) | Dropdown | `hardening_prefetch` |
 | Strict site isolation | Always on. | Chromium | Read-only | `hardening_site_isolation` |
 | JavaScript JIT per site | On for every site. | Chromium | Link to site settings | `hardening_js_optimizer` |
-| Fingerprinting randomization | On. | Helium | Toggle | `hardening_fingerprinting`, `hardening_fingerprinting_site`, `hardening_fingerprinting_gpu`, `hardening_device_memory` |
+| Fingerprinting protection | On. | Helium | Toggle | `hardening_fingerprinting`, `hardening_fingerprinting_site`, `hardening_fingerprinting_gpu`, `hardening_device_memory` |
 | Widevine DRM | Off. | Aerie | Toggle | `hardening_pref_defaults`, `hardening_settings_page`, `widevine_opt_in` |
 | Extensions cannot loosen these settings | Always on. | Aerie | Read-only | `hardening_extension_prefs` |
 
@@ -140,7 +140,7 @@ Process rule: the optimizer mode is part of the SiteInfo and of the renderer pro
 - Cost: Pages that run heavy scripts, such as web apps, games and large spreadsheets, can run several times slower on a site with the JIT off. Turn it off only for sites you do not trust.
 - Bench checks: `hardening_js_optimizer`
 
-### Fingerprinting randomization
+### Fingerprinting protection
 
 Canvas and audio output and the reported number of CPU cores carry small random noise. The noise differs for each site and for each browser session, and is the same on every address of one site (www.example.com and shop.example.com share it). A private window starts with its own noise. You can turn it off for a single site, and that covers every address of the site. WebGL reports only the vendor family of the graphics card (for example Google Inc. (AMD)), and WebGPU reports no adapter details. The reported device memory is capped at 8 GB, and the cap stays when this is turned off.
 
@@ -246,6 +246,34 @@ An extension with the privacy permission cannot write the WebRTC policy, the pre
 - Cost: Privacy extensions that set these options through chrome.privacy get a permission error. The user can still make the same change in settings.
 - Bench checks: `hardening_extension_prefs`
 
+## Manual fingerprint test
+
+The fingerprint run is manual and outside the Bench, because the Bench sends no traffic to outside sites and these test sites are outside it. Run it by hand after a slice that changes a fingerprint surface, and write the result in the Result column below with the build train and the total in bits.
+
+Procedure:
+
+1. Use a build that has the change, with a profile that has Fingerprinting protection on (the default) and no per-site exception for the test sites.
+2. Open Cover Your Tracks (coveryourtracks.eff.org) and run the test. Write down the total in bits and the bits of each surface in the table.
+3. Open browserleaks.com and read the WebGL, WebGPU, Canvas, Fonts and JavaScript pages (JavaScript shows the screen, the device memory and the number of cores). Write down what each one reports for the surfaces in the table.
+4. Repeat step 2 once with Fingerprinting protection turned off for the site, to see the real values. Turn it back on after.
+5. The baseline run had NextDNS on. That changes the tracker blocking half of Cover Your Tracks and not the fingerprint half, so say in the Result column if NextDNS or another DNS filter was on.
+
+Baseline: build train 8 (maintainer, 2026-11-08), Cover Your Tracks result strong protection, fingerprint randomized. Total: 18.58 bits.
+
+| Surface | Value | Bits | Result |
+| --- | --- | --- | --- |
+| WebGL vendor and renderer | ANGLE (AMD, AMD Radeon RX 6600 (radeonsi navi23 LLVM 20.1.2), OpenGL ES 3.2) | 18.58 (1 in 392,956) |  |
+| User agent | Chrome/157.0.0.0, Linux | 9.08 |  |
+| Screen size | 3440x1440x24 | 7.31 |  |
+| System fonts | 8 core fonts | 6.77 |  |
+| Time zone | Europe/Zurich, -60 | 6.53 + 3.12 |  |
+| Device memory | 32 GB | 3.86 |  |
+| Platform | Linux x86_64 | 2.47 |  |
+| Hardware concurrency | randomized | 1.84 |  |
+| Canvas, WebGL hash and AudioContext | randomized by first party | about 1 each |  |
+| Plugins | the standard 5 PDF viewers | 0.66 |  |
+| DNT, cookies, touch, language | not listed | under 1 |  |
+
 ## HTTPS-only and local development
 
 HTTPS-only mode is strict by default. Chromium already skips the upgrade for `localhost`, the whole
@@ -289,6 +317,9 @@ by this rule.
 
 ## Not covered
 
+- Workers: A worker gets no noise token yet (issue #113), so a worker always sees the masked WebGL values, also when protection is off for its site.
+- WebGPU adapter info: Only the vendor, architecture, device, description and driver strings are emptied. The adapter limits, the feature list and the subgroup sizes are real values.
+- Device memory above 8 GB: The baseline showed 32 GB because upstream raised the desktop maximum from 8 to 32 GB (crbug.com/454354290). Aerie caps it at 8 GB, and that cap stays when protection is off, so a site never learns the real value.
 - Client rects noise: getClientRects and getBoundingClientRect noise exists upstream but is off and uses a per-document factor. Left to a follow-up issue.
 - measureText noise: Canvas measureText noise exists upstream but is off and uses a per-document factor. Left to a follow-up issue.
 - WebGL fingerprinting noise: WebGL readback and vendor strings are not covered by Helium noise. This is the largest item and a compatibility risk. Left to a follow-up issue.

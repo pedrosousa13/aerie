@@ -1,4 +1,4 @@
-"""Fingerprinting randomization: canvas and audio differ per site and per session.
+"""Fingerprinting protection: canvas and audio differ per site and per session.
 
 The rule (issue #38): each hash must be stable for one site in one session, so a tracker cannot
 average the noise away by reading again, and must differ across sites and across sessions and from

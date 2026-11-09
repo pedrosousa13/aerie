@@ -62,6 +62,30 @@ def _ui_problems(cid: str, c: dict) -> list[str]:
     return out
 
 
+def _manual_test_problems(m) -> list[str]:
+    if not isinstance(m, dict):
+        return ["manual_test: must be an object"]
+    out = _text_problems("manual_test.intro", m.get("intro"))
+    proc = m.get("procedure")
+    if not isinstance(proc, list) or not proc:
+        out.append("manual_test.procedure: must be a non-empty list")
+    else:
+        for i, step in enumerate(proc):
+            out += _text_problems(f"manual_test.procedure[{i}]", step)
+    base = m.get("baseline")
+    if not isinstance(base, dict):
+        return out + ["manual_test.baseline: must be an object"]
+    for key in ("label", "total_bits"):
+        out += _text_problems(f"manual_test.baseline.{key}", base.get(key))
+    rows = base.get("rows")
+    if not isinstance(rows, list) or not rows:
+        return out + ["manual_test.baseline.rows: must be a non-empty list"]
+    for i, r in enumerate(rows):
+        for key in ("surface", "value", "bits"):
+            out += _text_problems(f"manual_test.baseline.rows[{i}].{key}", r.get(key))
+    return out
+
+
 def validate(table: dict, known_checks: set[str], series: list[str] | None = None) -> list[str]:
     """Return a list of problems; empty means the table is usable."""
     problems: list[str] = []
@@ -109,6 +133,8 @@ def validate(table: dict, known_checks: set[str], series: list[str] | None = Non
     for n in table.get("cross_cutting_checks", []):
         if n not in known_checks:
             problems.append(f"cross_cutting_checks: unknown check {n}")
+    if "manual_test" in table:
+        problems += _manual_test_problems(table["manual_test"])
     for i, d in enumerate(table.get("deferred", [])):
         if not d.get("title") or not d.get("reason"):
             problems.append(f"deferred[{i}]: needs title and reason")

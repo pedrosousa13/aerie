@@ -55,6 +55,18 @@ def _control_section(c: dict) -> list[str]:
     return out
 
 
+def _manual_test_section(m: dict) -> list[str]:
+    base = m["baseline"]
+    out = ["## Manual fingerprint test", "", m["intro"], "", "Procedure:", ""]
+    out += [f"{i}. {step}" for i, step in enumerate(m["procedure"], 1)]
+    out += ["", f"Baseline: {base['label']}. Total: {base['total_bits']} bits.", "",
+            "| Surface | Value | Bits | Result |", "| --- | --- | --- | --- |"]
+    for r in base["rows"]:
+        out.append(f"| {r['surface']} | {r['value']} | {r['bits']} |  |")
+    out.append("")
+    return out
+
+
 def render_docs(table: dict) -> str:
     controls = table["controls"]
     lines = [
@@ -87,6 +99,8 @@ def render_docs(table: dict) -> str:
     for c in controls:
         if c["provided_by"] == "aerie":
             lines += _control_section(c)
+    if "manual_test" in table:
+        lines += _manual_test_section(table["manual_test"])
     lines += [
         "## HTTPS-only and local development",
         "",

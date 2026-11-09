@@ -45,6 +45,38 @@ class DocsTest(unittest.TestCase):
         for e in TABLE["locked_from_extensions"]:
             self.assertIn(e["extension_pref"], self.doc)
 
+    def test_manual_fingerprint_test_section_holds_the_baseline(self):
+        section = self.doc.split("## Manual fingerprint test")[1].split("\n## ")[0]
+        manual = TABLE["manual_test"]
+        self.assertIn("18.58", section)
+        for row in manual["baseline"]["rows"]:
+            self.assertIn(row["surface"], section)
+            self.assertIn(row["bits"], section)
+        self.assertIn("NextDNS", section)
+        self.assertIn("1 in 392,956", section)
+
+    def test_manual_run_is_said_to_be_outside_the_bench_with_an_empty_results_column(self):
+        section = self.doc.split("## Manual fingerprint test")[1].split("\n## ")[0]
+        self.assertIn("manual", section)
+        self.assertIn("outside the Bench", section)
+        header = next(l for l in section.splitlines() if l.startswith("| Surface"))
+        self.assertTrue(header.rstrip().endswith("| Result |"))
+        for row in TABLE["manual_test"]["baseline"]["rows"]:
+            line = next(l for l in section.splitlines() if l.startswith(f"| {row['surface']} |"))
+            self.assertTrue(line.endswith("|  |"), line)
+
+    def test_fingerprinting_control_is_called_protection_not_randomization(self):
+        titles = [c["title"] for c in TABLE["controls"]]
+        self.assertIn("Fingerprinting protection", titles)
+        self.assertNotIn("Fingerprinting randomization", self.doc)
+        self.assertNotIn("Fingerprinting randomization", render.render_markup(TABLE))
+
+    def test_not_covered_lists_workers_webgpu_and_the_device_memory_cause(self):
+        not_covered = self.doc.split("## Not covered")[1].split("\n## ")[0]
+        self.assertIn("Workers", not_covered)
+        self.assertIn("WebGPU adapter", not_covered)
+        self.assertIn("crbug.com/454354290", not_covered)
+
     def test_render_is_deterministic_and_ends_with_newline(self):
         self.assertEqual(self.doc, render.render_docs(TABLE))
         self.assertTrue(self.doc.endswith("\n"))
