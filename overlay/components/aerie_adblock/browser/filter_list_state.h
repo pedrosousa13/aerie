@@ -45,6 +45,13 @@ struct FilterListEntry {
   std::string title;  // From the list's own "! Title:" line, or built in.
   bool builtin = false;
   int rules = 0;  // Network rules in the copy in use; 0 until a list loads.
+  // Exception ("@@") rules in the copy in use that match every address. The
+  // engine ignores them; the settings page shows how many.
+  int ignored_exceptions = 0;
+  // False when the user turned the list off. A list that is off keeps its
+  // file on disk and its place in the state, and is left out of the engine.
+  // Only RemoveList() deletes a file. EasyList is never off (CanBeDisabled()).
+  bool enabled = true;
   // When the copy in use was downloaded. Null for a built-in list that still
   // uses the copy shipped in the build, and for a list not fetched yet.
   base::Time updated;
@@ -52,6 +59,10 @@ struct FilterListEntry {
 };
 
 bool IsValidListId(std::string_view id);
+
+// Whether the user may turn |entry| off. EasyList may not: it carries most of
+// the cosmetic hiding. EasyPrivacy and custom lists may.
+bool CanBeDisabled(const FilterListEntry& entry);
 
 // Whether the browser may download a list from |url|: https, a host, no user
 // info, no fragment, at most 2048 characters. With |allow_loopback| (only the
@@ -91,6 +102,11 @@ class FilterListState {
 
   // Adds a custom list. On kAdded, |*id| is its id.
   AddResult AddCustomList(const GURL& url, bool allow_loopback, std::string* id);
+  // Turns a list on or off. The list and its file stay either way. kRequired
+  // (nothing changes) for a list that CanBeDisabled() refuses and |enabled| is
+  // false; kUnknownList for an id that is not in the state.
+  enum class EnableResult { kOk, kUnknownList, kRequired };
+  EnableResult SetEnabled(std::string_view id, bool enabled);
   // Removes a custom list. Built-in lists stay. False if nothing was removed.
   bool RemoveList(std::string_view id);
 
@@ -105,7 +121,7 @@ class FilterListState {
   void set_last_update_check(base::Time time) { last_update_check_ = time; }
 
   // True when the engine the build shipped is not what this state asks for:
-  // a custom list exists, or a list has a downloaded copy.
+  // a custom list exists, a list has a downloaded copy, or a list is off.
   bool NeedsRebuild() const;
 
   base::DictValue ToValue() const;

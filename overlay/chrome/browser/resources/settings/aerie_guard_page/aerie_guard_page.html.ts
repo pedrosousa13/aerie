@@ -28,6 +28,64 @@ export function getHtml(this: SettingsAerieGuardPageElement) {
   </div>
   <div class="cr-row hr">
     <div class="flex cr-padded-text">
+      <h2 id="listsHeading" class="cr-title-text">
+        $i18n{aerieGuardListsHeading}
+      </h2>
+      <div class="secondary">$i18n{aerieGuardListsDesc}</div>
+    </div>
+  </div>
+  <div id="lists" role="list" aria-labelledby="listsHeading">
+    ${this.lists_.map(list => html`
+      <div class="cr-row list-item list-row" role="listitem"
+          data-list-id="${list.id}">
+        <div class="flex cr-padded-text">
+          <div class="list-title">${list.title}</div>
+          <div class="secondary list-rules">${this.listRulesText_(list)}</div>
+          <div class="secondary list-ignored">
+            ${this.listIgnoredText_(list)}
+          </div>
+          ${list.enabled ? html`
+            <div class="secondary list-when">${this.listWhenText_(list)}</div>
+          ` : html`
+            <div class="secondary list-off">$i18n{aerieGuardListOff}</div>
+          `}
+          ${list.required ? html`
+            <div class="secondary list-required">
+              $i18n{aerieGuardListRequired}
+            </div>
+          ` : ''}
+          ${list.status !== 'idle' ? html`
+            <div class="secondary list-status" data-status="${list.status}"
+                role="status">
+              ${this.listStatusText_(list)}
+            </div>
+          ` : ''}
+          ${list.errorCode ? html`
+            <div class="list-error" role="alert">
+              ${this.listFailureText_(list)}
+            </div>
+          ` : ''}
+        </div>
+        <cr-button class="list-update" data-id="${list.id}"
+            ?disabled="${list.status === 'updating'}"
+            aria-label="${this.listUpdateLabel_(list)}"
+            @click="${this.onListUpdateClick_}">
+          ${this.listUpdateButton_(list)}
+        </cr-button>
+        <cr-toggle class="list-toggle" data-id="${list.id}"
+            ?checked="${list.enabled}" ?disabled="${list.required}"
+            aria-label="${this.listToggleLabel_(list)}"
+            @change="${this.onListToggleChange_}">
+        </cr-toggle>
+      </div>`)}
+  </div>
+  ${this.listError_ ? html`
+    <div id="listError" class="cr-row list-error" role="alert">
+      ${this.listError_}
+    </div>
+  ` : ''}
+  <div class="cr-row hr">
+    <div class="flex cr-padded-text">
       <h2 id="sitesHeading" class="cr-title-text">
         $i18n{aerieGuardSitesHeading}
       </h2>

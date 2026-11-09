@@ -63,6 +63,10 @@ bool IsValidListId(std::string_view id) {
          });
 }
 
+bool CanBeDisabled(const FilterListEntry& entry) {
+  return entry.id != kEasyListId;
+}
+
 bool IsAcceptableListUrl(const GURL& url, bool allow_loopback) {
   if (!url.is_valid() || url.spec().size() > kMaxUrlLength || url.has_ref() ||
       url.has_username() || url.has_password() || !url.has_host()) {
@@ -161,6 +165,19 @@ FilterListState::AddResult FilterListState::AddCustomList(const GURL& url,
   return AddResult::kAdded;
 }
 
+FilterListState::EnableResult FilterListState::SetEnabled(std::string_view id,
+                                                          bool enabled) {
+  FilterListEntry* entry = Find(id);
+  if (!entry) {
+    return EnableResult::kUnknownList;
+  }
+  if (!enabled && !CanBeDisabled(*entry)) {
+    return EnableResult::kRequired;
+  }
+  entry->enabled = enabled;
+  return EnableResult::kOk;
+}
+
 bool FilterListState::RemoveList(std::string_view id) {
   auto it = std::find_if(lists_.begin(), lists_.end(), [&](const auto& e) {
     return e.id == id && !e.builtin;
@@ -207,7 +224,7 @@ bool FilterListState::SetCosmeticOff(std::string_view host, bool off) {
 
 bool FilterListState::NeedsRebuild() const {
   return std::any_of(lists_.begin(), lists_.end(), [](const auto& e) {
-    return !e.builtin || !e.updated.is_null();
+    return !e.builtin || !e.updated.is_null() || !e.enabled;
   });
 }
 
@@ -234,6 +251,8 @@ base::DictValue FilterListState::ToValue() const {
     item.Set("title", entry.title);
     item.Set("builtin", entry.builtin);
     item.Set("rules", entry.rules);
+    item.Set("ignored_exceptions", entry.ignored_exceptions);
+    item.Set("enabled", entry.enabled);
     item.Set("updated",
              base::NumberToString(entry.updated.InMillisecondsSinceUnixEpoch()));
     item.Set("error", entry.error);
@@ -320,6 +339,12 @@ FilterListState FilterListState::FromValue(const base::DictValue& dict) {
     }
     int rules = item->FindInt("rules").value_or(0);
     entry->rules = (rules > 0 && rules <= kMaxRules) ? rules : 0;
+    int ignored = item->FindInt("ignored_exceptions").value_or(0);
+    entry->ignored_exceptions = (ignored > 0 && ignored <= kMaxRules) ? ignored : 0;
+    // Anything but a stored false is on, and so is a list that cannot be off:
+    // a damaged file never leaves blocking weaker than the default.
+    entry->enabled =
+        item->FindBool("enabled").value_or(true) || !CanBeDisabled(*entry);
     entry->updated = TimeFromValue(*item, "updated");
     const std::string* error = item->FindString("error");
     if (error && error->size() <= kMaxErrorLength && IsKnownErrorMessage(*error)) {

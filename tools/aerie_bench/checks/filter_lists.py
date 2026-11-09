@@ -43,6 +43,14 @@ What it proves (the numbers are the issue #10 acceptance criteria, then the ones
    and the list and the exception are still in effect, and the incognito exception is not. This is a
    separate, tested half: see ``judge_restart`` and ``FilterLists.run_second_launch``.
 
+9. Built-in lists (issue #104): the shipped lists each have a rule count above zero (never "-"); a request that
+   only EasyPrivacy blocks (a hotjar script, third party, from ``other.localhost``) is blocked, goes through
+   while EasyPrivacy is off (``aerieGuard.setListEnabled``) and is blocked again when it is back on; turning
+   EasyList off is refused (``listError`` is ``required`` and EasyList is still on, and an EasyList-blocked
+   request stays blocked); an update of one list answers ``updating`` at once, then ``updated``; the update of
+   a built-in list that the Bench cannot reach ends in ``failed`` with an error code, and the retry is the same
+   call. A handler without the guard puts EasyList off, so this step fails against it: see ``judge_lists``.
+
 What stays with the unit tests: that an incognito tab cannot undo an exception that a regular window saved.
 
 Decision logic is in plain functions (``judge``, ``judge_restart``, ``judge_validation``, ...) that the tests
@@ -60,7 +68,7 @@ from .. import netlog, ui_devtools
 from ..cdp import CdpError
 from ..session import CheckResult, Session
 from . import register
-from .ad_blocking import boolean_counts
+from .ad_blocking import boolean_counts, collect_outcomes
 from .aerie_guard_panel import open_panel_where, set_guard_in_panel
 
 FLAG = "--aerie-test-allow-loopback-filter-lists"
@@ -73,6 +81,12 @@ EXCEPTED_HOST = "news.localhost"
 OTHER_HOST = "other.localhost"
 INCOGNITO_HOST = "incognito.localhost"
 LONG_ARG = "a" * 5000  # over the handler's limit of 4096
+TRACKER_URL = "https://static.hotjar.com/c/hotjar-1.js"  # EasyPrivacy only (||hotjar.com^$third-party)
+AD_URL = "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"  # EasyList
+# The per-list step asks for one tracker and one ad URL (``probe_request``). With EasyPrivacy off the tracker
+# request passes the filter, so the NetLog records an attempt for it; the Bench's resolver refuses the name, so
+# nothing leaves the machine (train 14: the update step counted it as a request no publisher owns).
+PROBE_PREFIXES = (TRACKER_URL + "?probe=", AD_URL + "?probe=")
 STATE_FILE = "AerieFilterLists/state.json"  # inside the profile
 N_ADS = 3
 COUNT_HISTOGRAM = "Aerie.Adblock.PageBlockedCount"
@@ -151,6 +165,8 @@ def update_requests(records: list[dict], state_lists: list[dict]) -> tuple[list[
     list_urls = {x["url"] for x in state_lists}
     ok, bad = [], []
     for url in sorted(netlog.all_urls(records)):
+        if url.startswith(PROBE_PREFIXES):
+            continue  # The check's own probe (issue #104); see PROBE_PREFIXES.
         parts = urlsplit(url)
         if parts.scheme not in ("http", "https", "ws", "wss", "ftp") or netlog.is_loopback(parts.hostname or ""):
             continue
@@ -263,6 +279,63 @@ def judge_validation(val: dict | None) -> list[str]:
     return problems
 
 
+def find_id(state: dict | None, list_id: str) -> dict | None:
+    return next((x for x in (state or {}).get("lists", []) if x.get("id") == list_id), None)
+
+
+def judge_lists(obs: dict | None) -> list[str]:
+    """The per-list step (issue #104). Returns the problems.
+
+    ``obs`` holds ``counts`` (state with the shipped lists counted), ``probe_on`` (the outcome of the
+    EasyPrivacy-only request with both lists on), ``off_state`` and ``probe_off`` (EasyPrivacy off),
+    ``on_state`` and ``probe_back`` (on again), ``easylist_answer`` (the answer to turning EasyList off),
+    ``easylist_probe`` (an EasyList-only request after that), ``updating_answer`` and ``updated_state``
+    (one update of the custom list), ``failed_state`` (the update of an unreachable built-in list). A probe
+    outcome is the state ``ad_blocking.collect_outcomes`` gives: "blocked" or "failed" (reached the network
+    stack, which cannot resolve the name) or "loaded"."""
+    if not obs:
+        return ["no per-list observations: the check never turned a list off"]
+    problems: list[str] = []
+    for list_id in ("easylist", "easyprivacy"):
+        entry = find_id(obs.get("counts"), list_id)
+        if entry is None or not isinstance(entry.get("rules"), int) or entry["rules"] <= 0:
+            problems.append(f"lists: the rule count of {list_id} is not above zero ({entry and entry.get('rules')})")
+        if entry is not None and not isinstance(entry.get("ignoredExceptions"), int):
+            problems.append(f"lists: {list_id} has no ignored exception count")
+    if obs.get("probe_on") != "blocked":
+        problems.append(f"lists: the EasyPrivacy-only request was not blocked with both lists on ({obs.get('probe_on')})")
+    off = find_id(obs.get("off_state"), "easyprivacy")
+    if off is None or off.get("enabled") is not False:
+        problems.append(f"lists: EasyPrivacy is not off after it was turned off ({off and off.get('enabled')})")
+    if obs.get("probe_off") not in ("failed", "loaded"):
+        problems.append(f"lists: the EasyPrivacy-only request was still blocked with EasyPrivacy off ({obs.get('probe_off')})")
+    back = find_id(obs.get("on_state"), "easyprivacy")
+    if back is None or back.get("enabled") is not True:
+        problems.append("lists: EasyPrivacy is not on after it was turned back on")
+    if obs.get("probe_back") != "blocked":
+        problems.append(f"lists: the EasyPrivacy-only request was not blocked again after it was turned on ({obs.get('probe_back')})")
+    answer = obs.get("easylist_answer")
+    easy = find_id(answer, "easylist")
+    if not answer or answer.get("listError") != "required":
+        problems.append(f"lists: turning EasyList off was not refused ({answer and answer.get('listError')!r})")
+    if easy is None or easy.get("enabled") is not True:
+        problems.append("lists: EasyList is off after a request to turn it off")
+    if obs.get("easylist_probe") != "blocked":
+        problems.append(f"lists: an EasyList request was not blocked after the refused request ({obs.get('easylist_probe')})")
+    if (find_id(answer, "easylist") or {}).get("required") is not True:
+        problems.append("lists: the state does not say that EasyList cannot be turned off")
+    custom = obs.get("custom_id")
+    if (find_id(obs.get("updating_answer"), custom) or {}).get("status") != "updating":
+        problems.append("lists: the answer to an update does not say the list is updating")
+    done = find_id(obs.get("updated_state"), custom) or {}
+    if done.get("status") != "updated" or done.get("error"):
+        problems.append(f"lists: the custom list did not end as updated ({done.get('status')}, {done.get('error')!r})")
+    failed = find_id(obs.get("failed_state"), "easylist") or {}
+    if failed.get("status") != "failed" or not failed.get("errorCode"):
+        problems.append(f"lists: an update that cannot reach its publisher did not end as failed with an error code ({failed.get('status')}, {failed.get('errorCode')!r})")
+    return problems
+
+
 def judge(obs: dict) -> tuple[str, str, dict]:
     """Return (status, detail, data) for the observations of both launches."""
     problems: list[str] = []
@@ -285,6 +358,7 @@ def judge(obs: dict) -> tuple[str, str, dict]:
         problems.append(f"setException did not put {EXCEPTED_HOST} in the state")
     judge_visit(exc.get("excepted_visit"), f"exception, {EXCEPTED_HOST}", False, problems)
     judge_visit(exc.get("other_visit"), f"exception, {OTHER_HOST}", True, problems)
+    problems += judge_lists(obs.get("lists"))
     problems += judge_validation(obs.get("validation"))
     problems += judge_incognito(obs.get("incognito"))
     problems += judge_restart(obs.get("restart"), obs.get("list_url", ""))
@@ -296,7 +370,8 @@ def judge(obs: dict) -> tuple[str, str, dict]:
                     f"list publishers ({len(update_data['publisher_requests'])} request(s)), exception for "
                     f"{EXCEPTED_HOST} only and it survived a restart; {len(obs['validation']['probes'])} bad arguments were refused "
                     f"and left state.json unchanged; Guard turned off in an incognito window through the panel applied there only "
-                    f"and never reached state.json; both negative controls rejected"), data
+                    f"and never reached state.json; both negative controls rejected; EasyPrivacy off let its request through and on "
+                    f"blocked it, EasyList refused to turn off"), data
 
 
 # ---------------------------------------------------------------- browser driving
@@ -435,7 +510,71 @@ def observe_first_launch(session: Session, profile_path: str | Path | None = Non
     obs["exception"] = {"state": state,
                         "excepted_visit": visit_page(session, EXCEPTED_HOST, "excepted"),
                         "other_visit": visit_page(session, OTHER_HOST, "other")}
+    obs["lists"] = observe_lists(session, custom_url)
     obs["validation"] = observe_validation(session, profile_path)
+    return obs
+
+
+PROBE_JS = "fetch(%s, {mode: 'no-cors'}).then(() => 0, () => 0); true"
+
+
+def probe_request(session: Session, url: str, tag: str, timeout: float = 15.0) -> str | None:
+    """Ask for ``url`` (with a unique query) from the page that is open and return how it ended, as
+    ``collect_outcomes`` names it: "blocked" (ERR_BLOCKED_BY_CLIENT), "failed" (another network error: it
+    passed the filter and the Bench cannot resolve the name) or "loaded". None if nothing was seen."""
+    target = f"{url}?probe={tag}"
+    session.take_events("Network.requestWillBeSent")
+    session.take_events("Network.loadingFailed")
+    session.take_events("Network.responseReceived")
+    session.evaluate(PROBE_JS % json.dumps(target))
+    deadline = time.monotonic() + timeout
+    events: list[dict] = []
+    while time.monotonic() < deadline:
+        for method in ("Network.requestWillBeSent", "Network.responseReceived", "Network.loadingFailed"):
+            events += session.take_events(method)
+        state = (collect_outcomes(events).get(target) or {}).get("state")
+        if state in ("blocked", "failed", "loaded"):
+            return state
+        time.sleep(0.25)
+    return None
+
+
+def observe_lists(session: Session, custom_url: str) -> dict:
+    """Per-list status and on/off (issue #104), on the manager page's browser after the earlier steps."""
+    obs: dict = {}
+    state = open_manager(session)
+    custom = find_list(state, custom_url) or {}
+    obs["custom_id"] = custom.get("id")
+    # The shipped lists are counted when the browser starts, off the UI thread.
+    obs["counts"] = wait_state(session, lambda s: all((find_id(s, i) or {}).get("rules", 0) > 0
+                                                      for i in ("easylist", "easyprivacy")))
+    session.navigate_url(f"http://{OTHER_HOST}:{session.fixtures.port}{PAGE_PATH}?visit=lists")
+    session.wait_for("window.__filterResults && window.__filterResults.done === true", timeout=15.0)
+    session.cdp("Network.enable")
+    obs["probe_on"] = probe_request(session, TRACKER_URL, "on")
+    open_manager(session)
+    obs["off_state"] = send(session, "setListEnabled", ["easyprivacy", False])
+    wait_state(session, lambda s: not s.get("busy"))
+    session.navigate_url(f"http://{OTHER_HOST}:{session.fixtures.port}{PAGE_PATH}?visit=lists-off")
+    session.wait_for("window.__filterResults && window.__filterResults.done === true", timeout=15.0)
+    session.cdp("Network.enable")
+    obs["probe_off"] = probe_request(session, TRACKER_URL, "off")
+    open_manager(session)
+    obs["on_state"] = send(session, "setListEnabled", ["easyprivacy", True])
+    wait_state(session, lambda s: not s.get("busy"))
+    obs["easylist_answer"] = send(session, "setListEnabled", ["easylist", False])
+    wait_state(session, lambda s: not s.get("busy"))
+    session.navigate_url(f"http://{OTHER_HOST}:{session.fixtures.port}{PAGE_PATH}?visit=lists-back")
+    session.wait_for("window.__filterResults && window.__filterResults.done === true", timeout=15.0)
+    session.cdp("Network.enable")
+    obs["probe_back"] = probe_request(session, TRACKER_URL, "back")
+    obs["easylist_probe"] = probe_request(session, AD_URL, "easylist")
+    open_manager(session)
+    obs["updating_answer"] = send(session, "updateList", [obs["custom_id"]])
+    obs["updated_state"] = wait_state(
+        session, lambda s: (find_id(s, obs["custom_id"]) or {}).get("status") in ("updated", "failed"))
+    send(session, "updateList", ["easylist"])  # The retry is the same call.
+    obs["failed_state"] = wait_state(session, lambda s: (find_id(s, "easylist") or {}).get("status") != "updating")
     return obs
 
 
@@ -446,6 +585,9 @@ VALIDATION_PROBES = (
     ("setException with a non-boolean switch", "setException", [EXCEPTED_HOST, "yes"]),
     ("addList with a 5000-character address", "addList", ["https://lists.bench.example/" + LONG_ARG]),
     ("removeList with a number as the id", "removeList", [123]),
+    ("setListEnabled with a number as the id", "setListEnabled", [123, False]),
+    ("setListEnabled with a 5000-character id", "setListEnabled", [LONG_ARG, False]),
+    ("setListEnabled with a non-boolean switch", "setListEnabled", ["easyprivacy", "no"]),
     ("setAutoUpdate with a non-boolean value", "setAutoUpdate", ["yes"]),
 )
 

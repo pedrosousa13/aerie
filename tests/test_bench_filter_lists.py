@@ -66,6 +66,41 @@ def good_incognito():
     }
 
 
+def lst(list_id, **over):
+    item = {"id": list_id, "url": "https://x/" + list_id, "title": list_id, "builtin": list_id.startswith("easy"),
+            "rules": 900, "ignoredExceptions": 0, "enabled": True, "required": list_id == "easylist",
+            "status": "idle", "errorCode": "", "updated": None, "error": ""}
+    item.update(over)
+    return item
+
+
+def lists_state(easyprivacy_on=True, easylist_on=True, listError="", custom_status="idle", easylist_status="idle"):
+    return {"ready": True, "busy": False, "listError": listError,
+            "lists": [lst("easylist", enabled=easylist_on, status=easylist_status,
+                          errorCode="download" if easylist_status == "failed" else "",
+                          error="x" if easylist_status == "failed" else ""),
+                      lst("easyprivacy", enabled=easyprivacy_on),
+                      lst("ccustom", builtin=False, rules=1, status=custom_status)]}
+
+
+def good_lists():
+    """What observe_lists returns on a browser whose handler guards EasyList."""
+    return {
+        "custom_id": "ccustom",
+        "counts": lists_state(),
+        "probe_on": "blocked",
+        "off_state": lists_state(easyprivacy_on=False),
+        "probe_off": "failed",
+        "on_state": lists_state(),
+        "easylist_answer": lists_state(listError="required"),
+        "probe_back": "blocked",
+        "easylist_probe": "blocked",
+        "updating_answer": lists_state(custom_status="updating"),
+        "updated_state": lists_state(custom_status="updated"),
+        "failed_state": lists_state(easylist_status="failed"),
+    }
+
+
 def good():
     state = copy.deepcopy(STATE)
     return {
@@ -83,6 +118,7 @@ def good():
                                       record("http://news.localhost:5000/filters/page.html")]},
         "exception": {"state": state, "excepted_visit": visit(False), "other_visit": visit(True, "other.localhost")},
         "restart": {"state": copy.deepcopy(STATE), "excepted_visit": visit(False), "other_visit": visit(True, "other.localhost")},
+        "lists": good_lists(),
         "validation": good_validation(),
         "incognito": good_incognito(),
     }
@@ -162,6 +198,16 @@ class JudgeTest(unittest.TestCase):
                                      state["lists"])
         self.assertEqual(ok, ["https://lists.example/mine.txt"])
         self.assertEqual(bad, ["http://lists.example/mine.txt"])
+
+    def test_the_checks_own_list_step_probes_are_not_foreign_requests(self):
+        # Real build, train 14: with EasyPrivacy off the hotjar probe passes the filter and the NetLog holds it.
+        probe = fl.TRACKER_URL + "?probe=off"
+        obs = good()
+        obs["update"]["netlog_records"].append(record(probe))
+        status, detail, _ = fl.judge(obs)
+        self.assertEqual(status, "pass", detail)
+        _, bad = fl.update_requests([record(probe, fl.TRACKER_URL + "?other=1")], STATE["lists"])
+        self.assertEqual(bad, [fl.TRACKER_URL + "?other=1"])
 
     def test_redirect_hop_to_a_foreign_host_is_caught(self):
         _, bad = fl.update_requests([record("https://easylist.to/a", "https://evil.example/b")], STATE["lists"])
@@ -437,3 +483,75 @@ class VisitPageTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ListsStepTest(unittest.TestCase):
+    """Issue #104: per-list on/off, rule counts, EasyList refused, update status."""
+
+    def problems(self, mutate):
+        obs = good_lists()
+        mutate(obs)
+        return fl.judge_lists(obs)
+
+    def test_a_good_run_has_no_problem(self):
+        self.assertEqual(fl.judge_lists(good_lists()), [])
+
+    def test_no_observations_is_a_problem(self):
+        self.assertTrue(fl.judge_lists(None))
+        self.assertTrue(fl.judge_lists({}))
+
+    def test_a_zero_rule_count_fails_for_either_built_in_list(self):
+        for list_id in ("easylist", "easyprivacy"):
+            def zero(o, list_id=list_id):
+                for item in o["counts"]["lists"]:
+                    if item["id"] == list_id:
+                        item["rules"] = 0
+            self.assertTrue(any(f"rule count of {list_id}" in p for p in self.problems(zero)), list_id)
+
+    def test_easyprivacy_off_that_still_blocks_fails(self):
+        problems = self.problems(lambda o: o.update(probe_off="blocked"))
+        self.assertTrue(any("still blocked with EasyPrivacy off" in p for p in problems), problems)
+
+    def test_easyprivacy_that_does_not_block_when_on_fails(self):
+        self.assertTrue(any("not blocked with both lists on" in p
+                            for p in self.problems(lambda o: o.update(probe_on="failed"))))
+        self.assertTrue(any("not blocked again" in p
+                            for p in self.problems(lambda o: o.update(probe_back="failed"))))
+
+    def test_the_easylist_step_fails_against_a_handler_without_the_guard(self):
+        """Such a handler turns EasyList off: it answers with no error and EasyList off, and its requests load."""
+        def unguarded(o):
+            o["easylist_answer"] = lists_state(easylist_on=False)
+            o["easylist_probe"] = "failed"
+        problems = self.problems(unguarded)
+        self.assertTrue(any("turning EasyList off was not refused" in p for p in problems), problems)
+        self.assertTrue(any("EasyList is off after a request" in p for p in problems), problems)
+        self.assertTrue(any("EasyList request was not blocked" in p for p in problems), problems)
+        status, detail, _ = fl.judge({**good(), "lists": {**good_lists(), "easylist_answer": lists_state(easylist_on=False)}})
+        self.assertEqual(status, "fail")
+        self.assertIn("turning EasyList off was not refused", detail)
+
+    def test_a_refusal_that_leaves_easylist_off_fails(self):
+        problems = self.problems(lambda o: o.update(easylist_answer=lists_state(easylist_on=False, listError="required")))
+        self.assertTrue(any("EasyList is off" in p for p in problems), problems)
+
+    def test_update_status_must_go_through_updating_to_updated(self):
+        self.assertTrue(self.problems(lambda o: o.update(updating_answer=lists_state())))
+        self.assertTrue(self.problems(lambda o: o.update(updated_state=lists_state(custom_status="idle"))))
+
+    def test_an_unreachable_built_in_list_must_end_failed_with_a_code(self):
+        self.assertTrue(self.problems(lambda o: o.update(failed_state=lists_state())))
+
+    def test_the_probes_are_the_expected_lists(self):
+        text = (Path(fl.__file__).resolve().parent.parent / "fixtures" / "blocking" / "expected.json").read_text()
+        self.assertIn(fl.TRACKER_URL, text)
+        self.assertIn(fl.AD_URL, text)
+        easyprivacy = (Path(__file__).resolve().parent.parent / "overlay/third_party/filter_lists/easyprivacy.txt").read_text()
+        easylist = (Path(__file__).resolve().parent.parent / "overlay/third_party/filter_lists/easylist.txt").read_text()
+        self.assertIn("||hotjar.com^$third-party", easyprivacy)
+        self.assertNotIn("hotjar.com", easylist)
+        self.assertIn("googlesyndication.com", easylist)
+
+    def test_the_validation_probes_cover_the_new_message(self):
+        names = [n for n, _, _ in fl.VALIDATION_PROBES]
+        self.assertTrue(any(n.startswith("setListEnabled") for n in names))

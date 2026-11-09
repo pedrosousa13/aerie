@@ -28,6 +28,7 @@ namespace aerie_guard {
 //   aerieGuard.getState []                    the state
 //   aerieGuard.addList [url]                  add a custom list (https only)
 //   aerieGuard.removeList [id]                remove a custom list
+//   aerieGuard.setListEnabled [id, enabled]   a list on or off (issue #104)
 //   aerieGuard.updateList [id]                download one list again now
 //   aerieGuard.updateAll []                   download every list again now
 //   aerieGuard.setException [host, enabled]   blocking off/on for a site
@@ -57,10 +58,17 @@ class AerieGuardSettingsHandler
   // The state the page shows, as a dictionary. Public for tests.
   // |add_error| is the manager's text for a list it refused, "" for none.
   // |exception_error| is "", "invalid_host", "table_full" or "locked".
+  // |list_error| is "", "required" (EasyList cannot be turned off) or
+  // "unknown_list".
+  //
+  // Each list carries "enabled", "required" (true: it cannot be turned off),
+  // "ignoredExceptions", "status" ("idle", "updating", "updated" or "failed")
+  // and "errorCode" (a fixed code, "" for none; the page owns the words).
   static base::DictValue StateToValue(
       const aerie_adblock::FilterListManager& manager,
       std::string_view add_error,
-      std::string_view exception_error);
+      std::string_view exception_error,
+      std::string_view list_error = std::string_view());
 
   // content::WebUIMessageHandler:
   void RegisterMessages() override;
@@ -73,6 +81,7 @@ class AerieGuardSettingsHandler
   void HandleGetState(const base::ListValue& args);
   void HandleAddList(const base::ListValue& args);
   void HandleRemoveList(const base::ListValue& args);
+  void HandleSetListEnabled(const base::ListValue& args);
   void HandleUpdateList(const base::ListValue& args);
   void HandleUpdateAll(const base::ListValue& args);
   void HandleSetException(const base::ListValue& args);
@@ -83,7 +92,8 @@ class AerieGuardSettingsHandler
   aerie_adblock::FilterListManager* Begin(const base::ListValue& args);
   void Resolve(const base::ListValue& args,
                std::string_view add_error,
-               std::string_view exception_error);
+               std::string_view exception_error,
+               std::string_view list_error = std::string_view());
   void Reject(const base::ListValue& args, std::string_view code);
 
   raw_ptr<Profile> profile_;

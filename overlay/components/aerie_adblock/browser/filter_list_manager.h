@@ -113,8 +113,25 @@ class FilterListManager {
   // when the table is full; |*error| says which.
   bool AddList(const GURL& url, std::string* error);
   void RemoveList(std::string_view id);
+  // Turns a list on or off (issue #104). The list's file stays; only
+  // RemoveList() deletes it. A list that is off is left out of the engine at
+  // once (the engine is rebuilt) and is skipped by UpdateAll() and the
+  // scheduled update. Turning EasyList off is refused (kRequired) whoever
+  // asks: see CanBeDisabled().
+  FilterListState::EnableResult SetListEnabled(std::string_view id,
+                                               bool enabled);
   void UpdateList(std::string_view id);
+  // Downloads every list that is on.
   void UpdateAll();
+
+  // Where one list's update stands, for the settings page.
+  enum class UpdateStatus {
+    kIdle,      // Nothing happened this session, or an update is not shown.
+    kUpdating,  // A download, a check or a save is running.
+    kUpdated,   // The last update of this session worked.
+    kFailed,    // The list has an error (a failed update or a bad saved copy).
+  };
+  UpdateStatus UpdateStatusFor(std::string_view id) const;
 
   // |host| as in FilterListState::SetException. Takes effect at once.
   //
@@ -210,6 +227,13 @@ class FilterListManager {
   void OnFetched(std::string id, FilterListFetcher::Result result);
   void OnChecked(std::string id, std::string text, ListCheck check);
   void OnWritten(std::string id, ListCheck check, bool written);
+  // The end of one list's fetch chain: it is no longer updating.
+  void FinishFetch(const std::string& id);
+  // Counts the rules of the built-in lists the build shipped (a list with no
+  // downloaded copy), on the thread pool.
+  void MeasureShippedLists();
+  void MeasureShippedList(const std::string& id);
+  void OnShippedMeasured(std::string id, ListCheck check);
   void SetError(const std::string& id, ListFailure failure);
   // Gives the service every list in use. |retry| is true for the one
   // automatic retry after a cached copy failed to build.
@@ -230,6 +254,9 @@ class FilterListManager {
   std::map<SessionKey, std::set<std::string>> session_exceptions_;
   // Off-the-record sessions' hosts with cosmetic hiding off. Memory only.
   std::map<SessionKey, std::set<std::string>> session_cosmetic_off_;
+  // Ids whose update is running, and whose last update this session worked.
+  std::set<std::string> updating_;
+  std::set<std::string> updated_ok_;
   int pending_ = 0;
   bool loaded_ = false;
   base::RepeatingTimer schedule_timer_;

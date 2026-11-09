@@ -49,6 +49,45 @@ inline std::string ListFailureMessage(ListFailure failure) {
   return std::string();
 }
 
+// A fixed code for the settings page, which owns the words (a grd string per
+// code). "" for kNone.
+inline const char* ListFailureCode(ListFailure failure) {
+  switch (failure) {
+    case ListFailure::kNone:
+      return "";
+    case ListFailure::kTooLarge:
+      return "too_large";
+    case ListFailure::kTimeout:
+      return "timeout";
+    case ListFailure::kNotText:
+      return "not_text";
+    case ListFailure::kLooksLikeHtml:
+      return "looks_like_html";
+    case ListFailure::kNoRules:
+      return "no_rules";
+    case ListFailure::kUnreadable:
+      return "unreadable";
+    case ListFailure::kDownload:
+      return "download";
+    case ListFailure::kInsecureUrl:
+      return "insecure_url";
+  }
+  return "";
+}
+
+// The code for a text that ListFailureMessage() made (what FilterListEntry
+// keeps in |error|), or "" if it is not one of them.
+inline std::string ListFailureCodeForMessage(const std::string& message) {
+  for (int i = static_cast<int>(ListFailure::kTooLarge);
+       i <= static_cast<int>(ListFailure::kInsecureUrl); ++i) {
+    ListFailure failure = static_cast<ListFailure>(i);
+    if (message == ListFailureMessage(failure)) {
+      return ListFailureCode(failure);
+    }
+  }
+  return std::string();
+}
+
 }  // namespace aerie_adblock
 
 #endif  // COMPONENTS_AERIE_ADBLOCK_BROWSER_LIST_FAILURE_H_
