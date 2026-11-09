@@ -27,6 +27,8 @@ enum class ProtectedSurface {
   kGraphicsCard,
   // The screen size and the window position.
   kScreen,
+  // The widths and heights CanvasRenderingContext2D.measureText returns.
+  kTextMetrics,
 };
 
 // Every surface the protection covers, in the order the panel shows them. The

@@ -1,0 +1,326 @@
+Aerie-Purpose: Scale canvas measureText metrics by a factor from a new per-site text-metrics token, stable for a site in a session, and turn it on; rekey the off-by-default client rect noise the same way (issue #118).
+Aerie-Upstream-Area: third_party/blink/renderer/modules/canvas/canvas2d/base_rendering_context_2d.cc (measureText), third_party/blink/renderer/core/dom/document.cc and document.h (GetNoiseFactorX, GetNoiseFactorY), third_party/blink/renderer/core/helium_noise/text_metrics_noise.cc, third_party/blink/public/common/helium_noise/ (HeliumNoiseFeature::kTextMetrics), content/browser/helium_noise/noise_token_data.cc, third_party/blink/common/features.cc (kHeliumNoiseTextMetrics), chrome/browser/bromite_flag_entries.h
+Aerie-Kind: hook
+
+Amends helium-chromium/patches/bromite/fingerprinting-flags-client-rects-and-measuretext.patch. That
+patch scales measureText and the client rects by a factor from base::RandDouble(), drawn once per
+Document, so every load of every page got another factor. A tracker can read two loads of one site, or
+two sites, and a value that changes on every load is itself a fingerprint of the protection. It also
+stayed off behind a flag.
+
+HeliumNoiseFeature::kTextMetrics is a new surface token, added the way hardening/0010 adds kWebGL and
+hardening/0015 adds kScreen: a session token in HeliumNoiseTokenData that GetTokens derives per site
+(hardening/0011), and a renderer that receives it only when protection is on for the site. "Token
+present" therefore means "protected here", and the global switch and the per-site switch give the real
+metrics back without a renderer change. Workers get the token with the other tokens (hardening/0013,
+0014), so measureText on an OffscreenCanvas in a worker follows its site as well. The new feature
+kHeliumNoiseTextMetrics (on by default) switches the surface off for the Bench's negative control.
+
+The factor is 1 plus or minus 0.00015% (the range of the Bromite patch), taken from one of 2^20 steps
+that the site's token hashes to. The range, the step list and the decision are pure code with unit tests
+in overlay/components/aerie_text_metrics. One Blink function, TextMetricsNoiseFactor in
+core/helium_noise, reads the feature switches and the token and does the hashing. Each kind of value
+(measureText, client rects x, client rects y) hashes the token with its own number. measureText
+now scales every metric by the factor without the Bromite runtime flag, which no longer changes it; the
+flag entry says so. The client rect noise keeps its flag and stays off by default, and now reads the
+same kind of factor, 1 without a token. Nothing else about layout changes: the noise touches only the
+values a script reads, and a layout fixture in the Bench (a sticky header and a virtual list) shows it.
+
+This patch also removes what the Bromite patch added to the Document constructor, the two Document
+members and the base/rand_util.h include, because nothing draws a random factor any more.
+
+--- a/chrome/browser/bromite_flag_entries.h
++++ b/chrome/browser/bromite_flag_entries.h
+@@ -6,11 +6,11 @@
+ #define CHROME_BROWSER_BROMITE_FLAG_ENTRIES_H_
+     {"fingerprinting-client-rects-noise",
+      "Enable get*ClientRects() fingerprint deception",
+-     "Scale the output values of Range::getClientRects() and Element::getBoundingClientRect() with a randomly selected factor in the range -0.0003% to 0.0003%, which are recomputed on every document initialization. ungoogled-chromium flag, Bromite feature.",
++     "Scale the output values of Range::getClientRects() and Element::getBoundingClientRect() with a factor in the range -0.00015% to 0.00015%. The factor is the same on every load of a site in one session and differs between sites. It applies only while fingerprinting protection is on for the site. ungoogled-chromium flag, Bromite feature.",
+      kOsAll, SINGLE_VALUE_TYPE(switches::kFingerprintingClientRectsNoise)},
+     {"fingerprinting-canvas-measuretext-noise",
+      "Enable Canvas::measureText() fingerprint deception",
+-     "Scale the output values of Canvas::measureText() with a randomly selected factor in the range -0.0003% to 0.0003%, which are recomputed on every document initialization. ungoogled-chromium flag, Bromite feature.",
++     "Obsolete. Canvas::measureText() noise is part of fingerprinting protection and is on by default, stable per site and session. This flag no longer changes it. ungoogled-chromium flag, Bromite feature.",
+      kOsAll, SINGLE_VALUE_TYPE(switches::kFingerprintingCanvasMeasureTextNoise)},
+     {"max-connections-per-host",
+      flag_descriptions::kMaxConnectionsPerHostName,
+--- a/content/browser/helium_noise/noise_token_data.cc
++++ b/content/browser/helium_noise/noise_token_data.cc
+@@ -71,6 +71,8 @@
+       blink::HeliumNoiseToken(base::RandUint64());
+   session_tokens_[blink::HeliumNoiseFeature::kScreen] =
+       blink::HeliumNoiseToken(base::RandUint64());
++  session_tokens_[blink::HeliumNoiseFeature::kTextMetrics] =
++      blink::HeliumNoiseToken(base::RandUint64());
+ }
+ 
+ // static
+--- a/third_party/blink/common/features.cc
++++ b/third_party/blink/common/features.cc
+@@ -70,6 +70,10 @@
+ // window.screenX/screenY report a common screen size (Aerie, issue #116).
+ BASE_FEATURE(kHeliumNoiseScreen, base::FEATURE_ENABLED_BY_DEFAULT);
+ 
++// Canvas measureText (and, when its flag is on, client rect) metrics carry
++// noise that is stable per site and session (Aerie, issue #118).
++BASE_FEATURE(kHeliumNoiseTextMetrics, base::FEATURE_ENABLED_BY_DEFAULT);
++
+ // Controls whether to include information about the page's open popup in
+ // AIPageContent.
+ BASE_FEATURE(kAIPageContentIncludePopupWindows,
+--- a/third_party/blink/public/common/features.h
++++ b/third_party/blink/public/common/features.h
+@@ -48,6 +48,7 @@
+ BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kHeliumNoiseCpuCores);
+ BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kHeliumNoiseWebGL);
+ BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kHeliumNoiseScreen);
++BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kHeliumNoiseTextMetrics);
+ 
+ // Controls whether to include information about the page's open popup in
+ // AIPageContent.
+--- a/third_party/blink/public/common/helium_noise/noise_token.h
++++ b/third_party/blink/public/common/helium_noise/noise_token.h
+@@ -26,6 +26,7 @@
+   kHardware,
+   kWebGL,
+   kScreen,
++  kTextMetrics,
+ };
+ 
+ // A wrapper class for a uint64_t noise token.
+--- a/third_party/blink/public/common/helium_noise/noise_token_mojom_traits.h
++++ b/third_party/blink/public/common/helium_noise/noise_token_mojom_traits.h
+@@ -36,6 +36,8 @@
+         return blink::mojom::HeliumNoiseFeature::kWebGL;
+       case blink::HeliumNoiseFeature::kScreen:
+         return blink::mojom::HeliumNoiseFeature::kScreen;
++      case blink::HeliumNoiseFeature::kTextMetrics:
++        return blink::mojom::HeliumNoiseFeature::kTextMetrics;
+     }
+     NOTREACHED();
+   }
+@@ -53,6 +55,8 @@
+         return blink::HeliumNoiseFeature::kWebGL;
+       case blink::mojom::HeliumNoiseFeature::kScreen:
+         return blink::HeliumNoiseFeature::kScreen;
++      case blink::mojom::HeliumNoiseFeature::kTextMetrics:
++        return blink::HeliumNoiseFeature::kTextMetrics;
+     }
+ 
+     NOTREACHED();
+--- a/third_party/blink/public/mojom/helium_noise/noise_token.mojom
++++ b/third_party/blink/public/mojom/helium_noise/noise_token.mojom
+@@ -11,6 +11,7 @@
+   kHardware,
+   kWebGL,
+   kScreen,
++  kTextMetrics,
+ };
+ 
+ // Typemapped to blink::HeliumNoiseToken
+--- a/third_party/blink/renderer/core/BUILD.gn
++++ b/third_party/blink/renderer/core/BUILD.gn
+@@ -418,6 +418,7 @@
+     "//base",
+     "//components/aerie_gpu_info",
+     "//components/aerie_screen",
++    "//components/aerie_text_metrics",
+     "//components/paint_preview/common",
+     "//components/performance_manager/public/mojom:mojom_blink",
+     "//components/shared_highlighting/core/common",
+--- a/third_party/blink/renderer/core/dom/document.cc
++++ b/third_party/blink/renderer/core/dom/document.cc
+@@ -41,7 +41,6 @@
+ #include "base/i18n/time_formatting.h"
+ #include "base/metrics/histogram_functions.h"
+ #include "base/notreached.h"
+-#include "base/rand_util.h"
+ #include "base/strings/stringprintf.h"
+ #include "base/task/single_thread_task_runner.h"
+ #include "base/time/time.h"
+@@ -241,6 +240,7 @@
+ #include "third_party/blink/renderer/core/geometry/dom_point.h"
+ #include "third_party/blink/renderer/core/geometry/dom_quad.h"
+ #include "third_party/blink/renderer/core/html/anchor_element_metrics_sender.h"
++#include "third_party/blink/renderer/core/helium_noise/text_metrics_noise.h"
+ #include "third_party/blink/renderer/core/html/canvas/canvas_font_cache.h"
+ #include "third_party/blink/renderer/core/html/collection_type.h"
+ #include "third_party/blink/renderer/core/html/custom/custom_element.h"
+@@ -1059,11 +1059,6 @@
+       data_(MakeGarbageCollected<DocumentData>(GetExecutionContext())) {
+   TRACE_EVENT("blink", "Document::Document", perfetto::Flow::FromPointer(this));
+   DCHECK(agent_);
+-  if (RuntimeEnabledFeatures::FingerprintingClientRectsNoiseEnabled()) {
+-    // Precompute -0.0003% to 0.0003% noise factor for get*ClientRect*() fingerprinting
+-    noise_factor_x_ = 1 + (base::RandDouble() - 0.5) * 0.000003;
+-    noise_factor_y_ = 1 + (base::RandDouble() - 0.5) * 0.000003;
+-  }
+   if (base::FeatureList::IsEnabled(features::kDelayAsyncScriptExecution) &&
+       features::kDelayAsyncScriptExecutionDelayByDefaultParam.Get()) {
+     script_runner_delayer_->Activate();
+@@ -1193,12 +1188,17 @@
+   return Position::BeforeNode(*shadow_host);
+ }
+ 
++// Aerie (#118): the factor comes from the site's text-metrics token, so it is
++// the same on every load of a site in one session, and it is 1 (no noise) when
++// the context has no token.
+ double Document::GetNoiseFactorX() {
+-  return noise_factor_x_;
++  return TextMetricsNoiseFactor(GetExecutionContext(),
++                                TextMetricsNoiseKind::kClientRectsX);
+ }
+ 
+ double Document::GetNoiseFactorY() {
+-  return noise_factor_y_;
++  return TextMetricsNoiseFactor(GetExecutionContext(),
++                                TextMetricsNoiseKind::kClientRectsY);
+ }
+ 
+ SelectorQueryCache& Document::GetSelectorQueryCache() {
+--- a/third_party/blink/renderer/core/dom/document.h
++++ b/third_party/blink/renderer/core/dom/document.h
+@@ -601,7 +601,8 @@
+     has_xml_declaration_ = has_xml_declaration ? 1 : 0;
+   }
+ 
+-  // Values for get*ClientRect fingerprint deception
++  // Values for get*ClientRect fingerprint deception (off unless the flag is
++  // on; Aerie #118: stable per site and session, 1 without a token)
+   double GetNoiseFactorX();
+   double GetNoiseFactorY();
+ 
+@@ -2965,9 +2966,6 @@
+ 
+   base::ElapsedTimer start_time_;
+ 
+-  double noise_factor_x_ = 1;
+-  double noise_factor_y_ = 1;
+-
+   // The script runner is used to run scripts of the following scheduling types:
+   // - ScriptSchedulingType::kAsync
+   // - ScriptSchedulingType::kInOrder
+--- a/third_party/blink/renderer/core/helium_noise/build.gni
++++ b/third_party/blink/renderer/core/helium_noise/build.gni
+@@ -7,4 +7,6 @@
+   "helium_noise_hash.h",
+   "canvas_noising_helper.cc",
+   "canvas_noising_helper.h",
++  "text_metrics_noise.cc",
++  "text_metrics_noise.h",
+ ]
+--- /dev/null
++++ b/third_party/blink/renderer/core/helium_noise/text_metrics_noise.cc
+@@ -0,0 +1,39 @@
++// Copyright 2026 The Aerie Authors
++// You can use, redistribute, and/or modify this source code under
++// the terms of the GPL-3.0 license that can be found in the LICENSE file.
++
++#include "third_party/blink/renderer/core/helium_noise/text_metrics_noise.h"
++
++#include <cstdint>
++
++#include "base/feature_list.h"
++#include "components/aerie_text_metrics/text_metrics_noise.h"
++#include "third_party/blink/public/common/features.h"
++#include "third_party/blink/public/common/helium_noise/noise_token.h"
++#include "third_party/blink/renderer/core/execution_context/execution_context.h"
++#include "third_party/blink/renderer/core/helium_noise/helium_noise_hash.h"
++
++namespace blink {
++
++double TextMetricsNoiseFactor(const ExecutionContext* context,
++                              TextMetricsNoiseKind kind) {
++  if (!context) {
++    return 1.0;
++  }
++  const HeliumNoiseTokenMap& tokens = context->GetHeliumNoiseTokens();
++  const bool has_token = tokens.contains(HeliumNoiseFeature::kTextMetrics);
++  if (!aerie_text_metrics::ShouldNoiseTextMetrics(
++          {.master_enabled = base::FeatureList::IsEnabled(features::kHeliumNoise),
++           .surface_enabled =
++               base::FeatureList::IsEnabled(features::kHeliumNoiseTextMetrics),
++           .has_token = has_token})) {
++    return 1.0;
++  }
++
++  HeliumNoiseHash hash(tokens.at(HeliumNoiseFeature::kTextMetrics));
++  hash.Update(static_cast<uint64_t>(kind) + 1);
++  return aerie_text_metrics::NoiseFactor(
++      hash.GetValueBelow(aerie_text_metrics::kSteps));
++}
++
++}  // namespace blink
+--- /dev/null
++++ b/third_party/blink/renderer/core/helium_noise/text_metrics_noise.h
+@@ -0,0 +1,35 @@
++// Copyright 2026 The Aerie Authors
++// You can use, redistribute, and/or modify this source code under
++// the terms of the GPL-3.0 license that can be found in the LICENSE file.
++
++#ifndef THIRD_PARTY_BLINK_RENDERER_CORE_HELIUM_NOISE_TEXT_METRICS_NOISE_H_
++#define THIRD_PARTY_BLINK_RENDERER_CORE_HELIUM_NOISE_TEXT_METRICS_NOISE_H_
++
++#include "third_party/blink/renderer/core/core_export.h"
++
++namespace blink {
++
++class ExecutionContext;
++
++// Which value the factor is for. Each kind gets its own factor from the same
++// token, so one factor does not give away another.
++enum class TextMetricsNoiseKind {
++  kMeasureText,
++  kClientRectsX,
++  kClientRectsY,
++};
++
++// The factor that CanvasRenderingContext2D.measureText and, when its flag is
++// on, getClientRects and getBoundingClientRect scale their values by (Aerie,
++// issue #118). It is derived from the context's kTextMetrics token, which the
++// browser derives per site and session, so every load of one site in a session
++// reads one factor and another site reads another. The browser sends the token
++// only while protection is on for the site, so 1.0 (no change) means "not
++// protected here": turning protection off, globally or for the site, gives the
++// real values back.
++CORE_EXPORT double TextMetricsNoiseFactor(const ExecutionContext* context,
++                                          TextMetricsNoiseKind kind);
++
++}  // namespace blink
++
++#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_HELIUM_NOISE_TEXT_METRICS_NOISE_H_
+--- a/third_party/blink/renderer/modules/canvas/canvas2d/base_rendering_context_2d.cc
++++ b/third_party/blink/renderer/modules/canvas/canvas2d/base_rendering_context_2d.cc
+@@ -64,6 +64,7 @@
+ #include "third_party/blink/renderer/core/dom/node.h"
+ #include "third_party/blink/renderer/core/frame/web_feature.h"
+ #include "third_party/blink/renderer/core/helium_noise/canvas_noising_helper.h"
++#include "third_party/blink/renderer/core/helium_noise/text_metrics_noise.h"
+ #include "third_party/blink/renderer/core/html/canvas/canvas_font_cache.h"
+ #include "third_party/blink/renderer/core/html/canvas/canvas_performance_monitor.h"
+ #include "third_party/blink/renderer/core/html/canvas/canvas_rendering_context.h"
+@@ -1590,16 +1591,13 @@
+       font, direction, state.GetTextBaseline(), state.GetTextAlign(), text,
+       host->GetPlainTextPainter());
+ 
+-  // Scale text metrics if enabled
+-  if (RuntimeEnabledFeatures::FingerprintingCanvasMeasureTextNoiseEnabled()) {
+-    if (HostAsOffscreenCanvas()) {
+-      if (auto* window = DynamicTo<LocalDOMWindow>(GetTopExecutionContext())) {
+-        if (window->GetFrame() && window->GetFrame()->GetDocument())
+-          text_metrics->Shuffle(window->GetFrame()->GetDocument()->GetNoiseFactorX());
+-      }
+-    } else if (canvas) {
+-      text_metrics->Shuffle(canvas->GetDocument().GetNoiseFactorX());
+-    }
++  // Aerie (#118): scale the metrics by the factor of the site's text-metrics
++  // token, the same on every load of the site in one session. 1 means no token
++  // (protection is off for the site or the browser), and then nothing changes.
++  const double factor = TextMetricsNoiseFactor(
++      GetExecutionContext(), TextMetricsNoiseKind::kMeasureText);
++  if (factor != 1.0) {
++    text_metrics->Shuffle(factor);
+   }
+   return text_metrics;
+ }

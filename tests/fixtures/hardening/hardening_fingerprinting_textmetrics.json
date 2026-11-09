@@ -1,0 +1,1118 @@
+{
+ "check": "hardening_fingerprinting_textmetrics",
+ "cases": [
+  {
+   "name": "synthetic_stable_per_site_with_controls_real",
+   "expect": "pass",
+   "detail_contains": "read the same widths",
+   "obs": {
+    "on": {
+     "a1": {
+      "widths": [
+       92.50006474999999,
+       118.250082775,
+       41.0000287,
+       203.750142625,
+       0.0,
+       57.50004025,
+       13.0000091,
+       9.000006299999999
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     },
+     "a2": {
+      "widths": [
+       92.50006474999999,
+       118.250082775,
+       41.0000287,
+       203.750142625,
+       0.0,
+       57.50004025,
+       13.0000091,
+       9.000006299999999
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     },
+     "b": {
+      "widths": [
+       92.49991675,
+       118.249893575,
+       40.9999631,
+       203.749816625,
+       0.0,
+       57.49994825,
+       12.9999883,
+       8.9999919
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     }
+    },
+    "feature_off": {
+     "a": {
+      "widths": [
+       92.5,
+       118.25,
+       41.0,
+       203.75,
+       0.0,
+       57.5,
+       13.0,
+       9.0
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     },
+     "b": {
+      "widths": [
+       92.5,
+       118.25,
+       41.0,
+       203.75,
+       0.0,
+       57.5,
+       13.0,
+       9.0
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     }
+    },
+    "global_off": {
+     "a": {
+      "widths": [
+       92.5,
+       118.25,
+       41.0,
+       203.75,
+       0.0,
+       57.5,
+       13.0,
+       9.0
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     }
+    },
+    "site_off": {
+     "a": {
+      "widths": [
+       92.5,
+       118.25,
+       41.0,
+       203.75,
+       0.0,
+       57.5,
+       13.0,
+       9.0
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     },
+     "b": {
+      "widths": [
+       92.500037,
+       118.2500473,
+       41.0000164,
+       203.7500815,
+       0.0,
+       57.500023,
+       13.0000052,
+       9.0000036
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "synthetic_per_document_factor",
+   "expect": "fail",
+   "detail_contains": "two loads of the same site",
+   "obs": {
+    "on": {
+     "a1": {
+      "widths": [
+       92.50006474999999,
+       118.250082775,
+       41.0000287,
+       203.750142625,
+       0.0,
+       57.50004025,
+       13.0000091,
+       9.000006299999999
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     },
+     "a2": {
+      "widths": [
+       92.49993525000001,
+       118.249917225,
+       40.9999713,
+       203.749857375,
+       0.0,
+       57.49995975,
+       12.9999909,
+       8.999993700000001
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     },
+     "b": {
+      "widths": [
+       92.49991675,
+       118.249893575,
+       40.9999631,
+       203.749816625,
+       0.0,
+       57.49994825,
+       12.9999883,
+       8.9999919
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     }
+    },
+    "feature_off": {
+     "a": {
+      "widths": [
+       92.5,
+       118.25,
+       41.0,
+       203.75,
+       0.0,
+       57.5,
+       13.0,
+       9.0
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     },
+     "b": {
+      "widths": [
+       92.5,
+       118.25,
+       41.0,
+       203.75,
+       0.0,
+       57.5,
+       13.0,
+       9.0
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     }
+    },
+    "global_off": {
+     "a": {
+      "widths": [
+       92.5,
+       118.25,
+       41.0,
+       203.75,
+       0.0,
+       57.5,
+       13.0,
+       9.0
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     }
+    },
+    "site_off": {
+     "a": {
+      "widths": [
+       92.5,
+       118.25,
+       41.0,
+       203.75,
+       0.0,
+       57.5,
+       13.0,
+       9.0
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     },
+     "b": {
+      "widths": [
+       92.500037,
+       118.2500473,
+       41.0000164,
+       203.7500815,
+       0.0,
+       57.500023,
+       13.0000052,
+       9.0000036
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "synthetic_two_sites_share_a_factor",
+   "expect": "fail",
+   "detail_contains": "same widths on a.localhost and b.localhost",
+   "obs": {
+    "on": {
+     "a1": {
+      "widths": [
+       92.50006474999999,
+       118.250082775,
+       41.0000287,
+       203.750142625,
+       0.0,
+       57.50004025,
+       13.0000091,
+       9.000006299999999
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     },
+     "a2": {
+      "widths": [
+       92.50006474999999,
+       118.250082775,
+       41.0000287,
+       203.750142625,
+       0.0,
+       57.50004025,
+       13.0000091,
+       9.000006299999999
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     },
+     "b": {
+      "widths": [
+       92.50006474999999,
+       118.250082775,
+       41.0000287,
+       203.750142625,
+       0.0,
+       57.50004025,
+       13.0000091,
+       9.000006299999999
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     }
+    },
+    "feature_off": {
+     "a": {
+      "widths": [
+       92.5,
+       118.25,
+       41.0,
+       203.75,
+       0.0,
+       57.5,
+       13.0,
+       9.0
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     },
+     "b": {
+      "widths": [
+       92.5,
+       118.25,
+       41.0,
+       203.75,
+       0.0,
+       57.5,
+       13.0,
+       9.0
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     }
+    },
+    "global_off": {
+     "a": {
+      "widths": [
+       92.5,
+       118.25,
+       41.0,
+       203.75,
+       0.0,
+       57.5,
+       13.0,
+       9.0
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     }
+    },
+    "site_off": {
+     "a": {
+      "widths": [
+       92.5,
+       118.25,
+       41.0,
+       203.75,
+       0.0,
+       57.5,
+       13.0,
+       9.0
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     },
+     "b": {
+      "widths": [
+       92.500037,
+       118.2500473,
+       41.0000164,
+       203.7500815,
+       0.0,
+       57.500023,
+       13.0000052,
+       9.0000036
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "synthetic_site_off_leaks_to_other_site",
+   "expect": "fail",
+   "detail_contains": "only a.localhost",
+   "obs": {
+    "on": {
+     "a1": {
+      "widths": [
+       92.50006474999999,
+       118.250082775,
+       41.0000287,
+       203.750142625,
+       0.0,
+       57.50004025,
+       13.0000091,
+       9.000006299999999
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     },
+     "a2": {
+      "widths": [
+       92.50006474999999,
+       118.250082775,
+       41.0000287,
+       203.750142625,
+       0.0,
+       57.50004025,
+       13.0000091,
+       9.000006299999999
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     },
+     "b": {
+      "widths": [
+       92.49991675,
+       118.249893575,
+       40.9999631,
+       203.749816625,
+       0.0,
+       57.49994825,
+       12.9999883,
+       8.9999919
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     }
+    },
+    "feature_off": {
+     "a": {
+      "widths": [
+       92.5,
+       118.25,
+       41.0,
+       203.75,
+       0.0,
+       57.5,
+       13.0,
+       9.0
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     },
+     "b": {
+      "widths": [
+       92.5,
+       118.25,
+       41.0,
+       203.75,
+       0.0,
+       57.5,
+       13.0,
+       9.0
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     }
+    },
+    "global_off": {
+     "a": {
+      "widths": [
+       92.5,
+       118.25,
+       41.0,
+       203.75,
+       0.0,
+       57.5,
+       13.0,
+       9.0
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     }
+    },
+    "site_off": {
+     "a": {
+      "widths": [
+       92.5,
+       118.25,
+       41.0,
+       203.75,
+       0.0,
+       57.5,
+       13.0,
+       9.0
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     },
+     "b": {
+      "widths": [
+       92.5,
+       118.25,
+       41.0,
+       203.75,
+       0.0,
+       57.5,
+       13.0,
+       9.0
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "synthetic_global_off_does_not_restore",
+   "expect": "fail",
+   "detail_contains": "not the real widths",
+   "obs": {
+    "on": {
+     "a1": {
+      "widths": [
+       92.50006474999999,
+       118.250082775,
+       41.0000287,
+       203.750142625,
+       0.0,
+       57.50004025,
+       13.0000091,
+       9.000006299999999
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     },
+     "a2": {
+      "widths": [
+       92.50006474999999,
+       118.250082775,
+       41.0000287,
+       203.750142625,
+       0.0,
+       57.50004025,
+       13.0000091,
+       9.000006299999999
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     },
+     "b": {
+      "widths": [
+       92.49991675,
+       118.249893575,
+       40.9999631,
+       203.749816625,
+       0.0,
+       57.49994825,
+       12.9999883,
+       8.9999919
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     }
+    },
+    "feature_off": {
+     "a": {
+      "widths": [
+       92.5,
+       118.25,
+       41.0,
+       203.75,
+       0.0,
+       57.5,
+       13.0,
+       9.0
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     },
+     "b": {
+      "widths": [
+       92.5,
+       118.25,
+       41.0,
+       203.75,
+       0.0,
+       57.5,
+       13.0,
+       9.0
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     }
+    },
+    "global_off": {
+     "a": {
+      "widths": [
+       92.50006474999999,
+       118.250082775,
+       41.0000287,
+       203.750142625,
+       0.0,
+       57.50004025,
+       13.0000091,
+       9.000006299999999
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     }
+    },
+    "site_off": {
+     "a": {
+      "widths": [
+       92.5,
+       118.25,
+       41.0,
+       203.75,
+       0.0,
+       57.5,
+       13.0,
+       9.0
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     },
+     "b": {
+      "widths": [
+       92.500037,
+       118.2500473,
+       41.0000164,
+       203.7500815,
+       0.0,
+       57.500023,
+       13.0000052,
+       9.0000036
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "synthetic_layout_moved",
+   "expect": "fail",
+   "detail_contains": "layout changed",
+   "obs": {
+    "on": {
+     "a1": {
+      "widths": [
+       92.50006474999999,
+       118.250082775,
+       41.0000287,
+       203.750142625,
+       0.0,
+       57.50004025,
+       13.0000091,
+       9.000006299999999
+      ],
+      "layout": {
+       "stickyTop": 3,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     },
+     "a2": {
+      "widths": [
+       92.50006474999999,
+       118.250082775,
+       41.0000287,
+       203.750142625,
+       0.0,
+       57.50004025,
+       13.0000091,
+       9.000006299999999
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     },
+     "b": {
+      "widths": [
+       92.49991675,
+       118.249893575,
+       40.9999631,
+       203.749816625,
+       0.0,
+       57.49994825,
+       12.9999883,
+       8.9999919
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     }
+    },
+    "feature_off": {
+     "a": {
+      "widths": [
+       92.5,
+       118.25,
+       41.0,
+       203.75,
+       0.0,
+       57.5,
+       13.0,
+       9.0
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     },
+     "b": {
+      "widths": [
+       92.5,
+       118.25,
+       41.0,
+       203.75,
+       0.0,
+       57.5,
+       13.0,
+       9.0
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     }
+    },
+    "global_off": {
+     "a": {
+      "widths": [
+       92.5,
+       118.25,
+       41.0,
+       203.75,
+       0.0,
+       57.5,
+       13.0,
+       9.0
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     }
+    },
+    "site_off": {
+     "a": {
+      "widths": [
+       92.5,
+       118.25,
+       41.0,
+       203.75,
+       0.0,
+       57.5,
+       13.0,
+       9.0
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     },
+     "b": {
+      "widths": [
+       92.500037,
+       118.2500473,
+       41.0000164,
+       203.7500815,
+       0.0,
+       57.500023,
+       13.0000052,
+       9.0000036
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "control_sites_differ_with_the_feature_off",
+   "expect": "fail",
+   "detail_contains": "negative control failed",
+   "obs": {
+    "on": {
+     "a1": {
+      "widths": [
+       92.50006474999999,
+       118.250082775,
+       41.0000287,
+       203.750142625,
+       0.0,
+       57.50004025,
+       13.0000091,
+       9.000006299999999
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     },
+     "a2": {
+      "widths": [
+       92.50006474999999,
+       118.250082775,
+       41.0000287,
+       203.750142625,
+       0.0,
+       57.50004025,
+       13.0000091,
+       9.000006299999999
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     },
+     "b": {
+      "widths": [
+       92.49991675,
+       118.249893575,
+       40.9999631,
+       203.749816625,
+       0.0,
+       57.49994825,
+       12.9999883,
+       8.9999919
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     }
+    },
+    "feature_off": {
+     "a": {
+      "widths": [
+       92.5,
+       118.25,
+       41.0,
+       203.75,
+       0.0,
+       57.5,
+       13.0,
+       9.0
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     },
+     "b": {
+      "widths": [
+       93.5,
+       119.25,
+       42.0,
+       204.75,
+       1.0,
+       58.5,
+       14.0,
+       10.0
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     }
+    },
+    "global_off": {
+     "a": {
+      "widths": [
+       92.5,
+       118.25,
+       41.0,
+       203.75,
+       0.0,
+       57.5,
+       13.0,
+       9.0
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     }
+    },
+    "site_off": {
+     "a": {
+      "widths": [
+       92.5,
+       118.25,
+       41.0,
+       203.75,
+       0.0,
+       57.5,
+       13.0,
+       9.0
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     },
+     "b": {
+      "widths": [
+       92.500037,
+       118.2500473,
+       41.0000164,
+       203.7500815,
+       0.0,
+       57.500023,
+       13.0000052,
+       9.0000036
+      ],
+      "layout": {
+       "stickyTop": 0,
+       "firstRow": 400,
+       "rowHeight": 24,
+       "rects_exact": true
+      }
+     }
+    }
+   }
+  }
+ ]
+}

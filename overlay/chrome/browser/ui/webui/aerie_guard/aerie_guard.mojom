@@ -28,6 +28,7 @@ enum ProtectedSurface {
   kDeviceMemory,
   kGraphicsCard,
   kScreen,
+  kTextMetrics,
 };
 
 struct FingerprintingState {

@@ -1,0 +1,33 @@
+# Copyright 2026 The Aerie Authors
+# You can use, redistribute, and/or modify this source code under
+# the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+import("//testing/test.gni")
+
+# The factor that canvas measureText scales its metrics by while fingerprinting
+# protection is on (issue #118) and the decision whether a context is
+# protected. Pure code with no Blink and no base, so it has unit tests. Blink's
+# BaseRenderingContext2D calls it
+# (patches/hardening/0018-seed-measuretext-noise-per-site.patch).
+source_set("aerie_text_metrics") {
+  sources = [
+    "text_metrics_noise.cc",
+    "text_metrics_noise.h",
+  ]
+}
+
+source_set("unit_tests") {
+  testonly = true
+  sources = [ "text_metrics_noise_unittest.cc" ]
+  deps = [
+    ":aerie_text_metrics",
+    "//testing/gtest",
+  ]
+}
+
+test("aerie_text_metrics_unittests") {
+  deps = [
+    ":unit_tests",
+    "//base/test:run_all_unittests",
+  ]
+}

@@ -120,6 +120,9 @@
   <message name="IDS_AERIE_GUARD_PANEL_SURFACE_SCREEN" desc="Item of the list of what fingerprinting protection changes. The screen size is reported as a common size and the window position as 0,0.">
     The screen size is reported as a common size, and the window position as 0,0
   </message>
+  <message name="IDS_AERIE_GUARD_PANEL_SURFACE_TEXT_METRICS" desc="Item of the list of what fingerprinting protection changes. The text widths and heights that canvas measureText returns are scaled by a tiny factor that is the same on every load of a site.">
+    Canvas text measurements carry tiny noise
+  </message>
   <message name="IDS_AERIE_GUARD_PANEL_SETTINGS" desc="Link at the bottom of the Aerie Guard panel. Opens the Aerie Guard section of Settings.">
     Aerie Guard settings…
   </message>

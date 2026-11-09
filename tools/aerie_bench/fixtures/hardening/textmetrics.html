@@ -1,0 +1,57 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Aerie Bench Text Metrics</title>
+<style>
+  html, body { margin: 0; }
+  #head { position: sticky; top: 0; height: 30px; background: #ddd; z-index: 1; }
+  #list { position: relative; height: 24000px; }
+  .row { position: absolute; left: 0; right: 0; height: 24px; line-height: 24px; }
+</style></head>
+<body>
+<div id="head">sticky header</div>
+<div id="list"></div>
+<script>
+  window.__done = false;
+  const ROW = 24, HEAD = 30, FIRST = 400;
+  const TEXTS = ['Aerie', 'The quick brown fox jumps over the lazy dog', 'iiiiiiiiii', 'WWWWWWWWWW', '0123456789 éèü'];
+  const KEYS = ['width', 'actualBoundingBoxLeft', 'actualBoundingBoxRight', 'actualBoundingBoxAscent',
+                'actualBoundingBoxDescent', 'fontBoundingBoxAscent', 'fontBoundingBoxDescent'];
+
+  function widths() {
+    const ctx = document.createElement('canvas').getContext('2d');
+    const out = [];
+    for (const font of ['16px sans-serif', 'italic 24px serif']) {
+      ctx.font = font;
+      for (const text of TEXTS) {
+        const m = ctx.measureText(text);
+        for (const k of KEYS) out.push(m[k]);
+      }
+    }
+    return out;
+  }
+
+  // A virtual list: only the rows around the viewport exist. The rows sit below a sticky header.
+  function layout() {
+    const list = document.getElementById('list');
+    for (let i = FIRST - 5; i < FIRST + 30; i++) {
+      const d = document.createElement('div');
+      d.className = 'row';
+      d.style.top = (HEAD + i * ROW) + 'px';
+      d.textContent = 'row ' + i;
+      d.dataset.i = i;
+      list.appendChild(d);
+    }
+    window.scrollTo({top: FIRST * ROW, behavior: 'instant'});
+    const head = document.getElementById('head').getBoundingClientRect();
+    const rows = [...list.children].map(d => ({i: +d.dataset.i, r: d.getBoundingClientRect()}));
+    const firstVisible = rows.find(x => x.r.top >= head.bottom);
+    // Client-rect noise is off, so every rectangle is whole pixels.
+    const exact = rows.every(x => Number.isInteger(x.r.top) && x.r.height === ROW) && head.height === HEAD;
+    return {stickyTop: head.top, firstRow: firstVisible ? firstVisible.i : -1,
+            rowHeight: firstVisible ? firstVisible.r.height : -1, rects_exact: exact};
+  }
+
+  try { window.__result = {widths: widths(), layout: layout()}; }
+  catch (e) { window.__result = {error: String(e)}; }
+  window.__done = true;
+</script>
+</body></html>

@@ -288,6 +288,39 @@ POPUP_GOOD = {
     treegate.POPUP_RENDERER_PATH: POPUP_RENDERER_OK,
 }
 
+TEXT_METRICS_CANVAS_OK = """TextMetrics* BaseRenderingContext2D::measureText(const String& text) {
+  const double factor = TextMetricsNoiseFactor(
+      GetExecutionContext(), TextMetricsNoiseKind::kMeasureText);
+  if (factor != 1.0) {
+    text_metrics->Shuffle(factor);
+  }
+  return text_metrics;
+}
+"""
+TEXT_METRICS_DOCUMENT_OK = """double Document::GetNoiseFactorX() {
+  return TextMetricsNoiseFactor(GetExecutionContext(),
+                                TextMetricsNoiseKind::kClientRectsX);
+}
+
+double Document::GetNoiseFactorY() {
+  return TextMetricsNoiseFactor(GetExecutionContext(),
+                                TextMetricsNoiseKind::kClientRectsY);
+}
+"""
+TEXT_METRICS_FACTOR_OK = """double TextMetricsNoiseFactor(const ExecutionContext* context,
+                              TextMetricsNoiseKind kind) {
+  HeliumNoiseHash hash(tokens.at(HeliumNoiseFeature::kTextMetrics));
+  hash.Update(static_cast<uint64_t>(kind) + 1);
+  return aerie_text_metrics::NoiseFactor(
+      hash.GetValueBelow(aerie_text_metrics::kSteps));
+}
+"""
+TEXT_METRICS_GOOD = {
+    treegate.TEXT_METRICS_CANVAS_PATH: TEXT_METRICS_CANVAS_OK,
+    treegate.TEXT_METRICS_DOCUMENT_PATH: TEXT_METRICS_DOCUMENT_OK,
+    treegate.TEXT_METRICS_FACTOR_PATH: TEXT_METRICS_FACTOR_OK,
+}
+
 GOOD = {
     **JS_OPT_GOOD,
     **SERVICES_UI_GOOD,
@@ -295,6 +328,7 @@ GOOD = {
     **GPU_GOOD,
     **WORKER_GOOD,
     **POPUP_GOOD,
+    **TEXT_METRICS_GOOD,
     "chrome/browser/component_updater/widevine_cdm_component_installer.cc": WIDEVINE_INSTALLER_OK,
     "chrome/browser/component_updater/registration.cc": WIDEVINE_REG_OK,
     "components/update_client/update_checker.cc": WIDEVINE_CHECKER_OK,
@@ -572,6 +606,47 @@ class PopupNoiseTokensGateTest(TreeCase):
         self.assertIn(treegate.check_popup_noise_tokens, treegate.GATES)
 
 
+class TextMetricsNoiseGateTest(TreeCase):
+    """Issue #118: measureText and client rect noise come from the site's token, never from a per-document
+    random factor (the Bromite patch's base::RandDouble)."""
+
+    def test_passes_when_the_factor_comes_from_the_token(self):
+        self.write(TEXT_METRICS_GOOD)
+        self.assertEqual(treegate.check_text_metrics_noise(self.root, require=True), [])
+
+    def test_a_missing_file_is_reported_only_when_required(self):
+        self.assertEqual(treegate.check_text_metrics_noise(self.root), [])
+        self.assertEqual(len(treegate.check_text_metrics_noise(self.root, require=True)), 3)
+
+    def test_each_part_is_guarded(self):
+        bad = {
+            treegate.TEXT_METRICS_CANVAS_PATH: TEXT_METRICS_CANVAS_OK.replace("TextMetricsNoiseFactor(", "GetNoiseFactorX("),
+            treegate.TEXT_METRICS_DOCUMENT_PATH: TEXT_METRICS_DOCUMENT_OK.replace(
+                "return TextMetricsNoiseFactor(GetExecutionContext(),\n                                TextMetricsNoiseKind::kClientRectsX);",
+                "return noise_factor_x_;"),
+            treegate.TEXT_METRICS_FACTOR_PATH: TEXT_METRICS_FACTOR_OK.replace("HeliumNoiseFeature::kTextMetrics",
+                                                                              "HeliumNoiseFeature::kCanvas"),
+        }
+        for path, text in bad.items():
+            with self.subTest(path=path):
+                self.write(TEXT_METRICS_GOOD)
+                self.write({path: text})
+                self.assertEqual({f.path for f in treegate.check_text_metrics_noise(self.root)}, {path})
+
+    def test_a_per_document_random_factor_is_reported(self):
+        for path, text in (
+                (treegate.TEXT_METRICS_CANVAS_PATH, TEXT_METRICS_CANVAS_OK + "double f = 1 + (base::RandDouble() - 0.5) * 0.000003;\n"),
+                (treegate.TEXT_METRICS_DOCUMENT_PATH, TEXT_METRICS_DOCUMENT_OK + "noise_factor_x_ = 1 + (base::RandDouble() - 0.5);\n"),
+                (treegate.TEXT_METRICS_FACTOR_PATH, TEXT_METRICS_FACTOR_OK + "double r = base::RandDouble();\n")):
+            with self.subTest(path=path):
+                self.write(TEXT_METRICS_GOOD)
+                self.write({path: text})
+                self.assertEqual({f.path for f in treegate.check_text_metrics_noise(self.root)}, {path})
+
+    def test_the_gate_runs_with_the_others(self):
+        self.assertIn(treegate.check_text_metrics_noise, treegate.GATES)
+
+
 class JsOptimizerGateTest(TreeCase):
     def test_passes_on_the_upstream_shape(self):
         self.write(JS_OPT_GOOD)
@@ -654,7 +729,7 @@ class RunTest(TreeCase):
 
     def test_empty_tree_passes_unless_required(self):
         self.assertEqual(self.run_gates(), [])
-        self.assertEqual(len(self.run_gates(require=True)), 44)
+        self.assertEqual(len(self.run_gates(require=True)), 47)
 
     def test_format_report(self):
         self.write({"a.cc": '"https://services.helium.imput.net"\n'})

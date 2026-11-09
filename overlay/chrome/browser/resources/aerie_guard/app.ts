@@ -212,6 +212,8 @@ export class AerieGuardAppElement extends CrLitElement {
         return this.i18n_('surfaceGraphicsCard');
       case ProtectedSurface.kScreen:
         return this.i18n_('surfaceScreen');
+      case ProtectedSurface.kTextMetrics:
+        return this.i18n_('surfaceTextMetrics');
     }
   }
 
