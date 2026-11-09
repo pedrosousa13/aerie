@@ -150,7 +150,7 @@ def render_docs(table: dict) -> str:
     for d in table["deferred"]:
         lines.append(f"- {d['title']}: {d['reason']}")
     lines += [
-        "- Fonts, screen metrics and client hints are not randomized.",
+        "- Client hints are not randomized. Fonts are not randomized either: the opt-in Restrict fonts setting (off by default) limits which fonts a page can match instead.",
         "- Helium keys its noise on the full origin, not on the registrable domain, so `a.example.com`",
         "  and `b.example.com` see different canvas values.",
         "",

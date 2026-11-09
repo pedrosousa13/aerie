@@ -61,7 +61,7 @@ class RegistryTest(unittest.TestCase):
         self.assertEqual(sorted(sc.checks), sorted(HARDENING))
 
     def test_checks_declare_control_and_negative_control(self):
-        self.assertEqual(len(HARDENING), 22)
+        self.assertEqual(len(HARDENING), 23)
         for name, cls in HARDENING.items():
             self.assertTrue(cls.control, name)
             self.assertGreater(len(cls.negative_control), 30, name)

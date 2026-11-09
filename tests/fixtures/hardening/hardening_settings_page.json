@@ -63,6 +63,13 @@
       "state_text": null,
       "live": "off"
      },
+     "font_restriction": {
+      "present": true,
+      "default_text": "Default: Off.",
+      "cost_text": "Cost: Pages that ask for a font by name, such as a design tool, a code editor with a font picker, a document editor or a site that lays itself out for a particular font, get the fallback font instead when that font is not on the list. Web fonts the page loads itself are not affected. Turn it on only if you accept that.",
+      "state_text": null,
+      "live": "off"
+     },
      "extension_lock": {
       "present": true,
       "default_text": "Default: Always on.",
@@ -151,6 +158,13 @@
       "state_text": null,
       "live": "off"
      },
+     "font_restriction": {
+      "present": true,
+      "default_text": "Default: Off.",
+      "cost_text": "Cost: Pages that ask for a font by name, such as a design tool, a code editor with a font picker, a document editor or a site that lays itself out for a particular font, get the fallback font instead when that font is not on the list. Web fonts the page loads itself are not affected. Turn it on only if you accept that.",
+      "state_text": null,
+      "live": "off"
+     },
      "extension_lock": {
       "present": true,
       "default_text": "Default: Always on.",
@@ -222,6 +236,13 @@
       "present": true,
       "default_text": "Default: Off.",
       "cost_text": "Cost: Turning it on downloads a closed-source Google module, which is checked against a pinned signing key before it loads, and lets Aerie ask Google for updates to it. Until you do, DRM video does not play. Before this setting, the CRLSet (the list of revoked certificates) got updates only while Widevine was on; now Aerie never sends the CRLSet to Google, so it is not updated.",
+      "state_text": null,
+      "live": "off"
+     },
+     "font_restriction": {
+      "present": true,
+      "default_text": "Default: Off.",
+      "cost_text": "Cost: Pages that ask for a font by name, such as a design tool, a code editor with a font picker, a document editor or a site that lays itself out for a particular font, get the fallback font instead when that font is not on the list. Web fonts the page loads itself are not affected. Turn it on only if you accept that.",
       "state_text": null,
       "live": "off"
      },
@@ -307,6 +328,13 @@
       "state_text": null,
       "live": "off"
      },
+     "font_restriction": {
+      "present": true,
+      "default_text": "Default: Off.",
+      "cost_text": "Cost: Pages that ask for a font by name, such as a design tool, a code editor with a font picker, a document editor or a site that lays itself out for a particular font, get the fallback font instead when that font is not on the list. Web fonts the page loads itself are not affected. Turn it on only if you accept that.",
+      "state_text": null,
+      "live": "off"
+     },
      "extension_lock": {
       "present": true,
       "default_text": "Default: Always on.",
@@ -386,6 +414,13 @@
       "present": true,
       "default_text": "Default: Off.",
       "cost_text": "Cost: Turning it on downloads a closed-source Google module, which is checked against a pinned signing key before it loads, and lets Aerie ask Google for updates to it. Until you do, DRM video does not play. Before this setting, the CRLSet (the list of revoked certificates) got updates only while Widevine was on; now Aerie never sends the CRLSet to Google, so it is not updated.",
+      "state_text": null,
+      "live": "off"
+     },
+     "font_restriction": {
+      "present": true,
+      "default_text": "Default: Off.",
+      "cost_text": "Cost: Pages that ask for a font by name, such as a design tool, a code editor with a font picker, a document editor or a site that lays itself out for a particular font, get the fallback font instead when that font is not on the list. Web fonts the page loads itself are not affected. Turn it on only if you accept that.",
       "state_text": null,
       "live": "off"
      },
@@ -471,6 +506,13 @@
       "state_text": null,
       "live": "off"
      },
+     "font_restriction": {
+      "present": true,
+      "default_text": "Default: Off.",
+      "cost_text": "Cost: Pages that ask for a font by name, such as a design tool, a code editor with a font picker, a document editor or a site that lays itself out for a particular font, get the fallback font instead when that font is not on the list. Web fonts the page loads itself are not affected. Turn it on only if you accept that.",
+      "state_text": null,
+      "live": "off"
+     },
      "extension_lock": {
       "present": true,
       "default_text": "Default: Always on.",
@@ -550,6 +592,13 @@
       "present": true,
       "default_text": "Default: Off.",
       "cost_text": "Cost: Turning it on downloads a closed-source Google module, which is checked against a pinned signing key before it loads, and lets Aerie ask Google for updates to it. Until you do, DRM video does not play. Before this setting, the CRLSet (the list of revoked certificates) got updates only while Widevine was on; now Aerie never sends the CRLSet to Google, so it is not updated.",
+      "state_text": null,
+      "live": "off"
+     },
+     "font_restriction": {
+      "present": true,
+      "default_text": "Default: Off.",
+      "cost_text": "Cost: Pages that ask for a font by name, such as a design tool, a code editor with a font picker, a document editor or a site that lays itself out for a particular font, get the fallback font instead when that font is not on the list. Web fonts the page loads itself are not affected. Turn it on only if you accept that.",
       "state_text": null,
       "live": "off"
      },
@@ -635,6 +684,13 @@
       "state_text": null,
       "live": "off"
      },
+     "font_restriction": {
+      "present": true,
+      "default_text": "Default: Off.",
+      "cost_text": "Cost: Pages that ask for a font by name, such as a design tool, a code editor with a font picker, a document editor or a site that lays itself out for a particular font, get the fallback font instead when that font is not on the list. Web fonts the page loads itself are not affected. Turn it on only if you accept that.",
+      "state_text": null,
+      "live": "off"
+     },
      "extension_lock": {
       "present": true,
       "default_text": "Default: Always on.",
@@ -659,7 +715,7 @@
    "name": "real_train5_build",
    "expect": "pass",
    "detail_contains": "",
-   "real": "Recorded on a real Aerie build, train-5 Bench run (bench/train5/bench/main1/results.json): all 10 controls with the final Widevine (#7) cost text, and the click on the JavaScript optimizer link row reaching settings-v8-page.",
+   "real": "Recorded on a real Aerie build, train-5 Bench run (bench/train5/bench/main1/results.json): all 10 controls with the final Widevine (#7) cost text, and the click on the JavaScript optimizer link row reaching settings-v8-page. The font_restriction row (#117) is not part of that recording, because the build predates it: it is hand-added from the generated control table (default text, cost text, toggle off), so this case also judges the new row.",
    "obs": {
     "rows": {
      "https_only": {
@@ -730,6 +786,14 @@
       "present": true,
       "default_text": "Default: Off.",
       "cost_text": "Cost: Turning it on downloads a closed-source Google module, which is checked against a pinned signing key before it loads, and lets Aerie ask Google for updates to it. Until you do, DRM video does not play. Before this setting, the CRLSet (the list of revoked certificates) got updates only while Widevine was on; now Aerie never sends the CRLSet to Google, so it is not updated.",
+      "state_text": null,
+      "live": "off",
+      "route": null
+     },
+     "font_restriction": {
+      "present": true,
+      "default_text": "Default: Off.",
+      "cost_text": "Cost: Pages that ask for a font by name, such as a design tool, a code editor with a font picker, a document editor or a site that lays itself out for a particular font, get the fallback font instead when that font is not on the list. Web fonts the page loads itself are not affected. Turn it on only if you accept that.",
       "state_text": null,
       "live": "off",
       "route": null
