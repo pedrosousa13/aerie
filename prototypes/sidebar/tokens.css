@@ -1,0 +1,492 @@
+/* Generated from tokens.json by gen_tokens_css.py. Do not edit by hand. */
+
+:root {
+  --aerie-tint-angle: 135deg;
+  --aerie-radius-xs: 4px;
+  --aerie-radius-sm: 6px;
+  --aerie-radius-md: 8px;
+  --aerie-radius-lg: 10px;
+  --aerie-radius-xl: 14px;
+  --aerie-radius-2xl: 20px;
+  --aerie-radius-full: 999px;
+  --aerie-space-0: 0px;
+  --aerie-space-2: 2px;
+  --aerie-space-4: 4px;
+  --aerie-space-6: 6px;
+  --aerie-space-8: 8px;
+  --aerie-space-10: 10px;
+  --aerie-space-12: 12px;
+  --aerie-space-16: 16px;
+  --aerie-space-20: 20px;
+  --aerie-space-24: 24px;
+  --aerie-space-32: 32px;
+  --aerie-type-family: system-ui, sans-serif;
+  --aerie-type-size-caption: 11px;
+  --aerie-type-line-caption: 14px;
+  --aerie-type-size-label: 12px;
+  --aerie-type-line-label: 16px;
+  --aerie-type-size-body: 13px;
+  --aerie-type-line-body: 18px;
+  --aerie-type-size-title: 15px;
+  --aerie-type-line-title: 20px;
+  --aerie-type-size-heading: 20px;
+  --aerie-type-line-heading: 26px;
+  --aerie-type-weight-regular: 400;
+  --aerie-type-weight-medium: 500;
+  --aerie-type-weight-semibold: 600;
+  --aerie-size-sidebar-width: 260px;
+  --aerie-size-sidebar-min: 200px;
+  --aerie-size-sidebar-max: 400px;
+  --aerie-size-rail-width: 56px;
+  --aerie-size-row-height-comfortable: 34px;
+  --aerie-size-row-height-compact: 28px;
+  --aerie-size-tile-comfortable: 44px;
+  --aerie-size-tile-compact: 36px;
+  --aerie-size-favorites-columns: 4;
+  --aerie-size-inset-comfortable: 8px;
+  --aerie-size-inset-compact: 4px;
+  --aerie-size-favicon-comfortable: 20px;
+  --aerie-size-favicon-compact: 18px;
+  --aerie-size-rail-tile: 34px;
+  --aerie-size-hot-zone: 6px;
+  --aerie-size-icon: 16px;
+  --aerie-size-window-control: 12px;
+  --aerie-size-focus-ring-width: 2px;
+  --aerie-size-focus-ring-offset: 2px;
+  --aerie-size-indent: 14px;
+  --aerie-motion-duration-instant: 0ms;
+  --aerie-motion-duration-xfast: 90ms;
+  --aerie-motion-duration-fast: 140ms;
+  --aerie-motion-duration-base: 200ms;
+  --aerie-motion-duration-slow: 280ms;
+  --aerie-motion-duration-xslow: 380ms;
+  --aerie-motion-duration-peek-show: 250ms;
+  --aerie-motion-duration-peek-hide: 150ms;
+  --aerie-motion-duration-folder-collapse: 180ms;
+  --aerie-motion-duration-folder-reveal: 200ms;
+  --aerie-motion-duration-workspace-switch: 250ms;
+  --aerie-motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+  --aerie-motion-easing-decelerate: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --aerie-motion-easing-accelerate: cubic-bezier(0.3, 0, 0.8, 0.15);
+  --aerie-motion-easing-spring: linear(0, 0.056, 0.184, 0.336, 0.487, 0.622, 0.734, 0.821, 0.888, 0.935, 0.967, 0.988, 1.001, 1.008, 1.01, 1.011, 1.01, 1.009, 1.007, 1.005, 1.004, 1.003, 1);
+  --aerie-motion-easing-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --aerie-motion-easing-spring-settle: linear(0, 0.045, 0.144, 0.264, 0.385, 0.496, 0.594, 0.677, 0.745, 0.801, 0.845, 0.881, 0.908, 0.93, 0.947, 0.96, 0.969, 0.977, 0.983, 0.987, 0.99, 0.993, 0.995, 0.996, 1);
+  --aerie-motion-spring-stiffness: 380;
+  --aerie-motion-spring-damping: 32;
+  --aerie-motion-spring-mass: 1;
+  --aerie-motion-spring-duration: 420ms;
+  --aerie-motion-distance-workspace-slide: 24px;
+  --aerie-motion-distance-close-slide: 8px;
+  --aerie-motion-distance-swipe-commit: 80px;
+  --aerie-motion-distance-peek-grace-x: 200px;
+  --aerie-motion-distance-peek-grace-y: 100px;
+  --aerie-motion-scale-lift: 1.02;
+  --aerie-motion-scale-enter: 0.96;
+  --aerie-motion-scale-cmdbar-enter: 0.98;
+  --aerie-motion-opacity-cmdbar-start: 0.5;
+  --aerie-motion-opacity-sleeping: 0.55;
+  --aerie-motion-timing-stagger: 15ms;
+  --aerie-motion-timing-stagger-cap: 6;
+  --aerie-motion-timing-overlap: 60ms;
+  --aerie-motion-timing-enter-delay: 60ms;
+  --aerie-motion-timing-peek-delay: 150ms;
+  --aerie-motion-timing-peek-leave: 150ms;
+  --aerie-motion-timing-tooltip-delay: 400ms;
+  --aerie-motion-timing-peek-outside-max: 3000ms;
+  --aerie-motion-timing-toast: 1600ms;
+  --aerie-motion-timing-ws-drag-hover: 500ms;
+  --aerie-workspace-dusk-stop-1: #FFA463;
+  --aerie-workspace-dusk-stop-2: #F0466F;
+  --aerie-workspace-dusk-stop-3: #7B3FE4;
+  --aerie-workspace-tide-stop-1: #38BDF8;
+  --aerie-workspace-tide-stop-2: #6366F1;
+  --aerie-workspace-moss-stop-1: #84CC16;
+  --aerie-workspace-moss-stop-2: #0EA5A4;
+  --aerie-workspace-ember-stop-1: #F97316;
+  --aerie-workspace-ember-stop-2: #E11D48;
+  --aerie-workspace-lilac-stop-1: #C084FC;
+  --aerie-workspace-lilac-stop-2: #F472B6;
+  --aerie-workspace-slate-stop-1: #94A3B8;
+  --aerie-workspace-slate-stop-2: #475569;
+  --aerie-workspace-sand-stop-1: #F5D0A9;
+  --aerie-workspace-sand-stop-2: #D4A373;
+  --aerie-workspace-mint-stop-1: #6EE7B7;
+  --aerie-workspace-mint-stop-2: #22D3EE;
+  --aerie-motion-ratio-folder-edge: 0.2;
+  --aerie-motion-ratio-rubber-band: 4.5;
+  --aerie-motion-ratio-swipe-velocity: 0.5;
+}
+
+:root[data-mode="light"], :root:not([data-mode]) {
+  --aerie-color-frame-base: #ECEBF0;
+  --aerie-color-text: #1B1A20;
+  --aerie-color-text-muted: #5C5A66;
+  --aerie-color-content-surface: #FFFFFF;
+  --aerie-color-surface-popover: #FFFFFF;
+  --aerie-color-field: rgba(255,255,255,0.62);
+  --aerie-color-row-hover: rgba(0,0,0,0.05);
+  --aerie-color-row-selected: rgba(255,255,255,0.80);
+  --aerie-color-divider: rgba(0,0,0,0.08);
+  --aerie-color-border-hairline: rgba(0,0,0,0.10);
+  --aerie-color-scrim: rgba(0,0,0,0.18);
+  --aerie-color-text-on-accent: #FFFFFF;
+  --aerie-color-page-block: rgba(27,26,32,0.07);
+  --aerie-shadow-row-selected: 0 1px 2px rgba(0,0,0,0.08);
+  --aerie-shadow-card: 0 1px 3px rgba(20,18,40,0.10), 0 0 0 1px rgba(0,0,0,0.04);
+  --aerie-shadow-popover: 0 8px 28px rgba(20,18,40,0.18), 0 0 0 1px rgba(0,0,0,0.06);
+  --aerie-shadow-command: 0 24px 64px rgba(20,18,40,0.30), 0 0 0 1px rgba(0,0,0,0.06);
+  --aerie-shadow-lift: 0 6px 18px rgba(20,18,40,0.22);
+  --aerie-shadow-peek: 0 12px 40px rgba(20,18,40,0.28), 0 0 0 1px rgba(0,0,0,0.06);
+  --aerie-workspace-dusk-accent: #E94D73;
+  --aerie-workspace-tide-accent: #686BEC;
+  --aerie-workspace-moss-accent: #149F9E;
+  --aerie-workspace-ember-accent: #E11D48;
+  --aerie-workspace-lilac-accent: #EA58A5;
+  --aerie-workspace-slate-accent: #475569;
+  --aerie-workspace-sand-accent: #C37F3C;
+  --aerie-workspace-mint-accent: #169EB3;
+}
+
+:root[data-mode="dark"] {
+  --aerie-color-frame-base: #17161B;
+  --aerie-color-text: #EDECF2;
+  --aerie-color-text-muted: #A3A1AD;
+  --aerie-color-content-surface: #1F1E24;
+  --aerie-color-surface-popover: #27262D;
+  --aerie-color-field: rgba(255,255,255,0.08);
+  --aerie-color-row-hover: rgba(255,255,255,0.06);
+  --aerie-color-row-selected: rgba(255,255,255,0.12);
+  --aerie-color-divider: rgba(255,255,255,0.08);
+  --aerie-color-border-hairline: rgba(255,255,255,0.12);
+  --aerie-color-scrim: rgba(0,0,0,0.18);
+  --aerie-color-text-on-accent: #FFFFFF;
+  --aerie-color-page-block: rgba(255,255,255,0.07);
+  --aerie-shadow-row-selected: 0 0 0 rgba(0,0,0,0);
+  --aerie-shadow-card: 0 1px 3px rgba(0,0,0,0.40), 0 0 0 1px rgba(255,255,255,0.05);
+  --aerie-shadow-popover: 0 8px 28px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.08);
+  --aerie-shadow-command: 0 24px 64px rgba(0,0,0,0.65), 0 0 0 1px rgba(255,255,255,0.08);
+  --aerie-shadow-lift: 0 6px 18px rgba(0,0,0,0.5);
+  --aerie-shadow-peek: 0 12px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.08);
+  --aerie-workspace-dusk-accent: #E94D73;
+  --aerie-workspace-tide-accent: #686BEC;
+  --aerie-workspace-moss-accent: #149F9E;
+  --aerie-workspace-ember-accent: #E11D48;
+  --aerie-workspace-lilac-accent: #EE78B6;
+  --aerie-workspace-slate-accent: #576981;
+  --aerie-workspace-sand-accent: #D4A373;
+  --aerie-workspace-mint-accent: #2BCCE5;
+}
+
+:root[data-theme="vivid"]:is([data-mode="light"], :not([data-mode])), :root:not([data-theme]):is([data-mode="light"], :not([data-mode])) {
+  --aerie-theme-strip-fill: linear-gradient(90deg,var(--ws-g1),var(--ws-g2),var(--ws-g3,var(--ws-g2)));
+  --aerie-theme-accent-hue-share: 45%;
+  --aerie-theme-accent-base: #1B1A20;
+  --aerie-theme-marker-hue-share: 100%;
+  --aerie-theme-marker-width: 3px;
+  --aerie-theme-selected-ring: 0px;
+  --aerie-theme-selected-ring-color: #000000;
+  --aerie-theme-card-border: 0px solid transparent;
+  --aerie-theme-switcher-fill: var(--ws-accent);
+  --aerie-theme-tint-strength: 0.6;
+  --aerie-theme-text: #15141A;
+  --aerie-theme-text-muted: #222029;
+  --aerie-theme-shade: 0;
+  --aerie-theme-glow: 0.2;
+  --aerie-theme-strip-height: 0px;
+}
+
+:root[data-theme="vivid"][data-mode="dark"], :root:not([data-theme])[data-mode="dark"] {
+  --aerie-theme-strip-fill: linear-gradient(90deg,var(--ws-g1),var(--ws-g2),var(--ws-g3,var(--ws-g2)));
+  --aerie-theme-accent-hue-share: 50%;
+  --aerie-theme-accent-base: #EDECF2;
+  --aerie-theme-marker-hue-share: 100%;
+  --aerie-theme-marker-width: 3px;
+  --aerie-theme-selected-ring: 0px;
+  --aerie-theme-selected-ring-color: #FFFFFF;
+  --aerie-theme-card-border: 0px solid transparent;
+  --aerie-theme-switcher-fill: var(--ws-accent);
+  --aerie-theme-tint-strength: 0.5;
+  --aerie-theme-text: #F6F5FA;
+  --aerie-theme-text-muted: #E8E6EE;
+  --aerie-theme-shade: 0.22;
+  --aerie-theme-glow: 0.06;
+  --aerie-theme-strip-height: 0px;
+}
+
+:root[data-theme="soft"]:is([data-mode="light"], :not([data-mode])) {
+  --aerie-theme-strip-fill: linear-gradient(90deg,var(--ws-g1),var(--ws-g2),var(--ws-g3,var(--ws-g2)));
+  --aerie-theme-accent-hue-share: 70%;
+  --aerie-theme-accent-base: #1B1A20;
+  --aerie-theme-marker-hue-share: 100%;
+  --aerie-theme-marker-width: 3px;
+  --aerie-theme-selected-ring: 0px;
+  --aerie-theme-selected-ring-color: #000000;
+  --aerie-theme-card-border: 0px solid transparent;
+  --aerie-theme-switcher-fill: var(--ws-accent);
+  --aerie-theme-tint-strength: 0.32;
+  --aerie-theme-text: #1B1A20;
+  --aerie-theme-text-muted: #4A4854;
+  --aerie-theme-shade: 0;
+  --aerie-theme-glow: 0;
+  --aerie-theme-strip-height: 0px;
+}
+
+:root[data-theme="soft"][data-mode="dark"] {
+  --aerie-theme-strip-fill: linear-gradient(90deg,var(--ws-g1),var(--ws-g2),var(--ws-g3,var(--ws-g2)));
+  --aerie-theme-accent-hue-share: 75%;
+  --aerie-theme-accent-base: #EDECF2;
+  --aerie-theme-marker-hue-share: 100%;
+  --aerie-theme-marker-width: 3px;
+  --aerie-theme-selected-ring: 0px;
+  --aerie-theme-selected-ring-color: #FFFFFF;
+  --aerie-theme-card-border: 0px solid transparent;
+  --aerie-theme-switcher-fill: var(--ws-accent);
+  --aerie-theme-tint-strength: 0.26;
+  --aerie-theme-text: #EDECF2;
+  --aerie-theme-text-muted: #B8B6C2;
+  --aerie-theme-shade: 0;
+  --aerie-theme-glow: 0;
+  --aerie-theme-strip-height: 0px;
+}
+
+:root[data-theme="clean"]:is([data-mode="light"], :not([data-mode])) {
+  --aerie-theme-strip-fill: linear-gradient(90deg,var(--ws-g1),var(--ws-g2),var(--ws-g3,var(--ws-g2)));
+  --aerie-theme-accent-hue-share: 90%;
+  --aerie-theme-accent-base: #1B1A20;
+  --aerie-theme-marker-hue-share: 100%;
+  --aerie-theme-marker-width: 3px;
+  --aerie-theme-selected-ring: 0px;
+  --aerie-theme-selected-ring-color: #000000;
+  --aerie-theme-card-border: 0px solid transparent;
+  --aerie-theme-switcher-fill: var(--ws-accent);
+  --aerie-theme-tint-strength: 0.08;
+  --aerie-theme-text: #1B1A20;
+  --aerie-theme-text-muted: #55535F;
+  --aerie-theme-shade: 0;
+  --aerie-theme-glow: 0;
+  --aerie-theme-strip-height: 3px;
+  --aerie-color-frame-base: #EFEFF2;
+  --aerie-color-row-selected: #FFFFFF;
+}
+
+:root[data-theme="clean"][data-mode="dark"] {
+  --aerie-theme-strip-fill: linear-gradient(90deg,var(--ws-g1),var(--ws-g2),var(--ws-g3,var(--ws-g2)));
+  --aerie-theme-accent-hue-share: 95%;
+  --aerie-theme-accent-base: #EDECF2;
+  --aerie-theme-marker-hue-share: 100%;
+  --aerie-theme-marker-width: 3px;
+  --aerie-theme-selected-ring: 0px;
+  --aerie-theme-selected-ring-color: #FFFFFF;
+  --aerie-theme-card-border: 0px solid transparent;
+  --aerie-theme-switcher-fill: var(--ws-accent);
+  --aerie-theme-tint-strength: 0.08;
+  --aerie-theme-text: #EDECF2;
+  --aerie-theme-text-muted: #A9A7B3;
+  --aerie-theme-shade: 0;
+  --aerie-theme-glow: 0;
+  --aerie-theme-strip-height: 3px;
+  --aerie-color-frame-base: #161619;
+  --aerie-color-row-selected: rgba(255,255,255,0.10);
+}
+
+:root[data-theme="oled"][data-mode="dark"] {
+  --aerie-theme-strip-fill: linear-gradient(90deg,var(--ws-g1),var(--ws-g2),var(--ws-g3,var(--ws-g2)));
+  --aerie-theme-accent-hue-share: 100%;
+  --aerie-theme-accent-base: #F2F2F5;
+  --aerie-theme-marker-hue-share: 100%;
+  --aerie-theme-marker-width: 3px;
+  --aerie-theme-selected-ring: 0px;
+  --aerie-theme-selected-ring-color: #FFFFFF;
+  --aerie-theme-card-border: 1px solid rgba(255,255,255,0.14);
+  --aerie-theme-switcher-fill: var(--ws-accent);
+  --aerie-theme-tint-strength: 0;
+  --aerie-theme-text: #F2F2F5;
+  --aerie-theme-text-muted: #A3A3AD;
+  --aerie-theme-shade: 0;
+  --aerie-theme-glow: 0;
+  --aerie-theme-strip-height: 0px;
+  --aerie-color-frame-base: #000000;
+  --aerie-color-content-surface: #000000;
+  --aerie-color-text: #F2F2F5;
+  --aerie-color-text-muted: #A3A3AD;
+  --aerie-color-surface-popover: #0E0E10;
+  --aerie-color-field: rgba(255,255,255,0.07);
+  --aerie-color-row-selected: rgba(255,255,255,0.10);
+  --aerie-color-row-hover: rgba(255,255,255,0.06);
+  --aerie-color-divider: rgba(255,255,255,0.10);
+  --aerie-color-page-block: rgba(255,255,255,0.06);
+  --aerie-shadow-card: none;
+  --aerie-shadow-row-selected: 0 0 0 rgba(0,0,0,0);
+  --aerie-shadow-popover: 0 0 0 1px rgba(255,255,255,0.16), 0 8px 28px rgba(0,0,0,0.8);
+  --aerie-shadow-peek: 0 0 0 1px rgba(255,255,255,0.16), 0 12px 40px rgba(0,0,0,0.8);
+}
+
+:root[data-theme="high-contrast"]:is([data-mode="light"], :not([data-mode])) {
+  --aerie-theme-strip-fill: var(--ws-hue);
+  --aerie-theme-accent-hue-share: 0%;
+  --aerie-theme-accent-base: #000000;
+  --aerie-theme-marker-hue-share: 100%;
+  --aerie-theme-marker-width: 4px;
+  --aerie-theme-selected-ring: 2px;
+  --aerie-theme-selected-ring-color: #000000;
+  --aerie-theme-card-border: 2px solid #000000;
+  --aerie-theme-switcher-fill: var(--ws-accent);
+  --aerie-theme-tint-strength: 0;
+  --aerie-theme-text: #000000;
+  --aerie-theme-text-muted: #2B2B2B;
+  --aerie-theme-shade: 0;
+  --aerie-theme-glow: 0;
+  --aerie-theme-strip-height: 4px;
+  --aerie-color-frame-base: #FFFFFF;
+  --aerie-color-content-surface: #FFFFFF;
+  --aerie-color-text: #000000;
+  --aerie-color-text-muted: #2B2B2B;
+  --aerie-color-surface-popover: #FFFFFF;
+  --aerie-color-field: #FFFFFF;
+  --aerie-color-row-selected: #E4E4E4;
+  --aerie-color-row-hover: #EDEDED;
+  --aerie-color-divider: #000000;
+  --aerie-color-border-hairline: #000000;
+  --aerie-color-page-block: #E4E4E4;
+  --aerie-shadow-card: none;
+  --aerie-shadow-row-selected: 0 0 0 rgba(0,0,0,0);
+  --aerie-shadow-popover: 0 0 0 2px #000000, 0 8px 24px rgba(0,0,0,0.3);
+  --aerie-shadow-command: 0 0 0 2px #000000, 0 24px 64px rgba(0,0,0,0.3);
+  --aerie-shadow-peek: 0 0 0 2px #000000, 0 12px 40px rgba(0,0,0,0.3);
+  --aerie-size-focus-ring-width: 3px;
+}
+
+:root[data-theme="high-contrast"][data-mode="dark"] {
+  --aerie-theme-strip-fill: var(--ws-hue);
+  --aerie-theme-accent-hue-share: 0%;
+  --aerie-theme-accent-base: #FFFFFF;
+  --aerie-theme-marker-hue-share: 100%;
+  --aerie-theme-marker-width: 4px;
+  --aerie-theme-selected-ring: 2px;
+  --aerie-theme-selected-ring-color: #FFFFFF;
+  --aerie-theme-card-border: 2px solid #FFFFFF;
+  --aerie-theme-switcher-fill: var(--ws-accent);
+  --aerie-theme-tint-strength: 0;
+  --aerie-theme-text: #FFFFFF;
+  --aerie-theme-text-muted: #E2E2E2;
+  --aerie-theme-shade: 0;
+  --aerie-theme-glow: 0;
+  --aerie-theme-strip-height: 4px;
+  --aerie-color-frame-base: #000000;
+  --aerie-color-content-surface: #000000;
+  --aerie-color-text: #FFFFFF;
+  --aerie-color-text-muted: #E2E2E2;
+  --aerie-color-surface-popover: #000000;
+  --aerie-color-field: #000000;
+  --aerie-color-row-selected: #2A2A2A;
+  --aerie-color-row-hover: #1F1F1F;
+  --aerie-color-divider: #FFFFFF;
+  --aerie-color-border-hairline: #FFFFFF;
+  --aerie-color-page-block: #2A2A2A;
+  --aerie-shadow-card: none;
+  --aerie-shadow-row-selected: 0 0 0 rgba(0,0,0,0);
+  --aerie-shadow-popover: 0 0 0 2px #FFFFFF, 0 8px 24px rgba(0,0,0,0.8);
+  --aerie-shadow-command: 0 0 0 2px #FFFFFF, 0 24px 64px rgba(0,0,0,0.8);
+  --aerie-shadow-peek: 0 0 0 2px #FFFFFF, 0 12px 40px rgba(0,0,0,0.8);
+  --aerie-size-focus-ring-width: 3px;
+}
+
+:root[data-theme="mono"]:is([data-mode="light"], :not([data-mode])) {
+  --aerie-theme-strip-fill: linear-gradient(90deg,var(--ws-g1),var(--ws-g2),var(--ws-g3,var(--ws-g2)));
+  --aerie-theme-accent-hue-share: 0%;
+  --aerie-theme-accent-base: #4A4A4A;
+  --aerie-theme-marker-hue-share: 0%;
+  --aerie-theme-marker-width: 3px;
+  --aerie-theme-selected-ring: 0px;
+  --aerie-theme-selected-ring-color: #000000;
+  --aerie-theme-card-border: 0px solid transparent;
+  --aerie-theme-switcher-fill: var(--ws-hue);
+  --aerie-theme-tint-strength: 0;
+  --aerie-theme-text: #1A1A1A;
+  --aerie-theme-text-muted: #555555;
+  --aerie-theme-shade: 0;
+  --aerie-theme-glow: 0;
+  --aerie-theme-strip-height: 0px;
+  --aerie-color-frame-base: #E2E2E2;
+  --aerie-color-content-surface: #FAFAFA;
+  --aerie-color-surface-popover: #FAFAFA;
+  --aerie-color-row-selected: #F7F7F7;
+}
+
+:root[data-theme="mono"][data-mode="dark"] {
+  --aerie-theme-strip-fill: linear-gradient(90deg,var(--ws-g1),var(--ws-g2),var(--ws-g3,var(--ws-g2)));
+  --aerie-theme-accent-hue-share: 0%;
+  --aerie-theme-accent-base: #BDBDBD;
+  --aerie-theme-marker-hue-share: 0%;
+  --aerie-theme-marker-width: 3px;
+  --aerie-theme-selected-ring: 0px;
+  --aerie-theme-selected-ring-color: #FFFFFF;
+  --aerie-theme-card-border: 0px solid transparent;
+  --aerie-theme-switcher-fill: var(--ws-hue);
+  --aerie-theme-tint-strength: 0;
+  --aerie-theme-text: #EDEDED;
+  --aerie-theme-text-muted: #A8A8A8;
+  --aerie-theme-shade: 0;
+  --aerie-theme-glow: 0;
+  --aerie-theme-strip-height: 0px;
+  --aerie-color-frame-base: #1B1B1B;
+  --aerie-color-content-surface: #262626;
+  --aerie-color-surface-popover: #2C2C2C;
+  --aerie-color-row-selected: rgba(255,255,255,0.12);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --aerie-motion-duration-instant: 0ms;
+    --aerie-motion-duration-xfast: 90ms;
+    --aerie-motion-duration-fast: 90ms;
+    --aerie-motion-duration-base: 140ms;
+    --aerie-motion-duration-slow: 140ms;
+    --aerie-motion-duration-xslow: 140ms;
+    --aerie-motion-duration-peek-show: 100ms;
+    --aerie-motion-duration-peek-hide: 90ms;
+    --aerie-motion-duration-folder-collapse: 90ms;
+    --aerie-motion-duration-folder-reveal: 90ms;
+    --aerie-motion-duration-workspace-switch: 140ms;
+    --aerie-motion-easing-spring: cubic-bezier(0.05, 0.7, 0.1, 1);
+    --aerie-motion-easing-spring-settle: cubic-bezier(0.05, 0.7, 0.1, 1);
+    --aerie-motion-spring-duration: 140ms;
+    --aerie-motion-distance-peek-grace-x: 200px;
+    --aerie-motion-distance-peek-grace-y: 100px;
+    --aerie-motion-timing-peek-delay: 150ms;
+    --aerie-motion-timing-peek-leave: 150ms;
+    --aerie-motion-timing-peek-outside-max: 3000ms;
+    --aerie-motion-timing-toast: 1600ms;
+    --aerie-motion-timing-ws-drag-hover: 500ms;
+    --aerie-motion-ratio-folder-edge: 0.2;
+    --aerie-motion-ratio-rubber-band: 4.5;
+    --aerie-motion-ratio-swipe-velocity: 0.5;
+}
+}
+
+:root[data-reduced-motion] {
+  --aerie-motion-duration-instant: 0ms;
+  --aerie-motion-duration-xfast: 90ms;
+  --aerie-motion-duration-fast: 90ms;
+  --aerie-motion-duration-base: 140ms;
+  --aerie-motion-duration-slow: 140ms;
+  --aerie-motion-duration-xslow: 140ms;
+  --aerie-motion-duration-peek-show: 100ms;
+  --aerie-motion-duration-peek-hide: 90ms;
+  --aerie-motion-duration-folder-collapse: 90ms;
+  --aerie-motion-duration-folder-reveal: 90ms;
+  --aerie-motion-duration-workspace-switch: 140ms;
+  --aerie-motion-easing-spring: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --aerie-motion-easing-spring-settle: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --aerie-motion-spring-duration: 140ms;
+  --aerie-motion-distance-peek-grace-x: 200px;
+  --aerie-motion-distance-peek-grace-y: 100px;
+  --aerie-motion-timing-peek-delay: 150ms;
+  --aerie-motion-timing-peek-leave: 150ms;
+  --aerie-motion-timing-peek-outside-max: 3000ms;
+  --aerie-motion-timing-toast: 1600ms;
+  --aerie-motion-timing-ws-drag-hover: 500ms;
+  --aerie-motion-ratio-folder-edge: 0.2;
+  --aerie-motion-ratio-rubber-band: 4.5;
+  --aerie-motion-ratio-swipe-velocity: 0.5;
+}

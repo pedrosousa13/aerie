@@ -1,0 +1,164 @@
+[
+  {
+    "id": "sidebar-default",
+    "title": "Sidebar: Personal workspace, comfortable",
+    "query": "ws=personal&density=comfortable&side=left&controls=0",
+    "note": "Default state. Dusk tint, favorites, pinned folders two levels deep, a pinned tab away from its pinned page, sleeping and audio tabs."
+  },
+  {
+    "id": "workspace-work",
+    "title": "Sidebar: Work workspace",
+    "query": "ws=work&wstheme=default&wsmode=default&controls=0",
+    "note": "Tide tint in the default theme (Vivid), different favorites, pinned and Today content, folders in both sections."
+  },
+  {
+    "id": "workspace-side",
+    "title": "Sidebar: Side project workspace",
+    "query": "ws=side&wstheme=default&wsmode=default&controls=0",
+    "note": "Moss tint in the default theme (Vivid), small favorites set, a collapsed folder in Today."
+  },
+  {
+    "id": "density-compact",
+    "title": "Sidebar: compact density",
+    "query": "density=compact&controls=0",
+    "note": "28px rows, 36px tiles, 4px content inset."
+  },
+  {
+    "id": "density-collapsed",
+    "title": "Sidebar: collapsed rail",
+    "query": "density=collapsed&controls=0",
+    "note": "56px rail: icon favorites, favicon-only tabs, vertical workspace dots."
+  },
+  {
+    "id": "density-autohide-peek",
+    "title": "Sidebar: auto-hide, peeking",
+    "query": "density=autohide&open=peek&controls=0",
+    "note": "Sidebar hidden; floating peek panel over the page from the edge hot zone."
+  },
+  {
+    "id": "side-right",
+    "title": "Sidebar: on the right",
+    "query": "side=right&controls=0",
+    "note": "Everything mirrored; window controls stay at the outer edge."
+  },
+  {
+    "id": "command-bar",
+    "title": "Command bar",
+    "query": "open=cmdbar&controls=0",
+    "note": "Centred bar over a dimmed page with workspace, tab and archive results."
+  },
+  {
+    "id": "context-menu",
+    "title": "Tab context menu",
+    "query": "open=contextmenu&controls=0",
+    "note": "Pin, Rename, Add to Favorites, Move to workspace, Sleep now, Close."
+  },
+  {
+    "id": "archive-panel",
+    "title": "Archive panel",
+    "query": "open=archive&controls=0",
+    "note": "Stub panel: Archived tabs with a search field."
+  },
+  {
+    "id": "focus-order",
+    "title": "Focus order overlay",
+    "query": "focus=1&controls=0",
+    "note": "Numbered badges for tab and screen-reader order."
+  },
+  {
+    "id": "guard-stub",
+    "title": "Guard shield popover",
+    "query": "open=guard&controls=0",
+    "note": "Stub popover from the address pill: Guard panel, see Guard design."
+  },
+  {
+    "id": "theme-vivid",
+    "title": "Theme Vivid: Personal workspace",
+    "query": "theme=vivid&ws=personal&wstheme=default&wsmode=default&density=comfortable&side=left&controls=0",
+    "note": "Theme Vivid: default; strong Workspace gradient across sidebar and frame. Personal (Dusk)."
+  },
+  {
+    "id": "theme-soft",
+    "title": "Theme Soft: Personal workspace",
+    "query": "theme=soft&ws=personal&wstheme=default&wsmode=default&density=comfortable&side=left&controls=0",
+    "note": "Theme Soft: gentle Workspace gradient. Personal (Dusk)."
+  },
+  {
+    "id": "theme-clean",
+    "title": "Theme Clean: Personal workspace",
+    "query": "theme=clean&ws=personal&wstheme=default&wsmode=default&density=comfortable&side=left&controls=0",
+    "note": "Theme Clean: near-neutral frame, identity via accent and a thin gradient strip. Personal (Dusk)."
+  },
+  {
+    "id": "theme-oled",
+    "title": "Theme OLED: Personal workspace",
+    "query": "theme=oled&ws=personal&wstheme=default&wsmode=default&density=comfortable&side=left&controls=0",
+    "note": "Theme OLED: dark only; pure black, hairline card, no gradients (screenshot dark only). Personal (Dusk)."
+  },
+  {
+    "id": "theme-high-contrast",
+    "title": "Theme High contrast: Personal workspace",
+    "query": "theme=high-contrast&ws=personal&wstheme=default&wsmode=default&density=comfortable&side=left&controls=0",
+    "note": "Theme High contrast: text 7:1 or better, 2px borders on selected rows and focus, solid strip and marker. Personal (Dusk)."
+  },
+  {
+    "id": "theme-mono",
+    "title": "Theme Mono: Personal workspace",
+    "query": "theme=mono&ws=personal&wstheme=default&wsmode=default&density=comfortable&side=left&controls=0",
+    "note": "Theme Mono: greyscale; hue only in the active Workspace icon. Personal (Dusk)."
+  },
+  {
+    "id": "theme-vivid-work",
+    "title": "Theme Vivid: Work workspace",
+    "query": "theme=vivid&ws=work&wstheme=default&wsmode=default&density=comfortable&side=left&controls=0",
+    "note": "Theme Vivid on Work (Tide), to show how the theme uses a different Workspace colour."
+  },
+  {
+    "id": "theme-soft-work",
+    "title": "Theme Soft: Work workspace",
+    "query": "theme=soft&ws=work&wstheme=default&wsmode=default&density=comfortable&side=left&controls=0",
+    "note": "Theme Soft on Work (Tide), to show how the theme uses a different Workspace colour."
+  },
+  {
+    "id": "theme-clean-work",
+    "title": "Theme Clean: Work workspace",
+    "query": "theme=clean&ws=work&wstheme=default&wsmode=default&density=comfortable&side=left&controls=0",
+    "note": "Theme Clean on Work (Tide), to show how the theme uses a different Workspace colour."
+  },
+  {
+    "id": "theme-oled-work",
+    "title": "Theme OLED: Work workspace",
+    "query": "theme=oled&ws=work&wstheme=default&wsmode=default&density=comfortable&side=left&controls=0",
+    "note": "Theme OLED on Work (Tide), to show how the theme uses a different Workspace colour."
+  },
+  {
+    "id": "theme-high-contrast-work",
+    "title": "Theme High contrast: Work workspace",
+    "query": "theme=high-contrast&ws=work&wstheme=default&wsmode=default&density=comfortable&side=left&controls=0",
+    "note": "Theme High contrast on Work (Tide), to show how the theme uses a different Workspace colour."
+  },
+  {
+    "id": "theme-mono-work",
+    "title": "Theme Mono: Work workspace",
+    "query": "theme=mono&ws=work&wstheme=default&wsmode=default&density=comfortable&side=left&controls=0",
+    "note": "Theme Mono on Work (Tide), to show how the theme uses a different Workspace colour."
+  },
+  {
+    "id": "ws-override-switch",
+    "title": "Workspace override: Work uses Clean",
+    "query": "ws=work&controls=0",
+    "note": "Global default is Vivid; Work carries its own theme (Clean), so switching Personal to Work crossfades the whole chrome."
+  },
+  {
+    "id": "ws-override-oled",
+    "title": "Workspace override: Side project uses OLED dark",
+    "query": "ws=side&controls=0",
+    "note": "Global default is Vivid light; Side project overrides to OLED and dark mode."
+  },
+  {
+    "id": "single-workspace",
+    "title": "Sidebar: one Workspace",
+    "query": "wscount=1&controls=0",
+    "note": "Only one Workspace exists: the switcher dots are hidden and only \"+ New workspace\" shows at the bottom."
+  }
+]
