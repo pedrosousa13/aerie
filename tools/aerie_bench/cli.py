@@ -41,6 +41,19 @@ def add_arguments(p: argparse.ArgumentParser, *, binary_required: bool) -> None:
     p.add_argument("--widevine-online", type=float, default=0.0, metavar="SEC",
                    help="widevine_opt_in: also wait up to SEC in an opted-in browser for Widevine to download "
                         "and become available (needs a network that reaches Google; default 0, off)")
+    p.add_argument("--adblock-baseline", metavar="FILE",
+                   help="adblock_score: compare with this stored score (the adblock_score.json of an earlier run). "
+                        "Fails when the score dropped by more than 2 points or a host that was blocked now gets "
+                        "through. A file that cannot be read is an error. Without it the check passes and "
+                        "records the score")
+    p.add_argument("--adblock-online", type=float, default=0.0, metavar="SEC",
+                   help="adblock_score: also load the live https://adblock.turtlecute.org in a second browser, wait up "
+                        "to SEC for its test to finish and record its score. Informational, never fails the run; "
+                        "needs the network, so it is off (0) by default")
+    p.add_argument("--adblock-update-pin", nargs="?", const="", metavar="COMMIT",
+                   help="download the Turtlecute host list at COMMIT (default: the newest commit that changed it), "
+                        "check that it parses, write tools/aerie_bench/adblock_hosts.lock.json and cache the file; "
+                        "then exit. Review the diff of the lock and commit it")
     p.add_argument("--workspaces-enforce", action="store_true",
                    help="workspace_isolation: judge every probe for real. Without it the probes listed in "
                         "EXPECTED_TO_FAIL (all of them until Workspaces ship) may fail and the check reports xfail")
@@ -74,7 +87,19 @@ def add_arguments(p: argparse.ArgumentParser, *, binary_required: bool) -> None:
                    help="extra browser command-line flag (repeatable)")
 
 
+def _update_adblock_pin(args: argparse.Namespace, build_root: Path) -> int:
+    from . import adblock_hosts
+    try:
+        adblock_hosts.update_pin(adblock_hosts.LOCK_FILE, build_root, commit=args.adblock_update_pin or None)
+    except adblock_hosts.HostListError as exc:
+        print(f"aerie bench: error: cannot pin the host list: {exc}", file=sys.stderr)
+        return EXIT_HARNESS
+    return EXIT_PASS
+
+
 def run(args: argparse.Namespace, build_root: Path, default_binary: Path | None) -> int:
+    if args.adblock_update_pin is not None:
+        return _update_adblock_pin(args, build_root)
     binary = args.binary or default_binary
     services = {"auto": None, "require": True, "optional": False, "skip": "skip"}[args.services]
     skip_note = None
@@ -108,6 +133,10 @@ def run(args: argparse.Namespace, build_root: Path, default_binary: Path | None)
                 benchmarks.fetch_all(build_root)
             except (benchmarks.BenchmarkError, lock.VerificationError) as exc:
                 raise BenchError(f"cannot fetch the benchmark copies: {exc}") from exc
+        if (args.adblock_baseline or args.adblock_online) and "adblock_score" not in sc.checks:
+            raise BenchError("--adblock-baseline and --adblock-online need --check adblock_score")
+        if args.adblock_online < 0:
+            raise BenchError("--adblock-online takes a number of seconds, 0 or more")
         if args.baseline and "zero_traffic" not in sc.checks:
             raise BenchError("--baseline needs --check zero_traffic")
         if skip_note and "browser_requests" in sc.checks:
@@ -118,6 +147,8 @@ def run(args: argparse.Namespace, build_root: Path, default_binary: Path | None)
                                     "settle_seconds": args.zero_traffic_settle,
                                     "strict": args.zero_traffic_strict},
                    "widevine_opt_in": {"online_seconds": args.widevine_online},
+                   "adblock_score": {"build_root": str(build_root), "baseline": args.adblock_baseline,
+                                     "online_seconds": args.adblock_online},
                    "workspace_isolation": {"enforce": args.workspaces_enforce},
                    "perf": {"baseline": args.perf_baseline, "settle_seconds": args.perf_settle,
                             "first_run": args.perf_first_run, "benchmarks": not args.perf_skip_benchmarks}}

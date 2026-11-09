@@ -423,6 +423,7 @@ the diff, commit it.
 | C++ syntax against the real headers of a built tree (read-only, needs cargo) | `tools/check-overlay-syntax.sh` |
 | C++ unit tests (in the train) | `autoninja -C out/Default aerie_adblock_unittests` |
 | Blocking, for real (in the train) | `./aerie bench --check ad_blocking` |
+| Blocking score on a list of real ad and tracker hosts (in the train) | `./aerie bench --check adblock_score` (see [bench.md](bench.md)) |
 | Hiding, for real (in the train) | `./aerie bench --check cosmetic_filtering` (also proves the user-origin sheet and the late elements, see [bench.md](bench.md)) |
 | Renderer piece and gate unit tests (in the train) | `./aerie test-cpp --target aerie_adblock_renderer_unittests --target aerie_adblock_common_unittests` |
 

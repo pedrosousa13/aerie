@@ -1,0 +1,10 @@
+{
+  "schema": 1,
+  "name": "Turtlecute adblock test host list",
+  "source": "https://github.com/Turtlecute33/adblocktest/blob/bf889b51cb9cc413480367dee08b3378ab894b8b/src/d3host.txt",
+  "licence": "CC BY-NC-SA 4.0 (downloaded at run time, never committed)",
+  "url": "https://raw.githubusercontent.com/Turtlecute33/adblocktest/bf889b51cb9cc413480367dee08b3378ab894b8b/src/d3host.txt",
+  "sha256": "ee9538937123ed7dd5c8edb67172171ea3f7956489a28f66816176afea528d27",
+  "size": 5000,
+  "date": "2026-11-09"
+}
