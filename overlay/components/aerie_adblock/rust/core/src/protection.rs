@@ -164,12 +164,19 @@ impl ProtectionList {
     /// Like `load_serialized`, but a list with fewer than `min_entries`
     /// domains (and never an empty one) is `LoadError::TooFewEntries`. On
     /// error the receiver is left as it was.
-    pub fn load_serialized_with_floor(&mut self, bytes: &[u8], min_entries: usize) -> Result<(), LoadError> {
+    pub fn load_serialized_with_floor(
+        &mut self,
+        bytes: &[u8],
+        min_entries: usize,
+    ) -> Result<(), LoadError> {
         let mut loaded = ProtectionList::empty();
         loaded.load_serialized(bytes)?;
         let required = min_entries.max(1);
         if loaded.len() < required {
-            return Err(LoadError::TooFewEntries { found: loaded.len(), required });
+            return Err(LoadError::TooFewEntries {
+                found: loaded.len(),
+                required,
+            });
         }
         self.domains = loaded.domains;
         Ok(())
