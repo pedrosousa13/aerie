@@ -29,8 +29,11 @@ WINDOW = (1500, 900)
 WINDOW_FLAG = f"--window-size={WINDOW[0]},{WINDOW[1]}"
 FEATURE_FLAG = "--disable-features=HeliumNoiseScreen"
 PREF_OFF = {"helium": {"noise": {"enabled": False}}}
+# What "the real screen" is compared on. The window position is left out: a new headless browser does not
+# always put its window at the same place (0,0 in one browser and 10,10 in the next, in one train run), so
+# a browser with protection off cannot be expected to repeat the control's position.
 FIELDS = ("width", "height", "availWidth", "availHeight", "availLeft", "availTop", "colorDepth", "pixelDepth",
-          "isExtended", "screenX", "screenY", "devicePixelRatio")
+          "isExtended", "devicePixelRatio")
 
 
 def bucket_for(outer_width: int, outer_height: int) -> tuple[int, int]:

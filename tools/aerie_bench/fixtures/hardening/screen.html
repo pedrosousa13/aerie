@@ -18,7 +18,14 @@ device-height media features.</p>
       mqHeight: matchMedia('(device-height: ' + s.height + 'px)').matches,
     };
   }
-  try { window.__result = reading(); } catch (e) { window.__result = {error: String(e)}; }
-  window.__done = true;
+  // A headless window can report an outer size of 0 just after it opens; wait (at most 5 s) until it
+  // has its size, so the common size it is judged against is the one for the real window.
+  (async () => {
+    for (let i = 0; i < 50 && !(window.outerWidth > 0 && window.outerHeight > 0); i++) {
+      await new Promise(r => setTimeout(r, 100));
+    }
+    try { window.__result = reading(); } catch (e) { window.__result = {error: String(e)}; }
+    window.__done = true;
+  })();
 </script>
 </body></html>

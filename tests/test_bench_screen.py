@@ -101,6 +101,13 @@ class JudgeTest(unittest.TestCase):
             self.assertEqual(status, "fail", key)
             self.assertIn("not the real one", detail)
 
+    def test_protection_off_may_put_the_window_somewhere_else(self):
+        # Each variant is a new browser, and headless does not always place its window at the same spot.
+        obs = good()
+        obs["global_off"]["a"].update(screenX=10, screenY=10)
+        status, detail = FingerprintingScreen.judge(obs)
+        self.assertEqual(status, "pass", detail)
+
     def test_a_negative_control_that_is_still_protected_is_inconclusive(self):
         obs = good()
         obs["feature_off"]["a"] = reading(1680, 1050)
