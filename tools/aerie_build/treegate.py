@@ -396,11 +396,77 @@ def check_gpu_masking(root: Path, require: bool = False) -> list[Finding]:
     return out
 
 
+WORKER_PARAMS_PATH = "third_party/blink/renderer/core/workers/global_scope_creation_params.h"
+WORKER_SCOPE_PATH = "third_party/blink/renderer/core/workers/worker_global_scope.cc"
+WORKER_DEDICATED_PATH = "third_party/blink/renderer/core/workers/dedicated_worker.cc"
+WORKER_SHARED_IMPL_PATH = "third_party/blink/renderer/core/exported/web_shared_worker_impl.cc"
+WORKER_SERVICE_IMPL_PATH = "third_party/blink/renderer/modules/exported/web_embedded_worker_impl.cc"
+WORKER_TOKENS_PATH = "content/browser/helium_noise/noise_token_data.cc"
+WORKER_SHARED_HOST_PATH = "content/browser/worker_host/shared_worker_host.cc"
+WORKER_SERVICE_HOST_PATH = "content/browser/service_worker/service_worker_version.cc"
+WORKER_GPU_PATH = "third_party/blink/renderer/core/execution_context/gpu_info_masking.h"
+
+
+def check_worker_noise_tokens(root: Path, require: bool = False) -> list[Finding]:
+    """Workers get the fingerprinting noise tokens (issue #113). A dedicated worker takes its creator's tokens.
+    A shared worker and a service worker get theirs from the browser, derived from the top-level site of the
+    storage key and only when the switch is on for that site, and only the derived tokens, never the session
+    tokens. WebGL in a worker follows its token like a window, not always masked."""
+    gate = "worker_noise_tokens"
+    out: list[Finding] = []
+    for rel, pattern, message in (
+        (WORKER_PARAMS_PATH, r"HeliumNoiseTokenMap\s+helium_noise_tokens;",
+         "GlobalScopeCreationParams must carry helium_noise_tokens"),
+        (WORKER_SCOPE_PATH, r"SetHeliumNoiseTokens\(\s*creation_params->helium_noise_tokens\s*\)",
+         "WorkerGlobalScope must take its tokens from the creation params"),
+        (WORKER_DEDICATED_PATH,
+         r"params->helium_noise_tokens\s*=\s*execution_context->GetHeliumNoiseTokens\(\)",
+         "a dedicated worker must get its creator's noise tokens"),
+        (WORKER_SHARED_IMPL_PATH, r"creation_params->helium_noise_tokens\s*=\s*helium_noise_tokens",
+         "a shared worker must pass the browser's noise tokens to its creation params"),
+        (WORKER_SERVICE_IMPL_PATH,
+         r"global_scope_creation_params->helium_noise_tokens\s*=\s*worker_start_data->helium_noise_tokens",
+         "a service worker must pass the browser's noise tokens to its creation params"),
+        (WORKER_SHARED_HOST_PATH,
+         r"HeliumNoiseTokenData::GetTokensForWorker\(\s*GetProcessHost\(\)->GetBrowserContext\(\),"
+         r"\s*instance_\.worker_storage_key\(\)\)",
+         "the browser must send a shared worker GetTokensForWorker(browser context, worker storage key)"),
+        (WORKER_SERVICE_HOST_PATH,
+         r"params->helium_noise_tokens\s*=\s*HeliumNoiseTokenData::GetTokensForWorker\(\s*"
+         r"context_->wrapper\(\)->browser_context\(\),\s*key_\)",
+         "the browser must send a service worker GetTokensForWorker(browser context, storage key)"),
+    ):
+        out += _must_match(root, rel, gate, pattern, message, require)
+    text, missing = _read(root, WORKER_TOKENS_PATH, gate, require)
+    out += missing
+    if text is not None:
+        body = re.search(r"HeliumNoiseTokenData::GetTokensForWorker\(.*?\n}\n", text, re.S)
+        if not body:
+            out.append(Finding(gate, WORKER_TOKENS_PATH, "GetTokensForWorker is missing"))
+        else:
+            code = body.group(0)
+            if "key.top_level_site()" not in code:
+                out.append(Finding(gate, WORKER_TOKENS_PATH,
+                                   "worker tokens must be derived from the top-level site of the storage key"))
+            if "HeliumNoiseEnabled(" not in code:
+                out.append(Finding(gate, WORKER_TOKENS_PATH,
+                                   "worker tokens must honour the global and per-site switch (HeliumNoiseEnabled)"))
+            if not re.search(r"return GetTokens\(context,", code) or "session_tokens_" in code:
+                out.append(Finding(gate, WORKER_TOKENS_PATH,
+                                   "worker tokens must be the derived per-site tokens from GetTokens, never the session tokens"))
+    gpu, missing = _read(root, WORKER_GPU_PATH, gate, require)
+    out += missing
+    if gpu is not None and "IsWorkerOrWorkletGlobalScope" in gpu:
+        out.append(Finding(gate, WORKER_GPU_PATH,
+                           "a worker must follow its kWebGL token like a window, not be always masked"))
+    return out
+
+
 GATES: tuple[Callable[..., list[Finding]], ...] = (
     check_search_list, check_search_suggestions, check_secure_dns_default,
     check_crash_reporting, check_services_off, check_fedcm_resolver, check_widevine_opt_in,
     check_https_first_dialog_off, check_link_prefetch_off, check_js_optimizer, check_services_ui,
-    check_audio_noise_stable, check_gpu_masking,
+    check_audio_noise_stable, check_gpu_masking, check_worker_noise_tokens,
 )
 
 

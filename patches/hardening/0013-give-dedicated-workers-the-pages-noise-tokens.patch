@@ -1,0 +1,70 @@
+Aerie-Purpose: Give dedicated workers the noise tokens of the page that created them, so OffscreenCanvas and navigator.hardwareConcurrency in a worker are noised per site like in a window, and the per-site and global switches reach them.
+Aerie-Upstream-Area: third_party/blink/renderer/core/workers (GlobalScopeCreationParams, WorkerGlobalScope, DedicatedWorker)
+Aerie-Kind: hook
+
+Amends helium-chromium/patches/helium/core/noise/core.patch (issue #113, part of #87). Helium sets the
+noise tokens on a window only (DocumentLoader::CommitNavigation), so a worker returned clean OffscreenCanvas
+pixels and the real core count: a fingerprinter only had to move its code into a worker.
+
+GlobalScopeCreationParams gets a plain field, helium_noise_tokens, that is not a constructor argument, so no
+creation site changes. WorkerGlobalScope copies it into the ExecutionContext, which is where the canvas
+helper, NavigatorBase::hardwareConcurrency and the GPU masking helper already read tokens, so they need no
+change. DedicatedWorker::CreateGlobalScope fills it from its creator's ExecutionContext: a window holds its
+page's tokens (the top-level site's, derived in the browser), and a worker holds the ones it was given, so a
+worker started by a worker gets the same tokens. The tokens are the per-site derived ones; the renderer never
+receives the session token. An empty map (protection off for the browser or the site) stays empty in the
+worker, so the worker sees the real values. The tokens are a per-worker copy: a later change of the switch
+applies to workers started after it, as it does to the next navigation of a window.
+
+Shared and service workers get their tokens from the browser: hardening/0014.
+--- a/third_party/blink/renderer/core/workers/global_scope_creation_params.h
++++ b/third_party/blink/renderer/core/workers/global_scope_creation_params.h
+@@ -16,6 +16,7 @@
+ #include "services/metrics/public/cpp/ukm_source_id.h"
+ #include "services/network/public/cpp/permissions_policy/permissions_policy.h"
+ #include "services/network/public/mojom/referrer_policy.mojom-blink-forward.h"
++#include "third_party/blink/public/common/helium_noise/noise_token.h"
+ #include "third_party/blink/public/common/permissions_policy/document_policy.h"
+ #include "third_party/blink/public/common/tokens/tokens.h"
+ #include "third_party/blink/public/common/user_agent/user_agent_metadata.h"
+@@ -279,6 +280,13 @@
+   mojo::PendingReceiver<mojom::blink::ReportingObserver>
+       coep_reporting_observer;
+   mojo::PendingReceiver<mojom::blink::ReportingObserver> dip_reporting_observer;
++
++  // Aerie (#113): the per-site fingerprinting noise tokens of the page (a
++  // dedicated worker), or of the top-level site of the worker's storage key (a
++  // shared or service worker). Only the tokens derived for that site are here,
++  // never the session token. Empty means the protection is off for this worker
++  // (globally or for its site), so the worker sees the real values.
++  HeliumNoiseTokenMap helium_noise_tokens;
+ };
+ 
+ }  // namespace blink
+--- a/third_party/blink/renderer/core/workers/worker_global_scope.cc
++++ b/third_party/blink/renderer/core/workers/worker_global_scope.cc
+@@ -961,6 +961,10 @@
+       std::move(creation_params->outside_content_security_policies));
+   SetWorkerSettings(std::move(creation_params->worker_settings));
+ 
++  // Aerie (#113): a worker gets the noise tokens of its page or site, so
++  // OffscreenCanvas, hardwareConcurrency and WebGL behave as in a window.
++  SetHeliumNoiseTokens(creation_params->helium_noise_tokens);
++
+   // TODO(sammc): Require a valid |creation_params->browser_interface_broker|
+   // once all worker types provide a valid
+   // |creation_params->browser_interface_broker|.
+--- a/third_party/blink/renderer/core/workers/dedicated_worker.cc
++++ b/third_party/blink/renderer/core/workers/dedicated_worker.cc
+@@ -575,6 +575,11 @@
+       std::move(coep_reporting_observer), std::move(dip_reporting_observer));
+   params->dedicated_worker_start_time = start_time_;
+ 
++  // Aerie (#113): the worker gets its creator's per-site noise tokens. A
++  // window holds the tokens of its page and a worker holds those it was given,
++  // so a nested worker gets them from its parent worker.
++  params->helium_noise_tokens = execution_context->GetHeliumNoiseTokens();
++
+   // Store the creator's document policy for inheritance by local-scheme
+   // workers.
+   const DocumentPolicy* creator_document_policy =

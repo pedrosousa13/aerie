@@ -1,0 +1,432 @@
+Aerie-Purpose: Give shared workers and service workers the noise tokens of the top-level site of their storage key, and make WebGL and WebGPU in workers follow the per-site and global switches instead of always masking.
+Aerie-Upstream-Area: content/browser/helium_noise, content/browser/worker_host, content/browser/service_worker, content/renderer/worker, content/renderer/service_worker, third_party/blink/public/mojom/worker, third_party/blink/public/mojom/service_worker, third_party/blink/public/web, third_party/blink/renderer/core/exported, third_party/blink/renderer/modules/exported
+Aerie-Kind: hook
+
+Follows hardening/0013 (issue #113, part of #87). A shared worker or a service worker is started by the browser
+for a storage key, not by one page, so the browser derives its tokens:
+HeliumNoiseTokenData::GetTokensForWorker(context, storage_key) takes the top-level site of the key
+(net::SchemefulSite, the same unit that keys a window's tokens and the per-site switch, so the worker's values
+equal its pages' values on the same site, and a third party frame's worker gets its embedder's) and asks the
+same ContentBrowserClient::HeliumNoiseEnabled that a navigation asks. When protection is off for the browser or
+the site the map is empty and the worker sees the real values. Only derived per-site tokens leave the
+browser, never the session tokens.
+
+The tokens travel in a new last argument of SharedWorkerFactory.CreateSharedWorker and a new last field of
+EmbeddedWorkerStartParams (a map, empty when off), then through WebSharedWorker::CreateAndStart and
+WebEmbeddedWorkerStartData into GlobalScopeCreationParams::helium_noise_tokens (hardening/0013). A service
+worker's tokens are worked out each time it starts, so a change of the switch applies at its next start. A
+shared worker is created per connection set, so a change applies to a worker started after it.
+
+With tokens in every worker, ShouldMaskGpuInfoForContext (hardening/0010) no longer treats a worker as always
+masked: a window or a worker follows its kWebGL token, and only a null context stays fail closed. The test
+mock of the shared worker factory takes the new argument.
+
+--- a/third_party/blink/public/mojom/worker/shared_worker_factory.mojom
++++ b/third_party/blink/public/mojom/worker/shared_worker_factory.mojom
+@@ -12,6 +12,7 @@
+ import "third_party/blink/public/mojom/frame/policy_container.mojom";
+ import "third_party/blink/public/mojom/frame/reporting_observer.mojom";
+ import "third_party/blink/public/mojom/fingerprinting_protection/noise_token.mojom";
++import "third_party/blink/public/mojom/helium_noise/noise_token.mojom";
+ import "third_party/blink/public/mojom/renderer_preferences.mojom";
+ import "third_party/blink/public/mojom/service_worker/controller_service_worker.mojom";
+ import "third_party/blink/public/mojom/service_worker/service_worker_container.mojom";
+@@ -120,5 +121,11 @@
+       pending_receiver<ReportingObserver>? dip_reporting_observer_receiver,
+ 
+       // Whether the worker has access to cross-origin isolated  APIs or not.
+-      bool cross_origin_isolated);
++      bool cross_origin_isolated,
++
++      // Aerie (#113): the fingerprinting noise tokens derived for the top-level
++      // site of the worker's storage key, never the session token. The browser
++      // sends an empty map when protection is off for the browser or the site.
++      map<blink.mojom.HeliumNoiseFeature, blink.mojom.HeliumNoiseToken>
++          helium_noise_tokens);
+ };
+--- a/third_party/blink/public/mojom/service_worker/embedded_worker.mojom
++++ b/third_party/blink/public/mojom/service_worker/embedded_worker.mojom
+@@ -13,6 +13,7 @@
+ import "third_party/blink/public/mojom/devtools/devtools_agent.mojom";
+ import "third_party/blink/public/mojom/frame/policy_container.mojom";
+ import "third_party/blink/public/mojom/frame/reporting_observer.mojom";
++import "third_party/blink/public/mojom/helium_noise/noise_token.mojom";
+ import "third_party/blink/public/mojom/loader/fetch_client_settings_object.mojom";
+ import "third_party/blink/public/mojom/loader/url_loader_factory_bundle.mojom";
+ import "third_party/blink/public/mojom/renderer_preference_watcher.mojom";
+@@ -163,6 +164,11 @@
+   // Used to check whether the ServiceWorker has access to cross-origin
+   // isolated APIs or not.
+   bool cross_origin_isolated;
++
++  // Aerie (#113): the fingerprinting noise tokens derived for the top-level
++  // site of `storage_key`, never the session token. Empty when protection is
++  // off for the browser or the site.
++  map<HeliumNoiseFeature, HeliumNoiseToken> helium_noise_tokens;
+ };
+ 
+ // Holds timing information about the start worker sequence for UMA.
+--- a/content/browser/helium_noise/noise_token_data.h
++++ b/content/browser/helium_noise/noise_token_data.h
+@@ -14,6 +14,10 @@
+ #include "content/common/content_export.h"
+ #include "third_party/blink/public/common/helium_noise/noise_token.h"
+ 
++namespace blink {
++class StorageKey;
++}  // namespace blink
++
+ namespace url {
+ class Origin;
+ }  // namespace url
+@@ -36,6 +40,16 @@
+   static blink::HeliumNoiseTokenMap GetTokens(BrowserContext* context,
+                                               const url::Origin& origin);
+ 
++  // Aerie (#113): the tokens for a shared or service worker. They are derived
++  // from the top-level site of `key`, not from the worker's own origin, so a
++  // worker gets the tokens of the page that embeds it and its values equal the
++  // window's on the same site. Returns an empty map when protection is off for
++  // the browser or for that site (the same decision as for a navigation), so
++  // the worker sees the real values. Never returns the session tokens.
++  static blink::HeliumNoiseTokenMap GetTokensForWorker(
++      BrowserContext* context,
++      const blink::StorageKey& key);
++
+   // Regenerates all noise tokens, returning a HeliumNoiseTokenData instance.
+   static HeliumNoiseTokenData* RegenerateTokens(BrowserContext* context);
+ 
+--- a/content/browser/helium_noise/noise_token_data.cc
++++ b/content/browser/helium_noise/noise_token_data.cc
+@@ -20,7 +20,12 @@
+ #include "base/unguessable_token.h"
+ #include "components/aerie_fingerprint/site_key.h"
+ #include "content/public/browser/browser_context.h"
++#include "content/public/browser/content_browser_client.h"
++#include "content/public/common/content_client.h"
+ #include "crypto/hash.h"
++#include "net/base/schemeful_site.h"
++#include "third_party/blink/public/common/storage_key/storage_key.h"
++#include "url/gurl.h"
+ #include "url/origin.h"
+ 
+ namespace content {
+@@ -103,6 +108,24 @@
+ }
+ 
+ // static
++blink::HeliumNoiseTokenMap HeliumNoiseTokenData::GetTokensForWorker(
++    BrowserContext* context,
++    const blink::StorageKey& key) {
++  if (!context) {
++    return {};
++  }
++  // The top-level site of the storage key is the site of the page that embeds
++  // the worker (its own site for a first-party worker), the same site that
++  // keys the tokens of the window. An opaque site has no URL; it gets random
++  // tokens, as an opaque window does.
++  const GURL site_url = key.top_level_site().GetURL();
++  if (!GetContentClient()->browser()->HeliumNoiseEnabled(context, site_url)) {
++    return {};
++  }
++  return GetTokens(context, url::Origin::Create(site_url));
++}
++
++// static
+ HeliumNoiseTokenData* HeliumNoiseTokenData::RegenerateTokens(
+     BrowserContext* context) {
+   auto new_data = std::make_unique<HeliumNoiseTokenData>();
+--- a/content/browser/worker_host/shared_worker_host.cc
++++ b/content/browser/worker_host/shared_worker_host.cc
+@@ -17,6 +17,7 @@
+ #include "content/browser/code_cache/generated_code_cache_context.h"
+ #include "content/browser/devtools/devtools_instrumentation.h"
+ #include "content/browser/devtools/shared_worker_devtools_manager.h"
++#include "content/browser/helium_noise/noise_token_data.h"
+ #include "content/browser/loader/url_loader_factory_utils.h"
+ #include "content/browser/network/cross_origin_embedder_policy_reporter.h"
+ #include "content/browser/process_lock.h"
+@@ -523,7 +524,12 @@
+       std::move(browser_interface_broker), ukm_source_id_,
+       instance_.DoesRequireCrossSiteRequestForCookies(),
+       std::move(coep_reporting_observer), std::move(dip_reporting_observer),
+-      cross_origin_isolated);
++      cross_origin_isolated,
++      // Aerie (#113): the tokens of the top-level site of the worker's storage
++      // key, so the worker shows what the page shows.
++      HeliumNoiseTokenData::GetTokensForWorker(
++          GetProcessHost()->GetBrowserContext(),
++          instance_.worker_storage_key()));
+   if (service_worker_handle_ &&
+       service_worker_handle_->service_worker_client()) {
+     service_worker_handle_->service_worker_client()->SetContainerReady();
+--- a/content/browser/service_worker/service_worker_version.cc
++++ b/content/browser/service_worker/service_worker_version.cc
+@@ -39,6 +39,7 @@
+ #include "content/browser/back_forward_cache/back_forward_cache_can_store_document_result.h"
+ #include "content/browser/bad_message.h"
+ #include "content/browser/connection_allowlist_utils.h"
++#include "content/browser/helium_noise/noise_token_data.h"
+ #include "content/browser/renderer_host/local_network_access_util.h"
+ #include "content/browser/security/cpsp/child_process_security_policy_impl.h"
+ #include "content/browser/service_worker/payment_handler_support.h"
+@@ -2837,6 +2838,12 @@
+   params->ukm_source_id = ukm_source_id_;
+   params->storage_key = key_;
+ 
++  // Aerie (#113): the tokens of the top-level site of the storage key, so the
++  // service worker shows what its pages show. Worked out at each start, so a
++  // change of the per-site or global switch applies when the worker restarts.
++  params->helium_noise_tokens = HeliumNoiseTokenData::GetTokensForWorker(
++      context_->wrapper()->browser_context(), key_);
++
+   // policy_container_host could be null for registration restored from old DB
+   if (policy_container_host_) {
+     params->policy_container =
+--- a/content/renderer/worker/shared_worker_factory_impl.h
++++ b/content/renderer/worker/shared_worker_factory_impl.h
+@@ -8,6 +8,7 @@
+ #include "mojo/public/cpp/bindings/pending_receiver.h"
+ #include "mojo/public/cpp/bindings/pending_remote.h"
+ #include "services/metrics/public/cpp/ukm_source_id.h"
++#include "third_party/blink/public/common/helium_noise/noise_token.h"
+ #include "third_party/blink/public/common/renderer_preferences/renderer_preferences.h"
+ #include "third_party/blink/public/common/storage_key/storage_key.h"
+ #include "third_party/blink/public/mojom/frame/reporting_observer.mojom.h"
+@@ -64,7 +65,8 @@
+           coep_reporting_observer,
+       mojo::PendingReceiver<blink::mojom::ReportingObserver>
+           dip_reporting_observer,
+-      bool cross_origin_isolated) override;
++      bool cross_origin_isolated,
++      const blink::HeliumNoiseTokenMap& helium_noise_tokens) override;
+ };
+ 
+ }  // namespace content
+--- a/content/renderer/worker/shared_worker_factory_impl.cc
++++ b/content/renderer/worker/shared_worker_factory_impl.cc
+@@ -54,7 +54,8 @@
+         coep_reporting_observer,
+     mojo::PendingReceiver<blink::mojom::ReportingObserver>
+         dip_reporting_observer,
+-    bool cross_origin_isolated) {
++    bool cross_origin_isolated,
++    const blink::HeliumNoiseTokenMap& helium_noise_tokens) {
+   // Bound to the lifetime of the underlying blink::WebSharedWorker instance.
+   new EmbeddedSharedWorkerStub(
+       std::move(info), token, constructor_key, origin,
+@@ -69,7 +70,7 @@
+       require_cross_site_request_for_cookies,
+       std::move(coep_reporting_observer), std::move(dip_reporting_observer),
+       RenderThreadImpl::current()->cors_exempt_header_list(),
+-      cross_origin_isolated);
++      cross_origin_isolated, helium_noise_tokens);
+ }
+ 
+ }  // namespace content
+--- a/content/renderer/worker/embedded_shared_worker_stub.h
++++ b/content/renderer/worker/embedded_shared_worker_stub.h
+@@ -16,6 +16,7 @@
+ #include "mojo/public/cpp/bindings/remote.h"
+ #include "services/metrics/public/cpp/ukm_source_id.h"
+ #include "services/network/public/mojom/url_loader_factory.mojom-forward.h"
++#include "third_party/blink/public/common/helium_noise/noise_token.h"
+ #include "third_party/blink/public/common/renderer_preferences/renderer_preferences.h"
+ #include "third_party/blink/public/common/storage_key/storage_key.h"
+ #include "third_party/blink/public/common/tokens/tokens.h"
+@@ -89,7 +90,8 @@
+       mojo::PendingReceiver<blink::mojom::ReportingObserver>
+           dip_reporting_observer,
+       const std::vector<std::string>& cors_exempt_header_list,
+-      bool cross_origin_isolated);
++      bool cross_origin_isolated,
++      const blink::HeliumNoiseTokenMap& helium_noise_tokens);
+ 
+   EmbeddedSharedWorkerStub(const EmbeddedSharedWorkerStub&) = delete;
+   EmbeddedSharedWorkerStub& operator=(const EmbeddedSharedWorkerStub&) = delete;
+--- a/content/renderer/worker/embedded_shared_worker_stub.cc
++++ b/content/renderer/worker/embedded_shared_worker_stub.cc
+@@ -67,7 +67,8 @@
+     mojo::PendingReceiver<blink::mojom::ReportingObserver>
+         dip_reporting_observer,
+     const std::vector<std::string>& cors_exempt_header_list,
+-    bool cross_origin_isolated)
++    bool cross_origin_isolated,
++    const blink::HeliumNoiseTokenMap& helium_noise_tokens)
+     : receiver_(this, std::move(receiver)) {
+   DCHECK(main_script_load_params);
+   DCHECK(pending_subresource_loader_factory_bundle);
+@@ -141,7 +142,7 @@
+       std::move(web_worker_fetch_context), std::move(host), this, ukm_source_id,
+       require_cross_site_request_for_cookies,
+       std::move(coep_reporting_observer), std::move(dip_reporting_observer),
+-      cross_origin_isolated);
++      cross_origin_isolated, helium_noise_tokens);
+ 
+   // If the host drops its connection, then self-destruct.
+   receiver_.set_disconnect_handler(base::BindOnce(
+--- a/third_party/blink/public/web/web_shared_worker.h
++++ b/third_party/blink/public/web/web_shared_worker.h
+@@ -38,6 +38,7 @@
+ #include "services/metrics/public/cpp/ukm_source_id.h"
+ #include "services/network/public/mojom/content_security_policy.mojom-shared.h"
+ #include "services/network/public/mojom/fetch_api.mojom-shared.h"
++#include "third_party/blink/public/common/helium_noise/noise_token.h"
+ #include "third_party/blink/public/common/tokens/tokens.h"
+ #include "third_party/blink/public/common/user_agent/user_agent_metadata.h"
+ #include "third_party/blink/public/mojom/browser_interface_broker.mojom-shared.h"
+@@ -102,7 +103,8 @@
+           coep_reporting_observer,
+       CrossVariantMojoReceiver<mojom::ReportingObserverInterfaceBase>
+           dip_reporting_observer,
+-      bool is_cross_origin_isolated);
++      bool is_cross_origin_isolated,
++      const HeliumNoiseTokenMap& helium_noise_tokens);
+ 
+   // Sends a connect event to the SharedWorker context.
+   virtual void Connect(int connection_request_id,
+--- a/third_party/blink/renderer/core/exported/web_shared_worker_impl.h
++++ b/third_party/blink/renderer/core/exported/web_shared_worker_impl.h
+@@ -135,7 +135,8 @@
+           coep_reporting_observer,
+       CrossVariantMojoReceiver<mojom::blink::ReportingObserverInterfaceBase>
+           dip_reporting_observer,
+-      bool is_cross_origin_isolated);
++      bool is_cross_origin_isolated,
++      const HeliumNoiseTokenMap& helium_noise_tokens);
+ 
+   void DispatchPendingConnections();
+   void ConnectToChannel(int connection_request_id,
+--- a/third_party/blink/renderer/core/exported/web_shared_worker_impl.cc
++++ b/third_party/blink/renderer/core/exported/web_shared_worker_impl.cc
+@@ -236,7 +236,8 @@
+         coep_reporting_observer,
+     CrossVariantMojoReceiver<mojom::blink::ReportingObserverInterfaceBase>
+         dip_reporting_observer,
+-    bool is_cross_origin_isolated) {
++    bool is_cross_origin_isolated,
++    const HeliumNoiseTokenMap& helium_noise_tokens) {
+   DCHECK(IsMainThread());
+   DCHECK(web_worker_fetch_context);
+   CHECK(constructor_origin.Get()->CanAccessSharedWorkers() ||
+@@ -303,6 +304,8 @@
+       blink::SecurityOrigin::CreateFromUrlOrigin(
+           url::Origin(origin_from_browser)),
+       std::move(coep_reporting_observer), std::move(dip_reporting_observer));
++  // Aerie (#113): the noise tokens of the worker's top-level site.
++  creation_params->helium_noise_tokens = helium_noise_tokens;
+ 
+   auto thread_startup_data = WorkerBackingThreadStartupData::CreateDefault();
+   thread_startup_data.atomics_wait_mode =
+@@ -389,7 +392,8 @@
+         coep_reporting_observer,
+     CrossVariantMojoReceiver<mojom::blink::ReportingObserverInterfaceBase>
+         dip_reporting_observer,
+-    bool is_cross_origin_isolated) {
++    bool is_cross_origin_isolated,
++    const HeliumNoiseTokenMap& helium_noise_tokens) {
+   auto worker =
+       base::WrapUnique(new WebSharedWorkerImpl(token, std::move(host), client));
+   worker->StartWorkerContext(
+@@ -402,7 +406,7 @@
+       std::move(policy_container), std::move(web_worker_fetch_context),
+       ukm_source_id, require_cross_site_request_for_cookies,
+       std::move(coep_reporting_observer), std::move(dip_reporting_observer),
+-      is_cross_origin_isolated);
++      is_cross_origin_isolated, helium_noise_tokens);
+   return worker;
+ }
+ 
+--- a/content/renderer/service_worker/embedded_worker_instance_client_impl.cc
++++ b/content/renderer/service_worker/embedded_worker_instance_client_impl.cc
+@@ -97,6 +97,7 @@
+       ToWebPolicyContainer(std::move(params->policy_container));
+ 
+   start_data->is_cross_origin_isolated = params->cross_origin_isolated;
++  start_data->helium_noise_tokens = params->helium_noise_tokens;
+ 
+   // `cache_storage` may be null if COEP is not enabled, we cannot bind
+   // eagerly in that case.
+--- a/third_party/blink/public/web/web_embedded_worker_start_data.h
++++ b/third_party/blink/public/web/web_embedded_worker_start_data.h
+@@ -34,6 +34,7 @@
+ #include "base/unguessable_token.h"
+ #include "services/metrics/public/cpp/ukm_source_id.h"
+ #include "third_party/blink/public/common/fingerprinting_protection/noise_token.h"
++#include "third_party/blink/public/common/helium_noise/noise_token.h"
+ #include "third_party/blink/public/common/loader/worker_main_script_load_parameters.h"
+ #include "third_party/blink/public/common/tokens/tokens.h"
+ #include "third_party/blink/public/common/user_agent/user_agent_metadata.h"
+@@ -65,6 +66,10 @@
+   // Whether the worker has access to cross-origin isolated APIs.
+   bool is_cross_origin_isolated = false;
+ 
++  // Aerie (#113): the noise tokens of the top-level site of the worker's
++  // storage key. Empty when protection is off.
++  HeliumNoiseTokenMap helium_noise_tokens;
++
+   // Unique token that identifies this worker across the browser and renderer
+   // processes. This is not persistent across worker restarts.
+   blink::ServiceWorkerToken service_worker_token;
+--- a/third_party/blink/renderer/modules/exported/web_embedded_worker_impl.cc
++++ b/third_party/blink/renderer/modules/exported/web_embedded_worker_impl.cc
+@@ -249,6 +249,9 @@
+       /*require_cross_site_request_for_cookies=*/false,
+       /*origin_to_use=*/nullptr, std::move(coep_reporting_observer),
+       std::move(dip_reporting_observer));
++  // Aerie (#113): the noise tokens of the worker's top-level site.
++  global_scope_creation_params->helium_noise_tokens =
++      worker_start_data->helium_noise_tokens;
+ 
+   worker_thread_ = std::make_unique<ServiceWorkerThread>(
+       std::make_unique<ServiceWorkerGlobalScopeProxy>(
+--- a/third_party/blink/renderer/core/execution_context/gpu_info_masking.h
++++ b/third_party/blink/renderer/core/execution_context/gpu_info_masking.h
+@@ -14,17 +14,17 @@
+ namespace blink {
+ 
+ // Whether WebGL and WebGPU report masked graphics card details to this context
+-// (Aerie, issue #112). A null context counts as a worker. A worker has no noise
+-// tokens yet, so it is always protected while the features are on (fail
+-// closed, until issue #113).
++// (Aerie, issue #112). A window and a worker both follow their kWebGL token: a
++// worker has the tokens of its page or site (issue #113), so protection turned
++// off for the site or the browser reaches it. A null context has no token to
++// read, so it is protected while the features are on (fail closed).
+ inline bool ShouldMaskGpuInfoForContext(const ExecutionContext* context) {
+-  const bool is_worker = !context || context->IsWorkerOrWorkletGlobalScope();
+   const bool has_token =
+       context &&
+       context->GetHeliumNoiseTokens().contains(HeliumNoiseFeature::kWebGL);
+   return aerie_gpu_info::ShouldMaskGpuInfo(
+-      is_worker ? aerie_gpu_info::ContextKind::kWorker
+-                : aerie_gpu_info::ContextKind::kWindow,
++      context ? aerie_gpu_info::ContextKind::kExecutionContext
++              : aerie_gpu_info::ContextKind::kNoContext,
+       {.master_enabled = base::FeatureList::IsEnabled(features::kHeliumNoise),
+        .surface_enabled =
+            base::FeatureList::IsEnabled(features::kHeliumNoiseWebGL),
+--- a/content/browser/worker_host/mock_shared_worker.h
++++ b/content/browser/worker_host/mock_shared_worker.h
+@@ -128,7 +128,8 @@
+           coep_reporting_observer,
+       mojo::PendingReceiver<blink::mojom::ReportingObserver>
+           dip_reporting_observer,
+-      bool cross_origin_isolated) override;
++      bool cross_origin_isolated,
++      const blink::HeliumNoiseTokenMap& helium_noise_tokens) override;
+ 
+   struct CreateParams {
+     CreateParams();
+--- a/content/browser/worker_host/mock_shared_worker.cc
++++ b/content/browser/worker_host/mock_shared_worker.cc
+@@ -162,7 +162,8 @@
+         coep_reporting_observer,
+     mojo::PendingReceiver<blink::mojom::ReportingObserver>
+         dip_reporting_observer,
+-    bool cross_origin_isolated) {
++    bool cross_origin_isolated,
++    const blink::HeliumNoiseTokenMap& helium_noise_tokens) {
+   CHECK(!create_params_, base::NotFatalUntil::M160);
+   create_params_ = std::make_unique<CreateParams>();
+   create_params_->info = std::move(info);

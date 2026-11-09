@@ -19,7 +19,7 @@ page and the Bench checks, so the three cannot drift apart.
 | No prefetch or preloading | Off. | ungoogled-chromium (through Helium) | Dropdown | `hardening_prefetch` |
 | Strict site isolation | Always on. | Chromium | Read-only | `hardening_site_isolation` |
 | JavaScript JIT per site | On for every site. | Chromium | Link to site settings | `hardening_js_optimizer` |
-| Fingerprinting protection | On. | Helium | Toggle | `hardening_fingerprinting`, `hardening_fingerprinting_site`, `hardening_fingerprinting_gpu`, `hardening_device_memory` |
+| Fingerprinting protection | On. | Helium | Toggle | `hardening_fingerprinting`, `hardening_fingerprinting_site`, `hardening_fingerprinting_worker`, `hardening_fingerprinting_gpu`, `hardening_device_memory` |
 | Widevine DRM | Off. | Aerie | Toggle | `hardening_pref_defaults`, `hardening_settings_page`, `widevine_opt_in` |
 | Extensions cannot loosen these settings | Always on. | Aerie | Read-only | `hardening_extension_prefs` |
 
@@ -142,7 +142,7 @@ Process rule: the optimizer mode is part of the SiteInfo and of the renderer pro
 
 ### Fingerprinting protection
 
-Canvas and audio output and the reported number of CPU cores carry small random noise. The noise differs for each site and for each browser session, and is the same on every address of one site (www.example.com and shop.example.com share it). A private window starts with its own noise. You can turn it off for a single site, and that covers every address of the site. WebGL reports only the vendor family of the graphics card (for example Google Inc. (AMD)), and WebGPU reports no adapter details. The reported device memory is capped at 8 GB, and the cap stays when this is turned off.
+Canvas and audio output and the reported number of CPU cores carry small random noise. The noise differs for each site and for each browser session, and is the same on every address of one site (www.example.com and shop.example.com share it). A private window starts with its own noise. Dedicated workers, shared workers and service workers get the same noise as their site, so a script cannot get clean values by moving into a worker. You can turn it off for a single site, and that covers every address of the site and its workers. WebGL reports only the vendor family of the graphics card (for example Google Inc. (AMD)), and WebGPU reports no adapter details. The reported device memory is capped at 8 GB, and the cap stays when this is turned off.
 
 Audio noise is seeded from the site and session only, so one site gets the same audio output on every render and every AnalyserNode read of the same signal in one session. A tracker cannot average the noise away by reading again.
 
@@ -156,7 +156,9 @@ WebGL vendor and renderer (WEBGL_debug_renderer_info) report the vendor family i
 
 WebGPU adapter info has an empty vendor, architecture, device and description. Aerie's own code does the family mapping and the masked strings (components/aerie_gpu_info), with unit tests.
 
-The WebGL and WebGPU values follow the same switches as the other noise: the browser sends the page a token only when protection is on for the site, and turning it off for the site or for the whole browser gives the real values back. A worker has no token yet, so it always gets the masked values until workers get tokens (issue #113); a worker started from a site with protection off therefore still sees masked values. The chrome://flags entry that sets a fixed WebGL value (SpoofWebGLInfo) still wins over the masking when you set it.
+Workers get the noise of their site (issue #113). A dedicated worker takes the tokens of the page that created it, and a worker started by a worker takes its parent's. A shared worker and a service worker get theirs from the browser, derived from the top-level site of the worker's storage key, which is the same site that keys a window, so a worker shows the same canvas and core count as its page on one site and different ones on another site. A worker in a frame of another site gets the tokens of the page that embeds it. The browser sends a worker the derived per-site tokens only, never the seeds, and sends none when protection is off for the browser or for the site, so the worker sees the real values. A change of the setting applies to workers started after it; a running worker keeps the tokens it started with, and a service worker takes new ones when it next starts. Worklets (audio, paint, layout and animation) get no tokens and are not noised; none of them can read a canvas or the core count.
+
+The WebGL and WebGPU values follow the same switches as the other noise: the browser sends the page a token only when protection is on for the site, and turning it off for the site or for the whole browser gives the real values back. A worker follows the token it was given, like a window, so protection turned off for the site or the browser also gives the real values in its workers. The chrome://flags entry that sets a fixed WebGL value (SpoofWebGLInfo) still wins over the masking when you set it.
 
 - Default: On.
 - Default provided by: Helium
@@ -171,15 +173,19 @@ The WebGL and WebGPU values follow the same switches as the other noise: the bro
   - third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc (getParameter)
   - third_party/blink/renderer/modules/webgpu/gpu_adapter.cc (CreateAdapterInfoForAdapter)
   - third_party/blink/common/device_memory/approximated_device_memory.cc (the 8 GB cap)
+  - third_party/blink/renderer/core/workers/worker_global_scope.cc and dedicated_worker.cc (the tokens of a dedicated worker)
+  - content/browser/worker_host/shared_worker_host.cc and content/browser/service_worker/service_worker_version.cc (the tokens of a shared and a service worker)
 - Preference: `helium.noise.enabled` (default `true`)
 - Aerie patches:
   - `patches/hardening/0009-stable-audio-noise-per-site-and-session.patch`
   - `patches/hardening/0010-mask-the-gpu-in-webgl-and-webgpu.patch`
   - `patches/hardening/0011-key-fingerprinting-noise-on-the-site.patch`
   - `patches/hardening/0012-cap-device-memory-at-8gb.patch`
+  - `patches/hardening/0013-give-dedicated-workers-the-pages-noise-tokens.patch`
+  - `patches/hardening/0014-give-shared-and-service-workers-noise-tokens.patch`
 - Settings row: Toggle
 - Cost: Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page. Turning it off does not lift the 8 GB device memory cap.
-- Bench checks: `hardening_fingerprinting`, `hardening_fingerprinting_site`, `hardening_fingerprinting_gpu`, `hardening_device_memory`
+- Bench checks: `hardening_fingerprinting`, `hardening_fingerprinting_site`, `hardening_fingerprinting_worker`, `hardening_fingerprinting_gpu`, `hardening_device_memory`
 
 ## What Aerie added
 

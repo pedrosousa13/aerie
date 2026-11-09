@@ -224,11 +224,58 @@ GPU_ADAPTER_OK = """GPUAdapterInfo* GPUAdapter::CreateAdapterInfoForAdapter() {
 """
 GPU_GOOD = {treegate.WEBGL_CONTEXT_PATH: GPU_WEBGL_OK, treegate.GPU_ADAPTER_PATH: GPU_ADAPTER_OK}
 
+WORKER_PARAMS_OK = "  HeliumNoiseTokenMap helium_noise_tokens;\n"
+WORKER_SCOPE_OK = "  SetHeliumNoiseTokens(creation_params->helium_noise_tokens);\n"
+WORKER_DEDICATED_OK = "  params->helium_noise_tokens = execution_context->GetHeliumNoiseTokens();\n"
+WORKER_SHARED_IMPL_OK = "  creation_params->helium_noise_tokens = helium_noise_tokens;\n"
+WORKER_SERVICE_IMPL_OK = (
+    "  global_scope_creation_params->helium_noise_tokens =\n"
+    "      worker_start_data->helium_noise_tokens;\n")
+WORKER_TOKENS_OK = """blink::HeliumNoiseTokenMap HeliumNoiseTokenData::GetTokensForWorker(
+    BrowserContext* context,
+    const blink::StorageKey& key) {
+  if (!context) {
+    return {};
+  }
+  const GURL site_url = key.top_level_site().GetURL();
+  if (!GetContentClient()->browser()->HeliumNoiseEnabled(context, site_url)) {
+    return {};
+  }
+  return GetTokens(context, url::Origin::Create(site_url));
+}
+"""
+WORKER_SHARED_HOST_OK = """      HeliumNoiseTokenData::GetTokensForWorker(
+          GetProcessHost()->GetBrowserContext(),
+          instance_.worker_storage_key()));
+"""
+WORKER_SERVICE_HOST_OK = """  params->helium_noise_tokens = HeliumNoiseTokenData::GetTokensForWorker(
+      context_->wrapper()->browser_context(), key_);
+"""
+WORKER_GPU_OK = """inline bool ShouldMaskGpuInfoForContext(const ExecutionContext* context) {
+  const bool has_token =
+      context &&
+      context->GetHeliumNoiseTokens().contains(HeliumNoiseFeature::kWebGL);
+  return true;
+}
+"""
+WORKER_GOOD = {
+    treegate.WORKER_PARAMS_PATH: WORKER_PARAMS_OK,
+    treegate.WORKER_SCOPE_PATH: WORKER_SCOPE_OK,
+    treegate.WORKER_DEDICATED_PATH: WORKER_DEDICATED_OK,
+    treegate.WORKER_SHARED_IMPL_PATH: WORKER_SHARED_IMPL_OK,
+    treegate.WORKER_SERVICE_IMPL_PATH: WORKER_SERVICE_IMPL_OK,
+    treegate.WORKER_TOKENS_PATH: WORKER_TOKENS_OK,
+    treegate.WORKER_SHARED_HOST_PATH: WORKER_SHARED_HOST_OK,
+    treegate.WORKER_SERVICE_HOST_PATH: WORKER_SERVICE_HOST_OK,
+    treegate.WORKER_GPU_PATH: WORKER_GPU_OK,
+}
+
 GOOD = {
     **JS_OPT_GOOD,
     **SERVICES_UI_GOOD,
     **AUDIO_GOOD,
     **GPU_GOOD,
+    **WORKER_GOOD,
     "chrome/browser/component_updater/widevine_cdm_component_installer.cc": WIDEVINE_INSTALLER_OK,
     "chrome/browser/component_updater/registration.cc": WIDEVINE_REG_OK,
     "components/update_client/update_checker.cc": WIDEVINE_CHECKER_OK,
@@ -432,6 +479,50 @@ class DefaultsGatesTest(TreeCase):
         self.assertEqual(len(treegate.check_services_off(self.root)), 1)
 
 
+class WorkerNoiseTokensGateTest(TreeCase):
+    """Issue #113: every kind of worker gets the per-site tokens, from the right site, and never the session token."""
+
+    def findings(self):
+        return treegate.check_worker_noise_tokens(self.root)
+
+    def test_passes_when_every_worker_kind_is_wired(self):
+        self.write(WORKER_GOOD)
+        self.assertEqual(treegate.check_worker_noise_tokens(self.root, require=True), [])
+
+    def test_each_missing_hand_off_is_reported_on_its_file(self):
+        bad = {
+            treegate.WORKER_PARAMS_PATH: "",
+            treegate.WORKER_SCOPE_PATH: "  SetHeliumNoiseTokens({});\n",
+            treegate.WORKER_DEDICATED_PATH: "",
+            treegate.WORKER_SHARED_IMPL_PATH: "",
+            treegate.WORKER_SERVICE_IMPL_PATH: "",
+            treegate.WORKER_SHARED_HOST_PATH: WORKER_SHARED_HOST_OK.replace("GetTokensForWorker", "GetTokens"),
+            treegate.WORKER_SERVICE_HOST_PATH: "",
+        }
+        for path, text in bad.items():
+            with self.subTest(path=path):
+                self.write(WORKER_GOOD)
+                self.write({path: text})
+                self.assertEqual({f.path for f in self.findings()}, {path})
+
+    def test_worker_tokens_must_come_from_the_top_level_site_and_the_switch(self):
+        for text in (WORKER_TOKENS_OK.replace("key.top_level_site().GetURL()", "key.origin().GetURL()"),
+                     WORKER_TOKENS_OK.replace("HeliumNoiseEnabled(context, site_url)", "true"),
+                     WORKER_TOKENS_OK.replace("return GetTokens(", "return data->session_tokens_; (")):
+            self.write(WORKER_GOOD)
+            self.write({treegate.WORKER_TOKENS_PATH: text})
+            self.assertEqual({f.path for f in self.findings()}, {treegate.WORKER_TOKENS_PATH}, text)
+
+    def test_a_worker_must_not_be_always_masked_again(self):
+        self.write(WORKER_GOOD)
+        self.write({treegate.WORKER_GPU_PATH: WORKER_GPU_OK.replace(
+            "const bool has_token", "const bool is_worker = !context || context->IsWorkerOrWorkletGlobalScope();\n  const bool has_token")})
+        self.assertEqual({f.path for f in self.findings()}, {treegate.WORKER_GPU_PATH})
+
+    def test_the_gate_runs_with_the_others(self):
+        self.assertIn(treegate.check_worker_noise_tokens, treegate.GATES)
+
+
 class JsOptimizerGateTest(TreeCase):
     def test_passes_on_the_upstream_shape(self):
         self.write(JS_OPT_GOOD)
@@ -514,7 +605,7 @@ class RunTest(TreeCase):
 
     def test_empty_tree_passes_unless_required(self):
         self.assertEqual(self.run_gates(), [])
-        self.assertEqual(len(self.run_gates(require=True)), 31)
+        self.assertEqual(len(self.run_gates(require=True)), 40)
 
     def test_format_report(self):
         self.write({"a.cc": '"https://services.helium.imput.net"\n'})

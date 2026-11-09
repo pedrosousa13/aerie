@@ -1,0 +1,1528 @@
+{
+  "check": "hardening_fingerprinting_worker",
+  "cases": [
+    {
+      "name": "workers_match_the_window_per_site_and_off_reaches_workers",
+      "expect": "pass",
+      "detail_contains": "",
+      "obs": {
+        "control": {
+          "a": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          }
+        },
+        "regular": {
+          "a": {
+            "window": {
+              "canvas": "c1",
+              "cores": 6
+            },
+            "dedicated": {
+              "canvas": "c1",
+              "cores": 6
+            },
+            "shared": {
+              "canvas": "c1",
+              "cores": 6
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "c2",
+              "cores": 4
+            },
+            "dedicated": {
+              "canvas": "c2",
+              "cores": 4
+            },
+            "shared": {
+              "canvas": "c2",
+              "cores": 4
+            }
+          }
+        },
+        "site_off": {
+          "a": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "c3",
+              "cores": 6
+            },
+            "dedicated": {
+              "canvas": "c3",
+              "cores": 6
+            },
+            "shared": {
+              "canvas": "c3",
+              "cores": 6
+            }
+          }
+        },
+        "global_off": {
+          "a": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "dedicated_worker_returns_clean_pixels_and_real_cores",
+      "expect": "fail",
+      "detail_contains": "dedicated worker on a.localhost",
+      "obs": {
+        "control": {
+          "a": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          }
+        },
+        "regular": {
+          "a": {
+            "window": {
+              "canvas": "c1",
+              "cores": 6
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "c1",
+              "cores": 6
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "c2",
+              "cores": 4
+            },
+            "dedicated": {
+              "canvas": "c2",
+              "cores": 4
+            },
+            "shared": {
+              "canvas": "c2",
+              "cores": 4
+            }
+          }
+        },
+        "site_off": {
+          "a": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "c3",
+              "cores": 6
+            },
+            "dedicated": {
+              "canvas": "c3",
+              "cores": 6
+            },
+            "shared": {
+              "canvas": "c3",
+              "cores": 6
+            }
+          }
+        },
+        "global_off": {
+          "a": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "shared_worker_returns_clean_pixels",
+      "expect": "fail",
+      "detail_contains": "shared worker on a.localhost",
+      "obs": {
+        "control": {
+          "a": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          }
+        },
+        "regular": {
+          "a": {
+            "window": {
+              "canvas": "c1",
+              "cores": 6
+            },
+            "dedicated": {
+              "canvas": "c1",
+              "cores": 6
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "c2",
+              "cores": 4
+            },
+            "dedicated": {
+              "canvas": "c2",
+              "cores": 4
+            },
+            "shared": {
+              "canvas": "c2",
+              "cores": 4
+            }
+          }
+        },
+        "site_off": {
+          "a": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "c3",
+              "cores": 6
+            },
+            "dedicated": {
+              "canvas": "c3",
+              "cores": 6
+            },
+            "shared": {
+              "canvas": "c3",
+              "cores": 6
+            }
+          }
+        },
+        "global_off": {
+          "a": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "dedicated_worker_gets_another_sites_noise",
+      "expect": "fail",
+      "detail_contains": "on b.localhost differs from the window's",
+      "obs": {
+        "control": {
+          "a": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          }
+        },
+        "regular": {
+          "a": {
+            "window": {
+              "canvas": "c1",
+              "cores": 6
+            },
+            "dedicated": {
+              "canvas": "c1",
+              "cores": 6
+            },
+            "shared": {
+              "canvas": "c1",
+              "cores": 6
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "c2",
+              "cores": 4
+            },
+            "dedicated": {
+              "canvas": "c1",
+              "cores": 6
+            },
+            "shared": {
+              "canvas": "c2",
+              "cores": 4
+            }
+          }
+        },
+        "site_off": {
+          "a": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "c3",
+              "cores": 6
+            },
+            "dedicated": {
+              "canvas": "c3",
+              "cores": 6
+            },
+            "shared": {
+              "canvas": "c3",
+              "cores": 6
+            }
+          }
+        },
+        "global_off": {
+          "a": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "shared_worker_gets_another_sites_noise",
+      "expect": "fail",
+      "detail_contains": "on b.localhost differs from the window's",
+      "obs": {
+        "control": {
+          "a": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          }
+        },
+        "regular": {
+          "a": {
+            "window": {
+              "canvas": "c1",
+              "cores": 6
+            },
+            "dedicated": {
+              "canvas": "c1",
+              "cores": 6
+            },
+            "shared": {
+              "canvas": "c1",
+              "cores": 6
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "c2",
+              "cores": 4
+            },
+            "dedicated": {
+              "canvas": "c2",
+              "cores": 4
+            },
+            "shared": {
+              "canvas": "c1",
+              "cores": 6
+            }
+          }
+        },
+        "site_off": {
+          "a": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "c3",
+              "cores": 6
+            },
+            "dedicated": {
+              "canvas": "c3",
+              "cores": 6
+            },
+            "shared": {
+              "canvas": "c3",
+              "cores": 6
+            }
+          }
+        },
+        "global_off": {
+          "a": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "site_off_does_not_reach_a_dedicated_worker",
+      "expect": "fail",
+      "detail_contains": "with protection off for http://[*.]a.localhost the canvas of the",
+      "obs": {
+        "control": {
+          "a": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          }
+        },
+        "regular": {
+          "a": {
+            "window": {
+              "canvas": "c1",
+              "cores": 6
+            },
+            "dedicated": {
+              "canvas": "c1",
+              "cores": 6
+            },
+            "shared": {
+              "canvas": "c1",
+              "cores": 6
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "c2",
+              "cores": 4
+            },
+            "dedicated": {
+              "canvas": "c2",
+              "cores": 4
+            },
+            "shared": {
+              "canvas": "c2",
+              "cores": 4
+            }
+          }
+        },
+        "site_off": {
+          "a": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "c1",
+              "cores": 6
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "c3",
+              "cores": 6
+            },
+            "dedicated": {
+              "canvas": "c3",
+              "cores": 6
+            },
+            "shared": {
+              "canvas": "c3",
+              "cores": 6
+            }
+          }
+        },
+        "global_off": {
+          "a": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "site_off_does_not_reach_a_shared_worker",
+      "expect": "fail",
+      "detail_contains": "with protection off for http://[*.]a.localhost the canvas of the",
+      "obs": {
+        "control": {
+          "a": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          }
+        },
+        "regular": {
+          "a": {
+            "window": {
+              "canvas": "c1",
+              "cores": 6
+            },
+            "dedicated": {
+              "canvas": "c1",
+              "cores": 6
+            },
+            "shared": {
+              "canvas": "c1",
+              "cores": 6
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "c2",
+              "cores": 4
+            },
+            "dedicated": {
+              "canvas": "c2",
+              "cores": 4
+            },
+            "shared": {
+              "canvas": "c2",
+              "cores": 4
+            }
+          }
+        },
+        "site_off": {
+          "a": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "c1",
+              "cores": 6
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "c3",
+              "cores": 6
+            },
+            "dedicated": {
+              "canvas": "c3",
+              "cores": 6
+            },
+            "shared": {
+              "canvas": "c3",
+              "cores": 6
+            }
+          }
+        },
+        "global_off": {
+          "a": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "site_off_turns_off_another_site",
+      "expect": "fail",
+      "detail_contains": "another site",
+      "obs": {
+        "control": {
+          "a": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          }
+        },
+        "regular": {
+          "a": {
+            "window": {
+              "canvas": "c1",
+              "cores": 6
+            },
+            "dedicated": {
+              "canvas": "c1",
+              "cores": 6
+            },
+            "shared": {
+              "canvas": "c1",
+              "cores": 6
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "c2",
+              "cores": 4
+            },
+            "dedicated": {
+              "canvas": "c2",
+              "cores": 4
+            },
+            "shared": {
+              "canvas": "c2",
+              "cores": 4
+            }
+          }
+        },
+        "site_off": {
+          "a": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          }
+        },
+        "global_off": {
+          "a": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "global_off_does_not_reach_a_shared_worker",
+      "expect": "fail",
+      "detail_contains": "turned off for the whole browser",
+      "obs": {
+        "control": {
+          "a": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          }
+        },
+        "regular": {
+          "a": {
+            "window": {
+              "canvas": "c1",
+              "cores": 6
+            },
+            "dedicated": {
+              "canvas": "c1",
+              "cores": 6
+            },
+            "shared": {
+              "canvas": "c1",
+              "cores": 6
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "c2",
+              "cores": 4
+            },
+            "dedicated": {
+              "canvas": "c2",
+              "cores": 4
+            },
+            "shared": {
+              "canvas": "c2",
+              "cores": 4
+            }
+          }
+        },
+        "site_off": {
+          "a": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "c3",
+              "cores": 6
+            },
+            "dedicated": {
+              "canvas": "c3",
+              "cores": 6
+            },
+            "shared": {
+              "canvas": "c3",
+              "cores": 6
+            }
+          }
+        },
+        "global_off": {
+          "a": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "c2",
+              "cores": 4
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "negative_control_failed_noise_off_still_differs",
+      "expect": "fail",
+      "detail_contains": "negative control failed",
+      "obs": {
+        "control": {
+          "a": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r1",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          }
+        },
+        "regular": {
+          "a": {
+            "window": {
+              "canvas": "c1",
+              "cores": 6
+            },
+            "dedicated": {
+              "canvas": "c1",
+              "cores": 6
+            },
+            "shared": {
+              "canvas": "c1",
+              "cores": 6
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "c2",
+              "cores": 4
+            },
+            "dedicated": {
+              "canvas": "c2",
+              "cores": 4
+            },
+            "shared": {
+              "canvas": "c2",
+              "cores": 4
+            }
+          }
+        },
+        "site_off": {
+          "a": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "c3",
+              "cores": 6
+            },
+            "dedicated": {
+              "canvas": "c3",
+              "cores": 6
+            },
+            "shared": {
+              "canvas": "c3",
+              "cores": 6
+            }
+          }
+        },
+        "global_off": {
+          "a": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "shared_worker_did_not_answer",
+      "expect": "fail",
+      "detail_contains": "timeout",
+      "obs": {
+        "control": {
+          "a": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          }
+        },
+        "regular": {
+          "a": {
+            "window": {
+              "canvas": "c1",
+              "cores": 6
+            },
+            "dedicated": {
+              "canvas": "c1",
+              "cores": 6
+            },
+            "shared": {
+              "error": "timeout"
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "c2",
+              "cores": 4
+            },
+            "dedicated": {
+              "canvas": "c2",
+              "cores": 4
+            },
+            "shared": {
+              "canvas": "c2",
+              "cores": 4
+            }
+          }
+        },
+        "site_off": {
+          "a": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "c3",
+              "cores": 6
+            },
+            "dedicated": {
+              "canvas": "c3",
+              "cores": 6
+            },
+            "shared": {
+              "canvas": "c3",
+              "cores": 6
+            }
+          }
+        },
+        "global_off": {
+          "a": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "workers_and_window_share_one_seed_across_two_sites",
+      "expect": "fail",
+      "detail_contains": "is the same on a.localhost and b.localhost, two sites",
+      "obs": {
+        "control": {
+          "a": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          }
+        },
+        "regular": {
+          "a": {
+            "window": {
+              "canvas": "c1",
+              "cores": 6
+            },
+            "dedicated": {
+              "canvas": "c1",
+              "cores": 6
+            },
+            "shared": {
+              "canvas": "c1",
+              "cores": 6
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "c1",
+              "cores": 6
+            },
+            "dedicated": {
+              "canvas": "c1",
+              "cores": 6
+            },
+            "shared": {
+              "canvas": "c1",
+              "cores": 6
+            }
+          }
+        },
+        "site_off": {
+          "a": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "c3",
+              "cores": 6
+            },
+            "dedicated": {
+              "canvas": "c3",
+              "cores": 6
+            },
+            "shared": {
+              "canvas": "c3",
+              "cores": 6
+            }
+          }
+        },
+        "global_off": {
+          "a": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          },
+          "b": {
+            "window": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "dedicated": {
+              "canvas": "r0",
+              "cores": 8
+            },
+            "shared": {
+              "canvas": "r0",
+              "cores": 8
+            }
+          }
+        }
+      }
+    }
+  ]
+}

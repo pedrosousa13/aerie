@@ -153,19 +153,24 @@ TEST(MaskedStringsTest, NoModelDriverOrBuildNumberRemains) {
   }
 }
 
-TEST(ShouldMaskTest, WindowFollowsItsToken) {
-  EXPECT_TRUE(ShouldMaskGpuInfo(ContextKind::kWindow, {true, true, true}));
-  EXPECT_FALSE(ShouldMaskGpuInfo(ContextKind::kWindow, {true, true, false}));
+TEST(ShouldMaskTest, AWindowOrWorkerFollowsItsToken) {
+  // A worker has its page's or site's tokens (#113), so it is the same as a
+  // window: masked with a token, real without one (protection off).
+  EXPECT_TRUE(
+      ShouldMaskGpuInfo(ContextKind::kExecutionContext, {true, true, true}));
+  EXPECT_FALSE(
+      ShouldMaskGpuInfo(ContextKind::kExecutionContext, {true, true, false}));
 }
 
-TEST(ShouldMaskTest, WorkerMasksWithoutTokens) {
-  // Fail closed until workers get tokens (#113).
-  EXPECT_TRUE(ShouldMaskGpuInfo(ContextKind::kWorker, {true, true, false}));
-  EXPECT_TRUE(ShouldMaskGpuInfo(ContextKind::kWorker, {true, true, true}));
+TEST(ShouldMaskTest, NoContextMasksWithoutATokenToRead) {
+  // Fail closed: with no context there is no token to read.
+  EXPECT_TRUE(ShouldMaskGpuInfo(ContextKind::kNoContext, {true, true, false}));
+  EXPECT_TRUE(ShouldMaskGpuInfo(ContextKind::kNoContext, {true, true, true}));
 }
 
 TEST(ShouldMaskTest, TheFeatureSwitchesRestoreRealValues) {
-  for (ContextKind kind : {ContextKind::kWindow, ContextKind::kWorker}) {
+  for (ContextKind kind :
+       {ContextKind::kExecutionContext, ContextKind::kNoContext}) {
     EXPECT_FALSE(ShouldMaskGpuInfo(kind, {true, false, true}));
     EXPECT_FALSE(ShouldMaskGpuInfo(kind, {false, true, true}));
   }

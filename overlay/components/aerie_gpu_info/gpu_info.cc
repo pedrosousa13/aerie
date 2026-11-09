@@ -132,7 +132,7 @@ bool ShouldMaskGpuInfo(ContextKind kind, const MaskPolicy& policy) {
   if (!policy.master_enabled || !policy.surface_enabled) {
     return false;
   }
-  return kind == ContextKind::kWorker || policy.has_token;
+  return kind == ContextKind::kNoContext || policy.has_token;
 }
 
 }  // namespace aerie_gpu_info

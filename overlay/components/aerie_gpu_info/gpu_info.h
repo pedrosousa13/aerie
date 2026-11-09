@@ -32,7 +32,10 @@ GpuFamily GpuFamilyFromGlStrings(std::string_view vendor,
 std::string MaskedVendor(GpuFamily family);
 std::string MaskedRenderer(GpuFamily family);
 
-enum class ContextKind { kWindow, kWorker };
+// Whether the caller has an execution context to read noise tokens from. A
+// window and a worker both do (a worker gets the tokens of its page or site,
+// issue #113). The caller passes kNoContext only when it has none.
+enum class ContextKind { kExecutionContext, kNoContext };
 
 // What decides whether a context reports masked GPU details.
 struct MaskPolicy {
@@ -40,13 +43,15 @@ struct MaskPolicy {
   bool master_enabled;
   // The HeliumNoiseWebGL feature.
   bool surface_enabled;
-  // Whether the browser sent this window a kWebGL token (it sends none when
-  // protection is off globally or for the site).
+  // Whether the browser sent this window or worker a kWebGL token (it sends
+  // none when protection is off globally or for the site).
   bool has_token;
 };
 
-// Whether a context reports masked GPU details. A worker has no tokens yet
-// (#113), so it masks whenever the features are on: fail closed.
+// Whether a context reports masked GPU details. A window or worker follows its
+// token, so turning protection off for the site or the browser restores the
+// real values there. With no context there is no token to read, so it masks
+// whenever the features are on: fail closed.
 bool ShouldMaskGpuInfo(ContextKind kind, const MaskPolicy& policy);
 
 }  // namespace aerie_gpu_info

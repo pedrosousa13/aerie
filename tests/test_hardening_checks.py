@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 
 from aerie_bench import checks
-from aerie_bench.checks.hardening import common, cookies, extension, fingerprint, fingerprint_site, https, isolation, jit, prefetch, settings, webrtc
+from aerie_bench.checks.hardening import common, cookies, extension, fingerprint, fingerprint_site, fingerprint_worker, https, isolation, jit, prefetch, settings, webrtc
 from aerie_bench.session import CheckResult
 
 FIXTURES = Path(__file__).parent / "fixtures" / "hardening"
@@ -61,7 +61,7 @@ class RegistryTest(unittest.TestCase):
         self.assertEqual(sorted(sc.checks), sorted(HARDENING))
 
     def test_checks_declare_control_and_negative_control(self):
-        self.assertEqual(len(HARDENING), 17)
+        self.assertEqual(len(HARDENING), 18)
         for name, cls in HARDENING.items():
             self.assertTrue(cls.control, name)
             self.assertGreater(len(cls.negative_control), 30, name)
@@ -394,6 +394,61 @@ class FingerprintSiteDriverTest(unittest.TestCase):
     def test_the_fixture_page_reports_the_core_count(self):
         text = (Path(fingerprint_site.__file__).parents[2] / "fixtures" / "hardening" / "fingerprint.html").read_text()
         self.assertIn("hardwareConcurrency", text)
+
+
+class FingerprintWorkerFixtureTest(unittest.TestCase):
+    """The page and the workers must measure the same thing, or a worker/window difference means nothing."""
+
+    DIR = Path(fingerprint_worker.__file__).parents[2] / "fixtures" / "hardening"
+
+    def test_the_page_measures_the_window_a_dedicated_worker_and_a_shared_worker(self):
+        page = (self.DIR / "fingerprint_worker.html").read_text()
+        self.assertIn("new Worker('fingerprint_worker.js')", page)
+        self.assertIn("new SharedWorker('fingerprint_worker.js')", page)
+        self.assertIn("measureContext(document.createElement('canvas'))", page)
+        self.assertIn("fingerprint_measure.js", page)
+
+    def test_the_worker_script_serves_both_worker_kinds_with_the_shared_measurement(self):
+        script = (self.DIR / "fingerprint_worker.js").read_text()
+        self.assertIn("importScripts('fingerprint_measure.js')", script)
+        self.assertIn("onconnect", script)
+        self.assertIn("OffscreenCanvas", script)
+
+    def test_the_measurement_reads_pixels_and_the_core_count_and_draws_no_text(self):
+        measure = (self.DIR / "fingerprint_measure.js").read_text()
+        self.assertIn("getImageData", measure)
+        self.assertIn("navigator.hardwareConcurrency", measure)
+        self.assertNotIn("fillText", measure)  # fonts could differ between a window and a worker
+
+    def test_the_check_turns_protection_off_for_the_site_and_for_the_whole_browser(self):
+        class Fake:
+            def __init__(self):
+                self.fixtures = FakeFixtures()
+                self.variants = []
+
+            @contextlib.contextmanager
+            def variant(self, flags=(), prefs=None):
+                self.variants.append((flags, prefs))
+                yield self
+
+            def navigate_url(self, url, wait=None):
+                return {"url": url, "error": None}
+
+            def wait_for(self, expr, timeout=0):
+                return True
+
+            def evaluate(self, js):
+                ctx = {"canvas": "c", "cores": 4}
+                return {"window": ctx, "dedicated": ctx, "shared": ctx}
+        fake = Fake()
+        fingerprint_worker.FingerprintingWorker().observe(fake)
+        flags = [v[0] for v in fake.variants]
+        self.assertIn(("--disable-features=HeliumNoise",), flags)
+        prefs = [v[1] for v in fake.variants if v[1]]
+        self.assertIn({"helium": {"noise": {"enabled": False}}}, prefs)
+        self.assertTrue(any(fingerprint_site.SITE_PATTERN + ",*" in
+                            p.get("profile", {}).get("content_settings", {}).get("exceptions", {}).get("helium_noise", {})
+                            for p in prefs))
 
 
 class FakeFixtures:
