@@ -1,0 +1,25 @@
+# Copyright 2026 The Aerie Authors
+# You can use, redistribute, and/or modify this source code under
+# the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+# The message handler of the Aerie Guard section of Settings (issue #103): a
+# wrapper around FilterListManager for chrome://settings. The page is in
+# chrome/browser/resources/settings/aerie_guard_page. SettingsUI adds the
+# handler (patches/adblock/0022); the strings are in
+# aerie_guard_settings_strings.grdp, included by the same patch.
+source_set("handler") {
+  visibility = [ "//chrome/browser/ui/webui/settings:*" ]
+  sources = [
+    "aerie_guard_settings_handler.cc",
+    "aerie_guard_settings_handler.h",
+  ]
+  public_deps = [
+    "//base",
+    "//components/aerie_adblock/browser:lists",
+    "//content/public/browser",
+  ]
+  deps = [
+    "//chrome/browser/profiles:profile",
+    "//url",
+  ]
+}

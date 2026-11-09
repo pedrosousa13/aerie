@@ -1,8 +1,8 @@
 """The real Workspace driver: ``chrome://workspace-test`` over CDP (issue #73).
 
 Aerie has no Workspaces yet. ADR 0006's prototype (build train 8) drove a test build with a small
-WebUI page, ``chrome://workspace-test``, served only with ``--aerie-test-workspaces`` (same pattern as
-``chrome://filters``). This driver speaks that page's JavaScript API. The suite in
+WebUI page, ``chrome://workspace-test``, served only with ``--aerie-test-workspaces`` (the pattern of a test-only WebUI page driven
+over CDP). This driver speaks that page's JavaScript API. The suite in
 ``checks/workspace_isolation.py`` only needs this contract, so M5's test page has to offer it:
 
     workspaceTest.open(url, workspaceId, background)   open a tab in a Workspace ("" = none)

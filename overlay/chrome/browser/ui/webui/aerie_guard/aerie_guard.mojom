@@ -74,7 +74,8 @@ struct PanelState {
 // The links in the panel. The page names one by this value; the browser
 // decides what it opens.
 enum Link {
-  kFilterLists,
+  // The Aerie Guard section of Settings.
+  kAerieGuardSettings,
   // The fingerprinting protection page of Settings.
   kNoiseSettings,
 };

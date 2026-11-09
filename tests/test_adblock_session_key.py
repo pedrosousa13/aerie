@@ -8,7 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent / "overlay"
 DIRS = [ROOT / "components/aerie_adblock", ROOT / "chrome/browser/aerie_adblock",
-        ROOT / "chrome/browser/ui/webui/aerie_filters", ROOT / "chrome/browser/ui/views/aerie_adblock"]
+        ROOT / "chrome/browser/ui/webui/aerie_guard_settings", ROOT / "chrome/browser/ui/views/aerie_adblock"]
 
 
 def sources(tests=False):
@@ -38,7 +38,7 @@ class SessionKeyTest(unittest.TestCase):
 
     def test_ui_callers_leave_the_rules_to_the_manager(self):
         for path, text in sources():
-            if path.parent.name in ("aerie_filters", "aerie_adblock") and "chrome" in path.parts:
+            if path.parent.name in ("aerie_guard_settings", "aerie_adblock") and "chrome" in path.parts:
                 self.assertNotIn("WatchSession", text, path.name)
                 self.assertNotIn("HasSavedException", text, path.name)
 

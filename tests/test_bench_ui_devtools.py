@@ -159,9 +159,30 @@ class FindByTextTest(unittest.TestCase):
 
     def test_a_hidden_view_is_not_found(self):
         self.assertIsNone(self.find("No thanks"))
+class TwoWindowsServer(FakeServer):
+    """Two browser windows, each with a Guard icon (a regular one and an incognito one)."""
+
+    TREE = {"nodeId": 1, "nodeName": "root", "children": [
+        {"nodeId": 2, "attributes": ["class", "PageActionView", "name", "PageActionView"]},
+        {"nodeId": 3, "attributes": ["class", "PageActionView", "name", "PageActionView"]},
+        {"nodeId": 4, "attributes": ["class", "PageActionView", "name", "PageActionView"]},
+    ]}
+    PROPS = {2: {"Visible": "true", "TooltipText": "Aerie Guard: 3 blocked", "Width": "24", "Height": "24"},
+             3: {"Visible": "false", "TooltipText": "Aerie Guard: hidden", "Width": "24", "Height": "24"},
+             4: {"Visible": "true", "TooltipText": "Aerie Guard: nothing blocked", "Width": "24", "Height": "24"}}
 
 
 class ClientTest(unittest.TestCase):
+    def test_find_views_lists_every_visible_match_in_window_order(self):
+        server = TwoWindowsServer()
+        ui = ui_devtools.UiDevTools(server.port, timeout=5)
+        try:
+            self.assertEqual([n for n, _ in ui.find_views("PageActionView", "Aerie Guard")], [2, 4])
+            self.assertEqual(ui.find_view("PageActionView", "Aerie Guard")[0], 2)
+        finally:
+            ui.close()
+
+
     def test_finds_the_view_by_tooltip_and_presses_its_middle(self):
         server = FakeServer()
         ui = ui_devtools.UiDevTools(server.port, timeout=5)

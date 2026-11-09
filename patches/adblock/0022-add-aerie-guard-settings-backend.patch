@@ -1,0 +1,126 @@
+Aerie-Purpose: Add the backend of the Aerie Guard section of Settings: the message handler on chrome://settings, the pref that hides the count on the Guard icon, and the section's strings.
+Aerie-Upstream-Area: chrome/browser/ui/webui/settings (settings_ui.cc, BUILD.gn, settings_localized_strings_provider.cc), chrome/browser/prefs (browser_prefs.cc, BUILD.gn), chrome/browser/extensions/api/settings_private/prefs_util.cc, chrome/app/generated_resources.grd
+Aerie-Kind: hook
+
+Issue #103. The handler, the pref helper and the strings are in the overlay:
+chrome/browser/ui/webui/aerie_guard_settings (handler, BUILD.gn, the grdp) and
+components/aerie_adblock/browser/aerie_guard_prefs.*. SettingsUI adds the handler as a
+plain message handler, so it exists on chrome://settings and nowhere else. The pref
+aerie.guard.show_blocked_count is a profile pref, on by default. The settings_private
+allowlist line lets the page's settings-toggle-button write it; the name is a string
+literal there, as for aerie.widevine.enabled, and a test compares it with
+aerie_guard::kShowBlockedCount. The strings part sits after the Aerie Guard strings of
+adblock/0017 and before the Widevine prompt strings of widevine/0005, so the series
+lists this patch after both.
+
+--- a/chrome/app/generated_resources.grd
++++ b/chrome/app/generated_resources.grd
+@@ -295,4 +295,5 @@
+       <!-- Aerie Guard strings -->
+       <part file="../browser/ui/views/aerie_adblock/aerie_guard_strings.grdp" />
++      <part file="../browser/ui/webui/aerie_guard_settings/aerie_guard_settings_strings.grdp" />
+ 
+       <!-- Aerie Widevine prompt strings -->
+--- a/chrome/app/generated_resources.grd.gritdeps
++++ b/chrome/app/generated_resources.grd.gritdeps
+@@ -112,3 +112,4 @@
+ chrome/browser/aerie_widevine/aerie_widevine_strings.grdp
+ chrome/browser/ui/views/aerie_adblock/aerie_guard_strings.grdp
++chrome/browser/ui/webui/aerie_guard_settings/aerie_guard_settings_strings.grdp
+ components/aerie_onboarding/aerie_onboarding_strings.grdp
+--- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
++++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
+@@ -478,4 +478,8 @@
+   // Aerie: the Widevine opt-in (Local State).
+   (*s_allowlist)["aerie.widevine.enabled"] = settings_api::PrefType::kBoolean;
++  // Aerie: whether the Guard icon draws the number of blocked items. The name
++  // is aerie_guard::kShowBlockedCount; a test compares the two.
++  (*s_allowlist)["aerie.guard.show_blocked_count"] =
++      settings_api::PrefType::kBoolean;
+ 
+   // Privacy page
+--- a/chrome/browser/prefs/BUILD.gn
++++ b/chrome/browser/prefs/BUILD.gn
+@@ -133,4 +133,5 @@
+     "//chrome/browser/updates/announcement_notification",
+     "//chrome/browser/webauthn",
++    "//components/aerie_adblock/browser:guard_prefs",
+     "//components/aerie_widevine",
+     "//components/blocked_content",
+--- a/chrome/browser/prefs/browser_prefs.cc
++++ b/chrome/browser/prefs/browser_prefs.cc
+@@ -110,4 +110,5 @@
+ #include "chrome/common/pref_names.h"
+ #include "chrome/common/secure_origin_allowlist.h"
++#include "components/aerie_adblock/browser/aerie_guard_prefs.h"
+ #include "components/aerie_widevine/widevine_opt_in.h"
+ #include "components/autofill/core/common/autofill_prefs.h"
+@@ -1999,4 +2000,5 @@
+   // User prefs. Please keep this list alphabetized.
+   AccessibilityLabelsService::RegisterProfilePrefs(registry);
++  aerie_guard::RegisterProfilePrefs(registry);
+   registry->RegisterBooleanPref(prefs::kRendererAccessibilityEnabled, true);
+   AccessibilityUIMessageHandler::RegisterProfilePrefs(registry);
+--- a/chrome/browser/ui/webui/settings/BUILD.gn
++++ b/chrome/browser/ui/webui/settings/BUILD.gn
+@@ -320,4 +320,5 @@
+     "//chrome/browser/ui/webui:theme_source",
+     "//chrome/browser/ui/webui:webui_util",
++    "//chrome/browser/ui/webui/aerie_guard_settings:handler",
+     "//chrome/browser/ui/webui/batch_upload_promo",
+     "//chrome/browser/ui/webui/cr_components/customize_color_scheme_mode",
+--- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
++++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
+@@ -1577,4 +1577,29 @@
+ }
+ 
++void AddAerieGuardStrings(content::WebUIDataSource* html_source) {
++  static constexpr webui::LocalizedString kLocalizedStrings[] = {
++      {"aerieGuardPageTitle", IDS_SETTINGS_AERIE_GUARD_TITLE},
++      {"aerieGuardShowCount", IDS_SETTINGS_AERIE_GUARD_SHOW_COUNT},
++      {"aerieGuardShowCountDesc", IDS_SETTINGS_AERIE_GUARD_SHOW_COUNT_DESC},
++      {"aerieGuardAutoUpdate", IDS_SETTINGS_AERIE_GUARD_AUTO_UPDATE},
++      {"aerieGuardAutoUpdateDesc", IDS_SETTINGS_AERIE_GUARD_AUTO_UPDATE_DESC},
++      {"aerieGuardSitesHeading", IDS_SETTINGS_AERIE_GUARD_SITES_HEADING},
++      {"aerieGuardSitesDesc", IDS_SETTINGS_AERIE_GUARD_SITES_DESC},
++      {"aerieGuardSitesEmpty", IDS_SETTINGS_AERIE_GUARD_SITES_EMPTY},
++      {"aerieGuardAddSiteLabel", IDS_SETTINGS_AERIE_GUARD_ADD_SITE_LABEL},
++      {"aerieGuardAddSitePlaceholder",
++       IDS_SETTINGS_AERIE_GUARD_ADD_SITE_PLACEHOLDER},
++      {"aerieGuardAddSiteButton", IDS_SETTINGS_AERIE_GUARD_ADD_SITE_BUTTON},
++      {"aerieGuardRemoveSite", IDS_SETTINGS_AERIE_GUARD_REMOVE_SITE},
++      {"aerieGuardRemoveSiteAria", IDS_SETTINGS_AERIE_GUARD_REMOVE_SITE_ARIA},
++      {"aerieGuardErrorInvalidSite",
++       IDS_SETTINGS_AERIE_GUARD_ERROR_INVALID_SITE},
++      {"aerieGuardErrorTooManySites",
++       IDS_SETTINGS_AERIE_GUARD_ERROR_TOO_MANY_SITES},
++      {"aerieGuardErrorGeneric", IDS_SETTINGS_AERIE_GUARD_ERROR_GENERIC},
++  };
++  html_source->AddLocalizedStrings(kLocalizedStrings);
++}
++
+ void AddOnStartupStrings(content::WebUIDataSource* html_source) {
+   static constexpr webui::LocalizedString kLocalizedStrings[] = {
+@@ -4771,4 +4796,5 @@
+   AddA11yStrings(html_source);
+   AddAboutStrings(html_source, profile);
++  AddAerieGuardStrings(html_source);
+   AddAiStrings(html_source);
+   AddAutofillStrings(html_source, profile, web_contents);
+--- a/chrome/browser/ui/webui/settings/settings_ui.cc
++++ b/chrome/browser/ui/webui/settings/settings_ui.cc
+@@ -63,4 +63,5 @@
+ #include "chrome/browser/ui/webui/plural_string_handler.h"
+ #include "chrome/browser/ui/webui/sanitized_image/sanitized_image_source.h"
++#include "chrome/browser/ui/webui/aerie_guard_settings/aerie_guard_settings_handler.h"
+ #include "chrome/browser/ui/webui/settings/about_handler.h"
+ #include "chrome/browser/ui/webui/settings/aerie_hardening_handler.h"
+@@ -277,4 +278,8 @@
+   AddSettingsPageUIHandler(std::make_unique<FontHandler>(profile));
+   AddSettingsPageUIHandler(std::make_unique<AerieHardeningHandler>(profile));
++  // Aerie Guard section (issue #103). A plain message handler: it takes no part
++  // in the settings page handlers' lifetime rules, and exists on this WebUI only.
++  web_ui->AddMessageHandler(
++      std::make_unique<aerie_guard::AerieGuardSettingsHandler>(profile));
+   AddSettingsPageUIHandler(std::make_unique<BraveImportDataHandler>());
+   AddSettingsPageUIHandler(std::make_unique<HatsHandler>());

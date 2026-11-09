@@ -17,6 +17,7 @@
 #include "components/aerie_adblock/browser/filter_list_manager.h"
 #include "components/aerie_adblock/browser/guard_state.h"
 #include "components/aerie_adblock/browser/page_block_counter.h"
+#include "components/prefs/pref_change_registrar.h"
 #include "ui/actions/actions.h"
 #include "ui/base/models/image_model.h"
 #include "ui/views/bubble/bubble_anchor.h"
@@ -38,7 +39,10 @@ class TabInterface;
 //
 // Everything the icon shows comes from browser-side state: the committed URL of
 // the tab's primary main frame, the FilterListManager's exceptions and the
-// PageBlockCounter's count (see aerie_adblock::ComputeGuardState()).
+// PageBlockCounter's count (see aerie_adblock::ComputeGuardState()), and the
+// profile pref aerie_guard::kShowBlockedCount (issue #103): when the user turned
+// it off, the number is not drawn into the icon. The tooltip and the accessible
+// name still state the count.
 //
 // Pressing the icon opens the Guard panel (issue #100): a bubble that hosts
 // chrome://aerie-guard.top-chrome, anchored to the icon. The panel acts on the
@@ -99,6 +103,9 @@ class AerieGuardPageActionController
  private:
   // The state of the icon right now.
   aerie_adblock::GuardState CurrentState() const;
+  // The pref aerie_guard::kShowBlockedCount of the tab's profile. True when
+  // there is no profile to ask.
+  bool ShowsBlockedCount() const;
   // Starts counting for |contents| (and stops for the one before).
   void ObserveCounterOf(content::WebContents* contents);
   // Shows, hides or redraws the icon for the current state.
@@ -109,6 +116,7 @@ class AerieGuardPageActionController
   base::ScopedObservation<aerie_adblock::FilterListManager,
                           aerie_adblock::FilterListManager::Observer>
       manager_observation_{this};
+  PrefChangeRegistrar pref_registrar_;
   // Tells the action item that no bubble shows any more.
   void BubbleClosed();
   // Stops observing the bubble manager, then destroys it. The only way the
