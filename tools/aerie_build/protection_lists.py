@@ -34,7 +34,7 @@ from pathlib import Path
 from typing import Callable
 
 from . import fallback
-from .filter_lists import ListError, ListPin, _download, _write_atomic, load_lock
+from .filter_lists import ListError, ListPin, _download, _write_atomic, load_lock, verify_hash
 
 LOCK_RELATIVE = Path("third_party") / "filter_lists" / "protection_lists.lock.json"
 _GENERATED_RE = re.compile(r"^#\s*(?:Generated|Updated):\s*(\S+)\s*$", re.MULTILINE)
@@ -107,12 +107,7 @@ def _missing_selfcheck_hosts(selfcheck: Path, datas: list[bytes]) -> list[str]:
 
 def verify_bytes(pin: ListPin, data: bytes) -> None:
     """Raise ListError unless data is exactly the pinned list."""
-    actual = hashlib.sha256(data).hexdigest()
-    if len(data) != pin.size or actual != pin.sha256:
-        raise ListError(
-            f"{pin.file}: sha256 mismatch: the lock says {pin.sha256} ({pin.size} bytes), the file has "
-            f"{actual} ({len(data)} bytes, list generated {header_version(data) or 'unknown'}, the lock has "
-            f"{pin.version}). Lists change only through a reviewed commit: run ./aerie lists update")
+    verify_hash(pin, data, header_version(data), "list generated")
     version = header_version(data)
     if version is not None and version != pin.version:
         raise ListError(f"{pin.file}: header Generated {version!r} does not match the lock ({pin.version!r})")

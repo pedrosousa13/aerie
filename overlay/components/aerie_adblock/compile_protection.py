@@ -11,19 +11,12 @@ Any failure stops the build and leaves no output (fail closed).
 """
 
 import argparse
-import hashlib
 import json
 import os
-import subprocess
 import sys
 
-
-def sha256(path):
-    h = hashlib.sha256()
-    with open(path, "rb") as fh:
-        for chunk in iter(lambda: fh.read(1 << 20), b""):
-            h.update(chunk)
-    return h.hexdigest()
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import compile_common  # noqa: E402
 
 
 def main(argv):
@@ -36,17 +29,7 @@ def main(argv):
     ap.add_argument("--list", action="append", required=True, dest="lists")
     args = ap.parse_args(argv)
 
-    with open(args.lock, encoding="utf-8") as fh:
-        lock = json.load(fh)
-    pinned = {entry["file"]: entry["sha256"] for entry in lock["lists"]}
-    names = {os.path.basename(p) for p in args.lists}
-    if names != set(pinned):
-        sys.exit(f"compile_protection: lists {sorted(names)} do not match the lock {sorted(pinned)}")
-    for path in args.lists:
-        want = pinned[os.path.basename(path)]
-        got = sha256(path)
-        if got != want:
-            sys.exit(f"compile_protection: {path} has sha256 {got}, the lock says {want}")
+    compile_common.verify_lists("compile_protection", args.lock, args.lists)
 
     with open(args.selfcheck, encoding="utf-8") as fh:
         checks = json.load(fh)
@@ -59,16 +42,7 @@ def main(argv):
     for host in checks["unlisted"]:
         cmd += ["--expect-unlisted", host]
     cmd += args.lists
-    if os.path.exists(args.out):
-        os.unlink(args.out)
-    os.makedirs(os.path.dirname(args.out), exist_ok=True)
-    result = subprocess.run(cmd)
-    if result.returncode != 0:
-        if os.path.exists(args.out):
-            os.unlink(args.out)
-        sys.exit(result.returncode)
-    if not os.path.isfile(args.out) or os.path.getsize(args.out) == 0:
-        sys.exit("compile_protection: the tool wrote no engine")
+    compile_common.run_tool("compile_protection", cmd, args.out)
 
 
 if __name__ == "__main__":

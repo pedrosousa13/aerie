@@ -28,10 +28,14 @@ ProtectionService* g_process_instance = nullptr;
 // Lives on the service's sequence.
 class ProtectionService::Host {
  public:
-  Host() = default;
+  explicit Host(size_t min_entries) : min_entries_(min_entries) {}
 
   bool Load(std::string_view data, base::FilePath extra_list) {
-    if (!engine_.LoadSerialized(base::as_byte_span(data))) {
+    if (!engine_.LoadSerializedAtLeast(base::as_byte_span(data),
+                                       min_entries_)) {
+      LOG(ERROR) << "aerie_adblock: the protection list is not valid or holds "
+                    "fewer than "
+                 << min_entries_ << " domains";
       return false;
     }
     if (!extra_list.empty()) {
@@ -52,6 +56,7 @@ class ProtectionService::Host {
   }
 
  private:
+  const size_t min_entries_;
   ProtectionEngine engine_;
   std::optional<ProtectionEngine> extra_;
 };
@@ -62,6 +67,11 @@ ProtectionService* ProtectionService::Get() {
 }
 
 // static
+size_t ProtectionService::DefaultMinEntries() {
+  return ProtectionEngine::MinEntries();
+}
+
+// static
 void ProtectionService::CrashOnLoadFailure() {
   CHECK(false) << "aerie_adblock: the protection list shipped in this build "
                   "could not be loaded. The build is broken.";
@@ -69,8 +79,10 @@ void ProtectionService::CrashOnLoadFailure() {
 
 ProtectionService::ProtectionService(
     scoped_refptr<base::SequencedTaskRunner> task_runner,
-    base::OnceClosure on_load_failure)
-    : host_(std::move(task_runner)),
+    base::OnceClosure on_load_failure,
+    size_t min_entries)
+    : min_entries_(min_entries),
+      host_(std::move(task_runner), min_entries),
       on_load_failure_(std::move(on_load_failure)) {}
 
 ProtectionService::~ProtectionService() {

@@ -6,7 +6,7 @@
 //! Same conventions as the ad engine bridge in `lib.rs`: no `Result`, no
 //! panics, ASCII strings, one sequence at a time.
 
-use aerie_adblock_core::safety::ProtectionList;
+use aerie_adblock_core::protection::ProtectionList;
 
 /// Named apart from the C++ wrapper class `aerie_adblock::ProtectionEngine`, which cxx would clash with.
 pub struct ProtectionDomains(ProtectionList);
@@ -28,6 +28,14 @@ mod ffi {
         /// keeps the old domains, when `data` is not valid.
         fn load_serialized(self: &mut ProtectionDomains, data: &[u8]) -> bool;
 
+        /// Like `load_serialized`, but also false when the data holds fewer
+        /// than `min_entries` domains (never accepts an empty list). Keeps the
+        /// old domains on false.
+        fn load_serialized_with_floor(self: &mut ProtectionDomains, data: &[u8], min_entries: usize) -> bool;
+
+        /// The fewest domains the shipped list may hold.
+        fn protection_min_entries() -> usize;
+
         /// The form `load_serialized` reads. For tests.
         fn serialize(self: &ProtectionDomains) -> Vec<u8>;
 
@@ -48,9 +56,17 @@ fn new_protection_engine_from_list(list: &[u8]) -> Box<ProtectionDomains> {
     Box::new(ProtectionDomains(engine))
 }
 
+fn protection_min_entries() -> usize {
+    aerie_adblock_core::protection::MIN_ENTRIES
+}
+
 impl ProtectionDomains {
     fn load_serialized(&mut self, data: &[u8]) -> bool {
         self.0.load_serialized(data).is_ok()
+    }
+
+    fn load_serialized_with_floor(&mut self, data: &[u8], min_entries: usize) -> bool {
+        self.0.load_serialized_with_floor(data, min_entries).is_ok()
     }
 
     fn serialize(&self) -> Vec<u8> {
@@ -90,6 +106,17 @@ mod tests {
         assert!(!fresh.is_listed("evil.example"));
         assert!(fresh.load_serialized(&bytes));
         assert!(fresh.is_listed("evil.example"));
+    }
+
+    #[test]
+    fn bridge_floor_rejects_a_short_list_and_keeps_domains() {
+        let mut e = new_protection_engine_from_list(b"evil.example\n");
+        let short = new_protection_engine_from_list(b"a.example\nb.example\n").serialize();
+        assert!(!e.load_serialized_with_floor(&short, 3));
+        assert!(e.is_listed("evil.example"));
+        assert!(e.load_serialized_with_floor(&short, 2));
+        assert!(e.is_listed("b.example") && !e.is_listed("evil.example"));
+        assert!(protection_min_entries() >= 10_000);
     }
 
     #[test]

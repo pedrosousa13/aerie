@@ -101,15 +101,20 @@ def header_title(data: bytes) -> str | None:
     return match.group(1) if match else None
 
 
-def verify_bytes(pin: ListPin, data: bytes) -> None:
-    """Raise ListError unless data is exactly the pinned list."""
+def verify_hash(pin: ListPin, data: bytes, found_version: str | None, version_word: str = "list version") -> None:
+    """Raise ListError unless data has the pinned size and sha256. Shared with protection_lists."""
     actual = hashlib.sha256(data).hexdigest()
     if len(data) != pin.size or actual != pin.sha256:
         raise ListError(
             f"{pin.file}: sha256 mismatch: the lock says {pin.sha256} ({pin.size} bytes), the file has "
-            f"{actual} ({len(data)} bytes, list version {header_version(data) or 'unknown'}, the lock has "
+            f"{actual} ({len(data)} bytes, {version_word} {found_version or 'unknown'}, the lock has "
             f"{pin.version}). Lists change only through a reviewed commit: run ./aerie lists update"
         )
+
+
+def verify_bytes(pin: ListPin, data: bytes) -> None:
+    """Raise ListError unless data is exactly the pinned list."""
+    verify_hash(pin, data, header_version(data))
     version = header_version(data)
     if version != pin.version:
         raise ListError(f"{pin.file}: header version {version!r} does not match the lock ({pin.version!r})")

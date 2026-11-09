@@ -33,7 +33,8 @@ class ProtectionServiceTest : public testing::Test {
  protected:
   ProtectionServiceTest()
       : service_(base::ThreadPool::CreateSequencedTaskRunner({base::MayBlock()}),
-                 base::BindLambdaForTesting([this] { ++load_failures_; })) {}
+                 base::BindLambdaForTesting([this] { ++load_failures_; }),
+                 /*min_entries=*/1) {}
 
   bool Ask(const std::string& host) {
     bool answer = false;
@@ -89,6 +90,32 @@ TEST_F(ProtectionServiceTest, AnEmptyResourceIsAFailureToo) {
   service_.Start(std::string_view());
   task_environment_.RunUntilIdle();
   EXPECT_EQ(1, load_failures_);
+}
+
+// The service is built with the shipped floor here: a list of one domain is an
+// empty or truncated download, and must fail loudly.
+TEST_F(ProtectionServiceTest, AListUnderTheFloorIsALoadFailure) {
+  static const std::string kTiny = SerializedEngine("evil.example\n");
+  int failures = 0;
+  ProtectionService strict(
+      base::ThreadPool::CreateSequencedTaskRunner({base::MayBlock()}),
+      base::BindLambdaForTesting([&failures] { ++failures; }));
+  strict.Start(kTiny);
+  task_environment_.RunUntilIdle();
+  EXPECT_EQ(1, failures);
+  histograms_.ExpectUniqueSample("Aerie.Protection.ListLoadSuccess", false, 1);
+}
+
+TEST_F(ProtectionServiceTest, AListAtTheFloorLoads) {
+  static const std::string kTwo = SerializedEngine("a.example\nb.example\n");
+  int failures = 0;
+  ProtectionService two(
+      base::ThreadPool::CreateSequencedTaskRunner({base::MayBlock()}),
+      base::BindLambdaForTesting([&failures] { ++failures; }),
+      /*min_entries=*/2);
+  two.Start(kTwo);
+  task_environment_.RunUntilIdle();
+  EXPECT_EQ(0, failures);
 }
 
 TEST_F(ProtectionServiceTest, TheTestListOnlyAddsDomains) {

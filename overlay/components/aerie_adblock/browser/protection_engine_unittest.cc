@@ -50,5 +50,19 @@ TEST(ProtectionEngineTest, SerializedEngineRoundTripsAndJunkKeepsTheOldDomains) 
   EXPECT_TRUE(loaded.IsListed("evil.example"));
 }
 
+TEST(ProtectionEngineTest, AListUnderTheFloorIsRefusedAndKeepsTheOldDomains) {
+  ProtectionEngine source;
+  source.LoadListForTesting("a.example\nb.example\n");
+  std::vector<uint8_t> bytes = source.SerializeForTesting();
+
+  ProtectionEngine target;
+  target.LoadListForTesting("evil.example\n");
+  EXPECT_FALSE(target.LoadSerializedAtLeast(bytes, 3));
+  EXPECT_TRUE(target.IsListed("evil.example"));
+  EXPECT_TRUE(target.LoadSerializedAtLeast(bytes, 2));
+  EXPECT_TRUE(target.IsListed("a.example"));
+  EXPECT_GE(ProtectionEngine::MinEntries(), 10000u);
+}
+
 }  // namespace
 }  // namespace aerie_adblock

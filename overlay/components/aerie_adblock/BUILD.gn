@@ -33,8 +33,8 @@ rust_static_library("aerie_adblock_core") {
     "rust/core/src/lib.rs",
     "rust/core/src/lists.rs",
     "rust/core/src/lists_tests.rs",
-    "rust/core/src/safety.rs",
-    "rust/core/src/safety_tests.rs",
+    "rust/core/src/protection.rs",
+    "rust/core/src/protection_tests.rs",
     "rust/core/src/tests.rs",
   ]
   deps = [ "//third_party/rust/adblock/v0_13:lib" ]
@@ -49,11 +49,11 @@ rust_static_library("aerie_adblock_ffi") {
   crate_root = "rust/ffi/src/lib.rs"
   sources = [
     "rust/ffi/src/lib.rs",
-    "rust/ffi/src/safety.rs",
+    "rust/ffi/src/protection.rs",
   ]
   cxx_bindings = [
     "rust/ffi/src/lib.rs",
-    "rust/ffi/src/safety.rs",
+    "rust/ffi/src/protection.rs",
   ]
   allow_unsafe = true  # The cxx::bridge macro expands to unsafe code.
   deps = [ ":aerie_adblock_core" ]
@@ -98,6 +98,7 @@ action("engine") {
     "//third_party/filter_lists",
   ]
   inputs = [
+    "compile_common.py",
     "selfcheck.json",
     "$_lists_dir/easylist.txt",
     "$_lists_dir/easyprivacy.txt",
@@ -138,6 +139,7 @@ action("protection_engine") {
     "//third_party/filter_lists",
   ]
   inputs = [
+    "compile_common.py",
     "protection_selfcheck.json",
     "$_lists_dir/phishing_filter_hosts.txt",
     "$_lists_dir/protection_lists.lock.json",

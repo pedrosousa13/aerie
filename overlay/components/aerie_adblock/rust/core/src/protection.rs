@@ -20,6 +20,12 @@ use std::collections::HashSet;
 /// that has a hundred times that is not the list the build pinned.
 pub const MAX_ENTRIES: usize = 2_000_000;
 
+/// Fewest domains the shipped list may hold. The browser refuses a list
+/// below this (loudly) instead of silently protecting nothing. The pinned
+/// phishing-filter list has about 145 000; the build floor in BUILD.gn
+/// (`--min-entries`) is the same number.
+pub const MIN_ENTRIES: usize = 10_000;
+
 /// First line of the serialized form. It names the format so that bytes of
 /// another kind are refused.
 pub const SERIALIZED_MAGIC: &[u8] = b"AERIE-PROTECTION-1\n";
@@ -155,6 +161,20 @@ impl ProtectionList {
         Ok(())
     }
 
+    /// Like `load_serialized`, but a list with fewer than `min_entries`
+    /// domains (and never an empty one) is `LoadError::TooFewEntries`. On
+    /// error the receiver is left as it was.
+    pub fn load_serialized_with_floor(&mut self, bytes: &[u8], min_entries: usize) -> Result<(), LoadError> {
+        let mut loaded = ProtectionList::empty();
+        loaded.load_serialized(bytes)?;
+        let required = min_entries.max(1);
+        if loaded.len() < required {
+            return Err(LoadError::TooFewEntries { found: loaded.len(), required });
+        }
+        self.domains = loaded.domains;
+        Ok(())
+    }
+
     /// Sorted, one domain per line, after `SERIALIZED_MAGIC`. Stable, so the
     /// same lists always give the same bytes.
     pub fn serialize(&self) -> Vec<u8> {
@@ -193,5 +213,5 @@ impl ProtectionList {
 }
 
 #[cfg(test)]
-#[path = "safety_tests.rs"]
+#[path = "protection_tests.rs"]
 mod tests;

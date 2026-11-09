@@ -549,12 +549,15 @@ def configure(ctx: Context, log: Logger, env: dict) -> None:
         if missing:
             raise BuildError(fallback.toolchain_message(missing))
     ctx.out_dir.mkdir(parents=True, exist_ok=True)
-    args = helium.gn_args(
-        (ctx.core / "flags.gn").read_text(),
-        (ctx.platform / "flags.linux.gn").read_text(),
-        ARCH,
-        str(ctx.ccache_bin),
-    )
+    try:
+        args = helium.gn_args(
+            (ctx.core / "flags.gn").read_text(),
+            (ctx.platform / "flags.linux.gn").read_text(),
+            ARCH,
+            str(ctx.ccache_bin),
+        )
+    except helium.SafeBrowsingEnabled as exc:
+        raise BuildError(f"Google Safe Browsing must stay off (the local list is the only check): {exc}") from exc
     (ctx.out_dir / "args.gn").write_text(args)
     log("args.gn:\n" + args)
     run(log, [ctx.tree / "buildtools" / "linux64" / "gn", "gen", "out/Default",

@@ -118,7 +118,9 @@ navigation start / redirect hop ──> AerieProtectionThrottle (browser process
   (`AerieProtectionTabState`). It ends with the tab, so it never outlives the session, and it does not reach another
   tab, profile or incognito window.
 - The service answers after the list has loaded, so a navigation that starts early waits. If the shipped list
-  cannot be loaded the browser stops with a `CHECK`, like the ad engine. Without a service (unit tests,
+  cannot be loaded the browser stops with a `CHECK`, like the ad engine. A list with fewer than 10 000 domains
+  (`MIN_ENTRIES` in `rust/core/src/protection.rs`) counts as not loadable, so an empty or truncated list fails
+  loudly: the log names the floor and `ListLoadSuccess` is false, which the Bench check reads. Without a service (unit tests,
   shutdown) navigations pass.
 - Histograms: `Aerie.Protection.ListLoadSuccess`, `NavigationBlocked`, `UserProceeded`.
 
@@ -136,6 +138,13 @@ The pinned list has no harmless test domain, so a self-check host can drop out o
 `./aerie lists update` checks for that before it pins the list and stops there until a person picks
 another host. An empty, truncated or poisoned list stops the build. The engine goes into `resources.pak` as
 `IDR_AERIE_PROTECTION_ENGINE`.
+
+## Safe Browsing stays off
+
+Helium compiles Google Safe Browsing out with `safe_browsing_mode=0` in its GN flags. Chromium's default is on, so
+`./aerie build` stops before `gn gen`, and `./aerie patches check` fails, if the effective GN args do not
+set `safe_browsing_mode` to 0 (`helium.safe_browsing_problems`). A Helium bump that turns it back on is caught
+there, so the local list stays the only check.
 
 ## The Bench check
 

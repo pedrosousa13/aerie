@@ -10,7 +10,7 @@
 #include <vector>
 
 #include "base/containers/span.h"
-#include "components/aerie_adblock/rust/ffi/src/safety.rs.h"
+#include "components/aerie_adblock/rust/ffi/src/protection.rs.h"
 #include "third_party/rust/cxx/v1/cxx.h"
 
 namespace aerie_adblock {
@@ -31,6 +31,15 @@ class ProtectionEngine {
   // aerie_protection_compile writes). Returns false, and keeps the old
   // domains, when |data| is not valid.
   bool LoadSerialized(base::span<const uint8_t> data);
+
+  // Like LoadSerialized(), but also false when |data| holds fewer than
+  // |min_entries| domains (an empty list never loads). Keeps the old domains on
+  // false.
+  bool LoadSerializedAtLeast(base::span<const uint8_t> data,
+                             size_t min_entries);
+
+  // The fewest domains the shipped list may hold (the Rust core's floor).
+  static size_t MinEntries();
 
   // Replaces the domains with one list (domain per line, or hosts format).
   // For tests, and for the Bench's test list (see ProtectionService).
