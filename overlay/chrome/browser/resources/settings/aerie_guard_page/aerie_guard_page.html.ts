@@ -58,7 +58,7 @@ export function getHtml(this: SettingsAerieGuardPageElement) {
         .value="${this.newSite_}"
         ?invalid="${!!this.siteError_}"
         error-message="${this.siteError_}"
-        @value-changed="${this.onNewSiteChanged_}"
+        @value-changed="${this.onNewSiteValueChanged_}"
         @keydown="${this.onNewSiteKeydown_}">
     </cr-input>
     <cr-button id="addSite" class="action-button"

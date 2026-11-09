@@ -107,7 +107,7 @@ export class SettingsAerieGuardPageElement extends
         state => this.applyState_(state));
   }
 
-  protected onNewSiteChanged_(e: CustomEvent<{value: string}>) {
+  protected onNewSiteValueChanged_(e: CustomEvent<{value: string}>) {
     this.newSite_ = e.detail.value;
     this.siteError_ = '';
   }
