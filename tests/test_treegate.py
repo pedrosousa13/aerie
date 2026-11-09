@@ -222,6 +222,36 @@ GPU_ADAPTER_OK = """GPUAdapterInfo* GPUAdapter::CreateAdapterInfoForAdapter() {
       is_fallback_adapter);
 }
 """
+READPIXELS_WEBGL_OK = """
+void WebGLRenderingContextBase::ReadPixelsHelper() {
+  WebGLFramebuffer* framebuffer = GetReadFramebufferBinding();
+  ContextGL()->ReadPixels(x, y, width, height, format, type, data);
+  if (data && aerie_webgl_readback::ShouldNoiseReadPixels(
+                  /*default_framebuffer=*/!framebuffer, format, type)) {
+    if (auto layout = aerie_webgl_readback::ComputeRgbaLayout(
+            width, height, pack.alignment, pack.row_length, pack.skip_pixels,
+            pack.skip_rows)) {
+      CanvasNoisingHelper::MaybeNoiseReadPixels(
+          Host()->GetTopExecutionContext(), pixels, width, height, x, y,
+          layout->first_pixel_offset, layout->row_stride);
+    }
+  }
+}
+"""
+READPIXELS_HELPER_OK = """bool CanvasNoisingHelper::MaybeNoiseReadPixels(
+    ExecutionContext* execution_context,
+    base::span<uint8_t> buffer,
+    int width) {
+  std::optional<HeliumNoiseHash> token_hash =
+      GetCanvasTokenHash(execution_context);
+  if (!token_hash) {
+    return false;
+  }
+  return HeliumNoisePixelBuffer(*token_hash, kRGBA_8888_SkColorType, buffer,
+                                width, height, x, y);
+}
+"""
+GPU_WEBGL_OK += READPIXELS_WEBGL_OK
 GPU_GOOD = {treegate.WEBGL_CONTEXT_PATH: GPU_WEBGL_OK, treegate.GPU_ADAPTER_PATH: GPU_ADAPTER_OK}
 
 WORKER_PARAMS_OK = "  HeliumNoiseTokenMap helium_noise_tokens;\n"
@@ -329,6 +359,7 @@ GOOD = {
     **WORKER_GOOD,
     **POPUP_GOOD,
     **TEXT_METRICS_GOOD,
+    treegate.CANVAS_HELPER_PATH: READPIXELS_HELPER_OK,
     "chrome/browser/component_updater/widevine_cdm_component_installer.cc": WIDEVINE_INSTALLER_OK,
     "chrome/browser/component_updater/registration.cc": WIDEVINE_REG_OK,
     "components/update_client/update_checker.cc": WIDEVINE_CHECKER_OK,
@@ -647,6 +678,38 @@ class TextMetricsNoiseGateTest(TreeCase):
         self.assertIn(treegate.check_text_metrics_noise, treegate.GATES)
 
 
+class WebglReadPixelsGateTest(TreeCase):
+    """Issue #119: readPixels from the default framebuffer is noised with the canvas token, nothing else is."""
+
+    def test_passes_when_only_the_default_framebuffer_is_noised(self):
+        self.write({treegate.WEBGL_CONTEXT_PATH: READPIXELS_WEBGL_OK, treegate.CANVAS_HELPER_PATH: READPIXELS_HELPER_OK})
+        self.assertEqual(treegate.check_webgl_readpixels(self.root, require=True), [])
+
+    def test_noise_for_every_framebuffer_is_reported(self):
+        self.write({treegate.CANVAS_HELPER_PATH: READPIXELS_HELPER_OK})
+        for bad in (READPIXELS_WEBGL_OK.replace("/*default_framebuffer=*/!framebuffer", "/*default_framebuffer=*/true"),
+                    READPIXELS_WEBGL_OK.replace("ShouldNoiseReadPixels(", "ShouldNoiseSomething("),
+                    READPIXELS_WEBGL_OK.replace("CanvasNoisingHelper::MaybeNoiseReadPixels(", "Other("),
+                    ""):
+            with self.subTest(bad=bad[:60]):
+                self.write({treegate.WEBGL_CONTEXT_PATH: bad})
+                self.assertEqual({f.path for f in treegate.check_webgl_readpixels(self.root)},
+                                 {treegate.WEBGL_CONTEXT_PATH})
+
+    def test_the_helper_must_use_the_canvas_token(self):
+        self.write({treegate.WEBGL_CONTEXT_PATH: READPIXELS_WEBGL_OK})
+        for bad in (READPIXELS_HELPER_OK.replace("GetCanvasTokenHash(execution_context)", "std::optional<HeliumNoiseHash>()"),
+                    READPIXELS_HELPER_OK.replace("if (!token_hash) {\n    return false;\n  }\n", ""),
+                    ""):
+            with self.subTest(bad=bad[:60]):
+                self.write({treegate.CANVAS_HELPER_PATH: bad})
+                self.assertEqual({f.path for f in treegate.check_webgl_readpixels(self.root)},
+                                 {treegate.CANVAS_HELPER_PATH})
+
+    def test_the_gate_runs_with_the_others(self):
+        self.assertIn(treegate.check_webgl_readpixels, treegate.GATES)
+
+
 class JsOptimizerGateTest(TreeCase):
     def test_passes_on_the_upstream_shape(self):
         self.write(JS_OPT_GOOD)
@@ -729,7 +792,7 @@ class RunTest(TreeCase):
 
     def test_empty_tree_passes_unless_required(self):
         self.assertEqual(self.run_gates(), [])
-        self.assertEqual(len(self.run_gates(require=True)), 47)
+        self.assertEqual(len(self.run_gates(require=True)), 49)
 
     def test_format_report(self):
         self.write({"a.cc": '"https://services.helium.imput.net"\n'})

@@ -1,0 +1,65 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Aerie Bench readPixels</title></head>
+<body>
+<p>Draws one WebGL scene to the default framebuffer and to a framebuffer object, reads both back with readPixels, and hashes the bytes.</p>
+<script>
+  window.__done = false;
+  function fnv(bytes) {
+    let h = 0x811c9dc5;
+    for (let i = 0; i < bytes.length; i++) { h ^= bytes[i]; h = Math.imul(h, 0x01000193) >>> 0; }
+    return h.toString(16);
+  }
+  const W = 96, H = 96;
+  const VS = 'attribute vec2 p; attribute vec3 c; varying vec3 v; void main() { v = c; gl_Position = vec4(p, 0.0, 1.0); }';
+  const FS = 'precision mediump float; varying vec3 v; void main() { gl_FragColor = vec4(v, 1.0); }';
+  function compile(gl, type, src) {
+    const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+    return s;
+  }
+  // Two overlapping gradient triangles: smooth areas and edges, fully opaque.
+  function drawScene(gl) {
+    const prog = gl.createProgram();
+    gl.attachShader(prog, compile(gl, gl.VERTEX_SHADER, VS));
+    gl.attachShader(prog, compile(gl, gl.FRAGMENT_SHADER, FS));
+    gl.linkProgram(prog); gl.useProgram(prog);
+    const data = new Float32Array([
+      -0.9, -0.8, 1.0, 0.2, 0.1,   0.8, -0.7, 0.1, 0.9, 0.3,   0.0, 0.9, 0.2, 0.3, 1.0,
+      -0.7, 0.6, 0.9, 0.9, 0.1,    0.9, 0.5, 0.2, 0.7, 0.7,    0.1, -0.9, 0.8, 0.1, 0.8]);
+    const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+    const p = gl.getAttribLocation(prog, 'p'), c = gl.getAttribLocation(prog, 'c');
+    gl.enableVertexAttribArray(p); gl.vertexAttribPointer(p, 2, gl.FLOAT, false, 20, 0);
+    gl.enableVertexAttribArray(c); gl.vertexAttribPointer(c, 3, gl.FLOAT, false, 20, 8);
+    gl.viewport(0, 0, W, H);
+    gl.clearColor(0.1, 0.2, 0.3, 1); gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+  }
+  function read(gl) {
+    const px = new Uint8Array(W * H * 4);
+    gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    return px;
+  }
+  function run() {
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const gl = c.getContext('webgl', {alpha: false, antialias: false, preserveDrawingBuffer: true});
+    if (!gl) throw new Error('no WebGL');
+    drawScene(gl);
+    const first = read(gl), second = read(gl);
+    // The same scene rendered into a framebuffer object: its read must stay exact.
+    const tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, W, H, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    const fb = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+    if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) throw new Error('framebuffer incomplete');
+    drawScene(gl);
+    const fbo = read(gl);
+    let lit = 0;
+    for (const b of first) if (b) lit++;
+    return {default: fnv(first), default_again: fnv(second), fbo: fnv(fbo), lit};
+  }
+  try { window.__result = run(); } catch (e) { window.__result = {error: String(e)}; }
+  window.__done = true;
+</script>
+</body></html>

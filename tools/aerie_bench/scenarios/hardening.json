@@ -12,6 +12,7 @@
     "hardening_js_optimizer",
     "hardening_fingerprinting",
     "hardening_fingerprinting_gpu",
+    "hardening_fingerprinting_readpixels",
     "hardening_fingerprinting_site",
     "hardening_fingerprinting_worker",
     "hardening_fingerprinting_popup",

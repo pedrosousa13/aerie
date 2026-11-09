@@ -19,7 +19,7 @@ page and the Bench checks, so the three cannot drift apart.
 | No prefetch or preloading | Off. | ungoogled-chromium (through Helium) | Dropdown | `hardening_prefetch` |
 | Strict site isolation | Always on. | Chromium | Read-only | `hardening_site_isolation` |
 | JavaScript JIT per site | On for every site. | Chromium | Link to site settings | `hardening_js_optimizer` |
-| Fingerprinting protection | On. | Helium | Toggle | `hardening_fingerprinting`, `hardening_fingerprinting_site`, `hardening_fingerprinting_worker`, `hardening_fingerprinting_popup`, `hardening_fingerprinting_gpu`, `hardening_fingerprinting_screen`, `hardening_fingerprinting_textmetrics`, `hardening_device_memory` |
+| Fingerprinting protection | On. | Helium | Toggle | `hardening_fingerprinting`, `hardening_fingerprinting_site`, `hardening_fingerprinting_worker`, `hardening_fingerprinting_popup`, `hardening_fingerprinting_gpu`, `hardening_fingerprinting_readpixels`, `hardening_fingerprinting_screen`, `hardening_fingerprinting_textmetrics`, `hardening_device_memory` |
 | Widevine DRM | Off. | Aerie | Toggle | `hardening_pref_defaults`, `hardening_settings_page`, `widevine_opt_in` |
 | Extensions cannot loosen these settings | Always on. | Aerie | Read-only | `hardening_extension_prefs` |
 
@@ -142,7 +142,7 @@ Process rule: the optimizer mode is part of the SiteInfo and of the renderer pro
 
 ### Fingerprinting protection
 
-Canvas and audio output, the widths that canvas text measurement reports and the reported number of CPU cores carry small random noise. The noise differs for each site and for each browser session, and is the same on every address of one site (www.example.com and shop.example.com share it). A private window starts with its own noise. Dedicated workers, shared workers and service workers get the same noise as their site, so a script cannot get clean values by moving into a worker. You can turn it off for a single site, and that covers every address of the site and its workers. WebGL reports only the vendor family of the graphics card (for example Google Inc. (AMD)), and WebGPU reports no adapter details. The screen size is reported as the smallest of seven common sizes that fits the window, and the window position as 0,0. While this is on, the reported device memory is capped at 8 GB. Turning it off, globally or for one site, reports the real value (web workers stay capped for now).
+Canvas and audio output, WebGL readPixels on the default framebuffer, the widths that canvas text measurement reports and the reported number of CPU cores carry small random noise. The noise differs for each site and for each browser session, and is the same on every address of one site (www.example.com and shop.example.com share it). A private window starts with its own noise. Dedicated workers, shared workers and service workers get the same noise as their site, so a script cannot get clean values by moving into a worker. You can turn it off for a single site, and that covers every address of the site and its workers. WebGL reports only the vendor family of the graphics card (for example Google Inc. (AMD)), and WebGPU reports no adapter details. The screen size is reported as the smallest of seven common sizes that fits the window, and the window position as 0,0. While this is on, the reported device memory is capped at 8 GB. Turning it off, globally or for one site, reports the real value (web workers stay capped for now).
 
 Audio noise is seeded from the site and session only, so one site gets the same audio output on every render and every AnalyserNode read of the same signal in one session. A tracker cannot average the noise away by reading again.
 
@@ -162,6 +162,8 @@ A window that a page opens with window.open() gets the noise of its opener from 
 
 The WebGL and WebGPU values follow the same switches as the other noise: the browser sends the page a token only when protection is on for the site, and turning it off for the site or for the whole browser gives the real values back. A worker follows the token it was given, like a window, so protection turned off for the site or the browser also gives the real values in its workers. The chrome://flags entry that sets a fixed WebGL value (SpoofWebGLInfo) still wins over the masking when you set it.
 
+WebGL readPixels (issue #119): while protection is on for a site, readPixels from the default framebuffer (the page's own WebGL canvas, not a framebuffer object) in RGBA and UNSIGNED_BYTE format gets the same canvas noise as getImageData, from the same per-site and per-session canvas token, so the bytes are stable for one site in one session and differ across sites and sessions. The noise is keyed on the pixel's position in the framebuffer, so two reads of overlapping areas agree. Reads from a framebuffer object, reads in float or other formats, and reads into a pixel pack buffer are not changed, because GPGPU, TF.js and video readback need exact values. WebGPU readback is not changed. Turning protection off, for the whole browser or for the site, gives the exact bytes back, and a worker (OffscreenCanvas) follows its own token like a window. The decision which reads to noise and the layout of the read buffer are Aerie's own code with unit tests (components/aerie_webgl_readback); Helium's pixel noise does the noising. A site that checks readPixels output for exact values on its default framebuffer can see a difference of one in some channels.
+
 Screen: while protection is on for a site, window.screen reports the smallest of 1280x800, 1366x768, 1440x900, 1680x1050, 1920x1080, 2560x1440 and 3840x2160 that is at least as wide and as tall as the browser window (a window larger than all of them keeps its own size, so the screen is never smaller than the window). The available size equals the screen size, availLeft and availTop are 0, colorDepth and pixelDepth are 24, isExtended is false, and window.screenX and screenY are 0. The device-width and device-height media features give the same size, so matchMedia agrees with screen.width. The list follows Brave's. Nothing is letterboxed: the page is not shrunk and there are no grey bars. devicePixelRatio, outerWidth, outerHeight, the user agent, the platform and the time zone are not changed. The Window Management API stays behind its permission. Full screen is not changed. Workers have no screen. Turning protection off, for the whole browser or for the site, gives the real screen back. The sizes and the choice are Aerie's own code with unit tests (components/aerie_screen). A page that lays itself out from screen.width gets the size from the list instead of the real one.
 
 measureText: while protection is on for a site, every metric that CanvasRenderingContext2D.measureText returns (the width, the actual and font bounding boxes, the baselines) is scaled by one factor, between 0.9999985 and 1.0000015 times the real value (at most 0.00015% off, so at most 0.0003% between two sites). The factor comes from the site's own text-metrics token, so it is the same on every load of a site in one session, in its workers (OffscreenCanvas), and differs between sites and between sessions; a private window has its own. Upstream's patch drew the factor with a random number once per page load, so it changed on every load, and it was off. Turning protection off, for the whole browser or the site, gives the real metrics back. Layout is not touched: only the numbers a script reads from measureText change, and the Bench lays out a sticky header and a virtual list under the noise to show it. The chrome://flags entry for measureText noise no longer changes anything. The getClientRects and getBoundingClientRect noise reads the same kind of factor now (also from the site's token) but is still off by default. The factor range and the decision are Aerie's own code with unit tests (components/aerie_text_metrics).
@@ -180,6 +182,8 @@ measureText: while protection is on for a site, every metric that CanvasRenderin
   - third_party/blink/common/features.cc (HeliumNoise)
   - third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc (getParameter)
   - third_party/blink/renderer/modules/webgpu/gpu_adapter.cc (CreateAdapterInfoForAdapter)
+  - third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc (ReadPixelsHelper)
+  - third_party/blink/renderer/core/helium_noise/canvas_noising_helper.cc (MaybeNoiseReadPixels)
   - third_party/blink/common/device_memory/approximated_device_memory.cc (the 8 GB cap)
   - `third_party/blink/renderer/core/frame/navigator_device_memory.cc`
   - content/browser/client_hints/client_hints.cc (AddDeviceMemoryHeader)
@@ -201,9 +205,10 @@ measureText: while protection is on for a site, every metric that CanvasRenderin
   - `patches/hardening/0015-report-a-common-screen-size.patch`
   - `patches/hardening/0017-give-popups-the-openers-noise-tokens.patch`
   - `patches/hardening/0018-seed-measuretext-noise-per-site.patch`
+  - `patches/hardening/0019-noise-webgl-readpixels-on-the-default-framebuffer.patch`
 - Settings row: Toggle
 - Cost: Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page.
-- Bench checks: `hardening_fingerprinting`, `hardening_fingerprinting_site`, `hardening_fingerprinting_worker`, `hardening_fingerprinting_popup`, `hardening_fingerprinting_gpu`, `hardening_fingerprinting_screen`, `hardening_fingerprinting_textmetrics`, `hardening_device_memory`
+- Bench checks: `hardening_fingerprinting`, `hardening_fingerprinting_site`, `hardening_fingerprinting_worker`, `hardening_fingerprinting_popup`, `hardening_fingerprinting_gpu`, `hardening_fingerprinting_readpixels`, `hardening_fingerprinting_screen`, `hardening_fingerprinting_textmetrics`, `hardening_device_memory`
 
 ## What Aerie added
 
@@ -348,7 +353,7 @@ by this rule.
 - WebGPU adapter info: Only the vendor, architecture, device, description and driver strings are emptied. The adapter limits, the feature list and the subgroup sizes are real values.
 - Device memory above 8 GB: The baseline showed 32 GB because upstream raised the desktop maximum from 8 to 32 GB (crbug.com/454354290). Aerie caps it at 8 GB, and that cap stays when protection is off, so a site never learns the real value.
 - Client rects noise: getClientRects and getBoundingClientRect noise exists upstream and now takes its factor from the site's text-metrics token, but it stays off until fonts are handled and it is measured again.
-- WebGL fingerprinting noise: WebGL readback and vendor strings are not covered by Helium noise. This is the largest item and a compatibility risk. Left to a follow-up issue.
+- WebGL readback beyond the default framebuffer: readPixels from framebuffer objects, in float formats and into pixel pack buffers, and WebGPU readback, stay exact because GPGPU, TF.js and video readback need exact values (issue #119).
 - Fonts, screen metrics and client hints are not randomized.
 - Helium keys its noise on the full origin, not on the registrable domain, so `a.example.com`
   and `b.example.com` see different canvas values.

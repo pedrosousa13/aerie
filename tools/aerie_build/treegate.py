@@ -396,6 +396,30 @@ def check_gpu_masking(root: Path, require: bool = False) -> list[Finding]:
     return out
 
 
+CANVAS_HELPER_PATH = "third_party/blink/renderer/core/helium_noise/canvas_noising_helper.cc"
+
+
+def check_webgl_readpixels(root: Path, require: bool = False) -> list[Finding]:
+    """WebGL readPixels is noised on the default framebuffer and nowhere else (issue #119). ReadPixelsHelper decides
+    with ShouldNoiseReadPixels(/*default_framebuffer=*/!framebuffer, ...), so a read from a framebuffer object stays
+    exact, and then calls CanvasNoisingHelper::MaybeNoiseReadPixels, which takes the canvas token from
+    GetCanvasTokenHash and returns without noise when there is none (protection off)."""
+    gate = "webgl_readpixels"
+    out = _must_match(
+        root, WEBGL_CONTEXT_PATH, gate,
+        r"ReadPixelsHelper\(.*?aerie_webgl_readback::ShouldNoiseReadPixels\(\s*"
+        r"/\*default_framebuffer=\*/!framebuffer,\s*format,\s*type\).*?"
+        r"CanvasNoisingHelper::MaybeNoiseReadPixels\(",
+        "ReadPixelsHelper must noise only when ShouldNoiseReadPixels(/*default_framebuffer=*/!framebuffer, format, type) "
+        "holds, through CanvasNoisingHelper::MaybeNoiseReadPixels", require)
+    out += _must_match(
+        root, CANVAS_HELPER_PATH, gate,
+        r"CanvasNoisingHelper::MaybeNoiseReadPixels\([^{]*\{\s*std::optional<HeliumNoiseHash> token_hash =\s*"
+        r"GetCanvasTokenHash\(execution_context\);\s*if \(!token_hash\) \{\s*return false;\s*\}",
+        "MaybeNoiseReadPixels must take the canvas token from GetCanvasTokenHash and do nothing without it", require)
+    return out
+
+
 WORKER_PARAMS_PATH = "third_party/blink/renderer/core/workers/global_scope_creation_params.h"
 WORKER_SCOPE_PATH = "third_party/blink/renderer/core/workers/worker_global_scope.cc"
 WORKER_DEDICATED_PATH = "third_party/blink/renderer/core/workers/dedicated_worker.cc"
@@ -530,7 +554,7 @@ GATES: tuple[Callable[..., list[Finding]], ...] = (
     check_search_list, check_search_suggestions, check_secure_dns_default,
     check_crash_reporting, check_services_off, check_fedcm_resolver, check_widevine_opt_in,
     check_https_first_dialog_off, check_link_prefetch_off, check_js_optimizer, check_services_ui,
-    check_audio_noise_stable, check_gpu_masking, check_worker_noise_tokens, check_popup_noise_tokens,
+    check_audio_noise_stable, check_gpu_masking, check_webgl_readpixels, check_worker_noise_tokens, check_popup_noise_tokens,
     check_text_metrics_noise,
 )
 

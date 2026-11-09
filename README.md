@@ -18,7 +18,6 @@ A Google-free, hardened Chromium browser built on top of
 | `tools/aerie_ci/` | The local CI: gates the maintainer's PRs and runs a nightly clean build and full Bench. See [docs/ci.md](docs/ci.md). |
 | `docs/helium-fallback.md` | What Aerie does if Helium disappears: the official-tarball source (`./aerie build --source official`), mirrors, and the dependency ledger. See [docs/helium-fallback.md](docs/helium-fallback.md). |
 | `docs/helium-bump.md` | `./aerie bump`, the fix-up routine after a Helium release, and the daily job that opens bump pull requests. See [docs/helium-bump.md](docs/helium-bump.md). |
-| `docs/sidebar-design.md` | The approved sidebar, Workspaces, themes and motion design (issue #142), with its mockup in `prototypes/sidebar/`. Decision record: [docs/adr/0007-single-design-token-source.md](docs/adr/0007-single-design-token-source.md). Terms: [GLOSSARY.md](GLOSSARY.md). See [docs/sidebar-design.md](docs/sidebar-design.md). |
 | `tests/` | Unit tests for the build tooling. |
 | `patches/` | Aerie's own patch series, applied on top of Helium's. See [CONTRIBUTING.md](CONTRIBUTING.md). |
 
@@ -182,7 +181,7 @@ Standard library only; runs in well under a second.
 `./aerie test-cpp` prepares the source tree like `./aerie build`, then builds
 `aerie_adblock_unittests`, `aerie_adblock_content_unittests`,
 `aerie_widevine_unittests`, `aerie_adblock_common_unittests`,
-`aerie_adblock_renderer_unittests`, `aerie_fingerprint_unittests`, `aerie_gpu_info_unittests`, `aerie_screen_unittests` and `aerie_text_metrics_unittests` in the same `out/Default` and runs them. It does not
+`aerie_adblock_renderer_unittests`, `aerie_fingerprint_unittests`, `aerie_gpu_info_unittests`, `aerie_screen_unittests`, `aerie_text_metrics_unittests` and `aerie_webgl_readback_unittests` in the same `out/Default` and runs them. It does not
 build `chrome`. The Widevine opt-in cases have their own binary because
 `components_unittests` cannot be built from Helium's tree: Helium prunes the
 binary test data (models, images) that its other members bundle. Every
