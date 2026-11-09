@@ -19,6 +19,12 @@ still alive: its page answers and it exits cleanly. The second open used to cras
 
 ``judge`` and ``judge_reopen`` are plain logic that the tests run on recorded observations: a handler that
 takes a host from the page, and a browser that dies on the second open (the negative controls).
+
+Part three (issue #110) opens the panel on a page that makes 300 blocked requests, one with a 2000-character
+address (``fixtures/blocking/many-blocked.html``), in a browser of its own. The panel's blocked count must reach 300,
+its list of blocked addresses must hold at most 200 entries and the long one must be cut to 256 characters.
+``judge_blocked_list`` is plain logic that the tests run on recorded states, including a list with no bound (the
+negative control). The browser test of the same case is ``AerieGuardBlockedListTest``.
 """
 
 from __future__ import annotations
@@ -81,6 +87,33 @@ def judge_reopen(obs: dict | None) -> list[str]:
         problems.append(f"the browser was killed by signal {-code} (it crashed)")
     elif not exit_info.get("clean"):
         problems.append(f"the browser did not exit cleanly ({exit_info or 'no exit status'})")
+    return problems
+
+
+BLOCKED_PAGE = "/blocking/many-blocked.html"
+BLOCKED_REQUESTS = 300
+LONG_URL_INDEX = 5
+MAX_LIST_ENTRIES = 200
+MAX_URL_LENGTH = 256
+
+
+def judge_blocked_list(state: dict | None) -> list[str]:
+    """Return the problems with the panel state (``panel_state()``) of the many-blocked page."""
+    if not state:
+        return ["the panel showed no site on the many-blocked page"]
+    problems: list[str] = []
+    urls = state.get("blocked_urls")
+    if state.get("blocked_count") != BLOCKED_REQUESTS:
+        problems.append(f"the blocked count is {state.get('blocked_count')}, expected {BLOCKED_REQUESTS}")
+    if not isinstance(urls, list):
+        return problems + ["the panel state has no list of blocked addresses"]
+    if len(urls) != MAX_LIST_ENTRIES:
+        problems.append(f"the list holds {len(urls)} entries, expected exactly {MAX_LIST_ENTRIES}")
+    too_long = [len(u) for u in urls if len(u) > MAX_URL_LENGTH]
+    if too_long:
+        problems.append(f"{len(too_long)} addresses are longer than {MAX_URL_LENGTH} characters ({max(too_long)})")
+    if not any(len(u) == MAX_URL_LENGTH for u in urls):
+        problems.append(f"no address was cut to {MAX_URL_LENGTH} characters")
     return problems
 
 
@@ -250,13 +283,16 @@ class AerieGuardPanel:
         problems = judge(obs)
         reopen = self.reopen(session)
         problems += judge_reopen(reopen)
-        data = {"direct": obs, "reopen": reopen}
+        blocked = self.blocked_list(session)
+        problems += blocked.get("problems", [])
+        data = {"direct": obs, "reopen": reopen, "blocked_list": blocked}
         if problems:
             return CheckResult(self.name, "fail", "; ".join(problems), data=data)
         return CheckResult(self.name, "pass",
                            "chrome.send is undefined, the handler has no site without a captured tab, "
                            "a switch call and a fingerprinting call left state.json and the noise settings unchanged, and the icon opened the panel again "
-                           "after it closed and the tab navigated, with the browser alive", data=data)
+                           "after it closed and the tab navigated, with the browser alive, and on a page with 300 blocked "
+                           "requests the count read 300 while the list held 200 addresses, the long one cut to 256", data=data)
 
     def reopen(self, session: Session) -> dict:
         """Part two: open, close, navigate, open again, close, in a browser of its own."""
@@ -285,6 +321,34 @@ class AerieGuardPanel:
                 if ui is not None:
                     ui.close()
         obs["exit"] = browser.exit
+        return obs
+
+    def blocked_list(self, session: Session) -> dict:
+        """Part three: the panel of a page with 300 blocked requests, in a browser of its own."""
+        obs: dict = {}
+        with session.new_profile() as profile, \
+                session.variant(extra_flags=ui_devtools.FLAGS, profile=profile) as browser:
+            ui = None
+            try:
+                browser.navigate(BLOCKED_PAGE)
+                ui = ui_devtools.connect(profile.path)
+                if self._press(browser, ui) is None:
+                    raise CdpError("the Guard icon did not open the panel")
+                # The count reaches 300 once the engine judged every request; the open panel shows it live.
+                deadline = time.monotonic() + 30.0
+                state = panel_state(browser)
+                while (state or {}).get("blocked_count") != BLOCKED_REQUESTS and time.monotonic() < deadline:
+                    time.sleep(0.5)
+                    state = panel_state(browser)
+                urls = (state or {}).get("blocked_urls") or []
+                obs["summary"] = {"blocked_count": (state or {}).get("blocked_count"), "entries": len(urls),
+                                  "longest": max((len(u) for u in urls), default=0)}
+                obs["problems"] = judge_blocked_list(state)
+            except (CdpError, ui_devtools.UiDevToolsError, OSError) as exc:
+                obs["problems"] = [f"the many-blocked page check stopped: {type(exc).__name__}: {exc}"]
+            finally:
+                if ui is not None:
+                    ui.close()
         return obs
 
     @staticmethod

@@ -20,6 +20,16 @@ ${this.state_ ? html`
       ${this.state_.blockedCount}
     </div>
     <div id="summary">${this.state_.blockedSummary}</div>
+    ${this.hasBlockedUrls_() ? html`
+      <details id="blockedList">
+        <summary>${this.i18n_('blockedList')}</summary>
+        <ul>
+          ${this.state_.blockedUrls.map(url => html`
+            <li class="blocked-url">${url}</li>`)}
+        </ul>
+        ${this.blockedListCutText_() ? html`
+          <p id="blockedListCut">${this.blockedListCutText_()}</p>` : ''}
+      </details>` : ''}
   </section>
   <section id="control">
     <div id="texts">

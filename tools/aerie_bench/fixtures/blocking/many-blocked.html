@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Aerie Guard Many Blocked Fixture</title></head>
+<body>
+<h1>First-party content</h1>
+<p>Makes 300 requests to a real ad host that EasyList blocks (issue #110). The Bench resolves
+nothing but loopback, so none of them can leave the machine: the engine stops each one first.
+Request 6 has a 2000-character address.</p>
+<script>
+(function () {
+  var base = "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?n=";
+  for (var i = 0; i < 300; i++) {
+    var s = document.createElement("script");
+    s.src = base + (i === 5 ? new Array(2001).join("x") : i);
+    document.body.appendChild(s);
+  }
+  window.__requested = 300;
+})();
+</script>
+</body>
+</html>

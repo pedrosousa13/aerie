@@ -147,13 +147,15 @@ class FilterEngineService {
   void ReleaseHeldRequests();
 
   // Called, on the UI thread, for every request the engine blocked, with the
-  // frame the request came from (invalid for workers and the like). One
-  // callback; the page counter (page_block_counter.h) sets it.
-  using BlockedCallback =
-      base::RepeatingCallback<void(content::GlobalRenderFrameHostId)>;
+  // frame the request came from (invalid for workers and the like) and the URL
+  // that was blocked. One callback; the page counter (page_block_counter.h)
+  // sets it.
+  using BlockedCallback = base::RepeatingCallback<void(
+      content::GlobalRenderFrameHostId, const GURL&)>;
   void SetBlockedRequestCallback(BlockedCallback callback);
   // The proxies call this after a "block" verdict.
-  void RecordBlocked(content::GlobalRenderFrameHostId frame_id);
+  void RecordBlocked(content::GlobalRenderFrameHostId frame_id,
+                     const GURL& url);
 
   // Answers whether |request| must be blocked. |callback| runs on the UI
   // thread. It runs after the engine has loaded. If Start() was never called

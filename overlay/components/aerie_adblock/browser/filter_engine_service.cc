@@ -199,9 +199,10 @@ void FilterEngineService::SetBlockedRequestCallback(BlockedCallback callback) {
 }
 
 void FilterEngineService::RecordBlocked(
-    content::GlobalRenderFrameHostId frame_id) {
+    content::GlobalRenderFrameHostId frame_id,
+    const GURL& url) {
   if (blocked_callback_) {
-    blocked_callback_.Run(frame_id);
+    blocked_callback_.Run(frame_id, url);
   }
 }
 

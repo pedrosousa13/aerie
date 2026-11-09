@@ -372,3 +372,58 @@ class BrowserSideStateTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BlockedListTest(unittest.TestCase):
+    """Issue #110: the list of blocked addresses is bounded, memory only and shown as text."""
+
+    LIST_H = (BROWSER / "blocked_url_list.h").read_text()
+    LIST_CC = (BROWSER / "blocked_url_list.cc").read_text()
+    COUNTER = (BROWSER / "page_block_counter.cc").read_text() + (BROWSER / "page_block_counter.h").read_text()
+    HTML = (REPO / "overlay/chrome/browser/resources/aerie_guard/app.html.ts").read_text()
+    TS = (REPO / "overlay/chrome/browser/resources/aerie_guard/app.ts").read_text()
+
+    def test_the_bounds_are_200_entries_and_256_characters(self):
+        self.assertRegex(self.LIST_H, r"kMaxEntries = 200;")
+        self.assertRegex(self.LIST_H, r"kMaxUrlLength = 256;")
+
+    def test_the_browser_test_has_a_negative_control_and_an_incognito_case(self):
+        bt = (WEBUI / "aerie_guard_browsertest.cc").read_text()
+        self.assertIn("ScopedLimitsForTesting", bt)
+        self.assertIn("TheUnboundedStoreShowsWhatTheBoundCuts", bt)
+        self.assertIn("IncognitoStoresTheSameWay", bt)
+        self.assertIn("ScopedLimitsForTesting", self.LIST_H)
+        self.assertNotRegex(bt, r"while \(aerie_adblock::PageBlockCounter::CountFor\([^)]*\) < 300\) \{")
+
+    def test_nothing_logs_or_saves_the_urls(self):
+        for text in (self.LIST_CC, self.COUNTER, panel_code()):
+            code = "\n".join(l for l in text.splitlines() if not l.strip().startswith("//"))
+            for banned in ("LOG(", "VLOG(", "DLOG(", "PrefService", "WriteFile", "SetString", "ScopedDictPrefUpdate"):
+                self.assertNotIn(banned, code)
+
+    def test_the_urls_are_cleared_with_the_count(self):
+        self.assertIn("urls_.Clear();", self.COUNTER)
+        self.assertEqual(self.COUNTER.count("urls_.Clear();"), 2)
+
+    def test_the_mojom_sends_plain_strings(self):
+        text = (WEBUI / "aerie_guard.mojom").read_text()
+        self.assertIn("array<string> blocked_urls;", text)
+
+    def test_the_panel_renders_the_addresses_as_text(self):
+        self.assertIn("${url}</li>", self.HTML)
+        for unsafe in ("unsafeHTML", "innerHTML", "href=\"${url", "src=\"${url"):
+            self.assertNotIn(unsafe, self.HTML + self.TS)
+
+    def test_the_strings_are_in_the_grd_and_used(self):
+        names = messages()
+        ui = (WEBUI / "aerie_guard_ui.cc").read_text()
+        for name in ("IDS_AERIE_GUARD_PANEL_BLOCKED_LIST", "IDS_AERIE_GUARD_PANEL_BLOCKED_LIST_CUT"):
+            self.assertIn(name, names)
+            self.assertIn(name, ui)
+        self.assertNotRegex(self.HTML, r">\s*Show what was blocked")
+
+    def test_no_new_interface(self):
+        text = (WEBUI / "aerie_guard.mojom").read_text()
+        code = "\n".join(l for l in text.splitlines() if not l.strip().startswith("//"))
+        declared = re.findall(r"^interface (\w+)", code, re.M)
+        self.assertEqual(len(declared), 3, declared)

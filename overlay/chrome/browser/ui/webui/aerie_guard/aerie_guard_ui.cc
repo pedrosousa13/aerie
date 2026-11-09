@@ -81,6 +81,8 @@ AerieGuardUI::AerieGuardUI(content::WebUI* web_ui)
       {"surfaceDeviceMemory", IDS_AERIE_GUARD_PANEL_SURFACE_DEVICE_MEMORY},
       {"surfaceGraphicsCard", IDS_AERIE_GUARD_PANEL_SURFACE_GRAPHICS_CARD},
       {"surfaceScreen", IDS_AERIE_GUARD_PANEL_SURFACE_SCREEN},
+      {"blockedList", IDS_AERIE_GUARD_PANEL_BLOCKED_LIST},
+      {"blockedListCut", IDS_AERIE_GUARD_PANEL_BLOCKED_LIST_CUT},
       {"guardSettings", IDS_AERIE_GUARD_PANEL_SETTINGS},
   };
   source->AddLocalizedStrings(kStrings);

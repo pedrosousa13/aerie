@@ -275,15 +275,18 @@ TEST_F(FilterEngineServiceTest, ReleasingTheHoldAnswersWithTheRules) {
 TEST_F(FilterEngineServiceTest, RecordBlockedReachesTheCallback) {
   int calls = 0;
   content::GlobalRenderFrameHostId seen;
-  service_.RecordBlocked({1, 2});  // No callback yet: ignored.
+  GURL seen_url;
+  service_.RecordBlocked({1, 2}, GURL("https://ads.test/0"));  // No callback: ignored.
   service_.SetBlockedRequestCallback(base::BindLambdaForTesting(
-      [&](content::GlobalRenderFrameHostId id) {
+      [&](content::GlobalRenderFrameHostId id, const GURL& url) {
         ++calls;
         seen = id;
+        seen_url = url;
       }));
-  service_.RecordBlocked({3, 4});
+  service_.RecordBlocked({3, 4}, GURL("https://ads.test/1"));
   EXPECT_EQ(1, calls);
   EXPECT_EQ(content::GlobalRenderFrameHostId(3, 4), seen);
+  EXPECT_EQ(GURL("https://ads.test/1"), seen_url);
 }
 
 TEST_F(FilterEngineServiceTest, ASessionExceptionAppliesToThatSessionOnly) {

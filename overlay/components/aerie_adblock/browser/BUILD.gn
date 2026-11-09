@@ -225,12 +225,15 @@ source_set("guard_target") {
 source_set("page_counter") {
   visibility = _visibility
   sources = [
+    "blocked_url_list.cc",
+    "blocked_url_list.h",
     "page_block_counter.cc",
     "page_block_counter.h",
   ]
   public_deps = [
     "//base",
     "//content/public/browser",
+    "//url",
   ]
 }
 
@@ -354,6 +357,7 @@ test("aerie_adblock_content_unittests") {
   testonly = true
   visibility = [ "//components/aerie_adblock:*" ]
   sources = [
+    "blocked_url_list_unittest.cc",
     "filter_list_manager_session_unittest.cc",
     "guard_target_unittest.cc",
     "page_block_counter_unittest.cc",

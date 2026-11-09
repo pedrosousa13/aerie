@@ -71,6 +71,38 @@
   color: var(--aerie-muted);
 }
 
+#blockedList {
+  margin-top: 8px;
+  text-align: start;
+}
+
+#blockedList summary {
+  color: var(--aerie-accent);
+  cursor: pointer;
+}
+
+#blockedList ul {
+  list-style: none;
+  margin: 8px 0 0;
+  max-height: 160px;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.blocked-url {
+  color: var(--aerie-muted);
+  font-family: monospace;
+  font-size: 12px;
+  line-height: 16px;
+  overflow-wrap: anywhere;
+  padding: 2px 0;
+}
+
+#blockedListCut {
+  color: var(--aerie-muted);
+  margin: 4px 0 0;
+}
+
 #summary,
 #status,
 #scope,

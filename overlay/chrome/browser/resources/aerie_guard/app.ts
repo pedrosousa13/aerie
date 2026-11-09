@@ -149,6 +149,21 @@ export class AerieGuardAppElement extends CrLitElement {
     return this.state_?.cosmeticLocked ? this.i18n_('cosmeticLocked') : '';
   }
 
+  // The list of blocked addresses is shown when the browser sent any.
+  protected hasBlockedUrls_(): boolean {
+    return !!this.state_ && this.state_.blockedUrls.length > 0;
+  }
+
+  // Said when the page blocked more than the list keeps.
+  protected blockedListCutText_(): string {
+    if (!this.state_ || this.state_.blockedCount <= this.state_.blockedUrls.length) {
+      return '';
+    }
+    return loadTimeData.getStringF(
+        'blockedListCut', this.state_.blockedUrls.length,
+        this.state_.blockedCount);
+  }
+
   protected onCosmeticChange_(e: CustomEvent<boolean>) {
     this.proxy_.handler.setCosmeticHidingOn(e.detail);
   }
