@@ -601,7 +601,8 @@ TEST_F(FilterListManagerTest, EasyListCannotBeTurnedOff) {
             manager->SetListEnabled(kEasyListId, false));
   WaitUntilIdle(*manager);
   EXPECT_TRUE(manager->state().Find(kEasyListId)->enabled);
-  EXPECT_TRUE(Blocks("builtin-one.example"));
+  // The refusal rebuilds nothing, so the shipped engine still runs.
+  EXPECT_TRUE(Blocks("shipped.example"));
   EXPECT_EQ(FilterListState::EnableResult::kUnknownList,
             manager->SetListEnabled("nosuchlist", false));
 }
