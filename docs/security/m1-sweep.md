@@ -183,7 +183,7 @@ it. The impact is a blind GET with no credentials and no response to the publish
 - **Filter lists** (`lib.rs`, `lists.rs`): lossy UTF-8, line and size caps, only plain cosmetic rules are
   kept, and the code never panics (tested with garbage, huge lines and regex bombs). The `regex` crate runs
   in linear time. **Finding #64.**
-- **Domain lists** (`safety.rs`): strict host grammar, at least two labels, no IP addresses, entry and size
+- **Domain lists** (`protection.rs`): strict host grammar, at least two labels, no IP addresses, entry and size
   caps. The serialized form is checked again on load.
 - **`state.json`:** a size cap, then RFC JSON. Ids must match `[a-z0-9]{1,32}`, a custom id must be the
   hash of its URL (so a file name cannot be chosen), only known error texts are kept, and titles and

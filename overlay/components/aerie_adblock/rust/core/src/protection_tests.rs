@@ -226,3 +226,11 @@ fn an_empty_serialized_list_is_rejected_whatever_the_floor() {
 fn the_shipped_floor_is_well_below_the_real_list_and_not_trivial() {
     assert!(MIN_ENTRIES >= 10_000 && MIN_ENTRIES <= 50_000);
 }
+
+#[test]
+fn the_build_gn_floor_matches_the_runtime_floor() {
+    let gn = include_str!("../../../BUILD.gn");
+    let at = gn.find("\"--min-entries\"").expect("BUILD.gn passes --min-entries");
+    let value = gn[at..].lines().nth(1).expect("a value line").trim().trim_end_matches(',').trim_matches('"');
+    assert_eq!(value.parse::<usize>().unwrap(), MIN_ENTRIES);
+}

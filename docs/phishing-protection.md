@@ -120,8 +120,8 @@ navigation start / redirect hop ──> AerieProtectionThrottle (browser process
 - The service answers after the list has loaded, so a navigation that starts early waits. If the shipped list
   cannot be loaded the browser stops with a `CHECK`, like the ad engine. A list with fewer than 10 000 domains
   (`MIN_ENTRIES` in `rust/core/src/protection.rs`) counts as not loadable, so an empty or truncated list fails
-  loudly: the log names the floor and `ListLoadSuccess` is false, which the Bench check reads. Without a service (unit tests,
-  shutdown) navigations pass.
+  loudly: the log names the floor and `ListLoadSuccess` is false, which the Bench check reads.
+  Without a service (unit tests, shutdown) navigations pass.
 - Histograms: `Aerie.Protection.ListLoadSuccess`, `NavigationBlocked`, `UserProceeded`.
 
 Not covered: non-http(s) URLs, IP-address hosts, downloads that start without a navigation, WebSockets,
