@@ -16,6 +16,14 @@ This page is about the browser. One build-time download is outside the promise:
 network stack refuses it before any DNS query (ungoogled-chromium's
 `block-trk-and-subdomains.patch`).
 
+Two more requests belong to the Bench, developer tooling that never ships in the browser. Neither is made by
+the browser, and a default `./aerie bench` makes neither:
+
+| Endpoint | Used by | What |
+| --- | --- | --- |
+| `https://raw.githubusercontent.com/Turtlecute33/adblocktest/<commit>/src/d3host.txt` | `./aerie bench --check adblock_score` (the Bench process, not the browser) | The host list of the Turtlecute ad-block test, pinned by commit, sha256 and size in `tools/aerie_bench/adblock_hosts.lock.json`. https only, no redirect to http; cached in the Bench download cache. `--adblock-update-pin` also asks `api.github.com` for the newest commit. |
+| `https://adblock.turtlecute.org` | `--adblock-online SEC`, opt in, informational | The live test page, loaded in a second Bench browser. Off by default. |
+
 ## Helium-owned endpoints
 
 | Endpoint | Where it was | What it did | Aerie |

@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Aerie Adblock Score Fixture</title>
+</head>
+<body>
+<h1>Host blocking fixture</h1>
+<p>The Bench points every host of the pinned test list at this server. The check calls
+<code>runAdblockTest(hosts, port)</code>, which sends one request per host, the way the
+Turtlecute test does: a HEAD <code>fetch</code> with <code>mode: 'no-cors'</code> for
+<code>/fakepage.html</code>. The check reads the result from DevTools and the server log,
+not from this page, because a page cannot tell a blocked request from any other failure.</p>
+<script>
+window.adblockDone = false;
+window.runAdblockTest = function (hosts, port) {
+  window.adblockDone = false;
+  var calls = hosts.map(function (host) {
+    var url = location.protocol + '//' + host + ':' + port + '/adblock/fakepage.html';
+    return fetch(url, { method: 'HEAD', mode: 'no-cors', cache: 'no-store' }).catch(function () {});
+  });
+  Promise.all(calls).then(function () { window.adblockDone = true; });
+  return hosts.length;
+};
+</script>
+</body>
+</html>

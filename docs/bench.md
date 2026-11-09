@@ -7,7 +7,7 @@ writes machine-readable JSON and a human summary. It is the test seam that the
 zero-Google-traffic proof, the hardening checks, the CI gate and the
 performance metrics build on.
 
-Python 3.11+, standard library only. No Playwright, no Node, and no network except the one-time download of the pinned benchmark copies (`--download-benchmarks`); the checks themselves use none.
+Python 3.11+, standard library only. No Playwright, no Node, and no network except the one-time download of the pinned benchmark copies (`--download-benchmarks`), the download of the pinned adblock host list (`adblock_score`, see "The `adblock_score` check") and the opt-in live run `--adblock-online`; the other checks use none.
 
 ## Run it
 
@@ -41,6 +41,9 @@ Options:
 | `--zero-traffic-settle SEC` | `zero_traffic`: quiet time after the first page, the first-launch phase (default 60). |
 | `--zero-traffic-strict` | `zero_traffic`: also fail on blocked attempts to `.qjz9zk` dummy hosts and `trk:` URLs. |
 | `--widevine-online SEC` | `widevine_opt_in`: also wait up to SEC in an opted-in browser for Widevine to download and become available. It needs a network that reaches Google, so it is off (0) by default. |
+| `--adblock-baseline FILE` | `adblock_score`: compare with a stored score, the `adblock_score.json` that an earlier run wrote. Fails when the score dropped by more than 2 points or when a host that the baseline blocked now gets through. A file that cannot be read is an error. Without the flag the check passes and records the score. |
+| `--adblock-online SEC` | `adblock_score`: also load the live `https://adblock.turtlecute.org` in a second browser, wait up to SEC seconds for its test to finish and record its score. Informational: it never fails the run. It needs the network, so it is off (0) by default. |
+| `--adblock-update-pin [COMMIT]` | Move the pin of the `adblock_score` host list: download the list at COMMIT (default: the newest commit that changed it), check that it parses, write `tools/aerie_bench/adblock_hosts.lock.json`, cache the file and exit. Needs the network. Review the diff of the lock and commit it, as for a filter-list bump. |
 | `--workspaces-enforce` | `workspace_isolation`: judge every probe for real. Without it the probes in `EXPECTED_TO_FAIL` (all of them until Workspaces ship) may fail and the check reports `xfail`. See "Workspace isolation" below. |
 | `--baseline PATH` | `zero_traffic`: also run the check on this browser (an unmodified Helium build, or any browser that talks to Google) and require it to fail. If it passes, the check is vacuous and the command exits 1. |
 | `--perf-baseline FILE` | `perf`: compare with this perf document (`main.json` of a `--perf-record` directory) and fail when a metric regressed past its threshold. A file that does not exist fails the run, unless `--perf-first-run` is given. |
@@ -99,6 +102,7 @@ Under `<build root>/bench/<UTC timestamp>/` (mode `0700`):
 | `netlog.json` | Raw Chromium NetLog. Can hold request headers; do not upload it as a CI artifact without review. |
 | `smoke.png`, other `*.png` | Screenshots. |
 | `browser-stderr.log` | The browser's stderr; first place to look when launch fails. |
+| `adblock_score.json` | `adblock_score` only: the score, per category and per host, in the format `--adblock-baseline` reads. |
 
 ### results.json, schema 1
 
@@ -296,6 +300,7 @@ scores are higher-is-better.
 | `browser_requests` | The browser made at least one request of its own. With services required (default for the build binary and for Helium/Aerie-identified binaries): the fixture server saw a Helium services call (`/bangs.json`, `/ubo/assets.json`, `/com`, `/ext`, `/dict/`). With services optional: that, or a request to a non-loopback host in the NetLog. Waits up to `--services-wait` seconds, less if the condition is met sooner. |
 | `zero_traffic` | No URL request in the NetLog goes to a host on the denylist (`docs/network-denylist.md`), in three phases: first launch, 5 minutes idle, and the browse script. Fails on an empty capture. See "Zero traffic" below. |
 | `ad_blocking` | The Filter Engine works, including at redirect hops. The page `/blocking/index.html` asks for real ad and tracker URLs (scripts, an image, a subframe, a `fetch`), and for two first-party files. Every URL in `fixtures/blocking/expected.json` under `blocked` must fail with `net::ERR_BLOCKED_BY_CLIENT` (DevTools `loadingFailed`) and must not appear in the NetLog; every `allowed` path must load with status 200 and be seen by the fixture server; the first-party script must run. Two first-party URLs redirect (`fixtures/redirects.json`): `/blocking/go-tracker` to a listed tracker, whose hop must be blocked (the redirecting URL answers 302, the target fails with `ERR_BLOCKED_BY_CLIENT` and never reaches the NetLog), and `/blocking/go-ok.js` to first-party content, which must load. The blocking must be the Aerie engine's: see below. |
+| `adblock_score` | How many of the hosts of a pinned ad and tracker test list the browser blocks. Records the score; passes unless a `--adblock-baseline` is given and the score fell below it, or the run could not judge every host. Skips, with the reason, when there is neither a network nor a verified cached list. See "The `adblock_score` check". |
 | `cosmetic_filtering` | The Filter Engine hides leftover ad containers, and a page cannot undo it. The page `/cosmetic/index.html` has boxes with the class names and ids of EasyList's generic hide rules and first-party boxes (one named `adventure`). Its own CSS hides nothing. Every `hidden` selector in `fixtures/cosmetic/expected.json` must have `display: none` and no box; every `visible` one must keep a box. The hide must be the engine's (`Aerie.Adblock.CosmeticRuleCount` has a sample with a sum above zero), and a page script that replaces `CSSStyleSheet` and the `adoptedStyleSheets` accessor must not see the injection (`window.cosmeticHijacked` stays unset). Two more cases prove ADR 0005 (issue #68). **Attacked** (the four boxes in the markup): 3 s after load the page empties `adoptedStyleSheets` through the real setter, removes its `<style>` elements and its `<link>` to `page.css`, and forces `display:block !important` inline on the boxes; they must still be hidden, because the hide is a user-origin sheet. **Late** (`.advert-box`, and `#adContainer` inside a wrapper): the page inserts them 3.5 s after load, long after the browser's load-time passes read its class names and ids; they must be hidden too. **Late class** (`.sponsored-links`): the page adds that class to an element that was already in the markup (as `promo`), also 3.5 s after load; it must be hidden. The page sets `window.cosmeticAttackDone` and `window.cosmeticLateInserted` when it has done both, and a run where either is unset fails (it proves nothing). The check waits for both, lets the hide settle, waits again and measures twice. The frame must have exactly one generic hide sheet. A user-origin sheet is not in `adoptedStyleSheets`, so the check counts it through the CSS domain: `CSS.getMatchedStylesForNode` on the `generic_sheet_probe` element (`.ad-slot`) lists the matching rules with their origin. Blink reports a user-origin rule as `user-agent` (user rules are matched before any tree scope, so the rule's CSSOM wrapper has no parent sheet and gets the inspector's default UA sheet), and the real UA sheet has no rule for `.ad-slot`, so the check counts the `user-agent` rules whose selector is exactly `.ad-slot`, and there must be one (`count_probe_rules` in `tools/aerie_bench/checks/cosmetic_filtering.py`; its tests record the reply shape). See [adblock.md](adblock.md#cosmetic-filtering-hiding-leftover-ad-containers). |
 | `cosmetic_site_switch` | Per-site cosmetic hiding (issue #101). A second browser starts on a profile whose `AerieFilterLists/state.json` has `{"cosmetic_off": ["a.localhost"]}` (blocking exceptions: none). The fixture `/cosmetic/site-switch.html` has an ad box (`.ad-slot`, hidden by EasyList's generic rule) and a script whose file name a generic EasyList rule blocks (`/ad_header.js`). On `a.localhost` the box must stay visible (a layout box, `display` not `none`) and the script must still fail with `net::ERR_BLOCKED_BY_CLIENT`; on `b.localhost` the box must be hidden and the script blocked too (the control: the engine does hide the box on this page). The check waits for the hide on `b.localhost` and then waits longer on `a.localhost`, so a late hide is seen. Without the policy callback (`SetCosmeticFilteringPolicy`) the box on `a.localhost` is hidden and the check fails; `tests/test_bench_cosmetic_site_switch.py` runs that case on recorded observations. |
 | `phishing_protection` | The protection category works. A second browser started with `--aerie-test-protection-list` lists fixture `*.localhost` domains; the first browser, without the list, must load the same names (negative control). A listed main-frame navigation (and a subdomain of a listed domain) shows the interstitial: Go back is the primary button, Continue anyway is a link in the closed details section, the fixture server never saw the request, and the site's script and style did not reach the page. Go back returns to the previous page; Continue anyway loads the page, is remembered in that tab and not in a new tab. A listed subframe is blocked, and a control iframe to a clean host loads. A clean URL that answers 302 to a listed host is stopped at the hop, in the main frame and in a subframe. `Aerie.Protection.ListLoadSuccess` must have a true sample and no false one, and `Aerie.Protection.NavigationBlocked` at least eight true samples. See [phishing-protection.md](phishing-protection.md). |
@@ -515,6 +520,71 @@ fixture server paths) to the results directory. The tests judge such recordings
 (`tests/data/ad_blocking/`); to refresh them from a real run, copy a passing recording over
 `pass.json`.
 
+### The `adblock_score` check
+
+Issue #155. It tracks how well Aerie blocks ads with a test in the style of https://adblock.turtlecute.org
+(source: github.com/Turtlecute33/adblocktest), so the build train has a number to compare before and after changes to the
+filter lists and the engine. Run it with `./aerie bench --check adblock_score`. There are two modes.
+
+**Offline score (every train).** The test's host list (ad, analytics, error-tracker, social-tracker and device-maker hosts,
+grouped in categories) is not in this repo: it is CC BY-NC-SA 4.0. `tools/aerie_bench/adblock_hosts.lock.json` pins its
+URL (a commit of the source repository, so the bytes do not change), sha256, size and date. At run time the Bench downloads
+the list, and refuses it unless it is https (no redirect to http, like `./aerie lists update`) and has the pinned size and
+sha256. A verified download is cached in `<build root>/downloads/adblock-hosts-<sha256>.txt` (`./aerie prune` keeps the
+current one). A train without a network uses that verified copy. With neither a network nor a verified copy the check
+reports `skip` and says why; it never passes silently. A download that does not match the pin is an `error`, not a skip.
+
+Every listed host is mapped to the loopback fixture server with `--host-resolver-rules`, and the page
+`/adblock/index.html` sends one request per host, as the source test does: a HEAD `fetch` with `mode: 'no-cors'` for
+`/fakepage.html`. The request goes over plain http to the fixture server, because that server is http. A host rule such as `||host^` matches either scheme; a rule anchored to `https://` would not match here. The check reads each request's outcome from DevTools and from the fixture server's log:
+
+| Outcome | Meaning |
+| --- | --- |
+| blocked | DevTools reports `net::ERR_BLOCKED_BY_CLIENT`, the NetLog has no request and no lookup for the host, and the fixture server never saw it. |
+| got through | A response arrived, or the fixture server saw the request. |
+| leak | Blocked in DevTools but the NetLog or the fixture server saw the host. Fails the check. |
+| not judged | Never requested, or failed for another reason. Fails the check, so a broken run never gives a score. |
+
+The score is blocked / total, overall and per category, in the check's message and in `checks[].data.score` of
+`results.json` (`overall`, `categories`, `blocked_hosts`, `through_hosts`, `unjudged`). The message lists every host that
+got through. `data.hostlist` says which list was used (pin, and `download` or `cache`). `data.other_external_hosts` lists NetLog
+traffic to hosts that are not in the list; it is recorded, not judged (`zero_traffic` is the check for that).
+
+The check also writes `adblock_score.json` to the results directory. Keep one from a good build as the baseline:
+
+```sh
+./aerie bench --check adblock_score --out /path/to/baseline-run      # on a build to compare against
+./aerie bench --check adblock_score --adblock-baseline /path/to/baseline-run/adblock_score.json
+```
+
+With a baseline the check fails when the overall rate fell by more than 2 percentage points, or when any host that the baseline
+blocked and that is still on the list now gets through. Without a baseline it passes and records the score. If the baseline
+was recorded with a different list, the message says so and the rates are compared. Negative control: a build with the Filter
+Engine off, or a baseline with a higher score, fails the check (the unit tests do both against a fake browser).
+
+Nothing leaves the machine: the only request the Bench makes is the list download. The pinned names resolve to loopback by rule;
+every other name still fails to resolve, as in the other checks. `./aerie bench --check zero_traffic` is unaffected.
+
+**What the offline score means.** It measures host blocking only: the share of the listed hosts whose request the browser stops.
+The live site also has four page checks, two cosmetic (a static and a dynamic ad box) and two script checks (decoy `ads.js` and
+`pagead.js`). They depend on the site's own domain being in a filter list, so they are not reproduced offline, and the offline
+number is not the live site's score. The live site's overall score divides by all of its checks, and its bands are 0 to 30, 31 to 60
+and 61 or more percent. The offline check does not use the engine's histograms: a request that Helium's bundled blocker stopped
+would count too. `ad_blocking` is the check that credits the Aerie engine.
+
+**Moving the pin.** `./aerie bench --adblock-update-pin [COMMIT]` downloads the list at COMMIT (default: the newest commit that changed
+it), checks that it parses and that every entry is a plain host name, writes the lock and caches the file. Review the diff of the lock
+like a filter-list bump and commit only the lock. A new list changes the host set, so record a new baseline after a move.
+
+**Online run (`--adblock-online SEC`).** Off by default, like `--widevine-online`. With it, a second browser (with the network open;
+the main browser stays loopback-only) loads the live `https://adblock.turtlecute.org`, waits up to SEC seconds for the page's test to
+finish and reads the page: the totals of `#adb_test_r`, the four page checks, and per category how many vendors had a host get through.
+The result is `checks[].data.online` next to the offline score, with `state`: `finished`, `timeout` (the test did not finish), `load_failed`
+or `error`. The run is informational. It never changes the check's status, because the site can change; a page that does not load or
+never finishes is reported, not raised. The page marks each host with an icon only, so the per-host result is not read, only the vendor
+flag. The parser is tested against hand-written fake pages (`tests/data/adblock_online/`, each says it is not a recording). The first real
+run has to confirm the markup. Whoever runs it sends a request to the live site, so do not enable it in an environment that must stay offline.
+
 ### Workspace isolation
 
 `workspace_isolation` is the proof that M5 has to satisfy ([ADR 0006](adr/0006-workspace-isolation.md),
@@ -641,8 +711,9 @@ it on its own.
 ## Offline and security
 
 - The fixture server binds `127.0.0.1` only; a test checks this.
-- Nothing needs credentials or the network. Fixtures reference nothing
-  external (a test scans them).
+- Nothing needs credentials or the network, except what `adblock_score` downloads (the pinned
+  host list, https only, hash-checked; Bench-only, never the browser) and the opt-in
+  `--adblock-online`. Fixtures reference nothing external (a test scans them).
 - The CDP channel is a pipe, not a TCP port, so other local users cannot attach.
 - The profile is deleted after every run, including after errors.
 

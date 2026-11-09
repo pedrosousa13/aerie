@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<!--
+  FAKE PAGE. Hand-written for the unit tests, NOT a recording of adblock.turtlecute.org.
+  It follows the markup that the site's source (src/index.ejs and src/js/index.js in
+  github.com/Turtlecute33/adblocktest) builds, as read on 2026-11-09: the result card #adb_test_r,
+  the four page checks (#ct_static, #ct_dynamic, #sfa_1, #sfa_2 with _bg-green / _bg-red), and
+  one .grid per category inside #test with one .test per vendor and one div per host.
+  Numbers and host names are invented. Replace it with a real saved page when a train has one.
+-->
+<html><head><title>Ad block test (fake)</title></head>
+<body>
+<section id="adb_test">
+  <div id="ct_static" class="test_block _aos _bg-green"><span>Static ad box</span><div id="cts_test" class="textads adsbox">&nbsp;</div></div>
+  <div id="ct_dynamic" class="test_block _aos _bg-red"><span>Dynamic ad box</span><div id="ctd_test"></div></div>
+  <div id="sfa_1" class="test_block _aos _bg-green"><span>ads.js</span></div>
+  <div id="sfa_2" class="test_block _aos _bg-green"><span>pagead.js</span></div>
+  <div id="test" class="test_wrapper">
+    <div class="grid" id="Ads">
+      <div><h2><svg width="24" height="24"><path d="M0 0h24v24H0z"/></svg>&nbsp;&nbsp;Ad networks</h2></div>
+      <div class="col-6">
+        <div class="test" id="Vendor One" style="background: var(--green);"><span class="test_collapse">Vendor One</span>
+          <div><div><svg><path d="M1 1"/></svg><span>ads.example.net</span></div><div><svg><path d="M1 1"/></svg><span>pixel.example.net</span></div></div>
+        </div>
+      </div>
+      <div class="col-6">
+        <div class="test" id="Vendor Two" data-has-failure="true" style="background: var(--red);"><span class="test_collapse">Vendor Two</span>
+          <div><div><svg><path d="M2 2"/></svg><span>track.example.org</span></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="grid" id="Analytics">
+      <div><h2>Analytics and session recording</h2></div>
+      <div class="col-6">
+        <div class="test" id="Vendor Three"><span class="test_collapse">Vendor Three</span>
+          <div><div><svg></svg><span>stats.example.com</span></div></div>
+        </div>
+      </div>
+      <div class="col-6"></div>
+    </div>
+  </div>
+  <div class="card" id="adb_test_r"><span><svg><circle cx="12" cy="12" r="1"/></svg> Total: 8</span><span><svg><path d="M9 12"/></svg> 6 blocked</span><span><svg><path d="M10 10"/></svg> 2 not blocked</span></div>
+  <button id="share_result" type="button"> Share</button>
+</section>
+</body></html>

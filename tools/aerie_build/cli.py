@@ -102,10 +102,20 @@ def cmd_prune(args: argparse.Namespace) -> int:
         return _prune(ctx, args)
 
 
+def _adblock_host_cache() -> set[str]:
+    """The Bench's cached copy of the pinned adblock_score host list; pruning it would lose the offline fallback."""
+    from aerie_bench import adblock_hosts
+    try:
+        return {adblock_hosts.cache_name(adblock_hosts.load_pin())}
+    except adblock_hosts.HostListError:
+        return set()
+
+
 def _prune(ctx: pipeline.Context, args: argparse.Namespace) -> int:
     plan = prune.plan_prune(
         ctx.paths,
         pinned_downloads=set(ctx.pins.downloads)
+        | _adblock_host_cache()
         | {Path(ctx.pins.tools["ccache"]["url"]).name}
         | ({Path(ctx.pins.fallback["url"]).name} if ctx.pins.fallback else set())
         | {table["archive"] for table in ctx.pins.bench.values()},

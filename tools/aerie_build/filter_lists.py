@@ -46,6 +46,12 @@ class ListError(RuntimeError):
     """A filter list failed verification or could not be fetched."""
 
 
+class DownloadError(ListError):
+    """The network or the server failed (no answer, an HTTP error status). A refusal of a
+    redirect, a non-https URL or oversize data is a plain ListError, so a caller can tell
+    "offline" from "the answer was refused"."""
+
+
 @dataclass(frozen=True)
 class ListPin:
     name: str
@@ -186,7 +192,7 @@ def _download(url: str, opener: fallback.Opener = list_opener) -> tuple[bytes, s
             if close:
                 close()
         except (urllib.error.URLError, OSError, TimeoutError) as exc:
-            raise ListError(f"cannot download {current}: {exc}") from exc
+            raise DownloadError(f"cannot download {current}: {exc}") from exc
         if target is None:
             break
         _require_https(target, f"the redirect from {current}")
