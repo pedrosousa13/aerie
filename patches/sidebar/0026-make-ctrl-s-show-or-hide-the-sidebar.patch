@@ -1,0 +1,51 @@
+Aerie-Purpose: Make Ctrl+S show or hide the Aerie sidebar while the layout is the sidebar.
+Aerie-Upstream-Area: chrome/browser/ui (browser_command_controller.cc, BUILD.gn)
+Aerie-Kind: hook
+
+Issue #177. IDC_CTRL_S_SHORTCUT flips aerie.sidebar.visible (aerie_sidebar::ToggleVisible) and
+neither collapses the strip nor saves the page. Save page is on Ctrl+Shift+S (0023). The command
+stays enabled while the layout is the sidebar.
+
+--- a/chrome/browser/ui/BUILD.gn
++++ b/chrome/browser/ui/BUILD.gn
+@@ -743,6 +743,7 @@
+       "//chrome/browser/ui/webui/side_panel/customize_chrome",
+       "//chrome/browser/ui/webui/util",
+       "//chrome/browser/ui/window_feature_controller",
++      "//components/aerie_sidebar:layout",
+       "//components/bookmarks/browser",
+       "//components/dom_distiller/core",
+       "//components/feed:feature_list",
+--- a/chrome/browser/ui/browser_command_controller.cc
++++ b/chrome/browser/ui/browser_command_controller.cc
+@@ -115,6 +115,7 @@
+ #include "chrome/common/url_constants.h"
+ #include "chrome/common/webui_url_constants.h"
+ #include "chrome/grit/generated_resources.h"
++#include "components/aerie_sidebar/aerie_sidebar_layout.h"
+ #include "components/bookmarks/browser/bookmark_model_load_waiter.h"
+ #include "components/bookmarks/common/bookmark_bar_visibility_state.h"
+ #include "components/bookmarks/common/bookmark_pref_names.h"
+@@ -1537,6 +1538,12 @@
+       break;
+     }
+     case IDC_CTRL_S_SHORTCUT: {
++      // Aerie: with the sidebar layout, Ctrl+S shows or hides the sidebar
++      // (issue #177). Save page is on Ctrl+Shift+S.
++      if (aerie_sidebar::IsSidebarLayout(*profile()->GetPrefs())) {
++        aerie_sidebar::ToggleVisible(profile()->GetPrefs());
++        break;
++      }
+       // In zen mode with VTS, Ctrl+S toggles the side chrome visibility
+       // instead of collapsing the tab strip.
+       PrefService* prefs = profile()->GetPrefs();
+@@ -2813,7 +2820,8 @@
+   command_updater_->UpdateCommandEnabled(IDC_SAVE_PAGE, can_save_page);
+   command_updater_->UpdateCommandEnabled(
+       IDC_CTRL_S_SHORTCUT,
+-      can_save_page || ShouldToggleVerticalCollapse(profile()->GetPrefs()));
++      can_save_page || ShouldToggleVerticalCollapse(profile()->GetPrefs()) ||
++          aerie_sidebar::IsSidebarLayout(*profile()->GetPrefs()));
+ }
+ 
+ void BrowserCommandController::UpdateReloadStopState(bool is_loading,

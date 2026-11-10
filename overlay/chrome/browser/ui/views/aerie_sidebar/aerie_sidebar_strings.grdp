@@ -10,7 +10,7 @@
   <message name="IDS_SETTINGS_AERIE_SIDEBAR" desc="Title of the Sidebar section of Settings, where the settings of the browser's vertical tab sidebar are. It has no settings yet.">
     Sidebar
   </message>
-  <message name="IDS_AERIE_SIDEBAR_NAME" desc="Accessible name of the sidebar, the navigation landmark on the side of the window that holds the address field and the list of tabs.">
+  <message name="IDS_AERIE_SIDEBAR_NAME" desc="Accessible name of the sidebar, the navigation landmark on the side of the window that holds the list of tabs.">
     Sidebar
   </message>
   <message name="IDS_AERIE_SIDEBAR_TODAY" desc="Heading of the list of unpinned tabs in the sidebar. It is also the accessible name of that list.">

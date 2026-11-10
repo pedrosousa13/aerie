@@ -64,12 +64,16 @@ AerieSidebarRowView::AerieSidebarRowView(Callbacks callbacks)
   close_button_->SetTooltipText(
       l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_CLOSE_TAB));
 
+  // The close button is a child: moving onto it must not count as leaving the
+  // row, or the button would hide under the pointer.
+  SetNotifyEnterExitOnChild(true);
   SetFocusBehavior(views::View::FocusBehavior::ALWAYS);
   views::FocusRing::Install(this);
   views::FocusRing::Get(this)->SetOutsetFocusRingDisabled(false);
   views::InstallRoundRectHighlightPathGenerator(this, gfx::Insets(),
                                                 aerie::tokens::kRadiusMd);
   GetViewAccessibility().SetRole(ax::mojom::Role::kTreeItem);
+  GetViewAccessibility().SetHierarchicalLevel(1);
   GetViewAccessibility().SetName(std::u16string());
 }
 
@@ -78,7 +82,6 @@ AerieSidebarRowView::~AerieSidebarRowView() = default;
 void AerieSidebarRowView::SetTitle(const std::u16string& title) {
   title_->SetText(title);
   GetViewAccessibility().SetName(title);
-  SetTooltipText(title);
 }
 
 void AerieSidebarRowView::SetFavicon(const ui::ImageModel& favicon) {
@@ -92,6 +95,14 @@ void AerieSidebarRowView::SetSelected(bool selected) {
   selected_ = selected;
   GetViewAccessibility().SetIsSelected(selected);
   UpdateState();
+}
+
+void AerieSidebarRowView::Layout(PassKey) {
+  LayoutSuperclass<views::View>(this);
+  // The tooltip tells what the row cuts off: it shows only for an elided title.
+  SetTooltipText(title_->IsDisplayTextTruncated()
+                     ? std::u16string(title_->GetText())
+                     : std::u16string());
 }
 
 gfx::Size AerieSidebarRowView::CalculatePreferredSize(

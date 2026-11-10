@@ -1,4 +1,4 @@
-Aerie-Purpose: Register the sidebar prefs (layout, width, shown) and let the settings page read and write them.
+Aerie-Purpose: Register the sidebar prefs (layout, width, shown) and let the settings page read and write the width and the shown state.
 Aerie-Upstream-Area: chrome/browser/prefs (browser_prefs.cc, BUILD.gn), chrome/browser/extensions/api/settings_private/prefs_util.cc
 Aerie-Kind: hook
 
@@ -38,14 +38,13 @@ other Aerie prefs, and a test compares them with the constants.
  #if !BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_DESKTOP_ANDROID)  // nocheck
 --- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
 +++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
-@@ -493,6 +493,12 @@
+@@ -493,6 +493,11 @@
    (*s_allowlist)["aerie.tabs.archive_after"] = settings_api::PrefType::kString;
    (*s_allowlist)["aerie.tabs.sleep_after_minutes"] =
        settings_api::PrefType::kNumber;
-+  // Aerie: the sidebar's layout, width and shown state (issue #177). The names
-+  // are aerie_sidebar::kLayoutPref, kWidthPref and kVisiblePref; a test
-+  // compares them.
-+  (*s_allowlist)["aerie.sidebar.layout"] = settings_api::PrefType::kString;
++  // Aerie: the sidebar's width and shown state (issue #177). The names are
++  // aerie_sidebar::kWidthPref and kVisiblePref; a test compares them. The
++  // layout pref is not here until issue #186 builds the second layout.
 +  (*s_allowlist)["aerie.sidebar.width"] = settings_api::PrefType::kNumber;
 +  (*s_allowlist)["aerie.sidebar.visible"] = settings_api::PrefType::kBoolean;
  

@@ -69,9 +69,10 @@ class PrefNameTest(unittest.TestCase):
         self.assertIn("kSizeSidebarWidth", source)
         self.assertRegex(source, r"RegisterBooleanPref\(kVisiblePref, true\)")
 
-    def test_the_allowlist_has_the_three_prefs_with_their_types(self):
+    def test_the_allowlist_has_the_width_and_visible_prefs_but_not_the_layout(self):
         text = added(PREFS_PATCH)
-        for name, kind in (("kLayoutPref", "kString"), ("kWidthPref", "kNumber"), ("kVisiblePref", "kBoolean")):
+        self.assertNotIn(constant(self.PREFS, "kLayoutPref"), "".join(l for l in text.splitlines() if "s_allowlist" in l))
+        for name, kind in (("kWidthPref", "kNumber"), ("kVisiblePref", "kBoolean")):
             literal = constant(self.PREFS, name)
             self.assertRegex(text, re.escape(f'(*s_allowlist)["{literal}"]') + r"\s*=\s*settings_api::PrefType::" + kind + ";")
 
@@ -175,8 +176,10 @@ class ViewWiringTest(unittest.TestCase):
     def test_the_view_patches_are_in_the_series_after_the_layout_patches(self):
         series = (REPO / "patches" / "series").read_text().splitlines()
         order = [line for line in series if line.startswith("sidebar/00")]
-        self.assertEqual(order[-2:], ["sidebar/0024-add-the-sidebar-view-to-the-vertical-strip-region.patch",
-                                      "sidebar/0025-show-hide-and-resize-the-sidebar.patch"])
+        self.assertEqual(order[-4:], ["sidebar/0024-add-the-sidebar-view-to-the-vertical-strip-region.patch",
+                                      "sidebar/0025-keep-the-sidebar-width-in-its-pref-and-never-collapse.patch",
+                                      "sidebar/0026-make-ctrl-s-show-or-hide-the-sidebar.patch",
+                                      "sidebar/0027-slide-and-resize-the-sidebar.patch"])
 
     def test_every_source_of_the_view_is_in_its_gn_file(self):
         gn = (self.VIEW / "BUILD.gn").read_text()
@@ -190,7 +193,9 @@ class ViewWiringTest(unittest.TestCase):
         self.assertIn('"//chrome/browser/ui/views/aerie_sidebar:browser_tests"', gn)
 
     def test_the_resize_and_toggle_use_the_headless_helpers(self):
-        patch = (REPO / "patches" / "sidebar" / "0025-show-hide-and-resize-the-sidebar.patch").read_text()
+        sidebar = REPO / "patches" / "sidebar"
+        patch = (sidebar / "0026-make-ctrl-s-show-or-hide-the-sidebar.patch").read_text() + \
+            (sidebar / "0027-slide-and-resize-the-sidebar.patch").read_text()
         for name in ("aerie_sidebar::ToggleVisible", "aerie_sidebar::ResizeByDrag", "aerie_sidebar::kKeyboardResizeStep"):
             self.assertIn(name, patch)
 

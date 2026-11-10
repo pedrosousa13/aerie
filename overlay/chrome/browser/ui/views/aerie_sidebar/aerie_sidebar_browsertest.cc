@@ -30,9 +30,13 @@
 #include "content/public/test/browser_test.h"
 #include "ui/accessibility/ax_node_data.h"
 #include "ui/compositor/layer.h"
+#include "ui/events/event.h"
 #include "ui/gfx/animation/animation_test_api.h"
+#include "ui/gfx/geometry/point.h"
 #include "ui/views/accessibility/view_accessibility.h"
+#include "ui/views/controls/button/image_button.h"
 #include "ui/views/controls/resize_area.h"
+#include "ui/views/test/button_test_api.h"
 #include "ui/views/view.h"
 #include "ui/views/view_utils.h"
 
@@ -163,4 +167,52 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarBrowserTest, AccessibilityTreeHasTheDesignRol
   ASSERT_TRUE(row);
   EXPECT_EQ(RoleOf(row), ax::mojom::Role::kTreeItem);
   EXPECT_EQ(RoleOf(row->parent()), ax::mojom::Role::kTree);
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarBrowserTest, TheCloseButtonClosesTheTabAndTheRowKeepsItShownUnderThePointer) {
+  chrome::ExecuteCommand(browser(), IDC_NEW_TAB);
+  EXPECT_TRUE(WaitFor([&] { return sidebar()->row_count() == 2u; }));
+  auto* row = FindDescendant<AerieSidebarRowView>(sidebar());
+  ASSERT_TRUE(row);
+  // Moving onto the close button must not count as leaving the row.
+  EXPECT_TRUE(row->GetNotifyEnterExitOnChild());
+  auto* close = FindDescendant<views::ImageButton>(row);
+  ASSERT_TRUE(close);
+  ui::MouseEvent entered(ui::EventType::kMouseEntered, gfx::Point(), gfx::Point(),
+                         base::TimeTicks::Now(), 0, 0);
+  row->OnMouseEntered(entered);
+  EXPECT_TRUE(close->GetVisible());
+
+  const int tabs = browser()->tab_strip_model()->count();
+  ui::MouseEvent click(ui::EventType::kMouseReleased, gfx::Point(1, 1), gfx::Point(1, 1),
+                       base::TimeTicks::Now(), ui::EF_LEFT_MOUSE_BUTTON,
+                       ui::EF_LEFT_MOUSE_BUTTON);
+  views::test::ButtonTestApi(close).NotifyClick(click);
+  EXPECT_TRUE(WaitFor([&] { return browser()->tab_strip_model()->count() == tabs - 1; }));
+  EXPECT_TRUE(WaitFor([&] { return sidebar()->row_count() == 1u; }));
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarBrowserTest, TwoQuickCtrlSKeepThePrefAndTheViewInStep) {
+  auto reduced = gfx::AnimationTestApi::SetPrefersReducedMotionForTesting(false);
+  ASSERT_TRUE(region());
+  // Full motion: a hide leaves the layout only when its slide has ended, and
+  // the second toggle comes before that.
+  chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
+  chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
+  EXPECT_TRUE(aerie_sidebar::IsVisible(*prefs()));
+  EXPECT_TRUE(region()->aerie_sidebar_target_visible());
+  // Wait past the slide (140 ms) and check the view did not hide.
+  const base::TimeTicks until = base::TimeTicks::Now() + base::Milliseconds(600);
+  WaitFor([&] { return base::TimeTicks::Now() >= until; });
+  EXPECT_FALSE(region()->aerie_sidebar_hidden());
+  EXPECT_TRUE(region()->GetVisible());
+  EXPECT_GT(region()->GetPreferredSize().width(), 0);
+
+  // And the other way round: two toggles from hidden.
+  chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
+  EXPECT_TRUE(WaitFor([&] { return region()->aerie_sidebar_hidden(); }));
+  chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
+  chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
+  EXPECT_FALSE(aerie_sidebar::IsVisible(*prefs()));
+  EXPECT_TRUE(WaitFor([&] { return region()->aerie_sidebar_hidden(); }));
 }
