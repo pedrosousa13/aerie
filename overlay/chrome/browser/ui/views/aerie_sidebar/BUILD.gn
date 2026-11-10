@@ -8,7 +8,10 @@ assert(!is_android, "The Aerie sidebar is for desktop platforms only")
 # //chrome/browser/ui/views/frame, creates it (patches/sidebar/0024). What it
 # decides without a view is in //components/aerie_sidebar.
 source_set("aerie_sidebar") {
-  visibility = [ "//chrome/browser/ui/views/frame:*" ]
+  visibility = [
+    ":browser_tests",
+    "//chrome/browser/ui/views/frame:*",
+  ]
   sources = [
     "aerie_sidebar_row_view.cc",
     "aerie_sidebar_row_view.h",
@@ -38,5 +41,34 @@ source_set("aerie_sidebar") {
     "//content/public/browser",
     "//ui/color",
     "//ui/gfx",
+  ]
+}
+
+# Browser tests of the sidebar (issue #177). Listed in aerie_browser_tests
+# (overlay/chrome/test/aerie/BUILD.gn).
+source_set("browser_tests") {
+  testonly = true
+  # content/public/test/browser_test.h refuses to compile without it.
+  defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
+  sources = [ "aerie_sidebar_browsertest.cc" ]
+  deps = [
+    ":aerie_sidebar",
+    "//chrome/browser:browser",
+    "//chrome/browser/aerie_tab_model",
+    "//chrome/browser/profiles:profile",
+    "//chrome/browser/ui/views/frame",
+    "//chrome/test:test_support",
+    "//chrome/test:test_support_ui",
+    "//components/aerie_design_tokens:motion",
+    "//components/aerie_sidebar:layout",
+    "//components/aerie_sidebar:prefs",
+    "//components/prefs",
+    "//content/test:test_support",
+    "//net:test_support",
+    "//ui/base",
+    "//ui/compositor",
+    "//ui/gfx:test_support",
+    "//ui/views",
+    "//ui/views:test_support",
   ]
 }
