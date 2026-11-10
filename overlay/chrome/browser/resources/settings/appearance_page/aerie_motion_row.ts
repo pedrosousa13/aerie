@@ -33,6 +33,12 @@ export class SettingsAerieMotionRowElement extends CrLitElement {
     return getSettingsSharedLit();
   }
 
+  static override get properties() {
+    return {
+      menuOptions_: {type: Array},
+    };
+  }
+
   override render() {
     return getHtml.bind(this)();
   }
