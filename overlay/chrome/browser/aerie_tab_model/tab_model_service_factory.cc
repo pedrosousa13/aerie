@@ -24,8 +24,12 @@ TabModelServiceFactory* TabModelServiceFactory::GetInstance() {
 TabModelServiceFactory::TabModelServiceFactory()
     : ProfileKeyedServiceFactory(
           "AerieTabModelService",
-          // A regular profile and, separately, an off-the-record one. Guest
-          // and system profiles get none.
+          // In ProfileSelections (chrome/browser/profiles/profile_selections.cc)
+          // an Incognito or other off-the-record profile takes the Regular
+          // value, so kOwnInstance here gives a regular profile one service and
+          // each off-the-record profile its own, separate one. The off-the-record
+          // one keeps its model in memory: TabModelService gives it no state
+          // path. Guest and system profiles default to kNone and get none.
           ProfileSelections::Builder()
               .WithRegular(ProfileSelection::kOwnInstance)
               .Build()) {}

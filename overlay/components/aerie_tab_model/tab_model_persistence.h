@@ -74,6 +74,8 @@ class TabModelPersistence final
   // Starts the read. `done` runs, once, after the merge. Call once.
   void Load(base::OnceCallback<void(LoadStatus)> done = {});
   bool loaded() const { return loaded_; }
+  // False for an in-memory model (an empty path): nothing is read or written.
+  bool persists_to_disk() const { return !path_.empty(); }
 
   // Writes any pending change now. The write itself runs on `io_runner`.
   void FlushPendingWrite();

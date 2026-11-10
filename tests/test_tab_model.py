@@ -55,6 +55,25 @@ class BuildWiringTest(unittest.TestCase):
         self.assertNotIn("browsertest", (SERVICE / "BUILD.gn").read_text().replace("tab_model_browsertest.cc is not listed", ""))
         self.assertIn("#175", test.read_text())
 
+    def test_an_off_the_record_profile_has_an_own_in_memory_service(self):
+        # In Chromium's profile_selections.cc an Incognito or other off-the-record
+        # profile takes the *regular* selection, so kOwnInstance covers both.
+        factory = (SERVICE / "tab_model_service_factory.cc").read_text()
+        self.assertIn("WithRegular(ProfileSelection::kOwnInstance)", factory)
+        self.assertNotIn("kRedirectedToOriginal", factory)
+        self.assertNotIn("kOriginalOnly", factory)
+        self.assertNotIn("BuildForRegularProfile", factory)
+        self.assertNotIn("WithGuest", code(SERVICE / "tab_model_service_factory.cc"))
+        self.assertIn("profile_selections.cc", factory)
+        service = code(SERVICE / "tab_model_service.cc")
+        self.assertRegex(service, r"IsOffTheRecord\(\)\) \{\s*return base::FilePath\(\);")
+        test = (SERVICE / "tab_model_browsertest.cc").read_text()
+        self.assertIn("CreateIncognitoBrowser", test)
+        self.assertIn("OffTheRecord", test)
+        self.assertIn("persists_to_disk", test)
+        doc = (REPO / "docs" / "sidebar-design.md").read_text()
+        self.assertIn("An off-the-record profile (an Incognito window) has its own Tab Model", doc)
+
     def test_every_included_chromium_header_has_its_target_in_deps(self):
         # gn check runs only in the train, so the includes are matched with labels here.
         wanted = {

@@ -121,4 +121,29 @@ IN_PROC_BROWSER_TEST_F(TabModelBrowserTest, TabsAreNotChromiumPinnedAndNothingIs
   EXPECT_TRUE(PinnedTabCodec::ReadPinnedTabs(browser()->GetProfile()).empty());
 }
 
+// An Incognito window gets its own Tab Model, separate from the regular
+// profile's, and nothing of it is written to disk.
+IN_PROC_BROWSER_TEST_F(TabModelBrowserTest, AnOffTheRecordProfileHasItsOwnModelAndWritesNothing) {
+  Browser* incognito = CreateIncognitoBrowser();
+  Profile* otr = incognito->GetProfile();
+  ASSERT_TRUE(otr->IsOffTheRecord());
+  TabModelService* otr_service = TabModelServiceFactory::GetForProfile(otr);
+  ASSERT_TRUE(otr_service);
+  EXPECT_NE(otr_service, service_);
+  if (!otr_service->loaded()) {
+    LoadedWaiter waiter(otr_service->model());
+    waiter.Wait();
+  }
+  // The Incognito window's first tab is a record in its model only.
+  EXPECT_EQ(CountToday(*otr_service->model()), 1u);
+  EXPECT_EQ(CountToday(*service_->model()), 1u);
+
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(
+      incognito, embedded_test_server()->GetURL("/title1.html")));
+  EXPECT_EQ(CountToday(*service_->model()), 1u);
+  // Nothing is read or written for it; the regular profile's model is on disk.
+  EXPECT_FALSE(otr_service->persists_to_disk());
+  EXPECT_TRUE(service_->persists_to_disk());
+}
+
 }  // namespace aerie_tab_model

@@ -37,6 +37,8 @@ class TabModelService : public KeyedService {
 
   TabModel* model() { return &model_; }
   bool loaded() const { return persistence_.loaded(); }
+  // False for an off-the-record profile: its model stays in memory.
+  bool persists_to_disk() const { return persistence_.persists_to_disk(); }
   TabStripAdapter* adapter() { return adapter_.get(); }
 
   // nullopt means never.

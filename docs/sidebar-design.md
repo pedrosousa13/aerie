@@ -551,7 +551,7 @@ The model refuses an add or a move that names a folder that does not exist, that
 
 `AerieTabModel/state.json` in the profile, with `version` 1 and a migration table for later versions. It is written with `base::ImportantFileWriter` (atomic, one write for a burst of changes) and when the profile closes. It is read on the thread pool after the profile is created. The merge into the model is the only part on the UI sequence. Nothing is saved until the read has finished, so a partial model cannot cover the stored one. The sidebar can draw an empty section and fill it when the model reports `OnModelLoaded`.
 
-A file that is not valid, has the wrong shape, uses an id twice or comes from a newer build is moved to `state.json.bad` (an older `.bad` is replaced), and the model starts empty. An off-the-record profile keeps its model in memory and writes nothing.
+A file that is not valid, has the wrong shape, uses an id twice or comes from a newer build is moved to `state.json.bad` (an older `.bad` is replaced), and the model starts empty. An off-the-record profile (an Incognito window) has its own Tab Model, separate from the regular profile's. It stays in memory, starts empty and writes nothing. A guest or system profile has none.
 
 A Today tab that was open when the state was saved is removed when it is read back (and the removal is logged), unless it was sleeping or archived. This slice does not match a tab that session restore brings back to an old record, so the old record would only pile up. Matching them is for the slice that restores tabs.
 

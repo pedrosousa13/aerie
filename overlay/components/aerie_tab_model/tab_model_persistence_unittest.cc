@@ -219,9 +219,12 @@ TEST_F(TabModelPersistenceTest, WithoutAPathNothingTouchesTheDisk) {
   base::test::TestFuture<LoadStatus> loaded;
   persistence.Load(loaded.GetCallback());
   EXPECT_EQ(loaded.Get(), LoadStatus::kMissing);
+  EXPECT_FALSE(persistence.persists_to_disk());
   model.AddTab(TabRecord());
   persistence.FlushPendingWrite();
+  task_environment_.RunUntilIdle();
   EXPECT_FALSE(base::PathExists(path_));
+  EXPECT_TRUE(base::IsDirectoryEmpty(dir_.GetPath()));
 }
 
 TEST_F(TabModelPersistenceTest, DestroyingTheServiceFlushesTheLastChange) {

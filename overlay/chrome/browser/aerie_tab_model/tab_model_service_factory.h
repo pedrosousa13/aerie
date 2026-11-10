@@ -14,9 +14,10 @@ namespace aerie_tab_model {
 
 class TabModelService;
 
-// One TabModelService per profile, an own in-memory one for an off-the-record
-// profile. Built when the profile is created (so the model is bound to the
-// tab strips from the first window), and read from disk off the UI sequence.
+// One TabModelService per regular profile, and a separate in-memory one for
+// each off-the-record profile (Guest and system profiles get none). Built when
+// the profile is created (so the model is bound to the tab strips from the
+// first window), and read from disk off the UI sequence.
 class TabModelServiceFactory : public ProfileKeyedServiceFactory {
  public:
   static TabModelService* GetForProfile(Profile* profile);
