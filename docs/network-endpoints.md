@@ -38,6 +38,7 @@ the browser, and a default `./aerie bench` makes neither:
 | `https://crash.helium.computer/crash` | `CrashReporterClient::GetUploadUrl` | Crash upload (after the user agrees) | `GetUploadUrl()` returns an empty string, the crash handler starts without a URL, and the mode is always Disabled, which also discards pending reports. The `--custom-crash-server-url` switch is removed. Patch `crash/0001`. |
 | `helium.computer` | `set_ping_enabled_domain` | Extension update pings | `ping-disabled.invalid`: never matches a real host. Patch `services/0003`. |
 | `github.com/imputnet/...` | Crash page link, onboarding page, a macOS help link | Links the user clicks | Not browser-initiated. Listed with a reason in the gates' allowlist (`HOST_ALLOWLIST`). |
+| `github.com/pedrosousa13/aerie/...` | Alpha notice links (`TERMS.md`, `PRIVACY.md`) on the setup page and on About (Settings) | Links the user clicks | Plain `target=_blank` anchors. Nothing loads until the user clicks. |
 
 Settings has no Helium services page: the toggles did nothing, so the page, its
 route and its row are gone (patch `services/0006`, source gate `services_ui`).
