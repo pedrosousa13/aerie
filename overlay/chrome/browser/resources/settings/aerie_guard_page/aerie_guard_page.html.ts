@@ -55,7 +55,7 @@ export function getHtml(this: SettingsAerieGuardPageElement) {
   </div>
   <div id="lists" role="list" aria-labelledby="listsHeading">
     ${this.lists_.map(list => html`
-      <div class="cr-row list-item list-row" role="listitem"
+      <div class="cr-row list-row" role="listitem"
           data-list-id="${list.id}">
         <div class="flex cr-padded-text">
           <div class="list-title">${this.listTitle_(list)}</div>
@@ -180,7 +180,7 @@ export function getHtml(this: SettingsAerieGuardPageElement) {
   ${this.exceptions_.length ? html`
     <div id="exceptions" role="list" aria-labelledby="sitesHeading">
       ${this.exceptions_.map(host => html`
-        <div class="cr-row list-item" role="listitem">
+        <div class="cr-row site-row" role="listitem">
           <div class="flex site-name">${host}</div>
           <cr-button class="remove-site" data-host="${host}"
               aria-label="${this.removeSiteLabel_(host)}"
