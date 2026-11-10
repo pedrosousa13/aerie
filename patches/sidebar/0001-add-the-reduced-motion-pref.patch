@@ -1,0 +1,36 @@
+Aerie-Purpose: Register the profile pref aerie.motion.reduce (the in-app reduced-motion setting) and let the Settings page write it.
+Aerie-Upstream-Area: chrome/browser/prefs (browser_prefs.cc, BUILD.gn), chrome/browser/extensions/api/settings_private/prefs_util.cc
+Aerie-Kind: hook
+
+Issue #174. The pref ("system" by default, or "on") and its registration are in the overlay,
+components/aerie_design_tokens/aerie_motion_prefs.*. The motion helper (aerie_motion.h) reads it
+next to gfx::Animation::PrefersReducedMotion() in ShouldReduceMotion(). The settings_private
+allowlist line lets the Appearance row's drop-down write it; the name is a string literal there,
+as for aerie.fonts.restrict, and a test compares it with aerie::motion::kReduceMotionPref.
+This patch also puts //components/aerie_design_tokens into the GN graph, which is how the
+aerie_design_tokens_unittests target gets built.
+
+--- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
++++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
+@@ -486,2 +486,5 @@
+   (*s_allowlist)["aerie.fonts.restrict"] = settings_api::PrefType::kBoolean;
++  // Aerie: the in-app reduced-motion setting, "system" or "on" (issue #174).
++  // The name is aerie::motion::kReduceMotionPref; a test compares the two.
++  (*s_allowlist)["aerie.motion.reduce"] = settings_api::PrefType::kString;
+ 
+--- a/chrome/browser/prefs/BUILD.gn
++++ b/chrome/browser/prefs/BUILD.gn
+@@ -135,2 +135,3 @@
+     "//components/aerie_adblock/browser:guard_prefs",
++    "//components/aerie_design_tokens:prefs",
+     "//components/aerie_widevine",
+--- a/chrome/browser/prefs/browser_prefs.cc
++++ b/chrome/browser/prefs/browser_prefs.cc
+@@ -112,2 +112,3 @@
+ #include "components/aerie_adblock/browser/aerie_guard_prefs.h"
++#include "components/aerie_design_tokens/aerie_motion_prefs.h"
+ #include "components/aerie_widevine/widevine_opt_in.h"
+@@ -2002,2 +2003,3 @@
+   aerie_guard::RegisterProfilePrefs(registry);
++  aerie::motion::RegisterProfilePrefs(registry);
+   registry->RegisterBooleanPref(prefs::kRendererAccessibilityEnabled, true);

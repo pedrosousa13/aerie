@@ -64,11 +64,23 @@ export class AerieGuardAppElement extends CrLitElement {
   protected accessor advancedOpen_: boolean = readAdvancedOpen();
 
   private proxy_: BrowserProxy = BrowserProxy.getInstance();
+  // The Design Tokens pick light or dark from data-mode on the root element
+  // (aerie_tokens.css). The panel follows the browser's colour scheme.
+  private colorScheme_: MediaQueryList =
+      window.matchMedia('(prefers-color-scheme: dark)');
+  private onColorScheme_ = () => this.applyColorMode_();
   private listenerId_: number|null = null;
   private shown_: boolean = false;
 
+  private applyColorMode_() {
+    document.documentElement.dataset['mode'] =
+        this.colorScheme_.matches ? 'dark' : 'light';
+  }
+
   override connectedCallback() {
     super.connectedCallback();
+    this.applyColorMode_();
+    this.colorScheme_.addEventListener('change', this.onColorScheme_);
     this.listenerId_ = this.proxy_.callbackRouter.onStateChanged.addListener(
         (state: PanelState|null) => {
           this.state_ = state;
@@ -81,6 +93,7 @@ export class AerieGuardAppElement extends CrLitElement {
 
   override disconnectedCallback() {
     super.disconnectedCallback();
+    this.colorScheme_.removeEventListener('change', this.onColorScheme_);
     if (this.listenerId_ !== null) {
       this.proxy_.callbackRouter.removeListener(this.listenerId_);
       this.listenerId_ = null;

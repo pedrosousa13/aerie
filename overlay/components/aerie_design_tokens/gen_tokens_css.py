@@ -1,14 +1,22 @@
 #!/usr/bin/env python3
-"""Generate tokens.css from tokens.json. Run: python3 gen_tokens_css.py
+"""Generate the CSS custom properties from tokens.json.
+
+Run: python3 gen_tokens_css.py --out aerie_tokens.css [--tokens tokens.json] [--check-horizontal horizontal.css]
+The build runs it as the GN action tokens_css; prototypes/sidebar/tokens.css is a checked-in copy (see its README).
 
 Plain groups: a token has `value` (shared) or `light` and `dark`.
 Group `theme`: one entry per theme. Plain keys become --aerie-theme-<key> and
 "<group>.<key>" keys override --aerie-<group>-<key>. Each theme emits one block
 per colour mode it supports, selected by :root[data-theme][data-mode].
 """
-import json, pathlib
+import argparse, json, pathlib
 here = pathlib.Path(__file__).parent
-data = json.loads((here / "tokens.json").read_text())
+ap = argparse.ArgumentParser()
+ap.add_argument("--tokens", type=pathlib.Path, default=here / "tokens.json")
+ap.add_argument("--out", type=pathlib.Path, required=True)
+ap.add_argument("--check-horizontal", type=pathlib.Path, help="horizontal.css whose container queries must match size-hz-tab-icon-only")
+args = ap.parse_args()
+data = json.loads(args.tokens.read_text())
 fmt = lambda v, u: f"{v}{u}" if u else str(v)
 shared, light, dark, reduced = [], [], [], []
 for group, toks in data.items():
@@ -42,18 +50,19 @@ for tname, th in data["theme"].items():
             sel += ", :root:not([data-theme])" + (LIGHT if mode == "light" else '[data-mode="dark"]')
         theme_blocks.append(block(sel, lines))
 
-out = ["/* Generated from tokens.json by gen_tokens_css.py. Do not edit by hand. */\n",
+out = ["/* Generated from tokens.json. Do not edit. */\n",
   block(":root", shared),
   block(':root[data-mode="light"], :root:not([data-mode])', light),
   block(':root[data-mode="dark"]', dark),
   *theme_blocks,
   "@media (prefers-reduced-motion: reduce) {\n" + block("  :root", ["  "+l for l in reduced]) + "}\n",
   block(":root[data-reduced-motion]", reduced)]
-(here / "tokens.css").write_text("\n".join(out))
+args.out.write_text("\n".join(out))
 
 # Container queries cannot read var(), so horizontal.css repeats size-hz-tab-icon-only. Fail if they drift apart.
-thr = data["size"]["hz-tab-icon-only"]["value"]
-hcss = (here / "horizontal.css").read_text()
-for want in (f"@container (max-width:{thr}px)", f"@container (min-width:{thr + 1}px)"):
-    if want not in hcss:
-        raise SystemExit(f"horizontal.css is missing '{want}' (size-hz-tab-icon-only = {thr})")
+if args.check_horizontal:
+    thr = data["size"]["hz-tab-icon-only"]["value"]
+    hcss = args.check_horizontal.read_text()
+    for want in (f"@container (max-width:{thr}px)", f"@container (min-width:{thr + 1}px)"):
+        if want not in hcss:
+            raise SystemExit(f"{args.check_horizontal.name} is missing '{want}' (size-hz-tab-icon-only = {thr})")

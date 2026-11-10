@@ -1,0 +1,30 @@
+Aerie-Purpose: Put the Reduce motion row on the Appearance page of Settings.
+Aerie-Upstream-Area: chrome/browser/resources/settings (appearance_page/appearance_page.ts, appearance_page/appearance_page.html.ts, BUILD.gn)
+Aerie-Kind: hook
+
+Issue #174. The row, settings-aerie-motion-row, is a Lit element in the overlay
+(chrome/browser/resources/settings/appearance_page/aerie_motion_row.*). It is a
+settings-dropdown-menu on the pref aerie.motion.reduce (patches/sidebar/0001), with the strings of
+patches/sidebar/0002. The element sits between the theme row and the toolbar row. The hunks use
+only lines that Chromium has: the imports around home_url_input.js, the toolbarRow div, and the
+ts_files list.
+
+--- a/chrome/browser/resources/settings/BUILD.gn
++++ b/chrome/browser/resources/settings/BUILD.gn
+@@ -204,2 +204,4 @@
+     "ai_page/skills_page.ts",
++    "appearance_page/aerie_motion_row.html.ts",
++    "appearance_page/aerie_motion_row.ts",
+     "appearance_page/appearance_browser_proxy.ts",
+--- a/chrome/browser/resources/settings/appearance_page/appearance_page.html.ts
++++ b/chrome/browser/resources/settings/appearance_page/appearance_page.html.ts
+@@ -51,2 +51,3 @@
+     </div>
++    <settings-aerie-motion-row></settings-aerie-motion-row>
+     <div id="toolbarRow" class="settings-row">
+--- a/chrome/browser/resources/settings/appearance_page/appearance_page.ts
++++ b/chrome/browser/resources/settings/appearance_page/appearance_page.ts
+@@ -12,2 +12,3 @@
+ import '../settings_page/settings_section.js';
++import './aerie_motion_row.js';
+ import './home_url_input.js';

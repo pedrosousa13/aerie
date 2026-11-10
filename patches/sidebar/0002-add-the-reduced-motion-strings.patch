@@ -1,0 +1,31 @@
+Aerie-Purpose: Give the Appearance page the strings of its Reduce motion row.
+Aerie-Upstream-Area: chrome/app (generated_resources.grd and its gritdeps), chrome/browser/ui/webui/settings (settings_localized_strings_provider.cc)
+Aerie-Kind: hook
+
+Issue #174. The four strings are in the overlay's aerie_motion_strings.grdp; this patch includes
+the part and hands each message to the Settings page in AddAppearanceStrings. A test compares
+the names with the grdp.
+
+--- a/chrome/app/generated_resources.grd
++++ b/chrome/app/generated_resources.grd
+@@ -298,2 +298,5 @@
+ 
++      <!-- Aerie reduced-motion strings -->
++      <part file="../../components/aerie_design_tokens/aerie_motion_strings.grdp" />
++
+       <!-- Aerie Widevine prompt strings -->
+--- a/chrome/app/generated_resources.grd.gritdeps
++++ b/chrome/app/generated_resources.grd.gritdeps
+@@ -114,2 +114,3 @@
+ chrome/browser/ui/webui/aerie_guard_settings/aerie_guard_settings_strings.grdp
++components/aerie_design_tokens/aerie_motion_strings.grdp
+ components/aerie_onboarding/aerie_onboarding_strings.grdp
+--- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
++++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
+@@ -589,2 +589,6 @@
+       {"appearancePageTitle", IDS_SETTINGS_APPEARANCE},
++      {"aerieMotionReduce", IDS_SETTINGS_AERIE_MOTION_REDUCE},
++      {"aerieMotionReduceDesc", IDS_SETTINGS_AERIE_MOTION_REDUCE_DESC},
++      {"aerieMotionReduceSystem", IDS_SETTINGS_AERIE_MOTION_REDUCE_SYSTEM},
++      {"aerieMotionReduceOn", IDS_SETTINGS_AERIE_MOTION_REDUCE_ON},
+       {"appearanceBehaviorPageTitle", IDS_SETTINGS_APPEARANCE_AND_BEHAVIOR},

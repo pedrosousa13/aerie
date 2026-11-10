@@ -1,0 +1,120 @@
+# Copyright 2026 The Aerie Authors
+# You can use, redistribute, and/or modify this source code under
+# the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+import("//testing/test.gni")
+import("//ui/webui/resources/tools/generate_grd.gni")
+
+# Aerie's Design Tokens (issue #174, ADR 0007). tokens.json is the one source
+# of every colour, radius, space, type, size and motion value of Aerie's own UI.
+# Two generators turn it into the CSS for WebUI pages and a constexpr header
+# for Views. Nobody edits the outputs: both start with "Generated from
+# tokens.json. Do not edit.", and tests/test_design_tokens.py fails when the
+# checked-in copy in prototypes/sidebar differs from what the generator makes.
+# Nothing is parsed at run time.
+
+# CSS custom properties (--aerie-<group>-<token>) for WebUI pages.
+action("tokens_css") {
+  script = "gen_tokens_css.py"
+  inputs = [
+    "tokens.json",
+    "gen_tokens_css.py",
+  ]
+  outputs = [ "$target_gen_dir/aerie_tokens.css" ]
+  args = [
+    "--tokens",
+    rebase_path("tokens.json", root_build_dir),
+    "--out",
+    rebase_path(outputs[0], root_build_dir),
+  ]
+}
+
+# aerie_tokens.h, namespace aerie::tokens, all constexpr.
+action("tokens_header") {
+  script = "gen_tokens_cc.py"
+  inputs = [
+    "tokens.json",
+    "gen_tokens_cc.py",
+  ]
+  outputs = [ "$target_gen_dir/aerie_tokens.h" ]
+  args = [
+    "--tokens",
+    rebase_path("tokens.json", root_build_dir),
+    "--out",
+    rebase_path(outputs[0], root_build_dir),
+  ]
+}
+
+# The generated header, for Views code.
+source_set("tokens") {
+  sources = [ "$target_gen_dir/aerie_tokens.h" ]
+  public_deps = [
+    ":tokens_header",
+    "//skia",
+  ]
+}
+
+# aerie_tokens.css as a resource of a WebUI page. build_webui() targets list
+# this in extra_grdp_deps and extra_grdp_files (see
+# chrome/browser/resources/aerie_guard/BUILD.gn); the page links
+# "aerie_tokens.css".
+generate_grd("webui_grdp") {
+  grd_prefix = "aerie_design_tokens"
+  out_grd = "$target_gen_dir/aerie_tokens_resources.grdp"
+  input_files_base_dir = rebase_path(target_gen_dir, root_build_dir)
+  input_files = [ "aerie_tokens.css" ]
+  deps = [ ":tokens_css" ]
+}
+
+# The pref of the in-app reduced-motion setting. Registered by
+# chrome::RegisterProfilePrefs (patches/sidebar/0001).
+source_set("prefs") {
+  sources = [
+    "aerie_motion_prefs.cc",
+    "aerie_motion_prefs.h",
+  ]
+  public_deps = [
+    "//base",
+    "//components/prefs",
+  ]
+}
+
+# The motion helper: ShouldReduceMotion() and AnimateLayer().
+source_set("motion") {
+  sources = [
+    "aerie_motion.cc",
+    "aerie_motion.h",
+  ]
+  public_deps = [
+    ":prefs",
+    ":tokens",
+    "//base",
+    "//components/prefs",
+    "//ui/compositor",
+    "//ui/gfx",
+    "//ui/gfx/geometry",
+  ]
+}
+
+source_set("unit_tests") {
+  testonly = true
+  sources = [ "aerie_design_tokens_unittest.cc" ]
+  deps = [
+    ":motion",
+    ":prefs",
+    ":tokens",
+    "//base/test:test_support",
+    "//components/prefs:test_support",
+    "//testing/gtest",
+    "//ui/compositor:test_support",
+    "//ui/gfx:test_support",
+    "//ui/gfx/geometry",
+  ]
+}
+
+test("aerie_design_tokens_unittests") {
+  deps = [
+    ":unit_tests",
+    "//base/test:run_all_unittests",
+  ]
+}
