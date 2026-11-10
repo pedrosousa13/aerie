@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from aerie_build import cli, pipeline, test_fonts
+from aerie_build import cli, pipeline, test_fonts, test_webui_data
 
 
 class BuildStepsTest(unittest.TestCase):
@@ -18,6 +18,36 @@ class BuildStepsTest(unittest.TestCase):
         titles = [title for title, _ in pipeline.build_steps(with_tests=True)]
         self.assertGreater(titles.index("test fonts"), titles.index("prepare tree"))
         self.assertLess(titles.index("test fonts"), titles.index("configure"))
+
+    def test_a_plain_build_has_no_webui_test_data_step(self):
+        for with_tests in (False, True):
+            titles = [title for title, _ in pipeline.build_steps(with_tests=with_tests)]
+            self.assertNotIn("webui test data", titles)
+
+    def test_a_ui_test_build_fetches_the_webui_test_data_after_the_tree_is_prepared(self):
+        titles = [title for title, _ in pipeline.build_steps(with_tests=True, ui_tests=True)]
+        self.assertGreater(titles.index("webui test data"), titles.index("prepare tree"))
+        self.assertLess(titles.index("webui test data"), titles.index("configure"))
+
+    def test_only_the_ui_binaries_need_the_webui_test_data(self):
+        self.assertTrue(pipeline.needs_webui_test_data(("aerie_browser_tests",)))
+        self.assertTrue(pipeline.needs_webui_test_data(("aerie_adblock_unittests", "aerie_interactive_ui_tests")))
+        self.assertFalse(pipeline.needs_webui_test_data(("aerie_adblock_unittests",)))
+        self.assertFalse(pipeline.needs_webui_test_data(()))
+
+    def test_the_webui_step_passes_the_lock_pin_to_the_fetcher(self):
+        ctx = mock.MagicMock()
+        ctx.pins.test_data = {"webui": {"sha256": "x"}}
+        ctx.pins.chromium_version = "1.2.3.4"
+        with mock.patch.object(test_webui_data, "ensure") as ensure:
+            pipeline.fetch_webui_test_data(ctx, mock.Mock(), {})
+        ensure.assert_called_once_with(ctx.tree, ctx.paths.downloads, {"sha256": "x"}, "1.2.3.4", ctx.opener, mock.ANY)
+
+    def test_a_webui_fetch_failure_stops_the_build_with_a_build_error(self):
+        ctx = mock.MagicMock()
+        with mock.patch.object(test_webui_data, "ensure", side_effect=test_webui_data.TestDataError("boom")):
+            with self.assertRaisesRegex(pipeline.BuildError, "boom"):
+                pipeline.fetch_webui_test_data(ctx, mock.Mock(), {})
 
     def test_a_plain_build_never_fetches_the_fonts(self):
         ctx = mock.MagicMock()

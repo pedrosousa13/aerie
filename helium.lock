@@ -73,3 +73,13 @@ url = "https://github.com/WebKit/JetStream/archive/5fb9b4915f47792e6368d54d79ba3
 archive = "jetstream-3-5fb9b4915f47.tar.gz"
 sha256 = "ddac483ff83374e8140b954e6bdf85b54e327f85b6effeb8beb8e91570e276b7"
 license = "BSD-2-Clause style (Apple); bundled workloads carry their own licence files (MIT, BSD, Apache-2.0)"
+
+# Chromium's chrome/test/data/webui files, which Helium prunes. Fetched only by
+# `./aerie test-cpp` for the Views UI test binaries (tools/aerie_build/test_webui_data.py).
+# The archive from chromium.googlesource.com is stamped with the request time, so
+# sha256 is the digest of the sorted list of per-file sha256 values, not of the
+# archive bytes. Re-pin it with a Chromium bump; the build refuses a stale pin.
+[test_data.webui]
+chromium_version = "157.0.8103.38"
+url = "https://chromium.googlesource.com/chromium/src/+archive/refs/tags/157.0.8103.38/chrome/test/data/webui.tar.gz"
+sha256 = "18eee87f35b39dc53addb0546c7bb15aa7e713d755a9f88cc5dd409cd6d99533"

@@ -39,6 +39,8 @@ class Lock:
     fallback: dict[str, str] = field(default_factory=dict)
     # Benchmark sources for the Bench's perf check ([bench.<name>] tables; aerie_bench.benchmarks).
     bench: dict[str, dict] = field(default_factory=dict)
+    # Test-only data the UI test binaries need ([test_data.<name>] tables; aerie_build.test_webui_data).
+    test_data: dict[str, dict] = field(default_factory=dict)
 
 
 def _check_digest(name: str, digest: str) -> str:
@@ -75,6 +77,13 @@ def load_lock(path: Path) -> Lock:
             raise VerificationError(f"bench.{name}.commit must be a 40 digit commit id")
         if table["archive"] != Path(table["archive"]).name or table["archive"].startswith("."):
             raise VerificationError(f"bench.{name}.archive must be a plain file name")
+    test_data = {name: dict(table) for name, table in data.get("test_data", {}).items()}
+    for name, table in test_data.items():
+        table["sha256"] = _check_digest(f"test_data.{name}", table.get("sha256"))
+        if not str(table.get("url", "")).startswith("https://"):
+            raise VerificationError(f"test_data.{name}.url must be an https URL")
+        if not isinstance(table.get("chromium_version"), str) or not table["chromium_version"]:
+            raise VerificationError(f"test_data.{name}.chromium_version is missing")
     return Lock(
         helium_version=helium["version"],
         chromium_version=helium["chromium_version"],
@@ -86,6 +95,7 @@ def load_lock(path: Path) -> Lock:
         tools=tools,
         fallback=fallback,
         bench=bench,
+        test_data=test_data,
     )
 
 

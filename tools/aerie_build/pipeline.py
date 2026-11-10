@@ -23,6 +23,7 @@ from typing import Callable, Sequence
 from . import (
     aerie_version, branding, ccache, fallback, filter_lists, helium, helium_deps, helium_inputs, helium_steps,
     layers, lock, overlay, patch_check, patches, protection_lists, rust_crates, substitution, test_fonts,
+    test_webui_data,
 )
 from .config import BuildPaths, isolated_env
 
@@ -565,6 +566,21 @@ def fetch_test_fonts(ctx: Context, log: Logger, env: dict) -> None:
         raise BuildError(f"test fonts: {exc}") from exc
 
 
+def needs_webui_test_data(targets: Sequence[str]) -> bool:
+    """The Views UI test binaries link test support that compiles chrome/test/data/webui; the unit tests do not."""
+    ui = {name for name, _ in UI_TEST_BINARIES}
+    return any(target in ui for target in targets)
+
+
+def fetch_webui_test_data(ctx: Context, log: Logger, env: dict) -> None:
+    """UI test builds only: put the chrome/test/data/webui files, which Helium prunes, back in the tree."""
+    try:
+        test_webui_data.ensure(ctx.tree, ctx.paths.downloads, ctx.pins.test_data.get("webui", {}),
+                               ctx.pins.chromium_version, ctx.opener, log)
+    except test_webui_data.TestDataError as exc:
+        raise BuildError(f"webui test data: {exc}") from exc
+
+
 def configure(ctx: Context, log: Logger, env: dict) -> None:
     marker = ctx.tree / fallback.SOURCE_MARKER
     if marker.is_file() and marker.read_text().strip() == "official":
@@ -614,7 +630,7 @@ def show_layer_changes(ctx: Context) -> int:
     return 0
 
 
-def build_steps(with_tests: bool) -> list[tuple[str, Callable[[Context, Logger, dict], None]]]:
+def build_steps(with_tests: bool, ui_tests: bool = False) -> list[tuple[str, Callable[[Context, Logger, dict], None]]]:
     steps = [
         ("install ccache", install_ccache),
         ("install python env", install_python_env),
@@ -624,6 +640,8 @@ def build_steps(with_tests: bool) -> list[tuple[str, Callable[[Context, Logger, 
     if with_tests:
         # After the prune in prepare_tree, which would delete the fonts again.
         steps.append(("test fonts", fetch_test_fonts))
+    if ui_tests:
+        steps.append(("webui test data", fetch_webui_test_data))
     return steps + [("configure", configure), ("compile", compile_targets)]
 
 
@@ -642,7 +660,8 @@ def build_tree(ctx: Context, clean: bool = False) -> None:
             layers.clear_store(ctx.pristine_dir)
         env = isolated_env(ctx.paths, os.environ)
         env["PATH"] = os.pathsep.join([str(ctx.venv / "bin"), env.get("PATH", "")])
-        for title, step in build_steps(with_tests=bool(ctx.test_targets)):
+        for title, step in build_steps(with_tests=bool(ctx.test_targets),
+                                         ui_tests=needs_webui_test_data(ctx.test_targets)):
             step_start = time.monotonic()
             log(f"== {title}")
             step(ctx, log, env)

@@ -24,6 +24,7 @@ from . import (
     prune,
     rust_crates,
     test_fonts,
+    test_webui_data,
 )
 
 REPO = Path(__file__).resolve().parents[2]
@@ -420,6 +421,6 @@ def main(argv: list[str] | None = None) -> int:
         return args.func(args)
     except (config.ConfigError, lock.VerificationError, pipeline.BuildError, fallback.FetchError,
             filter_lists.ListError, bump.BumpError, rust_crates.CratesError, buildlock.BuildTreeBusy,
-            test_fonts.TestFontsError) as exc:
+            test_fonts.TestFontsError, test_webui_data.TestDataError) as exc:
         print(f"aerie: error: {exc}", file=sys.stderr)
         return 1

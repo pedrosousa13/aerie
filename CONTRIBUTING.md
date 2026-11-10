@@ -175,8 +175,9 @@ Conventions:
   runs, and `Step(duration)` moves it forward by a known time. Do not use real sleeps.
 - **Focus and keys.** Only `aerie_interactive_ui_tests` may rely on focus or on key and mouse events from
   `ui_controls`. `aerie_interactive_smoke_uitest.cc` is the smallest example.
-- **Downloads.** The binaries use the test fonts that `./aerie test-cpp` already fetches (https, sha256 from
-  `DEPS`, kept in `downloads/`). A test must not add another download.
+- **Downloads.** The binaries use the test fonts (https, sha256 from `DEPS`) and the `chrome/test/data/webui`
+  files (https, pin in `helium.lock` under `[test_data.webui]`) that `./aerie test-cpp` already fetches, both kept
+  in `downloads/`. A test must not add another download.
 
 ## Hardening defaults
 
