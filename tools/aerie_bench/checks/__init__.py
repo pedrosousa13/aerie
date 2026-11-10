@@ -37,4 +37,4 @@ def get(name: str) -> type:
     return REGISTRY[name]
 
 
-from . import aerie_guard_panel, ad_blocking, adblock_score, blocking_levels, branding, browser_requests, cosmetic_filtering, cosmetic_site_switch, filter_lists, hardening, mv2_extension, perf, phishing_protection, scenario_steps, setup_theme, smoke, widevine_opt_in, workspace_isolation, zero_traffic  # noqa: E402,F401  (register built-ins)
+from . import aerie_guard_panel, ad_blocking, adblock_score, blocking_levels, branding, browser_requests, cosmetic_filtering, cosmetic_site_switch, filter_lists, hardening, mv2_extension, perf, phishing_protection, row_padding, scenario_steps, setup_theme, smoke, widevine_opt_in, workspace_isolation, zero_traffic  # noqa: E402,F401  (register built-ins)

@@ -11,7 +11,7 @@ import type {SettingsAerieMotionRowElement} from './aerie_motion_row.js';
 // same words.
 export function getHtml(this: SettingsAerieMotionRowElement) {
   return html`<!--_html_template_start_-->
-<div class="settings-row" id="aerieMotionRow">
+<div class="settings-box first" id="aerieMotionRow">
   <div class="flex cr-padded-text" id="aerieMotionText">
     <div id="aerieMotionLabel">$i18n{aerieMotionReduce}</div>
     <div class="secondary" id="aerieMotionDesc">$i18n{aerieMotionReduceDesc}</div>
