@@ -9,7 +9,7 @@ compares the names with the grdp.
 
 --- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
 +++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
-@@ -1641,6 +1641,56 @@
+@@ -1646,6 +1646,56 @@
    html_source->AddLocalizedStrings(kLocalizedStrings);
  }
  
@@ -66,7 +66,7 @@ compares the names with the grdp.
  void AddOnStartupStrings(content::WebUIDataSource* html_source) {
    static constexpr webui::LocalizedString kLocalizedStrings[] = {
        {"onStartup", IDS_SETTINGS_ON_STARTUP},
-@@ -4836,6 +4886,7 @@
+@@ -4841,6 +4891,7 @@
    AddA11yStrings(html_source);
    AddAboutStrings(html_source, profile);
    AddAerieGuardStrings(html_source);
