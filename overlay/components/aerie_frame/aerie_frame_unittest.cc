@@ -195,6 +195,25 @@ TEST(AerieFrameModelTest, MirroringPutsTheGlowAtTheOtherCorner) {
             FrameColorAt(p, kWindow, true, gfx::PointF(1440, 0)));
 }
 
+TEST(AerieFrameModelTest, WithTheSidebarOnTheRightTheGlowIsAtTheTopRightNotTheTopLeft) {
+  const FramePalette p =
+      ResolveFramePalette(ThemeId::kVivid, ColorMode::kLight, "#336699");
+  ASSERT_GT(p.glow, 0);
+  const SkColor top_left_on_left =
+      FrameColorAt(p, kWindow, false, gfx::PointF(10, 10));
+  const SkColor top_right_on_right =
+      FrameColorAt(p, kWindow, true, gfx::PointF(1430, 10));
+  const SkColor top_left_on_right =
+      FrameColorAt(p, kWindow, true, gfx::PointF(10, 10));
+  const SkColor top_right_on_left =
+      FrameColorAt(p, kWindow, false, gfx::PointF(1430, 10));
+  EXPECT_EQ(top_left_on_left, top_right_on_right);
+  EXPECT_EQ(top_left_on_right, top_right_on_left);
+  // The corner nearest the sidebar is the lit one in both placements.
+  EXPECT_GT(SkColorGetR(top_right_on_right), SkColorGetR(top_left_on_right));
+  EXPECT_GT(SkColorGetR(top_left_on_left), SkColorGetR(top_right_on_left));
+}
+
 // --- Contrast on the frame ---------------------------------------------
 
 TEST(AerieFrameContrastTest, VividDuskLightMatchesTheCheckerAndMeetsTheMinimums) {
@@ -242,8 +261,11 @@ TEST(AerieFrameContrastTest, EveryPresetKeepsTheMinimumsInBothModes) {
 }
 
 // The address pill's field is translucent, so it reads on the frame only if
-// the text on field-over-frame does. The Guard icon is drawn in the muted text
-// colour of the theme there, and needs 3:1 as a graphic.
+// the text on field-over-frame does. This is the MODEL: it reads the Guard icon
+// as the theme's muted text, which is what the token design intends. The colour
+// ids that are really drawn today (ui::kColorIcon, kColorOmniboxIconForeground
+// on kColorLocationBarBackground) are measured by the browser test
+// ThePillAndTheGuardIconReadOnThePaintedFrameWithTheRealColourIds.
 TEST(AerieFrameContrastTest, ThePillFieldAndTheGuardIconReadOnTheTint) {
   for (ColorMode mode : {ColorMode::kLight, ColorMode::kDark}) {
     const FramePalette p = ResolveFramePalette(ThemeId::kVivid, mode, "dusk");
@@ -389,6 +411,32 @@ TEST_F(AerieFrameEnabledTest, OffForTheHorizontalLayout) {
 
 TEST(AerieFrameCardTest, TheCardRadiusIsRadiusXl) {
   EXPECT_EQ(CardRadius(), aerie::tokens::kRadiusXl);
+}
+
+// --- Radius and rounded frame gate, shade and glow colours (issue #178) -------
+
+TEST(AerieFrameGateTest, TheFrameRadiusIsRadiusXlOnlyWhileTheTintIsOn) {
+  EXPECT_EQ(FrameRadius(true, 8), aerie::tokens::kRadiusXl);
+  EXPECT_EQ(FrameRadius(true, 3), aerie::tokens::kRadiusXl);
+  // Helium's own radius, whatever it is, everywhere else.
+  EXPECT_EQ(FrameRadius(false, 8), 8);
+  EXPECT_EQ(FrameRadius(false, 0), 0);
+  EXPECT_EQ(FrameRadius(false, 21), 21);
+}
+
+TEST(AerieFrameGateTest, TheRoundedFrameIsForcedOnOnlyWhileTheTintIsOn) {
+  EXPECT_TRUE(RoundedFrameEnabled(true, false));
+  EXPECT_TRUE(RoundedFrameEnabled(true, true));
+  EXPECT_TRUE(RoundedFrameEnabled(false, true));
+  EXPECT_FALSE(RoundedFrameEnabled(false, false));
+}
+
+TEST(AerieFramePaletteTest, TheShadeAndGlowColoursAreTheTokens) {
+  for (ColorMode mode : {ColorMode::kLight, ColorMode::kDark}) {
+    const FramePalette p = ResolveFramePalette(ThemeId::kVivid, mode, "dusk");
+    EXPECT_EQ(p.shade_colour, aerie::tokens::kColorFrameShade);
+    EXPECT_EQ(p.glow_colour, aerie::tokens::kColorFrameGlow);
+  }
 }
 
 }  // namespace

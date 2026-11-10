@@ -13,6 +13,7 @@
 
 #include <algorithm>
 #include <string>
+#include <vector>
 
 #include "base/functional/bind.h"
 #include "base/run_loop.h"
@@ -25,10 +26,14 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_commands.h"
+#include "chrome/browser/ui/color/chrome_color_id.h"
+#include "chrome/browser/ui/views/aerie_frame/frame_tint_enabled.h"
 #include "chrome/browser/ui/views/aerie_frame/frame_tint_view.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/contents_container_view.h"
 #include "chrome/browser/ui/views/frame/multi_contents_view.h"
+#include "chrome/browser/ui/views/frame/top_container_view.h"
+#include "chrome/browser/ui/views/toolbar/toolbar_view.h"
 #include "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h"
 #include "chrome/browser/ui/views/helium/frame_corner_radius.h"
 #include "chrome/browser/ui/views/helium/native_frame_materials.h"
@@ -37,9 +42,12 @@
 #include "components/aerie_design_tokens/aerie_tokens.h"
 #include "components/aerie_frame/aerie_frame_palette.h"
 #include "components/aerie_sidebar/aerie_sidebar_layout.h"
+#include "components/aerie_sidebar/aerie_sidebar_prefs.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/test/browser_test.h"
 #include "third_party/skia/include/core/SkBitmap.h"
+#include "ui/color/color_id.h"
+#include "ui/color/color_provider.h"
 #include "ui/color/color_provider_key.h"
 #include "ui/compositor/layer.h"
 #include "ui/compositor/layer_animator.h"
@@ -141,6 +149,19 @@ class AerieFrameBrowserTest : public InProcessBrowserTest {
 
   // The minimum contrast of the painted pixels over the sidebar column on
   // both sides of the window, sampled where check_contrast.py samples.
+  //
+  // What this covers: the pixels of the FrameTintView itself (the gradient,
+  // shade and glow, painted with the real token tables and the real Workspace
+  // record, at the real tint size), against the colours the sidebar is meant
+  // to draw (the theme's text, muted text and accent) and against the
+  // checker's numbers. What it does not cover: the BrowserView's whole view
+  // hierarchy composited, and the sidebar's own text pixels. A compositor
+  // readback (ui::Layer copy output) of the window is not available in a
+  // headless test without a GPU, so the sidebar row colours are not sampled
+  // from the screen; today the rows use system colour roles, not the theme
+  // text, until slice I. The tint is the lowest layer and nothing above it
+  // paints the frame colour while it is on (TheTintIsTheLowestLayer... and the
+  // 0029 hook), so the pixels behind the sidebar text are these.
   struct Measured {
     double text = 99;
     double muted = 99;
@@ -212,8 +233,10 @@ IN_PROC_BROWSER_TEST_F(AerieFrameBrowserTest, AFreshProfileShowsVividDuskAndARou
   // The card is rounded with radius-xl, even though the Helium pref is off.
   prefs()->SetBoolean(prefs::kHeliumRoundedFrame, false);
   browser_view()->multi_contents_view()->InvalidateLayout();
-  EXPECT_EQ(GetGenericFrameRadius(), aerie::tokens::kRadiusXl);
-  EXPECT_EQ(GetPaddedFrameRadius(), aerie::tokens::kRadiusXl);
+  EXPECT_EQ(aerie_frame::FrameRadius(browser_view(), GetGenericFrameRadius()),
+            aerie::tokens::kRadiusXl);
+  EXPECT_EQ(aerie_frame::FrameRadius(browser_view(), GetPaddedFrameRadius()),
+            aerie::tokens::kRadiusXl);
   ContentsContainerView* card =
       browser_view()->multi_contents_view()->GetActiveContentsContainerView();
   ASSERT_TRUE(card);
@@ -449,4 +472,156 @@ IN_PROC_BROWSER_TEST_F(AerieFrameBrowserTest, AFullscreenWindowStillHasTheTintAt
   chrome::ToggleFullscreenMode(browser());
   ASSERT_TRUE(WaitFor([&] { return !window()->IsFullscreen(); }));
   EXPECT_EQ(tint()->bounds(), browser_view()->GetLocalBounds());
+}
+
+// --- Helium's own radius outside the Aerie layout (issue #178) -------------
+
+IN_PROC_BROWSER_TEST_F(AerieFrameBrowserTest, TheHorizontalLayoutKeepsHeliumsRadiiAndItsOutline) {
+  ASSERT_TRUE(tint());
+  const int helium_generic = GetGenericFrameRadius();
+  const int helium_padded = GetPaddedFrameRadius();
+  // Helium's radii are Helium's: 8 for the generic one, and neither is radius-xl here.
+  EXPECT_EQ(helium_generic, 8);
+  EXPECT_NE(helium_generic, aerie::tokens::kRadiusXl);
+
+  prefs()->SetString(aerie_sidebar::kLayoutPref, aerie_sidebar::kLayoutHorizontal);
+  EXPECT_FALSE(aerie_frame::ShouldTintFrame(browser_view()));
+  EXPECT_EQ(aerie_frame::FrameRadius(browser_view(), helium_generic), helium_generic);
+  EXPECT_EQ(aerie_frame::FrameRadius(browser_view(), helium_padded), helium_padded);
+  EXPECT_FALSE(aerie_frame::CardBorderHidden(browser_view()));
+  // The rounded frame is then whatever Helium's pref says.
+  EXPECT_FALSE(aerie_frame::RoundedFrameEnabled(browser_view(), false));
+  EXPECT_TRUE(aerie_frame::RoundedFrameEnabled(browser_view(), true));
+}
+
+IN_PROC_BROWSER_TEST_F(AerieFrameBrowserTest, ANonNormalWindowKeepsHeliumsRadiiAndHasNoTint) {
+  BrowserWindowInterface* popup = CreateBrowserForPopup(browser()->GetProfile());
+  BrowserView* popup_view = BrowserView::GetBrowserViewForBrowser(popup);
+  ASSERT_TRUE(popup_view);
+  EXPECT_FALSE(popup_view->GetIsNormalType());
+  EXPECT_FALSE(popup_view->frame_tint_view_for_testing());
+  EXPECT_FALSE(aerie_frame::ShouldTintFrame(popup_view));
+  EXPECT_EQ(aerie_frame::FrameRadius(popup_view, GetGenericFrameRadius()),
+            GetGenericFrameRadius());
+  EXPECT_EQ(aerie_frame::FrameRadius(popup_view, GetPaddedFrameRadius()),
+            GetPaddedFrameRadius());
+  EXPECT_FALSE(aerie_frame::CardBorderHidden(popup_view));
+  // The normal window next to it is unchanged.
+  EXPECT_EQ(aerie_frame::FrameRadius(browser_view(), GetGenericFrameRadius()),
+            aerie::tokens::kRadiusXl);
+}
+
+// --- The toolbar divider and the top chrome (issue #178) -------------------
+
+// Helium's own dividers and separators (remove-toolbar-dividers.patch and the
+// contents separator) must not draw over the card. Every visible view outside
+// the card whose class is a separator, divider or outline is measured against
+// the card's bounds.
+IN_PROC_BROWSER_TEST_F(AerieFrameBrowserTest, NoToolbarOrTopChromeDividerDrawsOverTheCard) {
+  ASSERT_TRUE(tint());
+  ResizeTintTo(gfx::Size(1440, 900));
+  ASSERT_TRUE(WaitFor([&] { return !tint()->inputs_for_testing().card.IsEmpty(); }));
+  Pump(base::Milliseconds(200));
+  ContentsContainerView* card_view =
+      browser_view()->multi_contents_view()->GetActiveContentsContainerView();
+  ASSERT_TRUE(card_view);
+  const gfx::Rect card = views::View::ConvertRectToTarget(
+      card_view->parent(), browser_view(), card_view->bounds());
+  ASSERT_FALSE(card.IsEmpty());
+
+  int checked = 0;
+  std::vector<std::string> offenders;
+  std::vector<views::View*> pending = {browser_view()};
+  while (!pending.empty()) {
+    views::View* view = pending.back();
+    pending.pop_back();
+    if (view == card_view || !view->GetVisible()) {
+      continue;  // The card's own contents are inside it by design.
+    }
+    const std::string name(view->GetClassName());
+    // A divider by name, or a hairline: a visible view one or two pixels thick.
+    const bool hairline = !view->bounds().IsEmpty() &&
+                          std::min(view->width(), view->height()) <= 2 &&
+                          std::max(view->width(), view->height()) > 8;
+    if (hairline) {
+      LOG(INFO) << "hairline view " << name << " " << view->bounds().ToString();
+    }
+    const bool is_divider = hairline ||
+                            name.find("Separator") != std::string::npos ||
+                            name.find("Divider") != std::string::npos ||
+                            name.find("Outline") != std::string::npos;
+    if (is_divider && !view->bounds().IsEmpty() && view != browser_view()) {
+      ++checked;
+      const gfx::Rect bounds = views::View::ConvertRectToTarget(
+          view->parent(), browser_view(), view->bounds());
+      if (bounds.Intersects(card)) {
+        offenders.push_back(name + " " + bounds.ToString() + " over " +
+                            card.ToString());
+      }
+    }
+    for (views::View* child : view->children()) {
+      pending.push_back(child);
+    }
+  }
+  EXPECT_TRUE(offenders.empty()) << ::testing::PrintToString(offenders);
+  // The toolbar paints its own bottom separator at its edge, so the toolbar
+  // and the top container must end where the card starts. There are no
+  // divider views of Helium's outside the card in this layout (the count is
+  // logged), so these two bounds are the check that matters.
+  for (views::View* top : {static_cast<views::View*>(browser_view()->toolbar()),
+                           static_cast<views::View*>(browser_view()->top_container())}) {
+    ASSERT_TRUE(top);
+    const gfx::Rect top_bounds = views::View::ConvertRectToTarget(
+        top->parent(), browser_view(), top->bounds());
+    EXPECT_FALSE(top_bounds.Intersects(card))
+        << std::string(top->GetClassName()) << " " << top_bounds.ToString()
+        << " over " << card.ToString();
+  }
+  // The card's own outline is hidden in Vivid, which asks for no border.
+  EXPECT_TRUE(aerie_frame::CardBorderHidden(browser_view()));
+  LOG(INFO) << "dividers measured outside the card: " << checked;
+}
+
+// --- The address pill and the Guard icon on the tint (issue #178) ----------
+
+// The model (aerie_frame_unittest.cc) reads the Guard icon as the theme's
+// muted text. What is really drawn is not that: the page action draws it in
+// ui::kColorIcon (AerieGuardPageActionController::DefaultImage) and the
+// location bar's badge image in kColorOmniboxIconForeground (GuardImage), on
+// kColorLocationBarBackground, with kColorOmniboxText for the address. Until
+// the theme's ColorMixer bridge (slice I) maps the tokens onto those ids, this
+// test measures the real ids from the window's ColorProvider on the painted
+// frame, over the top row where the pill sits, in both modes.
+IN_PROC_BROWSER_TEST_F(AerieFrameBrowserTest, ThePillAndTheGuardIconReadOnThePaintedFrameWithTheRealColourIds) {
+  ASSERT_TRUE(tint());
+  ResizeTintTo(gfx::Size(1440, 900));
+  for (ColorMode mode : {ColorMode::kLight, ColorMode::kDark}) {
+    SetMode(mode);
+    ASSERT_TRUE(WaitFor([&] { return browser_view()->GetColorProvider() != nullptr; }));
+    Pump(base::Milliseconds(100));
+    const ui::ColorProvider* provider = browser_view()->GetColorProvider();
+    const SkColor field_color = provider->GetColor(kColorLocationBarBackground);
+    const SkColor address = provider->GetColor(kColorOmniboxText);
+    const SkColor guard_page_action = provider->GetColor(ui::kColorIcon);
+    const SkColor guard_badge_image = provider->GetColor(kColorOmniboxIconForeground);
+    SkBitmap bitmap;
+    tint()->PaintToBitmapForTesting(&bitmap);
+    double text = 99, page_action = 99, badge = 99;
+    // The pill: the top row, from the sidebar's edge to the window's.
+    for (int y = 4; y <= 30; y += 13) {
+      for (int x = 134; x < bitmap.width() - 70; x += 100) {
+        const SkColor behind =
+            aerie_frame::Over(field_color, bitmap.getColor(x, y));
+        text = std::min(text, aerie_frame::ContrastRatio(address, behind));
+        page_action = std::min(page_action, aerie_frame::ContrastRatio(guard_page_action, behind));
+        badge = std::min(badge, aerie_frame::ContrastRatio(guard_badge_image, behind));
+      }
+    }
+    LOG(INFO) << "mode " << (mode == ColorMode::kDark ? "dark" : "light")
+              << " address text " << text << " page action icon " << page_action
+              << " badge image " << badge;
+    EXPECT_GE(text, 4.5);
+    EXPECT_GE(page_action, 3.0);
+    EXPECT_GE(badge, 3.0);
+  }
 }
