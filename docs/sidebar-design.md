@@ -563,7 +563,7 @@ An adapter observes `TabStripModelObserver::OnTabStripModelChanged` for every no
 
 ### Pinned tabs and the Chromium pinned bit
 
-Decision: tabs in Aerie's Pinned and Favorites sections do not carry the Chromium pinned bit. `PinnedTabService` saves the tabs that have the bit and restores them at startup, so with no bit it has nothing to restore and Aerie's Pinned section cannot come back twice. Aerie restores its own Pinned tabs from `pinned_url`. The other reason is sleep: Chromium refuses to discard a tab that has the bit (`discard_eligibility_policy.cc`, `kPinnedTab`), and #179 (slice G) has to sleep pinned tabs. No patch is needed for this.
+Decision: tabs in Aerie's Pinned and Favorites sections do not carry the Chromium pinned bit. `PinnedTabService` saves the tabs that have the bit and restores them at startup, so with no bit it has nothing to restore and Aerie's Pinned section cannot come back twice. Aerie's own Pinned tabs will be restored from `pinned_url`; no slice does that yet (this slice only stores the field). The other reason is sleep: Chromium refuses to discard a tab that has the bit (`discard_eligibility_policy.cc`, `kPinnedTab`), and #179 (slice G) has to sleep pinned tabs. No patch is needed for this.
 
 If the spike for horizontal tabs (#186, slice J) shows that the strip needs the bit, keep the bit for that case and add a small hook patch at the `kPinnedTab` line of that policy. Until then nothing in Aerie sets the bit, and the browser test `tab_model_browsertest.cc` checks that no tab has it and that nothing is saved for `PinnedTabService`.
 
