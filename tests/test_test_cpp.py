@@ -158,7 +158,8 @@ class TestCppTest(unittest.TestCase):
         _result, calls, _ = self.run_tests({}, targets=["aerie_interactive_ui_tests"])
         self.assertEqual(Path(calls[0][0]).name, "xvfb-run")
         self.assertIn("-a", calls[0])
-        self.assertEqual(Path(calls[0][-1]).name, "aerie_interactive_ui_tests")
+        self.assertEqual(Path(calls[0][-3]).name, "aerie_interactive_ui_tests")
+        self.assertEqual(calls[0][-2:], ["--no-sandbox", "--disable-gpu"])
 
     def test_the_interactive_tests_fail_with_a_name_when_xvfb_is_missing(self):
         result, calls, _ = self.run_tests({}, targets=["aerie_interactive_ui_tests"], xvfb=None)
