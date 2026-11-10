@@ -20,6 +20,7 @@ source_set("handler") {
   ]
   deps = [
     "//chrome/browser/profiles:profile",
+    "//components/aerie_adblock/browser:classified_request",  # blocking_level.h
     "//url",
   ]
 }

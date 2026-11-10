@@ -18,6 +18,25 @@ export function getHtml(this: SettingsAerieGuardPageElement) {
   </settings-toggle-button>
   <div class="cr-row hr">
     <div class="flex cr-padded-text">
+      <div id="defaultLevelLabel">$i18n{aerieGuardDefaultLevel}</div>
+      <div class="secondary">$i18n{aerieGuardDefaultLevelDesc}</div>
+    </div>
+    <select id="defaultLevel" class="md-select"
+        aria-labelledby="defaultLevelLabel"
+        .value="${this.defaultLevel_}"
+        @change="${this.onDefaultLevelChange_}">
+      <option value="aggressive"
+          ?selected="${this.defaultLevel_ === 'aggressive'}">
+        $i18n{aerieGuardLevelAggressive}
+      </option>
+      <option value="standard"
+          ?selected="${this.defaultLevel_ === 'standard'}">
+        $i18n{aerieGuardLevelStandard}
+      </option>
+    </select>
+  </div>
+  <div class="cr-row hr">
+    <div class="flex cr-padded-text">
       <div id="autoUpdateLabel">$i18n{aerieGuardAutoUpdate}</div>
       <div class="secondary">$i18n{aerieGuardAutoUpdateDesc}</div>
     </div>

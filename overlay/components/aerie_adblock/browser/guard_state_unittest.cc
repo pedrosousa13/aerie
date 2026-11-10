@@ -200,6 +200,27 @@ TEST(GuardStateWithoutManagerTest, BlockingIsOn) {
   EXPECT_EQ(2, state.count);
 }
 
+TEST_F(GuardStateTest, TheStateCarriesTheBlockingLevelOfTheSite) {
+  EXPECT_EQ(BlockingLevel::kAggressive, StateFor("https://news.test/").level);
+  ASSERT_EQ(ExceptionResult::kOk,
+            manager_->SetBlockingLevelForTesting("news.test", BlockingLevel::kStandard,
+                                                 SessionKey::Regular()));
+  EXPECT_EQ(BlockingLevel::kStandard, StateFor("https://news.test/").level);
+  EXPECT_EQ(BlockingLevel::kStandard, StateFor("https://www.news.test/").level);
+  EXPECT_EQ(BlockingLevel::kAggressive, StateFor("https://other.test/").level);
+  manager_->SetDefaultBlockingLevel(BlockingLevel::kStandard);
+  EXPECT_EQ(BlockingLevel::kStandard, StateFor("https://other.test/").level);
+  // A level says nothing about the exception.
+  EXPECT_FALSE(StateFor("https://news.test/").blocking_off);
+}
+
+TEST(GuardStateWithoutManagerTest, TheLevelIsAggressive) {
+  EXPECT_EQ(BlockingLevel::kAggressive,
+            ComputeGuardState(GURL("https://news.test/"), SessionKey::Regular(),
+                              nullptr, 0)
+                .level);
+}
+
 TEST_F(GuardStateTest, CosmeticHidingOffShowsInTheStateAndNotAsBlockingOff) {
   EXPECT_FALSE(StateFor("https://news.test/").cosmetic_off);
   ASSERT_EQ(ExceptionResult::kOk,

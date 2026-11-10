@@ -115,6 +115,26 @@ bool HostHasException(std::string_view host,
   }
 }
 
+std::optional<BlockingLevel> FindBlockingLevel(
+    std::string_view host,
+    const std::map<std::string, BlockingLevel>& levels) {
+  if (host.empty()) {
+    return std::nullopt;
+  }
+  std::string current(host);
+  while (true) {
+    auto it = levels.find(current);
+    if (it != levels.end()) {
+      return it->second;
+    }
+    size_t dot = current.find('.');
+    if (dot == std::string::npos) {
+      return std::nullopt;
+    }
+    current.erase(0, dot + 1);
+  }
+}
+
 FilterListState::FilterListState() {
   lists_.push_back(BuiltIn(kEasyListId, kEasyListUrl, "EasyList"));
   lists_.push_back(BuiltIn(kEasyPrivacyId, kEasyPrivacyUrl, "EasyPrivacy"));
@@ -222,6 +242,29 @@ bool FilterListState::SetCosmeticOff(std::string_view host, bool off) {
   return true;
 }
 
+bool FilterListState::SetLevelOverride(std::string_view host,
+                                       BlockingLevel level) {
+  std::string normalized = NormalizeExceptionHost(host);
+  if (normalized.empty()) {
+    return false;
+  }
+  if (level_overrides_.size() >= kMaxLevelOverrides &&
+      !level_overrides_.count(normalized)) {
+    return false;
+  }
+  level_overrides_[std::move(normalized)] = level;
+  return true;
+}
+
+bool FilterListState::ClearLevelOverride(std::string_view host) {
+  std::string normalized = NormalizeExceptionHost(host);
+  if (normalized.empty()) {
+    return false;
+  }
+  level_overrides_.erase(normalized);
+  return true;
+}
+
 bool FilterListState::NeedsRebuild() const {
   return std::any_of(lists_.begin(), lists_.end(), [](const auto& e) {
     return !e.builtin || !e.updated.is_null() || !e.enabled;
@@ -243,6 +286,12 @@ base::DictValue FilterListState::ToValue() const {
     cosmetic_off.Append(host);
   }
   out.Set("cosmetic_off", std::move(cosmetic_off));
+  out.Set("default_level", std::string(BlockingLevelName(default_level_)));
+  base::DictValue levels;
+  for (const auto& [host, level] : level_overrides_) {
+    levels.Set(host, std::string(BlockingLevelName(level)));
+  }
+  out.Set("levels", std::move(levels));
   base::ListValue lists;
   for (const FilterListEntry& entry : lists_) {
     base::DictValue item;
@@ -295,6 +344,22 @@ FilterListState FilterListState::FromValue(const base::DictValue& dict) {
     for (const base::Value& host : *hosts) {
       if (host.is_string()) {
         state.SetCosmeticOff(host.GetString(), true);
+      }
+    }
+  }
+
+  // A missing or unknown level is Aggressive, today's behaviour.
+  if (const std::string* name = dict.FindString("default_level")) {
+    state.default_level_ =
+        BlockingLevelFromName(*name).value_or(kDefaultBlockingLevel);
+  }
+  if (const base::DictValue* levels = dict.FindDict("levels")) {
+    for (const auto [host, value] : *levels) {
+      const std::string* name = value.GetIfString();
+      std::optional<BlockingLevel> level =
+          name ? BlockingLevelFromName(*name) : std::nullopt;
+      if (level) {
+        state.SetLevelOverride(host, *level);
       }
     }
   }

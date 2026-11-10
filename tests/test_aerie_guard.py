@@ -161,7 +161,7 @@ class PanelTest(unittest.TestCase):
         handler = text[text.index("interface PageHandler "):text.index("interface Page {")]
         for line in handler.splitlines():
             if "(" in line and "GetState" not in line and "{" not in line:
-                self.assertRegex(line, r"\((bool \w+|Link \w+)?\)", line)
+                self.assertRegex(line, r"\((bool \w+|Link \w+|BlockingLevel \w+)?\)", line)
 
     def test_config_is_not_preloadable(self):
         code = (WEBUI / "aerie_guard_ui.cc").read_text()

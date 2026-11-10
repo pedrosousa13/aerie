@@ -48,6 +48,7 @@ source_set("aerie_guard") {
     "//chrome/browser/ui/browser_window",
     "//chrome/browser/ui/webui:favicon_source",
     "//chrome/common",
+    "//components/aerie_adblock/browser:classified_request",  # blocking_level.h
     "//components/aerie_fingerprint",
     "//components/favicon_base",
     "//components/tabs:public",

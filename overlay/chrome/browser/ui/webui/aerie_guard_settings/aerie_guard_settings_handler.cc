@@ -4,11 +4,13 @@
 
 #include "chrome/browser/ui/webui/aerie_guard_settings/aerie_guard_settings_handler.h"
 
+#include <optional>
 #include <string>
 #include <utility>
 
 #include "base/functional/bind.h"
 #include "chrome/browser/profiles/profile.h"
+#include "components/aerie_adblock/browser/blocking_level.h"
 #include "components/aerie_adblock/browser/filter_list_state.h"
 #include "components/aerie_adblock/browser/list_failure.h"
 #include "content/public/browser/web_ui.h"
@@ -78,6 +80,8 @@ base::DictValue AerieGuardSettingsHandler::StateToValue(
   out.Set("ready", true);
   out.Set("busy", manager.busy());
   out.Set("autoUpdate", state.auto_update());
+  out.Set("defaultLevel",
+          std::string(aerie_adblock::BlockingLevelName(state.default_level())));
   out.Set("addError", std::string(add_error));
   out.Set("exceptionError", std::string(exception_error));
   out.Set("listError", std::string(list_error));
@@ -145,6 +149,10 @@ void AerieGuardSettingsHandler::RegisterMessages() {
   web_ui()->RegisterMessageCallback(
       "aerieGuard.setException",
       base::BindRepeating(&AerieGuardSettingsHandler::HandleSetException,
+                          base::Unretained(this)));
+  web_ui()->RegisterMessageCallback(
+      "aerieGuard.setDefaultLevel",
+      base::BindRepeating(&AerieGuardSettingsHandler::HandleSetDefaultLevel,
                           base::Unretained(this)));
   web_ui()->RegisterMessageCallback(
       "aerieGuard.setAutoUpdate",
@@ -330,6 +338,26 @@ void AerieGuardSettingsHandler::HandleSetException(
       break;
   }
   Resolve(args, std::string_view(), error);
+}
+
+void AerieGuardSettingsHandler::HandleSetDefaultLevel(
+    const base::ListValue& args) {
+  const std::string* name = StringArg(args, 1);
+  if (!CallbackId(args)) {
+    return;
+  }
+  // Only the two level names are accepted. Anything else changes nothing.
+  std::optional<aerie_adblock::BlockingLevel> level =
+      name && args.size() == 2 ? aerie_adblock::BlockingLevelFromName(*name)
+                               : std::nullopt;
+  if (!level) {
+    Reject(args, "bad_argument");
+    return;
+  }
+  if (FilterListManager* manager = Begin(args)) {
+    manager->SetDefaultBlockingLevel(*level);
+    Resolve(args, std::string_view(), std::string_view());
+  }
 }
 
 void AerieGuardSettingsHandler::HandleSetAutoUpdate(

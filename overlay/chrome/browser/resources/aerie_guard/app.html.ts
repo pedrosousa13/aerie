@@ -4,7 +4,7 @@
 
 import {html} from '//resources/lit/v3_0/lit.rollup.js';
 
-import {FingerprintingMode} from './aerie_guard.mojom-webui.js';
+import {BlockingLevel, FingerprintingMode} from './aerie_guard.mojom-webui.js';
 import type {AerieGuardAppElement} from './app.js';
 
 export function getHtml(this: AerieGuardAppElement) {
@@ -44,6 +44,31 @@ ${this.state_ ? html`
   </section>
   <p id="scope">${this.scopeText_()}</p>
   ${this.noteText_() ? html`<p id="note">${this.noteText_()}</p>` : ''}
+  <section id="level">
+    <div id="levelLabel">${this.i18n_('levelLabel')}</div>
+    <div id="levelChoices" role="radiogroup" aria-labelledby="levelLabel">
+      <button id="levelAggressive" type="button" role="radio"
+          aria-checked="${this.levelChecked_(BlockingLevel.kAggressive)}"
+          ?disabled="${this.state_.locked}"
+          @click="${this.onLevelAggressive_}">
+        ${this.i18n_('levelAggressive')}
+      </button>
+      <button id="levelStandard" type="button" role="radio"
+          aria-checked="${this.levelChecked_(BlockingLevel.kStandard)}"
+          ?disabled="${this.state_.locked}"
+          @click="${this.onLevelStandard_}">
+        ${this.i18n_('levelStandard')}
+      </button>
+      <button id="levelOff" type="button" role="radio"
+          aria-checked="${this.levelOffChecked_()}"
+          ?disabled="${this.state_.locked}"
+          @click="${this.onLevelOff_}">
+        ${this.i18n_('levelOff')}
+      </button>
+    </div>
+    <p id="levelDesc">${this.levelDescText_()}</p>
+    <p id="levelReload">${this.i18n_('levelReload')}</p>
+  </section>
   <details id="advanced" ?open="${this.advancedOpen_}"
       @toggle="${this.onAdvancedToggle_}">
     <summary>${this.i18n_('advanced')}</summary>

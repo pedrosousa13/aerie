@@ -4,6 +4,7 @@
 
 #include "components/aerie_adblock/browser/filter_list_state.h"
 
+#include <map>
 #include <optional>
 #include <set>
 #include <string>
@@ -351,6 +352,94 @@ TEST(FilterListStateTest, AFileThatTurnsEasyListOffIsIgnoredForEasyList) {
   FilterListState state = FilterListState::FromValue(json->GetDict());
   EXPECT_TRUE(state.Find(kEasyListId)->enabled);
   EXPECT_FALSE(state.Find(kEasyPrivacyId)->enabled);
+TEST(FilterListStateTest, BlockingLevelDefaultsToAggressive) {
+  FilterListState state;
+  EXPECT_EQ(state.default_level(), BlockingLevel::kAggressive);
+  EXPECT_TRUE(state.level_overrides().empty());
+  EXPECT_EQ(FilterListState::FromValue(base::DictValue()).default_level(),
+            BlockingLevel::kAggressive);
+}
+
+TEST(FilterListStateTest, LevelOverridesAreNormalizedAndCapped) {
+  FilterListState state;
+  EXPECT_TRUE(state.SetLevelOverride("News.Test", BlockingLevel::kStandard));
+  EXPECT_EQ(state.level_overrides().at("news.test"), BlockingLevel::kStandard);
+  EXPECT_FALSE(state.SetLevelOverride("not a host", BlockingLevel::kStandard));
+  EXPECT_TRUE(state.SetLevelOverride("news.test", BlockingLevel::kAggressive));
+  EXPECT_EQ(state.level_overrides().size(), 1u);
+  EXPECT_TRUE(state.ClearLevelOverride("news.test"));
+  EXPECT_TRUE(state.level_overrides().empty());
+  for (size_t i = 0; i < kMaxLevelOverrides; ++i) {
+    ASSERT_TRUE(state.SetLevelOverride("h" + std::to_string(i) + ".test",
+                                       BlockingLevel::kStandard));
+  }
+  EXPECT_FALSE(state.SetLevelOverride("one-more.test", BlockingLevel::kStandard));
+  EXPECT_TRUE(state.SetLevelOverride("h1.test", BlockingLevel::kAggressive));
+  EXPECT_TRUE(state.ClearLevelOverride("h1.test"));  // Removing still works.
+}
+
+TEST(FilterListStateTest, FindBlockingLevelPrefersTheNearestHost) {
+  std::map<std::string, BlockingLevel> levels = {
+      {"news.test", BlockingLevel::kStandard},
+      {"ads.news.test", BlockingLevel::kAggressive}};
+  EXPECT_EQ(FindBlockingLevel("news.test", levels), BlockingLevel::kStandard);
+  EXPECT_EQ(FindBlockingLevel("www.news.test", levels),
+            BlockingLevel::kStandard);
+  EXPECT_EQ(FindBlockingLevel("x.ads.news.test", levels),
+            BlockingLevel::kAggressive);
+  EXPECT_EQ(FindBlockingLevel("other.test", levels), std::nullopt);
+  EXPECT_EQ(FindBlockingLevel("", levels), std::nullopt);
+}
+
+TEST(FilterListStateTest, BlockingLevelsSurviveASaveAndLoad) {
+  FilterListState state;
+  state.SetDefaultLevel(BlockingLevel::kStandard);
+  state.SetLevelOverride("a.test", BlockingLevel::kAggressive);
+  state.SetLevelOverride("b.test", BlockingLevel::kStandard);
+  std::optional<base::Value> json =
+      base::JSONReader::Read(*base::WriteJson(state.ToValue()), base::JSON_PARSE_RFC);
+  ASSERT_TRUE(json && json->is_dict());
+  FilterListState back = FilterListState::FromValue(json->GetDict());
+  EXPECT_EQ(back.default_level(), BlockingLevel::kStandard);
+  EXPECT_EQ(back.level_overrides(), state.level_overrides());
+}
+
+TEST(FilterListStateTest, HostileLevelContentFallsBackToSafeValues) {
+  for (const char* text :
+       {R"({"default_level": "loud"})", R"({"default_level": 5})",
+        R"({"default_level": null})", R"({"default_level": ["standard"]})"}) {
+    std::optional<base::Value> json = base::JSONReader::Read(text, base::JSON_PARSE_RFC);
+    ASSERT_TRUE(json && json->is_dict()) << text;
+    EXPECT_EQ(FilterListState::FromValue(json->GetDict()).default_level(),
+              BlockingLevel::kAggressive)
+        << text;
+  }
+  std::optional<base::Value> json = base::JSONReader::Read(
+      R"({"levels": {"ok.test": "standard", "bad host": "standard",
+          "x.test": "loud", "y.test": 5, "z.test": null, "OK2.test": "aggressive"}})",
+      base::JSON_PARSE_RFC);
+  ASSERT_TRUE(json && json->is_dict());
+  std::map<std::string, BlockingLevel> expected = {
+      {"ok.test", BlockingLevel::kStandard},
+      {"ok2.test", BlockingLevel::kAggressive}};
+  EXPECT_EQ(FilterListState::FromValue(json->GetDict()).level_overrides(),
+            expected);
+  for (const char* text : {R"({"levels": ["a.test"]})", R"({"levels": 5})"}) {
+    std::optional<base::Value> bad = base::JSONReader::Read(text, base::JSON_PARSE_RFC);
+    ASSERT_TRUE(bad && bad->is_dict()) << text;
+    EXPECT_TRUE(FilterListState::FromValue(bad->GetDict()).level_overrides().empty());
+  }
+}
+
+TEST(FilterListStateTest, TooManyLevelOverridesAreCut) {
+  base::DictValue dict;
+  base::DictValue levels;
+  for (size_t i = 0; i < kMaxLevelOverrides + 500; ++i) {
+    levels.Set("h" + std::to_string(i) + ".test", "standard");
+  }
+  dict.Set("levels", std::move(levels));
+  EXPECT_EQ(FilterListState::FromValue(dict).level_overrides().size(),
+            kMaxLevelOverrides);
 }
 
 TEST(FilterListStateTest, GarbageGivesDefaults) {

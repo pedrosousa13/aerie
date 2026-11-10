@@ -125,5 +125,21 @@ TEST_F(FilterListManagerSessionTest, ACosmeticChoiceSetFromAContextGoesWhenTheCo
   EXPECT_FALSE(manager_->IsCosmeticHidingOff("news.test", key));
 }
 
+TEST_F(FilterListManagerSessionTest, ALevelSetFromAContextGoesWhenTheContextDoes) {
+  auto incognito = std::make_unique<content::TestBrowserContext>();
+  incognito->set_is_off_the_record(true);
+  const SessionKey key = SessionKeyFor(incognito.get());
+  ASSERT_EQ(ExceptionResult::kOk,
+            manager_->SetBlockingLevel("news.test", BlockingLevel::kStandard,
+                                       incognito.get()));
+  EXPECT_EQ(BlockingLevel::kStandard,
+            manager_->EffectiveBlockingLevel("news.test", key));
+  EXPECT_EQ(BlockingLevel::kAggressive,
+            manager_->EffectiveBlockingLevel("news.test", SessionKey::Regular()));
+  incognito.reset();  // The window closed.
+  EXPECT_EQ(BlockingLevel::kAggressive,
+            manager_->EffectiveBlockingLevel("news.test", key));
+}
+
 }  // namespace
 }  // namespace aerie_adblock

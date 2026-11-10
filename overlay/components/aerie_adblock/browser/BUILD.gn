@@ -55,6 +55,7 @@ source_set("browser") {
 source_set("classified_request") {
   visibility = _visibility
   sources = [
+    "blocking_level.h",
     "classified_request.h",
     "session_key.h",
   ]
@@ -94,6 +95,7 @@ source_set("list_types") {
     "list_failure.h",
   ]
   public_deps = [
+    ":classified_request",  # blocking_level.h, which filter_list_state.h includes.
     "//base",
     "//url",
   ]

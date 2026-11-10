@@ -11,7 +11,7 @@ import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
 import {CrLitElement} from 'chrome://resources/lit/v3_0/lit.rollup.js';
 import type {PropertyValues} from 'chrome://resources/lit/v3_0/lit.rollup.js';
 
-import {FingerprintingMode, Link, ProtectedSurface} from './aerie_guard.mojom-webui.js';
+import {BlockingLevel, FingerprintingMode, Link, ProtectedSurface} from './aerie_guard.mojom-webui.js';
 import type {PanelState} from './aerie_guard.mojom-webui.js';
 import {getCss} from './app.css.js';
 import {getHtml} from './app.html.js';
@@ -131,6 +131,39 @@ export class AerieGuardAppElement extends CrLitElement {
       return this.i18n_('locked');
     }
     return this.state_?.incognito ? this.i18n_('incognito') : '';
+  }
+
+  // The level row: Aggressive, Standard or Off. Off is the switch above it.
+  protected levelChecked_(level: BlockingLevel): string {
+    return String(
+        !!this.state_ && this.state_.blockingOn &&
+        this.state_.blockingLevel === level);
+  }
+
+  protected levelOffChecked_(): string {
+    return String(!!this.state_ && !this.state_.blockingOn);
+  }
+
+  protected levelDescText_(): string {
+    if (!this.state_ || !this.state_.blockingOn) {
+      return this.i18n_('levelOffDesc');
+    }
+    return this.i18n_(
+        this.state_.blockingLevel === BlockingLevel.kStandard ?
+            'levelStandardDesc' :
+            'levelAggressiveDesc');
+  }
+
+  protected onLevelAggressive_() {
+    this.proxy_.handler.setBlockingLevel(BlockingLevel.kAggressive);
+  }
+
+  protected onLevelStandard_() {
+    this.proxy_.handler.setBlockingLevel(BlockingLevel.kStandard);
+  }
+
+  protected onLevelOff_() {
+    this.proxy_.handler.setGuardOn(false);
   }
 
   // The row shows what is in force: with blocking off there is no hiding

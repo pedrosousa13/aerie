@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Aerie Blocking Levels Fixture</title>
+</head>
+<body>
+<h1 id="content">First-party content</h1>
+<!-- Opened as standard.localhost and as aggressive.localhost (checks/blocking_levels.py). Each script is asked for twice:
+     from this page's own host (first party) and from 127.0.0.1 on the same port (third party: another site). The file
+     ad_header.js has a name that a generic EasyList rule blocks (/ad_header.js$script). important_builtin.js has a name
+     that a built-in list of the check blocks with $important, and important_custom.js one that a custom list of the check does. The fixture server has no such files, so a request that is not blocked
+     is a 404, and one that is blocked ends with net::ERR_BLOCKED_BY_CLIENT. content.js exists and must always load. -->
+<script>
+(function () {
+  var base = "/blocking/levels/";
+  var other = "http://127.0.0.1:" + location.port + base;
+  var pending = 0;
+  window.__levelsDone = false;
+  function load(url) {
+    pending++;
+    var s = document.createElement("script");
+    s.onload = s.onerror = function () { if (--pending === 0) { window.__levelsDone = true; } };
+    s.src = url;
+    document.body.appendChild(s);
+  }
+  ["ad_header.js", "important_builtin.js", "important_custom.js", "content.js"].forEach(function (name) {
+    load(base + name);
+    if (name !== "content.js") { load(other + name); }
+  });
+})();
+</script>
+</body>
+</html>

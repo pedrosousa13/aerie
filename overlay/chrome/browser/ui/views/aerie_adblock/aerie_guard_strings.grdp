@@ -48,6 +48,30 @@
       =1 {1 request blocked on this page}
       other {# requests blocked on this page}}
   </message>
+  <message name="IDS_AERIE_GUARD_PANEL_LEVEL_LABEL" desc="Label of the row in the Aerie Guard panel that sets how far blocking goes on the site of the open page. The row has three choices: Aggressive, Standard and Off.">
+    Blocking level
+  </message>
+  <message name="IDS_AERIE_GUARD_PANEL_LEVEL_AGGRESSIVE" desc="Name of the first choice of the blocking level row in the Aerie Guard panel. It blocks matching requests to the site itself and to other sites.">
+    Aggressive
+  </message>
+  <message name="IDS_AERIE_GUARD_PANEL_LEVEL_STANDARD" desc="Name of the second choice of the blocking level row in the Aerie Guard panel. Built-in lists do not block requests to the site itself; the lists the user added still do. Matching requests to other sites are blocked.">
+    Standard
+  </message>
+  <message name="IDS_AERIE_GUARD_PANEL_LEVEL_OFF" desc="Name of the third choice of the blocking level row in the Aerie Guard panel. It turns blocking off for the site, like the switch above the row.">
+    Off
+  </message>
+  <message name="IDS_AERIE_GUARD_PANEL_LEVEL_AGGRESSIVE_DESC" desc="Line under the blocking level row in the Aerie Guard panel while Aggressive is chosen. It says what is blocked and warns that a site can break.">
+    Blocks matching requests to this site and to other sites. A site can break.
+  </message>
+  <message name="IDS_AERIE_GUARD_PANEL_LEVEL_STANDARD_DESC" desc="Line under the blocking level row in the Aerie Guard panel while Standard is chosen. It says that built-in lists do not block requests to the site itself, that lists the user added still do, and that requests to other sites are blocked.">
+    Blocks matching requests to other sites. Built-in lists do not block this site itself; your own lists still do.
+  </message>
+  <message name="IDS_AERIE_GUARD_PANEL_LEVEL_OFF_DESC" desc="Line under the blocking level row in the Aerie Guard panel while Off is chosen. It says that nothing is blocked on the site.">
+    Nothing is blocked on this site.
+  </message>
+  <message name="IDS_AERIE_GUARD_PANEL_LEVEL_RELOAD" desc="Line under the blocking level row in the Aerie Guard panel. It says that the page reloads when the choice changes.">
+    The page reloads when you change this.
+  </message>
   <message name="IDS_AERIE_GUARD_PANEL_NO_SITE" desc="Text of the Aerie Guard panel when it was opened in an ordinary tab, or its page is gone, so it has no site to show.">
     Open Aerie Guard from the icon in the address bar to see the settings of a site.
   </message>

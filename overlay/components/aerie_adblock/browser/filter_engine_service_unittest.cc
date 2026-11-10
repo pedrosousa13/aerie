@@ -72,6 +72,51 @@ TEST_F(FilterEngineServiceTest, QueriesAskedBeforeTheLoadFinishesWaitForIt) {
   EXPECT_FALSE(Ask(Script("https://news.test/a.js", "news.test")));
 }
 
+// Blocking levels (issue #109): the service reads the level of the request's
+// top-level site from its policy, on the UI thread, and the engine applies it.
+TEST_F(FilterEngineServiceTest, NoPolicyBlocksLikeAggressive) {
+  static const std::string kEngine = SerializedEngine("/ads/banner.js\n");
+  service_.Start(kEngine);
+  EXPECT_EQ(BlockingLevel::kAggressive,
+            service_.BlockingLevelFor("news.test", SessionKey::Regular()));
+  EXPECT_TRUE(Ask(ClassifiedRequest{"https://news.test/ads/banner.js",
+                                    "news.test", "news.test",
+                                    RequestKind::kScript, false}));
+}
+
+TEST_F(FilterEngineServiceTest, PolicyLevelOfTopSiteDecidesFirstParty) {
+  static const std::string kEngine = SerializedEngine("/ads/banner.js\n");
+  service_.Start(kEngine);
+  std::vector<std::string> asked;
+  service_.SetBlockingLevelPolicy(base::BindLambdaForTesting(
+      [&](const std::string& host, SessionKey) {
+        asked.push_back(host);
+        return host == "standard.test" ? BlockingLevel::kStandard
+                                       : BlockingLevel::kAggressive;
+      }));
+  EXPECT_TRUE(Ask(ClassifiedRequest{"https://news.test/ads/banner.js",
+                                    "news.test", "news.test",
+                                    RequestKind::kScript, false}));
+  EXPECT_FALSE(Ask(ClassifiedRequest{"https://standard.test/ads/banner.js",
+                                     "standard.test", "standard.test",
+                                     RequestKind::kScript, false}));
+  // A third-party request to the same path is blocked in both levels.
+  EXPECT_TRUE(Ask(ClassifiedRequest{"https://cdn.test/ads/banner.js",
+                                    "cdn.test", "standard.test",
+                                    RequestKind::kScript, true}));
+  EXPECT_EQ((std::vector<std::string>{"news.test", "standard.test",
+                                      "standard.test"}),
+            asked);
+}
+
+TEST_F(FilterEngineServiceTest, NoPolicyAndNoFirstPartyHostStillBlocks) {
+  static const std::string kEngine = SerializedEngine("/ads/banner.js\n");
+  service_.Start(kEngine);
+  // No known first party: the request counts as third party and is blocked.
+  EXPECT_TRUE(Ask(ClassifiedRequest{"https://x.test/ads/banner.js", "x.test",
+                                    "", RequestKind::kScript, true}));
+}
+
 TEST_F(FilterEngineServiceTest, ManyQueriesAnswerInOrder) {
   static const std::string kEngine = SerializedEngine("||ads.example^\n");
   service_.Start(kEngine);
