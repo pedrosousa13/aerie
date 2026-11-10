@@ -145,15 +145,15 @@ them (`patches/tests/0002` only makes GN load their build file).
 
 | Binary | For | Runs |
 | --- | --- | --- |
-| `aerie_browser_tests` | `IN_PROC_BROWSER_TEST_F` cases: a window, a tab, a bubble, a WebUI page | with `--ozone-platform=headless`, no X server |
-| `aerie_interactive_ui_tests` | cases that need focus or real key and mouse events | under `xvfb-run` (package `xvfb`) |
+| `aerie_browser_tests` | `IN_PROC_BROWSER_TEST_F` cases: a window, a tab, a bubble, a WebUI page | with `--ozone-platform=headless`, `--no-sandbox` and `--disable-gpu`, no X server |
+| `aerie_interactive_ui_tests` | cases that need focus or real key and mouse events | under `xvfb-run` (package `xvfb`), with `--no-sandbox` and `--disable-gpu` |
 
 ```
 ./aerie test-cpp --target aerie_browser_tests --gtest-filter='Aerie*'
 ./aerie test-cpp --target aerie_interactive_ui_tests
 ```
 
-A plain `./aerie test-cpp` runs the unit test binaries only. The nightly runs both UI binaries with
+`--disable-gpu` is there because a 2D canvas reads back blank in the test processes without it. `--no-sandbox` is there because the build machine's AppArmor allows user namespaces only for the `aerie` browser binary; the shipped browser keeps its sandbox. A plain `./aerie test-cpp` runs the unit test binaries only. The nightly runs both UI binaries with
 `--gtest-filter=Aerie*` after the Bench (see [docs/ci.md](docs/ci.md)).
 
 Conventions:

@@ -62,11 +62,17 @@ TEST_BINARIES = (
 # in a plain `./aerie test-cpp`; ask for them with --target. They are defined in overlay/chrome/test/aerie and
 # link only Aerie's own test files, because the full browser_tests and interactive_ui_tests need test data that
 # Helium prunes and take hours to link.
+#
+# Both run with --disable-gpu: on the build machine a 2D canvas reads back blank (every pixel 0,0,0,0) in the test
+# processes without it, so no canvas test could see anything. Both also run with --no-sandbox: on that machine
+# Ubuntu's AppArmor refuses the unprivileged user namespace that Chromium's sandbox needs to any binary without a
+# profile, and the profile (/etc/apparmor.d/aerie) names only the `aerie` browser. The browser itself keeps its
+# sandbox. These test children load only Aerie's own test pages and the embedded test server.
 UI_TEST_BINARIES = (
     # In-process browser tests; headless Ozone needs no X server.
-    ("aerie_browser_tests", ("--ozone-platform=headless",)),
+    ("aerie_browser_tests", ("--ozone-platform=headless", "--no-sandbox", "--disable-gpu")),
     # Interactive tests need a window that takes focus and real key events: they run under Xvfb.
-    ("aerie_interactive_ui_tests", ()),
+    ("aerie_interactive_ui_tests", ("--no-sandbox", "--disable-gpu")),
 )
 ALL_TEST_BINARIES = TEST_BINARIES + UI_TEST_BINARIES
 XVFB_BINARIES = frozenset({"aerie_interactive_ui_tests"})

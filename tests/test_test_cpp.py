@@ -152,7 +152,7 @@ class TestCppTest(unittest.TestCase):
 
     def test_the_browser_tests_run_headless(self):
         _result, calls, _ = self.run_tests({}, targets=["aerie_browser_tests"])
-        self.assertEqual(calls[0][1:], ["--ozone-platform=headless"])
+        self.assertEqual(calls[0][1:], ["--ozone-platform=headless", "--no-sandbox", "--disable-gpu"])
 
     def test_the_interactive_tests_run_under_xvfb(self):
         _result, calls, _ = self.run_tests({}, targets=["aerie_interactive_ui_tests"])
