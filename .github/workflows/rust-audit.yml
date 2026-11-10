@@ -1,0 +1,34 @@
+name: Rust advisories
+
+# Checks every crate in rust/crates.lock.toml (adblock-rust and what it adds to
+# Chromium's crates) against the RustSec advisory database. Runs daily, because
+# a new advisory can arrive without a change here. Chromium's own crates are
+# Chromium's to track. See docs/adblock.md.
+on:
+  push:
+    branches: [main]
+    paths: [rust/crates.lock.toml, .github/workflows/rust-audit.yml]
+  pull_request:
+    paths: [rust/crates.lock.toml, .github/workflows/rust-audit.yml]
+  schedule:
+    - cron: "5 5 * * *" # daily, 05:05 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          submodules: false
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked --version 0.22.2
+      - name: Write the Cargo.lock to audit
+        run: ./aerie crates audit-lock "$RUNNER_TEMP/Cargo.lock"
+      - name: Audit
+        run: cargo audit --deny warnings --file "$RUNNER_TEMP/Cargo.lock"

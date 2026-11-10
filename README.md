@@ -4,6 +4,11 @@ A Google-free, hardened Chromium browser built on top of
 [Helium](https://github.com/imputnet/helium). At this stage the repo builds
 **unmodified Helium** on Linux; Aerie's own patches come later.
 
+> **Alpha software.** Aerie is not finished and has not had an independent
+> security audit. Do not rely on it where a failure could hurt you. See the
+> [terms of use](TERMS.md), the [privacy policy](PRIVACY.md) and the
+> [security policy](SECURITY.md) (how to report a vulnerability).
+
 ## Layout
 
 | Path | What it is |
@@ -240,3 +245,10 @@ two Chromium tarballs (3.3 GB) adds a few minutes on a fast connection.
 The compiler cache helps less than you might expect: Chromium 157 compiles
 most C++ with Clang modules, which ccache does not cache by default (about
 10% of compile calls were cacheable in this build).
+
+## Licence
+
+Aerie's own code is licensed under the GNU General Public License, version 3
+or later. The browser as a whole is distributed under GPL-3.0, the licence of
+Helium. See [LICENSE](LICENSE), and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
+for Chromium, Helium, adblock-rust and the filter lists.

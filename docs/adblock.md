@@ -452,6 +452,14 @@ After a Chromium bump the lock is stale on purpose. Run `./aerie crates resolve`
 (reads the tree, needs crates.io, writes only `rust/crates.lock.toml`), review
 the diff, commit it.
 
+**Advisories.** The workflow `.github/workflows/rust-audit.yml` checks every
+crate in the lock against the RustSec advisory database each day, and on every
+change to the lock. To run it locally:
+`./aerie crates audit-lock /tmp/Cargo.lock && cargo audit --file /tmp/Cargo.lock`.
+The command writes the lock without its dependency edges, because the lock
+lists only what adblock adds to Chromium's crates and cargo-audit refuses a
+graph with holes. Advisories match on name and version, so nothing is lost.
+
 ## Run the tests
 
 | What | Command |

@@ -131,6 +131,20 @@ def render_package(pkg: Package, with_checksum: bool) -> str:
     return "\n".join(lines) + "\n"
 
 
+def audit_lock(text: str) -> str:
+    """A Cargo.lock that `cargo audit --file` reads, made from rust/crates.lock.toml.
+
+    The crate lock lists only what adblock adds to Chromium's lock, so its dependency
+    edges point at packages it does not list, and cargo-audit refuses a graph with
+    holes. Advisories match on name and version alone, so the edges are dropped.
+    """
+    packages = parse_lock(text)
+    out = ["# Made from rust/crates.lock.toml for cargo audit. Do not commit.", "version = 4", ""]
+    for pkg in sorted(packages.values(), key=lambda p: (p.name, _version_key(p.version))):
+        out.append(render_package(Package(pkg.name, pkg.version, pkg.source, pkg.checksum, ()), True))
+    return "\n".join(out)
+
+
 def strip_checksums(text: str) -> str:
     return "".join(line for line in text.splitlines(keepends=True) if not line.startswith("checksum = "))
 
