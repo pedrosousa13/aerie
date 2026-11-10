@@ -133,39 +133,39 @@
 }
 
 #level {
-  background: var(--aerie-card);
-  border-radius: var(--aerie-radius);
-  margin-bottom: 8px;
-  padding: 12px 16px;
+  background: var(--aerie-color-page-block);
+  border-radius: var(--aerie-radius-xl);
+  margin-bottom: var(--aerie-space-8);
+  padding: var(--aerie-space-12) var(--aerie-space-16);
 }
 
 #levelLabel {
-  font-weight: 500;
-  margin-bottom: 8px;
+  font-weight: var(--aerie-type-weight-medium);
+  margin-bottom: var(--aerie-space-8);
 }
 
 #levelChoices {
-  background: var(--aerie-surface);
-  border-radius: 10px;
+  background: var(--aerie-color-field);
+  border-radius: var(--aerie-radius-lg);
   display: flex;
-  gap: 2px;
-  padding: 2px;
+  gap: var(--aerie-space-2);
+  padding: var(--aerie-space-2);
 }
 
 #levelChoices button {
   background: transparent;
   border: 0;
-  border-radius: 8px;
-  color: var(--aerie-text);
+  border-radius: var(--aerie-radius-md);
+  color: var(--aerie-color-text);
   cursor: pointer;
   flex: 1;
   font: inherit;
-  padding: 4px 8px;
+  padding: var(--aerie-space-4) var(--aerie-space-8);
 }
 
 #levelChoices button[aria-checked='true'] {
-  background: var(--aerie-accent);
-  color: var(--color-sys-on-primary, #fff);
+  background: var(--guard-accent);
+  color: var(--aerie-color-text-on-accent);
 }
 
 #levelChoices button:disabled {
@@ -174,14 +174,14 @@
 }
 
 #levelChoices button:focus-visible {
-  outline: 2px solid var(--aerie-accent);
+  outline: var(--aerie-size-focus-ring-width) solid var(--guard-accent);
   outline-offset: 1px;
 }
 
 #levelDesc,
 #levelReload {
-  color: var(--aerie-muted);
-  margin: 8px 0 0;
+  color: var(--aerie-color-text-muted);
+  margin: var(--aerie-space-8) 0 0;
 }
 
 #advanced {
