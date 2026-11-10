@@ -176,7 +176,7 @@ class ViewWiringTest(unittest.TestCase):
     def test_the_view_patches_are_in_the_series_after_the_layout_patches(self):
         series = (REPO / "patches" / "series").read_text().splitlines()
         order = [line for line in series if line.startswith("sidebar/00")]
-        self.assertEqual(order[-4:], ["sidebar/0024-add-the-sidebar-view-to-the-vertical-strip-region.patch",
+        self.assertEqual(order[-6:-2], ["sidebar/0024-add-the-sidebar-view-to-the-vertical-strip-region.patch",
                                       "sidebar/0025-keep-the-sidebar-width-in-its-pref-and-never-collapse.patch",
                                       "sidebar/0026-make-ctrl-s-show-or-hide-the-sidebar.patch",
                                       "sidebar/0027-slide-and-resize-the-sidebar.patch"])
