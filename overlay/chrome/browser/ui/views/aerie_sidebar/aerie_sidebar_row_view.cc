@@ -96,7 +96,7 @@ void AerieSidebarRowView::SetSelected(bool selected) {
 
 gfx::Size AerieSidebarRowView::CalculatePreferredSize(
     const views::SizeBounds& available_size) const {
-  return gfx::Size(available_size.width().value_or(0),
+  return gfx::Size(available_size.width().value_or(aerie::tokens::kSizeSidebarMin),
                    aerie::tokens::kSizeRowHeightComfortable);
 }
 

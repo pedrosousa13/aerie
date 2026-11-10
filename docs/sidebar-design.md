@@ -594,7 +594,17 @@ While the layout is `sidebar`, Helium's `helium.browser.layout` is `vertical` an
 
 Save page moves to Ctrl+Shift+S on Windows and Linux so that Ctrl+S can show and hide the sidebar.
 
-What issue #177 has built so far: these prefs, the hold on Helium's layout, the empty Sidebar section and the Ctrl+Shift+S binding. Also the headless parts the view will call, with unit tests: show or hide and its stored state (`ToggleVisible`), width from a drag or an arrow key, the motion of the slide and of an opening or closing row as token data (`aerie_sidebar_motion`), the Today list kept from the Tab Model, and the tree keys (`aerie_sidebar_today_list`). The native sidebar view itself (rows, address pill, resize, Ctrl+S show and hide with motion, the accessibility tree) is not built: until it is, the window shows Helium's vertical tab strip, and Ctrl+S still collapses that strip.
+### Native sidebar view
+
+Decided with issue #177. `VerticalTabStripRegionView` is `final`, owns the column's slot in `BrowserViewTabbedLayoutImpl`, its background with the rounded corners, its resize area and its width, and `BrowserView` holds it in about forty places. Replacing the class would mean re-cutting all of those. So the sidebar swaps the contents of the region instead (`patches/sidebar/0024`): while the layout is the sidebar, the constructor adds `AerieSidebarView` (overlay, `chrome/browser/ui/views/aerie_sidebar`) to the content area, hides the bottom container, and hides the tab strip view, which stays in the tree because other code reads it. The tab strip is no longer drawn, and tab drag and drop in it is gone with it.
+
+How the pieces work today (`patches/sidebar/0025`):
+
+- **Show and hide.** Ctrl+S (`IDC_CTRL_S_SHORTCUT`) flips `aerie.sidebar.visible`. The region view watches the pref. A hidden sidebar has width 0 and takes no room, so the page card snaps to its new size in one step. The column slides on its layer with `AnimateLayer` using `ShowMotion` and `HideMotion` (transform and opacity only; opacity only under reduced motion). On the way out the layout waits for the slide to end. The state is restored after a restart because the pref is.
+- **Resize.** Helium's resize area at the inner edge, named "Resize sidebar", role splitter. Drag has no snap points and no collapse. Left and Right move it 10 px and the new width is announced. The width is clamped to 200..400 and stored in `aerie.sidebar.width` when the drag ends. The state controller never collapses and has no expand on hover while the layout is the sidebar.
+- **Today list.** One row per unpinned tab of the window: favicon, title, a close button on hover or focus, click selects, middle click closes. The rows follow `aerie_sidebar::TodayList` (the Tab Model) and are looked up in the window's tab strip through the Tab Model's adapter, so a tab of another window of the profile has no row here. The Tab Model tells its observers before the adapter has joined a new record to its tab, so the view syncs its rows in a task after the change.
+
+What is not built yet in the view: Favorites, Pinned, folders, the Workspace switcher, drag and drop of rows, the address pill with the real location bar (the toolbar still sits above the page in Helium's vertical layout), and the colours of the theme and Workspace (the rows use the system colour roles for now).
 
 ## Open points carried into M2 planning
 

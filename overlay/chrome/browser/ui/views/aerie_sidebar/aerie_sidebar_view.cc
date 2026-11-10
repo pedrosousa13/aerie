@@ -100,6 +100,9 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
   scroll_ = AddChildView(std::make_unique<views::ScrollView>(
       views::ScrollView::ScrollWithLayers::kDisabled));
   scroll_->SetBackgroundColor(std::nullopt);
+  // A bounded scroll view sizes its contents to its width; the box layout
+  // gives it the room that is left.
+  scroll_->ClipHeightTo(0, 1 << 20);
   scroll_->SetDrawOverflowIndicator(false);
   scroll_->SetHorizontalScrollBarMode(
       views::ScrollView::ScrollBarMode::kDisabled);
