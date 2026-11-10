@@ -96,6 +96,11 @@ inline constexpr webui::LocalizedString kLocalizedStrings[] = {
     {"summaryNothing", IDS_AERIE_SETUP_SUMMARY_NOTHING},
     {"summaryIsDefault", IDS_AERIE_SETUP_SUMMARY_IS_DEFAULT},
     {"summaryNotDefault", IDS_AERIE_SETUP_SUMMARY_NOT_DEFAULT},
+    // Shared with About (Settings); the messages are in
+    // components/aerie_alpha_notice/aerie_alpha_notice_strings.grdp (issue #199).
+    {"alphaNotice", IDS_AERIE_ALPHA_NOTICE},
+    {"alphaTerms", IDS_AERIE_ALPHA_TERMS_LINK},
+    {"alphaPrivacy", IDS_AERIE_ALPHA_PRIVACY_LINK},
 };
 
 }  // namespace aerie_onboarding

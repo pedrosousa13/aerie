@@ -34,7 +34,7 @@ class StringsTest(unittest.TestCase):
                 self.assertTrue((msg.get("desc") or "").strip())
 
     def test_the_page_only_asks_for_listed_keys(self):
-        keys = {k for k, _ in header_entries()}
+        keys = set(re.findall(r'\{"(\w+)", IDS_\w+\}', HEADER))
         used = set(re.findall(r"\bt\('(\w+)'", SCRIPT))
         # Keys picked from tables in the script (colours, modes, import items, privacy rows...).
         used |= set(re.findall(r"'((?:color|look|import|privacy|searchDesc|block)[A-Z]\w*)'", SCRIPT))

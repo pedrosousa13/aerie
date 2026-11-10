@@ -1,0 +1,25 @@
+Aerie-Purpose: Show the alpha notice with links to the terms of use and the privacy policy under the version on About.
+Aerie-Upstream-Area: chrome/browser/resources/settings/about_page/about_page.html.ts
+Aerie-Kind: branding
+
+Issue #199. The strings come from patches/branding/0007. The links are plain anchors that the
+user clicks; nothing loads from them until then.
+
+--- a/chrome/browser/resources/settings/about_page/about_page.html.ts
++++ b/chrome/browser/resources/settings/about_page/about_page.html.ts
+@@ -51,6 +51,15 @@
+       </span>
+ </if>
+       <div class="secondary">$i18n{aboutBrowserVersion}</div>
++      <div class="secondary" id="alphaNotice">
++        $i18n{aerieAlphaNotice}
++        <a id="alphaTerms" target="_blank" rel="noopener noreferrer"
++            href="https://github.com/pedrosousa13/aerie/blob/main/TERMS.md">
++          $i18n{aerieAlphaTerms}</a> &middot;
++        <a id="alphaPrivacy" target="_blank" rel="noopener noreferrer"
++            href="https://github.com/pedrosousa13/aerie/blob/main/PRIVACY.md">
++          $i18n{aerieAlphaPrivacy}</a>
++      </div>
+     </div>
+ <if expr="not is_chromeos">
+     <div class="separator" ?hidden="${!this.showButtonContainer_}"></div>
