@@ -50,19 +50,19 @@ ${this.state_ ? html`
       <button id="levelAggressive" type="button" role="radio"
           aria-checked="${this.levelChecked_(BlockingLevel.kAggressive)}"
           ?disabled="${this.state_.locked}"
-          @click="${this.onLevelAggressive_}">
+          @click="${this.onLevelAggressiveClick_}">
         ${this.i18n_('levelAggressive')}
       </button>
       <button id="levelStandard" type="button" role="radio"
           aria-checked="${this.levelChecked_(BlockingLevel.kStandard)}"
           ?disabled="${this.state_.locked}"
-          @click="${this.onLevelStandard_}">
+          @click="${this.onLevelStandardClick_}">
         ${this.i18n_('levelStandard')}
       </button>
       <button id="levelOff" type="button" role="radio"
           aria-checked="${this.levelOffChecked_()}"
           ?disabled="${this.state_.locked}"
-          @click="${this.onLevelOff_}">
+          @click="${this.onLevelOffClick_}">
         ${this.i18n_('levelOff')}
       </button>
     </div>

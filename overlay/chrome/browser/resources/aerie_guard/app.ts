@@ -154,15 +154,15 @@ export class AerieGuardAppElement extends CrLitElement {
             'levelAggressiveDesc');
   }
 
-  protected onLevelAggressive_() {
+  protected onLevelAggressiveClick_() {
     this.proxy_.handler.setBlockingLevel(BlockingLevel.kAggressive);
   }
 
-  protected onLevelStandard_() {
+  protected onLevelStandardClick_() {
     this.proxy_.handler.setBlockingLevel(BlockingLevel.kStandard);
   }
 
-  protected onLevelOff_() {
+  protected onLevelOffClick_() {
     this.proxy_.handler.setGuardOn(false);
   }
 
