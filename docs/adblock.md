@@ -165,7 +165,7 @@ How it works:
     blocking is off turns blocking on in the same step. Off calls the existing `SetGuardOn(false)`. The global
     default is a menu in the Guard section of Settings (the message `aerieGuard.setDefaultLevel`, which accepts only
     `aggressive` and `standard`). A site that was given a level keeps it when the default changes. The Bench check
-    `blocking_levels` proves the Standard and Aggressive verdicts in a regular profile, for the seeded default level and
+    `blocking_levels` is written to check the Standard and Aggressive verdicts in a regular profile, for the seeded default level and
     one per-site level, with a built-in and a custom `$important` rule. The incognito in-memory levels, the Mojo
     `SetBlockingLevel` path and the Settings menu are covered by the C++ unit tests and by source checks in
     `tests/test_blocking_levels.py`, not by a Bench run. No UI removes or lists a per-site level yet:

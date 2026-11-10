@@ -282,7 +282,7 @@ class ListRowsTest(unittest.TestCase):
             self.assertIn(f'"{key}"', given, c)
 
     def test_every_string_key_the_page_reads_is_given_to_the_page(self):
-        given = set(re.findall(r'\{"(aerieGuard\w+)"', added(BACKEND) + added(LIST_STRINGS)))
+        given = set(re.findall(r'\{"(aerieGuard\w+)"', added(BACKEND) + added(LIST_STRINGS) + added(LEVEL_STRINGS)))
         read = set(re.findall(r"\$i18n\{(aerieGuard\w+)\}", self.HTML))
         read |= set(re.findall(r"(?:getString|getStringF)\(\s*'(aerieGuard\w+)'", self.TS))
         self.assertTrue(read)

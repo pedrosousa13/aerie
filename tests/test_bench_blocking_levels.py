@@ -1,4 +1,4 @@
-"""The blocking_levels check (issue #109): its decision logic on recorded observations, its seeded profile and its
+"""The blocking_levels check (issue #109): its decision logic on hand-written observations, its seeded profile and its
 fixture page. The first real run in the build train proves the browser side.
 
 The observations below are written by hand to exercise ``judge``; they are not recordings of a browser."""
@@ -40,8 +40,8 @@ class JudgeTest(unittest.TestCase):
         status, detail, _ = bl.judge(good())
         self.assertEqual(status, "pass", detail)
 
-    def test_todays_engine_blocks_first_party_in_standard_and_fails(self):
-        # Negative control: an engine without levels blocks every matching request, so the Standard step fails.
+    def test_blocked_first_party_in_standard_fails(self):
+        # Hand-written: if an engine without levels blocked every matching request, the Standard step would fail.
         obs = good()
         obs["standard"] = aggressive_visit()
         status, detail, _ = bl.judge(obs)

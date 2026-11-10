@@ -21,8 +21,9 @@ The page is opened as two sites:
 * ``aggressive.localhost`` (its own level): all six requests are blocked. This is the control: it proves the rules match
   on this page, so a first-party request that loads on ``standard.localhost`` loads because of the level.
 
-Standard against today's engine: an engine that has no levels blocks the first-party requests on ``standard.localhost``, so
-``judge`` fails with "BLOCKED IN STANDARD" (``tests/test_bench_blocking_levels.py`` runs that case on recorded observations).
+An engine that has no levels would block the first-party requests on ``standard.localhost``, so ``judge`` would fail with
+"BLOCKED IN STANDARD". That was not run against such an engine; the build train does it. ``tests/test_bench_blocking_levels.py``
+runs ``judge`` on hand-written observations.
 
 What Brave does, from brave-core's ``AdBlockEngineWrapper::ShouldStartRequest``: for a first-party request outside Aggressive the
 default engine's verdict is dropped, ``$important`` included; a third-party request keeps it; a second engine (custom lists and
