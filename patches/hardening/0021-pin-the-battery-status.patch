@@ -1,0 +1,202 @@
+Aerie-Purpose: Report a charging, full battery from navigator.getBattery() and raise no battery events while fingerprinting protection is on, so the real battery is no fingerprint surface (issue #120).
+Aerie-Upstream-Area: third_party/blink/renderer/modules/battery/battery_manager.cc (DidUpdateData), third_party/blink/renderer/core/execution_context/navigator_masking.h, third_party/blink/public/common/helium_noise/ (HeliumNoiseFeature::kNavigator), content/browser/helium_noise/noise_token_data.cc, third_party/blink/common/features.cc (kHeliumNoiseNavigator)
+Aerie-Kind: hook
+
+HeliumNoiseFeature::kNavigator is a new surface token, added the way hardening/0015 adds kScreen: a
+session token in HeliumNoiseTokenData that GetTokens derives per site, and a renderer that receives
+it only when protection is on for the site. "Token present" therefore means "protected here", and the
+global switch and the per-site switch give the real values back without a renderer change. The new
+feature kHeliumNoiseNavigator (on by default) switches the surface off for the Bench's negative
+control. hardening/0022 uses the same token for the speech voices.
+
+A protected window reads battery_status_ as charging, level 1, charging time 0 and discharging time
+Infinity (the values in components/aerie_navigator_pins; they are also BatteryStatus's own defaults,
+which is what a machine with no battery reports). BatteryManager::DidUpdateData replaces the status
+the dispatcher delivered with that value before it compares the old and the new status, so the
+real battery raises no chargingchange, levelchange, chargingtimechange or dischargingtimechange
+event either. The decision (ShouldPinNavigatorForContext, in core/execution_context) is a window's
+token, read the same way as ShouldMaskGpuInfoForContext. getBattery() is a window API only, so there
+is no worker case.
+
+navigator.languages needs no patch: Helium turns ReduceAcceptLanguage on
+(helium/core/reduce-accept-language-headers.patch), and NavigatorLanguage::EnsureUpdatedLanguage then
+reduces navigator.languages to the first entry, the same one the Accept-Language header carries. The
+Bench check hardening_fingerprinting_navigator fails if that is lost.
+
+--- a/content/browser/helium_noise/noise_token_data.cc
++++ b/content/browser/helium_noise/noise_token_data.cc
+@@ -75,6 +75,8 @@ HeliumNoiseTokenData::HeliumNoiseTokenData() {
+       blink::HeliumNoiseToken(base::RandUint64());
+   session_tokens_[blink::HeliumNoiseFeature::kFonts] =
+       blink::HeliumNoiseToken(base::RandUint64());
++  session_tokens_[blink::HeliumNoiseFeature::kNavigator] =
++      blink::HeliumNoiseToken(base::RandUint64());
+ }
+ 
+ // static
+--- a/third_party/blink/common/features.cc
++++ b/third_party/blink/common/features.cc
+@@ -79,6 +79,11 @@ BASE_FEATURE(kHeliumNoiseTextMetrics, base::FEATURE_ENABLED_BY_DEFAULT);
+ // Bench's negative control.
+ BASE_FEATURE(kHeliumNoiseFonts, base::FEATURE_ENABLED_BY_DEFAULT);
+ 
++// navigator.getBattery() reports a charging, full battery and
++// speechSynthesis.getVoices() lists at most the default voice (Aerie, issue
++// #120).
++BASE_FEATURE(kHeliumNoiseNavigator, base::FEATURE_ENABLED_BY_DEFAULT);
++
+ // Controls whether to include information about the page's open popup in
+ // AIPageContent.
+ BASE_FEATURE(kAIPageContentIncludePopupWindows,
+--- a/third_party/blink/public/common/features.h
++++ b/third_party/blink/public/common/features.h
+@@ -50,6 +50,7 @@ BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kHeliumNoiseWebGL);
+ BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kHeliumNoiseScreen);
+ BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kHeliumNoiseTextMetrics);
+ BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kHeliumNoiseFonts);
++BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kHeliumNoiseNavigator);
+ 
+ // Controls whether to include information about the page's open popup in
+ // AIPageContent.
+--- a/third_party/blink/public/common/helium_noise/noise_token.h
++++ b/third_party/blink/public/common/helium_noise/noise_token.h
+@@ -28,6 +28,7 @@ enum class HeliumNoiseFeature {
+   kScreen,
+   kTextMetrics,
+   kFonts,
++  kNavigator,
+ };
+ 
+ // A wrapper class for a uint64_t noise token.
+--- a/third_party/blink/public/common/helium_noise/noise_token_mojom_traits.h
++++ b/third_party/blink/public/common/helium_noise/noise_token_mojom_traits.h
+@@ -40,6 +40,8 @@ struct BLINK_COMMON_EXPORT
+         return blink::mojom::HeliumNoiseFeature::kTextMetrics;
+       case blink::HeliumNoiseFeature::kFonts:
+         return blink::mojom::HeliumNoiseFeature::kFonts;
++      case blink::HeliumNoiseFeature::kNavigator:
++        return blink::mojom::HeliumNoiseFeature::kNavigator;
+     }
+     NOTREACHED();
+   }
+@@ -61,6 +63,8 @@ struct BLINK_COMMON_EXPORT
+         return blink::HeliumNoiseFeature::kTextMetrics;
+       case blink::mojom::HeliumNoiseFeature::kFonts:
+         return blink::HeliumNoiseFeature::kFonts;
++      case blink::mojom::HeliumNoiseFeature::kNavigator:
++        return blink::HeliumNoiseFeature::kNavigator;
+     }
+ 
+     NOTREACHED();
+--- a/third_party/blink/public/mojom/helium_noise/noise_token.mojom
++++ b/third_party/blink/public/mojom/helium_noise/noise_token.mojom
+@@ -13,6 +13,7 @@ enum HeliumNoiseFeature {
+   kScreen,
+   kTextMetrics,
+   kFonts,
++  kNavigator,
+ };
+ 
+ // Typemapped to blink::HeliumNoiseToken
+--- a/third_party/blink/renderer/core/BUILD.gn
++++ b/third_party/blink/renderer/core/BUILD.gn
+@@ -418,6 +418,7 @@ component("core") {
+     "//base",
+     "//components/aerie_fonts",
+     "//components/aerie_gpu_info",
++    "//components/aerie_navigator_pins",
+     "//components/aerie_screen",
+     "//components/aerie_text_metrics",
+     "//components/paint_preview/common",
+--- a/third_party/blink/renderer/core/execution_context/build.gni
++++ b/third_party/blink/renderer/core/execution_context/build.gni
+@@ -16,6 +16,7 @@ blink_core_sources_execution_context = [
+   "gpu_info_masking.h",
+   "navigator_base.cc",
+   "navigator_base.h",
++  "navigator_masking.h",
+   "remote_security_context.cc",
+   "remote_security_context.h",
+   "security_context.cc",
+--- /dev/null
++++ b/third_party/blink/renderer/core/execution_context/navigator_masking.h
+@@ -0,0 +1,34 @@
++// Copyright 2026 The Aerie Authors
++// You can use, redistribute, and/or modify this source code under
++// the terms of the GPL-3.0 license that can be found in the LICENSE file.
++
++#ifndef THIRD_PARTY_BLINK_RENDERER_CORE_EXECUTION_CONTEXT_NAVIGATOR_MASKING_H_
++#define THIRD_PARTY_BLINK_RENDERER_CORE_EXECUTION_CONTEXT_NAVIGATOR_MASKING_H_
++
++#include "base/feature_list.h"
++#include "components/aerie_navigator_pins/navigator_pins.h"
++#include "third_party/blink/public/common/features.h"
++#include "third_party/blink/public/common/helium_noise/noise_token.h"
++#include "third_party/blink/renderer/core/execution_context/execution_context.h"
++
++namespace blink {
++
++// Whether getBattery() and getVoices() report pinned values to this context
++// (Aerie, issue #120). The browser sends a kNavigator token only when
++// protection is on for the site, so "token present" means "protected here":
++// turning protection off, globally or for the site, gives the real values back.
++// A null context has no token to read and reports the real values; both
++// callers are windows.
++inline bool ShouldPinNavigatorForContext(const ExecutionContext* context) {
++  return aerie_navigator_pins::ShouldPinNavigator(
++      {.master_enabled = base::FeatureList::IsEnabled(features::kHeliumNoise),
++       .surface_enabled =
++           base::FeatureList::IsEnabled(features::kHeliumNoiseNavigator),
++       .has_token =
++           context && context->GetHeliumNoiseTokens().contains(
++                          HeliumNoiseFeature::kNavigator)});
++}
++
++}  // namespace blink
++
++#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_EXECUTION_CONTEXT_NAVIGATOR_MASKING_H_
+--- a/third_party/blink/renderer/modules/battery/BUILD.gn
++++ b/third_party/blink/renderer/modules/battery/BUILD.gn
+@@ -13,5 +13,8 @@ blink_modules_sources("battery") {
+     "battery_status.h",
+   ]
+ 
+-  deps = [ "//services/service_manager/public/cpp" ]
++  deps = [
++    "//components/aerie_navigator_pins",
++    "//services/service_manager/public/cpp",
++  ]
+ }
+--- a/third_party/blink/renderer/modules/battery/battery_manager.cc
++++ b/third_party/blink/renderer/modules/battery/battery_manager.cc
+@@ -4,10 +4,13 @@
+ 
+ #include "third_party/blink/renderer/modules/battery/battery_manager.h"
+ 
++#include "base/time/time.h"
++#include "components/aerie_navigator_pins/navigator_pins.h"
+ #include "third_party/blink/public/mojom/frame/lifecycle.mojom-blink.h"
+ #include "third_party/blink/renderer/core/dom/dom_exception.h"
+ #include "third_party/blink/renderer/core/dom/events/event.h"
+ #include "third_party/blink/renderer/core/execution_context/execution_context.h"
++#include "third_party/blink/renderer/core/execution_context/navigator_masking.h"
+ #include "third_party/blink/renderer/core/frame/local_dom_window.h"
+ #include "third_party/blink/renderer/core/frame/local_frame.h"
+ #include "third_party/blink/renderer/core/frame/navigator.h"
+@@ -100,6 +103,16 @@ void BatteryManager::DidUpdateData() {
+ 
+   BatteryStatus old_status = battery_status_;
+   battery_status_ = *battery_dispatcher_->LatestData();
++  // Aerie (#120): a protected window sees a charging, full battery and no
++  // change at all, so the real battery raises no chargingchange or levelchange
++  // event either. The browser sends the kNavigator token only while protection
++  // is on for the site.
++  if (ShouldPinNavigatorForContext(GetExecutionContext())) {
++    battery_status_ = BatteryStatus(
++        aerie_navigator_pins::kBatteryCharging,
++        base::Seconds(aerie_navigator_pins::kBatteryChargingTimeSeconds),
++        base::TimeDelta::Max(), aerie_navigator_pins::kBatteryLevel);
++  }
+ 
+   if (battery_property_->GetState() == BatteryProperty::kPending) {
+     battery_property_->Resolve(this);

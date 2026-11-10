@@ -46,6 +46,8 @@ TEST_BINARIES = (
     ("aerie_gpu_info_unittests", ()),
     # The bucketed screen size and the decision to report it (issue #116).
     ("aerie_screen_unittests", ()),
+    # What getBattery and getVoices report while protection is on, and the decision to pin them (issue #120).
+    ("aerie_navigator_pins_unittests", ()),
     # The measureText noise factor and the decision to apply it (issue #118).
     ("aerie_text_metrics_unittests", ()),
     # Which WebGL readPixels calls get noise, and where their pixels sit in the buffer (issue #119).

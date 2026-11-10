@@ -1,0 +1,1583 @@
+{
+ "check": "hardening_fingerprinting_navigator",
+ "note": "Synthetic observations written by hand to exercise judge(); none is a recording from a browser.",
+ "cases": [
+  {
+   "name": "synthetic_pinned_with_real_controls",
+   "expect": "pass",
+   "detail_contains": "languages",
+   "obs": {
+    "on": {
+     "a": {
+      "languages": [
+       "en-US"
+      ],
+      "battery": {
+       "charging": true,
+       "level": 1,
+       "chargingTime": 0,
+       "dischargingTime": "Infinity"
+      },
+      "voices": {
+       "count": 1,
+       "names": [
+        "eSpeak English"
+       ],
+       "default": "eSpeak English"
+      },
+      "devices": 0,
+      "plugins": [
+       "PDF Viewer",
+       "Chrome PDF Viewer",
+       "Chromium PDF Viewer",
+       "Microsoft Edge PDF Viewer",
+       "WebKit built-in PDF"
+      ],
+      "mimeTypes": [
+       "application/pdf",
+       "text/pdf"
+      ],
+      "layoutMap": {
+       "size": 48
+      }
+     },
+     "b": {
+      "languages": [
+       "en-US"
+      ],
+      "battery": {
+       "charging": true,
+       "level": 1,
+       "chargingTime": 0,
+       "dischargingTime": "Infinity"
+      },
+      "voices": {
+       "count": 1,
+       "names": [
+        "eSpeak English"
+       ],
+       "default": "eSpeak English"
+      },
+      "devices": 0,
+      "plugins": [
+       "PDF Viewer",
+       "Chrome PDF Viewer",
+       "Chromium PDF Viewer",
+       "Microsoft Edge PDF Viewer",
+       "WebKit built-in PDF"
+      ],
+      "mimeTypes": [
+       "application/pdf",
+       "text/pdf"
+      ],
+      "layoutMap": {
+       "size": 48
+      }
+     }
+    },
+    "feature_off": {
+     "a": {
+      "languages": [
+       "en-US",
+       "en",
+       "fr"
+      ],
+      "battery": {
+       "charging": false,
+       "level": 0.57,
+       "chargingTime": "Infinity",
+       "dischargingTime": 9120
+      },
+      "voices": {
+       "count": 4,
+       "names": [
+        "eSpeak English",
+        "eSpeak German",
+        "eSpeak French",
+        "eSpeak Spanish"
+       ],
+       "default": "eSpeak English"
+      },
+      "devices": 0,
+      "plugins": [
+       "PDF Viewer",
+       "Chrome PDF Viewer",
+       "Chromium PDF Viewer",
+       "Microsoft Edge PDF Viewer",
+       "WebKit built-in PDF"
+      ],
+      "mimeTypes": [
+       "application/pdf",
+       "text/pdf"
+      ],
+      "layoutMap": {
+       "size": 48
+      }
+     }
+    },
+    "global_off": {
+     "a": {
+      "languages": [
+       "en-US"
+      ],
+      "battery": {
+       "charging": false,
+       "level": 0.57,
+       "chargingTime": "Infinity",
+       "dischargingTime": 9120
+      },
+      "voices": {
+       "count": 4,
+       "names": [
+        "eSpeak English",
+        "eSpeak German",
+        "eSpeak French",
+        "eSpeak Spanish"
+       ],
+       "default": "eSpeak English"
+      },
+      "devices": 0,
+      "plugins": [
+       "PDF Viewer",
+       "Chrome PDF Viewer",
+       "Chromium PDF Viewer",
+       "Microsoft Edge PDF Viewer",
+       "WebKit built-in PDF"
+      ],
+      "mimeTypes": [
+       "application/pdf",
+       "text/pdf"
+      ],
+      "layoutMap": {
+       "size": 48
+      }
+     }
+    },
+    "site_off": {
+     "a": {
+      "languages": [
+       "en-US"
+      ],
+      "battery": {
+       "charging": false,
+       "level": 0.57,
+       "chargingTime": "Infinity",
+       "dischargingTime": 9120
+      },
+      "voices": {
+       "count": 4,
+       "names": [
+        "eSpeak English",
+        "eSpeak German",
+        "eSpeak French",
+        "eSpeak Spanish"
+       ],
+       "default": "eSpeak English"
+      },
+      "devices": 0,
+      "plugins": [
+       "PDF Viewer",
+       "Chrome PDF Viewer",
+       "Chromium PDF Viewer",
+       "Microsoft Edge PDF Viewer",
+       "WebKit built-in PDF"
+      ],
+      "mimeTypes": [
+       "application/pdf",
+       "text/pdf"
+      ],
+      "layoutMap": {
+       "size": 48
+      }
+     },
+     "b": {
+      "languages": [
+       "en-US"
+      ],
+      "battery": {
+       "charging": true,
+       "level": 1,
+       "chargingTime": 0,
+       "dischargingTime": "Infinity"
+      },
+      "voices": {
+       "count": 1,
+       "names": [
+        "eSpeak English"
+       ],
+       "default": "eSpeak English"
+      },
+      "devices": 0,
+      "plugins": [
+       "PDF Viewer",
+       "Chrome PDF Viewer",
+       "Chromium PDF Viewer",
+       "Microsoft Edge PDF Viewer",
+       "WebKit built-in PDF"
+      ],
+      "mimeTypes": [
+       "application/pdf",
+       "text/pdf"
+      ],
+      "layoutMap": {
+       "size": 48
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "negative control: the unpinned build fails the pins",
+   "expect": "fail",
+   "detail_contains": "languages",
+   "obs": {
+    "on": {
+     "a": {
+      "languages": [
+       "en-US",
+       "en",
+       "fr"
+      ],
+      "battery": {
+       "charging": false,
+       "level": 0.57,
+       "chargingTime": "Infinity",
+       "dischargingTime": 9120
+      },
+      "voices": {
+       "count": 4,
+       "names": [
+        "eSpeak English",
+        "eSpeak German",
+        "eSpeak French",
+        "eSpeak Spanish"
+       ],
+       "default": "eSpeak English"
+      },
+      "devices": 0,
+      "plugins": [
+       "PDF Viewer",
+       "Chrome PDF Viewer",
+       "Chromium PDF Viewer",
+       "Microsoft Edge PDF Viewer",
+       "WebKit built-in PDF"
+      ],
+      "mimeTypes": [
+       "application/pdf",
+       "text/pdf"
+      ],
+      "layoutMap": {
+       "size": 48
+      }
+     },
+     "b": {
+      "languages": [
+       "en-US"
+      ],
+      "battery": {
+       "charging": true,
+       "level": 1,
+       "chargingTime": 0,
+       "dischargingTime": "Infinity"
+      },
+      "voices": {
+       "count": 1,
+       "names": [
+        "eSpeak English"
+       ],
+       "default": "eSpeak English"
+      },
+      "devices": 0,
+      "plugins": [
+       "PDF Viewer",
+       "Chrome PDF Viewer",
+       "Chromium PDF Viewer",
+       "Microsoft Edge PDF Viewer",
+       "WebKit built-in PDF"
+      ],
+      "mimeTypes": [
+       "application/pdf",
+       "text/pdf"
+      ],
+      "layoutMap": {
+       "size": 48
+      }
+     }
+    },
+    "feature_off": {
+     "a": {
+      "languages": [
+       "en-US",
+       "en",
+       "fr"
+      ],
+      "battery": {
+       "charging": false,
+       "level": 0.57,
+       "chargingTime": "Infinity",
+       "dischargingTime": 9120
+      },
+      "voices": {
+       "count": 4,
+       "names": [
+        "eSpeak English",
+        "eSpeak German",
+        "eSpeak French",
+        "eSpeak Spanish"
+       ],
+       "default": "eSpeak English"
+      },
+      "devices": 0,
+      "plugins": [
+       "PDF Viewer",
+       "Chrome PDF Viewer",
+       "Chromium PDF Viewer",
+       "Microsoft Edge PDF Viewer",
+       "WebKit built-in PDF"
+      ],
+      "mimeTypes": [
+       "application/pdf",
+       "text/pdf"
+      ],
+      "layoutMap": {
+       "size": 48
+      }
+     }
+    },
+    "global_off": {
+     "a": {
+      "languages": [
+       "en-US"
+      ],
+      "battery": {
+       "charging": false,
+       "level": 0.57,
+       "chargingTime": "Infinity",
+       "dischargingTime": 9120
+      },
+      "voices": {
+       "count": 4,
+       "names": [
+        "eSpeak English",
+        "eSpeak German",
+        "eSpeak French",
+        "eSpeak Spanish"
+       ],
+       "default": "eSpeak English"
+      },
+      "devices": 0,
+      "plugins": [
+       "PDF Viewer",
+       "Chrome PDF Viewer",
+       "Chromium PDF Viewer",
+       "Microsoft Edge PDF Viewer",
+       "WebKit built-in PDF"
+      ],
+      "mimeTypes": [
+       "application/pdf",
+       "text/pdf"
+      ],
+      "layoutMap": {
+       "size": 48
+      }
+     }
+    },
+    "site_off": {
+     "a": {
+      "languages": [
+       "en-US"
+      ],
+      "battery": {
+       "charging": false,
+       "level": 0.57,
+       "chargingTime": "Infinity",
+       "dischargingTime": 9120
+      },
+      "voices": {
+       "count": 4,
+       "names": [
+        "eSpeak English",
+        "eSpeak German",
+        "eSpeak French",
+        "eSpeak Spanish"
+       ],
+       "default": "eSpeak English"
+      },
+      "devices": 0,
+      "plugins": [
+       "PDF Viewer",
+       "Chrome PDF Viewer",
+       "Chromium PDF Viewer",
+       "Microsoft Edge PDF Viewer",
+       "WebKit built-in PDF"
+      ],
+      "mimeTypes": [
+       "application/pdf",
+       "text/pdf"
+      ],
+      "layoutMap": {
+       "size": 48
+      }
+     },
+     "b": {
+      "languages": [
+       "en-US"
+      ],
+      "battery": {
+       "charging": true,
+       "level": 1,
+       "chargingTime": 0,
+       "dischargingTime": "Infinity"
+      },
+      "voices": {
+       "count": 1,
+       "names": [
+        "eSpeak English"
+       ],
+       "default": "eSpeak English"
+      },
+      "devices": 0,
+      "plugins": [
+       "PDF Viewer",
+       "Chrome PDF Viewer",
+       "Chromium PDF Viewer",
+       "Microsoft Edge PDF Viewer",
+       "WebKit built-in PDF"
+      ],
+      "mimeTypes": [
+       "application/pdf",
+       "text/pdf"
+      ],
+      "layoutMap": {
+       "size": 48
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "synthetic_laptop_battery_under_protection",
+   "expect": "fail",
+   "detail_contains": "battery",
+   "obs": {
+    "on": {
+     "a": {
+      "languages": [
+       "en-US"
+      ],
+      "battery": {
+       "charging": false,
+       "level": 0.57,
+       "chargingTime": "Infinity",
+       "dischargingTime": 9120
+      },
+      "voices": {
+       "count": 1,
+       "names": [
+        "eSpeak English"
+       ],
+       "default": "eSpeak English"
+      },
+      "devices": 0,
+      "plugins": [
+       "PDF Viewer",
+       "Chrome PDF Viewer",
+       "Chromium PDF Viewer",
+       "Microsoft Edge PDF Viewer",
+       "WebKit built-in PDF"
+      ],
+      "mimeTypes": [
+       "application/pdf",
+       "text/pdf"
+      ],
+      "layoutMap": {
+       "size": 48
+      }
+     },
+     "b": {
+      "languages": [
+       "en-US"
+      ],
+      "battery": {
+       "charging": true,
+       "level": 1,
+       "chargingTime": 0,
+       "dischargingTime": "Infinity"
+      },
+      "voices": {
+       "count": 1,
+       "names": [
+        "eSpeak English"
+       ],
+       "default": "eSpeak English"
+      },
+      "devices": 0,
+      "plugins": [
+       "PDF Viewer",
+       "Chrome PDF Viewer",
+       "Chromium PDF Viewer",
+       "Microsoft Edge PDF Viewer",
+       "WebKit built-in PDF"
+      ],
+      "mimeTypes": [
+       "application/pdf",
+       "text/pdf"
+      ],
+      "layoutMap": {
+       "size": 48
+      }
+     }
+    },
+    "feature_off": {
+     "a": {
+      "languages": [
+       "en-US",
+       "en",
+       "fr"
+      ],
+      "battery": {
+       "charging": false,
+       "level": 0.57,
+       "chargingTime": "Infinity",
+       "dischargingTime": 9120
+      },
+      "voices": {
+       "count": 4,
+       "names": [
+        "eSpeak English",
+        "eSpeak German",
+        "eSpeak French",
+        "eSpeak Spanish"
+       ],
+       "default": "eSpeak English"
+      },
+      "devices": 0,
+      "plugins": [
+       "PDF Viewer",
+       "Chrome PDF Viewer",
+       "Chromium PDF Viewer",
+       "Microsoft Edge PDF Viewer",
+       "WebKit built-in PDF"
+      ],
+      "mimeTypes": [
+       "application/pdf",
+       "text/pdf"
+      ],
+      "layoutMap": {
+       "size": 48
+      }
+     }
+    },
+    "global_off": {
+     "a": {
+      "languages": [
+       "en-US"
+      ],
+      "battery": {
+       "charging": false,
+       "level": 0.57,
+       "chargingTime": "Infinity",
+       "dischargingTime": 9120
+      },
+      "voices": {
+       "count": 4,
+       "names": [
+        "eSpeak English",
+        "eSpeak German",
+        "eSpeak French",
+        "eSpeak Spanish"
+       ],
+       "default": "eSpeak English"
+      },
+      "devices": 0,
+      "plugins": [
+       "PDF Viewer",
+       "Chrome PDF Viewer",
+       "Chromium PDF Viewer",
+       "Microsoft Edge PDF Viewer",
+       "WebKit built-in PDF"
+      ],
+      "mimeTypes": [
+       "application/pdf",
+       "text/pdf"
+      ],
+      "layoutMap": {
+       "size": 48
+      }
+     }
+    },
+    "site_off": {
+     "a": {
+      "languages": [
+       "en-US"
+      ],
+      "battery": {
+       "charging": false,
+       "level": 0.57,
+       "chargingTime": "Infinity",
+       "dischargingTime": 9120
+      },
+      "voices": {
+       "count": 4,
+       "names": [
+        "eSpeak English",
+        "eSpeak German",
+        "eSpeak French",
+        "eSpeak Spanish"
+       ],
+       "default": "eSpeak English"
+      },
+      "devices": 0,
+      "plugins": [
+       "PDF Viewer",
+       "Chrome PDF Viewer",
+       "Chromium PDF Viewer",
+       "Microsoft Edge PDF Viewer",
+       "WebKit built-in PDF"
+      ],
+      "mimeTypes": [
+       "application/pdf",
+       "text/pdf"
+      ],
+      "layoutMap": {
+       "size": 48
+      }
+     },
+     "b": {
+      "languages": [
+       "en-US"
+      ],
+      "battery": {
+       "charging": true,
+       "level": 1,
+       "chargingTime": 0,
+       "dischargingTime": "Infinity"
+      },
+      "voices": {
+       "count": 1,
+       "names": [
+        "eSpeak English"
+       ],
+       "default": "eSpeak English"
+      },
+      "devices": 0,
+      "plugins": [
+       "PDF Viewer",
+       "Chrome PDF Viewer",
+       "Chromium PDF Viewer",
+       "Microsoft Edge PDF Viewer",
+       "WebKit built-in PDF"
+      ],
+      "mimeTypes": [
+       "application/pdf",
+       "text/pdf"
+      ],
+      "layoutMap": {
+       "size": 48
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "synthetic_all_voices_under_protection",
+   "expect": "fail",
+   "detail_contains": "voices",
+   "obs": {
+    "on": {
+     "a": {
+      "languages": [
+       "en-US"
+      ],
+      "battery": {
+       "charging": true,
+       "level": 1,
+       "chargingTime": 0,
+       "dischargingTime": "Infinity"
+      },
+      "voices": {
+       "count": 4,
+       "names": [
+        "eSpeak English",
+        "eSpeak German",
+        "eSpeak French",
+        "eSpeak Spanish"
+       ],
+       "default": "eSpeak English"
+      },
+      "devices": 0,
+      "plugins": [
+       "PDF Viewer",
+       "Chrome PDF Viewer",
+       "Chromium PDF Viewer",
+       "Microsoft Edge PDF Viewer",
+       "WebKit built-in PDF"
+      ],
+      "mimeTypes": [
+       "application/pdf",
+       "text/pdf"
+      ],
+      "layoutMap": {
+       "size": 48
+      }
+     },
+     "b": {
+      "languages": [
+       "en-US"
+      ],
+      "battery": {
+       "charging": true,
+       "level": 1,
+       "chargingTime": 0,
+       "dischargingTime": "Infinity"
+      },
+      "voices": {
+       "count": 1,
+       "names": [
+        "eSpeak English"
+       ],
+       "default": "eSpeak English"
+      },
+      "devices": 0,
+      "plugins": [
+       "PDF Viewer",
+       "Chrome PDF Viewer",
+       "Chromium PDF Viewer",
+       "Microsoft Edge PDF Viewer",
+       "WebKit built-in PDF"
+      ],
+      "mimeTypes": [
+       "application/pdf",
+       "text/pdf"
+      ],
+      "layoutMap": {
+       "size": 48
+      }
+     }
+    },
+    "feature_off": {
+     "a": {
+      "languages": [
+       "en-US",
+       "en",
+       "fr"
+      ],
+      "battery": {
+       "charging": false,
+       "level": 0.57,
+       "chargingTime": "Infinity",
+       "dischargingTime": 9120
+      },
+      "voices": {
+       "count": 4,
+       "names": [
+        "eSpeak English",
+        "eSpeak German",
+        "eSpeak French",
+        "eSpeak Spanish"
+       ],
+       "default": "eSpeak English"
+      },
+      "devices": 0,
+      "plugins": [
+       "PDF Viewer",
+       "Chrome PDF Viewer",
+       "Chromium PDF Viewer",
+       "Microsoft Edge PDF Viewer",
+       "WebKit built-in PDF"
+      ],
+      "mimeTypes": [
+       "application/pdf",
+       "text/pdf"
+      ],
+      "layoutMap": {
+       "size": 48
+      }
+     }
+    },
+    "global_off": {
+     "a": {
+      "languages": [
+       "en-US"
+      ],
+      "battery": {
+       "charging": false,
+       "level": 0.57,
+       "chargingTime": "Infinity",
+       "dischargingTime": 9120
+      },
+      "voices": {
+       "count": 4,
+       "names": [
+        "eSpeak English",
+        "eSpeak German",
+        "eSpeak French",
+        "eSpeak Spanish"
+       ],
+       "default": "eSpeak English"
+      },
+      "devices": 0,
+      "plugins": [
+       "PDF Viewer",
+       "Chrome PDF Viewer",
+       "Chromium PDF Viewer",
+       "Microsoft Edge PDF Viewer",
+       "WebKit built-in PDF"
+      ],
+      "mimeTypes": [
+       "application/pdf",
+       "text/pdf"
+      ],
+      "layoutMap": {
+       "size": 48
+      }
+     }
+    },
+    "site_off": {
+     "a": {
+      "languages": [
+       "en-US"
+      ],
+      "battery": {
+       "charging": false,
+       "level": 0.57,
+       "chargingTime": "Infinity",
+       "dischargingTime": 9120
+      },
+      "voices": {
+       "count": 4,
+       "names": [
+        "eSpeak English",
+        "eSpeak German",
+        "eSpeak French",
+        "eSpeak Spanish"
+       ],
+       "default": "eSpeak English"
+      },
+      "devices": 0,
+      "plugins": [
+       "PDF Viewer",
+       "Chrome PDF Viewer",
+       "Chromium PDF Viewer",
+       "Microsoft Edge PDF Viewer",
+       "WebKit built-in PDF"
+      ],
+      "mimeTypes": [
+       "application/pdf",
+       "text/pdf"
+      ],
+      "layoutMap": {
+       "size": 48
+      }
+     },
+     "b": {
+      "languages": [
+       "en-US"
+      ],
+      "battery": {
+       "charging": true,
+       "level": 1,
+       "chargingTime": 0,
+       "dischargingTime": "Infinity"
+      },
+      "voices": {
+       "count": 1,
+       "names": [
+        "eSpeak English"
+       ],
+       "default": "eSpeak English"
+      },
+      "devices": 0,
+      "plugins": [
+       "PDF Viewer",
+       "Chrome PDF Viewer",
+       "Chromium PDF Viewer",
+       "Microsoft Edge PDF Viewer",
+       "WebKit built-in PDF"
+      ],
+      "mimeTypes": [
+       "application/pdf",
+       "text/pdf"
+      ],
+      "layoutMap": {
+       "size": 48
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "synthetic_site_off_leaks_to_other_site",
+   "expect": "fail",
+   "detail_contains": "only a.localhost",
+   "obs": {
+    "on": {
+     "a": {
+      "languages": [
+       "en-US"
+      ],
+      "battery": {
+       "charging": true,
+       "level": 1,
+       "chargingTime": 0,
+       "dischargingTime": "Infinity"
+      },
+      "voices": {
+       "count": 1,
+       "names": [
+        "eSpeak English"
+       ],
+       "default": "eSpeak English"
+      },
+      "devices": 0,
+      "plugins": [
+       "PDF Viewer",
+       "Chrome PDF Viewer",
+       "Chromium PDF Viewer",
+       "Microsoft Edge PDF Viewer",
+       "WebKit built-in PDF"
+      ],
+      "mimeTypes": [
+       "application/pdf",
+       "text/pdf"
+      ],
+      "layoutMap": {
+       "size": 48
+      }
+     },
+     "b": {
+      "languages": [
+       "en-US"
+      ],
+      "battery": {
+       "charging": true,
+       "level": 1,
+       "chargingTime": 0,
+       "dischargingTime": "Infinity"
+      },
+      "voices": {
+       "count": 1,
+       "names": [
+        "eSpeak English"
+       ],
+       "default": "eSpeak English"
+      },
+      "devices": 0,
+      "plugins": [
+       "PDF Viewer",
+       "Chrome PDF Viewer",
+       "Chromium PDF Viewer",
+       "Microsoft Edge PDF Viewer",
+       "WebKit built-in PDF"
+      ],
+      "mimeTypes": [
+       "application/pdf",
+       "text/pdf"
+      ],
+      "layoutMap": {
+       "size": 48
+      }
+     }
+    },
+    "feature_off": {
+     "a": {
+      "languages": [
+       "en-US",
+       "en",
+       "fr"
+      ],
+      "battery": {
+       "charging": false,
+       "level": 0.57,
+       "chargingTime": "Infinity",
+       "dischargingTime": 9120
+      },
+      "voices": {
+       "count": 4,
+       "names": [
+        "eSpeak English",
+        "eSpeak German",
+        "eSpeak French",
+        "eSpeak Spanish"
+       ],
+       "default": "eSpeak English"
+      },
+      "devices": 0,
+      "plugins": [
+       "PDF Viewer",
+       "Chrome PDF Viewer",
+       "Chromium PDF Viewer",
+       "Microsoft Edge PDF Viewer",
+       "WebKit built-in PDF"
+      ],
+      "mimeTypes": [
+       "application/pdf",
+       "text/pdf"
+      ],
+      "layoutMap": {
+       "size": 48
+      }
+     }
+    },
+    "global_off": {
+     "a": {
+      "languages": [
+       "en-US"
+      ],
+      "battery": {
+       "charging": false,
+       "level": 0.57,
+       "chargingTime": "Infinity",
+       "dischargingTime": 9120
+      },
+      "voices": {
+       "count": 4,
+       "names": [
+        "eSpeak English",
+        "eSpeak German",
+        "eSpeak French",
+        "eSpeak Spanish"
+       ],
+       "default": "eSpeak English"
+      },
+      "devices": 0,
+      "plugins": [
+       "PDF Viewer",
+       "Chrome PDF Viewer",
+       "Chromium PDF Viewer",
+       "Microsoft Edge PDF Viewer",
+       "WebKit built-in PDF"
+      ],
+      "mimeTypes": [
+       "application/pdf",
+       "text/pdf"
+      ],
+      "layoutMap": {
+       "size": 48
+      }
+     }
+    },
+    "site_off": {
+     "a": {
+      "languages": [
+       "en-US"
+      ],
+      "battery": {
+       "charging": false,
+       "level": 0.57,
+       "chargingTime": "Infinity",
+       "dischargingTime": 9120
+      },
+      "voices": {
+       "count": 4,
+       "names": [
+        "eSpeak English",
+        "eSpeak German",
+        "eSpeak French",
+        "eSpeak Spanish"
+       ],
+       "default": "eSpeak English"
+      },
+      "devices": 0,
+      "plugins": [
+       "PDF Viewer",
+       "Chrome PDF Viewer",
+       "Chromium PDF Viewer",
+       "Microsoft Edge PDF Viewer",
+       "WebKit built-in PDF"
+      ],
+      "mimeTypes": [
+       "application/pdf",
+       "text/pdf"
+      ],
+      "layoutMap": {
+       "size": 48
+      }
+     },
+     "b": {
+      "languages": [
+       "en-US"
+      ],
+      "battery": {
+       "charging": false,
+       "level": 0.57,
+       "chargingTime": "Infinity",
+       "dischargingTime": 9120
+      },
+      "voices": {
+       "count": 4,
+       "names": [
+        "eSpeak English",
+        "eSpeak German",
+        "eSpeak French",
+        "eSpeak Spanish"
+       ],
+       "default": "eSpeak English"
+      },
+      "devices": 0,
+      "plugins": [
+       "PDF Viewer",
+       "Chrome PDF Viewer",
+       "Chromium PDF Viewer",
+       "Microsoft Edge PDF Viewer",
+       "WebKit built-in PDF"
+      ],
+      "mimeTypes": [
+       "application/pdf",
+       "text/pdf"
+      ],
+      "layoutMap": {
+       "size": 48
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "synthetic_global_off_does_not_restore",
+   "expect": "fail",
+   "detail_contains": "not the real",
+   "obs": {
+    "on": {
+     "a": {
+      "languages": [
+       "en-US"
+      ],
+      "battery": {
+       "charging": true,
+       "level": 1,
+       "chargingTime": 0,
+       "dischargingTime": "Infinity"
+      },
+      "voices": {
+       "count": 1,
+       "names": [
+        "eSpeak English"
+       ],
+       "default": "eSpeak English"
+      },
+      "devices": 0,
+      "plugins": [
+       "PDF Viewer",
+       "Chrome PDF Viewer",
+       "Chromium PDF Viewer",
+       "Microsoft Edge PDF Viewer",
+       "WebKit built-in PDF"
+      ],
+      "mimeTypes": [
+       "application/pdf",
+       "text/pdf"
+      ],
+      "layoutMap": {
+       "size": 48
+      }
+     },
+     "b": {
+      "languages": [
+       "en-US"
+      ],
+      "battery": {
+       "charging": true,
+       "level": 1,
+       "chargingTime": 0,
+       "dischargingTime": "Infinity"
+      },
+      "voices": {
+       "count": 1,
+       "names": [
+        "eSpeak English"
+       ],
+       "default": "eSpeak English"
+      },
+      "devices": 0,
+      "plugins": [
+       "PDF Viewer",
+       "Chrome PDF Viewer",
+       "Chromium PDF Viewer",
+       "Microsoft Edge PDF Viewer",
+       "WebKit built-in PDF"
+      ],
+      "mimeTypes": [
+       "application/pdf",
+       "text/pdf"
+      ],
+      "layoutMap": {
+       "size": 48
+      }
+     }
+    },
+    "feature_off": {
+     "a": {
+      "languages": [
+       "en-US",
+       "en",
+       "fr"
+      ],
+      "battery": {
+       "charging": false,
+       "level": 0.57,
+       "chargingTime": "Infinity",
+       "dischargingTime": 9120
+      },
+      "voices": {
+       "count": 4,
+       "names": [
+        "eSpeak English",
+        "eSpeak German",
+        "eSpeak French",
+        "eSpeak Spanish"
+       ],
+       "default": "eSpeak English"
+      },
+      "devices": 0,
+      "plugins": [
+       "PDF Viewer",
+       "Chrome PDF Viewer",
+       "Chromium PDF Viewer",
+       "Microsoft Edge PDF Viewer",
+       "WebKit built-in PDF"
+      ],
+      "mimeTypes": [
+       "application/pdf",
+       "text/pdf"
+      ],
+      "layoutMap": {
+       "size": 48
+      }
+     }
+    },
+    "global_off": {
+     "a": {
+      "languages": [
+       "en-US"
+      ],
+      "battery": {
+       "charging": true,
+       "level": 1,
+       "chargingTime": 0,
+       "dischargingTime": "Infinity"
+      },
+      "voices": {
+       "count": 4,
+       "names": [
+        "eSpeak English",
+        "eSpeak German",
+        "eSpeak French",
+        "eSpeak Spanish"
+       ],
+       "default": "eSpeak English"
+      },
+      "devices": 0,
+      "plugins": [
+       "PDF Viewer",
+       "Chrome PDF Viewer",
+       "Chromium PDF Viewer",
+       "Microsoft Edge PDF Viewer",
+       "WebKit built-in PDF"
+      ],
+      "mimeTypes": [
+       "application/pdf",
+       "text/pdf"
+      ],
+      "layoutMap": {
+       "size": 48
+      }
+     }
+    },
+    "site_off": {
+     "a": {
+      "languages": [
+       "en-US"
+      ],
+      "battery": {
+       "charging": false,
+       "level": 0.57,
+       "chargingTime": "Infinity",
+       "dischargingTime": 9120
+      },
+      "voices": {
+       "count": 4,
+       "names": [
+        "eSpeak English",
+        "eSpeak German",
+        "eSpeak French",
+        "eSpeak Spanish"
+       ],
+       "default": "eSpeak English"
+      },
+      "devices": 0,
+      "plugins": [
+       "PDF Viewer",
+       "Chrome PDF Viewer",
+       "Chromium PDF Viewer",
+       "Microsoft Edge PDF Viewer",
+       "WebKit built-in PDF"
+      ],
+      "mimeTypes": [
+       "application/pdf",
+       "text/pdf"
+      ],
+      "layoutMap": {
+       "size": 48
+      }
+     },
+     "b": {
+      "languages": [
+       "en-US"
+      ],
+      "battery": {
+       "charging": true,
+       "level": 1,
+       "chargingTime": 0,
+       "dischargingTime": "Infinity"
+      },
+      "voices": {
+       "count": 1,
+       "names": [
+        "eSpeak English"
+       ],
+       "default": "eSpeak English"
+      },
+      "devices": 0,
+      "plugins": [
+       "PDF Viewer",
+       "Chrome PDF Viewer",
+       "Chromium PDF Viewer",
+       "Microsoft Edge PDF Viewer",
+       "WebKit built-in PDF"
+      ],
+      "mimeTypes": [
+       "application/pdf",
+       "text/pdf"
+      ],
+      "layoutMap": {
+       "size": 48
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "synthetic_control_with_one_language",
+   "expect": "error",
+   "detail_contains": "inconclusive",
+   "obs": {
+    "on": {
+     "a": {
+      "languages": [
+       "en-US"
+      ],
+      "battery": {
+       "charging": true,
+       "level": 1,
+       "chargingTime": 0,
+       "dischargingTime": "Infinity"
+      },
+      "voices": {
+       "count": 1,
+       "names": [
+        "eSpeak English"
+       ],
+       "default": "eSpeak English"
+      },
+      "devices": 0,
+      "plugins": [
+       "PDF Viewer",
+       "Chrome PDF Viewer",
+       "Chromium PDF Viewer",
+       "Microsoft Edge PDF Viewer",
+       "WebKit built-in PDF"
+      ],
+      "mimeTypes": [
+       "application/pdf",
+       "text/pdf"
+      ],
+      "layoutMap": {
+       "size": 48
+      }
+     },
+     "b": {
+      "languages": [
+       "en-US"
+      ],
+      "battery": {
+       "charging": true,
+       "level": 1,
+       "chargingTime": 0,
+       "dischargingTime": "Infinity"
+      },
+      "voices": {
+       "count": 1,
+       "names": [
+        "eSpeak English"
+       ],
+       "default": "eSpeak English"
+      },
+      "devices": 0,
+      "plugins": [
+       "PDF Viewer",
+       "Chrome PDF Viewer",
+       "Chromium PDF Viewer",
+       "Microsoft Edge PDF Viewer",
+       "WebKit built-in PDF"
+      ],
+      "mimeTypes": [
+       "application/pdf",
+       "text/pdf"
+      ],
+      "layoutMap": {
+       "size": 48
+      }
+     }
+    },
+    "feature_off": {
+     "a": {
+      "languages": [
+       "en-US"
+      ],
+      "battery": {
+       "charging": false,
+       "level": 0.57,
+       "chargingTime": "Infinity",
+       "dischargingTime": 9120
+      },
+      "voices": {
+       "count": 4,
+       "names": [
+        "eSpeak English",
+        "eSpeak German",
+        "eSpeak French",
+        "eSpeak Spanish"
+       ],
+       "default": "eSpeak English"
+      },
+      "devices": 0,
+      "plugins": [
+       "PDF Viewer",
+       "Chrome PDF Viewer",
+       "Chromium PDF Viewer",
+       "Microsoft Edge PDF Viewer",
+       "WebKit built-in PDF"
+      ],
+      "mimeTypes": [
+       "application/pdf",
+       "text/pdf"
+      ],
+      "layoutMap": {
+       "size": 48
+      }
+     }
+    },
+    "global_off": {
+     "a": {
+      "languages": [
+       "en-US"
+      ],
+      "battery": {
+       "charging": false,
+       "level": 0.57,
+       "chargingTime": "Infinity",
+       "dischargingTime": 9120
+      },
+      "voices": {
+       "count": 4,
+       "names": [
+        "eSpeak English",
+        "eSpeak German",
+        "eSpeak French",
+        "eSpeak Spanish"
+       ],
+       "default": "eSpeak English"
+      },
+      "devices": 0,
+      "plugins": [
+       "PDF Viewer",
+       "Chrome PDF Viewer",
+       "Chromium PDF Viewer",
+       "Microsoft Edge PDF Viewer",
+       "WebKit built-in PDF"
+      ],
+      "mimeTypes": [
+       "application/pdf",
+       "text/pdf"
+      ],
+      "layoutMap": {
+       "size": 48
+      }
+     }
+    },
+    "site_off": {
+     "a": {
+      "languages": [
+       "en-US"
+      ],
+      "battery": {
+       "charging": false,
+       "level": 0.57,
+       "chargingTime": "Infinity",
+       "dischargingTime": 9120
+      },
+      "voices": {
+       "count": 4,
+       "names": [
+        "eSpeak English",
+        "eSpeak German",
+        "eSpeak French",
+        "eSpeak Spanish"
+       ],
+       "default": "eSpeak English"
+      },
+      "devices": 0,
+      "plugins": [
+       "PDF Viewer",
+       "Chrome PDF Viewer",
+       "Chromium PDF Viewer",
+       "Microsoft Edge PDF Viewer",
+       "WebKit built-in PDF"
+      ],
+      "mimeTypes": [
+       "application/pdf",
+       "text/pdf"
+      ],
+      "layoutMap": {
+       "size": 48
+      }
+     },
+     "b": {
+      "languages": [
+       "en-US"
+      ],
+      "battery": {
+       "charging": true,
+       "level": 1,
+       "chargingTime": 0,
+       "dischargingTime": "Infinity"
+      },
+      "voices": {
+       "count": 1,
+       "names": [
+        "eSpeak English"
+       ],
+       "default": "eSpeak English"
+      },
+      "devices": 0,
+      "plugins": [
+       "PDF Viewer",
+       "Chrome PDF Viewer",
+       "Chromium PDF Viewer",
+       "Microsoft Edge PDF Viewer",
+       "WebKit built-in PDF"
+      ],
+      "mimeTypes": [
+       "application/pdf",
+       "text/pdf"
+      ],
+      "layoutMap": {
+       "size": 48
+      }
+     }
+    }
+   }
+  }
+ ]
+}

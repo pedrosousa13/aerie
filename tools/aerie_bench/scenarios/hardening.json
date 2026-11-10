@@ -17,6 +17,7 @@
     "hardening_fingerprinting_worker",
     "hardening_fingerprinting_popup",
     "hardening_fingerprinting_screen",
+    "hardening_fingerprinting_navigator",
     "hardening_fingerprinting_textmetrics",
     "hardening_fingerprinting_fonts",
     "hardening_device_memory",

@@ -550,12 +550,45 @@ def check_text_metrics_noise(root: Path, require: bool = False) -> list[Finding]
     return out
 
 
+NAVIGATOR_BATTERY_PATH = "third_party/blink/renderer/modules/battery/battery_manager.cc"
+NAVIGATOR_SPEECH_PATH = "third_party/blink/renderer/modules/speech/speech_synthesis.cc"
+NAVIGATOR_FEATURES_PATH = "services/network/public/cpp/features.cc"
+
+
+def check_navigator_pins(root: Path, require: bool = False) -> list[Finding]:
+    """The navigator surfaces stay pinned (issue #120). navigator.languages is the first language only because
+    ReduceAcceptLanguage is on by default (Helium turns it on; NavigatorLanguage reduces to the first entry then).
+    A battery that the dispatcher delivers is replaced by the pinned one before DidUpdateData compares it with the
+    old one, when ShouldPinNavigatorForContext holds, so no event shows the real battery. The speech voice list is
+    cut to the voice VoiceIndexToKeep picks, under the same decision."""
+    gate = "navigator_pins"
+    out = _must_match(
+        root, NAVIGATOR_FEATURES_PATH, gate,
+        r"BASE_FEATURE\(kReduceAcceptLanguage,\s*base::FEATURE_ENABLED_BY_DEFAULT\)",
+        "ReduceAcceptLanguage must be on by default, or navigator.languages lists every accepted language", require)
+    out += _must_match(
+        root, NAVIGATOR_BATTERY_PATH, gate,
+        r"BatteryStatus old_status = battery_status_;\s*battery_status_ = \*battery_dispatcher_->LatestData\(\);\s*"
+        r"(?://[^\n]*\s*)*if \(ShouldPinNavigatorForContext\(GetExecutionContext\(\)\)\) \{\s*"
+        r"battery_status_ = BatteryStatus\(.*?aerie_navigator_pins::kBatteryLevel\);\s*\}.*?"
+        r"if \(battery_status_\.Charging\(\) != old_status\.Charging\(\)\)",
+        "BatteryManager::DidUpdateData must pin the battery status when ShouldPinNavigatorForContext holds, before "
+        "it compares the old and the new status", require)
+    out += _must_match(
+        root, NAVIGATOR_SPEECH_PATH, gate,
+        r"OnSetVoiceList\(.*?ShouldPinNavigatorForContext\(GetSupplementable\(\)\).*?"
+        r"aerie_navigator_pins::VoiceIndexToKeep\(.*?voice_list_\.clear\(\)",
+        "SpeechSynthesis::OnSetVoiceList must cut the voice list to VoiceIndexToKeep when "
+        "ShouldPinNavigatorForContext holds", require)
+    return out
+
+
 GATES: tuple[Callable[..., list[Finding]], ...] = (
     check_search_list, check_search_suggestions, check_secure_dns_default,
     check_crash_reporting, check_services_off, check_fedcm_resolver, check_widevine_opt_in,
     check_https_first_dialog_off, check_link_prefetch_off, check_js_optimizer, check_services_ui,
     check_audio_noise_stable, check_gpu_masking, check_webgl_readpixels, check_worker_noise_tokens, check_popup_noise_tokens,
-    check_text_metrics_noise,
+    check_text_metrics_noise, check_navigator_pins,
 )
 
 

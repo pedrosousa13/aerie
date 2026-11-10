@@ -92,6 +92,8 @@ adblock/0026-add-aerie-guard-level-settings-strings.patch
 
 # Opt-in "Restrict fonts" (#117): pages can match only an allowlist of common fonts; the pref, the kFonts token, the font selectors and Local Font Access.
 hardening/0020-restrict-fonts-to-an-allowlist.patch
+hardening/0021-pin-the-battery-status.patch
+hardening/0022-limit-speech-voices-to-the-default.patch
 
 # Design Tokens (#174): the reduced-motion pref, its strings and its row on the Appearance page.
 sidebar/0001-add-the-reduced-motion-pref.patch

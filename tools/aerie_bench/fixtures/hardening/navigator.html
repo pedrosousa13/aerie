@@ -1,0 +1,50 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Aerie Bench Navigator</title></head>
+<body>
+<p>Reads navigator.languages, speechSynthesis.getVoices(), navigator.mediaDevices.enumerateDevices() before any
+permission, navigator.getBattery(), navigator.plugins, navigator.mimeTypes and navigator.keyboard.getLayoutMap().</p>
+<script>
+  window.__done = false;
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  // The voice list fills after the first call: wait for voiceschanged, at most 3 s. A machine with no voices
+  // never fires it, so an empty list after the wait is a result, not an error.
+  async function voices() {
+    let list = speechSynthesis.getVoices();
+    for (let i = 0; i < 30 && list.length === 0; i++) {
+      await sleep(100);
+      list = speechSynthesis.getVoices();
+    }
+    return {count: list.length, names: list.map(v => v.name),
+            default: (list.find(v => v.default) || {}).name || null};
+  }
+  async function battery() {
+    try {
+      const b = await navigator.getBattery();
+      // Infinity does not survive JSON, so every time is read as a number or the string "Infinity".
+      const t = x => (Number.isFinite(x) ? x : String(x));
+      return {charging: b.charging, level: b.level, chargingTime: t(b.chargingTime),
+              dischargingTime: t(b.dischargingTime)};
+    } catch (e) { return {error: String(e)}; }
+  }
+  async function devices() {
+    try { return (await navigator.mediaDevices.enumerateDevices()).length; } catch (e) { return {error: String(e)}; }
+  }
+  async function layoutMap() {
+    try { return {size: (await navigator.keyboard.getLayoutMap()).size}; } catch (e) { return {error: String(e)}; }
+  }
+  (async () => {
+    try {
+      window.__result = {
+        languages: Array.from(navigator.languages),
+        voices: await voices(),
+        battery: await battery(),
+        devices: await devices(),
+        plugins: Array.from(navigator.plugins, p => p.name),
+        mimeTypes: Array.from(navigator.mimeTypes, m => m.type),
+        layoutMap: await layoutMap(),
+      };
+    } catch (e) { window.__result = {error: String(e)}; }
+    window.__done = true;
+  })();
+</script>
+</body></html>

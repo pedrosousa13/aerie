@@ -19,7 +19,7 @@ page and the Bench checks, so the three cannot drift apart.
 | No prefetch or preloading | Off. | ungoogled-chromium (through Helium) | Dropdown | `hardening_prefetch` |
 | Strict site isolation | Always on. | Chromium | Read-only | `hardening_site_isolation` |
 | JavaScript JIT per site | On for every site. | Chromium | Link to site settings | `hardening_js_optimizer` |
-| Fingerprinting protection | On. | Helium | Toggle | `hardening_fingerprinting`, `hardening_fingerprinting_site`, `hardening_fingerprinting_worker`, `hardening_fingerprinting_popup`, `hardening_fingerprinting_gpu`, `hardening_fingerprinting_readpixels`, `hardening_fingerprinting_screen`, `hardening_fingerprinting_textmetrics`, `hardening_device_memory` |
+| Fingerprinting protection | On. | Helium | Toggle | `hardening_fingerprinting`, `hardening_fingerprinting_site`, `hardening_fingerprinting_worker`, `hardening_fingerprinting_popup`, `hardening_fingerprinting_gpu`, `hardening_fingerprinting_readpixels`, `hardening_fingerprinting_screen`, `hardening_fingerprinting_navigator`, `hardening_fingerprinting_textmetrics`, `hardening_device_memory` |
 | Restrict fonts | Off. | Aerie | Toggle | `hardening_fingerprinting_fonts`, `hardening_pref_defaults`, `hardening_settings_page` |
 | Widevine DRM | Off. | Aerie | Toggle | `hardening_pref_defaults`, `hardening_settings_page`, `widevine_opt_in` |
 | Extensions cannot loosen these settings | Always on. | Aerie | Read-only | `hardening_extension_prefs` |
@@ -143,7 +143,7 @@ Process rule: the optimizer mode is part of the SiteInfo and of the renderer pro
 
 ### Fingerprinting protection
 
-Canvas and audio output, WebGL readPixels on the default framebuffer, the widths that canvas text measurement reports and the reported number of CPU cores carry small random noise. The noise differs for each site and for each browser session, and is the same on every address of one site (www.example.com and shop.example.com share it). A private window starts with its own noise. Dedicated workers, shared workers and service workers get the same noise as their site, so a script cannot get clean values by moving into a worker. You can turn it off for a single site, and that covers every address of the site and its workers. WebGL reports only the vendor family of the graphics card (for example Google Inc. (AMD)), and WebGPU reports no adapter details. The screen size is reported as the smallest of seven common sizes that fits the window, and the window position as 0,0. While this is on, the reported device memory is capped at 8 GB. Turning it off, globally or for one site, reports the real value (web workers stay capped for now).
+Canvas and audio output, WebGL readPixels on the default framebuffer, the widths that canvas text measurement reports and the reported number of CPU cores carry small random noise. The noise differs for each site and for each browser session, and is the same on every address of one site (www.example.com and shop.example.com share it). A private window starts with its own noise. Dedicated workers, shared workers and service workers get the same noise as their site, so a script cannot get clean values by moving into a worker. You can turn it off for a single site, and that covers every address of the site and its workers. WebGL reports only the vendor family of the graphics card (for example Google Inc. (AMD)), and WebGPU reports no adapter details. The screen size is reported as the smallest of seven common sizes that fits the window, and the window position as 0,0. While this is on, the reported device memory is capped at 8 GB. Turning it off, globally or for one site, reports the real value (web workers stay capped for now). navigator.languages lists only your first language, the one the Accept-Language header carries. navigator.getBattery() reports a charging, full battery (level 100%, no time left to charge) and raises no battery events, and speechSynthesis.getVoices() lists at most one voice, your system's default; turning protection off for the browser or a site gives the real battery and voice list back, and the language list stays reduced because that follows the Accept-Language header, not this switch.
 
 Audio noise is seeded from the site and session only, so one site gets the same audio output on every render and every AnalyserNode read of the same signal in one session. A tracker cannot average the noise away by reading again.
 
@@ -171,6 +171,8 @@ measureText: while protection is on for a site, every metric that CanvasRenderin
 
 Fonts are not farbled. The separate, opt-in Restrict fonts setting (off by default) limits which fonts a page can match to an allowlist, and it uses the same per-site switch as the rest of this control: with it on, a site that has fingerprinting protection turned off sees all installed fonts. With Restrict fonts off, fonts behave as they always did. The row below describes it.
 
+Navigator surfaces (issue #120). The Bench records navigator.languages, speechSynthesis.getVoices() (count and names), navigator.mediaDevices.enumerateDevices() before any permission (count), navigator.getBattery(), navigator.plugins, navigator.mimeTypes and navigator.keyboard.getLayoutMap() on every run and judges the three that are pinned. navigator.languages: reduced to the first accepted language by Chromium's own reduction, which Helium turns on (kReduceAcceptLanguage), the same language the reduced Accept-Language header carries; no Aerie patch changes it, so it does not follow the protection switch, and a source gate (navigator_pins) and the Bench fail if the reduction is lost. Battery: a protected window reads charging true, level 1, chargingTime 0 and dischargingTime Infinity, which is also what a computer with no battery reports; the status the system delivers is replaced before the old and the new status are compared, so a real battery raises no chargingchange, levelchange, chargingtimechange or dischargingtimechange event. Speech voices: a protected window gets one voice, the first the system marks as default (or the first one when none is marked); speaking with the default voice still works. The size of the real voice list depends on the speech engine (on Linux, speech-dispatcher), so a computer without one lists none; the Bench says so in its result when the machine lists at most one voice, and then cannot show the limit working. The same holds for a computer with no battery. Left as they are, on purpose: navigator.plugins and navigator.mimeTypes (the five standard PDF viewer entries and two mime types, the same in every Chrome). Recorded and not changed, with follow-up issues: the device count of enumerateDevices() before permission, and the keyboard layout map. The pins use the per-site kNavigator token of this control: the browser sends it only while protection is on for the site, so the global and per-site switches give the real battery and voice list back. Aerie's own code is components/aerie_navigator_pins, with unit tests.
+
 - Default: On.
 - Default provided by: Helium
 - Where the default is set:
@@ -180,6 +182,8 @@ Fonts are not farbled. The separate, opt-in Restrict fonts setting (off by defau
   - patches/hardening/0015-report-a-common-screen-size.patch: the kHeliumNoiseScreen feature is on by default
   - patches/hardening/0018-seed-measuretext-noise-per-site.patch: the kHeliumNoiseTextMetrics feature is on by default, and measureText takes its factor from the site's token
   - patches/hardening/0020-restrict-fonts-to-an-allowlist.patch: the kHeliumNoiseFonts feature is on by default; it matters only when the Restrict fonts setting is on
+  - patches/hardening/0021-pin-the-battery-status.patch: the kHeliumNoiseNavigator feature is on by default
+  - helium-chromium/patches/helium/core/reduce-accept-language-headers.patch: kReduceAcceptLanguage is on, which also reduces navigator.languages to the first language
 - Upstream code:
   - `content/browser/helium_noise/noise_token_data.cc`
   - `chrome/browser/helium_noise/helium_noise_settings.cc`
@@ -198,6 +202,9 @@ Fonts are not farbled. The separate, opt-in Restrict fonts setting (off by defau
   - third_party/blink/renderer/core/css/media_values.cc (device-width, device-height)
   - third_party/blink/renderer/modules/canvas/canvas2d/base_rendering_context_2d.cc (measureText)
   - third_party/blink/renderer/core/dom/document.cc (GetNoiseFactorX, GetNoiseFactorY)
+  - third_party/blink/renderer/modules/battery/battery_manager.cc (DidUpdateData)
+  - third_party/blink/renderer/modules/speech/speech_synthesis.cc (OnSetVoiceList)
+  - third_party/blink/renderer/core/frame/navigator_language.cc (EnsureUpdatedLanguage)
 - Preference: `helium.noise.enabled` (default `true`)
 - Aerie patches:
   - `patches/hardening/0009-stable-audio-noise-per-site-and-session.patch`
@@ -211,9 +218,11 @@ Fonts are not farbled. The separate, opt-in Restrict fonts setting (off by defau
   - `patches/hardening/0018-seed-measuretext-noise-per-site.patch`
   - `patches/hardening/0019-noise-webgl-readpixels-on-the-default-framebuffer.patch`
   - `patches/hardening/0020-restrict-fonts-to-an-allowlist.patch`
+  - `patches/hardening/0021-pin-the-battery-status.patch`
+  - `patches/hardening/0022-limit-speech-voices-to-the-default.patch`
 - Settings row: Toggle
 - Cost: Sites that hash a canvas for bot defense can show more CAPTCHAs, and canvas editors that compare pixels can misbehave. Turn it off for a single site in the fingerprinting page.
-- Bench checks: `hardening_fingerprinting`, `hardening_fingerprinting_site`, `hardening_fingerprinting_worker`, `hardening_fingerprinting_popup`, `hardening_fingerprinting_gpu`, `hardening_fingerprinting_readpixels`, `hardening_fingerprinting_screen`, `hardening_fingerprinting_textmetrics`, `hardening_device_memory`
+- Bench checks: `hardening_fingerprinting`, `hardening_fingerprinting_site`, `hardening_fingerprinting_worker`, `hardening_fingerprinting_popup`, `hardening_fingerprinting_gpu`, `hardening_fingerprinting_readpixels`, `hardening_fingerprinting_screen`, `hardening_fingerprinting_navigator`, `hardening_fingerprinting_textmetrics`, `hardening_device_memory`
 
 ## What Aerie added
 

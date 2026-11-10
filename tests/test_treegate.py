@@ -351,8 +351,41 @@ TEXT_METRICS_GOOD = {
     treegate.TEXT_METRICS_FACTOR_PATH: TEXT_METRICS_FACTOR_OK,
 }
 
+NAVIGATOR_FEATURES_OK = """
+BASE_FEATURE(kReduceAcceptLanguage, base::FEATURE_ENABLED_BY_DEFAULT);
+"""
+NAVIGATOR_BATTERY_OK = """
+void BatteryManager::DidUpdateData() {
+  BatteryStatus old_status = battery_status_;
+  battery_status_ = *battery_dispatcher_->LatestData();
+  // Aerie (#120): a protected window sees a charging, full battery.
+  if (ShouldPinNavigatorForContext(GetExecutionContext())) {
+    battery_status_ = BatteryStatus(
+        aerie_navigator_pins::kBatteryCharging,
+        base::Seconds(aerie_navigator_pins::kBatteryChargingTimeSeconds),
+        base::TimeDelta::Max(), aerie_navigator_pins::kBatteryLevel);
+  }
+  if (battery_status_.Charging() != old_status.Charging())
+    DispatchEvent(*Event::Create(event_type_names::kChargingchange));
+}
+"""
+NAVIGATOR_SPEECH_OK = """
+void SpeechSynthesis::OnSetVoiceList(
+    Vector<mojom::blink::SpeechSynthesisVoicePtr> mojom_voices) {
+  if (ShouldPinNavigatorForContext(GetSupplementable())) {
+    const std::optional<size_t> keep =
+        aerie_navigator_pins::VoiceIndexToKeep(mojom_voices.size(), first_default);
+  }
+  voice_list_.clear();
+}
+"""
+NAVIGATOR_GOOD = {treegate.NAVIGATOR_FEATURES_PATH: NAVIGATOR_FEATURES_OK, treegate.NAVIGATOR_BATTERY_PATH: NAVIGATOR_BATTERY_OK,
+                  treegate.NAVIGATOR_SPEECH_PATH: NAVIGATOR_SPEECH_OK}
+
+
 GOOD = {
     **JS_OPT_GOOD,
+    **NAVIGATOR_GOOD,
     **SERVICES_UI_GOOD,
     **AUDIO_GOOD,
     **GPU_GOOD,
@@ -792,7 +825,7 @@ class RunTest(TreeCase):
 
     def test_empty_tree_passes_unless_required(self):
         self.assertEqual(self.run_gates(), [])
-        self.assertEqual(len(self.run_gates(require=True)), 49)
+        self.assertEqual(len(self.run_gates(require=True)), 52)
 
     def test_format_report(self):
         self.write({"a.cc": '"https://services.helium.imput.net"\n'})
@@ -802,6 +835,44 @@ class RunTest(TreeCase):
         self.assertIn("a.cc:1", text)
         text, ok = treegate.format_report([])
         self.assertTrue(ok)
+
+
+class NavigatorPinsGateTest(TreeCase):
+    """Issue #120: the language reduction, the pinned battery and the cut voice list stay in the tree."""
+
+    def test_passes_on_the_patched_shape(self):
+        self.write(NAVIGATOR_GOOD)
+        self.assertEqual(treegate.check_navigator_pins(self.root, require=True), [])
+
+    def test_a_missing_file_is_reported_only_when_required(self):
+        self.assertEqual(treegate.check_navigator_pins(self.root), [])
+        self.assertEqual(len(treegate.check_navigator_pins(self.root, require=True)), 3)
+
+    def test_each_part_is_guarded(self):
+        bad = {
+            treegate.NAVIGATOR_FEATURES_PATH: NAVIGATOR_FEATURES_OK.replace("ENABLED_BY_DEFAULT", "DISABLED_BY_DEFAULT"),
+            treegate.NAVIGATOR_BATTERY_PATH: NAVIGATOR_BATTERY_OK.replace("ShouldPinNavigatorForContext(", "Other("),
+            treegate.NAVIGATOR_SPEECH_PATH: NAVIGATOR_SPEECH_OK.replace("VoiceIndexToKeep", "Other"),
+        }
+        for path, text in bad.items():
+            with self.subTest(path=path):
+                self.write(NAVIGATOR_GOOD)
+                self.write({path: text})
+                self.assertEqual({f.path for f in treegate.check_navigator_pins(self.root)}, {path})
+
+    def test_a_pin_after_the_comparison_is_reported(self):
+        # Pinning after the events are decided would let the real battery raise them.
+        moved = NAVIGATOR_BATTERY_OK.replace(
+            "  if (battery_status_.Charging() != old_status.Charging())\n    DispatchEvent(*Event::Create(event_type_names::kChargingchange));\n",
+            "")
+        moved = moved.replace("  }\n}\n", "  }\n}\n  if (battery_status_.Charging() != old_status.Charging()) {}\n", 1) \
+            .replace("  if (ShouldPinNavigatorForContext(GetExecutionContext())) {", "  if (false) {", 1)
+        self.write(NAVIGATOR_GOOD)
+        self.write({treegate.NAVIGATOR_BATTERY_PATH: moved})
+        self.assertEqual({f.path for f in treegate.check_navigator_pins(self.root)}, {treegate.NAVIGATOR_BATTERY_PATH})
+
+    def test_the_gate_runs_with_the_others(self):
+        self.assertIn(treegate.check_navigator_pins, treegate.GATES)
 
 
 if __name__ == "__main__":
