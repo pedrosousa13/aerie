@@ -215,11 +215,12 @@ nothing. `./aerie build` never fetches the fonts, the fonts are not part of the
 browser, and `./aerie prune` removes the cached archive (the next test run
 downloads it again).
 
-The two Views UI binaries also need the `chrome/test/data/webui` files, which
+The two Views UI binaries also need the `chrome/test/data/webui` files (and
+the `chrome/test/data/pdf` files that webui's resources build in), which
 Helium prunes to a single `BUILD.gn` while the test support compiles TypeScript
 from that directory. Only for those two targets, the build downloads the directory at
 the pinned Chromium tag from `chromium.googlesource.com` over https, checks it
-against `[test_data.webui]` in `helium.lock`, keeps the archive in `downloads/`
+against `[test_data.webui]` and `[test_data.pdf]` in `helium.lock`, keeps the archive in `downloads/`
 and unpacks the files the tree lacks. The server stamps each archive with the
 time of the request, so the pin is the sha256 of the sorted list of per-file
 sha256 values, not of the archive bytes. A mismatch stops the build, renames the

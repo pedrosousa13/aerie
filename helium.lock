@@ -83,3 +83,10 @@ license = "BSD-2-Clause style (Apple); bundled workloads carry their own licence
 chromium_version = "157.0.8103.38"
 url = "https://chromium.googlesource.com/chromium/src/+archive/refs/tags/157.0.8103.38/chrome/test/data/webui.tar.gz"
 sha256 = "18eee87f35b39dc53addb0546c7bb15aa7e713d755a9f88cc5dd409cd6d99533"
+
+# chrome/test/data/pdf, same rules. chrome/test/data/webui:resources builds these files into its
+# resources.grd, so the webui directory alone leaves aerie_browser_tests unschedulable.
+[test_data.pdf]
+chromium_version = "157.0.8103.38"
+url = "https://chromium.googlesource.com/chromium/src/+archive/refs/tags/157.0.8103.38/chrome/test/data/pdf.tar.gz"
+sha256 = "9a5d2ab64d75ffc29eafec82808c06a2de7eb1ab4beec915bef5d23b8fc142bf"

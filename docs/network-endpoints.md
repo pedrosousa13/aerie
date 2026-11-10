@@ -11,7 +11,7 @@ This page is about the browser. One build-time download is outside the promise:
 `./aerie test-cpp`, a developer command, fetches Chromium's test fonts from
 `storage.googleapis.com/chromium-fonts`, pinned by the sha256 in the tree's
 `DEPS`. For the two Views UI test targets it also fetches the `chrome/test/data/webui`
-files from `chromium.googlesource.com`, pinned in `helium.lock`. `./aerie build` never does,
+and `chrome/test/data/pdf` files from `chromium.googlesource.com`, pinned in `helium.lock`. `./aerie build` never does,
 and none of it is part of the browser.
 
 "Dummy origin" below is `https://helium-services-are-disabled.qjz9zk`. The

@@ -26,12 +26,14 @@ from typing import Callable
 
 from . import fallback, lock
 
-URL_TEMPLATE = (
-    "https://chromium.googlesource.com/chromium/src/+archive/refs/tags/{version}/chrome/test/data/webui.tar.gz"
-)
-TARGET_DIR = Path("chrome") / "test" / "data" / "webui"
-MARKER_FILE = "tsconfig_base.json"
-STAMP = ".aerie-test-data-webui.stamp"
+URL_TEMPLATE = "https://chromium.googlesource.com/chromium/src/+archive/refs/tags/{version}/{path}.tar.gz"
+# name in helium.lock ([test_data.<name>]) -> (directory in the tree, a file that proves the archive is the right one).
+# `chrome/test/data/pdf` is here because `chrome/test/data/webui:resources` builds the pdf test files into its
+# resources.grd (the first `aerie_browser_tests` build failed on basic_plugin_test.ts without them).
+DATASETS = {
+    "webui": ("chrome/test/data/webui", "tsconfig_base.json"),
+    "pdf": ("chrome/test/data/pdf", "basic_plugin_test.ts"),
+}
 MAX_BYTES = 256 * 1024 * 1024  # the real directory is about 30 MB unpacked
 
 
@@ -41,12 +43,16 @@ class TestDataError(RuntimeError):
     __test__ = False
 
 
-def url_for(chromium_version: str) -> str:
-    return URL_TEMPLATE.format(version=chromium_version)
+def url_for(chromium_version: str, name: str = "webui") -> str:
+    return URL_TEMPLATE.format(version=chromium_version, path=DATASETS[name][0])
 
 
-def archive_name(chromium_version: str) -> str:
-    return f"chromium-test-data-webui-{chromium_version}.tar.gz"
+def archive_name(chromium_version: str, name: str = "webui") -> str:
+    return f"chromium-test-data-{name}-{chromium_version}.tar.gz"
+
+
+def stamp_name(name: str) -> str:
+    return f".aerie-test-data-{name}.stamp"
 
 
 def _clean_name(archive: Path, raw: str) -> str:
@@ -58,7 +64,7 @@ def _clean_name(archive: Path, raw: str) -> str:
     return name
 
 
-def _read(archive: Path) -> dict[str, bytes]:
+def _read(archive: Path, marker: str = "tsconfig_base.json") -> dict[str, bytes]:
     """Every file of the archive by relative path. Anything but plain files and directories is refused."""
     files: dict[str, bytes] = {}
     total = 0
@@ -77,8 +83,8 @@ def _read(archive: Path) -> dict[str, bytes]:
             handle = tar.extractfile(member)
             assert handle is not None
             files[name] = handle.read()
-    if MARKER_FILE not in files:
-        raise TestDataError(f"{archive.name}: has no {MARKER_FILE}; it is not Chromium's webui test data")
+    if marker not in files:
+        raise TestDataError(f"{archive.name}: has no {marker}; it is not Chromium's test data")
     return files
 
 
@@ -89,9 +95,9 @@ def _digest(files: dict[str, bytes]) -> str:
     return outer.hexdigest()
 
 
-def content_digest(archive: Path) -> str:
+def content_digest(archive: Path, name: str = "webui") -> str:
     """The sha256 of the digest list of the archive's files; the same for every download of the same commit."""
-    return _digest(_read(archive))
+    return _digest(_read(archive, DATASETS[name][1]))
 
 
 def _unpack(files: dict[str, bytes], target: Path) -> int:
@@ -111,10 +117,12 @@ def _unpack(files: dict[str, bytes], target: Path) -> int:
 def ensure(
     tree: Path, downloads: Path, pin: dict, chromium_version: str,
     opener: fallback.Opener = fallback.default_opener, log: Callable[[str], None] = print,
+    name: str = "webui",
 ) -> None:
-    """Make `<tree>/chrome/test/data/webui/` complete, from the archive that `pin` ([test_data.webui]) names."""
+    """Make `<tree>/<dataset directory>/` complete, from the archive that `pin` ([test_data.<name>]) names."""
+    rel_dir, marker = DATASETS[name]
     if not pin:
-        raise TestDataError("helium.lock has no [test_data.webui] pin")
+        raise TestDataError(f"helium.lock has no [test_data.{name}] pin")
     if pin.get("chromium_version") != chromium_version:
         raise TestDataError(
             f"helium.lock pins the webui test data for Chromium {pin.get('chromium_version')}, "
@@ -122,13 +130,13 @@ def ensure(
     url, digest = pin["url"], pin["sha256"]
     if not url.startswith("https://"):
         raise TestDataError(f"refusing non-https URL {url!r}")
-    target = tree / TARGET_DIR
-    stamp = tree / STAMP
-    if stamp.is_file() and stamp.read_text().strip() == digest and (target / MARKER_FILE).is_file():
-        log("test data: webui files already in the tree")
+    target = tree / rel_dir
+    stamp = tree / stamp_name(name)
+    if stamp.is_file() and stamp.read_text().strip() == digest and (target / marker).is_file():
+        log(f"test data: {name} files already in the tree")
         return
     downloads.mkdir(parents=True, exist_ok=True)
-    archive = downloads / archive_name(chromium_version)
+    archive = downloads / archive_name(chromium_version, name)
     if archive.is_file():
         log(f"test data: {archive.name} already downloaded; verifying")
     else:
@@ -137,7 +145,7 @@ def ensure(
             fallback.download(url, archive, opener)
         except fallback.FetchError as exc:
             raise TestDataError(str(exc)) from exc
-    files = _read(archive)
+    files = _read(archive, marker)
     actual = _digest(files)
     if actual != digest:
         archive.replace(archive.with_name(archive.name + ".rejected"))

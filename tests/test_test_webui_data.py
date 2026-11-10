@@ -108,6 +108,18 @@ class EnsureTest(unittest.TestCase):
         self.assertEqual((self.webui / "tsconfig_base.json").read_bytes(), b"{}")
         self.assertEqual((self.webui / "about_sys" / "a.ts").read_bytes(), b"export {};")
 
+    def test_the_pdf_dataset_unpacks_into_its_own_directory_with_its_own_stamp_and_archive(self):
+        archive = make_archive(files={"basic_plugin_test.ts": b"export {};"})
+        with tempfile.TemporaryDirectory() as tmp:
+            digest = test_webui_data.content_digest(write(Path(tmp) / "a.tar.gz", archive), "pdf")
+        pin = {"chromium_version": CHROMIUM, "url": test_webui_data.url_for(CHROMIUM, "pdf"), "sha256": digest}
+        self.served = archive
+        test_webui_data.ensure(self.tree, self.downloads, pin, CHROMIUM, self.opener, self.events.append, name="pdf")
+        self.assertEqual((self.tree / "chrome/test/data/pdf/basic_plugin_test.ts").read_bytes(), b"export {};")
+        self.assertTrue((self.tree / ".aerie-test-data-pdf.stamp").is_file())
+        self.assertEqual([p.name for p in self.downloads.iterdir()], [f"chromium-test-data-pdf-{CHROMIUM}.tar.gz"])
+        self.assertTrue(self.requested[0].endswith("/chrome/test/data/pdf.tar.gz"))
+
     def test_the_url_is_an_https_gitiles_archive_of_the_pinned_tag(self):
         self.assertEqual(
             test_webui_data.url_for(CHROMIUM),
@@ -169,3 +181,11 @@ class RepoPinTest(unittest.TestCase):
         self.assertEqual(pin["chromium_version"], pins.chromium_version)
         self.assertEqual(pin["url"], test_webui_data.url_for(pins.chromium_version))
         self.assertRegex(pin["sha256"], r"^[0-9a-f]{64}$")
+
+    def test_helium_lock_pins_every_dataset_the_fetcher_unpacks(self):
+        pins = lock.load_lock(Path(__file__).resolve().parent.parent / "helium.lock")
+        for name in test_webui_data.DATASETS:
+            pin = pins.test_data[name]
+            self.assertEqual(pin["chromium_version"], pins.chromium_version)
+            self.assertEqual(pin["url"], test_webui_data.url_for(pins.chromium_version, name))
+        self.assertTrue(pins.test_data["pdf"]["url"].endswith("/chrome/test/data/pdf.tar.gz"))

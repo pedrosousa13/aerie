@@ -37,11 +37,15 @@ class BuildStepsTest(unittest.TestCase):
 
     def test_the_webui_step_passes_the_lock_pin_to_the_fetcher(self):
         ctx = mock.MagicMock()
-        ctx.pins.test_data = {"webui": {"sha256": "x"}}
+        ctx.pins.test_data = {"webui": {"sha256": "x"}, "pdf": {"sha256": "y"}}
         ctx.pins.chromium_version = "1.2.3.4"
         with mock.patch.object(test_webui_data, "ensure") as ensure:
             pipeline.fetch_webui_test_data(ctx, mock.Mock(), {})
-        ensure.assert_called_once_with(ctx.tree, ctx.paths.downloads, {"sha256": "x"}, "1.2.3.4", ctx.opener, mock.ANY)
+        ensure.assert_has_calls([
+            mock.call(ctx.tree, ctx.paths.downloads, {"sha256": "x"}, "1.2.3.4", ctx.opener, mock.ANY, name="webui"),
+            mock.call(ctx.tree, ctx.paths.downloads, {"sha256": "y"}, "1.2.3.4", ctx.opener, mock.ANY, name="pdf"),
+        ])
+        self.assertEqual(ensure.call_count, 2)
 
     def test_a_webui_fetch_failure_stops_the_build_with_a_build_error(self):
         ctx = mock.MagicMock()

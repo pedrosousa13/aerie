@@ -575,8 +575,9 @@ def needs_webui_test_data(targets: Sequence[str]) -> bool:
 def fetch_webui_test_data(ctx: Context, log: Logger, env: dict) -> None:
     """UI test builds only: put the chrome/test/data/webui files, which Helium prunes, back in the tree."""
     try:
-        test_webui_data.ensure(ctx.tree, ctx.paths.downloads, ctx.pins.test_data.get("webui", {}),
-                               ctx.pins.chromium_version, ctx.opener, log)
+        for name in test_webui_data.DATASETS:  # webui, and the pdf files its resources.grd builds in
+            test_webui_data.ensure(ctx.tree, ctx.paths.downloads, ctx.pins.test_data.get(name, {}),
+                                   ctx.pins.chromium_version, ctx.opener, log, name=name)
     except test_webui_data.TestDataError as exc:
         raise BuildError(f"webui test data: {exc}") from exc
 

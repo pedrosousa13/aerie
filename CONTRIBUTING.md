@@ -176,7 +176,7 @@ Conventions:
 - **Focus and keys.** Only `aerie_interactive_ui_tests` may rely on focus or on key and mouse events from
   `ui_controls`. `aerie_interactive_smoke_uitest.cc` is the smallest example.
 - **Downloads.** The binaries use the test fonts (https, sha256 from `DEPS`) and the `chrome/test/data/webui`
-  files (https, pin in `helium.lock` under `[test_data.webui]`) that `./aerie test-cpp` already fetches, both kept
+  and `chrome/test/data/pdf` files (https, pins in `helium.lock` under `[test_data.webui]` and `[test_data.pdf]`) that `./aerie test-cpp` already fetches, all kept
   in `downloads/`. A test must not add another download.
 
 ## Hardening defaults
