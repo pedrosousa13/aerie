@@ -129,6 +129,8 @@ export class AerieGuardBrowserProxyImpl implements AerieGuardBrowserProxy {
 
   setDefaultLevel(level: string): Promise<AerieGuardState> {
     return sendWithPromise('aerieGuard.setDefaultLevel', level);
+  }
+
   setCustomRules(text: string): Promise<AerieGuardState> {
     return sendWithPromise('aerieGuard.setCustomRules', text);
   }
