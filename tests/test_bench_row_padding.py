@@ -14,7 +14,8 @@ def row(label="r", start=20, end=20, inset=20, token=20):
 
 
 def obs(**over):
-    base = {"surfaces": {"aerie_guard": {"ready": True, "rows": [row("a"), row("b")]},
+    base = {"neighbours": [row("n", start=20, end=20)],
+            "surfaces": {"aerie_guard": {"ready": True, "rows": [row("a"), row("b")]},
                          "appearance": {"ready": True, "rows": [row("aerieMotionRow")]}},
             "control_rows": [row("a", start=0, end=0, inset=0), row("b")]}
     base.update(over)
@@ -50,6 +51,26 @@ class RowPaddingJudgeTest(unittest.TestCase):
 
     def test_negative_control_must_be_seen(self):
         self.assertEqual(RowPadding.judge(obs(control_rows=[row("a")]))[0], "fail")
+
+    def test_fails_when_rows_differ_from_the_built_in_neighbours(self):
+        o = obs(neighbours=[row("n", start=16, end=16, token=16)])
+        status, detail = RowPadding.judge(o)
+        self.assertEqual(status, "fail")
+        self.assertIn("neighbour", detail)
+
+    def test_fails_when_no_neighbour_rows_could_be_read(self):
+        self.assertEqual(RowPadding.judge(obs(neighbours=[]))[0], "fail")
+
+    def test_fails_when_a_required_row_is_missing(self):
+        o = obs()
+        o["surfaces"]["aerie_guard"]["missing"] = [".custom-rules-row"]
+        status, detail = RowPadding.judge(o)
+        self.assertEqual(status, "fail")
+        self.assertIn("custom-rules-row", detail)
+
+    def test_the_guard_surface_requires_the_own_rules_row(self):
+        from aerie_bench.checks.row_padding import SURFACES
+        self.assertIn(".custom-rules-row", SURFACES["aerie_guard"]["required"])
 
     def test_the_page_script_reads_the_token_not_a_pixel_value(self):
         self.assertIn("--cr-section-padding", MEASURE_JS)

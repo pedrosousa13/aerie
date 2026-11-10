@@ -1,0 +1,22 @@
+# Row padding audit (issue #205)
+
+Read from the source of each surface, not from a running build. The Bench check `row_padding` and the
+train measure the three Settings surfaces on a real build.
+
+| Surface | Result |
+| --- | --- |
+| Aerie Guard page (Settings) | Was wrong: `cr-row list-item` rows lost their padding. Fixed, measured by `row_padding`. |
+| Hardening page (Settings) | Rows are plain `cr-row`. No change. Measured by `row_padding`. |
+| Reduce motion row (Appearance) | Was wrong: `settings-row` has no padding. Now `settings-box first` (`first` removes the top border). Measured. |
+| Fingerprinting site list | Helium's page. Aerie patches no rows there. No change. |
+| About / release | The alpha notice (#199) is a `secondary` div inside Helium's existing About row, so it takes that row's padding. No new row. No change. |
+| Aerie Guard panel (top-chrome WebUI) | Own layout in `app.css` with `--aerie-space-*` tokens, not Settings rows. No change. |
+| Setup page (`aerie_onboarding`) | Own layout with a 32px shell and card padding, not Settings rows. No change. |
+| Widevine prompt | Native views dialog. No row markup. No change. |
+
+The Guard page "Update" button margin uses `--cr-section-padding` (inline), not the vertical-padding token.
+
+## Gallery
+
+Before and after light and dark shots of the Aerie Guard page and the Reduce motion row are owned by the
+build train (feature "Row padding" in the Tailscale gallery). They need a built browser. Not done here.

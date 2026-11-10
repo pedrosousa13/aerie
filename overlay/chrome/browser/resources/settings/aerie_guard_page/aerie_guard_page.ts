@@ -58,7 +58,7 @@ export class SettingsAerieGuardPageElement extends
           color: var(--cr-form-field-error-color, var(--google-red-600));
         }
         cr-button.list-update {
-          margin-inline-end: var(--cr-section-vertical-padding);
+          margin-inline-end: var(--cr-section-padding);
         }
         textarea#customRules {
           background: var(--cr-input-background-color, transparent);

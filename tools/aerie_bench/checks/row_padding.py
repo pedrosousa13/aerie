@@ -11,6 +11,9 @@ Surfaces: the Aerie Guard page (filter lists, sites where blocking is off, own r
 hardening page and the Appearance page (Reduce motion row, which is the only row measured there: the
 other rows are Helium's).
 
+Neighbours: Helium's own rows on the Appearance page give the padding an Aerie row must match, as well as
+the token. The Aerie Guard page must also contain the own-rules row (#107), and a filter list row.
+
 Negative control: on the Aerie Guard page the check sets ``padding: 0`` on one real row and reads again.
 The judge must report that row, or the check has no way to see a missing padding.
 
@@ -28,14 +31,18 @@ from .hardening.common import DEEP_JS, HardeningCheck, Verdict
 TOLERANCE = 0.75  # px; sub-pixel layout and zoom
 
 SURFACES = {
-    "aerie_guard": {"url": "chrome://settings/aerieGuard", "ready": ".list-row"},
+    "aerie_guard": {"url": "chrome://settings/aerieGuard", "ready": ".list-row",
+                    "required": [".custom-rules-row", ".list-row"]},
     "hardening": {"url": "chrome://settings/privacy/hardening", "ready": ".control"},
     "appearance": {"url": "chrome://settings/appearance", "ready": "#aerieMotionRow", "only": "#aerieMotionRow"},
 }
 
-MEASURE_JS = """(only, breakIndex) => {
+# Helium's own rows, read on the Appearance page: the built-in neighbours an Aerie row must line up with.
+NEIGHBOURS = {"url": "chrome://settings/appearance", "ready": ".settings-box, .cr-row", "exclude": "#aerieMotionRow"}
+
+MEASURE_JS = """(only, breakIndex, exclude) => {
   const rows = deepQueryAll(document, '.cr-row, .settings-box')
-      .filter(r => (!only || r.matches(only)) && r.getClientRects().length > 0);
+      .filter(r => (!only || r.matches(only)) && !(exclude && r.matches(exclude)) && r.getClientRects().length > 0);
   if (breakIndex !== null && rows[breakIndex]) rows[breakIndex].style.padding = '0';
   const rtl = getComputedStyle(document.documentElement).direction === 'rtl';
   return rows.map((row, i) => {
@@ -66,12 +73,19 @@ def ready_js(selector: str) -> str:
 
 def measure(session: Session, surface: dict, break_index: int | None = None) -> list[dict]:
     only = json.dumps(surface.get("only"))
+    exclude = json.dumps(surface.get("exclude"))
     index = "null" if break_index is None else str(break_index)
-    expr = f"(() => {{ {DEEP_JS}\n return ({MEASURE_JS})({only}, {index}); }})()"
+    expr = f"(() => {{ {DEEP_JS}\n return ({MEASURE_JS})({only}, {index}, {exclude}); }})()"
     return session.evaluate(expr) or []
 
 
-def row_problems(rows: list[dict]) -> list[str]:
+def neighbour_padding(rows: list[dict]) -> float | None:
+    """The inline padding Helium's own rows use (the smallest start value seen, so one odd row cannot raise it)."""
+    values = [r["start"] for r in rows if r.get("start") is not None]
+    return min(values) if values else None
+
+
+def row_problems(rows: list[dict], neighbour: float | None = None) -> list[str]:
     problems = []
     for row in rows:
         token = row["token"]
@@ -83,6 +97,10 @@ def row_problems(rows: list[dict]) -> list[str]:
             problems.append(f"{label}: inline-start padding {row['start']}px, token {token}px")
         if abs(row["end"] - token) > TOLERANCE:
             problems.append(f"{label}: inline-end padding {row['end']}px, token {token}px")
+        if neighbour is not None:
+            for side in ("start", "end"):
+                if abs(row[side] - neighbour) > TOLERANCE:
+                    problems.append(f"{label}: inline-{side} padding {row[side]}px, built-in neighbour rows {neighbour}px")
         if row["inset"] is not None and row["inset"] < token - TOLERANCE:
             problems.append(f"{label}: content starts {row['inset']}px from the edge, token {token}px")
     return problems
@@ -97,11 +115,16 @@ class RowPadding(HardeningCheck):
 
     def observe(self, session: Session) -> dict:
         obs: dict = {"surfaces": {}}
+        session.navigate_url(NEIGHBOURS["url"])
+        found = session.wait_for(ready_js(NEIGHBOURS["ready"]), timeout=20)
+        obs["neighbours"] = measure(session, NEIGHBOURS) if found else []
         for name, surface in SURFACES.items():
             session.navigate_url(surface["url"])
             ready = surface["ready"]
             found = session.wait_for(ready_js(ready), timeout=20)
-            obs["surfaces"][name] = {"ready": bool(found), "rows": measure(session, surface) if found else []}
+            missing = [sel for sel in surface.get("required", []) if not session.wait_for(ready_js(sel), timeout=5)] if found else []
+            obs["surfaces"][name] = {"ready": bool(found), "missing": missing,
+                                     "rows": measure(session, surface) if found else []}
         session.navigate_url(SURFACES["aerie_guard"]["url"])
         session.wait_for(ready_js(".list-row"), timeout=20)
         obs["control_rows"] = measure(session, SURFACES["aerie_guard"], break_index=0)
@@ -109,7 +132,10 @@ class RowPadding(HardeningCheck):
 
     @staticmethod
     def judge(obs: dict) -> Verdict:
-        control = row_problems(obs.get("control_rows") or [])
+        neighbour = neighbour_padding(obs.get("neighbours") or [])
+        if neighbour is None:
+            return "fail", "no built-in neighbour rows could be read, so Aerie rows cannot be compared with them"
+        control = row_problems(obs.get("control_rows") or [], neighbour)
         if len(control) < 1:
             return "fail", "negative control: a row with padding 0 was not reported, so the check cannot see a missing padding"
         failures = []
@@ -117,8 +143,9 @@ class RowPadding(HardeningCheck):
             if not data.get("ready") or not data.get("rows"):
                 failures.append(f"{name}: no rows could be read")
                 continue
-            failures += [f"{name}: {p}" for p in row_problems(data["rows"])]
+            failures += [f"{name}: no row matches {sel} (a row the check must measure)" for sel in data.get("missing", [])]
+            failures += [f"{name}: {p}" for p in row_problems(data["rows"], neighbour)]
         if failures:
             return "fail", "; ".join(failures[:6]) + (f" (and {len(failures) - 6} more)" if len(failures) > 6 else "")
         total = sum(len(d["rows"]) for d in obs["surfaces"].values())
-        return "pass", f"{total} rows on {len(obs['surfaces'])} Aerie Settings surfaces keep the standard inline padding"
+        return "pass", f"{total} rows on {len(obs['surfaces'])} Aerie Settings surfaces keep the standard inline padding and match the built-in rows ({neighbour}px)"

@@ -8,6 +8,10 @@ Two traps caused the gaps in the Aerie Guard page and the Reduce motion row:
   `cr-row list-item` row has no inset at all.
 * `.settings-row` is only a flex group with no padding, so text inside it sits on the card edge.
 
+The two traps below were read from the Helium tree (settings_shared_lit.css and the row templates), which
+is not in this repo, so these tests only read Aerie's templates and cannot see the cascade. `site-row` and
+`list-row` have no CSS rule of their own; they are hooks for the page script and the tests.
+
 These tests read the templates, so they run in the PR gate. The run-time proof on a built browser is the
 Bench check `row_padding` (tests/test_bench_row_padding.py). Negative controls: each rule is run on a
 variant with the defect put back and must report it.
