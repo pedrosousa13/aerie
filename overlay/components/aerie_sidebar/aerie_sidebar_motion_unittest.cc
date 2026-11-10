@@ -1,0 +1,90 @@
+// Copyright 2026 The Aerie Authors
+// You can use, redistribute, and/or modify this source code under
+// the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+#include "components/aerie_sidebar/aerie_sidebar_motion.h"
+
+#include "components/aerie_design_tokens/aerie_tokens.h"
+#include "testing/gtest/include/gtest/gtest.h"
+
+namespace aerie_sidebar {
+namespace {
+
+using aerie::tokens::MotionDuration;
+using aerie::tokens::MotionEasing;
+
+TEST(AerieSidebarMotionTest, ShowIsSlowOnDecelerateAndSlidesPastItsWidth) {
+  const SlideMotion m = ShowMotion(260, -1, /*reduced=*/false);
+  EXPECT_EQ(m.duration, MotionDuration::kSlow);
+  EXPECT_EQ(m.easing, MotionEasing::kDecelerate);
+  EXPECT_EQ(m.duration_ms, 280);
+  EXPECT_TRUE(m.animate_transform);
+  EXPECT_FALSE(m.animate_opacity);
+  EXPECT_EQ(m.hidden_x, -(260 + 24));
+}
+
+TEST(AerieSidebarMotionTest, HideIsBaseOnAccelerate) {
+  const SlideMotion m = HideMotion(300, 1, /*reduced=*/false);
+  EXPECT_EQ(m.duration, MotionDuration::kBase);
+  EXPECT_EQ(m.easing, MotionEasing::kAccelerate);
+  EXPECT_EQ(m.duration_ms, 200);
+  EXPECT_TRUE(m.animate_transform);
+  EXPECT_EQ(m.hidden_x, 300 + 24);
+}
+
+TEST(AerieSidebarMotionTest, ReducedShowAndHideFadeAndNeverMove) {
+  const SlideMotion show = ShowMotion(260, -1, /*reduced=*/true);
+  const SlideMotion hide = HideMotion(260, -1, /*reduced=*/true);
+  for (const SlideMotion& m : {show, hide}) {
+    EXPECT_FALSE(m.animate_transform);
+    EXPECT_TRUE(m.animate_opacity);
+    EXPECT_LE(m.duration_ms, 140);
+  }
+  EXPECT_EQ(show.from_opacity, 0.f);
+  EXPECT_EQ(show.to_opacity, 1.f);
+  EXPECT_EQ(hide.from_opacity, 1.f);
+  EXPECT_EQ(hide.to_opacity, 0.f);
+}
+
+TEST(AerieSidebarMotionTest, OpenRowScalesFromTheTokenFadesInAndGrowsTheHeight) {
+  const RowMotion m = OpenRowMotion(/*reduced=*/false);
+  EXPECT_TRUE(m.animate_scale);
+  EXPECT_EQ(m.from_scale, aerie::tokens::kMotionScaleEnter);
+  EXPECT_FALSE(m.animate_slide);
+  EXPECT_EQ(m.from_opacity, 0.f);
+  EXPECT_EQ(m.to_opacity, 1.f);
+  EXPECT_EQ(m.content_duration, MotionDuration::kFast);
+  EXPECT_EQ(m.content_easing, MotionEasing::kDecelerate);
+  EXPECT_TRUE(m.animate_height);
+  EXPECT_EQ(m.height_duration_ms, 200);
+  EXPECT_EQ(m.height_easing, MotionEasing::kStandard);
+}
+
+TEST(AerieSidebarMotionTest, CloseRowSlidesTowardTheOuterEdgeThenCollapses) {
+  const RowMotion left = CloseRowMotion(-1, /*reduced=*/false);
+  const RowMotion right = CloseRowMotion(1, /*reduced=*/false);
+  EXPECT_TRUE(left.animate_slide);
+  EXPECT_EQ(left.slide_x, -8);
+  EXPECT_EQ(right.slide_x, 8);
+  EXPECT_FALSE(left.animate_scale);
+  EXPECT_EQ(left.from_opacity, 1.f);
+  EXPECT_EQ(left.to_opacity, 0.f);
+  EXPECT_EQ(left.content_easing, MotionEasing::kAccelerate);
+  EXPECT_TRUE(left.animate_height);
+  EXPECT_EQ(left.height_duration_ms, 200);
+}
+
+TEST(AerieSidebarMotionTest, ReducedRowMotionCreatesNoTransformAndSnapsTheHeight) {
+  for (const RowMotion& m :
+       {OpenRowMotion(/*reduced=*/true), CloseRowMotion(-1, /*reduced=*/true)}) {
+    EXPECT_FALSE(m.animate_scale);
+    EXPECT_FALSE(m.animate_slide);
+    EXPECT_EQ(m.slide_x, 0);
+    EXPECT_FALSE(m.animate_height);
+    EXPECT_EQ(m.height_duration_ms, 0);
+    EXPECT_LE(m.content_duration_ms, 140);
+  }
+}
+
+}  // namespace
+}  // namespace aerie_sidebar

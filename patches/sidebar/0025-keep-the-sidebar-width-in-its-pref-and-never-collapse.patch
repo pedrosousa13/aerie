@@ -1,0 +1,123 @@
+Aerie-Purpose: Make the vertical strip's state controller keep the sidebar's width in aerie.sidebar.width, never collapse, and not expand on hover, and set the strip's width limits to 260 default and 200 minimum.
+Aerie-Upstream-Area: chrome/browser/ui/tabs (vertical_tab_strip_state.h, vertical_tab_strip_state_controller_impl.*, BUILD.gn)
+Aerie-Kind: hook
+
+Issue #177. While the layout is the sidebar, the controller reads and writes the width through
+aerie.sidebar.width (clamped to 200..400) instead of what a window restored from its session, is
+never collapsed (the sidebar hides, it does not shrink to a strip of icons), and reports no expand
+on hover. The default and minimum width constants of Helium's strip change to 260 and 200. They are
+global to the strip code, so issue #186 (horizontal tabs, which keeps Helium's strip for no layout)
+has to look at them again.
+
+--- a/chrome/browser/ui/tabs/BUILD.gn
++++ b/chrome/browser/ui/tabs/BUILD.gn
+@@ -546,6 +546,8 @@
+       "//chrome/browser/actor",
+       "//chrome/browser/actor/ui",
+       "//chrome/browser/aerie_adblock:tab_helper",
++      "//components/aerie_sidebar:layout",
++      "//components/aerie_sidebar:prefs",
+       "//chrome/browser/banners",
+       "//chrome/browser/bookmarks",
+       "//chrome/browser/breadcrumbs",
+--- a/chrome/browser/ui/tabs/vertical_tab_strip_state.h
++++ b/chrome/browser/ui/tabs/vertical_tab_strip_state.h
+@@ -7,10 +7,10 @@
+ 
+ namespace tabs {
+ 
+-inline constexpr int kVerticalTabStripDefaultUncollapsedWidth = 200;
++inline constexpr int kVerticalTabStripDefaultUncollapsedWidth = 260;
+ // TODO(crbug.com/465833741): Replace constant with derived value based on
+ // caption buttons.
+-inline constexpr int kVerticalTabStripUncollapsedMinWidth = 160;
++inline constexpr int kVerticalTabStripUncollapsedMinWidth = 200;
+ // TODO(crbug.com/465832180): Replace constant based width final max width for
+ // view.
+ inline constexpr int kVerticalTabStripUncollapsedMaxWidth = 400;
+--- a/chrome/browser/ui/tabs/vertical_tab_strip_state_controller_impl.cc
++++ b/chrome/browser/ui/tabs/vertical_tab_strip_state_controller_impl.cc
+@@ -31,6 +31,8 @@
+ #include "chrome/common/pref_names.h"
+ #include "chrome/grit/generated_resources.h"
+ #include "components/feature_engagement/public/feature_constants.h"
++#include "components/aerie_sidebar/aerie_sidebar_layout.h"
++#include "components/aerie_sidebar/aerie_sidebar_prefs.h"
+ #include "components/prefs/pref_notifier_impl.h"
+ #include "components/prefs/pref_service.h"
+ #include "components/sessions/core/session_id.h"
+@@ -76,11 +78,18 @@
+           &VerticalTabStripStateControllerImpl::OnExpandOnHoverEnabledChanged,
+           base::Unretained(this)));
+ 
+-  if (restored_state_collapsed.has_value()) {
+-    SetCollapsed(restored_state_collapsed.value());
+-  }
+-  if (restored_state_uncollapsed_width.has_value()) {
+-    SetUncollapsedWidth(restored_state_uncollapsed_width.value());
++  if (IsAerieSidebar()) {
++    // Aerie: the sidebar is never collapsed, and its width is the
++    // aerie.sidebar.width pref, not what a window restored (issue #177).
++    state_.collapsed = false;
++    state_.uncollapsed_width = aerie_sidebar::GetWidth(*pref_service_);
++  } else {
++    if (restored_state_collapsed.has_value()) {
++      SetCollapsed(restored_state_collapsed.value());
++    }
++    if (restored_state_uncollapsed_width.has_value()) {
++      SetUncollapsedWidth(restored_state_uncollapsed_width.value());
++    }
+   }
+ 
+   UpdateCollapseActionItem();
+@@ -231,7 +240,18 @@
+   return state_.uncollapsed_width;
+ }
+ 
++bool VerticalTabStripStateControllerImpl::IsAerieSidebar() const {
++  return pref_service_ && aerie_sidebar::IsSidebarLayout(*pref_service_);
++}
++
+ void VerticalTabStripStateControllerImpl::SetUncollapsedWidth(int width) {
++  if (IsAerieSidebar()) {
++    // Aerie: the width is limited and stored in aerie.sidebar.width.
++    width = aerie_sidebar::ClampWidth(width);
++    if (pref_service_->GetInteger(aerie_sidebar::kWidthPref) != width) {
++      pref_service_->SetInteger(aerie_sidebar::kWidthPref, width);
++    }
++  }
+   if (state_.uncollapsed_width != width) {
+     state_.uncollapsed_width = width;
+     NotifyCollapseChanged();
+@@ -239,7 +259,8 @@
+ }
+ 
+ bool VerticalTabStripStateControllerImpl::IsExpandOnHoverEnabled() const {
+-  return is_expand_on_hover_enabled_;
++  // Aerie: no expand on hover while the sidebar is the layout (issue #177).
++  return is_expand_on_hover_enabled_ && !IsAerieSidebar();
+ }
+ 
+ void VerticalTabStripStateControllerImpl::SetExpandOnHoverEnabled(
+@@ -303,6 +324,10 @@
+ }
+ 
+ void VerticalTabStripStateControllerImpl::SetCollapsed(bool collapsed) {
++  if (collapsed && IsAerieSidebar()) {
++    // Aerie: the sidebar hides, it does not collapse to a strip of icons.
++    return;
++  }
+   if (state_.collapsed != collapsed) {
+     state_.collapsed = collapsed;
+     NotifyCollapseChanged();
+--- a/chrome/browser/ui/tabs/vertical_tab_strip_state_controller_impl.h
++++ b/chrome/browser/ui/tabs/vertical_tab_strip_state_controller_impl.h
+@@ -81,6 +81,8 @@
+ 
+   // Directly sets the collapse state.
+   void SetCollapsed(bool collapsed);
++  // Aerie: true while the layout is the Aerie sidebar (issue #177).
++  bool IsAerieSidebar() const;
+ 
+   // Updates the SessionService with the current state (collapsed status and
+   // uncollapsed width) for the associated session ID.

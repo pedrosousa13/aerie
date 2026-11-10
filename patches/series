@@ -117,3 +117,13 @@ sidebar/0011-create-tab-model-service.patch
 # The alpha notice on About (#199), and its strings for Settings.
 branding/0007-add-the-alpha-notice-strings.patch
 branding/0008-show-the-alpha-notice-on-about.patch
+
+# The Aerie sidebar (#177): its prefs, Helium's layout held to it, the Sidebar section of Settings, and Save page on Ctrl+Shift+S.
+sidebar/0020-register-the-sidebar-prefs.patch
+sidebar/0021-hold-helium-layout-to-the-sidebar.patch
+sidebar/0022-show-an-empty-sidebar-section-in-settings.patch
+sidebar/0023-move-save-page-to-ctrl-shift-s.patch
+sidebar/0024-add-the-sidebar-view-to-the-vertical-strip-region.patch
+sidebar/0025-keep-the-sidebar-width-in-its-pref-and-never-collapse.patch
+sidebar/0026-make-ctrl-s-show-or-hide-the-sidebar.patch
+sidebar/0027-slide-and-resize-the-sidebar.patch

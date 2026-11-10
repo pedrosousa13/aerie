@@ -1,0 +1,91 @@
+# Copyright 2026 The Aerie Authors
+# You can use, redistribute, and/or modify this source code under
+# the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+import("//testing/test.gni")
+
+# What the Aerie sidebar decides without a view (issue #177): its prefs, which
+# layout is on and how Helium's layout state is held to it, and the width limits
+# and keyboard steps. Headless, so it has unit tests. The native view is in
+# //chrome/browser/ui/views/aerie_sidebar.
+
+# The prefs under aerie.sidebar.*. Registered by chrome::RegisterProfilePrefs
+# (patches/sidebar/0020).
+source_set("prefs") {
+  sources = [
+    "aerie_sidebar_prefs.cc",
+    "aerie_sidebar_prefs.h",
+  ]
+  deps = [
+    "//components/aerie_design_tokens:tokens",
+  ]
+  public_deps = [
+    "//base",
+    "//components/prefs",
+  ]
+}
+
+source_set("layout") {
+  sources = [
+    "aerie_sidebar_layout.cc",
+    "aerie_sidebar_layout.h",
+  ]
+  deps = [
+    ":prefs",
+    "//components/aerie_design_tokens:tokens",
+  ]
+  public_deps = [
+    "//components/prefs",
+  ]
+}
+
+# The motion of the sidebar and of its rows, as data (tokens only).
+source_set("motion") {
+  sources = [
+    "aerie_sidebar_motion.cc",
+    "aerie_sidebar_motion.h",
+  ]
+  public_deps = [
+    "//components/aerie_design_tokens:tokens",
+  ]
+}
+
+# The Today list kept from the Tab Model, and the keys of the tree.
+source_set("today_list") {
+  sources = [
+    "aerie_sidebar_today_list.cc",
+    "aerie_sidebar_today_list.h",
+  ]
+  public_deps = [
+    "//base",
+    "//components/aerie_tab_model",
+  ]
+}
+
+source_set("unit_tests") {
+  testonly = true
+  sources = [
+    "aerie_sidebar_motion_unittest.cc",
+    "aerie_sidebar_today_list_unittest.cc",
+    "aerie_sidebar_unittest.cc",
+  ]
+  deps = [
+    ":layout",
+    ":motion",
+    ":prefs",
+    ":today_list",
+    "//base",
+    "//base/test:test_support",
+    "//components/aerie_design_tokens:tokens",
+    "//components/aerie_tab_model",
+    "//components/prefs:test_support",
+    "//testing/gtest",
+  ]
+}
+
+test("aerie_sidebar_unittests") {
+  deps = [
+    ":unit_tests",
+    "//base/test:run_all_unittests",
+  ]
+}

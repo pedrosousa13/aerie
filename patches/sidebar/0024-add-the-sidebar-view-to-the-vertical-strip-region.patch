@@ -1,0 +1,142 @@
+Aerie-Purpose: Put the Aerie sidebar view into the vertical tab strip region view, in place of the tab strip and its bottom container.
+Aerie-Upstream-Area: chrome/browser/ui/views/frame (vertical_tab_strip_region_view.*, BUILD.gn)
+Aerie-Kind: hook
+
+Issue #177. VerticalTabStripRegionView is final and is also the owner of the column's slot in the
+window layout, its background, its resize area and its width, so the sidebar swaps its contents
+instead of replacing the class (docs/sidebar-design.md, "Native sidebar view"). While the layout is
+the sidebar the constructor adds AerieSidebarView (overlay, chrome/browser/ui/views/aerie_sidebar)
+to the content area and hides the bottom container. The tab strip view is still added, because
+the code that reads it expects it, but it is hidden. The region says "generic container" to a
+screen reader, because the sidebar view is the navigation landmark and holds the tree of tabs.
+
+--- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
++++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
+@@ -17,6 +17,7 @@
+ #include "base/metrics/user_metrics_action.h"
+ #include "base/numerics/safe_conversions.h"
+ #include "base/time/time.h"
++#include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/ui/actions/chrome_action_id.h"
+ #include "chrome/browser/ui/animation/browser_animation_controller.h"
+ #include "chrome/browser/ui/animation/browser_animation_types.h"
+@@ -35,6 +36,7 @@
+ #include "chrome/browser/ui/tabs/vertical_tab_strip_state.h"
+ #include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
+ #include "chrome/browser/ui/ui_features.h"
++#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_view.h"
+ #include "chrome/browser/ui/views/animations/tab_strip_animations.h"
+ #include "chrome/browser/ui/views/frame/base_tab_strip_region_view.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
+@@ -57,8 +59,11 @@
+ #include "chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_focus_swipe_controller.h"
+ #include "chrome/browser/ui/web_applications/app_browser_controller.h"
+ #include "chrome/grit/generated_resources.h"
++#include "components/aerie_sidebar/aerie_sidebar_layout.h"
++#include "components/prefs/pref_service.h"
+ #include "components/tabs/public/tab_group.h"
+ #include "components/tabs/public/tab_interface.h"
++#include "ui/actions/actions.h"
+ #include "ui/base/dragdrop/os_exchange_data.h"
+ #include "ui/base/interaction/element_tracker.h"
+ #include "ui/base/l10n/l10n_util.h"
+@@ -177,6 +182,30 @@
+   gemini_button_ =
+       content_area_view_->AddChildView(std::make_unique<views::View>());
+ 
++  // Aerie: while the layout is the sidebar, the sidebar view takes the place
++  // of the tab strip and of the bottom container. This view keeps the column
++  // (its slot, background, resize area and width). Issue #177.
++  if (aerie_sidebar::IsSidebarLayout(*browser_view->GetProfile()->GetPrefs())) {
++    bottom_button_container_->SetVisible(false);
++    aerie_sidebar_view_ = content_area_view_->AddChildViewAt(
++        std::make_unique<AerieSidebarView>(
++            browser_view->browser(),
++            base::BindRepeating(
++                [](actions::ActionItem* root, BrowserView* view) {
++                  if (auto* action = actions::ActionManager::Get().FindAction(
++                          kActionNewTab, root)) {
++                    action->InvokeAction();
++                  }
++                },
++                base::Unretained(root_action_item),
++                base::Unretained(browser_view))),
++        *content_area_view_->GetIndexOf(bottom_button_container_));
++    aerie_sidebar_view_->SetProperty(
++        views::kFlexBehaviorKey,
++        views::FlexSpecification(views::MinimumFlexSizeRule::kScaleToZero,
++                                 views::MaximumFlexSizeRule::kUnbounded));
++  }
++
+   // Views that go into the content area above
+   // --------------
+ 
+@@ -198,7 +227,11 @@
+ 
+   SetProperty(views::kElementIdentifierKey, kTabStripRegionElementId);
+ 
+-  GetViewAccessibility().SetRole(ax::mojom::Role::kTabList);
++  // Aerie: the sidebar view is the navigation landmark and holds the tree of
++  // tabs, so this container is no tab list.
++  GetViewAccessibility().SetRole(aerie_sidebar_view_
++                                     ? ax::mojom::Role::kGenericContainer
++                                     : ax::mojom::Role::kTabList);
+ 
+   SetBackground(std::make_unique<CustomCornersBackground>(
+       *this, *browser_view,
+@@ -849,6 +882,11 @@
+                                views::MaximumFlexSizeRule::kPreferred));
+   view->SetProperty(views::kMarginsKey,
+                     gfx::Insets::TLBR(0, 0, kBottomContainerGap, 0));
++  // Aerie: the tab strip stays in the tree, for the code that reads it, but
++  // the sidebar view shows the tabs (issue #177).
++  if (aerie_sidebar_view_) {
++    view->SetVisible(false);
++  }
+ 
+   views::View* const content_parent =
+       content_area_view_ ? content_area_view_.get() : this;
+--- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
++++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
+@@ -35,6 +35,7 @@
+ #include "ui/views/focus/focus_manager.h"
+ #include "ui/views/layout/delegating_layout_manager.h"
+ 
++class AerieSidebarView;
+ class BrowserView;
+ class VerticalTabStripBottomContainer;
+ class VerticalTabStripFocusSwipeController;
+@@ -238,6 +239,8 @@
+ 
+   raw_ptr<VerticalTabStripBottomContainer> bottom_button_container_ = nullptr;
+   raw_ptr<views::View> gemini_button_ = nullptr;
++  // Aerie sidebar (issue #177): non-null while the layout is the sidebar.
++  raw_ptr<AerieSidebarView> aerie_sidebar_view_ = nullptr;
+   raw_ptr<views::ResizeArea> resize_area_ = nullptr;
+   raw_ptr<ShadowFrameView> shadow_frame_ = nullptr;
+   int resize_area_width_;
+--- a/chrome/browser/ui/views/frame/BUILD.gn
++++ b/chrome/browser/ui/views/frame/BUILD.gn
+@@ -566,6 +566,7 @@
+     ":safe_invoke",
+     ":shadow",
+     "//chrome/app:generated_resources",
++    "//chrome/browser/profiles:profile",
+     "//chrome/browser/ui:browser_actions",
+     "//chrome/browser/ui:browser_element_identifiers",
+     "//chrome/browser/ui:layout_constants",
+@@ -575,11 +576,14 @@
+     "//chrome/browser/ui/color:color_headers",
+     "//chrome/browser/ui/tabs:features",
+     "//chrome/browser/ui/tabs:tab_strip",
++    "//chrome/browser/ui/views/aerie_sidebar",
+     "//chrome/browser/ui/views/animations",
+     "//chrome/browser/ui/views/tabs/common:impl",
+     "//chrome/browser/ui/views/tabs/organizer",
+     "//chrome/browser/ui/web_applications",
+     "//chrome/browser/ui:view_ids",
++    "//components/aerie_sidebar:layout",
++    "//components/prefs",
+     "//ui/base/dragdrop:types",
+     "//ui/compositor",
+     "//ui/display",

@@ -422,6 +422,7 @@ F6 moves focus between the sidebar and the page. With the sidebar auto-hidden, F
 | Keys | Action |
 | --- | --- |
 | Ctrl+S | Show or hide the sidebar. |
+| Ctrl+Shift+S | Save page (Windows and Linux). Save page also stays in the menu and, with M3, in the command bar. The macOS map is an open point. |
 | Ctrl+Alt+S | Auto-hide only: keep the peek open (toggle). |
 | Alt+Left, Alt+Right | Page back and forward. |
 | Ctrl+T, Ctrl+L, Ctrl+K | Command bar. |
@@ -578,6 +579,32 @@ Chromium tab groups are flat and contiguous, so they cannot hold folders nested 
 - No archive or sleep logic; only the fields and prefs.
 - No `TabStripModel` order mirroring (#186).
 - The browser test `tab_model_browsertest.cc` is not in a BUILD.gn yet. It joins the Aerie browser-test target that #175 adds, so it runs once both have landed.
+
+## Sidebar layout and Helium's layouts
+
+Decided with issue #177. Helium ships four tab layouts (classic, compact, vertical, dynamic) and a Zen mode. Aerie has one layout, the sidebar, and one more planned, horizontal tabs (#186). Helium's layout patches stay applied, because other Helium code reads their prefs, and Aerie holds them in place instead.
+
+| Pref | Meaning |
+| --- | --- |
+| `aerie.sidebar.layout` | `sidebar` (default) or `horizontal`. Only `sidebar` is built. A value that is neither reads as `sidebar`. |
+| `aerie.sidebar.width` | Width in pixels. Default `size-sidebar-width` (260). It is clamped to `size-sidebar-min` .. `size-sidebar-max` (200 to 400) when read. |
+| `aerie.sidebar.visible` | Shown (default) or hidden. |
+
+While the layout is `sidebar`, Helium's `helium.browser.layout` is `vertical` and `helium.browser.zen_mode` is off. A new profile starts that way. Every window puts the two prefs back if they differ and again whenever one of them changes, so an old profile, sync or an extension cannot bring another layout back. The Settings page cannot write them either: they are not on the settings_private allowlist, and the Appearance page shows an empty "Sidebar" section where the layout picker was. Helium has no flag for the layout. Keyboard resize steps are 10 px (`kKeyboardResizeStep`).
+
+Save page moves to Ctrl+Shift+S on Windows and Linux so that Ctrl+S can show and hide the sidebar.
+
+### Native sidebar view
+
+Decided with issue #177. `VerticalTabStripRegionView` is `final`, owns the column's slot in `BrowserViewTabbedLayoutImpl`, its background with the rounded corners, its resize area and its width, and `BrowserView` holds it in about forty places. Replacing the class would mean re-cutting all of those. So the sidebar swaps the contents of the region instead (`patches/sidebar/0024`): while the layout is the sidebar, the constructor adds `AerieSidebarView` (overlay, `chrome/browser/ui/views/aerie_sidebar`) to the content area, hides the bottom container, and hides the tab strip view, which stays in the tree because other code reads it. The tab strip is no longer drawn, and tab drag and drop in it is gone with it.
+
+How the pieces work today (`patches/sidebar/0025` to `0027`):
+
+- **Show and hide.** Ctrl+S (`IDC_CTRL_S_SHORTCUT`) flips `aerie.sidebar.visible`. The region view watches the pref. A hidden sidebar has width 0 and takes no room, so the page card snaps to its new size in one step. The column slides on its layer with `AnimateLayer` using `ShowMotion` and `HideMotion` (transform and opacity only; opacity only under reduced motion). On the way out the layout waits for the slide to end. The state is restored after a restart because the pref is.
+- **Resize.** Helium's resize area at the inner edge, named "Resize sidebar", role splitter. Drag has no snap points and no collapse. Left and Right move it 10 px and the new width is announced. The width is clamped to 200..400 and stored in `aerie.sidebar.width` when the drag ends. The state controller never collapses and has no expand on hover while the layout is the sidebar.
+- **Today list.** One row per unpinned tab of the window: favicon, title, a close button on hover or focus, click selects, middle click closes. The rows follow `aerie_sidebar::TodayList` (the Tab Model) and are looked up in the window's tab strip through the Tab Model's adapter, so a tab of another window of the profile has no row here. The Tab Model tells its observers before the adapter has joined a new record to its tab, so the view syncs its rows in a task after the change.
+
+What is not built yet in the view: Favorites, Pinned, folders and the Workspace switcher; the top row (window controls, the toggle button, Back, Forward, Reload and the window drag handle) and the bottom bar; the address pill with the real location bar (the toolbar still sits above the page in Helium's vertical layout) and the Guard icon in it; the page card's follow transform when the sidebar hides or resizes; focus handling beyond the default (roving tab stop, F6 order, the 2 px focus ring); the open and close motion of a row; drag and drop of rows (the Helium strip's own drag and drop is gone with the hidden strip); and the colours of the theme and Workspace (the rows use the system colour roles for now). Delete and Ctrl+W on a focused row work in code but have no test. The width limits are global to Helium's strip code (`vertical_tab_strip_state.h`: 260 default, 200 minimum, from 0025), so issue #186 has to look at them again when it builds the horizontal layout.
 
 ## Open points carried into M2 planning
 

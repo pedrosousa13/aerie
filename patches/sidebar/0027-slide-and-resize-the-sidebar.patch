@@ -1,0 +1,311 @@
+Aerie-Purpose: Slide the Aerie sidebar in and out when aerie.sidebar.visible changes and resize it by drag or keys.
+Aerie-Upstream-Area: chrome/browser/ui/views/frame (vertical_tab_strip_region_view.*, BUILD.gn)
+Aerie-Kind: hook
+
+Issue #177. Builds on 0024. While the layout is the sidebar the region view:
+
+- watches aerie.sidebar.visible, slides its layer with AnimateLayer (transform and opacity only;
+  opacity only under reduced motion), and takes no room in the window layout while hidden. A hide
+  leaves the layout when its slide has ended, so the handler compares with the target state
+  (aerie_target_visible_) and not with aerie_hidden_, and two Ctrl+S in a row stay in step with
+  the pref.
+- makes its resize area a "Resize sidebar" splitter. A drag has no snap points and no collapse.
+  Left and Right move it 10 px (aerie_sidebar::kKeyboardResizeStep) and the new width is announced.
+  The width is stored when the drag ends (through the state controller, 0025).
+
+--- a/chrome/browser/ui/views/frame/BUILD.gn
++++ b/chrome/browser/ui/views/frame/BUILD.gn
+@@ -551,6 +551,8 @@
+     "//chrome/browser/ui/views/tabs/organizer:organizer_panel_host",
+     "//chrome/browser/ui/views/tabs/shared",
+     "//chrome/browser/ui/views/tabs/vertical",
++    "//components/aerie_design_tokens:motion",
++    "//components/prefs",
+     "//components/tabs:public",
+     "//ui/base",
+     "//ui/base/metadata",
+@@ -583,7 +585,8 @@
+     "//chrome/browser/ui/web_applications",
+     "//chrome/browser/ui:view_ids",
+     "//components/aerie_sidebar:layout",
+-    "//components/prefs",
++    "//components/aerie_sidebar:motion",
++    "//components/aerie_sidebar:prefs",
+     "//ui/base/dragdrop:types",
+     "//ui/compositor",
+     "//ui/display",
+--- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
++++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
+@@ -59,7 +59,10 @@
+ #include "chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_focus_swipe_controller.h"
+ #include "chrome/browser/ui/web_applications/app_browser_controller.h"
+ #include "chrome/grit/generated_resources.h"
++#include "components/aerie_design_tokens/aerie_motion.h"
+ #include "components/aerie_sidebar/aerie_sidebar_layout.h"
++#include "components/aerie_sidebar/aerie_sidebar_motion.h"
++#include "components/aerie_sidebar/aerie_sidebar_prefs.h"
+ #include "components/prefs/pref_service.h"
+ #include "components/tabs/public/tab_group.h"
+ #include "components/tabs/public/tab_interface.h"
+@@ -69,6 +72,7 @@
+ #include "ui/base/l10n/l10n_util.h"
+ #include "ui/base/metadata/metadata_impl_macros.h"
+ #include "ui/compositor/layer.h"
++#include "ui/gfx/geometry/transform.h"
+ #include "ui/display/screen.h"
+ #include "ui/events/event.h"
+ #include "ui/gfx/geometry/point.h"
+@@ -204,6 +208,17 @@
+         views::kFlexBehaviorKey,
+         views::FlexSpecification(views::MinimumFlexSizeRule::kScaleToZero,
+                                  views::MaximumFlexSizeRule::kUnbounded));
++    // Shown or hidden as the pref says (Ctrl+S flips it), now and when it
++    // changes.
++    PrefService* const prefs = browser_view->GetProfile()->GetPrefs();
++    aerie_hidden_ = !aerie_sidebar::IsVisible(*prefs);
++    aerie_target_visible_ = !aerie_hidden_;
++    aerie_pref_registrar_.Init(prefs);
++    aerie_pref_registrar_.Add(
++        aerie_sidebar::kVisiblePref,
++        base::BindRepeating(
++            &VerticalTabStripRegionView::OnAerieVisibleChanged,
++            base::Unretained(this)));
+   }
+ 
+   // Views that go into the content area above
+@@ -216,6 +231,12 @@
+   resize_area_->GetViewAccessibility().SetName(
+       l10n_util::GetStringUTF16(IDS_VERTICAL_RESIZE_AREA));
+   resize_area_->GetViewAccessibility().SetRole(ax::mojom::Role::kSlider);
++  if (aerie_sidebar_view_) {
++    // Aerie: the separator at the inner edge of the sidebar (issue #177).
++    resize_area_->GetViewAccessibility().SetName(
++        l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_RESIZE));
++    resize_area_->GetViewAccessibility().SetRole(ax::mojom::Role::kSplitter);
++  }
+ 
+   state_controller_->SetDelegate(this);
+   target_collapse_state_ = state_controller_->GetState();
+@@ -249,6 +270,9 @@
+ 
+   SetNotifyEnterExitOnChild(true);
+   UpdateInteriorMargin();
++  if (aerie_hidden_) {
++    SetVisible(false);
++  }
+ }
+ 
+ VerticalTabStripRegionView::~VerticalTabStripRegionView() {
+@@ -527,6 +551,11 @@
+ 
+ gfx::Size VerticalTabStripRegionView::GetMinimumSize() const {
+   auto min_size = BaseTabStripRegionView::GetMinimumSize();
++  if (aerie_hidden_) {
++    // Aerie: a hidden sidebar takes no room (issue #177).
++    min_size.set_width(0);
++    return min_size;
++  }
+   min_size.set_width((state_controller_->IsCollapsed() || IsAnimatingSize())
+                          ? tabs::kVerticalTabStripCollapsedWidth
+                          : tabs::kVerticalTabStripUncollapsedMinWidth);
+@@ -536,6 +565,10 @@
+ gfx::Size VerticalTabStripRegionView::CalculatePreferredSize(
+     const views::SizeBounds& available_size) const {
+   auto size = BaseTabStripRegionView::CalculatePreferredSize(available_size);
++  if (aerie_hidden_) {
++    size.set_width(0);
++    return size;
++  }
+   const auto* controller =
+       BrowserAnimationController::From(browser_view()->browser());
+   const auto motion =
+@@ -556,18 +589,27 @@
+ bool VerticalTabStripRegionView::OnKeyPressed(const ui::KeyEvent& event) {
+   if (resize_area_->HasFocus()) {
+     int resize_amount = 0;
++    // Aerie: the sidebar moves 10 px per key press (issue #177).
++    const int key_step = aerie_sidebar_view_
++                             ? aerie_sidebar::kKeyboardResizeStep
++                             : kKeyboardResizeWidth;
+ 
+     if (event.key_code() == ui::VKEY_LEFT) {
+-      resize_amount =
+-          base::i18n::IsRTL() ? kKeyboardResizeWidth : -kKeyboardResizeWidth;
++      resize_amount = base::i18n::IsRTL() ? key_step : -key_step;
+     } else if (event.key_code() == ui::VKEY_RIGHT) {
+-      resize_amount =
+-          base::i18n::IsRTL() ? -kKeyboardResizeWidth : kKeyboardResizeWidth;
++      resize_amount = base::i18n::IsRTL() ? -key_step : key_step;
+     }
+ 
+     if (resize_amount != 0) {
+       OnResize(resize_amount, /*done_resizing=*/true);
+ 
++      if (aerie_sidebar_view_) {
++        resize_area_->GetViewAccessibility().AnnounceText(
++            l10n_util::GetStringFUTF16Int(IDS_AERIE_SIDEBAR_RESIZE_ANNOUNCE,
++                                          target_collapse_state_.uncollapsed_width));
++        return true;
++      }
++
+       float tab_strip_width = width();
+       float total_width = GetWidget()->GetRootView()->width();
+ 
+@@ -733,6 +775,10 @@
+ 
+ void VerticalTabStripRegionView::OnResize(int resize_amount,
+                                           bool done_resizing) {
++  if (aerie_sidebar_view_) {
++    OnAerieResize(resize_amount, done_resizing);
++    return;
++  }
+   CHECK(tab_strip_view());
+   tab_strip_view()->SetIsAnimatingSize(!done_resizing);
+   if (!starting_width_on_resize_.has_value()) {
+@@ -812,6 +858,101 @@
+   }
+ }
+ 
++// Aerie: the sidebar has no collapsed state and no snap points. A drag or a key
++// press moves the inner edge, the width stays between size-sidebar-min and
++// size-sidebar-max, and it is stored when the drag ends (issue #177).
++void VerticalTabStripRegionView::OnAerieResize(int resize_amount,
++                                               bool done_resizing) {
++  if (!starting_width_on_resize_.has_value()) {
++    starting_width_on_resize_ = width();
++    state_controller_->SetIsResizing(true);
++  }
++  const int new_width = aerie_sidebar::ResizeByDrag(
++      starting_width_on_resize_.value(), resize_amount,
++      state_controller_->IsTabStripRightAligned());
++  if (done_resizing) {
++    starting_width_on_resize_ = std::nullopt;
++    state_controller_->SetIsResizing(false);
++    state_controller_->SetUncollapsedWidth(new_width);
++  }
++  target_collapse_state_.uncollapsed_width = new_width;
++  InvalidateLayout();
++}
++
++// Aerie: Ctrl+S flips aerie.sidebar.visible. The layout snaps to the new
++// width at once and the column slides on its layer (transform and opacity
++// only, opacity alone under reduced motion). On the way out the layout waits
++// for the slide to end (issue #177).
++void VerticalTabStripRegionView::OnAerieVisibleChanged() {
++  PrefService* const prefs = browser_view()->GetProfile()->GetPrefs();
++  const bool visible = aerie_sidebar::IsVisible(*prefs);
++  // The target state, not aerie_hidden_: a hide only takes effect when its
++  // slide has ended, so a second Ctrl+S in the meantime must still count.
++  if (visible == aerie_target_visible_) {
++    return;
++  }
++  aerie_target_visible_ = visible;
++  aerie_hide_timer_.Stop();
++  aerie_motion_.Abort();
++  const bool reduced = aerie::motion::ShouldReduceMotion(prefs);
++  const bool on_right =
++      state_controller_->IsTabStripRightAligned() != base::i18n::IsRTL();
++  const int edge = on_right ? 1 : -1;
++  const int column_width = target_collapse_state_.uncollapsed_width;
++  ui::Layer* const column = layer();
++
++  if (visible) {
++    // A hide that is still sliding out has not taken the column out of the
++    // layout yet: the show then starts from where the column is.
++    const bool was_hidden = aerie_hidden_;
++    aerie_hidden_ = false;
++    SetVisible(true);
++    InvalidateLayout();
++    const aerie_sidebar::SlideMotion slide =
++        aerie_sidebar::ShowMotion(column_width, edge, reduced);
++    aerie::motion::LayerMotion target;
++    if (slide.animate_transform) {
++      if (was_hidden) {
++        column->SetTransform(
++            gfx::Transform::MakeTranslation(slide.hidden_x, 0));
++      }
++      target.transform = gfx::Transform();
++    }
++    if (slide.animate_opacity) {
++      if (was_hidden) {
++        column->SetOpacity(slide.from_opacity);
++      }
++      target.opacity = slide.to_opacity;
++    }
++    aerie_motion_ = aerie::motion::AnimateLayer(
++        column, target, slide.duration, slide.easing, prefs);
++    return;
++  }
++
++  const aerie_sidebar::SlideMotion slide =
++      aerie_sidebar::HideMotion(column_width, edge, reduced);
++  aerie::motion::LayerMotion target;
++  if (slide.animate_transform) {
++    target.transform = gfx::Transform::MakeTranslation(slide.hidden_x, 0);
++  }
++  if (slide.animate_opacity) {
++    target.opacity = slide.to_opacity;
++  }
++  aerie_motion_ = aerie::motion::AnimateLayer(column, target, slide.duration,
++                                              slide.easing, prefs);
++  aerie_hide_timer_.Start(
++      FROM_HERE, base::Milliseconds(slide.duration_ms),
++      base::BindOnce(
++          [](VerticalTabStripRegionView* self) {
++            self->aerie_hidden_ = true;
++            self->SetVisible(false);
++            self->layer()->SetTransform(gfx::Transform());
++            self->layer()->SetOpacity(1.f);
++            self->InvalidateLayout();
++          },
++          base::Unretained(this)));
++}
++
+ void VerticalTabStripRegionView::SetCollapsedStateUpdatedCallback(
+     base::RepeatingCallback<void(bool)> callback) {
+   update_state_controller_collapsed_callback_ = std::move(callback);
+--- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
++++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
+@@ -13,6 +13,8 @@
+ #include "base/memory/raw_ptr.h"
+ #include "base/time/time.h"
+ #include "base/timer/timer.h"
++#include "components/aerie_design_tokens/aerie_motion.h"
++#include "components/prefs/pref_change_registrar.h"
+ #include "chrome/browser/ui/animation/browser_animation_types.h"
+ #include "chrome/browser/ui/omnibox/omnibox_tab_helper.h"
+ #include "chrome/browser/ui/tabs/tab_data.h"
+@@ -147,6 +149,9 @@
+   }
+ 
+   views::ResizeArea* resize_area_for_testing() { return resize_area_; }
++  // Aerie sidebar (issue #177).
++  bool aerie_sidebar_hidden() const { return aerie_hidden_; }
++  bool aerie_sidebar_target_visible() const { return aerie_target_visible_; }
+   tabs::VerticalTabStripState target_collapse_state_for_testing() {
+     return target_collapse_state_;
+   }
+@@ -191,6 +196,9 @@
+   void OnCollapseStateChanged(
+       tabs::VerticalTabStripCollapseState collapse_state);
+   void UpdateResizeAreaVisibility();
++  // Aerie sidebar (issue #177): see the .cc.
++  void OnAerieResize(int resize_amount, bool done_resizing);
++  void OnAerieVisibleChanged();
+ 
+   void OnAnimationProgressed(const BrowserAnimationController* controller,
+                              BrowserAnimationUpdate status);
+@@ -241,6 +249,13 @@
+   raw_ptr<views::View> gemini_button_ = nullptr;
+   // Aerie sidebar (issue #177): non-null while the layout is the sidebar.
+   raw_ptr<AerieSidebarView> aerie_sidebar_view_ = nullptr;
++  bool aerie_hidden_ = false;
++  // What aerie.sidebar.visible asked for last. aerie_hidden_ follows it when a
++  // hide has finished sliding.
++  bool aerie_target_visible_ = true;
++  PrefChangeRegistrar aerie_pref_registrar_;
++  base::OneShotTimer aerie_hide_timer_;
++  aerie::motion::MotionHandle aerie_motion_;
+   raw_ptr<views::ResizeArea> resize_area_ = nullptr;
+   raw_ptr<ShadowFrameView> shadow_frame_ = nullptr;
+   int resize_area_width_;
