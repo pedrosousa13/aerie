@@ -33,6 +33,8 @@ URL_TEMPLATE = "https://chromium.googlesource.com/chromium/src/+archive/refs/tag
 DATASETS = {
     "webui": ("chrome/test/data/webui", "tsconfig_base.json"),
     "pdf": ("chrome/test/data/pdf", "basic_plugin_test.ts"),
+    # chrome/common/extensions:test_features (test_support) generates a .cc from this one file.
+    "extension_api_unittest": ("chrome/test/data/extensions/extension_api_unittest", "api_features.json"),
 }
 MAX_BYTES = 256 * 1024 * 1024  # the real directory is about 30 MB unpacked
 

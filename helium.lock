@@ -90,3 +90,10 @@ sha256 = "18eee87f35b39dc53addb0546c7bb15aa7e713d755a9f88cc5dd409cd6d99533"
 chromium_version = "157.0.8103.38"
 url = "https://chromium.googlesource.com/chromium/src/+archive/refs/tags/157.0.8103.38/chrome/test/data/pdf.tar.gz"
 sha256 = "9a5d2ab64d75ffc29eafec82808c06a2de7eb1ab4beec915bef5d23b8fc142bf"
+
+# chrome/test/data/extensions/extension_api_unittest (three small JSON files), same rules: the test
+# support generates extension_features_unittest.cc from api_features.json.
+[test_data.extension_api_unittest]
+chromium_version = "157.0.8103.38"
+url = "https://chromium.googlesource.com/chromium/src/+archive/refs/tags/157.0.8103.38/chrome/test/data/extensions/extension_api_unittest.tar.gz"
+sha256 = "ac2c222b508e7d9093837955d985d37ce79fb8bddbeac974122ac1cde7814db1"
