@@ -99,8 +99,8 @@ fn check_list_until(bytes: &[u8], deadline: Instant) -> Result<ListCheck, ListEr
 }
 
 /// `check_list_until`, and with `require_rules` false a text with no network
-/// rule passes too (the user's own rules may be hide rules only). The other
-/// refusals stay.
+/// rule passes too and a line with a NUL byte is skipped, not fatal (the
+/// user's own rules). The other refusals stay.
 pub(crate) fn check_list_with(
     bytes: &[u8],
     deadline: Instant,
@@ -111,7 +111,9 @@ pub(crate) fn check_list_with(
         return Err(ListError::TooLarge);
     }
     let text = std::str::from_utf8(bytes).map_err(|_| ListError::NotText)?;
-    if text.contains('\0') {
+    // A downloaded list with a NUL is refused whole. The user's own rules
+    // (`require_rules` false) drop only the line, as the report says.
+    if require_rules && text.contains('\0') {
         return Err(ListError::NotText);
     }
     if looks_like_html(text) {
@@ -123,7 +125,7 @@ pub(crate) fn check_list_with(
         if i % LINES_PER_TIME_CHECK == 0 && Instant::now() >= deadline {
             return Err(ListError::Timeout);
         }
-        if line.len() > max_line_bytes {
+        if line.len() > max_line_bytes || line.contains('\0') {
             continue;
         }
         if is_ignored_exception(line) {

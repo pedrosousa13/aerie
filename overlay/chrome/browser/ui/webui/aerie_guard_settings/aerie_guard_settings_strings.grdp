@@ -3,7 +3,7 @@
      You can use, redistribute, and/or modify this source code under
      the terms of the GPL-3.0 license that can be found in the LICENSE file.
 
-     Strings of the Aerie Guard section of Settings (issues #103, #104 and #107). patches/adblock/0022 gives each one to the
+     Strings of the Aerie Guard section of Settings (issues #103, #104 and #107). patches/adblock/0022 (#103, #104) and 0027 (#107) give each one to the
      settings page under the name tests/test_aerie_guard_settings.py checks. -->
 <grit-part>
   <message name="IDS_SETTINGS_AERIE_GUARD_TITLE" desc="Title of the Aerie Guard section of Settings and the text of its entry in the menu on the left.">

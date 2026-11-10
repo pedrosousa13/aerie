@@ -145,6 +145,20 @@ fn a_line_with_a_nul_byte_is_dropped_and_the_rest_is_kept() {
 }
 
 #[test]
+fn a_nul_line_in_the_raw_text_does_not_break_the_engine_build() {
+    // The manager saves the raw text, so the engine build sees the NUL line too.
+    let input = "||a.test^\n||b.te\0st^\n||c.test^\n";
+    let rules = analyze(input);
+    let (engine, checks) =
+        FilterEngine::from_checked_lists_with([(input.as_bytes(), true)], BUDGET).unwrap();
+    assert_eq!(checks[0].network_rules, rules.network_rules);
+    assert!(blocks(&engine, "a.test", RequestKind::Image));
+    assert!(blocks(&engine, "c.test", RequestKind::Image));
+    // A downloaded list with a NUL is still refused whole.
+    assert!(FilterEngine::from_checked_lists([input.as_bytes()], BUDGET).is_err());
+}
+
+#[test]
 fn the_size_and_line_caps_refuse_the_whole_text() {
     // Many short comment lines would hit the line cap first, so use wide lines for the size test.
     let wide = "!".repeat(MAX_CUSTOM_LINE_BYTES - 1) + "\n";
@@ -353,9 +367,7 @@ fn the_report_drops_exactly_what_the_engine_path_drops() {
 
 #[test]
 fn the_engine_built_from_the_raw_text_agrees_with_the_report() {
-    // A NUL anywhere makes `check_list` refuse a whole text; the report only
-    // drops the line, and the saved text has no NUL left. So no NUL here.
-    let input = mixed_input(false);
+    let input = mixed_input(true);
     let rules = analyze(&input);
     let (raw, checks) =
         FilterEngine::from_checked_lists_with([(input.as_bytes(), true)], BUDGET).unwrap();
