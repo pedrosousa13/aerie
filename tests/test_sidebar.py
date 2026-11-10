@@ -163,8 +163,36 @@ class SavePageTest(unittest.TestCase):
 
     def test_the_doc_does_not_claim_the_view_exists(self):
         doc = (REPO / "docs" / "sidebar-design.md").read_text()
-        self.assertIn("The native sidebar view itself", doc)
-        self.assertIn("is not built", doc)
+        self.assertIn("What is not built yet in the view", doc)
+        # What the view has no code for is named as missing, not claimed.
+        for missing in ("Favorites", "Pinned", "address pill"):
+            self.assertIn(missing, doc.split("What is not built yet in the view", 1)[1].split("\n", 1)[0])
+
+
+class ViewWiringTest(unittest.TestCase):
+    VIEW = REPO / "overlay" / "chrome" / "browser" / "ui" / "views" / "aerie_sidebar"
+
+    def test_the_view_patches_are_in_the_series_after_the_layout_patches(self):
+        series = (REPO / "patches" / "series").read_text().splitlines()
+        order = [line for line in series if line.startswith("sidebar/00")]
+        self.assertEqual(order[-2:], ["sidebar/0024-add-the-sidebar-view-to-the-vertical-strip-region.patch",
+                                      "sidebar/0025-show-hide-and-resize-the-sidebar.patch"])
+
+    def test_every_source_of_the_view_is_in_its_gn_file(self):
+        gn = (self.VIEW / "BUILD.gn").read_text()
+        for source in self.VIEW.glob("*.cc"):
+            self.assertIn(f'"{source.name}"', gn)
+        for source in self.VIEW.glob("*.h"):
+            self.assertIn(f'"{source.name}"', gn)
+
+    def test_the_browser_tests_are_in_the_aerie_browser_test_binary(self):
+        gn = (REPO / "overlay" / "chrome" / "test" / "aerie" / "BUILD.gn").read_text()
+        self.assertIn('"//chrome/browser/ui/views/aerie_sidebar:browser_tests"', gn)
+
+    def test_the_resize_and_toggle_use_the_headless_helpers(self):
+        patch = (REPO / "patches" / "sidebar" / "0025-show-hide-and-resize-the-sidebar.patch").read_text()
+        for name in ("aerie_sidebar::ToggleVisible", "aerie_sidebar::ResizeByDrag", "aerie_sidebar::kKeyboardResizeStep"):
+            self.assertIn(name, patch)
 
 
 class BuildWiringTest(unittest.TestCase):
@@ -237,7 +265,9 @@ class HeadlessPartsTest(unittest.TestCase):
 
     def test_the_docs_say_what_is_still_missing(self):
         doc = (REPO / "docs" / "sidebar-design.md").read_text()
-        self.assertIn("headless parts", doc)
+        self.assertIn("Native sidebar view", doc)
+        self.assertIn("`patches/sidebar/0024`", doc)
+        self.assertIn("`patches/sidebar/0025`", doc)
 
 
 if __name__ == "__main__":
