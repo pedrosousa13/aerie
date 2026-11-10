@@ -49,23 +49,25 @@ class TestCppTest(unittest.TestCase):
         ctx.out_dir = out
         ctx.paths = paths
         ctx.log_path = Path(tmp) / "log"
-        for name, _args in pipeline.TEST_BINARIES:
+        for name, _args in pipeline.ALL_TEST_BINARIES:
             (out / name).write_text("")
         return ctx
 
-    def run_tests(self, codes, targets=None):
+    def run_tests(self, codes, targets=None, gtest_filter=None, xvfb="/usr/bin/xvfb-run"):
         calls = []
 
         def fake_run(log, cmd, env, cwd=None, check=True):
             calls.append([str(c) for c in cmd])
-            return codes.get(Path(str(cmd[0])).name, 0)
+            names = [Path(str(c)).name for c in cmd]
+            return next((code for name, code in codes.items() if name in names), 0)
 
         with tempfile.TemporaryDirectory() as tmp:
             ctx = self.make_ctx(tmp)
             with mock.patch.object(pipeline, "build_tree") as build_tree, \
                     mock.patch.object(pipeline, "run", fake_run), \
+                    mock.patch.object(pipeline.shutil, "which", return_value=xvfb), \
                     mock.patch.object(pipeline, "isolated_env", return_value={}):
-                result = pipeline.test_cpp(ctx, targets=targets)
+                result = pipeline.test_cpp(ctx, targets=targets, gtest_filter=gtest_filter)
         return result, calls, build_tree
 
     def test_all_pass_returns_zero_and_runs_every_target(self):
@@ -99,6 +101,48 @@ class TestCppTest(unittest.TestCase):
         self.assertEqual(result, 0)
         self.assertEqual([Path(c[0]).name for c in calls], ["aerie_widevine_unittests"])
 
+    def test_the_ui_test_binaries_are_not_in_the_default_run(self):
+        # They link Chromium's whole test support; a plain `./aerie test-cpp` stays a unit test run.
+        _result, calls, build_tree = self.run_tests({})
+        names = [Path(c[0]).name for c in calls]
+        self.assertNotIn("aerie_browser_tests", names)
+        self.assertNotIn("aerie_interactive_ui_tests", names)
+
+    def test_the_ui_test_binaries_can_be_selected(self):
+        result, calls, build_tree = self.run_tests({}, targets=["aerie_browser_tests", "aerie_interactive_ui_tests"])
+        self.assertEqual(result, 0)
+        self.assertEqual(build_tree.call_count, 1)
+        self.assertEqual(len(calls), 2)
+
+    def test_the_browser_tests_run_headless(self):
+        _result, calls, _ = self.run_tests({}, targets=["aerie_browser_tests"])
+        self.assertEqual(calls[0][1:], ["--ozone-platform=headless"])
+
+    def test_the_interactive_tests_run_under_xvfb(self):
+        _result, calls, _ = self.run_tests({}, targets=["aerie_interactive_ui_tests"])
+        self.assertEqual(Path(calls[0][0]).name, "xvfb-run")
+        self.assertIn("-a", calls[0])
+        self.assertEqual(Path(calls[0][-1]).name, "aerie_interactive_ui_tests")
+
+    def test_the_interactive_tests_fail_with_a_name_when_xvfb_is_missing(self):
+        result, calls, _ = self.run_tests({}, targets=["aerie_interactive_ui_tests"], xvfb=None)
+        self.assertNotEqual(result, 0)
+        self.assertEqual(calls, [])
+
+    def test_a_failing_ui_test_makes_the_command_fail(self):
+        result, _calls, _ = self.run_tests({"aerie_browser_tests": 1}, targets=["aerie_browser_tests", "aerie_interactive_ui_tests"])
+        self.assertNotEqual(result, 0)
+
+    def test_a_gtest_filter_goes_to_every_selected_binary(self):
+        _result, calls, _ = self.run_tests({}, targets=["aerie_browser_tests", "aerie_interactive_ui_tests"], gtest_filter="Aerie*")
+        self.assertEqual(len(calls), 2)
+        for call in calls:
+            self.assertIn("--gtest_filter=Aerie*", call)
+
+    def test_no_gtest_filter_adds_no_argument(self):
+        _result, calls, _ = self.run_tests({}, targets=["aerie_browser_tests"])
+        self.assertFalse([a for a in calls[0] if a.startswith("--gtest_filter")])
+
     def test_an_unknown_target_is_an_error(self):
         with self.assertRaises(pipeline.BuildError):
             self.run_tests({}, targets=["base_unittests"])
@@ -110,6 +154,14 @@ class CliTest(unittest.TestCase):
                 mock.patch.object(pipeline, "test_cpp", return_value=3) as run:
             self.assertEqual(cli.main(["test-cpp", "--build-root", root, "--target", "aerie_widevine_unittests"]), 3)
         self.assertEqual(run.call_args.kwargs["targets"], ["aerie_widevine_unittests"])
+
+    def test_the_ui_targets_and_the_filter_reach_the_pipeline(self):
+        with tempfile.TemporaryDirectory() as root, \
+                mock.patch.object(pipeline, "test_cpp", return_value=0) as run:
+            cli.main(["test-cpp", "--build-root", root, "--target", "aerie_browser_tests",
+                      "--target", "aerie_interactive_ui_tests", "--gtest-filter", "Aerie*"])
+        self.assertEqual(run.call_args.kwargs["targets"], ["aerie_browser_tests", "aerie_interactive_ui_tests"])
+        self.assertEqual(run.call_args.kwargs["gtest_filter"], "Aerie*")
 
 
 if __name__ == "__main__":

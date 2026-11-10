@@ -58,10 +58,23 @@ A harness error (git or gh broke) also posts `error`, and that SHA is recorded.
 
 C++ unit tests join the gate when any can run (#54).
 
+### Views UI tests and the gate (issue #175)
+
+Decision: the Views UI tests (`aerie_browser_tests` and `aerie_interactive_ui_tests`, run with
+`--gtest-filter=Aerie*`) run in the **nightly only**. They are not a PR gate step yet. The reason:
+they link Chromium's test support, and nobody has measured their build and link time. The first
+measurement is the build train that builds them; the issue asks to put the PR gate on PRs that touch
+`overlay/chrome/browser/ui/views/aerie_*` or `overlay/components/aerie_tab_model` only if that time is
+short. Measured time: not measured yet. Replace this paragraph with the number and the final decision
+when the train has it.
+
 ## Nightly
 
 `nightly` fetches `main`, builds it with `./aerie build --clean`, and runs the
-full Bench (every registered check, `zero_traffic` included). When the whole run passes, its `perf`
+full Bench (every registered check, `zero_traffic` included). After the Bench it runs the Views UI tests
+(`./aerie test-cpp --target aerie_browser_tests --target aerie_interactive_ui_tests --gtest-filter='Aerie*'`;
+the interactive one needs `xvfb-run` on the host). It is the last step, so a failing UI test does not hide the
+Bench result; the step is named `views ui tests` in `summary.json` and in the issue the nightly opens. When the whole run passes, its `perf`
 result is recorded as the new baseline in `AERIE_PERF_DIR` (a failing check such as `zero_traffic`
 blocks recording, and so does a perf check that could not measure a metric). It passes `--download-benchmarks` too. It does this in its own build root, so it never replaces the build the maintainer tests from.
 

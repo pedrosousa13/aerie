@@ -1,0 +1,19 @@
+Aerie-Purpose: Load Aerie's test-only browser and interactive UI test binaries (chrome/test/aerie) into the GN graph, so `./aerie test-cpp` can build them.
+Aerie-Upstream-Area: BUILD.gn (gn_all)
+Aerie-Kind: hook
+
+Issue #175. GN only loads a build file that another target refers to, so the new
+//chrome/test/aerie:tests group needs one reference. It sits in gn_all next to
+//chrome/test:browser_tests. The group is testonly and is not part of the shipped
+browser; `./aerie build` builds `chrome` and `chromedriver` only.
+
+--- a/BUILD.gn
++++ b/BUILD.gn
+@@ -153,6 +153,7 @@
+           "//chrome/browser/ui/actions:dump_actions",
+           "//chrome/browser/ui/color:dump_colors",
+           "//chrome/test:browser_tests",
++          "//chrome/test/aerie:tests",
+         ]
+         if (!is_chromeos_device) {
+           deps += [

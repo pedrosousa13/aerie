@@ -64,6 +64,7 @@ onboarding/0001-serve-aerie-setup-page.patch
 
 # C++ unit test support (#54). Test-only files; the shipped browser does not link them.
 tests/0001-fix-test-support-for-helium-noise.patch
+tests/0002-load-aerie-ui-test-binaries.patch
 
 # The Helium services settings are gone; the extension proxy address stays as a privacy row (#23).
 services/0006-remove-the-helium-services-ui.patch

@@ -93,7 +93,7 @@ def cmd_build(args: argparse.Namespace) -> int:
 def cmd_test_cpp(args: argparse.Namespace) -> int:
     ctx = _context(args)
     with _locked(ctx, args):
-        return pipeline.test_cpp(ctx, targets=args.target, clean=args.clean)
+        return pipeline.test_cpp(ctx, targets=args.target, clean=args.clean, gtest_filter=args.gtest_filter)
 
 
 def cmd_prune(args: argparse.Namespace) -> int:
@@ -303,7 +303,7 @@ def main(argv: list[str] | None = None) -> int:
 
     p_test = sub.add_parser(
         "test-cpp",
-        help="build and run Aerie's C++ unit tests (fetches Chromium's test fonts from Google storage, test builds only)",
+        help="build and run Aerie's C++ unit and Views UI tests (fetches Chromium's test fonts from Google storage, test builds only)",
     )
     _add_common(p_test)
     p_test.add_argument("--ccache-size", metavar="SIZE", help=f"compiler cache cap (env {config.ENV_CACHE_SIZE})")
@@ -315,8 +315,14 @@ def main(argv: list[str] | None = None) -> int:
         "--target",
         action="append",
         metavar="NAME",
-        choices=[name for name, _ in pipeline.TEST_BINARIES],
-        help="build and run only this test binary (repeatable; default: all of them)",
+        choices=[name for name, _ in pipeline.ALL_TEST_BINARIES],
+        help="build and run only this test binary (repeatable; default: the unit test binaries; "
+             "aerie_browser_tests and aerie_interactive_ui_tests only when named)",
+    )
+    p_test.add_argument(
+        "--gtest-filter",
+        metavar="PATTERN",
+        help="pass --gtest_filter=PATTERN to every selected binary (for example Aerie*)",
     )
     _add_lock_timeout(p_test)
     p_test.set_defaults(func=cmd_test_cpp)

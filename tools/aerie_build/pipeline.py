@@ -57,6 +57,19 @@ TEST_BINARIES = (
     # The Tab Model: records, the model, its saved state and the aerie.tabs.* prefs (issue #176).
     ("aerie_tab_model_unittests", ()),
 )
+# The Views UI test binaries (issue #175, seam B). They link Chromium's browser test support, so they are not
+# in a plain `./aerie test-cpp`; ask for them with --target. They are defined in overlay/chrome/test/aerie and
+# link only Aerie's own test files, because the full browser_tests and interactive_ui_tests need test data that
+# Helium prunes and take hours to link.
+UI_TEST_BINARIES = (
+    # In-process browser tests; headless Ozone needs no X server.
+    ("aerie_browser_tests", ("--ozone-platform=headless",)),
+    # Interactive tests need a window that takes focus and real key events: they run under Xvfb.
+    ("aerie_interactive_ui_tests", ()),
+)
+ALL_TEST_BINARIES = TEST_BINARIES + UI_TEST_BINARIES
+XVFB_BINARIES = frozenset({"aerie_interactive_ui_tests"})
+XVFB_COMMAND = ("xvfb-run", "-a", "-s", "-screen 0 1280x1024x24")
 HOST_TOOLS = ("git", "tar", "zstd", "patch")
 MIN_FREE_BYTES = 150 * 1024**3
 
@@ -649,13 +662,15 @@ def build(ctx: Context, clean: bool = False) -> Path:
     return ctx.binary
 
 
-def test_cpp(ctx: Context, targets: Sequence[str] | None = None, clean: bool = False) -> int:
-    """./aerie test-cpp: build the C++ unit test targets in the build's output directory and run them.
+def test_cpp(ctx: Context, targets: Sequence[str] | None = None, clean: bool = False,
+             gtest_filter: str | None = None) -> int:
+    """./aerie test-cpp: build the C++ test targets in the build's output directory and run them.
 
-    Every selected binary runs even if an earlier one fails. Returns 0 only if
-    all of them passed. The test fonts are fetched here and nowhere else.
+    Without targets it runs the unit test binaries; the Views UI binaries (UI_TEST_BINARIES) only when named.
+    gtest_filter goes to every selected binary as --gtest_filter. Every selected binary runs even if an earlier
+    one fails. Returns 0 only if all of them passed. The test fonts are fetched here and nowhere else.
     """
-    known = dict(TEST_BINARIES)
+    known = dict(ALL_TEST_BINARIES)
     names = list(targets) if targets else [name for name, _ in TEST_BINARIES]
     unknown = [name for name in names if name not in known]
     if unknown:
@@ -673,8 +688,18 @@ def test_cpp(ctx: Context, targets: Sequence[str] | None = None, clean: bool = F
                 log(f"{binary} is missing after the build")
                 results[name] = 127
                 continue
-            results[name] = run(log, [binary, *known[name]], env, cwd=ctx.out_dir, check=False)
-        log("== C++ unit test results")
+            command = [binary, *known[name]]
+            if gtest_filter:
+                command.append(f"--gtest_filter={gtest_filter}")
+            if name in XVFB_BINARIES:
+                xvfb = shutil.which(XVFB_COMMAND[0], path=env.get("PATH"))
+                if not xvfb:
+                    log(f"{name} needs {XVFB_COMMAND[0]} (package xvfb) and it is not installed")
+                    results[name] = 127
+                    continue
+                command = [xvfb, *XVFB_COMMAND[1:], *command]
+            results[name] = run(log, command, env, cwd=ctx.out_dir, check=False)
+        log("== C++ test results")
         for name, code in results.items():
             log(f"  {'PASS' if code == 0 else 'FAIL'} {name}" + ("" if code == 0 else f" (exit code {code})"))
         return 0 if all(code == 0 for code in results.values()) else 1

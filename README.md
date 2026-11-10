@@ -179,8 +179,9 @@ Standard library only; runs in well under a second.
 #### C++ unit tests
 
 ```sh
-./aerie test-cpp                          # build and run all six
+./aerie test-cpp                          # build and run the unit test binaries
 ./aerie test-cpp --target aerie_widevine_unittests
+./aerie test-cpp --target aerie_browser_tests --target aerie_interactive_ui_tests --gtest-filter='Aerie*'
 ```
 
 `./aerie test-cpp` prepares the source tree like `./aerie build`, then builds
@@ -194,6 +195,14 @@ selected binary runs even if one fails, a summary lists each result, and the
 exit code is non-zero if any binary failed or is missing. It takes the same
 `--build-root`, `-j`, `--ccache-size`, `--source` and `--clean` options as
 `./aerie build`.
+
+Two more targets test the Views UI and are built only when named:
+`aerie_browser_tests` (headless Ozone, no X server) and `aerie_interactive_ui_tests`
+(under `xvfb-run`, so the host needs the `xvfb` package; without it that target is
+reported as failed). They are Aerie-owned binaries in `overlay/chrome/test/aerie`
+that link only Aerie's test files, not Chromium's whole `browser_tests`.
+`--gtest-filter=PATTERN` goes to every selected binary. See CONTRIBUTING.md,
+"Testing the Views UI".
 
 Test targets need Chromium's test fonts, which Helium prunes. For this command
 only, the build downloads the font archive that the tree's `DEPS` names

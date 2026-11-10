@@ -41,6 +41,24 @@ class NightlyTest(unittest.TestCase):
         # the full Bench: everything registered, zero_traffic and smoke included
         self.assertEqual(checks, ["ad_blocking", "branding", "smoke", "zero_traffic"])
 
+    def test_the_views_ui_tests_run_after_the_bench_and_are_in_the_summary(self):
+        self.assertEqual(self.run_nightly(), nightly.PASS)
+        cmd = next(c for c in self.shell.calls if "test-cpp" in c)
+        self.assertEqual([cmd[i + 1] for i, a in enumerate(cmd) if a == "--target"],
+                         ["aerie_browser_tests", "aerie_interactive_ui_tests"])
+        self.assertEqual(cmd[cmd.index("--gtest-filter") + 1], "Aerie*")
+        self.assertEqual(cmd[cmd.index("--build-root") + 1], str(self.root))
+        self.assertGreater(self.shell.calls.index(cmd), max(i for i, c in enumerate(self.shell.calls) if "bench" in c and "--check" in c))
+        data = json.loads((self.ci_root / "nightly" / "2026-11-09" / "summary.json").read_text())
+        self.assertEqual([s["name"] for s in data["steps"]], ["clean build", "full bench", "views ui tests"])
+
+    def test_a_failing_views_ui_test_fails_the_nightly_and_names_the_step(self):
+        self.shell.fail = {"test-cpp": 1}
+        self.assertEqual(self.run_nightly(), nightly.FAIL)
+        data = json.loads((self.ci_root / "nightly" / "2026-11-09" / "summary.json").read_text())
+        self.assertEqual(data["steps"][-1], {"name": "views ui tests", "rc": 1, "seconds": data["steps"][-1]["seconds"]})
+        self.assertTrue(self.shell.ran("--check smoke"))  # the Bench still ran
+
     def test_a_registered_perf_check_is_recorded_as_the_baseline(self):
         self.shell.checks = "smoke perf"
         self.run_nightly()
