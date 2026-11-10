@@ -11,7 +11,8 @@ from urllib.parse import parse_qs, urlsplit
 
 ALL_LEAKS = ("cookie", "localStorage", "sessionStorage", "indexedDB", "opfs", "cacheStorage", "broadcastChannel",
              "webLocks", "sharedWorker", "blobUrl", "serviceWorker", "httpCache", "httpAuth", "hsts",
-             "permissions", "history", "visited", "process", "move", "external", "noopener", "dns", "clientCert")
+             "permissions", "history", "visited", "process", "move", "external", "noopener", "dns", "clientCert",
+             "fingerprint")
 
 
 class FakeFixtures:
@@ -131,6 +132,13 @@ class FakeTab:
 
     def w_permission(self):
         return self.b.permissions.get(self.part("permissions"), "default")
+
+    def w_fingerprint(self):
+        # Seeds are keyed on the site and the partition (#121): the same site in one Workspace always shows
+        # the same values; a leak makes every Workspace show the first one's.
+        part = self.part("fingerprint")
+        seed = sum(map(ord, part)) * 7919
+        return {"canvas": f"c{seed:x}", "audio": f"a{seed * 31:x}", "cores": 4 + seed % 2}
 
     def w_loadScript(self):
         self.b.code_cache_hook(self.workspace)

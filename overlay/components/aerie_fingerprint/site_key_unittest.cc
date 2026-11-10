@@ -69,6 +69,49 @@ TEST(NoiseSiteKeyTest, APartitionComponentSeparatesTheSameSite) {
             NoiseSiteKey(O("https://www.example.com/"), "workspace-1"));
 }
 
+TEST(NoisePartitionKeyTest, TheDefaultPartitionHasNoKey) {
+  EXPECT_TRUE(NoisePartitionKey("", "").empty());
+  // The default partition has an empty domain and an empty name. A name with
+  // no domain is not a Workspace either.
+  EXPECT_TRUE(NoisePartitionKey("", "stray").empty());
+}
+
+TEST(NoisePartitionKeyTest, TwoWorkspacesHaveTwoKeys) {
+  const std::string a = NoisePartitionKey("aerieworkspace", "id-a");
+  const std::string b = NoisePartitionKey("aerieworkspace", "id-b");
+  EXPECT_FALSE(a.empty());
+  EXPECT_NE(a, b);
+  EXPECT_EQ(a, NoisePartitionKey("aerieworkspace", "id-a"));
+}
+
+TEST(NoisePartitionKeyTest, DomainAndNameCannotBeShifted) {
+  // "ab" + "c" and "a" + "bc" must not collide.
+  EXPECT_NE(NoisePartitionKey("ab", "c"), NoisePartitionKey("a", "bc"));
+  EXPECT_NE(NoisePartitionKey("a", ""), NoisePartitionKey("", "a"));
+}
+
+// The same site in two Workspaces gets two keys, so two seeds (#121). The key
+// of a site in the default partition is what it was before Workspaces.
+TEST(NoiseSiteKeyTest, TheSameSiteInTwoWorkspacesHasTwoKeys) {
+  const url::Origin origin = O("https://example.com/");
+  const std::string ws_a = NoisePartitionKey("aerieworkspace", "id-a");
+  const std::string ws_b = NoisePartitionKey("aerieworkspace", "id-b");
+  EXPECT_NE(NoiseSiteKey(origin, ws_a), NoiseSiteKey(origin, ws_b));
+  EXPECT_NE(NoiseSiteKey(origin, ws_a), NoiseSiteKey(origin));
+  // Twice in one Workspace, on any host of the site: equal.
+  EXPECT_EQ(NoiseSiteKey(origin, ws_a),
+            NoiseSiteKey(O("https://www.example.com/p"), ws_a));
+  // The default partition keeps the key it had.
+  EXPECT_EQ(NoiseSiteKey(origin),
+            NoiseSiteKey(origin, NoisePartitionKey("", "")));
+}
+
+TEST(NoiseSiteKeyTest, AnOpaqueOriginHasNoKeyInAnyWorkspace) {
+  EXPECT_TRUE(
+      NoiseSiteKey(url::Origin(), NoisePartitionKey("aerieworkspace", "id-a"))
+          .empty());
+}
+
 TEST(NoiseSitePatternTest, ARegistrableDomainGetsASchemeAndSubdomainPattern) {
   EXPECT_EQ(NoiseSitePattern(GURL("https://www.example.com/page")).ToString(),
             "https://[*.]example.com");

@@ -369,6 +369,31 @@ def _permissions(world: World) -> ProbeResult:
     return _ok("a permission granted in one Workspace reads default or prompt in the other, both ways")
 
 
+FINGERPRINT_DIFFERS = ("canvas", "audio")  # a hash: two seeds give two values. Core count has 3 values, so it may match.
+
+
+def _fingerprint(world: World) -> ProbeResult:
+    """Issue #121: fingerprinting seeds are keyed on the Workspace as well as the site, so the same site
+    looks like two browsers. Control: the same site twice in one Workspace gives equal values (the seed is
+    stable, so a difference between Workspaces is the partition and not noise that changes on every read).
+    Then the other Workspace must differ in canvas and audio, both ways. With protection off every
+    Workspace shows the real values, so the probe fails there too; run it with protection on."""
+    seen = {}
+    for x, y in DIRECTIONS:
+        first, again = world.probe_tab(x).call("fingerprint"), world.probe_tab(x).call("fingerprint")
+        if not first.get("canvas") or not first.get("audio"):
+            return _control_failed(f"{x} could not compute a canvas and audio value (got {first!r})")
+        if first != again:
+            return _control_failed(f"the same site gave different values twice in {x} ({first!r} then {again!r})")
+        other = world.probe_tab(y).call("fingerprint")
+        seen[f"{x}"], seen[f"{y} (read after {x})"] = first, other
+        same = [k for k in FINGERPRINT_DIFFERS if other.get(k) == first.get(k)]
+        if same:
+            return _fail(f"{x} and {y} show the same {' and '.join(same)} value for one site", **seen)
+    return _ok("one site shows equal values twice in a Workspace and different canvas and audio values "
+               "in the other, both ways", **seen)
+
+
 def _history(world: World) -> ProbeResult:
     """ADR decision D1, gap G8: history, omnibox suggestions and :visited styling are per Workspace."""
     for x, y in DIRECTIONS:
@@ -528,6 +553,7 @@ PROBES: tuple[Probe, ...] = (
     Probe("http_auth", "HTTP auth cache", ("9",), _http_auth),
     Probe("client_cert", "client certificate choices", ("10",), _client_cert),
     Probe("permissions", "permission grants (D2, G2)", ("11",), _permissions),
+    Probe("fingerprint", "fingerprinting seeds keyed on the Workspace too (#121)", (), _fingerprint),
     Probe("history", "history, omnibox suggestions, :visited (D1, G8)", ("12",), _history),
     Probe("renderer_process", "one renderer process per Workspace", ("17",), _renderer_process),
     Probe("tab_move", "story 95: a moved tab uses the new Workspace's login", (), _tab_move),

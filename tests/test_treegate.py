@@ -263,7 +263,8 @@ WORKER_SERVICE_IMPL_OK = (
     "      worker_start_data->helium_noise_tokens;\n")
 WORKER_TOKENS_OK = """blink::HeliumNoiseTokenMap HeliumNoiseTokenData::GetTokensForWorker(
     BrowserContext* context,
-    const blink::StorageKey& key) {
+    const blink::StorageKey& key,
+    const StoragePartitionConfig& partition) {
   if (!context) {
     return {};
   }
@@ -271,15 +272,17 @@ WORKER_TOKENS_OK = """blink::HeliumNoiseTokenMap HeliumNoiseTokenData::GetTokens
   if (!GetContentClient()->browser()->HeliumNoiseEnabled(context, site_url)) {
     return {};
   }
-  return GetTokens(context, url::Origin::Create(site_url));
+  return GetTokens(context, url::Origin::Create(site_url), partition);
 }
 """
 WORKER_SHARED_HOST_OK = """      HeliumNoiseTokenData::GetTokensForWorker(
           GetProcessHost()->GetBrowserContext(),
-          instance_.worker_storage_key()));
+          instance_.worker_storage_key(),
+          GetProcessHost()->GetStoragePartition()->GetConfig()));
 """
 WORKER_SERVICE_HOST_OK = """  params->helium_noise_tokens = HeliumNoiseTokenData::GetTokensForWorker(
-      context_->wrapper()->browser_context(), key_);
+      context_->wrapper()->browser_context(), key_,
+      context_->wrapper()->storage_partition()->GetConfig());
 """
 WORKER_GPU_OK = """inline bool ShouldMaskGpuInfoForContext(const ExecutionContext* context) {
   const bool has_token =
@@ -351,12 +354,32 @@ TEXT_METRICS_GOOD = {
     treegate.TEXT_METRICS_FACTOR_PATH: TEXT_METRICS_FACTOR_OK,
 }
 
+PARTITION_TOKENS_OK = """blink::HeliumNoiseTokenMap HeliumNoiseTokenData::GetTokens(
+    BrowserContext* context,
+    const url::Origin& origin,
+    const StoragePartitionConfig& partition) {
+  std::string domain = aerie_fingerprint::NoiseSiteKey(
+      origin, aerie_fingerprint::NoisePartitionKey(
+                  partition.partition_domain(), partition.partition_name()));
+  return {};
+}
+"""
+PARTITION_NAV_OK = """      noise_tokens_ = HeliumNoiseTokenData::GetTokens(
+          browser_context, origin_to_commit.value(),
+          site_info_.GetStoragePartitionConfig());
+"""
+PARTITION_GOOD = {
+    treegate.WORKER_TOKENS_PATH: PARTITION_TOKENS_OK + WORKER_TOKENS_OK,
+    treegate.PARTITION_NAV_PATH: PARTITION_NAV_OK,
+}
+
 GOOD = {
     **JS_OPT_GOOD,
     **SERVICES_UI_GOOD,
     **AUDIO_GOOD,
     **GPU_GOOD,
     **WORKER_GOOD,
+    **PARTITION_GOOD,
     **POPUP_GOOD,
     **TEXT_METRICS_GOOD,
     treegate.CANVAS_HELPER_PATH: READPIXELS_HELPER_OK,
@@ -607,6 +630,50 @@ class WorkerNoiseTokensGateTest(TreeCase):
         self.assertIn(treegate.check_worker_noise_tokens, treegate.GATES)
 
 
+class WorkspaceNoisePartitionGateTest(TreeCase):
+    """Issue #121: the token key carries the storage partition, at every place that asks for tokens."""
+
+    def good(self):
+        self.write(WORKER_GOOD)
+        self.write(PARTITION_GOOD)
+
+    def findings(self):
+        return treegate.check_workspace_noise_partition(self.root)
+
+    def test_passes_when_every_caller_passes_its_partition(self):
+        self.good()
+        self.assertEqual(treegate.check_workspace_noise_partition(self.root, require=True), [])
+
+    def test_the_key_must_include_the_partition(self):
+        self.good()
+        self.write({treegate.WORKER_TOKENS_PATH: (PARTITION_TOKENS_OK + WORKER_TOKENS_OK).replace(
+            "origin, aerie_fingerprint::NoisePartitionKey(\n                  partition.partition_domain(), partition.partition_name())",
+            "origin")})
+        self.assertEqual({f.path for f in self.findings()}, {treegate.WORKER_TOKENS_PATH})
+
+    def test_a_worker_must_pass_its_partition_on(self):
+        self.good()
+        self.write({treegate.WORKER_TOKENS_PATH: PARTITION_TOKENS_OK + WORKER_TOKENS_OK.replace(
+            ", partition);", ");")})
+        self.assertEqual({f.path for f in self.findings()}, {treegate.WORKER_TOKENS_PATH})
+
+    def test_each_caller_is_reported_on_its_file(self):
+        bad = {
+            treegate.PARTITION_NAV_PATH: PARTITION_NAV_OK.replace("site_info_.GetStoragePartitionConfig()", "{}"),
+            treegate.WORKER_SHARED_HOST_PATH: WORKER_SHARED_HOST_OK.replace("GetStoragePartition()->GetConfig()", "{}"),
+            treegate.WORKER_SERVICE_HOST_PATH: WORKER_SERVICE_HOST_OK.replace(
+                "context_->wrapper()->storage_partition()->GetConfig()", "{}"),
+        }
+        for path, text in bad.items():
+            with self.subTest(path=path):
+                self.good()
+                self.write({path: text})
+                self.assertIn(path, {f.path for f in self.findings()})
+
+    def test_the_gate_runs_with_the_others(self):
+        self.assertIn(treegate.check_workspace_noise_partition, treegate.GATES)
+
+
 class PopupNoiseTokensGateTest(TreeCase):
     """Issue #156: a window that a page opens gets its opener's tokens when it is created."""
 
@@ -792,7 +859,7 @@ class RunTest(TreeCase):
 
     def test_empty_tree_passes_unless_required(self):
         self.assertEqual(self.run_gates(), [])
-        self.assertEqual(len(self.run_gates(require=True)), 49)
+        self.assertEqual(len(self.run_gates(require=True)), 54)
 
     def test_format_report(self):
         self.write({"a.cc": '"https://services.helium.imput.net"\n'})

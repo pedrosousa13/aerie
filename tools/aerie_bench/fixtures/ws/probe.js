@@ -123,6 +123,34 @@
     ping: async (who) => (await fetch('/ws/ping?w=' + encodeURIComponent(who))).status,
     hstsSet: async (url) => { await fetch(url, {mode: 'no-cors', cache: 'no-store'}); return true; },
     permission: async () => Notification.permission,
+    // Issue #121: the canvas, audio and core values a tracker reads. Same drawing and graph as
+    // fixtures/hardening/fingerprint.html, so the two Bench checks measure the same surfaces.
+    fingerprint: async () => {
+      const fnv = (str) => {
+        let h = 0x811c9dc5;
+        for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+        return h.toString(16);
+      };
+      const c = document.createElement('canvas');
+      c.width = 240; c.height = 80;
+      const x = c.getContext('2d');
+      x.textBaseline = 'top'; x.font = '18px Arial';
+      x.fillStyle = '#f60'; x.fillRect(10, 10, 100, 40);
+      x.fillStyle = '#069'; x.fillText('Aerie fingerprint 1234 \u00e9\u00fc', 4, 20);
+      x.strokeStyle = 'rgba(102, 204, 0, 0.7)';
+      x.beginPath(); x.arc(150, 40, 25, 0, Math.PI * 2); x.stroke();
+      const ctx = new OfflineAudioContext(1, 44100, 44100);
+      const osc = ctx.createOscillator();
+      osc.type = 'triangle'; osc.frequency.value = 10000;
+      const comp = ctx.createDynamicsCompressor();
+      comp.threshold.value = -50; comp.knee.value = 40; comp.ratio.value = 12;
+      comp.attack.value = 0; comp.release.value = 0.25;
+      osc.connect(comp); comp.connect(ctx.destination); osc.start(0);
+      const data = (await ctx.startRendering()).getChannelData(0);
+      let s = '';
+      for (let i = 4500; i < 5000; i++) s += data[i].toString() + ',';
+      return {canvas: fnv(c.toDataURL()), audio: fnv(s), cores: navigator.hardwareConcurrency};
+    },
     loadScript: () => new Promise((resolve, reject) => {
       const s = document.createElement('script');
       s.src = '/ws/code.js';

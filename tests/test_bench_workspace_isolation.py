@@ -22,7 +22,7 @@ LEAK_TO_PROBE = {
     "cacheStorage": "cache_storage", "serviceWorker": "service_workers", "httpCache": "http_cache",
     "httpAuth": "http_auth", "hsts": "hsts", "permissions": "permissions", "history": "history",
     "visited": "history", "process": "renderer_process", "move": "tab_move", "external": "external_link",
-    "noopener": "noopener", "dns": "dns", "clientCert": "client_cert",
+    "noopener": "noopener", "dns": "dns", "clientCert": "client_cert", "fingerprint": "fingerprint",
 }
 
 
@@ -102,6 +102,43 @@ class EveryLeakIsCaughtTest(unittest.TestCase):
     def test_no_profile_path_fails_the_code_cache_probe(self):
         _, _, res = run(FakeBrowser())
         self.assertEqual(res.data["probes"]["code_cache"]["raw"], "fail")
+
+
+class FingerprintProbeTest(unittest.TestCase):
+    """Issue #121: the seeds are keyed on the Workspace as well as the site."""
+
+    def test_two_workspaces_show_different_canvas_and_audio_and_one_workspace_shows_the_same(self):
+        _, _, res = run(FakeBrowser())
+        self.assertEqual(res.data["probes"]["fingerprint"]["raw"], "pass")
+
+    def test_a_shared_seed_fails_and_says_which_values_matched(self):
+        _, _, res = run(FakeBrowser(leaks=("fingerprint",)))
+        probe = res.data["probes"]["fingerprint"]
+        self.assertEqual(probe["raw"], "fail")
+        self.assertIn("canvas", probe["detail"])
+
+    def test_values_that_change_inside_one_workspace_fail_the_control(self):
+        class Unstable(FakeBrowser):
+            n = 0
+
+            def open(self, url, ws):
+                tab = super().open(url, ws)
+                tab.w_fingerprint = lambda: {"canvas": f"c{Unstable.n}", "audio": "a", "cores": 4}
+                Unstable.n += 1
+                return tab
+        _, _, res = run(Unstable())
+        probe = res.data["probes"]["fingerprint"]
+        self.assertEqual(probe["raw"], "fail")
+        self.assertIn("negative control failed", probe["detail"])
+
+    def test_a_browser_that_reports_no_canvas_fails_the_control(self):
+        class Blank(FakeBrowser):
+            def open(self, url, ws):
+                tab = super().open(url, ws)
+                tab.w_fingerprint = lambda: {"canvas": "", "audio": "", "cores": 4}
+                return tab
+        _, _, res = run(Blank())
+        self.assertIn("negative control failed", res.data["probes"]["fingerprint"]["detail"])
 
 
 class NegativeControlTest(unittest.TestCase):
@@ -270,7 +307,7 @@ class AdrCoverageTest(unittest.TestCase):
     def test_the_issue_checks_are_all_present(self):
         ids = set(wi.PROBE_IDS)
         for needed in ("cookies", "dom_storage", "cache_storage", "service_workers", "http_cache", "hsts",
-                       "http_auth", "permissions", "sockets", "tab_move", "external_link", "history"):
+                       "http_auth", "permissions", "sockets", "tab_move", "external_link", "history", "fingerprint"):
             self.assertIn(needed, ids)
 
     def test_the_docs_name_every_probe_and_every_waiver(self):

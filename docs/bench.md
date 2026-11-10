@@ -642,6 +642,7 @@ see `tools/aerie_bench/workspace_driver.py` for the JavaScript calls M5's page h
 | `http_auth` | Basic credentials entered in X are not sent in Y. | 9 |
 | `client_cert` | A client certificate choice stored for a server in X is not remembered in Y. The OS certificate store is shared by design and not probed. | 10 |
 | `permissions` | A notification grant made in X reads `default` or `prompt` in Y (decision D2, gap G2). | 11 |
+| `fingerprint` | Issue #121: one site shows equal canvas and audio values twice in Workspace X (control), and different canvas and audio values in Y, both ways. Core count may match, because it has only three noised values. It needs protection on; with protection off every Workspace shows the real values and the probe fails. | none |
 | `history` | A page visited in X is absent from Y's history and omnibox suggestions, and a link to it is not styled `:visited` in Y; the Bench reads the link colour from a screenshot (decision D1, gap G8). | 12 |
 | `renderer_process` | The two Workspaces have different renderer process ids. | 17 |
 | `tab_move` | Story 95: a tab moved to the other Workspace uses that Workspace's login after reload, with no `window.opener` and no sessionStorage. | none |
