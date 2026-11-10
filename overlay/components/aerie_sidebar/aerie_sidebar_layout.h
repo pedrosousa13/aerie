@@ -47,6 +47,18 @@ inline constexpr int kKeyboardResizeStep = 10;
 // result is clamped.
 int ResizeByKey(int width, bool grow);
 
+// Whether the sidebar is shown (kVisiblePref).
+bool IsVisible(const PrefService& prefs);
+
+// Ctrl+S: flips kVisiblePref and returns the new value. The pref is how the
+// shown or hidden state is remembered across restarts.
+bool ToggleVisible(PrefService* prefs);
+
+// The width after a drag of the inner edge. `delta_x` is the pointer travel in
+// px, positive to the right. A sidebar on the right grows when the pointer
+// moves left. The result is clamped.
+int ResizeByDrag(int start_width, int delta_x, bool sidebar_on_right);
+
 }  // namespace aerie_sidebar
 
 #endif  // COMPONENTS_AERIE_SIDEBAR_AERIE_SIDEBAR_LAYOUT_H_

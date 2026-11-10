@@ -200,3 +200,45 @@ class BuildWiringTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HeadlessPartsTest(unittest.TestCase):
+    """The motion table, the Today list and the keys: the C++ tests run them; these checks keep their wiring and the
+    token names honest."""
+
+    MOTION = (COMPONENT / "aerie_sidebar_motion.cc").read_text()
+    GN = (COMPONENT / "BUILD.gn").read_text()
+
+    def test_show_and_hide_use_the_named_tokens(self):
+        self.assertRegex(self.MOTION, r"ShowMotion[^}]*MotionDuration::kSlow, MotionEasing::kDecelerate", )
+        self.assertRegex(self.MOTION, r"HideMotion[^}]*MotionDuration::kBase, MotionEasing::kAccelerate")
+        self.assertIn("kMotionDistanceSidebarHideOffset", self.MOTION)
+
+    def test_row_motion_uses_the_scale_and_slide_tokens(self):
+        self.assertIn("kMotionScaleEnter", self.MOTION)
+        self.assertIn("kMotionDistanceCloseSlide", self.MOTION)
+
+    def test_the_tokens_the_motion_reads_have_the_design_values(self):
+        import json
+        tokens = json.loads((REPO / "overlay/components/aerie_design_tokens/tokens.json").read_text())
+        self.assertEqual(tokens["motion-duration"]["slow"]["value"], 280)
+        self.assertEqual(tokens["motion-duration"]["base"]["value"], 200)
+        self.assertEqual(tokens["motion-distance"]["sidebar-hide-offset"]["value"], 24)
+        self.assertEqual(tokens["motion-distance"]["close-slide"]["value"], 8)
+        self.assertEqual(tokens["motion-scale"]["enter"]["value"], 0.96)
+
+    def test_the_motion_names_no_property_but_transform_and_opacity_and_the_row_height(self):
+        header = (COMPONENT / "aerie_sidebar_motion.h").read_text()
+        fields = set(re.findall(r"bool (animate_\w+);", header))
+        self.assertEqual(fields, {"animate_transform", "animate_opacity", "animate_scale", "animate_slide", "animate_height"})
+
+    def test_the_new_targets_have_their_deps(self):
+        for label in ('source_set("motion")', 'source_set("today_list")'):
+            self.assertIn(label, self.GN)
+        self.assertIn('"//components/aerie_tab_model"', self.GN)
+        today = (COMPONENT / "aerie_sidebar_today_list.cc").read_text()
+        self.assertIn('#include "components/aerie_tab_model/tab_model.h"', today)
+
+    def test_the_docs_say_what_is_still_missing(self):
+        doc = (REPO / "docs" / "sidebar-design.md").read_text()
+        self.assertIn("headless parts", doc)

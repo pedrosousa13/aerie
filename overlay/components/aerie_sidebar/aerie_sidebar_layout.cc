@@ -42,4 +42,18 @@ int ResizeByKey(int width, bool grow) {
   return ClampWidth(width + (grow ? kKeyboardResizeStep : -kKeyboardResizeStep));
 }
 
+bool IsVisible(const PrefService& prefs) {
+  return prefs.GetBoolean(kVisiblePref);
+}
+
+bool ToggleVisible(PrefService* prefs) {
+  const bool visible = !IsVisible(*prefs);
+  prefs->SetBoolean(kVisiblePref, visible);
+  return visible;
+}
+
+int ResizeByDrag(int start_width, int delta_x, bool sidebar_on_right) {
+  return ClampWidth(start_width + (sidebar_on_right ? -delta_x : delta_x));
+}
+
 }  // namespace aerie_sidebar

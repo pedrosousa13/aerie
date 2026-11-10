@@ -106,5 +106,23 @@ TEST_F(AerieSidebarTest, ArrowKeysMoveTheWidthByTenPixelsWithinTheLimits) {
   EXPECT_EQ(ResizeByKey(200, /*grow=*/false), 200);
 }
 
+TEST_F(AerieSidebarTest, ToggleFlipsTheShownStateAndRemembersIt) {
+  EXPECT_TRUE(IsVisible(prefs_));
+  EXPECT_FALSE(ToggleVisible(&prefs_));
+  EXPECT_FALSE(IsVisible(prefs_));
+  EXPECT_FALSE(prefs_.GetBoolean(kVisiblePref));
+  EXPECT_TRUE(ToggleVisible(&prefs_));
+  EXPECT_TRUE(IsVisible(prefs_));
+}
+
+TEST_F(AerieSidebarTest, DraggingTheInnerEdgeResizesWithinTheLimits) {
+  EXPECT_EQ(ResizeByDrag(260, 40, /*sidebar_on_right=*/false), 300);
+  EXPECT_EQ(ResizeByDrag(260, -40, /*sidebar_on_right=*/false), 220);
+  EXPECT_EQ(ResizeByDrag(260, 500, /*sidebar_on_right=*/false), 400);
+  EXPECT_EQ(ResizeByDrag(260, -500, /*sidebar_on_right=*/false), 200);
+  // A right-hand sidebar grows when the pointer moves left.
+  EXPECT_EQ(ResizeByDrag(260, -40, /*sidebar_on_right=*/true), 300);
+}
+
 }  // namespace
 }  // namespace aerie_sidebar

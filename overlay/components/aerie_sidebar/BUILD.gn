@@ -39,14 +39,45 @@ source_set("layout") {
   ]
 }
 
+# The motion of the sidebar and of its rows, as data (tokens only).
+source_set("motion") {
+  sources = [
+    "aerie_sidebar_motion.cc",
+    "aerie_sidebar_motion.h",
+  ]
+  public_deps = [
+    "//components/aerie_design_tokens:tokens",
+  ]
+}
+
+# The Today list kept from the Tab Model, and the keys of the tree.
+source_set("today_list") {
+  sources = [
+    "aerie_sidebar_today_list.cc",
+    "aerie_sidebar_today_list.h",
+  ]
+  public_deps = [
+    "//base",
+    "//components/aerie_tab_model",
+  ]
+}
+
 source_set("unit_tests") {
   testonly = true
-  sources = [ "aerie_sidebar_unittest.cc" ]
+  sources = [
+    "aerie_sidebar_motion_unittest.cc",
+    "aerie_sidebar_today_list_unittest.cc",
+    "aerie_sidebar_unittest.cc",
+  ]
   deps = [
     ":layout",
+    ":motion",
     ":prefs",
+    ":today_list",
+    "//base",
     "//base/test:test_support",
     "//components/aerie_design_tokens:tokens",
+    "//components/aerie_tab_model",
     "//components/prefs:test_support",
     "//testing/gtest",
   ]

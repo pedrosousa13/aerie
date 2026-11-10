@@ -594,7 +594,7 @@ While the layout is `sidebar`, Helium's `helium.browser.layout` is `vertical` an
 
 Save page moves to Ctrl+Shift+S on Windows and Linux so that Ctrl+S can show and hide the sidebar.
 
-What issue #177 has built so far: these prefs, the hold on Helium's layout, the empty Sidebar section and the Ctrl+Shift+S binding. The native sidebar view itself (rows, address pill, resize, Ctrl+S show and hide with motion, the accessibility tree) is not built: until it is, the window shows Helium's vertical tab strip, and Ctrl+S still collapses that strip.
+What issue #177 has built so far: these prefs, the hold on Helium's layout, the empty Sidebar section and the Ctrl+Shift+S binding. Also the headless parts the view will call, with unit tests: show or hide and its stored state (`ToggleVisible`), width from a drag or an arrow key, the motion of the slide and of an opening or closing row as token data (`aerie_sidebar_motion`), the Today list kept from the Tab Model, and the tree keys (`aerie_sidebar_today_list`). The native sidebar view itself (rows, address pill, resize, Ctrl+S show and hide with motion, the accessibility tree) is not built: until it is, the window shows Helium's vertical tab strip, and Ctrl+S still collapses that strip.
 
 ## Open points carried into M2 planning
 
