@@ -11,13 +11,16 @@ Branch protection on `main`, applied to admins too:
   because Aerie has one maintainer and GitHub does not let an author approve
   their own pull request. The build train's review and the local CI gate
   ([ci.md](../ci.md)) stand in for a second reviewer.
-- The four CodeQL jobs must pass: `analyze (actions)`,
-  `analyze (javascript-typescript)`, `analyze (python)`, `analyze (rust)`.
+- These checks must pass: the four CodeQL jobs (`analyze (actions)`,
+  `analyze (javascript-typescript)`, `analyze (python)`, `analyze (rust)`) and
+  the secret scan (`gitleaks`).
   The Rust audit is not required, because it runs only when
   `rust/crates.lock.toml` changes, and a required check that never runs blocks
   the pull request forever.
-- Linear history and signed commits. Pull requests are squash-merged, and
-  GitHub signs the squash commit, so local commits need no signing key.
+- Linear history. Pull requests are squash-merged, and GitHub signs the
+  squash commit, so every commit on `main` is verified. "Require signed
+  commits" is off on purpose: GitHub checks it against the pull request's own
+  commits, and agents commit without a signing key, so it blocks every merge.
 - No force-push and no deletion.
 
 ## Merging
@@ -38,7 +41,8 @@ force-updated. New tags can still be created, so releases (#130) work.
   requests. Each workflow asks for the extra permissions it needs.
 - Only GitHub-owned actions and `ossf/scorecard-action` may run, and every
   action must be pinned to a full commit SHA. Dependabot keeps the pins
-  current (`.github/dependabot.yml`).
+  current (`.github/dependabot.yml`). Tools that are not actions (gitleaks,
+  cargo-audit) are pinned by version, and gitleaks by sha256 as well.
 - Workflows on pull requests from outside contributors wait for the
   maintainer's approval, on every pull request, not only the first.
 
@@ -46,8 +50,12 @@ force-updated. New tags can still be created, so releases (#130) work.
 
 - Private vulnerability reporting ([SECURITY.md](../../SECURITY.md)).
 - Dependabot alerts and security updates.
-- Secret scanning with push protection. Non-provider patterns and validity
-  checks need GitHub Advanced Security and are off.
+- Secret scanning with push protection (GitHub's provider patterns).
+  Non-provider patterns and validity checks need GitHub Advanced Security and
+  are off. Gitleaks covers the generic patterns instead: it scans the whole
+  history on every pull request and weekly (`secret-scan.yml`, rules in
+  `.gitleaks.toml`). It runs offline. To run it locally:
+  `gitleaks git . --config .gitleaks.toml --redact`.
 - Code scanning: CodeQL and OpenSSF Scorecard
   (`.github/workflows/codeql.yml`, `scorecard.yml`), and the daily RustSec
   audit (`rust-audit.yml`).

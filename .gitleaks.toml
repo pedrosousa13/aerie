@@ -1,0 +1,19 @@
+# Secret scanning config for gitleaks (and betterleaks, which reads the same
+# format). Runs in .github/workflows/secret-scan.yml. Uses gitleaks' default
+# rules plus the allowlist below. See docs/security/repo-settings.md.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "The \"key\" field of a Chrome extension manifest is the extension's RSA public key, not a secret (it fixes the extension ID)."
+targetRules = ["generic-api-key"]
+regexTarget = "line"
+regexes = [
+  # base64 DER SubjectPublicKeyInfo of a 1024-bit and a 2048-bit RSA key
+  '''"key":\s*"MI(GfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQ|IBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA)''',
+]
+
+[[allowlists]]
+description = "Third-party filter lists: the publishers' data, full of URL fragments that look like tokens. Updated only by ./aerie lists update and pinned by sha256."
+paths = ['''^overlay/third_party/filter_lists/[^/]+\.txt$''']
