@@ -130,8 +130,8 @@ class FingerprintingNavigator(HardeningCheck):
             skipped.append(f"voices not distinguishable here (the system lists {control['voices']['count']})")
         on = readings["on_a"]
         text = (f"languages {on['languages']} (real {control['languages']}), battery {on['battery']['level']} charging, "
-                f"voices {on['voices']['count']} of {control['voices']['count']}; the real values come back with the "
-                "feature, the whole browser or the site turned off")
+                f"voices {on['voices']['count']} of {control['voices']['count']}; the real battery and voices come back with "
+                "the feature, the whole browser or the site turned off, the real languages with the feature off only")
         if skipped:
             text += "; " + "; ".join(skipped)
         recorded = (f"; recorded, not pinned: devices {on['devices']}, plugins {len(on['plugins'])}, "
