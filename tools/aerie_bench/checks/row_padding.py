@@ -58,9 +58,10 @@ SETTLE_JS = "document.getAnimations().forEach(a => { try { a.finish(); } catch (
 MEASURE_JS = """(only, breakIndex, exclude, rowSel) => {
   const rows = deepQueryAll(document, rowSel)
       .filter(r => (!only || r.matches(only)) && !(exclude && r.matches(exclude)) && r.getClientRects().length > 0);
-  // Padding is layout: a card that is scaled or nudged by a CSS transform (the selected option pops) would
-  // shift its content in the rectangles, so the transform is dropped on the row before it is read.
-  rows.forEach(r => { r.style.transition = 'none'; r.style.transform = 'none'; });
+  // Padding is layout: a card or a child that a CSS transform scales or nudges (the selected setup option
+  // turns its logo by 4 degrees and grows it) would shift its rectangle, so the transforms are dropped on the
+  // row and on its children before they are read.
+  rows.forEach(r => [r, ...r.children].forEach(e => { e.style.transition = 'none'; e.style.transform = 'none'; }));
   if (breakIndex !== null && rows[breakIndex]) rows[breakIndex].style.padding = '0';
   const rtl = getComputedStyle(document.documentElement).direction === 'rtl';
   return rows.map((row, i) => {

@@ -89,6 +89,7 @@ class RowPaddingJudgeTest(unittest.TestCase):
         self.assertIn("getAnimations", SETTLE_JS)
 
     def test_the_page_script_drops_transforms_before_reading_rectangles(self):
+        self.assertIn("[r, ...r.children].forEach", MEASURE_JS)
         self.assertIn("style.transform = 'none'", MEASURE_JS)
 
     def test_a_continuation_row_does_not_set_the_neighbour_padding(self):
