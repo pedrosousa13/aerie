@@ -179,8 +179,9 @@ Standard library only; runs in well under a second.
 #### C++ unit tests
 
 ```sh
-./aerie test-cpp                          # build and run all six
+./aerie test-cpp                          # build and run the unit test binaries
 ./aerie test-cpp --target aerie_widevine_unittests
+./aerie test-cpp --target aerie_browser_tests --target aerie_interactive_ui_tests --gtest-filter='Aerie*'
 ```
 
 `./aerie test-cpp` prepares the source tree like `./aerie build`, then builds
@@ -195,6 +196,14 @@ exit code is non-zero if any binary failed or is missing. It takes the same
 `--build-root`, `-j`, `--ccache-size`, `--source` and `--clean` options as
 `./aerie build`.
 
+Two more targets test the Views UI and are built only when named:
+`aerie_browser_tests` (headless Ozone, no X server) and `aerie_interactive_ui_tests`
+(under `xvfb-run`, so the host needs the `xvfb` package; without it that target is
+reported as failed). They are Aerie-owned binaries in `overlay/chrome/test/aerie`
+that link only Aerie's test files, not Chromium's whole `browser_tests`.
+`--gtest-filter=PATTERN` goes to every selected binary. See CONTRIBUTING.md,
+"Testing the Views UI".
+
 Test targets need Chromium's test fonts, which Helium prunes. For this command
 only, the build downloads the font archive that the tree's `DEPS` names
 (entry `src/third_party/test_fonts/test_fonts`: bucket, object name and
@@ -205,6 +214,19 @@ checksum mismatch stops the build, renames the file to `*.rejected` and unpacks
 nothing. `./aerie build` never fetches the fonts, the fonts are not part of the
 browser, and `./aerie prune` removes the cached archive (the next test run
 downloads it again).
+
+The two Views UI binaries also need the `chrome/test/data/webui` files (and
+the `chrome/test/data/pdf` files that webui's resources build in), which
+Helium prunes to a single `BUILD.gn` while the test support compiles TypeScript
+from that directory. Only for those two targets, the build downloads the directory at
+the pinned Chromium tag from `chromium.googlesource.com` over https, checks it
+against `[test_data.webui]` and `[test_data.pdf]` in `helium.lock`, keeps the archive in `downloads/`
+and unpacks the files the tree lacks. The server stamps each archive with the
+time of the request, so the pin is the sha256 of the sorted list of per-file
+sha256 values, not of the archive bytes. A mismatch stops the build, renames the
+file to `*.rejected` and unpacks nothing. After a Chromium bump the build refuses
+the stale pin until you update it. Nothing else is fetched, and none of it is part
+of the browser. Link time and disk use are in `docs/ci.md`.
 
 ### Updating Helium
 

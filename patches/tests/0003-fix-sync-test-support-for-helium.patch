@@ -1,0 +1,19 @@
+Aerie-Purpose: Make the sync test service compile without Helium's local-sync API, so the test support that Aerie's UI test binaries link builds.
+Aerie-Upstream-Area: components/sync/test/test_sync_service.h (test-only code)
+Aerie-Kind: hook
+
+Helium removes SyncService::IsLocalSyncEnabled. TestSyncService still marked its copy
+override, which is an error. Dropping the marker keeps the helper that the test
+settings class calls. Test-only: nothing in the shipped browser links it. Issue #175.
+
+--- a/components/sync/test/test_sync_service.h
++++ b/components/sync/test/test_sync_service.h
+@@ -132,7 +132,7 @@
+   DisableReasonSet GetDisableReasons() const override;
+   TransportState GetTransportState() const override;
+   UserActionableError GetUserActionableError() const override;
+-  bool IsLocalSyncEnabled() const override;
++  bool IsLocalSyncEnabled() const;
+   CoreAccountInfo GetAccountInfo() const override;
+   bool HasSyncConsent() const override;
+   GoogleServiceAuthError GetAuthError() const override;

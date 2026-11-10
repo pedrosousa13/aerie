@@ -135,6 +135,63 @@ One build at a time can re-apply layers for a tree (a lock file next to the snap
 
 To add a layer that touches tree files, implement `layers.Layer` (`apply(workspace)`: read with `workspace.read`, stage results with `workspace.put`) and add it to `aerie_layers()` in `tools/aerie_build/pipeline.py`.
 
+## Testing the Views UI (seam B)
+
+Views UI (the sidebar, the Guard bubble and anything else drawn by Views or opened from it) is tested with
+Chromium browser tests and interactive UI tests. Chromium's own `browser_tests` and `interactive_ui_tests` link
+every browser test of Chromium and need test data that Helium prunes, so Aerie has two test-only binaries of its
+own. They link Aerie's test files and `//chrome/test:test_support_ui`, and nothing in the shipped browser links
+them (`patches/tests/0002` only makes GN load their build file).
+
+| Binary | For | Runs |
+| --- | --- | --- |
+| `aerie_browser_tests` | `IN_PROC_BROWSER_TEST_F` cases: a window, a tab, a bubble, a WebUI page | with `--ozone-platform=headless`, `--no-sandbox` and `--disable-gpu`, no X server |
+| `aerie_interactive_ui_tests` | cases that need focus or real key and mouse events | under `xvfb-run` (package `xvfb`), with `--no-sandbox` and `--disable-gpu` |
+
+```
+./aerie test-cpp --target aerie_browser_tests --gtest-filter='Aerie*'
+./aerie test-cpp --target aerie_interactive_ui_tests
+```
+
+`--disable-gpu` is there because a 2D canvas reads back blank in the test processes without it. `--no-sandbox` is there because the build machine's AppArmor allows user namespaces only for the `aerie` browser binary; the shipped browser keeps its sandbox. The maintainer accepted this for the two UI test binaries only, on 2026-11-10, for that reason. A plain `./aerie test-cpp` runs the unit test binaries only. The nightly runs both UI binaries with
+`--gtest-filter=Aerie*` after the Bench (see [docs/ci.md](docs/ci.md)).
+
+Conventions:
+
+- **Where the files go.** Next to the code they test, as `aerie_guard_browsertest.cc` sits in
+  `overlay/chrome/browser/ui/webui/aerie_guard/`. Browser tests are `*_browsertest.cc`, interactive tests
+  `*_uitest.cc`. Put them in a `testonly` `source_set("browser_tests")` (or `"interactive_tests"`) in the
+  directory's `BUILD.gn`, then list that source set in `deps` of `aerie_browser_tests` (or
+  `aerie_interactive_ui_tests`) in `overlay/chrome/test/aerie/BUILD.gn`. Do not add it to Chromium's
+  `browser_tests`; the Guard tests are in both for now, through `patches/adblock/0021`.
+  Both source sets set `defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]`; `browser_test.h` is an error without it.
+- **Names.** The test suite (the fixture class) starts with `Aerie`, for example `AerieGuardBrowserTest`. The
+  nightly and the filter `--gtest-filter=Aerie*` select tests by that prefix. A test without it never runs in CI.
+- **Reduced motion.** A test that checks the reduced-motion version of an animation forces it with
+  `gfx::AnimationTestApi::SetPrefersReducedMotionForTesting(true)` (`ui/gfx/animation/animation_test_api.h`) and
+  keeps the returned resetter alive for the whole test. Run the same steps once with `false` to check the full
+  version, so the test shows that the switch changes the result.
+- **Reading animations.** Use `ui::LayerAnimatorTestController`
+  (`ui/compositor/test/layer_animator_test_controller.h`): `GetRunningSequence()` tells whether an animation
+  runs, and `Step(duration)` moves it forward by a known time. Do not use real sleeps.
+- **Focus and keys.** Only `aerie_interactive_ui_tests` may rely on focus or on key and mouse events from
+  `ui_controls`. `aerie_interactive_smoke_uitest.cc` is the smallest example.
+- **Downloads.** The binaries use the test fonts (https, sha256 from `DEPS`) and three sets of Chromium test files that
+  `./aerie test-cpp` fetches (https, pins in `helium.lock` under `[test_data.webui]`, `[test_data.pdf]` and
+  `[test_data.extension_api_unittest]`), all kept in `downloads/`. A test must not add another download.
+- **Web UI test libraries.** An Aerie test cannot load the `chrome://webui-test` libraries that `patches/tests/0008`
+  drops from the bundle: cr_elements, settings, signin, history, new_tab_page, customize_chrome and extensions.
+
+### Updating the test data pins
+
+`./aerie bump` (`rewrite_lock`) does not touch the `[test_data.*]` tables, and the build refuses a pin whose
+`chromium_version` is not the tree's. After a Chromium bump, change in each of the three tables `chromium_version`,
+the Chromium version inside `url` (`.../refs/tags/<version>/...`) and `sha256`. The server stamps the archive with the
+request time, so `sha256` is not the archive's hash. It is the `content_digest`: download the archive from the new
+`url`, then run, from the repository root,
+`python3 -c "from pathlib import Path; from tools.aerie_build import test_webui_data as t; print(t.content_digest(Path('ARCHIVE.tar.gz'), 'webui'))"`
+(use `pdf` or `extension_api_unittest` as the second argument for the other tables). Check with `./aerie test-cpp --target aerie_browser_tests`.
+
 ## Hardening defaults
 
 The privacy and security defaults are one table, `tools/aerie_hardening/controls.json`. The

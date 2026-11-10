@@ -58,10 +58,42 @@ A harness error (git or gh broke) also posts `error`, and that SHA is recorded.
 
 C++ unit tests join the gate when any can run (#54).
 
+### Views UI tests and the gate (issue #175)
+
+Decision: the Views UI tests (`aerie_browser_tests` and `aerie_interactive_ui_tests`, run with
+`--gtest-filter=Aerie*`) run in the **nightly only**. They are not a PR gate step. The issue asks to put the
+PR gate on PRs that touch `overlay/chrome/browser/ui/views/aerie_*` or `overlay/components/aerie_tab_model`
+only if the time is short.
+
+Measured on the Linux build machine (with a warm ccache and the browser already built in the same tree), 14 Aerie tests in all (13 Guard browser tests, 1 interactive smoke test):
+
+| Step | Time |
+| --- | --- |
+| Compile of Chromium's test support for the two binaries (about 1,400 build steps; train 19's keep-going pass took 3 min 33 s) | about 3.5 min |
+| First link, `aerie_browser_tests` (1.38 GiB binary) | 3 min 22 s |
+| First link, `aerie_interactive_ui_tests` (1.38 GiB binary) | 3 min 13 s |
+| Relink after a change in one test file | 1 min 5 s to 1 min 20 s |
+| Run, 13 browser tests (headless) and 1 interactive test (Xvfb) | about 12 s and under 1 s |
+
+Disk: the two binaries are 2.76 GiB together (not stripped). The pinned test data adds 4.4 MB of downloads
+and 25 MB in the tree. The new object files are small next to that (`obj/chrome/test` is 47 MB).
+
+Why not the gate: a PR that changes a Views file relinks both binaries, which is 2 to 3 minutes warm and about
+10 minutes (3.5 + 2 × 3.3, not measured end to end) after a change that reaches Chromium's test support, on top of a gate that already builds, runs the
+Bench and measures performance. Today that cost buys 14 tests. The nightly runs them after the Bench and
+reports a failure in the issue it opens. The maintainer decided on 2026-11-10: the UI tests run nightly and in every build train, not as a PR gate. Revisit when the Views UI tests are many enough that a day's delay
+costs more than a few minutes per PR; the step would run `./aerie test-cpp --target aerie_browser_tests
+--target aerie_interactive_ui_tests --gtest-filter='Aerie*'` for a PR whose diff touches the paths above.
+
+The numbers are from one machine and one run each; the cold-ccache time of the test support was not measured.
+
 ## Nightly
 
 `nightly` fetches `main`, builds it with `./aerie build --clean`, and runs the
-full Bench (every registered check, `zero_traffic` included). When the whole run passes, its `perf`
+full Bench (every registered check, `zero_traffic` included). After the Bench it runs the Views UI tests
+(`./aerie test-cpp --target aerie_browser_tests --target aerie_interactive_ui_tests --gtest-filter='Aerie*'`;
+the interactive one needs `xvfb-run` on the host). It is the last step, so a failing UI test does not hide the
+Bench result; the step is named `views ui tests` in `summary.json` and in the issue the nightly opens. When the whole run passes, its `perf`
 result is recorded as the new baseline in `AERIE_PERF_DIR` (a failing check such as `zero_traffic`
 blocks recording, and so does a perf check that could not measure a metric). It passes `--download-benchmarks` too. It does this in its own build root, so it never replaces the build the maintainer tests from.
 

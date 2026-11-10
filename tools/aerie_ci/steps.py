@@ -123,6 +123,9 @@ def python_steps(python: str, tree: Path, build_root: Path, ccache_dir: Path | N
         "patches": (python, aerie, "patches", "check", *root),
         "build": (python, aerie, "build", *root, *cache),
         "clean_build": (python, aerie, "build", "--clean", *root, *cache),
+        # The Views UI tests (issue #175): Aerie-owned browser and interactive tests, Xvfb for the second.
+        "ui_tests": (python, aerie, "test-cpp", *root, *cache, "--target", "aerie_browser_tests",
+                     "--target", "aerie_interactive_ui_tests", "--gtest-filter", "Aerie*"),
         "unittest": (python, "-m", "unittest", "discover", "-s", "tests", "-t", "."),
     }
 

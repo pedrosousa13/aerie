@@ -62,6 +62,8 @@ source_set("aerie_guard") {
 
 source_set("browser_tests") {
   testonly = true
+  # content/public/test/browser_test.h refuses to compile without it.
+  defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
   sources = [ "aerie_guard_browsertest.cc" ]
   deps = [
     ":aerie_guard",

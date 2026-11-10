@@ -37,11 +37,13 @@ def run_nightly(cfg: CiConfig, *, today: Callable[[], str] = lambda: time.strfti
                     extra = ("--download-benchmarks", "--perf-record", str(cfg.perf_dir)) if "perf" in checks else ()
                     plan = [st.Step("clean build", cmds["clean_build"]),
                             st.Step("full bench", st.bench_argv(cfg.python, tree, cfg.build_root, checks,
-                                                                out=bench_out, extra=extra))]
+                                                                out=bench_out, extra=extra)),
+                            # After the Bench, so a failing UI test does not hide the Bench result.
+                            st.Step("views ui tests", cmds["ui_tests"])]
                     results = st.run_steps(cfg.shell, plan, cwd=tree, env=env, log=log)
             failed = next((r for r in results if r.rc != 0), None)
             state = FAIL if failed else PASS
-            summary = f"Failed at {failed.name} (exit {failed.rc})." if failed else "Clean build and full Bench passed."
+            summary = f"Failed at {failed.name} (exit {failed.rc})." if failed else "Clean build, full Bench and Views UI tests passed."
         except buildlock.BuildTreeBusy:
             state, summary = BUSY, "Build tree busy; the nightly did not run."
         except Exception as exc:

@@ -23,6 +23,7 @@ from typing import Callable, Sequence
 from . import (
     aerie_version, branding, ccache, fallback, filter_lists, helium, helium_deps, helium_inputs, helium_steps,
     layers, lock, overlay, patch_check, patches, protection_lists, rust_crates, substitution, test_fonts,
+    test_webui_data,
 )
 from .config import BuildPaths, isolated_env
 
@@ -57,6 +58,26 @@ TEST_BINARIES = (
     # The Tab Model: records, the model, its saved state and the aerie.tabs.* prefs (issue #176).
     ("aerie_tab_model_unittests", ()),
 )
+# The Views UI test binaries (issue #175, seam B). They link Chromium's browser test support, so they are not
+# in a plain `./aerie test-cpp`; ask for them with --target. They are defined in overlay/chrome/test/aerie and
+# link only Aerie's own test files, because the full browser_tests and interactive_ui_tests need test data that
+# Helium prunes and take hours to link.
+#
+# Both run with --disable-gpu: on the build machine a 2D canvas reads back blank (every pixel 0,0,0,0) in the test
+# processes without it, so no canvas test could see anything. Both also run with --no-sandbox: on that machine
+# Ubuntu's AppArmor refuses the unprivileged user namespace that Chromium's sandbox needs to any binary without a
+# profile, and the profile (/etc/apparmor.d/aerie) names only the `aerie` browser. The maintainer accepted this for these two test
+# binaries only on 2026-11-10, because of that profile. The browser itself keeps its
+# sandbox. These test children load only Aerie's own test pages and the embedded test server.
+UI_TEST_BINARIES = (
+    # In-process browser tests; headless Ozone needs no X server.
+    ("aerie_browser_tests", ("--ozone-platform=headless", "--no-sandbox", "--disable-gpu")),
+    # Interactive tests need a window that takes focus and real key events: they run under Xvfb.
+    ("aerie_interactive_ui_tests", ("--no-sandbox", "--disable-gpu")),
+)
+ALL_TEST_BINARIES = TEST_BINARIES + UI_TEST_BINARIES
+XVFB_BINARIES = frozenset({"aerie_interactive_ui_tests"})
+XVFB_COMMAND = ("xvfb-run", "-a", "-s", "-screen 0 1280x1024x24")
 HOST_TOOLS = ("git", "tar", "zstd", "patch")
 MIN_FREE_BYTES = 150 * 1024**3
 
@@ -552,6 +573,22 @@ def fetch_test_fonts(ctx: Context, log: Logger, env: dict) -> None:
         raise BuildError(f"test fonts: {exc}") from exc
 
 
+def needs_webui_test_data(targets: Sequence[str]) -> bool:
+    """The Views UI test binaries link test support that compiles chrome/test/data/webui; the unit tests do not."""
+    ui = {name for name, _ in UI_TEST_BINARIES}
+    return any(target in ui for target in targets)
+
+
+def fetch_webui_test_data(ctx: Context, log: Logger, env: dict) -> None:
+    """UI test builds only: put the chrome/test/data/webui files, which Helium prunes, back in the tree."""
+    try:
+        for name in test_webui_data.DATASETS:  # webui, pdf and the other test files the test support needs
+            test_webui_data.ensure(ctx.tree, ctx.paths.downloads, ctx.pins.test_data.get(name, {}),
+                                   ctx.pins.chromium_version, ctx.opener, log, name=name)
+    except test_webui_data.TestDataError as exc:
+        raise BuildError(f"webui test data: {exc}") from exc
+
+
 def configure(ctx: Context, log: Logger, env: dict) -> None:
     marker = ctx.tree / fallback.SOURCE_MARKER
     if marker.is_file() and marker.read_text().strip() == "official":
@@ -601,7 +638,7 @@ def show_layer_changes(ctx: Context) -> int:
     return 0
 
 
-def build_steps(with_tests: bool) -> list[tuple[str, Callable[[Context, Logger, dict], None]]]:
+def build_steps(with_tests: bool, ui_tests: bool = False) -> list[tuple[str, Callable[[Context, Logger, dict], None]]]:
     steps = [
         ("install ccache", install_ccache),
         ("install python env", install_python_env),
@@ -611,6 +648,8 @@ def build_steps(with_tests: bool) -> list[tuple[str, Callable[[Context, Logger, 
     if with_tests:
         # After the prune in prepare_tree, which would delete the fonts again.
         steps.append(("test fonts", fetch_test_fonts))
+    if ui_tests:
+        steps.append(("webui test data", fetch_webui_test_data))
     return steps + [("configure", configure), ("compile", compile_targets)]
 
 
@@ -629,7 +668,8 @@ def build_tree(ctx: Context, clean: bool = False) -> None:
             layers.clear_store(ctx.pristine_dir)
         env = isolated_env(ctx.paths, os.environ)
         env["PATH"] = os.pathsep.join([str(ctx.venv / "bin"), env.get("PATH", "")])
-        for title, step in build_steps(with_tests=bool(ctx.test_targets)):
+        for title, step in build_steps(with_tests=bool(ctx.test_targets),
+                                         ui_tests=needs_webui_test_data(ctx.test_targets)):
             step_start = time.monotonic()
             log(f"== {title}")
             step(ctx, log, env)
@@ -649,13 +689,15 @@ def build(ctx: Context, clean: bool = False) -> Path:
     return ctx.binary
 
 
-def test_cpp(ctx: Context, targets: Sequence[str] | None = None, clean: bool = False) -> int:
-    """./aerie test-cpp: build the C++ unit test targets in the build's output directory and run them.
+def test_cpp(ctx: Context, targets: Sequence[str] | None = None, clean: bool = False,
+             gtest_filter: str | None = None) -> int:
+    """./aerie test-cpp: build the C++ test targets in the build's output directory and run them.
 
-    Every selected binary runs even if an earlier one fails. Returns 0 only if
-    all of them passed. The test fonts are fetched here and nowhere else.
+    Without targets it runs the unit test binaries; the Views UI binaries (UI_TEST_BINARIES) only when named.
+    gtest_filter goes to every selected binary as --gtest_filter. Every selected binary runs even if an earlier
+    one fails. Returns 0 only if all of them passed. The test fonts are fetched here and nowhere else.
     """
-    known = dict(TEST_BINARIES)
+    known = dict(ALL_TEST_BINARIES)
     names = list(targets) if targets else [name for name, _ in TEST_BINARIES]
     unknown = [name for name in names if name not in known]
     if unknown:
@@ -673,8 +715,18 @@ def test_cpp(ctx: Context, targets: Sequence[str] | None = None, clean: bool = F
                 log(f"{binary} is missing after the build")
                 results[name] = 127
                 continue
-            results[name] = run(log, [binary, *known[name]], env, cwd=ctx.out_dir, check=False)
-        log("== C++ unit test results")
+            command = [binary, *known[name]]
+            if gtest_filter:
+                command.append(f"--gtest_filter={gtest_filter}")
+            if name in XVFB_BINARIES:
+                xvfb = shutil.which(XVFB_COMMAND[0], path=env.get("PATH"))
+                if not xvfb:
+                    log(f"{name} needs {XVFB_COMMAND[0]} (package xvfb) and it is not installed")
+                    results[name] = 127
+                    continue
+                command = [xvfb, *XVFB_COMMAND[1:], *command]
+            results[name] = run(log, command, env, cwd=ctx.out_dir, check=False)
+        log("== C++ test results")
         for name, code in results.items():
             log(f"  {'PASS' if code == 0 else 'FAIL'} {name}" + ("" if code == 0 else f" (exit code {code})"))
         return 0 if all(code == 0 for code in results.values()) else 1

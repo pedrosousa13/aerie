@@ -65,7 +65,14 @@ class AerieGuardBrowserTest : public InProcessBrowserTest {
  public:
   void SetUpOnMainThread() override {
     InProcessBrowserTest::SetUpOnMainThread();
+    // HTTPS-only mode is on by default in Aerie (patches/hardening/0001) and
+    // would upgrade the embedded server's http pages to https.
+    chrome_test_utils::GetProfile(this)->GetPrefs()->SetBoolean(
+        prefs::kHttpsOnlyModeEnabled, false);
     host_resolver()->AddRule("*", "127.0.0.1");
+    // Helium prunes chrome/test/data, where title1.html and title2.html
+    // live in Chromium. The same pages are in content/test/data.
+    embedded_test_server()->ServeFilesFromSourceDirectory("content/test/data");
     ASSERT_TRUE(embedded_test_server()->Start());
   }
 
@@ -228,6 +235,15 @@ class FakePage : public aerie_guard::mojom::Page {
 // PageHandler through Mojo, as the page does, for a tab the handler captured.
 class AerieGuardFingerprintingTest : public AerieGuardBrowserTest {
  public:
+  // The handler observes services of the profile, so it has to go before the
+  // browser does; the fixture's destructor runs after the browser is gone.
+  void TearDownOnMainThread() override {
+    handler_.reset();
+    remote_.reset();
+    page_.reset();
+    AerieGuardBrowserTest::TearDownOnMainThread();
+  }
+
   // The panel's handler for |tab|, captured the way the Guard icon captures it.
   void OpenPanelFor(content::WebContents* tab) {
     handler_.reset();
@@ -258,16 +274,25 @@ class AerieGuardFingerprintingTest : public AerieGuardBrowserTest {
     return embedded_test_server()->GetURL(host, "/title1.html");
   }
 
-  // A canvas value a page can read: noise changes it.
+  // A canvas value a page can read: noise changes it. The drawing is the one
+  // the Bench's fingerprint check uses (tools/aerie_bench/fixtures/hardening),
+  // with curved and translucent edges, which the noise needs to act on.
   std::string CanvasValue(content::WebContents* tab) {
     return content::EvalJs(tab, R"(
         (() => {
           const c = document.createElement('canvas');
-          c.width = 200; c.height = 60;
-          const g = c.getContext('2d');
-          g.fillStyle = '#f60'; g.fillRect(0, 0, 200, 60);
-          g.font = '18px sans-serif'; g.fillStyle = '#069';
-          g.fillText('Aerie fingerprint probe 1234567890', 4, 30);
+          c.width = 240; c.height = 80;
+          const x = c.getContext('2d');
+          x.textBaseline = 'top';
+          x.font = '18px Arial';
+          x.fillStyle = '#f60';
+          x.fillRect(10, 10, 100, 40);
+          x.fillStyle = '#069';
+          x.fillText('Aerie fingerprint 1234', 4, 20);
+          x.strokeStyle = 'rgba(102, 204, 0, 0.7)';
+          x.beginPath();
+          x.arc(150, 40, 25, 0, Math.PI * 2);
+          x.stroke();
           return c.toDataURL();
         })())").ExtractString();
   }
