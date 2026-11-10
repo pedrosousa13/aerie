@@ -51,6 +51,17 @@ What it proves (the numbers are the issue #10 acceptance criteria, then the ones
    a built-in list that the Bench cannot reach ends in ``failed`` with an error code, and the retry is the same
    call. A handler without the guard puts EasyList off, so this step fails against it: see ``judge_lists``.
 
+10. The user's own rules (issue #107): ``aerieGuard.setCustomRules`` saves a text with a rule that blocks a fixture script on
+   ``a.localhost`` (and only there), a scriptlet line that would set ``window.aerieScriptletMarker``, a line of
+   HTML in a selector that would set ``window.__aerieOwnXss`` and a broad exception. The script is blocked at
+   once and the same script loads on ``b.localhost``; the scriptlet does not run (the marker stays undefined);
+   the state names each dropped or ignored line with its reason; the text is on disk as saved
+   (``lists/custom.txt``); the Guard page shows the HTML line as text (no element was made, nothing ran); a text
+   over 256 KiB and a number instead of a text are refused and the saved rules keep blocking; a blank text
+   removes the rules and the script loads again. The marker check fails on a build where the scriptlet line
+   runs; it does not prove why (the engine itself builds only hide stylesheets), and no build that skips
+   ``sanitize_list`` is run here: see ``judge_custom_rules``.
+
 What stays with the unit tests: that an incognito tab cannot undo an exception that a regular window saved.
 
 Decision logic is in plain functions (``judge``, ``judge_restart``, ``judge_validation``, ...) that the tests
@@ -88,6 +99,22 @@ AD_URL = "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"  # Eas
 # nothing leaves the machine (train 14: the update step counted it as a request no publisher owns).
 PROBE_PREFIXES = (TRACKER_URL + "?probe=", AD_URL + "?probe=")
 STATE_FILE = "AerieFilterLists/state.json"  # inside the profile
+CUSTOM_FILE = "AerieFilterLists/lists/custom.txt"  # the user's own rules, inside the profile
+OWN_PAGE_PATH = "/filters/own-rules.html"
+OWN_HOST = "a.localhost"  # the site the saved rule is for
+OWN_OTHER_HOST = "b.localhost"  # a site it is not for
+# The text the step saves. Line 2 blocks the fixture script on a.localhost only. Line 3 is a scriptlet that would set
+# window.aerieScriptletMarker. Line 4 is HTML in a selector: it must be shown as text and never become markup or run.
+# Line 5 is an exception rule that matches every address.
+OWN_RULES = (
+    "! Aerie Bench: the user's own rules\n"
+    "/filters/own/blocked.js$domain=a.localhost\n"
+    "a.localhost##+js(set-constant, aerieScriptletMarker, true)\n"
+    'a.localhost##<img src=x onerror="window.__aerieOwnXss=1">\n'
+    "@@http\n"
+)
+OWN_ISSUES = [(3, "scriptlet"), (4, "unsafe_selector"), (5, "matches_every_address")]
+OVER_LIMIT_RULES = "!" * (256 * 1024 + 1)
 N_ADS = 3
 COUNT_HISTOGRAM = "Aerie.Adblock.PageBlockedCount"
 UPDATE_HISTOGRAM = "Aerie.Adblock.ListUpdateSuccess"  # recorded in the report, no threshold
@@ -336,6 +363,87 @@ def judge_lists(obs: dict | None) -> list[str]:
     return problems
 
 
+def judge_own_visit(visit: dict | None, label: str, blocked: bool, problems: list[str]) -> None:
+    """A visit of the own-rules page: the fixture script is blocked (or loads), the other one loads, and no
+    scriptlet ran."""
+    if not visit or not visit.get("done"):
+        problems.append(f"own rules, {label}: the page did not finish loading its scripts")
+        return
+    if blocked:
+        if visit.get("blocked_loaded") is not False:
+            problems.append(f"own rules, {label}: the script the saved rule blocks was not blocked ({visit.get('blocked_loaded')})")
+        if visit.get("fixture_blocked_requests"):
+            problems.append(f"own rules, {label}: the blocked script still reached the fixture server")
+    elif visit.get("blocked_loaded") is not True:
+        problems.append(f"own rules, {label}: the script should load but did not ({visit.get('blocked_loaded')})")
+    if visit.get("open_loaded") is not True:
+        problems.append(f"own rules, {label}: the script that no rule blocks did not load")
+    if visit.get("scriptlet_marker") != "undefined":
+        problems.append(f"own rules, {label}: the scriptlet line ran (window.aerieScriptletMarker is "
+                        f"{visit.get('scriptlet_marker')!r}); the scriptlet line was not dropped")
+
+
+def judge_custom_rules(obs: dict | None) -> list[str]:
+    """The own-rules step (issue #107). Returns the problems.
+
+    ``obs`` holds ``saved`` (the answer to ``setCustomRules`` with ``OWN_RULES``), ``state_after_save`` (the state once
+    the engine was rebuilt), ``blocked_visit`` / ``other_visit`` (the own-rules page as a.localhost and b.localhost),
+    ``file_text`` (``lists/custom.txt``), ``render`` (what the Guard page made of the issues), ``oversize`` (the answer
+    to a text over 256 KiB), ``bad_argument`` (the call with a number), ``refused_visit`` (the page after both
+    refusals), ``cleared`` (the answer to a blank text), ``cleared_visit`` and ``file_after_clear``."""
+    if not obs:
+        return ["no own-rules observations: the check never saved a rule"]
+    problems: list[str] = []
+    saved = obs.get("saved") or {}
+    rules = saved.get("customRules") or {}
+    if not saved or saved.get("customError"):
+        problems.append(f"own rules: the save was refused ({saved.get('customError')!r})")
+    if rules.get("text") != OWN_RULES:
+        problems.append("own rules: the answer does not hold the text as it was saved")
+    issues = [(i.get("line"), i.get("reason")) for i in rules.get("issues") or []]
+    if issues != OWN_ISSUES:
+        problems.append(f"own rules: the dropped and ignored lines are {issues}, expected {OWN_ISSUES}")
+    ignored = [i.get("ignored") for i in rules.get("issues") or []]
+    if ignored != [False, False, True]:
+        problems.append(f"own rules: only the broad exception should be marked ignored, got {ignored}")
+    entry = find_id(obs.get("state_after_save"), "custom")
+    if entry is None or entry.get("enabled") is not True or not isinstance(entry.get("rules"), int) or entry["rules"] < 1:
+        problems.append(f"own rules: the list 'custom' is not on with a rule ({entry})")
+    elif entry.get("url"):
+        problems.append("own rules: the list 'custom' has an address, so it could be fetched")
+    judge_own_visit(obs.get("blocked_visit"), "after saving", True, problems)
+    other = obs.get("other_visit") or {}
+    if other.get("blocked_loaded") is not True:
+        problems.append("own rules: the rule for a.localhost also blocked the script on b.localhost")
+    if obs.get("file_text") != OWN_RULES:
+        problems.append("own rules: lists/custom.txt is not the text that was saved")
+    render = obs.get("render") or {}
+    if render.get("pages") != 1:
+        problems.append(f"own rules: the Guard page was not found to inspect ({render.get('pages')})")
+    else:
+        if render.get("injected"):
+            problems.append(f"own rules: the page made {render['injected']} element(s) out of a rule; it must be text")
+        if "onerror" not in (render.get("text") or ""):
+            problems.append("own rules: the page does not show the HTML line as text")
+    if render.get("xss") != "undefined":
+        problems.append("own rules: a rule ran as script on the Guard page")
+    over = obs.get("oversize") or {}
+    if over.get("customError") != "too_large":
+        problems.append(f"own rules: a text over 256 KiB was not refused as too_large ({over.get('customError')!r})")
+    if (over.get("customRules") or {}).get("text") != OWN_RULES:
+        problems.append("own rules: a refused text changed the saved rules")
+    if (obs.get("bad_argument") or {}).get("ok") is not False:
+        problems.append("own rules: a number instead of a text was not rejected")
+    judge_own_visit(obs.get("refused_visit"), "after the refused saves", True, problems)
+    cleared = obs.get("cleared") or {}
+    if find_id(cleared, "custom") is not None or (cleared.get("customRules") or {}).get("text"):
+        problems.append("own rules: a blank text did not remove the rules")
+    judge_own_visit(obs.get("cleared_visit"), "after the rules were removed", False, problems)
+    if obs.get("file_after_clear") is not None:
+        problems.append("own rules: lists/custom.txt is still on disk after the rules were removed")
+    return problems
+
+
 def judge(obs: dict) -> tuple[str, str, dict]:
     """Return (status, detail, data) for the observations of both launches."""
     problems: list[str] = []
@@ -359,6 +467,7 @@ def judge(obs: dict) -> tuple[str, str, dict]:
     judge_visit(exc.get("excepted_visit"), f"exception, {EXCEPTED_HOST}", False, problems)
     judge_visit(exc.get("other_visit"), f"exception, {OTHER_HOST}", True, problems)
     problems += judge_lists(obs.get("lists"))
+    problems += judge_custom_rules(obs.get("custom_rules"))
     problems += judge_validation(obs.get("validation"))
     problems += judge_incognito(obs.get("incognito"))
     problems += judge_restart(obs.get("restart"), obs.get("list_url", ""))
@@ -371,7 +480,8 @@ def judge(obs: dict) -> tuple[str, str, dict]:
                     f"{EXCEPTED_HOST} only and it survived a restart; {len(obs['validation']['probes'])} bad arguments were refused "
                     f"and left state.json unchanged; Guard turned off in an incognito window through the panel applied there only "
                     f"and never reached state.json; both negative controls rejected; EasyPrivacy off let its request through and on "
-                    f"blocked it, EasyList refused to turn off"), data
+                    f"blocked it, EasyList refused to turn off; the user's own rules blocked a script on {OWN_HOST} only, their "
+                    f"scriptlet line did not run and was reported with a reason, an oversize text was refused"), data
 
 
 # ---------------------------------------------------------------- browser driving
@@ -511,6 +621,7 @@ def observe_first_launch(session: Session, profile_path: str | Path | None = Non
                         "excepted_visit": visit_page(session, EXCEPTED_HOST, "excepted"),
                         "other_visit": visit_page(session, OTHER_HOST, "other")}
     obs["lists"] = observe_lists(session, custom_url)
+    obs["custom_rules"] = observe_custom_rules(session, profile_path)
     obs["validation"] = observe_validation(session, profile_path)
     return obs
 
@@ -589,7 +700,79 @@ VALIDATION_PROBES = (
     ("setListEnabled with a 5000-character id", "setListEnabled", [LONG_ARG, False]),
     ("setListEnabled with a non-boolean switch", "setListEnabled", ["easyprivacy", "no"]),
     ("setAutoUpdate with a non-boolean value", "setAutoUpdate", ["yes"]),
+    ("setCustomRules with a number as the text", "setCustomRules", [123]),
+    ("setCustomRules with a 2 MiB text", "setCustomRules", ["!" * (2 * 1024 * 1024)]),
 )
+
+
+RENDER_JS = """(() => {
+  const found = {pages: 0, injected: 0, text: ''};
+  const walk = (root) => {
+    for (const el of root.querySelectorAll('*')) {
+      if (el.localName === 'settings-aerie-guard-page' && el.shadowRoot) {
+        found.pages++;
+        const issues = el.shadowRoot.querySelector('#customIssues');
+        found.text = issues ? issues.textContent : '';
+        found.injected = issues ? issues.querySelectorAll('img, script, iframe, svg, a, style').length : 0;
+      }
+      if (el.shadowRoot) walk(el.shadowRoot);
+    }
+  };
+  walk(document);
+  found.xss = typeof window.__aerieOwnXss;
+  return found;
+})()"""
+
+
+def visit_own_page(session: Session, host: str, visit_id: str) -> dict:
+    """Open the own-rules fixture page as ``host`` and return what it saw, plus how many times the fixture server
+    gave the script that the saved rule blocks."""
+    session.navigate_url(f"http://{host}:{session.fixtures.port}{OWN_PAGE_PATH}?visit={visit_id}")
+    session.wait_for("window.__ownResults && window.__ownResults.done === true", timeout=15.0)
+    result = session.evaluate("window.__ownResults") or {}
+    marker = f"?visit={visit_id}"
+    result["fixture_blocked_requests"] = sum(
+        1 for r in session.fixtures.snapshot()
+        if r["path"].startswith("/filters/own/blocked.js") and r["path"].endswith(marker) and r["status"] == 200)
+    return result
+
+
+def read_custom_file(profile_path: str | Path | None) -> str | None:
+    if not profile_path:
+        return None
+    try:
+        return (Path(profile_path) / CUSTOM_FILE).read_text()
+    except OSError:
+        return None
+
+
+def observe_custom_rules(session: Session, profile_path: str | Path | None) -> dict:
+    """The user's own rules (issue #107), on the manager page's browser after the per-list step."""
+    obs: dict = {}
+    open_manager(session)
+    obs["saved"] = send(session, "setCustomRules", [OWN_RULES])
+    obs["state_after_save"] = wait_state(session, lambda s: not s.get("busy"))
+    obs["blocked_visit"] = visit_own_page(session, OWN_HOST, "own-blocked")
+    obs["other_visit"] = visit_own_page(session, OWN_OTHER_HOST, "own-other")
+    time.sleep(SETTLE)
+    obs["file_text"] = read_custom_file(profile_path)
+    open_manager(session)
+    deadline = time.monotonic() + STATE_TIMEOUT
+    while True:  # The page draws the issues once it has the state.
+        obs["render"] = session.evaluate(RENDER_JS) or {}
+        if "onerror" in (obs["render"].get("text") or "") or time.monotonic() >= deadline:
+            break
+        time.sleep(0.25)
+    obs["oversize"] = send(session, "setCustomRules", [OVER_LIMIT_RULES])
+    obs["bad_argument"] = call(session, "setCustomRules", [123])
+    obs["refused_visit"] = visit_own_page(session, OWN_HOST, "own-refused")
+    open_manager(session)
+    obs["cleared"] = send(session, "setCustomRules", ["  \n"])
+    wait_state(session, lambda s: not s.get("busy"))
+    time.sleep(SETTLE)
+    obs["cleared_visit"] = visit_own_page(session, OWN_HOST, "own-cleared")
+    obs["file_after_clear"] = read_custom_file(profile_path)
+    return obs
 
 
 def observe_validation(session: Session, profile_path: str | Path | None) -> dict:

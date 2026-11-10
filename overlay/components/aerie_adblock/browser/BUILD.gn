@@ -88,6 +88,7 @@ source_set("classifier") {
 source_set("list_types") {
   visibility = _visibility
   sources = [
+    "custom_rules.h",
     "filter_list_state.cc",
     "filter_list_state.h",
     "filter_list_storage.cc",

@@ -62,6 +62,7 @@ class FilterEngineService::Host {
   BuildResult Replace(std::vector<ListInput> inputs) {
     std::vector<std::string> texts;
     std::vector<bool> custom;
+    std::vector<bool> own;
     texts.reserve(inputs.size());
     for (size_t i = 0; i < inputs.size(); ++i) {
       ListInput& input = inputs[i];
@@ -72,8 +73,9 @@ class FilterEngineService::Host {
       }
       texts.push_back(std::move(input.text));
       custom.push_back(input.custom);
+      own.push_back(input.own);
     }
-    BuildResult result = engine_.LoadLists(texts, kBuildBudget, custom);
+    BuildResult result = engine_.LoadLists(texts, kBuildBudget, custom, own);
     if (result.failure == ListFailure::kNone && result.ignored_exceptions > 0) {
       LOG(WARNING) << "aerie_adblock: " << result.ignored_exceptions
                    << " exception rule(s) that match every address were "

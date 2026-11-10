@@ -11,6 +11,7 @@
 #include "base/functional/bind.h"
 #include "chrome/browser/profiles/profile.h"
 #include "components/aerie_adblock/browser/blocking_level.h"
+#include "components/aerie_adblock/browser/custom_rules.h"
 #include "components/aerie_adblock/browser/filter_list_state.h"
 #include "components/aerie_adblock/browser/list_failure.h"
 #include "content/public/browser/web_ui.h"
@@ -28,6 +29,11 @@ using aerie_adblock::SessionKey;
 // The longest string argument the handler accepts. Longer than any acceptable
 // list address or host name.
 constexpr size_t kMaxArgLength = 4096;
+
+// The longest text of the user's own rules the handler passes on. The manager
+// refuses more than 256 KiB itself (and says so); this only stops a message
+// that is far larger than any text from being copied around.
+constexpr size_t kMaxCustomRulesArgLength = 1024 * 1024;
 
 constexpr char kStateChangedEvent[] = "aerie-guard-state-changed";
 
@@ -47,6 +53,27 @@ const std::string* StringArg(const base::ListValue& args, size_t index) {
   }
   const std::string& text = args[index].GetString();
   return text.size() <= kMaxArgLength ? &text : nullptr;
+}
+
+base::DictValue CustomRulesToValue(const aerie_adblock::CustomRules& rules) {
+  base::DictValue out;
+  out.Set("text", rules.text);
+  out.Set("networkRules", rules.network_rules);
+  out.Set("hideRules", rules.hide_rules);
+  out.Set("ignoredExceptions", rules.ignored_exceptions);
+  out.Set("dropped", rules.dropped);
+  out.Set("issueCount", rules.issue_count);
+  base::ListValue issues;
+  for (const aerie_adblock::CustomRuleIssue& issue : rules.issues) {
+    base::DictValue item;
+    item.Set("line", issue.line);
+    item.Set("reason", issue.reason);
+    item.Set("ignored", issue.ignored);
+    item.Set("rule", issue.rule);
+    issues.Append(std::move(item));
+  }
+  out.Set("issues", std::move(issues));
+  return out;
 }
 
 const char* UpdateStatusName(FilterListManager::UpdateStatus status) {
@@ -74,7 +101,8 @@ base::DictValue AerieGuardSettingsHandler::StateToValue(
     const FilterListManager& manager,
     std::string_view add_error,
     std::string_view exception_error,
-    std::string_view list_error) {
+    std::string_view list_error,
+    std::string_view custom_error) {
   const aerie_adblock::FilterListState& state = manager.state();
   base::DictValue out;
   out.Set("ready", true);
@@ -85,6 +113,8 @@ base::DictValue AerieGuardSettingsHandler::StateToValue(
   out.Set("addError", std::string(add_error));
   out.Set("exceptionError", std::string(exception_error));
   out.Set("listError", std::string(list_error));
+  out.Set("customError", std::string(custom_error));
+  out.Set("customRules", CustomRulesToValue(manager.custom_rules()));
   // Settings runs in the regular profile: the saved exceptions only, never
   // the in-memory ones of an incognito window.
   base::ListValue exceptions;
@@ -158,6 +188,10 @@ void AerieGuardSettingsHandler::RegisterMessages() {
       "aerieGuard.setAutoUpdate",
       base::BindRepeating(&AerieGuardSettingsHandler::HandleSetAutoUpdate,
                           base::Unretained(this)));
+  web_ui()->RegisterMessageCallback(
+      "aerieGuard.setCustomRules",
+      base::BindRepeating(&AerieGuardSettingsHandler::HandleSetCustomRules,
+                          base::Unretained(this)));
 }
 
 void AerieGuardSettingsHandler::OnJavascriptDisallowed() {
@@ -190,14 +224,16 @@ FilterListManager* AerieGuardSettingsHandler::Begin(
 void AerieGuardSettingsHandler::Resolve(const base::ListValue& args,
                                         std::string_view add_error,
                                         std::string_view exception_error,
-                                        std::string_view list_error) {
+                                        std::string_view list_error,
+                                        std::string_view custom_error) {
   FilterListManager* manager = FilterListManager::Get();
   const std::string* id = CallbackId(args);
   if (!manager || !id) {
     return;
   }
-  ResolveJavascriptCallback(
-      base::Value(*id), StateToValue(*manager, add_error, exception_error, list_error));
+  ResolveJavascriptCallback(base::Value(*id),
+                            StateToValue(*manager, add_error, exception_error,
+                                         list_error, custom_error));
 }
 
 void AerieGuardSettingsHandler::Reject(const base::ListValue& args,
@@ -373,6 +409,42 @@ void AerieGuardSettingsHandler::HandleSetAutoUpdate(
     manager->SetAutoUpdate(args[1].GetBool());
     Resolve(args, std::string_view(), std::string_view());
   }
+}
+
+void AerieGuardSettingsHandler::HandleSetCustomRules(
+    const base::ListValue& args) {
+  if (!CallbackId(args)) {
+    return;
+  }
+  if (args.size() != 2 || !args[1].is_string() ||
+      args[1].GetString().size() > kMaxCustomRulesArgLength) {
+    Reject(args, "bad_argument");
+    return;
+  }
+  FilterListManager* manager = Begin(args);
+  if (!manager) {
+    return;
+  }
+  // The manager bounds and parses the text before it saves or applies any of
+  // it. The answer comes when the check, the write and the change are done.
+  manager->SetCustomRules(
+      args[1].GetString(),
+      base::BindOnce(&AerieGuardSettingsHandler::OnCustomRulesSaved,
+                     weak_factory_.GetWeakPtr(), *CallbackId(args)));
+}
+
+void AerieGuardSettingsHandler::OnCustomRulesSaved(
+    std::string callback_id,
+    aerie_adblock::CustomRulesFailure failure) {
+  FilterListManager* manager = FilterListManager::Get();
+  if (!manager || !IsJavascriptAllowed()) {  // The page went away meanwhile.
+    return;
+  }
+  ResolveJavascriptCallback(
+      base::Value(callback_id),
+      StateToValue(*manager, std::string_view(), std::string_view(),
+                   std::string_view(),
+                   aerie_adblock::CustomRulesFailureCode(failure)));
 }
 
 }  // namespace aerie_guard

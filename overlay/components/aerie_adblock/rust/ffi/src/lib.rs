@@ -18,6 +18,7 @@
 //! * An `Engine` is not thread-safe (`adblock`'s `single-thread` feature).
 //!   The C++ owner keeps it on one sequence.
 
+use aerie_adblock_core::custom::{CustomRulesError, RuleReason, analyze_custom_rules};
 use aerie_adblock_core::{FilterEngine, ListError, RequestInfo, RequestKind, check_list as core_check_list};
 use std::time::Duration;
 
@@ -78,6 +79,58 @@ mod ffi {
         ignored_exceptions: u32,
     }
 
+    /// Why the user's own rules were refused whole. Mirrors
+    /// `aerie_adblock_core::custom::CustomRulesError`.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    #[repr(u8)]
+    enum CustomStatus {
+        Ok,
+        TooLarge,
+        TooManyLines,
+        NotText,
+        Timeout,
+    }
+
+    /// Why one line of the user's own rules is not in the engine. Mirrors
+    /// `aerie_adblock_core::custom::RuleReason`.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    #[repr(u8)]
+    enum CustomReason {
+        Scriptlet,
+        HtmlFilter,
+        Procedural,
+        StyleInjection,
+        UnsafeSelector,
+        TooLong,
+        ContainsNul,
+        MatchesEveryAddress,
+        Unparseable,
+    }
+
+    /// One line that was dropped or ignored.
+    struct CustomIssue {
+        /// 1-based.
+        line: u32,
+        reason: CustomReason,
+        /// The line, cut short. Untrusted text.
+        rule: String,
+    }
+
+    /// The result of checking the user's own rules.
+    struct CustomReport {
+        status: CustomStatus,
+        network_rules: u32,
+        hide_rules: u32,
+        /// Exception rules left out because they match every address.
+        ignored_exceptions: u32,
+        /// Lines dropped for any other reason.
+        dropped: u32,
+        /// All issues, also those not in `issues`.
+        issue_count: u32,
+        /// The first issues, in line order (a bounded number).
+        issues: Vec<CustomIssue>,
+    }
+
     extern "Rust" {
         type Engine;
         type EngineBuilder;
@@ -86,9 +139,16 @@ mod ffi {
         /// milliseconds. Nothing is built or kept. Never panics.
         fn check_list(list: &[u8], budget_ms: u32) -> ListReport;
 
+        /// Bound and parse the user's own rules (issue #107) within
+        /// `budget_ms`. Nothing is built or kept. Never panics.
+        fn check_custom_rules(text: &[u8], budget_ms: u32) -> CustomReport;
+
         /// A builder that collects lists (copying them).
         fn new_engine_builder() -> Box<EngineBuilder>;
         fn add_list(self: &mut EngineBuilder, list: &[u8]);
+        /// Add the user's own rules: like `add_list`, but a text with hide
+        /// rules and no network rule is accepted.
+        fn add_own_list(self: &mut EngineBuilder, list: &[u8]);
 
         /// Check every added list, then replace the rules of `engine` with all
         /// of them compiled together. The lists share `budget_ms`. When any list
@@ -134,9 +194,13 @@ mod ffi {
     }
 }
 
-use ffi::{BuildReport, ListReport, ListStatus, RequestType};
+use ffi::{
+    BuildReport, CustomIssue, CustomReason, CustomReport, CustomStatus, ListReport, ListStatus,
+    RequestType,
+};
 
-pub struct EngineBuilder(Vec<Vec<u8>>);
+/// The lists, and whether each is the user's own rules.
+pub struct EngineBuilder(Vec<(Vec<u8>, bool)>);
 
 fn status_from_error(e: ListError) -> ListStatus {
     match e {
@@ -165,18 +229,80 @@ fn check_list(list: &[u8], budget_ms: u32) -> ListReport {
     }
 }
 
+fn custom_status(e: CustomRulesError) -> CustomStatus {
+    match e {
+        CustomRulesError::TooLarge => CustomStatus::TooLarge,
+        CustomRulesError::TooManyLines => CustomStatus::TooManyLines,
+        CustomRulesError::NotText => CustomStatus::NotText,
+        CustomRulesError::Timeout => CustomStatus::Timeout,
+    }
+}
+
+fn custom_reason(r: RuleReason) -> CustomReason {
+    match r {
+        RuleReason::Scriptlet => CustomReason::Scriptlet,
+        RuleReason::HtmlFilter => CustomReason::HtmlFilter,
+        RuleReason::Procedural => CustomReason::Procedural,
+        RuleReason::StyleInjection => CustomReason::StyleInjection,
+        RuleReason::UnsafeSelector => CustomReason::UnsafeSelector,
+        RuleReason::TooLong => CustomReason::TooLong,
+        RuleReason::ContainsNul => CustomReason::ContainsNul,
+        RuleReason::MatchesEveryAddress => CustomReason::MatchesEveryAddress,
+        RuleReason::Unparseable => CustomReason::Unparseable,
+    }
+}
+
+fn count(n: usize) -> u32 {
+    u32::try_from(n).unwrap_or(u32::MAX)
+}
+
+fn check_custom_rules(text: &[u8], budget_ms: u32) -> CustomReport {
+    match analyze_custom_rules(text, Duration::from_millis(budget_ms.into())) {
+        Ok(rules) => CustomReport {
+            status: CustomStatus::Ok,
+            network_rules: count(rules.network_rules),
+            hide_rules: count(rules.hide_rules),
+            ignored_exceptions: count(rules.ignored_exceptions),
+            dropped: count(rules.dropped),
+            issue_count: count(rules.issue_count),
+            issues: rules
+                .issues
+                .into_iter()
+                .map(|i| CustomIssue {
+                    line: count(i.line),
+                    reason: custom_reason(i.reason),
+                    rule: i.rule,
+                })
+                .collect(),
+        },
+        Err(e) => CustomReport {
+            status: custom_status(e),
+            network_rules: 0,
+            hide_rules: 0,
+            ignored_exceptions: 0,
+            dropped: 0,
+            issue_count: 0,
+            issues: Vec::new(),
+        },
+    }
+}
+
 fn new_engine_builder() -> Box<EngineBuilder> {
     Box::new(EngineBuilder(Vec::new()))
 }
 
 impl EngineBuilder {
     fn add_list(&mut self, list: &[u8]) {
-        self.0.push(list.to_vec());
+        self.0.push((list.to_vec(), false));
+    }
+
+    fn add_own_list(&mut self, list: &[u8]) {
+        self.0.push((list.to_vec(), true));
     }
 
     fn build_into(&self, budget_ms: u32, engine: &mut Engine) -> BuildReport {
-        let lists = self.0.iter().map(|l| l.as_slice());
-        match FilterEngine::from_checked_lists(lists, Duration::from_millis(budget_ms.into())) {
+        let lists = self.0.iter().map(|(l, own)| (l.as_slice(), *own));
+        match FilterEngine::from_checked_lists_with(lists, Duration::from_millis(budget_ms.into())) {
             Ok((built, checks)) => {
                 engine.0 = built;
                 let ignored: usize = checks.iter().map(|c| c.ignored_exceptions).sum();
@@ -341,6 +467,37 @@ mod tests {
         let generic = e.generic_stylesheet("https://news.test/a", "ad-banner x", "");
         assert!(generic.contains(".ad-banner{display:none!important}"), "{generic}");
         assert!(e.generic_stylesheet("https://news.test/a", "x", "y").is_empty());
+    }
+
+    #[test]
+    fn bridge_checks_the_users_own_rules() {
+        let r = check_custom_rules(b"||a.test^\n##.x\nb.test##+js(y)\n@@http\n", 5000);
+        assert_eq!(r.status, CustomStatus::Ok);
+        assert_eq!((r.network_rules, r.hide_rules, r.ignored_exceptions, r.dropped), (1, 1, 1, 1));
+        assert_eq!(r.issue_count, 2);
+        assert_eq!(
+            r.issues.iter().map(|i| (i.line, i.reason)).collect::<Vec<_>>(),
+            [(3, CustomReason::Scriptlet), (4, CustomReason::MatchesEveryAddress)]
+        );
+        assert_eq!(r.issues[0].rule, "b.test##+js(y)");
+        assert_eq!(check_custom_rules(&vec![b'a'; 300 * 1024], 5000).status, CustomStatus::TooLarge);
+        assert_eq!(check_custom_rules("!\n".repeat(10_001).as_bytes(), 5000).status, CustomStatus::TooManyLines);
+        assert_eq!(check_custom_rules(b"\xff", 5000).status, CustomStatus::NotText);
+        assert_eq!(check_custom_rules(b"||a.test^\n", 0).status, CustomStatus::Timeout);
+    }
+
+    #[test]
+    fn the_users_own_hide_rules_build_where_a_downloaded_list_of_them_does_not() {
+        let mut engine = new_empty_engine();
+        let mut b = new_engine_builder();
+        b.add_list(b"##.x\n");
+        assert_eq!(b.build_into(5000, &mut engine).status, ListStatus::NoRules);
+        let mut own = new_engine_builder();
+        own.add_own_list(b"##.x\n");
+        assert_eq!(own.build_into(5000, &mut engine).status, ListStatus::Ok);
+        let mut html = new_engine_builder();
+        html.add_own_list(b"<html>");
+        assert_eq!(html.build_into(5000, &mut engine).status, ListStatus::LooksLikeHtml);
     }
 
     #[test]

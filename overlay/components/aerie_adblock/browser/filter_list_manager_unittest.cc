@@ -816,5 +816,209 @@ TEST_F(FilterListManagerTest, AnUpdatedListReportsItsIgnoredExceptions) {
   EXPECT_EQ(2, entry->ignored_exceptions);
 }
 
+// The user's own rules (issue #107).
+class CustomRulesTest : public FilterListManagerTest {
+ protected:
+  // Saves |text| and waits for the answer and for the rebuild.
+  CustomRulesFailure Save(FilterListManager& manager, std::string text) {
+    CustomRulesFailure result = CustomRulesFailure::kUnwritable;
+    base::RunLoop loop;
+    manager.SetCustomRules(
+        std::move(text), base::BindLambdaForTesting([&](CustomRulesFailure f) {
+          result = f;
+          loop.Quit();
+        }));
+    loop.Run();
+    WaitUntilIdle(manager);
+    return result;
+  }
+
+  base::FilePath File() {
+    return filter_list_storage::ListPath(dir_.GetPath(), kCustomRulesId);
+  }
+};
+
+TEST_F(CustomRulesTest, ASavedRuleBlocksAtOnceAndNothingIsFetched) {
+  auto manager = MakeManager();
+  EXPECT_FALSE(Blocks("mine.example"));
+  EXPECT_EQ(CustomRulesFailure::kNone,
+            Save(*manager, "! mine\n||mine.example^\n"));
+  EXPECT_TRUE(Blocks("mine.example"));
+  EXPECT_TRUE(Blocks("builtin-one.example"));  // The other lists stay.
+  const FilterListEntry* entry = manager->state().Find(kCustomRulesId);
+  ASSERT_TRUE(entry);
+  EXPECT_TRUE(entry->url.empty());
+  EXPECT_EQ(1, entry->rules);
+  EXPECT_EQ("", entry->error);
+  EXPECT_FALSE(entry->updated.is_null());
+  EXPECT_EQ("! mine\n||mine.example^\n", manager->custom_rules().text);
+  EXPECT_EQ(1, manager->custom_rules().network_rules);
+  std::string saved;
+  ASSERT_TRUE(base::ReadFileToString(File(), &saved));
+  EXPECT_EQ("! mine\n||mine.example^\n", saved);
+  EXPECT_EQ(0u, network_.total_requests());
+}
+
+TEST_F(CustomRulesTest,
+       AScriptletLineIsDroppedWithAReasonAndTheRestStillWorks) {
+  auto manager = MakeManager();
+  ASSERT_EQ(
+      CustomRulesFailure::kNone,
+      Save(*manager,
+           "||mine.example^\na.localhost##+js(abort-on-property-read, x)\n"));
+  EXPECT_TRUE(Blocks("mine.example"));
+  const CustomRules& rules = manager->custom_rules();
+  ASSERT_EQ(1u, rules.issues.size());
+  EXPECT_EQ(2, rules.issues[0].line);
+  EXPECT_EQ("scriptlet", rules.issues[0].reason);
+  EXPECT_FALSE(rules.issues[0].ignored);
+  EXPECT_EQ("a.localhost##+js(abort-on-property-read, x)",
+            rules.issues[0].rule);
+  EXPECT_EQ(1, rules.dropped);
+}
+
+TEST_F(CustomRulesTest, ABroadExceptionIsReportedAsIgnored) {
+  auto manager = MakeManager();
+  ASSERT_EQ(CustomRulesFailure::kNone,
+            Save(*manager, "||mine.example^\n@@http\n"));
+  const CustomRules& rules = manager->custom_rules();
+  ASSERT_EQ(1u, rules.issues.size());
+  EXPECT_EQ("matches_every_address", rules.issues[0].reason);
+  EXPECT_TRUE(rules.issues[0].ignored);
+  EXPECT_EQ(1, rules.ignored_exceptions);
+  EXPECT_EQ(1, manager->state().Find(kCustomRulesId)->ignored_exceptions);
+}
+
+TEST_F(CustomRulesTest, ATextOverTheLimitsIsRefusedAndChangesNothing) {
+  auto manager = MakeManager();
+  ASSERT_EQ(CustomRulesFailure::kNone, Save(*manager, "||mine.example^\n"));
+
+  EXPECT_EQ(CustomRulesFailure::kTooLarge,
+            Save(*manager, std::string(256 * 1024 + 1, '!')));
+  std::string many;
+  for (int i = 0; i < 10001; ++i) {
+    many += "!\n";
+  }
+  EXPECT_EQ(CustomRulesFailure::kTooManyLines, Save(*manager, many));
+  EXPECT_EQ(CustomRulesFailure::kNotText,
+            Save(*manager, "||x.example^\n\xff\n"));
+
+  EXPECT_TRUE(Blocks("mine.example"));
+  EXPECT_EQ("||mine.example^\n", manager->custom_rules().text);
+  std::string saved;
+  ASSERT_TRUE(base::ReadFileToString(File(), &saved));
+  EXPECT_EQ("||mine.example^\n", saved);
+}
+
+TEST_F(CustomRulesTest, HostileLinesAreDroppedAndTheFileStaysSmall) {
+  auto manager = MakeManager();
+  std::string text = "||mine.example^\n";
+  text += "||" + std::string(5000, 'a') + ".example^\n";    // Over 4 KiB.
+  text += std::string("||nul") + '\0' + "byte.example^\n";  // A NUL byte.
+  text += "/(a+)+$/\n";                                     // A regex bomb.
+  ASSERT_EQ(CustomRulesFailure::kNone, Save(*manager, text));
+  const CustomRules& rules = manager->custom_rules();
+  ASSERT_EQ(2u, rules.issues.size());
+  EXPECT_EQ("too_long", rules.issues[0].reason);
+  EXPECT_LE(rules.issues[0].rule.size(), 200u);
+  EXPECT_EQ("contains_nul", rules.issues[1].reason);
+  EXPECT_TRUE(Blocks("mine.example"));
+}
+
+TEST_F(CustomRulesTest, RulesThatAreOnlyHideRulesDoNotBreakTheBuild) {
+  auto manager = MakeManager();
+  ASSERT_EQ(CustomRulesFailure::kNone, Save(*manager, "##.banner\n"));
+  const FilterListEntry* entry = manager->state().Find(kCustomRulesId);
+  ASSERT_TRUE(entry);
+  EXPECT_EQ("", entry->error);
+  EXPECT_FALSE(entry->updated.is_null());
+  EXPECT_TRUE(Blocks("builtin-one.example"));  // The rebuild worked.
+  EXPECT_EQ(1, manager->custom_rules().hide_rules);
+}
+
+TEST_F(CustomRulesTest, TheRulesSurviveARestartAndAreAnalysedAgain) {
+  {
+    auto manager = MakeManager();
+    ASSERT_EQ(CustomRulesFailure::kNone,
+              Save(*manager, "||mine.example^\nb.test#%#//scriptlet('x')\n"));
+  }
+  auto manager = MakeManager();
+  EXPECT_TRUE(Blocks("mine.example"));
+  EXPECT_EQ("||mine.example^\nb.test#%#//scriptlet('x')\n",
+            manager->custom_rules().text);
+  ASSERT_EQ(1u, manager->custom_rules().issues.size());
+  EXPECT_EQ("scriptlet", manager->custom_rules().issues[0].reason);
+}
+
+TEST_F(CustomRulesTest, ABlankTextRemovesTheRulesAndTheFile) {
+  auto manager = MakeManager();
+  ASSERT_EQ(CustomRulesFailure::kNone, Save(*manager, "||mine.example^\n"));
+  ASSERT_TRUE(base::PathExists(File()));
+  EXPECT_EQ(CustomRulesFailure::kNone, Save(*manager, " \n\t\n"));
+  EXPECT_FALSE(Blocks("mine.example"));
+  EXPECT_EQ(nullptr, manager->state().Find(kCustomRulesId));
+  EXPECT_FALSE(base::PathExists(File()));
+  EXPECT_EQ("", manager->custom_rules().text);
+  EXPECT_FALSE(manager->state().NeedsRebuild());
+}
+
+TEST_F(CustomRulesTest, TurningTheRulesOffKeepsThemAndStopsThem) {
+  auto manager = MakeManager();
+  ASSERT_EQ(CustomRulesFailure::kNone, Save(*manager, "||mine.example^\n"));
+  EXPECT_EQ(FilterListState::EnableResult::kOk,
+            manager->SetListEnabled(kCustomRulesId, false));
+  WaitUntilIdle(*manager);
+  EXPECT_FALSE(Blocks("mine.example"));
+  EXPECT_TRUE(base::PathExists(File()));
+  // A new save keeps the switch where the user put it.
+  ASSERT_EQ(CustomRulesFailure::kNone,
+            Save(*manager, "||mine.example^\n||two.example^\n"));
+  EXPECT_FALSE(manager->state().Find(kCustomRulesId)->enabled);
+  EXPECT_FALSE(Blocks("two.example"));
+}
+
+TEST_F(CustomRulesTest, UpdateAllAndUpdateListNeverFetchTheUsersOwnRules) {
+  network_.AddResponse(kEasyListUrl, "||new-one.example^\n");
+  network_.AddResponse(kEasyPrivacyUrl, "||new-two.example^\n");
+  auto manager = MakeManager();
+  ASSERT_EQ(CustomRulesFailure::kNone, Save(*manager, "||mine.example^\n"));
+  manager->UpdateAll();
+  manager->UpdateList(kCustomRulesId);
+  WaitUntilIdle(*manager);
+  EXPECT_EQ(2u, network_.total_requests());
+  EXPECT_TRUE(Blocks("mine.example"));
+  EXPECT_EQ(FilterListManager::UpdateStatus::kIdle,
+            manager->UpdateStatusFor(kCustomRulesId));
+}
+
+TEST_F(CustomRulesTest, RemovingTheListClearsTheRules) {
+  auto manager = MakeManager();
+  ASSERT_EQ(CustomRulesFailure::kNone, Save(*manager, "||mine.example^\n"));
+  manager->RemoveList(kCustomRulesId);
+  WaitUntilIdle(*manager);
+  EXPECT_FALSE(Blocks("mine.example"));
+  EXPECT_EQ("", manager->custom_rules().text);
+  EXPECT_FALSE(base::PathExists(File()));
+}
+
+TEST_F(CustomRulesTest, TheLastOfTwoQuickSavesWins) {
+  auto manager = MakeManager();
+  std::vector<CustomRulesFailure> results;
+  base::RunLoop loop;
+  auto done = base::BindLambdaForTesting([&](CustomRulesFailure f) {
+    results.push_back(f);
+    if (results.size() == 2) {
+      loop.Quit();
+    }
+  });
+  manager->SetCustomRules("||first.example^\n", done);
+  manager->SetCustomRules("||second.example^\n", done);
+  loop.Run();
+  WaitUntilIdle(*manager);
+  EXPECT_FALSE(Blocks("first.example"));
+  EXPECT_TRUE(Blocks("second.example"));
+  EXPECT_EQ("||second.example^\n", manager->custom_rules().text);
+}
+
 }  // namespace
 }  // namespace aerie_adblock

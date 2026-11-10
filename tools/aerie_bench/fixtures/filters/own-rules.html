@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Aerie Own Rules Fixture</title></head>
+<body>
+<h1>First-party content</h1>
+<script>
+// The user's own rules (issue #107). The page asks for one script that the saved rule blocks on a.localhost and
+// one that nothing blocks, from 127.0.0.1 (a host other than this page's, as real ads are). A scriptlet rule
+// would set window.aerieScriptletMarker; Aerie never runs scriptlets, so it must stay undefined.
+(function () {
+  var visit = new URLSearchParams(location.search).get("visit") || "none";
+  var base = "http://127.0.0.1:" + location.port + "/filters/own/";
+  var results = {visit: visit, host: location.hostname, blocked_loaded: null, open_loaded: null,
+                 scriptlet_marker: "", done: false};
+  window.__ownResults = results;
+  var pending = 0;
+  function load(name, done) {
+    pending++;
+    var s = document.createElement("script");
+    s.onload = function () { done(true); finish(); };
+    s.onerror = function () { done(false); finish(); };
+    s.src = base + name + "?visit=" + encodeURIComponent(visit);
+    document.body.appendChild(s);
+  }
+  function finish() {
+    if (--pending === 0) {
+      results.scriptlet_marker = typeof window.aerieScriptletMarker;
+      results.done = true;
+    }
+  }
+  load("blocked.js", function (ok) { results.blocked_loaded = ok; });
+  load("open.js", function (ok) { results.open_loaded = ok; });
+})();
+</script>
+</body>
+</html>

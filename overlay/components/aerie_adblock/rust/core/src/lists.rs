@@ -18,10 +18,12 @@
 //! so a list made only of them has no rules, and a list with some of them
 //! passes with `ListCheck::ignored_exceptions` set so the caller can warn.
 
+use crate::custom::MAX_CUSTOM_LINE_BYTES;
 use crate::{
-    FilterEngine, LoadError, MAX_LINE_BYTES, MAX_LIST_BYTES, is_ignored_exception, parse_options,
+    FilterEngine, MAX_LINE_BYTES, MAX_LIST_BYTES, is_ignored_exception, parse_options,
+    sanitize_list_with_line_limit,
 };
-use adblock::lists::{ParsedLine, parse_filter, read_list_metadata};
+use adblock::lists::{FilterSet, ParsedLine, parse_filter, read_list_metadata};
 use std::time::{Duration, Instant};
 
 /// Longest list title kept, in bytes.
@@ -93,6 +95,18 @@ pub fn check_list(bytes: &[u8], budget: Duration) -> Result<ListCheck, ListError
 }
 
 fn check_list_until(bytes: &[u8], deadline: Instant) -> Result<ListCheck, ListError> {
+    check_list_with(bytes, deadline, true, MAX_LINE_BYTES)
+}
+
+/// `check_list_until`, and with `require_rules` false a text with no network
+/// rule passes too (the user's own rules may be hide rules only). The other
+/// refusals stay.
+pub(crate) fn check_list_with(
+    bytes: &[u8],
+    deadline: Instant,
+    require_rules: bool,
+    max_line_bytes: usize,
+) -> Result<ListCheck, ListError> {
     if bytes.len() > MAX_LIST_BYTES {
         return Err(ListError::TooLarge);
     }
@@ -109,7 +123,7 @@ fn check_list_until(bytes: &[u8], deadline: Instant) -> Result<ListCheck, ListEr
         if i % LINES_PER_TIME_CHECK == 0 && Instant::now() >= deadline {
             return Err(ListError::Timeout);
         }
-        if line.len() > MAX_LINE_BYTES {
+        if line.len() > max_line_bytes {
             continue;
         }
         if is_ignored_exception(line) {
@@ -120,7 +134,7 @@ fn check_list_until(bytes: &[u8], deadline: Instant) -> Result<ListCheck, ListEr
             network_rules += 1;
         }
     }
-    if network_rules == 0 {
+    if require_rules && network_rules == 0 {
         return Err(ListError::NoRules);
     }
     let title = read_list_metadata(text)
@@ -142,18 +156,38 @@ impl FilterEngine {
         lists: impl IntoIterator<Item = &'a [u8]>,
         budget: Duration,
     ) -> Result<(Self, Vec<ListCheck>), (usize, ListError)> {
+        Self::from_checked_lists_with(lists.into_iter().map(|l| (l, false)), budget)
+    }
+
+    /// Like `from_checked_lists`. A list marked `true` is the user's own rules
+    /// (issue #107): it passes the check with no network rule, because hide
+    /// rules alone are a fair list. Every other check, and `sanitize_list`
+    /// at the build, apply to it as to any list.
+    pub fn from_checked_lists_with<'a>(
+        lists: impl IntoIterator<Item = (&'a [u8], bool)>,
+        budget: Duration,
+    ) -> Result<(Self, Vec<ListCheck>), (usize, ListError)> {
         let deadline = Instant::now() + budget;
         let mut checks = Vec::new();
-        let mut kept: Vec<&[u8]> = Vec::new();
-        for (index, list) in lists.into_iter().enumerate() {
-            checks.push(check_list_until(list, deadline).map_err(|e| (index, e))?);
-            kept.push(list);
+        let mut kept: Vec<(&[u8], usize)> = Vec::new();
+        for (index, (list, own)) in lists.into_iter().enumerate() {
+            let max_line = if own {
+                MAX_CUSTOM_LINE_BYTES
+            } else {
+                MAX_LINE_BYTES
+            };
+            checks.push(check_list_with(list, deadline, !own, max_line).map_err(|e| (index, e))?);
+            kept.push((list, max_line));
         }
-        let engine = Self::from_lists(kept).map_err(|e| {
-            debug_assert_eq!(e, LoadError::TooLarge);
-            (0, ListError::TooLarge)
-        })?;
-        Ok((engine, checks))
+        let mut set = FilterSet::new(false);
+        for (list, max_line) in kept {
+            // Each list was checked above, so none is over `MAX_LIST_BYTES`.
+            set.add_filter_list(
+                sanitize_list_with_line_limit(list, max_line),
+                parse_options(),
+            );
+        }
+        Ok((Self::from_filter_set(set), checks))
     }
 }
 

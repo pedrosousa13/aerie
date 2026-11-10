@@ -9,6 +9,7 @@
 #include <string_view>
 
 #include "base/memory/raw_ptr.h"
+#include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
 #include "base/values.h"
 #include "components/aerie_adblock/browser/filter_list_manager.h"
@@ -36,11 +37,13 @@ namespace aerie_guard {
 //   aerieGuard.setDefaultLevel [level]        "aggressive" or "standard": the
 //                                             blocking level of sites that have
 //                                             none of their own (issue #109)
+//   aerieGuard.setCustomRules [text]          the user's own rules (issue #107)
 //
 // Every argument is checked for its type and, for a string, its length
-// (4096 bytes): the page is Aerie's own, but a message is still input. A
-// message that does not fit is rejected and changes nothing; the manager checks
-// the values again (list URL, list id, host).
+// (4096 bytes; 1 MiB for the text of the user's own rules, which the manager
+// bounds again at 256 KiB): the page is Aerie's own, but a message is still
+// input. A message that does not fit is rejected and changes nothing; the
+// manager checks the values again (list URL, list id, host).
 //
 // Settings always runs in the regular profile, so the handler acts on the
 // regular profile's session and never lists or sets a session exception of an
@@ -64,6 +67,14 @@ class AerieGuardSettingsHandler
   // |list_error| is "", "required" (EasyList cannot be turned off) or
   // "unknown_list".
   //
+  // |custom_error| is "", "too_large", "too_many_lines", "not_text", "timeout"
+  // or "unwritable": why the last save of the user's own rules was refused.
+  //
+  // "customRules" is the saved text of the user's own rules and what was found
+  // in it: {text, networkRules, hideRules, ignoredExceptions, dropped,
+  // issueCount, issues: [{line, reason, ignored, rule}]}. |text| and |rule| are
+  // untrusted: the page shows them as text only. "reason" is a fixed code.
+  //
   // Each list carries "enabled", "required" (true: it cannot be turned off),
   // "ignoredExceptions", "status" ("idle", "updating", "updated" or "failed")
   // and "errorCode" (a fixed code, "" for none; the page owns the words).
@@ -71,7 +82,8 @@ class AerieGuardSettingsHandler
       const aerie_adblock::FilterListManager& manager,
       std::string_view add_error,
       std::string_view exception_error,
-      std::string_view list_error = std::string_view());
+      std::string_view list_error = std::string_view(),
+      std::string_view custom_error = std::string_view());
 
   // content::WebUIMessageHandler:
   void RegisterMessages() override;
@@ -90,6 +102,10 @@ class AerieGuardSettingsHandler
   void HandleSetException(const base::ListValue& args);
   void HandleSetAutoUpdate(const base::ListValue& args);
   void HandleSetDefaultLevel(const base::ListValue& args);
+  void HandleSetCustomRules(const base::ListValue& args);
+  // The manager's answer to HandleSetCustomRules().
+  void OnCustomRulesSaved(std::string callback_id,
+                          aerie_adblock::CustomRulesFailure failure);
 
   // Allows JavaScript and starts watching the manager. Returns the manager,
   // or null (and rejects the callback in |args|) when it does not exist yet.
@@ -97,13 +113,15 @@ class AerieGuardSettingsHandler
   void Resolve(const base::ListValue& args,
                std::string_view add_error,
                std::string_view exception_error,
-               std::string_view list_error = std::string_view());
+               std::string_view list_error = std::string_view(),
+               std::string_view custom_error = std::string_view());
   void Reject(const base::ListValue& args, std::string_view code);
 
   raw_ptr<Profile> profile_;
   base::ScopedObservation<aerie_adblock::FilterListManager,
                           aerie_adblock::FilterListManager::Observer>
       observation_{this};
+  base::WeakPtrFactory<AerieGuardSettingsHandler> weak_factory_{this};
 };
 
 }  // namespace aerie_guard

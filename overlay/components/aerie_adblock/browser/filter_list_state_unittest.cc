@@ -444,6 +444,78 @@ TEST(FilterListStateTest, TooManyLevelOverridesAreCut) {
             kMaxLevelOverrides);
 }
 
+TEST(FilterListStateTest, TheUsersOwnRulesAreAListWithNoAddress) {
+  FilterListState state;
+  EXPECT_EQ(nullptr, state.Find(kCustomRulesId));
+  FilterListEntry& entry = state.EnsureCustomRulesEntry();
+  EXPECT_EQ(kCustomRulesId, entry.id);
+  EXPECT_TRUE(entry.url.empty());
+  EXPECT_FALSE(entry.builtin);
+  EXPECT_TRUE(entry.enabled);
+  EXPECT_TRUE(IsValidListId(entry.id));
+  EXPECT_TRUE(state.NeedsRebuild());
+  // A second call finds the same entry.
+  state.EnsureCustomRulesEntry().rules = 3;
+  EXPECT_EQ(3u, state.lists().size());
+  EXPECT_EQ(3, state.Find(kCustomRulesId)->rules);
+  EXPECT_TRUE(state.RemoveList(kCustomRulesId));
+  EXPECT_FALSE(state.NeedsRebuild());
+}
+
+TEST(FilterListStateTest, TheUsersOwnRulesDoNotUseUpACustomListSlot) {
+  FilterListState state;
+  state.EnsureCustomRulesEntry();
+  std::string id;
+  for (size_t i = 0; i < kMaxCustomLists; ++i) {
+    ASSERT_EQ(state.AddCustomList(
+                  GURL("https://l.example/" + std::to_string(i)), false, &id),
+              FilterListState::AddResult::kAdded);
+  }
+  EXPECT_EQ(state.AddCustomList(GURL("https://l.example/one-more"), false, &id),
+            FilterListState::AddResult::kTooMany);
+}
+
+TEST(FilterListStateTest, TheUsersOwnRulesSurviveASaveAndLoad) {
+  FilterListState state;
+  FilterListEntry& entry = state.EnsureCustomRulesEntry();
+  entry.rules = 7;
+  entry.ignored_exceptions = 1;
+  entry.enabled = false;
+  entry.updated = base::Time::FromSecondsSinceUnixEpoch(1700000000);
+  std::optional<base::Value> json = base::JSONReader::Read(
+      *base::WriteJson(state.ToValue()), base::JSON_PARSE_RFC);
+  ASSERT_TRUE(json && json->is_dict());
+  FilterListState back = FilterListState::FromValue(json->GetDict());
+  const FilterListEntry* e = back.Find(kCustomRulesId);
+  ASSERT_TRUE(e);
+  EXPECT_TRUE(e->url.empty());
+  EXPECT_FALSE(e->builtin);
+  EXPECT_FALSE(e->enabled);
+  EXPECT_EQ(7, e->rules);
+  EXPECT_EQ(1, e->ignored_exceptions);
+  EXPECT_EQ(base::Time::FromSecondsSinceUnixEpoch(1700000000), e->updated);
+}
+
+TEST(FilterListStateTest, AFileCannotGiveTheUsersOwnRulesAnAddressOrATitle) {
+  std::optional<base::Value> json = base::JSONReader::Read(
+      R"json({"lists": [{"id": "custom", "url": "https://evil.example/x",
+                         "title": "Evil", "rules": 5}]})json",
+      base::JSON_PARSE_RFC);
+  ASSERT_TRUE(json && json->is_dict());
+  EXPECT_EQ(nullptr,
+            FilterListState::FromValue(json->GetDict()).Find(kCustomRulesId));
+
+  json = base::JSONReader::Read(
+      R"json({"lists": [{"id": "custom", "url": "", "title": "Evil", "rules": 5}]})json",
+      base::JSON_PARSE_RFC);
+  ASSERT_TRUE(json && json->is_dict());
+  const FilterListEntry* e =
+      FilterListState::FromValue(json->GetDict()).Find(kCustomRulesId);
+  ASSERT_TRUE(e);
+  EXPECT_EQ("", e->title);  // The page owns the name.
+  EXPECT_EQ(5, e->rules);
+}
+
 TEST(FilterListStateTest, GarbageGivesDefaults) {
   FilterListState state = FilterListState::FromValue(base::DictValue());
   EXPECT_EQ(state.lists().size(), 2u);

@@ -15,6 +15,7 @@
 #include "base/time/time.h"
 #include "components/aerie_adblock/browser/blocking_level.h"
 #include "components/aerie_adblock/browser/classified_request.h"
+#include "components/aerie_adblock/browser/custom_rules.h"
 #include "components/aerie_adblock/browser/list_failure.h"
 #include "components/aerie_adblock/rust/ffi/src/lib.rs.h"
 #include "third_party/rust/cxx/v1/cxx.h"
@@ -35,6 +36,21 @@ struct ListCheck {
 // least one network rule, under the size limit, parsed within |budget|. Builds
 // nothing and keeps nothing; safe on any thread. See aerie_adblock_core.
 ListCheck CheckList(base::span<const uint8_t> text, base::TimeDelta budget);
+
+// What AnalyzeCustomRules() found.
+struct CustomRulesAnalysis {
+  CustomRulesFailure failure = CustomRulesFailure::kNone;
+  // Counts and issues, when |failure| is kNone. |rules.text| is left empty: the
+  // caller owns the text.
+  CustomRules rules;
+};
+
+// Bounds and parses the user's own rules (issue #107): at most 256 KiB and
+// 10 000 lines, a line over 4 KiB dropped, parsed within |budget|. Says which
+// lines are dropped or ignored, and why. Builds nothing and keeps nothing;
+// safe on any thread. See aerie_adblock_core::custom.
+CustomRulesAnalysis AnalyzeCustomRules(base::span<const uint8_t> text,
+                                       base::TimeDelta budget);
 
 struct BuildResult {
   ListFailure failure = ListFailure::kNone;
@@ -69,9 +85,14 @@ class AdblockEngine {
   // or subscribed to; missing entries mean built-in). The custom lists are
   // also compiled alone, into the engine that judges first-party requests in
   // Standard (see ShouldBlock()).
+  //
+  // |own| says, per list, whether it is the user's own rules (issue #107):
+  // such a list may hold hide rules only, and is not compiled into the custom
+  // engine. An index past the end of either vector is a list that is not.
   BuildResult LoadLists(const std::vector<std::string>& lists,
                         base::TimeDelta budget,
-                        const std::vector<bool>& custom = {});
+                        const std::vector<bool>& custom = {},
+                        const std::vector<bool>& own = {});
 
   // Replaces the rules with one built-in list and one custom list. For tests.
   // Returns the failure, kNone when the lists compiled.

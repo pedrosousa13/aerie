@@ -22,6 +22,7 @@ PAGE = "adblock/0023-add-aerie-guard-settings-page.patch"
 REDIRECT = "adblock/0024-redirect-filters-to-aerie-guard-settings.patch"
 LIST_STRINGS = "adblock/0025-add-aerie-guard-list-strings.patch"
 LEVEL_STRINGS = "adblock/0026-add-aerie-guard-level-settings-strings.patch"
+CUSTOM_STRINGS = "adblock/0027-add-aerie-guard-custom-rules-strings.patch"
 PREF = "aerie.guard.show_blocked_count"
 
 
@@ -76,7 +77,7 @@ class HandlerTest(unittest.TestCase):
             "aerieGuard.getState", "aerieGuard.addList", "aerieGuard.removeList", "aerieGuard.setListEnabled",
             "aerieGuard.updateList",
             "aerieGuard.updateAll", "aerieGuard.setException", "aerieGuard.setAutoUpdate",
-            "aerieGuard.setDefaultLevel"]))
+            "aerieGuard.setDefaultLevel", "aerieGuard.setCustomRules"]))
         self.assertGreaterEqual(text.count("ResolveJavascriptCallback"), 1)
 
     def test_settings_acts_on_the_regular_profile_and_never_shows_a_session(self):
@@ -166,7 +167,8 @@ class StringsTest(unittest.TestCase):
         self.assertEqual(text.strip(), "Aerie Guard")
 
     def test_every_message_is_given_to_the_page_and_every_name_exists(self):
-        used = set(re.findall(r"\bIDS_SETTINGS_AERIE_GUARD_\w+", added(BACKEND) + added(LIST_STRINGS) + added(LEVEL_STRINGS)))
+        used = set(re.findall(r"\bIDS_SETTINGS_AERIE_GUARD_\w+",
+                              added(BACKEND) + added(LIST_STRINGS) + added(LEVEL_STRINGS) + added(CUSTOM_STRINGS)))
         self.assertEqual(used, set(self.messages()))
 
     def test_no_upstream_product_name(self):
@@ -264,7 +266,7 @@ class ListRowsTest(unittest.TestCase):
 
     def test_the_scheduled_update_does_not_fetch_a_list_that_is_off(self):
         update_all = self.MANAGER_CC[self.MANAGER_CC.index("void FilterListManager::UpdateAll()"):]
-        self.assertIn("if (entry.enabled)", update_all[:500])
+        self.assertIn("if (entry.enabled && !entry.url.empty())", update_all[:500])
 
     def test_the_handler_reports_what_the_page_shows(self):
         text = code(HANDLER_CC)
@@ -282,7 +284,8 @@ class ListRowsTest(unittest.TestCase):
             self.assertIn(f'"{key}"', given, c)
 
     def test_every_string_key_the_page_reads_is_given_to_the_page(self):
-        given = set(re.findall(r'\{"(aerieGuard\w+)"', added(BACKEND) + added(LIST_STRINGS) + added(LEVEL_STRINGS)))
+        given = set(re.findall(r'\{"(aerieGuard\w+)"',
+                               re.sub(r"\s+", " ", added(BACKEND) + added(LIST_STRINGS) + added(LEVEL_STRINGS) + added(CUSTOM_STRINGS))))
         read = set(re.findall(r"\$i18n\{(aerieGuard\w+)\}", self.HTML))
         read |= set(re.findall(r"(?:getString|getStringF)\(\s*'(aerieGuard\w+)'", self.TS))
         self.assertTrue(read)
@@ -302,6 +305,143 @@ class ListRowsTest(unittest.TestCase):
         text = "".join(p.read_text(errors="ignore") for p in
                         (list(PAGE_DIR.glob("*.ts")) + [HANDLER_CC, BROWSER / "filter_list_manager.cc"]))
         self.assertNotRegex(text, r"https?://(?!lists\.|easylist\.to)[a-z]")
+
+
+class CustomRulesTest(unittest.TestCase):
+    """Issue #107: the user's own filter rules, saved as the list `custom`."""
+    TS = (PAGE_DIR / "aerie_guard_page.ts").read_text(encoding="utf-8")
+    HTML = (PAGE_DIR / "aerie_guard_page.html.ts").read_text(encoding="utf-8")
+    PROXY = (PAGE_DIR / "aerie_guard_browser_proxy.ts").read_text(encoding="utf-8")
+    MANAGER_CC = code(BROWSER / "filter_list_manager.cc")
+    CORE = REPO / "overlay/components/aerie_adblock/rust/core/src"
+
+    def test_the_series_puts_the_strings_patch_after_the_list_strings(self):
+        self.assertIn(CUSTOM_STRINGS, SERIES)
+        self.assertGreater(SERIES.index(CUSTOM_STRINGS), SERIES.index(LIST_STRINGS))
+
+    def test_the_strings_patch_does_not_share_context_with_the_guard_table(self):
+        # Other patches add names to the table of adblock/0022; this one has its own function.
+        text = added(CUSTOM_STRINGS)
+        self.assertIn("void AddAerieGuardCustomRulesStrings(", text)
+        self.assertIn("AddAerieGuardCustomRulesStrings(html_source);", text)
+        self.assertNotIn("aerieGuardErrorGeneric", patch(CUSTOM_STRINGS))
+
+    def test_the_handler_gives_the_text_to_the_manager_and_checks_its_type_and_size(self):
+        text = code(HANDLER_CC)
+        self.assertIn("manager->SetCustomRules(", text)
+        self.assertIn("kMaxCustomRulesArgLength", text)
+        self.assertRegex(text, r"args\[1\]\.is_string\(\)")
+        self.assertIn('"customRules"', text)
+        self.assertIn('"customError"', text)
+        # The handler never parses or sorts the text itself: the manager (Rust core) does.
+        for word in ("AnalyzeCustomRules", "sanitize", "ParseRule"):
+            self.assertNotIn(word, text)
+
+    def test_the_manager_bounds_and_parses_before_it_saves_or_applies(self):
+        text = self.MANAGER_CC
+        body = text[text.index("void FilterListManager::SetCustomRules("):text.index("void FilterListManager::OnCustomWritten(")]
+        self.assertLess(body.index("AnalyzeCustomRules("), body.index("WriteList("))
+        self.assertIn("analysis.failure != CustomRulesFailure::kNone", body)
+        self.assertNotIn("Rebuild(", body)  # only after the write
+        rebuild = text[text.index("void FilterListManager::Rebuild("):]
+        self.assertIn("input.own = entry.id == kCustomRulesId;", rebuild)
+
+    def test_the_users_rules_are_never_fetched(self):
+        fetch = self.MANAGER_CC[self.MANAGER_CC.index("void FilterListManager::FetchList("):]
+        self.assertIn("entry->url.empty()", fetch[:300])
+        self.assertIn("&& !entry.url.empty()", self.MANAGER_CC)
+
+    def test_the_rust_caps_are_the_ones_of_the_brief(self):
+        text = (self.CORE / "custom.rs").read_text()
+        self.assertIn("MAX_CUSTOM_BYTES: usize = 256 * 1024;", text)
+        self.assertIn("MAX_CUSTOM_LINES: usize = 10_000;", text)
+        self.assertIn("MAX_CUSTOM_LINE_BYTES: usize = 4 * 1024;", text)
+
+    def test_the_rust_files_are_in_the_gn_target(self):
+        gn = (OVERLAY / "components/aerie_adblock/BUILD.gn").read_text()
+        for name in ("custom.rs", "custom_tests.rs"):
+            self.assertIn(f'"rust/core/src/{name}"', gn)
+        browser_gn = (BROWSER / "BUILD.gn").read_text()
+        self.assertIn('"custom_rules.h"', browser_gn)
+
+    def test_the_text_is_shown_as_text_and_never_as_markup_or_script(self):
+        page = self.TS + self.HTML
+        for risky in ("innerHTML", "outerHTML", "unsafeHTML", "unsafeCSS", "insertAdjacentHTML", "eval(",
+                      "new Function", "document.write", "srcdoc"):
+            self.assertNotIn(risky, page)
+        # The text box takes its text as a property, and a rule is a text node of a code element.
+        self.assertIn('.value="${this.customDraft_}"', self.HTML)
+        self.assertIn("<code class=\"issue-rule\">${issue.rule}</code>", self.HTML)
+        self.assertNotRegex(self.HTML, r"<textarea[^>]*>\s*\$\{")
+
+    def test_the_page_does_not_overwrite_what_the_user_is_typing(self):
+        self.assertIn("if (!this.customDirty_)", self.TS)
+        self.assertIn("setCustomRules(this.customDraft_)", self.TS)
+
+    def test_the_proxy_has_the_message(self):
+        self.assertIn("sendWithPromise('aerieGuard.setCustomRules', text)", self.PROXY)
+
+    def test_every_reason_and_error_code_has_a_string_the_page_can_find(self):
+        given = set(re.findall(r'\{"(aerieGuard\w+)"', re.sub(r"\s+", " ", added(CUSTOM_STRINGS))))
+        rust = (self.CORE / "../../ffi/src/lib.rs").read_text()
+        engine = code(BROWSER / "adblock_engine.cc")
+        reasons = re.findall(r'return "([a-z_]+)";', engine[engine.index("CustomReasonCode("):])
+        self.assertEqual(len(reasons), 10)  # nine reasons and the fallback
+        self.assertEqual(len(set(reasons)), 9)
+        for reason in set(reasons):
+            key = "aerieGuardCustomReason" + "".join(w.capitalize() for w in reason.split("_"))
+            self.assertIn(key, given, reason)
+        custom = code(BROWSER / "custom_rules.h")
+        codes = set(re.findall(r'return "([a-z_]+)";', custom))
+        self.assertEqual(codes, {"too_large", "too_many_lines", "not_text", "timeout", "unwritable"})
+        for c in codes:
+            key = "aerieGuardCustomError" + "".join(w.capitalize() for w in c.split("_"))
+            self.assertIn(key, given, c)
+        self.assertIn("pub enum RuleReason", (self.CORE / "custom.rs").read_text())
+        self.assertIn("enum CustomReason", rust)
+
+    def test_the_summary_says_in_use_only_when_the_engine_uses_the_rules(self):
+        body = self.TS[self.TS.index("protected customSummaryText_()"):self.TS.index("protected issueLineText_(")]
+        # The same condition as the "saved and in use" message: the entry is on and the rebuild did not fail.
+        self.assertIn("this.lists_.find(l => l.id === 'custom')", body)
+        self.assertIn("entry.enabled && !entry.errorCode", body)
+        self.assertIn("'aerieGuardCustomSummary'", body)
+        self.assertIn("'aerieGuardCustomSummaryOff'", body)
+        self.assertLess(body.index("entry.enabled"), body.index("'aerieGuardCustomSummary'"))
+        given = re.sub(r"\s+", " ", added(CUSTOM_STRINGS))
+        self.assertIn('{"aerieGuardCustomSummaryOff", IDS_SETTINGS_AERIE_GUARD_CUSTOM_SUMMARY_OFF}', given)
+        text = STRINGS.read_text(encoding="utf-8")
+        on = re.search(r'CUSTOM_SUMMARY"[^>]*>\s*(.*?)\s*</message>', text, re.S).group(1)
+        off = re.search(r'CUSTOM_SUMMARY_OFF"[^>]*>\s*(.*?)\s*</message>', text, re.S).group(1)
+        self.assertTrue(on.startswith("In use:"))
+        self.assertTrue(off.startswith("Not in use:"))
+        for message in (on, off):
+            self.assertIn("$1", message)
+            self.assertIn("$2", message)
+
+    def test_the_patch_hunk_counts_match_its_lines(self):
+        lines = patch(CUSTOM_STRINGS).splitlines()
+        i = next(n for n, l in enumerate(lines) if l.startswith("@@ -1641"))
+        m = re.match(r"@@ -\d+,(\d+) \+\d+,(\d+) @@", lines[i])
+        body = []
+        for l in lines[i + 1:]:
+            if l.startswith("@@"):
+                break
+            body.append(l)
+        self.assertEqual(int(m.group(1)), sum(1 for l in body if l[:1] in " -"))
+        self.assertEqual(int(m.group(2)), sum(1 for l in body if l[:1] in " +"))
+
+    def test_the_words_never_promise_more_than_the_code_does(self):
+        text = STRINGS.read_text(encoding="utf-8")
+        desc = re.search(r'IDS_SETTINGS_AERIE_GUARD_CUSTOM_DESC"[^>]*>\s*(.*?)\s*</message>', text, re.S).group(1)
+        self.assertIn("Scriptlet, procedural and HTML rules are always dropped", desc)
+        self.assertIn("stay on this computer", desc)
+        too_long = re.search(r'CUSTOM_REASON_TOO_LONG"[^>]*>\s*(.*?)\s*</message>', text, re.S).group(1)
+        self.assertIn("4 KiB", too_long)
+        large = re.search(r'CUSTOM_ERROR_TOO_LARGE"[^>]*>\s*(.*?)\s*</message>', text, re.S).group(1)
+        self.assertIn("256 KiB", large)
+        lines = re.search(r'CUSTOM_ERROR_TOO_MANY_LINES"[^>]*>\s*(.*?)\s*</message>', text, re.S).group(1)
+        self.assertIn("10,000", lines)
 
 
 class RedirectTest(unittest.TestCase):
