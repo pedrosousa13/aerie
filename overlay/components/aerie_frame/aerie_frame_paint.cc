@@ -56,20 +56,26 @@ void PaintShade(gfx::Canvas* canvas, const FramePalette& palette,
   }
   cc::PaintFlags flags;
   flags.setStyle(cc::PaintFlags::kFill_Style);
-  flags.setColor(SkColor4f{0, 0, 0, palette.shade});
+  SkColor4f shade = SkColor4f::FromColor(palette.shade_colour);
+  shade.fA = palette.shade;
+  flags.setColor(shade);
   canvas->DrawRect(gfx::RectF(size.width(), size.height()), flags);
 }
 
-// White light at the top left corner: an ellipse of 72% by 48% of the box
+// The glow colour at the top corner nearest the sidebar: an ellipse of 72% by 48% of the box
 // (the 120% by 80% radial gradient, cut off at 60%), full strength at the
-// corner and none at its edge.
+// corner and none at its edge. It is drawn at the top left; PaintFrame() mirrors
+// the canvas when the sidebar is on the right, so the glow follows the sidebar.
 void PaintGlow(gfx::Canvas* canvas, const FramePalette& palette,
                const gfx::Size& size) {
   if (palette.glow <= 0) {
     return;
   }
-  const SkColor4f colors[2] = {SkColor4f{1, 1, 1, palette.glow},
-                               SkColor4f{1, 1, 1, 0}};
+  SkColor4f glow = SkColor4f::FromColor(palette.glow_colour);
+  glow.fA = palette.glow;
+  SkColor4f none = glow;
+  none.fA = 0;
+  const SkColor4f colors[2] = {glow, none};
   const SkScalar positions[2] = {0, 1};
   const SkMatrix to_ellipse =
       SkMatrix::Scale(0.72f * size.width(), 0.48f * size.height());

@@ -53,6 +53,8 @@ for tname, th in D["theme"].items():
         text, muted = rgb(g("text")), rgb(g("text-muted"))
         need = 7.0 if tname == "high-contrast" else 4.5
         strength, shade, glow = g("tint-strength"), g("shade"), g("glow")
+        shade_colour = rgb(tok("color", "frame-shade", mode))   # the colours the shade and the glow are laid in
+        glow_colour = rgb(tok("color", "frame-glow", mode))
         worst = {"text": 99, "muted": 99, "accent": 99}; worst_p = ""
         for p in presets:
             stops = [rgb(D["workspace"][f"{p}-stop-{i}"]["value"]) for i in (1, 2, 3) if f"{p}-stop-{i}" in D["workspace"]]
@@ -62,8 +64,8 @@ for tname, th in D["theme"].items():
             pm = {"text": 99, "muted": 99, "accent": 99}
             for x, y in samples:
                 c = mix(gradient_at(stops, x, y), frame, strength)
-                c = mix((0, 0, 0), c, shade)
-                c = mix((255, 255, 255), c, glow*glow_alpha(x, y))
+                c = mix(shade_colour, c, shade)
+                c = mix(glow_colour, c, glow*glow_alpha(x, y))
                 pm["text"] = min(pm["text"], ratio(text, c)); pm["muted"] = min(pm["muted"], ratio(muted, c)); pm["accent"] = min(pm["accent"], ratio(acc, c))
             ok = pm["text"] >= need and pm["muted"] >= need and pm["accent"] >= 3
             if not ok:

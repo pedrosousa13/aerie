@@ -42,6 +42,9 @@ struct FramePalette {
   // sidebar.
   float shade;
   float glow;
+  // The colours those two are laid in (the frame-shade and frame-glow tokens).
+  SkColor shade_colour;
+  SkColor glow_colour;
   // The colours the sidebar draws on the frame.
   SkColor text;
   SkColor text_muted;

@@ -122,6 +122,8 @@ FramePalette ResolveFramePalette(aerie::tokens::ThemeId theme,
     p.stops[i] = ToColor(
         Mix(ToRgb(raw_stops[i]), ToRgb(t.color_frame_base), t.theme_tint_strength));
   }
+  p.shade_colour = t.color_frame_shade;
+  p.glow_colour = t.color_frame_glow;
   p.angle_degrees = aerie::tokens::kTintAngle;
   p.shade = t.theme_shade;
   p.glow = t.theme_glow;
@@ -161,14 +163,16 @@ SkColor FrameColorAt(const FramePalette& palette,
     c = Mix(ToRgb(palette.stops[i + 1]), ToRgb(palette.stops[i]), s - i);
   }
 
-  // The shade: black over the tint.
-  c = Mix({0, 0, 0}, c, palette.shade);
+  // The shade layer over the tint, in the shade token's colour.
+  c = Mix(ToRgb(palette.shade_colour), c, palette.shade);
 
-  // The glow: white light, a radial gradient of 120% by 80% of the box at the
-  // corner, fading out at 60% of that.
+  // The glow, in the glow token's colour: a radial gradient of 120% by 80% of
+  // the box at the top corner nearest the sidebar (top left, or top right with
+  // the sidebar on the right: `x` is already mirrored), fading out at 60% of
+  // that.
   const double d = std::hypot(x / (1.2 * w), y / (0.8 * h));
   const double glow = palette.glow * std::max(0.0, 1.0 - d / 0.6);
-  c = Mix({255, 255, 255}, c, glow);
+  c = Mix(ToRgb(palette.glow_colour), c, glow);
   return ToColor(c);
 }
 

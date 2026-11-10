@@ -1,6 +1,8 @@
 /* Generated from tokens.json. Do not edit. */
 
 :root {
+  --aerie-color-frame-shade: #000000;
+  --aerie-color-frame-glow: #FFFFFF;
   --aerie-color-danger-fill: #C62828;
   --aerie-color-text-on-danger: #FFFFFF;
   --aerie-tint-angle: 135deg;
