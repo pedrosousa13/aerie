@@ -1,0 +1,42 @@
+# Copyright 2026 The Aerie Authors
+# You can use, redistribute, and/or modify this source code under
+# the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+assert(!is_android, "The Aerie sidebar is for desktop platforms only")
+
+# The view of Aerie's sidebar (issue #177). VerticalTabStripRegionView, in
+# //chrome/browser/ui/views/frame, creates it (patches/sidebar/0024). What it
+# decides without a view is in //components/aerie_sidebar.
+source_set("aerie_sidebar") {
+  visibility = [ "//chrome/browser/ui/views/frame:*" ]
+  sources = [
+    "aerie_sidebar_row_view.cc",
+    "aerie_sidebar_row_view.h",
+    "aerie_sidebar_view.cc",
+    "aerie_sidebar_view.h",
+  ]
+  # The headers include these.
+  public_deps = [
+    "//base",
+    "//chrome/browser/ui/tabs:tab_strip_model_observer",
+    "//components/aerie_sidebar:today_list",
+    "//ui/base",
+    "//ui/base/metadata",
+    "//ui/views",
+  ]
+  deps = [
+    "//chrome/app:generated_resources",
+    "//chrome/app/vector_icons",
+    "//chrome/browser/aerie_tab_model",
+    "//chrome/browser/profiles:profile",
+    "//chrome/browser/ui/browser_window",
+    "//chrome/browser/ui/tabs:tab_strip",
+    "//components/aerie_design_tokens:tokens",
+    "//components/favicon/content",
+    "//components/tabs:public",
+    "//components/vector_icons",
+    "//content/public/browser",
+    "//ui/color",
+    "//ui/gfx",
+  ]
+}

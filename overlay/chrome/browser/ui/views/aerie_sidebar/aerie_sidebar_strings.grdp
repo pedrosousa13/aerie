@@ -5,9 +5,27 @@
 
      Strings of the Aerie sidebar (issue #177). patches/sidebar/0022 includes this part in generated_resources.grd and
      gives the Settings title to the page under the name tests/test_sidebar.py checks. The strings of the sidebar view
-     (its accessible names and the resize separator) are added here with the view. -->
+     (its accessible names and the resize separator) are in this part too. -->
 <grit-part>
   <message name="IDS_SETTINGS_AERIE_SIDEBAR" desc="Title of the Sidebar section of Settings, where the settings of the browser's vertical tab sidebar are. It has no settings yet.">
     Sidebar
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_NAME" desc="Accessible name of the sidebar, the navigation landmark on the side of the window that holds the address field and the list of tabs.">
+    Sidebar
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_TODAY" desc="Heading of the list of unpinned tabs in the sidebar. It is also the accessible name of that list.">
+    Today
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_NEW_TAB" desc="Label of the row and of the plus button in the sidebar that open a new tab.">
+    New Tab
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_CLOSE_TAB" desc="Tooltip and accessible name of the button on a tab row of the sidebar that closes the tab.">
+    Close tab
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_RESIZE" desc="Accessible name of the separator at the inner edge of the sidebar. The user drags it, or presses the left and right arrow keys on it, to change the width of the sidebar.">
+    Resize sidebar
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_RESIZE_ANNOUNCE" desc="What a screen reader says after the user changed the width of the sidebar with the arrow keys. The number is the new width in pixels.">
+    Sidebar width <ph name="WIDTH">$1<ex>260</ex></ph> pixels
   </message>
 </grit-part>
