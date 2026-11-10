@@ -919,7 +919,7 @@ TEST_F(CustomRulesTest, HostileLinesAreDroppedAndTheFileStaysSmall) {
   ASSERT_EQ(CustomRulesFailure::kNone, Save(*manager, text));
   const CustomRules& rules = manager->custom_rules();
   // The engine does not accept the regex line as a network rule, so the report
-  // names it too (run with the Rust analysis in train 17).
+  // names it too, as "unparseable".
   ASSERT_EQ(3u, rules.issues.size());
   EXPECT_EQ("too_long", rules.issues[0].reason);
   EXPECT_LE(rules.issues[0].rule.size(), 200u);
