@@ -422,6 +422,7 @@ F6 moves focus between the sidebar and the page. With the sidebar auto-hidden, F
 | Keys | Action |
 | --- | --- |
 | Ctrl+S | Show or hide the sidebar. |
+| Ctrl+Shift+S | Save page (Windows and Linux). Save page also stays in the menu and, with M3, in the command bar. The macOS map is an open point. |
 | Ctrl+Alt+S | Auto-hide only: keep the peek open (toggle). |
 | Alt+Left, Alt+Right | Page back and forward. |
 | Ctrl+T, Ctrl+L, Ctrl+K | Command bar. |
@@ -578,6 +579,22 @@ Chromium tab groups are flat and contiguous, so they cannot hold folders nested 
 - No archive or sleep logic; only the fields and prefs.
 - No `TabStripModel` order mirroring (#186).
 - The browser test `tab_model_browsertest.cc` is not in a BUILD.gn yet. It joins the Aerie browser-test target that #175 adds, so it runs once both have landed.
+
+## Sidebar layout and Helium's layouts
+
+Decided with issue #177. Helium ships four tab layouts (classic, compact, vertical, dynamic) and a Zen mode. Aerie has one layout, the sidebar, and one more planned, horizontal tabs (#186). Helium's layout patches stay applied, because other Helium code reads their prefs, and Aerie holds them in place instead.
+
+| Pref | Meaning |
+| --- | --- |
+| `aerie.sidebar.layout` | `sidebar` (default) or `horizontal`. Only `sidebar` is built. A value that is neither reads as `sidebar`. |
+| `aerie.sidebar.width` | Width in pixels. Default `size-sidebar-width` (260). It is clamped to `size-sidebar-min` .. `size-sidebar-max` (200 to 400) when read. |
+| `aerie.sidebar.visible` | Shown (default) or hidden. |
+
+While the layout is `sidebar`, Helium's `helium.browser.layout` is `vertical` and `helium.browser.zen_mode` is off. A new profile starts that way. Every window puts the two prefs back if they differ and again whenever one of them changes, so an old profile, sync or an extension cannot bring another layout back. The Settings page cannot write them either: they are not on the settings_private allowlist, and the Appearance page shows an empty "Sidebar" section where the layout picker was. Helium has no flag for the layout. Keyboard resize steps are 10 px (`kKeyboardResizeStep`).
+
+Save page moves to Ctrl+Shift+S on Windows and Linux so that Ctrl+S can show and hide the sidebar.
+
+What issue #177 has built so far: these prefs, the hold on Helium's layout, the empty Sidebar section and the Ctrl+Shift+S binding. The native sidebar view itself (rows, address pill, resize, Ctrl+S show and hide with motion, the accessibility tree) is not built: until it is, the window shows Helium's vertical tab strip, and Ctrl+S still collapses that strip.
 
 ## Open points carried into M2 planning
 

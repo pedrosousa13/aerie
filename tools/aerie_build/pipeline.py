@@ -57,6 +57,8 @@ TEST_BINARIES = (
     ("aerie_design_tokens_unittests", ()),
     # The Tab Model: records, the model, its saved state and the aerie.tabs.* prefs (issue #176).
     ("aerie_tab_model_unittests", ()),
+    # The sidebar layout, width limits and keyboard steps, and the aerie.sidebar.* prefs (issue #177).
+    ("aerie_sidebar_unittests", ()),
 )
 # The Views UI test binaries (issue #175, seam B). They link Chromium's browser test support, so they are not
 # in a plain `./aerie test-cpp`; ask for them with --target. They are defined in overlay/chrome/test/aerie and

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright 2026 The Aerie Authors
+     You can use, redistribute, and/or modify this source code under
+     the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+     Strings of the Aerie sidebar (issue #177). patches/sidebar/0022 includes this part in generated_resources.grd and
+     gives the Settings title to the page under the name tests/test_sidebar.py checks. The strings of the sidebar view
+     (its accessible names and the resize separator) are added here with the view. -->
+<grit-part>
+  <message name="IDS_SETTINGS_AERIE_SIDEBAR" desc="Title of the Sidebar section of Settings, where the settings of the browser's vertical tab sidebar are. It has no settings yet.">
+    Sidebar
+  </message>
+</grit-part>

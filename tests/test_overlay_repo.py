@@ -25,6 +25,7 @@ class RepoOverlayTest(unittest.TestCase):
                                             "chrome/test/aerie/", "components/aerie_fingerprint/", "components/aerie_gpu_info/", "components/aerie_screen/", "components/aerie_text_metrics/", "components/aerie_webgl_readback/", "components/aerie_fonts/", "components/aerie_design_tokens/",
                                             "chrome/browser/resources/settings/appearance_page/aerie_motion_row.",
                                             "components/aerie_tab_model/", "chrome/browser/aerie_tab_model/", "components/aerie_alpha_notice/",
+                                            "components/aerie_sidebar/", "chrome/browser/ui/views/aerie_sidebar/",
                                             "tools/metrics/histograms/metadata/aerie/",
                                             "third_party/rust/chromium_crates_io/patches/")), rel)
             self.assertNotIn("/target/", rel)
@@ -37,7 +38,8 @@ class RepoOverlayTest(unittest.TestCase):
                    "chrome/browser/ui/webui/aerie_guard_settings/BUILD.gn",
                    "components/aerie_widevine/BUILD.gn", "chrome/browser/aerie_widevine/BUILD.gn",
                    "components/aerie_design_tokens/BUILD.gn",
-                   "components/aerie_tab_model/BUILD.gn", "chrome/browser/aerie_tab_model/BUILD.gn"):
+                   "components/aerie_tab_model/BUILD.gn", "chrome/browser/aerie_tab_model/BUILD.gn",
+                   "components/aerie_sidebar/BUILD.gn"):
             base = gn.rsplit("/", 1)[0]
             text = (overlay.overlay_root(REPO) / gn).read_text()
             for name in re.findall(r'"([A-Za-z0-9_./-]+\.(?:cc|h|rs|py|json|grd))"', text):

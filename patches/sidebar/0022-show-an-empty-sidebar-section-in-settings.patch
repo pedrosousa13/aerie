@@ -1,0 +1,250 @@
+Aerie-Purpose: Replace Helium's layout picker and Zen toggles on the Appearance page with an empty "Sidebar" section, and add that section's title string.
+Aerie-Upstream-Area: chrome/browser/resources/settings/appearance_page (appearance_layout_page.ts, appearance_layout_page.html.ts), chrome/app (generated_resources.grd and its gritdeps), chrome/browser/ui/webui/settings (settings_localized_strings_provider.cc)
+Aerie-Kind: hook
+
+Issue #177. Helium's layout page chooses between four layouts and turns Zen mode on; Aerie has one
+layout, the sidebar, so nothing there can be chosen (patches/sidebar/0021 also stops Settings from
+writing those prefs). The page keeps its element name, view id and place, so the Appearance page
+index and the router are untouched, and shows a section called "Sidebar" with nothing in it. The
+slices that add sidebar settings (side, density, auto-hide, themes) fill it. This also takes away
+the right-align, expand-on-hover, centred and minimal location bar and progress bar toggles that
+were on that page: the first two belong to the Helium strip that the sidebar replaces, the next two
+to the toolbar that moves into the sidebar, and the progress bar toggle goes with the page's other
+rows. A sidebar setting can bring any of them back.
+The title string is in the overlay's aerie_sidebar_strings.grdp.
+
+--- a/chrome/app/generated_resources.grd
++++ b/chrome/app/generated_resources.grd
+@@ -302,6 +302,9 @@
+       <!-- Aerie reduced-motion strings -->
+       <part file="../../components/aerie_design_tokens/aerie_motion_strings.grdp" />
+ 
++      <!-- Aerie sidebar strings -->
++      <part file="../browser/ui/views/aerie_sidebar/aerie_sidebar_strings.grdp" />
++
+       <!-- Aerie Widevine prompt strings -->
+       <part file="../browser/aerie_widevine/aerie_widevine_strings.grdp" />
+ 
+--- a/chrome/app/generated_resources.grd.gritdeps
++++ b/chrome/app/generated_resources.grd.gritdeps
+@@ -111,6 +111,7 @@
+ chrome/app/whats_new_strings.grdp
+ chrome/browser/aerie_widevine/aerie_widevine_strings.grdp
+ chrome/browser/ui/views/aerie_adblock/aerie_guard_strings.grdp
++chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_strings.grdp
+ chrome/browser/ui/webui/aerie_guard_settings/aerie_guard_settings_strings.grdp
+ components/aerie_alpha_notice/aerie_alpha_notice_strings.grdp
+ components/aerie_design_tokens/aerie_motion_strings.grdp
+--- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
++++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
+@@ -621,6 +621,7 @@
+       {"nativeFrameMaterialsDescription",
+        IDS_SETTINGS_NATIVE_FRAME_MATERIALS_DESCRIPTION},
+       {"layoutPageTitle", IDS_SETTINGS_LAYOUT},
++      {"aerieSidebarPageTitle", IDS_SETTINGS_AERIE_SIDEBAR},
+       {"browserLayout", IDS_SETTINGS_BROWSER_LAYOUT},
+       {"browserLayoutClassic", IDS_SETTINGS_BROWSER_LAYOUT_CLASSIC},
+       {"browserLayoutDynamic", IDS_SETTINGS_BROWSER_LAYOUT_DYNAMIC},
+--- a/chrome/browser/resources/settings/appearance_page/appearance_layout_page.ts
++++ b/chrome/browser/resources/settings/appearance_page/appearance_layout_page.ts
+@@ -2,41 +2,17 @@
+ // You can use, redistribute, and/or modify this source code under
+ // the terms of the GPL-3.0 license that can be found in the LICENSE file.
+ 
+-import '../controls/controlled_radio_button.js';
+-import '../controls/settings_radio_group.js';
+-import '../controls/settings_toggle_button.js';
+ import '../settings_page/settings_section.js';
+ 
+-import {PrefServiceObserverMixinLit} from '/shared/settings/prefs2/pref_service_observer_mixin_lit.js';
+ import {CrLitElement} from 'chrome://resources/lit/v3_0/lit.rollup.js';
+ 
+-import {loadTimeData} from '../i18n_setup.js';
+-
+ import {getCss} from './appearance_layout_page.css.js';
+ import {getHtml} from './appearance_layout_page.html.js';
+ 
+-type PrefObject<T> = chrome.settingsPrivate.PrefObject<T>;
+-
+-// This must be kept in sync with the HeliumLayoutType enum in
+-// chrome/browser/ui/helium/helium_layout_state_controller.h.
+-enum BrowserLayout {
+-  CLASSIC = 0,
+-  COMPACT = 1,
+-  VERTICAL = 2,
+-  DYNAMIC = 3,
+-}
+-
+-interface BrowserLayoutOption {
+-  value: BrowserLayout;
+-  name: string;
+-  preview: string;
+-}
+-
+-const SettingsAppearanceLayoutPageElementBase =
+-    PrefServiceObserverMixinLit(CrLitElement);
+-
+-export class SettingsAppearanceLayoutPageElement extends
+-    SettingsAppearanceLayoutPageElementBase {
++// Aerie (issue #177): the page of Helium's layout picker is the "Sidebar"
++// section. It is empty; the slices that add sidebar settings fill it. The
++// element keeps its name and its place in the Appearance views.
++export class SettingsAppearanceLayoutPageElement extends CrLitElement {
+   static get is() {
+     return 'settings-appearance-layout-page';
+   }
+@@ -48,79 +24,6 @@
+   override render() {
+     return getHtml.bind(this)();
+   }
+-
+-  static override get properties() {
+-    return {
+-      browserLayoutPref_: {type: Object},
+-      browserLayoutOptions_: {type: Array},
+-      zenModePref_: {type: Object},
+-      zenModeSidebarPinnedPref_: {type: Object},
+-      forcedExpandOnHoverPref_: {type: Object},
+-    };
+-  }
+-
+-  protected accessor browserLayoutPref_: PrefObject<number>|undefined =
+-      undefined;
+-  protected accessor zenModePref_: PrefObject<boolean>|undefined = undefined;
+-  protected accessor zenModeSidebarPinnedPref_: PrefObject<boolean>|undefined =
+-      undefined;
+-  protected accessor forcedExpandOnHoverPref_: PrefObject<boolean> = {
+-    key: 'vertical_tabs.expand_on_hover',
+-    type: chrome.settingsPrivate.PrefType.BOOLEAN,
+-    value: true,
+-  };
+-
+-  protected accessor browserLayoutOptions_: BrowserLayoutOption[] = [
+-    {
+-      value: BrowserLayout.CLASSIC,
+-      name: loadTimeData.getString('browserLayoutClassic'),
+-      preview: 'classic',
+-    },
+-    {
+-      value: BrowserLayout.DYNAMIC,
+-      name: loadTimeData.getString('browserLayoutDynamic'),
+-      preview: 'dynamic',
+-    },
+-    {
+-      value: BrowserLayout.COMPACT,
+-      name: loadTimeData.getString('browserLayoutCompact'),
+-      preview: 'compact',
+-    },
+-    {
+-      value: BrowserLayout.VERTICAL,
+-      name: loadTimeData.getString('browserLayoutVertical'),
+-      preview: 'vertical',
+-    },
+-  ];
+-
+-
+-  override connectedCallback() {
+-    super.connectedCallback();
+-
+-    this.mirrorPrefs({
+-      'helium.browser.layout': 'browserLayoutPref_',
+-      'helium.browser.zen_mode': 'zenModePref_',
+-      'helium.browser.zen_mode_sidebar_pinned': 'zenModeSidebarPinnedPref_',
+-    });
+-  }
+-
+-  protected showVerticalSettings_(): boolean {
+-    return this.browserLayoutPref_?.value === BrowserLayout.VERTICAL;
+-  }
+-
+-  protected showVerticalTabsExpandOnHoverSetting_(): boolean {
+-    return this.showVerticalSettings_();
+-  }
+-
+-  // The unpinned zen mode sidebar is always expanded while it floats.
+-  protected isExpandOnHoverForcedByZenMode_(): boolean {
+-    return !!this.zenModePref_?.value &&
+-        !this.zenModeSidebarPinnedPref_?.value;
+-  }
+-
+-  protected showCenteredLocationBarSetting_(): boolean {
+-    return this.browserLayoutPref_?.value !== BrowserLayout.COMPACT;
+-  }
+ }
+ 
+ declare global {
+--- a/chrome/browser/resources/settings/appearance_page/appearance_layout_page.html.ts
++++ b/chrome/browser/resources/settings/appearance_page/appearance_layout_page.html.ts
+@@ -9,71 +9,7 @@
+ export function getHtml(this: SettingsAppearanceLayoutPageElement) {
+   // clang-format off
+   return html`<!--_html_template_start_-->
+-<settings-section page-title="$i18n{layoutPageTitle}">
+-  <settings-radio-group id="browserLayout" is-horizontal
+-      pref-key="helium.browser.layout"
+-      group-aria-label="$i18n{browserLayout}">
+-    ${this.browserLayoutOptions_.map(item => html`
+-      <controlled-radio-button class="browser-layout-option"
+-          name="${item.value}" pref-key="helium.browser.layout"
+-          label="${item.name}" hide-label-text no-extension-indicator>
+-        <div class="browser-layout-preview ${item.preview}"
+-            aria-hidden="true">
+-          <div class="preview-tabs"><div></div><div></div><div></div></div>
+-          <div class="preview-toolbar"></div>
+-          <div class="preview-content"></div>
+-        </div>
+-        <div aria-hidden="true">${item.name}</div>
+-      </controlled-radio-button>
+-    `)}
+-  </settings-radio-group>
+-  <settings-toggle-button class="hr"
+-      ?hidden="${!this.showVerticalSettings_()}"
+-      pref-key="helium.browser.vertical_right_aligned"
+-      label="$i18n{tabStripRightAlign}">
+-  </settings-toggle-button>
+-  <settings-toggle-button class="hr" disabled
+-      ?hidden="${!this.showVerticalTabsExpandOnHoverSetting_() ||
+-                 !this.isExpandOnHoverForcedByZenMode_()}"
+-      .pref="${this.forcedExpandOnHoverPref_}"
+-      label="$i18n{showVerticalTabsExpandOnHover}">
+-  </settings-toggle-button>
+-  <settings-toggle-button class="hr" id="showVerticalTabsExpandOnHover"
+-      ?hidden="${!this.showVerticalTabsExpandOnHoverSetting_() ||
+-                 this.isExpandOnHoverForcedByZenMode_()}"
+-      pref-key="vertical_tabs.expand_on_hover"
+-      label="$i18n{showVerticalTabsExpandOnHover}">
+-  </settings-toggle-button>
+-  <settings-toggle-button class="hr"
+-      ?hidden="${!this.showCenteredLocationBarSetting_()}"
+-      pref-key="helium.browser.centered_location_bar"
+-      label="$i18n{centeredLocationBar}">
+-  </settings-toggle-button>
+-  <settings-toggle-button class="hr"
+-      pref-key="helium.browser.minimal_location_bar"
+-      label="$i18n{minimalLocationBar}">
+-  </settings-toggle-button>
+-  <settings-toggle-button class="hr"
+-      pref-key="helium.browser.show_progress_bar"
+-      label="$i18n{showProgressBar}">
+-  </settings-toggle-button>
+-  <settings-toggle-button class="hr"
+-      pref-key="helium.browser.zen_mode"
+-      label="$i18n{browserZenMode}"
+-      sub-label="$i18n{browserZenModeDescription}">
+-  </settings-toggle-button>
+-  <div class="list-frame indented-toggles"
+-      ?hidden="${!this.zenModePref_?.value}">
+-    <settings-toggle-button class="hr"
+-        pref-key="helium.browser.zen_mode_sidebar_pinned"
+-        ?hidden="${!this.showVerticalSettings_()}"
+-        label="$i18n{zenModePinSidebar}">
+-    </settings-toggle-button>
+-    <settings-toggle-button class="hr"
+-        pref-key="helium.browser.zen_mode_top_chrome_pinned"
+-        label="$i18n{zenModePinToolbar}">
+-    </settings-toggle-button>
+-  </div>
++<settings-section page-title="$i18n{aerieSidebarPageTitle}">
+ </settings-section>
+ <!--_html_template_end_-->`;
+   // clang-format on
