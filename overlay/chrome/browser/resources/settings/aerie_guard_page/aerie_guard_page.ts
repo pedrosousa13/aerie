@@ -163,6 +163,12 @@ export class SettingsAerieGuardPageElement extends
     this.lists_ = state.lists;
     this.listsBusy_ = state.busy;
     this.customRules_ = state.customRules;
+    // "Saved and in use" must not stay on screen once the entry is turned off
+    // or its engine failed to build.
+    const customEntry = state.lists.find(l => l.id === 'custom');
+    if (!customEntry || !customEntry.enabled || customEntry.errorCode) {
+      this.customSaved_ = false;
+    }
     // A change from elsewhere (a restart reading the file, say) must not
     // replace what the user is typing.
     if (!this.customDirty_) {
