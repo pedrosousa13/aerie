@@ -45,6 +45,14 @@ std::string CustomListId(const GURL& url) {
                    base::span(digest).first<8u>()));
 }
 
+// The lists that have an address and are not built in. The user's own rules
+// are a list too, but have no slot in the table.
+size_t CountCustomLists(const std::vector<FilterListEntry>& lists) {
+  return std::count_if(lists.begin(), lists.end(), [](const auto& e) {
+    return !e.builtin && e.id != kCustomRulesId;
+  });
+}
+
 FilterListEntry BuiltIn(const char* id, const char* url, const char* title) {
   FilterListEntry entry;
   entry.id = id;
@@ -168,9 +176,7 @@ FilterListState::AddResult FilterListState::AddCustomList(const GURL& url,
       return AddResult::kDuplicate;
     }
   }
-  size_t custom = std::count_if(lists_.begin(), lists_.end(),
-                                [](const auto& e) { return !e.builtin; });
-  if (custom >= kMaxCustomLists) {
+  if (CountCustomLists(lists_) >= kMaxCustomLists) {
     return AddResult::kTooMany;
   }
   FilterListEntry entry;
@@ -183,6 +189,16 @@ FilterListState::AddResult FilterListState::AddCustomList(const GURL& url,
   *id = entry.id;
   lists_.push_back(std::move(entry));
   return AddResult::kAdded;
+}
+
+FilterListEntry& FilterListState::EnsureCustomRulesEntry() {
+  if (FilterListEntry* entry = Find(kCustomRulesId)) {
+    return *entry;
+  }
+  FilterListEntry entry;
+  entry.id = kCustomRulesId;
+  lists_.push_back(std::move(entry));
+  return lists_.back();
 }
 
 FilterListState::EnableResult FilterListState::SetEnabled(std::string_view id,
@@ -376,6 +392,15 @@ FilterListState FilterListState::FromValue(const base::DictValue& dict) {
       continue;
     }
     FilterListEntry* entry = state.Find(*id);
+    if (!entry && *id == kCustomRulesId) {
+      // The user's own rules have no address. A file that gives them one is
+      // not ours.
+      if (!url->empty()) {
+        continue;
+      }
+      state.EnsureCustomRulesEntry();
+      entry = state.Find(kCustomRulesId);
+    }
     if (!entry) {
       // A custom list: its address must be acceptable, and its id the one
       // this build would give that address (so a file name cannot be chosen).
@@ -384,9 +409,7 @@ FilterListState FilterListState::FromValue(const base::DictValue& dict) {
       GURL gurl(*url);
       if (!IsAcceptableListUrl(gurl, /*allow_loopback=*/true) ||
           CustomListId(gurl) != *id ||
-          std::count_if(state.lists_.begin(), state.lists_.end(),
-                        [](const auto& e) { return !e.builtin; }) >=
-              static_cast<long>(kMaxCustomLists)) {
+          CountCustomLists(state.lists_) >= kMaxCustomLists) {
         continue;
       }
       FilterListEntry fresh;
@@ -396,8 +419,9 @@ FilterListState FilterListState::FromValue(const base::DictValue& dict) {
       state.lists_.push_back(std::move(fresh));
       entry = &state.lists_.back();
     }
-    // Built-in lists keep their own address and title.
-    if (!entry->builtin) {
+    // Built-in lists keep their own address and title, and the user's own rules
+    // have no title: the page names them.
+    if (!entry->builtin && entry->id != kCustomRulesId) {
       if (const std::string* title = item->FindString("title")) {
         entry->title = title->substr(0, kMaxTitleLength);
       }

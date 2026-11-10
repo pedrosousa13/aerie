@@ -15,6 +15,7 @@
 #include "base/time/time.h"
 #include "base/values.h"
 #include "components/aerie_adblock/browser/blocking_level.h"
+#include "components/aerie_adblock/browser/custom_rules.h"
 #include "url/gurl.h"
 
 namespace aerie_adblock {
@@ -45,7 +46,9 @@ struct FilterListEntry {
   // custom list's id is derived from its address. Used as a file name, so
   // IsValidListId() is checked before any path is made.
   std::string id;
-  std::string url;    // The publisher's address (https).
+  // The publisher's address (https). Empty for the user's own rules
+  // (kCustomRulesId), which are never downloaded.
+  std::string url;
   std::string title;  // From the list's own "! Title:" line, or built in.
   bool builtin = false;
   int rules = 0;  // Network rules in the copy in use; 0 until a list loads.
@@ -120,6 +123,10 @@ class FilterListState {
 
   // Adds a custom list. On kAdded, |*id| is its id.
   AddResult AddCustomList(const GURL& url, bool allow_loopback, std::string* id);
+  // The entry for the user's own rules (issue #107), made when absent: id
+  // kCustomRulesId, no address, on. It is not a "custom list" of the table
+  // limit. RemoveList(kCustomRulesId) removes it.
+  FilterListEntry& EnsureCustomRulesEntry();
   // Turns a list on or off. The list and its file stay either way. kRequired
   // (nothing changes) for a list that CanBeDisabled() refuses and |enabled| is
   // false; kUnknownList for an id that is not in the state.

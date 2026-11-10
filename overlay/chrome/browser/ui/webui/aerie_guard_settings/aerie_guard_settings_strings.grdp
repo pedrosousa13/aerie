@@ -3,7 +3,7 @@
      You can use, redistribute, and/or modify this source code under
      the terms of the GPL-3.0 license that can be found in the LICENSE file.
 
-     Strings of the Aerie Guard section of Settings (issues #103 and #104). patches/adblock/0022 gives each one to the
+     Strings of the Aerie Guard section of Settings (issues #103, #104 and #107). patches/adblock/0022 (#103, #104) and 0027 (#107) give each one to the
      settings page under the name tests/test_aerie_guard_settings.py checks. -->
 <grit-part>
   <message name="IDS_SETTINGS_AERIE_GUARD_TITLE" desc="Title of the Aerie Guard section of Settings and the text of its entry in the menu on the left.">
@@ -143,5 +143,83 @@
   </message>
   <message name="IDS_SETTINGS_AERIE_GUARD_LIST_ERROR_REQUIRED" desc="Error shown when a request to turn off the list that cannot be turned off was refused.">
     This list cannot be turned off.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CUSTOM_LIST_TITLE" desc="Name of the filter list that holds the user's own rules, in the list of filter lists on the Aerie Guard page.">
+    Your own rules
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CUSTOM_HEADING" desc="Heading of the area where the user writes their own filter rules.">
+    Your own filter rules
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CUSTOM_DESC" desc="Text under the heading of the area where the user writes their own filter rules. It says how they are written, that some kinds of rule are always dropped and that nothing is sent anywhere.">
+    Write one rule per line, in the same syntax as EasyList. Scriptlet, procedural and HTML rules are always dropped. The rules stay on this computer.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CUSTOM_LABEL" desc="Accessible name of the text box where the user writes their own filter rules.">
+    Your own filter rules
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CUSTOM_PLACEHOLDER" desc="Example rule shown in the empty text box where the user writes their own filter rules. It is filter syntax, not a sentence.">
+    ||ads.example^
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CUSTOM_SAVE" desc="Button that saves the user's own filter rules and starts using them.">
+    Save rules
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CUSTOM_SAVED" desc="Short message shown after the user's own filter rules were saved.">
+    The rules are saved and in use.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CUSTOM_SUMMARY" desc="Line under the text box of the user's own filter rules. The first placeholder is the number of blocking rules and the second is the number of hiding rules that are in use.">
+    In use: <ph name="BLOCKING">$1<ex>12</ex></ph> blocking rules and <ph name="HIDING">$2<ex>3</ex></ph> hiding rules.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CUSTOM_SUMMARY_OFF" desc="Line under the text box of the user's own filter rules when they are not in use, because the switch is off or the engine could not be rebuilt. The first placeholder is the number of blocking rules and the second is the number of hiding rules in the saved text.">
+    Not in use: the saved text has <ph name="BLOCKING">$1<ex>12</ex></ph> blocking rules and <ph name="HIDING">$2<ex>3</ex></ph> hiding rules.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CUSTOM_ISSUES_HEADING" desc="Heading of the list of rules, in the user's own filter rules, that are dropped or ignored.">
+    Rules that are not used
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CUSTOM_ISSUE_LINE" desc="Start of one entry in the list of rules that are not used. The placeholder is the line number of the rule in the text box.">
+    Line <ph name="LINE">$1<ex>3</ex></ph>
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CUSTOM_ISSUES_MORE" desc="Line after the list of rules that are not used, when the list is cut short. The placeholder is how many more rules are not shown.">
+    And <ph name="COUNT">$1<ex>25</ex></ph> more that are not shown.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CUSTOM_REASON_SCRIPTLET" desc="Reason shown for a rule that was dropped because it is a scriptlet rule.">
+    Dropped: Aerie never runs scriptlets.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CUSTOM_REASON_HTML_FILTER" desc="Reason shown for a rule that was dropped because it is an HTML filtering rule.">
+    Dropped: HTML filtering rules are not supported.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CUSTOM_REASON_PROCEDURAL" desc="Reason shown for a rule that was dropped because it is a procedural rule.">
+    Dropped: procedural rules are not supported.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CUSTOM_REASON_STYLE_INJECTION" desc="Reason shown for a rule that was dropped because it injects a style or a script.">
+    Dropped: rules that inject styles or scripts are not supported.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CUSTOM_REASON_UNSAFE_SELECTOR" desc="Reason shown for a rule that was dropped because its selector is not allowed.">
+    Dropped: the selector is not allowed.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CUSTOM_REASON_TOO_LONG" desc="Reason shown for a rule that was dropped because the line is too long.">
+    Dropped: the line is longer than 4 KiB.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CUSTOM_REASON_CONTAINS_NUL" desc="Reason shown for a rule that was dropped because the line has a NUL character.">
+    Dropped: the line has a NUL character.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CUSTOM_REASON_MATCHES_EVERY_ADDRESS" desc="Reason shown for an exception rule that is ignored because it would match every address.">
+    Ignored: this exception rule would match every address.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CUSTOM_REASON_UNPARSEABLE" desc="Reason shown for a rule that was dropped because it is not a valid filter rule.">
+    Dropped: this is not a valid filter rule.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CUSTOM_ERROR_TOO_LARGE" desc="Error shown when the user's own filter rules are larger than the limit and were not saved.">
+    The rules are larger than 256 KiB. Nothing was saved.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CUSTOM_ERROR_TOO_MANY_LINES" desc="Error shown when the user's own filter rules have more lines than the limit and were not saved.">
+    The rules have more than 10,000 lines. Nothing was saved.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CUSTOM_ERROR_NOT_TEXT" desc="Error shown when the user's own filter rules are not valid text and were not saved.">
+    The rules are not valid text. Nothing was saved.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CUSTOM_ERROR_TIMEOUT" desc="Error shown when checking the user's own filter rules took too long and they were not saved.">
+    The rules took too long to check. Nothing was saved.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CUSTOM_ERROR_UNWRITABLE" desc="Error shown when the user's own filter rules could not be written to disk.">
+    The rules could not be saved on this computer.
   </message>
 </grit-part>

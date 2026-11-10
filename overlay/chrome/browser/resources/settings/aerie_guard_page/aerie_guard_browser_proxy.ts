@@ -25,6 +25,31 @@ export interface AerieGuardList {
   error: string;
 }
 
+/** One line of the user's own rules that is dropped or ignored. */
+export interface AerieGuardCustomIssue {
+  /** 1-based. */
+  line: number;
+  /** A fixed code, e.g. 'scriptlet'; the page owns the words. */
+  reason: string;
+  /** True for an exception rule left out because it matches every address. */
+  ignored: boolean;
+  /** The line, cut short. Untrusted: show it as text only. */
+  rule: string;
+}
+
+/** The saved text of the user's own rules and what was found in it. */
+export interface AerieGuardCustomRules {
+  /** Untrusted: show it as text only. */
+  text: string;
+  networkRules: number;
+  hideRules: number;
+  ignoredExceptions: number;
+  dropped: number;
+  /** All issues; `issues` holds the first ones only. */
+  issueCount: number;
+  issues: AerieGuardCustomIssue[];
+}
+
 /**
  * What every message of AerieGuardSettingsHandler answers
  * (chrome/browser/ui/webui/aerie_guard_settings).
@@ -44,6 +69,9 @@ export interface AerieGuardState {
   /** Hosts where blocking is off, saved ones only, sorted. */
   exceptions: string[];
   lists: AerieGuardList[];
+  /** Why the last save of the user's own rules was refused; '' for none. */
+  customError: string;
+  customRules: AerieGuardCustomRules;
 }
 
 /**
@@ -60,6 +88,8 @@ export interface AerieGuardBrowserProxy {
   setException(host: string, enabled: boolean): Promise<AerieGuardState>;
   setAutoUpdate(enabled: boolean): Promise<AerieGuardState>;
   setDefaultLevel(level: string): Promise<AerieGuardState>;
+  /** Saves the user's own rules; a blank text removes them. */
+  setCustomRules(text: string): Promise<AerieGuardState>;
 }
 
 let instance: AerieGuardBrowserProxy|null = null;
@@ -99,6 +129,10 @@ export class AerieGuardBrowserProxyImpl implements AerieGuardBrowserProxy {
 
   setDefaultLevel(level: string): Promise<AerieGuardState> {
     return sendWithPromise('aerieGuard.setDefaultLevel', level);
+  }
+
+  setCustomRules(text: string): Promise<AerieGuardState> {
+    return sendWithPromise('aerieGuard.setCustomRules', text);
   }
 
   static getInstance(): AerieGuardBrowserProxy {

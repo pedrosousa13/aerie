@@ -101,6 +101,40 @@ def good_lists():
     }
 
 
+def own_visit(blocked, host="a.localhost", **over):
+    v = {"visit": "x", "host": host, "blocked_loaded": not blocked, "open_loaded": True,
+         "scriptlet_marker": "undefined", "done": True, "fixture_blocked_requests": 0 if blocked else 1}
+    v.update(over)
+    return v
+
+
+def own_state(with_custom=True, text=fl.OWN_RULES, error=""):
+    issues = [{"line": line, "reason": reason, "ignored": reason == "matches_every_address", "rule": "r"}
+              for line, reason in fl.OWN_ISSUES] if with_custom else []
+    lists = [BUILTIN, {"id": "custom", "url": "", "title": "", "builtin": False, "rules": 1, "enabled": True,
+                       "updated": 1, "error": ""}] if with_custom else [BUILTIN]
+    return {"lists": lists, "customError": error,
+            "customRules": {"text": text if with_custom else "", "networkRules": 1, "issues": issues}}
+
+
+def good_custom():
+    """What observe_custom_rules returns for a build where the step works."""
+    return {
+        "saved": own_state(),
+        "state_after_save": own_state(),
+        "blocked_visit": own_visit(True),
+        "other_visit": own_visit(False, "b.localhost"),
+        "file_text": fl.OWN_RULES,
+        "render": {"pages": 1, "injected": 0, "xss": "undefined", "text": 'Line 4 a.localhost##<img onerror="x">'},
+        "oversize": own_state(error="too_large"),
+        "bad_argument": {"ok": False, "error": "bad_argument"},
+        "refused_visit": own_visit(True),
+        "cleared": own_state(with_custom=False),
+        "cleared_visit": own_visit(False),
+        "file_after_clear": None,
+    }
+
+
 def good():
     state = copy.deepcopy(STATE)
     return {
@@ -119,6 +153,7 @@ def good():
         "exception": {"state": state, "excepted_visit": visit(False), "other_visit": visit(True, "other.localhost")},
         "restart": {"state": copy.deepcopy(STATE), "excepted_visit": visit(False), "other_visit": visit(True, "other.localhost")},
         "lists": good_lists(),
+        "custom_rules": good_custom(),
         "validation": good_validation(),
         "incognito": good_incognito(),
     }
@@ -483,6 +518,110 @@ class VisitPageTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CustomRulesStepTest(unittest.TestCase):
+    """Issue #107: the user's own rules, saved through the handler."""
+
+    def problems(self, mutate):
+        obs = good_custom()
+        mutate(obs)
+        return fl.judge_custom_rules(obs)
+
+    def has(self, problems, needle):
+        self.assertTrue(any(needle in p for p in problems), problems)
+
+    def test_a_good_run_has_no_problem(self):
+        self.assertEqual(fl.judge_custom_rules(good_custom()), [])
+        self.assertEqual(fl.judge(good())[0], "pass", fl.judge(good())[1])
+
+    def test_no_observations_is_a_problem(self):
+        self.assertTrue(fl.judge_custom_rules(None))
+
+    def test_the_scriptlet_step_fails_when_the_marker_is_set(self):
+        """A hand-made (synthetic) observation where the scriptlet ran and was not reported must fail. No build is run here."""
+        def skipping(o):
+            o["blocked_visit"]["scriptlet_marker"] = "boolean"
+            o["saved"]["customRules"]["issues"] = [i for i in o["saved"]["customRules"]["issues"] if i["reason"] != "scriptlet"]
+        problems = self.problems(skipping)
+        self.has(problems, "the scriptlet line ran")
+        self.has(problems, "dropped and ignored lines")
+        status, detail, _ = fl.judge({**good(), "custom_rules": {**good_custom(), "blocked_visit": own_visit(True, scriptlet_marker="boolean")}})
+        self.assertEqual(status, "fail")
+        self.assertIn("the scriptlet line ran", detail)
+
+    def test_a_rule_that_does_not_block_fails(self):
+        self.has(self.problems(lambda o: o.update(blocked_visit=own_visit(False))), "was not blocked")
+
+    def test_a_blocked_script_that_reached_the_server_fails(self):
+        self.has(self.problems(lambda o: o["blocked_visit"].update(fixture_blocked_requests=1)), "reached the fixture server")
+
+    def test_a_rule_for_one_site_that_blocks_another_fails(self):
+        self.has(self.problems(lambda o: o.update(other_visit=own_visit(True, "b.localhost"))), "also blocked the script on b.localhost")
+
+    def test_the_reasons_must_be_named_per_line(self):
+        def wrong(o):
+            o["saved"]["customRules"]["issues"][1]["reason"] = "procedural"
+        self.has(self.problems(wrong), "dropped and ignored lines")
+
+    def test_only_the_broad_exception_is_ignored(self):
+        def wrong(o):
+            o["saved"]["customRules"]["issues"][0]["ignored"] = True
+        self.has(self.problems(wrong), "marked ignored")
+
+    def test_the_list_needs_no_address(self):
+        def addressed(o):
+            o["state_after_save"]["lists"][1]["url"] = "https://lists.example/x"
+        self.has(self.problems(addressed), "has an address")
+
+    def test_the_file_must_hold_the_text_as_saved(self):
+        self.has(self.problems(lambda o: o.update(file_text="||x^\n")), "lists/custom.txt is not the text")
+        self.has(self.problems(lambda o: o.update(file_text=None)), "lists/custom.txt is not the text")
+
+    def test_html_in_a_rule_must_be_shown_as_text(self):
+        self.has(self.problems(lambda o: o["render"].update(injected=1)), "must be text")
+        self.has(self.problems(lambda o: o["render"].update(xss="number")), "ran as script")
+        self.has(self.problems(lambda o: o["render"].update(text="")), "does not show the HTML line as text")
+        self.has(self.problems(lambda o: o.update(render={})), "not found to inspect")
+
+    def test_a_text_over_the_limit_must_be_refused_and_change_nothing(self):
+        self.has(self.problems(lambda o: o.update(oversize=own_state())), "not refused as too_large")
+        self.has(self.problems(lambda o: o.update(oversize=own_state(error="too_large", text="x"))), "changed the saved rules")
+        self.has(self.problems(lambda o: o.update(refused_visit=own_visit(False))), "after the refused saves")
+
+    def test_a_number_instead_of_a_text_must_be_rejected(self):
+        self.has(self.problems(lambda o: o.update(bad_argument={"ok": True})), "number instead of a text")
+
+    def test_a_blank_text_removes_the_rules_and_the_file(self):
+        self.has(self.problems(lambda o: o.update(cleared=own_state())), "did not remove the rules")
+        self.has(self.problems(lambda o: o.update(cleared_visit=own_visit(True))), "should load but did not")
+        self.has(self.problems(lambda o: o.update(file_after_clear=fl.OWN_RULES)), "still on disk")
+
+    def test_the_fixtures_exist_and_the_rule_blocks_one_script_on_one_site(self):
+        root = fixtures.FIXTURE_DIR / "filters"
+        self.assertTrue((root / "own" / "blocked.js").is_file())
+        self.assertTrue((root / "own" / "open.js").is_file())
+        page = (root / "own-rules.html").read_text()
+        self.assertIn("aerieScriptletMarker", page)
+        self.assertIn("blocked.js", page)
+        rule = fl.OWN_RULES.splitlines()[1]
+        self.assertEqual(rule, "/filters/own/blocked.js$domain=a.localhost")
+        self.assertNotIn("open.js", fl.OWN_RULES)
+        self.assertIn("aerieScriptletMarker", fl.OWN_RULES)
+
+    def test_the_text_is_sent_as_a_message_argument_never_put_in_script(self):
+        # observe_custom_rules sends the text through CALL_JS as a JSON argument.
+        import inspect
+        text = inspect.getsource(fl.observe_custom_rules)
+        self.assertIn('send(session, "setCustomRules", [OWN_RULES])', text)
+        self.assertNotIn("evaluate(OWN_RULES", text)
+
+    def test_the_oversize_text_is_over_the_managers_limit_and_under_the_handlers(self):
+        self.assertEqual(fl.OVER_LIMIT_RULES.count("\n"), 0)
+        self.assertGreater(len(fl.OVER_LIMIT_RULES), 256 * 1024)
+        self.assertLess(len(fl.OVER_LIMIT_RULES), 1024 * 1024)  # past the handler's own limit it is a different error
+        names = [n for n, _, _ in fl.VALIDATION_PROBES]
+        self.assertTrue(any(n.startswith("setCustomRules") for n in names))
 
 
 class ListsStepTest(unittest.TestCase):

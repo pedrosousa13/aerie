@@ -14,6 +14,7 @@
 #include "base/functional/bind.h"
 #include "base/logging.h"
 #include "base/metrics/histogram_functions.h"
+#include "base/strings/string_util.h"
 #include "base/supports_user_data.h"
 #include "base/task/thread_pool.h"
 #include "components/aerie_adblock/browser/adblock_engine.h"
@@ -102,6 +103,9 @@ void FilterListManager::OnStateLoaded(FilterListState state) {
   }
   if (state_.NeedsRebuild()) {
     Rebuild();
+  }
+  if (state_.Find(kCustomRulesId)) {
+    LoadCustomRules();
   }
   MeasureShippedLists();
   schedule_timer_.Start(
@@ -194,6 +198,9 @@ void FilterListManager::RemoveList(std::string_view id) {
   if (!state_.RemoveList(id)) {
     return;
   }
+  if (id == kCustomRulesId) {
+    custom_rules_ = CustomRules();
+  }
   updated_ok_.erase(std::string(id));
   file_runner_->PostTask(
       FROM_HERE, base::BindOnce(&filter_list_storage::DeleteList, dir_,
@@ -214,7 +221,9 @@ void FilterListManager::UpdateAll() {
   Save();
   std::vector<std::string> ids;
   for (const FilterListEntry& entry : state_.lists()) {
-    if (entry.enabled) {  // A list that is off is not fetched on its own.
+    // A list that is off is not fetched on its own, and the user's own rules
+    // have no address.
+    if (entry.enabled && !entry.url.empty()) {
       ids.push_back(entry.id);
     }
   }
@@ -502,8 +511,8 @@ void FilterListManager::SetAutoUpdate(bool enabled) {
 
 void FilterListManager::FetchList(const std::string& id) {
   const FilterListEntry* entry = state_.Find(id);
-  if (!entry || !updating_.insert(id).second) {
-    return;  // Unknown, or already being updated.
+  if (!entry || entry->url.empty() || !updating_.insert(id).second) {
+    return;  // Unknown, has no address, or already being updated.
   }
   updated_ok_.erase(id);
   Begin();
@@ -621,7 +630,8 @@ void FilterListManager::Rebuild(bool retry) {
       continue;  // Off: its file stays on disk, the engine does not get it.
     }
     FilterEngineService::ListInput input;
-    input.custom = !entry.builtin;
+    input.own = entry.id == kCustomRulesId;
+    input.custom = !entry.builtin && !input.own;
     if (!entry.updated.is_null()) {
       input.path = filter_list_storage::ListPath(dir_, entry.id);
     } else if (entry.builtin) {
@@ -672,6 +682,139 @@ void FilterListManager::OnShippedMeasured(std::string id, ListCheck check) {
   End();
 }
 
+void FilterListManager::SetCustomRules(std::string text,
+                                       CustomRulesCallback done) {
+  if (!loaded_) {  // The saved state is not read yet: nothing to attach it to.
+    std::move(done).Run(CustomRulesFailure::kUnwritable);
+    return;
+  }
+  const uint64_t save_id = ++custom_save_id_;
+  Begin();
+  base::ThreadPool::PostTaskAndReplyWithResult(
+      FROM_HERE, {base::TaskPriority::USER_VISIBLE},
+      base::BindOnce(
+          [](std::string text) {
+            CustomRulesAnalysis analysis =
+                AnalyzeCustomRules(base::as_byte_span(text), kCheckBudget);
+            return CustomAnalysis(std::move(text), std::move(analysis));
+          },
+          std::move(text)),
+      base::BindOnce(&FilterListManager::OnCustomAnalyzed,
+                     weak_factory_.GetWeakPtr(), save_id, std::move(done)));
+}
+
+void FilterListManager::OnCustomAnalyzed(uint64_t save_id,
+                                         CustomRulesCallback done,
+                                         CustomAnalysis analyzed) {
+  auto& [text, analysis] = analyzed;
+  if (save_id != custom_save_id_) {  // A later save replaced this one.
+    std::move(done).Run(CustomRulesFailure::kSuperseded);
+    End();
+    return;
+  }
+  if (analysis.failure != CustomRulesFailure::kNone) {
+    // Nothing changes: the saved rules keep blocking.
+    std::move(done).Run(analysis.failure);
+    End();
+    return;
+  }
+  if (base::TrimWhitespaceASCII(text, base::TRIM_ALL).empty()) {
+    ClearCustomRules();
+    std::move(done).Run(CustomRulesFailure::kNone);
+    End();
+    return;
+  }
+  CustomRules rules = std::move(analysis.rules);
+  rules.text = text;
+  file_runner_->PostTaskAndReplyWithResult(
+      FROM_HERE,
+      base::BindOnce(
+          [](base::FilePath dir, std::string text) {
+            return filter_list_storage::WriteList(dir, kCustomRulesId, text);
+          },
+          dir_, std::move(text)),
+      base::BindOnce(&FilterListManager::OnCustomWritten,
+                     weak_factory_.GetWeakPtr(), std::move(done),
+                     std::move(rules)));
+}
+
+void FilterListManager::OnCustomWritten(CustomRulesCallback done,
+                                        CustomRules rules,
+                                        bool written) {
+  if (!written) {
+    std::move(done).Run(CustomRulesFailure::kUnwritable);
+    End();
+    return;
+  }
+  // The writes run in order on one sequence, so this reply is the newest file
+  // on disk even when a later save has begun: apply it.
+  FilterListEntry& entry = state_.EnsureCustomRulesEntry();
+  entry.rules = rules.network_rules;
+  entry.ignored_exceptions = rules.ignored_exceptions;
+  entry.updated = base::Time::Now();
+  entry.error.clear();
+  if (rules.ignored_exceptions > 0) {
+    LOG(WARNING) << "aerie_adblock: " << rules.ignored_exceptions
+                 << " exception rule(s) of the user's own rules match every "
+                    "address; they are ignored";
+  }
+  custom_rules_ = std::move(rules);
+  Save();
+  Notify();
+  Rebuild();
+  std::move(done).Run(CustomRulesFailure::kNone);
+  End();
+}
+
+void FilterListManager::ClearCustomRules() {
+  custom_rules_ = CustomRules();
+  if (!state_.RemoveList(kCustomRulesId)) {
+    return;
+  }
+  file_runner_->PostTask(FROM_HERE,
+                         base::BindOnce(&filter_list_storage::DeleteList, dir_,
+                                        std::string(kCustomRulesId)));
+  Save();
+  Notify();
+  Rebuild();
+}
+
+void FilterListManager::LoadCustomRules() {
+  Begin();
+  file_runner_->PostTaskAndReplyWithResult(
+      FROM_HERE,
+      base::BindOnce(
+          [](base::FilePath dir) {
+            // The file is ours, but the bytes are not trusted: they are
+            // bounded and parsed again like a fresh save.
+            std::string text;
+            CustomRulesAnalysis analysis;
+            if (!base::ReadFileToStringWithMaxSize(
+                    filter_list_storage::ListPath(dir, kCustomRulesId), &text,
+                    /*max_size=*/1024 * 1024)) {
+              analysis.failure = CustomRulesFailure::kUnwritable;
+              return CustomAnalysis(std::string(), std::move(analysis));
+            }
+            analysis =
+                AnalyzeCustomRules(base::as_byte_span(text), kCheckBudget);
+            return CustomAnalysis(std::move(text), std::move(analysis));
+          },
+          dir_),
+      base::BindOnce(&FilterListManager::OnCustomLoaded,
+                     weak_factory_.GetWeakPtr()));
+}
+
+void FilterListManager::OnCustomLoaded(CustomAnalysis loaded) {
+  // A save that began meanwhile has its own result.
+  if (custom_save_id_ == 0 &&
+      loaded.second.failure == CustomRulesFailure::kNone) {
+    custom_rules_ = std::move(loaded.second.rules);
+    custom_rules_.text = std::move(loaded.first);
+    Notify();
+  }
+  End();
+}
+
 void FilterListManager::OnRebuilt(std::vector<std::string> ids,
                                   bool retry,
                                   BuildResult result) {
@@ -696,9 +839,13 @@ void FilterListManager::OnRebuilt(std::vector<std::string> ids,
       entry->updated = base::Time();
       entry->rules = 0;
       entry->ignored_exceptions = 0;
-      file_runner_->PostTask(
-          FROM_HERE,
-          base::BindOnce(&filter_list_storage::DeleteList, dir_, id));
+      // The user's own rules are not a copy that can be downloaded again: the
+      // file stays, and saving the rules again tries once more.
+      if (id != kCustomRulesId) {
+        file_runner_->PostTask(
+            FROM_HERE,
+            base::BindOnce(&filter_list_storage::DeleteList, dir_, id));
+      }
       Save();
       if (entry->builtin) {
         MeasureShippedList(id);  // The shipped copy is in use again.

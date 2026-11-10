@@ -27,6 +27,7 @@
 //!   `adblock` panics without one, so `AerieDomainResolver` is
 //!   installed first. See its documentation for the limits.
 
+pub mod custom;
 pub mod protection;
 
 use adblock::Engine;
@@ -362,6 +363,26 @@ fn classify_line(line: &str) -> LineKind<'_> {
     }
 }
 
+/// Procedural selector syntax. Aerie builds plain stylesheets, so a selector
+/// with one of these would do nothing at best; `is_safe_selector` refuses it.
+pub(crate) const PROCEDURAL_MARKERS: [&str; 15] = [
+    ":has-text(",
+    ":-abp-has(",
+    ":-abp-contains(",
+    ":contains(",
+    ":xpath(",
+    ":matches-css",
+    ":matches-attr(",
+    ":matches-media(",
+    ":matches-path(",
+    ":min-text-length(",
+    ":upward(",
+    ":nth-ancestor(",
+    ":watch-attr(",
+    ":others(",
+    ":style(",
+];
+
 /// Is this CSS selector text fit to put in a stylesheet that Aerie writes?
 ///
 /// Strict on purpose. The text comes from a filter list, and a stylesheet
@@ -376,6 +397,9 @@ pub fn is_safe_selector(selector: &str) -> bool {
         return false;
     }
     if selector.starts_with(['+', '^', '@']) {
+        return false;
+    }
+    if PROCEDURAL_MARKERS.iter().any(|m| selector.contains(m)) {
         return false;
     }
     let lower = selector.to_ascii_lowercase();
@@ -488,15 +512,28 @@ pub fn sanitize_list(bytes: &[u8]) -> String {
     sanitize_list_report(bytes).text
 }
 
+/// `sanitize_list` with a smaller line limit. The user's own rules (issue
+/// #107) use it with `custom::MAX_CUSTOM_LINE_BYTES`, and the report of
+/// `custom::analyze_custom_rules` is built from this same function, so what
+/// the report says is dropped is what the engine drops.
+pub fn sanitize_list_with_line_limit(bytes: &[u8], max_line_bytes: usize) -> String {
+    sanitize_list_report_with(bytes, max_line_bytes).text
+}
+
 /// Like `sanitize_list`, and also says which exception rules were ignored,
 /// so the caller can log them.
 pub fn sanitize_list_report(bytes: &[u8]) -> SanitizedList {
+    sanitize_list_report_with(bytes, MAX_LINE_BYTES)
+}
+
+/// `sanitize_list_report` with the line limit given by the caller.
+pub fn sanitize_list_report_with(bytes: &[u8], max_line_bytes: usize) -> SanitizedList {
     let text = String::from_utf8_lossy(bytes);
     let mut out = String::with_capacity(text.len());
     let mut ignored_exceptions = Vec::new();
     for line in text.split('\n') {
         let line = line.trim_end_matches('\r');
-        if line.len() > MAX_LINE_BYTES || line.contains('\0') {
+        if line.len() > max_line_bytes || line.contains('\0') {
             continue;
         }
         if is_ignored_exception(line) {

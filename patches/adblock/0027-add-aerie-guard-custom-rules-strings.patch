@@ -1,0 +1,76 @@
+Aerie-Purpose: Give the Aerie Guard page the strings of its own-rules text box: the heading, the buttons, the reason for each dropped or ignored rule and the errors of a refused save.
+Aerie-Upstream-Area: chrome/browser/ui/webui/settings (settings_localized_strings_provider.cc)
+Aerie-Kind: hook
+
+Issue #107. The messages are in the overlay's aerie_guard_settings_strings.grdp, which
+adblock/0022 already includes. This patch hands each one to the Settings page in a function
+of its own, so it does not share context lines with the table that adblock/0022 adds. A test
+compares the names with the grdp.
+
+--- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
++++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
+@@ -1646,6 +1646,56 @@
+   html_source->AddLocalizedStrings(kLocalizedStrings);
+ }
+ 
++void AddAerieGuardCustomRulesStrings(content::WebUIDataSource* html_source) {
++  static constexpr webui::LocalizedString kLocalizedStrings[] = {
++      {"aerieGuardCustomListTitle", IDS_SETTINGS_AERIE_GUARD_CUSTOM_LIST_TITLE},
++      {"aerieGuardCustomHeading", IDS_SETTINGS_AERIE_GUARD_CUSTOM_HEADING},
++      {"aerieGuardCustomDesc", IDS_SETTINGS_AERIE_GUARD_CUSTOM_DESC},
++      {"aerieGuardCustomLabel", IDS_SETTINGS_AERIE_GUARD_CUSTOM_LABEL},
++      {"aerieGuardCustomPlaceholder",
++       IDS_SETTINGS_AERIE_GUARD_CUSTOM_PLACEHOLDER},
++      {"aerieGuardCustomSave", IDS_SETTINGS_AERIE_GUARD_CUSTOM_SAVE},
++      {"aerieGuardCustomSaved", IDS_SETTINGS_AERIE_GUARD_CUSTOM_SAVED},
++      {"aerieGuardCustomSummary", IDS_SETTINGS_AERIE_GUARD_CUSTOM_SUMMARY},
++      {"aerieGuardCustomSummaryOff",
++       IDS_SETTINGS_AERIE_GUARD_CUSTOM_SUMMARY_OFF},
++      {"aerieGuardCustomIssuesHeading",
++       IDS_SETTINGS_AERIE_GUARD_CUSTOM_ISSUES_HEADING},
++      {"aerieGuardCustomIssueLine", IDS_SETTINGS_AERIE_GUARD_CUSTOM_ISSUE_LINE},
++      {"aerieGuardCustomIssuesMore",
++       IDS_SETTINGS_AERIE_GUARD_CUSTOM_ISSUES_MORE},
++      {"aerieGuardCustomReasonScriptlet",
++       IDS_SETTINGS_AERIE_GUARD_CUSTOM_REASON_SCRIPTLET},
++      {"aerieGuardCustomReasonHtmlFilter",
++       IDS_SETTINGS_AERIE_GUARD_CUSTOM_REASON_HTML_FILTER},
++      {"aerieGuardCustomReasonProcedural",
++       IDS_SETTINGS_AERIE_GUARD_CUSTOM_REASON_PROCEDURAL},
++      {"aerieGuardCustomReasonStyleInjection",
++       IDS_SETTINGS_AERIE_GUARD_CUSTOM_REASON_STYLE_INJECTION},
++      {"aerieGuardCustomReasonUnsafeSelector",
++       IDS_SETTINGS_AERIE_GUARD_CUSTOM_REASON_UNSAFE_SELECTOR},
++      {"aerieGuardCustomReasonTooLong",
++       IDS_SETTINGS_AERIE_GUARD_CUSTOM_REASON_TOO_LONG},
++      {"aerieGuardCustomReasonContainsNul",
++       IDS_SETTINGS_AERIE_GUARD_CUSTOM_REASON_CONTAINS_NUL},
++      {"aerieGuardCustomReasonMatchesEveryAddress",
++       IDS_SETTINGS_AERIE_GUARD_CUSTOM_REASON_MATCHES_EVERY_ADDRESS},
++      {"aerieGuardCustomReasonUnparseable",
++       IDS_SETTINGS_AERIE_GUARD_CUSTOM_REASON_UNPARSEABLE},
++      {"aerieGuardCustomErrorTooLarge",
++       IDS_SETTINGS_AERIE_GUARD_CUSTOM_ERROR_TOO_LARGE},
++      {"aerieGuardCustomErrorTooManyLines",
++       IDS_SETTINGS_AERIE_GUARD_CUSTOM_ERROR_TOO_MANY_LINES},
++      {"aerieGuardCustomErrorNotText",
++       IDS_SETTINGS_AERIE_GUARD_CUSTOM_ERROR_NOT_TEXT},
++      {"aerieGuardCustomErrorTimeout",
++       IDS_SETTINGS_AERIE_GUARD_CUSTOM_ERROR_TIMEOUT},
++      {"aerieGuardCustomErrorUnwritable",
++       IDS_SETTINGS_AERIE_GUARD_CUSTOM_ERROR_UNWRITABLE},
++  };
++  html_source->AddLocalizedStrings(kLocalizedStrings);
++}
++
+ void AddOnStartupStrings(content::WebUIDataSource* html_source) {
+   static constexpr webui::LocalizedString kLocalizedStrings[] = {
+       {"onStartup", IDS_SETTINGS_ON_STARTUP},
+@@ -4841,6 +4891,7 @@
+   AddA11yStrings(html_source);
+   AddAboutStrings(html_source, profile);
+   AddAerieGuardStrings(html_source);
++  AddAerieGuardCustomRulesStrings(html_source);
+   AddAiStrings(html_source);
+   AddAutofillStrings(html_source, profile, web_contents);
+   AddAppearanceStrings(html_source, profile);

@@ -122,6 +122,8 @@ class FilterEngineService {
     base::FilePath path;
     // A list the user added or subscribed to (not a built-in one).
     bool custom = false;
+    // The user's own rules (issue #107): may hold hide rules only.
+    bool own = false;
   };
   using ReplaceCallback = base::OnceCallback<void(BuildResult)>;
 

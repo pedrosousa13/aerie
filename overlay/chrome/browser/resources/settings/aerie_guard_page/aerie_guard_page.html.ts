@@ -58,13 +58,15 @@ export function getHtml(this: SettingsAerieGuardPageElement) {
       <div class="cr-row list-item list-row" role="listitem"
           data-list-id="${list.id}">
         <div class="flex cr-padded-text">
-          <div class="list-title">${list.title}</div>
+          <div class="list-title">${this.listTitle_(list)}</div>
           <div class="secondary list-rules">${this.listRulesText_(list)}</div>
           <div class="secondary list-ignored">
             ${this.listIgnoredText_(list)}
           </div>
           ${list.enabled ? html`
-            <div class="secondary list-when">${this.listWhenText_(list)}</div>
+            ${list.url ? html`
+              <div class="secondary list-when">${this.listWhenText_(list)}</div>
+            ` : ''}
           ` : html`
             <div class="secondary list-off">$i18n{aerieGuardListOff}</div>
           `}
@@ -85,12 +87,14 @@ export function getHtml(this: SettingsAerieGuardPageElement) {
             </div>
           ` : ''}
         </div>
-        <cr-button class="list-update" data-id="${list.id}"
-            ?disabled="${list.status === 'updating'}"
-            aria-label="${this.listUpdateLabel_(list)}"
-            @click="${this.onListUpdateClick_}">
-          ${this.listUpdateButton_(list)}
-        </cr-button>
+        ${list.url ? html`
+          <cr-button class="list-update" data-id="${list.id}"
+              ?disabled="${list.status === 'updating'}"
+              aria-label="${this.listUpdateLabel_(list)}"
+              @click="${this.onListUpdateClick_}">
+            ${this.listUpdateButton_(list)}
+          </cr-button>
+        ` : ''}
         <cr-toggle class="list-toggle" data-id="${list.id}"
             ?checked="${list.enabled}" ?disabled="${list.required}"
             aria-label="${this.listToggleLabel_(list)}"
@@ -102,6 +106,68 @@ export function getHtml(this: SettingsAerieGuardPageElement) {
     <div id="listError" class="cr-row list-error" role="alert">
       ${this.listError_}
     </div>
+  ` : ''}
+  <div class="cr-row hr">
+    <div class="flex cr-padded-text">
+      <h2 id="customHeading" class="cr-title-text">
+        $i18n{aerieGuardCustomHeading}
+      </h2>
+      <div class="secondary">$i18n{aerieGuardCustomDesc}</div>
+    </div>
+  </div>
+  <div class="cr-row custom-rules-row">
+    <!-- The text is set as a property, so it is text and never markup. -->
+    <textarea id="customRules" class="flex" rows="8" spellcheck="false"
+        autocomplete="off" autocapitalize="off"
+        aria-label="$i18n{aerieGuardCustomLabel}"
+        placeholder="$i18n{aerieGuardCustomPlaceholder}"
+        .value="${this.customDraft_}"
+        @input="${this.onCustomInput_}"></textarea>
+  </div>
+  <div class="cr-row">
+    <div class="flex secondary" id="customSummary">
+      ${this.customSummaryText_()}
+    </div>
+    <cr-button id="saveCustomRules" class="action-button"
+        ?disabled="${!this.canSaveCustom_()}"
+        @click="${this.onCustomSaveClick_}">
+      $i18n{aerieGuardCustomSave}
+    </cr-button>
+  </div>
+  ${this.customError_ ? html`
+    <div id="customError" class="cr-row list-error" role="alert">
+      ${this.customError_}
+    </div>
+  ` : ''}
+  ${this.customSaved_ ? html`
+    <div id="customSaved" class="cr-row secondary" role="status">
+      $i18n{aerieGuardCustomSaved}
+    </div>
+  ` : ''}
+  ${this.customRules_.issueCount > 0 ? html`
+    <div class="cr-row">
+      <h3 id="customIssuesHeading" class="cr-title-text">
+        $i18n{aerieGuardCustomIssuesHeading}
+      </h3>
+    </div>
+    <div id="customIssues" role="list" aria-labelledby="customIssuesHeading">
+      ${this.customRules_.issues.map(issue => html`
+        <div class="cr-row custom-issue" role="listitem"
+            data-reason="${issue.reason}">
+          <div class="flex cr-padded-text">
+            <div class="secondary">${this.issueLineText_(issue)}</div>
+            <code class="issue-rule">${issue.rule}</code>
+            <div class="secondary issue-reason">
+              ${this.issueReasonText_(issue)}
+            </div>
+          </div>
+        </div>`)}
+    </div>
+    ${this.customRules_.issueCount > this.customRules_.issues.length ? html`
+      <div id="customIssuesMore" class="cr-row secondary">
+        ${this.issuesMoreText_()}
+      </div>
+    ` : ''}
   ` : ''}
   <div class="cr-row hr">
     <div class="flex cr-padded-text">

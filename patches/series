@@ -90,6 +90,9 @@ adblock/0025-add-aerie-guard-list-strings.patch
 # The default blocking level menu of the Aerie Guard section (#109): its four strings join AddAerieGuardStrings().
 adblock/0026-add-aerie-guard-level-settings-strings.patch
 
+# Own filter rules (#107): the strings of the text box and of the reasons a rule is dropped.
+adblock/0027-add-aerie-guard-custom-rules-strings.patch
+
 # Opt-in "Restrict fonts" (#117): pages can match only an allowlist of common fonts; the pref, the kFonts token, the font selectors and Local Font Access.
 hardening/0020-restrict-fonts-to-an-allowlist.patch
 # Key the fingerprinting seeds on the Workspace (storage partition) too (#121).

@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include "base/containers/span_rust.h"
 #include "base/strings/string_util.h"
@@ -106,7 +107,77 @@ uint32_t BudgetMs(base::TimeDelta budget) {
       std::clamp<int64_t>(budget.InMilliseconds(), 0, 10 * 60 * 1000));
 }
 
+CustomRulesFailure CustomFailureFromRust(CustomStatus status) {
+  switch (status) {
+    case CustomStatus::Ok:
+      return CustomRulesFailure::kNone;
+    case CustomStatus::TooLarge:
+      return CustomRulesFailure::kTooLarge;
+    case CustomStatus::TooManyLines:
+      return CustomRulesFailure::kTooManyLines;
+    case CustomStatus::NotText:
+      return CustomRulesFailure::kNotText;
+    case CustomStatus::Timeout:
+      return CustomRulesFailure::kTimeout;
+  }
+  return CustomRulesFailure::kNotText;
+}
+
+const char* CustomReasonCode(CustomReason reason) {
+  switch (reason) {
+    case CustomReason::Scriptlet:
+      return "scriptlet";
+    case CustomReason::HtmlFilter:
+      return "html_filter";
+    case CustomReason::Procedural:
+      return "procedural";
+    case CustomReason::StyleInjection:
+      return "style_injection";
+    case CustomReason::UnsafeSelector:
+      return "unsafe_selector";
+    case CustomReason::TooLong:
+      return "too_long";
+    case CustomReason::ContainsNul:
+      return "contains_nul";
+    case CustomReason::MatchesEveryAddress:
+      return "matches_every_address";
+    case CustomReason::Unparseable:
+      return "unparseable";
+  }
+  return "unparseable";
+}
+
+int ClampCount(uint32_t count) {
+  return static_cast<int>(std::min<uint32_t>(count, 100'000'000));
+}
+
 }  // namespace
+
+CustomRulesAnalysis AnalyzeCustomRules(base::span<const uint8_t> text,
+                                       base::TimeDelta budget) {
+  CustomReport report =
+      check_custom_rules(base::SpanToRustSlice(text), BudgetMs(budget));
+  CustomRulesAnalysis analysis;
+  analysis.failure = CustomFailureFromRust(report.status);
+  if (analysis.failure != CustomRulesFailure::kNone) {
+    return analysis;
+  }
+  CustomRules& rules = analysis.rules;
+  rules.network_rules = ClampCount(report.network_rules);
+  rules.hide_rules = ClampCount(report.hide_rules);
+  rules.ignored_exceptions = ClampCount(report.ignored_exceptions);
+  rules.dropped = ClampCount(report.dropped);
+  rules.issue_count = ClampCount(report.issue_count);
+  for (const CustomIssue& issue : report.issues) {
+    CustomRuleIssue item;
+    item.line = ClampCount(issue.line);
+    item.reason = CustomReasonCode(issue.reason);
+    item.ignored = issue.reason == CustomReason::MatchesEveryAddress;
+    item.rule = std::string(issue.rule);
+    rules.issues.push_back(std::move(item));
+  }
+  return analysis;
+}
 
 ListCheck CheckList(base::span<const uint8_t> text, base::TimeDelta budget) {
   ListReport report =
@@ -125,7 +196,8 @@ ListCheck CheckList(base::span<const uint8_t> text, base::TimeDelta budget) {
 
 BuildResult AdblockEngine::LoadLists(const std::vector<std::string>& lists,
                                      base::TimeDelta budget,
-                                     const std::vector<bool>& custom) {
+                                     const std::vector<bool>& custom,
+                                     const std::vector<bool>& own) {
   // Both engines are built aside and swapped in only when both are good, so a
   // failure leaves the old rules (and the old first-party engine) alone.
   rust::Box<Engine> all = new_empty_engine();
@@ -135,6 +207,12 @@ BuildResult AdblockEngine::LoadLists(const std::vector<std::string>& lists,
   bool has_custom = false;
   for (size_t i = 0; i < lists.size(); ++i) {
     const auto bytes = base::SpanToRustSlice(base::as_byte_span(lists[i]));
+    if (i < own.size() && own[i]) {
+      // The user's own rules: hide rules only, and never a first-party
+      // blocking list, so they stay out of the custom-only engine.
+      builder->add_own_list(bytes);
+      continue;
+    }
     builder->add_list(bytes);
     if (i < custom.size() && custom[i]) {
       custom_builder->add_list(bytes);

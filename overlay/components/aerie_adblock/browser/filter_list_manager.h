@@ -5,11 +5,13 @@
 #ifndef COMPONENTS_AERIE_ADBLOCK_BROWSER_FILTER_LIST_MANAGER_H_
 #define COMPONENTS_AERIE_ADBLOCK_BROWSER_FILTER_LIST_MANAGER_H_
 
-#include <memory>
+#include <cstdint>
 #include <map>
-#include <string>
+#include <memory>
 #include <set>
+#include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "base/files/file_path.h"
@@ -22,6 +24,7 @@
 #include "base/time/time.h"
 #include "base/timer/timer.h"
 #include "components/aerie_adblock/browser/blocking_level.h"
+#include "components/aerie_adblock/browser/custom_rules.h"
 #include "components/aerie_adblock/browser/filter_engine_service.h"
 #include "components/aerie_adblock/browser/filter_list_fetcher.h"
 #include "components/aerie_adblock/browser/filter_list_state.h"
@@ -121,9 +124,27 @@ class FilterListManager {
   // asks: see CanBeDisabled().
   FilterListState::EnableResult SetListEnabled(std::string_view id,
                                                bool enabled);
+  // Never fetches the user's own rules (kCustomRulesId): they have no address.
   void UpdateList(std::string_view id);
-  // Downloads every list that is on.
+  // Downloads every list that is on and has an address.
   void UpdateAll();
+
+  // The user's own rules (issue #107). |text| is bounded and parsed in the
+  // browser process, off the UI thread (AnalyzeCustomRules()), before anything
+  // is saved: over 256 KiB, over 10 000 lines or not UTF-8 is refused whole and
+  // nothing changes. Otherwise the text is saved as the list kCustomRulesId (a
+  // file in lists/), the lines that are dropped or ignored are recorded with
+  // the reason (custom_rules()), and the engine is rebuilt. The saved text goes
+  // through sanitize_list again when the engine is built, so a scriptlet line
+  // never reaches the engine whatever the report says. A text of only
+  // whitespace removes the rules. |done| runs on the UI thread, after the
+  // change is in place, with the result; kSuperseded when a later call
+  // replaced this one before it was saved. Never fetches anything.
+  using CustomRulesCallback = base::OnceCallback<void(CustomRulesFailure)>;
+  void SetCustomRules(std::string text, CustomRulesCallback done);
+  // The saved text and what was found in it. Empty when nothing is saved, and
+  // until the saved copy has been read at start-up.
+  const CustomRules& custom_rules() const { return custom_rules_; }
 
   // Where one list's update stands, for the settings page.
   enum class UpdateStatus {
@@ -263,6 +284,18 @@ class FilterListManager {
   void MeasureShippedLists();
   void MeasureShippedList(const std::string& id);
   void OnShippedMeasured(std::string id, ListCheck check);
+  using CustomAnalysis = std::pair<std::string, CustomRulesAnalysis>;
+  // Reads and analyses the saved rules at start-up, for custom_rules().
+  void LoadCustomRules();
+  void OnCustomLoaded(CustomAnalysis loaded);
+  void OnCustomAnalyzed(uint64_t save_id,
+                        CustomRulesCallback done,
+                        CustomAnalysis analyzed);
+  void OnCustomWritten(CustomRulesCallback done,
+                       CustomRules rules,
+                       bool written);
+  // Removes the entry, the file and the rules held in memory.
+  void ClearCustomRules();
   void SetError(const std::string& id, ListFailure failure);
   // Gives the service every list in use. |retry| is true for the one
   // automatic retry after a cached copy failed to build.
@@ -288,6 +321,10 @@ class FilterListManager {
   std::set<std::string> updated_ok_;
   // Off-the-record sessions' own blocking levels. Memory only.
   std::map<SessionKey, std::map<std::string, BlockingLevel>> session_levels_;
+  // The user's own rules. |custom_save_id_| counts the saves, so an analysis
+  // that finishes after a later save began is dropped.
+  CustomRules custom_rules_;
+  uint64_t custom_save_id_ = 0;
   int pending_ = 0;
   bool loaded_ = false;
   base::RepeatingTimer schedule_timer_;
