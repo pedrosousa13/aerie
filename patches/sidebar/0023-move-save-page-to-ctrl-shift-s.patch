@@ -5,8 +5,8 @@ Aerie-Kind: hook
 Issue #177. Chromium has no accelerator on Ctrl+Shift+S, and Helium maps Ctrl+S to
 IDC_CTRL_S_SHORTCUT, which toggles the vertical strip and falls back to Save page only when that
 shortcut is turned off. The new line sends Ctrl+Shift+S to IDC_SAVE_PAGE, so Save page keeps a
-shortcut and the menu shows it. The block is meant to be the one that is not compiled on macOS (to confirm against the real source in the train): the macOS
-shortcut map is an open point of docs/sidebar-design.md and is not changed here.
+shortcut and the menu shows it. The block is inside `#if !BUILDFLAG(IS_MAC)` in accelerator_table.cc, so macOS is not changed (its shortcut map is an
+open point of docs/sidebar-design.md). The same block also covers ChromeOS.
 
 --- a/chrome/browser/ui/accelerator_table.cc
 +++ b/chrome/browser/ui/accelerator_table.cc

@@ -198,10 +198,6 @@ class BuildWiringTest(unittest.TestCase):
                 self.assertFalse(include.startswith(("chrome/", "content/", "ui/")), f"{path.name}: {include}")
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class HeadlessPartsTest(unittest.TestCase):
     """The motion table, the Today list and the keys: the C++ tests run them; these checks keep their wiring and the
     token names honest."""
@@ -242,3 +238,7 @@ class HeadlessPartsTest(unittest.TestCase):
     def test_the_docs_say_what_is_still_missing(self):
         doc = (REPO / "docs" / "sidebar-design.md").read_text()
         self.assertIn("headless parts", doc)
+
+
+if __name__ == "__main__":
+    unittest.main()
