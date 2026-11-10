@@ -1,0 +1,45 @@
+Aerie-Purpose: Give About (Settings) the strings of the alpha notice and its two links.
+Aerie-Upstream-Area: chrome/app (generated_resources.grd and its gritdeps), chrome/browser/ui/webui/settings (settings_localized_strings_provider.cc)
+Aerie-Kind: hook
+
+Issue #199. The three messages are in the overlay's aerie_alpha_notice_strings.grdp, which the
+setup page also uses. This patch includes the part and hands each message to the Settings page
+next to aboutBrowserVersion. tests/test_alpha_notice.py compares the names with the grdp.
+
+--- a/chrome/app/generated_resources.grd
++++ b/chrome/app/generated_resources.grd
+@@ -296,6 +296,9 @@
+       <part file="../browser/ui/views/aerie_adblock/aerie_guard_strings.grdp" />
+       <part file="../browser/ui/webui/aerie_guard_settings/aerie_guard_settings_strings.grdp" />
+ 
++      <!-- Aerie alpha notice strings -->
++      <part file="../../components/aerie_alpha_notice/aerie_alpha_notice_strings.grdp" />
++
+       <!-- Aerie reduced-motion strings -->
+       <part file="../../components/aerie_design_tokens/aerie_motion_strings.grdp" />
+ 
+--- a/chrome/app/generated_resources.grd.gritdeps
++++ b/chrome/app/generated_resources.grd.gritdeps
+@@ -112,5 +112,6 @@
+ chrome/browser/aerie_widevine/aerie_widevine_strings.grdp
+ chrome/browser/ui/views/aerie_adblock/aerie_guard_strings.grdp
+ chrome/browser/ui/webui/aerie_guard_settings/aerie_guard_settings_strings.grdp
++components/aerie_alpha_notice/aerie_alpha_notice_strings.grdp
+ components/aerie_design_tokens/aerie_motion_strings.grdp
+ components/aerie_onboarding/aerie_onboarding_strings.grdp
+--- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
++++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
+@@ -354,6 +354,13 @@
+   std::u16string browser_version = VersionUI::GetAnnotatedVersionStringForUi();
+ 
+   html_source->AddString("aboutBrowserVersion", browser_version);
++  html_source->AddString("aerieAlphaNotice",
++                         l10n_util::GetStringUTF16(IDS_AERIE_ALPHA_NOTICE));
++  html_source->AddString("aerieAlphaTerms",
++                         l10n_util::GetStringUTF16(IDS_AERIE_ALPHA_TERMS_LINK));
++  html_source->AddString(
++      "aerieAlphaPrivacy",
++      l10n_util::GetStringUTF16(IDS_AERIE_ALPHA_PRIVACY_LINK));
+   html_source->AddString(
+       "aboutProductCopyright",
+       base::i18n::MessageFormatter::FormatWithNumberedArgs(

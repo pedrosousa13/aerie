@@ -24,7 +24,7 @@ class RepoOverlayTest(unittest.TestCase):
                                             "components/aerie_widevine/", "chrome/browser/aerie_widevine/",
                                             "components/aerie_fingerprint/", "components/aerie_gpu_info/", "components/aerie_screen/", "components/aerie_text_metrics/", "components/aerie_webgl_readback/", "components/aerie_fonts/", "components/aerie_design_tokens/",
                                             "chrome/browser/resources/settings/appearance_page/aerie_motion_row.",
-                                            "components/aerie_tab_model/", "chrome/browser/aerie_tab_model/",
+                                            "components/aerie_tab_model/", "chrome/browser/aerie_tab_model/", "components/aerie_alpha_notice/",
                                             "tools/metrics/histograms/metadata/aerie/",
                                             "third_party/rust/chromium_crates_io/patches/")), rel)
             self.assertNotIn("/target/", rel)

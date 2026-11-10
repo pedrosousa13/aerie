@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright 2026 The Aerie Authors
+     You can use, redistribute, and/or modify this source code under
+     the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+     Strings of the alpha notice (issue #199), shown on aerie://setup and on About (Settings). The setup page
+     lists them in aerie_onboarding_localized_strings.h; patches/branding/0007 hands them to Settings.
+     tests/test_alpha_notice.py checks both. -->
+<grit-part>
+  <message name="IDS_AERIE_ALPHA_NOTICE" desc="Notice on the setup page and on About that Aerie is early software and has not been audited by an outside party.">
+    Aerie is alpha software and has not had an independent security audit.
+  </message>
+  <message name="IDS_AERIE_ALPHA_TERMS_LINK" desc="Link text next to the alpha notice. The link opens Aerie's terms of use.">
+    Terms of use
+  </message>
+  <message name="IDS_AERIE_ALPHA_PRIVACY_LINK" desc="Link text next to the alpha notice. The link opens Aerie's privacy policy.">
+    Privacy policy
+  </message>
+</grit-part>

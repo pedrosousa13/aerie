@@ -106,3 +106,7 @@ sidebar/0003-add-the-reduced-motion-row.patch
 # The Tab Model (#176): prefs for the archive and sleep delays, and the per-profile service that keeps tabs, folders and the Workspace.
 sidebar/0010-register-tab-model-prefs.patch
 sidebar/0011-create-tab-model-service.patch
+
+# The alpha notice on About (#199), and its strings for Settings.
+branding/0007-add-the-alpha-notice-strings.patch
+branding/0008-show-the-alpha-notice-on-about.patch

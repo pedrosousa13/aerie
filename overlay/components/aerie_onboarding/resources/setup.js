@@ -65,6 +65,14 @@ function t(key, ...subs) {
   subs.forEach((s, i) => { text = text.replace(`$${i + 1}`, String(s)); });
   return text;
 }
+const TERMS_URL = 'https://github.com/pedrosousa13/aerie/blob/main/TERMS.md';
+const PRIVACY_URL = 'https://github.com/pedrosousa13/aerie/blob/main/PRIVACY.md';
+// The alpha notice (issue #199). The links load nothing until the user clicks one.
+function alphaLinks() {
+  const link = (key, href, id) => h('a', {class: 'alpha-link', href, target: '_blank', rel: 'noopener noreferrer', id}, t(key));
+  return h('p', {class: 'alpha', id: 'alpha-notice'}, t('alphaNotice'), ' ',
+    link('alphaTerms', TERMS_URL, 'alpha-terms'), ' · ', link('alphaPrivacy', PRIVACY_URL, 'alpha-privacy'));
+}
 const internal = host => `${location.protocol}//${host}/`;
 
 /* ---------- state ---------- */
@@ -268,7 +276,8 @@ const VIEWS = {
     return h('section', {class: 'step solo'}, h('div', {class: 'copy'},
       E(0, h('div', {}, heroMark())), heading('welcomeTitle', 1),
       E(3, h('p', {class: 'lede'}, t('welcomeBody'))),
-      E(4, h('div', {class: 'actions'}, primary(t('welcomeStart'), () => go(1))))));
+      E(4, h('div', {class: 'actions'}, primary(t('welcomeStart'), () => go(1)))),
+      E(5, alphaLinks())));
   },
 
   import() {
@@ -369,7 +378,8 @@ const VIEWS = {
     return h('section', {class: 'step solo'}, h('div', {class: 'copy'},
       E(0, h('div', {}, heroMark())), heading('doneTitle', 1),
       h('dl', {class: 'summary'}, rows.map(([k, v], j) => h('div', {style: {'--j': j}}, h('dt', {}, t(k)), h('dd', {}, v)))),
-      E(6, h('div', {class: 'actions'}, primary(t('doneStart'), finish, 'start')))));
+      E(6, h('div', {class: 'actions'}, primary(t('doneStart'), finish, 'start'))),
+      E(7, alphaLinks())));
   },
 };
 
