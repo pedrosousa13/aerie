@@ -25,7 +25,8 @@ inline constexpr char kLayoutHorizontal[] = "horizontal";
 // when it is read.
 inline constexpr char kWidthPref[] = "aerie.sidebar.width";
 
-// Whether the sidebar is shown. Ctrl+S flips it and it is restored at start.
+// Whether the sidebar is shown. Intended: Ctrl+S flips it and it is restored at start. No code reads or
+// writes this pref yet; the sidebar view is not built (docs/sidebar-design.md).
 inline constexpr char kVisiblePref[] = "aerie.sidebar.visible";
 
 // Called from chrome::RegisterProfilePrefs (patches/sidebar/0020).
