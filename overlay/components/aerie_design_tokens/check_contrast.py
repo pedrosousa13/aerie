@@ -8,11 +8,13 @@ the theme's tint strength, black shade, white glow), samples it where text sits
   accent and focus ring >= 3:1.
 Also checks the status colours (ok, warn, danger) at >= 4.5:1 on the popover surface of every theme and mode,
 and on their own chip tints (13%, 15%, 10% over the popover), plus text-on-danger on danger-fill.
-Prints a table; exits 1 on any failure. Run: python3 check_contrast.py [-v]
+Prints a table; exits 1 on any failure. Run: python3 check_contrast.py [-v] [--tokens tokens.json]
+CI runs it through tests/test_design_tokens.py.
 """
 import json, math, pathlib, sys
 here = pathlib.Path(__file__).parent
-D = json.loads((here / "tokens.json").read_text())
+_path = pathlib.Path(sys.argv[sys.argv.index("--tokens") + 1]) if "--tokens" in sys.argv else here / "tokens.json"
+D = json.loads(_path.read_text())
 W, H, SIDEBAR, ANGLE = 1440, 900, 260, math.radians(D["tint"]["angle"]["value"])
 
 def rgb(h):

@@ -18,21 +18,22 @@ Open `index.html` in a browser (file:// works), or run `python3 -m http.server` 
 
 ## Files
 
-- `tokens.json` is the source of truth for Design Tokens. `tokens.css` is generated from it: `python3 gen_tokens_css.py`. The generator also checks that the icon-only container query in `horizontal.css` matches `size-hz-tab-icon-only`.
+- `tokens.json` here is a symlink to `overlay/components/aerie_design_tokens/tokens.json`, the one source of Design Tokens (ADR 0007). Edit the component copy. `tokens.css` is a checked-in copy generated from it (see "Tools"); `tests/test_design_tokens.py` fails when it is stale. The generator also checks that the icon-only container query in `horizontal.css` matches `size-hz-tab-icon-only`.
 - `screens.json` and `screens-*.json` list screenshot states for every page. `query` is the URL query string, `title` and `note` are the gallery card text, `page` defaults to `index.html`, `fullPage` shoots the whole page.
-- `shoot.py`, `check_contrast.py` and `build_artifact.py`: see "Tools" below.
+- `shoot.py` and `build_artifact.py`: see "Tools" below. The token generators and `check_contrast.py` live in `overlay/components/aerie_design_tokens/`.
 - `specs.js` and `specs.css` serve `motion.html` and `tokens.html`; `horizontal.*` and `workspace-editor.*` belong to their pages.
 
 ## Tools
 
 ```
-python3 gen_tokens_css.py                 # tokens.json -> tokens.css (run after every token change)
-python3 check_contrast.py [-v]            # exits 1 on failure
+C=../../overlay/components/aerie_design_tokens
+python3 $C/gen_tokens_css.py --out tokens.css --check-horizontal horizontal.css   # run after every token change
+python3 $C/check_contrast.py [-v]         # exits 1 on failure
 python3 shoot.py [--out DIR] [--only id1,id2] [--gallery --train NAME]
 python3 build_artifact.py OUT_DIR
 ```
 
-- `check_contrast.py` checks text, muted text and accent contrast for every theme, mode and Workspace colour, and the status colours (ok, warn, danger) at 4.5:1 on each theme's popover surface and on their own chip tints, plus text on the danger fill.
+- `check_contrast.py` (CI runs it through `tests/test_design_tokens.py`) checks text, muted text and accent contrast for every theme, mode and Workspace colour, and the status colours (ok, warn, danger) at 4.5:1 on each theme's popover surface and on their own chip tints, plus text on the danger fill.
 - `shoot.py` serves this folder, shoots every entry of `screens*.json` at 1440x900 in light and dark (`--out`, default `/tmp/aerie-sidebar-shots`) and fails on any console or page error. `--only` limits it to some ids. `--gallery` also registers each PNG in the Tailscale gallery under "Sidebar design" (issue 142); `--train NAME` files them under that build train. Needs Playwright for Python.
 - `build_artifact.py OUT_DIR` writes a multi-file claude.ai Artifact: `index.html` (the sidebar page as a fragment, no doctype/html/head/body) plus standalone `horizontal.html`, `workspace-editor.html`, `motion.html` and `tokens.html`. CSS, JS (and `tokens.json` for the spec pages, as `<script type="application/json" id="tokens-json">`) are inlined. Artifacts pass no query string, so every page maps `#<screen-id>` (any id from its screens file) to that screen's parameters, for example `horizontal.html#horizontal-onerow`.
 

@@ -1,6 +1,6 @@
 # 7. Use one Design Token source for Views and WebUI
 
-Status: accepted (issue #142). The maintainer approved the #142 design and its token values on 2026-11-09. The CSS generator exists in the prototype. The C++ generator is **to build in M2**.
+Status: accepted (issue #142). The maintainer approved the #142 design and its token values on 2026-11-09. Built in issue #174: the component `overlay/components/aerie_design_tokens/`, both generators, the contrast check in CI and the motion helper. The `ColorMixer` bridge (decision 7) is still to build.
 
 ## Context
 
@@ -65,8 +65,10 @@ Simple at first and no generator. The two copies drift. The first mismatch would
 
 One file, read when the browser starts. It costs parsing and allocation on the startup path, against the performance goal and the rule that nothing animates or builds curves on a startup path. It also moves errors from build time to run time. Rejected. A generated header is free at startup.
 
-## Open details for M2
+## How M2 settled the open details (issue #174)
 
-- The exact C++ shape: one `constexpr` header with a table per theme and mode, or several headers. The naming style of the constants.
-- Where the generators run (a GN action in the build, or a pre-build step) and how CI runs the contrast check.
-- How the in-app reduced-motion setting reaches the generated reduced values in Views.
+- **C++ shape.** One generated header, `aerie_tokens.h`, in namespace `aerie::tokens`. Every value is `constexpr`. Flat tokens are `kSizeSidebarWidth`, `kMotionDurationFast` and so on, with a `...Reduced` constant when the token has a reduced value. Colours are `SkColor` per mode (`kColorTextLight`, `kColorTextDark`). One `ThemeTokens` table exists per theme and colour mode (11 of them: OLED is dark only), and one `WorkspacePreset` row per preset.
+- **What a theme override key means.** A key written `<group>.<token>` (`color.text`, `shadow.card`, `size.focus-ring-width`) replaces that token while its theme is active. The table field `color_text` holds the theme's value, or the base token's value for a theme without the key. The CSS means the same, because the theme block wins over `:root`. `tests/test_design_tokens.py` compares every field of every table with the CSS cascade for that theme and mode. Plain theme keys are the `theme_*` fields. Three have a CSS-only shape and are split: `card-border` (width and colour), `strip-fill` (enum and angle) and `switcher-fill` (enum). The generator stops on a shape it does not know.
+- **Where the generators run.** Two GN actions, `tokens_css` and `tokens_header`, in the component's `BUILD.gn`. WebUI pages get `aerie_tokens.css` as a resource through `extra_grdp_files` of `build_webui`. `prototypes/sidebar/tokens.css` stays checked in as a generated copy for the mockup pages, and the test fails when it differs from the generator output. `check_contrast.py` runs from the same test file.
+- **How the in-app setting reaches the reduced values.** The profile pref `aerie.motion.reduce` is `system` (default) or `on`. `ShouldReduceMotion()` is true when `gfx::Animation::PrefersReducedMotion()` is true or the pref is `on`. The helper `AnimateLayer` in `aerie_motion.h` is the only place that decides, and it picks the token's reduced duration and drops the transform. The Appearance page of Settings has the row.
+- **Curves on the compositor thread.** `ui::LayerAnimationElement` takes only a `gfx::Tween::Type`. Each of the four cubic-bezier tokens equals one Tween type exactly (standard = `FAST_OUT_SLOW_IN_3`, decelerate = `ACCEL_5_70_DECEL_90`, accelerate = `ACCEL_30_DECEL_20_85`, in-out = `FAST_OUT_SLOW_IN`), so they run as one element each. A 16-segment linear sampling of the same curves was measured and was worse (up to 8.4% of the travel off for decelerate, 1.9% for standard). Only the spring tokens have no Tween type; they chain one linear element per interval of their sampled curve. A bezier token with new numbers is sampled into 16 segments, so editing a curve still animates correctly.

@@ -143,6 +143,20 @@ follow it. After you edit the table run `./aerie hardening generate`; `./aerie h
 and the unit tests fail while a generated file is stale. A control needs at least one Bench check
 with a negative control. See [docs/hardening.md](docs/hardening.md).
 
+## Design Tokens
+
+Every colour, radius, space, type, size and motion value of Aerie's own interface is in one file, `overlay/components/aerie_design_tokens/tokens.json` ([ADR 0007](docs/adr/0007-single-design-token-source.md)). Do not type such a value anywhere else. The build generates `aerie_tokens.css` (WebUI) and `aerie_tokens.h` (Views) from it. Token names are persisted values later: do not rename one.
+
+After you edit `tokens.json`, regenerate the checked-in copy for the mockup pages:
+
+```
+C=overlay/components/aerie_design_tokens
+python3 $C/gen_tokens_css.py --out prototypes/sidebar/tokens.css --check-horizontal prototypes/sidebar/horizontal.css
+python3 $C/check_contrast.py
+```
+
+`tests/test_design_tokens.py` fails if that copy is stale, if any theme, colour mode or Workspace preset fails the contrast check, or if a C++ theme table differs from the CSS. A change to a token value needs its own pull request and a passing contrast check.
+
 ## Helium dependency ledger
 
 Every Aerie patch is a change on top of Helium. If it only applies, builds or

@@ -52,6 +52,8 @@ TEST_BINARIES = (
     ("aerie_webgl_readback_unittests", ()),
     # The font allowlist and the decision to restrict fonts (issue #117).
     ("aerie_fonts_unittests", ()),
+    # The generated Design Token tables, ShouldReduceMotion() and the motion helper (issue #174).
+    ("aerie_design_tokens_unittests", ()),
 )
 HOST_TOOLS = ("git", "tar", "zstd", "patch")
 MIN_FREE_BYTES = 150 * 1024**3

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright 2026 The Aerie Authors
+     You can use, redistribute, and/or modify this source code under
+     the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+     Strings of the reduced-motion row on the Appearance page of Settings (issue #174). patches/sidebar/0002 gives each
+     one to the settings page under the name tests/test_design_tokens.py checks. -->
+<grit-part>
+  <message name="IDS_SETTINGS_AERIE_MOTION_REDUCE" desc="Label of the drop-down on the Appearance page that decides whether Aerie reduces the motion of its own interface.">
+    Reduce motion
+  </message>
+  <message name="IDS_SETTINGS_AERIE_MOTION_REDUCE_DESC" desc="Line under the reduce motion drop-down. It says what reduced motion changes and that web pages and the browser's other animations are not changed.">
+    Aerie's own animations use short fades and no sliding or scaling. Web pages and the animations of the rest of the browser do not change.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_MOTION_REDUCE_SYSTEM" desc="Option of the reduce motion drop-down: reduce motion only when the operating system asks for it. This is the default.">
+    Follow the system setting
+  </message>
+  <message name="IDS_SETTINGS_AERIE_MOTION_REDUCE_ON" desc="Option of the reduce motion drop-down: always reduce motion, whatever the operating system says.">
+    Always reduce motion
+  </message>
+</grit-part>
