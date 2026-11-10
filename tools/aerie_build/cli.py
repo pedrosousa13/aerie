@@ -212,6 +212,14 @@ def cmd_crates_resolve(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_crates_audit_lock(args: argparse.Namespace) -> int:
+    text = (REPO / rust_crates.LOCK_FILE).read_text(encoding="utf-8")
+    out = Path(args.out)
+    out.write_text(rust_crates.audit_lock(text), encoding="utf-8")
+    print(f"wrote {out}; run: cargo audit --file {out}")
+    return 0
+
+
 def cmd_info(args: argparse.Namespace) -> int:
     ctx = _context(args)
     print(f"helium version   {ctx.pins.helium_version} (Chromium {ctx.pins.chromium_version})")
@@ -381,6 +389,12 @@ def main(argv: list[str] | None = None) -> int:
     _add_common(p_resolve)
     p_resolve.add_argument("--tree", metavar="DIR", help="source tree with the Aerie patches applied (default: the build tree)")
     p_resolve.set_defaults(func=cmd_crates_resolve)
+    p_audit = crates_sub.add_parser(
+        "audit-lock",
+        help="write rust/crates.lock.toml as a Cargo.lock for `cargo audit --file` (offline)",
+    )
+    p_audit.add_argument("out", metavar="FILE", help="where to write the Cargo.lock")
+    p_audit.set_defaults(func=cmd_crates_audit_lock)
 
     p_bench = sub.add_parser("bench", help="launch a built browser, drive it, record its traffic (see docs/bench.md)")
     _add_common(p_bench)

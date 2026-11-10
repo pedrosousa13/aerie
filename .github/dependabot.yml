@@ -1,0 +1,12 @@
+# Keeps the pinned action SHAs in .github/workflows current. The Rust crates and
+# filter lists have their own locks and update commands (docs/adblock.md);
+# Helium has ./aerie bump (docs/helium-bump.md).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
