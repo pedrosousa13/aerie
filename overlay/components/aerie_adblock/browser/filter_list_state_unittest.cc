@@ -352,6 +352,8 @@ TEST(FilterListStateTest, AFileThatTurnsEasyListOffIsIgnoredForEasyList) {
   FilterListState state = FilterListState::FromValue(json->GetDict());
   EXPECT_TRUE(state.Find(kEasyListId)->enabled);
   EXPECT_FALSE(state.Find(kEasyPrivacyId)->enabled);
+}
+
 TEST(FilterListStateTest, BlockingLevelDefaultsToAggressive) {
   FilterListState state;
   EXPECT_EQ(state.default_level(), BlockingLevel::kAggressive);
