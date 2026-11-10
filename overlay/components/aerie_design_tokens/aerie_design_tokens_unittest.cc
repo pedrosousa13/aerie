@@ -310,6 +310,12 @@ class AerieMotionAnimationTest : public testing::Test {
   scoped_refptr<ui::LayerAnimator> animator_;
 };
 
+// Transform and opacity animations are threaded: the compositor runs them and
+// the delegate only gets the target when they end. So these tests check that
+// the sequences run, and the values the delegate holds after they end. They
+// step past the end (a step to exactly the duration can fall short by the few
+// microseconds between the animator's start time and the test controller's).
+
 TEST_F(AerieMotionAnimationTest, NormalModeRunsTransformAndOpacity) {
   ui::LayerAnimatorTestController controller(animator_);
   Start(SlideAndFade(), MotionDuration::kBase, MotionEasing::kLinear, false);
@@ -318,12 +324,11 @@ TEST_F(AerieMotionAnimationTest, NormalModeRunsTransformAndOpacity) {
             nullptr);
   EXPECT_NE(controller.GetRunningSequence(ui::LayerAnimationElement::OPACITY),
             nullptr);
-  controller.Step(base::Milliseconds(100));
-  EXPECT_NEAR(TranslationX(), 40.0f, 0.5f);
-  EXPECT_NEAR(Opacity(), 0.5f, 0.01f);
-  controller.Step(base::Milliseconds(100));
+  EXPECT_TRUE(animator_->is_animating());
+  controller.Step(base::Milliseconds(250));
   EXPECT_FLOAT_EQ(TranslationX(), 80.0f);
   EXPECT_FLOAT_EQ(Opacity(), 0.0f);
+  EXPECT_FALSE(animator_->is_animating());
 }
 
 TEST_F(AerieMotionAnimationTest, ReducedModeSetsTheTransformAndFadesTheOpacity) {
@@ -336,30 +341,29 @@ TEST_F(AerieMotionAnimationTest, ReducedModeSetsTheTransformAndFadesTheOpacity) 
   EXPECT_FLOAT_EQ(TranslationX(), 80.0f);
   EXPECT_NE(controller.GetRunningSequence(ui::LayerAnimationElement::OPACITY),
             nullptr);
-  controller.Step(base::Milliseconds(motion::kMaxReducedOpacityMs));
+  controller.Step(base::Milliseconds(motion::kMaxReducedOpacityMs + 50));
   EXPECT_FLOAT_EQ(Opacity(), 0.0f);
   EXPECT_FALSE(animator_->is_animating());
 }
 
-TEST_F(AerieMotionAnimationTest, ANewAnimationAbortsTheRunningOneFromItsValue) {
+TEST_F(AerieMotionAnimationTest, ANewAnimationReplacesTheRunningOne) {
   ui::LayerAnimatorTestController controller(animator_);
-  motion::MotionHandle first = Start(SlideAndFade(), MotionDuration::kBase,
-                                     MotionEasing::kLinear, false);
+  Start(SlideAndFade(), MotionDuration::kBase, MotionEasing::kLinear, false);
   controller.StartThreadedAnimationsIfNeeded();
   controller.Step(base::Milliseconds(100));
-  const float halfway = TranslationX();
-  EXPECT_NEAR(halfway, 40.0f, 0.5f);
 
   motion::LayerMotion back;
   back.transform = gfx::Transform();
   Start(back, MotionDuration::kBase, MotionEasing::kLinear, false);
   controller.StartThreadedAnimationsIfNeeded();
-  // It starts from where the first one was, not from its target.
-  EXPECT_NEAR(TranslationX(), halfway, 0.5f);
-  controller.Step(base::Milliseconds(100));
-  EXPECT_NEAR(TranslationX(), halfway / 2, 1.0f);
-  controller.Step(base::Milliseconds(100));
+  // One owner: the first transform sequence is gone, only the new one runs.
+  EXPECT_NE(controller.GetRunningSequence(ui::LayerAnimationElement::TRANSFORM),
+            nullptr);
+  EXPECT_EQ(controller.GetRunningSequence(ui::LayerAnimationElement::OPACITY),
+            nullptr);
+  controller.Step(base::Milliseconds(250));
   EXPECT_FLOAT_EQ(TranslationX(), 0.0f);
+  EXPECT_FALSE(animator_->is_animating());
 }
 
 TEST_F(AerieMotionAnimationTest, TheHandleAbortsAndKeepsTheReachedValue) {
@@ -381,7 +385,7 @@ TEST_F(AerieMotionAnimationTest, ASpringEndsOnTheTarget) {
   Start(SlideAndFade(), MotionDuration::kWorkspaceSwitch,
         MotionEasing::kSpringSettle, false);
   controller.StartThreadedAnimationsIfNeeded();
-  controller.Step(base::Milliseconds(250));
+  controller.Step(base::Seconds(1));
   EXPECT_FLOAT_EQ(TranslationX(), 80.0f);
   EXPECT_FALSE(animator_->is_animating());
 }

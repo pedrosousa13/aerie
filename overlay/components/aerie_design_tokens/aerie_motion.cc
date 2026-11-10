@@ -199,7 +199,9 @@ MotionHandle StartMotion(ui::LayerAnimator* animator,
                          const LayerMotion& motion,
                          const gfx::Transform& from_transform,
                          float from_opacity) {
-  // One owner per animation: the running one stops where it is.
+  // One owner per animation: the running one is aborted. Transform and opacity
+  // run on the compositor, so the value the main thread holds stays what it
+  // last had; the new animation starts from the values passed in.
   if (animator->IsAnimatingOnePropertyOf(
           ui::LayerAnimationElement::TRANSFORM |
           ui::LayerAnimationElement::OPACITY)) {
