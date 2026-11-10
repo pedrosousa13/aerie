@@ -40,7 +40,8 @@ TOLERANCE = 0.75  # px; sub-pixel layout and zoom
 SURFACES = {
     "aerie_guard": {"url": "chrome://settings/aerieGuard", "ready": ".list-row",
                     "required": [".custom-rules-row", ".list-row"]},
-    "hardening": {"url": "chrome://settings/privacy/hardening", "ready": ".control"},
+    # #headerLine is the title row of Helium's own subpage frame (back arrow and heading), not an Aerie row.
+    "hardening": {"url": "chrome://settings/privacy/hardening", "ready": ".control", "exclude": "#headerLine"},
     "appearance": {"url": "chrome://settings/appearance", "ready": "#aerieMotionRow", "only": "#aerieMotionRow"},
     "setup": {"url": "chrome://setup/", "ready": ".opt", "card": True, "rows": ".opt", "setup_step": "search"},
 }
@@ -49,6 +50,10 @@ CARD_MIN_PADDING = 8  # px; the smallest inline padding a card of the panel or s
 
 # Helium's own rows, read on the Appearance page: the built-in neighbours an Aerie row must line up with.
 NEIGHBOURS = {"url": "chrome://settings/appearance", "ready": ".settings-box, .cr-row", "exclude": "#aerieMotionRow"}
+
+# Entrance animations move a card by a few pixels (transform) while it fades in; a read mid-animation would
+# report that offset as a missing inset, so every finite animation is finished first.
+SETTLE_JS = "document.getAnimations().forEach(a => { try { a.finish(); } catch (e) {} });"
 
 MEASURE_JS = """(only, breakIndex, exclude, rowSel) => {
   const rows = deepQueryAll(document, rowSel)
@@ -102,7 +107,7 @@ def measure(session: Session, surface: dict, break_index: int | None = None) -> 
     exclude = json.dumps(surface.get("exclude"))
     row_sel = json.dumps(surface.get("rows", ".cr-row, .settings-box"))
     index = "null" if break_index is None else str(break_index)
-    expr = f"(() => {{ {DEEP_JS}\n return ({MEASURE_JS})({only}, {index}, {exclude}, {row_sel}); }})()"
+    expr = f"(() => {{ {DEEP_JS}\n{SETTLE_JS}\n return ({MEASURE_JS})({only}, {index}, {exclude}, {row_sel}); }})()"
     return session.evaluate(expr) or []
 
 

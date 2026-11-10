@@ -83,6 +83,11 @@ class RowPaddingJudgeTest(unittest.TestCase):
         self.assertEqual(SURFACES["setup"]["setup_step"], "search")
         self.assertNotIn("guard_panel", SURFACES)
 
+    def test_helium_subpage_title_row_is_not_measured_and_animations_are_settled(self):
+        from aerie_bench.checks.row_padding import SETTLE_JS, SURFACES
+        self.assertEqual(SURFACES["hardening"]["exclude"], "#headerLine")
+        self.assertIn("getAnimations", SETTLE_JS)
+
     def test_a_continuation_row_does_not_set_the_neighbour_padding(self):
         from aerie_bench.checks.row_padding import neighbour_padding
         # Hand-written rows modelled on what train 20 read on the Appearance page: one 'cr-row continuation' with start 0.
