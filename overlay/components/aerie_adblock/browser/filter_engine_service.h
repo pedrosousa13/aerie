@@ -20,6 +20,7 @@
 #include "base/task/sequenced_task_runner.h"
 #include "base/threading/sequence_bound.h"
 #include "components/aerie_adblock/browser/adblock_engine.h"
+#include "components/aerie_adblock/browser/blocking_level.h"
 #include "components/aerie_adblock/browser/list_failure.h"
 #include "components/aerie_adblock/browser/request_classifier.h"
 #include "components/aerie_adblock/browser/session_key.h"
@@ -79,6 +80,14 @@ class FilterEngineService {
   using CosmeticPolicyCallback =
       base::RepeatingCallback<bool(const GURL&, SessionKey)>;
 
+  // Says which blocking level (issue #109) applies to the page whose top-level
+  // host is given (lowercase, as exceptions key it), in the session of the
+  // page's profile. FilterListManager installs its policy with
+  // SetBlockingLevelPolicy(). Asked on the UI thread for every request, so it
+  // must be cheap.
+  using BlockingLevelPolicyCallback =
+      base::RepeatingCallback<BlockingLevel(const std::string&, SessionKey)>;
+
   // The instance the browser registered with SetAsProcessInstance(), or null.
   static FilterEngineService* Get();
 
@@ -111,6 +120,8 @@ class FilterEngineService {
   struct ListInput {
     std::string text;
     base::FilePath path;
+    // A list the user added or subscribed to (not a built-in one).
+    bool custom = false;
   };
   using ReplaceCallback = base::OnceCallback<void(BuildResult)>;
 
@@ -190,6 +201,16 @@ class FilterEngineService {
                             StylesheetCallback callback,
                             SessionKey session);
 
+  // Installs the policy that ShouldBlock() asks for the blocking level of the
+  // request's top-level site. The default (no policy) is kAggressive: every
+  // matching request is blocked. Browser-side only: the level never comes from
+  // a renderer, and the request carries none.
+  void SetBlockingLevelPolicy(BlockingLevelPolicyCallback policy);
+  // The level ShouldBlock() uses for a request of |session| whose top-level
+  // host is |top_level_host|.
+  BlockingLevel BlockingLevelFor(const std::string& top_level_host,
+                                 SessionKey session) const;
+
   // Installs the policy that GetCosmeticStylesheet() and GetGenericStylesheet()
   // ask. The default (no policy) is: on everywhere. Does not touch
   // stylesheets already injected into open pages.
@@ -214,6 +235,7 @@ class FilterEngineService {
   BlockedCallback blocked_callback_;
   base::OnceClosure on_load_failure_;
   CosmeticPolicyCallback cosmetic_policy_;
+  BlockingLevelPolicyCallback level_policy_;
   bool started_ = false;
   base::WeakPtrFactory<FilterEngineService> weak_factory_{this};
 };

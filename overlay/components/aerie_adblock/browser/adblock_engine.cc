@@ -10,6 +10,7 @@
 
 #include "base/containers/span_rust.h"
 #include "base/strings/string_util.h"
+#include "base/time/time.h"
 
 namespace aerie_adblock {
 
@@ -123,31 +124,66 @@ ListCheck CheckList(base::span<const uint8_t> text, base::TimeDelta budget) {
 }
 
 BuildResult AdblockEngine::LoadLists(const std::vector<std::string>& lists,
-                                     base::TimeDelta budget) {
+                                     base::TimeDelta budget,
+                                     const std::vector<bool>& custom) {
+  // Both engines are built aside and swapped in only when both are good, so a
+  // failure leaves the old rules (and the old first-party engine) alone.
+  rust::Box<Engine> all = new_empty_engine();
+  rust::Box<Engine> custom_only = new_empty_engine();
   rust::Box<EngineBuilder> builder = new_engine_builder();
-  for (const std::string& list : lists) {
-    builder->add_list(base::SpanToRustSlice(base::as_byte_span(list)));
+  rust::Box<EngineBuilder> custom_builder = new_engine_builder();
+  bool has_custom = false;
+  for (size_t i = 0; i < lists.size(); ++i) {
+    const auto bytes = base::SpanToRustSlice(base::as_byte_span(lists[i]));
+    builder->add_list(bytes);
+    if (i < custom.size() && custom[i]) {
+      custom_builder->add_list(bytes);
+      has_custom = true;
+    }
   }
-  BuildReport report = builder->build_into(BudgetMs(budget), *engine_);
+  BuildReport report = builder->build_into(BudgetMs(budget), *all);
   BuildResult result;
   result.failure = FromRust(report.status);
   result.failed_index = report.failed_index;
-  if (result.failure == ListFailure::kNone) {
-    result.ignored_exceptions = report.ignored_exceptions;
+  if (result.failure != ListFailure::kNone) {
+    return result;
   }
+  result.ignored_exceptions = report.ignored_exceptions;
+  if (has_custom) {
+    BuildReport custom_report =
+        custom_builder->build_into(BudgetMs(budget), *custom_only);
+    if (FromRust(custom_report.status) != ListFailure::kNone) {
+      // The same texts just built fine; only a timeout can land here.
+      result.failure = FromRust(custom_report.status);
+      result.failed_index = 0;
+      result.ignored_exceptions = 0;
+      return result;
+    }
+  }
+  engine_ = std::move(all);
+  first_party_engine_ = std::move(custom_only);
   return result;
 }
 
-AdblockEngine::AdblockEngine() : engine_(new_empty_engine()) {}
+AdblockEngine::AdblockEngine()
+    : engine_(new_empty_engine()), first_party_engine_(new_empty_engine()) {}
 
 AdblockEngine::~AdblockEngine() = default;
 
 bool AdblockEngine::LoadSerialized(base::span<const uint8_t> data) {
+  first_party_engine_ = new_empty_engine();
   return engine_->load_serialized(base::SpanToRustSlice(data));
 }
 
 void AdblockEngine::LoadListForTesting(std::string_view list) {
   engine_ = new_engine_from_list(base::SpanToRustSlice(base::as_byte_span(list)));
+  first_party_engine_ = new_empty_engine();
+}
+
+ListFailure AdblockEngine::LoadListsForTesting(const std::string& built_in,
+                                               const std::string& custom) {
+  return LoadLists({built_in, custom}, base::Seconds(30), {false, true})
+      .failure;
 }
 
 std::vector<uint8_t> AdblockEngine::SerializeForTesting() const {
@@ -155,11 +191,19 @@ std::vector<uint8_t> AdblockEngine::SerializeForTesting() const {
   return std::vector<uint8_t>(bytes.begin(), bytes.end());
 }
 
-bool AdblockEngine::ShouldBlock(const ClassifiedRequest& request) const {
+bool AdblockEngine::ShouldBlock(const ClassifiedRequest& request,
+                                BlockingLevel level) const {
   if (!IsPassable(request)) {
     return false;
   }
-  return engine_->should_block(
+  // Standard: a first-party request gets no verdict from the built-in lists,
+  // `$important` rules included. Only the custom lists' own engine judges it,
+  // as brave-core's second engine does. The choice is here, not in the lists,
+  // so no built-in rule can override it.
+  const bool first_party_only =
+      level == BlockingLevel::kStandard && !request.third_party;
+  const Engine& engine = first_party_only ? *first_party_engine_ : *engine_;
+  return engine.should_block(
       rust::Str(request.url.data(), request.url.size()),
       rust::Str(request.hostname.data(), request.hostname.size()),
       rust::Str(request.source_hostname.data(), request.source_hostname.size()),

@@ -5,6 +5,7 @@
 #ifndef COMPONENTS_AERIE_ADBLOCK_BROWSER_FILTER_LIST_STATE_H_
 #define COMPONENTS_AERIE_ADBLOCK_BROWSER_FILTER_LIST_STATE_H_
 
+#include <map>
 #include <optional>
 #include <set>
 #include <string>
@@ -13,6 +14,7 @@
 
 #include "base/time/time.h"
 #include "base/values.h"
+#include "components/aerie_adblock/browser/blocking_level.h"
 #include "url/gurl.h"
 
 namespace aerie_adblock {
@@ -33,6 +35,8 @@ inline constexpr size_t kMaxCustomLists = 20;
 inline constexpr size_t kMaxExceptions = 1000;
 // Hosts that have cosmetic hiding turned off while blocking stays on (#101).
 inline constexpr size_t kMaxCosmeticOffHosts = 1000;
+// Hosts that have their own blocking level (issue #109).
+inline constexpr size_t kMaxLevelOverrides = 1000;
 inline constexpr size_t kMaxHostLength = 253;
 inline constexpr size_t kMaxErrorLength = 200;
 
@@ -77,6 +81,12 @@ std::string NormalizeExceptionHost(std::string_view host);
 // True if |host| is in |exceptions| or is a subdomain of one of them.
 bool HostHasException(std::string_view host, const std::set<std::string>& exceptions);
 
+// The level of the nearest entry of |levels| for |host| or one of its parents
+// (the host itself first), or nullopt when none matches. Hosts are normalized.
+std::optional<BlockingLevel> FindBlockingLevel(
+    std::string_view host,
+    const std::map<std::string, BlockingLevel>& levels);
+
 class FilterListState {
  public:
   enum class AddResult { kAdded, kInvalidUrl, kDuplicate, kTooMany };
@@ -93,6 +103,14 @@ class FilterListState {
   // blocking is on (issue #101). Keyed like exceptions().
   const std::set<std::string>& cosmetic_off_hosts() const {
     return cosmetic_off_hosts_;
+  }
+  // The blocking level a site has when it has no level of its own (issue
+  // #109). Aggressive until the user changes it in Settings.
+  BlockingLevel default_level() const { return default_level_; }
+  // Per-site levels (host plus subdomains, the nearest host wins). Keyed like
+  // exceptions().
+  const std::map<std::string, BlockingLevel>& level_overrides() const {
+    return level_overrides_;
   }
   bool auto_update() const { return auto_update_; }
   base::Time last_update_check() const { return last_update_check_; }
@@ -117,6 +135,12 @@ class FilterListState {
   // SetException(): normalized, at most kMaxCosmeticOffHosts, and removing
   // always works.
   bool SetCosmeticOff(std::string_view host, bool off);
+  // Gives |host| its own blocking level. Same rules as SetException():
+  // normalized, at most kMaxLevelOverrides.
+  bool SetLevelOverride(std::string_view host, BlockingLevel level);
+  // Takes the own level of |host| away, so the default (or a parent) applies.
+  bool ClearLevelOverride(std::string_view host);
+  void SetDefaultLevel(BlockingLevel level) { default_level_ = level; }
   void SetAutoUpdate(bool enabled) { auto_update_ = enabled; }
   void set_last_update_check(base::Time time) { last_update_check_ = time; }
 
@@ -133,6 +157,8 @@ class FilterListState {
   std::vector<FilterListEntry> lists_;
   std::set<std::string> exceptions_;
   std::set<std::string> cosmetic_off_hosts_;
+  std::map<std::string, BlockingLevel> level_overrides_;
+  BlockingLevel default_level_ = kDefaultBlockingLevel;
   bool auto_update_ = true;
   base::Time last_update_check_;
 };

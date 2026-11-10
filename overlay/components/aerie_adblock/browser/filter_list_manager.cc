@@ -4,6 +4,8 @@
 
 #include "components/aerie_adblock/browser/filter_list_manager.h"
 
+#include <map>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -69,6 +71,15 @@ void FilterListManager::Init() {
         [](base::WeakPtr<FilterListManager> self, const GURL& top_level_url,
            SessionKey session) {
           return !self || self->AllowsCosmeticHiding(top_level_url, session);
+        },
+        weak_factory_.GetWeakPtr()));
+    // The blocking level (issue #109) is asked for every request. Once the
+    // manager is gone the level is the default: Aggressive.
+    service_->SetBlockingLevelPolicy(base::BindRepeating(
+        [](base::WeakPtr<FilterListManager> self, const std::string& host,
+           SessionKey session) {
+          return self ? self->EffectiveBlockingLevel(host, session)
+                      : kDefaultBlockingLevel;
         },
         weak_factory_.GetWeakPtr()));
   }
@@ -337,8 +348,9 @@ std::vector<std::string> FilterListManager::ExceptionsFor(
 
 void FilterListManager::ClearSessionExceptions(SessionKey session) {
   const bool had_cosmetic = session_cosmetic_off_.erase(session) > 0;
+  const bool had_level = session_levels_.erase(session) > 0;
   if (session_exceptions_.erase(session) == 0) {
-    if (had_cosmetic) {
+    if (had_cosmetic || had_level) {
       Notify();
     }
     return;
@@ -415,6 +427,63 @@ bool FilterListManager::IsCosmeticHidingLocked(std::string_view host,
 bool FilterListManager::AllowsCosmeticHiding(const GURL& top_level_url,
                                              SessionKey session) const {
   return !IsCosmeticHidingOff(top_level_url.host(), session);
+}
+
+ExceptionResult FilterListManager::SetBlockingLevelForSession(
+    std::string_view host,
+    BlockingLevel level,
+    SessionKey session) {
+  std::string normalized = NormalizeExceptionHost(host);
+  if (normalized.empty()) {
+    return ExceptionResult::kInvalidHost;
+  }
+  if (session.is_off_the_record()) {
+    std::map<std::string, BlockingLevel>& levels = session_levels_[session];
+    if (levels.size() >= kMaxLevelOverrides && !levels.count(normalized)) {
+      if (levels.empty()) {
+        session_levels_.erase(session);
+      }
+      return ExceptionResult::kTableFull;
+    }
+    levels[std::move(normalized)] = level;
+    Notify();
+    return ExceptionResult::kOk;  // No Save(): this never reaches the disk.
+  }
+  if (!state_.SetLevelOverride(normalized, level)) {
+    return ExceptionResult::kTableFull;
+  }
+  Save();
+  Notify();
+  return ExceptionResult::kOk;
+}
+
+ExceptionResult FilterListManager::SetBlockingLevel(
+    std::string_view host,
+    BlockingLevel level,
+    content::BrowserContext* context) {
+  WatchSession(context);  // Does nothing for a regular context.
+  return SetBlockingLevelForSession(host, level, SessionKeyFor(context));
+}
+
+BlockingLevel FilterListManager::EffectiveBlockingLevel(
+    std::string_view host,
+    SessionKey session) const {
+  const std::string normalized = NormalizeExceptionHost(host);
+  auto it = session_levels_.find(session);
+  if (it != session_levels_.end()) {
+    if (std::optional<BlockingLevel> own =
+            FindBlockingLevel(normalized, it->second)) {
+      return *own;
+    }
+  }
+  return FindBlockingLevel(normalized, state_.level_overrides())
+      .value_or(state_.default_level());
+}
+
+void FilterListManager::SetDefaultBlockingLevel(BlockingLevel level) {
+  state_.SetDefaultLevel(level);
+  Save();
+  Notify();
 }
 
 void FilterListManager::WatchSession(content::BrowserContext* context) {
@@ -552,6 +621,7 @@ void FilterListManager::Rebuild(bool retry) {
       continue;  // Off: its file stays on disk, the engine does not get it.
     }
     FilterEngineService::ListInput input;
+    input.custom = !entry.builtin;
     if (!entry.updated.is_null()) {
       input.path = filter_list_storage::ListPath(dir_, entry.id);
     } else if (entry.builtin) {

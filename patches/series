@@ -87,6 +87,8 @@ adblock/0024-redirect-filters-to-aerie-guard-settings.patch
 
 # Per-list status and on/off (#104): the strings of the list rows.
 adblock/0025-add-aerie-guard-list-strings.patch
+# The default blocking level menu of the Aerie Guard section (#109): its four strings join AddAerieGuardStrings().
+adblock/0026-add-aerie-guard-level-settings-strings.patch
 
 # Opt-in "Restrict fonts" (#117): pages can match only an allowlist of common fonts; the pref, the kFonts token, the font selectors and Local Font Access.
 hardening/0020-restrict-fonts-to-an-allowlist.patch

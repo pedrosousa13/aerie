@@ -128,6 +128,58 @@
   margin: 0 4px 8px;
 }
 
+#level {
+  background: var(--aerie-card);
+  border-radius: var(--aerie-radius);
+  margin-bottom: 8px;
+  padding: 12px 16px;
+}
+
+#levelLabel {
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+
+#levelChoices {
+  background: var(--aerie-surface);
+  border-radius: 10px;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+}
+
+#levelChoices button {
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: var(--aerie-text);
+  cursor: pointer;
+  flex: 1;
+  font: inherit;
+  padding: 4px 8px;
+}
+
+#levelChoices button[aria-checked='true'] {
+  background: var(--aerie-accent);
+  color: var(--color-sys-on-primary, #fff);
+}
+
+#levelChoices button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+#levelChoices button:focus-visible {
+  outline: 2px solid var(--aerie-accent);
+  outline-offset: 1px;
+}
+
+#levelDesc,
+#levelReload {
+  color: var(--aerie-muted);
+  margin: 8px 0 0;
+}
+
 #advanced {
   margin: 0 4px 8px;
 }

@@ -18,6 +18,7 @@
 #include "base/task/thread_pool.h"
 #include "components/aerie_adblock/browser/filter_engine_service.h"
 #include "components/aerie_adblock/browser/filter_list_manager.h"
+#include "components/aerie_adblock/browser/filter_list_state.h"
 #include "components/aerie_adblock/browser/page_block_counter.h"
 #include "components/aerie_adblock/browser/session_key.h"
 #include "content/public/browser/render_frame_host.h"
@@ -245,6 +246,88 @@ TEST_F(GuardTargetTest, AnIncognitoCosmeticChoiceStaysInMemoryAndCannotUndoASave
   EXPECT_TRUE(saved.Resolve()->cosmetic_locked);
   EXPECT_EQ(GuardTarget::Toggle::kRefused, saved.SetCosmeticHidingOn(true));
   EXPECT_TRUE(manager_->IsCosmeticHidingOff("saved.test", SessionKey::Regular()));
+  tab.reset();
+}
+
+TEST_F(GuardTargetTest, SetsTheLevelOfTheSiteAndItsSubdomains) {
+  NavigateAndCommit(GURL("https://news.test/"));
+  const GuardTarget target = GuardTarget::Capture(web_contents());
+  EXPECT_EQ(BlockingLevel::kAggressive, target.Resolve()->level);
+  EXPECT_EQ(GuardTarget::Toggle::kApplied,
+            target.SetBlockingLevel(BlockingLevel::kStandard));
+  EXPECT_EQ(BlockingLevel::kStandard, target.Resolve()->level);
+  EXPECT_EQ(BlockingLevel::kStandard,
+            manager_->EffectiveBlockingLevel("www.news.test", SessionKey::Regular()));
+  EXPECT_EQ(BlockingLevel::kAggressive,
+            manager_->EffectiveBlockingLevel("other.test", SessionKey::Regular()));
+  EXPECT_FALSE(manager_->HasSavedException("news.test"));
+}
+
+TEST_F(GuardTargetTest, PickingALevelTurnsBlockingBackOn) {
+  NavigateAndCommit(GURL("https://news.test/"));
+  const GuardTarget target = GuardTarget::Capture(web_contents());
+  ASSERT_EQ(GuardTarget::Toggle::kApplied, target.SetBlockingOn(false));
+  ASSERT_TRUE(target.Resolve()->blocking_off);
+  EXPECT_EQ(GuardTarget::Toggle::kApplied,
+            target.SetBlockingLevel(BlockingLevel::kStandard));
+  EXPECT_FALSE(target.Resolve()->blocking_off);
+  EXPECT_EQ(BlockingLevel::kStandard, target.Resolve()->level);
+}
+
+TEST_F(GuardTargetTest, AFullLevelTableRefusesAndLeavesBlockingOff) {
+  NavigateAndCommit(GURL("https://news.test/"));
+  const GuardTarget target = GuardTarget::Capture(web_contents());
+  ASSERT_EQ(GuardTarget::Toggle::kApplied, target.SetBlockingOn(false));
+  for (size_t i = 0; i < kMaxLevelOverrides; ++i) {
+    ASSERT_EQ(ExceptionResult::kOk,
+              manager_->SetBlockingLevelForTesting(
+                  "host" + std::to_string(i) + ".test", BlockingLevel::kStandard,
+                  SessionKey::Regular()));
+  }
+  EXPECT_EQ(GuardTarget::Toggle::kRefused,
+            target.SetBlockingLevel(BlockingLevel::kStandard));
+  // Blocking was not turned back on by the refused call.
+  EXPECT_TRUE(target.Resolve()->blocking_off);
+  EXPECT_TRUE(manager_->HasSavedException("news.test"));
+}
+
+TEST_F(GuardTargetTest, ALevelChangeOnAStaleTargetChangesNothing) {
+  NavigateAndCommit(GURL("https://news.test/"));
+  const GuardTarget target = GuardTarget::Capture(web_contents());
+  NavigateAndCommit(GURL("https://other.test/"));
+  EXPECT_EQ(GuardTarget::Toggle::kStale,
+            target.SetBlockingLevel(BlockingLevel::kStandard));
+  EXPECT_TRUE(manager_->state().level_overrides().empty());
+  EXPECT_EQ(GuardTarget::Toggle::kStale,
+            GuardTarget().SetBlockingLevel(BlockingLevel::kStandard));
+}
+
+TEST_F(GuardTargetTest, AnIncognitoLevelStaysInMemoryAndCannotTurnOnASavedOffSite) {
+  content::TestBrowserContext incognito;
+  incognito.set_is_off_the_record(true);
+  std::unique_ptr<content::WebContents> tab =
+      content::WebContentsTester::CreateTestWebContents(&incognito, nullptr);
+  content::NavigationSimulator::NavigateAndCommitFromBrowser(
+      tab.get(), GURL("https://news.test/"));
+  const GuardTarget target = GuardTarget::Capture(tab.get());
+  ASSERT_EQ(GuardTarget::Toggle::kApplied,
+            target.SetBlockingLevel(BlockingLevel::kStandard));
+  EXPECT_EQ(BlockingLevel::kStandard,
+            manager_->EffectiveBlockingLevel("news.test", SessionKeyFor(&incognito)));
+  EXPECT_EQ(BlockingLevel::kAggressive,
+            manager_->EffectiveBlockingLevel("news.test", SessionKey::Regular()));
+  EXPECT_TRUE(manager_->state().level_overrides().empty());
+
+  // A site the regular profile saved as off stays off in incognito.
+  ASSERT_EQ(ExceptionResult::kOk,
+            manager_->SetExceptionForTesting("saved.test", true, SessionKey::Regular()));
+  content::NavigationSimulator::NavigateAndCommitFromBrowser(
+      tab.get(), GURL("https://saved.test/"));
+  const GuardTarget saved = GuardTarget::Capture(tab.get());
+  ASSERT_TRUE(saved.Resolve());
+  EXPECT_EQ(GuardTarget::Toggle::kRefused,
+            saved.SetBlockingLevel(BlockingLevel::kStandard));
+  EXPECT_TRUE(manager_->HasSavedException("saved.test"));
   tab.reset();
 }
 

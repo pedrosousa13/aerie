@@ -33,6 +33,8 @@ export interface AerieGuardState {
   ready: boolean;
   busy: boolean;
   autoUpdate: boolean;
+  /** 'aggressive' or 'standard': the level of sites with none of their own. */
+  defaultLevel: string;
   /** The manager's text for a list it refused. Empty for none. */
   addError: string;
   /** '', 'invalid_host', 'table_full' or 'locked'. */
@@ -57,6 +59,7 @@ export interface AerieGuardBrowserProxy {
   updateAll(): Promise<AerieGuardState>;
   setException(host: string, enabled: boolean): Promise<AerieGuardState>;
   setAutoUpdate(enabled: boolean): Promise<AerieGuardState>;
+  setDefaultLevel(level: string): Promise<AerieGuardState>;
 }
 
 let instance: AerieGuardBrowserProxy|null = null;
@@ -92,6 +95,10 @@ export class AerieGuardBrowserProxyImpl implements AerieGuardBrowserProxy {
 
   setAutoUpdate(enabled: boolean): Promise<AerieGuardState> {
     return sendWithPromise('aerieGuard.setAutoUpdate', enabled);
+  }
+
+  setDefaultLevel(level: string): Promise<AerieGuardState> {
+    return sendWithPromise('aerieGuard.setDefaultLevel', level);
   }
 
   static getInstance(): AerieGuardBrowserProxy {

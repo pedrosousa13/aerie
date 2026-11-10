@@ -1,0 +1,23 @@
+Aerie-Purpose: Give the Settings page the four strings of the default blocking level menu in the Aerie Guard section.
+Aerie-Upstream-Area: chrome/browser/ui/webui/settings (settings_localized_strings_provider.cc)
+Aerie-Kind: hook
+
+Issue #109. The messages are in the overlay (chrome/browser/ui/webui/aerie_guard_settings/
+aerie_guard_settings_strings.grdp, added to the grd by adblock/0022). This patch only adds
+their four names to AddAerieGuardStrings(), the function that adblock/0022 adds, after the
+list strings that adblock/0025 adds, so it comes after adblock/0025 in the series.
+
+--- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
++++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
+@@ -1637,6 +1637,11 @@
+        IDS_SETTINGS_AERIE_GUARD_LIST_ERROR_INSECURE_URL},
+       {"aerieGuardListErrorRequired",
+        IDS_SETTINGS_AERIE_GUARD_LIST_ERROR_REQUIRED},
++      {"aerieGuardDefaultLevel", IDS_SETTINGS_AERIE_GUARD_DEFAULT_LEVEL},
++      {"aerieGuardDefaultLevelDesc",
++       IDS_SETTINGS_AERIE_GUARD_DEFAULT_LEVEL_DESC},
++      {"aerieGuardLevelAggressive", IDS_SETTINGS_AERIE_GUARD_LEVEL_AGGRESSIVE},
++      {"aerieGuardLevelStandard", IDS_SETTINGS_AERIE_GUARD_LEVEL_STANDARD},
+   };
+   html_source->AddLocalizedStrings(kLocalizedStrings);
+ }

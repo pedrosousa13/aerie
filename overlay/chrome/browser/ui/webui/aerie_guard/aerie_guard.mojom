@@ -41,6 +41,17 @@ struct FingerprintingState {
   bool needs_reload;
 };
 
+// How far network blocking goes on the site (issue #109). "Off" is not a level:
+// it is the switch of the panel, SetGuardOn(false). The page shows the three as
+// one row.
+enum BlockingLevel {
+  // First-party and third-party requests that match a rule are blocked.
+  kAggressive,
+  // Built-in lists do not block requests to the page's own site; custom lists
+  // still do. Third-party requests are blocked as in Aggressive.
+  kStandard,
+};
+
 // What the panel shows. The browser builds it from its own state about the tab
 // and site the panel was opened for; the page never sends a host, a URL or a
 // tab id.
@@ -64,6 +75,9 @@ struct PanelState {
   // An incognito tab cannot turn cosmetic hiding back on for this site,
   // because a regular window saved the choice. The row is disabled.
   bool cosmetic_locked;
+  // The blocking level in force for the site: its own, or the default from
+  // Settings. While blocking is off it is the level a turn back on restores.
+  BlockingLevel blocking_level;
   // Requests blocked on the page. 0 while blocking is off.
   int32 blocked_count;
   // The count in words, in the user's language ("12 requests blocked on this
@@ -106,6 +120,10 @@ interface PageHandler {
   // Turns Guard on or off for the captured site and its subdomains, then
   // reloads the tab.
   SetGuardOn(bool on);
+  // Gives the captured site and its subdomains a blocking level, then reloads
+  // the tab. If blocking is off for the site, it is turned on again in the same
+  // step. The value is an enum: the browser rejects any other as a bad message.
+  SetBlockingLevel(BlockingLevel level);
   // Turns cosmetic hiding on or off for the captured site and its subdomains,
   // then reloads the tab. Network blocking stays as it is.
   SetCosmeticHidingOn(bool on);

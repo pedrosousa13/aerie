@@ -21,6 +21,7 @@ BACKEND = "adblock/0022-add-aerie-guard-settings-backend.patch"
 PAGE = "adblock/0023-add-aerie-guard-settings-page.patch"
 REDIRECT = "adblock/0024-redirect-filters-to-aerie-guard-settings.patch"
 LIST_STRINGS = "adblock/0025-add-aerie-guard-list-strings.patch"
+LEVEL_STRINGS = "adblock/0026-add-aerie-guard-level-settings-strings.patch"
 PREF = "aerie.guard.show_blocked_count"
 
 
@@ -74,7 +75,8 @@ class HandlerTest(unittest.TestCase):
         self.assertEqual(sorted(names), sorted([
             "aerieGuard.getState", "aerieGuard.addList", "aerieGuard.removeList", "aerieGuard.setListEnabled",
             "aerieGuard.updateList",
-            "aerieGuard.updateAll", "aerieGuard.setException", "aerieGuard.setAutoUpdate"]))
+            "aerieGuard.updateAll", "aerieGuard.setException", "aerieGuard.setAutoUpdate",
+            "aerieGuard.setDefaultLevel"]))
         self.assertGreaterEqual(text.count("ResolveJavascriptCallback"), 1)
 
     def test_settings_acts_on_the_regular_profile_and_never_shows_a_session(self):
@@ -164,7 +166,7 @@ class StringsTest(unittest.TestCase):
         self.assertEqual(text.strip(), "Aerie Guard")
 
     def test_every_message_is_given_to_the_page_and_every_name_exists(self):
-        used = set(re.findall(r"\bIDS_SETTINGS_AERIE_GUARD_\w+", added(BACKEND) + added(LIST_STRINGS)))
+        used = set(re.findall(r"\bIDS_SETTINGS_AERIE_GUARD_\w+", added(BACKEND) + added(LIST_STRINGS) + added(LEVEL_STRINGS)))
         self.assertEqual(used, set(self.messages()))
 
     def test_no_upstream_product_name(self):
@@ -280,7 +282,7 @@ class ListRowsTest(unittest.TestCase):
             self.assertIn(f'"{key}"', given, c)
 
     def test_every_string_key_the_page_reads_is_given_to_the_page(self):
-        given = set(re.findall(r'\{"(aerieGuard\w+)"', added(BACKEND) + added(LIST_STRINGS)))
+        given = set(re.findall(r'\{"(aerieGuard\w+)"', added(BACKEND) + added(LIST_STRINGS) + added(LEVEL_STRINGS)))
         read = set(re.findall(r"\$i18n\{(aerieGuard\w+)\}", self.HTML))
         read |= set(re.findall(r"(?:getString|getStringF)\(\s*'(aerieGuard\w+)'", self.TS))
         self.assertTrue(read)

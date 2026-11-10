@@ -48,6 +48,7 @@ class AerieGuardHandler : public mojom::PageHandler,
   void GetState(GetStateCallback callback) override;
   void ShowUI() override;
   void SetGuardOn(bool on) override;
+  void SetBlockingLevel(mojom::BlockingLevel level) override;
   void SetCosmeticHidingOn(bool on) override;
   void SetFingerprintingOn(bool on) override;
   void Reload() override;

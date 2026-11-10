@@ -21,6 +21,18 @@
   <message name="IDS_SETTINGS_AERIE_GUARD_AUTO_UPDATE_DESC" desc="Line under the switch for the automatic update of the filter lists. It says what the browser contacts and how often, and what happens when the switch is off.">
     Once a day, Aerie downloads each list again from the address of its publisher. When this is off, Aerie does not download lists on its own.
   </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_DEFAULT_LEVEL" desc="Label of the menu in the Aerie Guard section of Settings that sets the blocking level of every site that has no level of its own.">
+    Default blocking level
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_DEFAULT_LEVEL_DESC" desc="Line under the menu of the default blocking level in the Aerie Guard section of Settings. It says what the two levels do and that the Guard icon can change one site.">
+    Aggressive blocks matching requests to the site itself and to other sites. Standard blocks matching requests to other sites. Built-in lists do not block requests to the site itself; your own lists still do. You can change one site from the Guard icon in the address bar.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_LEVEL_AGGRESSIVE" desc="Option of the menu of the default blocking level in the Aerie Guard section of Settings.">
+    Aggressive
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_LEVEL_STANDARD" desc="Option of the menu of the default blocking level in the Aerie Guard section of Settings.">
+    Standard
+  </message>
   <message name="IDS_SETTINGS_AERIE_GUARD_SITES_HEADING" desc="Heading of the list of sites where the user turned off blocking.">
     Sites where blocking is off
   </message>

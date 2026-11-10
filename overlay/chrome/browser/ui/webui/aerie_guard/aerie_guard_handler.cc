@@ -16,6 +16,7 @@
 #include "chrome/browser/ui/chrome_pages.h"
 #include "chrome/common/webui_url_constants.h"
 #include "chrome/grit/generated_resources.h"
+#include "components/aerie_adblock/browser/blocking_level.h"
 #include "components/aerie_fingerprint/protected_surfaces.h"
 #include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/browser_context.h"
@@ -79,6 +80,16 @@ mojom::FingerprintingMode ToMojo(helium_noise::HeliumNoiseState state) {
   NOTREACHED();
 }
 
+mojom::BlockingLevel ToMojo(aerie_adblock::BlockingLevel level) {
+  switch (level) {
+    case aerie_adblock::BlockingLevel::kAggressive:
+      return mojom::BlockingLevel::kAggressive;
+    case aerie_adblock::BlockingLevel::kStandard:
+      return mojom::BlockingLevel::kStandard;
+  }
+  NOTREACHED();
+}
+
 // The committed URL of the tab's primary main frame: what the browser knows,
 // never something the page sent.
 GURL CommittedUrl(content::WebContents* tab) {
@@ -131,6 +142,7 @@ mojom::PanelStatePtr AerieGuardHandler::ResolveState() {
   out->blocking_on = !state->blocking_off;
   out->incognito = target_.tab()->GetBrowserContext()->IsOffTheRecord();
   out->locked = state->locked;
+  out->blocking_level = ToMojo(state->level);
   out->cosmetic_hiding_on = !state->cosmetic_off;
   out->cosmetic_locked = state->cosmetic_locked;
   out->blocked_count = state->count;
@@ -216,6 +228,21 @@ void AerieGuardHandler::SetGuardOn(bool on) {
   FinishToggle(target_.SetBlockingOn(on));
 }
 
+void AerieGuardHandler::SetBlockingLevel(mojom::BlockingLevel level) {
+  // Mojo already rejects a value that is not in the enum before this runs, so
+  // the switch covers every value; -Wswitch flags one added and not handled.
+  switch (level) {
+    case mojom::BlockingLevel::kAggressive:
+      FinishToggle(target_.SetBlockingLevel(
+          aerie_adblock::BlockingLevel::kAggressive));
+      return;
+    case mojom::BlockingLevel::kStandard:
+      FinishToggle(
+          target_.SetBlockingLevel(aerie_adblock::BlockingLevel::kStandard));
+      return;
+  }
+}
+
 void AerieGuardHandler::SetCosmeticHidingOn(bool on) {
   FinishToggle(target_.SetCosmeticHidingOn(on));
 }
@@ -262,8 +289,8 @@ void AerieGuardHandler::Reload() {
 }
 
 void AerieGuardHandler::OpenLink(mojom::Link link) {
-  // Mojo already rejects a value that is not in the enum. This switch keeps
-  // the browser's own answer if one is ever added and not handled here.
+  // Mojo already rejects a value that is not in the enum before this runs, so
+  // the switch covers every value; -Wswitch flags one added and not handled.
   switch (link) {
     case mojom::Link::kAerieGuardSettings:
     case mojom::Link::kNoiseSettings: {

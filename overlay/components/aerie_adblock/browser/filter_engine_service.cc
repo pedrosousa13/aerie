@@ -45,8 +45,8 @@ class FilterEngineService::Host {
     return result;
   }
 
-  bool ShouldBlock(const ClassifiedRequest& request) {
-    return engine_.ShouldBlock(request);
+  bool ShouldBlock(const ClassifiedRequest& request, BlockingLevel level) {
+    return engine_.ShouldBlock(request, level);
   }
 
   std::string CosmeticStylesheet(const std::string& page_url) {
@@ -61,6 +61,7 @@ class FilterEngineService::Host {
 
   BuildResult Replace(std::vector<ListInput> inputs) {
     std::vector<std::string> texts;
+    std::vector<bool> custom;
     texts.reserve(inputs.size());
     for (size_t i = 0; i < inputs.size(); ++i) {
       ListInput& input = inputs[i];
@@ -70,8 +71,9 @@ class FilterEngineService::Host {
         return BuildResult{ListFailure::kUnreadable, i};
       }
       texts.push_back(std::move(input.text));
+      custom.push_back(input.custom);
     }
-    BuildResult result = engine_.LoadLists(texts, kBuildBudget);
+    BuildResult result = engine_.LoadLists(texts, kBuildBudget, custom);
     if (result.failure == ListFailure::kNone && result.ignored_exceptions > 0) {
       LOG(WARNING) << "aerie_adblock: " << result.ignored_exceptions
                    << " exception rule(s) that match every address were "
@@ -216,8 +218,11 @@ void FilterEngineService::ShouldBlock(ClassifiedRequest request,
     std::move(callback).Run(false);
     return;
   }
+  // The level is read here, on the UI thread, from the browser's own state.
+  const BlockingLevel level =
+      BlockingLevelFor(request.source_hostname, request.session);
   host_.AsyncCall(&Host::ShouldBlock)
-      .WithArgs(std::move(request))
+      .WithArgs(std::move(request), level)
       .Then(std::move(callback));
 }
 
@@ -267,6 +272,18 @@ void FilterEngineService::GetGenericStylesheet(const GURL& top_level_url,
 void FilterEngineService::SetCosmeticFilteringPolicy(
     CosmeticPolicyCallback policy) {
   cosmetic_policy_ = std::move(policy);
+}
+
+void FilterEngineService::SetBlockingLevelPolicy(
+    BlockingLevelPolicyCallback policy) {
+  level_policy_ = std::move(policy);
+}
+
+BlockingLevel FilterEngineService::BlockingLevelFor(
+    const std::string& top_level_host,
+    SessionKey session) const {
+  return level_policy_.is_null() ? kDefaultBlockingLevel
+                                 : level_policy_.Run(top_level_host, session);
 }
 
 bool FilterEngineService::IsCosmeticFilteringEnabled(

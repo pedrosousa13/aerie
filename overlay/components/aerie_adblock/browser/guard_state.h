@@ -7,6 +7,7 @@
 
 #include <string>
 
+#include "components/aerie_adblock/browser/blocking_level.h"
 #include "components/aerie_adblock/browser/session_key.h"
 
 class GURL;
@@ -33,6 +34,10 @@ struct GuardState {
   // The tab's session cannot turn cosmetic hiding back on: it is an incognito
   // session and the regular profile saved the choice.
   bool cosmetic_locked = false;
+  // The blocking level in force for the page's site (issue #109): its own, or
+  // the default. Meaningful while blocking is on; while it is off the level is
+  // what a turn back on restores.
+  BlockingLevel level = kDefaultBlockingLevel;
   // The host of the page, as exceptions key it. Empty when not |visible|.
   std::string host;
   // Requests blocked on the page. 0 while blocking is off.

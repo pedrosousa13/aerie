@@ -5,8 +5,9 @@
 /**
  * @fileoverview
  * 'settings-aerie-guard-page' is the Aerie Guard section of Settings: whether
- * the Guard icon draws the number of blocked items, the automatic update of
- * the filter lists, and the sites where blocking is off. It is a top-level
+ * the Guard icon draws the number of blocked items, the default blocking
+ * level, the automatic update of the filter lists, and the sites where
+ * blocking is off. It is a top-level
  * route (/aerieGuard) and wired the way Aerie's Security hardening page is.
  * It also lists the filter lists with their rule counts, ignored exception
  * rules and update status, and switches a list on or off (#104). The
@@ -67,6 +68,7 @@ export class SettingsAerieGuardPageElement extends
   static override get properties() {
     return {
       autoUpdate_: {type: Boolean},
+      defaultLevel_: {type: String},
       exceptions_: {type: Array},
       lists_: {type: Array},
       listsBusy_: {type: Boolean},
@@ -77,6 +79,7 @@ export class SettingsAerieGuardPageElement extends
   }
 
   protected accessor autoUpdate_: boolean = true;
+  protected accessor defaultLevel_: string = 'aggressive';
   protected accessor exceptions_: string[] = [];
   protected accessor lists_: AerieGuardList[] = [];
   protected accessor listsBusy_: boolean = false;
@@ -109,6 +112,7 @@ export class SettingsAerieGuardPageElement extends
 
   private applyState_(state: AerieGuardState) {
     this.autoUpdate_ = state.autoUpdate;
+    this.defaultLevel_ = state.defaultLevel;
     this.exceptions_ = state.exceptions;
     this.lists_ = state.lists;
     this.listsBusy_ = state.busy;
@@ -230,6 +234,15 @@ export class SettingsAerieGuardPageElement extends
     const checked = (e.target as CrToggleElement).checked;
     this.browserProxy_.setAutoUpdate(checked).then(
         state => this.applyState_(state));
+  }
+
+  protected onDefaultLevelChange_(e: Event) {
+    const level = (e.target as HTMLSelectElement).value;
+    this.browserProxy_.setDefaultLevel(level).then(
+        state => this.applyState_(state),
+        // The browser refused the value. Show what it has.
+        () => this.browserProxy_.getState().then(
+            state => this.applyState_(state)));
   }
 
   protected onNewSiteValueChanged_(e: CustomEvent<{value: string}>) {

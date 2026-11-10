@@ -21,6 +21,7 @@
 #include "base/task/sequenced_task_runner.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
+#include "components/aerie_adblock/browser/blocking_level.h"
 #include "components/aerie_adblock/browser/filter_engine_service.h"
 #include "components/aerie_adblock/browser/filter_list_fetcher.h"
 #include "components/aerie_adblock/browser/filter_list_state.h"
@@ -201,6 +202,31 @@ class FilterListManager {
   // for a page whose host has hiding off. Installed by Init().
   bool AllowsCosmeticHiding(const GURL& top_level_url, SessionKey session) const;
 
+  // Blocking levels (issue #109): Aggressive or Standard, for the whole
+  // browser (the default, saved) and per site. A site's own level covers its
+  // subdomains too; the nearest host wins. Stored like the exceptions: saved
+  // for the regular profile, in memory only for an off-the-record session (gone
+  // with ClearSessionExceptions()). An off-the-record session's own choice wins
+  // over a saved one, for that session only, so there is nothing to lock.
+  // Takes effect for the next request at once. "Off" is not a level: it is
+  // SetException(). |context| as in SetException().
+  ExceptionResult SetBlockingLevel(std::string_view host,
+                                   BlockingLevel level,
+                                   content::BrowserContext* context);
+  // For tests that have no BrowserContext. Does not watch the session's end.
+  ExceptionResult SetBlockingLevelForTesting(std::string_view host,
+                                             BlockingLevel level,
+                                             SessionKey session) {
+    return SetBlockingLevelForSession(host, level, session);
+  }
+  // The level for |host| as seen from |session|: the session's own choice for
+  // the site, else the saved one, else the default level.
+  BlockingLevel EffectiveBlockingLevel(std::string_view host,
+                                       SessionKey session) const;
+  // The level of sites that have none of their own. Saved.
+  BlockingLevel DefaultBlockingLevel() const { return state_.default_level(); }
+  void SetDefaultBlockingLevel(BlockingLevel level);
+
   void SetAutoUpdate(bool enabled);
 
   // Runs UpdateAll() if automatic updates are on and kUpdateInterval has
@@ -220,6 +246,9 @@ class FilterListManager {
   ExceptionResult SetCosmeticHidingOffForSession(std::string_view host,
                                                  bool off,
                                                  SessionKey session);
+  ExceptionResult SetBlockingLevelForSession(std::string_view host,
+                                             BlockingLevel level,
+                                             SessionKey session);
   void OnStateLoaded(FilterListState state);
   void Save();
   void Notify();
@@ -257,6 +286,8 @@ class FilterListManager {
   // Ids whose update is running, and whose last update this session worked.
   std::set<std::string> updating_;
   std::set<std::string> updated_ok_;
+  // Off-the-record sessions' own blocking levels. Memory only.
+  std::map<SessionKey, std::map<std::string, BlockingLevel>> session_levels_;
   int pending_ = 0;
   bool loaded_ = false;
   base::RepeatingTimer schedule_timer_;

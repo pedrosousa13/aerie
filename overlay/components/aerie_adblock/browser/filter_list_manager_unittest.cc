@@ -494,6 +494,126 @@ TEST_F(FilterListManagerTest, AFullCosmeticTableRefusesNewHostsButStillRemoves) 
             manager->SetCosmeticHidingOffForTesting("host0.testx", false, incognito));
 }
 
+TEST_F(FilterListManagerTest, TheDefaultLevelIsAggressiveAndSurvivesARestart) {
+  auto manager = MakeManager();
+  const SessionKey regular = SessionKey::Regular();
+  EXPECT_EQ(BlockingLevel::kAggressive, manager->DefaultBlockingLevel());
+  EXPECT_EQ(BlockingLevel::kAggressive,
+            manager->EffectiveBlockingLevel("news.test", regular));
+  manager->SetDefaultBlockingLevel(BlockingLevel::kStandard);
+  EXPECT_EQ(BlockingLevel::kStandard,
+            manager->EffectiveBlockingLevel("news.test", regular));
+  manager.reset();
+  base::RunLoop().RunUntilIdle();
+  task_environment_.RunUntilIdle();
+  EXPECT_EQ(BlockingLevel::kStandard,
+            filter_list_storage::LoadState(dir_.GetPath()).default_level());
+}
+
+TEST_F(FilterListManagerTest, ASiteLevelCoversSubdomainsAndBeatsTheDefault) {
+  auto manager = MakeManager();
+  const SessionKey regular = SessionKey::Regular();
+  ASSERT_EQ(ExceptionResult::kOk,
+            manager->SetBlockingLevelForTesting("News.Test", BlockingLevel::kStandard, regular));
+  EXPECT_EQ(BlockingLevel::kStandard, manager->EffectiveBlockingLevel("news.test", regular));
+  EXPECT_EQ(BlockingLevel::kStandard, manager->EffectiveBlockingLevel("www.news.test", regular));
+  EXPECT_EQ(BlockingLevel::kAggressive, manager->EffectiveBlockingLevel("notnews.test", regular));
+  manager->SetDefaultBlockingLevel(BlockingLevel::kStandard);
+  ASSERT_EQ(ExceptionResult::kOk,
+            manager->SetBlockingLevelForTesting("news.test", BlockingLevel::kAggressive, regular));
+  EXPECT_EQ(BlockingLevel::kAggressive, manager->EffectiveBlockingLevel("news.test", regular));
+  EXPECT_EQ(BlockingLevel::kStandard, manager->EffectiveBlockingLevel("other.test", regular));
+  EXPECT_EQ(ExceptionResult::kInvalidHost,
+            manager->SetBlockingLevelForTesting("not a host", BlockingLevel::kStandard, regular));
+}
+
+TEST_F(FilterListManagerTest, AnIncognitoLevelIsMemoryOnlyAndScopedToItsSession) {
+  auto manager = MakeManager();
+  const SessionKey regular = SessionKey::Regular();
+  int id = 0, other_id = 0;
+  const SessionKey incognito = SessionKey::OffTheRecord(&id);
+  const SessionKey other_incognito = SessionKey::OffTheRecord(&other_id);
+  ASSERT_EQ(ExceptionResult::kOk,
+            manager->SetBlockingLevelForTesting("news.test", BlockingLevel::kStandard, incognito));
+  EXPECT_EQ(BlockingLevel::kStandard, manager->EffectiveBlockingLevel("news.test", incognito));
+  EXPECT_EQ(BlockingLevel::kAggressive, manager->EffectiveBlockingLevel("news.test", regular));
+  EXPECT_EQ(BlockingLevel::kAggressive, manager->EffectiveBlockingLevel("news.test", other_incognito));
+  EXPECT_TRUE(manager->state().level_overrides().empty());
+  // Its own choice wins over a saved one, for that session only.
+  manager->SetBlockingLevelForTesting("saved.test", BlockingLevel::kStandard, regular);
+  EXPECT_EQ(BlockingLevel::kStandard, manager->EffectiveBlockingLevel("saved.test", incognito));
+  ASSERT_EQ(ExceptionResult::kOk,
+            manager->SetBlockingLevelForTesting("saved.test", BlockingLevel::kAggressive, incognito));
+  EXPECT_EQ(BlockingLevel::kAggressive, manager->EffectiveBlockingLevel("saved.test", incognito));
+  EXPECT_EQ(BlockingLevel::kStandard, manager->EffectiveBlockingLevel("saved.test", regular));
+  manager.reset();
+  base::RunLoop().RunUntilIdle();
+  task_environment_.RunUntilIdle();
+  std::string file;
+  ASSERT_TRUE(base::ReadFileToString(dir_.GetPath().AppendASCII("state.json"), &file));
+  EXPECT_EQ(std::string::npos, file.find("news.test"));
+  EXPECT_NE(std::string::npos, file.find("saved.test"));
+}
+
+TEST_F(FilterListManagerTest, ClearingASessionDropsItsLevels) {
+  auto manager = MakeManager();
+  int id = 0;
+  const SessionKey incognito = SessionKey::OffTheRecord(&id);
+  manager->SetBlockingLevelForTesting("news.test", BlockingLevel::kStandard, incognito);
+  manager->ClearSessionExceptions(incognito);
+  EXPECT_EQ(BlockingLevel::kAggressive, manager->EffectiveBlockingLevel("news.test", incognito));
+}
+
+TEST_F(FilterListManagerTest, AFullLevelTableRefusesNewHostsButStillChangesOldOnes) {
+  auto manager = MakeManager();
+  int id = 0;
+  const SessionKey regular = SessionKey::Regular();
+  const SessionKey incognito = SessionKey::OffTheRecord(&id);
+  for (size_t i = 0; i < kMaxLevelOverrides; ++i) {
+    const std::string host = "host" + std::to_string(i) + ".test";
+    ASSERT_EQ(ExceptionResult::kOk,
+              manager->SetBlockingLevelForTesting(host, BlockingLevel::kStandard, regular));
+    ASSERT_EQ(ExceptionResult::kOk,
+              manager->SetBlockingLevelForTesting(host + "x", BlockingLevel::kStandard, incognito));
+  }
+  EXPECT_EQ(ExceptionResult::kTableFull,
+            manager->SetBlockingLevelForTesting("one-more.test", BlockingLevel::kStandard, regular));
+  EXPECT_EQ(ExceptionResult::kTableFull,
+            manager->SetBlockingLevelForTesting("one-more.test", BlockingLevel::kStandard, incognito));
+  EXPECT_EQ(ExceptionResult::kOk,
+            manager->SetBlockingLevelForTesting("host0.test", BlockingLevel::kAggressive, regular));
+}
+
+TEST_F(FilterListManagerTest, TheInstalledPolicyDecidesWhetherAFirstPartyMatchIsBlocked) {
+  auto manager = MakeManager();
+  const SessionKey regular = SessionKey::Regular();
+  // "shipped.example" is a rule of the shipped engine.
+  auto first_party_blocked = [&](const char* top_host) {
+    ClassifiedRequest request{"https://shipped.example/a.js", "shipped.example",
+                              top_host, RequestKind::kScript, false};
+    bool answer = false;
+    base::RunLoop loop;
+    service_.ShouldBlock(request, base::BindLambdaForTesting([&](bool block) {
+                           answer = block;
+                           loop.Quit();
+                         }));
+    loop.Run();
+    return answer;
+  };
+  EXPECT_TRUE(first_party_blocked("shipped.example"));
+  ASSERT_EQ(ExceptionResult::kOk,
+            manager->SetBlockingLevelForTesting("shipped.example", BlockingLevel::kStandard, regular));
+  EXPECT_FALSE(first_party_blocked("shipped.example"));
+  // Third-party requests are blocked in both levels.
+  EXPECT_TRUE(Blocks("shipped.example"));
+  manager->SetDefaultBlockingLevel(BlockingLevel::kStandard);
+  EXPECT_TRUE(Blocks("shipped.example"));
+  // Once the manager is gone the level is Aggressive.
+  manager.reset();
+  EXPECT_EQ(BlockingLevel::kAggressive, service_.BlockingLevelFor("shipped.example", regular));
+  EXPECT_TRUE(first_party_blocked("shipped.example"));
+}
+
 TEST_F(FilterListManagerTest, AHostThatIsSavedAndSetInIncognitoIsListedOnce) {
   auto manager = MakeManager();
   int id = 0;

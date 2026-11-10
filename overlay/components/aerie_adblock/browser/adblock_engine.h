@@ -13,6 +13,7 @@
 
 #include "base/containers/span.h"
 #include "base/time/time.h"
+#include "components/aerie_adblock/browser/blocking_level.h"
 #include "components/aerie_adblock/browser/classified_request.h"
 #include "components/aerie_adblock/browser/list_failure.h"
 #include "components/aerie_adblock/rust/ffi/src/lib.rs.h"
@@ -63,8 +64,19 @@ class AdblockEngine {
   // Checks every list in |lists| (they share |budget|) and, only if all are
   // good, replaces the rules with all of them compiled together. On a failure
   // the old rules stay and the result names the list.
+  //
+  // |custom| says, per list, whether it is a custom list (one the user added
+  // or subscribed to; missing entries mean built-in). The custom lists are
+  // also compiled alone, into the engine that judges first-party requests in
+  // Standard (see ShouldBlock()).
   BuildResult LoadLists(const std::vector<std::string>& lists,
-                        base::TimeDelta budget);
+                        base::TimeDelta budget,
+                        const std::vector<bool>& custom = {});
+
+  // Replaces the rules with one built-in list and one custom list. For tests.
+  // Returns the failure, kNone when the lists compiled.
+  ListFailure LoadListsForTesting(const std::string& built_in,
+                                  const std::string& custom);
 
   // Replaces the rules with one filter list in EasyList syntax. For tests.
   void LoadListForTesting(std::string_view list);
@@ -74,7 +86,16 @@ class AdblockEngine {
 
   // True if the request must be blocked. Requests with non-ASCII strings
   // (never produced by ClassifyRequest) are not blocked.
-  bool ShouldBlock(const ClassifiedRequest& request) const;
+  //
+  // |level| is the blocking level of the page's site (issue #109). In
+  // kStandard a request that is first party to the page (|third_party| false)
+  // gets no verdict from the built-in lists, `$important` rules included, and
+  // is judged by the custom lists alone: this is what brave-core does outside
+  // Aggressive (its second engine judges custom lists and subscriptions). A
+  // third party request is judged by all lists in both levels. The default is
+  // today's behaviour.
+  bool ShouldBlock(const ClassifiedRequest& request,
+                   BlockingLevel level = kDefaultBlockingLevel) const;
 
   // The CSS to inject when the page at |page_url| (a GURL spec) commits: one
   // `selector{display:none!important}` line per hide rule for the site. Every
@@ -91,6 +112,8 @@ class AdblockEngine {
 
  private:
   rust::Box<Engine> engine_;
+  // The custom lists alone: judges first-party requests in Standard.
+  rust::Box<Engine> first_party_engine_;
 };
 
 }  // namespace aerie_adblock

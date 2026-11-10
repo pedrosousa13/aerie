@@ -33,6 +33,9 @@ namespace aerie_guard {
 //   aerieGuard.updateAll []                   download every list again now
 //   aerieGuard.setException [host, enabled]   blocking off/on for a site
 //   aerieGuard.setAutoUpdate [enabled]
+//   aerieGuard.setDefaultLevel [level]        "aggressive" or "standard": the
+//                                             blocking level of sites that have
+//                                             none of their own (issue #109)
 //
 // Every argument is checked for its type and, for a string, its length
 // (4096 bytes): the page is Aerie's own, but a message is still input. A
@@ -86,6 +89,7 @@ class AerieGuardSettingsHandler
   void HandleUpdateAll(const base::ListValue& args);
   void HandleSetException(const base::ListValue& args);
   void HandleSetAutoUpdate(const base::ListValue& args);
+  void HandleSetDefaultLevel(const base::ListValue& args);
 
   // Allows JavaScript and starts watching the manager. Returns the manager,
   // or null (and rejects the callback in |args|) when it does not exist yet.

@@ -75,6 +75,15 @@ class GuardTarget {
   // in memory, and it cannot undo a choice the regular profile saved (kRefused).
   Toggle SetCosmeticHidingOn(bool hiding_on) const;
 
+  // Gives the captured site and its subdomains the blocking level |level|
+  // (issue #109), then reloads the tab. If blocking is off for the site, it is
+  // turned back on in the same step (one reload): the panel's row is Aggressive,
+  // Standard or Off, and picking a level leaves Off. Same rules as
+  // SetBlockingOn(): nothing happens unless Resolve() succeeds, an
+  // off-the-record tab keeps the change in memory, and it cannot turn blocking
+  // back on for a site the regular profile saved as off (kRefused).
+  Toggle SetBlockingLevel(BlockingLevel level) const;
+
  private:
   base::WeakPtr<content::WebContents> tab_;
   std::string host_;

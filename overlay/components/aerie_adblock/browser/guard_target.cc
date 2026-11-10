@@ -92,4 +92,29 @@ GuardTarget::Toggle GuardTarget::SetCosmeticHidingOn(bool hiding_on) const {
   return Toggle::kApplied;
 }
 
+GuardTarget::Toggle GuardTarget::SetBlockingLevel(BlockingLevel level) const {
+  const std::optional<GuardState> state = Resolve();
+  FilterListManager* manager = FilterListManager::Get();
+  if (!state || !manager) {
+    return Toggle::kStale;
+  }
+  content::BrowserContext* context = tab_->GetBrowserContext();
+  if (state->blocking_off && state->locked) {
+    return Toggle::kRefused;
+  }
+  // The level goes first: it is the step that can hit the table cap, and a
+  // refusal must leave blocking as it was (off stays off, no reload).
+  if (manager->SetBlockingLevel(host_, level, context) !=
+      ExceptionResult::kOk) {
+    return Toggle::kRefused;
+  }
+  if (state->blocking_off &&
+      manager->SetException(host_, /*excepted=*/false, context) !=
+          ExceptionResult::kOk) {
+    return Toggle::kRefused;
+  }
+  tab_->GetController().Reload(content::ReloadType::NORMAL, true);
+  return Toggle::kApplied;
+}
+
 }  // namespace aerie_adblock

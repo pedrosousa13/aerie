@@ -135,6 +135,45 @@ How it works:
   policy that reads these sets with `SetCosmeticFilteringPolicy`. The switch is the "Hide leftover ad boxes" row
   in the Advanced section of the Guard panel; changing it reloads the tab. The Bench check `cosmetic_site_switch`
   proves it.
+- **Blocking levels** (issue #109): Aggressive or Standard, for the whole browser and for one site. Aggressive is
+  what Aerie always did, and the default: a request that a list rule matches is blocked, to the page's own site and
+  to other sites. In Standard a request to the page's own site (the same registrable domain, `third_party` false in
+  the classified request) gets no verdict from the built-in lists, whatever rule matches, `$important` rules included;
+  only the custom lists (added or subscribed to by the user) still judge it. A request to another site is judged by all
+  lists in both levels. "Off" is not a level: it is the per-site exception above, and the Guard panel's row
+  shows the three together (Aggressive, Standard, Off).
+  - The rule comes from brave-core, `AdBlockEngineWrapper::ShouldStartRequest` (read on 2026-11-09): outside Aggressive,
+    a first-party request gets no verdict from the default engine, and its `$important` rules go with it; a third-party
+    request keeps the verdict. Brave also keeps a second engine (custom lists, subscriptions and lists with no
+    `first_party_protections`) that always judges first-party requests, and forces Aggressive for pages of youtube.com.
+    Aerie copies the second engine for custom lists: `AdblockEngine::LoadLists` also compiles the custom lists alone
+    (`first_party_engine_`), and Standard asks that engine for a first-party request. A custom list's `$important` rule
+    therefore blocks first party in Standard, as in Brave. Not copied: Aerie's built-in lists are all treated as having
+    first-party protections (it does not read the `first_party_protections` flag of Brave's catalog), and it has no
+    youtube.com rule, because the Guard panel would show Standard on a page that blocks as Aggressive.
+  - The level is a browser-side value. `AdblockEngine::ShouldBlock(request, level)` takes it as an argument and the
+    request carries none; `FilterEngineService::ShouldBlock` asks the policy that `FilterListManager::Init()` installs
+    (`SetBlockingLevelPolicy`) for the top-level site's level on the UI thread. No renderer can set it. With no policy
+    the level is Aggressive.
+  - Storage: `default_level` and `levels` (host to level) in the state file, like the exceptions: host plus
+    subdomains (the nearest host wins), normalised by `NormalizeExceptionHost`, at most 1000 hosts, checked in
+    `FromValue` (an unknown level name is dropped; an unknown default is Aggressive). An incognito window keeps its
+    own levels in memory per session, never writes them and drops them with the window. Its own choice wins over a
+    saved one for that session only, so nothing is locked.
+  - The Guard panel's row calls the Mojo method `SetBlockingLevel(BlockingLevel)`: the argument is an enum, the browser
+    acts only on the tab and host it captured when the panel opened, and the tab reloads. Choosing a level while
+    blocking is off turns blocking on in the same step. Off calls the existing `SetGuardOn(false)`. The global
+    default is a menu in the Guard section of Settings (the message `aerieGuard.setDefaultLevel`, which accepts only
+    `aggressive` and `standard`). A site that was given a level keeps it when the default changes. The Bench check
+    `blocking_levels` is written to check the Standard and Aggressive verdicts in a regular profile, for the seeded default level and
+    one per-site level, with a built-in and a custom `$important` rule. The incognito in-memory levels, the Mojo
+    `SetBlockingLevel` path and the Settings menu are covered by the C++ unit tests and by source checks in
+    `tests/test_blocking_levels.py`, not by a Bench run. No UI removes or lists a per-site level yet:
+    `FilterListState::ClearLevelOverride` is not called by the browser, and at the cap of 1000 sites
+    `SetBlockingLevel` is refused without a message.
+  - While the engine loads from the serialized cache at startup, the custom-list engine is empty until the manager's
+    rebuild finishes, so in Standard custom lists, `$important` rules included, do not judge first-party requests
+    for that short time. A profile with custom lists always rebuilds.
 - **Exception rules that match every address are ignored.** One `@@` rule with no scope can switch
   off every block for a type of request, for every site, with no error. The core drops a rule when
   it applies to arbitrary addresses. It tests the effect, not the text: the rule is compiled alone
