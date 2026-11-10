@@ -421,7 +421,7 @@ class CustomRulesTest(unittest.TestCase):
 
     def test_the_patch_hunk_counts_match_its_lines(self):
         lines = patch(CUSTOM_STRINGS).splitlines()
-        i = next(n for n, l in enumerate(lines) if l.startswith("@@ -1641"))
+        i = next(n for n, l in enumerate(lines) if l.startswith("@@ -1646"))
         m = re.match(r"@@ -\d+,(\d+) \+\d+,(\d+) @@", lines[i])
         body = []
         for l in lines[i + 1:]:
