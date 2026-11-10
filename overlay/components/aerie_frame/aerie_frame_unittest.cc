@@ -137,6 +137,12 @@ TEST(AerieFramePaletteTest, ACustomColourIsOneStopAndTheAccentHue) {
                   std::lround(0.6 * 0x99 + 0.4 * 0xF0), 3);
 }
 
+TEST(AerieFramePaletteTest, VividAsksForNoCardBorderInEitherMode) {
+  EXPECT_EQ(CardBorderWidth(ThemeId::kVivid, ColorMode::kLight), 0);
+  EXPECT_EQ(CardBorderWidth(ThemeId::kVivid, ColorMode::kDark), 0);
+  EXPECT_EQ(CardBorderWidth(ThemeId::kHighContrast, ColorMode::kLight), 2);
+}
+
 TEST(AerieFramePaletteTest, TheCardComesFromTheTokens) {
   const FramePalette p =
       ResolveFramePalette(ThemeId::kVivid, ColorMode::kLight, "dusk");

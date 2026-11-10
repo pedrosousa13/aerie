@@ -172,6 +172,10 @@ SkColor FrameColorAt(const FramePalette& palette,
   return ToColor(c);
 }
 
+int CardBorderWidth(aerie::tokens::ThemeId theme, ColorMode mode) {
+  return aerie::tokens::GetThemeTokens(theme, mode).theme_card_border_width;
+}
+
 SkColor Over(SkColor color, SkColor under) {
   return ToColor(Mix(ToRgb(color), ToRgb(under), SkColorGetA(color) / 255.0));
 }

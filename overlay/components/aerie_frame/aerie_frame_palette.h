@@ -73,6 +73,10 @@ SkColor FrameColorAt(const FramePalette& palette,
                      bool sidebar_on_right,
                      const gfx::PointF& point);
 
+// The width of the page card's border in `theme`, 0 for none (Vivid asks for
+// none; the hairline is the theme's `card-border` token).
+int CardBorderWidth(aerie::tokens::ThemeId theme, aerie::tokens::ColorMode mode);
+
 // `color` laid over `under` (source-over), the result opaque.
 SkColor Over(SkColor color, SkColor under);
 

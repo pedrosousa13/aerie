@@ -1,0 +1,88 @@
+# Copyright 2026 The Aerie Authors
+# You can use, redistribute, and/or modify this source code under
+# the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+assert(!is_android, "The Aerie frame is for desktop platforms only")
+
+# The question Helium's frame fills ask before they paint (issue #178). It sits
+# apart from the view so the targets that paint the frame can use it without
+# depending on the view.
+source_set("enabled") {
+  visibility = [ "//chrome/browser/ui/views/frame:*" ]
+  sources = [
+    "frame_tint_enabled.cc",
+    "frame_tint_enabled.h",
+  ]
+  deps = [
+    "//chrome/browser/profiles:profile",
+    "//chrome/browser/ui/views/frame:browser_view_header",
+    "//components/aerie_frame:enabled",
+    "//components/prefs",
+  ]
+}
+
+# The view of Aerie's window frame (issue #178). BrowserView, in
+# //chrome/browser/ui/views/frame, creates it (patches/sidebar/0031). What it
+# decides without a view is in //components/aerie_frame.
+source_set("aerie_frame") {
+  visibility = [
+    ":browser_tests",
+    "//chrome/browser/ui/views/frame:*",
+  ]
+  sources = [
+    "frame_tint_view.cc",
+    "frame_tint_view.h",
+  ]
+  # The header includes these.
+  public_deps = [
+    "//base",
+    "//components/aerie_frame:paint",
+    "//components/aerie_tab_model",
+    "//components/prefs",
+    "//ui/base",
+    "//ui/base/metadata",
+    "//ui/views",
+  ]
+  deps = [
+    "//chrome/browser/aerie_tab_model",
+    "//chrome/browser/profiles:profile",
+    "//chrome/common:constants",
+    "//skia",
+    "//ui/compositor",
+    "//ui/gfx",
+    "//ui/color",
+  ]
+}
+
+# Browser tests of the frame (issue #178). Listed in aerie_browser_tests
+# (overlay/chrome/test/aerie/BUILD.gn).
+source_set("browser_tests") {
+  testonly = true
+  # content/public/test/browser_test.h refuses to compile without it.
+  defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
+  sources = [ "aerie_frame_browsertest.cc" ]
+  deps = [
+    ":aerie_frame",
+    "//chrome/browser:browser",
+    "//chrome/browser/aerie_tab_model",
+    "//chrome/browser/profiles:profile",
+    "//chrome/browser/ui/views/frame",
+    "//chrome/browser/ui/views/helium:frame_corner_radius",
+    "//chrome/browser/ui/views/helium:native_frame_materials",
+    "//chrome/common:constants",
+    "//chrome/test:test_support",
+    "//chrome/test:test_support_ui",
+    "//components/aerie_design_tokens:tokens",
+    "//components/aerie_frame:enabled",
+    "//components/aerie_frame:paint",
+    "//components/aerie_sidebar:layout",
+    "//components/aerie_sidebar:prefs",
+    "//components/prefs",
+    "//content/test:test_support",
+    "//ui/base",
+    "//ui/compositor",
+    "//ui/gfx:test_support",
+    "//ui/views",
+    "//ui/views:test_support",
+  ]
+}
