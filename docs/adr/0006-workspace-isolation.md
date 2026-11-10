@@ -247,3 +247,11 @@ expected-to-fail until then.
 
 - M5 cannot ship with G2 or G8 open; G3 (clear data) and G4 (session restore) follow the same rule, since both
   would otherwise mix Workspaces.
+- Fingerprinting seeds are keyed on the Workspace as well as the site (#121). Helium keeps its noise tokens on the
+  `BrowserContext`, which every Workspace shares, so without this two Workspaces would show one canvas, audio and
+  core count for a site and link the accounts this ADR keeps apart (Brave keys its farbling token on the container
+  for the same reason). The token key carries the `StoragePartitionConfig` (domain and name); the default partition
+  adds nothing, so a profile without Workspaces keeps its keys. The partition is only hashed in memory, never stored
+  or sent, and the global and per-site switches still apply in every Workspace. Dedicated workers and popups take the
+  tokens of their page, shared and service workers those of their own partition. The Workspaces isolation suite has a
+  `fingerprint` probe for it.

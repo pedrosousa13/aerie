@@ -27,6 +27,17 @@ std::string NoiseSiteKey(const url::Origin& origin,
   return key;
 }
 
+std::string NoisePartitionKey(std::string_view partition_domain,
+                              std::string_view partition_name) {
+  if (partition_domain.empty()) {
+    return std::string();
+  }
+  std::string key(partition_domain);
+  key.push_back('/');
+  key.append(partition_name);
+  return key;
+}
+
 ContentSettingsPattern NoiseSitePattern(const GURL& url) {
   if (!url.is_valid() || !url.SchemeIsHTTPOrHTTPS()) {
     return ContentSettingsPattern();

@@ -453,12 +453,12 @@ def check_worker_noise_tokens(root: Path, require: bool = False) -> list[Finding
          "a service worker must pass the browser's noise tokens to its creation params"),
         (WORKER_SHARED_HOST_PATH,
          r"HeliumNoiseTokenData::GetTokensForWorker\(\s*GetProcessHost\(\)->GetBrowserContext\(\),"
-         r"\s*instance_\.worker_storage_key\(\)\)",
-         "the browser must send a shared worker GetTokensForWorker(browser context, worker storage key)"),
+         r"\s*instance_\.worker_storage_key\(\)\s*,",
+         "the browser must send a shared worker GetTokensForWorker(browser context, worker storage key, partition)"),
         (WORKER_SERVICE_HOST_PATH,
          r"params->helium_noise_tokens\s*=\s*HeliumNoiseTokenData::GetTokensForWorker\(\s*"
-         r"context_->wrapper\(\)->browser_context\(\),\s*key_\)",
-         "the browser must send a service worker GetTokensForWorker(browser context, storage key)"),
+         r"context_->wrapper\(\)->browser_context\(\),\s*key_\s*,",
+         "the browser must send a service worker GetTokensForWorker(browser context, storage key, partition)"),
     ):
         out += _must_match(root, rel, gate, pattern, message, require)
     text, missing = _read(root, WORKER_TOKENS_PATH, gate, require)
@@ -483,6 +483,37 @@ def check_worker_noise_tokens(root: Path, require: bool = False) -> list[Finding
     if gpu is not None and "IsWorkerOrWorkletGlobalScope" in gpu:
         out.append(Finding(gate, WORKER_GPU_PATH,
                            "a worker must follow its kWebGL token like a window, not be always masked"))
+    return out
+
+
+PARTITION_NAV_PATH = "content/browser/renderer_host/navigation_request.cc"
+
+
+def check_workspace_noise_partition(root: Path, require: bool = False) -> list[Finding]:
+    """The noise tokens are keyed on the storage partition (the Workspace) as well as the site (issue #121), so
+    two Workspaces show two browsers. Every caller hands over the partition of what it serves: a navigation
+    its site_info_, a shared worker the process's partition, a service worker its context's. The partition
+    is only mixed into an in-memory hash; nothing stores or sends it."""
+    gate = "workspace_noise_partition"
+    out: list[Finding] = []
+    for rel, pattern, message in (
+        (PARTITION_NAV_PATH,
+         r"HeliumNoiseTokenData::GetTokens\([^;]*site_info_\.GetStoragePartitionConfig\(\)",
+         "a navigation must key its noise tokens on the storage partition of its site_info_"),
+        (WORKER_SHARED_HOST_PATH,
+         r"GetTokensForWorker\([^;]*GetProcessHost\(\)->GetStoragePartition\(\)->GetConfig\(\)",
+         "a shared worker must key its noise tokens on its process's storage partition"),
+        (WORKER_SERVICE_HOST_PATH,
+         r"GetTokensForWorker\([^;]*wrapper\(\)->storage_partition\(\)->GetConfig\(\)",
+         "a service worker must key its noise tokens on its storage partition"),
+        (WORKER_TOKENS_PATH,
+         r"NoiseSiteKey\(\s*origin,\s*aerie_fingerprint::NoisePartitionKey\(",
+         "GetTokens must put the storage partition in the site key (NoiseSiteKey(origin, NoisePartitionKey(...)))"),
+        (WORKER_TOKENS_PATH,
+         r"return GetTokens\(context,[^;]*,\s*partition\);",
+         "GetTokensForWorker must pass its partition on to GetTokens"),
+    ):
+        out += _must_match(root, rel, gate, pattern, message, require)
     return out
 
 
@@ -554,7 +585,7 @@ GATES: tuple[Callable[..., list[Finding]], ...] = (
     check_search_list, check_search_suggestions, check_secure_dns_default,
     check_crash_reporting, check_services_off, check_fedcm_resolver, check_widevine_opt_in,
     check_https_first_dialog_off, check_link_prefetch_off, check_js_optimizer, check_services_ui,
-    check_audio_noise_stable, check_gpu_masking, check_webgl_readpixels, check_worker_noise_tokens, check_popup_noise_tokens,
+    check_audio_noise_stable, check_gpu_masking, check_webgl_readpixels, check_worker_noise_tokens, check_workspace_noise_partition, check_popup_noise_tokens,
     check_text_metrics_noise,
 )
 

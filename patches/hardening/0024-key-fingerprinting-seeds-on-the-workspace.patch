@@ -1,0 +1,157 @@
+Aerie-Purpose: Key the fingerprinting noise tokens on the storage partition (the Workspace) as well as the site, for windows, shared workers and service workers, so one site shows two different canvas, audio and core values in two Workspaces.
+Aerie-Upstream-Area: content/browser/helium_noise/noise_token_data.cc and .h (HeliumNoiseTokenData::GetTokens, GetTokensForWorker), content/browser/renderer_host/navigation_request.cc, content/browser/worker_host/shared_worker_host.cc, content/browser/service_worker/service_worker_version.cc
+Aerie-Kind: hook
+
+Follows hardening/0011 and hardening/0014 (issue #121, part of #87; ADR 0006). Helium keeps the noise
+session tokens on the BrowserContext, and ADR 0006 puts every Workspace in one profile, so before this
+patch two Workspaces got the same tokens for a site and a tracker could link two accounts that the
+Workspaces keep apart. Brave keys its farbling token on the container.
+
+GetTokens takes the StoragePartitionConfig of what it serves, and its key is
+NoiseSiteKey(origin, NoisePartitionKey(partition_domain, partition_name)) (components/aerie_fingerprint).
+The default partition has an empty domain and an empty partition part, so a profile without Workspaces
+keeps exactly the keys it had. Callers: a main frame navigation passes the partition of its site_info_
+(the partition it commits in); a shared worker passes its process's partition; a service worker passes
+the partition of its context. A dedicated worker takes its creator's tokens (hardening/0013) and a popup its
+opener's (hardening/0017), and both are created in the partition of that page, so they need no change.
+
+The partition only goes into the hash of an in-memory token. Nothing about it is stored or sent: the
+renderer receives the derived tokens as before. The tokens still live on the BrowserContext, so an
+incognito profile still starts with fresh seeds, and the per-site and global switches are unchanged:
+HeliumNoiseEnabled runs before GetTokens, so with protection off the map is empty in every Workspace and
+the real values show.
+
+The source gate workspace_noise_partition (tools/aerie_build/treegate.py) fails if a caller stops passing
+its partition. The new includes need no GN change: storage_partition_config.h is in content/browser's own
+target.
+
+--- a/content/browser/helium_noise/noise_token_data.cc
++++ b/content/browser/helium_noise/noise_token_data.cc
+@@ -21,6 +21,7 @@
+ #include "components/aerie_fingerprint/site_key.h"
+ #include "content/public/browser/browser_context.h"
+ #include "content/public/browser/content_browser_client.h"
++#include "content/public/browser/storage_partition_config.h"
+ #include "content/public/common/content_client.h"
+ #include "crypto/hash.h"
+ #include "net/base/schemeful_site.h"
+@@ -93,14 +94,18 @@
+ // static
+ blink::HeliumNoiseTokenMap HeliumNoiseTokenData::GetTokens(
+     BrowserContext* context,
+-    const url::Origin& origin) {
++    const url::Origin& origin,
++    const StoragePartitionConfig& partition) {
+   HeliumNoiseTokenData* data = GetBrowserTokens(context);
+ 
+   // Aerie (#114): the key is the site (scheme plus registrable domain), so
+   // x.example.com and y.example.com get the same tokens. An opaque origin has
+-  // no key and gets a random value. Keying on a Workspace later (#121) is a
+-  // second argument to NoiseSiteKey.
+-  std::string domain = aerie_fingerprint::NoiseSiteKey(origin);
++  // no key and gets a random value. Aerie (#121): the storage partition is in
++  // the key too, so two Workspaces get two seeds for one site (the default
++  // partition has no partition part and keeps its key).
++  std::string domain = aerie_fingerprint::NoiseSiteKey(
++      origin, aerie_fingerprint::NoisePartitionKey(
++                  partition.partition_domain(), partition.partition_name()));
+   if (domain.empty()) {
+     domain = base::UnguessableToken::Create().ToString();
+   }
+@@ -126,7 +131,8 @@
+ // static
+ blink::HeliumNoiseTokenMap HeliumNoiseTokenData::GetTokensForWorker(
+     BrowserContext* context,
+-    const blink::StorageKey& key) {
++    const blink::StorageKey& key,
++    const StoragePartitionConfig& partition) {
+   if (!context) {
+     return {};
+   }
+@@ -138,7 +144,7 @@
+   if (!GetContentClient()->browser()->HeliumNoiseEnabled(context, site_url)) {
+     return {};
+   }
+-  return GetTokens(context, url::Origin::Create(site_url));
++  return GetTokens(context, url::Origin::Create(site_url), partition);
+ }
+ 
+ // static
+--- a/content/browser/helium_noise/noise_token_data.h
++++ b/content/browser/helium_noise/noise_token_data.h
+@@ -25,6 +25,7 @@
+ namespace content {
+ 
+ class BrowserContext;
++class StoragePartitionConfig;
+ 
+ // A user data class that generates and stores BrowserContext-associated noise
+ // tokens used for noising fingerprintable data.
+@@ -36,9 +37,14 @@
+   // Gets a map of BrowserContext-associated & feature-specific noise tokens
+   // computed with the main frame's site (scheme plus registrable domain, not
+   // the full origin). If the origin is opaque, a random value will be used
+-  // instead.
+-  static blink::HeliumNoiseTokenMap GetTokens(BrowserContext* context,
+-                                              const url::Origin& origin);
++  // instead. Aerie (#121): `partition` is the storage partition of the page
++  // (a Workspace, ADR 0006). It is part of the key, so the same site in two
++  // Workspaces gets two sets of tokens. It is only hashed, in memory: it is
++  // never stored or sent.
++  static blink::HeliumNoiseTokenMap GetTokens(
++      BrowserContext* context,
++      const url::Origin& origin,
++      const StoragePartitionConfig& partition);
+ 
+   // Aerie (#113): the tokens for a shared or service worker. They are derived
+   // from the top-level site of `key`, not from the worker's own origin, so a
+@@ -46,9 +52,12 @@
+   // window's on the same site. Returns an empty map when protection is off for
+   // the browser or for that site (the same decision as for a navigation), so
+   // the worker sees the real values. Never returns the session tokens.
++  // Aerie (#121): `partition` is the worker's storage partition, so a worker
++  // shows what the pages of its own Workspace show.
+   static blink::HeliumNoiseTokenMap GetTokensForWorker(
+       BrowserContext* context,
+-      const blink::StorageKey& key);
++      const blink::StorageKey& key,
++      const StoragePartitionConfig& partition);
+ 
+   // Regenerates all noise tokens, returning a HeliumNoiseTokenData instance.
+   static HeliumNoiseTokenData* RegenerateTokens(BrowserContext* context);
+--- a/content/browser/renderer_host/navigation_request.cc
++++ b/content/browser/renderer_host/navigation_request.cc
+@@ -10030,7 +10030,8 @@
+     if (GetContentClient()->browser()->HeliumNoiseEnabled(
+             browser_context, origin_to_commit->GetURL())) {
+       noise_tokens_ = HeliumNoiseTokenData::GetTokens(
+-          browser_context, origin_to_commit.value());
++          browser_context, origin_to_commit.value(),
++          site_info_.GetStoragePartitionConfig());
+     }
+   }
+ 
+--- a/content/browser/service_worker/service_worker_version.cc
++++ b/content/browser/service_worker/service_worker_version.cc
+@@ -2842,7 +2842,8 @@
+   // service worker shows what its pages show. Worked out at each start, so a
+   // change of the per-site or global switch applies when the worker restarts.
+   params->helium_noise_tokens = HeliumNoiseTokenData::GetTokensForWorker(
+-      context_->wrapper()->browser_context(), key_);
++      context_->wrapper()->browser_context(), key_,
++      context_->wrapper()->storage_partition()->GetConfig());
+ 
+   // policy_container_host could be null for registration restored from old DB
+   if (policy_container_host_) {
+--- a/content/browser/worker_host/shared_worker_host.cc
++++ b/content/browser/worker_host/shared_worker_host.cc
+@@ -529,7 +529,8 @@
+       // key, so the worker shows what the page shows.
+       HeliumNoiseTokenData::GetTokensForWorker(
+           GetProcessHost()->GetBrowserContext(),
+-          instance_.worker_storage_key()));
++          instance_.worker_storage_key(),
++          GetProcessHost()->GetStoragePartition()->GetConfig()));
+   if (service_worker_handle_ &&
+       service_worker_handle_->service_worker_client()) {
+     service_worker_handle_->service_worker_client()->SetContainerReady();
