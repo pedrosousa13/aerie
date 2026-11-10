@@ -16,7 +16,9 @@
 #include "chrome/browser/aerie_tab_model/tab_model_service.h"
 #include "chrome/browser/aerie_tab_model/tab_model_service_factory.h"
 #include "chrome/browser/aerie_tab_model/tab_strip_adapter.h"
+#include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/pinned_tab_codec.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -124,7 +126,7 @@ IN_PROC_BROWSER_TEST_F(TabModelBrowserTest, TabsAreNotChromiumPinnedAndNothingIs
 // An Incognito window gets its own Tab Model, separate from the regular
 // profile's, and nothing of it is written to disk.
 IN_PROC_BROWSER_TEST_F(TabModelBrowserTest, AnOffTheRecordProfileHasItsOwnModelAndWritesNothing) {
-  Browser* incognito = CreateIncognitoBrowser();
+  BrowserWindowInterface* incognito = CreateIncognitoBrowser();
   Profile* otr = incognito->GetProfile();
   ASSERT_TRUE(otr->IsOffTheRecord());
   TabModelService* otr_service = TabModelServiceFactory::GetForProfile(otr);
