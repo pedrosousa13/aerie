@@ -61,12 +61,31 @@ C++ unit tests join the gate when any can run (#54).
 ### Views UI tests and the gate (issue #175)
 
 Decision: the Views UI tests (`aerie_browser_tests` and `aerie_interactive_ui_tests`, run with
-`--gtest-filter=Aerie*`) run in the **nightly only**. They are not a PR gate step yet. The reason:
-they link Chromium's test support, and nobody has measured their build and link time. The first
-measurement is the build train that builds them; the issue asks to put the PR gate on PRs that touch
-`overlay/chrome/browser/ui/views/aerie_*` or `overlay/components/aerie_tab_model` only if that time is
-short. Measured time: not measured yet. Replace this paragraph with the number and the final decision
-when the train has it.
+`--gtest-filter=Aerie*`) run in the **nightly only**. They are not a PR gate step. The issue asks to put the
+PR gate on PRs that touch `overlay/chrome/browser/ui/views/aerie_*` or `overlay/components/aerie_tab_model`
+only if the time is short.
+
+Measured on the Linux build machine (with a warm ccache and the browser already built in the same tree), 14 Aerie tests in all (13 Guard browser tests, 1 interactive smoke test):
+
+| Step | Time |
+| --- | --- |
+| Compile of Chromium's test support for the two binaries (about 1,400 build steps; train 19's keep-going pass took 3 min 33 s) | about 3.5 min |
+| First link, `aerie_browser_tests` (1.38 GiB binary) | 3 min 22 s |
+| First link, `aerie_interactive_ui_tests` (1.38 GiB binary) | 3 min 13 s |
+| Relink after a change in one test file | 1 min 5 s to 1 min 20 s |
+| Run, 13 browser tests (headless) and 1 interactive test (Xvfb) | about 12 s and under 1 s |
+
+Disk: the two binaries are 2.76 GiB together (not stripped). The pinned test data adds 4.4 MB of downloads
+and 25 MB in the tree. The new object files are small next to that (`obj/chrome/test` is 47 MB).
+
+Why not the gate: a PR that changes a Views file relinks both binaries, which is 2 to 3 minutes warm and about
+7 minutes after a change that reaches Chromium's test support, on top of a gate that already builds, runs the
+Bench and measures performance. Today that cost buys 14 tests. The nightly runs them after the Bench and
+reports a failure in the issue it opens. Revisit when the Views UI tests are many enough that a day's delay
+costs more than a few minutes per PR; the step would run `./aerie test-cpp --target aerie_browser_tests
+--target aerie_interactive_ui_tests --gtest-filter='Aerie*'` for a PR whose diff touches the paths above.
+
+The numbers are from one machine and one run each; the cold-ccache time of the test support was not measured.
 
 ## Nightly
 
