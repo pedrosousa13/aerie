@@ -111,6 +111,13 @@ class SeedTest(unittest.TestCase):
         self.assertNotIn("exceptions", state)  # Blocking stays on for both sites.
         self.assertFalse(state["auto_update"])
 
+    def test_every_seeded_list_has_an_address_or_the_browser_skips_it(self):
+        # filter_list_state.cc skips a "lists" item without "id" or "url": the built-in's seeded text would be ignored.
+        for item in bl.seeded_state(1_700_000_000_000)["lists"]:
+            self.assertTrue(item.get("id") and item.get("url"), item)
+        code = (REPO / "overlay/components/aerie_adblock/browser/filter_list_state.cc").read_text()
+        self.assertIn("if (!id || !url || !IsValidListId(*id))", code)
+
     def test_the_list_is_cached_under_the_id_the_browser_derives_from_its_address(self):
         digest = hashlib.sha256(bl.LIST_URL.encode()).digest()[:8].hex()
         self.assertEqual(bl.list_id(), "c" + digest)

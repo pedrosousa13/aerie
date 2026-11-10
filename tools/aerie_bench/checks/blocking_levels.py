@@ -54,6 +54,7 @@ CONTENT = "content.js"
 LIST_URL = "https://bench-lists.example/levels.txt"  # Never fetched: the cached copy below is in use.
 LIST_TEXT = f"! Title: Blocking levels fixture\n{BASE}{IMPORTANT_CUSTOM}$important\n"
 BUILTIN_ID = "easyprivacy"  # Its cached copy is replaced by BUILTIN_TEXT, hand-written for this check.
+BUILTIN_URL = "https://easylist.to/easylist/easyprivacy.txt"  # The state parser skips a list entry that has no address.
 BUILTIN_TEXT = f"! Title: Blocking levels built-in fixture\n{BASE}{IMPORTANT_BUILTIN}$important\n"
 STATE_DIR = Path("AerieFilterLists")
 STATE_FILE = STATE_DIR / "state.json"
@@ -74,7 +75,7 @@ def seeded_state(now_ms: int) -> dict:
         "levels": {AGGRESSIVE_HOST: "aggressive"},
         "lists": [{"id": list_id(), "url": LIST_URL, "title": "bench", "builtin": False, "rules": 1,
                    "updated": str(now_ms), "error": ""},
-                  {"id": BUILTIN_ID, "builtin": True, "rules": 1, "updated": str(now_ms), "error": ""}],
+                  {"id": BUILTIN_ID, "url": BUILTIN_URL, "builtin": True, "rules": 1, "updated": str(now_ms), "error": ""}],
     }
 
 
