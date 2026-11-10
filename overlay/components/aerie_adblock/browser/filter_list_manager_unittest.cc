@@ -918,10 +918,13 @@ TEST_F(CustomRulesTest, HostileLinesAreDroppedAndTheFileStaysSmall) {
   text += "/(a+)+$/\n";                                     // A regex bomb.
   ASSERT_EQ(CustomRulesFailure::kNone, Save(*manager, text));
   const CustomRules& rules = manager->custom_rules();
-  ASSERT_EQ(2u, rules.issues.size());
+  // The engine does not accept the regex line as a network rule, so the report
+  // names it too (run with the Rust analysis in train 17).
+  ASSERT_EQ(3u, rules.issues.size());
   EXPECT_EQ("too_long", rules.issues[0].reason);
   EXPECT_LE(rules.issues[0].rule.size(), 200u);
   EXPECT_EQ("contains_nul", rules.issues[1].reason);
+  EXPECT_EQ("unparseable", rules.issues[2].reason);
   EXPECT_TRUE(Blocks("mine.example"));
 }
 
