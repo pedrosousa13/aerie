@@ -1,0 +1,72 @@
+# Copyright 2026 The Aerie Authors
+# You can use, redistribute, and/or modify this source code under
+# the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+import("//testing/test.gni")
+
+# What the window frame is painted from (issue #178): the palette (theme tokens
+# and the Workspace colour), the paint itself and its repaint gate, and the rule
+# for when the tint is on. Headless, so it has unit tests. The view that owns
+# the layer is in //chrome/browser/ui/views/aerie_frame.
+
+source_set("palette") {
+  sources = [
+    "aerie_frame_palette.cc",
+    "aerie_frame_palette.h",
+  ]
+  public_deps = [
+    "//base",
+    "//components/aerie_design_tokens:tokens",
+    "//skia",
+    "//ui/gfx/geometry",
+  ]
+}
+
+source_set("paint") {
+  sources = [
+    "aerie_frame_paint.cc",
+    "aerie_frame_paint.h",
+  ]
+  public_deps = [
+    ":palette",
+    "//cc/paint",
+    "//ui/gfx",
+  ]
+}
+
+source_set("enabled") {
+  sources = [
+    "aerie_frame_enabled.cc",
+    "aerie_frame_enabled.h",
+  ]
+  deps = [
+    "//components/aerie_design_tokens:tokens",
+    "//components/aerie_sidebar:layout",
+    "//components/prefs",
+  ]
+  public_deps = [ "//skia" ]
+}
+
+source_set("unit_tests") {
+  testonly = true
+  sources = [ "aerie_frame_unittest.cc" ]
+  deps = [
+    ":enabled",
+    ":paint",
+    ":palette",
+    "//base",
+    "//base/test:test_support",
+    "//components/aerie_design_tokens:tokens",
+    "//components/aerie_sidebar:prefs",
+    "//components/prefs:test_support",
+    "//testing/gtest",
+    "//ui/gfx",
+  ]
+}
+
+test("aerie_frame_unittests") {
+  deps = [
+    ":unit_tests",
+    "//base/test:run_all_unittests",
+  ]
+}

@@ -59,6 +59,8 @@ TEST_BINARIES = (
     ("aerie_tab_model_unittests", ()),
     # The sidebar layout, width limits and keyboard steps, and the aerie.sidebar.* prefs (issue #177).
     ("aerie_sidebar_unittests", ()),
+    # The window frame's palette, paint and repaint gate, and when the tint is on (issue #178).
+    ("aerie_frame_unittests", ()),
 )
 # The Views UI test binaries (issue #175, seam B). They link Chromium's browser test support, so they are not
 # in a plain `./aerie test-cpp`; ask for them with --target. They are defined in overlay/chrome/test/aerie and

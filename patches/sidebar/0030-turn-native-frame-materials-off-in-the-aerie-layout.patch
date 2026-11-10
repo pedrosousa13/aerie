@@ -1,0 +1,44 @@
+Aerie-Purpose: Turn Helium's native frame materials off while the Aerie tint paints the window frame, so the tint is not mixed with the OS material.
+Aerie-Upstream-Area: chrome/browser/ui/views/helium (native_frame_materials.cc, BUILD.gn)
+Aerie-Kind: hook
+
+Issue #178. helium::ShouldUseNativeFrameMaterials() is the one switch that every Helium paint site
+reads (themed_background.cc, custom_corners_background.cc, the macOS frame and widget). It is only
+ever true on macOS with the feature and the pref. While aerie_frame::IsFrameTintActive() (a normal
+window with the sidebar layout) it returns false whatever the pref says, so there is one tint and
+no double tint. The predicate is headless and unit tested in //components/aerie_frame.
+
+
+--- a/chrome/browser/ui/views/helium/BUILD.gn
++++ b/chrome/browser/ui/views/helium/BUILD.gn
+@@ -33,6 +33,7 @@
+     "//chrome/browser/ui/browser_window",
+     "//chrome/browser/ui/views/frame:browser_view_header",
+     "//chrome/common:constants",
++    "//components/aerie_frame:enabled",
+     "//components/prefs",
+     "//ui/views",
+   ]
+--- a/chrome/browser/ui/views/helium/native_frame_materials.cc
++++ b/chrome/browser/ui/views/helium/native_frame_materials.cc
+@@ -10,6 +10,7 @@
+ #include "chrome/browser/ui/ui_features.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
+ #include "chrome/common/pref_names.h"
++#include "components/aerie_frame/aerie_frame_enabled.h"
+ #include "components/prefs/pref_service.h"
+ #include "ui/views/view.h"
+ #include "ui/views/widget/widget.h"
+@@ -28,6 +29,12 @@
+   }
+ 
+   const Profile* profile = browser_view->GetProfile();
++  // Aerie: while the Aerie tint paints the frame, nothing is mixed with the OS
++  // material (issue #178).
++  if (profile && aerie_frame::IsFrameTintActive(*profile->GetPrefs(),
++                                                browser_view->GetIsNormalType())) {
++    return false;
++  }
+   return profile &&
+          profile->GetPrefs()->GetBoolean(prefs::kHeliumNativeFrameMaterials);
+ #else

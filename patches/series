@@ -127,3 +127,6 @@ sidebar/0024-add-the-sidebar-view-to-the-vertical-strip-region.patch
 sidebar/0025-keep-the-sidebar-width-in-its-pref-and-never-collapse.patch
 sidebar/0026-make-ctrl-s-show-or-hide-the-sidebar.patch
 sidebar/0027-slide-and-resize-the-sidebar.patch
+
+# The window frame tint (#178): native frame materials off while the Aerie tint paints the frame.
+sidebar/0030-turn-native-frame-materials-off-in-the-aerie-layout.patch
