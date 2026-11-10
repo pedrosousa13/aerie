@@ -72,6 +72,16 @@ class RowPaddingJudgeTest(unittest.TestCase):
         from aerie_bench.checks.row_padding import SURFACES
         self.assertIn(".custom-rules-row", SURFACES["aerie_guard"]["required"])
 
+    def test_a_card_with_no_padding_fails_and_a_padded_card_passes(self):
+        card = dict(row("panel"), card=True)
+        self.assertEqual(row_problems([dict(card, start=16, end=16, inset=16, token=0)]), [])
+        self.assertTrue(row_problems([dict(card, start=0, end=16, inset=0, token=0)]))
+
+    def test_the_panel_and_setup_page_are_measured(self):
+        from aerie_bench.checks.row_padding import SURFACES
+        self.assertTrue(SURFACES["guard_panel"]["card"])
+        self.assertTrue(SURFACES["setup"]["card"])
+
     def test_the_page_script_reads_the_token_not_a_pixel_value(self):
         self.assertIn("--cr-section-padding", MEASURE_JS)
 
