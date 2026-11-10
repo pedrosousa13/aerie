@@ -66,7 +66,8 @@ TEST_BINARIES = (
 # Both run with --disable-gpu: on the build machine a 2D canvas reads back blank (every pixel 0,0,0,0) in the test
 # processes without it, so no canvas test could see anything. Both also run with --no-sandbox: on that machine
 # Ubuntu's AppArmor refuses the unprivileged user namespace that Chromium's sandbox needs to any binary without a
-# profile, and the profile (/etc/apparmor.d/aerie) names only the `aerie` browser. The browser itself keeps its
+# profile, and the profile (/etc/apparmor.d/aerie) names only the `aerie` browser. The maintainer accepted this for these two test
+# binaries only on 2026-11-10, because of that profile. The browser itself keeps its
 # sandbox. These test children load only Aerie's own test pages and the embedded test server.
 UI_TEST_BINARIES = (
     # In-process browser tests; headless Ozone needs no X server.

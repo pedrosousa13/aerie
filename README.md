@@ -226,8 +226,7 @@ time of the request, so the pin is the sha256 of the sorted list of per-file
 sha256 values, not of the archive bytes. A mismatch stops the build, renames the
 file to `*.rejected` and unpacks nothing. After a Chromium bump the build refuses
 the stale pin until you update it. Nothing else is fetched, and none of it is part
-of the browser. Whether these two targets then link, and what else the tree
-lacks, is measured in the build train; see `docs/ci.md`.
+of the browser. Link time and disk use are in `docs/ci.md`.
 
 ### Updating Helium
 

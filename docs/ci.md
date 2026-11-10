@@ -79,9 +79,9 @@ Disk: the two binaries are 2.76 GiB together (not stripped). The pinned test dat
 and 25 MB in the tree. The new object files are small next to that (`obj/chrome/test` is 47 MB).
 
 Why not the gate: a PR that changes a Views file relinks both binaries, which is 2 to 3 minutes warm and about
-7 minutes after a change that reaches Chromium's test support, on top of a gate that already builds, runs the
+10 minutes (3.5 + 2 × 3.3, not measured end to end) after a change that reaches Chromium's test support, on top of a gate that already builds, runs the
 Bench and measures performance. Today that cost buys 14 tests. The nightly runs them after the Bench and
-reports a failure in the issue it opens. Revisit when the Views UI tests are many enough that a day's delay
+reports a failure in the issue it opens. The maintainer decided on 2026-11-10: the UI tests run nightly and in every build train, not as a PR gate. Revisit when the Views UI tests are many enough that a day's delay
 costs more than a few minutes per PR; the step would run `./aerie test-cpp --target aerie_browser_tests
 --target aerie_interactive_ui_tests --gtest-filter='Aerie*'` for a PR whose diff touches the paths above.
 
