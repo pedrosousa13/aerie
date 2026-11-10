@@ -9,8 +9,6 @@
 // ./aerie test-cpp --target aerie_interactive_ui_tests.
 
 #include "base/test/run_until.h"
-#include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/view_ids.h"
 #include "chrome/test/base/in_process_browser_test.h"
