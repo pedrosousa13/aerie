@@ -1,0 +1,19 @@
+Aerie-Purpose: Drop the call to BlocklistStateFetcher::SetSafeBrowsingConfig, which Helium removes, from the test fetcher.
+Aerie-Upstream-Area: extensions/browser/test_blocklist_state_fetcher.cc (test-only code)
+Aerie-Kind: hook
+
+Helium removes Safe Browsing configuration from BlocklistStateFetcher. The test
+fetcher only needs its dummy URL loader factory. Test-only: nothing in the
+shipped browser links it. Issue #175.
+
+--- a/extensions/browser/test_blocklist_state_fetcher.cc
++++ b/extensions/browser/test_blocklist_state_fetcher.cc
+@@ -53,8 +53,6 @@
+ TestBlocklistStateFetcher::TestBlocklistStateFetcher(
+     BlocklistStateFetcher* fetcher)
+     : fetcher_(fetcher) {
+-  fetcher_->SetSafeBrowsingConfig(safe_browsing::GetTestSBProtocolConfig());
+-
+   url_loader_factory_ = base::MakeRefCounted<DummySharedURLLoaderFactory>();
+   fetcher_->url_loader_factory_ = url_loader_factory_.get();
+ }

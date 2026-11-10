@@ -164,6 +164,7 @@ Conventions:
   directory's `BUILD.gn`, then list that source set in `deps` of `aerie_browser_tests` (or
   `aerie_interactive_ui_tests`) in `overlay/chrome/test/aerie/BUILD.gn`. Do not add it to Chromium's
   `browser_tests`; the Guard tests are in both for now, through `patches/adblock/0021`.
+  Both source sets set `defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]`; `browser_test.h` is an error without it.
 - **Names.** The test suite (the fixture class) starts with `Aerie`, for example `AerieGuardBrowserTest`. The
   nightly and the filter `--gtest-filter=Aerie*` select tests by that prefix. A test without it never runs in CI.
 - **Reduced motion.** A test that checks the reduced-motion version of an animation forces it with

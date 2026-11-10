@@ -68,6 +68,8 @@ test("aerie_browser_tests") {
 
 source_set("interactive_tests") {
   testonly = true
+  # content/public/test/browser_test.h refuses to compile without it.
+  defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
   sources = [ "aerie_interactive_smoke_uitest.cc" ]
   deps = [
     "//base",

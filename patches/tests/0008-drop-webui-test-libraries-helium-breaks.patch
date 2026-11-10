@@ -1,0 +1,99 @@
+Aerie-Purpose: Leave the WebUI test libraries that do not build against Helium's patched WebUI sources (cr_elements, settings, signin, history, new_tab_page, customize_chrome, extensions) out of the webui-test resource bundle.
+Aerie-Upstream-Area: chrome/test/data/webui/BUILD.gn (test-only code)
+Aerie-Kind: hook
+
+Chromium's WebUI tests for these pages call APIs that Helium changed or removed
+(AvatarIcon.isCustomAvatar, getAvailableIcons, the searchbox and
+searchedImageButton elements, the sync entries in the history and extensions
+sidebars, the About page's update status), so their build_ts targets fail.
+settings and cr_elements fail together: the settings tests import cr_elements.
+Aerie's UI tests use none of them. Fixing them means patching .ts files, but
+the build fetches those files after the patches apply, so the test-only fix is
+to leave the libraries out of the bundle that webui_test_resources builds.
+Test-only: nothing in the shipped browser links it. Issue #175.
+
+--- a/chrome/test/data/webui/BUILD.gn
++++ b/chrome/test/data/webui/BUILD.gn
+@@ -686,7 +686,6 @@
+     "chrome_urls:build_grdp",
+     "commerce_internals:build_grdp",
+     "contextual_tasks:build_grdp",
+-    "cr_elements:build_grdp",
+     "flags:build_grdp",
+     "js:build_grdp",
+     "location_internals:build_grdp",
+@@ -703,7 +702,6 @@
+     "$target_gen_dir/commerce_internals/resources.grdp",
+     "$target_gen_dir/contextual_tasks/resources.grdp",
+     "$target_gen_dir/notebooks_internals/resources.grdp",
+-    "$target_gen_dir/cr_elements/resources.grdp",
+     "$target_gen_dir/flags/resources.grdp",
+     "$target_gen_dir/js/resources.grdp",
+     "$target_gen_dir/location_internals/resources.grdp",
+@@ -713,14 +711,8 @@
+   ]
+ 
+   if (enable_webui_ntp) {
+-    deps += [
+-      "cr_components/searchbox:build_grdp",
+-      "new_tab_page:build_grdp",
+-    ]
+-    grdp_files += [
+-      "$target_gen_dir/cr_components/searchbox/resources.grdp",
+-      "$target_gen_dir/new_tab_page/resources.grdp",
+-    ]
++    deps += [ "cr_components/searchbox:build_grdp" ]
++    grdp_files += [ "$target_gen_dir/cr_components/searchbox/resources.grdp" ]
+   }
+ 
+   if (!is_android) {
+@@ -777,9 +769,7 @@
+       "password_manager:build_grdp",
+       "password_manager_internals:build_grdp",
+       "sandbox:build_grdp",
+-      "settings:build_grdp",
+       "side_panel:build_grdp",
+-      "side_panel/customize_chrome:build_grdp",
+       "side_panel/read_anything:build_grdp",
+       "subresource_filter:build_grdp",
+       "support_tool:build_grdp",
+@@ -842,8 +832,6 @@
+       "$target_gen_dir/password_manager/resources.grdp",
+       "$target_gen_dir/password_manager_internals/resources.grdp",
+       "$target_gen_dir/sandbox/resources.grdp",
+-      "$target_gen_dir/settings/resources.grdp",
+-      "$target_gen_dir/side_panel/customize_chrome/resources.grdp",
+       "$target_gen_dir/side_panel/read_anything/resources.grdp",
+       "$target_gen_dir/side_panel/resources.grdp",
+       "$target_gen_dir/subresource_filter/resources.grdp",
+@@ -866,20 +854,13 @@
+     deps += [
+       "cr_components:build_grdp",
+       "cr_components/composebox:build_grdp",
+-      "history:build_grdp",
+     ]
+     grdp_files += [
+       "$target_gen_dir/cr_components/composebox/resources.grdp",
+       "$target_gen_dir/cr_components/resources.grdp",
+-      "$target_gen_dir/history/resources.grdp",
+     ]
+   }
+ 
+-  if (enable_extensions_core) {
+-    deps += [ "extensions:build_grdp" ]
+-    grdp_files += [ "$target_gen_dir/extensions/resources.grdp" ]
+-  }
+-
+   if (enable_extensions) {
+     deps += [ "extensions_zero_state:build_grdp" ]
+     grdp_files += [ "$target_gen_dir/extensions_zero_state/resources.grdp" ]
+@@ -1041,9 +1022,6 @@
+       "$root_gen_dir/ui/file_manager/tests_gen_resources.grdp",
+     ]
+   } else if (!is_android) {
+-    deps += [ "signin:build_grdp" ]
+-    grdp_files += [ "$target_gen_dir/signin/resources.grdp" ]
+-
+     if (enable_dice_support) {
+       deps += [
+         "feature_showcase:build_grdp",
