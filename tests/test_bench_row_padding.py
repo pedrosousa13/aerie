@@ -77,10 +77,17 @@ class RowPaddingJudgeTest(unittest.TestCase):
         self.assertEqual(row_problems([dict(card, start=16, end=16, inset=16, token=0)]), [])
         self.assertTrue(row_problems([dict(card, start=0, end=16, inset=0, token=0)]))
 
-    def test_the_panel_and_setup_page_are_measured(self):
+    def test_the_setup_page_is_measured_on_a_step_that_has_option_cards(self):
         from aerie_bench.checks.row_padding import SURFACES
-        self.assertTrue(SURFACES["guard_panel"]["card"])
         self.assertTrue(SURFACES["setup"]["card"])
+        self.assertEqual(SURFACES["setup"]["setup_step"], "search")
+        self.assertNotIn("guard_panel", SURFACES)
+
+    def test_a_continuation_row_does_not_set_the_neighbour_padding(self):
+        from aerie_bench.checks.row_padding import neighbour_padding
+        # Hand-written rows modelled on what train 20 read on the Appearance page: one 'cr-row continuation' with start 0.
+        rows = [row("cr-row", start=20), row("cr-row continuation", start=0), row("cr-row", start=20)]
+        self.assertEqual(neighbour_padding(rows), 20)
 
     def test_the_page_script_reads_the_token_not_a_pixel_value(self):
         self.assertIn("--cr-section-padding", MEASURE_JS)

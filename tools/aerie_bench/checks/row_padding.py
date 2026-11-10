@@ -11,11 +11,12 @@ Surfaces: the Aerie Guard page (filter lists, sites where blocking is off, own r
 hardening page and the Appearance page (Reduce motion row, which is the only row measured there: the
 other rows are Helium's).
 
-Two more surfaces have their own layout, not Settings rows: the Aerie Guard panel
-(``chrome://aerie-guard.top-chrome/``) and the setup page (``chrome://setup/``, on its look step). Their
-row-like cards (``card`` surfaces) are read the same way, but a card has no ``--cr-section-padding`` to
-match: it passes when both inline paddings are at least ``CARD_MIN_PADDING`` and its first child starts at
-least as far in as its own start padding.
+One more surface has its own layout, not Settings rows: the setup page (``chrome://setup/``, on its search
+step, where the option cards are). Its cards (``card`` surface) are read the same way, but a card has no
+``--cr-section-padding`` to match: it passes when both inline paddings are at least ``CARD_MIN_PADDING`` and
+its first child starts at least as far in as its own start padding. The Aerie Guard panel is not measured
+here: its page draws nothing until a bubble has captured a tab, so ``aerie_guard_panel`` is the check that
+opens it.
 
 Neighbours: Helium's own rows on the Appearance page give the padding an Aerie row must match, as well as
 the token. The Aerie Guard page must also contain the own-rules row (#107), and a filter list row.
@@ -41,9 +42,7 @@ SURFACES = {
                     "required": [".custom-rules-row", ".list-row"]},
     "hardening": {"url": "chrome://settings/privacy/hardening", "ready": ".control"},
     "appearance": {"url": "chrome://settings/appearance", "ready": "#aerieMotionRow", "only": "#aerieMotionRow"},
-    "guard_panel": {"url": "chrome://aerie-guard.top-chrome/", "ready": "#count", "card": True,
-                    "rows": "#count, #control, #level, #fingerprinting, #advanced .row"},
-    "setup": {"url": "chrome://setup/", "ready": ".opt", "card": True, "rows": ".opt", "setup_step": True},
+    "setup": {"url": "chrome://setup/", "ready": ".opt", "card": True, "rows": ".opt", "setup_step": "search"},
 }
 
 CARD_MIN_PADDING = 8  # px; the smallest inline padding a card of the panel or setup page may have
@@ -83,6 +82,21 @@ def ready_js(selector: str) -> str:
     return f"(() => {{ {DEEP_JS}\n return !!deepQuery(document, {json.dumps(selector)}); }})()"
 
 
+def open_setup_step(session: Session, step: str, max_clicks: int = 6) -> None:
+    """Press the setup page's Continue button until ``step`` shows. If it never does, the ready selector fails
+    the surface and the check names it."""
+    from .setup_theme import STEP_JS
+    session.navigate_url(SURFACES["setup"]["url"])
+    if not session.wait_for("!!window.aerieSetup", timeout=20):
+        return
+    for _ in range(max_clicks):
+        current = session.evaluate(STEP_JS)
+        if current == step or not session.wait_for("!!document.querySelector('#next')", timeout=10):
+            return
+        session.click("#next")
+        session.wait_for(f"{STEP_JS} !== {json.dumps(current)}", timeout=10)
+
+
 def measure(session: Session, surface: dict, break_index: int | None = None) -> list[dict]:
     only = json.dumps(surface.get("only"))
     exclude = json.dumps(surface.get("exclude"))
@@ -93,8 +107,11 @@ def measure(session: Session, surface: dict, break_index: int | None = None) -> 
 
 
 def neighbour_padding(rows: list[dict]) -> float | None:
-    """The inline padding Helium's own rows use (the smallest start value seen, so one odd row cannot raise it)."""
-    values = [r["start"] for r in rows if r.get("start") is not None]
+    """The inline padding Helium's own rows use: the smallest start value of its ordinary rows.
+
+    A ``continuation`` row is a second line inside a row and has no start padding by design, so it is left
+    out; read on a real build it was the one row that put the value at 0."""
+    values = [r["start"] for r in rows if r.get("start") is not None and "continuation" not in r.get("label", "")]
     return min(values) if values else None
 
 
@@ -140,11 +157,7 @@ class RowPadding(HardeningCheck):
         obs["neighbours"] = measure(session, NEIGHBOURS) if found else []
         for name, surface in SURFACES.items():
             if surface.get("setup_step"):
-                from .setup_theme import SetupPageError, open_look_step
-                try:
-                    open_look_step(session)
-                except SetupPageError:
-                    pass  # the ready selector below then fails the surface and names it
+                open_setup_step(session, surface["setup_step"])
             else:
                 session.navigate_url(surface["url"])
             ready = surface["ready"]

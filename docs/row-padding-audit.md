@@ -11,8 +11,8 @@ the surfaces marked "measured by `row_padding` on the train" below. Nothing has 
 | Aerie Guard page, own rules entry (#107) | A `cr-row` with a textarea. No template fix needed. Required by `row_padding` (`.custom-rules-row`) on the train. |
 | Fingerprinting site list | Helium's page. Aerie patches no rows there. No change. |
 | About / release | The alpha notice (#199) is a `secondary` div inside Helium's existing About row, so it takes that row's padding. No new row. No change. |
-| Aerie Guard panel (top-chrome WebUI) | Own layout in `app.css` with `--aerie-space-*` tokens, not Settings rows. No change. Its cards are measured by `row_padding` on the train (card rule). |
-| Setup page (`aerie_onboarding`) | Own layout with a 32px shell and card padding, not Settings rows. No change. Its option cards on the look step are measured by `row_padding` on the train (card rule). |
+| Aerie Guard panel (top-chrome WebUI) | Own layout in `app.css` with `--aerie-space-*` tokens, not Settings rows. No change. Not measured by `row_padding`: its page draws nothing until a bubble captures a tab, so a Bench tab cannot read its cards. |
+| Setup page (`aerie_onboarding`) | Own layout with a 32px shell and card padding, not Settings rows. No change. Its option cards on the search step are measured by `row_padding` on the train (card rule). |
 | Widevine prompt | Native views dialog. No row markup. No change. |
 
 The Guard page "Update" button margin uses `--cr-section-padding` (inline), not the vertical-padding token.
