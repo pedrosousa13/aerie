@@ -8,9 +8,9 @@
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "components/aerie_frame/aerie_frame_enabled.h"
 #include "components/aerie_frame/aerie_frame_palette.h"
+#include "components/prefs/pref_service.h"
 #include "ui/color/color_provider_key.h"
 #include "ui/views/widget/widget.h"
-#include "components/prefs/pref_service.h"
 
 namespace aerie_frame {
 

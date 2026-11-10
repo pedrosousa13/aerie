@@ -529,7 +529,8 @@ IN_PROC_BROWSER_TEST_F(AerieFrameBrowserTest, NoToolbarOrTopChromeDividerDrawsOv
       card_view->parent(), browser_view(), card_view->bounds());
   ASSERT_FALSE(card.IsEmpty());
 
-  int checked = 0;
+  int checked = 0;   // Divider-like views measured against the card.
+  int visited = 0;   // Visible views the scan walked outside the card.
   std::vector<std::string> offenders;
   std::vector<views::View*> pending = {browser_view()};
   while (!pending.empty()) {
@@ -538,6 +539,7 @@ IN_PROC_BROWSER_TEST_F(AerieFrameBrowserTest, NoToolbarOrTopChromeDividerDrawsOv
     if (view == card_view || !view->GetVisible()) {
       continue;  // The card's own contents are inside it by design.
     }
+    ++visited;
     const std::string name(view->GetClassName());
     // A divider by name, or a hairline: a visible view one or two pixels thick.
     const bool hairline = !view->bounds().IsEmpty() &&
@@ -579,7 +581,12 @@ IN_PROC_BROWSER_TEST_F(AerieFrameBrowserTest, NoToolbarOrTopChromeDividerDrawsOv
   }
   // The card's own outline is hidden in Vivid, which asks for no border.
   EXPECT_TRUE(aerie_frame::CardBorderHidden(browser_view()));
-  LOG(INFO) << "dividers measured outside the card: " << checked;
+  // The scan must have walked the window (the toolbar, the sidebar and more),
+  // so an empty walk cannot pass. No divider view exists outside the card in
+  // this layout, so `checked` is 0 and only logged; the bounds asserts above
+  // are what check the toolbar and the top chrome.
+  EXPECT_GT(visited, 10);
+  LOG(INFO) << "views visited " << visited << ", dividers measured outside the card: " << checked;
 }
 
 // --- The address pill and the Guard icon on the tint (issue #178) ----------
