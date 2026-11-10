@@ -17,4 +17,12 @@ int CardRadius() {
   return aerie::tokens::kRadiusXl;
 }
 
+int FrameRadius(bool tint_active, int helium_radius) {
+  return tint_active ? CardRadius() : helium_radius;
+}
+
+bool RoundedFrameEnabled(bool tint_active, bool helium_pref) {
+  return tint_active || helium_pref;
+}
+
 }  // namespace aerie_frame

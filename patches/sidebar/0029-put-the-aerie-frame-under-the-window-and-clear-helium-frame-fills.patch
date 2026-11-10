@@ -1,0 +1,192 @@
+Aerie-Purpose: Put the Aerie window frame under everything in BrowserView and let Helium's frame fills paint nothing while it is on.
+Aerie-Upstream-Area: chrome/browser/ui/views/frame (browser_view.*, themed_background.cc, multi_contents_background_view.cc, BUILD.gn)
+Aerie-Kind: hook
+
+Issue #178. The view itself (FrameTintView, its own opaque ui::Layer, painted on state change only)
+and the question "is the tint on" are in the overlay, chrome/browser/ui/views/aerie_frame; the
+palette and the paint are in components/aerie_frame.
+
+- browser_view.*: a normal window with the sidebar layout creates FrameTintView as its first child,
+  before the main background region, so it is the lowest layer. It is created in the constructor,
+  with the window, and given the contents container as the page card once that exists.
+  frame_tint_view_for_testing() is for the browser tests.
+- themed_background.cc: PaintBackground() paints nothing for the frame colour while the tint is on.
+  CustomCornersBackground (the sidebar's column, the corners) and MultiContentsBackgroundView paint
+  the frame colour through it. The toolbar colour is not touched: split view's mini toolbar and the
+  side panel still need it.
+- multi_contents_background_view.cc: the gutter around the card is the tint, so while it is on the
+  view is a transparent textured layer, as it is with native frame materials (one local helper
+  names the condition).
+
+
+--- a/chrome/browser/ui/views/frame/browser_view.cc
++++ b/chrome/browser/ui/views/frame/browser_view.cc
+@@ -152,6 +152,8 @@
+ #include "chrome/browser/ui/view_ids.h"
+ #include "chrome/browser/ui/views/accessibility/accessibility_focus_highlight.h"
+ #include "chrome/browser/ui/views/accessibility/caret_browsing_dialog_delegate.h"
++#include "chrome/browser/ui/views/aerie_frame/frame_tint_enabled.h"
++#include "chrome/browser/ui/views/aerie_frame/frame_tint_view.h"
+ #include "chrome/browser/ui/views/autofill/autofill_bubble_handler_impl.h"
+ #include "chrome/browser/ui/views/bookmarks/bookmark_bar_view.h"
+ #include "chrome/browser/ui/views/bookmarks/bookmark_bubble_view.h"
+@@ -1050,6 +1052,13 @@
+ 
+   browser_->GetTabStripModel()->AddObserver(this);
+ 
++  // Aerie: the frame tint is the lowest layer of the window, made with it. The
++  // sidebar and the top row draw on it (issue #178).
++  if (aerie_frame::ShouldTintFrame(this)) {
++    frame_tint_view_ =
++        AddChildView(std::make_unique<FrameTintView>(GetProfile()));
++  }
++
+   main_background_region_ =
+       AddChildView(std::make_unique<MainBackgroundRegionView>(*this));
+   main_background_region_->SetProperty(
+@@ -1070,6 +1079,10 @@
+   auto multi_contents_view = std::make_unique<MultiContentsView>(
+       this, std::make_unique<MultiContentsViewDelegateImpl>(*browser_));
+   multi_contents_view_ = AddChildView(std::move(multi_contents_view));
++  if (frame_tint_view_) {
++    frame_tint_view_->SetCard(
++        multi_contents_view_->GetActiveContentsContainerView());
++  }
+ 
+   set_contents_view(multi_contents_view_);
+ 
+--- a/chrome/browser/ui/views/frame/browser_view.h
++++ b/chrome/browser/ui/views/frame/browser_view.h
+@@ -91,6 +91,7 @@
+ class ExclusiveAccessBubbleViews;
+ class ExclusiveAccessBubbleViewsContext;
+ class ExpandOnHoverLock;
++class FrameTintView;
+ class GlobalErrorService;
+ class HeliumLayoutStateController;
+ class InfoBarContainerView;
+@@ -301,6 +302,12 @@
+     return vertical_tab_strip_region_view_.get();
+   }
+ 
++  // Aerie: the frame tint, the lowest child of this view (issue #178). Null
++  // for a window that is not a normal browser window.
++  FrameTintView* frame_tint_view_for_testing() const {
++    return frame_tint_view_.get();
++  }
++
+   // Accessor for the TabStrip.
+   TabStrip* horizontal_tab_strip_for_testing();
+ 
+@@ -1296,6 +1303,9 @@
+   // The InfoBarContainerView that contains InfoBars for the current tab.
+   raw_ptr<InfoBarContainerView> infobar_container_ = nullptr;
+ 
++  // Aerie: the window frame, painted once under everything (issue #178).
++  raw_ptr<FrameTintView> frame_tint_view_ = nullptr;
++
+   // The view that contains all visible WebContents.
+   raw_ptr<MultiContentsView> multi_contents_view_ = nullptr;
+ 
+--- a/chrome/browser/ui/views/frame/BUILD.gn
++++ b/chrome/browser/ui/views/frame/BUILD.gn
+@@ -904,6 +904,8 @@
+     "//chrome/browser/ui/views:theme_copying_widget",
+     "//chrome/browser/ui/views:update_recommended_message_box",
+     "//chrome/browser/ui/views/accessibility",
++    "//chrome/browser/ui/views/aerie_frame",
++    "//chrome/browser/ui/views/aerie_frame:enabled",
+     "//chrome/browser/ui/views/autofill:autofill_bubble_handler_impl",
+     "//chrome/browser/ui/views/bookmarks",
+     "//chrome/browser/ui/views/download",
+@@ -1281,6 +1283,7 @@
+     "//chrome/app/theme:theme_resources",
+     "//chrome/browser/themes",
+     "//chrome/browser/ui/color:color_headers",
++    "//chrome/browser/ui/views/aerie_frame:enabled",
+     "//chrome/browser/ui/views/frame:browser_view_header",
+     "//chrome/browser/ui/views/helium:native_frame_materials",
+     "//chrome/browser/ui/views/tabs:tab_strip",
+@@ -1707,6 +1710,7 @@
+   ]
+   deps = [
+     ":themed_background",
++    "//chrome/browser/ui/views/aerie_frame:enabled",
+     "//chrome/browser/ui/views/helium:native_frame_materials",
+     "//ui/base/metadata",
+     "//ui/compositor",
+--- a/chrome/browser/ui/views/frame/multi_contents_background_view.cc
++++ b/chrome/browser/ui/views/frame/multi_contents_background_view.cc
+@@ -4,17 +4,28 @@
+ 
+ #include "chrome/browser/ui/views/frame/multi_contents_background_view.h"
+ 
++#include "chrome/browser/ui/views/aerie_frame/frame_tint_enabled.h"
+ #include "chrome/browser/ui/views/frame/themed_background.h"
+ #include "chrome/browser/ui/views/helium/native_frame_materials.h"
+ #include "ui/base/metadata/metadata_impl_macros.h"
+ #include "ui/compositor/layer_solid_color.h"
+ #include "ui/gfx/geometry/rounded_corners_f.h"
+ 
++namespace {
++
++// Aerie: the gutter around the page card is the tint, so this view paints
++// nothing while the tint is on, as with native frame materials (issue #178).
++bool PaintsNothing(BrowserView* browser_view) {
++  return helium::ShouldUseNativeFrameMaterials(browser_view) ||
++         aerie_frame::ShouldTintFrame(browser_view);
++}
++
++}  // namespace
++
+ MultiContentsBackgroundView::MultiContentsBackgroundView(
+     BrowserView* browser_view)
+     : browser_view_(browser_view) {
+-  const bool use_native_materials =
+-      helium::ShouldUseNativeFrameMaterials(browser_view_);
++  const bool use_native_materials = PaintsNothing(browser_view_);
+   SetPaintToLayer(use_native_materials ? ui::LAYER_TEXTURED
+                                        : ui::LAYER_SOLID_COLOR);
+   if (use_native_materials) {
+@@ -49,7 +60,7 @@
+ 
+ void MultiContentsBackgroundView::OnPaint(gfx::Canvas* canvas) {
+   CHECK(layer()->AsTextured());
+-  if (helium::ShouldUseNativeFrameMaterials(browser_view_)) {
++  if (PaintsNothing(browser_view_)) {
+     return;
+   }
+   ThemedBackground::PaintBackground(canvas, this, browser_view_);
+@@ -58,8 +69,7 @@
+ ui::LayerType MultiContentsBackgroundView::CalculateLayerType() const {
+   const bool has_custom_image =
+       !ThemedBackground::GetBackgroundColor(this, browser_view_).has_value();
+-  const bool use_native_materials =
+-      helium::ShouldUseNativeFrameMaterials(browser_view_);
++  const bool use_native_materials = PaintsNothing(browser_view_);
+   return has_custom_image || use_native_materials ? ui::LAYER_TEXTURED
+                                                  : ui::LAYER_SOLID_COLOR;
+ }
+--- a/chrome/browser/ui/views/frame/themed_background.cc
++++ b/chrome/browser/ui/views/frame/themed_background.cc
+@@ -8,6 +8,7 @@
+ 
+ #include "chrome/browser/themes/theme_properties.h"
+ #include "chrome/browser/ui/color/chrome_color_id.h"
++#include "chrome/browser/ui/views/aerie_frame/frame_tint_enabled.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
+ #include "chrome/browser/ui/views/frame/top_container_view.h"
+ #include "chrome/browser/ui/views/helium/native_frame_materials.h"
+@@ -112,6 +113,12 @@
+                                        const views::View* view,
+                                        const BrowserView* browser_view,
+                                        ThemeChoice theme_choice) {
++  // Aerie: the frame is the tint view's, painted once under this view, so the
++  // frame colour paints nothing here (issue #178).
++  if (theme_choice == kFrameTheme &&
++      aerie_frame::ShouldTintFrame(browser_view)) {
++    return;
++  }
+   bool painted =
+       PaintThemeCustomImage(canvas, view, browser_view, theme_choice);
+   if (!painted) {

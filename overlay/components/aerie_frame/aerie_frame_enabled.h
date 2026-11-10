@@ -22,6 +22,14 @@ bool IsFrameTintActive(const PrefService& prefs, bool is_normal_window);
 // The page card's radius, `radius-xl`.
 int CardRadius();
 
+// The radius of a frame corner: the card's radius (radius-xl) while the tint is
+// on for the window, Helium's own radius for every other window and layout.
+int FrameRadius(bool tint_active, int helium_radius);
+
+// Whether the page is in a rounded card: Helium's pref says so, or the tint is
+// on, which always draws one.
+bool RoundedFrameEnabled(bool tint_active, bool helium_pref);
+
 }  // namespace aerie_frame
 
 #endif  // COMPONENTS_AERIE_FRAME_AERIE_FRAME_ENABLED_H_

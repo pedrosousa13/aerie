@@ -1,0 +1,143 @@
+Aerie-Purpose: Show the page in the rounded Aerie card: force the rounded frame, take the card radius from radius-xl and hide the card's outline when the theme asks for no border.
+Aerie-Upstream-Area: chrome/browser/ui/views/frame (multi_contents_view.cc, contents_container_view.cc, BUILD.gn), chrome/browser/ui/views/side_panel (side_panel.cc, BUILD.gn)
+Aerie-Kind: hook
+
+Issue #178. Every decision is one call into the overlay, chrome/browser/ui/views/aerie_frame
+(frame_tint_enabled.h), which is false for any window that is not a normal window with the sidebar
+layout, so Helium's own radius, pref and outline are untouched everywhere else.
+
+- multi_contents_view.cc: the rounded frame is on whatever kHeliumRoundedFrame says while the tint
+  is on. This is the only reader of that pref; every other site (the layouts, the infobar, the drop
+  target, ContentsContainerView::should_round_contents_) asks MultiContentsView::ShouldUseRoundedFrame().
+- contents_container_view.cc: the card's corner radii are radius-xl (14) while the tint is on, and
+  its outline is hidden when the theme's card-border token is 0 px (Vivid). A theme that asks for a
+  border keeps Helium's one-pixel stroke until slice I (themes) gives it the token colour and width.
+- side_panel.cc: the side panel next to the card takes the same radius.
+
+
+--- a/chrome/browser/ui/views/frame/BUILD.gn
++++ b/chrome/browser/ui/views/frame/BUILD.gn
+@@ -3303,6 +3303,7 @@
+     "//chrome/browser/ui:view_ids",
+     "//chrome/browser/ui/ai_overlay_dialog",
+     "//chrome/browser/ui/read_anything",
++    "//chrome/browser/ui/views/aerie_frame:enabled",
+     "//chrome/browser/ui/views/helium:frame_corner_radius",
+     "//chrome/browser/ui/views/indigo",
+     "//chrome/browser/ui/views/new_tab_footer",
+@@ -3364,6 +3365,7 @@
+     "//chrome/browser/ui/color:color_headers",
+     "//chrome/browser/ui/read_anything",
+     "//chrome/browser/ui/tabs:tab_strip",
++    "//chrome/browser/ui/views/aerie_frame:enabled",
+     "//chrome/browser/ui/views/new_tab_footer",
+     "//chrome/browser/ui/views/toolbar",
+     "//chrome/common:constants",
+--- a/chrome/browser/ui/views/frame/contents_container_view.cc
++++ b/chrome/browser/ui/views/frame/contents_container_view.cc
+@@ -20,6 +20,7 @@
+ #include "chrome/browser/ui/read_anything/read_anything_immersive_overlay_view.h"
+ #include "chrome/browser/ui/ui_features.h"
+ #include "chrome/browser/ui/view_ids.h"
++#include "chrome/browser/ui/views/aerie_frame/frame_tint_enabled.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
+ #include "chrome/browser/ui/views/frame/contents_capture_border_view.h"
+ #include "chrome/browser/ui/views/frame/contents_container_outline.h"
+@@ -243,6 +244,9 @@
+ 
+     if (is_in_split) {
+       container_outline_->UpdateState(is_active, is_highlighted);
++    } else if (aerie_frame::CardBorderHidden(browser_view_)) {
++      // Aerie: the theme asks for no card border (issue #178).
++      container_outline_->SetVisible(false);
+     } else if (browser_view_->GetIsNormalType()) {
+       container_outline_->UpdateState(false, kColorToolbarContentAreaSeparator);
+     } else {
+@@ -339,8 +343,11 @@
+     return;
+   }
+ 
+-  const int frame_radius = GetPaddedFrameRadius();
+-  const int generic_radius = GetGenericFrameRadius();
++  // Aerie: the card's radius is radius-xl while the tint is on (issue #178).
++  const int frame_radius =
++      aerie_frame::FrameRadius(browser_view_, GetPaddedFrameRadius());
++  const int generic_radius =
++      aerie_frame::FrameRadius(browser_view_, GetGenericFrameRadius());
+ 
+   const int lower_left_radius =
+       round_bottom_left_window_corner_ ? frame_radius : generic_radius;
+--- a/chrome/browser/ui/views/frame/multi_contents_view.cc
++++ b/chrome/browser/ui/views/frame/multi_contents_view.cc
+@@ -20,6 +20,7 @@
+ #include "chrome/browser/ui/sad_tab_helper.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
+ #include "chrome/browser/ui/view_ids.h"
++#include "chrome/browser/ui/views/aerie_frame/frame_tint_enabled.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
+ #include "chrome/browser/ui/views/frame/contents_container_view.h"
+ #include "chrome/browser/ui/views/frame/contents_separator.h"
+@@ -181,8 +182,10 @@
+   auto* const profile_prefs = browser_view_->GetProfile()->GetPrefs();
+   is_drag_drop_pref_enabled_ =
+       profile_prefs->GetBoolean(prefs::kSplitViewDragAndDropEnabled);
+-  is_rounded_frame_pref_enabled_ =
+-      profile_prefs->GetBoolean(prefs::kHeliumRoundedFrame);
++  // Aerie: the page is always in a rounded card while the tint is on, whatever
++  // the Helium pref says (issue #178).
++  is_rounded_frame_pref_enabled_ = aerie_frame::RoundedFrameEnabled(
++      browser_view_, profile_prefs->GetBoolean(prefs::kHeliumRoundedFrame));
+ 
+   pref_change_registrar_.Init(profile_prefs);
+   pref_change_registrar_.Add(
+@@ -1004,9 +1007,9 @@
+ }
+ 
+ void MultiContentsView::OnRoundedFramePrefStateChange() {
+-  is_rounded_frame_pref_enabled_ =
+-      browser_view_->GetProfile()->GetPrefs()->GetBoolean(
+-          prefs::kHeliumRoundedFrame);
++  is_rounded_frame_pref_enabled_ = aerie_frame::RoundedFrameEnabled(
++      browser_view_, browser_view_->GetProfile()->GetPrefs()->GetBoolean(
++                         prefs::kHeliumRoundedFrame));
+   UpdateContentsBorderAndOverlay();
+   InvalidateLayout();
+   browser_view_->InvalidateLayout();
+--- a/chrome/browser/ui/views/side_panel/BUILD.gn
++++ b/chrome/browser/ui/views/side_panel/BUILD.gn
+@@ -122,6 +122,7 @@
+     "//chrome/browser/ui/tabs/saved_tab_groups",
+     "//chrome/browser/ui/user_education",
+     "//chrome/browser/ui/views:layout_provider",
++    "//chrome/browser/ui/views/aerie_frame:enabled",
+     "//chrome/browser/ui/views/animations",
+     "//chrome/browser/ui/views/frame:browser_view_header",
+     "//chrome/browser/ui/views/frame:themed_background",
+--- a/chrome/browser/ui/views/side_panel/side_panel.cc
++++ b/chrome/browser/ui/views/side_panel/side_panel.cc
+@@ -25,6 +25,7 @@
+ #include "chrome/browser/ui/side_panel/side_panel_metrics.h"
+ #include "chrome/browser/ui/side_panel/side_panel_ui.h"
+ #include "chrome/browser/ui/ui_features.h"
++#include "chrome/browser/ui/views/aerie_frame/frame_tint_enabled.h"
+ #include "chrome/browser/ui/views/animations/side_panel_animations.h"
+ #include "chrome/browser/ui/views/chrome_layout_provider.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
+@@ -79,11 +80,15 @@
+ 
+ gfx::RoundedCornersF GetContentRoundedCorners(const BrowserView* browser_view,
+                                               const SidePanel* side_panel) {
+-  const int generic_radius = GetGenericFrameRadius();
++  // Aerie: next to the page card, the same radius (issue #178).
++  const int generic_radius =
++      aerie_frame::FrameRadius(browser_view, GetGenericFrameRadius());
+   const bool is_fullscreen =
+       side_panel->GetWidget() && side_panel->GetWidget()->IsFullscreen();
+   const int window_edge_radius =
+-      is_fullscreen ? generic_radius : GetPaddedFrameRadius();
++      is_fullscreen ? generic_radius
++                    : aerie_frame::FrameRadius(browser_view,
++                                               GetPaddedFrameRadius());
+   const bool vertical_tabstrip_touches_window_edge =
+       browser_view->ShouldDrawVerticalTabStrip() &&
+       (!browser_view->IsZenModeEnabledForLayout() ||

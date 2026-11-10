@@ -14,6 +14,17 @@ namespace aerie_frame {
 // frame fills, which would cover the tint, ask this and paint nothing.
 bool ShouldTintFrame(const BrowserView* browser_view);
 
+// The radius of a frame corner of this window: radius-xl while the tint is on,
+// `helium_radius` (what Helium would use) otherwise.
+int FrameRadius(const BrowserView* browser_view, int helium_radius);
+
+// Whether the page is in a rounded card, given Helium's own pref.
+bool RoundedFrameEnabled(const BrowserView* browser_view, bool helium_pref);
+
+// Whether the card has no outline: the tint is on and the theme asks for a
+// 0 px card border.
+bool CardBorderHidden(const BrowserView* browser_view);
+
 }  // namespace aerie_frame
 
 #endif  // CHROME_BROWSER_UI_VIEWS_AERIE_FRAME_FRAME_TINT_ENABLED_H_

@@ -128,7 +128,7 @@ sidebar/0025-keep-the-sidebar-width-in-its-pref-and-never-collapse.patch
 sidebar/0026-make-ctrl-s-show-or-hide-the-sidebar.patch
 sidebar/0027-slide-and-resize-the-sidebar.patch
 
-# The window frame tint (#178): native frame materials off while the Aerie tint paints the frame.
-sidebar/0030-turn-native-frame-materials-off-in-the-aerie-layout.patch
-# The window frame tint view in BrowserView, transparent Helium frame fills, the rounded card and its radius (#178).
-sidebar/0031-paint-the-window-frame-with-the-aerie-tint.patch
+# The window frame tint (#178): native frame materials off, the frame view under the window, the rounded card.
+sidebar/0028-turn-native-frame-materials-off-in-the-aerie-layout.patch
+sidebar/0029-put-the-aerie-frame-under-the-window-and-clear-helium-frame-fills.patch
+sidebar/0030-show-the-page-in-the-rounded-aerie-card.patch

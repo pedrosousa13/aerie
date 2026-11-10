@@ -8,7 +8,11 @@ assert(!is_android, "The Aerie frame is for desktop platforms only")
 # apart from the view so the targets that paint the frame can use it without
 # depending on the view.
 source_set("enabled") {
-  visibility = [ "//chrome/browser/ui/views/frame:*" ]
+  visibility = [
+    "//chrome/browser/ui/views/frame:*",
+    "//chrome/browser/ui/views/side_panel:*",
+    ":browser_tests",
+  ]
   sources = [
     "frame_tint_enabled.cc",
     "frame_tint_enabled.h",
@@ -17,12 +21,15 @@ source_set("enabled") {
     "//chrome/browser/profiles:profile",
     "//chrome/browser/ui/views/frame:browser_view_header",
     "//components/aerie_frame:enabled",
+    "//components/aerie_frame:palette",
     "//components/prefs",
+    "//ui/color",
+    "//ui/views",
   ]
 }
 
 # The view of Aerie's window frame (issue #178). BrowserView, in
-# //chrome/browser/ui/views/frame, creates it (patches/sidebar/0031). What it
+# //chrome/browser/ui/views/frame, creates it (patches/sidebar/0029). What it
 # decides without a view is in //components/aerie_frame.
 source_set("aerie_frame") {
   visibility = [
@@ -63,10 +70,14 @@ source_set("browser_tests") {
   sources = [ "aerie_frame_browsertest.cc" ]
   deps = [
     ":aerie_frame",
+    ":enabled",
     "//chrome/browser:browser",
     "//chrome/browser/aerie_tab_model",
     "//chrome/browser/profiles:profile",
+    "//chrome/browser/ui:browser_window_header",
     "//chrome/browser/ui/views/frame",
+    "//chrome/browser/ui/views/frame:browser_view_header",
+    "//chrome/browser/ui/views/frame:top_container_view",
     "//chrome/browser/ui/views/helium:frame_corner_radius",
     "//chrome/browser/ui/views/helium:native_frame_materials",
     "//chrome/common:constants",

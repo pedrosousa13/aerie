@@ -24,7 +24,7 @@ class SkBitmap;
 // the sidebar, and the shadow of the page card. It is the lowest child of the
 // BrowserView and has its own opaque layer. The sidebar and the top row draw on
 // it, because the Helium fills that used to cover it paint nothing while it is
-// on (patches/sidebar/0031 and 0032).
+// on (patches/sidebar/0029 and 0030).
 //
 // It paints once, and again only when what the paint depends on changes: the
 // Workspace colour, the colour mode, the window size, the card's box or the
