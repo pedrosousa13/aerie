@@ -54,6 +54,8 @@ TEST_BINARIES = (
     ("aerie_fonts_unittests", ()),
     # The generated Design Token tables, ShouldReduceMotion() and the motion helper (issue #174).
     ("aerie_design_tokens_unittests", ()),
+    # The Tab Model: records, the model, its saved state and the aerie.tabs.* prefs (issue #176).
+    ("aerie_tab_model_unittests", ()),
 )
 HOST_TOOLS = ("git", "tar", "zstd", "patch")
 MIN_FREE_BYTES = 150 * 1024**3

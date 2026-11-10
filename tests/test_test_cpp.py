@@ -76,7 +76,7 @@ class TestCppTest(unittest.TestCase):
             ["aerie_adblock_unittests", "aerie_adblock_content_unittests", "aerie_widevine_unittests",
              "aerie_adblock_common_unittests", "aerie_adblock_renderer_unittests", "aerie_fingerprint_unittests",
              "aerie_gpu_info_unittests", "aerie_screen_unittests", "aerie_text_metrics_unittests", "aerie_webgl_readback_unittests", "aerie_fonts_unittests",
-             "aerie_design_tokens_unittests"])
+             "aerie_design_tokens_unittests", "aerie_tab_model_unittests"])
         build_tree.assert_called_once()
 
     def test_no_binary_needs_components_unittests(self):

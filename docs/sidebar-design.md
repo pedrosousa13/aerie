@@ -529,6 +529,56 @@ Both generators move into the source tree in M2 (see the ADR).
 
 The run on this branch reports 0 failing combinations. In M2 the check runs in CI. A change that fails it does not merge.
 
+## Tab Model
+
+The sidebar reads and writes one headless service, the Tab Model (issue #176, spec #1). It has no Views code. The records and the model are in `overlay/components/aerie_tab_model`; the per-profile service and its binding to the tab strips are in `overlay/chrome/browser/aerie_tab_model`.
+
+### Records
+
+| Record | Fields |
+| --- | --- |
+| All | A stable `id`, `created`, `modified`, and `change` (the model's change counter at the record's last write). |
+| Workspace | `name`, `icon`, `colour`, `theme`, `mode`. A fresh profile gets "Personal", colour `dusk`, theme `default`, mode `default`. M2 has this one record and nothing that edits it. |
+| Tab | `workspace_id`, `section` (`today`, `pinned` or `favorite`), `parent` (a folder id, or none), `position`, `pinned_url`, `manual_name`, `last_active`, `sleeping`, `archived_at`. |
+| Folder | `workspace_id`, `section`, `parent`, `position`, `name`, `icon`, `kind` (`manual`, `auto` or `smart`), `rules`, `behaviour`. The slices that define rules and behaviours add their fields. |
+| Change | `counter`, `id`, `type` (`added`, `changed`, `moved` or `removed`), `kind`, `record_id`, `time`. Every write appends one. The log keeps the newest 1000. Nothing reads it yet; it is there for sync (story 96), which this slice does not build. |
+
+The theme ids, mode values and colour preset names are stored as written by the editor and are persisted values (ADR 0007). The model does not check them.
+
+The model refuses an add or a move that names a folder that does not exist, that puts a folder inside itself, or that would make a 13th Favorite in a Workspace (the cap is a constant, 12). Removing a folder moves what was inside it up to the folder's own parent.
+
+### Saved state
+
+`AerieTabModel/state.json` in the profile, with `version` 1 and a migration table for later versions. It is written with `base::ImportantFileWriter` (atomic, one write for a burst of changes) and when the profile closes. It is read on the thread pool after the profile is created. The merge into the model is the only part on the UI sequence. Nothing is saved until the read has finished, so a partial model cannot cover the stored one. The sidebar can draw an empty section and fill it when the model reports `OnModelLoaded`.
+
+A file that is not valid, has the wrong shape, uses an id twice or comes from a newer build is moved to `state.json.bad` (an older `.bad` is replaced), and the model starts empty. An off-the-record profile (an Incognito window) has its own Tab Model, separate from the regular profile's. It stays in memory, starts empty and writes nothing. A guest or system profile has none.
+
+A Today tab that was open when the state was saved is removed when it is read back (and the removal is logged), unless it was sleeping or archived. This slice does not match a tab that session restore brings back to an old record, so the old record would only pile up. Matching them is for the slice that restores tabs.
+
+The prefs `aerie.tabs.archive_after` (`12h` default, `24h`, `7d`, `never`) and `aerie.tabs.sleep_after_minutes` (60 default; 15 to 480, or 0 for never) are registered and can be written from the settings page. Nothing archives or sleeps a tab yet (slices F and G).
+
+### Binding to Chromium tabs
+
+An adapter observes `TabStripModelObserver::OnTabStripModelChanged` for every normal window of the profile. A tab that is inserted gets a `today` record. A tab that moves gets a new `position`, and the tab that becomes active gets a new `last_active`. A closed tab loses its record. A tab dragged to another window keeps its record. The `tabs::TabHandle` is the join key while the browser runs; the record id is what is stored. Navigating does not change a record. The adapter does not make the tab strip follow the Tab Model order. That is #186 (slice J).
+
+### Pinned tabs and the Chromium pinned bit
+
+Decision: tabs in Aerie's Pinned and Favorites sections do not carry the Chromium pinned bit. `PinnedTabService` saves the tabs that have the bit and restores them at startup, so with no bit it has nothing to restore and Aerie's Pinned section cannot come back twice. Aerie's own Pinned tabs will be restored from `pinned_url`; no slice does that yet (this slice only stores the field). The other reason is sleep: Chromium refuses to discard a tab that has the bit (`discard_eligibility_policy.cc`, `kPinnedTab`), and #179 (slice G) has to sleep pinned tabs. No patch is needed for this.
+
+If the spike for horizontal tabs (#186, slice J) shows that the strip needs the bit, keep the bit for that case and add a small hook patch at the `kPinnedTab` line of that policy. Until then nothing in Aerie sets the bit, and the browser test `tab_model_browsertest.cc` checks that no tab has it and that nothing is saved for `PinnedTabService`.
+
+### Chromium tab groups
+
+Chromium tab groups are flat and contiguous, so they cannot hold folders nested five deep. Folders are Tab Model records only. `TabGroupModel` stays unused by the Aerie sidebar.
+
+### What this slice does not do
+
+- No Views, rows, menus or animation (slices B to J).
+- No sync, encryption or import (#171), no Workspace switcher or editor, no `Move to workspace` (M5, ADR 0006).
+- No archive or sleep logic; only the fields and prefs.
+- No `TabStripModel` order mirroring (#186).
+- The browser test `tab_model_browsertest.cc` is not in a BUILD.gn yet. It joins the Aerie browser-test target that #175 adds, so it runs once both have landed.
+
 ## Open points carried into M2 planning
 
 Rows marked "Decided" were settled in the M2 planning session (maintainer, 2026-11-09). The rest stay open.

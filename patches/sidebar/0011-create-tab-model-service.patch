@@ -1,0 +1,31 @@
+Aerie-Purpose: Create the per-profile Tab Model service when a profile is created, so it is bound to the tab strips from the first window.
+Aerie-Upstream-Area: chrome/browser/profiles (chrome_browser_main_extra_parts_profiles.cc, BUILD.gn)
+Aerie-Kind: hook
+
+Issue #176. TabModelServiceFactory (chrome/browser/aerie_tab_model, in the overlay) is a
+ProfileKeyedServiceFactory that is created with the browser context, like
+PinnedTabServiceFactory beside it. Building the service does no disk work: it posts the read
+of AerieTabModel/state.json to the thread pool. The line sits in the desktop-only block.
+
+--- a/chrome/browser/profiles/BUILD.gn
++++ b/chrome/browser/profiles/BUILD.gn
+@@ -733,4 +733,5 @@
+     "//chrome/browser/accessibility",
+     "//chrome/browser/account_settings",
++    "//chrome/browser/aerie_tab_model",
+     "//chrome/browser/affiliations",
+     "//chrome/browser/ai",
+--- a/chrome/browser/profiles/chrome_browser_main_extra_parts_profiles.cc
++++ b/chrome/browser/profiles/chrome_browser_main_extra_parts_profiles.cc
+@@ -16,4 +16,5 @@
+ #include "chrome/browser/account_settings/account_setting_service_factory.h"
+ #include "chrome/browser/actor/actor_keyed_service_factory.h"
++#include "chrome/browser/aerie_tab_model/tab_model_service_factory.h"
+ #include "chrome/browser/affiliations/affiliation_service_factory.h"
+ #include "chrome/browser/ai/ai_data_keyed_service_factory.h"
+@@ -1293,4 +1294,5 @@
+   PersonalContextServiceFactory::GetInstance();
+ #if !BUILDFLAG(IS_ANDROID)
++  aerie_tab_model::TabModelServiceFactory::GetInstance();
+   PinnedTabServiceFactory::GetInstance();
+   PinnedToolbarActionsModelFactory::GetInstance();
