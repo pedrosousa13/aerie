@@ -33,18 +33,18 @@ export class SettingsAerieMotionRowElement extends CrLitElement {
     return getSettingsSharedLit();
   }
 
+  override render() {
+    return getHtml.bind(this)();
+  }
+
   static override get properties() {
     return {
       menuOptions_: {type: Array},
     };
   }
 
-  override render() {
-    return getHtml.bind(this)();
-  }
-
   // The values are the pref's two values; the names are strings of the grd.
-  protected menuOptions_: DropdownMenuOptionList = [
+  protected accessor menuOptions_: DropdownMenuOptionList = [
     {value: 'system', name: loadTimeData.getString('aerieMotionReduceSystem')},
     {value: 'on', name: loadTimeData.getString('aerieMotionReduceOn')},
   ];
