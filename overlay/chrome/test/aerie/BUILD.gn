@@ -100,8 +100,11 @@ test("aerie_interactive_ui_tests") {
     "//content/public/common",
     "//testing/gtest",
     "//ui/base:test_support",
+    "//ui/aura:test_support",
     "//ui/compositor",
     "//ui/gfx",
+    "//ui/ozone",
+    "//ui/platform_window/common",
   ]
   if (is_linux) {
     deps += [ "//ui/linux:display_server_utils" ]
