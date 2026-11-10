@@ -1,0 +1,40 @@
+# Copyright 2026 The Aerie Authors
+# You can use, redistribute, and/or modify this source code under
+# the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+# The per-profile Tab Model service and its binding to the tab strips (issue
+# #176). The model itself, its persistence and its tests are in
+# //components/aerie_tab_model. Same shape as //chrome/browser/aerie_widevine.
+#
+# tab_model_browsertest.cc is not listed: it joins the Aerie browser-test
+# target that issue #175 adds (see the note at the top of that file).
+source_set("aerie_tab_model") {
+  visibility = [ "//chrome/*" ]
+  public = [
+    "tab_model_service.h",
+    "tab_model_service_factory.h",
+    "tab_strip_adapter.h",
+  ]
+  sources = [
+    "tab_model_service.cc",
+    "tab_model_service_factory.cc",
+    "tab_strip_adapter.cc",
+  ]
+  # The headers include these.
+  public_deps = [
+    "//base",
+    "//chrome/browser/profiles:profile",
+    "//chrome/browser/ui/browser_window",
+    "//chrome/browser/ui/tabs:tab_strip_model_observer",
+    "//components/aerie_tab_model",
+    "//components/keyed_service/content",
+    "//components/keyed_service/core",
+    "//components/tabs:public",
+  ]
+  deps = [
+    "//chrome/browser/tab_list",
+    "//chrome/browser/ui/tabs:tab_strip",
+    "//components/aerie_tab_model:prefs",
+    "//components/prefs",
+  ]
+}

@@ -102,3 +102,6 @@ hardening/0024-key-fingerprinting-seeds-on-the-workspace.patch
 sidebar/0001-add-the-reduced-motion-pref.patch
 sidebar/0002-add-the-reduced-motion-strings.patch
 sidebar/0003-add-the-reduced-motion-row.patch
+# The Tab Model (#176): prefs for the archive and sleep delays, and the per-profile service that keeps tabs, folders and the Workspace.
+sidebar/0010-register-tab-model-prefs.patch
+sidebar/0011-create-tab-model-service.patch

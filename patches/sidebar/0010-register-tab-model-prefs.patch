@@ -1,0 +1,47 @@
+Aerie-Purpose: Register the Tab Model prefs (archive and sleep delays) and let the settings page read and write them.
+Aerie-Upstream-Area: chrome/browser/prefs (browser_prefs.cc, BUILD.gn), chrome/browser/extensions/api/settings_private/prefs_util.cc
+Aerie-Kind: hook
+
+Issue #176. The prefs are aerie.tabs.archive_after (a string: 12h, 24h, 7d or never) and
+aerie.tabs.sleep_after_minutes (a number: 0 for never, else 15 to 480). Their names,
+defaults and parsing are in components/aerie_tab_model (tab_model_prefs.*). The favourites
+cap is a constant there, not a pref. The names are string literals in the settings_private
+allowlist, as for the other Aerie prefs, and a test compares them with the constants.
+Nothing reads the prefs yet but the Tab Model service; the settings controls come with the
+slices that own the archive and sleep behaviour.
+
+--- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
++++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
+@@ -485,4 +485,10 @@
+   // The name is aerie_fonts::kRestrictFonts; a test compares the two.
+   (*s_allowlist)["aerie.fonts.restrict"] = settings_api::PrefType::kBoolean;
++  // Aerie: when Today tabs are archived, and when idle tabs sleep (issue #176).
++  // The names are aerie_tab_model::kArchiveAfter and kSleepAfterMinutes; a test
++  // compares them.
++  (*s_allowlist)["aerie.tabs.archive_after"] = settings_api::PrefType::kString;
++  (*s_allowlist)["aerie.tabs.sleep_after_minutes"] =
++      settings_api::PrefType::kNumber;
+ 
+   // Privacy page
+--- a/chrome/browser/prefs/BUILD.gn
++++ b/chrome/browser/prefs/BUILD.gn
+@@ -134,4 +134,5 @@
+     "//chrome/browser/webauthn",
+     "//components/aerie_adblock/browser:guard_prefs",
++    "//components/aerie_tab_model:prefs",
+     "//components/aerie_widevine",
+     "//components/blocked_content",
+--- a/chrome/browser/prefs/browser_prefs.cc
++++ b/chrome/browser/prefs/browser_prefs.cc
+@@ -111,4 +111,5 @@
+ #include "chrome/common/secure_origin_allowlist.h"
+ #include "components/aerie_adblock/browser/aerie_guard_prefs.h"
++#include "components/aerie_tab_model/tab_model_prefs.h"
+ #include "components/aerie_widevine/widevine_opt_in.h"
+ #include "components/autofill/core/common/autofill_prefs.h"
+@@ -2001,4 +2002,5 @@
+   AccessibilityLabelsService::RegisterProfilePrefs(registry);
+   aerie_guard::RegisterProfilePrefs(registry);
++  aerie_tab_model::RegisterProfilePrefs(registry);
+   registry->RegisterBooleanPref(prefs::kRendererAccessibilityEnabled, true);
+   AccessibilityUIMessageHandler::RegisterProfilePrefs(registry);

@@ -1,0 +1,61 @@
+# Copyright 2026 The Aerie Authors
+# You can use, redistribute, and/or modify this source code under
+# the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+import("//testing/test.gni")
+
+# The Tab Model (issue #176): the records of tabs, folders and the one
+# Workspace, the model that owns them, and how it is saved. Headless, so it has
+# unit tests. The per-profile service and the binding to Chromium tabs are in
+# //chrome/browser/aerie_tab_model.
+source_set("aerie_tab_model") {
+  sources = [
+    "tab_model.cc",
+    "tab_model.h",
+    "tab_model_observer.h",
+    "tab_model_persistence.cc",
+    "tab_model_persistence.h",
+    "tab_model_types.cc",
+    "tab_model_types.h",
+  ]
+  public_deps = [
+    "//base",
+  ]
+}
+
+# The prefs under aerie.tabs.*. Registered by chrome::RegisterProfilePrefs
+# (patches/sidebar/0010).
+source_set("prefs") {
+  sources = [
+    "tab_model_prefs.cc",
+    "tab_model_prefs.h",
+  ]
+  public_deps = [
+    "//base",
+    "//components/prefs",
+  ]
+}
+
+source_set("unit_tests") {
+  testonly = true
+  sources = [
+    "tab_model_persistence_unittest.cc",
+    "tab_model_prefs_unittest.cc",
+    "tab_model_unittest.cc",
+  ]
+  deps = [
+    ":aerie_tab_model",
+    ":prefs",
+    "//base",
+    "//base/test:test_support",
+    "//components/prefs:test_support",
+    "//testing/gtest",
+  ]
+}
+
+test("aerie_tab_model_unittests") {
+  deps = [
+    ":unit_tests",
+    "//base/test:run_all_unittests",
+  ]
+}

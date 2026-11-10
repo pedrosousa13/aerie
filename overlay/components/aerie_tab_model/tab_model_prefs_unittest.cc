@@ -1,0 +1,50 @@
+// Copyright 2026 The Aerie Authors
+// You can use, redistribute, and/or modify this source code under
+// the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+#include "components/aerie_tab_model/tab_model_prefs.h"
+
+#include "base/time/time.h"
+#include "components/prefs/testing_pref_service.h"
+#include "testing/gtest/include/gtest/gtest.h"
+
+namespace aerie_tab_model {
+
+TEST(TabModelPrefsTest, DefaultsAreTwelveHoursAndOneHour) {
+  TestingPrefServiceSimple prefs;
+  RegisterProfilePrefs(prefs.registry());
+  EXPECT_EQ(GetArchiveAfter(prefs), base::Hours(12));
+  EXPECT_EQ(GetSleepAfter(prefs), base::Minutes(60));
+}
+
+TEST(TabModelPrefsTest, ArchiveAfterHasFourValues) {
+  EXPECT_EQ(ParseArchiveAfter("12h"), base::Hours(12));
+  EXPECT_EQ(ParseArchiveAfter("24h"), base::Hours(24));
+  EXPECT_EQ(ParseArchiveAfter("7d"), base::Days(7));
+  EXPECT_EQ(ParseArchiveAfter("never"), std::nullopt);
+}
+
+TEST(TabModelPrefsTest, AnUnknownArchiveValueFallsBackToTwelveHours) {
+  EXPECT_EQ(ParseArchiveAfter(""), base::Hours(12));
+  EXPECT_EQ(ParseArchiveAfter("3d"), base::Hours(12));
+}
+
+TEST(TabModelPrefsTest, SleepAfterRunsFromFifteenMinutesToEightHoursOrNever) {
+  EXPECT_EQ(SleepAfterFromMinutes(0), std::nullopt);
+  EXPECT_EQ(SleepAfterFromMinutes(15), base::Minutes(15));
+  EXPECT_EQ(SleepAfterFromMinutes(480), base::Hours(8));
+  EXPECT_EQ(SleepAfterFromMinutes(5), base::Minutes(15));
+  EXPECT_EQ(SleepAfterFromMinutes(10'000), base::Hours(8));
+  EXPECT_EQ(SleepAfterFromMinutes(-3), base::Minutes(60));
+}
+
+TEST(TabModelPrefsTest, TheModelReadsWhatThePrefsHold) {
+  TestingPrefServiceSimple prefs;
+  RegisterProfilePrefs(prefs.registry());
+  prefs.SetString(kArchiveAfter, "7d");
+  prefs.SetInteger(kSleepAfterMinutes, 0);
+  EXPECT_EQ(GetArchiveAfter(prefs), base::Days(7));
+  EXPECT_EQ(GetSleepAfter(prefs), std::nullopt);
+}
+
+}  // namespace aerie_tab_model
