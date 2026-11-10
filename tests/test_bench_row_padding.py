@@ -88,6 +88,9 @@ class RowPaddingJudgeTest(unittest.TestCase):
         self.assertEqual(SURFACES["hardening"]["exclude"], "#headerLine")
         self.assertIn("getAnimations", SETTLE_JS)
 
+    def test_the_page_script_drops_transforms_before_reading_rectangles(self):
+        self.assertIn("style.transform = 'none'", MEASURE_JS)
+
     def test_a_continuation_row_does_not_set_the_neighbour_padding(self):
         from aerie_bench.checks.row_padding import neighbour_padding
         # Hand-written rows modelled on what train 20 read on the Appearance page: one 'cr-row continuation' with start 0.
