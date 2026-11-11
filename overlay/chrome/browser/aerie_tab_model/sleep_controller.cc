@@ -158,6 +158,19 @@ void SleepController::Shutdown() {
   pref_registrar_.RemoveAll();
 }
 
+bool SleepController::RecordIsAsleep(tabs::TabInterface* tab) const {
+  // A Pinned or Favorites tab that was restored and has not been selected is
+  // not loaded, so it is asleep as far as the sidebar goes (issue #180): its
+  // record says so, though Chromium never discarded it.
+  TabStripAdapter* adapter = service_->adapter();
+  if (!adapter) {
+    return false;
+  }
+  const std::string id = adapter->RecordIdForTab(tab);
+  const TabRecord* record = id.empty() ? nullptr : service_->model()->GetTab(id);
+  return record && record->sleeping;
+}
+
 bool SleepController::Watches(BrowserWindowInterface* browser) const {
   return browser->GetProfile() == profile_ &&
          browser->GetType() == BrowserWindowInterface::TYPE_NORMAL;
@@ -188,7 +201,7 @@ void SleepController::Track(tabs::TabInterface* tab) {
     schedule_.Untrack(key);
     return;
   }
-  if (IsAsleep(contents)) {
+  if (IsAsleep(contents) || RecordIsAsleep(tab)) {
     schedule_.Untrack(key);
     SetSleeping(tab, true);
     return;
@@ -298,7 +311,7 @@ SleepController::Eligibility SleepController::GetEligibility(
   if (!contents) {
     return result;
   }
-  if (IsAsleep(contents)) {
+  if (IsAsleep(contents) || RecordIsAsleep(tab)) {
     result.state = Eligibility::State::kAlreadyAsleep;
     result.tooltip_message_id = IDS_AERIE_SIDEBAR_SLEEP_TAB_ASLEEP;
     return result;

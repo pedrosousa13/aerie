@@ -493,6 +493,45 @@ TEST(TabModelMigrationTest, ANewerFileIsRefused) {
   EXPECT_EQ(MigrateToVersion(state, std::span<const MigrationStep>(), 1), LoadStatus::kNewerSchema);
 }
 
+// previous_section (issue #180).
+TEST_F(TabModelTest, ATabThatEntersFavoritesRemembersItsSectionAndForgetsItOnLeaving) {
+  const std::string id = AddTab(Section::kPinned);
+  EXPECT_FALSE(model_->GetTab(id)->previous_section.has_value());
+  ASSERT_TRUE(model_->MoveTab(id, Section::kFavorite, std::string(), 0));
+  EXPECT_EQ(model_->GetTab(id)->previous_section, Section::kPinned);
+  // A move inside Favorites keeps it.
+  ASSERT_TRUE(model_->MoveTab(id, Section::kFavorite, std::string(), 4));
+  EXPECT_EQ(model_->GetTab(id)->previous_section, Section::kPinned);
+  ASSERT_TRUE(model_->MoveTab(id, Section::kToday, std::string(), 0));
+  EXPECT_FALSE(model_->GetTab(id)->previous_section.has_value());
+}
+
+TEST_F(TabModelTest, PreviousSectionSurvivesTheRoundTripAndAnOldFileWithoutItLoads) {
+  const std::string id = AddTab(Section::kToday);
+  ASSERT_TRUE(model_->MoveTab(id, Section::kFavorite, std::string(), 0));
+  base::DictValue json = model_->ToValue();
+  ParseResult parsed = ParseState(json);
+  ASSERT_EQ(parsed.status, LoadStatus::kOk);
+  EXPECT_EQ(parsed.state->tabs[0].previous_section, Section::kToday);
+
+  model_->UpdateTab(id, [](TabRecord& tab) { tab.last_title = "Inbox"; });
+  parsed = ParseState(model_->ToValue());
+  ASSERT_EQ(parsed.status, LoadStatus::kOk);
+  EXPECT_EQ(parsed.state->tabs[0].last_title, "Inbox");
+
+  // A file from before the field: no key, still valid, and the field is empty.
+  base::DictValue old = model_->ToValue();
+  old.FindList("tabs")->front().GetDict().Remove("previous_section");
+  parsed = ParseState(old);
+  ASSERT_EQ(parsed.status, LoadStatus::kOk);
+  EXPECT_FALSE(parsed.state->tabs[0].previous_section.has_value());
+
+  // A value that is not a section is a corrupt file.
+  base::DictValue bad = model_->ToValue();
+  bad.FindList("tabs")->front().GetDict().Set("previous_section", "elsewhere");
+  EXPECT_EQ(ParseState(bad).status, LoadStatus::kCorrupt);
+}
+
 }  // namespace
 
 }  // namespace aerie_tab_model

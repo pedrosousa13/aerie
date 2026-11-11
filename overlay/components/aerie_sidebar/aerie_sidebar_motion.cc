@@ -69,6 +69,52 @@ DragMotion RowDragMotion(bool reduced) {
   return motion;
 }
 
+PinMotion PinFlipMotion(bool reduced) {
+  PinMotion motion;
+  motion.animate = !reduced;
+  motion.moved_duration_ms = aerie::tokens::kMotionSpringDuration;
+  motion.moved_reduced_duration_ms = aerie::tokens::kMotionSpringDurationReduced;
+  motion.moved_easing = MotionEasing::kSpring;
+  motion.others_duration = MotionDuration::kBase;
+  motion.others_easing = MotionEasing::kStandard;
+  return motion;
+}
+
+MenuOpenMotion ContextMenuOpenMotion(bool reduced) {
+  MenuOpenMotion motion;
+  motion.animate_scale = !reduced;
+  motion.from_scale = aerie::tokens::kMotionScaleMenuEnter;
+  motion.from_opacity = 0.f;
+  motion.duration = MotionDuration::kFast;
+  motion.easing = MotionEasing::kDecelerate;
+  motion.duration_ms = GetDurationMs(motion.duration, reduced);
+  return motion;
+}
+
+ToastMotion ToastShowMotion(bool reduced) {
+  ToastMotion motion;
+  motion.animate_rise = !reduced;
+  motion.rise_px = reduced ? 0 : aerie::tokens::kMotionDistanceToastRise;
+  motion.from_opacity = 0.f;
+  motion.to_opacity = 1.f;
+  motion.duration = MotionDuration::kFast;
+  motion.easing = MotionEasing::kDecelerate;
+  motion.duration_ms = GetDurationMs(motion.duration, reduced);
+  motion.hold_ms = reduced ? aerie::tokens::kMotionTimingToastReduced
+                           : aerie::tokens::kMotionTimingToast;
+  return motion;
+}
+
+ToastMotion ToastHideMotion(bool reduced) {
+  ToastMotion motion = ToastShowMotion(reduced);
+  motion.animate_rise = false;
+  motion.rise_px = 0;
+  motion.from_opacity = 1.f;
+  motion.to_opacity = 0.f;
+  motion.easing = MotionEasing::kAccelerate;
+  return motion;
+}
+
 RowMotion OpenRowMotion(bool reduced) {
   RowMotion motion;
   motion.content_duration = MotionDuration::kFast;

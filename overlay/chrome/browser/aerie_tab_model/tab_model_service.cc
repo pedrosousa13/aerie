@@ -8,6 +8,7 @@
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
 #include "base/time/default_clock.h"
+#include "chrome/browser/aerie_tab_model/pinned_tabs_controller.h"
 #include "chrome/browser/aerie_tab_model/tab_strip_adapter.h"
 #include "chrome/browser/profiles/profile.h"
 #include "components/aerie_tab_model/tab_model_prefs.h"
@@ -41,6 +42,8 @@ TabModelService::TabModelService(Profile* profile)
   persistence_.Load();
   adapter_ = std::make_unique<TabStripAdapter>(
       profile_, &model_, base::DefaultClock::GetInstance());
+  pinned_tabs_ = std::make_unique<PinnedTabsController>(profile_, &model_,
+                                                        adapter_.get());
 }
 
 TabModelService::~TabModelService() = default;
@@ -54,6 +57,7 @@ std::optional<base::TimeDelta> TabModelService::sleep_after() const {
 }
 
 void TabModelService::Shutdown() {
+  pinned_tabs_.reset();
   adapter_.reset();
   persistence_.FlushPendingWrite();
 }

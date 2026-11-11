@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <utility>
 
+#include "components/aerie_tab_model/pinned_tabs.h"
 #include "components/aerie_tab_model/tab_model.h"
 
 namespace aerie_sidebar {
@@ -38,8 +39,57 @@ ListKeyResult HandleListKey(int count, int focused, ListKey key) {
   return result;
 }
 
-TodayList::TodayList(aerie_tab_model::TabModel* model, Delegate* delegate)
-    : model_(model), delegate_(delegate) {
+ListKeyResult HandleGridKey(int count, int columns, int focused, GridKey key) {
+  ListKeyResult result;
+  if (count <= 0 || columns <= 0) {
+    return result;
+  }
+  const int at = (focused < 0 || focused >= count) ? 0 : focused;
+  const int row_start = at - at % columns;
+  switch (key) {
+    case GridKey::kLeft:
+      result.focus_index = at % columns == 0 ? at : at - 1;
+      break;
+    case GridKey::kRight:
+      result.focus_index =
+          (at % columns == columns - 1 || at + 1 >= count) ? at : at + 1;
+      break;
+    case GridKey::kUp:
+      result.focus_index = at - columns >= 0 ? at - columns : at;
+      break;
+    case GridKey::kDown:
+      if (at + columns < count) {
+        result.focus_index = at + columns;
+      } else {
+        // On the last row already, or the row below is short.
+        result.focus_index =
+            row_start + columns < count ? count - 1 : at;
+      }
+      break;
+    case GridKey::kRowStart:
+      result.focus_index = row_start;
+      break;
+    case GridKey::kRowEnd:
+      result.focus_index = std::min(row_start + columns - 1, count - 1);
+      break;
+    case GridKey::kGridStart:
+      result.focus_index = 0;
+      break;
+    case GridKey::kGridEnd:
+      result.focus_index = count - 1;
+      break;
+    case GridKey::kDelete:
+      result.close_focused = true;
+      result.focus_index = std::min(at, count - 2);
+      break;
+  }
+  return result;
+}
+
+TodayList::TodayList(aerie_tab_model::TabModel* model,
+                     Delegate* delegate,
+                     aerie_tab_model::Section section)
+    : model_(model), delegate_(delegate), section_(section) {
   rows_ = Compute();
   model_->AddObserver(this);
 }
@@ -49,23 +99,7 @@ TodayList::~TodayList() {
 }
 
 std::vector<std::string> TodayList::Compute() const {
-  std::vector<const aerie_tab_model::TabRecord*> tabs;
-  for (const auto& [id, tab] : model_->tabs()) {
-    if (tab.workspace_id == model_->workspace().id &&
-        tab.section == aerie_tab_model::Section::kToday &&
-        tab.parent.empty() && !tab.archived_at.has_value()) {
-      tabs.push_back(&tab);
-    }
-  }
-  std::sort(tabs.begin(), tabs.end(), [](const auto* a, const auto* b) {
-    return a->position != b->position ? a->position < b->position
-                                      : a->id < b->id;
-  });
-  std::vector<std::string> ids;
-  for (const auto* tab : tabs) {
-    ids.push_back(tab->id);
-  }
-  return ids;
+  return aerie_tab_model::SectionTabIds(*model_, section_);
 }
 
 void TodayList::Refresh() {

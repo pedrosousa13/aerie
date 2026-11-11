@@ -134,5 +134,59 @@ TEST(HandleListKeyTest, AnEmptyListHasNoStopAndAStrayIndexCountsAsTheFirstRow) {
   EXPECT_EQ(HandleListKey(3, 9, ListKey::kDown).focus_index, 1);
 }
 
+TEST(HandleGridKeyTest, ArrowsMoveInTwoDimensionsAndDoNotWrap) {
+  // Ten tiles in four columns: rows are 0-3, 4-7, 8-9.
+  EXPECT_EQ(HandleGridKey(10, 4, 5, GridKey::kRight).focus_index, 6);
+  EXPECT_EQ(HandleGridKey(10, 4, 7, GridKey::kRight).focus_index, 7);
+  EXPECT_EQ(HandleGridKey(10, 4, 9, GridKey::kRight).focus_index, 9);
+  EXPECT_EQ(HandleGridKey(10, 4, 5, GridKey::kLeft).focus_index, 4);
+  EXPECT_EQ(HandleGridKey(10, 4, 4, GridKey::kLeft).focus_index, 4);
+  EXPECT_EQ(HandleGridKey(10, 4, 5, GridKey::kUp).focus_index, 1);
+  EXPECT_EQ(HandleGridKey(10, 4, 1, GridKey::kUp).focus_index, 1);
+  EXPECT_EQ(HandleGridKey(10, 4, 5, GridKey::kDown).focus_index, 9);
+  EXPECT_EQ(HandleGridKey(10, 4, 2, GridKey::kDown).focus_index, 6);
+}
+
+TEST(HandleGridKeyTest, DownFromAColumnWithNoTileBelowLandsOnTheLastTile) {
+  // Tile 3 has no tile below it (row 3 has two tiles); Down goes to the last.
+  EXPECT_EQ(HandleGridKey(10, 4, 7, GridKey::kDown).focus_index, 9);
+  EXPECT_EQ(HandleGridKey(10, 4, 9, GridKey::kDown).focus_index, 9);
+  EXPECT_EQ(HandleGridKey(4, 4, 2, GridKey::kDown).focus_index, 2);
+}
+
+TEST(HandleGridKeyTest, HomeAndEndGoToTheRowAndControlGoesToTheGrid) {
+  EXPECT_EQ(HandleGridKey(10, 4, 6, GridKey::kRowStart).focus_index, 4);
+  EXPECT_EQ(HandleGridKey(10, 4, 5, GridKey::kRowEnd).focus_index, 7);
+  EXPECT_EQ(HandleGridKey(10, 4, 8, GridKey::kRowEnd).focus_index, 9);
+  EXPECT_EQ(HandleGridKey(10, 4, 6, GridKey::kGridStart).focus_index, 0);
+  EXPECT_EQ(HandleGridKey(10, 4, 6, GridKey::kGridEnd).focus_index, 9);
+}
+
+TEST(HandleGridKeyTest, DeleteClosesAndAnEmptyGridHasNoStop) {
+  const ListKeyResult middle = HandleGridKey(5, 4, 2, GridKey::kDelete);
+  EXPECT_TRUE(middle.close_focused);
+  EXPECT_EQ(middle.focus_index, 2);
+  EXPECT_EQ(HandleGridKey(5, 4, 4, GridKey::kDelete).focus_index, 3);
+  EXPECT_EQ(HandleGridKey(0, 4, 0, GridKey::kRight).focus_index, -1);
+}
+
+TEST_F(TodayListTest, APinnedListShowsOnlyThePinnedSection) {
+  const std::string pinned = Add(0, Section::kPinned);
+  Add(0);
+  Add(0, Section::kFavorite);
+  TodayList list(&model_, &delegate_, Section::kPinned);
+  EXPECT_EQ(list.rows(), (std::vector<std::string>{pinned}));
+}
+
+TEST_F(TodayListTest, AFavoritesListFollowsATabThatMovesInAndOut) {
+  const std::string today = Add(0);
+  TodayList favorites(&model_, &delegate_, Section::kFavorite);
+  EXPECT_TRUE(favorites.rows().empty());
+  ASSERT_TRUE(model_.MoveTab(today, Section::kFavorite, std::string(), 0));
+  EXPECT_EQ(favorites.rows(), (std::vector<std::string>{today}));
+  ASSERT_TRUE(model_.MoveTab(today, Section::kToday, std::string(), 0));
+  EXPECT_TRUE(favorites.rows().empty());
+}
+
 }  // namespace
 }  // namespace aerie_sidebar

@@ -118,6 +118,56 @@ struct SleepMotion {
 
 SleepMotion SleepFaviconMotion(bool reduced);
 
+// Pin and unpin (issue #180, docs/sidebar-design.md, "Motion"): FLIP. The tab
+// that changed section moves from its old place to its new one on the spring
+// (`motion-spring-duration`, 420 ms; `spring`), and the rows around it close
+// the gap on `base` and `standard`. All of it is the transform of a layer.
+// Reduced motion: nothing moves; each row is at its new place at once.
+struct PinMotion {
+  bool animate;
+  // The tab that moved.
+  int moved_duration_ms;
+  int moved_reduced_duration_ms;
+  aerie::tokens::MotionEasing moved_easing;
+  // The other rows.
+  aerie::tokens::MotionDuration others_duration;
+  aerie::tokens::MotionEasing others_easing;
+};
+
+PinMotion PinFlipMotion(bool reduced);
+
+// The context menu opens (issue #180): it scales from `from_scale` (0.97) to 1
+// and fades in on `fast` and `decelerate`. There is no closing animation.
+// Reduced motion: opacity only, on the reduced `fast` duration (90 ms).
+struct MenuOpenMotion {
+  bool animate_scale;
+  float from_scale;
+  float from_opacity;
+  aerie::tokens::MotionDuration duration;
+  aerie::tokens::MotionEasing easing;
+  int duration_ms;
+};
+
+MenuOpenMotion ContextMenuOpenMotion(bool reduced);
+
+// The toast (issue #180; docs/sidebar-design.md, "Motion"): it rises
+// `rise_px` and fades in on `fast` and `decelerate`, holds for `hold_ms`
+// (`motion-timing-toast`, a toast without actions), then fades out on `fast` and `accelerate`.
+// Reduced motion: opacity only, no rise.
+struct ToastMotion {
+  bool animate_rise;
+  int rise_px;
+  float from_opacity;
+  float to_opacity;
+  aerie::tokens::MotionDuration duration;
+  aerie::tokens::MotionEasing easing;
+  int duration_ms;
+  int hold_ms;
+};
+
+ToastMotion ToastShowMotion(bool reduced);
+ToastMotion ToastHideMotion(bool reduced);
+
 RowMotion OpenRowMotion(bool reduced);
 RowMotion CloseRowMotion(int outer_edge_sign, bool reduced);
 

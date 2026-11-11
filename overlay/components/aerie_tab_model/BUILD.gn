@@ -10,6 +10,8 @@ import("//testing/test.gni")
 # //chrome/browser/aerie_tab_model.
 source_set("aerie_tab_model") {
   sources = [
+    "pinned_tabs.cc",
+    "pinned_tabs.h",
     "sleep_schedule.cc",
     "sleep_schedule.h",
     "sleep_summary.cc",
@@ -24,6 +26,7 @@ source_set("aerie_tab_model") {
   ]
   public_deps = [
     "//base",
+    "//url",
   ]
 }
 
@@ -43,6 +46,7 @@ source_set("prefs") {
 source_set("unit_tests") {
   testonly = true
   sources = [
+    "pinned_tabs_unittest.cc",
     "sleep_schedule_unittest.cc",
     "sleep_summary_unittest.cc",
     "tab_model_persistence_unittest.cc",

@@ -11,7 +11,7 @@ The vertical panel with the address pill, Favorites, Pinned, Today, and the bott
 Icon tiles at the top of the Sidebar. They belong to one Workspace (story 52). Not the same as bookmarks.
 
 **Pinned tab**
-A tab in the Pinned section. It persists across restarts within its Workspace and keeps its original URL, with a way back after the user navigates away (stories 53, 55). It never auto-archives. Ctrl+W puts it to sleep instead of closing it, by default.
+A tab in the Pinned section. It persists across restarts within its Workspace and keeps its original URL, with a way back after the user navigates away (stories 53, 55). It never auto-archives. Ctrl+W puts it to sleep instead of closing it, by default. Its page comes back after a restart without loading until the user selects it. The close setting `aerie.tabs.pinned_close` chooses what Ctrl+W and the close button do.
 
 **Today**
 The section of unpinned tabs. Auto-archive applies to them (story 56).

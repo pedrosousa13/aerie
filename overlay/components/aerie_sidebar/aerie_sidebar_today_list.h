@@ -34,6 +34,28 @@ struct ListKeyResult {
 // first row.
 ListKeyResult HandleListKey(int count, int focused, ListKey key);
 
+// The keys of the Favorites grid (issue #180): arrows move the one tab stop in
+// two dimensions, Home and End go to the first and last tile of the row, with
+// Ctrl they go to the first and last tile of the grid, Delete closes.
+enum class GridKey {
+  kLeft,
+  kRight,
+  kUp,
+  kDown,
+  kRowStart,
+  kRowEnd,
+  kGridStart,
+  kGridEnd,
+  kDelete,
+};
+
+// `columns` tiles fill a row, left to right. Nothing wraps: Left on the first
+// tile of a row and Right on the last stay put, Up on the first row and Down on
+// the last stay put, and Down from a tile with no tile below it (the last row is
+// short) lands on the last tile. After Delete the stop stays at the same index,
+// or on the new last tile.
+ListKeyResult HandleGridKey(int count, int columns, int focused, GridKey key);
+
 // The rows of the Today list, in order, kept from the Tab Model through
 // TabModelObserver (issue #177). A row is a tab of the Workspace in the Today
 // section that is not in a folder and not archived. Folders come with a later
@@ -53,8 +75,12 @@ class TodayList : public aerie_tab_model::TabModelObserver {
     ~Delegate() = default;
   };
 
-  // `model` and `delegate` must outlive the list.
-  TodayList(aerie_tab_model::TabModel* model, Delegate* delegate);
+  // `model` and `delegate` must outlive the list. `section` is the section the
+  // list shows: Today by default; the Pinned section and the Favorites grid
+  // (issue #180) use the same list over their own section.
+  TodayList(aerie_tab_model::TabModel* model,
+            Delegate* delegate,
+            aerie_tab_model::Section section = aerie_tab_model::Section::kToday);
   TodayList(const TodayList&) = delete;
   TodayList& operator=(const TodayList&) = delete;
   ~TodayList() override;
@@ -79,6 +105,7 @@ class TodayList : public aerie_tab_model::TabModelObserver {
 
   const raw_ptr<aerie_tab_model::TabModel> model_;
   const raw_ptr<Delegate> delegate_;
+  const aerie_tab_model::Section section_;
   std::vector<std::string> rows_;
 };
 

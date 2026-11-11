@@ -25,6 +25,7 @@ class RepoOverlayTest(unittest.TestCase):
                                             "chrome/test/aerie/", "components/aerie_fingerprint/", "components/aerie_gpu_info/", "components/aerie_screen/", "components/aerie_text_metrics/", "components/aerie_webgl_readback/", "components/aerie_fonts/", "components/aerie_design_tokens/",
                                             "chrome/browser/resources/settings/appearance_page/aerie_motion_row.",
                                             "chrome/browser/resources/settings/appearance_page/aerie_sleep_row.",
+                                            "chrome/browser/resources/settings/appearance_page/aerie_pinned_close_row.",
                                             "components/aerie_tab_model/", "chrome/browser/aerie_tab_model/", "components/aerie_alpha_notice/",
                                             "components/aerie_sidebar/", "chrome/browser/ui/views/aerie_sidebar/",
                                             "components/aerie_frame/", "chrome/browser/ui/views/aerie_frame/",

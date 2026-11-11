@@ -49,4 +49,32 @@ class AerieSidebarTodayTree : public views::BoxLayoutView {
   base::RepeatingClosure focus_tab_stop_;
 };
 
+// The Favorites grid (issue #180): its tiles in `size-favorites-columns` (4)
+// columns, left to right, top to bottom, each as wide as the room allows and
+// `size-tile-comfortable` high. Focus goes to the tile that holds the roving tab
+// stop, which the sidebar knows.
+class AerieSidebarFavoritesGrid : public views::View {
+  METADATA_HEADER(AerieSidebarFavoritesGrid, views::View)
+
+ public:
+  AerieSidebarFavoritesGrid();
+  AerieSidebarFavoritesGrid(const AerieSidebarFavoritesGrid&) = delete;
+  AerieSidebarFavoritesGrid& operator=(const AerieSidebarFavoritesGrid&) =
+      delete;
+  ~AerieSidebarFavoritesGrid() override;
+
+  void SetFocusHandler(base::RepeatingClosure focus_tab_stop);
+  // The columns the grid lays out in.
+  int columns() const;
+
+  // views::View:
+  void RequestFocus() override;
+  gfx::Size CalculatePreferredSize(
+      const views::SizeBounds& available_size) const override;
+  void Layout(PassKey) override;
+
+ private:
+  base::RepeatingClosure focus_tab_stop_;
+};
+
 #endif  // CHROME_BROWSER_UI_VIEWS_AERIE_SIDEBAR_AERIE_SIDEBAR_REGIONS_H_

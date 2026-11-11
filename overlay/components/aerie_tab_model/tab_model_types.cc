@@ -249,6 +249,12 @@ base::DictValue TabToValue(const TabRecord& tab) {
   if (tab.archived_at) {
     dict.Set("archived_at", base::TimeToValue(*tab.archived_at));
   }
+  if (tab.previous_section) {
+    dict.Set("previous_section", SectionToString(*tab.previous_section));
+  }
+  if (tab.last_title) {
+    dict.Set("last_title", *tab.last_title);
+  }
   return dict;
 }
 
@@ -262,6 +268,7 @@ std::optional<TabRecord> TabFromValue(const base::DictValue& dict) {
                      tab.position) ||
       !ReadOptionalString(dict, "pinned_url", tab.pinned_url) ||
       !ReadOptionalString(dict, "manual_name", tab.manual_name) ||
+      !ReadOptionalString(dict, "last_title", tab.last_title) ||
       !last_active || !sleeping) {
     return std::nullopt;
   }
@@ -273,6 +280,16 @@ std::optional<TabRecord> TabFromValue(const base::DictValue& dict) {
       return std::nullopt;
     }
     tab.archived_at = *time;
+  }
+  // Added by issue #180 without a schema bump: absent in older files.
+  if (const base::Value* previous = dict.Find("previous_section")) {
+    std::optional<Section> section =
+        previous->is_string() ? SectionFromString(previous->GetString())
+                              : std::nullopt;
+    if (!section) {
+      return std::nullopt;
+    }
+    tab.previous_section = *section;
   }
   return tab;
 }

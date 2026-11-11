@@ -94,6 +94,42 @@
   <message name="IDS_AERIE_SIDEBAR_SLEEPING_TOOLTIP" desc="Tooltip of the text at the end of the Today heading that says how many tabs are asleep. It tells the user that the memory number is an estimate.">
     Estimate of the memory that sleeping tabs freed
   </message>
+  <message name="IDS_AERIE_SIDEBAR_FAVORITES" desc="Accessible name of the grid of Favorites at the top of the sidebar. Favorites are small tiles, one per page the user keeps close.">
+    Favorites
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_PINNED" desc="Accessible name of the list of pinned tabs in the sidebar. A pinned tab stays in this list across restarts and keeps its page.">
+    Pinned tabs
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_BACK_TO_PINNED" desc="Tooltip and accessible name of the button on a pinned tab row in the sidebar. The tab has left its pinned page, and the button takes it back to that page.">
+    Back to pinned page
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_CLOSE_RESET_SLEEP" desc="Tooltip of the close button on a pinned tab when pressing it goes back to the pinned page and puts the tab to sleep.">
+    Reset and sleep
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_CLOSE_SLEEP" desc="Tooltip of the close button on a pinned tab when pressing it puts the tab to sleep and keeps its page.">
+    Sleep
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_CLOSE_CLOSE" desc="Tooltip of the close button on a pinned tab when pressing it unpins and closes the tab.">
+    Close
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_TILE_ASLEEP" desc="Tooltip of a sleeping tile in the Favorites grid of the sidebar. The tab is unloaded, so it uses no memory, and it loads again when the user selects it.">
+    Asleep, frees memory
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_PIN_TAB" desc="Item of the context menu of a tab in the sidebar. It moves the tab to the list of pinned tabs.">
+    Pin tab
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_UNPIN_TAB" desc="Item of the context menu of a pinned tab in the sidebar. It moves the tab back to the list of today's tabs.">
+    Unpin tab
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_ADD_TO_FAVORITES" desc="Item of the context menu of a tab in the sidebar. It makes the tab a Favorite, a small tile at the top of the sidebar.">
+    Add to Favorites
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_REMOVE_FROM_FAVORITES" desc="Item of the context menu of a Favorite in the sidebar. It takes the tab out of the Favorites grid and puts it back where it was.">
+    Remove from Favorites
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_FAVORITES_FULL" desc="Short message that the sidebar shows for a moment when the user tries to add a 13th Favorite. The Favorites grid holds 12.">
+    Favorites are full. Remove one to add another.
+  </message>
   <message name="IDS_SETTINGS_AERIE_SLEEP_AFTER" desc="Label of the drop-down in the Sidebar section of Settings that sets how long a tab can be idle before it is put to sleep.">
     Put inactive tabs to sleep after
   </message>
@@ -120,5 +156,20 @@
   </message>
   <message name="IDS_SETTINGS_AERIE_SLEEP_NEVER" desc="Option of the sleep drop-down in Settings: tabs never go to sleep by themselves.">
     Never
+  </message>
+  <message name="IDS_SETTINGS_AERIE_PINNED_CLOSE" desc="Label of the drop-down in the Sidebar section of Settings that sets what Ctrl+W and the close button do on a pinned tab. A pinned tab is one the user keeps in the Pinned section of the sidebar.">
+    Close a pinned tab
+  </message>
+  <message name="IDS_SETTINGS_AERIE_PINNED_CLOSE_DESC" desc="Line under the pinned-close drop-down in Settings. It says that the second press closes the tab for good.">
+    A second press on a tab that is already asleep unpins and closes it.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_PINNED_CLOSE_RESET_SLEEP_SWITCH" desc="Option of the pinned-close drop-down in Settings, the default. Closing a pinned tab goes back to its pinned page, puts the tab to sleep and selects the next tab.">
+    Reset, sleep and switch
+  </message>
+  <message name="IDS_SETTINGS_AERIE_PINNED_CLOSE_SLEEP" desc="Option of the pinned-close drop-down in Settings. Closing a pinned tab puts it to sleep and selects the next tab. The page stays as it is.">
+    Sleep only
+  </message>
+  <message name="IDS_SETTINGS_AERIE_PINNED_CLOSE_CLOSE" desc="Option of the pinned-close drop-down in Settings. Closing a pinned tab unpins and closes it.">
+    Close
   </message>
 </grit-part>

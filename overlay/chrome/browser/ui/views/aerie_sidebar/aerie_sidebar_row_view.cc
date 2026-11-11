@@ -137,6 +137,28 @@ AerieSidebarRowView::AerieSidebarRowView(
   title_->GetViewAccessibility().SetIsIgnored(true);
   layout->SetFlexForView(title_, 1);
 
+  // The "Back to pinned page" button, shown only on a pinned row that has left
+  // its page. It is not a focus stop: the row's own keys are the keyboard way
+  // (the context menu has no entry for it either; the button is a pointer
+  // affordance, and a screen reader reaches it by its name).
+  back_to_pinned_ = content_->AddChildView(views::CreateVectorImageButton(
+      base::BindRepeating(
+          [](AerieSidebarRowView* row) {
+            if (row->callbacks_.back_to_pinned) {
+              row->callbacks_.back_to_pinned.Run();
+            }
+          },
+          base::Unretained(this))));
+  back_to_pinned_->SetPreferredSize(gfx::Size(aerie::tokens::kSizeBackButton, aerie::tokens::kSizeBackButton));
+  back_to_pinned_->SetVisible(false);
+  back_to_pinned_->SetFocusBehavior(views::View::FocusBehavior::NEVER);
+  back_to_pinned_->SetInstallFocusRingOnFocus(false);
+  views::FocusRing::Remove(back_to_pinned_);
+  back_to_pinned_->GetViewAccessibility().SetName(
+      l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_BACK_TO_PINNED));
+  back_to_pinned_->SetTooltipText(
+      l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_BACK_TO_PINNED));
+
   close_button_ = content_->AddChildView(views::CreateVectorImageButton(
       base::BindRepeating(
           [](AerieSidebarRowView* row) { row->callbacks_.close.Run(); },
@@ -207,10 +229,32 @@ void AerieSidebarRowView::SetPalette(
                                               palette_.text, kFaviconSize));
   }
   views::InkDrop::Get(close_button_)->SetBaseColor(palette_.text);
+  for (views::Button::ButtonState state :
+       {views::Button::STATE_NORMAL, views::Button::STATE_DISABLED}) {
+    back_to_pinned_->SetImageModel(
+        state, ui::ImageModel::FromVectorIcon(vector_icons::kUndoIcon,
+                                              palette_.text_muted, kFaviconSize));
+  }
+  for (views::Button::ButtonState state :
+       {views::Button::STATE_HOVERED, views::Button::STATE_PRESSED}) {
+    back_to_pinned_->SetImageModel(
+        state, ui::ImageModel::FromVectorIcon(vector_icons::kUndoIcon,
+                                              palette_.text, kFaviconSize));
+  }
+  views::InkDrop::Get(back_to_pinned_)->SetBaseColor(palette_.text);
   AerieSidebarFocusRing::Get(this)->SetColor(palette_.accent);
   sleep_badge_->SetImage(ui::ImageModel::FromVectorIcon(
       aerie_sidebar::kAerieSleepBadgeIcon, palette_.text, kSleepBadgeSize));
   UpdateState();
+}
+
+void AerieSidebarRowView::SetBackToPinnedVisible(bool visible) {
+  back_to_pinned_->SetVisible(visible && !closing_);
+}
+
+void AerieSidebarRowView::SetCloseTooltip(const std::u16string& text) {
+  close_button_->SetTooltipText(text);
+  close_button_->GetViewAccessibility().SetName(text);
 }
 
 void AerieSidebarRowView::SetTitle(const std::u16string& title) {
@@ -440,6 +484,18 @@ bool AerieSidebarRowView::OnKeyPressed(const ui::KeyEvent& event) {
     case ui::VKEY_DELETE:
       callbacks_.key.Run(aerie_sidebar::ListKey::kDelete);
       return true;
+    case ui::VKEY_BACK:
+      // "Back to pinned page" from the keyboard (issue #180): Backspace on a
+      // pinned row that has left its page. Chromium's Alt+Left would collide
+      // with the browser's Back, so it is not used.
+      // Only the bare key: Shift+Backspace and the others do nothing (Ctrl,
+      // Alt and Command are already refused above).
+      if (!event.IsShiftDown() && back_to_pinned_->GetVisible() &&
+          callbacks_.back_to_pinned) {
+        callbacks_.back_to_pinned.Run();
+        return true;
+      }
+      return false;
     case ui::VKEY_UP:
       callbacks_.key.Run(aerie_sidebar::ListKey::kUp);
       return true;

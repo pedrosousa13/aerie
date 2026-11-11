@@ -5,6 +5,7 @@
 #ifndef CHROME_BROWSER_UI_VIEWS_AERIE_SIDEBAR_AERIE_SIDEBAR_VIEW_H_
 #define CHROME_BROWSER_UI_VIEWS_AERIE_SIDEBAR_AERIE_SIDEBAR_VIEW_H_
 
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -12,25 +13,35 @@
 #include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
+#include "base/timer/timer.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_regions.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_toolbar_parts.h"
+#include "components/aerie_design_tokens/aerie_motion.h"
 #include "components/aerie_sidebar/aerie_sidebar_drag.h"
 #include "components/aerie_sidebar/aerie_sidebar_palette.h"
 #include "components/aerie_sidebar/aerie_sidebar_today_list.h"
 #include "components/aerie_tab_model/tab_model_observer.h"
+#include "components/prefs/pref_change_registrar.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/mojom/menu_source_type.mojom-forward.h"
+#include "ui/gfx/geometry/point.h"
 #include "ui/views/view.h"
 
 class BrowserWindowInterface;
 class AerieSidebarRowView;
+class AerieSidebarTileView;
 class AerieSidebarTopRow;
 class AerieSidebarContextMenu;
 
 namespace aerie_tab_model {
+class PinnedTabsController;
 class TabModel;
 }  // namespace aerie_tab_model
+
+namespace ui {
+class Layer;
+}  // namespace ui
 
 namespace views {
 class BoxLayoutView;
@@ -43,12 +54,16 @@ namespace tabs {
 class TabInterface;
 }  // namespace tabs
 
-// The contents of Aerie's sidebar (issues #177 and #215), top to bottom: the top
-// row (window controls, the sidebar toggle, Back, Forward, Reload), the address
-// pill (the real location bar), a New Tab row, the Today list, one row per
-// unpinned tab of this window, kept from the Tab Model
-// (aerie_sidebar::TodayList), and the bottom bar (a placeholder; the toolbar's
-// remaining buttons live there for now). It is a child of VerticalTabStripRegionView,
+// The contents of Aerie's sidebar (issues #177, #215 and #180), top to bottom:
+// the top row (window controls, the sidebar toggle, Back, Forward, Reload), the
+// address pill (the real location bar), the Favorites grid (one tile per
+// Favorite, in `size-favorites-columns` columns), the Pinned list (one row per
+// pinned tab, with the "Back to pinned page" button), a New Tab row, the Today
+// list, one row per unpinned tab of this window, and the bottom bar (a
+// placeholder; the toolbar's remaining buttons live there for now). The lists
+// are kept from the Tab Model (aerie_sidebar::TodayList, one per section).
+// A short message (the toast) shows above the bottom bar for a moment, for the
+// 13th Favorite. It is a child of VerticalTabStripRegionView,
 // which keeps owning the frame of the column: its slot in the window layout,
 // its background, its resize area and its width. docs/sidebar-design.md,
 // "Native sidebar view", has the reasons.
@@ -102,6 +117,25 @@ class AerieSidebarView : public views::View,
   bool dragging() const { return drag_.active; }
   int drag_target_index() const { return drag_.target; }
 
+  // The Pinned list and the Favorites grid (issue #180), for tests.
+  size_t pinned_row_count() const { return pinned_rows_.size(); }
+  AerieSidebarRowView* pinned_row_at(size_t index) const;
+  std::string pinned_tab_id_at(size_t index) const;
+  AerieSidebarTodayTree* pinned_tree() const { return pinned_list_; }
+  AerieSidebarRowView* pinned_tab_stop_row() const;
+  size_t favorite_tile_count() const { return tiles_.size(); }
+  AerieSidebarTileView* tile_at(size_t index) const;
+  std::string favorite_tab_id_at(size_t index) const;
+  AerieSidebarFavoritesGrid* favorites_grid() const { return favorites_grid_; }
+  AerieSidebarTileView* tile_stop() const;
+  // The short message above the bottom bar, and whether it shows now.
+  views::Label* toast() const { return toast_; }
+  bool toast_visible() const;
+  // Starts the fade out at once instead of waiting for the hold.
+  void HideToastForTesting() { HideToast(); }
+  void ShowToastForTesting(const std::u16string& text) { ShowToast(text); }
+  ui::Layer* toast_layer() const;
+
   // The rows, in order, for tests: the live ones, then the ones that are
   // closing.
   AerieSidebarRowView* row_at(size_t index) const;
@@ -128,6 +162,8 @@ class AerieSidebarView : public views::View,
   void OnWorkspaceChanged(const aerie_tab_model::Workspace& workspace) override;
   void OnModelLoaded() override;
   void OnTabAdded(const aerie_tab_model::TabRecord& tab) override;
+  void OnTabMoved(const aerie_tab_model::TabRecord& tab,
+                  const aerie_tab_model::Placement& from) override;
   void OnTabChanged(const aerie_tab_model::TabRecord& tab) override;
   void OnTabRemoved(const aerie_tab_model::TabRecord& tab) override;
 
@@ -153,22 +189,48 @@ class AerieSidebarView : public views::View,
     std::string tab_id;
     raw_ptr<AerieSidebarRowView> view;
   };
+  struct Tile {
+    std::string tab_id;
+    raw_ptr<AerieSidebarTileView> view;
+  };
+  // Tells the view that the Favorites or the Pinned list changed.
+  class SectionNotifier;
 
   // The tab of this window that has this record id, or null.
   tabs::TabInterface* FindTab(const std::string& tab_id) const;
+  // Makes every section match the Tab Model. When a tab changed section, the
+  // rows move to their new places with the FLIP motion (issue #180).
+  void SyncAll();
+  void SyncFavorites();
+  void SyncPinned();
   // Makes the rows match the Today list, keeping the views of rows that stay.
   void SyncRows();
+  // Where every row and tile is now, in this view's coordinates, by tab id.
+  std::map<std::string, gfx::Point> CapturePositions() const;
+  // The FLIP motion: from the places in `before` to the places now.
+  void PlayFlip(const std::map<std::string, gfx::Point>& before,
+                const std::string& moved_id);
   // The Tab Model tells its observers before the tab strip adapter has joined
   // the new record to its tab, so the rows are synced in a task after the
   // change, and several changes make one sync.
   void ScheduleSync();
   void UpdateRows();
   void UpdateRow(const Row& row);
+  void UpdateTile(const Tile& tile);
   void SelectTab(const std::string& tab_id);
-  // The context menu of a row: today the one item, "Sleep tab" (issue #179).
+  // The context menu of a row or a tile (issues #179 and #180): Pin or Unpin,
+  // Add to or Remove from Favorites, Sleep tab and Close tab.
   void ShowRowContextMenu(const std::string& tab_id,
                           const gfx::Point& screen_point,
                           ui::mojom::MenuSourceType source_type);
+  void OnContextCommand(const std::string& tab_id, int command);
+  // Shows the toast for `kMotionTimingToast` ms and says it politely to a
+  // screen reader.
+  void ShowToast(const std::u16string& text);
+  void HideToast();
+  void FinishToastHide();
+  aerie_tab_model::PinnedTabsController* PinnedController() const;
+  void GoBackToPinnedPage(const std::string& tab_id);
   // Writes the count of sleeping tabs and the memory estimate into the Today
   // header, or hides them when no tab sleeps.
   void UpdateSleepingSummary();
@@ -177,6 +239,19 @@ class AerieSidebarView : public views::View,
   void OnRowKey(const std::string& tab_id, aerie_sidebar::ListKey key);
   // Keyboard focus is on a row: it is the Tab stop from now on.
   void OnRowFocused();
+  // The same for the Pinned tree and the Favorites grid (issue #180).
+  void OnPinnedRowKey(const std::string& tab_id, aerie_sidebar::ListKey key);
+  void OnPinnedRowFocused();
+  void UpdatePinnedTabStop();
+  void FocusPinnedRow(int index);
+  void FocusPinnedTabStop();
+  int IndexOfPinnedRow(const std::string& tab_id) const;
+  void OnTileKey(const std::string& tab_id, aerie_sidebar::GridKey key);
+  void OnTileFocused();
+  void UpdateTileTabStop();
+  void FocusTile(int index);
+  void FocusTileStop();
+  int IndexOfTile(const std::string& tab_id) const;
   // Gives the Tab stop to the focused row, else to the selected row, else to
   // the first one.
   void UpdateTabStop();
@@ -240,6 +315,20 @@ class AerieSidebarView : public views::View,
   raw_ptr<AerieSidebarTodayTree> list_ = nullptr;
   raw_ptr<views::ScrollView> scroll_ = nullptr;
   std::vector<Row> rows_;
+  // The Favorites grid and the Pinned list (issue #180).
+  raw_ptr<AerieSidebarFavoritesGrid> favorites_grid_ = nullptr;
+  std::vector<Tile> tiles_;
+  raw_ptr<views::ScrollView> pinned_scroll_ = nullptr;
+  raw_ptr<AerieSidebarTodayTree> pinned_list_ = nullptr;
+  std::vector<Row> pinned_rows_;
+  raw_ptr<views::Label> toast_ = nullptr;
+  base::OneShotTimer toast_timer_;
+  aerie::motion::MotionHandle toast_motion_;
+  PrefChangeRegistrar pref_registrar_;
+  // A tab changed section: the next sync plays the FLIP motion for it.
+  bool flip_pending_ = false;
+  std::map<std::string, gfx::Point> flip_before_;
+  std::string flip_moved_id_;
   // The drag in progress, if any.
   struct DragState {
     bool active = false;
@@ -254,11 +343,16 @@ class AerieSidebarView : public views::View,
   // stay in the list so that the others do not jump, and take no input.
   std::vector<raw_ptr<AerieSidebarRowView>> closing_rows_;
   std::unique_ptr<aerie_sidebar::TodayList> today_list_;
+  std::unique_ptr<SectionNotifier> favorites_notifier_;
+  std::unique_ptr<SectionNotifier> pinned_notifier_;
+  std::unique_ptr<aerie_sidebar::TodayList> favorites_list_;
+  std::unique_ptr<aerie_sidebar::TodayList> pinned_list_model_;
   bool sync_pending_ = false;
   // The tab that Delete or Ctrl+W asked to close from a row: when its row goes,
   // keyboard focus stays in the list (closing the selected tab would otherwise
   // hand focus to the page).
   std::string refocus_after_close_id_;
+  std::string pinned_refocus_after_close_id_;
   base::WeakPtrFactory<AerieSidebarView> weak_factory_{this};
 };
 

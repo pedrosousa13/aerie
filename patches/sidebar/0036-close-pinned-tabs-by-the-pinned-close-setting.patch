@@ -1,0 +1,46 @@
+Aerie-Purpose: Let Ctrl+W on a Pinned or Favorites tab follow the pinned-close setting instead of closing the tab.
+Aerie-Upstream-Area: chrome/browser/ui (browser_commands.cc, BUILD.gn)
+Aerie-Kind: hook
+
+Issue #180. chrome::CloseTab runs for IDC_CLOSE_TAB (Ctrl+W, Cmd+W). Before it closes the selected tab it
+calls aerie_tab_model::HandlePinnedClose (overlay, chrome/browser/aerie_tab_model/pinned_close_hook.h). For a
+tab of Aerie's Pinned section or Favorites grid that call applies the aerie.tabs.pinned_close setting (reset,
+sleep and switch; sleep only; or close) and returns true, and CloseTab returns. For any other tab it returns
+false and nothing changes. Chromium's own "close pinned tab" toast is for tabs that carry the Chromium pinned
+bit, which Aerie's Pinned tabs do not (docs/sidebar-design.md, "Pinned tabs and the Chromium pinned bit").
+The header has no dependencies, so the new dep of browser_commands_impl cannot make a cycle; the definition is
+in pinned_tabs_controller.cc.
+
+--- a/chrome/browser/ui/BUILD.gn
++++ b/chrome/browser/ui/BUILD.gn
+@@ -850,6 +850,7 @@
+       "//chrome/browser:chained_back_navigation_tracker",
+       "//chrome/browser:font_pref",
+       "//chrome/browser/actor/ui:actor_overlay",
++      "//chrome/browser/aerie_tab_model:pinned_close_hook",
+       "//chrome/browser/apps/app_service",
+       "//chrome/browser/apps/link_capturing",
+       "//chrome/browser/autocomplete",
+--- a/chrome/browser/ui/browser_commands.cc
++++ b/chrome/browser/ui/browser_commands.cc
+@@ -30,6 +30,7 @@
+ #include "base/trace_event/trace_event.h"
+ #include "build/build_config.h"
+ #include "chrome/app/chrome_command_ids.h"
++#include "chrome/browser/aerie_tab_model/pinned_close_hook.h"
+ #include "chrome/browser/autocomplete/autocomplete_classifier_factory.h"
+ #include "chrome/browser/bookmarks/bookmark_model_factory.h"
+ #include "chrome/browser/browser_process.h"
+@@ -1490,6 +1491,12 @@
+     return;
+   }
+ 
++  // Aerie: Ctrl+W on a Pinned or Favorites tab follows the pinned-close setting
++  // (issue #180) instead of closing the tab.
++  if (aerie_tab_model::HandlePinnedClose(active_tab)) {
++    return;
++  }
++
+   // If the selection model consists of only the indices of a single split tab,
+   // decide if just the active tab in the split is closed instead of all tabs in
+   // the split.

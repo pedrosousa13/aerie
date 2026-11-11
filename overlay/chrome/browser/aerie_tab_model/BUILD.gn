@@ -8,9 +8,22 @@
 #
 # tab_model_browsertest.cc is not listed: it joins the Aerie browser-test
 # target that issue #175 adds (see the note at the top of that file).
+# The one declaration that chrome::CloseTab calls (patches/sidebar/0036). A
+# header with no dependencies of its own, so that //chrome/browser/ui can depend
+# on it without a cycle; its definition is in pinned_tabs_controller.cc.
+source_set("pinned_close_hook") {
+  visibility = [ "//chrome/*" ]
+  sources = [ "pinned_close_hook.h" ]
+}
+
+# chrome/browser/ui/browser_tabrestore.h (chrome::AddRestoredTab, which
+# PinnedTabsController calls) is deliberately not a dependency: its target
+# depends on //chrome/browser/profiles, which depends on this one (patches/sidebar/0011), so
+# naming it would close a cycle. The symbol is resolved when chrome links.
 source_set("aerie_tab_model") {
   visibility = [ "//chrome/*" ]
   public = [
+    "pinned_tabs_controller.h",
     "sleep_controller.h",
     "sleep_controller_factory.h",
     "tab_model_service.h",
@@ -18,6 +31,8 @@ source_set("aerie_tab_model") {
     "tab_strip_adapter.h",
   ]
   sources = [
+    "pinned_tabs_controller.cc",
+    "pinned_tabs_controller.h",
     "sleep_controller.cc",
     "sleep_controller_factory.cc",
     "tab_model_service.cc",
@@ -37,6 +52,7 @@ source_set("aerie_tab_model") {
     "//components/tabs:public",
   ]
   deps = [
+    ":pinned_close_hook",
     "//chrome/app:generated_resources",
     "//chrome/browser/performance_manager",
     "//chrome/browser/performance_manager/public/user_tuning",
@@ -44,9 +60,13 @@ source_set("aerie_tab_model") {
     "//chrome/browser/resource_coordinator:mojo_bindings",
     "//chrome/browser/tab_list",
     "//chrome/browser/ui/tabs:tab_strip",
+    "//chrome/common",
     "//components/aerie_tab_model:prefs",
     "//components/performance_manager",
+    "//components/sessions",
     "//content/public/browser",
+    "//ui/base",
+    "//url",
   ]
 }
 
