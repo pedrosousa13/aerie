@@ -120,12 +120,14 @@ source_set("interactive_tests") {
     "aerie_sidebar_guard_uitest.cc",
     "aerie_sidebar_keyboard_uitest.cc",
     "aerie_sidebar_motion_uitest.cc",
+    "aerie_sidebar_sleep_uitest.cc",
   ]
   deps = [
     ":aerie_sidebar",
     "//base",
     "//base/test:test_support",
     "//chrome/browser:browser",
+    "//chrome/browser/aerie_tab_model",
     "//chrome/browser/profiles:profile",
     "//chrome/browser/ui/tabs:tabs_public",
     "//chrome/browser/ui/views/aerie_adblock:guard",

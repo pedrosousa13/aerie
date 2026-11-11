@@ -1,0 +1,61 @@
+Aerie-Purpose: Put the "Put inactive tabs to sleep after" row in the Sidebar section of Settings, and give the page its strings.
+Aerie-Upstream-Area: chrome/browser/resources/settings (appearance_page/appearance_layout_page.ts, appearance_page/appearance_layout_page.html.ts, BUILD.gn), chrome/browser/ui/webui/settings (settings_localized_strings_provider.cc)
+Aerie-Kind: hook
+
+Issue #179. The row, settings-aerie-sleep-row, is a Lit element in the overlay
+(chrome/browser/resources/settings/appearance_page/aerie_sleep_row.*). It is a
+settings-dropdown-menu on the pref aerie.tabs.sleep_after_minutes (patches/sidebar/0010, already in
+the settings_private allowlist as a number), with the options 15 min, 30 min, 1 h (default), 2 h,
+4 h, 8 h and Never. Its strings are in the overlay's aerie_sidebar_strings.grdp, which
+patches/sidebar/0022 includes in generated_resources.grd; this patch hands them to the page. The
+element sits in the "Sidebar" section that patches/sidebar/0022 made.
+
+--- a/chrome/browser/resources/settings/BUILD.gn
++++ b/chrome/browser/resources/settings/BUILD.gn
+@@ -204,6 +204,8 @@
+     "ai_page/skills_page.ts",
+     "appearance_page/aerie_motion_row.html.ts",
+     "appearance_page/aerie_motion_row.ts",
++    "appearance_page/aerie_sleep_row.html.ts",
++    "appearance_page/aerie_sleep_row.ts",
+     "appearance_page/appearance_browser_proxy.ts",
+     "appearance_page/appearance_fonts_page.html.ts",
+     "appearance_page/appearance_fonts_page.ts",
+--- a/chrome/browser/resources/settings/appearance_page/appearance_layout_page.ts
++++ b/chrome/browser/resources/settings/appearance_page/appearance_layout_page.ts
+@@ -3,6 +3,7 @@
+ // the terms of the GPL-3.0 license that can be found in the LICENSE file.
+ 
+ import '../settings_page/settings_section.js';
++import './aerie_sleep_row.js';
+ 
+ import {CrLitElement} from 'chrome://resources/lit/v3_0/lit.rollup.js';
+ 
+--- a/chrome/browser/resources/settings/appearance_page/appearance_layout_page.html.ts
++++ b/chrome/browser/resources/settings/appearance_page/appearance_layout_page.html.ts
+@@ -10,6 +10,7 @@
+   // clang-format off
+   return html`<!--_html_template_start_-->
+ <settings-section page-title="$i18n{aerieSidebarPageTitle}">
++  <settings-aerie-sleep-row></settings-aerie-sleep-row>
+ </settings-section>
+ <!--_html_template_end_-->`;
+   // clang-format on
+--- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
++++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
+@@ -622,6 +622,15 @@
+        IDS_SETTINGS_NATIVE_FRAME_MATERIALS_DESCRIPTION},
+       {"layoutPageTitle", IDS_SETTINGS_LAYOUT},
+       {"aerieSidebarPageTitle", IDS_SETTINGS_AERIE_SIDEBAR},
++      {"aerieSleepAfter", IDS_SETTINGS_AERIE_SLEEP_AFTER},
++      {"aerieSleepAfterDesc", IDS_SETTINGS_AERIE_SLEEP_AFTER_DESC},
++      {"aerieSleepAfter15Min", IDS_SETTINGS_AERIE_SLEEP_15_MIN},
++      {"aerieSleepAfter30Min", IDS_SETTINGS_AERIE_SLEEP_30_MIN},
++      {"aerieSleepAfter1Hour", IDS_SETTINGS_AERIE_SLEEP_1_HOUR},
++      {"aerieSleepAfter2Hours", IDS_SETTINGS_AERIE_SLEEP_2_HOURS},
++      {"aerieSleepAfter4Hours", IDS_SETTINGS_AERIE_SLEEP_4_HOURS},
++      {"aerieSleepAfter8Hours", IDS_SETTINGS_AERIE_SLEEP_8_HOURS},
++      {"aerieSleepAfterNever", IDS_SETTINGS_AERIE_SLEEP_NEVER},
+       {"browserLayout", IDS_SETTINGS_BROWSER_LAYOUT},
+       {"browserLayoutClassic", IDS_SETTINGS_BROWSER_LAYOUT_CLASSIC},
+       {"browserLayoutDynamic", IDS_SETTINGS_BROWSER_LAYOUT_DYNAMIC},

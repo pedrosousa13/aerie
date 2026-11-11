@@ -140,3 +140,6 @@ sidebar/0031-move-the-address-pill-and-navigation-into-the-sidebar.patch
 sidebar/0032-let-f6-visit-the-sidebar-regions-in-order.patch
 sidebar/0033-give-the-page-its-room-at-once-when-the-sidebar-hides.patch
 sidebar/0034-lock-helium-layout-in-the-command-line-pref-layer.patch
+
+# Putting inactive tabs to sleep (#179): the sleep row in the Sidebar section of Settings.
+sidebar/0035-add-the-sleep-row-to-the-sidebar-section-of-settings.patch

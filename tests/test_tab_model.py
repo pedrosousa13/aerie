@@ -52,7 +52,8 @@ class BuildWiringTest(unittest.TestCase):
     def test_the_browser_test_waits_for_the_aerie_browser_test_target(self):
         test = SERVICE / "tab_model_browsertest.cc"
         self.assertTrue(test.is_file())
-        self.assertNotIn("browsertest", (SERVICE / "BUILD.gn").read_text().replace("tab_model_browsertest.cc is not listed", ""))
+        # The sleep controller's test (#179) is listed; this one is not.
+        self.assertNotIn("tab_model_browsertest", (SERVICE / "BUILD.gn").read_text().replace("tab_model_browsertest.cc is not listed", ""))
         self.assertIn("#175", test.read_text())
 
     def test_an_off_the_record_profile_has_an_own_in_memory_service(self):
