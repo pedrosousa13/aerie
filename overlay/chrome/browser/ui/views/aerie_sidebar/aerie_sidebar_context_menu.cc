@@ -115,10 +115,31 @@ views::MenuItemView* AerieSidebarContextMenu::item(int command) const {
   return root_->GetMenuItemByID(command);
 }
 
+bool AerieSidebarContextMenu::HasCommand(int id) const {
+  using aerie_tab_model::Section;
+  switch (id) {
+    case kCommandSleepTab:
+    case kCommandClose:
+      return true;
+    case kCommandPin:
+      return options_.section == Section::kToday;
+    case kCommandUnpin:
+      return options_.section == Section::kPinned;
+    case kCommandAddToFavorites:
+      return options_.section != Section::kFavorite;
+    case kCommandRemoveFromFavorites:
+      return options_.section == Section::kFavorite;
+    case kCommandBackToPinned:
+      return options_.away_from_pinned && options_.section == Section::kPinned;
+  }
+  return false;
+}
+
 bool AerieSidebarContextMenu::IsCommandEnabled(int id) const {
   // A command that this menu does not have (the Pin item of a Favorite, say)
-  // is not enabled.
-  if (!root_ || !root_->GetMenuItemByID(id)) {
+  // is not enabled. This is read from the options, not from the item tree: the
+  // menu asks while it is still adding the item.
+  if (!HasCommand(id)) {
     return false;
   }
   return id != kCommandSleepTab || options_.sleep.enabled;

@@ -95,6 +95,8 @@ class AerieSidebarContextMenu : public views::MenuDelegate {
   void OnMenuClosed(views::MenuItemView* menu) override;
 
  private:
+  bool HasCommand(int id) const;
+
   Options options_;
   CommandCallback on_command_;
   raw_ptr<views::MenuItemView> root_ = nullptr;

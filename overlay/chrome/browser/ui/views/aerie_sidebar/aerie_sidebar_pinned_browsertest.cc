@@ -619,6 +619,14 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarPinnedBrowserTest, ACommandThatTheMenuLacksIs
   EXPECT_FALSE(menu.IsCommandEnabled(M::kCommandBackToPinned));
   EXPECT_TRUE(menu.IsCommandEnabled(M::kCommandRemoveFromFavorites));
   EXPECT_TRUE(menu.IsCommandEnabled(M::kCommandClose));
+  // The items themselves are enabled (the menu asks while it adds them, so this
+  // is what the user sees), and "Sleep tab" follows its own flag.
+  EXPECT_TRUE(menu.item(M::kCommandRemoveFromFavorites)->GetEnabled());
+  EXPECT_TRUE(menu.item(M::kCommandClose)->GetEnabled());
+  options.section = aerie_tab_model::Section::kToday;
+  M today(options, base::DoNothing());
+  EXPECT_TRUE(today.item(M::kCommandPin)->GetEnabled());
+  EXPECT_TRUE(today.item(M::kCommandAddToFavorites)->GetEnabled());
 }
 
 // A sleeping Favorite tile says why it is dim.
