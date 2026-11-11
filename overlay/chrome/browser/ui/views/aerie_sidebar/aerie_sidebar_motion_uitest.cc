@@ -213,3 +213,79 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarMotionUiTest, ReducedMotionOpensAndClosesWith
   EXPECT_FALSE(closing->height_animating());
   ASSERT_TRUE(base::test::RunUntil([&] { return sidebar()->closing_row_count() == 0u; }));
 }
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarMotionUiTest, HideAndShowAnimateOnlyTransformAndTheCardFollowsInOneStep) {
+  ForceReducedMotion(false);
+  ASSERT_TRUE(base::test::RunUntil([&] { return region()->width() > 0; }));
+  const int column_width = region()->width();
+  const gfx::Rect card_before = card()->bounds();
+  ui::Layer* column = region()->layer();
+
+  // Hide (Ctrl+S): the column slides out by a transform, 200 ms.
+  chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
+  EXPECT_TRUE(Animates(column, ui::LayerAnimationElement::TRANSFORM));
+  EXPECT_FALSE(Animates(column, ui::LayerAnimationElement::OPACITY));
+  EXPECT_TRUE(OnlyTransformAndOpacityAnimate(column));
+
+  // The card has its new bounds in one step and follows with a transform: it
+  // is wider by the column, and starts where it was.
+  ASSERT_TRUE(base::test::RunUntil([&] { return card()->width() > card_before.width(); }));
+  const gfx::Rect card_after = card()->bounds();
+  EXPECT_GE(card_after.width() - card_before.width(), column_width - 2);
+  ASSERT_TRUE(base::test::RunUntil([&] { return card()->layer() != nullptr; }));
+  ui::Layer* card_layer = card()->layer();
+  EXPECT_TRUE(Animates(card_layer, ui::LayerAnimationElement::TRANSFORM));
+  EXPECT_FALSE(Animates(card_layer, ui::LayerAnimationElement::OPACITY));
+  EXPECT_TRUE(OnlyTransformAndOpacityAnimate(card_layer));
+  EXPECT_TRUE(card_layer->GetTargetTransform().IsIdentity());
+  EXPECT_NE(card_layer->transform().To2dTranslation().x(), 0.f);
+
+  // Nothing lays out per frame: the card's bounds stay what they are for the
+  // whole animation.
+  ASSERT_TRUE(base::test::RunUntil([&] { return region()->aerie_sidebar_hidden(); }));
+  EXPECT_EQ(card()->bounds(), card_after);
+
+  // Show: the card is narrower at once and follows the column back.
+  chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
+  EXPECT_TRUE(Animates(region()->layer(), ui::LayerAnimationElement::TRANSFORM));
+  EXPECT_TRUE(OnlyTransformAndOpacityAnimate(region()->layer()));
+  ASSERT_TRUE(base::test::RunUntil([&] { return card()->width() < card_after.width(); }));
+  const gfx::Rect card_shown = card()->bounds();
+  ASSERT_TRUE(base::test::RunUntil([&] { return card()->layer() != nullptr; }));
+  EXPECT_TRUE(Animates(card()->layer(), ui::LayerAnimationElement::TRANSFORM));
+  EXPECT_TRUE(OnlyTransformAndOpacityAnimate(card()->layer()));
+  const base::TimeTicks until = base::TimeTicks::Now() + base::Milliseconds(400);
+  base::test::RunUntil([&] { return base::TimeTicks::Now() >= until; });
+  EXPECT_EQ(card()->bounds(), card_shown);
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarMotionUiTest, ReducedMotionFadesTheColumnAndTheCardSnaps) {
+  ForceReducedMotion(true);
+  ASSERT_TRUE(base::test::RunUntil([&] { return region()->width() > 0; }));
+  const gfx::Rect card_before = card()->bounds();
+  ui::Layer* column = region()->layer();
+
+  chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
+  // The column fades (opacity, at most 140 ms); no transform is created.
+  EXPECT_FALSE(Animates(column, ui::LayerAnimationElement::TRANSFORM));
+  EXPECT_TRUE(Animates(column, ui::LayerAnimationElement::OPACITY));
+  EXPECT_TRUE(OnlyTransformAndOpacityAnimate(column));
+  EXPECT_LE(OpacityDuration(column), base::Milliseconds(140));
+  EXPECT_TRUE(column->GetTargetTransform().IsIdentity());
+
+  // The card snaps: new bounds, no animation on its layer.
+  ASSERT_TRUE(base::test::RunUntil([&] { return card()->width() > card_before.width(); }));
+  if (card()->layer()) {
+    EXPECT_FALSE(card()->layer()->GetAnimator()->is_animating());
+    EXPECT_TRUE(card()->layer()->transform().IsIdentity());
+  }
+
+  ASSERT_TRUE(base::test::RunUntil([&] { return region()->aerie_sidebar_hidden(); }));
+  chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
+  EXPECT_FALSE(Animates(region()->layer(), ui::LayerAnimationElement::TRANSFORM));
+  EXPECT_LE(OpacityDuration(region()->layer()), base::Milliseconds(140));
+  ASSERT_TRUE(base::test::RunUntil([&] { return card()->width() < card_before.width() + 1; }));
+  if (card()->layer()) {
+    EXPECT_FALSE(card()->layer()->GetAnimator()->is_animating());
+  }
+}

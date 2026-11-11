@@ -138,3 +138,4 @@ sidebar/0031-move-the-address-pill-and-navigation-into-the-sidebar.patch
 
 # Keyboard focus and the page card in the sidebar (#215): F6 order, and the card follows a show or hide.
 sidebar/0032-let-f6-visit-the-sidebar-regions-in-order.patch
+sidebar/0033-make-the-page-card-follow-the-sidebar.patch
