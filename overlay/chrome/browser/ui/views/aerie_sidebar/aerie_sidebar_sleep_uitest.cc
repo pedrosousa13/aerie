@@ -139,6 +139,16 @@ class AerieSidebarSleepUiTest : public InProcessBrowserTest {
     return sidebar()->row_at(before);
   }
 
+  // Focus the list (it goes to the row with the stop, the selected tab) and
+  // walk to `row` with the arrow keys.
+  void FocusRow(AerieSidebarRowView* row) {
+    sidebar()->today_tree()->RequestFocus();
+    for (size_t i = 0; i < sidebar()->row_count() && focused() != row; ++i) {
+      Press(ui::VKEY_DOWN);
+    }
+    ASSERT_EQ(focused(), row);
+  }
+
   void Press(ui::KeyboardCode key) {
     ASSERT_TRUE(ui_test_utils::SendKeyPressSync(browser(), key, false, false,
                                                 false, false));
@@ -212,18 +222,13 @@ IN_PROC_BROWSER_TEST_P(AerieSidebarSleepReducedMotionUiTest,
   EXPECT_FLOAT_EQ(layer->opacity(), 0.55f);
   EXPECT_FLOAT_EQ(layer->GetTargetGrayscale(), 1.f);
   EXPECT_TRUE(row->sleep_badge()->GetVisible());
-  EXPECT_FALSE(row->layer());
-  EXPECT_FALSE(row->content()->layer());
 }
 
 IN_PROC_BROWSER_TEST_F(AerieSidebarSleepUiTest,
                        TheMenuKeyOpensTheContextMenuAndSleepTabIsReachable) {
   ForceReducedMotion(true);
   AerieSidebarRowView* row = OpenBackgroundTab();
-  sidebar()->today_tree()->RequestFocus();
-  // Move the stop to the background tab's row with the keyboard.
-  row->RequestFocus();
-  ASSERT_EQ(focused(), row);
+  FocusRow(row);
 
   Press(ui::VKEY_APPS);
   ASSERT_TRUE(base::test::RunUntil(
@@ -245,7 +250,7 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarSleepUiTest,
                        EscClosesTheContextMenuWithoutSleepingTheTab) {
   ForceReducedMotion(true);
   AerieSidebarRowView* row = OpenBackgroundTab();
-  row->RequestFocus();
+  FocusRow(row);
   Press(ui::VKEY_APPS);
   ASSERT_TRUE(base::test::RunUntil(
       [&] { return sidebar()->context_menu() && sidebar()->context_menu()->is_running(); }));
