@@ -69,6 +69,7 @@ REOPEN_WHAT = {
 }
 GUARD_ICON_CLASS = "PageActionView"
 GUARD_TOOLTIP_PREFIX = "Aerie Guard"  # IDS_AERIE_GUARD_TOOLTIP_*: every state starts so
+GUARD_ICON_PARENT_CLASS = "AerieSidebarView"  # the icon is in the sidebar's address pill (issue #215)
 
 
 def judge_reopen(obs: dict | None) -> list[str]:
@@ -227,7 +228,7 @@ def open_panel_where(browser: Session, ui: ui_devtools.UiDevTools, accept) -> di
     """Press each window's Guard icon in turn until the panel's state satisfies ``accept(state)``; leave that
     panel open and return its state. A panel that does not fit is closed with Escape. Raises when none does."""
     seen = []
-    for node_id, props in list(ui.find_views(GUARD_ICON_CLASS, GUARD_TOOLTIP_PREFIX)):
+    for node_id, props in list(ui.find_views(GUARD_ICON_CLASS, GUARD_TOOLTIP_PREFIX, within=GUARD_ICON_PARENT_CLASS)):
         ui.press(node_id, props)
         AerieGuardPanel._panel(browser, shown=True)
         state = panel_state(browser)
@@ -380,9 +381,9 @@ class AerieGuardPanel:
             browser.client.send("Target.detachFromTarget", {"sessionId": sid}, timeout=browser.timeout)
 
     def _press(self, browser: Session, ui: ui_devtools.UiDevTools) -> dict | None:
-        found = ui.find_view(GUARD_ICON_CLASS, GUARD_TOOLTIP_PREFIX)
+        found = ui.find_view(GUARD_ICON_CLASS, GUARD_TOOLTIP_PREFIX, within=GUARD_ICON_PARENT_CLASS)
         if found is None:
-            raise CdpError("no Guard icon in the address bar")
+            raise CdpError("no Guard icon in the sidebar's address pill")
         ui.press(*found)
         return self._panel(browser, shown=True)
 

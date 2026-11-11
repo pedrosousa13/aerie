@@ -187,6 +187,23 @@ TEST(AerieMotionPlanTest, ReducedModeCreatesNoTransformElement) {
   EXPECT_EQ(plan.duration, base::Milliseconds(140));  // base, reduced
 }
 
+TEST(AerieMotionPlanTest, ADurationInMsPlansLikeATokenAndKeepsTheReducedRules) {
+  const motion::MotionPlan normal = motion::PlanMotionForMs(
+      SlideAndFade(), tokens::kMotionSpringDuration,
+      tokens::kMotionSpringDurationReduced, MotionEasing::kSpring,
+      /*reduced=*/false);
+  EXPECT_TRUE(normal.animate_transform);
+  EXPECT_EQ(normal.duration, base::Milliseconds(420));
+  const motion::MotionPlan reduced = motion::PlanMotionForMs(
+      SlideAndFade(), tokens::kMotionSpringDuration,
+      tokens::kMotionSpringDurationReduced, MotionEasing::kSpring,
+      /*reduced=*/true);
+  EXPECT_FALSE(reduced.animate_transform);
+  EXPECT_TRUE(reduced.set_transform_now);
+  EXPECT_LE(reduced.duration, base::Milliseconds(motion::kMaxReducedOpacityMs));
+  EXPECT_EQ(reduced.duration, base::Milliseconds(140));
+}
+
 TEST(AerieMotionPlanTest, NoOpacityElementIsLongerThanTheReducedCap) {
   const MotionDuration all[] = {
       MotionDuration::kXfast,           MotionDuration::kFast,

@@ -89,6 +89,16 @@ MotionPlan PlanMotion(const LayerMotion& motion,
                       tokens::MotionEasing easing,
                       bool reduced);
 
+// PlanMotion for a duration that is not one of the `motion-duration` tokens:
+// the spring settle of a dropped row uses `motion-spring-duration` (420 ms,
+// 140 ms reduced), which has no MotionDuration. `reduced_duration_ms` is used
+// when `reduced` is true.
+MotionPlan PlanMotionForMs(const LayerMotion& motion,
+                           int duration_ms,
+                           int reduced_duration_ms,
+                           tokens::MotionEasing easing,
+                           bool reduced);
+
 // The sequences of a plan: one for the transform and one for the opacity, when
 // the plan animates them. They animate from the given values to the targets.
 std::vector<std::unique_ptr<ui::LayerAnimationSequence>> BuildSequences(
@@ -136,6 +146,14 @@ MotionHandle AnimateLayer(ui::Layer* layer,
                           tokens::MotionDuration duration,
                           tokens::MotionEasing easing,
                           const PrefService* prefs);
+
+// AnimateLayer for a duration in ms (see PlanMotionForMs).
+MotionHandle AnimateLayerForMs(ui::Layer* layer,
+                               const LayerMotion& motion,
+                               int duration_ms,
+                               int reduced_duration_ms,
+                               tokens::MotionEasing easing,
+                               const PrefService* prefs);
 
 }  // namespace aerie::motion
 

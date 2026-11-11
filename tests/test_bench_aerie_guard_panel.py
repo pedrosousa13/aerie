@@ -115,7 +115,7 @@ class PanelHelpersTest(unittest.TestCase):
         def __init__(self, n):
             self.pressed, self.n = [], n
 
-        def find_views(self, cls, prefix):
+        def find_views(self, cls, prefix, within=None):
             return iter((i, {}) for i in range(self.n))
 
         def press(self, node_id, props):

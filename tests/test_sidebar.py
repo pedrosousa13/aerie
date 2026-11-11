@@ -15,7 +15,8 @@ HELIUM_LAYOUT = REPO / "helium-chromium" / "patches" / "helium" / "ui" / "layout
 SERIES = [l.strip() for l in (REPO / "patches" / "series").read_text().splitlines()
           if l.strip() and not l.startswith("#")]
 PREFS_PATCH = "sidebar/0020-register-the-sidebar-prefs.patch"
-HOLD_PATCH = "sidebar/0021-hold-helium-layout-to-the-sidebar.patch"
+HOLD_PATCH = "sidebar/0021-start-vertical-and-keep-layout-prefs-out-of-settings.patch"
+LOCK_PATCH = "sidebar/0034-lock-helium-layout-in-the-command-line-pref-layer.patch"
 SETTINGS_PATCH = "sidebar/0022-show-an-empty-sidebar-section-in-settings.patch"
 SAVE_PATCH = "sidebar/0023-move-save-page-to-ctrl-shift-s.patch"
 
@@ -91,40 +92,49 @@ class PrefNameTest(unittest.TestCase):
         self.assertIn(f"kVertical = {value},", core)
 
 
-class HoldTest(unittest.TestCase):
+class LockTest(unittest.TestCase):
+    LOCK = (COMPONENT / "aerie_sidebar_layout_lock.cc").read_text()
+    ADR = REPO / "docs" / "adr" / "0008-lock-helium-layout-in-the-command-line-pref-layer.md"
+
     def test_a_fresh_profile_registers_the_vertical_layout(self):
         self.assertIn("HeliumLayoutType::kVertical", added(HOLD_PATCH))
         self.assertIn("std::to_underlying(HeliumLayoutType::kClassic)", removed(HOLD_PATCH))
 
-    def test_the_controller_enforces_at_start_and_on_every_change_in_one_registration(self):
-        text = added(HOLD_PATCH)
-        self.assertIn("aerie_sidebar::EnforceHeliumLayout(pref_service_);", text)
-        # PrefChangeRegistrar allows one observer per pref, so the two jobs share one callback.
-        after = "\n".join(l[1:] for l in patch_text(HOLD_PATCH).splitlines() if l[:1] in "+ " and not l.startswith("+++"))
-        self.assertEqual(after.count("pref_change_registrar_.AddMultiple("), 1)
-        for pref in ("prefs::kHeliumLayout", "prefs::kHeliumZenMode", "aerie_sidebar::kLayoutPref"):
-            self.assertIn(pref, text)
-        self.assertIn("self->NotifyStateChanged();", text)
-        self.assertIn("NotifyStateChanged", removed(HOLD_PATCH))
+    def test_the_old_write_back_hold_is_gone(self):
+        # No patch touches HeliumLayoutStateController any more, and nothing writes the layout prefs back.
+        for patch in (REPO / "patches" / "sidebar").glob("*.patch"):
+            files = [l for l in patch.read_text().splitlines() if l.startswith("--- a/")]
+            self.assertFalse([f for f in files if "helium_layout_state_controller" in f], patch.name)
+        self.assertNotIn("EnforceHeliumLayout", "".join(p.read_text() for p in COMPONENT.glob("*")))
+        self.assertNotIn("EnforceHeliumLayout", "".join(p.read_text() for p in VIEWS.glob("*")))
+        self.assertNotIn("SetInteger(kHeliumLayoutPref", self.LOCK)
 
-    def test_the_includes_have_their_targets_in_the_gn_file(self):
-        text = added(HOLD_PATCH)
-        for header, label in (("components/aerie_sidebar/aerie_sidebar_layout.h", "//components/aerie_sidebar:layout"),
-                              ("components/aerie_sidebar/aerie_sidebar_prefs.h", "//components/aerie_sidebar:prefs")):
-            self.assertIn(f'#include "{header}"', text)
-            self.assertIn(f'"{label}"', text)
+    def test_the_lock_puts_vertical_and_zen_off_in_the_value_map_store(self):
+        self.assertIn("store->SetValueSilently(kHeliumLayoutPref, base::Value(kHeliumLayoutVertical)", self.LOCK)
+        self.assertIn("store->SetValueSilently(kHeliumZenModePref, base::Value(false)", self.LOCK)
+
+    def test_the_hook_calls_the_lock_in_the_command_line_store_and_depends_on_its_target(self):
+        text = added(LOCK_PATCH)
+        self.assertIn("aerie_sidebar::LockHeliumLayout(this);", text)
+        self.assertIn('#include "components/aerie_sidebar/aerie_sidebar_layout_lock.h"', text)
+        self.assertIn('"//components/aerie_sidebar:layout_lock"', text)
+        self.assertIn("chrome/browser/prefs/chrome_command_line_pref_store.cc", patch_text(LOCK_PATCH))
+
+    def test_the_lock_patch_is_after_the_prefs_patches_in_the_series(self):
+        self.assertGreater(SERIES.index(LOCK_PATCH), SERIES.index(HOLD_PATCH))
 
     def test_settings_cannot_write_the_layout_or_zen_prefs(self):
         gone = removed(HOLD_PATCH)
         for pref in ("kHeliumLayout]", "kHeliumZenMode]", "kHeliumZenModeSidebarPinned]", "kHeliumZenModeTopChromePinned]"):
             self.assertIn(f"(*s_allowlist)[::prefs::{pref}", gone)
 
-    def test_the_enforcement_is_off_for_the_horizontal_layout_and_writes_only_a_difference(self):
-        source = (COMPONENT / "aerie_sidebar_layout.cc").read_text()
-        self.assertRegex(source, r"if \(!IsSidebarLayout\(\*prefs\)\) \{\s*return;")
-        self.assertIn("prefs->GetInteger(kHeliumLayoutPref) != kHeliumLayoutVertical", source)
-        self.assertIn("if (prefs->GetBoolean(kHeliumZenModePref))", source)
-        self.assertIn('GetString(kLayoutPref) != kLayoutHorizontal', source)
+    def test_the_choice_is_recorded_in_an_adr(self):
+        self.assertTrue(self.ADR.is_file())
+        text = self.ADR.read_text()
+        self.assertTrue(text.startswith("# 8. "))
+        self.assertIn("command-line", text.lower())  # it names the mechanism
+        self.assertIn("ChromeCommandLinePrefStore", text)
+        self.assertIn("0008-lock-helium-layout", (REPO / "docs" / "sidebar-design.md").read_text())
 
 
 class SettingsTest(unittest.TestCase):
@@ -166,7 +176,7 @@ class SavePageTest(unittest.TestCase):
         doc = (REPO / "docs" / "sidebar-design.md").read_text()
         self.assertIn("What is not built yet in the view", doc)
         # What the view has no code for is named as missing, not claimed.
-        for missing in ("Favorites", "Pinned", "address pill"):
+        for missing in ("Favorites", "Pinned"):
             self.assertIn(missing, doc.split("What is not built yet in the view", 1)[1].split("\n", 1)[0])
 
 
@@ -266,7 +276,7 @@ class HeadlessPartsTest(unittest.TestCase):
     def test_the_motion_names_no_property_but_transform_and_opacity_and_the_row_height(self):
         header = (COMPONENT / "aerie_sidebar_motion.h").read_text()
         fields = set(re.findall(r"bool (animate_\w+);", header))
-        self.assertEqual(fields, {"animate_transform", "animate_opacity", "animate_scale", "animate_slide", "animate_height"})
+        self.assertEqual(fields, {"animate_transform", "animate_opacity", "animate_scale", "animate_slide", "animate_height", "animate_lift", "animate_shift", "animate_settle"})
 
     def test_the_new_targets_have_their_deps(self):
         for label in ('source_set("motion")', 'source_set("today_list")'):
@@ -280,6 +290,39 @@ class HeadlessPartsTest(unittest.TestCase):
         self.assertIn("Native sidebar view", doc)
         self.assertIn("`patches/sidebar/0024`", doc)
         self.assertIn("`patches/sidebar/0025`", doc)
+
+
+class NoColourLiteralTest(unittest.TestCase):
+    """Item 7 of issue #215: the sidebar draws with the token pipeline only. No colour literal outside
+    aerie_tokens.h, and no Chromium system colour role."""
+
+    FILES = [p for d in (VIEWS, COMPONENT) for p in sorted(d.glob("*.cc")) + sorted(d.glob("*.h"))
+             if not re.search(r"(unittest|browsertest|uitest)\.cc$", p.name)]
+    FORBIDDEN = {
+        "a colour constructor": r"SkColorSet(?:ARGB|RGB)\(",
+        "a named Skia colour": r"\bSK_Color[A-Z]\w*",
+        "a hex colour": r"0x[0-9a-fA-F]{6,8}\b",
+        "a CSS hex colour": r'"#[0-9a-fA-F]{3,8}"',
+        "a Chromium system colour role": r"\bkColorSys\w*|\bui::kColor\w+|\bkColor(?:Icon|Label|Button|Alert|Focus)\w*",
+        "a gfx colour constant": r"\bgfx::kGoogle\w*|\bgfx::kChromeIcon\w*",
+        "a colour id lookup": r"GetColorProvider\(\)\s*->\s*GetColor\(",
+    }
+
+    def test_there_are_files_to_scan(self):
+        names = {p.name for p in self.FILES}
+        for needed in ("aerie_sidebar_row_view.cc", "aerie_sidebar_top_row.cc", "aerie_sidebar_view.cc",
+                       "aerie_sidebar_palette.cc", "aerie_sidebar_focus_ring.cc"):
+            self.assertIn(needed, names)
+
+    def test_no_forbidden_colour_in_the_sidebar_sources(self):
+        for path in self.FILES:
+            code = "\n".join(l for l in path.read_text().splitlines() if not l.lstrip().startswith("//"))
+            for what, pattern in self.FORBIDDEN.items():
+                self.assertIsNone(re.search(pattern, code), f"{path.name} has {what}")
+
+    def test_the_palette_is_the_only_place_that_reads_the_theme_tables(self):
+        users = [p.name for p in self.FILES if "GetThemeTokens" in p.read_text()]
+        self.assertEqual(users, ["aerie_sidebar_palette.cc"])
 
 
 if __name__ == "__main__":

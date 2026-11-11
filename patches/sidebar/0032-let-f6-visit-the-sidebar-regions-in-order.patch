@@ -1,0 +1,64 @@
+Aerie-Purpose: Make F6 visit the Aerie sidebar's top row, address pill, Today list and bottom bar, in that order, before the page.
+Aerie-Upstream-Area: chrome/browser/ui/views/frame (browser_view.cc, vertical_tab_strip_region_view.*)
+Aerie-Kind: hook
+
+Issue #215 (item 3 of the rest of #177). BrowserView::GetAccessiblePanes lists the panes that F6 rotates through. With the
+sidebar the toolbar's pane is in the sidebar's bottom bar and the vertical region is one big container, so the list asks the
+region view for the sidebar's own panes (AerieSidebarView::GetAccessiblePanes, in the overlay) in their place: top row, address
+pill, Today list, then what is left of the toolbar. A hidden sidebar adds none. The list for any other layout is unchanged.
+
+--- a/chrome/browser/ui/views/frame/browser_view.cc
++++ b/chrome/browser/ui/views/frame/browser_view.cc
+@@ -5219,12 +5219,21 @@
+     }
+   }
+ 
+-  panes->push_back(
+-      ToolbarButtonProvider::From(browser_)->GetAsAccessiblePaneView());
++  // Aerie: with the sidebar the panes are its top row, address pill, Today list
++  // and bottom bar, in that order, in place of the toolbar and the tab strip
++  // (issue #215).
++  const bool aerie_sidebar = vertical_tab_strip_region_view_ &&
++                             vertical_tab_strip_region_view_->has_aerie_sidebar();
++  if (aerie_sidebar) {
++    vertical_tab_strip_region_view_->GetAerieAccessiblePanes(panes);
++  } else {
++    panes->push_back(
++        ToolbarButtonProvider::From(browser_)->GetAsAccessiblePaneView());
++  }
+   if (horizontal_tab_strip_region_view_) {
+     panes->push_back(horizontal_tab_strip_region_view_);
+   }
+-  if (vertical_tab_strip_region_view_) {
++  if (vertical_tab_strip_region_view_ && !aerie_sidebar) {
+     panes->push_back(vertical_tab_strip_region_view_);
+   }
+   if (toolbar_ && toolbar_->custom_tab_bar()) {
+--- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
++++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
+@@ -405,6 +405,13 @@
+                                          draw_window_controls);
+ }
+ 
++void VerticalTabStripRegionView::GetAerieAccessiblePanes(
++    std::vector<views::View*>* panes) {
++  if (aerie_sidebar_view_ && !aerie_hidden_) {
++    aerie_sidebar_view_->GetAccessiblePanes(panes);
++  }
++}
++
+ void VerticalTabStripRegionView::SetHasLeadingExclusionForLayout(
+     bool has_leading_exclusion) {
+   if (has_leading_exclusion_ == has_leading_exclusion) {
+--- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
++++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
+@@ -159,6 +159,9 @@
+   void AdoptAerieToolbar(const AerieSidebarToolbarParts& parts,
+                          int leading_window_controls_width,
+                          bool draw_window_controls);
++  // Aerie (issue #215): the regions of the sidebar that F6 visits, in order
++  // (none while the sidebar is hidden).
++  void GetAerieAccessiblePanes(std::vector<views::View*>* panes);
+   bool aerie_sidebar_target_visible() const { return aerie_target_visible_; }
+   tabs::VerticalTabStripState target_collapse_state_for_testing() {
+     return target_collapse_state_;

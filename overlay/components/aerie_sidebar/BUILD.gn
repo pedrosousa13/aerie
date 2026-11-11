@@ -39,6 +39,44 @@ source_set("layout") {
   ]
 }
 
+# The geometry of dragging a Today row to reorder it (issue #215): where it can
+# go, which rows shift, where the dropped row settles from.
+source_set("drag") {
+  sources = [
+    "aerie_sidebar_drag.cc",
+    "aerie_sidebar_drag.h",
+  ]
+}
+
+# Locks Helium's layout prefs to the sidebar in the command-line layer of the
+# PrefService (ADR 0008). Called from ChromeCommandLinePrefStore
+# (patches/sidebar/0034).
+source_set("layout_lock") {
+  sources = [
+    "aerie_sidebar_layout_lock.cc",
+    "aerie_sidebar_layout_lock.h",
+  ]
+  deps = [ ":layout" ]
+  public_deps = [
+    "//base",
+    "//components/prefs",
+  ]
+}
+
+# The colours the sidebar's views draw with, from the token tables and the
+# frame palette (issue #215).
+source_set("palette") {
+  sources = [
+    "aerie_sidebar_palette.cc",
+    "aerie_sidebar_palette.h",
+  ]
+  public_deps = [
+    "//components/aerie_design_tokens:tokens",
+    "//components/aerie_frame:palette",
+    "//skia",
+  ]
+}
+
 # The motion of the sidebar and of its rows, as data (tokens only).
 source_set("motion") {
   sources = [
@@ -65,13 +103,19 @@ source_set("today_list") {
 source_set("unit_tests") {
   testonly = true
   sources = [
+    "aerie_sidebar_drag_unittest.cc",
+    "aerie_sidebar_layout_lock_unittest.cc",
     "aerie_sidebar_motion_unittest.cc",
+    "aerie_sidebar_palette_unittest.cc",
     "aerie_sidebar_today_list_unittest.cc",
     "aerie_sidebar_unittest.cc",
   ]
   deps = [
+    ":drag",
     ":layout",
+    ":layout_lock",
     ":motion",
+    ":palette",
     ":prefs",
     ":today_list",
     "//base",
@@ -80,6 +124,7 @@ source_set("unit_tests") {
     "//components/aerie_tab_model",
     "//components/prefs:test_support",
     "//testing/gtest",
+    "//ui/gfx/geometry",
   ]
 }
 

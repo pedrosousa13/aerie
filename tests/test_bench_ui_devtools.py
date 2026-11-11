@@ -172,6 +172,18 @@ class TwoWindowsServer(FakeServer):
              4: {"Visible": "true", "TooltipText": "Aerie Guard: nothing blocked", "Width": "24", "Height": "24"}}
 
 
+class NestedServer(TwoWindowsServer):
+    """The icon at node 2 is in a toolbar; the one at node 4 is below the sidebar view."""
+
+    TREE = {"nodeId": 1, "nodeName": "root", "children": [
+        {"nodeId": 2, "attributes": ["class", "PageActionView", "name", "PageActionView"]},
+        {"nodeId": 5, "attributes": ["class", "AerieSidebarView"], "children": [
+            {"nodeId": 6, "attributes": ["class", "View"], "children": [
+                {"nodeId": 4, "attributes": ["class", "PageActionView", "name", "PageActionView"]}]}]},
+    ]}
+    PROPS = {**TwoWindowsServer.PROPS, 5: {"Visible": "true"}, 6: {"Visible": "true"}}
+
+
 class ClientTest(unittest.TestCase):
     def test_find_views_lists_every_visible_match_in_window_order(self):
         server = TwoWindowsServer()
@@ -182,6 +194,15 @@ class ClientTest(unittest.TestCase):
         finally:
             ui.close()
 
+
+    def test_within_keeps_only_views_below_a_class(self):
+        server = NestedServer()
+        ui = ui_devtools.UiDevTools(server.port, timeout=5)
+        try:
+            self.assertEqual([n for n, _ in ui.find_views("PageActionView", "Aerie Guard")], [2, 4])
+            self.assertEqual([n for n, _ in ui.find_views("PageActionView", "Aerie Guard", within="AerieSidebarView")], [4])
+        finally:
+            ui.close()
 
     def test_finds_the_view_by_tooltip_and_presses_its_middle(self):
         server = FakeServer()

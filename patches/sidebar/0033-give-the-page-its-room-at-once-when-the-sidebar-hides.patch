@@ -1,0 +1,96 @@
+Aerie-Purpose: Give the page its room in one step when the Aerie sidebar hides, while the column slides out over it.
+Aerie-Upstream-Area: chrome/browser/ui/views/frame (vertical_tab_strip_region_view.*)
+Aerie-Kind: hook
+
+Issue #215 (item 5 of the rest of #177). The page card does not follow the column with a transform: it takes its new bounds in one
+step and only the column animates. A card transform cannot move the page. The page's native view is a layer of the window, not of the
+card, and NativeViewHost::Layout places it in window coordinates with the card's layer transform at that moment folded in; the layout that
+follows a bounds change ran after the transform started, so the page stayed one column width off (right after a hide, left after a show).
+
+A show already gave the page its room in one step. A hide used to hold the room until the slide had ended; now it gives it at once and
+the column slides out over the room the card is taking. The state and the numbers are in the overlay
+(aerie_sidebar::HideSlide, components/aerie_sidebar/aerie_sidebar_motion.h): while it is active the region's preferred and minimum
+width are 0 and Layout puts the column's content at its old width, outside the region's own bounds. When the slide ends the column
+leaves the layout as before.
+
+--- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
++++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
+@@ -554,6 +554,15 @@
+ void VerticalTabStripRegionView::Layout(PassKey) {
+   LayoutSuperclass<BaseTabStripRegionView>(this);
+ 
++  // Aerie: a hiding column keeps its width while it slides out, although it
++  // takes no room in the window layout (issue #215).
++  if (aerie_hide_slide_.active()) {
++    const bool right = state_controller_->IsTabStripRightAligned();
++    content_area_view_->SetBoundsRect(
++        gfx::Rect(aerie_hide_slide_.content_x(right), 0,
++                  aerie_hide_slide_.content_width(), height()));
++  }
++
+   // Manually position the resize area as it overlaps views handled by the flex
+   // layout.
+   const int resize_area_x = state_controller_->IsTabStripRightAligned()
+@@ -581,7 +590,7 @@
+ 
+ gfx::Size VerticalTabStripRegionView::GetMinimumSize() const {
+   auto min_size = BaseTabStripRegionView::GetMinimumSize();
+-  if (aerie_hidden_) {
++  if (aerie_hidden_ || aerie_hide_slide_.active()) {
+     // Aerie: a hidden sidebar takes no room (issue #177).
+     min_size.set_width(0);
+     return min_size;
+@@ -595,7 +604,7 @@
+ gfx::Size VerticalTabStripRegionView::CalculatePreferredSize(
+     const views::SizeBounds& available_size) const {
+   auto size = BaseTabStripRegionView::CalculatePreferredSize(available_size);
+-  if (aerie_hidden_) {
++  if (aerie_hidden_ || aerie_hide_slide_.active()) {
+     size.set_width(0);
+     return size;
+   }
+@@ -936,6 +945,7 @@
+     // layout yet: the show then starts from where the column is.
+     const bool was_hidden = aerie_hidden_;
+     aerie_hidden_ = false;
++    aerie_hide_slide_.End();
+     SetVisible(true);
+     InvalidateLayout();
+     const aerie_sidebar::SlideMotion slide =
+@@ -970,11 +980,16 @@
+   }
+   aerie_motion_ = aerie::motion::AnimateLayer(column, target, slide.duration,
+                                               slide.easing, prefs);
++  // The layout gives the room to the page now, in one step; the column slides
++  // out over it at its old width.
++  aerie_hide_slide_.Begin(column_width);
++  InvalidateLayout();
+   aerie_hide_timer_.Start(
+       FROM_HERE, base::Milliseconds(slide.duration_ms),
+       base::BindOnce(
+           [](VerticalTabStripRegionView* self) {
+             self->aerie_hidden_ = true;
++            self->aerie_hide_slide_.End();
+             self->SetVisible(false);
+             self->layer()->SetTransform(gfx::Transform());
+             self->layer()->SetOpacity(1.f);
+--- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
++++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
+@@ -14,6 +14,7 @@
+ #include "base/time/time.h"
+ #include "base/timer/timer.h"
+ #include "components/aerie_design_tokens/aerie_motion.h"
++#include "components/aerie_sidebar/aerie_sidebar_motion.h"
+ #include "components/prefs/pref_change_registrar.h"
+ #include "chrome/browser/ui/animation/browser_animation_types.h"
+ #include "chrome/browser/ui/omnibox/omnibox_tab_helper.h"
+@@ -266,6 +267,9 @@
+   bool aerie_target_visible_ = true;
+   PrefChangeRegistrar aerie_pref_registrar_;
+   base::OneShotTimer aerie_hide_timer_;
++  // While a hide slides out the layout already gives the room to the page
++  // (issue #215).
++  aerie_sidebar::HideSlide aerie_hide_slide_;
+   aerie::motion::MotionHandle aerie_motion_;
+   raw_ptr<views::ResizeArea> resize_area_ = nullptr;
+   raw_ptr<ShadowFrameView> shadow_frame_ = nullptr;

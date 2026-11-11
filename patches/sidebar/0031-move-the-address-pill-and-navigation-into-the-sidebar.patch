@@ -1,0 +1,167 @@
+Aerie-Purpose: Move the address pill, Back, Forward, Reload and the rest of the toolbar into the Aerie sidebar, take the toolbar row away from the top of the window, and make the sidebar's top row the window's drag handle.
+Aerie-Upstream-Area: chrome/browser/ui/views/frame (browser_view.cc, vertical_tab_strip_region_view.*, layout/browser_view_tabbed_layout_impl.cc, BUILD.gn), chrome/browser/ui/views/toolbar (toolbar_view.cc, BUILD.gn)
+Aerie-Kind: hook
+
+Issue #215 (items 1 and 2 of the rest of #177). All the work is in the overlay, chrome/browser/ui/views/aerie_sidebar
+(AerieSidebarView::AdoptToolbar, AerieSidebarTopRow, aerie_sidebar_toolbar_hook.h); these hooks only call it.
+
+- browser_view.cc: right after the toolbar made its buttons (ToolbarView::Init, in AddedToWidget), one call,
+  aerie_sidebar::AdoptToolbar, hands the toolbar's views to the sidebar when the layout is the sidebar: the real LocationBarView
+  (the address pill), Back, Forward and Reload (found by view id), and the toolbar itself, which keeps the extensions, profile and
+  menu buttons and goes to the sidebar's bottom bar. The call also decides about the window controls (where the frame draws them on
+  the trailing side, Linux with the custom frame, the sidebar draws its own and the frame's become invisible; a leading exclusion,
+  the macOS traffic lights, becomes an inset of the top row). That logic is in the overlay, not in this patch.
+- vertical_tab_strip_region_view.*: AdoptAerieToolbar forwards to the sidebar view; the empty part of the top row counts as the window
+  caption in IsPositionInWindowCaption (the same hook Helium's top container uses). The sidebar answers before Helium's
+  hidden bottom container, which would otherwise claim the whole column.
+- browser_view_tabbed_layout_impl.cc: the toolbar is no longer a child of the top container, which the layout already
+  handles (IsParentedTo), so the toolbar row is gone. The one change is the top of the collapsed column, which used to
+  start under the toolbar and now starts at 0.
+- toolbar_view.cc: the toolbar's own "collapse tabs" button stays hidden in the sidebar layout, because the top row has
+  the toggle.
+- frame/BUILD.gn: the browser_view target depends on the sidebar target, for the hook header.
+
+--- a/chrome/browser/ui/views/frame/BUILD.gn
++++ b/chrome/browser/ui/views/frame/BUILD.gn
+@@ -906,6 +906,7 @@
+     "//chrome/browser/ui/views/accessibility",
+     "//chrome/browser/ui/views/aerie_frame",
+     "//chrome/browser/ui/views/aerie_frame:enabled",
++    "//chrome/browser/ui/views/aerie_sidebar",
+     "//chrome/browser/ui/views/autofill:autofill_bubble_handler_impl",
+     "//chrome/browser/ui/views/bookmarks",
+     "//chrome/browser/ui/views/download",
+--- a/chrome/browser/ui/views/frame/browser_view.cc
++++ b/chrome/browser/ui/views/frame/browser_view.cc
+@@ -154,6 +154,7 @@
+ #include "chrome/browser/ui/views/accessibility/caret_browsing_dialog_delegate.h"
+ #include "chrome/browser/ui/views/aerie_frame/frame_tint_enabled.h"
+ #include "chrome/browser/ui/views/aerie_frame/frame_tint_view.h"
++#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_toolbar_hook.h"
+ #include "chrome/browser/ui/views/autofill/autofill_bubble_handler_impl.h"
+ #include "chrome/browser/ui/views/bookmarks/bookmark_bar_view.h"
+ #include "chrome/browser/ui/views/bookmarks/bookmark_bubble_view.h"
+@@ -5769,6 +5770,11 @@
+ 
+   toolbar_->Init();
+ 
++  // Aerie: while the layout is the sidebar, it takes the address pill, Back,
++  // Forward and Reload out of the toolbar (issue #215).
++  aerie_sidebar::AdoptToolbar(vertical_tab_strip_region_view_.get(),
++                              GetFrameView(), toolbar_.get());
++
+   if (omnibox::IsWebUIOmniboxInBrowserViewEnabled()) {
+     // When the WebUI Omnibox is embedded directly in the `BrowserView` (instead
+     // of being a separate popup widget), the popup view needs a reference to
+--- a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
++++ b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
+@@ -856,6 +856,12 @@
+     return 0;
+   }
+ 
++  // Aerie: the sidebar holds the toolbar's parts, so nothing sits above the
++  // column (issue #215).
++  if (!IsParentedTo(views().toolbar, views().top_container)) {
++    return 0;
++  }
++
+   const auto& params = layout_data_->revised_params;
+ 
+   if (delegate().IsToolbarVisible()) {
+--- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
++++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
+@@ -358,6 +358,17 @@
+     return false;
+   }
+ 
++  // Aerie: the empty part of the sidebar's top row is the title bar, and the
++  // rest of the sidebar is not (issue #215). The bottom container is hidden
++  // then and does not answer.
++  if (aerie_sidebar_view_ && aerie_sidebar_view_->GetVisible() &&
++      IsHitInView(aerie_sidebar_view_, point)) {
++    gfx::Point point_in_sidebar = point;
++    views::View::ConvertPointToTarget(this, aerie_sidebar_view_,
++                                      &point_in_sidebar);
++    return aerie_sidebar_view_->IsPositionInWindowCaption(point_in_sidebar);
++  }
++
+   if (IsHitInView(bottom_button_container_, point)) {
+     gfx::Point point_in_child = point;
+     views::View::ConvertPointToTarget(this, bottom_button_container_,
+@@ -382,6 +393,18 @@
+   return true;
+ }
+ 
++void VerticalTabStripRegionView::AdoptAerieToolbar(
++    const AerieSidebarToolbarParts& parts,
++    int leading_window_controls_width,
++    bool draw_window_controls) {
++  if (!aerie_sidebar_view_ || aerie_sidebar_view_->has_toolbar_parts()) {
++    return;
++  }
++  aerie_sidebar_view_->AdoptToolbar(parts);
++  aerie_sidebar_view_->SetWindowControls(leading_window_controls_width,
++                                         draw_window_controls);
++}
++
+ void VerticalTabStripRegionView::SetHasLeadingExclusionForLayout(
+     bool has_leading_exclusion) {
+   if (has_leading_exclusion_ == has_leading_exclusion) {
+--- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
++++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
+@@ -38,6 +38,7 @@
+ #include "ui/views/layout/delegating_layout_manager.h"
+ 
+ class AerieSidebarView;
++struct AerieSidebarToolbarParts;
+ class BrowserView;
+ class VerticalTabStripBottomContainer;
+ class VerticalTabStripFocusSwipeController;
+@@ -151,6 +152,13 @@
+   views::ResizeArea* resize_area_for_testing() { return resize_area_; }
+   // Aerie sidebar (issue #177).
+   bool aerie_sidebar_hidden() const { return aerie_hidden_; }
++  // Aerie (issue #215): true while the layout is the sidebar.
++  bool has_aerie_sidebar() const { return !!aerie_sidebar_view_; }
++  // Aerie (issue #215): hands the toolbar's parts to the sidebar. Called by
++  // aerie_sidebar::AdoptToolbar (aerie_sidebar_toolbar_hook.h).
++  void AdoptAerieToolbar(const AerieSidebarToolbarParts& parts,
++                         int leading_window_controls_width,
++                         bool draw_window_controls);
+   bool aerie_sidebar_target_visible() const { return aerie_target_visible_; }
+   tabs::VerticalTabStripState target_collapse_state_for_testing() {
+     return target_collapse_state_;
+--- a/chrome/browser/ui/views/toolbar/BUILD.gn
++++ b/chrome/browser/ui/views/toolbar/BUILD.gn
+@@ -344,6 +344,7 @@
+     "//chrome/common:buildflags",
+     "//chrome/common:chrome_features",
+     "//chrome/common:constants",
++    "//components/aerie_sidebar:layout",
+     "//components/autofill/core/common:features",
+     "//components/feature_engagement/public",
+     "//components/omnibox/browser",
+--- a/chrome/browser/ui/views/toolbar/toolbar_view.cc
++++ b/chrome/browser/ui/views/toolbar/toolbar_view.cc
+@@ -134,6 +134,7 @@
+ #include "chrome/grit/generated_resources.h"
+ #include "chrome/grit/theme_resources.h"
+ #include "components/autofill/core/common/autofill_payments_features.h"
++#include "components/aerie_sidebar/aerie_sidebar_layout.h"
+ #include "components/contextual_tasks/public/features.h"
+ #include "components/feature_engagement/public/feature_constants.h"
+ #include "components/omnibox/browser/location_bar_model.h"
+@@ -2340,9 +2341,12 @@
+       tabs::VerticalTabStripStateController::From(browser_view_->browser());
+   const bool zen_hide = browser_view_->IsZenModeEnabledForLayout() &&
+                         !browser_view_->IsZenModeSideChromePinned();
++  // Aerie: the sidebar has its own toggle in its top row (issue #215).
++  const bool aerie_sidebar = aerie_sidebar::IsSidebarLayout(
++      *browser_view_->browser()->GetProfile()->GetPrefs());
+   const bool should_show = controller && IsVerticalLayout() &&
+                            show_vertical_tabs_collapse_button_.GetValue() &&
+-                           !zen_hide;
++                           !zen_hide && !aerie_sidebar;
+   // Let overflow layout decide whether the eligible button fits.
+   if (should_show != layout_manager_->CanBeVisible(
+           vertical_tabs_collapse_button_)) {

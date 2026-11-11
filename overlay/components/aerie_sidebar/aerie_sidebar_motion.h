@@ -35,6 +35,30 @@ struct SlideMotion {
 SlideMotion ShowMotion(int width, int outer_edge_sign, bool reduced);
 SlideMotion HideMotion(int width, int outer_edge_sign, bool reduced);
 
+// While a hide slides out the window layout already gives the room to the page,
+// in one step: the column takes no room (preferred and minimum width 0) and its
+// content keeps the width it had, hanging outside the region's own bounds
+// toward the page, so it slides out over the room the page is taking
+// (issue #215).
+class HideSlide {
+ public:
+  void Begin(int column_width) {
+    width_ = column_width;
+    active_ = true;
+  }
+  void End() { active_ = false; }
+  bool active() const { return active_; }
+
+  // The content's x and width in the region's coordinates. A column on the
+  // right hangs out to the left of its zero-width region.
+  int content_x(bool right_aligned) const { return right_aligned ? -width_ : 0; }
+  int content_width() const { return width_; }
+
+ private:
+  bool active_ = false;
+  int width_ = 0;
+};
+
 // A row opens or closes in the Today list.
 struct RowMotion {
   // The content layer of the row.
@@ -56,6 +80,30 @@ struct RowMotion {
   aerie::tokens::MotionEasing height_easing;
   int height_duration_ms;
 };
+
+// Dragging a Today row to reorder it (docs/sidebar-design.md, "Motion", row
+// "Drag"). Lift: the row scales to `lift_scale` on `lift_duration`. Shift: the
+// rows it passes move one slot on `shift_duration`. Settle: the dropped row
+// springs from where it was released. The dragged row always follows the
+// pointer, reduced motion or not; it is then a plain property set, not an
+// animation. Reduced motion: no lift, no shift, an instant drop.
+struct DragMotion {
+  bool animate_lift;
+  float lift_scale;
+  aerie::tokens::MotionDuration lift_duration;
+  aerie::tokens::MotionEasing lift_easing;
+  bool animate_shift;
+  aerie::tokens::MotionDuration shift_duration;
+  aerie::tokens::MotionEasing shift_easing;
+  bool animate_settle;
+  // The spring duration, `motion-spring-duration`: 420 ms, and its reduced
+  // value 140 ms. It is not a `motion-duration` token, so it is given in ms.
+  int settle_duration_ms;
+  int settle_reduced_duration_ms;
+  aerie::tokens::MotionEasing settle_easing;
+};
+
+DragMotion RowDragMotion(bool reduced);
 
 RowMotion OpenRowMotion(bool reduced);
 RowMotion CloseRowMotion(int outer_edge_sign, bool reduced);

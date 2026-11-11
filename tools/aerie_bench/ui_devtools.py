@@ -129,6 +129,19 @@ class UiDevTools:
             yield node["nodeId"], cls
             stack.extend(reversed(node.get("children") or []))
 
+    def nodes_within(self, ancestor_cls: str) -> Iterator[tuple[int, str]]:
+        """(nodeId, class name) of every view below a view of class ``ancestor_cls``, depth first."""
+        root = self.send("DOM.getDocument")["root"]
+        stack = [(root, False)]
+        while stack:
+            node, inside = stack.pop()
+            attrs = node.get("attributes") or []
+            cls = attrs[1] if len(attrs) > 1 and attrs[0] == "class" else node.get("nodeName", "")
+            if inside:
+                yield node["nodeId"], cls
+            below = inside or cls == ancestor_cls
+            stack.extend((c, below) for c in reversed(node.get("children") or []))
+
     def properties(self, node_id: int) -> dict[str, str]:
         """A view's properties (its metadata), the most specific class first."""
         styles = self.send("CSS.getMatchedStylesForNode", {"nodeId": node_id})
@@ -138,19 +151,20 @@ class UiDevTools:
                 props.setdefault(prop["name"], prop["value"])
         return props
 
-    def find_views(self, cls: str, tooltip_prefix: str) -> Iterator[tuple[int, dict]]:
+    def find_views(self, cls: str, tooltip_prefix: str, within: str | None = None) -> Iterator[tuple[int, dict]]:
         """Every visible view of class ``cls`` whose tooltip starts with ``tooltip_prefix``, in window order
-        (one per browser window when the view is in the toolbar)."""
-        for node_id, name in self.nodes():
+        (one per browser window). ``within`` names a class the view must be below: the Guard icon is in the
+        address pill of ``AerieSidebarView`` (issue #215), no longer in a toolbar above the page."""
+        for node_id, name in (self.nodes_within(within) if within else self.nodes()):
             if name != cls:
                 continue
             props = self.properties(node_id)
             if props.get("Visible") == "true" and props.get("TooltipText", "").startswith(tooltip_prefix):
                 yield node_id, props
 
-    def find_view(self, cls: str, tooltip_prefix: str) -> tuple[int, dict] | None:
+    def find_view(self, cls: str, tooltip_prefix: str, within: str | None = None) -> tuple[int, dict] | None:
         """The first of ``find_views``, or None."""
-        return next(self.find_views(cls, tooltip_prefix), None)
+        return next(self.find_views(cls, tooltip_prefix, within), None)
 
     def find_by_text(self, text: str) -> tuple[int, dict] | None:
         """The first visible view of any class whose ``Text`` property is exactly ``text``.

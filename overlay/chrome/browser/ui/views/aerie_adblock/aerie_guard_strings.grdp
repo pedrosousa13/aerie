@@ -18,6 +18,14 @@
   <message name="IDS_AERIE_GUARD_TOOLTIP_OFF" desc="Tooltip and accessible name of the Aerie Guard icon in the address bar when the user turned blocking off for the site.">
     Aerie Guard is off for this site
   </message>
+  <message name="IDS_AERIE_GUARD_ACCNAME_BLOCKED" desc="Accessible name of the Aerie Guard icon in the address bar, which is in the sidebar, when blocking is on for the site. The number is the exact count of requests blocked on the page, also 0, even when the icon shows 99+.">
+    {COUNT, plural,
+      =1 {Guard: 1 blocked on this page}
+      other {Guard: # blocked on this page}}
+  </message>
+  <message name="IDS_AERIE_GUARD_ACCNAME_OFF" desc="Accessible name of the Aerie Guard icon in the address bar when the user turned blocking off for the site.">
+    Guard: off for this site
+  </message>
   <message name="IDS_AERIE_GUARD_PANEL_ACCNAME" desc="Accessible name and task manager title of the Aerie Guard panel, the pop-out that opens from the Aerie Guard icon in the address bar.">
     Aerie Guard
   </message>

@@ -1,0 +1,54 @@
+Aerie-Purpose: Make a fresh profile start with Helium's vertical layout and take the layout, Zen mode and Zen pin prefs off the settings_private allowlist, so Settings cannot write them.
+Aerie-Upstream-Area: chrome/browser/ui/tabs/tab_strip_prefs.cc, chrome/browser/extensions/api/settings_private/prefs_util.cc
+Aerie-Kind: hook
+
+Issue #177, changed in #215. Helium's layout patches (layout/*.patch) stay applied: tab_metrics_provider.cc,
+toolbar_view.cc and browser_command_controller.cc read kHeliumLayout, so dropping layout/core.patch
+would mean re-cutting adapted copies. Instead:
+
+- tab_strip_prefs.cc registers kHeliumLayout as kVertical, so a new profile starts with the sidebar.
+- prefs_util.cc drops the layout, Zen mode and the two Zen pin prefs from the settings_private
+  allowlist, so the Settings page cannot write them. The other Helium layout prefs stay.
+
+The lock itself is in sidebar/0034 (ADR 0008): the layout and Zen mode have fixed values in the command-line layer of
+the pref service. This patch used to write them back from HeliumLayoutStateController; that code is gone.
+
+--- a/chrome/browser/ui/tabs/tab_strip_prefs.cc
++++ b/chrome/browser/ui/tabs/tab_strip_prefs.cc
+@@ -34,8 +34,10 @@
+   registry->RegisterTimePref(prefs::kVerticalTabsEverythingMenuLastPressed,
+                              base::Time());
+ 
++  // Aerie: a fresh profile opens with the sidebar, which is Helium's vertical
++  // layout underneath (issue #177).
+   registry->RegisterIntegerPref(prefs::kHeliumLayout,
+-                                std::to_underlying(HeliumLayoutType::kClassic));
++                                std::to_underlying(HeliumLayoutType::kVertical));
+   registry->RegisterBooleanPref(prefs::kHeliumVerticalRightAligned, false);
+   registry->RegisterBooleanPref(prefs::kHeliumZenMode, false);
+   registry->RegisterBooleanPref(prefs::kHeliumZenModeSidebarPinned, false);
+--- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
++++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
+@@ -221,8 +221,8 @@
+   }
+   s_allowlist = new PrefsUtil::TypedPrefMap();
+ 
+-  // Helium layout
+-  (*s_allowlist)[::prefs::kHeliumLayout] = settings_api::PrefType::kNumber;
++  // Helium layout. Aerie: the layout and Zen mode prefs are not on the list,
++  // so Settings cannot write them (issue #177).
+   (*s_allowlist)[::prefs::kHeliumVerticalRightAligned] =
+       settings_api::PrefType::kBoolean;
+   (*s_allowlist)[::prefs::kHeliumCenteredLocationBar] =
+@@ -231,11 +231,6 @@
+       settings_api::PrefType::kBoolean;
+   (*s_allowlist)[::prefs::kHeliumShowProgressBar] =
+       settings_api::PrefType::kBoolean;
+-  (*s_allowlist)[::prefs::kHeliumZenMode] = settings_api::PrefType::kBoolean;
+-  (*s_allowlist)[::prefs::kHeliumZenModeSidebarPinned] =
+-      settings_api::PrefType::kBoolean;
+-  (*s_allowlist)[::prefs::kHeliumZenModeTopChromePinned] =
+-      settings_api::PrefType::kBoolean;
+   (*s_allowlist)[::prefs::kHeliumNativeFrameMaterials] =
+       settings_api::PrefType::kBoolean;
+ 

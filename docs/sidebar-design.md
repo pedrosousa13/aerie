@@ -27,7 +27,7 @@ No asset, icon, string or code from Arc, Zen or Brave is copied. Dia is not a re
 | Screenshots in light and dark | The Tailscale gallery, feature "Sidebar design" (train `design4`) |
 | URL parameters, keyboard table, peek machine | `prototypes/sidebar/README.md` |
 
-Decisions: [ADR 0006](adr/0006-workspace-isolation.md) (one storage partition per Workspace) and [ADR 0007](adr/0007-single-design-token-source.md) (one token source). Terms: [GLOSSARY.md](../GLOSSARY.md).
+Decisions: [ADR 0006](adr/0006-workspace-isolation.md) (one storage partition per Workspace) and [ADR 0007](adr/0007-single-design-token-source.md) (one token source) and [ADR 0008](adr/0008-lock-helium-layout-in-the-command-line-pref-layer.md) (the locked layout pref). Terms: [GLOSSARY.md](../GLOSSARY.md).
 
 ### Native or WebUI
 
@@ -43,7 +43,7 @@ The window is a frame with the page in a rounded card on top of it.
 - The page card uses `color-content-surface`, radius `radius-xl`, `shadow-card`, and a hairline border where the theme asks for one (`theme-card-border`).
 - The sidebar sits on the frame, not on a card. It is `size-sidebar-width` (260 px) wide. The user can drag its inner edge to resize between `size-sidebar-min` (200) and `size-sidebar-max` (400).
 - The sidebar goes on the left or right (`data-side`). Everything below mirrors with the side.
-- When the sidebar hides or its width changes, the page card box snaps to the new size in one step and the card follows with a transform. Nothing lays out per frame.
+- When the sidebar hides or its width changes, the page card box snaps to the new size in one step and only the sidebar column animates. The card does not follow with a transform: the page's native view is a layer of the window, not of the card, so a card transform leaves the page a column width off (issue #215). Nothing lays out per frame.
 
 ### Sidebar regions, top to bottom
 
@@ -448,7 +448,7 @@ Aerie wants motion with the feel of Arc, without copying its assets (maintainer 
 
 | Interaction | What moves | Duration token | Easing token | Reduced-motion version |
 | --- | --- | --- | --- | --- |
-| Sidebar show and hide | Sidebar `transform` by its width plus `motion-distance-sidebar-hide-offset`. The card follows with a transform. | `slow` (280) show, `base` (200) hide | `decelerate` show, `accelerate` hide | Sidebar fades (opacity, 140 ms). The card snaps. |
+| Sidebar show and hide | Sidebar `transform` by its width plus `motion-distance-sidebar-hide-offset`. The card snaps to its new bounds in one step. | `slow` (280) show, `base` (200) hide | `decelerate` show, `accelerate` hide | Sidebar fades (opacity, 140 ms). The card snaps. |
 | Auto-hide peek | Sidebar `transform` from the edge. | `peek-show` (250), `peek-hide` (150) | `spring` show, `accelerate` hide | 100 ms fade. Delays and grace stay. |
 | Workspace switch | Two panes translate one pane width as a strip. | `workspace-switch` (250) | `spring-settle` | 140 ms crossfade of the panes. |
 | Theme and tint crossfade | Opacity of two tint layers. A whole-chrome crossfade with two layers when theme or mode changes. | `xslow` (380) | `standard` | 140 ms. A settings change applies instantly. |
@@ -582,7 +582,7 @@ Chromium tab groups are flat and contiguous, so they cannot hold folders nested 
 
 ## Sidebar layout and Helium's layouts
 
-Decided with issue #177. Helium ships four tab layouts (classic, compact, vertical, dynamic) and a Zen mode. Aerie has one layout, the sidebar, and one more planned, horizontal tabs (#186). Helium's layout patches stay applied, because other Helium code reads their prefs, and Aerie holds them in place instead.
+Decided with issue #177. Helium ships four tab layouts (classic, compact, vertical, dynamic) and a Zen mode. Aerie has one layout, the sidebar, and one more planned, horizontal tabs (#186). Helium's layout patches stay applied, because other Helium code reads their prefs, and Aerie locks them instead.
 
 | Pref | Meaning |
 | --- | --- |
@@ -590,7 +590,7 @@ Decided with issue #177. Helium ships four tab layouts (classic, compact, vertic
 | `aerie.sidebar.width` | Width in pixels. Default `size-sidebar-width` (260). It is clamped to `size-sidebar-min` .. `size-sidebar-max` (200 to 400) when read. |
 | `aerie.sidebar.visible` | Shown (default) or hidden. |
 
-While the layout is `sidebar`, Helium's `helium.browser.layout` is `vertical` and `helium.browser.zen_mode` is off. A new profile starts that way. Every window puts the two prefs back if they differ and again whenever one of them changes, so an old profile, sync or an extension cannot bring another layout back. The Settings page cannot write them either: they are not on the settings_private allowlist, and the Appearance page shows an empty "Sidebar" section where the layout picker was. Helium has no flag for the layout. Keyboard resize steps are 10 px (`kKeyboardResizeStep`).
+While the layout is `sidebar`, Helium's `helium.browser.layout` is `vertical` and `helium.browser.zen_mode` is off, and the user cannot change them: they have fixed values in the command-line layer of the pref service, which wins over the user's own file and makes both prefs not user-modifiable ([ADR 0008](adr/0008-lock-helium-layout-in-the-command-line-pref-layer.md)). A new profile starts that way, and an old profile, sync or an extension cannot bring another layout back. The Settings page cannot write them either: they are not on the settings_private allowlist, and the Appearance page shows an empty "Sidebar" section where the layout picker was. Helium has no flag for the layout. Keyboard resize steps are 10 px (`kKeyboardResizeStep`).
 
 Save page moves to Ctrl+Shift+S on Windows and Linux so that Ctrl+S can show and hide the sidebar.
 
@@ -600,11 +600,21 @@ Decided with issue #177. `VerticalTabStripRegionView` is `final`, owns the colum
 
 How the pieces work today (`patches/sidebar/0025` to `0027`):
 
-- **Show and hide.** Ctrl+S (`IDC_CTRL_S_SHORTCUT`) flips `aerie.sidebar.visible`. The region view watches the pref. A hidden sidebar has width 0 and takes no room, so the page card snaps to its new size in one step. The column slides on its layer with `AnimateLayer` using `ShowMotion` and `HideMotion` (transform and opacity only; opacity only under reduced motion). On the way out the layout waits for the slide to end. The state is restored after a restart because the pref is.
+- **Show and hide.** Ctrl+S (`IDC_CTRL_S_SHORTCUT`) flips `aerie.sidebar.visible`. The region view watches the pref. A hidden sidebar has width 0 and takes no room, so the page card snaps to its new size in one step. The column slides on its layer with `AnimateLayer` using `ShowMotion` and `HideMotion` (transform and opacity only; opacity only under reduced motion). On the way out the page gets its room at once and the column slides out over it at its old width (`aerie_sidebar::HideSlide`, `patches/sidebar/0033`); when the slide ends the column leaves the layout. The state is restored after a restart because the pref is.
 - **Resize.** Helium's resize area at the inner edge, named "Resize sidebar", role splitter. Drag has no snap points and no collapse. Left and Right move it 10 px and the new width is announced. The width is clamped to 200..400 and stored in `aerie.sidebar.width` when the drag ends. The state controller never collapses and has no expand on hover while the layout is the sidebar.
 - **Today list.** One row per unpinned tab of the window: favicon, title, a close button on hover or focus, click selects, middle click closes. The rows follow `aerie_sidebar::TodayList` (the Tab Model) and are looked up in the window's tab strip through the Tab Model's adapter, so a tab of another window of the profile has no row here. The Tab Model tells its observers before the adapter has joined a new record to its tab, so the view syncs its rows in a task after the change.
 
-What is not built yet in the view: Favorites, Pinned, folders and the Workspace switcher; the top row (window controls, the toggle button, Back, Forward, Reload and the window drag handle) and the bottom bar; the address pill with the real location bar (the toolbar still sits above the page in Helium's vertical layout) and the Guard icon in it; the page card's follow transform when the sidebar hides or resizes; focus handling beyond the default (roving tab stop, F6 order, the 2 px focus ring); the open and close motion of a row; drag and drop of rows (the Helium strip's own drag and drop is gone with the hidden strip); and the colours of the theme and Workspace (the rows use the system colour roles for now). Delete and Ctrl+W on a focused row work in code but have no test. The width limits are global to Helium's strip code (`vertical_tab_strip_state.h`: 260 default, 200 minimum, from 0025), so issue #186 has to look at them again when it builds the horizontal layout.
+The top row and the address pill (`patches/sidebar/0031`, issue #215): `AerieSidebarTopRow` holds the window controls (drawn only where the frame draws them on the trailing side, Linux; a leading exclusion such as the macOS traffic lights becomes an inset), the toggle, and Back, Forward and Reload, and its empty part is the window drag handle. The real `LocationBarView`, with the Guard icon and its blocked count, sits in the pill below it, and the toolbar row above the page is gone. The toolbar itself stays alive in the bottom bar, because it still owns the app menu, extensions and profile buttons; those have no design home yet. The omnibox popup is as wide as the pill. Tests: `AerieSidebarPillBrowserTest`, `AerieSidebarGuardUiTest`.
+
+What is not built yet in the view: Favorites, Pinned, folders and the Workspace switcher; the bottom bar's final content; drag and drop between sections (issue #182; the basic reorder inside Today is built, see below); and the theme and Workspace colours of the adopted Back, Forward, Reload, the address pill and the bottom bar buttons (they still use Chromium's colour roles until the ColorMixer bridge of ADR 0007 exists). The width limits are global to Helium's strip code (`vertical_tab_strip_state.h`: 260 default, 200 minimum, from 0025), so issue #186 has to look at them again when it builds the horizontal layout.
+
+Keyboard and row motion, as built (issue #215, slice 2). The Today list is one roving tab stop: the selected row takes Tab, Up, Down, Home and End move the stop, and Delete and Ctrl+W close the focused row (not the selected tab). F6 visits the top row, the address pill, the Today list and the bottom bar, then the page (`patches/sidebar/0032`; `GetAccessiblePanes`). The focus ring is 2 px with a 2 px offset, on a layer of its own so that a row's clip does not cut it. A row that opens scales and fades in and then its height grows; a row that closes slides and fades and then its height collapses (`aerie_sidebar_motion.*`). Tests: `AerieSidebarKeyboardUiTest` (keys and F6), `AerieSidebarMotionUiTest` (the animators carry only transform and opacity; under reduced motion no transform and no opacity animation over 140 ms, forced by the operating system's flag and by `aerie.motion.reduce`), and the accessibility-tree test in `AerieSidebarBrowserTest`.
+
+Colours and drag, as built (issue #215, slice 3). The rows, the top row and the focus rings take their colours from `ResolveSidebarPalette` (theme tokens plus the Workspace colour, `aerie_sidebar_palette.*`); there is no colour literal outside `aerie_tokens.h`, and `tests/test_sidebar.py` scans for one. A drag in Today reorders rows: the dragged row follows the pointer and lifts by a transform (scale `motion-scale-lift`, 1.02), the rows it passes shift one slot by a transform, and the drop settles with the spring (`motion-spring-duration`, 420 ms); under reduced motion nothing lifts or shifts and the drop is instant. The drop moves the tab in the window's tab strip and the Tab Model follows. A release outside the window moves the tab to a new window. Issue #182 replaces `DragTargetIndex` and `MoveTodayRow` with a drop target that names a section, a parent and a position. Esc cancels a drag, and so does losing the mouse capture: the row settles back to its slot and the tab does not move. Not built: autoscroll while dragging. Known gap: with the sidebar hidden, Ctrl+L focuses the omnibox but the address pill is in the hidden column, so the omnibox is not drawn; it needs a peek or a pref flip, which is a design choice.
+
+### Page card follow, tried and dropped
+
+Slice 3 made the card follow the column with a layer transform. With motion on, the page then sat one column width off after every hide (to the right) and show (to the left). Cause, from the test's measurement (the page layer ended at exactly the transform's start offset): `NativeViewHost::Layout` places the page's native view in window coordinates with the card's layer transform at that moment folded in (`ConvertRectToWidget`), and the page's layer does not move with the card's. The card's children lay out after the bounds change, so the page was placed with the start offset, and nothing lays it out again when the transform ends. It also cannot follow the transform while it runs. `aerie_sidebar_motion_uitest.cc` has `ThePageIsUnderTheCardAfterHideAndShowWithMotion` (the page layer's origin in the window against its view's origin) and `HideAndShowAnimateOnlyTheColumnAndTheCardSnaps` (the card never gets a layer). The fallback in the brief is what is built: the card snaps, the column animates. The focus ring also needed its own layer: a view without a layer paints inside the clip of every ancestor without one, so a ring outside its row was cut to the row's corners (`TheFocusRingOfARowIsPaintedAndNotClipped`).
 
 ## Open points carried into M2 planning
 

@@ -123,8 +123,18 @@ MotionPlan PlanMotion(const LayerMotion& motion,
                       tokens::MotionDuration duration,
                       tokens::MotionEasing easing,
                       bool reduced) {
+  return PlanMotionForMs(motion, tokens::GetDurationMs(duration, false),
+                         tokens::GetDurationMs(duration, true), easing,
+                         reduced);
+}
+
+MotionPlan PlanMotionForMs(const LayerMotion& motion,
+                           int duration_ms,
+                           int reduced_duration_ms,
+                           tokens::MotionEasing easing,
+                           bool reduced) {
   MotionPlan plan;
-  int ms = tokens::GetDurationMs(duration, reduced);
+  int ms = reduced ? reduced_duration_ms : duration_ms;
   if (reduced) {
     ms = std::min(ms, kMaxReducedOpacityMs);
   }
@@ -234,8 +244,21 @@ MotionHandle AnimateLayer(ui::Layer* layer,
                           tokens::MotionDuration duration,
                           tokens::MotionEasing easing,
                           const PrefService* prefs) {
+  return AnimateLayerForMs(layer, motion,
+                           tokens::GetDurationMs(duration, false),
+                           tokens::GetDurationMs(duration, true), easing,
+                           prefs);
+}
+
+MotionHandle AnimateLayerForMs(ui::Layer* layer,
+                               const LayerMotion& motion,
+                               int duration_ms,
+                               int reduced_duration_ms,
+                               tokens::MotionEasing easing,
+                               const PrefService* prefs) {
   const MotionPlan plan =
-      PlanMotion(motion, duration, easing, ShouldReduceMotion(prefs));
+      PlanMotionForMs(motion, duration_ms, reduced_duration_ms, easing,
+                      ShouldReduceMotion(prefs));
   return StartMotion(layer->GetAnimator(), plan, motion, layer->transform(),
                      layer->opacity());
 }

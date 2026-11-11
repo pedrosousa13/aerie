@@ -94,6 +94,7 @@ test("aerie_interactive_ui_tests") {
   deps = [
     ":interactive_tests",
     ":test_data",
+    "//chrome/browser/ui/views/aerie_sidebar:interactive_tests",
     "//base/test:test_support",
     "//chrome/browser",
     "//chrome/test:test_support",

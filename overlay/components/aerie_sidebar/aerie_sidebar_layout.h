@@ -12,7 +12,8 @@ class PrefService;
 // it has unit tests.
 namespace aerie_sidebar {
 
-// Helium's own layout prefs. The names and values are those of Helium's
+// Helium's own layout prefs, which aerie_sidebar_layout_lock.h locks to the
+// sidebar (ADR 0008). The names and values are those of Helium's
 // layout/core.patch (HeliumLayoutType::kVertical is 2; prefs::kHeliumLayout and
 // prefs::kHeliumZenMode in chrome/common/pref_names.h). A test compares them
 // with Helium's patch, so a Helium bump that renames one fails here.
@@ -23,12 +24,6 @@ inline constexpr int kHeliumLayoutVertical = 2;
 // True when the layout pref asks for the sidebar. Anything but "horizontal" is
 // the sidebar, so a damaged value cannot bring a Helium layout back.
 bool IsSidebarLayout(const PrefService& prefs);
-
-// While the layout is the sidebar, puts Helium's layout state where the
-// sidebar needs it: layout vertical, Zen mode off. It writes only when a value
-// differs. Whoever wrote the other value (Settings, an old profile, sync, an
-// extension) loses. Safe to call again.
-void EnforceHeliumLayout(PrefService* prefs);
 
 // Width limits and steps, from the tokens size-sidebar-width, -min and -max.
 int ClampWidth(int width);
@@ -58,6 +53,24 @@ bool ToggleVisible(PrefService* prefs);
 // px, positive to the right. A sidebar on the right grows when the pointer
 // moves left. The result is clamped.
 int ResizeByDrag(int start_width, int delta_x, bool sidebar_on_right);
+
+// What the top row does about the platform's window controls (issue #215).
+struct WindowControlsPlan {
+  // The room the frame's own controls take at the leading edge (the macOS
+  // traffic lights), in whole px, rounded up.
+  int leading_inset = 0;
+  // True when the top row draws the three controls itself, because the frame
+  // draws them on the far side of the window and must be made invisible.
+  bool draw_own = false;
+};
+
+// `leading_width` and `trailing_width` are the widths the frame reserves at the
+// window's two ends for its controls. `frame_may_draw_trailing` is true on the
+// platforms whose custom frame puts the controls at the trailing end (Linux):
+// there a reserved trailing width means the sidebar draws its own.
+WindowControlsPlan PlanWindowControls(float leading_width,
+                                      float trailing_width,
+                                      bool frame_may_draw_trailing);
 
 }  // namespace aerie_sidebar
 
