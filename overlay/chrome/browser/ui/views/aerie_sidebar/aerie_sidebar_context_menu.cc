@@ -25,6 +25,11 @@ AerieSidebarContextMenu::AerieSidebarContextMenu(Options options,
   using aerie_tab_model::Section;
   auto root = std::make_unique<views::MenuItemView>(this);
   root_ = root.get();
+  if (options_.away_from_pinned && options_.section == Section::kPinned) {
+    root_->AppendMenuItem(
+        kCommandBackToPinned,
+        l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_BACK_TO_PINNED));
+  }
   // The section items. A Favorite goes back to where it was, so it has no Pin
   // item of its own.
   if (options_.section == Section::kPinned) {
@@ -53,7 +58,10 @@ AerieSidebarContextMenu::AerieSidebarContextMenu(Options options,
       std::move(root), views::MenuRunner::HAS_MNEMONICS);
 }
 
-AerieSidebarContextMenu::~AerieSidebarContextMenu() = default;
+AerieSidebarContextMenu::~AerieSidebarContextMenu() {
+  menu_motion_.Abort();
+  motion_layer_ = nullptr;
+}
 
 void AerieSidebarContextMenu::Run(views::Widget* parent,
                                   const gfx::Point& screen_point,
@@ -108,18 +116,25 @@ views::MenuItemView* AerieSidebarContextMenu::item(int command) const {
 }
 
 bool AerieSidebarContextMenu::IsCommandEnabled(int id) const {
-  if (id == kCommandSleepTab) {
-    return options_.sleep.enabled;
+  // A command that this menu does not have (the Pin item of a Favorite, say)
+  // is not enabled.
+  if (!root_ || !root_->GetMenuItemByID(id)) {
+    return false;
   }
-  return id == kCommandPin || id == kCommandUnpin ||
-         id == kCommandAddToFavorites || id == kCommandRemoveFromFavorites ||
-         id == kCommandClose;
+  return id != kCommandSleepTab || options_.sleep.enabled;
 }
 
 void AerieSidebarContextMenu::ExecuteCommand(int id) {
   if (IsCommandEnabled(id) && on_command_) {
     on_command_.Run(id);
   }
+}
+
+void AerieSidebarContextMenu::OnMenuClosed(views::MenuItemView* menu) {
+  // The menu's window and layer go away with the menu: the open motion must not
+  // outlive them.
+  menu_motion_.Abort();
+  motion_layer_ = nullptr;
 }
 
 std::u16string AerieSidebarContextMenu::GetTooltipText(

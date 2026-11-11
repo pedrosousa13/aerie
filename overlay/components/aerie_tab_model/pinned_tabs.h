@@ -69,7 +69,8 @@ enum class PinnedCloseAction {
   // Navigate to the pinned URL (replacing the history entry), put the tab to
   // sleep and select the next tab. The row stays.
   kResetSleepSwitch,
-  // Put the tab to sleep and select the next tab. The URL stays.
+  // Put the tab to sleep and select the next tab. The URL stays. Also the first
+  // press in the default mode on a tab that is at its pinned page already.
   kSleepSwitch,
   // Unpin the tab and close it.
   kUnpinClose,
@@ -77,7 +78,9 @@ enum class PinnedCloseAction {
 
 // The table of the design. The second press is the one on a tab that is asleep
 // already: it closes in the default mode when the tab is also at its pinned URL,
-// and in "sleep only" mode whatever the URL is.
+// and in "sleep only" mode whatever the URL is. In the default mode a tab that is
+// asleep and away from its page still gets the reset (Chromium cannot change a
+// discarded tab's page without loading it; docs/sidebar-design.md says so).
 PinnedCloseAction DecidePinnedClose(PinnedCloseMode mode,
                                     bool asleep,
                                     bool at_pinned_url);

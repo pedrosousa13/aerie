@@ -48,6 +48,8 @@
   --aerie-size-tile-comfortable: 44px;
   --aerie-size-tile-compact: 36px;
   --aerie-size-favorites-columns: 4;
+  --aerie-size-pinned-max-rows: 6;
+  --aerie-size-back-button: 20px;
   --aerie-size-inset-comfortable: 8px;
   --aerie-size-inset-compact: 4px;
   --aerie-size-favicon-comfortable: 20px;
@@ -121,6 +123,7 @@
   --aerie-motion-spring-mass: 1;
   --aerie-motion-spring-duration: 420ms;
   --aerie-motion-distance-close-slide: 8px;
+  --aerie-motion-distance-toast-rise: 6px;
   --aerie-motion-distance-swipe-commit: 80px;
   --aerie-motion-distance-peek-grace-x: 200px;
   --aerie-motion-distance-peek-grace-y: 100px;
@@ -518,6 +521,7 @@
     --aerie-motion-easing-spring: cubic-bezier(0.05, 0.7, 0.1, 1);
     --aerie-motion-easing-spring-settle: cubic-bezier(0.05, 0.7, 0.1, 1);
     --aerie-motion-spring-duration: 140ms;
+    --aerie-motion-distance-toast-rise: 0px;
     --aerie-motion-distance-peek-grace-x: 200px;
     --aerie-motion-distance-peek-grace-y: 100px;
     --aerie-motion-scale-archive-collapse: 1;
@@ -560,6 +564,7 @@
   --aerie-motion-easing-spring: cubic-bezier(0.05, 0.7, 0.1, 1);
   --aerie-motion-easing-spring-settle: cubic-bezier(0.05, 0.7, 0.1, 1);
   --aerie-motion-spring-duration: 140ms;
+  --aerie-motion-distance-toast-rise: 0px;
   --aerie-motion-distance-peek-grace-x: 200px;
   --aerie-motion-distance-peek-grace-y: 100px;
   --aerie-motion-scale-archive-collapse: 1;

@@ -44,6 +44,7 @@ class AerieSidebarContextMenu : public views::MenuDelegate {
   static constexpr int kCommandAddToFavorites = 4;
   static constexpr int kCommandRemoveFromFavorites = 5;
   static constexpr int kCommandClose = 6;
+  static constexpr int kCommandBackToPinned = 7;
 
   struct SleepItem {
     bool enabled = false;
@@ -54,6 +55,9 @@ class AerieSidebarContextMenu : public views::MenuDelegate {
   struct Options {
     // Where the tab is: it decides which of the section items are shown.
     aerie_tab_model::Section section = aerie_tab_model::Section::kToday;
+    // A pinned tab that has left its pinned page: the menu offers "Back to pinned
+    // page" first, the keyboard way to the button of the row.
+    bool away_from_pinned = false;
     SleepItem sleep;
   };
 
@@ -88,6 +92,7 @@ class AerieSidebarContextMenu : public views::MenuDelegate {
   void ExecuteCommand(int id) override;
   std::u16string GetTooltipText(int id,
                                 const gfx::Point& screen_loc) const override;
+  void OnMenuClosed(views::MenuItemView* menu) override;
 
  private:
   Options options_;

@@ -124,11 +124,20 @@ class WiringTest(unittest.TestCase):
             self.assertNotIn("SetTabPinned", text, path.name)
             self.assertNotIn("services/network", text, path.name)
 
+    def test_the_sizes_come_from_tokens(self):
+        row = (VIEWS / "aerie_sidebar_row_view.cc").read_text()
+        self.assertIn("kSizeBackButton", row)
+        self.assertRegex(row, r"back_to_pinned_->SetPreferredSize\(\s*gfx::Size\(aerie::tokens::kSizeBackButton")
+        self.assertIn("kSizePinnedMaxRows", (VIEWS / "aerie_sidebar_view.cc").read_text())
+        self.assertNotIn('"chrome://newtab', code(SERVICE / "pinned_tabs_controller.cc"))
+        self.assertIn("kChromeUINewTabURL", code(SERVICE / "pinned_tabs_controller.cc"))
+
     def test_the_decisions_are_written_down(self):
         doc = (REPO / "docs" / "sidebar-design.md").read_text()
         self.assertIn("## Pinned tabs and Favorites", doc)
         section = doc.split("## Pinned tabs and Favorites")[1].split("\n## ")[0]
-        for phrase in ("Back to pinned page", "12", "never auto-archived", "reset-sleep-switch"):
+        for phrase in ("Back to pinned page", "12", "never auto-archived", "reset-sleep-switch", "Backspace",
+                       "motion-distance-toast-rise", "size-back-button", "size-pinned-max-rows", "ContentsObservingTabFeature"):
             self.assertIn(phrase.lower(), section.lower())
 
 

@@ -72,9 +72,8 @@ namespace {
 // #179: nothing at startup).
 constexpr base::TimeDelta kSleepControllerDelay = base::Seconds(5);
 
-// How many pinned rows show before the Pinned list scrolls. A layout choice for
-// the room the Today list keeps; the rows themselves are `size-row-height`.
-constexpr int kPinnedMaxVisibleRows = 6;
+// How many pinned rows show before the Pinned list scrolls (`size-pinned-max-rows`).
+constexpr int kPinnedMaxVisibleRows = aerie::tokens::kSizePinnedMaxRows;
 
 // The tooltip of the close button of a pinned row: it names the action.
 int CloseTooltipMessageId(aerie_tab_model::PinnedCloseAction action) {
@@ -1254,6 +1253,9 @@ void AerieSidebarView::ShowRowContextMenu(
   const Eligibility eligibility = controller->GetEligibility(tab);
   AerieSidebarContextMenu::Options options;
   options.section = record->section;
+  if (auto* pinned = PinnedController()) {
+    options.away_from_pinned = pinned->IsAwayFromPinnedPage(tab);
+  }
   options.sleep.enabled = eligibility.state == Eligibility::State::kCanSleep;
   if (!options.sleep.enabled) {
     options.sleep.tooltip =
@@ -1280,6 +1282,9 @@ void AerieSidebarView::OnContextCommand(const std::string& tab_id,
               browser_->GetProfile())) {
         sleep->Sleep(tab);
       }
+      break;
+    case AerieSidebarContextMenu::kCommandBackToPinned:
+      GoBackToPinnedPage(tab_id);
       break;
     case AerieSidebarContextMenu::kCommandPin:
       if (pinned) {
@@ -1308,37 +1313,68 @@ void AerieSidebarView::OnContextCommand(const std::string& tab_id,
   }
 }
 
+ui::Layer* AerieSidebarView::toast_layer() const {
+  return toast_->layer();
+}
+
 bool AerieSidebarView::toast_visible() const {
   return toast_->GetVisible();
 }
 
 void AerieSidebarView::ShowToast(const std::u16string& text) {
   toast_motion_.Abort();
+  toast_timer_.Stop();
   toast_->SetText(text);
   toast_->SetVisible(true);
   // A polite announcement: the label has the status role, and its text change
   // is what a screen reader reads.
   toast_->NotifyAccessibilityEventDeprecated(ax::mojom::Event::kAlert, true);
   const PrefService* prefs = browser_->GetProfile()->GetPrefs();
+  const aerie_sidebar::ToastMotion motion =
+      aerie_sidebar::ToastShowMotion(aerie::motion::ShouldReduceMotion(prefs));
   if (!toast_->layer()) {
     toast_->SetPaintToLayer();
     toast_->layer()->SetFillsBoundsOpaquely(false);
   }
-  toast_->layer()->SetOpacity(0.f);
+  ui::Layer* layer = toast_->layer();
+  layer->SetOpacity(motion.from_opacity);
   aerie::motion::LayerMotion target;
-  target.opacity = 1.f;
-  toast_motion_ = aerie::motion::AnimateLayer(
-      toast_->layer(), target, aerie::tokens::MotionDuration::kBase,
-      aerie::tokens::MotionEasing::kStandard, prefs);
-  const bool reduced = aerie::motion::ShouldReduceMotion(prefs);
-  toast_timer_.Start(
-      FROM_HERE,
-      base::Milliseconds(reduced ? aerie::tokens::kMotionTimingToastReduced
-                                 : aerie::tokens::kMotionTimingToast),
-      base::BindOnce(&AerieSidebarView::HideToast, base::Unretained(this)));
+  target.opacity = motion.to_opacity;
+  if (motion.animate_rise) {
+    layer->SetTransform(gfx::Transform::MakeTranslation(0, motion.rise_px));
+    target.transform = gfx::Transform();
+  } else {
+    layer->SetTransform(gfx::Transform());
+  }
+  toast_motion_ = aerie::motion::AnimateLayer(layer, target, motion.duration,
+                                              motion.easing, prefs);
+  toast_timer_.Start(FROM_HERE, base::Milliseconds(motion.hold_ms),
+                     base::BindOnce(&AerieSidebarView::HideToast,
+                                    base::Unretained(this)));
 }
 
 void AerieSidebarView::HideToast() {
+  toast_motion_.Abort();
+  toast_timer_.Stop();
+  if (!toast_->GetVisible() || !toast_->layer()) {
+    return;
+  }
+  const PrefService* prefs = browser_->GetProfile()->GetPrefs();
+  const aerie_sidebar::ToastMotion motion =
+      aerie_sidebar::ToastHideMotion(aerie::motion::ShouldReduceMotion(prefs));
+  aerie::motion::LayerMotion target;
+  target.opacity = motion.to_opacity;
+  toast_motion_ = aerie::motion::AnimateLayer(toast_->layer(), target,
+                                              motion.duration, motion.easing,
+                                              prefs);
+  // The label goes when the fade has ended.
+  toast_timer_.Start(
+      FROM_HERE, base::Milliseconds(motion.duration_ms),
+      base::BindOnce(&AerieSidebarView::FinishToastHide,
+                     base::Unretained(this)));
+}
+
+void AerieSidebarView::FinishToastHide() {
   toast_motion_.Abort();
   toast_->SetVisible(false);
   toast_->SetText(std::u16string());

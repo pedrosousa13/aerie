@@ -7,10 +7,17 @@
 // the three pinned-close modes, the context menu, and what a screen reader
 // hears. PRE_ tests are the first run of a pair; the next run is the restart.
 
+#include <atomic>
+#include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
+#include "base/run_loop.h"
+#include "base/task/single_thread_task_runner.h"
+#include "base/test/bind.h"
 #include "base/test/run_until.h"
+#include "base/time/time.h"
 #include "chrome/browser/aerie_tab_model/pinned_tabs_controller.h"
 #include "chrome/browser/aerie_tab_model/sleep_controller.h"
 #include "chrome/browser/aerie_tab_model/sleep_controller_factory.h"
@@ -18,7 +25,9 @@
 #include "chrome/browser/aerie_tab_model/tab_model_service_factory.h"
 #include "chrome/browser/aerie_tab_model/tab_strip_adapter.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_context_menu.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_regions.h"
@@ -35,10 +44,13 @@
 #include "components/aerie_tab_model/tab_model_prefs.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/browser/navigation_controller.h"
+#include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/web_contents.h"
+#include "content/public/browser/web_contents_observer.h"
 #include "content/public/test/browser_test.h"
 #include "net/dns/mock_host_resolver.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
+#include "net/test/embedded_test_server/http_request.h"
 #include "ui/accessibility/ax_node_data.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/mojom/menu_source_type.mojom.h"
@@ -76,6 +88,18 @@ std::string NameOf(views::View* view) {
   return DataOf(view).GetStringAttribute(ax::mojom::StringAttribute::kName);
 }
 
+// Counts the navigations that start in the web contents it watches.
+class NavigationCounter : public content::WebContentsObserver {
+ public:
+  explicit NavigationCounter(content::WebContents* contents)
+      : content::WebContentsObserver(contents) {}
+  void DidStartNavigation(content::NavigationHandle*) override { ++count_; }
+  int count() const { return count_; }
+
+ private:
+  int count_ = 0;
+};
+
 }  // namespace
 
 class AerieSidebarPinnedBrowserTest : public InProcessBrowserTest {
@@ -83,6 +107,10 @@ class AerieSidebarPinnedBrowserTest : public InProcessBrowserTest {
   void SetUpOnMainThread() override {
     InProcessBrowserTest::SetUpOnMainThread();
     host_resolver()->AddRule("*", "127.0.0.1");
+    // Counts every request the test server gets: the restart tests assert that
+    // restoring Pinned and Favorites tabs loads nothing.
+    embedded_test_server()->RegisterRequestMonitor(base::BindLambdaForTesting(
+        [this](const net::test_server::HttpRequest&) { ++requests_; }));
     ASSERT_TRUE(embedded_test_server()->Start());
     reduced_motion_.emplace(
         gfx::AnimationTestApi::SetPrefersReducedMotionForTesting(true));
@@ -159,6 +187,18 @@ class AerieSidebarPinnedBrowserTest : public InProcessBrowserTest {
         base::TimeTicks(), ui::EF_LEFT_MOUSE_BUTTON, ui::EF_LEFT_MOUSE_BUTTON));
   }
 
+  // Closes the pinned or favorite tab `id` as the close button does.
+  void PressClose(AerieSidebarRowView* row) { Click(row->close_button()); }
+
+  // Waits a few turns of the message loop, for what a restart posts.
+  void Settle() {
+    base::RunLoop loop;
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+        FROM_HERE, loop.QuitClosure(), base::Milliseconds(500));
+    loop.Run();
+  }
+
+  std::atomic<int> requests_{0};
   std::optional<gfx::AnimationTestApi::PrefersReducedMotionResetter>
       reduced_motion_;
 };
@@ -183,7 +223,19 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarPinnedBrowserTest,
     return sidebar()->pinned_row_count() == 1 &&
            sidebar()->favorite_tile_count() == 1;
   }));
-  // Both are unloaded: no navigation happened, and they show as asleep.
+  // Both are unloaded: no navigation starts in them, they have never loaded
+  // (NeedsReload), nothing is loading, and they show as asleep. The test server
+  // of this run has a new port, so a request count cannot show this; the
+  // navigations of the web contents do.
+  std::vector<std::unique_ptr<NavigationCounter>> counters;
+  for (int i = 0; i < strip()->count(); ++i) {
+    counters.push_back(std::make_unique<NavigationCounter>(
+        strip()->GetTabAtIndex(i)->GetContents()));
+  }
+  Settle();
+  for (const auto& counter : counters) {
+    EXPECT_EQ(counter->count(), 0);
+  }
   EXPECT_TRUE(sidebar()->pinned_row_at(0)->sleeping());
   EXPECT_TRUE(sidebar()->tile_at(0)->sleeping());
   for (int i = 0; i < strip()->count(); ++i) {
@@ -191,8 +243,8 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarPinnedBrowserTest,
     const std::string id = IdOf(tab);
     const auto* record = model()->GetTab(id);
     if (record && record->section != aerie_tab_model::Section::kToday) {
-      EXPECT_TRUE(tab->GetContents()->WasDiscarded() ||
-                  tab->GetContents()->GetController().NeedsReload());
+      EXPECT_FALSE(tab->GetContents()->IsLoading());
+      EXPECT_TRUE(tab->GetContents()->GetController().NeedsReload());
     }
   }
   // Selecting the pinned row loads its page.
@@ -207,7 +259,7 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarPinnedBrowserTest,
 IN_PROC_BROWSER_TEST_F(AerieSidebarPinnedBrowserTest,
                        PRE_TwentyPinnedTabsComeBackAndTodayStaysReachable) {
   for (int i = 0; i < 20; ++i) {
-    ASSERT_TRUE(pinned()->Pin(OpenBlankTab()));
+    ASSERT_TRUE(pinned()->Pin(OpenTab("/title1.html")));
   }
   WaitForPinned(20);
 }
@@ -223,6 +275,24 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarPinnedBrowserTest,
              .size()
       << ", loaded: " << service()->loaded();
   ASSERT_EQ(sidebar()->pinned_row_count(), 20u);
+  // None of the 20 loaded: no navigation starts, none has ever loaded, nothing
+  // is loading, every row is asleep.
+  std::vector<std::unique_ptr<NavigationCounter>> counters;
+  for (size_t i = 0; i < 20; ++i) {
+    tabs::TabInterface* tab =
+        service()->adapter()->TabForRecord(sidebar()->pinned_tab_id_at(i));
+    ASSERT_TRUE(tab) << i;
+    counters.push_back(std::make_unique<NavigationCounter>(tab->GetContents()));
+  }
+  Settle();
+  for (size_t i = 0; i < 20; ++i) {
+    EXPECT_EQ(counters[i]->count(), 0) << i;
+    EXPECT_TRUE(sidebar()->pinned_row_at(i)->sleeping()) << i;
+    tabs::TabInterface* tab =
+        service()->adapter()->TabForRecord(sidebar()->pinned_tab_id_at(i));
+    EXPECT_FALSE(tab->GetContents()->IsLoading()) << i;
+    EXPECT_TRUE(tab->GetContents()->GetController().NeedsReload()) << i;
+  }
   // The Pinned list scrolls on its own, so it never takes the room of Today.
   // (The headless window has no real height, so this reads the preferred
   // height of the Pinned list: it is capped well under 20 rows.)
@@ -292,53 +362,150 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarPinnedBrowserTest, TheThirteenthFavoriteIsRef
   EXPECT_EQ(DataOf(sidebar()->toast()).role, ax::mojom::Role::kStatus);
 }
 
-// Acceptance: the three close modes, tooltips included.
-IN_PROC_BROWSER_TEST_F(AerieSidebarPinnedBrowserTest, CloseModeResetAndSleepGoesBackThenSleeps) {
+// Acceptance: the three close modes, tooltips, the second press, Ctrl+W, the
+// history entry of a reset and which tab gets selected.
+IN_PROC_BROWSER_TEST_F(AerieSidebarPinnedBrowserTest, CloseModeResetAndSleepGoesBackThenSleepsAndTheSecondPressCloses) {
   SetCloseMode(aerie_tab_model::kPinnedCloseResetSleepSwitch);
+  tabs::TabInterface* initial = strip()->GetTabAtIndex(0);
   tabs::TabInterface* tab = OpenTab("/title1.html");
+  const std::string id = IdOf(tab);
   ASSERT_TRUE(pinned()->Pin(tab));
   WaitForPinned(1);
   AerieSidebarRowView* row = sidebar()->pinned_row_at(0);
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), Url("/title2.html")));
   ASSERT_TRUE(base::test::RunUntil(
       [&] { return row->back_to_pinned_button()->GetVisible(); }));
+  const int entries_before = tab->GetContents()->GetController().GetEntryCount();
   EXPECT_EQ(row->close_button()->GetRenderedTooltipText(gfx::Point()),
             l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_CLOSE_RESET_SLEEP));
   const int tabs_before = strip()->count();
-  Click(row->close_button());
+
+  // First press: back to the pinned page, asleep, and the next tab is selected
+  // (the row below the pinned one, the first Today tab).
+  PressClose(row);
   ASSERT_TRUE(base::test::RunUntil([&] { return row->sleeping(); }));
-  // The tab stays: nothing was closed, the page is the pinned one.
   EXPECT_EQ(strip()->count(), tabs_before);
-  EXPECT_EQ(strip()->count(), tabs_before);
+  EXPECT_EQ(strip()->GetActiveTab(), initial);
+  // The reset replaced the history entry: the page is the pinned one, and the
+  // entry count did not grow.
+  EXPECT_EQ(tab->GetContents()->GetLastCommittedURL(), Url("/title1.html"));
+  EXPECT_EQ(tab->GetContents()->GetController().GetEntryCount(), entries_before);
+
+  // Second press: asleep and at the pinned URL, so it unpins and closes.
+  EXPECT_EQ(row->close_button()->GetRenderedTooltipText(gfx::Point()),
+            l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_CLOSE_CLOSE));
+  PressClose(row);
+  ASSERT_TRUE(base::test::RunUntil(
+      [&] { return strip()->count() == tabs_before - 1; }));
+  WaitForPinned(0);
+  EXPECT_EQ(model()->GetTab(id), nullptr);
 }
 
-IN_PROC_BROWSER_TEST_F(AerieSidebarPinnedBrowserTest, CloseModeSleepKeepsThePageAndSleeps) {
+IN_PROC_BROWSER_TEST_F(AerieSidebarPinnedBrowserTest, CloseModeResetAndSleepOnTheStartPageOnlySleepsAndLoadsNothing) {
+  SetCloseMode(aerie_tab_model::kPinnedCloseResetSleepSwitch);
+  tabs::TabInterface* tab = OpenTab("/title1.html");
+  ASSERT_TRUE(pinned()->Pin(tab));
+  WaitForPinned(1);
+  AerieSidebarRowView* row = sidebar()->pinned_row_at(0);
+  // At the pinned page there is nothing to reset: the tooltip says "Sleep" and
+  // the press makes no request.
+  EXPECT_EQ(row->close_button()->GetRenderedTooltipText(gfx::Point()),
+            l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_CLOSE_SLEEP));
+  const int requests = requests_.load();
+  PressClose(row);
+  ASSERT_TRUE(base::test::RunUntil([&] { return row->sleeping(); }));
+  Settle();
+  EXPECT_EQ(requests_.load(), requests);
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarPinnedBrowserTest, CloseModeSleepKeepsThePageSleepsAndTheSecondPressCloses) {
   SetCloseMode(aerie_tab_model::kPinnedCloseSleep);
   tabs::TabInterface* tab = OpenTab("/title1.html");
+  const std::string id = IdOf(tab);
   ASSERT_TRUE(pinned()->Pin(tab));
   WaitForPinned(1);
   AerieSidebarRowView* row = sidebar()->pinned_row_at(0);
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), Url("/title2.html")));
   EXPECT_EQ(row->close_button()->GetRenderedTooltipText(gfx::Point()),
             l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_CLOSE_SLEEP));
-  Click(row->close_button());
+  const int tabs_before = strip()->count();
+  PressClose(row);
   ASSERT_TRUE(base::test::RunUntil([&] { return row->sleeping(); }));
+  // The page stays where the user took it.
+  EXPECT_EQ(tab->GetContents()->GetLastCommittedURL(), Url("/title2.html"));
   EXPECT_EQ(sidebar()->pinned_row_count(), 1u);
+  EXPECT_EQ(strip()->count(), tabs_before);
+  // Second press: asleep, whatever the URL is, so it closes.
+  PressClose(row);
+  ASSERT_TRUE(base::test::RunUntil(
+      [&] { return strip()->count() == tabs_before - 1; }));
+  WaitForPinned(0);
+  EXPECT_EQ(model()->GetTab(id), nullptr);
 }
 
 IN_PROC_BROWSER_TEST_F(AerieSidebarPinnedBrowserTest, CloseModeCloseUnpinsAndCloses) {
   SetCloseMode(aerie_tab_model::kPinnedCloseClose);
   tabs::TabInterface* tab = OpenTab("/title1.html");
+  const std::string id = IdOf(tab);
   ASSERT_TRUE(pinned()->Pin(tab));
   WaitForPinned(1);
   AerieSidebarRowView* row = sidebar()->pinned_row_at(0);
   EXPECT_EQ(row->close_button()->GetRenderedTooltipText(gfx::Point()),
             l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_CLOSE_CLOSE));
   const int tabs_before = strip()->count();
-  Click(row->close_button());
+  PressClose(row);
   ASSERT_TRUE(base::test::RunUntil(
       [&] { return strip()->count() == tabs_before - 1; }));
   WaitForPinned(0);
+  EXPECT_EQ(model()->GetTab(id), nullptr);
+}
+
+// Acceptance: Ctrl+W (IDC_CLOSE_TAB) on a pinned tab follows the setting too.
+IN_PROC_BROWSER_TEST_F(AerieSidebarPinnedBrowserTest, CtrlWOnAPinnedTabPutsItToSleepInsteadOfClosingIt) {
+  SetCloseMode(aerie_tab_model::kPinnedCloseResetSleepSwitch);
+  tabs::TabInterface* initial = strip()->GetTabAtIndex(0);
+  tabs::TabInterface* tab = OpenTab("/title1.html");
+  ASSERT_TRUE(pinned()->Pin(tab));
+  WaitForPinned(1);
+  AerieSidebarRowView* row = sidebar()->pinned_row_at(0);
+  const int tabs_before = strip()->count();
+  ASSERT_EQ(strip()->GetActiveTab(), tab);
+  chrome::ExecuteCommand(browser(), IDC_CLOSE_TAB);
+  ASSERT_TRUE(base::test::RunUntil([&] { return row->sleeping(); }));
+  EXPECT_EQ(strip()->count(), tabs_before);
+  EXPECT_EQ(strip()->GetActiveTab(), initial);
+  // The same key on a Today tab still closes it.
+  tabs::TabInterface* plain = OpenTab("/title2.html");
+  (void)plain;
+  const int with_plain = strip()->count();
+  chrome::ExecuteCommand(browser(), IDC_CLOSE_TAB);
+  ASSERT_TRUE(base::test::RunUntil(
+      [&] { return strip()->count() == with_plain - 1; }));
+}
+
+// Acceptance: the tab that gets selected is the row below, else the row above.
+IN_PROC_BROWSER_TEST_F(AerieSidebarPinnedBrowserTest, ClosingAPinnedTabSelectsTheRowAboveWhenNoneIsBelow) {
+  SetCloseMode(aerie_tab_model::kPinnedCloseSleep);
+  tabs::TabInterface* b = OpenTab("/title1.html");
+  tabs::TabInterface* c = OpenTab("/title2.html");
+  ASSERT_TRUE(pinned()->Pin(b));
+  ASSERT_TRUE(pinned()->Pin(c));
+  WaitForPinned(2);
+  // Close the initial Today tab: now the sidebar is two pinned rows, and the
+  // active one (c) is the last.
+  strip()->CloseWebContentsAt(0, TabCloseTypes::CLOSE_NONE);
+  ASSERT_TRUE(base::test::RunUntil([&] { return strip()->count() == 2; }));
+  ASSERT_EQ(strip()->GetActiveTab(), c);
+  AerieSidebarRowView* row = nullptr;
+  for (size_t i = 0; i < sidebar()->pinned_row_count(); ++i) {
+    if (sidebar()->pinned_tab_id_at(i) == IdOf(c)) {
+      row = sidebar()->pinned_row_at(i);
+    }
+  }
+  ASSERT_TRUE(row);
+  PressClose(row);
+  ASSERT_TRUE(base::test::RunUntil([&] { return row->sleeping(); }));
+  EXPECT_EQ(strip()->GetActiveTab(), b);
 }
 
 // Acceptance: Remove from Favorites returns the tab to where it was.
@@ -406,4 +573,70 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarPinnedBrowserTest, PinnedAndFavoriteTabsAreNe
   // The auto-archive rule (issue #176) reads Today tabs only; a pinned record
   // is never marked archived.
   EXPECT_FALSE(record->archived_at.has_value());
+}
+
+// Fix: the "Back to pinned page" button has no keyboard stop, so the context
+// menu offers the same action, only while the pinned tab is away.
+IN_PROC_BROWSER_TEST_F(AerieSidebarPinnedBrowserTest, TheContextMenuOffersBackToPinnedPageOnlyWhileAway) {
+  tabs::TabInterface* tab = OpenTab("/title1.html");
+  ASSERT_TRUE(pinned()->Pin(tab));
+  WaitForPinned(1);
+  AerieSidebarRowView* row = sidebar()->pinned_row_at(0);
+  using M = AerieSidebarContextMenu;
+  row->ShowContextMenu(gfx::Point(5, 5), ui::mojom::MenuSourceType::kMouse);
+  ASSERT_TRUE(sidebar()->context_menu());
+  EXPECT_EQ(sidebar()->context_menu()->item(M::kCommandBackToPinned), nullptr);
+  EXPECT_FALSE(sidebar()->context_menu()->IsCommandEnabled(M::kCommandBackToPinned));
+  sidebar()->context_menu()->Close();
+
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), Url("/title2.html")));
+  ASSERT_TRUE(base::test::RunUntil(
+      [&] { return row->back_to_pinned_button()->GetVisible(); }));
+  row->ShowContextMenu(gfx::Point(5, 5), ui::mojom::MenuSourceType::kMouse);
+  ASSERT_TRUE(sidebar()->context_menu());
+  views::MenuItemView* item = sidebar()->context_menu()->item(M::kCommandBackToPinned);
+  ASSERT_TRUE(item);
+  EXPECT_EQ(base::UTF16ToUTF8(item->title()),
+            l10n_util::GetStringUTF8(IDS_AERIE_SIDEBAR_BACK_TO_PINNED));
+  sidebar()->context_menu()->ExecuteCommand(M::kCommandBackToPinned);
+  sidebar()->context_menu()->Close();
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return tab->GetContents()->GetLastCommittedURL() == Url("/title1.html");
+  }));
+  // The way back is a normal navigation, so the user can go Back from it.
+  EXPECT_TRUE(tab->GetContents()->GetController().CanGoBack());
+}
+
+// IsCommandEnabled is false for a command the menu does not have.
+IN_PROC_BROWSER_TEST_F(AerieSidebarPinnedBrowserTest, ACommandThatTheMenuLacksIsNotEnabled) {
+  using M = AerieSidebarContextMenu;
+  AerieSidebarContextMenu::Options options;
+  options.section = aerie_tab_model::Section::kFavorite;
+  M menu(options, base::DoNothing());
+  EXPECT_FALSE(menu.IsCommandEnabled(M::kCommandPin));
+  EXPECT_FALSE(menu.IsCommandEnabled(M::kCommandUnpin));
+  EXPECT_FALSE(menu.IsCommandEnabled(M::kCommandAddToFavorites));
+  EXPECT_FALSE(menu.IsCommandEnabled(M::kCommandBackToPinned));
+  EXPECT_TRUE(menu.IsCommandEnabled(M::kCommandRemoveFromFavorites));
+  EXPECT_TRUE(menu.IsCommandEnabled(M::kCommandClose));
+}
+
+// A sleeping Favorite tile says why it is dim.
+IN_PROC_BROWSER_TEST_F(AerieSidebarPinnedBrowserTest, ASleepingFavoriteTileHasTheTooltipAsleepFreesMemory) {
+  tabs::TabInterface* tab = OpenTab("/title1.html");
+  ASSERT_EQ(pinned()->AddToFavorites(tab),
+            aerie_tab_model::FavoriteResult::kAdded);
+  WaitForFavorites(1);
+  AerieSidebarTileView* tile = sidebar()->tile_at(0);
+  EXPECT_NE(tile->GetRenderedTooltipText(gfx::Point()),
+            l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_TILE_ASLEEP));
+  strip()->ActivateTabAt(0);
+  ASSERT_TRUE(aerie_tab_model::SleepControllerFactory::GetForProfile(
+                  browser()->GetProfile())
+                  ->Sleep(tab));
+  ASSERT_TRUE(base::test::RunUntil([&] { return tile->sleeping(); }));
+  EXPECT_EQ(tile->GetRenderedTooltipText(gfx::Point()),
+            l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_TILE_ASLEEP));
+  EXPECT_EQ(l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_TILE_ASLEEP),
+            u"Asleep, frees memory");
 }

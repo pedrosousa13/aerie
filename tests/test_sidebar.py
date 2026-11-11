@@ -276,7 +276,7 @@ class HeadlessPartsTest(unittest.TestCase):
     def test_the_motion_names_no_property_but_transform_and_opacity_and_the_row_height(self):
         header = (COMPONENT / "aerie_sidebar_motion.h").read_text()
         fields = set(re.findall(r"bool (animate_\w+);", header))
-        self.assertEqual(fields, {"animate_transform", "animate_opacity", "animate_fade", "animate_scale", "animate_slide", "animate_height", "animate_lift", "animate_shift", "animate_settle"})
+        self.assertEqual(fields, {"animate_transform", "animate_opacity", "animate_fade", "animate_scale", "animate_slide", "animate_height", "animate_lift", "animate_shift", "animate_settle", "animate_rise"})
 
     def test_the_new_targets_have_their_deps(self):
         for label in ('source_set("motion")', 'source_set("today_list")'):

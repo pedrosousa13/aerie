@@ -60,6 +60,7 @@ source_set("aerie_tab_model") {
     "//chrome/browser/resource_coordinator:mojo_bindings",
     "//chrome/browser/tab_list",
     "//chrome/browser/ui/tabs:tab_strip",
+    "//chrome/common",
     "//components/aerie_tab_model:prefs",
     "//components/performance_manager",
     "//components/sessions",

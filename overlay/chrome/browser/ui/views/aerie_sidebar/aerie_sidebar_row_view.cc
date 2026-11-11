@@ -149,7 +149,7 @@ AerieSidebarRowView::AerieSidebarRowView(
             }
           },
           base::Unretained(this))));
-  back_to_pinned_->SetPreferredSize(gfx::Size(20, 20));
+  back_to_pinned_->SetPreferredSize(gfx::Size(aerie::tokens::kSizeBackButton, aerie::tokens::kSizeBackButton));
   back_to_pinned_->SetVisible(false);
   back_to_pinned_->SetFocusBehavior(views::View::FocusBehavior::NEVER);
   back_to_pinned_->SetInstallFocusRingOnFocus(false);
@@ -484,6 +484,15 @@ bool AerieSidebarRowView::OnKeyPressed(const ui::KeyEvent& event) {
     case ui::VKEY_DELETE:
       callbacks_.key.Run(aerie_sidebar::ListKey::kDelete);
       return true;
+    case ui::VKEY_BACK:
+      // "Back to pinned page" from the keyboard (issue #180): Backspace on a
+      // pinned row that has left its page. Chromium's Alt+Left would collide
+      // with the browser's Back, so it is not used.
+      if (back_to_pinned_->GetVisible() && callbacks_.back_to_pinned) {
+        callbacks_.back_to_pinned.Run();
+        return true;
+      }
+      return false;
     case ui::VKEY_UP:
       callbacks_.key.Run(aerie_sidebar::ListKey::kUp);
       return true;

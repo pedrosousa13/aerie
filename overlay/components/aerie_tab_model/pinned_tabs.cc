@@ -86,18 +86,25 @@ bool PinTab(TabModel& model, const std::string& id, const std::string& url) {
   if (!tab) {
     return false;
   }
+  // The move first: if it fails, the record is left as it was.
+  if (!model.MoveTab(id, Section::kPinned, std::string(),
+                     EdgePosition(model, Section::kPinned, /*at_end=*/true))) {
+    return false;
+  }
   model.UpdateTab(id, [&url](TabRecord& record) { record.pinned_url = url; });
-  return model.MoveTab(id, Section::kPinned, std::string(),
-                       EdgePosition(model, Section::kPinned, /*at_end=*/true));
+  return true;
 }
 
 bool UnpinTab(TabModel& model, const std::string& id) {
   if (!model.GetTab(id)) {
     return false;
   }
+  if (!model.MoveTab(id, Section::kToday, std::string(),
+                     EdgePosition(model, Section::kToday, /*at_end=*/false))) {
+    return false;
+  }
   model.UpdateTab(id, [](TabRecord& record) { record.pinned_url.reset(); });
-  return model.MoveTab(id, Section::kToday, std::string(),
-                       EdgePosition(model, Section::kToday, /*at_end=*/false));
+  return true;
 }
 
 FavoriteResult AddToFavorites(TabModel& model,
@@ -160,8 +167,13 @@ PinnedCloseAction DecidePinnedClose(PinnedCloseMode mode,
                                     bool at_pinned_url) {
   switch (mode) {
     case PinnedCloseMode::kResetSleepSwitch:
-      return asleep && at_pinned_url ? PinnedCloseAction::kUnpinClose
-                                     : PinnedCloseAction::kResetSleepSwitch;
+      if (!at_pinned_url) {
+        return PinnedCloseAction::kResetSleepSwitch;
+      }
+      // At the pinned page there is nothing to reset: sleep, and the next press
+      // closes.
+      return asleep ? PinnedCloseAction::kUnpinClose
+                    : PinnedCloseAction::kSleepSwitch;
     case PinnedCloseMode::kSleep:
       return asleep ? PinnedCloseAction::kUnpinClose
                     : PinnedCloseAction::kSleepSwitch;

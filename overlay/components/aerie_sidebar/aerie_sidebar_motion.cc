@@ -91,6 +91,30 @@ MenuOpenMotion ContextMenuOpenMotion(bool reduced) {
   return motion;
 }
 
+ToastMotion ToastShowMotion(bool reduced) {
+  ToastMotion motion;
+  motion.animate_rise = !reduced;
+  motion.rise_px = reduced ? 0 : aerie::tokens::kMotionDistanceToastRise;
+  motion.from_opacity = 0.f;
+  motion.to_opacity = 1.f;
+  motion.duration = MotionDuration::kFast;
+  motion.easing = MotionEasing::kDecelerate;
+  motion.duration_ms = GetDurationMs(motion.duration, reduced);
+  motion.hold_ms = reduced ? aerie::tokens::kMotionTimingToastActionReduced
+                           : aerie::tokens::kMotionTimingToastAction;
+  return motion;
+}
+
+ToastMotion ToastHideMotion(bool reduced) {
+  ToastMotion motion = ToastShowMotion(reduced);
+  motion.animate_rise = false;
+  motion.rise_px = 0;
+  motion.from_opacity = 1.f;
+  motion.to_opacity = 0.f;
+  motion.easing = MotionEasing::kAccelerate;
+  return motion;
+}
+
 RowMotion OpenRowMotion(bool reduced) {
   RowMotion motion;
   motion.content_duration = MotionDuration::kFast;

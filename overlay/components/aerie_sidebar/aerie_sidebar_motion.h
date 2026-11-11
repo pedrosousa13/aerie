@@ -150,6 +150,24 @@ struct MenuOpenMotion {
 
 MenuOpenMotion ContextMenuOpenMotion(bool reduced);
 
+// The toast (issue #180; docs/sidebar-design.md, "Motion"): it rises
+// `rise_px` and fades in on `fast` and `decelerate`, holds for `hold_ms`
+// (`motion-timing-toast-action`), then fades out on `fast` and `accelerate`.
+// Reduced motion: opacity only, no rise.
+struct ToastMotion {
+  bool animate_rise;
+  int rise_px;
+  float from_opacity;
+  float to_opacity;
+  aerie::tokens::MotionDuration duration;
+  aerie::tokens::MotionEasing easing;
+  int duration_ms;
+  int hold_ms;
+};
+
+ToastMotion ToastShowMotion(bool reduced);
+ToastMotion ToastHideMotion(bool reduced);
+
 RowMotion OpenRowMotion(bool reduced);
 RowMotion CloseRowMotion(int outer_edge_sign, bool reduced);
 

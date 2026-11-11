@@ -174,4 +174,33 @@ TEST(AerieSidebarMotionTest, TheContextMenuOnlyFadesInUnderReducedMotion) {
   EXPECT_LE(m.duration_ms, aerie::motion::kMaxReducedOpacityMs);
 }
 
+TEST(AerieSidebarMotionTest, TheToastRisesSixPixelsAndFadesInOnFastDecelerateAndHoldsForTheActionTiming) {
+  const ToastMotion m = ToastShowMotion(/*reduced=*/false);
+  EXPECT_TRUE(m.animate_rise);
+  EXPECT_EQ(m.rise_px, 6);
+  EXPECT_FLOAT_EQ(m.from_opacity, 0.f);
+  EXPECT_FLOAT_EQ(m.to_opacity, 1.f);
+  EXPECT_EQ(m.duration, MotionDuration::kFast);
+  EXPECT_EQ(m.easing, MotionEasing::kDecelerate);
+  EXPECT_EQ(m.duration_ms, 140);
+  EXPECT_EQ(m.hold_ms, aerie::tokens::kMotionTimingToastAction);
+}
+
+TEST(AerieSidebarMotionTest, TheToastFadesOutOnFastAccelerateWithoutMoving) {
+  const ToastMotion m = ToastHideMotion(/*reduced=*/false);
+  EXPECT_FALSE(m.animate_rise);
+  EXPECT_FLOAT_EQ(m.from_opacity, 1.f);
+  EXPECT_FLOAT_EQ(m.to_opacity, 0.f);
+  EXPECT_EQ(m.duration, MotionDuration::kFast);
+  EXPECT_EQ(m.easing, MotionEasing::kAccelerate);
+}
+
+TEST(AerieSidebarMotionTest, UnderReducedMotionTheToastOnlyFadesAndNeverLongerThanTheLimit) {
+  for (const ToastMotion& m : {ToastShowMotion(true), ToastHideMotion(true)}) {
+    EXPECT_FALSE(m.animate_rise);
+    EXPECT_EQ(m.rise_px, 0);
+    EXPECT_LE(m.duration_ms, aerie::motion::kMaxReducedOpacityMs);
+  }
+}
+
 }  // namespace aerie_sidebar

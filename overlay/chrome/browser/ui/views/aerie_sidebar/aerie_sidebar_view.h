@@ -39,6 +39,10 @@ class PinnedTabsController;
 class TabModel;
 }  // namespace aerie_tab_model
 
+namespace ui {
+class Layer;
+}  // namespace ui
+
 namespace views {
 class BoxLayoutView;
 class Label;
@@ -127,6 +131,10 @@ class AerieSidebarView : public views::View,
   // The short message above the bottom bar, and whether it shows now.
   views::Label* toast() const { return toast_; }
   bool toast_visible() const;
+  // Starts the fade out at once instead of waiting for the hold.
+  void HideToastForTesting() { HideToast(); }
+  void ShowToastForTesting(const std::u16string& text) { ShowToast(text); }
+  ui::Layer* toast_layer() const;
 
   // The rows, in order, for tests: the live ones, then the ones that are
   // closing.
@@ -220,6 +228,7 @@ class AerieSidebarView : public views::View,
   // screen reader.
   void ShowToast(const std::u16string& text);
   void HideToast();
+  void FinishToastHide();
   aerie_tab_model::PinnedTabsController* PinnedController() const;
   void GoBackToPinnedPage(const std::string& tab_id);
   // Writes the count of sleeping tabs and the memory estimate into the Today

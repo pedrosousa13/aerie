@@ -162,10 +162,11 @@ TEST(PinnedCloseTest, TheSettingHasThreeValuesAndTheDefaultIsResetSleepSwitch) {
 
 TEST(PinnedCloseTest, ResetSleepSwitchFollowsTheTable) {
   const auto mode = PinnedCloseMode::kResetSleepSwitch;
-  // First press: awake, or away from the pinned page, or both.
-  EXPECT_EQ(DecidePinnedClose(mode, false, true), PinnedCloseAction::kResetSleepSwitch);
+  // Away from the pinned page, asleep or not: go back to it first.
   EXPECT_EQ(DecidePinnedClose(mode, false, false), PinnedCloseAction::kResetSleepSwitch);
   EXPECT_EQ(DecidePinnedClose(mode, true, false), PinnedCloseAction::kResetSleepSwitch);
+  // At the pinned page and awake: nothing to reset, so it only sleeps.
+  EXPECT_EQ(DecidePinnedClose(mode, false, true), PinnedCloseAction::kSleepSwitch);
   // Second press: asleep and at the pinned URL.
   EXPECT_EQ(DecidePinnedClose(mode, true, true), PinnedCloseAction::kUnpinClose);
 }

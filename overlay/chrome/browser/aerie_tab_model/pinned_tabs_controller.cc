@@ -5,6 +5,7 @@
 #include "chrome/browser/aerie_tab_model/pinned_tabs_controller.h"
 
 #include <algorithm>
+#include <map>
 #include <optional>
 #include <utility>
 
@@ -27,6 +28,7 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/common/webui_url_constants.h"
 #include "components/aerie_tab_model/tab_model.h"
 #include "components/aerie_tab_model/tab_model_prefs.h"
 #include "components/prefs/pref_service.h"
@@ -239,12 +241,17 @@ PinnedCloseAction PinnedTabsController::ActionFor(tabs::TabInterface* tab) const
 }
 
 bool PinnedTabsController::HandleClose(tabs::TabInterface* tab) {
-  if (!IsPinnedOrFavorite(tab)) {
+  const TabRecord* record = RecordFor(tab);
+  if (!record || (record->section != Section::kPinned &&
+                  record->section != Section::kFavorite)) {
     return false;
   }
-  const std::string id = adapter_->RecordIdForTab(tab);
-  const TabRecord* record = model_->GetTab(id);
-  switch (ActionFor(tab)) {
+  // What the press needs, copied now: the calls below change the model, and a
+  // record pointer would not survive them.
+  const std::string id = record->id;
+  const std::optional<std::string> pinned_url = record->pinned_url;
+  const PinnedCloseAction action = ActionFor(tab);
+  switch (action) {
     case PinnedCloseAction::kUnpinClose:
       // The record goes to Today first, so that the adapter removes it with the
       // tab. Once the archive exists (slice F) this is where the tab lands in
@@ -257,16 +264,16 @@ bool PinnedTabsController::HandleClose(tabs::TabInterface* tab) {
       SleepTab(tab);
       return true;
     case PinnedCloseAction::kResetSleepSwitch: {
-      const bool at_pinned =
-          !record->pinned_url ||
-          IsAtPinnedUrl(CommittedUrl(tab), GURL(*record->pinned_url));
+      const GURL url(pinned_url.value_or(std::string()));
       SwitchAwayFrom(tab);
-      if (at_pinned) {
+      if (!url.is_valid()) {
         SleepTab(tab);
-      } else {
-        resets_.push_back(std::make_unique<ResetThenSleep>(
-            this, tab, GURL(*record->pinned_url)));
+        return true;
       }
+      // A tab that is asleep and away loads the pinned page here, only to
+      // sleep again: Chromium has no way to change a discarded tab's page
+      // without loading it.
+      resets_.push_back(std::make_unique<ResetThenSleep>(this, tab, url));
       return true;
     }
   }
@@ -315,22 +322,29 @@ void PinnedTabsController::SwitchAwayFrom(tabs::TabInterface* tab) {
   }
   TabStripModel* strip = browser->GetTabStripModel();
   const std::string id = adapter_->RecordIdForTab(tab);
+  // The tabs of this window by record id, built once.
+  std::map<std::string, tabs::TabInterface*> in_window;
+  for (int i = 0; i < strip->count(); ++i) {
+    tabs::TabInterface* other = strip->GetTabAtIndex(i);
+    const std::string other_id = adapter_->RecordIdForTab(other);
+    if (!other_id.empty()) {
+      in_window[other_id] = other;
+    }
+  }
   // The sidebar order, limited to the tabs this window has.
   std::vector<std::string> order;
   for (const std::string& candidate : SidebarTabOrder(*model_)) {
-    tabs::TabInterface* other =
-        candidate == id ? tab : adapter_->TabForRecord(candidate);
-    if (other && strip->GetIndexOfTab(other) != TabStripModel::kNoTab) {
+    if (in_window.contains(candidate)) {
       order.push_back(candidate);
     }
   }
   const std::string next = PickNextTab(order, id);
   if (!next.empty()) {
-    strip->ActivateTabAt(strip->GetIndexOfTab(adapter_->TabForRecord(next)));
+    strip->ActivateTabAt(strip->GetIndexOfTab(in_window.at(next)));
     return;
   }
   // The only tab of the window: a new tab to switch to.
-  browser->OpenGURL(GURL("chrome://newtab/"),
+  browser->OpenGURL(GURL(chrome::kChromeUINewTabURL),
                     WindowOpenDisposition::NEW_FOREGROUND_TAB);
 }
 
