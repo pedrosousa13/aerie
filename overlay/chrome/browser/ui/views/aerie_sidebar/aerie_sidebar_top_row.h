@@ -8,7 +8,7 @@
 #include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "ui/base/metadata/metadata_header_macros.h"
-#include "ui/views/view.h"
+#include "ui/views/accessible_pane_view.h"
 
 namespace views {
 class BoxLayout;
@@ -24,8 +24,8 @@ class ImageButton;
 // The window controls are the platform's where it draws them (a leading
 // inset keeps room for them); where the frame draws them on the far side of
 // the window the row draws its own three (ShowWindowControls).
-class AerieSidebarTopRow : public views::View {
-  METADATA_HEADER(AerieSidebarTopRow, views::View)
+class AerieSidebarTopRow : public views::AccessiblePaneView {
+  METADATA_HEADER(AerieSidebarTopRow, views::AccessiblePaneView)
 
  public:
   struct Callbacks {
@@ -58,6 +58,11 @@ class AerieSidebarTopRow : public views::View {
   // True when `point` (in this view's coordinates) lies on an empty part of
   // the row, which the window manager treats as the title bar.
   bool IsPositionInWindowCaption(const gfx::Point& point) const;
+
+ protected:
+  // views::AccessiblePaneView: F6 focuses the sidebar toggle, not a window
+  // control (those are reached by a screen reader only).
+  views::View* GetDefaultFocusableChild() override;
 
  private:
   void Rebuild();

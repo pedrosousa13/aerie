@@ -12,6 +12,7 @@
 
 #include "base/functional/bind.h"
 #include "base/run_loop.h"
+#include "base/strings/string_number_conversions.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
 #include "chrome/app/chrome_command_ids.h"
@@ -20,10 +21,12 @@
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/view_ids.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_regions.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_row_view.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_top_row.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_view.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
+#include "chrome/browser/ui/views/frame/multi_contents_view.h"
 #include "chrome/browser/ui/views/frame/top_container_view.h"
 #include "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h"
 #include "chrome/browser/ui/views/location_bar/location_bar_view.h"
@@ -31,12 +34,16 @@
 #include "chrome/common/pref_names.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
+#include "components/aerie_adblock/browser/guard_state.h"
+#include "components/aerie_adblock/browser/page_block_counter.h"
 #include "components/aerie_sidebar/aerie_sidebar_layout.h"
 #include "components/aerie_sidebar/aerie_sidebar_prefs.h"
 #include "components/prefs/pref_service.h"
+#include "content/public/browser/web_contents.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
 #include "net/dns/mock_host_resolver.h"
+#include "url/gurl.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "ui/accessibility/ax_node_data.h"
 #include "ui/compositor/layer.h"
@@ -45,6 +52,7 @@
 #include "ui/gfx/geometry/point.h"
 #include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/controls/button/image_button.h"
+#include "ui/views/controls/focus_ring.h"
 #include "ui/views/controls/resize_area.h"
 #include "ui/views/test/button_test_api.h"
 #include "ui/views/test/views_test_utils.h"
@@ -403,7 +411,8 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarPillBrowserTest, TheGuardIconIsInThePillWithI
 }
 
 // The page actions have to fit when the sidebar is as narrow as it goes
-// (size-sidebar-min, 200 px, less the 8 px inset on both sides).
+// (size-sidebar-min, 200 px, less the 8 px inset on both sides). The Guard
+// badge is at its widest with a count above 99, which it shows as "99+".
 IN_PROC_BROWSER_TEST_F(AerieSidebarPillBrowserTest, ThePageActionsFitAtTwoHundredPixels) {
   OpenPage();
   LocationBarView* location_bar = browser_view()->GetLocationBarView();
@@ -413,28 +422,169 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarPillBrowserTest, ThePageActionsFitAtTwoHundre
     return icon != nullptr;
   }));
 
-  views::test::RunScheduledLayout(location_bar->GetWidget());
-  const int width = 200 - 2 * 8;
-  location_bar->SetSize(
-      gfx::Size(width, location_bar->GetPreferredSize().height()));
-  views::test::RunScheduledLayout(location_bar);
+  auto expect_the_actions_fit = [&](const std::string& when) {
+    SCOPED_TRACE(when);
+    views::test::RunScheduledLayout(location_bar->GetWidget());
+    const int width = 200 - 2 * 8;
+    location_bar->SetSize(
+        gfx::Size(width, location_bar->GetPreferredSize().height()));
+    views::test::RunScheduledLayout(location_bar);
 
-  const gfx::Rect local = location_bar->GetLocalBounds();
-  gfx::Rect icon_in_bar = icon->GetLocalBounds();
-  icon_in_bar = views::View::ConvertRectToTarget(icon, location_bar, icon_in_bar);
-  EXPECT_TRUE(icon->GetVisible());
-  EXPECT_FALSE(icon_in_bar.IsEmpty());
-  EXPECT_TRUE(local.Contains(icon_in_bar))
-      << "the Guard icon " << icon_in_bar.ToString() << " is outside the pill "
-      << local.ToString();
+    const gfx::Rect local = location_bar->GetLocalBounds();
+    gfx::Rect icon_in_bar = icon->GetLocalBounds();
+    icon_in_bar =
+        views::View::ConvertRectToTarget(icon, location_bar, icon_in_bar);
+    EXPECT_TRUE(icon->GetVisible());
+    EXPECT_FALSE(icon_in_bar.IsEmpty());
+    EXPECT_TRUE(local.Contains(icon_in_bar))
+        << "the Guard icon " << icon_in_bar.ToString()
+        << " is outside the pill " << local.ToString();
 
-  // The page actions do not push the text field out: the omnibox keeps room to
-  // type, and the actions sit after it (toward the pill's end), never over it.
-  views::View* omnibox = location_bar->GetViewByID(VIEW_ID_OMNIBOX);
-  ASSERT_TRUE(omnibox);
-  gfx::Rect omnibox_in_bar = omnibox->GetLocalBounds();
-  omnibox_in_bar =
-      views::View::ConvertRectToTarget(omnibox, location_bar, omnibox_in_bar);
-  EXPECT_GE(omnibox_in_bar.width(), 40);
-  EXPECT_FALSE(omnibox_in_bar.Intersects(icon_in_bar));
+    // The page actions do not push the text field out: the omnibox keeps room
+    // to type, and the actions sit after it (toward the pill's end), never over
+    // it.
+    views::View* omnibox = location_bar->GetViewByID(VIEW_ID_OMNIBOX);
+    ASSERT_TRUE(omnibox);
+    gfx::Rect omnibox_in_bar = omnibox->GetLocalBounds();
+    omnibox_in_bar =
+        views::View::ConvertRectToTarget(omnibox, location_bar, omnibox_in_bar);
+    EXPECT_GE(omnibox_in_bar.width(), 40);
+    EXPECT_FALSE(omnibox_in_bar.Intersects(icon_in_bar));
+  };
+
+  // No badge: nothing was blocked on this page.
+  expect_the_actions_fit("blocked count 0");
+
+  // The widest badge: 100 blocked requests, shown as "99+".
+  ASSERT_EQ(aerie_adblock::GuardBadgeLabel(100, /*show_count=*/true), u"99+");
+  content::WebContents* contents =
+      browser()->tab_strip_model()->GetActiveWebContents();
+  for (int i = 0; i < 100; ++i) {
+    aerie_adblock::PageBlockCounter::RecordBlocked(
+        contents->GetPrimaryMainFrame()->GetGlobalId(),
+        GURL("https://ads.test/ad" + base::NumberToString(i) + ".js"));
+  }
+  ASSERT_TRUE(WaitFor([&] {
+    views::View* current = GuardIcon(sidebar()->address_pill());
+    return current && NameOf(current) == "Guard: 100 blocked on this page";
+  }));
+  icon = GuardIcon(sidebar()->address_pill());
+  ASSERT_TRUE(icon);
+  expect_the_actions_fit("blocked count 100, badge 99+");
+}
+
+
+// Issue #215, item 3: the keyboard and the accessibility tree.
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarBrowserTest, TheTodayListIsOneRovingTabStop) {
+  chrome::ExecuteCommand(browser(), IDC_NEW_TAB);
+  chrome::ExecuteCommand(browser(), IDC_NEW_TAB);
+  ASSERT_TRUE(WaitFor([&] { return sidebar()->row_count() == 3u; }));
+
+  // Exactly one row is reached with Tab: the selected one. The others are
+  // reached with the arrow keys, which move the stop, and by a screen reader.
+  int stops = 0;
+  for (size_t i = 0; i < sidebar()->row_count(); ++i) {
+    AerieSidebarRowView* row = sidebar()->row_at(i);
+    if (row->GetFocusBehavior() == views::View::FocusBehavior::ALWAYS) {
+      ++stops;
+      EXPECT_TRUE(row->selected());
+      EXPECT_EQ(row, sidebar()->tab_stop_row());
+    } else {
+      EXPECT_EQ(row->GetFocusBehavior(),
+                views::View::FocusBehavior::ACCESSIBLE_ONLY);
+    }
+  }
+  EXPECT_EQ(stops, 1);
+
+  // Selecting another tab moves the stop with the selection.
+  browser()->tab_strip_model()->ActivateTabAt(0);
+  EXPECT_TRUE(WaitFor([&] {
+    return sidebar()->tab_stop_row() == sidebar()->row_at(0);
+  }));
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarBrowserTest, TheFocusRingIsTwoPixelsWithTwoPixelOffset) {
+  ASSERT_TRUE(WaitFor([&] { return sidebar()->row_count() == 1u; }));
+  views::FocusRing* ring = views::FocusRing::Get(sidebar()->row_at(0));
+  ASSERT_TRUE(ring);
+  // size-focus-ring-width and size-focus-ring-offset (2 px each). The halo
+  // inset is the distance of the stroke's middle from the row: -(2 + 2 / 2).
+  EXPECT_EQ(ring->GetHaloThickness(), 2.f);
+  EXPECT_EQ(ring->GetHaloInset(), -3.f);
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarBrowserTest, TheF6PanesAreTheTopRowThePillTheTodayListAndThenThePage) {
+  ASSERT_TRUE(WaitFor([&] { return sidebar()->row_count() == 1u; }));
+  BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser());
+  std::vector<views::View*> panes;
+  browser_view->GetAccessiblePanes(&panes);
+
+  auto index_of = [&](views::View* pane) {
+    return std::find(panes.begin(), panes.end(), pane) - panes.begin();
+  };
+  const ptrdiff_t none = static_cast<ptrdiff_t>(panes.size());
+  ASSERT_NE(index_of(sidebar()->top_row()), none);
+  ASSERT_NE(index_of(sidebar()->address_pill()), none);
+  ASSERT_NE(index_of(sidebar()->today_tree()), none);
+  EXPECT_LT(index_of(sidebar()->top_row()), index_of(sidebar()->address_pill()));
+  EXPECT_LT(index_of(sidebar()->address_pill()),
+            index_of(sidebar()->today_tree()));
+
+  // Every pane of the sidebar comes before the page, and the sidebar is not
+  // also in the list as one pane.
+  EXPECT_EQ(index_of(region()), none);
+  std::vector<views::View*> page_panes = browser_view->multi_contents_view()->GetAccessiblePanes();
+  ASSERT_FALSE(page_panes.empty());
+  EXPECT_GT(index_of(page_panes.front()), index_of(sidebar()->today_tree()));
+  for (views::View* pane : panes) {
+    if (sidebar()->Contains(pane)) {
+      EXPECT_LT(index_of(pane), index_of(page_panes.front()));
+    }
+  }
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarBrowserTest, TheAccessibilityTreeHasTheRolesNamesAndStatesOfTheDesign) {
+  chrome::ExecuteCommand(browser(), IDC_NEW_TAB);
+  ASSERT_TRUE(WaitFor([&] { return sidebar()->row_count() == 2u; }));
+
+  EXPECT_EQ(RoleOf(sidebar()), ax::mojom::Role::kNavigation);
+  EXPECT_EQ(NameOf(sidebar()), "Sidebar");
+  EXPECT_EQ(RoleOf(sidebar()->top_row()), ax::mojom::Role::kToolbar);
+  EXPECT_FALSE(NameOf(sidebar()->top_row()).empty());
+  EXPECT_FALSE(NameOf(sidebar()->address_pill()).empty());
+
+  // The Today list: a tree named "Today" of treeitems at level 1, the active
+  // tab selected.
+  views::View* tree = sidebar()->today_tree();
+  EXPECT_EQ(RoleOf(tree), ax::mojom::Role::kTree);
+  EXPECT_EQ(NameOf(tree), "Today");
+  int selected_rows = 0;
+  for (size_t i = 0; i < sidebar()->row_count(); ++i) {
+    AerieSidebarRowView* row = sidebar()->row_at(i);
+    EXPECT_EQ(row->parent(), tree);
+    ui::AXNodeData data;
+    row->GetViewAccessibility().GetAccessibleNodeData(&data);
+    EXPECT_EQ(data.role, ax::mojom::Role::kTreeItem);
+    EXPECT_EQ(data.GetIntAttribute(ax::mojom::IntAttribute::kHierarchicalLevel),
+              1);
+    EXPECT_FALSE(data.GetStringAttribute(ax::mojom::StringAttribute::kName).empty());
+    EXPECT_TRUE(data.HasBoolAttribute(ax::mojom::BoolAttribute::kSelected));
+    if (data.GetBoolAttribute(ax::mojom::BoolAttribute::kSelected)) {
+      ++selected_rows;
+      EXPECT_TRUE(row->selected());
+    }
+  }
+  EXPECT_EQ(selected_rows, 1);
+
+  // The resizer is a separator named "Resize sidebar" (the splitter role is
+  // what Chromium maps to a separator that can be focused).
+  EXPECT_EQ(RoleOf(region()->resize_area_for_testing()),
+            ax::mojom::Role::kSplitter);
+  EXPECT_EQ(NameOf(region()->resize_area_for_testing()), "Resize sidebar");
+
+  // The close button on a row has a name.
+  auto* close = FindDescendant<views::ImageButton>(sidebar()->row_at(0));
+  ASSERT_TRUE(close);
+  EXPECT_EQ(NameOf(close), "Close tab");
 }

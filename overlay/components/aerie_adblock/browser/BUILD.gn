@@ -12,6 +12,7 @@ _visibility = [
   "//chrome/browser/aerie_adblock:*",
   "//chrome/browser/prefs:*",
   "//chrome/browser/ui/views/aerie_adblock:*",
+  "//chrome/browser/ui/views/aerie_sidebar:*",
   "//chrome/browser/ui/webui/aerie_guard:*",
   "//chrome/browser/ui/webui/aerie_guard_settings:*",
   "//components/aerie_adblock/*",

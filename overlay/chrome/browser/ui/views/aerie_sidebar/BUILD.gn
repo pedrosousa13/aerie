@@ -14,6 +14,8 @@ source_set("aerie_sidebar") {
     "//chrome/browser/ui/views/frame:*",
   ]
   sources = [
+    "aerie_sidebar_regions.cc",
+    "aerie_sidebar_regions.h",
     "aerie_sidebar_row_view.cc",
     "aerie_sidebar_row_view.h",
     "aerie_sidebar_top_row.cc",
@@ -25,6 +27,8 @@ source_set("aerie_sidebar") {
   public_deps = [
     "//base",
     "//chrome/browser/ui/tabs:tab_strip_model_observer",
+    "//components/aerie_design_tokens:motion",
+    "//components/aerie_design_tokens:tokens",
     "//components/aerie_sidebar:today_list",
     "//ui/base",
     "//ui/base/metadata",
@@ -36,17 +40,21 @@ source_set("aerie_sidebar") {
     "//chrome/app/vector_icons",
     "//chrome/browser/aerie_tab_model",
     "//chrome/browser/profiles:profile",
+    "//chrome/browser/sessions",
+    "//chrome/browser/ui:view_ids",
     "//chrome/browser/ui/browser_window",
     "//chrome/browser/ui/tabs:tab_strip",
-    "//components/aerie_design_tokens:tokens",
     "//components/aerie_sidebar:layout",
+    "//components/aerie_sidebar:motion",
     "//components/favicon/content",
     "//components/prefs",
     "//components/tabs:public",
     "//components/vector_icons",
     "//content/public/browser",
     "//ui/color",
+    "//ui/compositor",
     "//ui/gfx",
+    "//ui/gfx/animation",
   ]
 }
 
@@ -62,10 +70,13 @@ source_set("browser_tests") {
     "//chrome/browser:browser",
     "//chrome/browser/aerie_tab_model",
     "//chrome/browser/profiles:profile",
+    "//chrome/browser/ui:view_ids",
     "//chrome/browser/ui/views/frame",
     "//chrome/common",
     "//chrome/test:test_support",
     "//chrome/test:test_support_ui",
+    "//components/aerie_adblock/browser:guard_state",
+    "//components/aerie_adblock/browser:page_counter",
     "//components/aerie_design_tokens:motion",
     "//components/aerie_sidebar:layout",
     "//components/aerie_sidebar:prefs",
@@ -86,7 +97,11 @@ source_set("interactive_tests") {
   testonly = true
   # content/public/test/browser_test.h refuses to compile without it.
   defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
-  sources = [ "aerie_sidebar_guard_uitest.cc" ]
+  sources = [
+    "aerie_sidebar_guard_uitest.cc",
+    "aerie_sidebar_keyboard_uitest.cc",
+    "aerie_sidebar_motion_uitest.cc",
+  ]
   deps = [
     ":aerie_sidebar",
     "//base",
@@ -100,11 +115,19 @@ source_set("interactive_tests") {
     "//chrome/common",
     "//chrome/test:test_support",
     "//chrome/test:test_support_ui",
+    "//components/aerie_design_tokens:motion",
+    "//components/aerie_sidebar:layout",
+    "//components/aerie_sidebar:prefs",
+    "//components/aerie_sidebar:today_list",
     "//components/prefs",
     "//content/test:test_support",
     "//net:test_support",
     "//testing/gtest",
     "//ui/base:test_support",
+    "//ui/compositor",
+    "//ui/compositor:test_support",
+    "//ui/gfx:test_support",
+    "//ui/gfx/animation",
     "//ui/views",
   ]
 }

@@ -152,6 +152,10 @@ AerieSidebarTopRow::AerieSidebarTopRow(Callbacks callbacks) {
 
 AerieSidebarTopRow::~AerieSidebarTopRow() = default;
 
+views::View* AerieSidebarTopRow::GetDefaultFocusableChild() {
+  return toggle_;
+}
+
 void AerieSidebarTopRow::SetLeadingInset(int inset) {
   leading_inset_ = std::max(0, inset);
   Rebuild();
