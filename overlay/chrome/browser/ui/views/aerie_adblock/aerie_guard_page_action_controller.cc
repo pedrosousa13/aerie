@@ -119,7 +119,14 @@ void AerieGuardPageActionController::Update() {
           state.blocking_off,
           aerie_adblock::GuardBadgeLabel(state.count, ShowsBlockedCount())));
   page_action_controller_->OverrideTooltip(kActionAerieGuard, tooltip);
-  page_action_controller_->OverrideAccessibleName(kActionAerieGuard, tooltip);
+  // The accessible name is shorter than the tooltip: "Guard: N blocked on this
+  // page" (issue #215). The tooltip keeps the product name.
+  page_action_controller_->OverrideAccessibleName(
+      kActionAerieGuard,
+      state.blocking_off
+          ? l10n_util::GetStringUTF16(IDS_AERIE_GUARD_ACCNAME_OFF)
+          : l10n_util::GetPluralStringFUTF16(IDS_AERIE_GUARD_ACCNAME_BLOCKED,
+                                             state.count));
   page_action_controller_->Show(kActionAerieGuard);
 }
 
