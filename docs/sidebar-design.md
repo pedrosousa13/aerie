@@ -564,7 +564,7 @@ An adapter observes `TabStripModelObserver::OnTabStripModelChanged` for every no
 
 ### Pinned tabs and the Chromium pinned bit
 
-Decision: tabs in Aerie's Pinned and Favorites sections do not carry the Chromium pinned bit. `PinnedTabService` saves the tabs that have the bit and restores them at startup, so with no bit it has nothing to restore and Aerie's Pinned section cannot come back twice. Aerie's own Pinned tabs will be restored from `pinned_url`; no slice does that yet (this slice only stores the field). The other reason is sleep: Chromium refuses to discard a tab that has the bit (`discard_eligibility_policy.cc`, `kPinnedTab`), and #179 (slice G) has to sleep pinned tabs. No patch is needed for this.
+Decision: tabs in Aerie's Pinned and Favorites sections do not carry the Chromium pinned bit. `PinnedTabService` saves the tabs that have the bit and restores them at startup, so with no bit it has nothing to restore and Aerie's Pinned section cannot come back twice. Aerie's own Pinned tabs are restored from `pinned_url` by `PinnedTabsController` (#180). The other reason is sleep: Chromium refuses to discard a tab that has the bit (`discard_eligibility_policy.cc`, `kPinnedTab`), and #179 (slice G) has to sleep pinned tabs. No patch is needed for this.
 
 If the spike for horizontal tabs (#186, slice J) shows that the strip needs the bit, keep the bit for that case and add a small hook patch at the `kPinnedTab` line of that policy. Until then nothing in Aerie sets the bit, and the browser test `tab_model_browsertest.cc` checks that no tab has it and that nothing is saved for `PinnedTabService`.
 
@@ -579,6 +579,20 @@ Chromium tab groups are flat and contiguous, so they cannot hold folders nested 
 - No archive or sleep logic; only the fields and prefs.
 - No `TabStripModel` order mirroring (#186).
 - The browser test `tab_model_browsertest.cc` is not in a BUILD.gn yet. It joins the Aerie browser-test target that #175 adds, so it runs once both have landed.
+
+## Pinned tabs and Favorites
+
+Issue #180. Pinned tabs and Favorites are kept across restarts, they never carry the Chromium pinned bit (see "Pinned tabs and the Chromium pinned bit"), and Ctrl+W on them does not lose the page.
+
+- **Keep.** A Pinned or Favorite record outlives its tab. When the tab goes away the record stays; at startup, and when a window opens, the controller makes one unloaded tab for each record that has none (`chrome::AddRestoredTab`, `kDeferUntilActivation`). Nothing is fetched until the user selects the row. The row or tile shows as asleep (#179). A record keeps its title (`last_title`) so the row is not blank before the page loads.
+- **Pinned section.** A flat list above the New Tab row, its own scroll view capped at six rows, so 20 pinned tabs never push Today off the sidebar. Role `tree`, name "Pinned tabs". Rows are the Today rows; no drag (#182).
+- **Favorites.** A grid of tiles, 4 columns (`size-favorites-columns`), at most 12. Role `grid`, name "Favorites"; each tile is a `button` named by the tab title, with ", asleep" when it sleeps and the tooltip "Asleep, frees memory". One Tab stop; arrows move in two dimensions. The 13th Favorite is refused: nothing changes, a toast says "Favorites are full. Remove one to add another." (`status` role, `motion-timing-toast`). Remove from Favorites returns the tab to `previous_section` (Pinned or Today).
+- **Back to pinned page.** A pinned row whose page left `pinned_url` (scheme, host, port and path; query and fragment ignored) shows a button, tooltip "Back to pinned page", that navigates the tab to `pinned_url` and replaces the history entry.
+- **Close pinned tab** (setting `aerie.tabs.pinned_close`, Settings > Sidebar, default `reset-sleep-switch`). `reset-sleep-switch`: if the tab is away from its page, a first press goes back to it; a press on a tab at its page sleeps it and selects another tab. `sleep`: sleep and switch, page kept. `close`: unpin and close. The close button tooltip says which: "Reset and sleep", "Sleep" or "Close". Ctrl+W goes through `chrome::CloseTab` (patch 0036) and the close button and Delete through the same controller call.
+- **Never auto-archived.** The auto-archive rule reads Today records only; a Pinned or Favorite record is never marked archived.
+- **Context menu.** Pin tab or Unpin tab, Add to Favorites or Remove from Favorites, Sleep tab, Close tab. It opens from 0.97 (`motion-scale-menu-enter`) and fades in on `fast`, `decelerate`; reduced motion only fades in (90 ms).
+- **Motion.** When a tab changes section its row or tile moves from the old place on the spring (FLIP, 420 ms); the rows around it close the gap on `base`/`standard`. Reduced motion (OS flag or `aerie.motion.reduce`) places them at once, with no transform animation.
+- **Network.** None. The URL comparison parses strings.
 
 ## Sidebar layout and Helium's layouts
 

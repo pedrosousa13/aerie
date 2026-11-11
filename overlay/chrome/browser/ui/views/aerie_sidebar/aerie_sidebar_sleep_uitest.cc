@@ -237,10 +237,12 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarSleepUiTest,
   ASSERT_TRUE(item);
   EXPECT_TRUE(sidebar()->context_menu()->IsCommandEnabled(
       AerieSidebarContextMenu::kCommandSleepTab));
-  // The item is the first of the menu: Down selects it if the menu did not.
-  if (!item->IsSelected()) {
+  // The menu also has the Pin and Favorites items above it (issue #180): walk
+  // down to "Sleep tab".
+  for (int i = 0; i < 6 && !item->IsSelected(); ++i) {
     Press(ui::VKEY_DOWN);
   }
+  ASSERT_TRUE(item->IsSelected());
   Press(ui::VKEY_RETURN);
   EXPECT_TRUE(base::test::RunUntil([&] { return row->sleeping(); }));
   EXPECT_EQ(strip()->active_index(), 0);

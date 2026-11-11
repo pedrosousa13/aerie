@@ -303,7 +303,7 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarBrowserTest, TheCloseButtonClosesTheTabAndThe
   ASSERT_TRUE(row);
   // Moving onto the close button must not count as leaving the row.
   EXPECT_TRUE(row->GetNotifyEnterExitOnChild());
-  auto* close = FindDescendant<views::ImageButton>(row);
+  auto* close = row->close_button();
   ASSERT_TRUE(close);
   ui::MouseEvent entered(ui::EventType::kMouseEntered, gfx::Point(), gfx::Point(),
                          base::TimeTicks::Now(), 0, 0);
@@ -877,7 +877,7 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarBrowserTest, TheAccessibilityTreeHasTheRolesN
   EXPECT_EQ(NameOf(region()->resize_area_for_testing()), "Resize sidebar");
 
   // The close button on a row has a name.
-  auto* close = FindDescendant<views::ImageButton>(sidebar()->row_at(0));
+  auto* close = sidebar()->row_at(0)->close_button();
   ASSERT_TRUE(close);
   EXPECT_EQ(NameOf(close), "Close tab");
 }
