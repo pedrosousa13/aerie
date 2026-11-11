@@ -96,10 +96,15 @@ IN_PROC_BROWSER_TEST_F(TabModelBrowserTest, OpenedNavigatedMovedAndClosedTabsFol
   EXPECT_EQ(service_->adapter()->RecordIdForTab(strip->GetTabAtIndex(1)), id);
   EXPECT_EQ(CountToday(*model), 2u);
 
-  // Moved: the position follows.
+  // Moved: the position follows, and so does the position of the tab it passed.
+  const std::string other =
+      service_->adapter()->RecordIdForTab(strip->GetTabAtIndex(0));
+  ASSERT_FALSE(other.empty());
   strip->MoveWebContentsAt(1, 0, /*select_after_move=*/false);
   ASSERT_TRUE(model->GetTab(id));
   EXPECT_EQ(model->GetTab(id)->position, 0);
+  ASSERT_TRUE(model->GetTab(other));
+  EXPECT_EQ(model->GetTab(other)->position, 1);
   EXPECT_EQ(model->GetTab(id)->section, Section::kToday);
 
   // Closed: the record goes.

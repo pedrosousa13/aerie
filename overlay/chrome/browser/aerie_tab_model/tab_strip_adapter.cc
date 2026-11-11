@@ -4,6 +4,8 @@
 
 #include "chrome/browser/aerie_tab_model/tab_strip_adapter.h"
 
+#include <algorithm>
+
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/tab_list/tab_removed_reason.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
@@ -83,12 +85,20 @@ void TabStripAdapter::OnTabStripModelChanged(
       }
       break;
     case TabStripModelChange::kMoved: {
+      // The moved tab and every tab it passed changed index: each record's
+      // position follows its tab, so the Today list (ordered by position) shows
+      // the order of the strip (issue #215, tab drag and drop).
       const TabStripModelChange::Move* move = change.GetMove();
-      auto it = ids_.find(move->tab->GetHandle());
-      if (const TabRecord* record =
-              it == ids_.end() ? nullptr : model_->GetTab(it->second)) {
-        model_->MoveTab(record->id, record->section, record->parent,
-                        move->to_index);
+      const int first = std::min(move->from_index, move->to_index);
+      const int last = std::max(move->from_index, move->to_index);
+      for (int index = first; index <= last; ++index) {
+        tabs::TabInterface* tab = tab_strip_model->GetTabAtIndex(index);
+        auto it = tab ? ids_.find(tab->GetHandle()) : ids_.end();
+        const TabRecord* record =
+            it == ids_.end() ? nullptr : model_->GetTab(it->second);
+        if (record && record->position != index) {
+          model_->MoveTab(record->id, record->section, record->parent, index);
+        }
       }
       break;
     }
