@@ -10,11 +10,14 @@ assert(!is_android, "The Aerie sidebar is for desktop platforms only")
 source_set("aerie_sidebar") {
   visibility = [
     ":browser_tests",
+    ":interactive_tests",
     "//chrome/browser/ui/views/frame:*",
   ]
   sources = [
     "aerie_sidebar_row_view.cc",
     "aerie_sidebar_row_view.h",
+    "aerie_sidebar_top_row.cc",
+    "aerie_sidebar_top_row.h",
     "aerie_sidebar_view.cc",
     "aerie_sidebar_view.h",
   ]
@@ -28,6 +31,7 @@ source_set("aerie_sidebar") {
     "//ui/views",
   ]
   deps = [
+    "//cc/paint",
     "//chrome/app:generated_resources",
     "//chrome/app/vector_icons",
     "//chrome/browser/aerie_tab_model",
@@ -35,7 +39,9 @@ source_set("aerie_sidebar") {
     "//chrome/browser/ui/browser_window",
     "//chrome/browser/ui/tabs:tab_strip",
     "//components/aerie_design_tokens:tokens",
+    "//components/aerie_sidebar:layout",
     "//components/favicon/content",
+    "//components/prefs",
     "//components/tabs:public",
     "//components/vector_icons",
     "//content/public/browser",
@@ -57,6 +63,7 @@ source_set("browser_tests") {
     "//chrome/browser/aerie_tab_model",
     "//chrome/browser/profiles:profile",
     "//chrome/browser/ui/views/frame",
+    "//chrome/common",
     "//chrome/test:test_support",
     "//chrome/test:test_support_ui",
     "//components/aerie_design_tokens:motion",
@@ -70,5 +77,34 @@ source_set("browser_tests") {
     "//ui/gfx:test_support",
     "//ui/views",
     "//ui/views:test_support",
+  ]
+}
+
+# Interactive UI tests of the sidebar (issue #215). Listed in
+# aerie_interactive_ui_tests (overlay/chrome/test/aerie/BUILD.gn).
+source_set("interactive_tests") {
+  testonly = true
+  # content/public/test/browser_test.h refuses to compile without it.
+  defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
+  sources = [ "aerie_sidebar_guard_uitest.cc" ]
+  deps = [
+    ":aerie_sidebar",
+    "//base",
+    "//base/test:test_support",
+    "//chrome/browser:browser",
+    "//chrome/browser/profiles:profile",
+    "//chrome/browser/ui/tabs:tabs_public",
+    "//chrome/browser/ui/views/aerie_adblock:guard",
+    "//chrome/browser/ui/views/frame",
+    "//chrome/browser/ui/views/frame:browser_view_header",
+    "//chrome/common",
+    "//chrome/test:test_support",
+    "//chrome/test:test_support_ui",
+    "//components/prefs",
+    "//content/test:test_support",
+    "//net:test_support",
+    "//testing/gtest",
+    "//ui/base:test_support",
+    "//ui/views",
   ]
 }

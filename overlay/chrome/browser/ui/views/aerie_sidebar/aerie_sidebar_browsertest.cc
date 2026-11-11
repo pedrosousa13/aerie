@@ -7,6 +7,7 @@
 // clamped and stored, reduced motion never animates the transform, and the
 // accessibility tree has the roles the design asks for.
 
+#include <algorithm>
 #include <string>
 
 #include "base/functional/bind.h"
@@ -18,16 +19,25 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/view_ids.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_row_view.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_top_row.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_view.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
+#include "chrome/browser/ui/views/frame/top_container_view.h"
 #include "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h"
+#include "chrome/browser/ui/views/location_bar/location_bar_view.h"
+#include "chrome/browser/ui/views/toolbar/toolbar_view.h"
+#include "chrome/common/pref_names.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/aerie_sidebar/aerie_sidebar_layout.h"
 #include "components/aerie_sidebar/aerie_sidebar_prefs.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/test/browser_test.h"
+#include "content/public/test/browser_test_utils.h"
+#include "net/dns/mock_host_resolver.h"
+#include "net/test/embedded_test_server/embedded_test_server.h"
 #include "ui/accessibility/ax_node_data.h"
 #include "ui/compositor/layer.h"
 #include "ui/events/event.h"
@@ -37,6 +47,7 @@
 #include "ui/views/controls/button/image_button.h"
 #include "ui/views/controls/resize_area.h"
 #include "ui/views/test/button_test_api.h"
+#include "ui/views/test/views_test_utils.h"
 #include "ui/views/view.h"
 #include "ui/views/view_utils.h"
 
@@ -215,4 +226,215 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarBrowserTest, TwoQuickCtrlSKeepThePrefAndTheVi
   chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
   EXPECT_FALSE(aerie_sidebar::IsVisible(*prefs()));
   EXPECT_TRUE(WaitFor([&] { return region()->aerie_sidebar_hidden(); }));
+}
+
+
+// Issue #215, items 1 and 2: the top row, the address pill and the bottom bar.
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarBrowserTest, TheRegionsAreInTheDesignOrder) {
+  ASSERT_TRUE(sidebar());
+  ASSERT_TRUE(sidebar()->top_row());
+  ASSERT_TRUE(sidebar()->address_pill());
+  ASSERT_TRUE(sidebar()->bottom_bar());
+  const auto& children = sidebar()->children();
+  auto index_of = [&](views::View* view) {
+    return std::find(children.begin(), children.end(), view) - children.begin();
+  };
+  EXPECT_LT(index_of(sidebar()->top_row()), index_of(sidebar()->address_pill()));
+  EXPECT_LT(index_of(sidebar()->address_pill()),
+            index_of(sidebar()->bottom_bar()));
+  EXPECT_EQ(index_of(sidebar()->top_row()), 0);
+  EXPECT_EQ(index_of(sidebar()->bottom_bar()),
+            static_cast<ptrdiff_t>(children.size()) - 1);
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarBrowserTest, TheTopRowHasToggleBackForwardReload) {
+  AerieSidebarTopRow* row = sidebar()->top_row();
+  ASSERT_TRUE(row);
+  ASSERT_TRUE(row->toggle_button());
+  EXPECT_EQ(NameOf(row->toggle_button()), "Hide sidebar");
+  EXPECT_EQ(RoleOf(row), ax::mojom::Role::kToolbar);
+
+  // Back, Forward and Reload are the toolbar's own buttons, in this order.
+  ASSERT_EQ(row->navigation()->children().size(), 3u);
+  EXPECT_EQ(row->navigation()->children()[0]->GetID(), VIEW_ID_BACK_BUTTON);
+  EXPECT_EQ(row->navigation()->children()[1]->GetID(), VIEW_ID_FORWARD_BUTTON);
+  EXPECT_EQ(row->navigation()->children()[2]->GetID(), VIEW_ID_RELOAD_BUTTON);
+  BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser());
+  EXPECT_FALSE(browser_view->top_container()->Contains(
+      row->navigation()->children()[2]));
+  // The toggle comes before the navigation buttons.
+  const auto& children = row->children();
+  EXPECT_LT(std::find(children.begin(), children.end(), row->toggle_button()),
+            std::find(children.begin(), children.end(), row->navigation()));
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarBrowserTest, TheToggleButtonHidesTheSidebar) {
+  auto reduced = gfx::AnimationTestApi::SetPrefersReducedMotionForTesting(true);
+  ASSERT_TRUE(sidebar());
+  EXPECT_TRUE(aerie_sidebar::IsVisible(*prefs()));
+  ui::MouseEvent click(ui::EventType::kMouseReleased, gfx::Point(1, 1),
+                       gfx::Point(1, 1), base::TimeTicks::Now(),
+                       ui::EF_LEFT_MOUSE_BUTTON, ui::EF_LEFT_MOUSE_BUTTON);
+  views::test::ButtonTestApi(
+      views::AsViewClass<views::ImageButton>(sidebar()->top_row()->toggle_button()))
+      .NotifyClick(click);
+  EXPECT_FALSE(aerie_sidebar::IsVisible(*prefs()));
+  EXPECT_TRUE(WaitFor([&] { return region()->aerie_sidebar_hidden(); }));
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarBrowserTest, TheEmptyPartOfTheTopRowIsTheWindowDragHandle) {
+  AerieSidebarTopRow* row = sidebar()->top_row();
+  ASSERT_TRUE(row);
+  views::test::RunScheduledLayout(region()->GetWidget());
+  // A point on the toggle button is not caption; a point between the toggle and
+  // the navigation buttons is. Both are tested in the row's coordinates and
+  // then through the region view that Helium's hit test asks.
+  const gfx::Rect toggle = row->toggle_button()->bounds();
+  const gfx::Rect navigation = row->navigation()->bounds();
+  ASSERT_LT(toggle.right(), navigation.x());
+  const gfx::Point on_toggle = toggle.CenterPoint();
+  const gfx::Point gap((toggle.right() + navigation.x()) / 2, row->height() / 2);
+  EXPECT_FALSE(row->IsPositionInWindowCaption(on_toggle));
+  EXPECT_TRUE(row->IsPositionInWindowCaption(gap));
+
+  auto to_region = [&](gfx::Point p) {
+    views::View::ConvertPointToTarget(row, region(), &p);
+    return p;
+  };
+  EXPECT_TRUE(region()->IsPositionInWindowCaption(to_region(gap)));
+  EXPECT_FALSE(region()->IsPositionInWindowCaption(to_region(on_toggle)));
+  // Below the top row is the tab list, which is never caption.
+  // Below the top row is the pill and the tab list, never caption (asked of
+  // the sidebar, because a headless test window is too small to hold them).
+  EXPECT_FALSE(sidebar()->IsPositionInWindowCaption(
+      gfx::Point(10, row->bounds().bottom() + 4)));
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarBrowserTest, TheTopRowDrawsWindowControlsWhenAsked) {
+  AerieSidebarTopRow* row = sidebar()->top_row();
+  ASSERT_TRUE(row);
+  sidebar()->SetWindowControls(/*leading_inset=*/0, /*draw_window_controls=*/true);
+  EXPECT_TRUE(row->window_controls_shown());
+  ASSERT_EQ(row->window_controls()->children().size(), 3u);
+  EXPECT_EQ(NameOf(row->window_controls()->children()[0]), "Close window");
+  EXPECT_EQ(NameOf(row->window_controls()->children()[1]), "Minimize");
+  EXPECT_EQ(NameOf(row->window_controls()->children()[2]), "Maximize");
+  // A control is not a Tab stop, but a screen reader reaches it.
+  EXPECT_EQ(row->window_controls()->children()[0]->GetFocusBehavior(),
+            views::View::FocusBehavior::ACCESSIBLE_ONLY);
+
+  // Room for the platform's own controls pushes the row's content aside.
+  sidebar()->SetWindowControls(/*leading_inset=*/78, /*draw_window_controls=*/false);
+  EXPECT_FALSE(row->window_controls_shown());
+  views::test::RunScheduledLayout(sidebar());
+  EXPECT_GE(row->toggle_button()->bounds().x(), 78 - 8);
+}
+
+// The pill needs a page the Guard icon shows on: an http page.
+class AerieSidebarPillBrowserTest : public AerieSidebarBrowserTest {
+ public:
+  void SetUpOnMainThread() override {
+    AerieSidebarBrowserTest::SetUpOnMainThread();
+    // HTTPS-only mode is on by default in Aerie and would upgrade the page.
+    prefs()->SetBoolean(prefs::kHttpsOnlyModeEnabled, false);
+    host_resolver()->AddRule("*", "127.0.0.1");
+    embedded_test_server()->ServeFilesFromSourceDirectory("content/test/data");
+    ASSERT_TRUE(embedded_test_server()->Start());
+  }
+
+  BrowserView* browser_view() {
+    return BrowserView::GetBrowserViewForBrowser(browser());
+  }
+
+  // The visible view under the pill whose accessible name starts with
+  // "Guard:", which is how the Guard icon names itself.
+  views::View* GuardIcon(views::View* root) {
+    ui::AXNodeData data;
+    root->GetViewAccessibility().GetAccessibleNodeData(&data);
+    if (root->GetVisible() &&
+        data.GetStringAttribute(ax::mojom::StringAttribute::kName)
+                .rfind("Guard:", 0) == 0) {
+      return root;
+    }
+    for (views::View* child : root->children()) {
+      if (views::View* found = GuardIcon(child)) {
+        return found;
+      }
+    }
+    return nullptr;
+  }
+
+  void OpenPage() {
+    ASSERT_TRUE(content::NavigateToURL(
+        browser()->tab_strip_model()->GetActiveWebContents(),
+        embedded_test_server()->GetURL("news.test", "/title1.html")));
+  }
+};
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarPillBrowserTest, TheAddressPillIsTheRealLocationBarAndTheToolbarRowIsGone) {
+  ASSERT_TRUE(sidebar());
+  LocationBarView* location_bar = browser_view()->GetLocationBarView();
+  ASSERT_TRUE(location_bar);
+  EXPECT_EQ(location_bar->parent(), sidebar()->address_pill());
+  EXPECT_TRUE(sidebar()->Contains(location_bar));
+  EXPECT_EQ(browser_view()->toolbar()->location_bar_view(), location_bar);
+
+  // What is left of the toolbar is in the bottom bar, not above the page.
+  EXPECT_EQ(browser_view()->toolbar()->parent(), sidebar()->bottom_bar());
+  EXPECT_FALSE(browser_view()->top_container()->Contains(browser_view()->toolbar()));
+  views::test::RunScheduledLayout(browser_view());
+  EXPECT_EQ(browser_view()->top_container()->height(), 0);
+  // The sidebar's column starts at the top of the window.
+  EXPECT_EQ(region()->y(), 0);
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarPillBrowserTest, TheGuardIconIsInThePillWithItsName) {
+  OpenPage();
+  views::View* pill = sidebar()->address_pill();
+  views::View* icon = nullptr;
+  ASSERT_TRUE(WaitFor([&] {
+    icon = GuardIcon(pill);
+    return icon != nullptr;
+  }));
+  EXPECT_TRUE(pill->Contains(icon));
+  // Nothing was blocked on this page, and the name still says the count.
+  EXPECT_EQ(NameOf(icon), "Guard: 0 blocked on this page");
+}
+
+// The page actions have to fit when the sidebar is as narrow as it goes
+// (size-sidebar-min, 200 px, less the 8 px inset on both sides).
+IN_PROC_BROWSER_TEST_F(AerieSidebarPillBrowserTest, ThePageActionsFitAtTwoHundredPixels) {
+  OpenPage();
+  LocationBarView* location_bar = browser_view()->GetLocationBarView();
+  views::View* icon = nullptr;
+  ASSERT_TRUE(WaitFor([&] {
+    icon = GuardIcon(sidebar()->address_pill());
+    return icon != nullptr;
+  }));
+
+  views::test::RunScheduledLayout(location_bar->GetWidget());
+  const int width = 200 - 2 * 8;
+  location_bar->SetSize(
+      gfx::Size(width, location_bar->GetPreferredSize().height()));
+  views::test::RunScheduledLayout(location_bar);
+
+  const gfx::Rect local = location_bar->GetLocalBounds();
+  gfx::Rect icon_in_bar = icon->GetLocalBounds();
+  icon_in_bar = views::View::ConvertRectToTarget(icon, location_bar, icon_in_bar);
+  EXPECT_TRUE(icon->GetVisible());
+  EXPECT_FALSE(icon_in_bar.IsEmpty());
+  EXPECT_TRUE(local.Contains(icon_in_bar))
+      << "the Guard icon " << icon_in_bar.ToString() << " is outside the pill "
+      << local.ToString();
+
+  // The page actions do not push the text field out: the omnibox keeps room to
+  // type, and the actions sit after it (toward the pill's end), never over it.
+  views::View* omnibox = location_bar->GetViewByID(VIEW_ID_OMNIBOX);
+  ASSERT_TRUE(omnibox);
+  gfx::Rect omnibox_in_bar = omnibox->GetLocalBounds();
+  omnibox_in_bar =
+      views::View::ConvertRectToTarget(omnibox, location_bar, omnibox_in_bar);
+  EXPECT_GE(omnibox_in_bar.width(), 40);
+  EXPECT_FALSE(omnibox_in_bar.Intersects(icon_in_bar));
 }

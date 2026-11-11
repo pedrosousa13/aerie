@@ -19,6 +19,7 @@
 
 class BrowserWindowInterface;
 class AerieSidebarRowView;
+class AerieSidebarTopRow;
 
 namespace views {
 class BoxLayoutView;
@@ -29,9 +30,12 @@ namespace tabs {
 class TabInterface;
 }  // namespace tabs
 
-// The contents of Aerie's sidebar (issue #177): a New Tab row and the Today
-// list, one row per unpinned tab of this window, kept from the Tab Model
-// (aerie_sidebar::TodayList). It is a child of VerticalTabStripRegionView,
+// The contents of Aerie's sidebar (issues #177 and #215), top to bottom: the top
+// row (window controls, the sidebar toggle, Back, Forward, Reload), the address
+// pill (the real location bar), a New Tab row, the Today list, one row per
+// unpinned tab of this window, kept from the Tab Model
+// (aerie_sidebar::TodayList), and the bottom bar (a placeholder; the toolbar's
+// remaining buttons live there for now). It is a child of VerticalTabStripRegionView,
 // which keeps owning the frame of the column: its slot in the window layout,
 // its background, its resize area and its width. docs/sidebar-design.md,
 // "Native sidebar view", has the reasons.
@@ -53,6 +57,36 @@ class AerieSidebarView : public views::View,
 
   // The rows, top to bottom, for tests and the screenshot driver.
   size_t row_count() const { return rows_.size(); }
+
+  // What the sidebar takes out of the browser's toolbar (issue #215). The
+  // views are the toolbar's own, not copies: the address pill is the real
+  // location bar, so the omnibox, the page actions and the Guard icon keep
+  // working, and the buttons keep their commands and menus. All are plain
+  // views so that this target does not depend on the toolbar's.
+  struct ToolbarParts {
+    raw_ptr<views::View> toolbar;       // What stays after the rest left.
+    raw_ptr<views::View> location_bar;  // Goes into the address pill.
+    raw_ptr<views::View> back;          // These three go into the top row.
+    raw_ptr<views::View> forward;
+    raw_ptr<views::View> reload;
+  };
+  // Moves the parts in. Call once, after the toolbar has made its buttons.
+  void AdoptToolbar(const ToolbarParts& parts);
+  bool has_toolbar_parts() const { return !!adopted_toolbar_; }
+
+  // `leading_inset` is the room the platform's own window controls take at
+  // the leading edge of the window; `draw_window_controls` asks the top row to
+  // draw its own (the frame draws them on the far side of the window).
+  void SetWindowControls(int leading_inset, bool draw_window_controls);
+
+  // True when `point` (in this view's coordinates) is the empty part of the top
+  // row, which the window manager treats as the title bar.
+  bool IsPositionInWindowCaption(const gfx::Point& point) const;
+
+  // The regions, for tests and for the layout that follows.
+  AerieSidebarTopRow* top_row() const { return top_row_; }
+  views::View* address_pill() const { return pill_; }
+  views::View* bottom_bar() const { return bottom_bar_; }
 
   // aerie_sidebar::TodayList::Delegate:
   void OnRowInserted(int index, const std::string& tab_id) override;
@@ -86,8 +120,17 @@ class AerieSidebarView : public views::View,
   void SelectTab(const std::string& tab_id);
   void CloseTab(const std::string& tab_id);
 
+  void ToggleSidebar();
+
   const raw_ptr<BrowserWindowInterface> browser_;
   base::RepeatingClosure new_tab_;
+  raw_ptr<AerieSidebarTopRow> top_row_ = nullptr;
+  raw_ptr<views::View> pill_ = nullptr;
+  raw_ptr<views::View> bottom_bar_ = nullptr;
+  // The toolbar and its parts that moved in. They go back to the toolbar when
+  // the sidebar goes, so that the toolbar never points at a view that is gone.
+  raw_ptr<views::View> adopted_toolbar_ = nullptr;
+  std::vector<raw_ptr<views::View>> adopted_parts_;
   raw_ptr<views::BoxLayoutView> list_ = nullptr;
   raw_ptr<views::ScrollView> scroll_ = nullptr;
   std::vector<Row> rows_;

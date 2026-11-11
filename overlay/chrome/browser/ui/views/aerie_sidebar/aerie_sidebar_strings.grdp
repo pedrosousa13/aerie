@@ -28,4 +28,28 @@
   <message name="IDS_AERIE_SIDEBAR_RESIZE_ANNOUNCE" desc="What a screen reader says after the user changed the width of the sidebar with the arrow keys. The number is the new width in pixels.">
     Sidebar width <ph name="WIDTH">$1<ex>260</ex></ph> pixels
   </message>
+  <message name="IDS_AERIE_SIDEBAR_TOP_ROW" desc="Accessible name of the row at the top of the sidebar that holds the window controls, the button that hides the sidebar, and the Back, Forward and Reload buttons.">
+    Sidebar controls
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_HIDE" desc="Tooltip and accessible name of the button in the top row of the sidebar that hides the sidebar. The keyboard shortcut for it is Ctrl+S.">
+    Hide sidebar
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_WINDOW_CONTROLS" desc="Accessible name of the group of three round buttons in the sidebar that close, minimize and maximize the browser window.">
+    Window controls
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_CLOSE_WINDOW" desc="Tooltip and accessible name of the round button in the sidebar that closes the browser window.">
+    Close window
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_MINIMIZE_WINDOW" desc="Tooltip and accessible name of the round button in the sidebar that minimizes the browser window.">
+    Minimize
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_MAXIMIZE_WINDOW" desc="Tooltip and accessible name of the round button in the sidebar that maximizes the browser window, or restores it when it is already maximized.">
+    Maximize
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_NAVIGATION" desc="Accessible name of the group of the Back, Forward and Reload buttons in the sidebar.">
+    Navigation
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_ADDRESS" desc="Accessible name of the group in the sidebar that holds the address field. The address field is the rounded box where the user types a web address or a search.">
+    Address
+  </message>
 </grit-part>

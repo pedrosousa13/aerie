@@ -166,7 +166,7 @@ class SavePageTest(unittest.TestCase):
         doc = (REPO / "docs" / "sidebar-design.md").read_text()
         self.assertIn("What is not built yet in the view", doc)
         # What the view has no code for is named as missing, not claimed.
-        for missing in ("Favorites", "Pinned", "address pill"):
+        for missing in ("Favorites", "Pinned"):
             self.assertIn(missing, doc.split("What is not built yet in the view", 1)[1].split("\n", 1)[0])
 
 

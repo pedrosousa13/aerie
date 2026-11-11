@@ -18,8 +18,13 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_row_view.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_top_row.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/aerie_design_tokens/aerie_tokens.h"
+#include "components/aerie_sidebar/aerie_sidebar_layout.h"
+#include "components/prefs/pref_service.h"
+#include "ui/base/models/image_model.h"
+#include "ui/base/base_window.h"
 #include "components/favicon/content/content_favicon_driver.h"
 #include "components/tabs/public/tab_interface.h"
 #include "components/vector_icons/vector_icons.h"
@@ -35,6 +40,7 @@
 #include "ui/views/controls/scroll_view.h"
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/layout/box_layout_view.h"
+#include "ui/views/layout/fill_layout.h"
 #include "ui/views/style/typography.h"
 
 namespace {
@@ -70,6 +76,36 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
   GetViewAccessibility().SetRole(ax::mojom::Role::kNavigation);
   GetViewAccessibility().SetName(
       l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_NAME));
+
+  // Top row: window controls, the sidebar toggle, Back, Forward, Reload.
+  AerieSidebarTopRow::Callbacks top_row_callbacks;
+  top_row_callbacks.toggle_sidebar = base::BindRepeating(
+      &AerieSidebarView::ToggleSidebar, base::Unretained(this));
+  top_row_callbacks.close_window = base::BindRepeating(
+      [](BrowserWindowInterface* browser) { browser->GetWindow()->Close(); },
+      base::Unretained(browser_.get()));
+  top_row_callbacks.minimize_window = base::BindRepeating(
+      [](BrowserWindowInterface* browser) { browser->GetWindow()->Minimize(); },
+      base::Unretained(browser_.get()));
+  top_row_callbacks.toggle_maximize_window = base::BindRepeating(
+      [](BrowserWindowInterface* browser) {
+        ui::BaseWindow* window = browser->GetWindow();
+        if (window->IsMaximized()) {
+          window->Restore();
+        } else {
+          window->Maximize();
+        }
+      },
+      base::Unretained(browser_.get()));
+  top_row_ = AddChildView(
+      std::make_unique<AerieSidebarTopRow>(std::move(top_row_callbacks)));
+
+  // Address pill: the real location bar goes in when the toolbar has made it.
+  pill_ = AddChildView(std::make_unique<views::View>());
+  pill_->SetLayoutManager(std::make_unique<views::FillLayout>());
+  pill_->GetViewAccessibility().SetRole(ax::mojom::Role::kGroup);
+  pill_->GetViewAccessibility().SetName(
+      l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_ADDRESS));
 
   // New Tab row.
   auto* new_tab_row = AddChildView(std::make_unique<views::LabelButton>(
@@ -116,6 +152,12 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
   list_ = scroll_->SetContents(std::move(list));
   layout->SetFlexForView(scroll_, 1);
 
+  // Bottom bar: a placeholder until the Archive button and the Workspace
+  // switcher come. The toolbar's remaining buttons (extensions, profile, menu)
+  // sit in it so that they stay reachable.
+  bottom_bar_ = AddChildView(std::make_unique<views::View>());
+  bottom_bar_->SetLayoutManager(std::make_unique<views::FillLayout>());
+
   browser_->GetTabStripModel()->AddObserver(this);
 
   if (auto* service = aerie_tab_model::TabModelServiceFactory::GetForProfile(
@@ -127,7 +169,62 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
   ScheduleSync();
 }
 
-AerieSidebarView::~AerieSidebarView() = default;
+AerieSidebarView::~AerieSidebarView() {
+  // The toolbar outlives nothing here, but its members point at the views that
+  // moved out of it. Give them back so that none points at a view that is
+  // gone.
+  if (adopted_toolbar_) {
+    for (views::View* part : adopted_parts_) {
+      if (part && part->parent() && part->parent() != adopted_toolbar_) {
+        adopted_toolbar_->AddChildView(part->parent()->RemoveChildViewT(part));
+      }
+    }
+  }
+}
+
+void AerieSidebarView::AdoptToolbar(const ToolbarParts& parts) {
+  CHECK(!adopted_toolbar_);
+  CHECK(parts.toolbar);
+  adopted_toolbar_ = parts.toolbar;
+  for (views::View* part :
+       {parts.back.get(), parts.forward.get(), parts.reload.get()}) {
+    if (part && part->parent()) {
+      adopted_parts_.push_back(part);
+      top_row_->AdoptNavigationButton(part);
+    }
+  }
+  if (parts.location_bar && parts.location_bar->parent()) {
+    adopted_parts_.push_back(parts.location_bar);
+    pill_->AddChildView(
+        parts.location_bar->parent()->RemoveChildViewT(parts.location_bar));
+  }
+  // What is left of the toolbar goes in the bottom bar.
+  if (views::View* old_parent = parts.toolbar->parent()) {
+    bottom_bar_->AddChildView(old_parent->RemoveChildViewT(parts.toolbar));
+  }
+  // The toolbar paints its own fill; here the frame tint shows through.
+  parts.toolbar->SetBackground(nullptr);
+  InvalidateLayout();
+}
+
+void AerieSidebarView::SetWindowControls(int leading_inset,
+                                         bool draw_window_controls) {
+  // The sidebar's own inset already gives some of the room.
+  top_row_->SetLeadingInset(
+      std::max(0, leading_inset - static_cast<int>(aerie::tokens::kSpace8)));
+  top_row_->ShowWindowControls(draw_window_controls);
+}
+
+bool AerieSidebarView::IsPositionInWindowCaption(
+    const gfx::Point& point) const {
+  gfx::Point in_row = point;
+  ConvertPointToTarget(this, top_row_, &in_row);
+  return top_row_->GetVisible() && top_row_->IsPositionInWindowCaption(in_row);
+}
+
+void AerieSidebarView::ToggleSidebar() {
+  aerie_sidebar::ToggleVisible(browser_->GetProfile()->GetPrefs());
+}
 
 tabs::TabInterface* AerieSidebarView::FindTab(const std::string& tab_id) const {
   auto* service = aerie_tab_model::TabModelServiceFactory::GetForProfile(
