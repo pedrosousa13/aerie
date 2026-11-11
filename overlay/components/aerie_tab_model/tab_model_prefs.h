@@ -23,7 +23,17 @@ inline constexpr char kArchiveAfter[] = "aerie.tabs.archive_after";
 // 60.
 inline constexpr char kSleepAfterMinutes[] = "aerie.tabs.sleep_after_minutes";
 
+// What Ctrl+W and the close button do on a Pinned tab (issue #180):
+// "reset-sleep-switch" (default), "sleep" or "close". Parsed by
+// ParsePinnedCloseMode (pinned_tabs.h). Also a settings_private allowlist
+// literal (patches/sidebar/0036).
+inline constexpr char kPinnedClose[] = "aerie.tabs.pinned_close";
+inline constexpr char kPinnedCloseResetSleepSwitch[] = "reset-sleep-switch";
+inline constexpr char kPinnedCloseSleep[] = "sleep";
+inline constexpr char kPinnedCloseClose[] = "close";
+
 inline constexpr char kDefaultArchiveAfter[] = "12h";
+inline constexpr char kDefaultPinnedClose[] = "reset-sleep-switch";
 inline constexpr int kDefaultSleepAfterMinutes = 60;
 inline constexpr int kMinSleepAfterMinutes = 15;
 inline constexpr int kMaxSleepAfterMinutes = 8 * 60;

@@ -249,6 +249,14 @@ bool TabModel::MoveTab(const std::string& id,
     return false;
   }
   Placement from{tab.section, tab.parent, tab.position};
+  // A tab that enters Favorites remembers where it came from; one that leaves
+  // them forgets it (issue #180).
+  if (section == Section::kFavorite && tab.section != Section::kFavorite) {
+    tab.previous_section = tab.section;
+  } else if (section != Section::kFavorite &&
+             tab.section == Section::kFavorite) {
+    tab.previous_section.reset();
+  }
   tab.section = section;
   tab.parent = parent;
   tab.position = position;

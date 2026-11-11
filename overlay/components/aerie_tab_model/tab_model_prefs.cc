@@ -14,6 +14,7 @@ namespace aerie_tab_model {
 void RegisterProfilePrefs(PrefRegistrySimple* registry) {
   registry->RegisterStringPref(kArchiveAfter, kDefaultArchiveAfter);
   registry->RegisterIntegerPref(kSleepAfterMinutes, kDefaultSleepAfterMinutes);
+  registry->RegisterStringPref(kPinnedClose, kDefaultPinnedClose);
 }
 
 std::optional<base::TimeDelta> ParseArchiveAfter(std::string_view value) {

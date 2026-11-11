@@ -80,6 +80,14 @@ struct TabRecord : Record {
   base::Time last_active;
   bool sleeping = false;
   std::optional<base::Time> archived_at;
+  // Where the tab was before it became a Favorite (issue #180): removing the
+  // Favorite puts it back there. Set by TabModel::MoveTab when a tab enters
+  // Favorites, cleared when it leaves them. Absent for every other tab.
+  std::optional<Section> previous_section;
+  // The page title as the tab last showed it. Kept for Pinned and Favorites
+  // tabs only (issue #180): after a restart their tabs are created unloaded and
+  // have no title until they load, so the row shows this one.
+  std::optional<std::string> last_title;
 };
 
 struct FolderRecord : Record {
