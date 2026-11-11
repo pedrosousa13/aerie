@@ -7,6 +7,7 @@
 
 #include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
+#include "components/aerie_sidebar/aerie_sidebar_palette.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/views/accessible_pane_view.h"
 
@@ -35,10 +36,17 @@ class AerieSidebarTopRow : public views::AccessiblePaneView {
     base::RepeatingClosure toggle_maximize_window;
   };
 
-  explicit AerieSidebarTopRow(Callbacks callbacks);
+  AerieSidebarTopRow(Callbacks callbacks,
+                     const aerie_sidebar::SidebarPalette& palette);
   AerieSidebarTopRow(const AerieSidebarTopRow&) = delete;
   AerieSidebarTopRow& operator=(const AerieSidebarTopRow&) = delete;
   ~AerieSidebarTopRow() override;
+
+  // The colours of the row's own views (the window controls and the toggle)
+  // and their focus rings. Back, Forward and Reload are the toolbar's own
+  // buttons and keep drawing from the browser's colour provider.
+  void SetPalette(const aerie_sidebar::SidebarPalette& palette);
+  const aerie_sidebar::SidebarPalette& palette() const { return palette_; }
 
   // Room, in pixels, at the leading edge for controls the platform draws over
   // the row (the traffic lights).
@@ -73,6 +81,7 @@ class AerieSidebarTopRow : public views::AccessiblePaneView {
   raw_ptr<views::View> spacer_ = nullptr;
   raw_ptr<views::View> navigation_ = nullptr;
   int leading_inset_ = 0;
+  aerie_sidebar::SidebarPalette palette_;
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_AERIE_SIDEBAR_AERIE_SIDEBAR_TOP_ROW_H_

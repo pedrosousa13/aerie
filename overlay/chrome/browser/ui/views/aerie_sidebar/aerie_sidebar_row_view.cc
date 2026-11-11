@@ -9,15 +9,16 @@
 
 #include "base/functional/bind.h"
 #include "build/build_config.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_focus_ring.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/aerie_design_tokens/aerie_motion.h"
 #include "components/aerie_design_tokens/aerie_tokens.h"
+#include "components/aerie_sidebar/aerie_sidebar_drag.h"
 #include "components/aerie_sidebar/aerie_sidebar_motion.h"
 #include "components/prefs/pref_service.h"
 #include "components/vector_icons/vector_icons.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
-#include "ui/color/color_id.h"
 #include "ui/compositor/layer.h"
 #include "ui/events/event.h"
 #include "ui/gfx/animation/slide_animation.h"
@@ -26,12 +27,13 @@
 #include "ui/gfx/geometry/transform_util.h"
 #include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/background.h"
+#include "ui/views/animation/ink_drop.h"
 #include "ui/views/controls/button/image_button.h"
 #include "ui/views/controls/button/image_button_factory.h"
 #include "ui/views/controls/focus_ring.h"
-#include "ui/views/controls/highlight_path_generator.h"
 #include "ui/views/controls/image_view.h"
 #include "ui/views/controls/label.h"
+#include "ui/views/widget/widget.h"
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/style/typography.h"
 
@@ -62,8 +64,10 @@ bool IsCloseShortcut(const ui::KeyEvent& event) {
 }
 }  // namespace
 
-AerieSidebarRowView::AerieSidebarRowView(Callbacks callbacks)
-    : callbacks_(std::move(callbacks)) {
+AerieSidebarRowView::AerieSidebarRowView(
+    Callbacks callbacks,
+    const aerie_sidebar::SidebarPalette& palette)
+    : callbacks_(std::move(callbacks)), palette_(palette) {
   // Everything that is drawn is in the content view: it keeps the full row
   // height while the row itself grows or collapses (and clips), and its layer
   // is the one that scales, slides and fades.
@@ -83,7 +87,7 @@ AerieSidebarRowView::AerieSidebarRowView(Callbacks callbacks)
       std::u16string(), views::style::CONTEXT_LABEL, views::style::STYLE_BODY_4));
   title_->SetHorizontalAlignment(gfx::ALIGN_LEFT);
   title_->SetElideBehavior(gfx::ELIDE_TAIL);
-  title_->SetEnabledColor(ui::kColorSysOnSurface);
+  title_->SetEnabledColor(palette_.text);
   title_->GetViewAccessibility().SetIsIgnored(true);
   layout->SetFlexForView(title_, 1);
 
@@ -91,12 +95,11 @@ AerieSidebarRowView::AerieSidebarRowView(Callbacks callbacks)
       base::BindRepeating(
           [](AerieSidebarRowView* row) { row->callbacks_.close.Run(); },
           base::Unretained(this))));
-  views::SetImageFromVectorIconWithColor(
-      close_button_, vector_icons::kCloseSmallIcon, kFaviconSize,
-      views::IconColors(ui::kColorSysOnSurface, ui::kColorSysOnSurface));
   close_button_->SetPreferredSize(gfx::Size(20, 20));
   close_button_->SetVisible(false);
   close_button_->SetFocusBehavior(views::View::FocusBehavior::NEVER);
+  close_button_->SetInstallFocusRingOnFocus(false);
+  views::FocusRing::Remove(close_button_);
   close_button_->GetViewAccessibility().SetName(
       l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_CLOSE_TAB));
   close_button_->SetTooltipText(
@@ -108,25 +111,21 @@ AerieSidebarRowView::AerieSidebarRowView(Callbacks callbacks)
   SetFocusBehavior(views::View::FocusBehavior::ALWAYS);
   // The focus ring is size-focus-ring-width thick and sits
   // size-focus-ring-offset away from the row (docs/sidebar-design.md,
-  // "Rows and tiles"). The halo inset is the distance of the stroke's centre
-  // from the row's edge, so it is minus offset minus half the width.
-  views::FocusRing::Install(this);
-  views::FocusRing* ring = views::FocusRing::Get(this);
-  ring->SetOutsetFocusRingDisabled(false);
-  ring->SetHaloThickness(aerie::tokens::kSizeFocusRingWidth);
-  ring->SetHaloInset(-(aerie::tokens::kSizeFocusRingOffset +
-                       aerie::tokens::kSizeFocusRingWidth / 2.0f));
-  views::InstallRoundRectHighlightPathGenerator(this, gfx::Insets(),
-                                                aerie::tokens::kRadiusMd);
+  // "Rows and tiles"). Chromium's own ring takes only a colour role, so the
+  // row draws it in the Workspace accent.
+  AerieSidebarFocusRing::Install(this, aerie::tokens::kRadiusMd);
   GetViewAccessibility().SetRole(ax::mojom::Role::kTreeItem);
   GetViewAccessibility().SetHierarchicalLevel(1);
   GetViewAccessibility().SetIsSelected(false);
   GetViewAccessibility().SetName(std::u16string());
+  SetPalette(palette_);
 }
 
 AerieSidebarRowView::~AerieSidebarRowView() {
   // A row that goes away mid-motion must not leave an animation behind.
   content_motion_.Abort();
+  row_motion_.Abort();
+  lift_motion_.Abort();
 }
 
 void AerieSidebarRowView::SetTabStop(bool tab_stop) {
@@ -139,6 +138,29 @@ void AerieSidebarRowView::SetTabStop(bool tab_stop) {
 
 bool AerieSidebarRowView::is_tab_stop() const {
   return GetFocusBehavior() == views::View::FocusBehavior::ALWAYS;
+}
+
+void AerieSidebarRowView::SetPalette(
+    const aerie_sidebar::SidebarPalette& palette) {
+  palette_ = palette;
+  title_->SetEnabledColor(palette_.text);
+  // The close icon is muted at rest and the text colour under the pointer
+  // (the mockup's `.ibtn`).
+  for (views::Button::ButtonState state :
+       {views::Button::STATE_NORMAL, views::Button::STATE_DISABLED}) {
+    close_button_->SetImageModel(
+        state, ui::ImageModel::FromVectorIcon(vector_icons::kCloseSmallIcon,
+                                              palette_.text_muted, kFaviconSize));
+  }
+  for (views::Button::ButtonState state :
+       {views::Button::STATE_HOVERED, views::Button::STATE_PRESSED}) {
+    close_button_->SetImageModel(
+        state, ui::ImageModel::FromVectorIcon(vector_icons::kCloseSmallIcon,
+                                              palette_.text, kFaviconSize));
+  }
+  views::InkDrop::Get(close_button_)->SetBaseColor(palette_.text);
+  AerieSidebarFocusRing::Get(this)->SetColor(palette_.accent);
+  UpdateState();
 }
 
 void AerieSidebarRowView::SetTitle(const std::u16string& title) {
@@ -183,10 +205,46 @@ bool AerieSidebarRowView::OnMousePressed(const ui::MouseEvent& event) {
   if (closing_) {
     return false;
   }
+  pressed_ = event.IsOnlyLeftMouseButton();
+  press_point_ = event.root_location();
   return event.IsOnlyLeftMouseButton() || event.IsOnlyMiddleMouseButton();
 }
 
+bool AerieSidebarRowView::OnMouseDragged(const ui::MouseEvent& event) {
+  if (closing_ || !pressed_) {
+    return false;
+  }
+  // The root location does not move with the row's own layer, so the travel is
+  // the pointer's, not the pointer's relative to a row that is following it.
+  const gfx::Point point = event.root_location();
+  const int dx = point.x() - press_point_.x();
+  const int dy = point.y() - press_point_.y();
+  if (!dragging_) {
+    if (!aerie_sidebar::ExceedsDragThreshold(dx, dy)) {
+      return true;
+    }
+    if (!callbacks_.drag_begin || !callbacks_.drag_begin.Run()) {
+      return true;
+    }
+    dragging_ = true;
+  }
+  last_dy_ = dy;
+  callbacks_.drag_update.Run(dy);
+  return true;
+}
+
 void AerieSidebarRowView::OnMouseReleased(const ui::MouseEvent& event) {
+  pressed_ = false;
+  if (dragging_) {
+    dragging_ = false;
+    const views::Widget* widget = GetWidget();
+    const bool outside =
+        widget && !widget->GetRootView()->GetLocalBounds().Contains(
+                      event.root_location());
+    callbacks_.drag_end.Run(event.root_location().y() - press_point_.y(),
+                            /*cancelled=*/false, outside);
+    return;
+  }
   if (closing_ || !HitTestPoint(event.location())) {
     return;
   }
@@ -194,6 +252,14 @@ void AerieSidebarRowView::OnMouseReleased(const ui::MouseEvent& event) {
     callbacks_.select.Run();
   } else if (event.IsOnlyMiddleMouseButton()) {
     callbacks_.close.Run();
+  }
+}
+
+void AerieSidebarRowView::OnMouseCaptureLost() {
+  pressed_ = false;
+  if (dragging_) {
+    dragging_ = false;
+    callbacks_.drag_end.Run(last_dy_, /*cancelled=*/true, /*outside=*/false);
   }
 }
 
@@ -275,10 +341,10 @@ void AerieSidebarRowView::UpdateState() {
   // The content draws the background, so that it scales and fades with it.
   if (selected_) {
     content_->SetBackground(views::CreateRoundedRectBackground(
-        ui::kColorSysTonalContainer, aerie::tokens::kRadiusMd));
+        palette_.row_selected, aerie::tokens::kRadiusMd));
   } else if (hovered_) {
     content_->SetBackground(views::CreateRoundedRectBackground(
-        ui::kColorSysStateHoverOnSubtle, aerie::tokens::kRadiusMd));
+        palette_.row_hover, aerie::tokens::kRadiusMd));
   } else {
     content_->SetBackground(nullptr);
   }
@@ -316,7 +382,7 @@ void AerieSidebarRowView::AnimateHeight(bool grow,
 }
 
 void AerieSidebarRowView::FinishHeightAnimation() {
-  if (layer()) {
+  if (layer() && !drag_layers_) {
     DestroyLayer();
   }
 }
@@ -336,6 +402,122 @@ void AerieSidebarRowView::AnimationEnded(const gfx::Animation* animation) {
     return;
   }
   FinishHeightAnimation();
+}
+
+gfx::Transform AerieSidebarRowView::LiftTransform(float scale) const {
+  return ScaleAboutCenter(gfx::Size(width(), kRowHeight), scale);
+}
+
+void AerieSidebarRowView::EnsureDragLayers() {
+  settle_timer_.Stop();
+  if (!layer()) {
+    SetPaintToLayer();
+    layer()->SetFillsBoundsOpaquely(false);
+  }
+  if (!content_->layer()) {
+    content_->SetPaintToLayer();
+    content_->layer()->SetFillsBoundsOpaquely(false);
+  }
+  drag_layers_ = true;
+}
+
+void AerieSidebarRowView::DropDragLayers() {
+  settle_timer_.Stop();
+  drag_layers_ = false;
+  // A layer that the height animation needs stays; it drops its own.
+  if (layer() && !height_animating()) {
+    DestroyLayer();
+  }
+}
+
+void AerieSidebarRowView::BeginLift(const PrefService* prefs) {
+  EnsureDragLayers();
+  row_motion_.Abort();
+  lift_motion_.Abort();
+  // The lifted row is above the rows it passes.
+  if (layer()->parent()) {
+    layer()->parent()->StackAtTop(layer());
+  }
+  const aerie_sidebar::DragMotion motion =
+      aerie_sidebar::RowDragMotion(aerie::motion::ShouldReduceMotion(prefs));
+  if (motion.animate_lift) {
+    aerie::motion::LayerMotion target;
+    target.transform = LiftTransform(motion.lift_scale);
+    lift_motion_ =
+        aerie::motion::AnimateLayer(content_->layer(), target,
+                                    motion.lift_duration, motion.lift_easing,
+                                    prefs);
+  }
+}
+
+void AerieSidebarRowView::SetDragOffset(int dy) {
+  EnsureDragLayers();
+  row_motion_.Abort();
+  drag_offset_ = dy;
+  layer()->SetTransform(gfx::Transform::MakeTranslation(0, dy));
+}
+
+void AerieSidebarRowView::ShiftTo(int dy, const PrefService* prefs) {
+  EnsureDragLayers();
+  row_motion_.Abort();
+  drag_offset_ = dy;
+  const aerie_sidebar::DragMotion motion =
+      aerie_sidebar::RowDragMotion(aerie::motion::ShouldReduceMotion(prefs));
+  aerie::motion::LayerMotion target;
+  target.transform = gfx::Transform::MakeTranslation(0, dy);
+  // Reduced motion sets the transform at once: AnimateLayer never animates it.
+  row_motion_ = aerie::motion::AnimateLayer(layer(), target,
+                                            motion.shift_duration,
+                                            motion.shift_easing, prefs);
+  if (dy == 0) {
+    // A row back at its slot gives its layer up when the motion has ended.
+    settle_timer_.Start(
+        FROM_HERE,
+        base::Milliseconds(
+            aerie::tokens::GetDurationMs(motion.shift_duration, false) + 50),
+        base::BindOnce(&AerieSidebarRowView::DropDragLayers,
+                       base::Unretained(this)));
+  }
+}
+
+void AerieSidebarRowView::Settle(int from_dy, const PrefService* prefs) {
+  EnsureDragLayers();
+  row_motion_.Abort();
+  lift_motion_.Abort();
+  const bool reduced = aerie::motion::ShouldReduceMotion(prefs);
+  const aerie_sidebar::DragMotion motion = aerie_sidebar::RowDragMotion(reduced);
+  layer()->SetTransform(gfx::Transform::MakeTranslation(0, from_dy));
+  drag_offset_ = 0;
+  aerie::motion::LayerMotion rest;
+  rest.transform = gfx::Transform();
+  row_motion_ = aerie::motion::AnimateLayerForMs(
+      layer(), rest, motion.settle_duration_ms,
+      motion.settle_reduced_duration_ms, motion.settle_easing, prefs);
+  lift_motion_ = aerie::motion::AnimateLayer(content_->layer(), rest,
+                                             motion.lift_duration,
+                                             motion.lift_easing, prefs);
+  if (!motion.animate_settle) {
+    // The drop is instant; nothing is left to wait for.
+    DropDragLayers();
+    return;
+  }
+  settle_timer_.Start(
+      FROM_HERE, base::Milliseconds(motion.settle_duration_ms + 50),
+      base::BindOnce(&AerieSidebarRowView::DropDragLayers,
+                     base::Unretained(this)));
+}
+
+void AerieSidebarRowView::ResetDrag() {
+  row_motion_.Abort();
+  lift_motion_.Abort();
+  drag_offset_ = 0;
+  if (layer()) {
+    layer()->SetTransform(gfx::Transform());
+  }
+  if (content_->layer() && drag_layers_) {
+    content_->layer()->SetTransform(gfx::Transform());
+  }
+  DropDragLayers();
 }
 
 void AerieSidebarRowView::PlayOpen(const PrefService* prefs) {

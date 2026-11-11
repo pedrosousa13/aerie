@@ -21,6 +21,7 @@
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_top_row.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_view.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
+#include "chrome/browser/ui/views/location_bar/location_bar_view.h"
 #include "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/interactive_test_utils.h"
@@ -225,4 +226,22 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarKeyboardUiTest, F6MovesFocusTopRowPillTodayTh
   Press(ui::VKEY_F6, /*control=*/false, /*shift=*/true);
   base::test::RunUntil([&] { return PlaceOfFocus() != Place::kTopRow; });
   EXPECT_EQ(PlaceOfFocus(), Place::kElsewhere);
+}
+
+// With the sidebar hidden (Ctrl+S), Ctrl+L still moves focus to the omnibox, so
+// typing and Enter work. KNOWN GAP (issue #215, slice 3 report): the address
+// pill lives in the hidden column, so the focused omnibox is not drawn. Showing
+// it needs a design choice (a peek, or turning aerie.sidebar.visible back on),
+// which belongs with the auto-hide peek work, not with this test.
+IN_PROC_BROWSER_TEST_F(AerieSidebarKeyboardUiTest, CtrlLStillFocusesTheOmniboxWithTheSidebarHidden) {
+  ASSERT_TRUE(base::test::RunUntil([&] { return sidebar()->row_count() == 1u; }));
+  auto* region = browser_view()->vertical_tab_strip_region_view_for_testing();
+  chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
+  ASSERT_TRUE(base::test::RunUntil([&] { return region->aerie_sidebar_hidden(); }));
+
+  Press(ui::VKEY_L, /*control=*/true);
+
+  EXPECT_TRUE(base::test::RunUntil([&] {
+    return browser_view()->GetLocationBarView()->HasFocus();
+  }));
 }

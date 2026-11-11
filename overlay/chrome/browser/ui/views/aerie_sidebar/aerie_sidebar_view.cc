@@ -17,14 +17,20 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/tabs/tab_strip_model_delegate.h"
 #include "chrome/browser/sessions/session_restore.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_focus_ring.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_regions.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_row_view.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_top_row.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/aerie_design_tokens/aerie_tokens.h"
 #include "components/aerie_design_tokens/aerie_motion.h"
+#include "components/aerie_frame/aerie_frame_palette.h"
+#include "components/aerie_sidebar/aerie_sidebar_drag.h"
 #include "components/aerie_sidebar/aerie_sidebar_layout.h"
+#include "components/aerie_sidebar/aerie_sidebar_motion.h"
+#include "components/aerie_tab_model/tab_model.h"
 #include "components/prefs/pref_service.h"
 #include "ui/base/models/image_model.h"
 #include "ui/base/base_window.h"
@@ -35,7 +41,7 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/models/image_model.h"
-#include "ui/color/color_id.h"
+#include "ui/color/color_provider_key.h"
 #include "ui/gfx/geometry/insets.h"
 #include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/controls/button/label_button.h"
@@ -49,7 +55,7 @@
 
 namespace {
 
-ui::ImageModel FaviconFor(tabs::TabInterface* tab) {
+ui::ImageModel FaviconFor(tabs::TabInterface* tab, SkColor icon_color) {
   content::WebContents* contents = tab->GetContents();
   if (contents) {
     if (auto* driver =
@@ -60,8 +66,7 @@ ui::ImageModel FaviconFor(tabs::TabInterface* tab) {
       }
     }
   }
-  return ui::ImageModel::FromVectorIcon(vector_icons::kGlobeIcon,
-                                        ui::kColorSysOnSurface,
+  return ui::ImageModel::FromVectorIcon(vector_icons::kGlobeIcon, icon_color,
                                         aerie::tokens::kSizeIcon);
 }
 
@@ -70,6 +75,12 @@ ui::ImageModel FaviconFor(tabs::TabInterface* tab) {
 AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
                                    base::RepeatingClosure new_tab)
     : browser_(browser), new_tab_(std::move(new_tab)) {
+  if (auto* service = aerie_tab_model::TabModelServiceFactory::GetForProfile(
+          browser_->GetProfile())) {
+    model_ = service->model();
+    model_->AddObserver(this);
+  }
+  palette_ = ResolvePalette();
   auto* layout = SetLayoutManager(std::make_unique<views::BoxLayout>(
       views::BoxLayout::Orientation::kVertical,
       gfx::Insets::VH(aerie::tokens::kSpace8, aerie::tokens::kSpace8),
@@ -101,8 +112,8 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
         }
       },
       base::Unretained(browser_.get()));
-  top_row_ = AddChildView(
-      std::make_unique<AerieSidebarTopRow>(std::move(top_row_callbacks)));
+  top_row_ = AddChildView(std::make_unique<AerieSidebarTopRow>(
+      std::move(top_row_callbacks), palette_));
 
   // Address pill: the real location bar goes in when the toolbar has made it.
   pill_ = AddChildView(std::make_unique<AerieSidebarPill>());
@@ -112,29 +123,28 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
       l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_ADDRESS));
 
   // New Tab row.
-  auto* new_tab_row = AddChildView(std::make_unique<views::LabelButton>(
+  new_tab_row_ = AddChildView(std::make_unique<views::LabelButton>(
       base::BindRepeating(
           [](AerieSidebarView* self) { self->new_tab_.Run(); },
           base::Unretained(this)),
       l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_NEW_TAB)));
-  new_tab_row->SetImageModel(
-      views::Button::STATE_NORMAL,
-      ui::ImageModel::FromVectorIcon(kAddIcon, ui::kColorSysOnSurface,
-                                     aerie::tokens::kSizeIcon));
-  new_tab_row->SetHorizontalAlignment(gfx::ALIGN_LEFT);
-  new_tab_row->SetImageLabelSpacing(aerie::tokens::kSpace8);
-  new_tab_row->SetPreferredSize(
+  new_tab_row_->SetHorizontalAlignment(gfx::ALIGN_LEFT);
+  new_tab_row_->SetImageLabelSpacing(aerie::tokens::kSpace8);
+  new_tab_row_->SetPreferredSize(
       gfx::Size(0, aerie::tokens::kSizeRowHeightComfortable));
-  new_tab_row->SetTooltipText(
+  new_tab_row_->SetTooltipText(
       l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_NEW_TAB));
+  // Chromium's ring takes only a colour role; the sidebar draws its own.
+  new_tab_row_->SetInstallFocusRingOnFocus(false);
+  views::FocusRing::Remove(new_tab_row_);
+  AerieSidebarFocusRing::Install(new_tab_row_, aerie::tokens::kRadiusMd);
 
   // Today.
-  auto* today_heading = AddChildView(std::make_unique<views::Label>(
+  today_heading_ = AddChildView(std::make_unique<views::Label>(
       l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_TODAY),
       views::style::CONTEXT_LABEL, views::style::STYLE_BODY_5));
-  today_heading->SetHorizontalAlignment(gfx::ALIGN_LEFT);
-  today_heading->SetEnabledColor(ui::kColorSysOnSurfaceSubtle);
-  today_heading->SetBorder(views::CreateEmptyBorder(
+  today_heading_->SetHorizontalAlignment(gfx::ALIGN_LEFT);
+  today_heading_->SetBorder(views::CreateEmptyBorder(
       gfx::Insets::TLBR(aerie::tokens::kSpace8, aerie::tokens::kSpace8, 0, 0)));
 
   scroll_ = AddChildView(std::make_unique<views::ScrollView>(
@@ -172,16 +182,18 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
 
   browser_->GetTabStripModel()->AddObserver(this);
 
-  if (auto* service = aerie_tab_model::TabModelServiceFactory::GetForProfile(
-          browser_->GetProfile())) {
-    today_list_ = std::make_unique<aerie_sidebar::TodayList>(service->model(),
-                                                             this);
+  if (model_) {
+    today_list_ = std::make_unique<aerie_sidebar::TodayList>(model_, this);
   }
+  ApplyPalette();
   SyncRows();
   ScheduleSync();
 }
 
 AerieSidebarView::~AerieSidebarView() {
+  if (model_) {
+    model_->RemoveObserver(this);
+  }
   // The toolbar outlives nothing here, but its members point at the views that
   // moved out of it. Give them back so that none points at a view that is
   // gone.
@@ -234,6 +246,50 @@ bool AerieSidebarView::IsPositionInWindowCaption(
   return top_row_->GetVisible() && top_row_->IsPositionInWindowCaption(in_row);
 }
 
+aerie_sidebar::SidebarPalette AerieSidebarView::ResolvePalette() const {
+  const bool dark = GetWidget() && GetWidget()->GetColorMode() ==
+                                       ui::ColorProviderKey::ColorMode::kDark;
+  return aerie_sidebar::ResolveSidebarPalette(
+      aerie_frame::kDefaultTheme,
+      dark ? aerie::tokens::ColorMode::kDark : aerie::tokens::ColorMode::kLight,
+      model_ ? model_->workspace().colour
+             : std::string(aerie_frame::kFallbackColour));
+}
+
+void AerieSidebarView::ApplyPalette() {
+  palette_ = ResolvePalette();
+  top_row_->SetPalette(palette_);
+  today_heading_->SetEnabledColor(palette_.text_muted);
+  new_tab_row_->SetEnabledTextColors(palette_.text);
+  new_tab_row_->SetImageModel(
+      views::Button::STATE_NORMAL,
+      ui::ImageModel::FromVectorIcon(kAddIcon, palette_.text_muted,
+                                     aerie::tokens::kSizeIcon));
+  AerieSidebarFocusRing::Get(new_tab_row_)->SetColor(palette_.accent);
+  for (const Row& row : rows_) {
+    row.view->SetPalette(palette_);
+  }
+  for (AerieSidebarRowView* row : closing_rows_) {
+    row->SetPalette(palette_);
+  }
+  // The favicon of a tab without one is drawn in the muted text colour.
+  UpdateRows();
+}
+
+void AerieSidebarView::OnThemeChanged() {
+  views::View::OnThemeChanged();
+  // A change of the window's colour mode arrives here.
+  ApplyPalette();
+}
+
+void AerieSidebarView::OnWorkspaceChanged(const aerie_tab_model::Workspace&) {
+  ApplyPalette();
+}
+
+void AerieSidebarView::OnModelLoaded() {
+  ApplyPalette();
+}
+
 void AerieSidebarView::ToggleSidebar() {
   aerie_sidebar::ToggleVisible(browser_->GetProfile()->GetPrefs());
 }
@@ -255,6 +311,11 @@ tabs::TabInterface* AerieSidebarView::FindTab(const std::string& tab_id) const {
 }
 
 void AerieSidebarView::SyncRows() {
+  // The rows' slots change: a drag in progress would move rows that are not
+  // where it measured them.
+  if (drag_.active) {
+    CancelDrag();
+  }
   std::vector<std::string> wanted;
   if (today_list_) {
     for (const std::string& id : today_list_->rows()) {
@@ -293,8 +354,14 @@ void AerieSidebarView::SyncRows() {
                                         base::Unretained(this), id);
     callbacks.focused = base::BindRepeating(&AerieSidebarView::OnRowFocused,
                                             base::Unretained(this));
-    auto* view = list_->AddChildView(
-        std::make_unique<AerieSidebarRowView>(std::move(callbacks)));
+    callbacks.drag_begin = base::BindRepeating(
+        &AerieSidebarView::OnRowDragBegin, base::Unretained(this), id);
+    callbacks.drag_update = base::BindRepeating(
+        &AerieSidebarView::OnRowDragUpdate, base::Unretained(this), id);
+    callbacks.drag_end = base::BindRepeating(&AerieSidebarView::OnRowDragEnd,
+                                             base::Unretained(this), id);
+    auto* view = list_->AddChildView(std::make_unique<AerieSidebarRowView>(
+        std::move(callbacks), palette_));
     next.push_back({id, view});
     added.push_back(view);
   }
@@ -368,6 +435,145 @@ void AerieSidebarView::SyncRows() {
   }
 }
 
+bool AerieSidebarView::OnRowDragBegin(const std::string& tab_id) {
+  if (drag_.active || rows_.size() < 2 || !closing_rows_.empty()) {
+    return false;
+  }
+  for (const Row& row : rows_) {
+    if (row.view->height_animating() || row.view->is_closing()) {
+      return false;
+    }
+  }
+  const int source = IndexOfRow(tab_id);
+  if (source < 0) {
+    return false;
+  }
+  DragState drag;
+  drag.active = true;
+  drag.tab_id = tab_id;
+  drag.source = source;
+  drag.target = source;
+  for (const Row& row : rows_) {
+    drag.slots.push_back({row.view->y(), row.view->height()});
+  }
+  drag_ = std::move(drag);
+  rows_[source].view->BeginLift(browser_->GetProfile()->GetPrefs());
+  return true;
+}
+
+void AerieSidebarView::OnRowDragUpdate(const std::string& tab_id, int dy) {
+  if (!drag_.active || drag_.tab_id != tab_id) {
+    return;
+  }
+  const PrefService* prefs = browser_->GetProfile()->GetPrefs();
+  const int offset = aerie_sidebar::ClampDragOffset(drag_.slots, drag_.source, dy);
+  rows_[drag_.source].view->SetDragOffset(offset);
+  const int target =
+      aerie_sidebar::DragTargetIndex(drag_.slots, drag_.source, offset);
+  if (target == drag_.target) {
+    return;
+  }
+  drag_.target = target;
+  // Reduced motion: no shift. The rows stay, and the drop moves the tab.
+  if (aerie::motion::ShouldReduceMotion(prefs)) {
+    return;
+  }
+  for (size_t i = 0; i < rows_.size(); ++i) {
+    if (static_cast<int>(i) != drag_.source) {
+      rows_[i].view->ShiftTo(
+          aerie_sidebar::DragShift(drag_.slots, drag_.source, target,
+                                   static_cast<int>(i)),
+          prefs);
+    }
+  }
+}
+
+void AerieSidebarView::OnRowDragEnd(const std::string& tab_id,
+                                    int dy,
+                                    bool cancelled,
+                                    bool outside) {
+  if (!drag_.active || drag_.tab_id != tab_id) {
+    return;
+  }
+  const PrefService* prefs = browser_->GetProfile()->GetPrefs();
+  DragState drag = std::move(drag_);
+  drag_ = DragState();
+  const int offset = aerie_sidebar::ClampDragOffset(drag.slots, drag.source, dy);
+
+  // Dropped outside the window: the tab goes to a window of its own.
+  if (!cancelled && outside) {
+    for (const Row& row : rows_) {
+      row.view->ResetDrag();
+    }
+    TabStripModel* model = browser_->GetTabStripModel();
+    tabs::TabInterface* tab = FindTab(tab_id);
+    TabStripModelDelegate* delegate = model->delegate();
+    if (tab && delegate) {
+      const std::vector<int> indices = {model->GetIndexOfTab(tab)};
+      if (delegate->CanMoveTabsToWindow(indices)) {
+        delegate->MoveTabsToNewWindow(indices);
+      }
+    }
+    return;
+  }
+
+  const int target =
+      cancelled ? drag.source
+                : aerie_sidebar::DragTargetIndex(drag.slots, drag.source, offset);
+  AerieSidebarRowView* dragged = rows_[drag.source].view;
+  if (target == drag.source) {
+    // Nothing moved: the row settles back and the others go back to rest.
+    dragged->Settle(offset, prefs);
+    for (size_t i = 0; i < rows_.size(); ++i) {
+      if (static_cast<int>(i) != drag.source &&
+          rows_[i].view->has_drag_layers()) {
+        rows_[i].view->ShiftTo(0, prefs);
+      }
+    }
+    return;
+  }
+
+  // Dropped in another slot. The rows that shifted take their new places in
+  // the layout, which is the position the shift already showed, so they reset
+  // with no jump; the dropped row settles from where it was released.
+  for (size_t i = 0; i < rows_.size(); ++i) {
+    if (static_cast<int>(i) != drag.source) {
+      rows_[i].view->ResetDrag();
+    }
+  }
+  MoveTodayRow(drag.source, target);
+  dragged->Settle(
+      aerie_sidebar::SettleOffset(drag.slots, drag.source, target, offset),
+      prefs);
+}
+
+void AerieSidebarView::CancelDrag() {
+  const bool was_active = drag_.active;
+  drag_ = DragState();
+  if (!was_active) {
+    return;
+  }
+  for (const Row& row : rows_) {
+    row.view->ResetDrag();
+  }
+}
+
+void AerieSidebarView::MoveTodayRow(int source, int target) {
+  tabs::TabInterface* from = FindTab(rows_[source].tab_id);
+  tabs::TabInterface* to = FindTab(rows_[target].tab_id);
+  if (!from || !to) {
+    return;
+  }
+  TabStripModel* model = browser_->GetTabStripModel();
+  model->MoveWebContentsAt(model->GetIndexOfTab(from), model->GetIndexOfTab(to),
+                           /*select_after_move=*/false);
+  // The strip told the Tab Model (TabStripAdapter), which told the Today list.
+  // The rows are put in the new order now, not in a task, so that the dropped
+  // row can settle from where it was released, so the layout runs now too.
+  SyncRows();
+  list_->DeprecatedLayoutImmediately();
+}
+
 void AerieSidebarView::RemoveClosedRow(AerieSidebarRowView* row) {
   auto it = std::find(closing_rows_.begin(), closing_rows_.end(), row);
   if (it == closing_rows_.end()) {
@@ -406,6 +612,10 @@ int AerieSidebarView::IndexOfRow(const std::string& tab_id) const {
 
 AerieSidebarRowView* AerieSidebarView::row_at(size_t index) const {
   return index < rows_.size() ? rows_[index].view.get() : nullptr;
+}
+
+std::string AerieSidebarView::tab_id_at(size_t index) const {
+  return index < rows_.size() ? rows_[index].tab_id : std::string();
 }
 
 AerieSidebarRowView* AerieSidebarView::closing_row_at(size_t index) const {
@@ -521,7 +731,7 @@ void AerieSidebarView::UpdateRow(const Row& row) {
     return;
   }
   row.view->SetTitle(tab->GetTitle());
-  row.view->SetFavicon(FaviconFor(tab));
+  row.view->SetFavicon(FaviconFor(tab, palette_.text_muted));
   row.view->SetSelected(tab->IsActivated());
 }
 

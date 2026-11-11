@@ -14,7 +14,10 @@
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_regions.h"
+#include "components/aerie_sidebar/aerie_sidebar_drag.h"
+#include "components/aerie_sidebar/aerie_sidebar_palette.h"
 #include "components/aerie_sidebar/aerie_sidebar_today_list.h"
+#include "components/aerie_tab_model/tab_model_observer.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/views/view.h"
 
@@ -22,8 +25,14 @@ class BrowserWindowInterface;
 class AerieSidebarRowView;
 class AerieSidebarTopRow;
 
+namespace aerie_tab_model {
+class TabModel;
+}  // namespace aerie_tab_model
+
 namespace views {
 class BoxLayoutView;
+class Label;
+class LabelButton;
 class ScrollView;
 }  // namespace views
 
@@ -45,6 +54,7 @@ class TabInterface;
 // close them; it does not move tabs.
 class AerieSidebarView : public views::View,
                          public TabStripModelObserver,
+                         public aerie_tab_model::TabModelObserver,
                          public aerie_sidebar::TodayList::Delegate {
   METADATA_HEADER(AerieSidebarView, views::View)
 
@@ -96,9 +106,15 @@ class AerieSidebarView : public views::View,
   // follows them.
   void GetAccessiblePanes(std::vector<views::View*>* panes);
 
+  // True while a row is being dragged, and the slot it would take, for tests.
+  bool dragging() const { return drag_.active; }
+  int drag_target_index() const { return drag_.target; }
+
   // The rows, in order, for tests: the live ones, then the ones that are
   // closing.
   AerieSidebarRowView* row_at(size_t index) const;
+  // The Tab Model record id of the row at `index`, for tests.
+  std::string tab_id_at(size_t index) const;
   // Rows that have left the Today list and are still collapsing.
   size_t closing_row_count() const { return closing_rows_.size(); }
   AerieSidebarRowView* closing_row_at(size_t index) const;
@@ -106,10 +122,22 @@ class AerieSidebarView : public views::View,
   AerieSidebarRowView* tab_stop_row() const;
   AerieSidebarTodayTree* today_tree() const { return list_; }
 
+  // The colours the sidebar draws with now: the theme, the colour mode of the
+  // window and the Workspace colour (issue #215, item 7). They follow a change
+  // of either at once.
+  const aerie_sidebar::SidebarPalette& palette() const { return palette_; }
+
   // aerie_sidebar::TodayList::Delegate:
   void OnRowInserted(int index, const std::string& tab_id) override;
   void OnRowRemoved(int index, const std::string& tab_id) override;
   void OnRowsReset() override;
+
+  // aerie_tab_model::TabModelObserver:
+  void OnWorkspaceChanged(const aerie_tab_model::Workspace& workspace) override;
+  void OnModelLoaded() override;
+
+  // views::View:
+  void OnThemeChanged() override;
 
   // TabStripModelObserver:
   void OnTabStripModelChanged(
@@ -158,6 +186,34 @@ class AerieSidebarView : public views::View,
 
   void ToggleSidebar();
 
+  // Dragging a row to reorder it (issue #215, item 8; the geometry is
+  // aerie_sidebar::DragTargetIndex and its neighbours). The dragged row follows
+  // the pointer and lifts, the rows it passes shift one slot, and a drop moves
+  // the tab in the window's tab strip: the Tab Model follows the strip
+  // (TabStripAdapter), so the list follows the Tab Model. Dropping outside the
+  // window moves the tab to a window of its own.
+  //
+  // Issue #182 (drag between Today, Pinned, folders and Favorites) starts
+  // here: it replaces the target computation in OnRowDragUpdate and the move
+  // in MoveTodayRow with a drop target that names a section, a parent and a
+  // position, and moves the record in the Tab Model.
+  bool OnRowDragBegin(const std::string& tab_id);
+  void OnRowDragUpdate(const std::string& tab_id, int dy);
+  void OnRowDragEnd(const std::string& tab_id,
+                    int dy,
+                    bool cancelled,
+                    bool outside);
+  // Puts every row at its slot at once and forgets the drag.
+  void CancelDrag();
+  // Moves the tab of row `source` to the place of row `target` in the strip and
+  // brings the rows into the new order at once.
+  void MoveTodayRow(int source, int target);
+  // Works the palette out for the window's colour mode and the Workspace colour
+  // and hands it to every view that draws with it. Does nothing when it did not
+  // change.
+  void ApplyPalette();
+  aerie_sidebar::SidebarPalette ResolvePalette() const;
+
   const raw_ptr<BrowserWindowInterface> browser_;
   base::RepeatingClosure new_tab_;
   raw_ptr<AerieSidebarTopRow> top_row_ = nullptr;
@@ -167,9 +223,23 @@ class AerieSidebarView : public views::View,
   // the sidebar goes, so that the toolbar never points at a view that is gone.
   raw_ptr<views::View> adopted_toolbar_ = nullptr;
   std::vector<raw_ptr<views::View>> adopted_parts_;
+  raw_ptr<aerie_tab_model::TabModel> model_ = nullptr;
+  aerie_sidebar::SidebarPalette palette_;
+  raw_ptr<views::Label> today_heading_ = nullptr;
+  raw_ptr<views::LabelButton> new_tab_row_ = nullptr;
   raw_ptr<AerieSidebarTodayTree> list_ = nullptr;
   raw_ptr<views::ScrollView> scroll_ = nullptr;
   std::vector<Row> rows_;
+  // The drag in progress, if any.
+  struct DragState {
+    bool active = false;
+    std::string tab_id;
+    int source = -1;
+    int target = -1;
+    // The rows' slots when the drag began.
+    std::vector<aerie_sidebar::DragSlot> slots;
+  };
+  DragState drag_;
   // Rows whose tab has gone and that are still sliding out and collapsing. They
   // stay in the list so that the others do not jump, and take no input.
   std::vector<raw_ptr<AerieSidebarRowView>> closing_rows_;

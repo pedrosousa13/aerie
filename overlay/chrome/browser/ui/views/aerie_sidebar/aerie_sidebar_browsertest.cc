@@ -8,6 +8,7 @@
 // accessibility tree has the roles the design asks for.
 
 #include <algorithm>
+#include <optional>
 #include <string>
 
 #include "base/functional/bind.h"
@@ -16,11 +17,17 @@
 #include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
 #include "chrome/app/chrome_command_ids.h"
+#include "chrome/browser/extensions/api/settings_private/prefs_util.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/view_ids.h"
+#include "chrome/browser/aerie_tab_model/tab_model_service.h"
+#include "chrome/browser/aerie_tab_model/tab_strip_adapter.h"
+#include "chrome/browser/aerie_tab_model/tab_model_service_factory.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_focus_ring.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_regions.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_row_view.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_top_row.h"
@@ -35,9 +42,13 @@
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/aerie_adblock/browser/guard_state.h"
+#include "components/aerie_design_tokens/aerie_tokens.h"
+#include "components/aerie_frame/aerie_frame_palette.h"
+#include "components/aerie_tab_model/tab_model.h"
 #include "components/aerie_adblock/browser/page_block_counter.h"
 #include "components/aerie_sidebar/aerie_sidebar_layout.h"
 #include "components/aerie_sidebar/aerie_sidebar_prefs.h"
+#include "components/prefs/pref_change_registrar.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/browser_test.h"
@@ -46,7 +57,9 @@
 #include "url/gurl.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "ui/accessibility/ax_node_data.h"
+#include "ui/color/color_provider_key.h"
 #include "ui/compositor/layer.h"
+#include "components/tabs/public/tab_interface.h"
 #include "ui/events/event.h"
 #include "ui/gfx/animation/animation_test_api.h"
 #include "ui/gfx/geometry/point.h"
@@ -110,6 +123,63 @@ class AerieSidebarBrowserTest : public InProcessBrowserTest {
     return done();
   }
 };
+
+// Item 6 of issue #215 (ADR 0008): Helium's layout and Zen mode are locked in
+// the pref service, not held by writing them back.
+IN_PROC_BROWSER_TEST_F(AerieSidebarBrowserTest, TheHeliumLayoutPrefsAreLocked) {
+  EXPECT_EQ(prefs()->GetInteger(prefs::kHeliumLayout),
+            aerie_sidebar::kHeliumLayoutVertical);
+  EXPECT_FALSE(prefs()->GetBoolean(prefs::kHeliumZenMode));
+  EXPECT_FALSE(prefs()->IsUserModifiablePreference(prefs::kHeliumLayout));
+  EXPECT_FALSE(prefs()->IsUserModifiablePreference(prefs::kHeliumZenMode));
+
+  // A writer loses at once. An observer may be told that the user layer
+  // changed, but what it reads is the locked value, so nothing has to write it
+  // back (the old hold did).
+  int wrong_reads = 0;
+  PrefChangeRegistrar registrar;
+  registrar.Init(prefs());
+  registrar.Add(prefs::kHeliumLayout,
+                base::BindRepeating(
+                    [](PrefService* p, int* n) {
+                      *n += p->GetInteger(prefs::kHeliumLayout) !=
+                            aerie_sidebar::kHeliumLayoutVertical;
+                    },
+                    base::Unretained(prefs()), base::Unretained(&wrong_reads)));
+  registrar.Add(prefs::kHeliumZenMode,
+                base::BindRepeating(
+                    [](PrefService* p, int* n) {
+                      *n += p->GetBoolean(prefs::kHeliumZenMode) ? 1 : 0;
+                    },
+                    base::Unretained(prefs()), base::Unretained(&wrong_reads)));
+  prefs()->SetInteger(prefs::kHeliumLayout, 3);  // Dynamic.
+  prefs()->SetBoolean(prefs::kHeliumZenMode, true);
+  base::RunLoop().RunUntilIdle();
+  EXPECT_EQ(prefs()->GetInteger(prefs::kHeliumLayout),
+            aerie_sidebar::kHeliumLayoutVertical);
+  EXPECT_FALSE(prefs()->GetBoolean(prefs::kHeliumZenMode));
+  EXPECT_EQ(wrong_reads, 0);
+
+  // The sidebar is still the layout.
+  EXPECT_TRUE(sidebar());
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarBrowserTest, SettingsCannotReadOrWriteTheLockedPrefs) {
+  extensions::PrefsUtil util(browser()->GetProfile());
+  EXPECT_FALSE(util.GetPref(prefs::kHeliumLayout));
+  EXPECT_FALSE(util.GetPref(prefs::kHeliumZenMode));
+  EXPECT_FALSE(util.GetPref(prefs::kHeliumZenModeSidebarPinned));
+  EXPECT_FALSE(util.GetPref(prefs::kHeliumZenModeTopChromePinned));
+
+  base::Value dynamic(3);
+  EXPECT_EQ(util.SetPref(prefs::kHeliumLayout, &dynamic),
+            extensions::settings_private::SetPrefResult::PREF_NOT_FOUND);
+  base::Value on(true);
+  EXPECT_EQ(util.SetPref(prefs::kHeliumZenMode, &on),
+            extensions::settings_private::SetPrefResult::PREF_NOT_FOUND);
+  EXPECT_EQ(prefs()->GetInteger(prefs::kHeliumLayout),
+            aerie_sidebar::kHeliumLayoutVertical);
+}
 
 IN_PROC_BROWSER_TEST_F(AerieSidebarBrowserTest, TodayListMatchesTheTabs) {
   ASSERT_TRUE(region());
@@ -506,12 +576,115 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarBrowserTest, TheTodayListIsOneRovingTabStop) 
 
 IN_PROC_BROWSER_TEST_F(AerieSidebarBrowserTest, TheFocusRingIsTwoPixelsWithTwoPixelOffset) {
   ASSERT_TRUE(WaitFor([&] { return sidebar()->row_count() == 1u; }));
-  views::FocusRing* ring = views::FocusRing::Get(sidebar()->row_at(0));
+  AerieSidebarFocusRing* ring = AerieSidebarFocusRing::Get(sidebar()->row_at(0));
   ASSERT_TRUE(ring);
-  // size-focus-ring-width and size-focus-ring-offset (2 px each). The halo
-  // inset is the distance of the stroke's middle from the row: -(2 + 2 / 2).
-  EXPECT_EQ(ring->GetHaloThickness(), 2.f);
-  EXPECT_EQ(ring->GetHaloInset(), -3.f);
+  // size-focus-ring-width and size-focus-ring-offset (2 px each).
+  EXPECT_EQ(ring->thickness(), aerie::tokens::kSizeFocusRingWidth);
+  EXPECT_EQ(ring->thickness(), 2.f);
+  EXPECT_EQ(ring->offset(), aerie::tokens::kSizeFocusRingOffset);
+  EXPECT_EQ(ring->offset(), 2.f);
+  // It sits outside the row by offset plus width on every side, and shows only
+  // while the row has focus.
+  EXPECT_FALSE(ring->shown());
+  sidebar()->row_at(0)->RequestFocus();
+  EXPECT_TRUE(sidebar()->row_at(0)->HasFocus());
+  EXPECT_TRUE(ring->shown());
+  gfx::Rect expected = sidebar()->row_at(0)->GetLocalBounds();
+  expected.Outset(4);
+  EXPECT_EQ(ring->bounds(), expected);
+}
+
+// --- Theme and Workspace colours (issue #215, item 7) ----------------------
+
+class AerieSidebarPaletteBrowserTest : public AerieSidebarBrowserTest {
+ protected:
+  void SetMode(aerie::tokens::ColorMode mode) {
+    BrowserView::GetBrowserViewForBrowser(browser())
+        ->GetWidget()
+        ->SetColorModeOverride(mode == aerie::tokens::ColorMode::kDark
+                                   ? ui::ColorProviderKey::ColorMode::kDark
+                                   : ui::ColorProviderKey::ColorMode::kLight);
+  }
+  void SetColour(const std::string& colour) {
+    aerie_tab_model::TabModelServiceFactory::GetForProfile(
+        browser()->GetProfile())
+        ->model()
+        ->UpdateWorkspace(
+            [&](aerie_tab_model::Workspace& w) { w.colour = colour; });
+  }
+  SkColor BackgroundOf(AerieSidebarRowView* row) {
+    return row->content()->background()->color().ResolveToSkColor(
+        row->GetColorProvider());
+  }
+};
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarPaletteBrowserTest, RowsDrawTheThemeTokensInBothModes) {
+  ASSERT_TRUE(WaitFor([&] { return sidebar()->row_count() == 1u; }));
+  AerieSidebarRowView* row = sidebar()->row_at(0);
+  for (aerie::tokens::ColorMode mode : {aerie::tokens::ColorMode::kLight,
+                                        aerie::tokens::ColorMode::kDark}) {
+    SetMode(mode);
+    const auto& tokens = aerie::tokens::GetThemeTokens(
+        aerie_frame::kDefaultTheme, mode);
+    ASSERT_TRUE(row->selected());
+    // A change of the colour mode reaches the views with the theme change.
+    ASSERT_TRUE(WaitFor([&] {
+      return BackgroundOf(row) == tokens.color_row_selected;
+    }));
+    EXPECT_EQ(sidebar()->palette().row_selected, tokens.color_row_selected);
+    EXPECT_EQ(sidebar()->palette().row_hover, tokens.color_row_hover);
+    EXPECT_EQ(row->palette().text, sidebar()->palette().text);
+    EXPECT_EQ(sidebar()->top_row()->palette().text, sidebar()->palette().text);
+  }
+  // The two modes really differ.
+  SetMode(aerie::tokens::ColorMode::kLight);
+  ASSERT_TRUE(WaitFor([&] {
+    return sidebar()->palette().text ==
+           aerie_frame::ResolveFramePalette(aerie_frame::kDefaultTheme,
+                                            aerie::tokens::ColorMode::kLight,
+                                            "dusk")
+               .text;
+  }));
+  const SkColor light = sidebar()->palette().text;
+  SetMode(aerie::tokens::ColorMode::kDark);
+  ASSERT_TRUE(WaitFor([&] { return sidebar()->palette().text != light; }));
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarPaletteBrowserTest, TheFocusRingFollowsTheWorkspaceColour) {
+  ASSERT_TRUE(WaitFor([&] { return sidebar()->row_count() == 1u; }));
+  AerieSidebarRowView* row = sidebar()->row_at(0);
+  SetColour("dusk");
+  const SkColor dusk = AerieSidebarFocusRing::Get(row)->color();
+  EXPECT_EQ(dusk, sidebar()->palette().accent);
+  SetColour("tide");
+  const SkColor tide = AerieSidebarFocusRing::Get(row)->color();
+  EXPECT_NE(tide, dusk);
+  EXPECT_EQ(tide, aerie_frame::ResolveFramePalette(
+                      aerie_frame::kDefaultTheme, aerie::tokens::ColorMode::kLight,
+                      "tide").accent);
+  // The window controls and the toggle of the top row follow it too.
+  EXPECT_EQ(AerieSidebarFocusRing::Get(sidebar()->top_row()->toggle_button())
+                ->color(),
+            tide);
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarPaletteBrowserTest, ANewRowGetsThePaletteAtOnce) {
+  ASSERT_TRUE(WaitFor([&] { return sidebar()->row_count() == 1u; }));
+  SetMode(aerie::tokens::ColorMode::kDark);
+  SetColour("moss");
+  ASSERT_TRUE(WaitFor([&] {
+    return sidebar()->palette().row_hover ==
+           aerie::tokens::GetThemeTokens(aerie_frame::kDefaultTheme,
+                                         aerie::tokens::ColorMode::kDark)
+               .color_row_hover;
+  }));
+  chrome::ExecuteCommand(browser(), IDC_NEW_TAB);
+  ASSERT_TRUE(WaitFor([&] { return sidebar()->row_count() == 2u; }));
+  EXPECT_EQ(sidebar()->row_at(1)->palette().accent, sidebar()->palette().accent);
+  EXPECT_EQ(sidebar()->row_at(1)->palette().row_hover,
+            aerie::tokens::GetThemeTokens(aerie_frame::kDefaultTheme,
+                                          aerie::tokens::ColorMode::kDark)
+                .color_row_hover);
 }
 
 IN_PROC_BROWSER_TEST_F(AerieSidebarBrowserTest, TheF6PanesAreTheTopRowThePillTheTodayListAndThenThePage) {
@@ -587,4 +760,239 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarBrowserTest, TheAccessibilityTreeHasTheRolesN
   auto* close = FindDescendant<views::ImageButton>(sidebar()->row_at(0));
   ASSERT_TRUE(close);
   EXPECT_EQ(NameOf(close), "Close tab");
+}
+
+
+// --- Tab drag and drop (issue #215, item 8) ----------------------------------
+
+class AerieSidebarDragBrowserTest : public AerieSidebarBrowserTest {
+ protected:
+  void SetUpOnMainThread() override {
+    AerieSidebarBrowserTest::SetUpOnMainThread();
+    // The test window can be tiny; a drop is "outside" past its bounds.
+    BrowserView::GetBrowserViewForBrowser(browser())->GetWidget()->SetBounds(
+        gfx::Rect(0, 0, 1200, 900));
+    // Motion is not what these tests are about; the uitest has it.
+    reduced_motion_.emplace(
+        gfx::AnimationTestApi::SetPrefersReducedMotionForTesting(true));
+  }
+
+  aerie_tab_model::TabModelService* service() {
+    return aerie_tab_model::TabModelServiceFactory::GetForProfile(
+        browser()->GetProfile());
+  }
+
+  void OpenTabs(size_t total) {
+    while (browser()->tab_strip_model()->count() < static_cast<int>(total)) {
+      chrome::ExecuteCommand(browser(), IDC_NEW_TAB);
+    }
+    ASSERT_TRUE(WaitFor([&] { return sidebar()->row_count() == total; }));
+    ASSERT_TRUE(WaitFor([&] {
+      for (size_t i = 0; i < total; ++i) {
+        if (sidebar()->row_at(i)->height_animating() ||
+            sidebar()->row_at(i)->GetPreferredSize().height() != 34) {
+          return false;
+        }
+      }
+      return sidebar()->closing_row_count() == 0u;
+    }));
+  }
+
+  // The root location of the middle of `row`, `dy` px lower.
+  gfx::Point RootPoint(AerieSidebarRowView* row, int dy) {
+    gfx::Point p = row->GetLocalBounds().CenterPoint();
+    views::View::ConvertPointToWidget(row, &p);
+    p.Offset(0, dy);
+    return p;
+  }
+
+  ui::MouseEvent Mouse(ui::EventType type, AerieSidebarRowView* row,
+                       const gfx::Point& root) {
+    gfx::Point local = root;
+    views::View::ConvertPointFromWidget(row, &local);
+    return ui::MouseEvent(type, local, root, base::TimeTicks::Now(),
+                          ui::EF_LEFT_MOUSE_BUTTON, ui::EF_LEFT_MOUSE_BUTTON);
+  }
+
+  void Press(AerieSidebarRowView* row) {
+    ui::MouseEvent event =
+        Mouse(ui::EventType::kMousePressed, row, RootPoint(row, 0));
+    row->OnMousePressed(event);
+  }
+  void DragTo(AerieSidebarRowView* row, int dy, int steps = 5) {
+    const gfx::Point start = RootPoint(row, 0);
+    start_ = start;
+    for (int i = 1; i <= steps; ++i) {
+      gfx::Point p = start;
+      p.Offset(0, dy * i / steps);
+      ui::MouseEvent event = Mouse(ui::EventType::kMouseDragged, row, p);
+      row->OnMouseDragged(event);
+    }
+  }
+  void Release(AerieSidebarRowView* row, int dy, int x_offset = 0) {
+    gfx::Point p = start_;
+    p.Offset(x_offset, dy);
+    ui::MouseEvent event = Mouse(ui::EventType::kMouseReleased, row, p);
+    row->OnMouseReleased(event);
+  }
+
+  int Pitch() {
+    return sidebar()->row_at(1)->y() - sidebar()->row_at(0)->y();
+  }
+
+  // The record id of the tab at `index` of the strip.
+  std::string IdAt(int index) {
+    return service()->adapter()->RecordIdForTab(
+        browser()->tab_strip_model()->GetTabAtIndex(index));
+  }
+
+ private:
+  gfx::Point start_;
+  std::optional<gfx::AnimationTestApi::PrefersReducedMotionResetter>
+      reduced_motion_;
+};
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarDragBrowserTest, DraggingARowDownReordersTheTabsAndTheList) {
+  OpenTabs(3);
+  const std::string first = IdAt(0);
+  const std::string second = IdAt(1);
+  const std::string third = IdAt(2);
+  ASSERT_EQ(sidebar()->tab_id_at(0), first);
+  tabs::TabInterface* active = browser()->tab_strip_model()->GetActiveTab();
+
+  AerieSidebarRowView* row = sidebar()->row_at(0);
+  Press(row);
+  DragTo(row, 2 * Pitch());
+  EXPECT_TRUE(sidebar()->dragging());
+  EXPECT_EQ(sidebar()->drag_target_index(), 2);
+  EXPECT_TRUE(row->dragging());
+  Release(row, 2 * Pitch());
+
+  // The strip, the Tab Model and the list all have the new order, and the open
+  // tab is still the open tab.
+  EXPECT_FALSE(sidebar()->dragging());
+  EXPECT_EQ(IdAt(0), second);
+  EXPECT_EQ(IdAt(1), third);
+  EXPECT_EQ(IdAt(2), first);
+  EXPECT_EQ(sidebar()->tab_id_at(0), second);
+  EXPECT_EQ(sidebar()->tab_id_at(1), third);
+  EXPECT_EQ(sidebar()->tab_id_at(2), first);
+  EXPECT_EQ(browser()->tab_strip_model()->GetActiveTab(), active);
+  for (int i = 0; i < 3; ++i) {
+    EXPECT_EQ(service()->model()->GetTab(IdAt(i))->position, i);
+  }
+  // The views are in list order too.
+  EXPECT_LT(sidebar()->row_at(0)->y(), sidebar()->row_at(1)->y());
+  EXPECT_LT(sidebar()->row_at(1)->y(), sidebar()->row_at(2)->y());
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarDragBrowserTest, DraggingARowUpMovesItAboveTheOthers) {
+  OpenTabs(3);
+  const std::string first = IdAt(0);
+  const std::string third = IdAt(2);
+  AerieSidebarRowView* row = sidebar()->row_at(2);
+  Press(row);
+  DragTo(row, -2 * Pitch());
+  EXPECT_EQ(sidebar()->drag_target_index(), 0);
+  Release(row, -2 * Pitch());
+  EXPECT_EQ(IdAt(0), third);
+  EXPECT_EQ(IdAt(1), first);
+  EXPECT_EQ(sidebar()->tab_id_at(0), third);
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarDragBrowserTest, ADropOnItsOwnSlotChangesNothing) {
+  OpenTabs(3);
+  const std::string first = IdAt(0);
+  const std::string second = IdAt(1);
+  AerieSidebarRowView* row = sidebar()->row_at(0);
+  Press(row);
+  DragTo(row, Pitch() / 4);
+  Release(row, Pitch() / 4);
+  EXPECT_EQ(IdAt(0), first);
+  EXPECT_EQ(IdAt(1), second);
+  EXPECT_FALSE(sidebar()->dragging());
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarDragBrowserTest, TheRowStaysBetweenTheFirstAndLastSlot) {
+  OpenTabs(3);
+  AerieSidebarRowView* row = sidebar()->row_at(0);
+  Press(row);
+  DragTo(row, 10 * Pitch());
+  EXPECT_EQ(sidebar()->drag_target_index(), 2);
+  EXPECT_EQ(row->drag_offset(), 2 * Pitch());
+  Release(row, 10 * Pitch());
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarDragBrowserTest, APressThatDoesNotMoveFarStillSelectsTheTab) {
+  OpenTabs(3);
+  ASSERT_EQ(browser()->tab_strip_model()->active_index(), 2);
+  const std::string first = IdAt(0);
+  AerieSidebarRowView* row = sidebar()->row_at(0);
+  Press(row);
+  DragTo(row, 2);
+  EXPECT_FALSE(sidebar()->dragging());
+  Release(row, 2);
+  EXPECT_EQ(browser()->tab_strip_model()->active_index(), 0);
+  EXPECT_EQ(IdAt(0), first);
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarDragBrowserTest, ADragDoesNotSelectTheTab) {
+  OpenTabs(3);
+  tabs::TabInterface* active = browser()->tab_strip_model()->GetActiveTab();
+  AerieSidebarRowView* row = sidebar()->row_at(0);
+  Press(row);
+  DragTo(row, Pitch());
+  Release(row, Pitch());
+  // The tab that was open is still the open one (it moved up one place).
+  EXPECT_EQ(browser()->tab_strip_model()->GetActiveTab(), active);
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarDragBrowserTest, ALoneRowCannotBeDragged) {
+  ASSERT_EQ(sidebar()->row_count(), 1u);
+  AerieSidebarRowView* row = sidebar()->row_at(0);
+  Press(row);
+  DragTo(row, 80);
+  EXPECT_FALSE(sidebar()->dragging());
+  EXPECT_FALSE(row->dragging());
+  Release(row, 80);
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarDragBrowserTest, LosingTheMouseCaptureCancelsTheDrag) {
+  OpenTabs(3);
+  const std::string first = IdAt(0);
+  AerieSidebarRowView* row = sidebar()->row_at(0);
+  Press(row);
+  DragTo(row, 2 * Pitch());
+  ASSERT_TRUE(sidebar()->dragging());
+  row->OnMouseCaptureLost();
+  EXPECT_FALSE(sidebar()->dragging());
+  EXPECT_EQ(IdAt(0), first);
+  EXPECT_FALSE(row->has_drag_layers());
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarDragBrowserTest, ADropOutsideTheWindowMovesTheTabToANewWindow) {
+  OpenTabs(3);
+  const std::string first = IdAt(0);
+  ASSERT_EQ(GlobalBrowserCollection::GetInstance()->GetSize(), 1u);
+  AerieSidebarRowView* row = sidebar()->row_at(0);
+  Press(row);
+  DragTo(row, Pitch());
+  // Far left of the window.
+  Release(row, Pitch(), /*x_offset=*/-3000);
+  EXPECT_TRUE(WaitFor([&] { return GlobalBrowserCollection::GetInstance()->GetSize() == 2u; }));
+  EXPECT_EQ(browser()->tab_strip_model()->count(), 2);
+  EXPECT_NE(IdAt(0), first);
+  EXPECT_TRUE(WaitFor([&] { return sidebar()->row_count() == 2u; }));
+  // The tab keeps its Tab Model record in the other window.
+  EXPECT_TRUE(service()->model()->GetTab(first));
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarDragBrowserTest, TheListFollowsAMoveOfTheStripFromAnywhere) {
+  OpenTabs(3);
+  const std::string first = IdAt(0);
+  browser()->tab_strip_model()->MoveWebContentsAt(0, 2, false);
+  ASSERT_TRUE(WaitFor([&] { return sidebar()->tab_id_at(2) == first; }));
+  for (int i = 0; i < 3; ++i) {
+    EXPECT_EQ(service()->model()->GetTab(IdAt(i))->position, i);
+  }
 }

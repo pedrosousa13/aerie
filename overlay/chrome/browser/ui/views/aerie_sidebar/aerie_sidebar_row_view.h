@@ -11,7 +11,10 @@
 #include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "base/timer/timer.h"
+#include "ui/gfx/geometry/point.h"
+#include "ui/gfx/geometry/transform.h"
 #include "components/aerie_design_tokens/aerie_motion.h"
+#include "components/aerie_sidebar/aerie_sidebar_palette.h"
 #include "components/aerie_sidebar/aerie_sidebar_today_list.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/models/image_model.h"
@@ -60,12 +63,30 @@ class AerieSidebarRowView : public views::View,
     base::RepeatingCallback<void(aerie_sidebar::ListKey)> key;
     // The row took keyboard focus.
     base::RepeatingClosure focused;
+    // Dragging the row to reorder it (issue #215, item 8). The row knows only
+    // the pointer; the sidebar knows the other rows.
+    // `drag_begin` asks whether a drag may start (it may not while rows are
+    // opening or closing). `drag_update` gets the pointer's travel along the
+    // list in px. `drag_end` gets it again, whether the drag was cancelled
+    // (the mouse capture was lost) and whether the pointer was released
+    // outside the window.
+    base::RepeatingCallback<bool()> drag_begin;
+    base::RepeatingCallback<void(int dy)> drag_update;
+    base::RepeatingCallback<void(int dy, bool cancelled, bool outside)>
+        drag_end;
   };
 
-  explicit AerieSidebarRowView(Callbacks callbacks);
+  AerieSidebarRowView(Callbacks callbacks,
+                      const aerie_sidebar::SidebarPalette& palette);
   AerieSidebarRowView(const AerieSidebarRowView&) = delete;
   AerieSidebarRowView& operator=(const AerieSidebarRowView&) = delete;
   ~AerieSidebarRowView() override;
+
+  // The colours of the row: text, the close icon, the hover and selected
+  // backgrounds and the focus ring (issue #215, item 7). Called again when the
+  // theme, the colour mode or the Workspace colour changes.
+  void SetPalette(const aerie_sidebar::SidebarPalette& palette);
+  const aerie_sidebar::SidebarPalette& palette() const { return palette_; }
 
   void SetTitle(const std::u16string& title);
   void SetFavicon(const ui::ImageModel& favicon);
@@ -86,6 +107,31 @@ class AerieSidebarRowView : public views::View,
                  int outer_edge_sign,
                  base::OnceClosure done);
   bool is_closing() const { return closing_; }
+  // Drag motion (item 8). All of it is `transform` of a layer, and nothing else:
+  // the row's own layer carries the pointer offset and the shift, and the
+  // content layer carries the lift. The layers exist only for the drag.
+  bool dragging() const { return dragging_; }
+  // Raises the row and plays the lift (scale 1.02 on `fast`; reduced motion
+  // does not scale).
+  void BeginLift(const PrefService* prefs);
+  // Puts the row `dy` px from its slot at once (the row follows the pointer,
+  // also under reduced motion; this is a property set, not an animation).
+  void SetDragOffset(int dy);
+  // Moves the row to `dy` px from its slot with the shift animation (`base`,
+  // `standard`). Reduced motion sets it at once.
+  void ShiftTo(int dy, const PrefService* prefs);
+  // The drop: the row goes from `from_dy` to its slot on the spring while the
+  // lift goes back; reduced motion sets everything at once. The layers are
+  // dropped when the motion is over.
+  void Settle(int from_dy, const PrefService* prefs);
+  // Puts the row at its slot at once and drops the drag layers (the other rows
+  // of a drop, whose slots took over their shift).
+  void ResetDrag();
+  // The row's current offset from its slot, in px, for tests.
+  int drag_offset() const { return drag_offset_; }
+  // True while a drag layer exists (the drag, or a settle in progress).
+  bool has_drag_layers() const { return drag_layers_; }
+
   // True while the row height animates (the layout exception).
   bool height_animating() const;
   // The view that holds the row's drawing; its layer is the one that animates.
@@ -96,7 +142,9 @@ class AerieSidebarRowView : public views::View,
       const views::SizeBounds& available_size) const override;
   void Layout(PassKey) override;
   bool OnMousePressed(const ui::MouseEvent& event) override;
+  bool OnMouseDragged(const ui::MouseEvent& event) override;
   void OnMouseReleased(const ui::MouseEvent& event) override;
+  void OnMouseCaptureLost() override;
   void OnMouseEntered(const ui::MouseEvent& event) override;
   void OnMouseExited(const ui::MouseEvent& event) override;
   bool OnKeyPressed(const ui::KeyEvent& event) override;
@@ -116,8 +164,12 @@ class AerieSidebarRowView : public views::View,
   void AnimateHeight(bool grow, int duration_ms, gfx::Tween::Type tween);
   void FinishHeightAnimation();
   void CollapseAfterContent();
+  void EnsureDragLayers();
+  void DropDragLayers();
+  gfx::Transform LiftTransform(float scale) const;
 
   Callbacks callbacks_;
+  aerie_sidebar::SidebarPalette palette_;
   bool selected_ = false;
   bool hovered_ = false;
   bool closing_ = false;
@@ -130,6 +182,16 @@ class AerieSidebarRowView : public views::View,
   base::OnceClosure closed_;
   bool close_collapses_ = false;
   int close_height_ms_ = 0;
+  // Dragging.
+  bool pressed_ = false;
+  bool dragging_ = false;
+  gfx::Point press_point_;
+  int last_dy_ = 0;
+  int drag_offset_ = 0;
+  bool drag_layers_ = false;
+  aerie::motion::MotionHandle row_motion_;
+  aerie::motion::MotionHandle lift_motion_;
+  base::OneShotTimer settle_timer_;
   raw_ptr<views::ImageView> favicon_ = nullptr;
   raw_ptr<views::Label> title_ = nullptr;
   raw_ptr<views::ImageButton> close_button_ = nullptr;

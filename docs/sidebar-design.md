@@ -27,7 +27,7 @@ No asset, icon, string or code from Arc, Zen or Brave is copied. Dia is not a re
 | Screenshots in light and dark | The Tailscale gallery, feature "Sidebar design" (train `design4`) |
 | URL parameters, keyboard table, peek machine | `prototypes/sidebar/README.md` |
 
-Decisions: [ADR 0006](adr/0006-workspace-isolation.md) (one storage partition per Workspace) and [ADR 0007](adr/0007-single-design-token-source.md) (one token source). Terms: [GLOSSARY.md](../GLOSSARY.md).
+Decisions: [ADR 0006](adr/0006-workspace-isolation.md) (one storage partition per Workspace) and [ADR 0007](adr/0007-single-design-token-source.md) (one token source) and [ADR 0008](adr/0008-lock-helium-layout-in-the-command-line-pref-layer.md) (the locked layout pref). Terms: [GLOSSARY.md](../GLOSSARY.md).
 
 ### Native or WebUI
 
@@ -582,7 +582,7 @@ Chromium tab groups are flat and contiguous, so they cannot hold folders nested 
 
 ## Sidebar layout and Helium's layouts
 
-Decided with issue #177. Helium ships four tab layouts (classic, compact, vertical, dynamic) and a Zen mode. Aerie has one layout, the sidebar, and one more planned, horizontal tabs (#186). Helium's layout patches stay applied, because other Helium code reads their prefs, and Aerie holds them in place instead.
+Decided with issue #177. Helium ships four tab layouts (classic, compact, vertical, dynamic) and a Zen mode. Aerie has one layout, the sidebar, and one more planned, horizontal tabs (#186). Helium's layout patches stay applied, because other Helium code reads their prefs, and Aerie locks them instead.
 
 | Pref | Meaning |
 | --- | --- |
@@ -590,7 +590,7 @@ Decided with issue #177. Helium ships four tab layouts (classic, compact, vertic
 | `aerie.sidebar.width` | Width in pixels. Default `size-sidebar-width` (260). It is clamped to `size-sidebar-min` .. `size-sidebar-max` (200 to 400) when read. |
 | `aerie.sidebar.visible` | Shown (default) or hidden. |
 
-While the layout is `sidebar`, Helium's `helium.browser.layout` is `vertical` and `helium.browser.zen_mode` is off. A new profile starts that way. Every window puts the two prefs back if they differ and again whenever one of them changes, so an old profile, sync or an extension cannot bring another layout back. The Settings page cannot write them either: they are not on the settings_private allowlist, and the Appearance page shows an empty "Sidebar" section where the layout picker was. Helium has no flag for the layout. Keyboard resize steps are 10 px (`kKeyboardResizeStep`).
+While the layout is `sidebar`, Helium's `helium.browser.layout` is `vertical` and `helium.browser.zen_mode` is off, and the user cannot change them: they have fixed values in the command-line layer of the pref service, which wins over the user's own file and makes both prefs not user-modifiable ([ADR 0008](adr/0008-lock-helium-layout-in-the-command-line-pref-layer.md)). A new profile starts that way, and an old profile, sync or an extension cannot bring another layout back. The Settings page cannot write them either: they are not on the settings_private allowlist, and the Appearance page shows an empty "Sidebar" section where the layout picker was. Helium has no flag for the layout. Keyboard resize steps are 10 px (`kKeyboardResizeStep`).
 
 Save page moves to Ctrl+Shift+S on Windows and Linux so that Ctrl+S can show and hide the sidebar.
 
@@ -606,7 +606,9 @@ How the pieces work today (`patches/sidebar/0025` to `0027`):
 
 The top row and the address pill (`patches/sidebar/0031`, issue #215): `AerieSidebarTopRow` holds the window controls (drawn only where the frame draws them on the trailing side, Linux; a leading exclusion such as the macOS traffic lights becomes an inset), the toggle, and Back, Forward and Reload, and its empty part is the window drag handle. The real `LocationBarView`, with the Guard icon and its blocked count, sits in the pill below it, and the toolbar row above the page is gone. The toolbar itself stays alive in the bottom bar, because it still owns the app menu, extensions and profile buttons; those have no design home yet. The omnibox popup is as wide as the pill. Tests: `AerieSidebarPillBrowserTest`, `AerieSidebarGuardUiTest`.
 
-What is not built yet in the view: Favorites, Pinned, folders and the Workspace switcher; the bottom bar's final content; the page card's follow transform when the sidebar hides or resizes; focus handling beyond the default (roving tab stop, F6 order, the 2 px focus ring); the open and close motion of a row; drag and drop of rows (the Helium strip's own drag and drop is gone with the hidden strip); and the colours of the theme and Workspace (the rows use the system colour roles for now). Delete and Ctrl+W on a focused row work in code but have no test. The width limits are global to Helium's strip code (`vertical_tab_strip_state.h`: 260 default, 200 minimum, from 0025), so issue #186 has to look at them again when it builds the horizontal layout.
+What is not built yet in the view: Favorites, Pinned, folders and the Workspace switcher; the bottom bar's final content; the page card's follow transform when the sidebar hides or resizes; focus handling beyond the default (roving tab stop, F6 order, the 2 px focus ring); the open and close motion of a row; drag and drop between sections (issue #182; the basic reorder inside Today is built, see below); and the theme and Workspace colours of the adopted Back, Forward, Reload, the address pill and the bottom bar buttons (they still use Chromium's colour roles until the ColorMixer bridge of ADR 0007 exists). Delete and Ctrl+W on a focused row work in code but have no test. The width limits are global to Helium's strip code (`vertical_tab_strip_state.h`: 260 default, 200 minimum, from 0025), so issue #186 has to look at them again when it builds the horizontal layout.
+
+Colours and drag, as built (issue #215, slice 3). The rows, the top row and the focus rings take their colours from `ResolveSidebarPalette` (theme tokens plus the Workspace colour, `aerie_sidebar_palette.*`); there is no colour literal outside `aerie_tokens.h`, and `tests/test_sidebar.py` scans for one. A drag in Today reorders rows: the dragged row follows the pointer and lifts by a transform (scale 1.02), the rows it passes shift one slot by a transform, and the drop settles with the 420 ms spring; under reduced motion nothing lifts or shifts and the drop is instant. The drop moves the tab in the window's tab strip and the Tab Model follows. A release outside the window moves the tab to a new window. Issue #182 replaces `DragTargetIndex` and `MoveTodayRow` with a drop target that names a section, a parent and a position. Not built: autoscroll while dragging, and Esc to cancel (losing the mouse capture cancels). Known gap: with the sidebar hidden, Ctrl+L focuses the omnibox but the address pill is in the hidden column, so the omnibox is not drawn; it needs a peek or a pref flip, which is a design choice.
 
 ## Open points carried into M2 planning
 

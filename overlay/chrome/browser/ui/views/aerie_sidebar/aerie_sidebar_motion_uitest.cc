@@ -30,6 +30,7 @@
 #include "components/aerie_sidebar/aerie_sidebar_prefs.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/test/browser_test.h"
+#include "ui/events/event.h"
 #include "ui/compositor/layer.h"
 #include "ui/compositor/layer_animation_element.h"
 #include "ui/compositor/layer_animation_sequence.h"
@@ -38,6 +39,7 @@
 #include "ui/gfx/animation/animation_test_api.h"
 #include "ui/views/view.h"
 #include "ui/views/view_utils.h"
+#include "ui/views/widget/widget.h"
 
 namespace {
 
@@ -288,4 +290,97 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarMotionUiTest, ReducedMotionFadesTheColumnAndT
   if (card()->layer()) {
     EXPECT_FALSE(card()->layer()->GetAnimator()->is_animating());
   }
+}
+
+// --- Tab drag (item 8) -------------------------------------------------------
+
+namespace {
+
+ui::MouseEvent MouseAt(ui::EventType type, views::View* row, gfx::Point root) {
+  gfx::Point local = root;
+  views::View::ConvertPointFromWidget(row, &local);
+  return ui::MouseEvent(type, local, root, base::TimeTicks::Now(),
+                        ui::EF_LEFT_MOUSE_BUTTON, ui::EF_LEFT_MOUSE_BUTTON);
+}
+
+}  // namespace
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarMotionUiTest, DraggingARowLiftsAndShiftsWithTransformsOnly) {
+  ForceReducedMotion(false);
+  browser_view()->GetWidget()->SetBounds(gfx::Rect(0, 0, 1200, 900));
+  OpenTab();
+  OpenTab();
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return sidebar()->row_count() == 3u &&
+           !sidebar()->row_at(0)->height_animating() &&
+           !sidebar()->row_at(1)->height_animating() &&
+           !sidebar()->row_at(2)->height_animating();
+  }));
+  AerieSidebarRowView* row = sidebar()->row_at(0);
+  gfx::Point start = row->GetLocalBounds().CenterPoint();
+  views::View::ConvertPointToWidget(row, &start);
+  auto press = MouseAt(ui::EventType::kMousePressed, row, start);
+  row->OnMousePressed(press);
+  gfx::Point moved = start;
+  moved.Offset(0, 40);
+  auto drag = MouseAt(ui::EventType::kMouseDragged, row, moved);
+  row->OnMouseDragged(drag);
+  ASSERT_TRUE(row->dragging());
+
+  // The lifted content scales (transform, tokens: lift 1.02); the row follows
+  // the pointer by a transform; the row it passes shifts by a transform.
+  ASSERT_TRUE(row->content()->layer());
+  EXPECT_TRUE(Animates(row->content()->layer(), ui::LayerAnimationElement::TRANSFORM));
+  EXPECT_TRUE(OnlyTransformAndOpacityAnimate(row->content()->layer()));
+  EXPECT_NEAR(row->content()->layer()->GetTargetTransform().To2dScale().x(), 1.02f, 0.001f);
+  ASSERT_TRUE(row->layer());
+  EXPECT_EQ(row->layer()->transform().To2dTranslation().y(), 40.f);
+  AerieSidebarRowView* passed = sidebar()->row_at(1);
+  ASSERT_TRUE(passed->layer());
+  EXPECT_TRUE(Animates(passed->layer(), ui::LayerAnimationElement::TRANSFORM));
+  EXPECT_TRUE(OnlyTransformAndOpacityAnimate(passed->layer()));
+  EXPECT_LT(passed->layer()->GetTargetTransform().To2dTranslation().y(), 0.f);
+
+  auto release = MouseAt(ui::EventType::kMouseReleased, row, moved);
+  row->OnMouseReleased(release);
+  // The drop settles with a spring (420 ms, a transform) and ends at rest.
+  ASSERT_TRUE(row->layer());
+  EXPECT_TRUE(OnlyTransformAndOpacityAnimate(row->layer()));
+  ASSERT_TRUE(base::test::RunUntil([&] { return !row->has_drag_layers(); }));
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarMotionUiTest, ReducedMotionDragMovesNoRowButTheDraggedOneAndDropsAtOnce) {
+  ForceReducedMotion(true);
+  browser_view()->GetWidget()->SetBounds(gfx::Rect(0, 0, 1200, 900));
+  OpenTab();
+  OpenTab();
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return sidebar()->row_count() == 3u &&
+           !sidebar()->row_at(0)->height_animating() &&
+           !sidebar()->row_at(1)->height_animating() &&
+           !sidebar()->row_at(2)->height_animating();
+  }));
+  AerieSidebarRowView* row = sidebar()->row_at(0);
+  gfx::Point start = row->GetLocalBounds().CenterPoint();
+  views::View::ConvertPointToWidget(row, &start);
+  auto press = MouseAt(ui::EventType::kMousePressed, row, start);
+  row->OnMousePressed(press);
+  gfx::Point moved = start;
+  moved.Offset(0, 40);
+  auto drag = MouseAt(ui::EventType::kMouseDragged, row, moved);
+  row->OnMouseDragged(drag);
+  ASSERT_TRUE(row->dragging());
+
+  // No lift, no shift: nothing animates a transform.
+  EXPECT_FALSE(row->content()->layer() &&
+               Animates(row->content()->layer(), ui::LayerAnimationElement::TRANSFORM));
+  EXPECT_TRUE(!row->content()->layer() || row->content()->layer()->transform().IsIdentity());
+  AerieSidebarRowView* passed = sidebar()->row_at(1);
+  EXPECT_TRUE(!passed->layer() || passed->layer()->transform().IsIdentity());
+  EXPECT_FALSE(passed->layer() && Animates(passed->layer(), ui::LayerAnimationElement::TRANSFORM));
+
+  auto release = MouseAt(ui::EventType::kMouseReleased, row, moved);
+  row->OnMouseReleased(release);
+  EXPECT_FALSE(row->layer() && Animates(row->layer(), ui::LayerAnimationElement::TRANSFORM));
+  EXPECT_FALSE(row->has_drag_layers());
 }

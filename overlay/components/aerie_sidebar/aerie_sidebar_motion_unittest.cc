@@ -46,6 +46,29 @@ TEST(AerieSidebarMotionTest, ReducedShowAndHideFadeAndNeverMove) {
   EXPECT_EQ(hide.to_opacity, 0.f);
 }
 
+TEST(AerieSidebarMotionTest, DragLiftsToTheTokenShiftsOnBaseAndSettlesOnTheSpring) {
+  const DragMotion m = RowDragMotion(/*reduced=*/false);
+  EXPECT_TRUE(m.animate_lift);
+  EXPECT_EQ(m.lift_scale, aerie::tokens::kMotionScaleLift);
+  EXPECT_EQ(m.lift_scale, 1.02f);
+  EXPECT_EQ(m.lift_duration, MotionDuration::kFast);
+  EXPECT_EQ(m.lift_easing, MotionEasing::kStandard);
+  EXPECT_TRUE(m.animate_shift);
+  EXPECT_EQ(m.shift_duration, MotionDuration::kBase);
+  EXPECT_EQ(m.shift_easing, MotionEasing::kStandard);
+  EXPECT_TRUE(m.animate_settle);
+  EXPECT_EQ(m.settle_duration_ms, 420);
+  EXPECT_EQ(m.settle_reduced_duration_ms, 140);
+  EXPECT_EQ(m.settle_easing, MotionEasing::kSpring);
+}
+
+TEST(AerieSidebarMotionTest, ReducedDragHasNoLiftNoShiftAndAnInstantDrop) {
+  const DragMotion m = RowDragMotion(/*reduced=*/true);
+  EXPECT_FALSE(m.animate_lift);
+  EXPECT_FALSE(m.animate_shift);
+  EXPECT_FALSE(m.animate_settle);
+}
+
 TEST(AerieSidebarMotionTest, OpenRowScalesFromTheTokenFadesInAndGrowsTheHeight) {
   const RowMotion m = OpenRowMotion(/*reduced=*/false);
   EXPECT_TRUE(m.animate_scale);

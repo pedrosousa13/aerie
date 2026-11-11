@@ -57,6 +57,30 @@ struct RowMotion {
   int height_duration_ms;
 };
 
+// Dragging a Today row to reorder it (docs/sidebar-design.md, "Motion", row
+// "Drag"). Lift: the row scales to `lift_scale` on `lift_duration`. Shift: the
+// rows it passes move one slot on `shift_duration`. Settle: the dropped row
+// springs from where it was released. The dragged row always follows the
+// pointer, reduced motion or not; it is then a plain property set, not an
+// animation. Reduced motion: no lift, no shift, an instant drop.
+struct DragMotion {
+  bool animate_lift;
+  float lift_scale;
+  aerie::tokens::MotionDuration lift_duration;
+  aerie::tokens::MotionEasing lift_easing;
+  bool animate_shift;
+  aerie::tokens::MotionDuration shift_duration;
+  aerie::tokens::MotionEasing shift_easing;
+  bool animate_settle;
+  // The spring duration, `motion-spring-duration`: 420 ms, and its reduced
+  // value 140 ms. It is not a `motion-duration` token, so it is given in ms.
+  int settle_duration_ms;
+  int settle_reduced_duration_ms;
+  aerie::tokens::MotionEasing settle_easing;
+};
+
+DragMotion RowDragMotion(bool reduced);
+
 RowMotion OpenRowMotion(bool reduced);
 RowMotion CloseRowMotion(int outer_edge_sign, bool reduced);
 

@@ -44,6 +44,22 @@ SlideMotion HideMotion(int width, int outer_edge_sign, bool reduced) {
                outer_edge_sign, reduced, 1.f, 0.f);
 }
 
+DragMotion RowDragMotion(bool reduced) {
+  DragMotion motion;
+  motion.animate_lift = !reduced;
+  motion.lift_scale = aerie::tokens::kMotionScaleLift;
+  motion.lift_duration = MotionDuration::kFast;
+  motion.lift_easing = MotionEasing::kStandard;
+  motion.animate_shift = !reduced;
+  motion.shift_duration = MotionDuration::kBase;
+  motion.shift_easing = MotionEasing::kStandard;
+  motion.animate_settle = !reduced;
+  motion.settle_duration_ms = aerie::tokens::kMotionSpringDuration;
+  motion.settle_reduced_duration_ms = aerie::tokens::kMotionSpringDurationReduced;
+  motion.settle_easing = MotionEasing::kSpring;
+  return motion;
+}
+
 RowMotion OpenRowMotion(bool reduced) {
   RowMotion motion;
   motion.content_duration = MotionDuration::kFast;
