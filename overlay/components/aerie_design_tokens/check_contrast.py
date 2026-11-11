@@ -6,6 +6,8 @@ the theme's tint strength, black shade, white glow), samples it where text sits
 (the sidebar column on either side of a 1440x900 window), and asserts:
   text >= 4.5:1 (7:1 for high-contrast), muted >= 4.5:1 (7:1 for high-contrast),
   accent and focus ring >= 3:1.
+Also checks text over the row fills (row-selected, row-hover, laid over the frame) at the same
+need as text, per theme x mode x preset (the sidebar rows, issue #215).
 Also checks the status colours (ok, warn, danger) at >= 4.5:1 on the popover surface of every theme and mode,
 and on their own chip tints (13%, 15%, 10% over the popover), plus text-on-danger on danger-fill.
 Prints a table; exits 1 on any failure. Run: python3 check_contrast.py [-v] [--tokens tokens.json]
@@ -37,6 +39,10 @@ def gradient_at(stops, x, y):
 def glow_alpha(x, y):   # radial-gradient(120% 80% at 0 0, white, transparent 60%)
     d = math.hypot(x/(1.2*W), y/(.8*H)); return max(0, 1 - d/.6)
 
+def rgba(v):   # "#rrggbb" or "rgba(r,g,b,a)" -> (rgb tuple, alpha)
+    if v.startswith("#"): return rgb(v), 1.0
+    r, g_, b, a = [float(x) for x in v[v.index("(")+1:-1].split(",")]; return (r, g_, b), a
+
 def tok(group, name, mode):
     t = D[group][name]; return t["value"] if "value" in t else t[mode]
 
@@ -55,6 +61,7 @@ for tname, th in D["theme"].items():
         strength, shade, glow = g("tint-strength"), g("shade"), g("glow")
         shade_colour = rgb(tok("color", "frame-shade", mode))   # the colours the shade and the glow are laid in
         glow_colour = rgb(tok("color", "frame-glow", mode))
+        rowmin = {}
         worst = {"text": 99, "muted": 99, "accent": 99}; worst_p = ""
         for p in presets:
             stops = [rgb(D["workspace"][f"{p}-stop-{i}"]["value"]) for i in (1, 2, 3) if f"{p}-stop-{i}" in D["workspace"]]
@@ -67,6 +74,17 @@ for tname, th in D["theme"].items():
                 c = mix(shade_colour, c, shade)
                 c = mix(glow_colour, c, glow*glow_alpha(x, y))
                 pm["text"] = min(pm["text"], ratio(text, c)); pm["muted"] = min(pm["muted"], ratio(muted, c)); pm["accent"] = min(pm["accent"], ratio(acc, c))
+            for rk in ("row-selected", "row-hover"):
+                fill, alpha = rgba(th.get("color." + rk, D["color"][rk])[mode])
+                pm["row"] = 99
+                for x, y in samples:
+                    c = mix(gradient_at(stops, x, y), frame, strength)
+                    c = mix(shade_colour, c, shade)
+                    c = mix(glow_colour, c, glow*glow_alpha(x, y))
+                    pm["row"] = min(pm["row"], ratio(text, mix(fill, c, alpha)))
+                rowmin[rk] = min(rowmin.get(rk, 99), pm["row"])
+                if pm["row"] < need:
+                    fails += 1; print(f"  FAIL {tname}/{mode}/{p}: text on {rk} {pm['row']:.2f} (need {need})")
             ok = pm["text"] >= need and pm["muted"] >= need and pm["accent"] >= 3
             if not ok:
                 fails += 1; print(f"  FAIL {tname}/{mode}/{p}: text {pm['text']:.2f} muted {pm['muted']:.2f} accent {pm['accent']:.2f} (need {need}/{need}/3)")
@@ -74,7 +92,7 @@ for tname, th in D["theme"].items():
             for k in worst:
                 if pm[k] < worst[k]: worst[k] = pm[k]; 
             if pm["accent"] <= worst["accent"]: worst_p = p
-        print(f"{tname:14}{mode:6}{worst['text']:9.2f}{worst['muted']:10.2f}{worst['accent']:11.2f}  {worst_p}  (need {need}/{need}/3)")
+        print(f"{tname:14}{mode:6}{worst['text']:9.2f}{worst['muted']:10.2f}{worst['accent']:11.2f}  {worst_p}  (need {need}/{need}/3)  row-sel {rowmin['row-selected']:.2f} row-hov {rowmin['row-hover']:.2f}")
 
 # status colours on popover surfaces (the editor sheet, menus and popovers)
 print(f"\n{'status':14}{'mode':6}{'surface':>9}{'ok':>7}{'warn':>7}{'danger':>7}  (need 4.5, also on 13%/15%/10% chip tints)")

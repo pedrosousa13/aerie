@@ -74,10 +74,10 @@ TEST(AerieSidebarPaletteTest, WindowControlsAreTheTextColourAtTheMockupShares) {
 // The text of a row has to stay readable on the row colours, over the frame
 // the row is drawn on. The frame is sampled at the corner nearest the sidebar
 // and at the far corner of the column, which are the lightest and darkest
-// places (aerie_frame_unittest.cc has the same sample grid). The floor is 3:1,
-// the WCAG floor for large and bold text and UI parts: in dark mode on the sand
-// and mint Workspaces the selected row measures about 4.0:1, short of the 4.5:1
-// of body text. That is the row colour token's to fix (issue #215 report).
+// places (aerie_frame_unittest.cc has the same sample grid). The floor is 4.5:1,
+// the WCAG AA floor for body text; check_contrast.py holds the same floor for
+// every theme. (The dark `row-selected` token was once too bright for it on
+// the sand and mint Workspaces and is lowered to pass.)
 TEST(AerieSidebarPaletteTest, TextIsReadableOnTheRowColoursOverTheFrame) {
   const gfx::Size window(1440, 900);
   for (ThemeId theme : {ThemeId::kVivid, ThemeId::kClean}) {
@@ -95,7 +95,7 @@ TEST(AerieSidebarPaletteTest, TextIsReadableOnTheRowColoursOverTheFrame) {
               f, window, /*sidebar_on_right=*/false, point);
           for (SkColor row : {p.row_selected, p.row_hover}) {
             const SkColor under = aerie_frame::Over(row, frame);
-            EXPECT_GE(aerie_frame::ContrastRatio(p.text, under), 3.0)
+            EXPECT_GE(aerie_frame::ContrastRatio(p.text, under), 4.5)
                 << colour << " mode " << static_cast<int>(mode);
           }
         }
