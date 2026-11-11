@@ -228,10 +228,18 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarPinnedBrowserTest,
   // of this run has a new port, so a request count cannot show this; the
   // navigations of the web contents do.
   std::vector<std::unique_ptr<NavigationCounter>> counters;
+  // Only the restored Pinned and Favorite tabs: the Today tab that the browser
+  // opens on start is allowed to navigate.
   for (int i = 0; i < strip()->count(); ++i) {
-    counters.push_back(std::make_unique<NavigationCounter>(
-        strip()->GetTabAtIndex(i)->GetContents()));
+    tabs::TabInterface* tab = strip()->GetTabAtIndex(i);
+    const auto* record = model()->GetTab(IdOf(tab));
+    if (record && (record->section == aerie_tab_model::Section::kPinned ||
+                   record->section == aerie_tab_model::Section::kFavorite)) {
+      counters.push_back(
+          std::make_unique<NavigationCounter>(tab->GetContents()));
+    }
   }
+  ASSERT_EQ(counters.size(), 2u);
   Settle();
   for (const auto& counter : counters) {
     EXPECT_EQ(counter->count(), 0);

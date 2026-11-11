@@ -488,7 +488,10 @@ bool AerieSidebarRowView::OnKeyPressed(const ui::KeyEvent& event) {
       // "Back to pinned page" from the keyboard (issue #180): Backspace on a
       // pinned row that has left its page. Chromium's Alt+Left would collide
       // with the browser's Back, so it is not used.
-      if (back_to_pinned_->GetVisible() && callbacks_.back_to_pinned) {
+      // Only the bare key: Shift+Backspace and the others do nothing (Ctrl,
+      // Alt and Command are already refused above).
+      if (!event.IsShiftDown() && back_to_pinned_->GetVisible() &&
+          callbacks_.back_to_pinned) {
         callbacks_.back_to_pinned.Run();
         return true;
       }

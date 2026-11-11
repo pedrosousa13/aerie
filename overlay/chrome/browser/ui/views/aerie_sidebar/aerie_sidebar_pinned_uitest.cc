@@ -124,8 +124,8 @@ class AerieSidebarPinnedUiTest : public InProcessBrowserTest {
         ->GetFocusManager()
         ->GetFocusedView();
   }
-  void Press(ui::KeyboardCode key) {
-    ASSERT_TRUE(ui_test_utils::SendKeyPressSync(browser(), key, false, false,
+  void Press(ui::KeyboardCode key, bool control = false, bool shift = false) {
+    ASSERT_TRUE(ui_test_utils::SendKeyPressSync(browser(), key, control, shift,
                                                 false, false));
   }
   tabs::TabInterface* OpenTab() {
@@ -261,7 +261,7 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarPinnedUiTest, TheContextMenuOpensFromNinetySe
 }
 
 // The toast rises 6 px while it fades in (fast, decelerate), holds for
-// `motion-timing-toast-action` and fades out (fast, accelerate) without moving.
+// `motion-timing-toast` (a toast without actions) and fades out (fast, accelerate) without moving.
 IN_PROC_BROWSER_TEST_F(AerieSidebarPinnedUiTest, TheToastRisesSixPixelsAndFadesInThenFadesOutWithoutMoving) {
   ForceReducedMotion(false);
   sidebar()->ShowToastForTesting(u"Toast");
@@ -277,7 +277,7 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarPinnedUiTest, TheToastRisesSixPixelsAndFadesI
   EXPECT_EQ(OpacityDurationMs(layer),
             aerie::tokens::GetDurationMs(aerie::tokens::MotionDuration::kFast,
                                          false));
-  EXPECT_EQ(aerie::tokens::kMotionTimingToastAction, 6000);
+  EXPECT_EQ(aerie::tokens::kMotionTimingToast, 1600);
 
   sidebar()->HideToastForTesting();
   layer = sidebar()->toast_layer();
@@ -408,6 +408,11 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarPinnedUiTest, BackspaceOnAPinnedRowThatLeftIt
       [&] { return row->back_to_pinned_button()->GetVisible(); }));
   sidebar()->pinned_tree()->RequestFocus();
   ASSERT_EQ(focused(), row);
+  // With a modifier held the key does nothing.
+  Press(ui::VKEY_BACK, /*control=*/true);
+  Press(ui::VKEY_BACK, /*control=*/false, /*shift=*/true);
+  EXPECT_TRUE(row->back_to_pinned_button()->GetVisible());
+  EXPECT_EQ(tab->GetContents()->GetLastCommittedURL().path(), "/title2.html");
   Press(ui::VKEY_BACK);
   ASSERT_TRUE(base::test::RunUntil(
       [&] { return !row->back_to_pinned_button()->GetVisible(); }));

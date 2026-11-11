@@ -152,7 +152,7 @@ MenuOpenMotion ContextMenuOpenMotion(bool reduced);
 
 // The toast (issue #180; docs/sidebar-design.md, "Motion"): it rises
 // `rise_px` and fades in on `fast` and `decelerate`, holds for `hold_ms`
-// (`motion-timing-toast-action`), then fades out on `fast` and `accelerate`.
+// (`motion-timing-toast`, a toast without actions), then fades out on `fast` and `accelerate`.
 // Reduced motion: opacity only, no rise.
 struct ToastMotion {
   bool animate_rise;

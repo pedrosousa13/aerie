@@ -74,6 +74,23 @@ TEST_F(PinnedTabsTest, PinMovesTheTabToTheEndOfPinnedAndKeepsItsUrl) {
   EXPECT_FALSE(PinTab(model_, "missing", "https://c.example/"));
 }
 
+// MoveTab runs first and the pinned URL is set only after it succeeds, so a
+// refused pin or unpin leaves the record and the change counter alone. (A move
+// to the top level cannot be refused for a tab that exists, so the refusal that
+// can be made is the unknown tab.)
+TEST_F(PinnedTabsTest, APinOrUnpinThatDoesNotMoveTheTabChangesNothing) {
+  const std::string tab = Add(Section::kToday, 0);
+  const int64_t change_before = model_.next_change();
+  EXPECT_FALSE(PinTab(model_, "missing", "https://a.example/"));
+  EXPECT_FALSE(UnpinTab(model_, "missing"));
+  EXPECT_EQ(model_.next_change(), change_before);
+  EXPECT_FALSE(model_.GetTab(tab)->pinned_url.has_value());
+  EXPECT_EQ(model_.GetTab(tab)->section, Section::kToday);
+  // Unpinning a tab that was never pinned leaves no URL behind.
+  ASSERT_TRUE(UnpinTab(model_, tab));
+  EXPECT_FALSE(model_.GetTab(tab)->pinned_url.has_value());
+}
+
 TEST_F(PinnedTabsTest, UnpinPutsTheTabAtTheTopOfTodayAndForgetsTheUrl) {
   const std::string today = Add(Section::kToday, 3);
   const std::string pinned = Add(Section::kPinned, 0);

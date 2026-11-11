@@ -183,7 +183,7 @@ TEST(AerieSidebarMotionTest, TheToastRisesSixPixelsAndFadesInOnFastDecelerateAnd
   EXPECT_EQ(m.duration, MotionDuration::kFast);
   EXPECT_EQ(m.easing, MotionEasing::kDecelerate);
   EXPECT_EQ(m.duration_ms, 140);
-  EXPECT_EQ(m.hold_ms, aerie::tokens::kMotionTimingToastAction);
+  EXPECT_EQ(m.hold_ms, aerie::tokens::kMotionTimingToast);
 }
 
 TEST(AerieSidebarMotionTest, TheToastFadesOutOnFastAccelerateWithoutMoving) {

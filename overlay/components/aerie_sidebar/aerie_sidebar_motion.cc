@@ -100,8 +100,8 @@ ToastMotion ToastShowMotion(bool reduced) {
   motion.duration = MotionDuration::kFast;
   motion.easing = MotionEasing::kDecelerate;
   motion.duration_ms = GetDurationMs(motion.duration, reduced);
-  motion.hold_ms = reduced ? aerie::tokens::kMotionTimingToastActionReduced
-                           : aerie::tokens::kMotionTimingToastAction;
+  motion.hold_ms = reduced ? aerie::tokens::kMotionTimingToastReduced
+                           : aerie::tokens::kMotionTimingToast;
   return motion;
 }
 
