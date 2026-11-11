@@ -1,0 +1,71 @@
+Aerie-Purpose: Put the "Close a pinned tab" row in the Sidebar section of Settings, let the settings page write its pref, and give the page its strings.
+Aerie-Upstream-Area: chrome/browser/resources/settings (appearance_page/appearance_layout_page.ts, appearance_page/appearance_layout_page.html.ts, BUILD.gn), chrome/browser/ui/webui/settings (settings_localized_strings_provider.cc), chrome/browser/extensions/api/settings_private (prefs_util.cc)
+Aerie-Kind: hook
+
+Issue #180. The row, settings-aerie-pinned-close-row, is a Lit element in the overlay
+(chrome/browser/resources/settings/appearance_page/aerie_pinned_close_row.*). It is a
+settings-dropdown-menu on the pref aerie.tabs.pinned_close (a string, registered by
+components/aerie_tab_model/tab_model_prefs.cc), with the options reset-sleep-switch (default), sleep and close.
+The pref name is a string literal in the settings_private allowlist, as for the other Aerie prefs, and a test
+compares it with aerie_tab_model::kPinnedClose. Its strings are in the overlay's aerie_sidebar_strings.grdp,
+which patches/sidebar/0022 includes in generated_resources.grd; this patch hands them to the page. The element
+sits in the "Sidebar" section, under the sleep row of patches/sidebar/0035.
+
+--- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
++++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
+@@ -488,6 +488,9 @@
+   (*s_allowlist)["aerie.tabs.archive_after"] = settings_api::PrefType::kString;
+   (*s_allowlist)["aerie.tabs.sleep_after_minutes"] =
+       settings_api::PrefType::kNumber;
++  // Aerie: what Ctrl+W does on a pinned tab (issue #180). The name is
++  // aerie_tab_model::kPinnedClose; a test compares the two.
++  (*s_allowlist)["aerie.tabs.pinned_close"] = settings_api::PrefType::kString;
+   // Aerie: the sidebar's width and shown state (issue #177). The names are
+   // aerie_sidebar::kWidthPref and kVisiblePref; a test compares them. The
+   // layout pref is not here until issue #186 builds the second layout.
+--- a/chrome/browser/resources/settings/appearance_page/appearance_layout_page.html.ts
++++ b/chrome/browser/resources/settings/appearance_page/appearance_layout_page.html.ts
+@@ -11,6 +11,7 @@
+   return html`<!--_html_template_start_-->
+ <settings-section page-title="$i18n{aerieSidebarPageTitle}">
+   <settings-aerie-sleep-row></settings-aerie-sleep-row>
++  <settings-aerie-pinned-close-row></settings-aerie-pinned-close-row>
+ </settings-section>
+ <!--_html_template_end_-->`;
+   // clang-format on
+--- a/chrome/browser/resources/settings/appearance_page/appearance_layout_page.ts
++++ b/chrome/browser/resources/settings/appearance_page/appearance_layout_page.ts
+@@ -3,6 +3,7 @@
+ // the terms of the GPL-3.0 license that can be found in the LICENSE file.
+ 
+ import '../settings_page/settings_section.js';
++import './aerie_pinned_close_row.js';
+ import './aerie_sleep_row.js';
+ 
+ import {CrLitElement} from 'chrome://resources/lit/v3_0/lit.rollup.js';
+--- a/chrome/browser/resources/settings/BUILD.gn
++++ b/chrome/browser/resources/settings/BUILD.gn
+@@ -204,6 +204,8 @@
+     "ai_page/skills_page.ts",
+     "appearance_page/aerie_motion_row.html.ts",
+     "appearance_page/aerie_motion_row.ts",
++    "appearance_page/aerie_pinned_close_row.html.ts",
++    "appearance_page/aerie_pinned_close_row.ts",
+     "appearance_page/aerie_sleep_row.html.ts",
+     "appearance_page/aerie_sleep_row.ts",
+     "appearance_page/appearance_browser_proxy.ts",
+--- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
++++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
+@@ -631,6 +631,12 @@
+       {"aerieSleepAfter4Hours", IDS_SETTINGS_AERIE_SLEEP_4_HOURS},
+       {"aerieSleepAfter8Hours", IDS_SETTINGS_AERIE_SLEEP_8_HOURS},
+       {"aerieSleepAfterNever", IDS_SETTINGS_AERIE_SLEEP_NEVER},
++      {"aeriePinnedClose", IDS_SETTINGS_AERIE_PINNED_CLOSE},
++      {"aeriePinnedCloseDesc", IDS_SETTINGS_AERIE_PINNED_CLOSE_DESC},
++      {"aeriePinnedCloseResetSleepSwitch",
++       IDS_SETTINGS_AERIE_PINNED_CLOSE_RESET_SLEEP_SWITCH},
++      {"aeriePinnedCloseSleep", IDS_SETTINGS_AERIE_PINNED_CLOSE_SLEEP},
++      {"aeriePinnedCloseClose", IDS_SETTINGS_AERIE_PINNED_CLOSE_CLOSE},
+       {"browserLayout", IDS_SETTINGS_BROWSER_LAYOUT},
+       {"browserLayoutClassic", IDS_SETTINGS_BROWSER_LAYOUT_CLASSIC},
+       {"browserLayoutDynamic", IDS_SETTINGS_BROWSER_LAYOUT_DYNAMIC},
