@@ -43,6 +43,12 @@ def rgba(v):   # "#rrggbb" or "rgba(r,g,b,a)" -> (rgb tuple, alpha)
     if v.startswith("#"): return rgb(v), 1.0
     r, g_, b, a = [float(x) for x in v[v.index("(")+1:-1].split(",")]; return (r, g_, b), a
 
+def sample_frame(stops, frame, strength, shade_colour, shade, glow_colour, glow, x, y):
+    """The window frame colour at (x, y): Workspace gradient, tint over the frame base, shade, glow."""
+    c = mix(gradient_at(stops, x, y), frame, strength)
+    c = mix(shade_colour, c, shade)
+    return mix(glow_colour, c, glow*glow_alpha(x, y))
+
 def tok(group, name, mode):
     t = D[group][name]; return t["value"] if "value" in t else t[mode]
 
@@ -70,18 +76,12 @@ for tname, th in D["theme"].items():
             acc = mix(hue, rgb(g("accent-base")), share)
             pm = {"text": 99, "muted": 99, "accent": 99}
             for x, y in samples:
-                c = mix(gradient_at(stops, x, y), frame, strength)
-                c = mix(shade_colour, c, shade)
-                c = mix(glow_colour, c, glow*glow_alpha(x, y))
+                c = sample_frame(stops, frame, strength, shade_colour, shade, glow_colour, glow, x, y)
                 pm["text"] = min(pm["text"], ratio(text, c)); pm["muted"] = min(pm["muted"], ratio(muted, c)); pm["accent"] = min(pm["accent"], ratio(acc, c))
             for rk in ("row-selected", "row-hover"):
                 fill, alpha = rgba(th.get("color." + rk, D["color"][rk])[mode])
-                pm["row"] = 99
-                for x, y in samples:
-                    c = mix(gradient_at(stops, x, y), frame, strength)
-                    c = mix(shade_colour, c, shade)
-                    c = mix(glow_colour, c, glow*glow_alpha(x, y))
-                    pm["row"] = min(pm["row"], ratio(text, mix(fill, c, alpha)))
+                pm["row"] = min(ratio(text, mix(fill, sample_frame(stops, frame, strength, shade_colour, shade, glow_colour, glow, x, y), alpha))
+                                for x, y in samples)
                 rowmin[rk] = min(rowmin.get(rk, 99), pm["row"])
                 if pm["row"] < need:
                     fails += 1; print(f"  FAIL {tname}/{mode}/{p}: text on {rk} {pm['row']:.2f} (need {need})")
