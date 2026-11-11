@@ -50,8 +50,6 @@ SleepMotion SleepFaviconMotion(bool reduced) {
   motion.duration = MotionDuration::kFast;
   motion.easing = MotionEasing::kStandard;
   motion.asleep_opacity = aerie::tokens::kMotionOpacitySleeping;
-  motion.duration_ms = reduced ? 0 : GetDurationMs(MotionDuration::kFast, false);
-  motion.desaturate_after_fade = true;
   return motion;
 }
 

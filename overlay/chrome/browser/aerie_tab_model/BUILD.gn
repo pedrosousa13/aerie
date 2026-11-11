@@ -37,6 +37,7 @@ source_set("aerie_tab_model") {
     "//components/tabs:public",
   ]
   deps = [
+    "//chrome/app:generated_resources",
     "//chrome/browser/performance_manager",
     "//chrome/browser/performance_manager/public/user_tuning",
     "//chrome/browser/resource_coordinator",
@@ -59,6 +60,7 @@ source_set("browser_tests") {
   deps = [
     ":aerie_tab_model",
     "//base",
+    "//chrome/app:generated_resources",
     "//base/test:test_support",
     "//chrome/browser:browser",
     "//chrome/browser/profiles:profile",

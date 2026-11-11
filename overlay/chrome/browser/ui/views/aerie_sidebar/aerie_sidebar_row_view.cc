@@ -42,6 +42,9 @@
 
 namespace {
 constexpr int kFaviconSize = aerie::tokens::kSizeIcon;
+// The moon badge of a sleeping tab (issue #179), from the tokens.
+constexpr int kSleepBadgeSize = aerie::tokens::kSizeSleepBadge;
+constexpr int kSleepBadgeOffset = aerie::tokens::kSizeSleepBadgeOffset;
 constexpr int kRowHeight = aerie::tokens::kSizeRowHeightComfortable;
 
 // A row keeps its drag layers this long after the motion's own duration, so the
@@ -75,9 +78,8 @@ class FaviconHolder : public views::View {
   }
   void Layout(PassKey) override {
     favicon_->SetBoundsRect(gfx::Rect(0, 0, kFaviconSize, kFaviconSize));
-    constexpr int kBadge = kFaviconSize * 5 / 8;
-    badge_->SetBoundsRect(gfx::Rect(kFaviconSize - kBadge + 3,
-                                    kFaviconSize - kBadge + 3, kBadge, kBadge));
+    badge_->SetBoundsRect(gfx::Rect(kSleepBadgeOffset, kSleepBadgeOffset,
+                                    kSleepBadgeSize, kSleepBadgeSize));
   }
 
  private:
@@ -119,7 +121,7 @@ AerieSidebarRowView::AerieSidebarRowView(
   favicon->SetImageSize(gfx::Size(kFaviconSize, kFaviconSize));
   favicon->GetViewAccessibility().SetIsIgnored(true);
   auto badge = std::make_unique<views::ImageView>();
-  badge->SetImageSize(gfx::Size(kFaviconSize * 5 / 8, kFaviconSize * 5 / 8));
+  badge->SetImageSize(gfx::Size(kSleepBadgeSize, kSleepBadgeSize));
   badge->GetViewAccessibility().SetIsIgnored(true);
   badge->SetVisible(false);
   favicon_ = favicon.get();
@@ -207,8 +209,7 @@ void AerieSidebarRowView::SetPalette(
   views::InkDrop::Get(close_button_)->SetBaseColor(palette_.text);
   AerieSidebarFocusRing::Get(this)->SetColor(palette_.accent);
   sleep_badge_->SetImage(ui::ImageModel::FromVectorIcon(
-      aerie_sidebar::kAerieSleepBadgeIcon, palette_.text,
-      kFaviconSize * 5 / 8));
+      aerie_sidebar::kAerieSleepBadgeIcon, palette_.text, kSleepBadgeSize));
   UpdateState();
 }
 
@@ -226,16 +227,16 @@ void AerieSidebarRowView::UpdateName() {
 }
 
 void AerieSidebarRowView::SetSleeping(bool sleeping,
-                                      const PrefService* animate_with) {
+                                      const PrefService* reduced_motion_prefs) {
   if (sleep_look_applied_ && sleeping_ == sleeping) {
     return;
   }
-  const bool animate = sleep_look_applied_ && sleeping && animate_with;
+  const bool animate = sleep_look_applied_ && sleeping && reduced_motion_prefs;
   sleep_look_applied_ = true;
   sleeping_ = sleeping;
   UpdateName();
   sleep_badge_->SetVisible(sleeping);
-  ApplySleepLook(animate, animate_with);
+  ApplySleepLook(animate, reduced_motion_prefs);
 }
 
 void AerieSidebarRowView::ApplySleepLook(bool animate, const PrefService* prefs) {
@@ -270,7 +271,8 @@ void AerieSidebarRowView::ApplySleepLook(bool animate, const PrefService* prefs)
   // The desaturate is a static filter that follows the fade; it is not
   // animated.
   desaturate_timer_.Start(
-      FROM_HERE, base::Milliseconds(motion.duration_ms + kDropLayersSlackMs),
+      FROM_HERE, base::Milliseconds(aerie::tokens::GetDurationMs(motion.duration, false) +
+                         kDropLayersSlackMs),
       base::BindOnce(
           [](AerieSidebarRowView* row) {
             if (row->sleeping_ && row->favicon_->layer()) {

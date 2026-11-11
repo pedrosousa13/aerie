@@ -241,7 +241,9 @@ class NoNetworkNoStringsTest(unittest.TestCase):
                     includes = re.findall(r'#include "([^"]+)"', path.read_text())
                     for include in includes:
                         self.assertFalse(include.startswith(("net/", "services/network", "url/")), f"{path.name}: {include}")
-                        self.assertNotIn("generated_resources", include)
+                        # The sleep controller (#179) words its refusals from the sidebar's grd.
+                        if path.name != "sleep_controller.cc":
+                            self.assertNotIn("generated_resources", include)
 
 
 class DocsTest(unittest.TestCase):

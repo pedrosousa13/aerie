@@ -114,9 +114,6 @@ struct SleepMotion {
   aerie::tokens::MotionDuration duration;
   aerie::tokens::MotionEasing easing;
   float asleep_opacity;
-  // 0 when nothing animates.
-  int duration_ms;
-  bool desaturate_after_fade;
 };
 
 SleepMotion SleepFaviconMotion(bool reduced);

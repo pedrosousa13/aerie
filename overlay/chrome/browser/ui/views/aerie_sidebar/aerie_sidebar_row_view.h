@@ -103,11 +103,11 @@ class AerieSidebarRowView : public views::View,
 
   // A sleeping tab (issue #179): the favicon at `motion-opacity-sleeping` and,
   // after the fade, a static desaturate; a moon badge on the favicon; and
-  // ", asleep" at the end of the accessible name. `animate_with` is the prefs
-  // for reduced motion: when it is set, a change from awake to asleep fades the
+  // ", asleep" at the end of the accessible name. `reduced_motion_prefs` is the
+  // prefs that say whether to reduce motion: when it is set, a change from awake to asleep fades the
   // favicon (opacity only) on `fast` and `standard`; reduced motion, a null
-  // `animate_with` and the first call all swap at once.
-  void SetSleeping(bool sleeping, const PrefService* animate_with);
+  // `reduced_motion_prefs` and the first call all swap at once.
+  void SetSleeping(bool sleeping, const PrefService* reduced_motion_prefs);
   bool sleeping() const { return sleeping_; }
   // For tests.
   views::ImageView* favicon_view() const { return favicon_; }

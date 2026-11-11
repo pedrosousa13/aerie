@@ -81,6 +81,41 @@ class SidebarStringsTest(unittest.TestCase):
         self.assertNotIn("stimate", view_literals)
 
 
+class TokenAndMappingTest(unittest.TestCase):
+    def test_the_badge_size_and_offset_are_tokens_and_not_typed_in_the_row(self):
+        import json
+        tokens = json.loads((REPO / "overlay/components/aerie_design_tokens/tokens.json").read_text())["size"]
+        self.assertEqual(tokens["sleep-badge"]["unit"], "px")
+        self.assertEqual(tokens["sleep-badge-offset"]["unit"], "px")
+        row = code(VIEWS / "aerie_sidebar_row_view.cc")
+        self.assertIn("aerie::tokens::kSizeSleepBadge;", row)
+        self.assertIn("aerie::tokens::kSizeSleepBadgeOffset;", row)
+        self.assertNotIn("5 / 8", row)
+        self.assertNotIn("+ 3", row)
+        self.assertIn("--aerie-size-sleep-badge:", (REPO / "prototypes/sidebar/tokens.css").read_text())
+
+    def test_chromiums_english_reasons_are_not_passed_through(self):
+        controller = code(SERVICE / "sleep_controller.cc") + (SERVICE / "sleep_controller.h").read_text()
+        self.assertNotIn("CannotDiscardReasonToString", controller)
+        self.assertNotIn("IDS_AERIE_SIDEBAR_SLEEP_TAB_CANNOT\"", GRDP)
+        for group in ("AUDIBLE", "CAPTURE", "DEVTOOLS", "FORM", "PAGE", "BACKGROUND"):
+            self.assertIn(f'name="IDS_AERIE_SIDEBAR_SLEEP_TAB_CANNOT_{group}"', GRDP)
+            self.assertIn(f"IDS_AERIE_SIDEBAR_SLEEP_TAB_CANNOT_{group}", controller)
+
+    def test_the_factory_selects_the_profiles_as_the_tab_model_factory_does(self):
+        # WithRegular covers off-the-record profiles too (ProfileSelections), so the comment says so.
+        text = (SERVICE / "sleep_controller_factory.cc").read_text()
+        tab_model = (SERVICE / "tab_model_service_factory.cc").read_text()
+        self.assertIn(".WithRegular(ProfileSelection::kOwnInstance)", text)
+        self.assertIn(".WithRegular(ProfileSelection::kOwnInstance)", tab_model)
+        self.assertIn("off-the-record profile takes the Regular value", text)
+
+    def test_the_sidebar_updates_one_row_for_a_model_change(self):
+        view = code(VIEWS / "aerie_sidebar_view.cc")
+        body = view[view.index("::OnTabChanged("):view.index("::OnTabRemoved(")]
+        self.assertNotIn("UpdateRows()", body)
+
+
 class SchedulerTest(unittest.TestCase):
     def test_the_schedule_owns_one_timer_and_no_poll_loop(self):
         header = (TAB_MODEL / "sleep_schedule.h").read_text()

@@ -9,6 +9,7 @@
 #include <memory>
 #include <string>
 
+#include "base/command_line.h"
 #include "base/functional/bind.h"
 #include "base/run_loop.h"
 #include "base/task/single_thread_task_runner.h"
@@ -24,6 +25,7 @@
 #include "chrome/browser/resource_coordinator/tab_lifecycle_unit_external.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/grit/generated_resources.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/aerie_tab_model/tab_model.h"
@@ -32,6 +34,7 @@
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/browser_test.h"
+#include "content/public/test/browser_test_utils.h"
 #include "net/dns/mock_host_resolver.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "url/gurl.h"
@@ -63,6 +66,13 @@ class AerieSleepControllerBrowserTest : public InProcessBrowserTest {
                 },
                 &clock_)));
     ASSERT_TRUE(controller_);
+  }
+
+  void SetUpCommandLine(base::CommandLine* command_line) override {
+    InProcessBrowserTest::SetUpCommandLine(command_line);
+    // A page may start Web Audio without a click, so a test tab can be audible.
+    command_line->AppendSwitchASCII("autoplay-policy",
+                                    "no-user-gesture-required");
   }
 
   void TearDownOnMainThread() override {
@@ -223,10 +233,64 @@ IN_PROC_BROWSER_TEST_F(AerieSleepControllerBrowserTest,
   const SleepController::Eligibility eligibility =
       controller_->GetEligibility(selected);
   EXPECT_EQ(eligibility.state, SleepController::Eligibility::State::kCannotSleep);
-  EXPECT_EQ(eligibility.cause, SleepController::Eligibility::Cause::kSelectedTab);
+  EXPECT_EQ(eligibility.tooltip_message_id, IDS_AERIE_SIDEBAR_SLEEP_TAB_SELECTED);
   EXPECT_FALSE(controller_->Sleep(selected));
   EXPECT_FALSE(RecordOf(0)->sleeping);
   EXPECT_FALSE(strip()->GetWebContentsAt(0)->WasDiscarded());
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSleepControllerBrowserTest,
+                       AChromiumRefusedTabSaysTheReasonFromTheGrdAndKeepsItsRow) {
+  // An extension that protects a tab from discarding (kExtensionProtected, set
+  // here through TabLifecycleUnitExternal::SetAutoDiscardable): Chromium
+  // refuses, and the tooltip is the page-kind sentence from the grd, not
+  // Chromium's English text.
+  const int index = OpenBackgroundTab();
+  resource_coordinator::TabLifecycleUnitExternal::FromWebContents(
+      strip()->GetWebContentsAt(index))
+      ->SetAutoDiscardable(false);
+  ASSERT_TRUE(WaitFor([&] {
+    return controller_->GetEligibility(strip()->GetTabAtIndex(index))
+               .state == SleepController::Eligibility::State::kCannotSleep;
+  }));
+  const SleepController::Eligibility eligibility =
+      controller_->GetEligibility(strip()->GetTabAtIndex(index));
+  EXPECT_EQ(eligibility.state, SleepController::Eligibility::State::kCannotSleep);
+  EXPECT_EQ(eligibility.tooltip_message_id,
+            IDS_AERIE_SIDEBAR_SLEEP_TAB_CANNOT_PAGE);
+  EXPECT_FALSE(controller_->Sleep(strip()->GetTabAtIndex(index)));
+  ASSERT_TRUE(RecordOf(index));
+  EXPECT_FALSE(RecordOf(index)->sleeping);
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSleepControllerBrowserTest,
+                       AnAudibleBackgroundTabNeverSleeps) {
+  prefs()->SetInteger(kSleepAfterMinutes, 15);
+  ASSERT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
+      browser(), embedded_test_server()->GetURL("/title1.html"),
+      WindowOpenDisposition::NEW_BACKGROUND_TAB,
+      ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
+  const int index = strip()->count() - 1;
+  content::WebContents* contents = strip()->GetWebContentsAt(index);
+  // A tone through Web Audio makes the tab audible.
+  ASSERT_TRUE(content::ExecJs(contents, R"(
+      const ctx = new AudioContext();
+      const osc = ctx.createOscillator();
+      osc.connect(ctx.destination);
+      osc.start();
+      ctx.resume();)"));
+  ASSERT_TRUE(WaitFor([&] { return contents->IsCurrentlyAudible(); }));
+
+  // The performance manager learns of the sound a moment later.
+  EXPECT_TRUE(WaitFor([&] {
+    return controller_->GetEligibility(strip()->GetTabAtIndex(index))
+               .tooltip_message_id ==
+           IDS_AERIE_SIDEBAR_SLEEP_TAB_CANNOT_AUDIBLE;
+  }));
+  AdvanceClock(base::Hours(3));
+  base::RunLoop().RunUntilIdle();
+  EXPECT_FALSE(RecordOf(index)->sleeping);
+  EXPECT_FALSE(contents->WasDiscarded());
 }
 
 IN_PROC_BROWSER_TEST_F(AerieSleepControllerBrowserTest,

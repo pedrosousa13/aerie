@@ -56,20 +56,13 @@ class SleepController : public KeyedService,
       kAlreadyAsleep,
       kCannotSleep,
     };
-    // Why a tab cannot sleep; the sidebar words it from the grd.
-    enum class Cause {
-      kNone,
-      // The tab the user is viewing.
-      kSelectedTab,
-      // No page, or the performance manager is not there.
-      kNotAvailable,
-      // Chromium's discard policy says no; `reasons` has its words.
-      kChromium,
-    };
     State state = State::kCannotSleep;
-    Cause cause = Cause::kNotAvailable;
-    // Chromium's reasons, in its own (English) words, for kChromium.
-    std::vector<std::string> reasons;
+    // The grd message (IDS_AERIE_SIDEBAR_SLEEP_TAB_*) that says why the Sleep
+    // tab item is disabled: the tab is asleep, is selected, or one of
+    // Chromium's reasons (audible, capture, developer tools, form edits, page
+    // kind, background work) mapped to a sentence; a reason with no sentence of
+    // its own gets the generic one. 0 when the tab can sleep.
+    int tooltip_message_id = 0;
   };
 
   // `clock` must outlive the controller.
@@ -118,7 +111,6 @@ class SleepController : public KeyedService,
 
   const raw_ptr<Profile> profile_;
   const raw_ptr<TabModelService> service_;
-  const raw_ptr<const base::TickClock> clock_;
   SleepSchedule schedule_;
   PrefChangeRegistrar pref_registrar_;
   // The footprint Chromium estimated for a tab just before it slept, by handle.

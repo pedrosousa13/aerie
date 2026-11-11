@@ -34,8 +34,12 @@ SleepControllerFactory* SleepControllerFactory::GetInstance() {
 SleepControllerFactory::SleepControllerFactory()
     : ProfileKeyedServiceFactory(
           "AerieSleepController",
-          // The same profiles as the Tab Model service: a regular profile and,
-          // separately, each off-the-record one.
+          // The same as the Tab Model service: in ProfileSelections an
+          // off-the-record profile takes the Regular value, so kOwnInstance
+          // gives a regular profile one controller and each off-the-record
+          // profile its own, which works on that profile's own in-memory Tab
+          // Model. Incognito tabs sleep too. Guest and system profiles default
+          // to kNone and get none.
           ProfileSelections::Builder()
               .WithRegular(ProfileSelection::kOwnInstance)
               .Build()) {

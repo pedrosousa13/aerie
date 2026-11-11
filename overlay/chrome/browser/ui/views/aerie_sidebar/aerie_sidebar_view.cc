@@ -62,6 +62,10 @@
 
 namespace {
 
+// How long after the sidebar is built the sleep controller is created (issue
+// #179: nothing at startup).
+constexpr base::TimeDelta kSleepControllerDelay = base::Seconds(5);
+
 ui::ImageModel FaviconFor(tabs::TabInterface* tab, SkColor icon_color) {
   content::WebContents* contents = tab->GetContents();
   if (contents) {
@@ -221,7 +225,7 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
             }
           },
           weak_factory_.GetWeakPtr()),
-      base::Seconds(5));
+      kSleepControllerDelay);
 }
 
 AerieSidebarView::~AerieSidebarView() {
@@ -780,9 +784,24 @@ void AerieSidebarView::OnTabAdded(const aerie_tab_model::TabRecord&) {
   UpdateSleepingSummary();
 }
 
-void AerieSidebarView::OnTabChanged(const aerie_tab_model::TabRecord&) {
-  // `sleeping` is the field that matters here; the rows read it.
-  UpdateRows();
+void AerieSidebarView::OnTabChanged(const aerie_tab_model::TabRecord& record) {
+  // The Tab Model reports every change of a record, title and favicon churn
+  // included; `sleeping` is the only field this view needs. The title and
+  // favicon reach the rows from OnTabChangedAt. So only the sleeping state of
+  // this one row is updated, and the Today summary is computed again only when
+  // that state changes.
+  for (const Row& row : rows_) {
+    if (row.tab_id != record.id) {
+      continue;
+    }
+    if (row.view->sleeping() != record.sleeping) {
+      row.view->SetSleeping(record.sleeping, browser_->GetProfile()->GetPrefs());
+      UpdateSleepingSummary();
+    }
+    return;
+  }
+  // No row yet: the row reads the field when it is made; the summary counts
+  // records.
   UpdateSleepingSummary();
 }
 
@@ -832,20 +851,7 @@ void AerieSidebarView::ShowRowContextMenu(const std::string& tab_id,
   AerieSidebarContextMenu::SleepItem item;
   item.enabled = eligibility.state == Eligibility::State::kCanSleep;
   if (!item.enabled) {
-    if (eligibility.state == Eligibility::State::kAlreadyAsleep) {
-      item.tooltip = l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_SLEEP_TAB_ASLEEP);
-    } else if (eligibility.cause == Eligibility::Cause::kSelectedTab) {
-      item.tooltip =
-          l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_SLEEP_TAB_SELECTED);
-    } else if (eligibility.cause == Eligibility::Cause::kChromium &&
-               !eligibility.reasons.empty()) {
-      item.tooltip = l10n_util::GetStringFUTF16(
-          IDS_AERIE_SIDEBAR_SLEEP_TAB_CANNOT,
-          base::UTF8ToUTF16(eligibility.reasons.front()));
-    } else {
-      item.tooltip =
-          l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_SLEEP_TAB_UNAVAILABLE);
-    }
+    item.tooltip = l10n_util::GetStringUTF16(eligibility.tooltip_message_id);
   }
   context_menu_ = std::make_unique<AerieSidebarContextMenu>(
       std::move(item),

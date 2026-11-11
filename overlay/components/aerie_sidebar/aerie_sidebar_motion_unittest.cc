@@ -129,18 +129,14 @@ TEST(AerieSidebarMotionTest, ASleepingFaviconFadesToTheTokenOnFastStandardThenDe
   EXPECT_EQ(m.easing, MotionEasing::kStandard);
   EXPECT_FLOAT_EQ(m.asleep_opacity, 0.55f);
   EXPECT_EQ(m.asleep_opacity, aerie::tokens::kMotionOpacitySleeping);
-  EXPECT_EQ(m.duration_ms, aerie::tokens::GetDurationMs(MotionDuration::kFast, false));
   // The desaturate is a static filter that follows the fade; it is never
   // animated.
-  EXPECT_TRUE(m.desaturate_after_fade);
 }
 
 TEST(AerieSidebarMotionTest, ReducedMotionSwapsTheSleepingFaviconAtOnce) {
   const SleepMotion m = SleepFaviconMotion(/*reduced=*/true);
   EXPECT_FALSE(m.animate_fade);
-  EXPECT_EQ(m.duration_ms, 0);
   EXPECT_FLOAT_EQ(m.asleep_opacity, 0.55f);
-  EXPECT_TRUE(m.desaturate_after_fade);
 }
 
 }  // namespace aerie_sidebar

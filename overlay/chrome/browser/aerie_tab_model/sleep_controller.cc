@@ -4,9 +4,12 @@
 
 #include "chrome/browser/aerie_tab_model/sleep_controller.h"
 
+#include <algorithm>
 #include <utility>
+#include <vector>
 
 #include "base/functional/bind.h"
+#include "base/no_destructor.h"
 #include "chrome/browser/aerie_tab_model/tab_model_service.h"
 #include "chrome/browser/aerie_tab_model/tab_strip_adapter.h"
 #include "chrome/browser/performance_manager/policies/cannot_discard_reason.h"
@@ -20,6 +23,7 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/grit/generated_resources.h"
 #include "components/aerie_tab_model/tab_model.h"
 #include "components/aerie_tab_model/tab_model_prefs.h"
 #include "components/performance_manager/public/graph/page_node.h"
@@ -60,6 +64,45 @@ DiscardEligibilityPolicy* GetPolicy() {
       performance_manager::PerformanceManager::GetGraph());
 }
 
+// The sentence for the reasons that Chromium gives. The first group below that
+// has a reason in `reasons` wins, so the most useful one is shown; the user
+// can act on the earlier groups.
+int MessageIdForReasons(
+    const std::vector<performance_manager::policies::CannotDiscardReason>&
+        reasons) {
+  using Reason = performance_manager::policies::CannotDiscardReason;
+  struct Group {
+    int message_id;
+    std::vector<Reason> reasons;
+  };
+  static const base::NoDestructor<std::vector<Group>> groups{std::vector<Group>{
+      {IDS_AERIE_SIDEBAR_SLEEP_TAB_CANNOT_AUDIBLE,
+       {Reason::kAudible, Reason::kRecentlyAudible}},
+      {IDS_AERIE_SIDEBAR_SLEEP_TAB_CANNOT_CAPTURE,
+       {Reason::kCapturingVideo, Reason::kCapturingAudio,
+        Reason::kCapturingWindow, Reason::kCapturingDisplay,
+        Reason::kBeingMirrored, Reason::kPictureInPicture,
+        Reason::kConnectedToBluetooth, Reason::kConnectedToUSB,
+        Reason::kGlicShared}},
+      {IDS_AERIE_SIDEBAR_SLEEP_TAB_CANNOT_DEVTOOLS, {Reason::kDevToolsOpen}},
+      {IDS_AERIE_SIDEBAR_SLEEP_TAB_CANNOT_FORM,
+       {Reason::kFormInteractions, Reason::kUserEdits}},
+      {IDS_AERIE_SIDEBAR_SLEEP_TAB_CANNOT_PAGE,
+       {Reason::kPdf, Reason::kNotWebOrInternal, Reason::kInvalidURL,
+        Reason::kExtensionProtected, Reason::kOptedOut, Reason::kWebApp}},
+      {IDS_AERIE_SIDEBAR_SLEEP_TAB_CANNOT_BACKGROUND,
+       {Reason::kBackgroundActivity, Reason::kNotificationsEnabled}},
+  }};
+  for (const Group& group : *groups) {
+    for (Reason reason : group.reasons) {
+      if (std::ranges::find(reasons, reason) != reasons.end()) {
+        return group.message_id;
+      }
+    }
+  }
+  return IDS_AERIE_SIDEBAR_SLEEP_TAB_UNAVAILABLE;
+}
+
 }  // namespace
 
 SleepController::SleepController(Profile* profile,
@@ -67,7 +110,6 @@ SleepController::SleepController(Profile* profile,
                                  const base::TickClock* clock)
     : profile_(profile),
       service_(service),
-      clock_(clock),
       schedule_(clock,
                 base::BindRepeating(&SleepController::OnDue,
                                     base::Unretained(this))) {
@@ -226,17 +268,18 @@ void SleepController::OnSleepAfterChanged() {
 SleepController::Eligibility SleepController::GetEligibility(
     tabs::TabInterface* tab) const {
   Eligibility result;
+  result.tooltip_message_id = IDS_AERIE_SIDEBAR_SLEEP_TAB_UNAVAILABLE;
   content::WebContents* contents = tab->GetContents();
   if (!contents) {
     return result;
   }
   if (IsAsleep(contents)) {
     result.state = Eligibility::State::kAlreadyAsleep;
-    result.cause = Eligibility::Cause::kNone;
+    result.tooltip_message_id = IDS_AERIE_SIDEBAR_SLEEP_TAB_ASLEEP;
     return result;
   }
   if (tab->IsActivated()) {
-    result.cause = Eligibility::Cause::kSelectedTab;
+    result.tooltip_message_id = IDS_AERIE_SIDEBAR_SLEEP_TAB_SELECTED;
     return result;
   }
   DiscardEligibilityPolicy* policy = GetPolicy();
@@ -246,24 +289,26 @@ SleepController::Eligibility SleepController::GetEligibility(
   if (!policy || !page_node) {
     return result;
   }
-  // The same question as Helium's "Hibernate" menu item: eligible, with the
-  // recent-visibility protection ignored (the user asked, or the idle time is
-  // ours). Chromium's "protected" results count as no.
+  // The question is asked as for a proactive discard, as Memory Saver asks it,
+  // and not as for an EXTERNAL one: the policy allows an EXTERNAL discard of
+  // any tab (it is what Helium's "Hibernate" item does), so it would put a tab
+  // that plays sound or has developer tools open to sleep. The proactive
+  // question refuses those (audible, capture, developer tools, form edits, a
+  // PDF, an extension's protection, notifications, background work). The
+  // recent-visibility protection is ignored: the user asked, or the idle time
+  // is ours. Only an "eligible" answer counts as yes. The discard itself is
+  // still done as EXTERNAL, which is what DiscardPage does for a user request.
   std::vector<performance_manager::policies::CannotDiscardReason> reasons;
   const auto can_discard = policy->CanDiscard(
-      page_node.get(), ::mojom::LifecycleUnitDiscardReason::EXTERNAL,
+      page_node.get(), ::mojom::LifecycleUnitDiscardReason::PROACTIVE,
       /*ignore_recent_visibility=*/true, &reasons);
   if (can_discard ==
       performance_manager::policies::CanDiscardResult::kEligible) {
     result.state = Eligibility::State::kCanSleep;
-    result.cause = Eligibility::Cause::kNone;
+    result.tooltip_message_id = 0;
     return result;
   }
-  result.cause = Eligibility::Cause::kChromium;
-  for (auto reason : reasons) {
-    result.reasons.push_back(
-        performance_manager::policies::CannotDiscardReasonToString(reason));
-  }
+  result.tooltip_message_id = MessageIdForReasons(reasons);
   return result;
 }
 
