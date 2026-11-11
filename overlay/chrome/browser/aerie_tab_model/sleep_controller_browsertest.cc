@@ -6,6 +6,8 @@
 // controllable clock, "never", Sleep now, selecting a sleeping tab, a discard
 // that Chromium makes itself, and a tab that cannot sleep.
 
+#include "chrome/browser/aerie_tab_model/sleep_controller.h"
+
 #include <memory>
 #include <string>
 
@@ -15,7 +17,6 @@
 #include "base/task/single_thread_task_runner.h"
 #include "base/test/simple_test_tick_clock.h"
 #include "base/time/time.h"
-#include "chrome/browser/aerie_tab_model/sleep_controller.h"
 #include "chrome/browser/aerie_tab_model/sleep_controller_factory.h"
 #include "chrome/browser/aerie_tab_model/tab_model_service.h"
 #include "chrome/browser/aerie_tab_model/tab_model_service_factory.h"
@@ -30,6 +31,9 @@
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/aerie_tab_model/tab_model.h"
 #include "components/aerie_tab_model/tab_model_prefs.h"
+#include "components/performance_manager/public/decorators/page_live_state_decorator.h"
+#include "components/performance_manager/public/graph/page_node.h"
+#include "components/performance_manager/public/performance_manager.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/web_contents.h"
@@ -132,8 +136,9 @@ class AerieSleepControllerBrowserTest : public InProcessBrowserTest {
   raw_ptr<SleepController> controller_ = nullptr;
 };
 
-IN_PROC_BROWSER_TEST_F(AerieSleepControllerBrowserTest,
-                       AfterFifteenMinutesABackgroundTabSleepsAndTheSelectedOneDoesNot) {
+IN_PROC_BROWSER_TEST_F(
+    AerieSleepControllerBrowserTest,
+    AfterFifteenMinutesABackgroundTabSleepsAndTheSelectedOneDoesNot) {
   prefs()->SetInteger(kSleepAfterMinutes, 15);
   const int background = OpenBackgroundTab();
   ASSERT_EQ(background, 1);
@@ -151,8 +156,9 @@ IN_PROC_BROWSER_TEST_F(AerieSleepControllerBrowserTest,
       strip()->GetTabAtIndex(0)->GetHandle().raw_value()));
 }
 
-IN_PROC_BROWSER_TEST_F(AerieSleepControllerBrowserTest,
-                       NeverStopsSleepingAndAChangeRearmsTheTimerWithoutARestart) {
+IN_PROC_BROWSER_TEST_F(
+    AerieSleepControllerBrowserTest,
+    NeverStopsSleepingAndAChangeRearmsTheTimerWithoutARestart) {
   prefs()->SetInteger(kSleepAfterMinutes, 0);
   const int background = OpenBackgroundTab();
   EXPECT_FALSE(controller_->schedule()->timer_pending());
@@ -188,14 +194,16 @@ IN_PROC_BROWSER_TEST_F(AerieSleepControllerBrowserTest,
 
   EXPECT_TRUE(controller_->Sleep(tab));
   EXPECT_TRUE(WaitFor([&] { return Asleep(background); }));
-  EXPECT_EQ(controller_->GetEligibility(strip()->GetTabAtIndex(background)).state,
-            SleepController::Eligibility::State::kAlreadyAsleep);
+  EXPECT_EQ(
+      controller_->GetEligibility(strip()->GetTabAtIndex(background)).state,
+      SleepController::Eligibility::State::kAlreadyAsleep);
 
   strip()->ActivateTabAt(background);
   EXPECT_TRUE(WaitFor([&] {
-    return !RecordOf(background)->sleeping &&
-           !Asleep(background) &&
-           !strip()->GetWebContentsAt(background)->GetController()
+    return !RecordOf(background)->sleeping && !Asleep(background) &&
+           !strip()
+                ->GetWebContentsAt(background)
+                ->GetController()
                 .NeedsReload();
   }));
 }
@@ -221,7 +229,8 @@ IN_PROC_BROWSER_TEST_F(AerieSleepControllerBrowserTest,
       resource_coordinator::TabLifecycleUnitExternal::FromWebContents(contents);
   ASSERT_TRUE(lifecycle);
   // The same call the memory-pressure policy makes, not ours.
-  ASSERT_TRUE(lifecycle->DiscardTab(::mojom::LifecycleUnitDiscardReason::URGENT));
+  ASSERT_TRUE(
+      lifecycle->DiscardTab(::mojom::LifecycleUnitDiscardReason::URGENT));
   EXPECT_TRUE(WaitFor([&] { return Asleep(background); }));
   EXPECT_FALSE(controller_->schedule()->IsTracked(
       strip()->GetTabAtIndex(background)->GetHandle().raw_value()));
@@ -232,15 +241,20 @@ IN_PROC_BROWSER_TEST_F(AerieSleepControllerBrowserTest,
   tabs::TabInterface* selected = strip()->GetTabAtIndex(0);
   const SleepController::Eligibility eligibility =
       controller_->GetEligibility(selected);
-  EXPECT_EQ(eligibility.state, SleepController::Eligibility::State::kCannotSleep);
-  EXPECT_EQ(eligibility.tooltip_message_id, IDS_AERIE_SIDEBAR_SLEEP_TAB_SELECTED);
+  EXPECT_EQ(eligibility.state,
+            SleepController::Eligibility::State::kCannotSleep);
+  EXPECT_EQ(eligibility.tooltip_message_id,
+            IDS_AERIE_SIDEBAR_SLEEP_TAB_SELECTED);
   EXPECT_FALSE(controller_->Sleep(selected));
   EXPECT_FALSE(RecordOf(0)->sleeping);
   EXPECT_FALSE(strip()->GetWebContentsAt(0)->WasDiscarded());
 }
 
-IN_PROC_BROWSER_TEST_F(AerieSleepControllerBrowserTest,
-                       AChromiumRefusedTabSaysTheReasonFromTheGrdAndKeepsItsRow) {
+IN_PROC_BROWSER_TEST_F(
+    AerieSleepControllerBrowserTest,
+    AChromiumRefusedTabSaysTheReasonFromTheGrdAndKeepsItsRow) {
+  // The idle timer takes this refusal; a request of the user does not (see
+  // the notification test).
   // An extension that protects a tab from discarding (kExtensionProtected, set
   // here through TabLifecycleUnitExternal::SetAutoDiscardable): Chromium
   // refuses, and the tooltip is the page-kind sentence from the grd, not
@@ -250,17 +264,54 @@ IN_PROC_BROWSER_TEST_F(AerieSleepControllerBrowserTest,
       strip()->GetWebContentsAt(index))
       ->SetAutoDiscardable(false);
   ASSERT_TRUE(WaitFor([&] {
-    return controller_->GetEligibility(strip()->GetTabAtIndex(index))
+    return controller_
+               ->GetEligibility(strip()->GetTabAtIndex(index),
+                                SleepController::Request::kIdleTimer)
                .state == SleepController::Eligibility::State::kCannotSleep;
   }));
-  const SleepController::Eligibility eligibility =
-      controller_->GetEligibility(strip()->GetTabAtIndex(index));
-  EXPECT_EQ(eligibility.state, SleepController::Eligibility::State::kCannotSleep);
+  const SleepController::Eligibility eligibility = controller_->GetEligibility(
+      strip()->GetTabAtIndex(index), SleepController::Request::kIdleTimer);
+  EXPECT_EQ(eligibility.state,
+            SleepController::Eligibility::State::kCannotSleep);
   EXPECT_EQ(eligibility.tooltip_message_id,
             IDS_AERIE_SIDEBAR_SLEEP_TAB_CANNOT_PAGE);
-  EXPECT_FALSE(controller_->Sleep(strip()->GetTabAtIndex(index)));
+  EXPECT_FALSE(controller_->Sleep(strip()->GetTabAtIndex(index),
+                                  SleepController::Request::kIdleTimer));
   ASSERT_TRUE(RecordOf(index));
   EXPECT_FALSE(RecordOf(index)->sleeping);
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSleepControllerBrowserTest,
+                       AChatTabSleepsOnRequestButNotFromTheIdleTimer) {
+  prefs()->SetInteger(kSleepAfterMinutes, 15);
+  const int index = OpenBackgroundTab();
+  tabs::TabInterface* tab = strip()->GetTabAtIndex(index);
+  // A mail or chat tab: it changes its title in the background (a
+  // notification permission is the other such case, but it cannot be set up for
+  // the test server's origin). The performance manager only tracks that after
+  // a real visibility change, so the test sets the state it would set.
+  base::WeakPtr<performance_manager::PageNode> page_node =
+      performance_manager::PerformanceManager::GetPrimaryPageNodeForWebContents(
+          strip()->GetWebContentsAt(index));
+  ASSERT_TRUE(page_node);
+  performance_manager::PageLiveStateDecorator::Data::GetOrCreateForPageNode(
+      page_node.get())
+      ->SetUpdatedTitleOrFaviconInBackgroundForTesting(true);
+  // The proactive policy, which the idle timer follows, refuses it.
+  ASSERT_TRUE(WaitFor([&] {
+    return controller_
+               ->GetEligibility(tab, SleepController::Request::kIdleTimer)
+               .state == SleepController::Eligibility::State::kCannotSleep;
+  }));
+  AdvanceClock(base::Hours(2));
+  base::RunLoop().RunUntilIdle();
+  EXPECT_FALSE(RecordOf(index)->sleeping);
+  EXPECT_FALSE(strip()->GetWebContentsAt(index)->WasDiscarded());
+  // "Sleep now" works.
+  EXPECT_EQ(controller_->GetEligibility(tab).state,
+            SleepController::Eligibility::State::kCanSleep);
+  EXPECT_TRUE(controller_->Sleep(tab));
+  EXPECT_TRUE(WaitFor([&] { return Asleep(index); }));
 }
 
 IN_PROC_BROWSER_TEST_F(AerieSleepControllerBrowserTest,
@@ -291,6 +342,9 @@ IN_PROC_BROWSER_TEST_F(AerieSleepControllerBrowserTest,
   base::RunLoop().RunUntilIdle();
   EXPECT_FALSE(RecordOf(index)->sleeping);
   EXPECT_FALSE(contents->WasDiscarded());
+  // "Sleep now" is refused too.
+  EXPECT_FALSE(controller_->Sleep(strip()->GetTabAtIndex(index)));
+  EXPECT_FALSE(contents->WasDiscarded());
 }
 
 IN_PROC_BROWSER_TEST_F(AerieSleepControllerBrowserTest,
@@ -299,8 +353,9 @@ IN_PROC_BROWSER_TEST_F(AerieSleepControllerBrowserTest,
   // bit, which Chromium refuses to discard (#176).
   const int background = OpenBackgroundTab();
   EXPECT_FALSE(strip()->IsTabPinned(background));
-  EXPECT_EQ(controller_->GetEligibility(strip()->GetTabAtIndex(background)).state,
-            SleepController::Eligibility::State::kCanSleep);
+  EXPECT_EQ(
+      controller_->GetEligibility(strip()->GetTabAtIndex(background)).state,
+      SleepController::Eligibility::State::kCanSleep);
 }
 
 }  // namespace aerie_tab_model

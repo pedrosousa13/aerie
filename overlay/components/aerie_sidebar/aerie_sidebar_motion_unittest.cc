@@ -122,7 +122,8 @@ TEST(AerieSidebarMotionTest, AHidingColumnKeepsItsWidthOutsideItsZeroWidthRegion
 }
 
 }  // namespace
-TEST(AerieSidebarMotionTest, ASleepingFaviconFadesToTheTokenOnFastStandardThenDesaturatesStatically) {
+TEST(AerieSidebarMotionTest,
+     ASleepingFaviconFadesToTheTokenOnFastStandardThenDesaturatesStatically) {
   const SleepMotion m = SleepFaviconMotion(/*reduced=*/false);
   EXPECT_TRUE(m.animate_fade);
   EXPECT_EQ(m.duration, MotionDuration::kFast);

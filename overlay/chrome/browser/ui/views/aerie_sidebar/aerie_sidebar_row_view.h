@@ -11,15 +11,15 @@
 #include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "base/timer/timer.h"
-#include "ui/gfx/geometry/point.h"
-#include "ui/gfx/geometry/transform.h"
 #include "components/aerie_design_tokens/aerie_motion.h"
 #include "components/aerie_sidebar/aerie_sidebar_palette.h"
 #include "components/aerie_sidebar/aerie_sidebar_today_list.h"
 #include "ui/base/metadata/metadata_header_macros.h"
-#include "ui/base/mojom/menu_source_type.mojom-forward.h"
 #include "ui/base/models/image_model.h"
+#include "ui/base/mojom/menu_source_type.mojom-forward.h"
 #include "ui/gfx/animation/animation_delegate.h"
+#include "ui/gfx/geometry/point.h"
+#include "ui/gfx/geometry/transform.h"
 #include "ui/views/context_menu_controller.h"
 #include "ui/views/view.h"
 
@@ -104,9 +104,10 @@ class AerieSidebarRowView : public views::View,
   // A sleeping tab (issue #179): the favicon at `motion-opacity-sleeping` and,
   // after the fade, a static desaturate; a moon badge on the favicon; and
   // ", asleep" at the end of the accessible name. `reduced_motion_prefs` is the
-  // prefs that say whether to reduce motion: when it is set, a change from awake to asleep fades the
-  // favicon (opacity only) on `fast` and `standard`; reduced motion, a null
-  // `reduced_motion_prefs` and the first call all swap at once.
+  // prefs that say whether to reduce motion: when it is set, a change from
+  // awake to asleep fades the favicon (opacity only) on `fast` and `standard`;
+  // reduced motion, a null `reduced_motion_prefs` and the first call all swap
+  // at once.
   void SetSleeping(bool sleeping, const PrefService* reduced_motion_prefs);
   bool sleeping() const { return sleeping_; }
   // For tests.

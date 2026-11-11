@@ -18,27 +18,27 @@
 #include "components/aerie_sidebar/aerie_sidebar_motion.h"
 #include "components/prefs/pref_service.h"
 #include "components/vector_icons/vector_icons.h"
+#include "ui/base/accelerators/accelerator.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/compositor/layer.h"
-#include "ui/base/accelerators/accelerator.h"
 #include "ui/events/event.h"
 #include "ui/gfx/animation/slide_animation.h"
 #include "ui/gfx/geometry/insets.h"
 #include "ui/gfx/geometry/transform.h"
 #include "ui/gfx/geometry/transform_util.h"
 #include "ui/views/accessibility/view_accessibility.h"
-#include "ui/views/background.h"
 #include "ui/views/animation/ink_drop.h"
+#include "ui/views/background.h"
 #include "ui/views/controls/button/image_button.h"
 #include "ui/views/controls/button/image_button_factory.h"
 #include "ui/views/controls/focus_ring.h"
 #include "ui/views/controls/image_view.h"
 #include "ui/views/controls/label.h"
-#include "ui/views/widget/widget.h"
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/style/typography.h"
+#include "ui/views/widget/widget.h"
 
 namespace {
 constexpr int kFaviconSize = aerie::tokens::kSizeIcon;
@@ -239,7 +239,8 @@ void AerieSidebarRowView::SetSleeping(bool sleeping,
   ApplySleepLook(animate, reduced_motion_prefs);
 }
 
-void AerieSidebarRowView::ApplySleepLook(bool animate, const PrefService* prefs) {
+void AerieSidebarRowView::ApplySleepLook(bool animate,
+                                         const PrefService* prefs) {
   sleep_motion_.Abort();
   desaturate_timer_.Stop();
   if (!sleeping_) {
@@ -266,12 +267,13 @@ void AerieSidebarRowView::ApplySleepLook(bool animate, const PrefService* prefs)
   layer->SetLayerGrayscale(0.f);
   aerie::motion::LayerMotion target;
   target.opacity = motion.asleep_opacity;
-  sleep_motion_ = aerie::motion::AnimateLayer(
-      layer, target, motion.duration, motion.easing, prefs);
+  sleep_motion_ = aerie::motion::AnimateLayer(layer, target, motion.duration,
+                                              motion.easing, prefs);
   // The desaturate is a static filter that follows the fade; it is not
   // animated.
   desaturate_timer_.Start(
-      FROM_HERE, base::Milliseconds(aerie::tokens::GetDurationMs(motion.duration, false) +
+      FROM_HERE,
+      base::Milliseconds(aerie::tokens::GetDurationMs(motion.duration, false) +
                          kDropLayersSlackMs),
       base::BindOnce(
           [](AerieSidebarRowView* row) {

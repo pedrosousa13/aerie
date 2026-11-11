@@ -73,9 +73,22 @@ class SleepController : public KeyedService,
   SleepController& operator=(const SleepController&) = delete;
   ~SleepController() override;
 
-  Eligibility GetEligibility(tabs::TabInterface* tab) const;
-  // Puts the tab to sleep at once ("Sleep now"). False when it cannot sleep.
-  bool Sleep(tabs::TabInterface* tab);
+  // Who asks. The idle timer is automatic, so it is careful: it leaves a tab
+  // that Chromium's proactive policy protects (notifications granted, title or
+  // favicon changes in the background, recent sound, ...). The user's own
+  // "Sleep now" refuses only what the brief lists: the selected tab, sound or
+  // recent sound, developer tools, form edits and capture or a connected
+  // device. A mail or chat tab can be put to sleep on request.
+  enum class Request {
+    kIdleTimer,
+    kUser,
+  };
+
+  Eligibility GetEligibility(tabs::TabInterface* tab,
+                             Request request = Request::kUser) const;
+  // Puts the tab to sleep at once ("Sleep now" for kUser). False when it cannot
+  // sleep.
+  bool Sleep(tabs::TabInterface* tab, Request request = Request::kUser);
   // Wakes the tab by selecting it: Chromium reloads a discarded tab that is
   // selected, and nothing else loads it.
   void Wake(tabs::TabInterface* tab);

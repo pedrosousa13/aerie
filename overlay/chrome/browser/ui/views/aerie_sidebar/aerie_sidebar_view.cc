@@ -9,10 +9,10 @@
 #include <utility>
 
 #include "base/functional/bind.h"
-#include "base/strings/utf_string_conversions.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/time/time.h"
+#include "base/strings/utf_string_conversions.h"
 #include "base/task/single_thread_task_runner.h"
+#include "base/time/time.h"
 #include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/aerie_tab_model/sleep_controller.h"
 #include "chrome/browser/aerie_tab_model/sleep_controller_factory.h"
@@ -20,31 +20,30 @@
 #include "chrome/browser/aerie_tab_model/tab_model_service_factory.h"
 #include "chrome/browser/aerie_tab_model/tab_strip_adapter.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/sessions/session_restore.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_delegate.h"
-#include "chrome/browser/sessions/session_restore.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_context_menu.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_focus_ring.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_regions.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_row_view.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_top_row.h"
 #include "chrome/grit/generated_resources.h"
-#include "components/aerie_design_tokens/aerie_tokens.h"
 #include "components/aerie_design_tokens/aerie_motion.h"
+#include "components/aerie_design_tokens/aerie_tokens.h"
 #include "components/aerie_frame/aerie_frame_palette.h"
 #include "components/aerie_sidebar/aerie_sidebar_drag.h"
 #include "components/aerie_sidebar/aerie_sidebar_layout.h"
 #include "components/aerie_sidebar/aerie_sidebar_motion.h"
 #include "components/aerie_tab_model/sleep_summary.h"
 #include "components/aerie_tab_model/tab_model.h"
-#include "components/prefs/pref_service.h"
-#include "ui/base/models/image_model.h"
-#include "ui/base/base_window.h"
 #include "components/favicon/content/content_favicon_driver.h"
+#include "components/prefs/pref_service.h"
 #include "components/tabs/public/tab_interface.h"
 #include "components/vector_icons/vector_icons.h"
 #include "content/public/browser/web_contents.h"
+#include "ui/base/base_window.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/models/image_model.h"
@@ -167,8 +166,8 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
       views::style::STYLE_BODY_5));
   sleeping_summary_->SetHorizontalAlignment(gfx::ALIGN_RIGHT);
   sleeping_summary_->SetElideBehavior(gfx::ELIDE_TAIL);
-  sleeping_summary_->SetBorder(views::CreateEmptyBorder(gfx::Insets::TLBR(
-      aerie::tokens::kSpace8, 0, 0, aerie::tokens::kSpace8)));
+  sleeping_summary_->SetBorder(views::CreateEmptyBorder(
+      gfx::Insets::TLBR(aerie::tokens::kSpace8, 0, 0, aerie::tokens::kSpace8)));
   sleeping_summary_->SetVisible(false);
 
   scroll_ = AddChildView(std::make_unique<views::ScrollView>(
@@ -795,7 +794,8 @@ void AerieSidebarView::OnTabChanged(const aerie_tab_model::TabRecord& record) {
       continue;
     }
     if (row.view->sleeping() != record.sleeping) {
-      row.view->SetSleeping(record.sleeping, browser_->GetProfile()->GetPrefs());
+      row.view->SetSleeping(record.sleeping,
+                            browser_->GetProfile()->GetPrefs());
       UpdateSleepingSummary();
     }
     return;
@@ -810,8 +810,7 @@ void AerieSidebarView::OnTabRemoved(const aerie_tab_model::TabRecord&) {
 }
 
 void AerieSidebarView::UpdateSleepingSummary() {
-  const int count =
-      model_ ? aerie_tab_model::CountSleepingTabs(*model_) : 0;
+  const int count = model_ ? aerie_tab_model::CountSleepingTabs(*model_) : 0;
   if (count == 0) {
     sleeping_summary_->SetVisible(false);
     sleeping_summary_->SetText(std::u16string());
@@ -837,9 +836,10 @@ void AerieSidebarView::UpdateSleepingSummary() {
   sleeping_summary_->SetVisible(true);
 }
 
-void AerieSidebarView::ShowRowContextMenu(const std::string& tab_id,
-                                          const gfx::Point& screen_point,
-                                          ui::mojom::MenuSourceType source_type) {
+void AerieSidebarView::ShowRowContextMenu(
+    const std::string& tab_id,
+    const gfx::Point& screen_point,
+    ui::mojom::MenuSourceType source_type) {
   tabs::TabInterface* tab = FindTab(tab_id);
   auto* controller = aerie_tab_model::SleepControllerFactory::GetForProfile(
       browser_->GetProfile());

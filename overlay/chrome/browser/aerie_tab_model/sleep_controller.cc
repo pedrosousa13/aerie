@@ -67,6 +67,30 @@ DiscardEligibilityPolicy* GetPolicy() {
 // The sentence for the reasons that Chromium gives. The first group below that
 // has a reason in `reasons` wins, so the most useful one is shown; the user
 // can act on the earlier groups.
+// The reasons that refuse a "Sleep now" of the user.
+bool RefusesUserRequest(
+    performance_manager::policies::CannotDiscardReason reason) {
+  using Reason = performance_manager::policies::CannotDiscardReason;
+  switch (reason) {
+    case Reason::kAudible:
+    case Reason::kRecentlyAudible:
+    case Reason::kPictureInPicture:
+    case Reason::kCapturingVideo:
+    case Reason::kCapturingAudio:
+    case Reason::kBeingMirrored:
+    case Reason::kCapturingWindow:
+    case Reason::kCapturingDisplay:
+    case Reason::kConnectedToBluetooth:
+    case Reason::kConnectedToUSB:
+    case Reason::kDevToolsOpen:
+    case Reason::kFormInteractions:
+    case Reason::kUserEdits:
+      return true;
+    default:
+      return false;
+  }
+}
+
 int MessageIdForReasons(
     const std::vector<performance_manager::policies::CannotDiscardReason>&
         reasons) {
@@ -258,7 +282,7 @@ bool SleepController::OnDue(SleepSchedule::Key key) {
   if (!tab) {
     return true;
   }
-  return Sleep(tab);
+  return Sleep(tab, Request::kIdleTimer);
 }
 
 void SleepController::OnSleepAfterChanged() {
@@ -266,7 +290,8 @@ void SleepController::OnSleepAfterChanged() {
 }
 
 SleepController::Eligibility SleepController::GetEligibility(
-    tabs::TabInterface* tab) const {
+    tabs::TabInterface* tab,
+    Request request) const {
   Eligibility result;
   result.tooltip_message_id = IDS_AERIE_SIDEBAR_SLEEP_TAB_UNAVAILABLE;
   content::WebContents* contents = tab->GetContents();
@@ -289,31 +314,41 @@ SleepController::Eligibility SleepController::GetEligibility(
   if (!policy || !page_node) {
     return result;
   }
-  // The question is asked as for a proactive discard, as Memory Saver asks it,
-  // and not as for an EXTERNAL one: the policy allows an EXTERNAL discard of
-  // any tab (it is what Helium's "Hibernate" item does), so it would put a tab
-  // that plays sound or has developer tools open to sleep. The proactive
-  // question refuses those (audible, capture, developer tools, form edits, a
-  // PDF, an extension's protection, notifications, background work). The
+  // The policy allows an EXTERNAL discard of any tab (it is what Helium's
+  // "Hibernate" item does), so it would put a tab that plays sound or has
+  // developer tools open to sleep and says no reason. So the question is asked
+  // as for a proactive discard, as Memory Saver asks it, which gives the
+  // reasons. The idle timer takes every refusal. A request of the user takes
+  // only those in RefusesUserRequest, and "protected" answers for other reasons
+  // (notifications, background work, a PDF, an extension) do not stop it. The
   // recent-visibility protection is ignored: the user asked, or the idle time
-  // is ours. Only an "eligible" answer counts as yes. The discard itself is
-  // still done as EXTERNAL, which is what DiscardPage does for a user request.
+  // is ours. The discard itself is done as EXTERNAL, as DiscardPage does for a
+  // request.
   std::vector<performance_manager::policies::CannotDiscardReason> reasons;
   const auto can_discard = policy->CanDiscard(
       page_node.get(), ::mojom::LifecycleUnitDiscardReason::PROACTIVE,
       /*ignore_recent_visibility=*/true, &reasons);
-  if (can_discard ==
-      performance_manager::policies::CanDiscardResult::kEligible) {
+  bool allowed =
+      can_discard == performance_manager::policies::CanDiscardResult::kEligible;
+  if (!allowed && request == Request::kUser &&
+      can_discard ==
+          performance_manager::policies::CanDiscardResult::kProtected) {
+    allowed = std::ranges::none_of(reasons, RefusesUserRequest);
+  }
+  if (allowed) {
     result.state = Eligibility::State::kCanSleep;
     result.tooltip_message_id = 0;
     return result;
+  }
+  if (request == Request::kUser) {
+    std::erase_if(reasons, [](auto reason) { return !RefusesUserRequest(reason); });
   }
   result.tooltip_message_id = MessageIdForReasons(reasons);
   return result;
 }
 
-bool SleepController::Sleep(tabs::TabInterface* tab) {
-  const Eligibility eligibility = GetEligibility(tab);
+bool SleepController::Sleep(tabs::TabInterface* tab, Request request) {
+  const Eligibility eligibility = GetEligibility(tab, request);
   if (eligibility.state == Eligibility::State::kAlreadyAsleep) {
     SetSleeping(tab, true);
     return true;

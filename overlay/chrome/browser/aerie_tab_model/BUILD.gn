@@ -68,6 +68,7 @@ source_set("browser_tests") {
     "//chrome/test:test_support_ui",
     "//components/aerie_tab_model",
     "//components/aerie_tab_model:prefs",
+    "//components/performance_manager",
     "//components/prefs",
     "//content/test:test_support",
     "//net:test_support",
