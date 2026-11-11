@@ -32,7 +32,7 @@ Per-folder settings (#141): auto-archive (never, or its own timeout; not in Pinn
 Auto-archive moves a Today tab to the Archive after the user's timeout (12 hours by default, or 24 hours, 7 days, never). The Archive is the list of archived tabs, searchable and restorable (stories 56 to 58). A restored tab goes back to the Workspace it came from.
 
 **Sleeping tab**
-A tab that is unloaded to free memory (story 61). The Sidebar shows a moon badge and a dimmed favicon. Selecting it wakes it. Not the same as an archived tab, which is closed.
+A tab that is unloaded to free memory (story 61). The Sidebar shows a moon badge and a dimmed favicon. Selecting it wakes it. Chromium's discard does the unloading; Aerie adds the idle timer (`aerie.tabs.sleep_after_minutes`, 1 hour by default) and the display. Not the same as an archived tab, which is closed.
 
 ## Workspaces and look
 

@@ -145,6 +145,10 @@ reason. The same three maps are in the check's `data` in `results.json`.
 | `speedometer_score` | The score of Speedometer 3.1 (the "Score" metric, a mean over 10 iterations), run from the pinned local copy; see below. |
 | `jetstream_score` | The overall score of JetStream 3 (the geometric mean of the workload scores, as the driver's own "Overall Score"), run from the pinned local copy. |
 
+### Memory when a tab sleeps (manual run)
+
+`memory_after_ad_pages_mb` does not put tabs to sleep, so it is not worse because of #179: the sleep controller is created lazily a few seconds after a window opens and owns one timer. To see memory drop when a tab sleeps, run a Bench-built browser with a profile, open the three fixture pages in background tabs, note the `VmRSS` sum of the process tree (`ps --ppid`/`/proc`, as the Bench does), choose "Sleep tab" in a row's context menu, wait `--perf-settle` seconds and sum again. The sum falls by about the renderer of the slept tab; the Today header shows the estimate (rounded to 10 MB) that the browser measured before it slept the tab. A scripted step is a follow-up.
+
 ### What fails the check
 
 All five metrics are required. The check fails (status `fail`, exit code 1, nothing recorded as a baseline) when:

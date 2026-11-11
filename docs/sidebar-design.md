@@ -150,7 +150,7 @@ An inactive tab sleeps and frees its memory (story 61). The sidebar shows it as 
 - The Today header shows how many tabs sleep and an estimate of memory freed. The tooltip says it is an estimate. The mockup numbers are made up. A native build reads the memory report.
 - Selecting a sleeping tab wakes it.
 
-When a tab goes to sleep: after an idle timeout, after a pinned tab is closed (see below), or from "Sleep tab" in the context menu. The idle timeout default is not decided (see Open points).
+When a tab goes to sleep: after an idle timeout, after a pinned tab is closed (see below), or from "Sleep tab" in the context menu. The idle timeout is 1 hour by default (Settings, Sidebar: 15 minutes to 8 hours, or never). One timer serves all tabs, and it is armed lazily by the first sleeping-tab need. The selected tab and a tab that plays audio never sleep. A tab that Chromium refuses to discard keeps its row, and its "Sleep tab" menu item is disabled with the reason in a tooltip. The Favorites tooltip is for #180.
 
 ### Pinned tab close
 
@@ -556,7 +556,7 @@ A file that is not valid, has the wrong shape, uses an id twice or comes from a 
 
 A Today tab that was open when the state was saved is removed when it is read back (and the removal is logged), unless it was sleeping or archived. This slice does not match a tab that session restore brings back to an old record, so the old record would only pile up. Matching them is for the slice that restores tabs.
 
-The prefs `aerie.tabs.archive_after` (`12h` default, `24h`, `7d`, `never`) and `aerie.tabs.sleep_after_minutes` (60 default; 15 to 480, or 0 for never) are registered and can be written from the settings page. Nothing archives or sleeps a tab yet (slices F and G).
+The prefs `aerie.tabs.archive_after` (`12h` default, `24h`, `7d`, `never`) and `aerie.tabs.sleep_after_minutes` (60 default; 15 to 480, or 0 for never) are registered and can be written from the settings page. Sleeping is implemented (#179, `SleepController`); nothing archives a tab yet (slice F).
 
 ### Binding to Chromium tabs
 
