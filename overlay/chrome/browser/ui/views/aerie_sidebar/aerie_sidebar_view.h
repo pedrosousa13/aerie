@@ -20,11 +20,13 @@
 #include "components/aerie_sidebar/aerie_sidebar_today_list.h"
 #include "components/aerie_tab_model/tab_model_observer.h"
 #include "ui/base/metadata/metadata_header_macros.h"
+#include "ui/base/mojom/menu_source_type.mojom-forward.h"
 #include "ui/views/view.h"
 
 class BrowserWindowInterface;
 class AerieSidebarRowView;
 class AerieSidebarTopRow;
+class AerieSidebarContextMenu;
 
 namespace aerie_tab_model {
 class TabModel;
@@ -125,6 +127,15 @@ class AerieSidebarView : public views::View,
   // aerie_tab_model::TabModelObserver:
   void OnWorkspaceChanged(const aerie_tab_model::Workspace& workspace) override;
   void OnModelLoaded() override;
+  void OnTabAdded(const aerie_tab_model::TabRecord& tab) override;
+  void OnTabChanged(const aerie_tab_model::TabRecord& tab) override;
+  void OnTabRemoved(const aerie_tab_model::TabRecord& tab) override;
+
+  // The text at the end of the Today heading (the number of sleeping tabs and
+  // the memory estimate, issue #179), and whether it shows. For tests.
+  views::Label* sleeping_summary() const { return sleeping_summary_; }
+  // The context menu of a row while it is open, or null.
+  AerieSidebarContextMenu* context_menu() const { return context_menu_.get(); }
 
   // views::View:
   void OnThemeChanged() override;
@@ -154,6 +165,13 @@ class AerieSidebarView : public views::View,
   void UpdateRows();
   void UpdateRow(const Row& row);
   void SelectTab(const std::string& tab_id);
+  // The context menu of a row: today the one item, "Sleep tab" (issue #179).
+  void ShowRowContextMenu(const std::string& tab_id,
+                          const gfx::Point& screen_point,
+                          ui::mojom::MenuSourceType source_type);
+  // Writes the count of sleeping tabs and the memory estimate into the Today
+  // header, or hides them when no tab sleeps.
+  void UpdateSleepingSummary();
   void CloseTab(const std::string& tab_id);
   // A key of the Today tree on the row of `tab_id` (arrows, Home, End, Delete).
   void OnRowKey(const std::string& tab_id, aerie_sidebar::ListKey key);
@@ -216,6 +234,8 @@ class AerieSidebarView : public views::View,
   raw_ptr<aerie_tab_model::TabModel> model_ = nullptr;
   aerie_sidebar::SidebarPalette palette_;
   raw_ptr<views::Label> today_heading_ = nullptr;
+  raw_ptr<views::Label> sleeping_summary_ = nullptr;
+  std::unique_ptr<AerieSidebarContextMenu> context_menu_;
   raw_ptr<views::LabelButton> new_tab_row_ = nullptr;
   raw_ptr<AerieSidebarTodayTree> list_ = nullptr;
   raw_ptr<views::ScrollView> scroll_ = nullptr;

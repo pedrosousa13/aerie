@@ -52,4 +52,73 @@
   <message name="IDS_AERIE_SIDEBAR_ADDRESS" desc="Accessible name of the group in the sidebar that holds the address field. The address field is the rounded box where the user types a web address or a search.">
     Address
   </message>
+  <message name="IDS_AERIE_SIDEBAR_ROW_ASLEEP_NAME" desc="Accessible name of a tab row in the sidebar when the tab is asleep. A sleeping tab has freed its memory and loads again when the user selects it. The tab's title comes first, then the word asleep.">
+    <ph name="TITLE">$1<ex>Example page</ex></ph>, asleep
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_SLEEP_TAB" desc="Item of the context menu of a tab row in the sidebar. It puts the tab to sleep at once, which frees its memory. The tab loads again when the user selects it.">
+    Sleep tab
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_SLEEP_TAB_ASLEEP" desc="Tooltip of the disabled Sleep tab menu item when the tab is asleep already.">
+    This tab is asleep already
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_SLEEP_TAB_SELECTED" desc="Tooltip of the disabled Sleep tab menu item when the tab is the one the user is looking at. A tab that is on screen cannot sleep.">
+    The tab you are viewing cannot sleep
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_SLEEP_TAB_UNAVAILABLE" desc="Tooltip of the disabled Sleep tab menu item when the browser cannot put this tab to sleep, for example because it has no page loaded.">
+    This tab cannot sleep
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_SLEEP_TAB_CANNOT_AUDIBLE" desc="Tooltip of the disabled Sleep tab menu item. The tab plays sound, or did a moment ago.">
+    This tab is playing sound
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_SLEEP_TAB_CANNOT_CAPTURE" desc="Tooltip of the disabled Sleep tab menu item. The tab shares the screen, the camera or the microphone, is mirrored, shows picture-in-picture, or is connected to a device.">
+    This tab is sharing, recording or connected to a device
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_SLEEP_TAB_CANNOT_DEVTOOLS" desc="Tooltip of the disabled Sleep tab menu item. Developer tools are open on the tab.">
+    Developer tools are open on this tab
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_SLEEP_TAB_CANNOT_FORM" desc="Tooltip of the disabled Sleep tab menu item. The user has typed in a form on the tab, or the page has unsaved changes.">
+    This tab has unsaved changes
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_SLEEP_TAB_CANNOT_PAGE" desc="Tooltip of the disabled Sleep tab menu item. This kind of page cannot sleep, for example a PDF, an extension page or a page that a policy keeps awake.">
+    This kind of page cannot sleep
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_SLEEP_TAB_CANNOT_BACKGROUND" desc="Tooltip of the disabled Sleep tab menu item. The tab is working in the background, for example it can send notifications.">
+    This tab is working in the background
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_SLEEPING_COUNT" desc="Text at the end of the Today heading of the sidebar. It says how many tabs are asleep, for example: 3 asleep.">
+    <ph name="COUNT">$1<ex>3</ex></ph> asleep
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_SLEEPING_COUNT_AND_MEMORY" desc="Text at the end of the Today heading of the sidebar. It says how many tabs are asleep and an estimate of the memory they freed, in megabytes, rounded to ten. For example: 3 asleep, about 180 MB.">
+    <ph name="COUNT">$1<ex>3</ex></ph> asleep, about <ph name="MEGABYTES">$2<ex>180</ex></ph> MB
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_SLEEPING_TOOLTIP" desc="Tooltip of the text at the end of the Today heading that says how many tabs are asleep. It tells the user that the memory number is an estimate.">
+    Estimate of the memory that sleeping tabs freed
+  </message>
+  <message name="IDS_SETTINGS_AERIE_SLEEP_AFTER" desc="Label of the drop-down in the Sidebar section of Settings that sets how long a tab can be idle before it is put to sleep.">
+    Put inactive tabs to sleep after
+  </message>
+  <message name="IDS_SETTINGS_AERIE_SLEEP_AFTER_DESC" desc="Line under the sleep drop-down in Settings. It says what a sleeping tab is.">
+    A sleeping tab frees its memory and loads again when you select it.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_SLEEP_15_MIN" desc="Option of the sleep drop-down in Settings: 15 minutes.">
+    15 minutes
+  </message>
+  <message name="IDS_SETTINGS_AERIE_SLEEP_30_MIN" desc="Option of the sleep drop-down in Settings: 30 minutes.">
+    30 minutes
+  </message>
+  <message name="IDS_SETTINGS_AERIE_SLEEP_1_HOUR" desc="Option of the sleep drop-down in Settings: 1 hour. This is the default.">
+    1 hour
+  </message>
+  <message name="IDS_SETTINGS_AERIE_SLEEP_2_HOURS" desc="Option of the sleep drop-down in Settings: 2 hours.">
+    2 hours
+  </message>
+  <message name="IDS_SETTINGS_AERIE_SLEEP_4_HOURS" desc="Option of the sleep drop-down in Settings: 4 hours.">
+    4 hours
+  </message>
+  <message name="IDS_SETTINGS_AERIE_SLEEP_8_HOURS" desc="Option of the sleep drop-down in Settings: 8 hours.">
+    8 hours
+  </message>
+  <message name="IDS_SETTINGS_AERIE_SLEEP_NEVER" desc="Option of the sleep drop-down in Settings: tabs never go to sleep by themselves.">
+    Never
+  </message>
 </grit-part>

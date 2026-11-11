@@ -10,6 +10,7 @@
 #include "base/functional/bind.h"
 #include "build/build_config.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_focus_ring.h"
+#include "chrome/browser/ui/views/aerie_sidebar/vector_icons/vector_icons.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/aerie_design_tokens/aerie_motion.h"
 #include "components/aerie_design_tokens/aerie_tokens.h"
@@ -17,29 +18,33 @@
 #include "components/aerie_sidebar/aerie_sidebar_motion.h"
 #include "components/prefs/pref_service.h"
 #include "components/vector_icons/vector_icons.h"
+#include "ui/base/accelerators/accelerator.h"
 #include "ui/base/l10n/l10n_util.h"
+#include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/compositor/layer.h"
-#include "ui/base/accelerators/accelerator.h"
 #include "ui/events/event.h"
 #include "ui/gfx/animation/slide_animation.h"
 #include "ui/gfx/geometry/insets.h"
 #include "ui/gfx/geometry/transform.h"
 #include "ui/gfx/geometry/transform_util.h"
 #include "ui/views/accessibility/view_accessibility.h"
-#include "ui/views/background.h"
 #include "ui/views/animation/ink_drop.h"
+#include "ui/views/background.h"
 #include "ui/views/controls/button/image_button.h"
 #include "ui/views/controls/button/image_button_factory.h"
 #include "ui/views/controls/focus_ring.h"
 #include "ui/views/controls/image_view.h"
 #include "ui/views/controls/label.h"
-#include "ui/views/widget/widget.h"
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/style/typography.h"
+#include "ui/views/widget/widget.h"
 
 namespace {
 constexpr int kFaviconSize = aerie::tokens::kSizeIcon;
+// The moon badge of a sleeping tab (issue #179), from the tokens.
+constexpr int kSleepBadgeSize = aerie::tokens::kSizeSleepBadge;
+constexpr int kSleepBadgeOffset = aerie::tokens::kSizeSleepBadgeOffset;
 constexpr int kRowHeight = aerie::tokens::kSizeRowHeightComfortable;
 
 // A row keeps its drag layers this long after the motion's own duration, so the
@@ -56,6 +61,34 @@ gfx::Transform ScaleAboutCenter(const gfx::Size& size, float scale) {
       gfx::PointF(size.width() / 2.0f, size.height() / 2.0f),
       gfx::Transform::MakeScale(scale));
 }
+
+// The favicon and the moon badge that sits on its lower corner. The badge is
+// beside the favicon, not in it, so it keeps its full colour while the favicon
+// fades.
+class FaviconHolder : public views::View {
+  METADATA_HEADER(FaviconHolder, views::View)
+
+ public:
+  FaviconHolder(views::ImageView* favicon, views::ImageView* badge)
+      : favicon_(AddChildView(favicon)), badge_(AddChildView(badge)) {}
+
+  gfx::Size CalculatePreferredSize(
+      const views::SizeBounds& available_size) const override {
+    return gfx::Size(kFaviconSize, kFaviconSize);
+  }
+  void Layout(PassKey) override {
+    favicon_->SetBoundsRect(gfx::Rect(0, 0, kFaviconSize, kFaviconSize));
+    badge_->SetBoundsRect(gfx::Rect(kSleepBadgeOffset, kSleepBadgeOffset,
+                                    kSleepBadgeSize, kSleepBadgeSize));
+  }
+
+ private:
+  raw_ptr<views::ImageView> favicon_;
+  raw_ptr<views::ImageView> badge_;
+};
+
+BEGIN_METADATA(FaviconHolder)
+END_METADATA
 
 bool IsCloseShortcut(const ui::KeyEvent& event) {
   if (event.key_code() != ui::VKEY_W) {
@@ -84,9 +117,17 @@ AerieSidebarRowView::AerieSidebarRowView(
       views::BoxLayout::CrossAxisAlignment::kCenter);
   content_->GetViewAccessibility().SetIsIgnored(true);
 
-  favicon_ = content_->AddChildView(std::make_unique<views::ImageView>());
-  favicon_->SetImageSize(gfx::Size(kFaviconSize, kFaviconSize));
-  favicon_->GetViewAccessibility().SetIsIgnored(true);
+  auto favicon = std::make_unique<views::ImageView>();
+  favicon->SetImageSize(gfx::Size(kFaviconSize, kFaviconSize));
+  favicon->GetViewAccessibility().SetIsIgnored(true);
+  auto badge = std::make_unique<views::ImageView>();
+  badge->SetImageSize(gfx::Size(kSleepBadgeSize, kSleepBadgeSize));
+  badge->GetViewAccessibility().SetIsIgnored(true);
+  badge->SetVisible(false);
+  favicon_ = favicon.get();
+  sleep_badge_ = badge.get();
+  content_->AddChildView(
+      std::make_unique<FaviconHolder>(favicon.release(), badge.release()));
 
   title_ = content_->AddChildView(std::make_unique<views::Label>(
       std::u16string(), views::style::CONTEXT_LABEL, views::style::STYLE_BODY_4));
@@ -123,6 +164,7 @@ AerieSidebarRowView::AerieSidebarRowView(
   GetViewAccessibility().SetHierarchicalLevel(1);
   GetViewAccessibility().SetIsSelected(false);
   GetViewAccessibility().SetName(std::u16string());
+  set_context_menu_controller(this);
   SetPalette(palette_);
 }
 
@@ -131,6 +173,7 @@ AerieSidebarRowView::~AerieSidebarRowView() {
   content_motion_.Abort();
   row_motion_.Abort();
   lift_motion_.Abort();
+  sleep_motion_.Abort();
 }
 
 void AerieSidebarRowView::SetTabStop(bool tab_stop) {
@@ -165,12 +208,89 @@ void AerieSidebarRowView::SetPalette(
   }
   views::InkDrop::Get(close_button_)->SetBaseColor(palette_.text);
   AerieSidebarFocusRing::Get(this)->SetColor(palette_.accent);
+  sleep_badge_->SetImage(ui::ImageModel::FromVectorIcon(
+      aerie_sidebar::kAerieSleepBadgeIcon, palette_.text, kSleepBadgeSize));
   UpdateState();
 }
 
 void AerieSidebarRowView::SetTitle(const std::u16string& title) {
   title_->SetText(title);
-  GetViewAccessibility().SetName(title);
+  title_text_ = title;
+  UpdateName();
+}
+
+void AerieSidebarRowView::UpdateName() {
+  GetViewAccessibility().SetName(
+      sleeping_ ? l10n_util::GetStringFUTF16(IDS_AERIE_SIDEBAR_ROW_ASLEEP_NAME,
+                                             title_text_)
+                : title_text_);
+}
+
+void AerieSidebarRowView::SetSleeping(bool sleeping,
+                                      const PrefService* reduced_motion_prefs) {
+  if (sleep_look_applied_ && sleeping_ == sleeping) {
+    return;
+  }
+  const bool animate = sleep_look_applied_ && sleeping && reduced_motion_prefs;
+  sleep_look_applied_ = true;
+  sleeping_ = sleeping;
+  UpdateName();
+  sleep_badge_->SetVisible(sleeping);
+  ApplySleepLook(animate, reduced_motion_prefs);
+}
+
+void AerieSidebarRowView::ApplySleepLook(bool animate,
+                                         const PrefService* prefs) {
+  sleep_motion_.Abort();
+  desaturate_timer_.Stop();
+  if (!sleeping_) {
+    // The favicon of an awake tab has no layer, as before.
+    if (favicon_->layer()) {
+      favicon_->DestroyLayer();
+    }
+    return;
+  }
+  if (!favicon_->layer()) {
+    favicon_->SetPaintToLayer();
+    favicon_->layer()->SetFillsBoundsOpaquely(false);
+  }
+  ui::Layer* layer = favicon_->layer();
+  const aerie_sidebar::SleepMotion motion = aerie_sidebar::SleepFaviconMotion(
+      aerie::motion::ShouldReduceMotion(prefs));
+  if (!animate || !motion.animate_fade) {
+    // An instant swap: both looks at once.
+    layer->SetOpacity(motion.asleep_opacity);
+    layer->SetLayerGrayscale(1.f);
+    return;
+  }
+  layer->SetOpacity(1.f);
+  layer->SetLayerGrayscale(0.f);
+  aerie::motion::LayerMotion target;
+  target.opacity = motion.asleep_opacity;
+  sleep_motion_ = aerie::motion::AnimateLayer(layer, target, motion.duration,
+                                              motion.easing, prefs);
+  // The desaturate is a static filter that follows the fade; it is not
+  // animated.
+  desaturate_timer_.Start(
+      FROM_HERE,
+      base::Milliseconds(aerie::tokens::GetDurationMs(motion.duration, false) +
+                         kDropLayersSlackMs),
+      base::BindOnce(
+          [](AerieSidebarRowView* row) {
+            if (row->sleeping_ && row->favicon_->layer()) {
+              row->favicon_->layer()->SetLayerGrayscale(1.f);
+            }
+          },
+          base::Unretained(this)));
+}
+
+void AerieSidebarRowView::ShowContextMenuForViewImpl(
+    views::View* source,
+    const gfx::Point& point,
+    ui::mojom::MenuSourceType source_type) {
+  if (!closing_ && callbacks_.context_menu) {
+    callbacks_.context_menu.Run(point, source_type);
+  }
 }
 
 void AerieSidebarRowView::SetFavicon(const ui::ImageModel& favicon) {

@@ -44,6 +44,15 @@ SlideMotion HideMotion(int width, int outer_edge_sign, bool reduced) {
                outer_edge_sign, reduced, 1.f, 0.f);
 }
 
+SleepMotion SleepFaviconMotion(bool reduced) {
+  SleepMotion motion;
+  motion.animate_fade = !reduced;
+  motion.duration = MotionDuration::kFast;
+  motion.easing = MotionEasing::kStandard;
+  motion.asleep_opacity = aerie::tokens::kMotionOpacitySleeping;
+  return motion;
+}
+
 DragMotion RowDragMotion(bool reduced) {
   DragMotion motion;
   motion.animate_lift = !reduced;

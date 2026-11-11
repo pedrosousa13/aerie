@@ -122,4 +122,22 @@ TEST(AerieSidebarMotionTest, AHidingColumnKeepsItsWidthOutsideItsZeroWidthRegion
 }
 
 }  // namespace
+TEST(AerieSidebarMotionTest,
+     ASleepingFaviconFadesToTheTokenOnFastStandardThenDesaturatesStatically) {
+  const SleepMotion m = SleepFaviconMotion(/*reduced=*/false);
+  EXPECT_TRUE(m.animate_fade);
+  EXPECT_EQ(m.duration, MotionDuration::kFast);
+  EXPECT_EQ(m.easing, MotionEasing::kStandard);
+  EXPECT_FLOAT_EQ(m.asleep_opacity, 0.55f);
+  EXPECT_EQ(m.asleep_opacity, aerie::tokens::kMotionOpacitySleeping);
+  // The desaturate is a static filter that follows the fade; it is never
+  // animated.
+}
+
+TEST(AerieSidebarMotionTest, ReducedMotionSwapsTheSleepingFaviconAtOnce) {
+  const SleepMotion m = SleepFaviconMotion(/*reduced=*/true);
+  EXPECT_FALSE(m.animate_fade);
+  EXPECT_FLOAT_EQ(m.asleep_opacity, 0.55f);
+}
+
 }  // namespace aerie_sidebar

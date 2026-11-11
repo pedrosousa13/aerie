@@ -11,11 +11,15 @@
 source_set("aerie_tab_model") {
   visibility = [ "//chrome/*" ]
   public = [
+    "sleep_controller.h",
+    "sleep_controller_factory.h",
     "tab_model_service.h",
     "tab_model_service_factory.h",
     "tab_strip_adapter.h",
   ]
   sources = [
+    "sleep_controller.cc",
+    "sleep_controller_factory.cc",
     "tab_model_service.cc",
     "tab_model_service_factory.cc",
     "tab_strip_adapter.cc",
@@ -29,12 +33,44 @@ source_set("aerie_tab_model") {
     "//components/aerie_tab_model",
     "//components/keyed_service/content",
     "//components/keyed_service/core",
+    "//components/prefs",
     "//components/tabs:public",
   ]
   deps = [
+    "//chrome/app:generated_resources",
+    "//chrome/browser/performance_manager",
+    "//chrome/browser/performance_manager/public/user_tuning",
+    "//chrome/browser/resource_coordinator",
+    "//chrome/browser/resource_coordinator:mojo_bindings",
     "//chrome/browser/tab_list",
     "//chrome/browser/ui/tabs:tab_strip",
     "//components/aerie_tab_model:prefs",
+    "//components/performance_manager",
+    "//content/public/browser",
+  ]
+}
+
+# Browser tests of sleeping tabs (issue #179). Listed in aerie_browser_tests
+# (overlay/chrome/test/aerie/BUILD.gn).
+source_set("browser_tests") {
+  testonly = true
+  # content/public/test/browser_test.h refuses to compile without it.
+  defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
+  sources = [ "sleep_controller_browsertest.cc" ]
+  deps = [
+    ":aerie_tab_model",
+    "//base",
+    "//chrome/app:generated_resources",
+    "//base/test:test_support",
+    "//chrome/browser:browser",
+    "//chrome/browser/profiles:profile",
+    "//chrome/test:test_support",
+    "//chrome/test:test_support_ui",
+    "//components/aerie_tab_model",
+    "//components/aerie_tab_model:prefs",
+    "//components/performance_manager",
     "//components/prefs",
+    "//content/test:test_support",
+    "//net:test_support",
   ]
 }

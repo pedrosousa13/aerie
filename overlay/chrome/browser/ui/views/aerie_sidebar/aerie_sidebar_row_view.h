@@ -11,14 +11,16 @@
 #include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "base/timer/timer.h"
-#include "ui/gfx/geometry/point.h"
-#include "ui/gfx/geometry/transform.h"
 #include "components/aerie_design_tokens/aerie_motion.h"
 #include "components/aerie_sidebar/aerie_sidebar_palette.h"
 #include "components/aerie_sidebar/aerie_sidebar_today_list.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/models/image_model.h"
+#include "ui/base/mojom/menu_source_type.mojom-forward.h"
 #include "ui/gfx/animation/animation_delegate.h"
+#include "ui/gfx/geometry/point.h"
+#include "ui/gfx/geometry/transform.h"
+#include "ui/views/context_menu_controller.h"
 #include "ui/views/view.h"
 
 class PrefService;
@@ -52,6 +54,7 @@ class Label;
 // motion the content only fades and the height snaps. A row that is not
 // animated has no layer.
 class AerieSidebarRowView : public views::View,
+                            public views::ContextMenuController,
                             public gfx::AnimationDelegate {
   METADATA_HEADER(AerieSidebarRowView, views::View)
 
@@ -74,6 +77,11 @@ class AerieSidebarRowView : public views::View,
     base::RepeatingCallback<void(int dy)> drag_update;
     base::RepeatingCallback<void(int dy, bool cancelled, bool outside)>
         drag_end;
+    // The context menu was asked for, with the pointer or, from the Menu key,
+    // the row's own place (screen coordinates).
+    base::RepeatingCallback<void(const gfx::Point& screen_point,
+                                 ui::mojom::MenuSourceType source)>
+        context_menu;
   };
 
   AerieSidebarRowView(Callbacks callbacks,
@@ -92,6 +100,19 @@ class AerieSidebarRowView : public views::View,
   void SetFavicon(const ui::ImageModel& favicon);
   void SetSelected(bool selected);
   bool selected() const { return selected_; }
+
+  // A sleeping tab (issue #179): the favicon at `motion-opacity-sleeping` and,
+  // after the fade, a static desaturate; a moon badge on the favicon; and
+  // ", asleep" at the end of the accessible name. `reduced_motion_prefs` is the
+  // prefs that say whether to reduce motion: when it is set, a change from
+  // awake to asleep fades the favicon (opacity only) on `fast` and `standard`;
+  // reduced motion, a null `reduced_motion_prefs` and the first call all swap
+  // at once.
+  void SetSleeping(bool sleeping, const PrefService* reduced_motion_prefs);
+  bool sleeping() const { return sleeping_; }
+  // For tests.
+  views::ImageView* favicon_view() const { return favicon_; }
+  views::ImageView* sleep_badge() const { return sleep_badge_; }
 
   // Makes this row the Tab stop of the list (or not). Every row can still take
   // focus from the arrow keys: the sidebar moves the stop first.
@@ -152,6 +173,11 @@ class AerieSidebarRowView : public views::View,
   // Esc while a drag runs cancels it (issue #215, item 8).
   bool AcceleratorPressed(const ui::Accelerator& accelerator) override;
   std::u16string GetRenderedTooltipText(const gfx::Point& p) const override;
+  // views::ContextMenuController:
+  void ShowContextMenuForViewImpl(
+      views::View* source,
+      const gfx::Point& point,
+      ui::mojom::MenuSourceType source_type) override;
   void OnFocus() override;
   void OnBlur() override;
   void OnThemeChanged() override;
@@ -162,6 +188,8 @@ class AerieSidebarRowView : public views::View,
 
  private:
   void UpdateState();
+  void UpdateName();
+  void ApplySleepLook(bool animate, const PrefService* prefs);
   // Starts the height animation toward `target` (1 grows, 0 collapses).
   void AnimateHeight(bool grow, int duration_ms, gfx::Tween::Type tween);
   void FinishHeightAnimation();
@@ -200,6 +228,13 @@ class AerieSidebarRowView : public views::View,
   aerie::motion::MotionHandle lift_motion_;
   base::OneShotTimer settle_timer_;
   raw_ptr<views::ImageView> favicon_ = nullptr;
+  raw_ptr<views::ImageView> sleep_badge_ = nullptr;
+  std::u16string title_text_;
+  bool sleeping_ = false;
+  // The first SetSleeping sets the look at once, however the row came to be.
+  bool sleep_look_applied_ = false;
+  aerie::motion::MotionHandle sleep_motion_;
+  base::OneShotTimer desaturate_timer_;
   raw_ptr<views::Label> title_ = nullptr;
   raw_ptr<views::ImageButton> close_button_ = nullptr;
 };

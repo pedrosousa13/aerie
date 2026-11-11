@@ -10,6 +10,10 @@ import("//testing/test.gni")
 # //chrome/browser/aerie_tab_model.
 source_set("aerie_tab_model") {
   sources = [
+    "sleep_schedule.cc",
+    "sleep_schedule.h",
+    "sleep_summary.cc",
+    "sleep_summary.h",
     "tab_model.cc",
     "tab_model.h",
     "tab_model_observer.h",
@@ -39,6 +43,8 @@ source_set("prefs") {
 source_set("unit_tests") {
   testonly = true
   sources = [
+    "sleep_schedule_unittest.cc",
+    "sleep_summary_unittest.cc",
     "tab_model_persistence_unittest.cc",
     "tab_model_prefs_unittest.cc",
     "tab_model_unittest.cc",

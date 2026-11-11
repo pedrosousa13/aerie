@@ -106,7 +106,7 @@ class LockTest(unittest.TestCase):
             files = [l for l in patch.read_text().splitlines() if l.startswith("--- a/")]
             self.assertFalse([f for f in files if "helium_layout_state_controller" in f], patch.name)
         self.assertNotIn("EnforceHeliumLayout", "".join(p.read_text() for p in COMPONENT.glob("*")))
-        self.assertNotIn("EnforceHeliumLayout", "".join(p.read_text() for p in VIEWS.glob("*")))
+        self.assertNotIn("EnforceHeliumLayout", "".join(p.read_text() for p in VIEWS.glob("*") if p.is_file()))
         self.assertNotIn("SetInteger(kHeliumLayoutPref", self.LOCK)
 
     def test_the_lock_puts_vertical_and_zen_off_in_the_value_map_store(self):
@@ -276,7 +276,7 @@ class HeadlessPartsTest(unittest.TestCase):
     def test_the_motion_names_no_property_but_transform_and_opacity_and_the_row_height(self):
         header = (COMPONENT / "aerie_sidebar_motion.h").read_text()
         fields = set(re.findall(r"bool (animate_\w+);", header))
-        self.assertEqual(fields, {"animate_transform", "animate_opacity", "animate_scale", "animate_slide", "animate_height", "animate_lift", "animate_shift", "animate_settle"})
+        self.assertEqual(fields, {"animate_transform", "animate_opacity", "animate_fade", "animate_scale", "animate_slide", "animate_height", "animate_lift", "animate_shift", "animate_settle"})
 
     def test_the_new_targets_have_their_deps(self):
         for label in ('source_set("motion")', 'source_set("today_list")'):

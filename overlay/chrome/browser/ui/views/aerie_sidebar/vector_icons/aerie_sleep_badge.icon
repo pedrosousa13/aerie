@@ -1,0 +1,13 @@
+// Copyright 2026 The Aerie Authors
+// You can use, redistribute, and/or modify this source code under
+// the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+// The moon badge on the favicon of a sleeping tab (issue #179): a crescent made
+// of an outer arc (radius 5, centre 6,6) and an inner arc (radius 4, centre
+// 8.5,4.5) that cuts the crescent's bite.
+CANVAS_DIMENSIONS, 12,
+FILL_RULE_NONZERO,
+MOVE_TO, 6.514f, 1.026f,
+ARC_TO, 5, 5, 0, 1, 0, 10.63f, 7.886f,
+ARC_TO, 4, 4, 0, 0, 1, 6.514f, 1.026f,
+CLOSE
