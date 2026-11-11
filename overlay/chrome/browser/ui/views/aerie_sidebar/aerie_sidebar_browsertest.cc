@@ -42,6 +42,7 @@
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/aerie_adblock/browser/guard_state.h"
+#include "components/aerie_design_tokens/aerie_motion_prefs.h"
 #include "components/aerie_design_tokens/aerie_tokens.h"
 #include "components/aerie_frame/aerie_frame_palette.h"
 #include "components/aerie_tab_model/tab_model.h"
@@ -57,6 +58,7 @@
 #include "url/gurl.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "ui/accessibility/ax_node_data.h"
+#include "ui/base/accelerators/accelerator.h"
 #include "ui/color/color_provider_key.h"
 #include "ui/compositor/layer.h"
 #include "ui/gfx/canvas.h"
@@ -68,10 +70,12 @@
 #include "ui/views/controls/button/image_button.h"
 #include "ui/views/controls/focus_ring.h"
 #include "ui/views/controls/resize_area.h"
+#include "ui/views/focus/focus_manager.h"
 #include "ui/views/test/button_test_api.h"
 #include "ui/views/test/views_test_utils.h"
 #include "ui/views/view.h"
 #include "ui/views/view_utils.h"
+#include "ui/views/widget/widget.h"
 
 namespace {
 
@@ -214,22 +218,55 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarBrowserTest, CtrlSHidesAndShowsAndRemembers) 
   EXPECT_GT(region()->GetPreferredSize().width(), 0);
 }
 
-IN_PROC_BROWSER_TEST_F(AerieSidebarBrowserTest, ReducedMotionNeverTransformsTheLayer) {
+// Reduced motion is forced two ways, as issue #177 asks: with the operating
+// system's flag and with the in-app setting aerie.motion.reduce = on.
+enum class ReduceVia { kOsFlag, kPref };
+
+class AerieSidebarReducedMotionBrowserTest
+    : public AerieSidebarBrowserTest,
+      public testing::WithParamInterface<ReduceVia> {
+ protected:
+  // Reduces motion the way the test is run; the OS flag is forced off for the
+  // setting, so only the setting reduces it.
+  std::optional<gfx::AnimationTestApi::PrefersReducedMotionResetter>
+  ReduceMotion() {
+    auto reset = gfx::AnimationTestApi::SetPrefersReducedMotionForTesting(
+        GetParam() == ReduceVia::kOsFlag);
+    if (GetParam() == ReduceVia::kPref) {
+      prefs()->SetString(aerie::motion::kReduceMotionPref,
+                         aerie::motion::kReduceMotionOn);
+    }
+    return reset;
+  }
+};
+
+INSTANTIATE_TEST_SUITE_P(
+    AerieReduceVia,
+    AerieSidebarReducedMotionBrowserTest,
+    testing::Values(ReduceVia::kOsFlag, ReduceVia::kPref),
+    [](const testing::TestParamInfo<ReduceVia>& info) {
+      return info.param == ReduceVia::kOsFlag ? "OsFlag" : "Pref";
+    });
+
+IN_PROC_BROWSER_TEST_P(AerieSidebarReducedMotionBrowserTest,
+                       ReducedMotionNeverTransformsTheLayer) {
   ASSERT_TRUE(region());
-  {
-    auto reset = gfx::AnimationTestApi::SetPrefersReducedMotionForTesting(true);
-    chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
-    EXPECT_TRUE(region()->layer()->GetTargetTransform().IsIdentity());
-    EXPECT_TRUE(WaitFor([&] { return region()->aerie_sidebar_hidden(); }));
-    chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
-    EXPECT_TRUE(region()->layer()->GetTargetTransform().IsIdentity());
-  }
-  {
-    auto reset = gfx::AnimationTestApi::SetPrefersReducedMotionForTesting(false);
-    chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
-    // Full motion slides the layer out of view.
-    EXPECT_FALSE(region()->layer()->GetTargetTransform().IsIdentity());
-  }
+  auto reset = ReduceMotion();
+  chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
+  EXPECT_TRUE(region()->layer()->GetTargetTransform().IsIdentity());
+  EXPECT_TRUE(WaitFor([&] { return region()->aerie_sidebar_hidden(); }));
+  chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
+  EXPECT_TRUE(region()->layer()->GetTargetTransform().IsIdentity());
+}
+
+// The same steps with motion on, so the test shows that the switch changes the
+// result.
+IN_PROC_BROWSER_TEST_F(AerieSidebarBrowserTest, FullMotionSlidesTheLayerOut) {
+  ASSERT_TRUE(region());
+  auto reset = gfx::AnimationTestApi::SetPrefersReducedMotionForTesting(false);
+  chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
+  // Full motion slides the layer out of view.
+  EXPECT_FALSE(region()->layer()->GetTargetTransform().IsIdentity());
 }
 
 IN_PROC_BROWSER_TEST_F(AerieSidebarBrowserTest, ResizeIsClampedAndStored) {
@@ -785,6 +822,7 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarBrowserTest, TheAccessibilityTreeHasTheRolesN
   EXPECT_EQ(NameOf(sidebar()), "Sidebar");
   EXPECT_EQ(RoleOf(sidebar()->top_row()), ax::mojom::Role::kToolbar);
   EXPECT_FALSE(NameOf(sidebar()->top_row()).empty());
+  EXPECT_EQ(RoleOf(sidebar()->address_pill()), ax::mojom::Role::kGroup);
   EXPECT_FALSE(NameOf(sidebar()->address_pill()).empty());
 
   // The Today list: a tree named "Today" of treeitems at level 1, the active
@@ -809,6 +847,28 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarBrowserTest, TheAccessibilityTreeHasTheRolesN
     }
   }
   EXPECT_EQ(selected_rows, 1);
+
+  // The roving tab stop, as the tree shows it: exactly one row can take focus
+  // from the Tab key, and it is the selected one, a named tree item. Every
+  // other row is still in the tree for a screen reader (accessibility
+  // focusable) but is not a Tab stop.
+  int tab_stops = 0;
+  for (size_t i = 0; i < sidebar()->row_count(); ++i) {
+    AerieSidebarRowView* row = sidebar()->row_at(i);
+    EXPECT_TRUE(row->GetViewAccessibility().IsAccessibilityFocusable());
+    if (row->GetFocusBehavior() != views::View::FocusBehavior::ALWAYS) {
+      continue;
+    }
+    ++tab_stops;
+    EXPECT_EQ(row, sidebar()->tab_stop_row());
+    ui::AXNodeData data;
+    row->GetViewAccessibility().GetAccessibleNodeData(&data);
+    EXPECT_EQ(data.role, ax::mojom::Role::kTreeItem);
+    EXPECT_FALSE(
+        data.GetStringAttribute(ax::mojom::StringAttribute::kName).empty());
+    EXPECT_TRUE(data.GetBoolAttribute(ax::mojom::BoolAttribute::kSelected));
+  }
+  EXPECT_EQ(tab_stops, 1);
 
   // The resizer is a separator named "Resize sidebar" (the splitter role is
   // what Chromium maps to a separator that can be focused).
@@ -1028,6 +1088,36 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarDragBrowserTest, LosingTheMouseCaptureCancels
   EXPECT_FALSE(sidebar()->dragging());
   EXPECT_EQ(IdAt(0), first);
   EXPECT_FALSE(row->has_drag_layers());
+}
+
+// Esc while a row is dragged puts it back: the tab does not move, the row is at
+// its slot, and the release that follows is neither a drop nor a click.
+IN_PROC_BROWSER_TEST_F(AerieSidebarDragBrowserTest, EscCancelsTheDragAndTheTabDoesNotMove) {
+  OpenTabs(3);
+  const std::string first = IdAt(0);
+  tabs::TabInterface* active = browser()->tab_strip_model()->GetActiveTab();
+  AerieSidebarRowView* row = sidebar()->row_at(0);
+  Press(row);
+  DragTo(row, 2 * Pitch());
+  ASSERT_TRUE(sidebar()->dragging());
+  ASSERT_TRUE(row->dragging());
+
+  EXPECT_TRUE(row->GetWidget()->GetFocusManager()->ProcessAccelerator(
+      ui::Accelerator(ui::VKEY_ESCAPE, ui::EF_NONE)));
+  EXPECT_FALSE(sidebar()->dragging());
+  EXPECT_FALSE(row->dragging());
+  EXPECT_EQ(row->drag_offset(), 0);
+  EXPECT_FALSE(row->has_drag_layers());
+  EXPECT_EQ(IdAt(0), first);
+
+  // The release that ends the press does nothing: no drop, no selection.
+  Release(row, 2 * Pitch());
+  EXPECT_EQ(IdAt(0), first);
+  EXPECT_EQ(browser()->tab_strip_model()->GetActiveTab(), active);
+
+  // Esc no longer belongs to the sidebar: it is not listening any more.
+  EXPECT_FALSE(row->AcceleratorPressed(
+      ui::Accelerator(ui::VKEY_ESCAPE, ui::EF_NONE)));
 }
 
 IN_PROC_BROWSER_TEST_F(AerieSidebarDragBrowserTest, ADropOutsideTheWindowMovesTheTabToANewWindow) {

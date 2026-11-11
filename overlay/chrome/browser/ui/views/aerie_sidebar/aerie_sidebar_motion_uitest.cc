@@ -26,6 +26,7 @@
 #include "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/interactive_test_utils.h"
+#include "components/aerie_design_tokens/aerie_motion_prefs.h"
 #include "components/aerie_sidebar/aerie_sidebar_layout.h"
 #include "components/aerie_sidebar/aerie_sidebar_prefs.h"
 #include "components/prefs/pref_service.h"
@@ -142,6 +143,35 @@ class AerieSidebarMotionUiTest : public InProcessBrowserTest {
       reduced_motion_;
 };
 
+// The tests of the reduced-motion version, run twice: once with the operating
+// system's flag and once with the in-app setting aerie.motion.reduce = on
+// (issue #177 asks for both).
+enum class ReduceVia { kOsFlag, kPref };
+
+class AerieSidebarReducedMotionUiTest
+    : public AerieSidebarMotionUiTest,
+      public testing::WithParamInterface<ReduceVia> {
+ protected:
+  void ReduceMotion() {
+    if (GetParam() == ReduceVia::kOsFlag) {
+      ForceReducedMotion(true);
+      return;
+    }
+    // The OS flag stays off, so only the setting reduces the motion.
+    ForceReducedMotion(false);
+    prefs()->SetString(aerie::motion::kReduceMotionPref,
+                       aerie::motion::kReduceMotionOn);
+  }
+};
+
+INSTANTIATE_TEST_SUITE_P(
+    AerieReduceVia,
+    AerieSidebarReducedMotionUiTest,
+    testing::Values(ReduceVia::kOsFlag, ReduceVia::kPref),
+    [](const testing::TestParamInfo<ReduceVia>& info) {
+      return info.param == ReduceVia::kOsFlag ? "OsFlag" : "Pref";
+    });
+
 IN_PROC_BROWSER_TEST_F(AerieSidebarMotionUiTest, OpeningARowAnimatesOnlyTransformAndOpacityAndTheHeightGrows) {
   ForceReducedMotion(false);
   AerieSidebarRowView* row = OpenTab();
@@ -193,8 +223,8 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarMotionUiTest, ClosingARowSlidesAndFadesThenTh
   EXPECT_EQ(rows_in_list, sidebar()->row_count());
 }
 
-IN_PROC_BROWSER_TEST_F(AerieSidebarMotionUiTest, ReducedMotionOpensAndClosesWithoutATransformAndFadesInUnder140ms) {
-  ForceReducedMotion(true);
+IN_PROC_BROWSER_TEST_P(AerieSidebarReducedMotionUiTest, ReducedMotionOpensAndClosesWithoutATransformAndFadesInUnder140ms) {
+  ReduceMotion();
   AerieSidebarRowView* row = OpenTab();
   ASSERT_TRUE(row);
   ASSERT_TRUE(row->content()->layer());
@@ -301,8 +331,8 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarMotionUiTest, ThePageIsUnderTheCardAfterHideA
   expect_the_page_under_the_card("shown again");
 }
 
-IN_PROC_BROWSER_TEST_F(AerieSidebarMotionUiTest, ReducedMotionFadesTheColumnAndTheCardSnaps) {
-  ForceReducedMotion(true);
+IN_PROC_BROWSER_TEST_P(AerieSidebarReducedMotionUiTest, ReducedMotionFadesTheColumnAndTheCardSnaps) {
+  ReduceMotion();
   ASSERT_TRUE(base::test::RunUntil([&] { return region()->width() > 0; }));
   const gfx::Rect card_before = card()->bounds();
   ui::Layer* column = region()->layer();
@@ -389,8 +419,8 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarMotionUiTest, DraggingARowLiftsAndShiftsWithT
   ASSERT_TRUE(base::test::RunUntil([&] { return !row->has_drag_layers(); }));
 }
 
-IN_PROC_BROWSER_TEST_F(AerieSidebarMotionUiTest, ReducedMotionDragMovesNoRowButTheDraggedOneAndDropsAtOnce) {
-  ForceReducedMotion(true);
+IN_PROC_BROWSER_TEST_P(AerieSidebarReducedMotionUiTest, ReducedMotionDragMovesNoRowButTheDraggedOneAndDropsAtOnce) {
+  ReduceMotion();
   browser_view()->GetWidget()->SetBounds(gfx::Rect(0, 0, 1200, 900));
   OpenTab();
   OpenTab();
@@ -401,6 +431,12 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarMotionUiTest, ReducedMotionDragMovesNoRowButT
            !sidebar()->row_at(2)->height_animating();
   }));
   AerieSidebarRowView* row = sidebar()->row_at(0);
+  // The first row opened before motion was reduced, and its open animation may
+  // still run; the drag is what is under test.
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return !row->content()->layer() ||
+           !row->content()->layer()->GetAnimator()->is_animating();
+  }));
   gfx::Point start = row->GetLocalBounds().CenterPoint();
   views::View::ConvertPointToWidget(row, &start);
   auto press = MouseAt(ui::EventType::kMousePressed, row, start);

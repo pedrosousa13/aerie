@@ -149,6 +149,8 @@ class AerieSidebarRowView : public views::View,
   void OnMouseExited(const ui::MouseEvent& event) override;
   bool OnKeyPressed(const ui::KeyEvent& event) override;
   bool SkipDefaultKeyEventProcessing(const ui::KeyEvent& event) override;
+  // Esc while a drag runs cancels it (issue #215, item 8).
+  bool AcceleratorPressed(const ui::Accelerator& accelerator) override;
   std::u16string GetRenderedTooltipText(const gfx::Point& p) const override;
   void OnFocus() override;
   void OnBlur() override;
@@ -166,6 +168,9 @@ class AerieSidebarRowView : public views::View,
   void CollapseAfterContent();
   void EnsureDragLayers();
   void DropDragLayers();
+  // Ends the drag the pointer started: stops listening for Esc and tells the
+  // sidebar. `cancelled`: the drag was abandoned (Esc or lost capture).
+  void FinishDrag(int dy, bool cancelled, bool outside);
   gfx::Transform LiftTransform(float scale) const;
 
   Callbacks callbacks_;
@@ -185,6 +190,8 @@ class AerieSidebarRowView : public views::View,
   // Dragging.
   bool pressed_ = false;
   bool dragging_ = false;
+  // Esc ended the drag; the release that follows is not a click.
+  bool drag_cancelled_ = false;
   gfx::Point press_point_;
   int last_dy_ = 0;
   int drag_offset_ = 0;

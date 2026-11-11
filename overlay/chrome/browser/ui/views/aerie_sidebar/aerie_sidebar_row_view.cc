@@ -20,6 +20,7 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/compositor/layer.h"
+#include "ui/base/accelerators/accelerator.h"
 #include "ui/events/event.h"
 #include "ui/gfx/animation/slide_animation.h"
 #include "ui/gfx/geometry/insets.h"
@@ -40,6 +41,10 @@
 namespace {
 constexpr int kFaviconSize = aerie::tokens::kSizeIcon;
 constexpr int kRowHeight = aerie::tokens::kSizeRowHeightComfortable;
+
+// A row keeps its drag layers this long after the motion's own duration, so the
+// last frame is drawn before they go. Not a design value.
+constexpr int kDropLayersSlackMs = 50;
 
 // The row height animates on the design's `standard` curve, which is exactly
 // this Tween type (aerie_motion.h).
@@ -206,6 +211,7 @@ bool AerieSidebarRowView::OnMousePressed(const ui::MouseEvent& event) {
     return false;
   }
   pressed_ = event.IsOnlyLeftMouseButton();
+  drag_cancelled_ = false;
   press_point_ = event.root_location();
   return event.IsOnlyLeftMouseButton() || event.IsOnlyMiddleMouseButton();
 }
@@ -227,6 +233,9 @@ bool AerieSidebarRowView::OnMouseDragged(const ui::MouseEvent& event) {
       return true;
     }
     dragging_ = true;
+    // The most recent accelerator for Esc is tried first, so the drag takes
+    // it before the browser's own.
+    AddAccelerator(ui::Accelerator(ui::VKEY_ESCAPE, ui::EF_NONE));
   }
   last_dy_ = dy;
   callbacks_.drag_update.Run(dy);
@@ -236,13 +245,16 @@ bool AerieSidebarRowView::OnMouseDragged(const ui::MouseEvent& event) {
 void AerieSidebarRowView::OnMouseReleased(const ui::MouseEvent& event) {
   pressed_ = false;
   if (dragging_) {
-    dragging_ = false;
     const views::Widget* widget = GetWidget();
     const bool outside =
         widget && !widget->GetRootView()->GetLocalBounds().Contains(
                       event.root_location());
-    callbacks_.drag_end.Run(event.root_location().y() - press_point_.y(),
-                            /*cancelled=*/false, outside);
+    FinishDrag(event.root_location().y() - press_point_.y(),
+               /*cancelled=*/false, outside);
+    return;
+  }
+  if (drag_cancelled_) {
+    drag_cancelled_ = false;
     return;
   }
   if (closing_ || !HitTestPoint(event.location())) {
@@ -258,9 +270,25 @@ void AerieSidebarRowView::OnMouseReleased(const ui::MouseEvent& event) {
 void AerieSidebarRowView::OnMouseCaptureLost() {
   pressed_ = false;
   if (dragging_) {
-    dragging_ = false;
-    callbacks_.drag_end.Run(last_dy_, /*cancelled=*/true, /*outside=*/false);
+    FinishDrag(last_dy_, /*cancelled=*/true, /*outside=*/false);
   }
+}
+
+bool AerieSidebarRowView::AcceleratorPressed(
+    const ui::Accelerator& accelerator) {
+  if (!dragging_ || accelerator.key_code() != ui::VKEY_ESCAPE) {
+    return false;
+  }
+  pressed_ = false;
+  drag_cancelled_ = true;
+  FinishDrag(last_dy_, /*cancelled=*/true, /*outside=*/false);
+  return true;
+}
+
+void AerieSidebarRowView::FinishDrag(int dy, bool cancelled, bool outside) {
+  dragging_ = false;
+  RemoveAccelerator(ui::Accelerator(ui::VKEY_ESCAPE, ui::EF_NONE));
+  callbacks_.drag_end.Run(dy, cancelled, outside);
 }
 
 void AerieSidebarRowView::OnMouseEntered(const ui::MouseEvent& event) {
@@ -474,7 +502,8 @@ void AerieSidebarRowView::ShiftTo(int dy, const PrefService* prefs) {
     settle_timer_.Start(
         FROM_HERE,
         base::Milliseconds(
-            aerie::tokens::GetDurationMs(motion.shift_duration, false) + 50),
+            aerie::tokens::GetDurationMs(motion.shift_duration, false) +
+            kDropLayersSlackMs),
         base::BindOnce(&AerieSidebarRowView::DropDragLayers,
                        base::Unretained(this)));
   }
@@ -502,7 +531,8 @@ void AerieSidebarRowView::Settle(int from_dy, const PrefService* prefs) {
     return;
   }
   settle_timer_.Start(
-      FROM_HERE, base::Milliseconds(motion.settle_duration_ms + 50),
+      FROM_HERE,
+      base::Milliseconds(motion.settle_duration_ms + kDropLayersSlackMs),
       base::BindOnce(&AerieSidebarRowView::DropDragLayers,
                      base::Unretained(this)));
 }
