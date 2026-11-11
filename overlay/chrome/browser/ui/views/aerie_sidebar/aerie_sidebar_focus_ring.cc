@@ -12,6 +12,7 @@
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/geometry/insets.h"
+#include "ui/compositor/layer.h"
 #include "ui/gfx/geometry/rect_f.h"
 #include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/view_utils.h"
@@ -23,6 +24,12 @@ AerieSidebarFocusRing::AerieSidebarFocusRing(views::View* host,
       // Until the sidebar gives the Workspace accent, an opaque stroke of the
       // default theme's text colour; the sidebar sets the real one at once.
       color_(aerie::tokens::kColorTextLight) {
+  // The ring sits outside its host. A view without a layer paints inside the
+  // clip of every ancestor without one, and each of those clips to its own
+  // bounds, so without a layer of its own the ring showed only as dots at the
+  // host's corners.
+  SetPaintToLayer();
+  layer()->SetFillsBoundsOpaquely(false);
   SetCanProcessEventsWithinSubtree(false);
   GetViewAccessibility().SetIsIgnored(true);
   SetVisible(false);

@@ -59,6 +59,7 @@
 #include "ui/accessibility/ax_node_data.h"
 #include "ui/color/color_provider_key.h"
 #include "ui/compositor/layer.h"
+#include "ui/gfx/canvas.h"
 #include "components/tabs/public/tab_interface.h"
 #include "ui/events/event.h"
 #include "ui/gfx/animation/animation_test_api.h"
@@ -592,6 +593,65 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarBrowserTest, TheFocusRingIsTwoPixelsWithTwoPi
   gfx::Rect expected = sidebar()->row_at(0)->GetLocalBounds();
   expected.Outset(4);
   EXPECT_EQ(ring->bounds(), expected);
+}
+
+namespace {
+// True when nothing between `view` and the nearest layer above it clips what
+// `view` paints. A Views view without a layer paints inside the clip of every
+// ancestor without a layer, and each such view clips to its own bounds, so a
+// child that draws outside its parent (a focus ring) is cut off unless it has a
+// layer of its own.
+bool PaintsOutsideItsParentUnclipped(views::View* view) {
+  if (view->layer()) {
+    return true;
+  }
+  gfx::Rect rect = view->bounds();
+  for (views::View* v = view->parent(); v; v = v->parent()) {
+    if (!gfx::Rect(v->size()).Contains(rect)) {
+      return false;
+    }
+    if (v->layer()) {
+      return true;
+    }
+    rect.Offset(v->bounds().OffsetFromOrigin());
+  }
+  return true;
+}
+
+// What the ring's own paint puts on a transparent canvas of its size.
+SkBitmap PaintRing(AerieSidebarFocusRing* ring) {
+  gfx::Canvas canvas(ring->size(), 1.f, /*is_opaque=*/false);
+  canvas.DrawColor(SK_ColorTRANSPARENT, SkBlendMode::kSrc);
+  ring->OnPaint(&canvas);
+  return canvas.GetBitmap();
+}
+}  // namespace
+
+// The ring of a Today row drew only as four dots at its corners: the row has no
+// layer, so it clips its children to its own bounds, and the ring sits outside
+// them. The check reads the ring's own paint and whether an ancestor cuts it.
+IN_PROC_BROWSER_TEST_F(AerieSidebarBrowserTest, TheFocusRingOfARowIsPaintedAndNotClipped) {
+  ASSERT_TRUE(WaitFor([&] { return sidebar()->row_count() == 1u; }));
+  AerieSidebarRowView* row = sidebar()->row_at(0);
+  AerieSidebarFocusRing* ring = AerieSidebarFocusRing::Get(row);
+  row->RequestFocus();
+  ASSERT_TRUE(ring->shown());
+  EXPECT_TRUE(PaintsOutsideItsParentUnclipped(ring))
+      << "an ancestor without a layer clips the ring to the row";
+
+  const SkBitmap bitmap = PaintRing(ring);
+  ASSERT_EQ(bitmap.width(), ring->width());
+  const int w = bitmap.width();
+  const int h = bitmap.height();
+  const SkColor colour = ring->color();
+  // The stroke is the outer 2 px of the ring, on the middle of every side.
+  for (const gfx::Point& p : {gfx::Point(w / 2, 1), gfx::Point(w / 2, h - 2),
+                              gfx::Point(1, h / 2), gfx::Point(w - 2, h / 2)}) {
+    EXPECT_EQ(bitmap.getColor(p.x(), p.y()), colour) << p.ToString();
+  }
+  // The gap between the stroke and the row stays clear.
+  EXPECT_EQ(SkColorGetA(bitmap.getColor(w / 2, h / 2)), 0u);
+  EXPECT_EQ(SkColorGetA(bitmap.getColor(w / 2, 3)), 0u);
 }
 
 // --- Theme and Workspace colours (issue #215, item 7) ----------------------
