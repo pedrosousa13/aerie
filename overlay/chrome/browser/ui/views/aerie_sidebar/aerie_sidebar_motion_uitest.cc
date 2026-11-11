@@ -30,6 +30,7 @@
 #include "components/aerie_sidebar/aerie_sidebar_prefs.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/test/browser_test.h"
+#include "content/public/browser/render_widget_host_view.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/gfx/geometry/point_conversions.h"
 #include "ui/aura/window.h"
@@ -284,6 +285,13 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarMotionUiTest, ThePageIsUnderTheCardAfterHideA
         browser_view()->multi_contents_view()->GetActiveContentsView()->GetBoundsInScreen().origin();
     expected -= widget->GetWindowBoundsInScreen().OffsetFromOrigin();
     EXPECT_EQ(PageLayerOrigin(contents, widget), expected) << when;
+    // And the layer of the page's own view inside it, which the compositor
+    // draws the web content in.
+    gfx::PointF inner;
+    ui::Layer::ConvertPointToLayer(
+        contents->GetRenderWidgetHostView()->GetNativeView()->layer(),
+        widget->GetLayer(), /*use_target_transform=*/false, &inner);
+    EXPECT_EQ(gfx::ToRoundedPoint(inner), expected) << when << " (render widget view)";
   };
   expect_the_page_under_the_card("before");
   chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
