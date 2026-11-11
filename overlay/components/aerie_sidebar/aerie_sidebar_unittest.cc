@@ -12,15 +12,10 @@
 namespace aerie_sidebar {
 namespace {
 
-// A profile with Aerie's prefs and Helium's two layout prefs as Helium
-// registers them (classic layout, Zen mode off).
+// A profile with Aerie's prefs.
 class AerieSidebarTest : public testing::Test {
  public:
-  AerieSidebarTest() {
-    RegisterProfilePrefs(prefs_.registry());
-    prefs_.registry()->RegisterIntegerPref(kHeliumLayoutPref, 0);
-    prefs_.registry()->RegisterBooleanPref(kHeliumZenModePref, false);
-  }
+  AerieSidebarTest() { RegisterProfilePrefs(prefs_.registry()); }
 
  protected:
   TestingPrefServiceSimple prefs_;
@@ -41,36 +36,6 @@ TEST_F(AerieSidebarTest, TheLayoutIsTheSidebarUnlessItSaysHorizontal) {
   EXPECT_TRUE(IsSidebarLayout(prefs_));
   prefs_.SetString(kLayoutPref, kLayoutHorizontal);
   EXPECT_FALSE(IsSidebarLayout(prefs_));
-}
-
-TEST_F(AerieSidebarTest, EnforcingMakesHeliumVerticalWithoutZenMode) {
-  prefs_.SetInteger(kHeliumLayoutPref, 3);  // Dynamic.
-  prefs_.SetBoolean(kHeliumZenModePref, true);
-  EnforceHeliumLayout(&prefs_);
-  EXPECT_EQ(prefs_.GetInteger(kHeliumLayoutPref), kHeliumLayoutVertical);
-  EXPECT_FALSE(prefs_.GetBoolean(kHeliumZenModePref));
-}
-
-TEST_F(AerieSidebarTest, EnforcingOnAFreshProfileSetsVertical) {
-  EnforceHeliumLayout(&prefs_);
-  EXPECT_EQ(prefs_.GetInteger(kHeliumLayoutPref), kHeliumLayoutVertical);
-}
-
-TEST_F(AerieSidebarTest, EnforcingLeavesTheHorizontalLayoutAlone) {
-  prefs_.SetString(kLayoutPref, kLayoutHorizontal);
-  prefs_.SetInteger(kHeliumLayoutPref, 1);
-  prefs_.SetBoolean(kHeliumZenModePref, true);
-  EnforceHeliumLayout(&prefs_);
-  EXPECT_EQ(prefs_.GetInteger(kHeliumLayoutPref), 1);
-  EXPECT_TRUE(prefs_.GetBoolean(kHeliumZenModePref));
-}
-
-TEST_F(AerieSidebarTest, EnforcingWritesOnlyWhenAValueDiffers) {
-  EnforceHeliumLayout(&prefs_);
-  // Only the layout was not yet vertical; the Zen pref was already false and
-  // is not written.
-  EXPECT_TRUE(prefs_.GetUserPref(kHeliumLayoutPref));
-  EXPECT_FALSE(prefs_.GetUserPref(kHeliumZenModePref));
 }
 
 TEST_F(AerieSidebarTest, TheWidthIsClampedToTheTokenLimits) {

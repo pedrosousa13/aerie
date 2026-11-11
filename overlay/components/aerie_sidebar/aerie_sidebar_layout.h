@@ -12,7 +12,8 @@ class PrefService;
 // it has unit tests.
 namespace aerie_sidebar {
 
-// Helium's own layout prefs. The names and values are those of Helium's
+// Helium's own layout prefs, which aerie_sidebar_layout_lock.h locks to the
+// sidebar (ADR 0008). The names and values are those of Helium's
 // layout/core.patch (HeliumLayoutType::kVertical is 2; prefs::kHeliumLayout and
 // prefs::kHeliumZenMode in chrome/common/pref_names.h). A test compares them
 // with Helium's patch, so a Helium bump that renames one fails here.
@@ -23,12 +24,6 @@ inline constexpr int kHeliumLayoutVertical = 2;
 // True when the layout pref asks for the sidebar. Anything but "horizontal" is
 // the sidebar, so a damaged value cannot bring a Helium layout back.
 bool IsSidebarLayout(const PrefService& prefs);
-
-// While the layout is the sidebar, puts Helium's layout state where the
-// sidebar needs it: layout vertical, Zen mode off. It writes only when a value
-// differs. Whoever wrote the other value (Settings, an old profile, sync, an
-// extension) loses. Safe to call again.
-void EnforceHeliumLayout(PrefService* prefs);
 
 // Width limits and steps, from the tokens size-sidebar-width, -min and -max.
 int ClampWidth(int width);

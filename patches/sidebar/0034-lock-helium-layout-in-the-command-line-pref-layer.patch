@@ -1,0 +1,44 @@
+Aerie-Purpose: Lock Helium's layout to the sidebar and Zen mode off in the pref service itself, so the user, Settings, sync, an extension or an old profile cannot change them.
+Aerie-Upstream-Area: chrome/browser/prefs (chrome_command_line_pref_store.cc, BUILD.gn)
+Aerie-Kind: hook
+
+Issue #215, item 6 (ADR 0008). One call in the constructor of ChromeCommandLinePrefStore, the command-line layer of
+every PrefService Chrome builds. aerie_sidebar::LockHeliumLayout (overlay, components/aerie_sidebar) puts
+helium.browser.layout = vertical and helium.browser.zen_mode = false into it. A value in that layer wins over the
+user's own file, so Helium's code, which reads the effective pref, sees the sidebar layout whatever was written
+before, and PrefService::Preference::IsUserModifiable() is false for both prefs. A write changes only the user store
+and no observer runs, so nothing is written back. This replaces the write-back hold that sidebar/0021 used to carry in
+HeliumLayoutStateController.
+
+The Local State service builds the same store and gets the two values too; neither pref is registered there, and the
+service only reads registered prefs.
+
+--- a/chrome/browser/prefs/chrome_command_line_pref_store.cc
++++ b/chrome/browser/prefs/chrome_command_line_pref_store.cc
+@@ -20,6 +20,7 @@
+ #include "build/build_config.h"
+ #include "chrome/common/chrome_switches.h"
+ #include "chrome/common/pref_names.h"
++#include "components/aerie_sidebar/aerie_sidebar_layout_lock.h"
+ #include "components/browser_sync/browser_sync_switches.h"
+ #include "components/language/core/browser/pref_names.h"
+ #include "components/proxy_config/proxy_config_dictionary.h"
+@@ -111,6 +112,8 @@
+   ApplySSLSwitches();
+   ApplyBackgroundModeSwitches();
+   ApplyExplicitlyAllowedPortSwitch();
++  // Aerie: the layout is the sidebar and Zen mode is off, for good (ADR 0008).
++  aerie_sidebar::LockHeliumLayout(this);
+ }
+ 
+ ChromeCommandLinePrefStore::~ChromeCommandLinePrefStore() = default;
+--- a/chrome/browser/prefs/BUILD.gn
++++ b/chrome/browser/prefs/BUILD.gn
+@@ -134,6 +134,7 @@
+     "//chrome/browser/webauthn",
+     "//components/aerie_adblock/browser:guard_prefs",
+     "//components/aerie_design_tokens:prefs",
++    "//components/aerie_sidebar:layout_lock",
+     "//components/aerie_sidebar:prefs",
+     "//components/aerie_tab_model:prefs",
+     "//components/aerie_widevine",

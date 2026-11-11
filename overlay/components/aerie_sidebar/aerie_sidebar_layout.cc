@@ -16,18 +16,6 @@ bool IsSidebarLayout(const PrefService& prefs) {
   return prefs.GetString(kLayoutPref) != kLayoutHorizontal;
 }
 
-void EnforceHeliumLayout(PrefService* prefs) {
-  if (!IsSidebarLayout(*prefs)) {
-    return;
-  }
-  if (prefs->GetInteger(kHeliumLayoutPref) != kHeliumLayoutVertical) {
-    prefs->SetInteger(kHeliumLayoutPref, kHeliumLayoutVertical);
-  }
-  if (prefs->GetBoolean(kHeliumZenModePref)) {
-    prefs->SetBoolean(kHeliumZenModePref, false);
-  }
-}
-
 int ClampWidth(int width) {
   return std::clamp(width, aerie::tokens::kSizeSidebarMin,
                     aerie::tokens::kSizeSidebarMax);
