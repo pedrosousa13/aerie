@@ -244,10 +244,10 @@ MotionHandle AnimateLayer(ui::Layer* layer,
                           tokens::MotionDuration duration,
                           tokens::MotionEasing easing,
                           const PrefService* prefs) {
-  const MotionPlan plan =
-      PlanMotion(motion, duration, easing, ShouldReduceMotion(prefs));
-  return StartMotion(layer->GetAnimator(), plan, motion, layer->transform(),
-                     layer->opacity());
+  return AnimateLayerForMs(layer, motion,
+                           tokens::GetDurationMs(duration, false),
+                           tokens::GetDurationMs(duration, true), easing,
+                           prefs);
 }
 
 MotionHandle AnimateLayerForMs(ui::Layer* layer,
