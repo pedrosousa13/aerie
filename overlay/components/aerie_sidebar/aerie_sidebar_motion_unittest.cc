@@ -109,5 +109,17 @@ TEST(AerieSidebarMotionTest, ReducedRowMotionCreatesNoTransformAndSnapsTheHeight
   }
 }
 
+TEST(AerieSidebarMotionTest, AHidingColumnKeepsItsWidthOutsideItsZeroWidthRegion) {
+  HideSlide slide;
+  EXPECT_FALSE(slide.active());
+  slide.Begin(260);
+  EXPECT_TRUE(slide.active());
+  EXPECT_EQ(slide.content_width(), 260);
+  EXPECT_EQ(slide.content_x(/*right_aligned=*/false), 0);
+  EXPECT_EQ(slide.content_x(/*right_aligned=*/true), -260);
+  slide.End();
+  EXPECT_FALSE(slide.active());
+}
+
 }  // namespace
 }  // namespace aerie_sidebar

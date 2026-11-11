@@ -54,6 +54,24 @@ bool ToggleVisible(PrefService* prefs);
 // moves left. The result is clamped.
 int ResizeByDrag(int start_width, int delta_x, bool sidebar_on_right);
 
+// What the top row does about the platform's window controls (issue #215).
+struct WindowControlsPlan {
+  // The room the frame's own controls take at the leading edge (the macOS
+  // traffic lights), in whole px, rounded up.
+  int leading_inset = 0;
+  // True when the top row draws the three controls itself, because the frame
+  // draws them on the far side of the window and must be made invisible.
+  bool draw_own = false;
+};
+
+// `leading_width` and `trailing_width` are the widths the frame reserves at the
+// window's two ends for its controls. `frame_may_draw_trailing` is true on the
+// platforms whose custom frame puts the controls at the trailing end (Linux):
+// there a reserved trailing width means the sidebar draws its own.
+WindowControlsPlan PlanWindowControls(float leading_width,
+                                      float trailing_width,
+                                      bool frame_may_draw_trailing);
+
 }  // namespace aerie_sidebar
 
 #endif  // COMPONENTS_AERIE_SIDEBAR_AERIE_SIDEBAR_LAYOUT_H_

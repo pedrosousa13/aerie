@@ -5,6 +5,7 @@
 #include "components/aerie_sidebar/aerie_sidebar_layout.h"
 
 #include <algorithm>
+#include <cmath>
 
 #include "components/aerie_design_tokens/aerie_tokens.h"
 #include "components/aerie_sidebar/aerie_sidebar_prefs.h"
@@ -42,6 +43,16 @@ bool ToggleVisible(PrefService* prefs) {
 
 int ResizeByDrag(int start_width, int delta_x, bool sidebar_on_right) {
   return ClampWidth(start_width + (sidebar_on_right ? -delta_x : delta_x));
+}
+
+WindowControlsPlan PlanWindowControls(float leading_width,
+                                      float trailing_width,
+                                      bool frame_may_draw_trailing) {
+  WindowControlsPlan plan;
+  plan.leading_inset =
+      static_cast<int>(std::ceil(std::max(0.0f, leading_width)));
+  plan.draw_own = frame_may_draw_trailing && trailing_width > 0;
+  return plan;
 }
 
 }  // namespace aerie_sidebar

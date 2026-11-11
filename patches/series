@@ -136,7 +136,7 @@ sidebar/0030-show-the-page-in-the-rounded-aerie-card.patch
 # The address pill and the top row in the sidebar (#215): the toolbar's parts move in, the toolbar row goes.
 sidebar/0031-move-the-address-pill-and-navigation-into-the-sidebar.patch
 
-# Keyboard focus and the page card in the sidebar (#215): F6 order, and the card follows a show or hide.
+# Keyboard focus and the hide in the sidebar (#215): F6 order, and the page takes its room at once when the column hides.
 sidebar/0032-let-f6-visit-the-sidebar-regions-in-order.patch
-sidebar/0033-make-the-page-card-follow-the-sidebar.patch
+sidebar/0033-give-the-page-its-room-at-once-when-the-sidebar-hides.patch
 sidebar/0034-lock-helium-layout-in-the-command-line-pref-layer.patch

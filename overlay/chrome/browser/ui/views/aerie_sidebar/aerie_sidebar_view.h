@@ -14,6 +14,7 @@
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_regions.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_toolbar_parts.h"
 #include "components/aerie_sidebar/aerie_sidebar_drag.h"
 #include "components/aerie_sidebar/aerie_sidebar_palette.h"
 #include "components/aerie_sidebar/aerie_sidebar_today_list.h"
@@ -69,20 +70,9 @@ class AerieSidebarView : public views::View,
   // The rows, top to bottom, for tests and the screenshot driver.
   size_t row_count() const { return rows_.size(); }
 
-  // What the sidebar takes out of the browser's toolbar (issue #215). The
-  // views are the toolbar's own, not copies: the address pill is the real
-  // location bar, so the omnibox, the page actions and the Guard icon keep
-  // working, and the buttons keep their commands and menus. All are plain
-  // views so that this target does not depend on the toolbar's.
-  struct ToolbarParts {
-    raw_ptr<views::View> toolbar;       // What stays after the rest left.
-    raw_ptr<views::View> location_bar;  // Goes into the address pill.
-    raw_ptr<views::View> back;          // These three go into the top row.
-    raw_ptr<views::View> forward;
-    raw_ptr<views::View> reload;
-  };
-  // Moves the parts in. Call once, after the toolbar has made its buttons.
-  void AdoptToolbar(const ToolbarParts& parts);
+  // Takes the toolbar's parts in (see AerieSidebarToolbarParts). Call once,
+  // after the toolbar has made its buttons.
+  void AdoptToolbar(const AerieSidebarToolbarParts& parts);
   bool has_toolbar_parts() const { return !!adopted_toolbar_; }
 
   // `leading_inset` is the room the platform's own window controls take at

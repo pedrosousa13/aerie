@@ -35,6 +35,30 @@ struct SlideMotion {
 SlideMotion ShowMotion(int width, int outer_edge_sign, bool reduced);
 SlideMotion HideMotion(int width, int outer_edge_sign, bool reduced);
 
+// While a hide slides out the window layout already gives the room to the page,
+// in one step: the column takes no room (preferred and minimum width 0) and its
+// content keeps the width it had, hanging outside the region's own bounds
+// toward the page, so it slides out over the room the page is taking
+// (issue #215).
+class HideSlide {
+ public:
+  void Begin(int column_width) {
+    width_ = column_width;
+    active_ = true;
+  }
+  void End() { active_ = false; }
+  bool active() const { return active_; }
+
+  // The content's x and width in the region's coordinates. A column on the
+  // right hangs out to the left of its zero-width region.
+  int content_x(bool right_aligned) const { return right_aligned ? -width_ : 0; }
+  int content_width() const { return width_; }
+
+ private:
+  bool active_ = false;
+  int width_ = 0;
+};
+
 // A row opens or closes in the Today list.
 struct RowMotion {
   // The content layer of the row.

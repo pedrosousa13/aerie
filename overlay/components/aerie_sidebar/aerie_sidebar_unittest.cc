@@ -89,5 +89,23 @@ TEST_F(AerieSidebarTest, DraggingTheInnerEdgeResizesWithinTheLimits) {
   EXPECT_EQ(ResizeByDrag(260, -40, /*sidebar_on_right=*/true), 300);
 }
 
+TEST_F(AerieSidebarTest, TheTopRowDrawsItsOwnControlsOnlyWhereTheFrameDrawsThemFarAway) {
+  // Linux: the frame reserves the trailing end, so the row draws its own.
+  EXPECT_TRUE(PlanWindowControls(0, 138, /*frame_may_draw_trailing=*/true)
+                  .draw_own);
+  EXPECT_FALSE(PlanWindowControls(0, 0, /*frame_may_draw_trailing=*/true)
+                   .draw_own);
+  // Another platform never does, whatever the frame reserves.
+  EXPECT_FALSE(PlanWindowControls(0, 138, /*frame_may_draw_trailing=*/false)
+                   .draw_own);
+}
+
+TEST_F(AerieSidebarTest, ALeadingExclusionIsRoundedUpToWholePixels) {
+  EXPECT_EQ(PlanWindowControls(0, 0, false).leading_inset, 0);
+  EXPECT_EQ(PlanWindowControls(76, 0, false).leading_inset, 76);
+  EXPECT_EQ(PlanWindowControls(75.2f, 0, false).leading_inset, 76);
+  EXPECT_EQ(PlanWindowControls(-3, 0, false).leading_inset, 0);
+}
+
 }  // namespace
 }  // namespace aerie_sidebar

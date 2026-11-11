@@ -206,7 +206,7 @@ AerieSidebarView::~AerieSidebarView() {
   }
 }
 
-void AerieSidebarView::AdoptToolbar(const ToolbarParts& parts) {
+void AerieSidebarView::AdoptToolbar(const AerieSidebarToolbarParts& parts) {
   CHECK(!adopted_toolbar_);
   CHECK(parts.toolbar);
   adopted_toolbar_ = parts.toolbar;

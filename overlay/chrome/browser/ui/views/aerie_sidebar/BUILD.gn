@@ -20,6 +20,8 @@ source_set("aerie_sidebar") {
     "aerie_sidebar_regions.h",
     "aerie_sidebar_row_view.cc",
     "aerie_sidebar_row_view.h",
+    "aerie_sidebar_toolbar_hook.h",
+    "aerie_sidebar_toolbar_parts.h",
     "aerie_sidebar_top_row.cc",
     "aerie_sidebar_top_row.h",
     "aerie_sidebar_view.cc",

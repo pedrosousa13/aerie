@@ -36,7 +36,7 @@ pill, Today list, then what is left of the toolbar. A hidden sidebar adds none. 
    if (toolbar_ && toolbar_->custom_tab_bar()) {
 --- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
 +++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
-@@ -410,6 +410,13 @@
+@@ -405,6 +405,13 @@
                                           draw_window_controls);
  }
  
@@ -52,8 +52,8 @@ pill, Today list, then what is left of the toolbar. A hidden sidebar adds none. 
    if (has_leading_exclusion_ == has_leading_exclusion) {
 --- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
 +++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
-@@ -162,6 +162,9 @@
-                          views::View* reload,
+@@ -159,6 +159,9 @@
+   void AdoptAerieToolbar(const AerieSidebarToolbarParts& parts,
                           int leading_window_controls_width,
                           bool draw_window_controls);
 +  // Aerie (issue #215): the regions of the sidebar that F6 visits, in order
