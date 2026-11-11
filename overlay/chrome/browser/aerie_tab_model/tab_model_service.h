@@ -18,6 +18,7 @@ class Profile;
 
 namespace aerie_tab_model {
 
+class PinnedTabsController;
 class TabStripAdapter;
 
 // The Tab Model of one profile (issue #176). The sidebar observes `model()`;
@@ -40,6 +41,9 @@ class TabModelService : public KeyedService {
   // False for an off-the-record profile: its model stays in memory.
   bool persists_to_disk() const { return persistence_.persists_to_disk(); }
   TabStripAdapter* adapter() { return adapter_.get(); }
+  // Restores Pinned and Favorites tabs and runs their close and section
+  // commands (issue #180). Null after Shutdown().
+  PinnedTabsController* pinned_tabs() { return pinned_tabs_.get(); }
 
   // nullopt means never.
   std::optional<base::TimeDelta> archive_after() const;
@@ -55,6 +59,7 @@ class TabModelService : public KeyedService {
   TabModel model_;
   TabModelPersistence persistence_;
   std::unique_ptr<TabStripAdapter> adapter_;
+  std::unique_ptr<PinnedTabsController> pinned_tabs_;
 };
 
 }  // namespace aerie_tab_model

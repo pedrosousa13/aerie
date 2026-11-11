@@ -115,6 +115,9 @@ class SleepController : public KeyedService,
 
  private:
   bool Watches(BrowserWindowInterface* browser) const;
+  // The Tab Model record says the tab is asleep (a restored tab that has not
+  // been loaded, issue #180).
+  bool RecordIsAsleep(tabs::TabInterface* tab) const;
   // Starts or stops the idle time of `tab`, from its state now.
   void Track(tabs::TabInterface* tab);
   // Called by the schedule: the tab has idled long enough.

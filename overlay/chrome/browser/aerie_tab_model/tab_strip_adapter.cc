@@ -6,6 +6,7 @@
 
 #include <algorithm>
 
+#include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/tab_list/tab_removed_reason.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
@@ -36,6 +37,25 @@ std::string TabStripAdapter::RecordIdForTab(
     const tabs::TabInterface* tab) const {
   auto it = ids_.find(tab->GetHandle());
   return it == ids_.end() ? std::string() : it->second;
+}
+
+tabs::TabInterface* TabStripAdapter::TabForRecord(
+    const std::string& record_id) const {
+  for (const auto& [handle, id] : ids_) {
+    if (id == record_id) {
+      return handle.Get();
+    }
+  }
+  return nullptr;
+}
+
+void TabStripAdapter::SetPendingRestoreRecord(std::string record_id) {
+  pending_restore_record_ = std::move(record_id);
+}
+
+void TabStripAdapter::SetPinnedTabGoneCallback(
+    base::RepeatingClosure callback) {
+  pinned_tab_gone_ = std::move(callback);
 }
 
 bool TabStripAdapter::Watches(BrowserWindowInterface* browser) const {
@@ -78,10 +98,21 @@ void TabStripAdapter::OnTabStripModelChanged(
           continue;
         }
         auto it = ids_.find(removed.tab->GetHandle());
-        if (it != ids_.end()) {
-          model_->RemoveTab(it->second);
-          ids_.erase(it);
+        if (it == ids_.end()) {
+          continue;
         }
+        const TabRecord* record = model_->GetTab(it->second);
+        if (record && record->section != Section::kToday) {
+          // Pinned and Favorites outlive their tab (issue #180). When the
+          // window is not closing, the tab comes back.
+          ids_.erase(it);
+          if (!tab_strip_model->closing_all() && pinned_tab_gone_) {
+            pinned_tab_gone_.Run();
+          }
+          continue;
+        }
+        model_->RemoveTab(it->second);
+        ids_.erase(it);
       }
       break;
     case TabStripModelChange::kMoved: {
@@ -96,7 +127,9 @@ void TabStripAdapter::OnTabStripModelChanged(
         auto it = tab ? ids_.find(tab->GetHandle()) : ids_.end();
         const TabRecord* record =
             it == ids_.end() ? nullptr : model_->GetTab(it->second);
-        if (record && record->position != index) {
+        // Only Today follows the strip (issue #180).
+        if (record && record->section == Section::kToday &&
+            record->position != index) {
           model_->MoveTab(record->id, record->section, record->parent, index);
         }
       }
@@ -117,10 +150,20 @@ void TabStripAdapter::TabInserted(tabs::TabInterface* tab, int index) {
   auto it = ids_.find(tab->GetHandle());
   if (it != ids_.end()) {
     // Came from another window.
-    if (const TabRecord* record = model_->GetTab(it->second)) {
+    if (const TabRecord* record = model_->GetTab(it->second);
+        record && record->section == Section::kToday) {
       model_->MoveTab(record->id, record->section, record->parent, index);
     }
     return;
+  }
+  if (!pending_restore_record_.empty()) {
+    // The unloaded tab of a Pinned or Favorites record that was saved.
+    std::string id = std::move(pending_restore_record_);
+    pending_restore_record_.clear();
+    if (model_->GetTab(id)) {
+      ids_.emplace(tab->GetHandle(), std::move(id));
+      return;
+    }
   }
   TabRecord record;
   record.section = Section::kToday;
@@ -138,7 +181,31 @@ void TabStripAdapter::TouchActive(tabs::TabInterface* tab) {
     return;
   }
   const base::Time now = clock_->Now();
-  model_->UpdateTab(it->second, [now](TabRecord& record) { record.last_active = now; });
+  // The selected tab is awake: selecting a tab that was restored unloaded (issue
+  // #180) loads it, and the Chromium discard that SleepController watches does
+  // not cover that case.
+  model_->UpdateTab(it->second, [now](TabRecord& record) {
+    record.last_active = now;
+    record.sleeping = false;
+  });
+}
+
+void TabStripAdapter::OnTabChangedAt(tabs::TabInterface* tab,
+                                     TabChangeType change_type) {
+  // A Pinned or Favorites tab remembers its title, for the row that is shown
+  // before the tab loads again.
+  auto it = ids_.find(tab->GetHandle());
+  const TabRecord* record =
+      it == ids_.end() ? nullptr : model_->GetTab(it->second);
+  if (!record || record->section == Section::kToday) {
+    return;
+  }
+  const std::string title = base::UTF16ToUTF8(tab->GetTitle());
+  if (title.empty() || record->last_title == title) {
+    return;
+  }
+  model_->UpdateTab(it->second,
+                    [&title](TabRecord& tab_record) { tab_record.last_title = title; });
 }
 
 }  // namespace aerie_tab_model
