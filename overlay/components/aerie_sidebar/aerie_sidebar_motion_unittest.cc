@@ -4,6 +4,7 @@
 
 #include "components/aerie_sidebar/aerie_sidebar_motion.h"
 
+#include "components/aerie_design_tokens/aerie_motion.h"
 #include "components/aerie_design_tokens/aerie_tokens.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -138,6 +139,39 @@ TEST(AerieSidebarMotionTest, ReducedMotionSwapsTheSleepingFaviconAtOnce) {
   const SleepMotion m = SleepFaviconMotion(/*reduced=*/true);
   EXPECT_FALSE(m.animate_fade);
   EXPECT_FLOAT_EQ(m.asleep_opacity, 0.55f);
+}
+
+TEST(AerieSidebarMotionTest, PinAndUnpinMoveTheTabOnTheSpringAndTheOthersOnBaseStandard) {
+  const PinMotion m = PinFlipMotion(/*reduced=*/false);
+  EXPECT_TRUE(m.animate);
+  EXPECT_EQ(m.moved_duration_ms, 420);
+  EXPECT_EQ(m.moved_duration_ms, aerie::tokens::kMotionSpringDuration);
+  EXPECT_EQ(m.moved_easing, MotionEasing::kSpring);
+  EXPECT_EQ(m.others_duration, MotionDuration::kBase);
+  EXPECT_EQ(m.others_easing, MotionEasing::kStandard);
+}
+
+TEST(AerieSidebarMotionTest, ReducedMotionPinHasNoTransformAnimationAndAShortSpring) {
+  const PinMotion m = PinFlipMotion(/*reduced=*/true);
+  EXPECT_FALSE(m.animate);
+  EXPECT_LE(m.moved_reduced_duration_ms, aerie::motion::kMaxReducedOpacityMs);
+}
+
+TEST(AerieSidebarMotionTest, TheContextMenuScalesFromNinetySevenAndFadesInOnFastDecelerate) {
+  const MenuOpenMotion m = ContextMenuOpenMotion(/*reduced=*/false);
+  EXPECT_TRUE(m.animate_scale);
+  EXPECT_FLOAT_EQ(m.from_scale, 0.97f);
+  EXPECT_FLOAT_EQ(m.from_opacity, 0.f);
+  EXPECT_EQ(m.duration, MotionDuration::kFast);
+  EXPECT_EQ(m.easing, MotionEasing::kDecelerate);
+  EXPECT_EQ(m.duration_ms, 140);
+}
+
+TEST(AerieSidebarMotionTest, TheContextMenuOnlyFadesInUnderReducedMotion) {
+  const MenuOpenMotion m = ContextMenuOpenMotion(/*reduced=*/true);
+  EXPECT_FALSE(m.animate_scale);
+  EXPECT_EQ(m.duration_ms, 90);
+  EXPECT_LE(m.duration_ms, aerie::motion::kMaxReducedOpacityMs);
 }
 
 }  // namespace aerie_sidebar

@@ -69,6 +69,28 @@ DragMotion RowDragMotion(bool reduced) {
   return motion;
 }
 
+PinMotion PinFlipMotion(bool reduced) {
+  PinMotion motion;
+  motion.animate = !reduced;
+  motion.moved_duration_ms = aerie::tokens::kMotionSpringDuration;
+  motion.moved_reduced_duration_ms = aerie::tokens::kMotionSpringDurationReduced;
+  motion.moved_easing = MotionEasing::kSpring;
+  motion.others_duration = MotionDuration::kBase;
+  motion.others_easing = MotionEasing::kStandard;
+  return motion;
+}
+
+MenuOpenMotion ContextMenuOpenMotion(bool reduced) {
+  MenuOpenMotion motion;
+  motion.animate_scale = !reduced;
+  motion.from_scale = aerie::tokens::kMotionScaleMenuEnter;
+  motion.from_opacity = 0.f;
+  motion.duration = MotionDuration::kFast;
+  motion.easing = MotionEasing::kDecelerate;
+  motion.duration_ms = GetDurationMs(motion.duration, reduced);
+  return motion;
+}
+
 RowMotion OpenRowMotion(bool reduced) {
   RowMotion motion;
   motion.content_duration = MotionDuration::kFast;
