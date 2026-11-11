@@ -82,6 +82,9 @@ class AerieSidebarRowView : public views::View,
     base::RepeatingCallback<void(const gfx::Point& screen_point,
                                  ui::mojom::MenuSourceType source)>
         context_menu;
+    // The "Back to pinned page" button of a pinned row was pressed (issue
+    // #180).
+    base::RepeatingClosure back_to_pinned;
   };
 
   AerieSidebarRowView(Callbacks callbacks,
@@ -113,6 +116,18 @@ class AerieSidebarRowView : public views::View,
   // For tests.
   views::ImageView* favicon_view() const { return favicon_; }
   views::ImageView* sleep_badge() const { return sleep_badge_; }
+
+  // A pinned row that has left its pinned page shows the "Back to pinned page"
+  // button between the title and the close button (issue #180).
+  void SetBackToPinnedVisible(bool visible);
+  views::ImageButton* back_to_pinned_button() const {
+    return back_to_pinned_;
+  }
+  // The tooltip, and the accessible name, of the close button. The default is
+  // "Close tab"; a pinned row names the pinned-close action ("Reset and sleep",
+  // "Sleep" or "Close").
+  void SetCloseTooltip(const std::u16string& text);
+  views::ImageButton* close_button() const { return close_button_; }
 
   // Makes this row the Tab stop of the list (or not). Every row can still take
   // focus from the arrow keys: the sidebar moves the stop first.
@@ -237,6 +252,7 @@ class AerieSidebarRowView : public views::View,
   base::OneShotTimer desaturate_timer_;
   raw_ptr<views::Label> title_ = nullptr;
   raw_ptr<views::ImageButton> close_button_ = nullptr;
+  raw_ptr<views::ImageButton> back_to_pinned_ = nullptr;
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_AERIE_SIDEBAR_AERIE_SIDEBAR_ROW_VIEW_H_
