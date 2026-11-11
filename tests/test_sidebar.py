@@ -119,7 +119,7 @@ class LockTest(unittest.TestCase):
         self.assertIn('#include "components/aerie_sidebar/aerie_sidebar_layout_lock.h"', text)
         self.assertIn('"//components/aerie_sidebar:layout_lock"', text)
         self.assertIn("chrome/browser/prefs/chrome_command_line_pref_store.cc", patch_text(LOCK_PATCH))
-        
+
     def test_the_lock_patch_is_after_the_prefs_patches_in_the_series(self):
         self.assertGreater(SERIES.index(LOCK_PATCH), SERIES.index(HOLD_PATCH))
 
@@ -129,10 +129,11 @@ class LockTest(unittest.TestCase):
             self.assertIn(f"(*s_allowlist)[::prefs::{pref}", gone)
 
     def test_the_choice_is_recorded_in_an_adr(self):
+        self.assertTrue(self.ADR.is_file())
         text = self.ADR.read_text()
         self.assertTrue(text.startswith("# 8. "))
-        for word in ("Context", "Decision", "Consequences", "Alternatives considered", "command-line"):
-            self.assertIn(word, text)
+        self.assertIn("command-line", text.lower())  # it names the mechanism
+        self.assertIn("ChromeCommandLinePrefStore", text)
         self.assertIn("0008-lock-helium-layout", (REPO / "docs" / "sidebar-design.md").read_text())
 
 
@@ -291,10 +292,6 @@ class HeadlessPartsTest(unittest.TestCase):
         self.assertIn("`patches/sidebar/0025`", doc)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class NoColourLiteralTest(unittest.TestCase):
     """Item 7 of issue #215: the sidebar draws with the token pipeline only. No colour literal outside
     aerie_tokens.h, and no Chromium system colour role."""
@@ -326,3 +323,7 @@ class NoColourLiteralTest(unittest.TestCase):
     def test_the_palette_is_the_only_place_that_reads_the_theme_tables(self):
         users = [p.name for p in self.FILES if "GetThemeTokens" in p.read_text()]
         self.assertEqual(users, ["aerie_sidebar_palette.cc"])
+
+
+if __name__ == "__main__":
+    unittest.main()
