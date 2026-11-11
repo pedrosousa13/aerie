@@ -9,6 +9,11 @@
 
 namespace aerie_tab_model {
 
+class TabModel;
+
+// How many tabs of the model sleep and are not archived.
+int CountSleepingTabs(const TabModel& model);
+
 // The memory that sleeping tabs freed, for the Today header (issue #179): the
 // number of megabytes (1 MB = 1048576 bytes) rounded to the nearest 10. 0 means
 // there is no estimate to show (under 5 MB, or no value).

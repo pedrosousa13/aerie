@@ -9,8 +9,13 @@
 #include <utility>
 
 #include "base/functional/bind.h"
+#include "base/strings/utf_string_conversions.h"
+#include "base/strings/string_number_conversions.h"
+#include "base/time/time.h"
 #include "base/task/single_thread_task_runner.h"
 #include "chrome/app/vector_icons/vector_icons.h"
+#include "chrome/browser/aerie_tab_model/sleep_controller.h"
+#include "chrome/browser/aerie_tab_model/sleep_controller_factory.h"
 #include "chrome/browser/aerie_tab_model/tab_model_service.h"
 #include "chrome/browser/aerie_tab_model/tab_model_service_factory.h"
 #include "chrome/browser/aerie_tab_model/tab_strip_adapter.h"
@@ -19,6 +24,7 @@
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_delegate.h"
 #include "chrome/browser/sessions/session_restore.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_context_menu.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_focus_ring.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_regions.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_row_view.h"
@@ -30,6 +36,7 @@
 #include "components/aerie_sidebar/aerie_sidebar_drag.h"
 #include "components/aerie_sidebar/aerie_sidebar_layout.h"
 #include "components/aerie_sidebar/aerie_sidebar_motion.h"
+#include "components/aerie_tab_model/sleep_summary.h"
 #include "components/aerie_tab_model/tab_model.h"
 #include "components/prefs/pref_service.h"
 #include "ui/base/models/image_model.h"
@@ -140,12 +147,25 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
   AerieSidebarFocusRing::Install(new_tab_row_, aerie::tokens::kRadiusMd);
 
   // Today.
-  today_heading_ = AddChildView(std::make_unique<views::Label>(
+  // The heading, and at its end the number of sleeping tabs with an estimate of
+  // the memory they freed (issue #179). The estimate's tooltip says it is one.
+  auto* today_header = AddChildView(std::make_unique<views::BoxLayoutView>());
+  today_header->SetOrientation(views::BoxLayout::Orientation::kHorizontal);
+  today_heading_ = today_header->AddChildView(std::make_unique<views::Label>(
       l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_TODAY),
       views::style::CONTEXT_LABEL, views::style::STYLE_BODY_5));
   today_heading_->SetHorizontalAlignment(gfx::ALIGN_LEFT);
   today_heading_->SetBorder(views::CreateEmptyBorder(
       gfx::Insets::TLBR(aerie::tokens::kSpace8, aerie::tokens::kSpace8, 0, 0)));
+  today_header->SetFlexForView(today_heading_, 1);
+  sleeping_summary_ = today_header->AddChildView(std::make_unique<views::Label>(
+      std::u16string(), views::style::CONTEXT_LABEL,
+      views::style::STYLE_BODY_5));
+  sleeping_summary_->SetHorizontalAlignment(gfx::ALIGN_RIGHT);
+  sleeping_summary_->SetElideBehavior(gfx::ELIDE_TAIL);
+  sleeping_summary_->SetBorder(views::CreateEmptyBorder(gfx::Insets::TLBR(
+      aerie::tokens::kSpace8, 0, 0, aerie::tokens::kSpace8)));
+  sleeping_summary_->SetVisible(false);
 
   scroll_ = AddChildView(std::make_unique<views::ScrollView>(
       views::ScrollView::ScrollWithLayers::kDisabled));
@@ -188,6 +208,20 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
   ApplyPalette();
   SyncRows();
   ScheduleSync();
+
+  // The sleep controller is built a few seconds after the window opens, not at
+  // startup (issue #179: no startup cost). Asking for it builds it.
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+      FROM_HERE,
+      base::BindOnce(
+          [](base::WeakPtr<AerieSidebarView> self) {
+            if (self) {
+              aerie_tab_model::SleepControllerFactory::GetForProfile(
+                  self->browser_->GetProfile());
+            }
+          },
+          weak_factory_.GetWeakPtr()),
+      base::Seconds(5));
 }
 
 AerieSidebarView::~AerieSidebarView() {
@@ -260,6 +294,7 @@ void AerieSidebarView::ApplyPalette() {
   palette_ = ResolvePalette();
   top_row_->SetPalette(palette_);
   today_heading_->SetEnabledColor(palette_.text_muted);
+  sleeping_summary_->SetEnabledColor(palette_.text_muted);
   new_tab_row_->SetEnabledTextColors(palette_.text);
   new_tab_row_->SetImageModel(
       views::Button::STATE_NORMAL,
@@ -360,6 +395,8 @@ void AerieSidebarView::SyncRows() {
         &AerieSidebarView::OnRowDragUpdate, base::Unretained(this), id);
     callbacks.drag_end = base::BindRepeating(&AerieSidebarView::OnRowDragEnd,
                                              base::Unretained(this), id);
+    callbacks.context_menu = base::BindRepeating(
+        &AerieSidebarView::ShowRowContextMenu, base::Unretained(this), id);
     auto* view = list_->AddChildView(std::make_unique<AerieSidebarRowView>(
         std::move(callbacks), palette_));
     next.push_back({id, view});
@@ -733,6 +770,99 @@ void AerieSidebarView::UpdateRow(const Row& row) {
   row.view->SetTitle(tab->GetTitle());
   row.view->SetFavicon(FaviconFor(tab, palette_.text_muted));
   row.view->SetSelected(tab->IsActivated());
+  const aerie_tab_model::TabRecord* record =
+      model_ ? model_->GetTab(row.tab_id) : nullptr;
+  row.view->SetSleeping(record && record->sleeping,
+                        browser_->GetProfile()->GetPrefs());
+}
+
+void AerieSidebarView::OnTabAdded(const aerie_tab_model::TabRecord&) {
+  UpdateSleepingSummary();
+}
+
+void AerieSidebarView::OnTabChanged(const aerie_tab_model::TabRecord&) {
+  // `sleeping` is the field that matters here; the rows read it.
+  UpdateRows();
+  UpdateSleepingSummary();
+}
+
+void AerieSidebarView::OnTabRemoved(const aerie_tab_model::TabRecord&) {
+  UpdateSleepingSummary();
+}
+
+void AerieSidebarView::UpdateSleepingSummary() {
+  const int count =
+      model_ ? aerie_tab_model::CountSleepingTabs(*model_) : 0;
+  if (count == 0) {
+    sleeping_summary_->SetVisible(false);
+    sleeping_summary_->SetText(std::u16string());
+    return;
+  }
+  int megabytes = 0;
+  if (auto* controller =
+          aerie_tab_model::SleepControllerFactory::GetForProfileIfExists(
+              browser_->GetProfile())) {
+    megabytes = aerie_tab_model::RoundMemoryEstimateMb(
+        controller->sleeping_memory_estimate_bytes());
+  }
+  sleeping_summary_->SetText(
+      megabytes > 0
+          ? l10n_util::GetStringFUTF16(
+                IDS_AERIE_SIDEBAR_SLEEPING_COUNT_AND_MEMORY,
+                base::NumberToString16(count),
+                base::NumberToString16(megabytes))
+          : l10n_util::GetStringFUTF16(IDS_AERIE_SIDEBAR_SLEEPING_COUNT,
+                                       base::NumberToString16(count)));
+  sleeping_summary_->SetTooltipText(
+      l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_SLEEPING_TOOLTIP));
+  sleeping_summary_->SetVisible(true);
+}
+
+void AerieSidebarView::ShowRowContextMenu(const std::string& tab_id,
+                                          const gfx::Point& screen_point,
+                                          ui::mojom::MenuSourceType source_type) {
+  tabs::TabInterface* tab = FindTab(tab_id);
+  auto* controller = aerie_tab_model::SleepControllerFactory::GetForProfile(
+      browser_->GetProfile());
+  if (!tab || !controller || !GetWidget()) {
+    return;
+  }
+  using Eligibility = aerie_tab_model::SleepController::Eligibility;
+  const Eligibility eligibility = controller->GetEligibility(tab);
+  AerieSidebarContextMenu::SleepItem item;
+  item.enabled = eligibility.state == Eligibility::State::kCanSleep;
+  if (!item.enabled) {
+    if (eligibility.state == Eligibility::State::kAlreadyAsleep) {
+      item.tooltip = l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_SLEEP_TAB_ASLEEP);
+    } else if (eligibility.cause == Eligibility::Cause::kSelectedTab) {
+      item.tooltip =
+          l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_SLEEP_TAB_SELECTED);
+    } else if (eligibility.cause == Eligibility::Cause::kChromium &&
+               !eligibility.reasons.empty()) {
+      item.tooltip = l10n_util::GetStringFUTF16(
+          IDS_AERIE_SIDEBAR_SLEEP_TAB_CANNOT,
+          base::UTF8ToUTF16(eligibility.reasons.front()));
+    } else {
+      item.tooltip =
+          l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_SLEEP_TAB_UNAVAILABLE);
+    }
+  }
+  context_menu_ = std::make_unique<AerieSidebarContextMenu>(
+      std::move(item),
+      base::BindOnce(
+          [](base::WeakPtr<AerieSidebarView> self, std::string tab_id) {
+            if (!self) {
+              return;
+            }
+            auto* controller =
+                aerie_tab_model::SleepControllerFactory::GetForProfile(
+                    self->browser_->GetProfile());
+            if (tabs::TabInterface* tab = self->FindTab(tab_id)) {
+              controller->Sleep(tab);
+            }
+          },
+          weak_factory_.GetWeakPtr(), tab_id));
+  context_menu_->Run(GetWidget(), screen_point, source_type);
 }
 
 void AerieSidebarView::SelectTab(const std::string& tab_id) {

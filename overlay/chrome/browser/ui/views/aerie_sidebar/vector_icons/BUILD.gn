@@ -1,0 +1,25 @@
+# Copyright 2026 The Aerie Authors
+# You can use, redistribute, and/or modify this source code under
+# the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+import("//components/vector_icons/vector_icons.gni")
+
+# The icons of the Aerie sidebar. Same shape as
+# //chrome/browser/ui/views/aerie_adblock/vector_icons. The generated header is
+# chrome/browser/ui/views/aerie_sidebar/vector_icons/vector_icons.h, namespace
+# aerie_sidebar.
+aggregate_vector_icons("aerie_sidebar_vector_icons") {
+  icon_directory = "."
+  sources = [ "aerie_sleep_badge.icon" ]
+}
+
+source_set("vector_icons") {
+  visibility = [ "//chrome/browser/ui/views/aerie_sidebar:*" ]
+  sources = get_target_outputs(":aerie_sidebar_vector_icons")
+  deps = [
+    ":aerie_sidebar_vector_icons",
+    "//base",
+    "//skia",
+    "//ui/gfx",
+  ]
+}

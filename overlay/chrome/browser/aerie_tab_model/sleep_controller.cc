@@ -228,15 +228,15 @@ SleepController::Eligibility SleepController::GetEligibility(
   Eligibility result;
   content::WebContents* contents = tab->GetContents();
   if (!contents) {
-    result.reasons.push_back("not loaded");
     return result;
   }
   if (IsAsleep(contents)) {
     result.state = Eligibility::State::kAlreadyAsleep;
+    result.cause = Eligibility::Cause::kNone;
     return result;
   }
   if (tab->IsActivated()) {
-    result.reasons.push_back("selected tab");
+    result.cause = Eligibility::Cause::kSelectedTab;
     return result;
   }
   DiscardEligibilityPolicy* policy = GetPolicy();
@@ -244,7 +244,6 @@ SleepController::Eligibility SleepController::GetEligibility(
       performance_manager::PerformanceManager::GetPrimaryPageNodeForWebContents(
           contents);
   if (!policy || !page_node) {
-    result.reasons.push_back("not available");
     return result;
   }
   // The same question as Helium's "Hibernate" menu item: eligible, with the
@@ -257,8 +256,10 @@ SleepController::Eligibility SleepController::GetEligibility(
   if (can_discard ==
       performance_manager::policies::CanDiscardResult::kEligible) {
     result.state = Eligibility::State::kCanSleep;
+    result.cause = Eligibility::Cause::kNone;
     return result;
   }
+  result.cause = Eligibility::Cause::kChromium;
   for (auto reason : reasons) {
     result.reasons.push_back(
         performance_manager::policies::CannotDiscardReasonToString(reason));

@@ -4,7 +4,19 @@
 
 #include "components/aerie_tab_model/sleep_summary.h"
 
+#include "components/aerie_tab_model/tab_model.h"
+
 namespace aerie_tab_model {
+
+int CountSleepingTabs(const TabModel& model) {
+  int count = 0;
+  for (const auto& [id, tab] : model.tabs()) {
+    if (tab.sleeping && !tab.archived_at) {
+      ++count;
+    }
+  }
+  return count;
+}
 
 int RoundMemoryEstimateMb(int64_t bytes) {
   constexpr int64_t kMb = 1024 * 1024;

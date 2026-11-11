@@ -105,6 +105,22 @@ struct DragMotion {
 
 DragMotion RowDragMotion(bool reduced);
 
+// A tab goes to sleep (issue #179): the favicon fades to
+// `motion-opacity-sleeping` on `fast` and `standard`, and only opacity moves.
+// Then a static desaturate applies; it is never animated. Reduced motion: no
+// animation, the favicon takes both looks at once.
+struct SleepMotion {
+  bool animate_fade;
+  aerie::tokens::MotionDuration duration;
+  aerie::tokens::MotionEasing easing;
+  float asleep_opacity;
+  // 0 when nothing animates.
+  int duration_ms;
+  bool desaturate_after_fade;
+};
+
+SleepMotion SleepFaviconMotion(bool reduced);
+
 RowMotion OpenRowMotion(bool reduced);
 RowMotion CloseRowMotion(int outer_edge_sign, bool reduced);
 

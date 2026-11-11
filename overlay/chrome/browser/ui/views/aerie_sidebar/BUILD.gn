@@ -14,6 +14,8 @@ source_set("aerie_sidebar") {
     "//chrome/browser/ui/views/frame:*",
   ]
   sources = [
+    "aerie_sidebar_context_menu.cc",
+    "aerie_sidebar_context_menu.h",
     "aerie_sidebar_focus_ring.cc",
     "aerie_sidebar_focus_ring.h",
     "aerie_sidebar_regions.cc",
@@ -50,6 +52,7 @@ source_set("aerie_sidebar") {
     "//chrome/browser/ui:view_ids",
     "//chrome/browser/ui/browser_window",
     "//chrome/browser/ui/tabs:tab_strip",
+    "//chrome/browser/ui/views/aerie_sidebar/vector_icons",
     "//components/aerie_frame:palette",
     "//components/aerie_sidebar:drag",
     "//components/aerie_sidebar:layout",
@@ -72,12 +75,16 @@ source_set("browser_tests") {
   testonly = true
   # content/public/test/browser_test.h refuses to compile without it.
   defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
-  sources = [ "aerie_sidebar_browsertest.cc" ]
+  sources = [
+    "aerie_sidebar_browsertest.cc",
+    "aerie_sidebar_sleep_browsertest.cc",
+  ]
   deps = [
     ":aerie_sidebar",
     "//chrome/browser:browser",
     "//chrome/browser/aerie_tab_model",
     "//chrome/browser/profiles:profile",
+    "//chrome/browser/resource_coordinator",
     "//chrome/browser/ui:view_ids",
     "//chrome/browser/ui/views/frame",
     "//chrome/common",

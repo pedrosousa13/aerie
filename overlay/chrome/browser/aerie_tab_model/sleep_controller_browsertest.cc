@@ -223,7 +223,7 @@ IN_PROC_BROWSER_TEST_F(AerieSleepControllerBrowserTest,
   const SleepController::Eligibility eligibility =
       controller_->GetEligibility(selected);
   EXPECT_EQ(eligibility.state, SleepController::Eligibility::State::kCannotSleep);
-  EXPECT_FALSE(eligibility.reasons.empty());
+  EXPECT_EQ(eligibility.cause, SleepController::Eligibility::Cause::kSelectedTab);
   EXPECT_FALSE(controller_->Sleep(selected));
   EXPECT_FALSE(RecordOf(0)->sleeping);
   EXPECT_FALSE(strip()->GetWebContentsAt(0)->WasDiscarded());

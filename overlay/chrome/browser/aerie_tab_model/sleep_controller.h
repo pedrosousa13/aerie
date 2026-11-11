@@ -56,8 +56,19 @@ class SleepController : public KeyedService,
       kAlreadyAsleep,
       kCannotSleep,
     };
+    // Why a tab cannot sleep; the sidebar words it from the grd.
+    enum class Cause {
+      kNone,
+      // The tab the user is viewing.
+      kSelectedTab,
+      // No page, or the performance manager is not there.
+      kNotAvailable,
+      // Chromium's discard policy says no; `reasons` has its words.
+      kChromium,
+    };
     State state = State::kCannotSleep;
-    // Why, when the state is kCannotSleep. Chromium's own words.
+    Cause cause = Cause::kNotAvailable;
+    // Chromium's reasons, in its own (English) words, for kChromium.
     std::vector<std::string> reasons;
   };
 
