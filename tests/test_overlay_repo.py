@@ -26,6 +26,7 @@ class RepoOverlayTest(unittest.TestCase):
                                             "chrome/browser/resources/settings/appearance_page/aerie_motion_row.",
                                             "components/aerie_tab_model/", "chrome/browser/aerie_tab_model/", "components/aerie_alpha_notice/",
                                             "components/aerie_sidebar/", "chrome/browser/ui/views/aerie_sidebar/",
+                                            "components/aerie_frame/", "chrome/browser/ui/views/aerie_frame/",
                                             "tools/metrics/histograms/metadata/aerie/",
                                             "third_party/rust/chromium_crates_io/patches/")), rel)
             self.assertNotIn("/target/", rel)
