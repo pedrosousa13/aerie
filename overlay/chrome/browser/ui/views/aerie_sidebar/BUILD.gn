@@ -14,8 +14,6 @@ source_set("aerie_sidebar") {
     "//chrome/browser/ui/views/frame:*",
   ]
   sources = [
-    "aerie_sidebar_card_follow.cc",
-    "aerie_sidebar_card_follow.h",
     "aerie_sidebar_focus_ring.cc",
     "aerie_sidebar_focus_ring.h",
     "aerie_sidebar_regions.cc",

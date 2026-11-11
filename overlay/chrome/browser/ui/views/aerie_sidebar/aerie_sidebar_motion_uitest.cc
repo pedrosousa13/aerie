@@ -30,6 +30,10 @@
 #include "components/aerie_sidebar/aerie_sidebar_prefs.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/test/browser_test.h"
+#include "content/public/browser/web_contents.h"
+#include "ui/gfx/geometry/point_conversions.h"
+#include "ui/aura/window.h"
+#include "chrome/browser/ui/views/frame/contents_web_view.h"
 #include "ui/events/event.h"
 #include "ui/compositor/layer.h"
 #include "ui/compositor/layer_animation_element.h"
@@ -216,7 +220,7 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarMotionUiTest, ReducedMotionOpensAndClosesWith
   ASSERT_TRUE(base::test::RunUntil([&] { return sidebar()->closing_row_count() == 0u; }));
 }
 
-IN_PROC_BROWSER_TEST_F(AerieSidebarMotionUiTest, HideAndShowAnimateOnlyTransformAndTheCardFollowsInOneStep) {
+IN_PROC_BROWSER_TEST_F(AerieSidebarMotionUiTest, HideAndShowAnimateOnlyTheColumnAndTheCardSnaps) {
   ForceReducedMotion(false);
   ASSERT_TRUE(base::test::RunUntil([&] { return region()->width() > 0; }));
   const int column_width = region()->width();
@@ -229,36 +233,64 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarMotionUiTest, HideAndShowAnimateOnlyTransform
   EXPECT_FALSE(Animates(column, ui::LayerAnimationElement::OPACITY));
   EXPECT_TRUE(OnlyTransformAndOpacityAnimate(column));
 
-  // The card has its new bounds in one step and follows with a transform: it
-  // is wider by the column, and starts where it was.
+  // The card has its new bounds in one step and never gets a layer of its own:
+  // a card transform cannot move the page (see the next test).
   ASSERT_TRUE(base::test::RunUntil([&] { return card()->width() > card_before.width(); }));
   const gfx::Rect card_after = card()->bounds();
   EXPECT_GE(card_after.width() - card_before.width(), column_width - 2);
-  ASSERT_TRUE(base::test::RunUntil([&] { return card()->layer() != nullptr; }));
-  ui::Layer* card_layer = card()->layer();
-  EXPECT_TRUE(Animates(card_layer, ui::LayerAnimationElement::TRANSFORM));
-  EXPECT_FALSE(Animates(card_layer, ui::LayerAnimationElement::OPACITY));
-  EXPECT_TRUE(OnlyTransformAndOpacityAnimate(card_layer));
-  EXPECT_TRUE(card_layer->GetTargetTransform().IsIdentity());
-  EXPECT_NE(card_layer->transform().To2dTranslation().x(), 0.f);
+  EXPECT_FALSE(card()->layer());
 
   // Nothing lays out per frame: the card's bounds stay what they are for the
   // whole animation.
   ASSERT_TRUE(base::test::RunUntil([&] { return region()->aerie_sidebar_hidden(); }));
   EXPECT_EQ(card()->bounds(), card_after);
+  EXPECT_FALSE(card()->layer());
 
-  // Show: the card is narrower at once and follows the column back.
+  // Show: the card is narrower at once.
   chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
   EXPECT_TRUE(Animates(region()->layer(), ui::LayerAnimationElement::TRANSFORM));
   EXPECT_TRUE(OnlyTransformAndOpacityAnimate(region()->layer()));
   ASSERT_TRUE(base::test::RunUntil([&] { return card()->width() < card_after.width(); }));
   const gfx::Rect card_shown = card()->bounds();
-  ASSERT_TRUE(base::test::RunUntil([&] { return card()->layer() != nullptr; }));
-  EXPECT_TRUE(Animates(card()->layer(), ui::LayerAnimationElement::TRANSFORM));
-  EXPECT_TRUE(OnlyTransformAndOpacityAnimate(card()->layer()));
+  EXPECT_FALSE(card()->layer());
   const base::TimeTicks until = base::TimeTicks::Now() + base::Milliseconds(400);
   base::test::RunUntil([&] { return base::TimeTicks::Now() >= until; });
   EXPECT_EQ(card()->bounds(), card_shown);
+}
+
+// Where the page really is: the origin of the web contents' native layer in the
+// window's root layer, which the compositor draws, against where the view that
+// holds the page says it is. The page's native view is a layer of the window,
+// not of the card, and the layout places it in window coordinates with the
+// card's layer transform folded in. A card that followed the sidebar by a
+// transform left the page a column width off after a hide and after a show.
+gfx::Point PageLayerOrigin(content::WebContents* contents, views::Widget* widget) {
+  gfx::PointF origin;
+  ui::Layer::ConvertPointToLayer(contents->GetNativeView()->layer(),
+                                 widget->GetLayer(), /*use_target_transform=*/false, &origin);
+  return gfx::ToRoundedPoint(origin);
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarMotionUiTest, ThePageIsUnderTheCardAfterHideAndShowWithMotion) {
+  ForceReducedMotion(false);
+  ASSERT_TRUE(base::test::RunUntil([&] { return region()->width() > 0; }));
+  views::Widget* widget = browser_view()->GetWidget();
+  content::WebContents* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  auto expect_the_page_under_the_card = [&](const char* when) {
+    // Let the card's follow and its release timer finish.
+    const base::TimeTicks until = base::TimeTicks::Now() + base::Milliseconds(700);
+    base::test::RunUntil([&] { return base::TimeTicks::Now() >= until; });
+    gfx::Point expected =
+        browser_view()->multi_contents_view()->GetActiveContentsView()->GetBoundsInScreen().origin();
+    expected -= widget->GetWindowBoundsInScreen().OffsetFromOrigin();
+    EXPECT_EQ(PageLayerOrigin(contents, widget), expected) << when;
+  };
+  expect_the_page_under_the_card("before");
+  chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
+  ASSERT_TRUE(base::test::RunUntil([&] { return region()->aerie_sidebar_hidden(); }));
+  expect_the_page_under_the_card("hidden");
+  chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
+  expect_the_page_under_the_card("shown again");
 }
 
 IN_PROC_BROWSER_TEST_F(AerieSidebarMotionUiTest, ReducedMotionFadesTheColumnAndTheCardSnaps) {

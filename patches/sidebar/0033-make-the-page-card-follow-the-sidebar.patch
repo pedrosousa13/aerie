@@ -1,37 +1,20 @@
-Aerie-Purpose: Make the page card follow the Aerie sidebar with a transform when it shows or hides, with the card's new bounds in one step.
+Aerie-Purpose: Give the page its room in one step when the Aerie sidebar hides, while the column slides out over it.
 Aerie-Upstream-Area: chrome/browser/ui/views/frame (vertical_tab_strip_region_view.*)
 Aerie-Kind: hook
 
-Issue #215 (item 5 of the rest of #177). The logic is in the overlay (AerieSidebarCardFollow, chrome/browser/ui/views/aerie_sidebar);
-these hooks only call it. The region view watches the contents card (the multi contents view) and arms the follower in
-OnAerieVisibleChanged before the layout that moves the card; the follower starts a transform animation from the distance the card's
-edge moved. Reduced motion never arms it, so the card snaps.
+Issue #215 (item 5 of the rest of #177). The page card does not follow the column with a transform: it takes its new bounds in one
+step and only the column animates. A card transform cannot move the page. The page's native view is a layer of the window, not of the
+card, and NativeViewHost::Layout places it in window coordinates with the card's layer transform at that moment folded in; the layout that
+follows a bounds change ran after the transform started, so the page stayed one column width off (right after a hide, left after a show).
+(The file keeps its name so that the series entry is stable.)
 
 A show already gave the page its room in one step. A hide used to hold the room until the slide had ended; now it gives it at once
 (aerie_hide_sliding_: preferred and minimum width 0) and Layout keeps the column's content at its old width, outside the region's
 own bounds, so the column slides out over the room the card is taking. When the slide ends the column leaves the layout as before.
 
---- a/chrome/browser/ui/views/frame/BUILD.gn
-+++ b/chrome/browser/ui/views/frame/BUILD.gn
-@@ -565,6 +565,7 @@
-     ":custom_corners_background",
-     ":frame",
-     ":frame_separator",
-+    ":multi_contents_view",
-     ":safe_invoke",
-     ":shadow",
-     "//chrome/app:generated_resources",
 --- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
 +++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
-@@ -40,6 +40,7 @@
- #include "chrome/browser/ui/views/animations/tab_strip_animations.h"
- #include "chrome/browser/ui/views/frame/base_tab_strip_region_view.h"
- #include "chrome/browser/ui/views/frame/browser_view.h"
-+#include "chrome/browser/ui/views/frame/multi_contents_view.h"
- #include "chrome/browser/ui/view_ids.h"
- #include "chrome/browser/ui/views/frame/custom_corners_background.h"
- #include "chrome/browser/ui/views/frame/frame_separator.h"
-@@ -559,6 +560,14 @@
+@@ -559,6 +559,14 @@
  void VerticalTabStripRegionView::Layout(PassKey) {
    LayoutSuperclass<BaseTabStripRegionView>(this);
  
@@ -46,7 +29,7 @@ own bounds, so the column slides out over the room the card is taking. When the 
    // Manually position the resize area as it overlaps views handled by the flex
    // layout.
    const int resize_area_x = state_controller_->IsTabStripRightAligned()
-@@ -586,7 +595,7 @@
+@@ -586,7 +594,7 @@
  
  gfx::Size VerticalTabStripRegionView::GetMinimumSize() const {
    auto min_size = BaseTabStripRegionView::GetMinimumSize();
@@ -55,7 +38,7 @@ own bounds, so the column slides out over the room the card is taking. When the 
      // Aerie: a hidden sidebar takes no room (issue #177).
      min_size.set_width(0);
      return min_size;
-@@ -600,7 +609,7 @@
+@@ -600,7 +608,7 @@
  gfx::Size VerticalTabStripRegionView::CalculatePreferredSize(
      const views::SizeBounds& available_size) const {
    auto size = BaseTabStripRegionView::CalculatePreferredSize(available_size);
@@ -64,23 +47,7 @@ own bounds, so the column slides out over the room the card is taking. When the 
      size.set_width(0);
      return size;
    }
-@@ -935,16 +944,30 @@
-   const int edge = on_right ? 1 : -1;
-   const int column_width = target_collapse_state_.uncollapsed_width;
-   ui::Layer* const column = layer();
-+  // The page card follows the column with a transform; its bounds change in
-+  // one step in the next layout. Reduced motion: the card snaps.
-+  if (views::View* card = browser_view()->multi_contents_view()) {
-+    if (!aerie_card_follow_.observing()) {
-+      aerie_card_follow_.Observe(card);
-+    }
-+  }
-+  if (reduced) {
-+    aerie_card_follow_.Cancel();
-+  }
- 
-   if (visible) {
-     // A hide that is still sliding out has not taken the column out of the
+@@ -941,6 +949,7 @@
      // layout yet: the show then starts from where the column is.
      const bool was_hidden = aerie_hidden_;
      aerie_hidden_ = false;
@@ -88,14 +55,7 @@ own bounds, so the column slides out over the room the card is taking. When the 
      SetVisible(true);
      InvalidateLayout();
      const aerie_sidebar::SlideMotion slide =
-         aerie_sidebar::ShowMotion(column_width, edge, reduced);
-+    if (!reduced) {
-+      aerie_card_follow_.Arm(edge, slide.duration, slide.easing, prefs);
-+    }
-     aerie::motion::LayerMotion target;
-     if (slide.animate_transform) {
-       if (was_hidden) {
-@@ -975,11 +998,20 @@
+@@ -975,11 +984,17 @@
    }
    aerie_motion_ = aerie::motion::AnimateLayer(column, target, slide.duration,
                                                slide.easing, prefs);
@@ -103,9 +63,6 @@ own bounds, so the column slides out over the room the card is taking. When the 
 +  // follows the column out; the column slides at its old width.
 +  aerie_slide_width_ = column_width;
 +  aerie_hide_sliding_ = true;
-+  if (!reduced) {
-+    aerie_card_follow_.Arm(edge, slide.duration, slide.easing, prefs);
-+  }
 +  InvalidateLayout();
    aerie_hide_timer_.Start(
        FROM_HERE, base::Milliseconds(slide.duration_ms),
@@ -118,15 +75,7 @@ own bounds, so the column slides out over the room the card is taking. When the 
              self->layer()->SetOpacity(1.f);
 --- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
 +++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
-@@ -13,6 +13,7 @@
- #include "base/memory/raw_ptr.h"
- #include "base/time/time.h"
- #include "base/timer/timer.h"
-+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_card_follow.h"
- #include "components/aerie_design_tokens/aerie_motion.h"
- #include "components/prefs/pref_change_registrar.h"
- #include "chrome/browser/ui/animation/browser_animation_types.h"
-@@ -269,6 +270,13 @@
+@@ -269,6 +269,11 @@
    bool aerie_target_visible_ = true;
    PrefChangeRegistrar aerie_pref_registrar_;
    base::OneShotTimer aerie_hide_timer_;
@@ -135,8 +84,6 @@ own bounds, so the column slides out over the room the card is taking. When the 
 +  // paints outside its own bounds at its old width (issue #215).
 +  bool aerie_hide_sliding_ = false;
 +  int aerie_slide_width_ = 0;
-+  // The page card follows the column with a transform (issue #215).
-+  AerieSidebarCardFollow aerie_card_follow_;
    aerie::motion::MotionHandle aerie_motion_;
    raw_ptr<views::ResizeArea> resize_area_ = nullptr;
    raw_ptr<ShadowFrameView> shadow_frame_ = nullptr;
