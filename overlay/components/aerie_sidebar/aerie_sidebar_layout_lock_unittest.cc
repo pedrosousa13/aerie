@@ -117,6 +117,7 @@ TEST_F(AerieSidebarLayoutLockTest, OtherPrefsStayUserModifiable) {
   registry->RegisterIntegerPref(kHeliumLayoutPref, 0);
   registry->RegisterBooleanPref(kHeliumZenModePref, false);
   PrefServiceFactory factory;
+  factory.set_user_prefs(base::MakeRefCounted<TestingPrefStore>());
   factory.set_command_line_prefs(command_line_store_);
   std::unique_ptr<PrefService> prefs = factory.Create(registry);
   EXPECT_TRUE(prefs->IsUserModifiablePreference("helium.browser.other"));
