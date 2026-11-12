@@ -478,6 +478,8 @@ class AerieSidebarView : public views::View,
   // What the sync that a toggle caused found.
   std::vector<raw_ptr<AerieSidebarRowView>> toggle_revealed_;
   std::vector<raw_ptr<AerieSidebarRowView>> toggle_collapsing_;
+  // Must stay declared after rows_, pinned_rows_, collapsing_rows_,
+  // pinned_scroll_ and pinned_list_: its destructor runs End(), which touches them.
   std::unique_ptr<AerieSidebarFolderGroup> group_;
   // The folder row that takes keyboard focus when the row that had it went
   // into a folder that shut.

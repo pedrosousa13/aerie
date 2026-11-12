@@ -155,6 +155,8 @@ void AerieSidebarFolderGroup::End() {
       row->EndFolderMotion();
     }
   }
+  // Nothing of the rows outlives the motion, whatever RemoveCollapsedRows does.
+  rows_.clear();
   if (list_) {
     list_->InvalidateLayout();
   }
