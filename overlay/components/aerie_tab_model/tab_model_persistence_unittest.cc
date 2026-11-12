@@ -17,6 +17,7 @@
 #include "base/test/simple_test_clock.h"
 #include "base/test/task_environment.h"
 #include "base/test/test_future.h"
+#include "components/aerie_tab_model/folder_tree.h"
 #include "components/aerie_tab_model/tab_model.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -110,6 +111,46 @@ TEST_F(TabModelPersistenceTest, TabsAndFoldersSurviveARestartAsStored) {
     ASSERT_TRUE(model.GetFolder(folder_id));
     EXPECT_EQ(model.GetFolder(folder_id)->name, "Reading");
     EXPECT_GE(model.change_log().size(), 3u);
+  });
+}
+
+TEST_F(TabModelPersistenceTest, FolderOrderExpandStateAndPinnedContentsSurviveARestart) {
+  std::string open_folder;
+  std::string shut_folder;
+  std::string inner;
+  std::string pinned_tab;
+  std::string today_tab;
+  Session([&](TabModel& model) {
+    open_folder = CreateFolder(model, Section::kPinned, std::string(), "Open");
+    shut_folder = CreateFolder(model, Section::kPinned, std::string(), "Shut");
+    inner = CreateFolder(model, Section::kPinned, open_folder, "Inner");
+    SetFolderExpanded(model, shut_folder, false);
+    TabRecord tab;
+    tab.section = Section::kPinned;
+    tab.parent = inner;
+    tab.pinned_url = "https://example.com/";
+    pinned_tab = model.AddTab(std::move(tab));
+    TabRecord today;
+    today.section = Section::kToday;
+    today.last_active = clock_.Now();
+    today_tab = model.AddTab(std::move(today));
+    model.MoveTab(today_tab, Section::kToday, CreateFolder(model, Section::kToday, std::string(), "T"), 0);
+  });
+  Session([&](TabModel& model) {
+    ASSERT_TRUE(model.GetFolder(open_folder));
+    EXPECT_TRUE(model.GetFolder(open_folder)->expanded);
+    EXPECT_FALSE(model.GetFolder(shut_folder)->expanded);
+    EXPECT_EQ(model.GetTab(pinned_tab)->parent, inner);
+    EXPECT_EQ(model.GetFolder(inner)->parent, open_folder);
+    // Shut was made last, so it is first: the order is kept.
+    const std::vector<TreeRow> rows = BuildVisibleRows(
+        model, Section::kPinned, [](const std::string&) { return true; });
+    ASSERT_EQ(rows.size(), 4u);
+    EXPECT_EQ(rows[0].id, shut_folder);
+    EXPECT_EQ(rows[1].id, open_folder);
+    // What does not survive without #223: a live Today tab is dropped, the
+    // folder that held it stays (empty).
+    EXPECT_EQ(model.GetTab(today_tab), nullptr);
   });
 }
 
