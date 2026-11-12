@@ -115,6 +115,16 @@ ToastMotion ToastHideMotion(bool reduced) {
   return motion;
 }
 
+RenameFadeMotion RenameFade(bool reduced) {
+  RenameFadeMotion motion;
+  motion.from_opacity = 0.f;
+  motion.to_opacity = 1.f;
+  motion.duration = MotionDuration::kXfast;
+  motion.easing = MotionEasing::kDecelerate;
+  motion.duration_ms = GetDurationMs(motion.duration, reduced);
+  return motion;
+}
+
 RowMotion OpenRowMotion(bool reduced) {
   RowMotion motion;
   motion.content_duration = MotionDuration::kFast;

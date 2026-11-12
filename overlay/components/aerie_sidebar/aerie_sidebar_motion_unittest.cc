@@ -203,4 +203,23 @@ TEST(AerieSidebarMotionTest, UnderReducedMotionTheToastOnlyFadesAndNeverLongerTh
   }
 }
 
+TEST(AerieSidebarMotionTest, TheRenameFieldAndThePencilFadeInOnXfastAndOnlyChangeOpacity) {
+  for (bool reduced : {false, true}) {
+    const RenameFadeMotion m = RenameFade(reduced);
+    EXPECT_EQ(m.duration, MotionDuration::kXfast);
+    EXPECT_EQ(m.duration_ms, 90);
+    EXPECT_FLOAT_EQ(m.from_opacity, 0.f);
+    EXPECT_FLOAT_EQ(m.to_opacity, 1.f);
+    EXPECT_LE(m.duration_ms, aerie::motion::kMaxReducedOpacityMs);
+  }
+}
+
+TEST(AerieSidebarMotionTest, TheRenameFadeIsTheSameUnderReducedMotion) {
+  const RenameFadeMotion normal = RenameFade(false);
+  const RenameFadeMotion reduced = RenameFade(true);
+  EXPECT_EQ(normal.duration, reduced.duration);
+  EXPECT_EQ(normal.easing, reduced.easing);
+  EXPECT_EQ(normal.duration_ms, reduced.duration_ms);
+}
+
 }  // namespace aerie_sidebar
