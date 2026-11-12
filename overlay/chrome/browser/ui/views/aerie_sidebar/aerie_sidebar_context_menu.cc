@@ -48,12 +48,11 @@ AerieSidebarContextMenu::AerieSidebarContextMenu(Options options,
         kCommandAddToFavorites,
         l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_ADD_TO_FAVORITES));
   }
-  root_->AppendMenuItem(kCommandRename,
-                        l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_RENAME_TAB));
+  root_->AppendMenuItem(
+      kCommandRename, l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_RENAME_TAB));
   if (options_.has_manual_name) {
-    root_->AppendMenuItem(
-        kCommandResetName,
-        l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_RESET_NAME));
+    root_->AppendMenuItem(kCommandResetName, l10n_util::GetStringUTF16(
+                                                 IDS_AERIE_SIDEBAR_RESET_NAME));
   }
   root_->AppendSeparator();
   views::MenuItemView* sleep = root_->AppendMenuItem(

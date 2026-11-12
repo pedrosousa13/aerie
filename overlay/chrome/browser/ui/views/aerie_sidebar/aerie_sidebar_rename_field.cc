@@ -21,8 +21,8 @@ void AerieSidebarRenameField::SetPaletteColors(
   palette_ = palette;
   SetCornerRadius(aerie::tokens::kRadiusSm);
   SetBorder(views::CreatePaddedBorder(
-      views::CreateRoundedRectBorder(1, aerie::tokens::kRadiusSm,
-                                     palette.accent),
+      views::CreateRoundedRectBorder(aerie::tokens::kSizeFocusRingWidth,
+                                     aerie::tokens::kRadiusSm, palette.accent),
       gfx::Insets::VH(aerie::tokens::kSpace2, aerie::tokens::kSpace6)));
   ApplyColors();
 }

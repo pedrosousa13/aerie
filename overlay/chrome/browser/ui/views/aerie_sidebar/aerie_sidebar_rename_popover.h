@@ -40,10 +40,11 @@ class AerieSidebarRenamePopover : public views::BubbleDialogDelegate,
                               bool refocus_anchor)>;
 
   // Opens the popover below the sidebar's edge, anchored at `anchor`.
-  static AerieSidebarRenamePopover* Show(views::View* anchor,
-                                         const std::u16string& initial_text,
-                                         const PrefService* reduced_motion_prefs,
-                                         DoneCallback done);
+  static AerieSidebarRenamePopover* Show(
+      views::View* anchor,
+      const std::u16string& initial_text,
+      const PrefService* reduced_motion_prefs,
+      DoneCallback done);
 
   AerieSidebarRenamePopover(const AerieSidebarRenamePopover&) = delete;
   AerieSidebarRenamePopover& operator=(const AerieSidebarRenamePopover&) =

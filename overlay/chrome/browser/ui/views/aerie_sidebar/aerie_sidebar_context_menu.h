@@ -34,9 +34,9 @@ class Widget;
 // Sleep tab is disabled, with the reason in its tooltip, when the tab cannot
 // sleep. Close tab follows the pinned-close setting for a Pinned or Favorites
 // tab. Rename and, only when the tab has a name of its own, Reset name follow
-// the section items (issue #145); later slices add the folder items to this menu. The menu is
-// the views menu, so the keyboard works as in every menu: arrows, Enter and
-// Esc.
+// the section items (issue #145); later slices add the folder items to this
+// menu. The menu is the views menu, so the keyboard works as in every menu:
+// arrows, Enter and Esc.
 class AerieSidebarContextMenu : public views::MenuDelegate {
  public:
   static constexpr int kCommandSleepTab = 1;

@@ -143,7 +143,7 @@
     Rename tab
   </message>
   <message name="IDS_AERIE_SIDEBAR_RENAME_CAPTION" desc="Short help text under the text field in which the user types a new name for a tab in the sidebar. A screen reader reads it as the description of the field.">
-    Enter saves, Esc cancels, empty resets
+    Enter keeps, Esc cancels. Empty or the page title resets.
   </message>
   <message name="IDS_AERIE_SIDEBAR_ROW_RENAMED_NAME" desc="Accessible name of a tab row in the sidebar when the user gave the tab a name. The name that the row shows comes first, then the word renamed.">
     <ph name="TITLE">$1<ex>Example page</ex></ph>, renamed

@@ -22,6 +22,8 @@ source_set("aerie_sidebar") {
     "aerie_sidebar_regions.h",
     "aerie_sidebar_rename_field.cc",
     "aerie_sidebar_rename_field.h",
+    "aerie_sidebar_rename_fade.cc",
+    "aerie_sidebar_rename_fade.h",
     "aerie_sidebar_rename_popover.cc",
     "aerie_sidebar_rename_popover.h",
     "aerie_sidebar_row_view.cc",

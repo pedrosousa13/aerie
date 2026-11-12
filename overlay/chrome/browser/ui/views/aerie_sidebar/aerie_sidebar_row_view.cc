@@ -10,8 +10,10 @@
 
 #include "base/functional/bind.h"
 #include "base/strings/string_util.h"
+#include "base/task/single_thread_task_runner.h"
 #include "build/build_config.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_focus_ring.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_rename_fade.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_rename_field.h"
 #include "chrome/browser/ui/views/aerie_sidebar/vector_icons/vector_icons.h"
 #include "chrome/grit/generated_resources.h"
@@ -44,6 +46,7 @@
 #include "ui/views/controls/textfield/textfield.h"
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/style/typography.h"
+#include "ui/views/view_class_properties.h"
 #include "ui/views/widget/widget.h"
 
 namespace {
@@ -146,8 +149,8 @@ AerieSidebarRowView::AerieSidebarRowView(
   // The pencil of a renamed tab (issue #145). It resets the name. Like the
   // back button it is a pointer affordance: the keyboard way is the context
   // menu ("Reset name") or F2 and an empty name.
-  pencil_ = content_->AddChildView(views::CreateVectorImageButton(
-      base::BindRepeating(
+  pencil_ =
+      content_->AddChildView(views::CreateVectorImageButton(base::BindRepeating(
           [](AerieSidebarRowView* row) {
             if (row->callbacks_.reset_name) {
               row->callbacks_.reset_name.Run();
@@ -172,7 +175,7 @@ AerieSidebarRowView::AerieSidebarRowView(
       aerie::tokens::kTypeSizeCaption -
       rename_caption_->font_list().GetFontSize()));
   rename_caption_->SetHorizontalAlignment(gfx::ALIGN_LEFT);
-  rename_caption_->SetElideBehavior(gfx::ELIDE_TAIL);
+  rename_caption_->SetMultiLine(true);
   rename_caption_->SetVisible(false);
   rename_caption_->GetViewAccessibility().SetIsIgnored(true);
 
@@ -235,6 +238,7 @@ AerieSidebarRowView::~AerieSidebarRowView() {
   weak_factory_.InvalidateWeakPtrs();
   pencil_motion_.Abort();
   field_motion_.Abort();
+  title_motion_.Abort();
   // A row that goes away mid-motion must not leave an animation behind.
   content_motion_.Abort();
   row_motion_.Abort();
@@ -289,8 +293,8 @@ void AerieSidebarRowView::SetPalette(
   for (views::Button::ButtonState state :
        {views::Button::STATE_NORMAL, views::Button::STATE_DISABLED}) {
     pencil_->SetImageModel(
-        state, ui::ImageModel::FromVectorIcon(vector_icons::kEditIcon,
-                                              palette_.text_muted, kFaviconSize));
+        state, ui::ImageModel::FromVectorIcon(
+                   vector_icons::kEditIcon, palette_.text_muted, kFaviconSize));
   }
   for (views::Button::ButtonState state :
        {views::Button::STATE_HOVERED, views::Button::STATE_PRESSED}) {
@@ -338,8 +342,7 @@ void AerieSidebarRowView::UpdateName() {
     name = l10n_util::GetStringFUTF16(IDS_AERIE_SIDEBAR_ROW_ASLEEP_NAME, name);
   }
   if (renamed_) {
-    name =
-        l10n_util::GetStringFUTF16(IDS_AERIE_SIDEBAR_ROW_RENAMED_NAME, name);
+    name = l10n_util::GetStringFUTF16(IDS_AERIE_SIDEBAR_ROW_RENAMED_NAME, name);
   }
   GetViewAccessibility().SetName(name);
 }
@@ -367,18 +370,7 @@ void AerieSidebarRowView::SetRenamed(bool renamed,
     return;
   }
   // The pencil fades in: opacity only, on `xfast`.
-  if (!pencil_->layer()) {
-    pencil_->SetPaintToLayer();
-    pencil_->layer()->SetFillsBoundsOpaquely(false);
-  }
-  const aerie_sidebar::RenameFadeMotion motion = aerie_sidebar::RenameFade(
-      aerie::motion::ShouldReduceMotion(reduced_motion_prefs));
-  pencil_->layer()->SetOpacity(motion.from_opacity);
-  aerie::motion::LayerMotion target;
-  target.opacity = motion.to_opacity;
-  pencil_motion_ = aerie::motion::AnimateLayer(
-      pencil_->layer(), target, motion.duration, motion.easing,
-      reduced_motion_prefs);
+  pencil_motion_ = FadeRenameViewIn(pencil_, reduced_motion_prefs);
 }
 
 AerieSidebarRenameField* AerieSidebarRowView::rename_field() const {
@@ -401,8 +393,8 @@ void AerieSidebarRowView::EnsureRenameField() {
   views::FocusRing::Remove(field.get());
   // Right after the title, so that it takes the title's place in the layout.
   const std::optional<size_t> title_index = content_->GetIndexOf(title_);
-  rename_field_ = content_->AddChildViewAt(
-      std::move(field), title_index ? *title_index + 1 : 0);
+  rename_field_ = content_->AddChildViewAt(std::move(field),
+                                           title_index ? *title_index + 1 : 0);
   static_cast<views::BoxLayout*>(content_->GetLayoutManager())
       ->SetFlexForView(rename_field_, 1);
   StyleRenameField();
@@ -422,26 +414,21 @@ void AerieSidebarRowView::BeginRename(const std::u16string& initial_text,
   }
   EnsureRenameField();
   renaming_ = true;
-  title_->SetVisible(false);
   rename_field_->SetText(initial_text);
   rename_field_->SetVisible(true);
   rename_caption_->SetVisible(true);
+  // The title leaves the layout at once but stays where it was while it fades
+  // out, under the field that fades in: one cross-fade, opacity only. It takes
+  // no event and the screen reader does not see it.
+  title_->SetProperty(views::kViewIgnoredByLayoutKey, true);
+  title_->SetCanProcessEventsWithinSubtree(false);
+  title_motion_.Abort();
+  title_motion_ = FadeRenameViewOut(title_, reduced_motion_prefs);
   UpdateTrailing();
+  UpdateCaptionHeight();
   PreferredSizeChanged();
-  // The field fades in on `xfast`: opacity only, nothing moves.
   field_motion_.Abort();
-  if (!rename_field_->layer()) {
-    rename_field_->SetPaintToLayer();
-    rename_field_->layer()->SetFillsBoundsOpaquely(false);
-  }
-  const aerie_sidebar::RenameFadeMotion motion = aerie_sidebar::RenameFade(
-      aerie::motion::ShouldReduceMotion(reduced_motion_prefs));
-  rename_field_->layer()->SetOpacity(motion.from_opacity);
-  aerie::motion::LayerMotion target;
-  target.opacity = motion.to_opacity;
-  field_motion_ = aerie::motion::AnimateLayer(
-      rename_field_->layer(), target, motion.duration, motion.easing,
-      reduced_motion_prefs);
+  field_motion_ = FadeRenameViewIn(rename_field_, reduced_motion_prefs);
   rename_field_->RequestFocus();
   rename_field_->SelectAll(false);
 }
@@ -453,17 +440,46 @@ void AerieSidebarRowView::EndRename(bool commit, bool refocus) {
   renaming_ = false;
   const std::u16string text(rename_field_->GetText());
   field_motion_.Abort();
+  title_motion_.Abort();
   rename_field_->SetVisible(false);
   rename_caption_->SetVisible(false);
-  title_->SetVisible(true);
+  title_->ClearProperty(views::kViewIgnoredByLayoutKey);
+  title_->SetCanProcessEventsWithinSubtree(true);
+  if (title_->layer()) {
+    title_->layer()->SetOpacity(1.f);
+  }
   UpdateTrailing();
   PreferredSizeChanged();
   if (refocus) {
     RequestFocus();
   }
   if (commit && callbacks_.commit_rename) {
+    // The commit can rebuild the rows, and this runs inside the field's own
+    // OnBlur or HandleKeyEvent: it goes to a task, so that no row or field is
+    // destroyed under the call that is still on the stack.
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE, base::BindOnce(&AerieSidebarRowView::RunCommitRename,
+                                  weak_factory_.GetWeakPtr(), text));
+  }
+}
+
+void AerieSidebarRowView::RunCommitRename(const std::u16string& text) {
+  if (callbacks_.commit_rename) {
     callbacks_.commit_rename.Run(text);
   }
+}
+
+void AerieSidebarRowView::UpdateCaptionHeight() {
+  if (!rename_field_ || !rename_caption_) {
+    return;
+  }
+  // The field's width is known once the content is laid out.
+  content_->SetBoundsRect(gfx::Rect(0, 0, width(), kRowHeight));
+  content_->DeprecatedLayoutImmediately();
+  const int width_now = rename_field_->width();
+  caption_height_ = width_now > 0
+                        ? rename_caption_->GetHeightForWidth(width_now)
+                        : aerie::tokens::kTypeLineCaption;
 }
 
 void AerieSidebarRowView::CancelRename() {
@@ -481,7 +497,7 @@ void AerieSidebarRowView::ContentsChanged(views::Textfield* sender,
                                           const std::u16string& new_contents) {
   // The field holds at most kMaxManualNameLength characters.
   if (new_contents.size() > aerie_tab_model::kMaxManualNameLength) {
-    sender->SetText(new_contents.substr(0, aerie_tab_model::kMaxManualNameLength));
+    sender->SetText(aerie_tab_model::CutToManualNameLength(new_contents));
   }
 }
 
@@ -588,9 +604,16 @@ void AerieSidebarRowView::Layout(PassKey) {
   if (renaming_ && rename_field_) {
     // The caption sits under the field, as wide as the field.
     content_->DeprecatedLayoutImmediately();
-    rename_caption_->SetBoundsRect(
-        gfx::Rect(rename_field_->x(), kRowHeight, rename_field_->width(),
-                  aerie::tokens::kTypeLineCaption));
+    const int caption_height =
+        rename_caption_->GetHeightForWidth(rename_field_->width());
+    rename_caption_->SetBoundsRect(gfx::Rect(rename_field_->x(), kRowHeight,
+                                             rename_field_->width(),
+                                             caption_height));
+    if (caption_height != caption_height_) {
+      // The caption wraps to another number of lines at this width.
+      caption_height_ = caption_height;
+      PreferredSizeChanged();
+    }
   }
 }
 
@@ -606,7 +629,7 @@ gfx::Size AerieSidebarRowView::CalculatePreferredSize(
   // While the field is open the row is taller by the caption under it. That
   // is a layout change on a user action, not an animation.
   const int caption_block =
-      renaming_ ? aerie::tokens::kTypeLineCaption + aerie::tokens::kSpace4 : 0;
+      renaming_ ? caption_height_ + aerie::tokens::kSpace4 : 0;
   return gfx::Size(
       available_size.width().value_or(aerie::tokens::kSizeSidebarMin),
       static_cast<int>(std::lround(kRowHeight * height_fraction_)) +

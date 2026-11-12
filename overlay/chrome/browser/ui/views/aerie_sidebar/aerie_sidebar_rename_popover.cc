@@ -9,6 +9,7 @@
 
 #include "base/functional/bind.h"
 #include "base/memory/ptr_util.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_rename_fade.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_rename_field.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/aerie_design_tokens/aerie_tokens.h"
@@ -21,8 +22,8 @@
 #include "ui/gfx/geometry/insets.h"
 #include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/controls/label.h"
-#include "ui/views/layout/box_layout_view.h"
 #include "ui/views/layout/box_layout.h"
+#include "ui/views/layout/box_layout_view.h"
 #include "ui/views/style/typography.h"
 #include "ui/views/widget/widget.h"
 
@@ -39,16 +40,7 @@ AerieSidebarRenamePopover* AerieSidebarRenamePopover::Show(
       std::move(popover), views::Widget::InitParams::NATIVE_WIDGET_OWNS_WIDGET)
       ->Show();
   // The field fades in on `xfast`: opacity only (issue #145).
-  raw->field_->SetPaintToLayer();
-  raw->field_->layer()->SetFillsBoundsOpaquely(false);
-  const aerie_sidebar::RenameFadeMotion motion = aerie_sidebar::RenameFade(
-      aerie::motion::ShouldReduceMotion(reduced_motion_prefs));
-  raw->field_->layer()->SetOpacity(motion.from_opacity);
-  aerie::motion::LayerMotion target;
-  target.opacity = motion.to_opacity;
-  raw->field_motion_ = aerie::motion::AnimateLayer(
-      raw->field_->layer(), target, motion.duration, motion.easing,
-      reduced_motion_prefs);
+  raw->field_motion_ = FadeRenameViewIn(raw->field_, reduced_motion_prefs);
   raw->field_->RequestFocus();
   raw->field_->SelectAll(false);
   return raw;
@@ -64,8 +56,10 @@ AerieSidebarRenamePopover::AerieSidebarRenamePopover(
       done_(std::move(done)) {
   SetButtons(static_cast<int>(ui::mojom::DialogButton::kNone));
   SetShowCloseButton(false);
-  SetAccessibleTitle(l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_RENAME_POPOVER));
-  set_fixed_width(aerie::tokens::kSizeSidebarWidth - 2 * aerie::tokens::kSpace16);
+  SetAccessibleTitle(
+      l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_RENAME_POPOVER));
+  set_fixed_width(aerie::tokens::kSizeSidebarWidth -
+                  2 * aerie::tokens::kSpace16);
   set_margins(gfx::Insets(aerie::tokens::kSpace12));
   auto contents = std::make_unique<views::BoxLayoutView>();
   contents->SetOrientation(views::BoxLayout::Orientation::kVertical);
@@ -73,8 +67,8 @@ AerieSidebarRenamePopover::AerieSidebarRenamePopover(
   contents->SetCrossAxisAlignment(
       views::BoxLayout::CrossAxisAlignment::kStretch);
 
-  field_ = contents->AddChildView(std::make_unique<AerieSidebarRenameField>(
-      base::RepeatingClosure()));
+  field_ = contents->AddChildView(
+      std::make_unique<AerieSidebarRenameField>(base::RepeatingClosure()));
   field_->set_controller(this);
   field_->SetText(initial_text);
   field_->GetViewAccessibility().SetName(
@@ -108,8 +102,7 @@ void AerieSidebarRenamePopover::ContentsChanged(
     views::Textfield* sender,
     const std::u16string& new_contents) {
   if (new_contents.size() > aerie_tab_model::kMaxManualNameLength) {
-    sender->SetText(
-        new_contents.substr(0, aerie_tab_model::kMaxManualNameLength));
+    sender->SetText(aerie_tab_model::CutToManualNameLength(new_contents));
   }
 }
 

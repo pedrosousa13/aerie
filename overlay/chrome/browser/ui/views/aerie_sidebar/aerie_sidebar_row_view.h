@@ -153,6 +153,7 @@ class AerieSidebarRowView : public views::View,
                   const PrefService* reduced_motion_prefs);
   bool renamed() const { return renamed_; }
   views::ImageButton* pencil_button() const { return pencil_; }
+  views::Label* title_view() const { return title_; }
 
   // Opens the field in place of the title with `initial_text`, all of it
   // selected, and puts keyboard focus in it. The title view fades out and the
@@ -260,6 +261,8 @@ class AerieSidebarRowView : public views::View,
   // Closes the field. `commit`: hand its text to `commit_rename`. `refocus`:
   // put keyboard focus back on the row (Enter and Esc; not a focus loss).
   void EndRename(bool commit, bool refocus);
+  void RunCommitRename(const std::u16string& text);
+  void UpdateCaptionHeight();
   void OnRenameBlur();
   void ApplySleepLook(bool animate, const PrefService* prefs);
   // Starts the height animation toward `target` (1 grows, 0 collapses).
@@ -324,6 +327,9 @@ class AerieSidebarRowView : public views::View,
   bool suppress_release_ = false;
   aerie::motion::MotionHandle pencil_motion_;
   aerie::motion::MotionHandle field_motion_;
+  aerie::motion::MotionHandle title_motion_;
+  // The height the caption needs under the field at the field's width.
+  int caption_height_ = 0;
 
   base::WeakPtrFactory<AerieSidebarRowView> weak_factory_{this};
 };
