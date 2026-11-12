@@ -119,10 +119,8 @@ AerieSidebarFolderSheet* AerieSidebarFolderSheet::Show(Params params) {
   if (!params.model || !params.model->GetFolder(params.folder_id)) {
     return nullptr;
   }
-  views::View* anchor = params.anchor;
   auto sheet = base::WrapUnique(new AerieSidebarFolderSheet(std::move(params)));
   AerieSidebarFolderSheet* raw = sheet.get();
-  (void)anchor;
   views::Widget* widget = views::BubbleDialogDelegate::CreateBubbleDeprecated(
       std::move(sheet), views::Widget::InitParams::NATIVE_WIDGET_OWNS_WIDGET);
   widget->Show();
@@ -277,6 +275,16 @@ void AerieSidebarFolderSheet::Build() {
   all_switch_ = all_row->AddChildView(std::move(all));
   auto_section->AddChildView(std::move(all_row));
   auto_section_ = contents->AddChildView(std::move(auto_section));
+
+  // Empty slots for what later issues add: the body of a Smart folder (#140)
+  // and the Behaviour section (#141). They are hidden while empty and take no
+  // room; the owner of a later kind fills one and shows it.
+  auto smart = MakeColumn(aerie::tokens::kSpace8);
+  smart->SetVisible(false);
+  smart_body_slot_ = contents->AddChildView(std::move(smart));
+  auto behaviour = MakeColumn(aerie::tokens::kSpace8);
+  behaviour->SetVisible(false);
+  behaviour_slot_ = contents->AddChildView(std::move(behaviour));
 
   // Footer: the global switch and Done.
   auto footer = MakeRow();

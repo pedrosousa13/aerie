@@ -1956,6 +1956,9 @@ void AerieSidebarView::OnFolderContextCommand(const std::string& folder_id,
               weak_factory_.GetWeakPtr(), folder_id));
       break;
     case AerieSidebarContextMenu::kCommandEditFolder:
+      // Open the sheet after this menu command returns, so that the menu has
+      // closed and given up its grab: the sheet anchors on the row and takes
+      // focus, and neither works while the menu still owns them.
       base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
           FROM_HERE,
           base::BindOnce(
@@ -2295,6 +2298,12 @@ void AerieSidebarView::FinishToastHide() {
   if (toast_card_->layer()) {
     toast_card_->DestroyLayer();
   }
+}
+
+void AerieSidebarView::OnAutoFileControllerDestroyed() {
+  // The service shuts down (and drops the controller) before this window is
+  // gone in some orders, such as a profile that is deleted: let go of it.
+  auto_file_ = nullptr;
 }
 
 void AerieSidebarView::OnTabFiled(

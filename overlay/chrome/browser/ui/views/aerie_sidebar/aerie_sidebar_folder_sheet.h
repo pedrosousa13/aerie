@@ -89,6 +89,10 @@ class AerieSidebarFolderSheet : public views::BubbleDialogDelegate,
   views::Textfield* name_field() const { return name_field_; }
   // The buttons of the kind control (a segmented control; each says `radio`).
   views::LabelButton* kind_button(size_t index) const;
+  // Empty, hidden containers for the body of a Smart folder (#140) and the
+  // Behaviour section (#141). Nothing is in them yet.
+  views::View* smart_body_slot() const { return smart_body_slot_; }
+  views::View* behaviour_slot() const { return behaviour_slot_; }
   bool kind_checked(size_t index) const;
   views::BoxLayoutView* rules_list() const { return rules_list_; }
   views::BoxLayoutView* exceptions_list() const { return exceptions_list_; }
@@ -146,6 +150,8 @@ class AerieSidebarFolderSheet : public views::BubbleDialogDelegate,
   raw_ptr<views::View> contents_ = nullptr;
   raw_ptr<views::Textfield> name_field_ = nullptr;
   std::vector<raw_ptr<views::LabelButton>> kind_buttons_;
+  raw_ptr<views::View> smart_body_slot_ = nullptr;
+  raw_ptr<views::View> behaviour_slot_ = nullptr;
   raw_ptr<views::View> auto_section_ = nullptr;
   raw_ptr<views::BoxLayoutView> rules_list_ = nullptr;
   raw_ptr<views::Combobox> type_combobox_ = nullptr;

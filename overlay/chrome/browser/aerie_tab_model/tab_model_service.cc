@@ -14,6 +14,7 @@
 #include "chrome/browser/aerie_tab_model/pinned_tabs_controller.h"
 #include "chrome/browser/aerie_tab_model/tab_strip_adapter.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/sessions/session_restore.h"
 #include "components/aerie_design_tokens/aerie_motion.h"
 #include "components/aerie_tab_model/auto_file_controller.h"
 #include "components/aerie_tab_model/tab_model_prefs.h"
@@ -75,15 +76,21 @@ TabModelService::TabModelService(Profile* profile)
 
 void TabModelService::OnTabInserted(const std::string& record_id,
                                     tabs::TabInterface* tab) {
-  if (!auto_file_ || !auto_file_->IsWatching(record_id)) {
+  if (!auto_file_) {
     return;
   }
-  // A tab that session restore, Reopen closed tab or Duplicate made has history
-  // already. Only a tab that has not committed a page of its own yet is new.
+  // Nothing is watched while session restore runs: those tabs are not new, and
+  // no auto-file work should run at startup.
+  if (SessionRestore::IsRestoring(profile_)) {
+    return;
+  }
+  // A tab that Reopen closed tab or Duplicate made has history already. Only a
+  // tab that has not committed a page of its own yet is new.
   content::WebContents* contents = tab->GetContents();
   if (!contents || !contents->GetController().IsInitialBlankNavigation()) {
-    auto_file_->Forget(record_id);
+    return;
   }
+  auto_file_->Watch(record_id);
 }
 
 void TabModelService::OnTabChanged(const std::string& record_id,

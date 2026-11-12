@@ -5,7 +5,7 @@
 // Browser tests of auto-filing folders (issue #139): a new tab that matches a
 // rule goes into its folder, the toast and its two actions, the switches, the
 // folder editor sheet and what a screen reader hears. The timing of the move
-// (the 280 ms pause, the 5 s window, a tab moved by hand) is tested with a fake
+// (the 280 ms pause, the 10 s window, a tab moved by hand) is tested with a fake
 // clock in auto_file_controller_unittest.cc; these tests run on real time, and
 // the pause under reduced motion is 120 ms.
 
@@ -37,7 +37,9 @@
 #include "components/aerie_tab_model/tab_model.h"
 #include "components/aerie_tab_model/tab_model_prefs.h"
 #include "components/prefs/pref_service.h"
+#include "content/public/browser/web_contents.h"
 #include "content/public/test/browser_test.h"
+#include "content/public/test/browser_test_utils.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "ui/accessibility/ax_node_data.h"
 #include "ui/events/event.h"
@@ -469,6 +471,126 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarFolderSheetBrowserTest,
   // Done closes it too.
   sheet = OpenSheet(folder);
   Click(sheet->done_button());
+  CloseSheetAndWait();
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarFolderSheetBrowserTest,
+                       TheAccessibilityTreeNamesTheSheetTheChipsAndTheToast) {
+  const std::string folder =
+      MakeAutoFolder("Trips", RuleType::kDomain, "trips.localhost");
+  ASSERT_TRUE(base::test::RunUntil(
+      [&] { return sidebar()->RowForId(folder) != nullptr; }));
+  // The row: "<name>, auto-filing folder, ...".
+  EXPECT_EQ(DataOf(sidebar()->RowForId(folder))
+                .GetStringAttribute(ax::mojom::StringAttribute::kName)
+                .rfind("Trips, auto-filing folder", 0),
+            0u);
+
+  AerieSidebarFolderSheet* sheet = OpenSheet(folder);
+  EXPECT_EQ(sheet->GetAccessibleWindowRole(), ax::mojom::Role::kDialog);
+  EXPECT_EQ(sheet->GetAccessibleWindowTitle(), u"Edit folder Trips");
+  sheet->FlushForTesting();
+
+  // The three switches: a role, a name and a state each.
+  for (AerieSidebarSwitch* sw : {sheet->all_switch(), sheet->global_switch()}) {
+    const ui::AXNodeData data = DataOf(sw);
+    EXPECT_EQ(data.role, ax::mojom::Role::kSwitch);
+    EXPECT_FALSE(data.GetStringAttribute(ax::mojom::StringAttribute::kName).empty());
+    EXPECT_EQ(data.GetCheckedState(), ax::mojom::CheckedState::kTrue);
+  }
+  // The chips are the items of a named list, each with a switch and a remove
+  // button that says which rule it removes.
+  EXPECT_EQ(DataOf(sheet->rules_list()).role, ax::mojom::Role::kList);
+  EXPECT_FALSE(DataOf(sheet->rules_list())
+                   .GetStringAttribute(ax::mojom::StringAttribute::kName)
+                   .empty());
+  ASSERT_EQ(sheet->rules_list()->children().size(), 1u);
+  views::View* chip = sheet->rules_list()->children()[0];
+  EXPECT_EQ(DataOf(chip).role, ax::mojom::Role::kListItem);
+  auto* chip_switch = FindDescendant<AerieSidebarSwitch>(chip);
+  ASSERT_TRUE(chip_switch);
+  EXPECT_EQ(DataOf(chip_switch).role, ax::mojom::Role::kSwitch);
+  EXPECT_EQ(DataOf(chip_switch).GetCheckedState(),
+            ax::mojom::CheckedState::kTrue);
+  bool found_remove = false;
+  for (views::View* child : chip->children()) {
+    if (auto* button = views::AsViewClass<views::ImageButton>(child)) {
+      EXPECT_EQ(
+          DataOf(button).GetStringAttribute(ax::mojom::StringAttribute::kName),
+          "Remove rule Domain: trips.localhost");
+      found_remove = true;
+    }
+  }
+  EXPECT_TRUE(found_remove);
+  sheet->Dismiss(false);
+  CloseSheetAndWait();
+
+  // The toast is a status (a polite live region), not an alert.
+  const std::string tab = OpenTabAt(UrlOn("trips.localhost"));
+  ASSERT_TRUE(WaitFiledInto(tab, folder));
+  ASSERT_TRUE(base::test::RunUntil([&] { return sidebar()->toast_visible(); }));
+  EXPECT_EQ(DataOf(sidebar()->toast()).role, ax::mojom::Role::kStatus);
+  EXPECT_NE(DataOf(sidebar()->toast()).role, ax::mojom::Role::kAlert);
+}
+
+// The row is in the Sidebar section of Settings (patch 0038) and follows the
+// pref. Settings nests shadow roots, so the script walks them.
+IN_PROC_BROWSER_TEST_F(AerieSidebarFolderSheetBrowserTest,
+                       SettingsShowsTheFolderRulesRowAndItFollowsThePref) {
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(
+      browser(), GURL("chrome://settings/appearance")));
+  content::WebContents* contents =
+      browser()->tab_strip_model()->GetActiveWebContents();
+  const std::string script = R"JS(
+    (async (expectChecked) => {
+      const find = (root, selector) => {
+        const hit = root.querySelector(selector);
+        if (hit) return hit;
+        for (const el of root.querySelectorAll('*')) {
+          if (el.shadowRoot) {
+            const found = find(el.shadowRoot, selector);
+            if (found) return found;
+          }
+        }
+        return null;
+      };
+      for (let i = 0; i < 100; ++i) {
+        const row = find(document, 'settings-aerie-folder-rules-row');
+        const toggle = row && row.shadowRoot &&
+            find(row.shadowRoot, 'settings-toggle-button');
+        if (toggle && !!toggle.checked === expectChecked) {
+          return {label: toggle.label, checked: !!toggle.checked,
+                  visible: toggle.getBoundingClientRect().height > 0};
+        }
+        await new Promise(r => setTimeout(r, 100));
+      }
+      return null;
+    })
+  )JS";
+  EXPECT_TRUE(prefs()->GetBoolean(aerie_tab_model::kFolderRulesEnabled));
+  auto on = content::EvalJs(contents, "(" + script + ")(true)");
+  ASSERT_TRUE(on.error.empty()) << on.error;
+  const base::DictValue on_dict = on.ExtractDict();
+  EXPECT_EQ(*on_dict.FindString("label"), "Folder rules everywhere");
+  EXPECT_TRUE(*on_dict.FindBool("visible"));
+  prefs()->SetBoolean(aerie_tab_model::kFolderRulesEnabled, false);
+  auto off = content::EvalJs(contents, "(" + script + ")(false)");
+  ASSERT_TRUE(off.error.empty()) << off.error;
+  EXPECT_FALSE(*off.ExtractDict().FindBool("checked"));
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarFolderSheetBrowserTest,
+                       TheSheetKeepsEmptySlotsForSmartAndBehaviour) {
+  const std::string folder =
+      MakeAutoFolder("Trips", RuleType::kDomain, "trips.localhost");
+  AerieSidebarFolderSheet* sheet = OpenSheet(folder);
+  ASSERT_TRUE(sheet->smart_body_slot());
+  ASSERT_TRUE(sheet->behaviour_slot());
+  EXPECT_TRUE(sheet->smart_body_slot()->children().empty());
+  EXPECT_TRUE(sheet->behaviour_slot()->children().empty());
+  EXPECT_FALSE(sheet->smart_body_slot()->GetVisible());
+  EXPECT_FALSE(sheet->behaviour_slot()->GetVisible());
+  sheet->Dismiss(false);
   CloseSheetAndWait();
 }
 

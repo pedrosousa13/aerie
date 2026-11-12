@@ -156,6 +156,7 @@ class AerieSidebarView : public views::View,
   }
   // aerie_tab_model::AutoFileController::Observer:
   void OnTabFiled(const aerie_tab_model::AutoFileController::Filed& filed) override;
+  void OnAutoFileControllerDestroyed() override;
   bool toast_visible() const;
   // Starts the fade out at once instead of waiting for the hold.
   void HideToastForTesting() { HideToast(); }

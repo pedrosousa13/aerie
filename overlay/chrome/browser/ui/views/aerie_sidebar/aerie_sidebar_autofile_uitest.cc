@@ -32,6 +32,7 @@
 #include "components/aerie_design_tokens/aerie_motion.h"
 #include "components/aerie_design_tokens/aerie_motion_prefs.h"
 #include "components/aerie_design_tokens/aerie_tokens.h"
+#include "components/aerie_tab_model/auto_file_controller.h"
 #include "components/aerie_tab_model/folder_rules.h"
 #include "components/aerie_tab_model/tab_model.h"
 #include "components/prefs/pref_service.h"
@@ -313,6 +314,13 @@ IN_PROC_BROWSER_TEST_P(AerieSidebarAutoFileReducedUiTest,
   EXPECT_EQ(saw_transform, "");
   ui::Layer* pulse = row->pulse_view()->layer();
   ASSERT_TRUE(pulse);
+  // The pause before the move is the short one, and the folder shows a fade
+  // (opacity) instead of the motion.
+  EXPECT_EQ(aerie_tab_model::AutoFileDelay(aerie::motion::ShouldReduceMotion(
+                browser()->GetProfile()->GetPrefs())),
+            base::Milliseconds(120));
+  EXPECT_TRUE(Animates(pulse, ui::LayerAnimationElement::OPACITY) ||
+              pulse->opacity() > 0.0f || pulse->GetTargetOpacity() > 0.0f);
   EXPECT_FALSE(Animates(pulse, ui::LayerAnimationElement::TRANSFORM));
   EXPECT_FALSE(Animates(sidebar()->toast_layer(),
                         ui::LayerAnimationElement::TRANSFORM));
