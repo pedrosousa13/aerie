@@ -137,6 +137,31 @@ Each folder also has Folder behaviour (#141), except smart folders.
 
 **Folder motion.** Collapse takes `motion-duration-folder-collapse` (180 ms) and reveal takes `motion-duration-folder-reveal` (200 ms). Reveal staggers the first 6 children 15 ms apart. Collapse does not stagger. See "Motion".
 
+### Folders as built (#139)
+
+Auto-filing folders are built as the brief says. What the brief left open, and what was chosen:
+
+- **The window.** A tab can be auto-filed for 5 s after it is created (`kAutoFileWindow`). The first committed address
+  fixes the page the rules are asked about; a title that arrives later is matched against that address. A later
+  navigation never files the tab. A tab that the user moves by hand before the pause ends is left where it is.
+  Restored, reopened and duplicated tabs are never new (`IsInitialBlankNavigation` is checked when the tab is inserted).
+- **The pause.** A matched tab waits `motion-timing-autofile-delay` (280 ms; 120 ms under reduced motion) in Today and
+  then moves to the top of its folder. The folder row pulses with an accent wash on `autofile-pulse` (700 ms, 300 ms
+  under reduced motion; opacity only, peak `motion-opacity-autofile-pulse`, 0.3). A toast says "Filed into <folder>"
+  with Undo and "Don't file this site" and holds for `motion-timing-toast-action` (6 s).
+- **Order.** Pinned folders first, then Today folders, each from the top down. The first rule that matches wins.
+- **Where it lives.** Rules are in the folder's own record (`rules`: `enabled`, `rules`, `excluded_hosts`,
+  `excluded_tabs`), so they survive a restart with the Tab Model. A filed tab keeps `filed_by` (folder and rule) so that
+  Undo and "Stop this rule matching this tab" know where it came from; moving the tab by hand clears it. "Stop this rule
+  matching this tab" adds the tab to the folder's exceptions and also moves it out of the folder.
+- **Switches.** Rule, folder ("All rules in this folder") and global ("Folder rules everywhere", the pref
+  `aerie.folders.rules_enabled`, also a row in Settings, Sidebar). Each one stops filing; none removes a rule.
+- **The sheet.** One native panel (`AerieSidebarFolderSheet`) next to the sidebar; three ways in: "Edit folder..." in the
+  folder menu, a double-click on the folder icon, and the funnel on an auto-filing row. Edits apply at once. It opens on
+  `sheet-enter` (slides `motion-distance-sheet-slide`, 10 px, and fades) and closes on `sheet-exit` (fades). Reduced
+  motion: opacity only, 90 ms. Kinds come from a table, so Smart and Behaviour are one row each later.
+- **Limits.** 50 rules and 200 exceptions per folder, 512 bytes per rule text. No regex.
+
 ### Today, auto-archive and the archive panel
 
 Today holds every unpinned tab. Tabs that stay unused for the archive timeout move to the archive (story 56).
