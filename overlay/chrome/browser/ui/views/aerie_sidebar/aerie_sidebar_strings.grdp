@@ -130,6 +130,30 @@
   <message name="IDS_AERIE_SIDEBAR_FAVORITES_FULL" desc="Short message that the sidebar shows for a moment when the user tries to add a 13th Favorite. The Favorites grid holds 12.">
     Favorites are full. Remove one to add another.
   </message>
+  <message name="IDS_AERIE_SIDEBAR_RENAME_TAB" desc="Item of the context menu of a tab in the sidebar. It opens a field in place of the tab's title, where the user types a name that the sidebar shows instead of the page's title.">
+    Rename
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_RESET_NAME" desc="Item of the context menu of a tab in the sidebar that has a name the user typed. It removes that name, so the sidebar shows the page's title again. It also names the small pencil button after the title of such a tab.">
+    Reset name
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_RENAME_FIELD_NAME" desc="Accessible name of the text field in which the user types a new name for a tab in the sidebar.">
+    Tab name
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_RENAME_POPOVER" desc="Accessible name of the small popover with a text field in which the user types a new name for a Favorite. A Favorite is a small tile with no title on it.">
+    Rename tab
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_RENAME_CAPTION" desc="Short help text under the text field in which the user types a new name for a tab in the sidebar. A screen reader reads it as the description of the field.">
+    Enter keeps, Esc cancels. Empty or the page title resets.
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_ROW_RENAMED_NAME" desc="Accessible name of a tab row in the sidebar when the user gave the tab a name. The name that the row shows comes first, then the word renamed.">
+    <ph name="TITLE">$1<ex>Example page</ex></ph>, renamed
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_RENAMED_TOOLTIP" desc="First line of the tooltip of the pencil button on a renamed tab in the sidebar. It tells the real title of the page, and that the sidebar shows the user's own name instead.">
+    Page title: <ph name="TITLE">$1<ex>Example page</ex></ph>. Shown: your name.
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_RENAMED_PRECEDENCE" desc="Second line of the tooltip of the pencil button on a renamed tab in the sidebar. It lists, in order, where the title that the sidebar shows can come from. The first one that applies wins.">
+    Order: your name, rename rule (no rule matches), tidy (none), AI title (off), page title.
+  </message>
   <message name="IDS_SETTINGS_AERIE_SLEEP_AFTER" desc="Label of the drop-down in the Sidebar section of Settings that sets how long a tab can be idle before it is put to sleep.">
     Put inactive tabs to sleep after
   </message>

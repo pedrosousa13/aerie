@@ -50,6 +50,7 @@
   --aerie-size-favorites-columns: 4;
   --aerie-size-pinned-max-rows: 6;
   --aerie-size-back-button: 20px;
+  --aerie-size-pencil-button: 20px;
   --aerie-size-inset-comfortable: 8px;
   --aerie-size-inset-compact: 4px;
   --aerie-size-favicon-comfortable: 20px;
@@ -60,6 +61,7 @@
   --aerie-size-sleep-badge-offset: 9px;
   --aerie-size-icon: 16px;
   --aerie-size-window-control: 12px;
+  --aerie-size-border-hairline-width: 1px;
   --aerie-size-focus-ring-width: 2px;
   --aerie-size-focus-ring-offset: 2px;
   --aerie-size-indent: 14px;

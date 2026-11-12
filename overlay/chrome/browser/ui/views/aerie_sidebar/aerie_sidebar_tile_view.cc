@@ -88,10 +88,25 @@ void AerieSidebarTileView::SetTitle(const std::u16string& title) {
 }
 
 void AerieSidebarTileView::UpdateName() {
-  GetViewAccessibility().SetName(
-      sleeping_ ? l10n_util::GetStringFUTF16(IDS_AERIE_SIDEBAR_ROW_ASLEEP_NAME,
-                                             title_text_)
-                : title_text_);
+  // The shown title, then ", asleep", then ", renamed".
+  std::u16string name = title_text_;
+  if (sleeping_) {
+    name = l10n_util::GetStringFUTF16(IDS_AERIE_SIDEBAR_ROW_ASLEEP_NAME, name);
+  }
+  if (renamed_) {
+    name = l10n_util::GetStringFUTF16(IDS_AERIE_SIDEBAR_ROW_RENAMED_NAME, name);
+  }
+  GetViewAccessibility().SetName(name);
+}
+
+void AerieSidebarTileView::SetRenamed(bool renamed,
+                                      const std::u16string& renamed_tooltip) {
+  renamed_tooltip_ = renamed_tooltip;
+  if (renamed_ == renamed) {
+    return;
+  }
+  renamed_ = renamed;
+  UpdateName();
 }
 
 void AerieSidebarTileView::SetFavicon(const ui::ImageModel& favicon) {
@@ -215,17 +230,35 @@ void AerieSidebarTileView::Layout(PassKey) {
 
 std::u16string AerieSidebarTileView::GetRenderedTooltipText(
     const gfx::Point& p) const {
-  return sleeping_ ? l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_TILE_ASLEEP)
-                   : title_text_;
+  std::u16string tooltip =
+      sleeping_ ? l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_TILE_ASLEEP)
+                : title_text_;
+  if (renamed_ && !renamed_tooltip_.empty()) {
+    tooltip += u"\n" + renamed_tooltip_;
+  }
+  return tooltip;
 }
 
 bool AerieSidebarTileView::OnMousePressed(const ui::MouseEvent& event) {
+  suppress_release_ = false;
   pressed_ = event.IsOnlyLeftMouseButton();
+  if (event.IsOnlyLeftMouseButton() && event.GetClickCount() == 2 &&
+      callbacks_.begin_rename) {
+    pressed_ = false;
+    suppress_release_ = true;
+    callbacks_.begin_rename.Run();
+    return true;
+  }
   return event.IsOnlyLeftMouseButton() || event.IsOnlyMiddleMouseButton();
 }
 
 void AerieSidebarTileView::OnMouseReleased(const ui::MouseEvent& event) {
   pressed_ = false;
+  if (suppress_release_) {
+    // The release of the double-click that opened the rename popover.
+    suppress_release_ = false;
+    return;
+  }
   if (!HitTestPoint(event.location())) {
     return;
   }
@@ -256,6 +289,12 @@ bool AerieSidebarTileView::OnKeyPressed(const ui::KeyEvent& event) {
   }
   const bool control = event.IsControlDown();
   switch (event.key_code()) {
+    case ui::VKEY_F2:
+      if (control || event.IsShiftDown() || !callbacks_.begin_rename) {
+        return false;
+      }
+      callbacks_.begin_rename.Run();
+      return true;
     case ui::VKEY_RETURN:
     case ui::VKEY_SPACE:
       if (control) {

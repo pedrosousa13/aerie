@@ -168,6 +168,22 @@ struct ToastMotion {
 ToastMotion ToastShowMotion(bool reduced);
 ToastMotion ToastHideMotion(bool reduced);
 
+// The rename field swaps in for the title, the title goes out, and the pencil
+// of a renamed tab appears (issue #145): an opacity fade on `xfast` (90 ms),
+// nothing moves. `xfast` is also what reduced motion allows, so there is no
+// reduced variant.
+struct RenameFadeMotion {
+  float from_opacity;
+  float to_opacity;
+  aerie::tokens::MotionDuration duration;
+  aerie::tokens::MotionEasing easing;
+  int duration_ms;
+};
+
+// The way in (0 to 1) and the way out (1 to 0).
+RenameFadeMotion RenameFade();
+RenameFadeMotion RenameFadeOut();
+
 RowMotion OpenRowMotion(bool reduced);
 RowMotion CloseRowMotion(int outer_edge_sign, bool reduced);
 

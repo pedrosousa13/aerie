@@ -47,6 +47,9 @@ class AerieSidebarTileView : public views::View,
     base::RepeatingCallback<void(const gfx::Point& screen_point,
                                  ui::mojom::MenuSourceType source)>
         context_menu;
+    // A double-click or F2 on the tile: the sidebar opens the rename popover
+    // (issue #145; a tile has no title to edit in place).
+    base::RepeatingClosure begin_rename;
   };
 
   AerieSidebarTileView(Callbacks callbacks,
@@ -67,6 +70,12 @@ class AerieSidebarTileView : public views::View,
   // ", asleep". `reduced_motion_prefs` as for AerieSidebarRowView::SetSleeping.
   void SetSleeping(bool sleeping, const PrefService* reduced_motion_prefs);
   bool sleeping() const { return sleeping_; }
+
+  // The tab has a name of its own (issue #145): the accessible name ends with
+  // ", renamed" (after ", asleep"), and the tooltip adds `renamed_tooltip`
+  // ("Page title: ... Shown: your name." and the order) under the name.
+  void SetRenamed(bool renamed, const std::u16string& renamed_tooltip);
+  bool renamed() const { return renamed_; }
 
   void SetTabStop(bool tab_stop);
   bool is_tab_stop() const;
@@ -111,6 +120,9 @@ class AerieSidebarTileView : public views::View,
   bool pressed_ = false;
   bool sleeping_ = false;
   bool sleep_look_applied_ = false;
+  bool renamed_ = false;
+  bool suppress_release_ = false;
+  std::u16string renamed_tooltip_;
   std::u16string title_text_;
   raw_ptr<views::ImageView> favicon_ = nullptr;
   raw_ptr<views::ImageView> sleep_badge_ = nullptr;

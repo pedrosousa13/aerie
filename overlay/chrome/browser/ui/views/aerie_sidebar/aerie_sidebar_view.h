@@ -7,6 +7,7 @@
 
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -33,6 +34,7 @@ class AerieSidebarRowView;
 class AerieSidebarTileView;
 class AerieSidebarTopRow;
 class AerieSidebarContextMenu;
+class AerieSidebarRenamePopover;
 
 namespace aerie_tab_model {
 class PinnedTabsController;
@@ -173,6 +175,19 @@ class AerieSidebarView : public views::View,
   // The context menu of a row while it is open, or null.
   AerieSidebarContextMenu* context_menu() const { return context_menu_.get(); }
 
+  // Rename (issue #145). Opens the editor of a tab: in place on a row (Today or
+  // Pinned), in a popover on a Favorites tile. False for a tab with no row.
+  bool StartRename(const std::string& tab_id);
+  // Keeps `text` as the tab's name (trimmed, cut, and a reset when empty or
+  // equal to the page title) and resets the name with ResetName. Only the Tab
+  // Model changes.
+  void CommitRename(const std::string& tab_id, const std::u16string& text);
+  void ResetName(const std::string& tab_id);
+  // The open rename popover of a tile, or null.
+  AerieSidebarRenamePopover* rename_popover() const {
+    return rename_popover_.get();
+  }
+
   // views::View:
   void OnThemeChanged() override;
 
@@ -195,6 +210,18 @@ class AerieSidebarView : public views::View,
   };
   // Tells the view that the Favorites or the Pinned list changed.
   class SectionNotifier;
+  // What a row or tile shows for a tab, from the title resolver.
+  struct ShownTitle {
+    std::u16string text;
+    bool renamed = false;
+    // The pencil's tooltip; empty unless renamed.
+    std::u16string tooltip;
+  };
+  ShownTitle ShownTitleFor(tabs::TabInterface* tab,
+                           const aerie_tab_model::TabRecord* record) const;
+  void OnTilePopoverDone(const std::string& tab_id,
+                         std::optional<std::u16string> text,
+                         bool refocus_anchor);
 
   // The tab of this window that has this record id, or null.
   tabs::TabInterface* FindTab(const std::string& tab_id) const;
@@ -217,6 +244,13 @@ class AerieSidebarView : public views::View,
   void UpdateRows();
   void UpdateRow(const Row& row);
   void UpdateTile(const Tile& tile);
+  // Only the title and the pencil of a row or tile (a manual name changed).
+  void UpdateRowTitle(const Row& row,
+                      tabs::TabInterface* tab,
+                      const aerie_tab_model::TabRecord* record);
+  void UpdateTileTitle(const Tile& tile,
+                       tabs::TabInterface* tab,
+                       const aerie_tab_model::TabRecord* record);
   void SelectTab(const std::string& tab_id);
   // The context menu of a row or a tile (issues #179 and #180): Pin or Unpin,
   // Add to or Remove from Favorites, Sleep tab and Close tab.
@@ -311,6 +345,9 @@ class AerieSidebarView : public views::View,
   raw_ptr<views::Label> today_heading_ = nullptr;
   raw_ptr<views::Label> sleeping_summary_ = nullptr;
   std::unique_ptr<AerieSidebarContextMenu> context_menu_;
+  base::WeakPtr<AerieSidebarRenamePopover> rename_popover_;
+  // The tab the popover renames.
+  std::string rename_popover_tab_id_;
   raw_ptr<views::LabelButton> new_tab_row_ = nullptr;
   raw_ptr<AerieSidebarTodayTree> list_ = nullptr;
   raw_ptr<views::ScrollView> scroll_ = nullptr;

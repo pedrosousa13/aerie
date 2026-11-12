@@ -9,6 +9,7 @@
 #include <utility>
 
 #include "base/functional/bind.h"
+#include "base/no_destructor.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/single_thread_task_runner.h"
@@ -28,6 +29,7 @@
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_context_menu.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_focus_ring.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_regions.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_rename_popover.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_row_view.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_tile_view.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_top_row.h"
@@ -42,6 +44,7 @@
 #include "components/aerie_tab_model/sleep_summary.h"
 #include "components/aerie_tab_model/tab_model.h"
 #include "components/aerie_tab_model/tab_model_prefs.h"
+#include "components/aerie_tab_model/title_resolver.h"
 #include "components/favicon/content/content_favicon_driver.h"
 #include "components/prefs/pref_service.h"
 #include "components/tabs/public/tab_interface.h"
@@ -55,9 +58,9 @@
 #include "ui/compositor/layer.h"
 #include "ui/gfx/geometry/insets.h"
 #include "ui/views/accessibility/view_accessibility.h"
-#include "ui/views/controls/button/label_button.h"
 #include "ui/views/background.h"
 #include "ui/views/border.h"
+#include "ui/views/controls/button/label_button.h"
 #include "ui/views/controls/label.h"
 #include "ui/views/controls/scroll_view.h"
 #include "ui/views/layout/box_layout.h"
@@ -102,7 +105,44 @@ ui::ImageModel FaviconFor(tabs::TabInterface* tab, SkColor icon_color) {
                                         aerie::tokens::kSizeIcon);
 }
 
+// The precedence for the titles the sidebar shows (issue #145): the manual name
+// first, then the page title. #146 and #147 add providers to this list.
+const aerie_tab_model::TitleResolver& SharedTitleResolver() {
+  static const base::NoDestructor<aerie_tab_model::TitleResolver> resolver(
+      aerie_tab_model::TitleResolver::CreateDefault());
+  return *resolver;
+}
+
 }  // namespace
+
+AerieSidebarView::ShownTitle AerieSidebarView::ShownTitleFor(
+    tabs::TabInterface* tab,
+    const aerie_tab_model::TabRecord* record) const {
+  const std::u16string page_title = tab->GetTitle();
+  ShownTitle shown;
+  if (!record) {
+    shown.text = page_title;
+    return shown;
+  }
+  const aerie_tab_model::ResolvedTitle resolved =
+      SharedTitleResolver().ResolveTitle(*record,
+                                         base::UTF16ToUTF8(page_title));
+  if (resolved.source == aerie_tab_model::TitleSource::kPage) {
+    shown.text = page_title;
+    return shown;
+  }
+  shown.text = base::UTF8ToUTF16(resolved.text);
+  // Only a manual name has a pencil in M2; #146 and #147 give the other sources
+  // their own "original title" tooltip.
+  if (resolved.source == aerie_tab_model::TitleSource::kManual) {
+    shown.renamed = true;
+    shown.tooltip =
+        l10n_util::GetStringFUTF16(IDS_AERIE_SIDEBAR_RENAMED_TOOLTIP,
+                                   page_title) +
+        u"\n" + l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_RENAMED_PRECEDENCE);
+  }
+  return shown;
+}
 
 // The Favorites and Pinned lists tell the view that they changed; the view
 // syncs every section in one task.
@@ -323,6 +363,10 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
 }
 
 AerieSidebarView::~AerieSidebarView() {
+  // The popover of a tile goes with the sidebar, and keeps nothing.
+  if (rename_popover_) {
+    rename_popover_->CancelRename();
+  }
   if (model_) {
     model_->RemoveObserver(this);
   }
@@ -504,6 +548,13 @@ void AerieSidebarView::SyncRows() {
                                              base::Unretained(this), id);
     callbacks.context_menu = base::BindRepeating(
         &AerieSidebarView::ShowRowContextMenu, base::Unretained(this), id);
+    callbacks.begin_rename =
+        base::BindRepeating(base::IgnoreResult(&AerieSidebarView::StartRename),
+                            base::Unretained(this), id);
+    callbacks.commit_rename = base::BindRepeating(
+        &AerieSidebarView::CommitRename, base::Unretained(this), id);
+    callbacks.reset_name = base::BindRepeating(&AerieSidebarView::ResetName,
+                                               base::Unretained(this), id);
     auto* view = list_->AddChildView(std::make_unique<AerieSidebarRowView>(
         std::move(callbacks), palette_));
     next.push_back({id, view});
@@ -696,6 +747,9 @@ void AerieSidebarView::SyncFavorites() {
                                         base::Unretained(this), id);
     callbacks.focused = base::BindRepeating(&AerieSidebarView::OnTileFocused,
                                             base::Unretained(this));
+    callbacks.begin_rename =
+        base::BindRepeating(base::IgnoreResult(&AerieSidebarView::StartRename),
+                            base::Unretained(this), id);
     callbacks.context_menu = base::BindRepeating(
         &AerieSidebarView::ShowRowContextMenu, base::Unretained(this), id);
     auto* view = favorites_grid_->AddChildView(
@@ -719,6 +773,17 @@ void AerieSidebarView::SyncFavorites() {
     UpdateTile(tile);
   }
   UpdateTileTabStop();
+  // The popover of a tile that is gone (the tab closed, or it left Favorites)
+  // closes and keeps nothing.
+  if (rename_popover_) {
+    bool has_tile = false;
+    for (const Tile& tile : tiles_) {
+      has_tile = has_tile || tile.tab_id == rename_popover_tab_id_;
+    }
+    if (!has_tile) {
+      rename_popover_->CancelRename();
+    }
+  }
   if (refocus_index >= 0 && !tiles_.empty()) {
     FocusTile(std::min(refocus_index, static_cast<int>(tiles_.size()) - 1));
   }
@@ -762,6 +827,13 @@ void AerieSidebarView::SyncPinned() {
         &AerieSidebarView::ShowRowContextMenu, base::Unretained(this), id);
     callbacks.back_to_pinned = base::BindRepeating(
         &AerieSidebarView::GoBackToPinnedPage, base::Unretained(this), id);
+    callbacks.begin_rename =
+        base::BindRepeating(base::IgnoreResult(&AerieSidebarView::StartRename),
+                            base::Unretained(this), id);
+    callbacks.commit_rename = base::BindRepeating(
+        &AerieSidebarView::CommitRename, base::Unretained(this), id);
+    callbacks.reset_name = base::BindRepeating(&AerieSidebarView::ResetName,
+                                               base::Unretained(this), id);
     auto* view = pinned_list_->AddChildView(
         std::make_unique<AerieSidebarRowView>(std::move(callbacks), palette_));
     next.push_back({id, view});
@@ -1104,11 +1176,11 @@ void AerieSidebarView::UpdateRow(const Row& row) {
   if (!tab) {
     return;
   }
-  row.view->SetTitle(tab->GetTitle());
-  row.view->SetFavicon(FaviconFor(tab, palette_.text_muted));
-  row.view->SetSelected(tab->IsActivated());
   const aerie_tab_model::TabRecord* record =
       model_ ? model_->GetTab(row.tab_id) : nullptr;
+  UpdateRowTitle(row, tab, record);
+  row.view->SetFavicon(FaviconFor(tab, palette_.text_muted));
+  row.view->SetSelected(tab->IsActivated());
   row.view->SetSleeping(record && record->sleeping,
                         browser_->GetProfile()->GetPrefs());
   // A pinned row names what its close button does and offers the way back to
@@ -1127,16 +1199,35 @@ void AerieSidebarView::UpdateRow(const Row& row) {
   }
 }
 
+void AerieSidebarView::UpdateRowTitle(
+    const Row& row,
+    tabs::TabInterface* tab,
+    const aerie_tab_model::TabRecord* record) {
+  const ShownTitle shown = ShownTitleFor(tab, record);
+  row.view->SetTitle(shown.text);
+  row.view->SetRenamed(shown.renamed, shown.tooltip,
+                       browser_->GetProfile()->GetPrefs());
+}
+
+void AerieSidebarView::UpdateTileTitle(
+    const Tile& tile,
+    tabs::TabInterface* tab,
+    const aerie_tab_model::TabRecord* record) {
+  const ShownTitle shown = ShownTitleFor(tab, record);
+  tile.view->SetTitle(shown.text);
+  tile.view->SetRenamed(shown.renamed, shown.tooltip);
+}
+
 void AerieSidebarView::UpdateTile(const Tile& tile) {
   tabs::TabInterface* tab = FindTab(tile.tab_id);
   if (!tab) {
     return;
   }
-  tile.view->SetTitle(tab->GetTitle());
-  tile.view->SetFavicon(FaviconFor(tab, palette_.text_muted));
-  tile.view->SetSelected(tab->IsActivated());
   const aerie_tab_model::TabRecord* record =
       model_ ? model_->GetTab(tile.tab_id) : nullptr;
+  UpdateTileTitle(tile, tab, record);
+  tile.view->SetFavicon(FaviconFor(tab, palette_.text_muted));
+  tile.view->SetSelected(tab->IsActivated());
   tile.view->SetSleeping(record && record->sleeping,
                          browser_->GetProfile()->GetPrefs());
 }
@@ -1163,8 +1254,12 @@ void AerieSidebarView::OnTabChanged(const aerie_tab_model::TabRecord& record) {
   // favicon reach the rows from OnTabChangedAt. So only the sleeping state of
   // this one row is updated, and the Today summary is computed again only when
   // that state changes.
+  // A manual name set or cleared is seen here (issue #145).
   for (const Tile& tile : tiles_) {
     if (tile.tab_id == record.id) {
+      if (tabs::TabInterface* tab = FindTab(record.id)) {
+        UpdateTileTitle(tile, tab, &record);
+      }
       if (tile.view->sleeping() != record.sleeping) {
         tile.view->SetSleeping(record.sleeping,
                                browser_->GetProfile()->GetPrefs());
@@ -1175,6 +1270,9 @@ void AerieSidebarView::OnTabChanged(const aerie_tab_model::TabRecord& record) {
   }
   for (const Row& row : pinned_rows_) {
     if (row.tab_id == record.id) {
+      if (tabs::TabInterface* tab = FindTab(record.id)) {
+        UpdateRowTitle(row, tab, &record);
+      }
       if (row.view->sleeping() != record.sleeping) {
         row.view->SetSleeping(record.sleeping,
                               browser_->GetProfile()->GetPrefs());
@@ -1186,6 +1284,9 @@ void AerieSidebarView::OnTabChanged(const aerie_tab_model::TabRecord& record) {
   for (const Row& row : rows_) {
     if (row.tab_id != record.id) {
       continue;
+    }
+    if (tabs::TabInterface* tab = FindTab(record.id)) {
+      UpdateRowTitle(row, tab, &record);
     }
     if (row.view->sleeping() != record.sleeping) {
       row.view->SetSleeping(record.sleeping,
@@ -1256,6 +1357,7 @@ void AerieSidebarView::ShowRowContextMenu(
   if (auto* pinned = PinnedController()) {
     options.away_from_pinned = pinned->IsAwayFromPinnedPage(tab);
   }
+  options.has_manual_name = record->manual_name.has_value();
   options.sleep.enabled = eligibility.state == Eligibility::State::kCanSleep;
   if (!options.sleep.enabled) {
     options.sleep.tooltip =
@@ -1310,7 +1412,97 @@ void AerieSidebarView::OnContextCommand(const std::string& tab_id,
     case AerieSidebarContextMenu::kCommandClose:
       CloseTab(tab_id);
       break;
+    case AerieSidebarContextMenu::kCommandRename:
+      // The menu is still closing and giving focus back: the field takes focus
+      // after that.
+      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+          FROM_HERE,
+          base::BindOnce(
+              [](base::WeakPtr<AerieSidebarView> self, std::string id) {
+                if (self) {
+                  self->StartRename(id);
+                }
+              },
+              weak_factory_.GetWeakPtr(), tab_id));
+      break;
+    case AerieSidebarContextMenu::kCommandResetName:
+      ResetName(tab_id);
+      break;
   }
+}
+
+bool AerieSidebarView::StartRename(const std::string& tab_id) {
+  tabs::TabInterface* tab = FindTab(tab_id);
+  const aerie_tab_model::TabRecord* record =
+      model_ ? model_->GetTab(tab_id) : nullptr;
+  if (!tab || !record) {
+    return false;
+  }
+  const PrefService* prefs = browser_->GetProfile()->GetPrefs();
+  // The field opens with what the row shows: the name, or the page title.
+  const std::u16string initial = ShownTitleFor(tab, record).text;
+  for (const Row& row : rows_) {
+    if (row.tab_id == tab_id) {
+      row.view->BeginRename(initial, prefs);
+      return row.view->renaming();
+    }
+  }
+  for (const Row& row : pinned_rows_) {
+    if (row.tab_id == tab_id) {
+      row.view->BeginRename(initial, prefs);
+      return row.view->renaming();
+    }
+  }
+  for (const Tile& tile : tiles_) {
+    if (tile.tab_id != tab_id) {
+      continue;
+    }
+    // A tile has no title: the field is in a popover beside it.
+    if (rename_popover_) {
+      return true;
+    }
+    rename_popover_tab_id_ = tab_id;
+    rename_popover_ = AerieSidebarRenamePopover::Show(
+                          tile.view, initial, prefs,
+                          base::BindOnce(&AerieSidebarView::OnTilePopoverDone,
+                                         weak_factory_.GetWeakPtr(), tab_id))
+                          ->GetWeakPtr();
+    return true;
+  }
+  return false;
+}
+
+void AerieSidebarView::OnTilePopoverDone(const std::string& tab_id,
+                                         std::optional<std::u16string> text,
+                                         bool refocus_anchor) {
+  rename_popover_.reset();
+  rename_popover_tab_id_.clear();
+  if (text) {
+    CommitRename(tab_id, *text);
+  }
+  if (refocus_anchor) {
+    for (const Tile& tile : tiles_) {
+      if (tile.tab_id == tab_id) {
+        tile.view->RequestFocus();
+      }
+    }
+  }
+}
+
+void AerieSidebarView::CommitRename(const std::string& tab_id,
+                                    const std::u16string& text) {
+  tabs::TabInterface* tab = FindTab(tab_id);
+  if (!tab || !model_) {
+    return;
+  }
+  // Only the Tab Model changes: the page, its history and the window title keep
+  // the real title.
+  aerie_tab_model::ApplyManualName(*model_, tab_id, base::UTF16ToUTF8(text),
+                                   base::UTF16ToUTF8(tab->GetTitle()));
+}
+
+void AerieSidebarView::ResetName(const std::string& tab_id) {
+  CommitRename(tab_id, std::u16string());
 }
 
 ui::Layer* AerieSidebarView::toast_layer() const {

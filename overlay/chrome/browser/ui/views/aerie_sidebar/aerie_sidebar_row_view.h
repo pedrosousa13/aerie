@@ -10,6 +10,7 @@
 
 #include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
+#include "base/memory/weak_ptr.h"
 #include "base/timer/timer.h"
 #include "components/aerie_design_tokens/aerie_motion.h"
 #include "components/aerie_sidebar/aerie_sidebar_palette.h"
@@ -21,8 +22,10 @@
 #include "ui/gfx/geometry/point.h"
 #include "ui/gfx/geometry/transform.h"
 #include "ui/views/context_menu_controller.h"
+#include "ui/views/controls/textfield/textfield_controller.h"
 #include "ui/views/view.h"
 
+class AerieSidebarRenameField;
 class PrefService;
 
 namespace gfx {
@@ -33,6 +36,7 @@ namespace views {
 class ImageButton;
 class ImageView;
 class Label;
+class Textfield;
 }  // namespace views
 
 // One row of the Today list (issue #177): favicon, title and a close button
@@ -53,8 +57,16 @@ class Label;
 // is affected (docs/sidebar-design.md, "Performance rules"). Under reduced
 // motion the content only fades and the height snaps. A row that is not
 // animated has no layer.
+//
+// Rename (issue #145): a tab with a name of its own shows a pencil after the
+// title (SetRenamed); the pencil resets the name. BeginRename swaps a text
+// field in for the title, with a caption under it. Enter keeps the name, Esc
+// cancels and focus loss keeps it too. While the field is open the row handles
+// no key and no mouse press: the field's editing keys (Backspace among them)
+// never reach the row's own handlers.
 class AerieSidebarRowView : public views::View,
                             public views::ContextMenuController,
+                            public views::TextfieldController,
                             public gfx::AnimationDelegate {
   METADATA_HEADER(AerieSidebarRowView, views::View)
 
@@ -85,6 +97,13 @@ class AerieSidebarRowView : public views::View,
     // The "Back to pinned page" button of a pinned row was pressed (issue
     // #180).
     base::RepeatingClosure back_to_pinned;
+    // Rename (issue #145). `begin_rename`: a double-click on the title or F2.
+    // `commit_rename` gets the text of the field when the user keeps it (Enter
+    // or focus loss); the sidebar normalizes it and writes the Tab Model.
+    // `reset_name`: the pencil was pressed.
+    base::RepeatingClosure begin_rename;
+    base::RepeatingCallback<void(const std::u16string& text)> commit_rename;
+    base::RepeatingClosure reset_name;
   };
 
   AerieSidebarRowView(Callbacks callbacks,
@@ -123,6 +142,31 @@ class AerieSidebarRowView : public views::View,
   views::ImageButton* back_to_pinned_button() const {
     return back_to_pinned_;
   }
+  // A tab with a name of its own (issue #145): the pencil after the title, with
+  // `pencil_tooltip` ("Page title: ... Shown: your name." and the order), and
+  // ", renamed" at the end of the accessible name, after ", asleep". When the
+  // row goes from not renamed to renamed and `reduced_motion_prefs` is set, the
+  // pencil fades in on `xfast` (opacity only); the first call and a null
+  // `reduced_motion_prefs` show it at once.
+  void SetRenamed(bool renamed,
+                  const std::u16string& pencil_tooltip,
+                  const PrefService* reduced_motion_prefs);
+  bool renamed() const { return renamed_; }
+  views::ImageButton* pencil_button() const { return pencil_; }
+  views::Label* title_view() const { return title_; }
+
+  // Opens the field in place of the title with `initial_text`, all of it
+  // selected, and puts keyboard focus in it. The title view fades out and the
+  // field fades in on `xfast`, opacity only. Does nothing while the row closes
+  // or already edits.
+  void BeginRename(const std::u16string& initial_text,
+                   const PrefService* reduced_motion_prefs);
+  bool renaming() const { return renaming_; }
+  // Closes the field without keeping the text (the tab went away, say).
+  void CancelRename();
+  AerieSidebarRenameField* rename_field() const;
+  views::Label* rename_caption() const { return rename_caption_; }
+
   // The tooltip, and the accessible name, of the close button. The default is
   // "Close tab"; a pinned row names the pinned-close action ("Reset and sleep",
   // "Sleep" or "Close").
@@ -197,6 +241,11 @@ class AerieSidebarRowView : public views::View,
   void OnBlur() override;
   void OnThemeChanged() override;
 
+  // views::TextfieldController:
+  void ContentsChanged(views::Textfield* sender,
+                       const std::u16string& new_contents) override;
+  bool HandleKeyEvent(views::Textfield* sender,
+                      const ui::KeyEvent& key_event) override;
   // gfx::AnimationDelegate:
   void AnimationProgressed(const gfx::Animation* animation) override;
   void AnimationEnded(const gfx::Animation* animation) override;
@@ -204,6 +253,17 @@ class AerieSidebarRowView : public views::View,
  private:
   void UpdateState();
   void UpdateName();
+  // Shows or hides the pencil, the back button and the close button for the
+  // row's state (renaming hides them all).
+  void UpdateTrailing();
+  void EnsureRenameField();
+  void StyleRenameField();
+  // Closes the field. `commit`: hand its text to `commit_rename`. `refocus`:
+  // put keyboard focus back on the row (Enter and Esc; not a focus loss).
+  void EndRename(bool commit, bool refocus);
+  void RunCommitRename(const std::u16string& text);
+  void UpdateCaptionHeight();
+  void OnRenameBlur();
   void ApplySleepLook(bool animate, const PrefService* prefs);
   // Starts the height animation toward `target` (1 grows, 0 collapses).
   void AnimateHeight(bool grow, int duration_ms, gfx::Tween::Type tween);
@@ -253,6 +313,25 @@ class AerieSidebarRowView : public views::View,
   raw_ptr<views::Label> title_ = nullptr;
   raw_ptr<views::ImageButton> close_button_ = nullptr;
   raw_ptr<views::ImageButton> back_to_pinned_ = nullptr;
+  bool back_to_pinned_wanted_ = false;
+
+  // Rename (issue #145).
+  raw_ptr<views::ImageButton> pencil_ = nullptr;
+  raw_ptr<views::Label> rename_caption_ = nullptr;
+  raw_ptr<AerieSidebarRenameField> rename_field_ = nullptr;
+  bool renamed_ = false;
+  bool renamed_applied_ = false;
+  bool renaming_ = false;
+  // A double-click began the rename: its release must not select the tab (that
+  // would take focus from the field).
+  bool suppress_release_ = false;
+  aerie::motion::MotionHandle pencil_motion_;
+  aerie::motion::MotionHandle field_motion_;
+  aerie::motion::MotionHandle title_motion_;
+  // The height the caption needs under the field at the field's width.
+  int caption_height_ = 0;
+
+  base::WeakPtrFactory<AerieSidebarRowView> weak_factory_{this};
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_AERIE_SIDEBAR_AERIE_SIDEBAR_ROW_VIEW_H_

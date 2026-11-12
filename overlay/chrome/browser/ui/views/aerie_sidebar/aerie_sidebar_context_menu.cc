@@ -48,6 +48,12 @@ AerieSidebarContextMenu::AerieSidebarContextMenu(Options options,
         kCommandAddToFavorites,
         l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_ADD_TO_FAVORITES));
   }
+  root_->AppendMenuItem(
+      kCommandRename, l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_RENAME_TAB));
+  if (options_.has_manual_name) {
+    root_->AppendMenuItem(kCommandResetName, l10n_util::GetStringUTF16(
+                                                 IDS_AERIE_SIDEBAR_RESET_NAME));
+  }
   root_->AppendSeparator();
   views::MenuItemView* sleep = root_->AppendMenuItem(
       kCommandSleepTab, l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_SLEEP_TAB));
@@ -120,7 +126,10 @@ bool AerieSidebarContextMenu::HasCommand(int id) const {
   switch (id) {
     case kCommandSleepTab:
     case kCommandClose:
+    case kCommandRename:
       return true;
+    case kCommandResetName:
+      return options_.has_manual_name;
     case kCommandPin:
       return options_.section == Section::kToday;
     case kCommandUnpin:

@@ -23,6 +23,8 @@ source_set("aerie_tab_model") {
     "tab_model_persistence.h",
     "tab_model_types.cc",
     "tab_model_types.h",
+    "title_resolver.cc",
+    "title_resolver.h",
   ]
   public_deps = [
     "//base",
@@ -52,6 +54,7 @@ source_set("unit_tests") {
     "tab_model_persistence_unittest.cc",
     "tab_model_prefs_unittest.cc",
     "tab_model_unittest.cc",
+    "title_resolver_unittest.cc",
   ]
   deps = [
     ":aerie_tab_model",
