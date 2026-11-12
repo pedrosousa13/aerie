@@ -174,6 +174,37 @@ TEST_F(AutoFileControllerTest, AnEmptyOrBlankAddressWaitsForTheRealOne) {
   EXPECT_EQ(folder, model_.GetTab(tab)->parent);
 }
 
+TEST_F(AutoFileControllerTest, TheNewTabPageIsStillBlank) {
+  std::string folder = AutoFolder(Section::kToday, "example.com");
+  MakeController();
+  std::string tab = NewTab();
+  for (const char* blank :
+       {"chrome://newtab/", "chrome-untrusted://new-tab-page/", "about:blank",
+        "chrome-search://local-ntp/local-ntp.html"}) {
+    controller_->OnTabPage(tab, GURL(blank), "New Tab");
+    EXPECT_TRUE(controller_->IsWatching(tab)) << blank;
+  }
+  task_environment_.FastForwardBy(base::Seconds(3));
+  // The user types an address into that tab: it files, the window having
+  // started when the tab was made.
+  controller_->OnTabPage(tab, GURL("https://example.com/"), "Example");
+  task_environment_.FastForwardBy(kDelay);
+  EXPECT_EQ(folder, model_.GetTab(tab)->parent);
+}
+
+TEST_F(AutoFileControllerTest, ATabThatStaysOnTheNewTabPageIsNotFiled) {
+  AutoFolder(Section::kToday, "example.com");
+  MakeController();
+  std::string tab = NewTab();
+  controller_->OnTabPage(tab, GURL("chrome://newtab/"), "New Tab");
+  task_environment_.FastForwardBy(kAutoFileWindow + kDelay);
+  EXPECT_TRUE(model_.GetTab(tab)->parent.empty());
+  // Too late for an address typed after the window.
+  controller_->OnTabPage(tab, GURL("https://example.com/"), "Example");
+  task_environment_.FastForwardBy(kDelay);
+  EXPECT_TRUE(model_.GetTab(tab)->parent.empty());
+}
+
 TEST_F(AutoFileControllerTest, ATitleThatArrivesLaterFilesTheTab) {
   std::string folder = CreateFolder(model_, Section::kToday, "", "Trips");
   SetFolderRuleKind(model_, folder, FolderKind::kAuto);

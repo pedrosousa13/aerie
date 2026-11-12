@@ -17,10 +17,24 @@ namespace aerie_tab_model {
 
 namespace {
 
-// An address that is not a navigation the user or a page made: the empty
-// document that a tab starts with.
+// An address that is not a page the user went to: the empty document that a tab
+// starts with, and the New Tab page (or Aerie's start page) that Ctrl+T shows
+// before the user types an address. The tab is still new while it shows one of
+// these, so the address stays unfixed and the window keeps running.
 bool IsBlank(const GURL& url) {
-  return !url.is_valid() || url.is_empty() || url.spec() == "about:blank";
+  if (!url.is_valid() || url.is_empty() || url.spec() == "about:blank") {
+    return true;
+  }
+  if (url.SchemeIs("chrome") || url.SchemeIs("chrome-untrusted") ||
+      url.SchemeIs("chrome-search")) {
+    for (std::string_view host :
+         {"newtab", "new-tab-page", "local-ntp", "start", "start-page"}) {
+      if (url.host() == host) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 bool AnyAutoFilingFolder(const TabModel& model) {

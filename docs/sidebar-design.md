@@ -143,7 +143,8 @@ Auto-filing folders are built as the brief says. What the brief left open, and w
 
 - **The window.** A tab can be auto-filed for 10 s after it is created (`kAutoFileWindow`). Ten, not five: the first
   navigation of a tab can wait several seconds on a cold DNS lookup, and a shorter window let the filing miss it. The
-  first committed address fixes the page the rules are asked about; a title that arrives later is matched against that
+  first committed address of a real page fixes the page the rules are asked about (the New Tab page that Ctrl+T shows,
+  and a blank page, do not count, so typing an address into a new tab still files it); a title that arrives later is matched against that
   address. A later navigation never files the tab. A tab that the user moves by hand before the pause ends is left
   where it is. The controller watches only the tabs its owner hands it (`Watch`): a tab that session restore, Reopen
   closed tab or Duplicate made is never handed over, and nothing is watched while session restore runs, so no

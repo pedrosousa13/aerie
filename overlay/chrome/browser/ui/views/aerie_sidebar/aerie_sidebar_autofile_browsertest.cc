@@ -192,6 +192,38 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarAutoFileBrowserTest,
   EXPECT_FALSE(model()->GetTab(tab)->filed_by.has_value());
 }
 
+// Ctrl+T, then typing an address, is the commonest way to open a tab: the New
+// Tab page that the tab shows first must not use up the one chance to file it.
+IN_PROC_BROWSER_TEST_F(AerieSidebarAutoFileBrowserTest,
+                       ATabOpenedWithCtrlTAndThenNavigatedIsFiled) {
+  const std::string folder =
+      MakeAutoFolder("Trips", RuleType::kDomain, "trips.localhost");
+  ASSERT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
+      browser(), GURL("chrome://newtab/"),
+      WindowOpenDisposition::NEW_FOREGROUND_TAB,
+      ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
+  const std::string tab = service()->adapter()->RecordIdForTab(
+      browser()->tab_strip_model()->GetActiveTab());
+  ASSERT_FALSE(tab.empty());
+  EXPECT_EQ(ParentOf(tab), "");
+  // The user types an address into the New Tab page's tab.
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), UrlOn("trips.localhost")));
+  ASSERT_TRUE(WaitFiledInto(tab, folder));
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarAutoFileBrowserTest,
+                       ATabThatStaysOnTheNewTabPageIsNotFiled) {
+  MakeAutoFolder("Trips", RuleType::kDomain, "trips.localhost");
+  ASSERT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
+      browser(), GURL("chrome://newtab/"),
+      WindowOpenDisposition::NEW_FOREGROUND_TAB,
+      ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
+  const std::string tab = service()->adapter()->RecordIdForTab(
+      browser()->tab_strip_model()->GetActiveTab());
+  ASSERT_FALSE(tab.empty());
+  ExpectNotFiled(tab);
+}
+
 IN_PROC_BROWSER_TEST_F(AerieSidebarAutoFileBrowserTest,
                        DontFileThisSiteStopsFilingThatHost) {
   const std::string folder =

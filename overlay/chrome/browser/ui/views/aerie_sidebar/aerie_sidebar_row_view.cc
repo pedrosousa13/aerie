@@ -56,8 +56,8 @@ constexpr int kFaviconSize = aerie::tokens::kSizeIcon;
 constexpr int kSleepBadgeSize = aerie::tokens::kSizeSleepBadge;
 constexpr int kSleepBadgeOffset = aerie::tokens::kSizeSleepBadgeOffset;
 constexpr int kRowHeight = aerie::tokens::kSizeRowHeightComfortable;
-// The funnel that opens a folder's sheet: the same square as the close button.
-constexpr int kFunnelSize = 20;
+// The square of the close button and of the funnel that opens a folder's sheet.
+constexpr int kRowButtonSize = 20;
 
 // Degrees in one full turn: the chevron's turn is a share of it.
 constexpr float kDegreesPerTurn = 360.f;
@@ -257,7 +257,7 @@ AerieSidebarRowView::AerieSidebarRowView(
       base::BindRepeating(
           [](AerieSidebarRowView* row) { row->callbacks_.close.Run(); },
           base::Unretained(this))));
-  close_button_->SetPreferredSize(gfx::Size(20, 20));
+  close_button_->SetPreferredSize(gfx::Size(kRowButtonSize, kRowButtonSize));
   close_button_->SetVisible(false);
   close_button_->SetFocusBehavior(views::View::FocusBehavior::NEVER);
   close_button_->SetInstallFocusRingOnFocus(false);
@@ -1231,7 +1231,7 @@ void AerieSidebarRowView::MakeFolderRow() {
         }
       },
       base::Unretained(this)));
-  funnel->SetPreferredSize(gfx::Size(kFunnelSize, kFunnelSize));
+  funnel->SetPreferredSize(gfx::Size(kRowButtonSize, kRowButtonSize));
   funnel->SetVisible(false);
   funnel->SetFocusBehavior(views::View::FocusBehavior::NEVER);
   funnel->SetInstallFocusRingOnFocus(false);

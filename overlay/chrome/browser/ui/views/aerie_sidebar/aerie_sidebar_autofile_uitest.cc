@@ -296,7 +296,13 @@ IN_PROC_BROWSER_TEST_P(AerieSidebarAutoFileReducedUiTest,
   std::set<ui::Layer*> ignored;
   CollectTransformAnimating(sidebar(), &ignored);
   std::string saw_transform;
+  bool saw_pulse_opacity_animation = false;
   ASSERT_TRUE(base::test::RunUntil([&] {
+    if (row->pulse_view()->layer() &&
+        Animates(row->pulse_view()->layer(),
+                 ui::LayerAnimationElement::OPACITY)) {
+      saw_pulse_opacity_animation = true;
+    }
     if (saw_transform.empty()) {
       saw_transform = AnyTransformAnimation(sidebar(), ignored);
       const auto* now = service()->model()->GetTab(tab);
@@ -319,8 +325,7 @@ IN_PROC_BROWSER_TEST_P(AerieSidebarAutoFileReducedUiTest,
   EXPECT_EQ(aerie_tab_model::AutoFileDelay(aerie::motion::ShouldReduceMotion(
                 browser()->GetProfile()->GetPrefs())),
             base::Milliseconds(120));
-  EXPECT_TRUE(Animates(pulse, ui::LayerAnimationElement::OPACITY) ||
-              pulse->opacity() > 0.0f || pulse->GetTargetOpacity() > 0.0f);
+  EXPECT_TRUE(saw_pulse_opacity_animation);
   EXPECT_FALSE(Animates(pulse, ui::LayerAnimationElement::TRANSFORM));
   EXPECT_FALSE(Animates(sidebar()->toast_layer(),
                         ui::LayerAnimationElement::TRANSFORM));
