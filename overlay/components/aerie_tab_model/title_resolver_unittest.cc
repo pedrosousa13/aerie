@@ -45,7 +45,8 @@ std::unique_ptr<FakeProvider> Fake(TitleSource source,
   return std::make_unique<FakeProvider>(source, std::move(answer));
 }
 
-TitleResolver ResolverOf(std::vector<std::unique_ptr<TitleProvider>> providers) {
+TitleResolver ResolverOf(
+    std::vector<std::unique_ptr<TitleProvider>> providers) {
   return TitleResolver(std::move(providers));
 }
 
@@ -55,8 +56,8 @@ TEST(TitleResolverTest, TheFirstProviderThatAnswersWins) {
   std::vector<std::unique_ptr<TitleProvider>> providers;
   providers.push_back(Fake(TitleSource::kManual, "Mine"));
   providers.push_back(Fake(TitleSource::kPage, "Page"));
-  const ResolvedTitle title = ResolverOf(std::move(providers))
-                                  .ResolveTitle(TabRecord(), "Page");
+  const ResolvedTitle title =
+      ResolverOf(std::move(providers)).ResolveTitle(TabRecord(), "Page");
   EXPECT_EQ(title.text, "Mine");
   EXPECT_EQ(title.source, TitleSource::kManual);
 }
@@ -65,8 +66,8 @@ TEST(TitleResolverTest, AProviderThatHasNothingPassesToTheNext) {
   std::vector<std::unique_ptr<TitleProvider>> providers;
   providers.push_back(Fake(TitleSource::kManual, std::nullopt));
   providers.push_back(Fake(TitleSource::kPage, "Page"));
-  const ResolvedTitle title = ResolverOf(std::move(providers))
-                                  .ResolveTitle(TabRecord(), "Page");
+  const ResolvedTitle title =
+      ResolverOf(std::move(providers)).ResolveTitle(TabRecord(), "Page");
   EXPECT_EQ(title.text, "Page");
   EXPECT_EQ(title.source, TitleSource::kPage);
 }
@@ -75,27 +76,25 @@ TEST(TitleResolverTest, AnEmptyAnswerCountsAsNothing) {
   std::vector<std::unique_ptr<TitleProvider>> providers;
   providers.push_back(Fake(TitleSource::kManual, ""));
   providers.push_back(Fake(TitleSource::kPage, "Page"));
-  EXPECT_EQ(ResolverOf(std::move(providers))
-                .ResolveTitle(TabRecord(), "Page")
-                .source,
-            TitleSource::kPage);
+  EXPECT_EQ(
+      ResolverOf(std::move(providers)).ResolveTitle(TabRecord(), "Page").source,
+      TitleSource::kPage);
 }
 
 TEST(TitleResolverTest, TheOrderOfTheListIsTheOrderOfPrecedence) {
   // Every source the design names, in the design's order. All of them answer;
   // the first one wins, then the first of what is left, and so on.
-  const std::vector<TitleSource> order = {TitleSource::kManual,
-                                          TitleSource::kRule,
-                                          TitleSource::kTidy, TitleSource::kAi,
-                                          TitleSource::kPage};
+  const std::vector<TitleSource> order = {
+      TitleSource::kManual, TitleSource::kRule, TitleSource::kTidy,
+      TitleSource::kAi, TitleSource::kPage};
   for (size_t winner = 0; winner < order.size(); ++winner) {
     std::vector<std::unique_ptr<TitleProvider>> providers;
     for (size_t i = 0; i < order.size(); ++i) {
       // The ones before `winner` have nothing; the others answer.
-      providers.push_back(Fake(order[i], i < winner
-                                             ? std::nullopt
-                                             : std::optional<std::string>(
-                                                   "title " + std::to_string(i))));
+      providers.push_back(
+          Fake(order[i], i < winner ? std::nullopt
+                                    : std::optional<std::string>(
+                                          "title " + std::to_string(i))));
     }
     const ResolvedTitle title =
         ResolverOf(std::move(providers)).ResolveTitle(TabRecord(), "page");
@@ -187,6 +186,33 @@ TEST(NormalizeManualNameTest, ACutNeverSplitsASurrogatePair) {
   EXPECT_EQ(*name, std::string(199, 'a'));
 }
 
+TEST(CutToManualNameLengthTest, ShortTextIsUntouched) {
+  EXPECT_EQ(CutToManualNameLength(u"Short"), u"Short");
+  EXPECT_EQ(CutToManualNameLength(std::u16string(200, u'a')),
+            std::u16string(200, u'a'));
+}
+
+TEST(CutToManualNameLengthTest, LongTextIsCutAtTheLimit) {
+  EXPECT_EQ(CutToManualNameLength(std::u16string(300, u'a')),
+            std::u16string(200, u'a'));
+}
+
+TEST(CutToManualNameLengthTest, APairThatWouldBeSplitIsDroppedWhole) {
+  // The field text of a paste: 199 letters, then U+1F600 (two units).
+  std::u16string text(199, u'a');
+  text += u"\U0001F600tail";
+  const std::u16string cut = CutToManualNameLength(text);
+  EXPECT_EQ(cut, std::u16string(199, u'a'));
+  EXPECT_NE(cut.back() & 0xFC00, 0xD800);
+}
+
+TEST(CutToManualNameLengthTest, APairThatFitsIsKept) {
+  std::u16string text(198, u'a');
+  text += u"\U0001F600tail";
+  EXPECT_EQ(CutToManualNameLength(text),
+            std::u16string(198, u'a') + u"\U0001F600");
+}
+
 TEST(NormalizeManualNameTest, ACutThatLeavesTrailingSpaceTrimsIt) {
   const std::string text = std::string(199, 'a') + " bbb";
   EXPECT_EQ(NormalizeManualName(text, "Page"), std::string(199, 'a'));
@@ -196,17 +222,17 @@ TEST(NormalizeManualNameTest, ALongPageTitleLeftUntouchedResets) {
   // The editor opens with the page title; the field holds at most 200
   // characters. Pressing Enter on the cut title must not make it a name.
   const std::string long_title(300, 'a');
-  EXPECT_EQ(NormalizeManualName(std::string(kMaxManualNameLength, 'a'),
-                                long_title),
-            std::nullopt);
+  EXPECT_EQ(
+      NormalizeManualName(std::string(kMaxManualNameLength, 'a'), long_title),
+      std::nullopt);
   EXPECT_EQ(NormalizeManualName(long_title, long_title), std::nullopt);
 }
 
 class ApplyManualNameTest : public testing::Test {
  protected:
-  ApplyManualNameTest()
-      : model_(&clock_) {
-    clock_.SetNow(base::Time::FromMillisecondsSinceUnixEpoch(1'700'000'000'000));
+  ApplyManualNameTest() : model_(&clock_) {
+    clock_.SetNow(
+        base::Time::FromMillisecondsSinceUnixEpoch(1'700'000'000'000));
   }
   std::string AddTab(Section section = Section::kToday,
                      const std::string& parent = std::string()) {
@@ -299,9 +325,8 @@ TEST_F(ApplyManualNameTest, TheNameSurvivesAnUpdateThatOnlyTouchesTheTitle) {
 TEST_F(ApplyManualNameTest, TheNameSurvivesArchiveAndRestore) {
   const std::string id = AddTab();
   ApplyManualName(model_, id, "Mine", "Page");
-  model_.UpdateTab(id, [this](TabRecord& tab) {
-    tab.archived_at = clock_.Now();
-  });
+  model_.UpdateTab(id,
+                   [this](TabRecord& tab) { tab.archived_at = clock_.Now(); });
   EXPECT_EQ(model_.GetTab(id)->manual_name, "Mine");
   model_.UpdateTab(id, [](TabRecord& tab) { tab.archived_at = std::nullopt; });
   EXPECT_EQ(model_.GetTab(id)->manual_name, "Mine");

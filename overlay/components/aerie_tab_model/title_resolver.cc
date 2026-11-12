@@ -26,31 +26,40 @@ class ManualNameProvider : public TitleProvider {
 class PageTitleProvider : public TitleProvider {
  public:
   TitleSource source() const override { return TitleSource::kPage; }
-  std::optional<std::string> Provide(const TabRecord&,
-                                     std::string_view page_title) const override {
+  std::optional<std::string> Provide(
+      const TabRecord&,
+      std::string_view page_title) const override {
     return std::string(page_title);
   }
 };
 
 // Trims and cuts `text` as a manual name is.
 std::u16string TrimAndCut(std::string_view text) {
-  std::u16string wide = base::UTF8ToUTF16(text);
-  std::u16string_view view = base::TrimWhitespace(wide, base::TRIM_ALL);
-  std::u16string result(view);
-  if (result.size() > kMaxManualNameLength) {
-    result.resize(kMaxManualNameLength);
-    // Never keep half of a surrogate pair.
-    if ((result.back() & 0xFC00) == 0xD800) {
-      result.pop_back();
-    }
-    result = std::u16string(base::TrimWhitespace(result, base::TRIM_TRAILING));
+  const std::u16string wide = base::UTF8ToUTF16(text);
+  const std::u16string_view view = base::TrimWhitespace(wide, base::TRIM_ALL);
+  const std::u16string cut = CutToManualNameLength(view);
+  if (cut.size() == view.size()) {
+    return cut;
   }
-  return result;
+  return std::u16string(base::TrimWhitespace(cut, base::TRIM_TRAILING));
 }
 
 }  // namespace
 
-TitleResolver::TitleResolver(std::vector<std::unique_ptr<TitleProvider>> providers)
+std::u16string CutToManualNameLength(std::u16string_view text) {
+  if (text.size() <= kMaxManualNameLength) {
+    return std::u16string(text);
+  }
+  std::u16string result(text.substr(0, kMaxManualNameLength));
+  // Never keep half of a surrogate pair.
+  if ((result.back() & 0xFC00) == 0xD800) {
+    result.pop_back();
+  }
+  return result;
+}
+
+TitleResolver::TitleResolver(
+    std::vector<std::unique_ptr<TitleProvider>> providers)
     : providers_(std::move(providers)) {}
 TitleResolver::TitleResolver(TitleResolver&&) = default;
 TitleResolver& TitleResolver::operator=(TitleResolver&&) = default;
@@ -91,8 +100,8 @@ std::optional<std::string> NormalizeManualName(std::string_view input,
   }
   // The page title as the field would hold it (cut), and as it is.
   if (name == TrimAndCut(page_title) ||
-      name == base::TrimWhitespace(base::UTF8ToUTF16(page_title),
-                                   base::TRIM_ALL)) {
+      name ==
+          base::TrimWhitespace(base::UTF8ToUTF16(page_title), base::TRIM_ALL)) {
     return std::nullopt;
   }
   return base::UTF16ToUTF8(name);
@@ -111,8 +120,7 @@ RenameResult ApplyManualName(TabModel& model,
   if (record->manual_name == name) {
     return RenameResult::kUnchanged;
   }
-  model.UpdateTab(tab_id,
-                  [&name](TabRecord& tab) { tab.manual_name = name; });
+  model.UpdateTab(tab_id, [&name](TabRecord& tab) { tab.manual_name = name; });
   return name ? RenameResult::kSet : RenameResult::kReset;
 }
 

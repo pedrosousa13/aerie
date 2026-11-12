@@ -71,6 +71,11 @@ class TitleResolver {
   std::vector<std::unique_ptr<TitleProvider>> providers_;
 };
 
+// Cuts `text` to kMaxManualNameLength UTF-16 units, dropping a high surrogate
+// that the cut would leave without its pair. It does not trim. The name fields
+// in the sidebar and NormalizeManualName use this one cut.
+std::u16string CutToManualNameLength(std::u16string_view text);
+
 // What to store for the text the user typed: trimmed, cut at
 // kMaxManualNameLength UTF-16 characters (never in the middle of a surrogate
 // pair). Returns nothing, which means "reset the name", for an empty text and
