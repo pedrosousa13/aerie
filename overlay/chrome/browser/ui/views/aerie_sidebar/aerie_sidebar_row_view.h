@@ -114,6 +114,9 @@ class AerieSidebarRowView : public views::View,
     base::RepeatingClosure begin_rename;
     base::RepeatingCallback<void(const std::u16string& text)> commit_rename;
     base::RepeatingClosure reset_name;
+    // The folder editor was asked for (issue #139): the funnel on an
+    // auto-filing folder's row, or a double-click on a folder's icon.
+    base::RepeatingClosure edit_folder;
   };
 
   AerieSidebarRowView(Callbacks callbacks,
@@ -247,6 +250,17 @@ class AerieSidebarRowView : public views::View,
                       const PrefService* motion_prefs);
   bool expanded() const { return expanded_; }
   views::View* chevron_view() const;
+
+  // Auto-filing folders (issue #139). An auto-filing folder shows a funnel after
+  // its name; it opens the folder editor. `tooltip` names it ("Edit folder
+  // rules"). Does nothing for a row that is not a folder.
+  void SetAutoFiling(bool auto_filing, const std::u16string& tooltip);
+  views::ImageButton* funnel_button() const { return funnel_; }
+  // A tab was filed into this folder: a wash of the accent colour rises over the
+  // row and falls back (`autofile-pulse`: 700 ms, 300 ms under reduced motion;
+  // opacity only). `prefs` says whether motion is reduced.
+  void PlayFilingPulse(const PrefService* prefs);
+  views::View* pulse_view() const { return pulse_; }
   views::View* selection_dot() const { return selection_dot_; }
 
   // A folder opens or shuts and this row appears or goes with it (issue #181).
@@ -396,6 +410,10 @@ class AerieSidebarRowView : public views::View,
   raw_ptr<views::BoxLayout> content_layout_ = nullptr;
   raw_ptr<views::ImageView> chevron_ = nullptr;
   raw_ptr<views::View> selection_dot_ = nullptr;
+  raw_ptr<views::ImageButton> funnel_ = nullptr;
+  raw_ptr<views::View> pulse_ = nullptr;
+  aerie::motion::MotionHandle pulse_motion_;
+  base::OneShotTimer pulse_timer_;
   aerie::motion::MotionHandle chevron_motion_;
   base::OneShotTimer chevron_timer_;
   base::OneShotTimer fade_timer_;

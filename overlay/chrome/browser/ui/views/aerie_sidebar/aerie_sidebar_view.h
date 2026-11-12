@@ -23,6 +23,7 @@
 #include "components/aerie_sidebar/aerie_sidebar_palette.h"
 #include "components/aerie_sidebar/aerie_sidebar_today_list.h"
 #include "components/aerie_tab_model/folder_tree.h"
+#include "components/aerie_tab_model/auto_file_controller.h"
 #include "components/aerie_tab_model/tab_model_observer.h"
 #include "components/prefs/pref_change_registrar.h"
 #include "ui/base/metadata/metadata_header_macros.h"
@@ -47,6 +48,8 @@ class TabModel;
 namespace ui {
 class Layer;
 }  // namespace ui
+
+class AerieSidebarFolderSheet;
 
 namespace views {
 class BoxLayoutView;
@@ -78,6 +81,7 @@ class TabInterface;
 class AerieSidebarView : public views::View,
                          public TabStripModelObserver,
                          public aerie_tab_model::TabModelObserver,
+                         public aerie_tab_model::AutoFileController::Observer,
                          public aerie_sidebar::TodayList::Delegate,
                          public views::ContextMenuController {
   METADATA_HEADER(AerieSidebarView, views::View)
@@ -136,6 +140,16 @@ class AerieSidebarView : public views::View,
   AerieSidebarTileView* tile_stop() const;
   // The short message above the bottom bar, and whether it shows now.
   views::Label* toast() const { return toast_; }
+  // The toast of a tab that a folder rule filed (issue #139): the card that
+  // holds the message and the Undo and "Don't file this site" buttons.
+  views::View* toast_card() const { return toast_card_; }
+  views::LabelButton* toast_undo_button() const { return toast_undo_; }
+  views::LabelButton* toast_dont_file_button() const { return toast_dont_file_; }
+  // The folder editor (issue #139): null when it is not open.
+  AerieSidebarFolderSheet* folder_sheet() const { return folder_sheet_.get(); }
+  void OpenFolderSheet(const std::string& folder_id);
+  // aerie_tab_model::AutoFileController::Observer:
+  void OnTabFiled(const aerie_tab_model::AutoFileController::Filed& filed) override;
   bool toast_visible() const;
   // Starts the fade out at once instead of waiting for the hold.
   void HideToastForTesting() { HideToast(); }
@@ -365,8 +379,10 @@ class AerieSidebarView : public views::View,
   void OnContextCommand(const std::string& tab_id, int command);
   // Shows the toast for `kMotionTimingToast` ms and says it politely to a
   // screen reader.
-  void ShowToast(const std::u16string& text);
+  void ShowToast(const std::u16string& text, bool has_actions = false);
   void HideToast();
+  void UndoFiling();
+  void DontFileThisSite();
   void FinishToastHide();
   aerie_tab_model::PinnedTabsController* PinnedController() const;
   void GoBackToPinnedPage(const std::string& tab_id);
@@ -488,7 +504,15 @@ class AerieSidebarView : public views::View,
   // While set, FindTab reads this map instead of walking the strip.
   raw_ptr<const std::map<std::string, tabs::TabInterface*>> tab_lookup_ =
       nullptr;
+  raw_ptr<views::BoxLayoutView> toast_card_ = nullptr;
   raw_ptr<views::Label> toast_ = nullptr;
+  raw_ptr<views::BoxLayoutView> toast_actions_ = nullptr;
+  raw_ptr<views::LabelButton> toast_undo_ = nullptr;
+  raw_ptr<views::LabelButton> toast_dont_file_ = nullptr;
+  // What the toast on screen can undo.
+  aerie_tab_model::AutoFileController::Filed last_filed_;
+  base::WeakPtr<AerieSidebarFolderSheet> folder_sheet_;
+  raw_ptr<aerie_tab_model::AutoFileController> auto_file_ = nullptr;
   base::OneShotTimer toast_timer_;
   aerie::motion::MotionHandle toast_motion_;
   PrefChangeRegistrar pref_registrar_;

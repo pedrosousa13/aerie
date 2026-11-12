@@ -295,6 +295,7 @@ AerieSidebarRowView::~AerieSidebarRowView() {
   lift_motion_.Abort();
   sleep_motion_.Abort();
   chevron_motion_.Abort();
+  pulse_motion_.Abort();
 }
 
 void AerieSidebarRowView::SetTabStop(bool tab_stop) {
@@ -366,6 +367,22 @@ void AerieSidebarRowView::SetPalette(
         vector_icons::kKeyboardArrowRightFlippableIcon, palette_.text_muted, kFaviconSize));
     selection_dot_->SetBackground(views::CreateRoundedRectBackground(
         palette_.accent, aerie::tokens::kSizeFolderDot / 2));
+    for (views::Button::ButtonState state :
+         {views::Button::STATE_NORMAL, views::Button::STATE_DISABLED}) {
+      funnel_->SetImageModel(
+          state, ui::ImageModel::FromVectorIcon(
+                     aerie_sidebar::kAerieFolderRulesIcon, palette_.text_muted,
+                     kFaviconSize));
+    }
+    for (views::Button::ButtonState state :
+         {views::Button::STATE_HOVERED, views::Button::STATE_PRESSED}) {
+      funnel_->SetImageModel(
+          state, ui::ImageModel::FromVectorIcon(
+                     aerie_sidebar::kAerieFolderRulesIcon, palette_.text,
+                     kFaviconSize));
+    }
+    pulse_->SetBackground(views::CreateRoundedRectBackground(
+        palette_.accent, aerie::tokens::kRadiusMd));
   }
   UpdateState();
 }
@@ -540,6 +557,9 @@ void AerieSidebarRowView::UpdateCaptionHeight() {
   }
   // The field's width is known once the content is laid out.
   content_->SetBoundsRect(gfx::Rect(0, 0, width(), kRowHeight));
+  if (pulse_) {
+    pulse_->SetBoundsRect(gfx::Rect(0, 0, width(), kRowHeight));
+  }
   content_->DeprecatedLayoutImmediately();
   const int width_now = rename_field_->width();
   caption_height_ = width_now > 0
@@ -709,6 +729,18 @@ bool AerieSidebarRowView::OnMousePressed(const ui::MouseEvent& event) {
   pressed_ = event.IsOnlyLeftMouseButton();
   drag_cancelled_ = false;
   press_point_ = event.root_location();
+  // A double-click on a folder's icon opens the folder editor (issue #139).
+  if (is_folder_ && event.IsOnlyLeftMouseButton() && event.GetClickCount() == 2 &&
+      callbacks_.edit_folder) {
+    gfx::Point in_icon = event.location();
+    views::View::ConvertPointToTarget(this, favicon_, &in_icon);
+    if (favicon_->GetLocalBounds().Contains(in_icon)) {
+      pressed_ = false;
+      suppress_release_ = true;
+      callbacks_.edit_folder.Run();
+      return true;
+    }
+  }
   // A double-click on the title starts a rename (issue #145).
   if (event.IsOnlyLeftMouseButton() && event.GetClickCount() == 2 &&
       callbacks_.begin_rename) {
@@ -1189,6 +1221,31 @@ void AerieSidebarRowView::MakeFolderRow() {
   const std::optional<size_t> title_index = content_->GetIndexOf(title_);
   selection_dot_ = content_->AddChildViewAt(
       std::move(dot), title_index ? *title_index + 1 : content_->children().size());
+  // The funnel of an auto-filing folder, after the name (issue #139).
+  auto funnel = views::CreateVectorImageButton(base::BindRepeating(
+      [](AerieSidebarRowView* row) {
+        if (row->callbacks_.edit_folder) {
+          row->callbacks_.edit_folder.Run();
+        }
+      },
+      base::Unretained(this)));
+  funnel->SetPreferredSize(gfx::Size(20, 20));
+  funnel->SetVisible(false);
+  funnel->SetFocusBehavior(views::View::FocusBehavior::NEVER);
+  funnel->SetInstallFocusRingOnFocus(false);
+  views::FocusRing::Remove(funnel.get());
+  const std::optional<size_t> dot_index = content_->GetIndexOf(selection_dot_);
+  funnel_ = content_->AddChildViewAt(
+      std::move(funnel), dot_index ? *dot_index + 1 : content_->children().size());
+  // The pulse: an accent wash over the whole row that is at 0 opacity at rest.
+  auto pulse = std::make_unique<views::View>();
+  pulse->SetProperty(views::kViewIgnoredByLayoutKey, true);
+  pulse->SetCanProcessEventsWithinSubtree(false);
+  pulse->GetViewAccessibility().SetIsIgnored(true);
+  pulse->SetPaintToLayer();
+  pulse->layer()->SetFillsBoundsOpaquely(false);
+  pulse->layer()->SetOpacity(0.f);
+  pulse_ = content_->AddChildView(std::move(pulse));
   rename_caption_->SetText(
       l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_FOLDER_RENAME_CAPTION));
   GetViewAccessibility().SetIsSelected(false);
@@ -1215,6 +1272,51 @@ void AerieSidebarRowView::UpdateIndent() {
 
 views::View* AerieSidebarRowView::chevron_view() const {
   return chevron_;
+}
+
+void AerieSidebarRowView::SetAutoFiling(bool auto_filing,
+                                        const std::u16string& tooltip) {
+  if (!is_folder_) {
+    return;
+  }
+  funnel_->SetVisible(auto_filing);
+  funnel_->SetTooltipText(tooltip);
+  funnel_->GetViewAccessibility().SetName(tooltip);
+}
+
+void AerieSidebarRowView::PlayFilingPulse(const PrefService* prefs) {
+  if (!is_folder_) {
+    return;
+  }
+  const aerie_sidebar::PulseMotion motion = aerie_sidebar::AutoFilePulseMotion(
+      aerie::motion::ShouldReduceMotion(prefs));
+  pulse_motion_.Abort();
+  pulse_timer_.Stop();
+  ui::Layer* layer = pulse_->layer();
+  layer->SetOpacity(0.f);
+  // The durations are already the reduced ones when motion is reduced, so the
+  // two steps go through with no prefs (AnimateLayer would cut a reduced
+  // opacity animation to 90 ms, and the pulse is longer by design). Only the
+  // opacity moves.
+  aerie::motion::LayerMotion rise;
+  rise.opacity = motion.peak_opacity;
+  pulse_motion_ = aerie::motion::AnimateLayerForMs(
+      layer, rise, motion.rise_ms, motion.rise_ms, motion.rise_easing, nullptr);
+  pulse_timer_.Start(
+      FROM_HERE, base::Milliseconds(motion.rise_ms),
+      base::BindOnce(
+          [](base::WeakPtr<AerieSidebarRowView> row,
+             aerie_sidebar::PulseMotion motion) {
+            if (!row) {
+              return;
+            }
+            aerie::motion::LayerMotion fall;
+            fall.opacity = 0.f;
+            row->pulse_motion_ = aerie::motion::AnimateLayerForMs(
+                row->pulse_->layer(), fall, motion.fall_ms, motion.fall_ms,
+                motion.fall_easing, nullptr);
+          },
+          weak_factory_.GetWeakPtr(), motion));
 }
 
 void AerieSidebarRowView::SetFolderState(const std::u16string& name,
