@@ -69,6 +69,16 @@ struct Workspace : Record {
   std::string mode;
 };
 
+// Which folder auto-filed a tab, and by which rule (issue #139). Set when the
+// auto-filing controller files the tab, and cleared when the tab leaves that
+// folder by any other way (Undo, a move, a delete).
+struct FiledBy {
+  std::string folder_id;
+  std::string rule_id;
+
+  bool operator==(const FiledBy&) const = default;
+};
+
 struct TabRecord : Record {
   std::string workspace_id;
   Section section = Section::kToday;
@@ -88,6 +98,8 @@ struct TabRecord : Record {
   // tabs only (issue #180): after a restart their tabs are created unloaded and
   // have no title until they load, so the row shows this one.
   std::optional<std::string> last_title;
+  // Set while the tab sits in the folder that auto-filed it (issue #139).
+  std::optional<FiledBy> filed_by;
 };
 
 struct FolderRecord : Record {

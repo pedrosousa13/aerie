@@ -257,6 +257,11 @@ bool TabModel::MoveTab(const std::string& id,
              tab.section == Section::kFavorite) {
     tab.previous_section.reset();
   }
+  // A tab that leaves the folder that auto-filed it is no longer filed
+  // (issue #139).
+  if (tab.parent != parent) {
+    tab.filed_by.reset();
+  }
   tab.section = section;
   tab.parent = parent;
   tab.position = position;
@@ -316,6 +321,7 @@ bool TabModel::RemoveFolder(const std::string& id) {
     if (tab.parent == id) {
       Placement from{tab.section, tab.parent, tab.position};
       tab.parent = folder.parent;
+      tab.filed_by.reset();
       Stamp(tab, ChangeType::kMoved, RecordKind::kTab);
       observers_.Notify(&TabModelObserver::OnTabMoved, tab, from);
     }

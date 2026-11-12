@@ -255,6 +255,12 @@ base::DictValue TabToValue(const TabRecord& tab) {
   if (tab.last_title) {
     dict.Set("last_title", *tab.last_title);
   }
+  if (tab.filed_by) {
+    base::DictValue filed;
+    filed.Set("folder_id", tab.filed_by->folder_id);
+    filed.Set("rule_id", tab.filed_by->rule_id);
+    dict.Set("filed_by", std::move(filed));
+  }
   return dict;
 }
 
@@ -290,6 +296,18 @@ std::optional<TabRecord> TabFromValue(const base::DictValue& dict) {
       return std::nullopt;
     }
     tab.previous_section = *section;
+  }
+  // Added by issue #139 without a schema bump: absent in older files.
+  if (const base::Value* filed = dict.Find("filed_by")) {
+    const base::DictValue* filed_dict = filed->GetIfDict();
+    const std::string* folder_id =
+        filed_dict ? filed_dict->FindString("folder_id") : nullptr;
+    const std::string* rule_id =
+        filed_dict ? filed_dict->FindString("rule_id") : nullptr;
+    if (!folder_id || !rule_id) {
+      return std::nullopt;
+    }
+    tab.filed_by = FiledBy{*folder_id, *rule_id};
   }
   return tab;
 }

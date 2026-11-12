@@ -10,12 +10,16 @@ import("//testing/test.gni")
 # //chrome/browser/aerie_tab_model.
 source_set("aerie_tab_model") {
   sources = [
+    "folder_rules.cc",
+    "folder_rules.h",
     "folder_tree.cc",
     "folder_tree.h",
     "pinned_tabs.cc",
     "pinned_tabs.h",
     "sleep_schedule.cc",
     "sleep_schedule.h",
+    "rule_matcher.cc",
+    "rule_matcher.h",
     "sleep_summary.cc",
     "sleep_summary.h",
     "tab_model.cc",
@@ -30,6 +34,7 @@ source_set("aerie_tab_model") {
   ]
   public_deps = [
     "//base",
+    "//base:i18n",
     "//url",
   ]
 }
@@ -50,8 +55,10 @@ source_set("prefs") {
 source_set("unit_tests") {
   testonly = true
   sources = [
+    "folder_rules_unittest.cc",
     "folder_tree_unittest.cc",
     "pinned_tabs_unittest.cc",
+    "rule_matcher_unittest.cc",
     "sleep_schedule_unittest.cc",
     "sleep_summary_unittest.cc",
     "tab_model_persistence_unittest.cc",
