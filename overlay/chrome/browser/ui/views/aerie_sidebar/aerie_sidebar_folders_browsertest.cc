@@ -160,6 +160,13 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarFoldersBrowserTest, KeysOpenShutAndMove) {
     AerieSidebarRowView* row = sidebar()->RowForId(tab);
     return row && row->level() == 1;
   }));
+  // A new folder opens its name for editing; the keys are the field's while it
+  // is open, so leave it first.
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    AerieSidebarRowView* row = sidebar()->RowForId(folder);
+    return row && row->renaming();
+  }));
+  sidebar()->RowForId(folder)->CancelRename();
   AerieSidebarRowView* folder_row = sidebar()->RowForId(folder);
   Key(folder_row, ui::VKEY_LEFT);
   EXPECT_FALSE(model()->GetFolder(folder)->expanded);
