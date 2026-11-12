@@ -470,6 +470,9 @@ namespace {
 // Fails when anything in `view` animates a transform; returns the longest
 // opacity animation in ms.
 int WalkFolderLayers(views::View* view, bool allow_transform, int* longest) {
+  if (!view) {
+    return *longest;
+  }
   if (view->layer()) {
     if (!allow_transform) {
       EXPECT_FALSE(Animates(view->layer(), ui::LayerAnimationElement::TRANSFORM));
@@ -486,6 +489,18 @@ int WalkFolderLayers(views::View* view, bool allow_transform, int* longest) {
   return *longest;
 }
 }  // namespace
+
+bool FindDescendantAnimating(views::View* view) {
+  if (view->layer() && view->layer()->GetAnimator()->is_animating()) {
+    return true;
+  }
+  for (views::View* child : view->children()) {
+    if (FindDescendantAnimating(child)) {
+      return true;
+    }
+  }
+  return false;
+}
 
 // Reduced motion (issue #181): a folder opens and shuts by opacity only, within
 // 90 ms, the height does not animate and the chevron does not turn.
@@ -505,12 +520,21 @@ IN_PROC_BROWSER_TEST_P(AerieSidebarReducedMotionUiTest,
     AerieSidebarRowView* row = sidebar()->RowForId(tab_id);
     return row && row->level() == 1;
   }));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return sidebar()->closing_row_count() == 0u &&
+           !FindDescendantAnimating(sidebar());
+  }));
   for (bool expand : {false, true}) {
     sidebar()->SetFolderExpanded(folder, expand);
     if (sidebar()->folder_group() && sidebar()->folder_group()->running()) {
       EXPECT_EQ(sidebar()->folder_group()->height_animation(), nullptr);
+      // Only the rows of the folder: the other rows may still play the open
+      // motion of the tab that was just made.
       int longest = 0;
-      WalkFolderLayers(sidebar(), /*allow_transform=*/false, &longest);
+      WalkFolderLayers(sidebar()->RowForId(tab_id), /*allow_transform=*/false,
+                       &longest);
+      WalkFolderLayers(sidebar()->RowForId(folder), /*allow_transform=*/false,
+                       &longest);
       EXPECT_LE(longest, 90);
     }
     // The chevron is at rest at once: no layer, no turn in progress.
