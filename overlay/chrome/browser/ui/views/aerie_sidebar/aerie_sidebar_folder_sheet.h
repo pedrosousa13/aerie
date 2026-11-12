@@ -33,7 +33,6 @@ class BoxLayoutView;
 class Combobox;
 class Label;
 class LabelButton;
-class RadioButton;
 class Textfield;
 }  // namespace views
 
@@ -88,7 +87,9 @@ class AerieSidebarFolderSheet : public views::BubbleDialogDelegate,
 
   // The parts, for tests.
   views::Textfield* name_field() const { return name_field_; }
-  views::RadioButton* kind_button(size_t index) const;
+  // The buttons of the kind control (a segmented control; each says `radio`).
+  views::LabelButton* kind_button(size_t index) const;
+  bool kind_checked(size_t index) const;
   views::BoxLayoutView* rules_list() const { return rules_list_; }
   views::BoxLayoutView* exceptions_list() const { return exceptions_list_; }
   views::Combobox* type_combobox() const { return type_combobox_; }
@@ -144,7 +145,7 @@ class AerieSidebarFolderSheet : public views::BubbleDialogDelegate,
 
   raw_ptr<views::View> contents_ = nullptr;
   raw_ptr<views::Textfield> name_field_ = nullptr;
-  std::vector<raw_ptr<views::RadioButton>> kind_buttons_;
+  std::vector<raw_ptr<views::LabelButton>> kind_buttons_;
   raw_ptr<views::View> auto_section_ = nullptr;
   raw_ptr<views::BoxLayoutView> rules_list_ = nullptr;
   raw_ptr<views::Combobox> type_combobox_ = nullptr;

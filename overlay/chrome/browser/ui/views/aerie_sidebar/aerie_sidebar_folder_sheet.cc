@@ -36,10 +36,10 @@
 #include "ui/views/controls/button/image_button.h"
 #include "ui/views/controls/button/image_button_factory.h"
 #include "ui/views/controls/button/label_button.h"
-#include "ui/views/controls/button/radio_button.h"
 #include "ui/views/controls/combobox/combobox.h"
 #include "ui/views/controls/image_view.h"
 #include "ui/views/controls/label.h"
+#include "ui/views/background.h"
 #include "ui/views/controls/textfield/textfield.h"
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/layout/box_layout_view.h"
@@ -72,8 +72,6 @@ constexpr std::array<TypeEntry, 4> kTypes = {{
     {RuleType::kUrlContains, IDS_AERIE_SIDEBAR_RULE_TYPE_URL_CONTAINS},
     {RuleType::kTitleContains, IDS_AERIE_SIDEBAR_RULE_TYPE_TITLE_CONTAINS},
 }};
-
-constexpr int kRadioGroup = 17;
 
 std::u16string TypeLabel(RuleType type) {
   for (const TypeEntry& entry : kTypes) {
@@ -189,17 +187,25 @@ void AerieSidebarFolderSheet::Build() {
   header->SetFlexForView(name_field_, 1);
   contents->AddChildView(std::move(header));
 
-  // Kind.
+  // Kind: a segmented control. Each segment says `radio` to a screen reader.
   auto kind_row = MakeRow();
   kind_row->AddChildView(MakeLabel(
       l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_SHEET_KIND_LABEL), muted));
+  auto segments = MakeRow();
+  segments->SetBetweenChildSpacing(aerie::tokens::kSpace2);
+  segments->GetViewAccessibility().SetRole(ax::mojom::Role::kRadioGroup);
+  segments->GetViewAccessibility().SetName(
+      l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_SHEET_KIND_LABEL));
   for (size_t i = 0; i < kKinds.size(); ++i) {
-    auto radio = std::make_unique<views::RadioButton>(
-        l10n_util::GetStringUTF16(kKinds[i].label_id), kRadioGroup);
-    radio->SetCallback(base::BindRepeating(&AerieSidebarFolderSheet::SetKind,
-                                           base::Unretained(this), i));
-    kind_buttons_.push_back(kind_row->AddChildView(std::move(radio)));
+    auto segment = std::make_unique<views::LabelButton>(
+        base::BindRepeating(&AerieSidebarFolderSheet::SetKind,
+                            base::Unretained(this), i),
+        l10n_util::GetStringUTF16(kKinds[i].label_id));
+    segment->GetViewAccessibility().SetRole(ax::mojom::Role::kRadioButton);
+    segment->SetFocusBehavior(views::View::FocusBehavior::ALWAYS);
+    kind_buttons_.push_back(segments->AddChildView(std::move(segment)));
   }
+  kind_row->AddChildView(std::move(segments));
   contents->AddChildView(std::move(kind_row));
 
   // The rules, exceptions and the folder's own switch: Auto-filing only.
@@ -284,12 +290,18 @@ void AerieSidebarFolderSheet::Build() {
   global->GetViewAccessibility().SetName(
       l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_SHEET_GLOBAL_SWITCH));
   global_switch_ = footer->AddChildView(std::move(global));
+  contents->AddChildView(std::move(footer));
+  auto done_row = MakeRow();
+  done_row->SetMainAxisAlignment(views::BoxLayout::MainAxisAlignment::kEnd);
   auto done = std::make_unique<views::LabelButton>(
       base::BindRepeating(&AerieSidebarFolderSheet::Dismiss,
                           base::Unretained(this), /*refocus=*/true),
       l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_SHEET_DONE));
-  done_button_ = footer->AddChildView(std::move(done));
-  contents->AddChildView(std::move(footer));
+  done->SetEnabledTextColors(palette_.text);
+  done->SetBackground(views::CreateRoundedRectBackground(
+      palette_.row_selected, aerie::tokens::kRadiusMd));
+  done_button_ = done_row->AddChildView(std::move(done));
+  contents->AddChildView(std::move(done_row));
 
   contents_ = SetContentsView(std::move(contents));
   contents_->SetPaintToLayer();
@@ -298,8 +310,16 @@ void AerieSidebarFolderSheet::Build() {
   Rebuild();
 }
 
-views::RadioButton* AerieSidebarFolderSheet::kind_button(size_t index) const {
+views::LabelButton* AerieSidebarFolderSheet::kind_button(size_t index) const {
   return index < kind_buttons_.size() ? kind_buttons_[index].get() : nullptr;
+}
+
+bool AerieSidebarFolderSheet::kind_checked(size_t index) const {
+  const aerie_tab_model::FolderRecord* folder = model_->GetFolder(folder_id_);
+  return folder && index < kKinds.size() &&
+         kKinds[index].kind ==
+             (aerie_tab_model::IsAutoFiling(*folder) ? FolderKind::kAuto
+                                                     : FolderKind::kManual);
 }
 
 ui::Layer* AerieSidebarFolderSheet::slide_layer() const {
@@ -339,8 +359,16 @@ void AerieSidebarFolderSheet::Rebuild() {
   }
   const bool is_auto = aerie_tab_model::IsAutoFiling(*folder);
   for (size_t i = 0; i < kKinds.size(); ++i) {
-    kind_buttons_[i]->SetChecked(
-        kKinds[i].kind == (is_auto ? FolderKind::kAuto : FolderKind::kManual));
+    const bool checked = kind_checked(i);
+    views::LabelButton* segment = kind_buttons_[i];
+    segment->GetViewAccessibility().SetCheckedState(
+        checked ? ax::mojom::CheckedState::kTrue
+                : ax::mojom::CheckedState::kFalse);
+    segment->SetEnabledTextColors(checked ? palette_.text : palette_.text_muted);
+    segment->SetBackground(
+        checked ? views::CreateRoundedRectBackground(palette_.row_selected,
+                                                     aerie::tokens::kRadiusMd)
+                : nullptr);
   }
   auto_section_->SetVisible(is_auto);
   global_switch_->SetOn(

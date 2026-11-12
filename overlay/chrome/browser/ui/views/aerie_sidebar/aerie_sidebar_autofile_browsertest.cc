@@ -45,7 +45,6 @@
 #include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/controls/button/button.h"
 #include "ui/views/controls/button/label_button.h"
-#include "ui/views/controls/button/radio_button.h"
 #include "ui/views/controls/combobox/combobox.h"
 #include "ui/views/controls/button/image_button.h"
 #include "ui/views/controls/textfield/textfield.h"
@@ -365,7 +364,7 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarFolderSheetBrowserTest,
   AerieSidebarFolderSheet* sheet = OpenSheet(folder);
 
   // Kind: Auto-filing.
-  EXPECT_TRUE(sheet->kind_button(0)->GetChecked());
+  EXPECT_TRUE(sheet->kind_checked(0));
   Click(sheet->kind_button(1));
   EXPECT_TRUE(aerie_tab_model::IsAutoFiling(*model()->GetFolder(folder)));
   sheet->FlushForTesting();

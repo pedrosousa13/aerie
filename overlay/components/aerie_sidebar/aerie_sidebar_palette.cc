@@ -29,6 +29,7 @@ SidebarPalette ResolveSidebarPalette(aerie::tokens::ThemeId theme,
   palette.text = frame.text;
   palette.text_muted = frame.text_muted;
   palette.accent = frame.accent;
+  palette.text_on_accent = tokens.color_text_on_accent;
   palette.row_hover = tokens.color_row_hover;
   palette.row_selected = tokens.color_row_selected;
   palette.divider = tokens.color_divider;
