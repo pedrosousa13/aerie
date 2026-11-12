@@ -1,0 +1,50 @@
+Aerie-Purpose: Save the Tab Model record id of every Today tab with the tab in Chromium's session file, so that session restore can give the tab its record back.
+Aerie-Upstream-Area: chrome/browser/sessions (session_service.cc, BUILD.gn)
+Aerie-Kind: hook
+
+Issue #223. SessionService::BuildCommandsForTab runs when the session is rebuilt (a new window, a
+restored tab, a reset). After Chromium's own commands it asks aerie_tab_model::RecordIdToSave
+(overlay, chrome/browser/aerie_tab_model/session_record_id_hook.h) for the tab's record id and, when
+the tab has a Today record, appends a CreateAddTabExtraDataCommand with the key
+aerie.tab_record_id. That is the per-tab extra data that the session file already has (command 33,
+read back into sessions::SessionTab::extra_data); no new command is added. The live save, when a tab
+gets its record, is TabStripAdapter calling SessionService::AddTabExtraData. The header has no
+dependencies, so the new dep cannot make a cycle; the definitions are in session_record_id_hook.cc.
+
+--- a/chrome/browser/sessions/BUILD.gn
++++ b/chrome/browser/sessions/BUILD.gn
+@@ -139,6 +139,7 @@
+ 
+     deps += [
+       "//chrome/browser:after_startup_task_utils",
++      "//chrome/browser/aerie_tab_model:session_record_id_hook",
+       "//chrome/browser/content_settings:content_settings_factory",
+       "//chrome/browser/devtools",
+       "//chrome/browser/extensions",
+--- a/chrome/browser/sessions/session_service.cc
++++ b/chrome/browser/sessions/session_service.cc
+@@ -19,6 +19,7 @@
+ #include "base/metrics/histogram_functions.h"
+ #include "base/values.h"
+ #include "build/build_config.h"
++#include "chrome/browser/aerie_tab_model/session_record_id_hook.h"
+ #include "chrome/browser/apps/app_service/launch_utils.h"
+ #include "chrome/browser/browser_process.h"
+ #include "chrome/browser/buildflags.h"
+@@ -681,6 +682,16 @@
+     command_storage_manager()->AppendRebuildCommand(
+         sessions::CreateSplitTabCommand(session_id, std::move(split)));
+   }
++
++  // Aerie: keep the Tab Model record id of a Today tab in the session, so that
++  // session restore can give the tab its record back (issue #223).
++  const std::string aerie_record_id = aerie_tab_model::RecordIdToSave(tab);
++  if (!aerie_record_id.empty()) {
++    command_storage_manager()->AppendRebuildCommand(
++        sessions::CreateAddTabExtraDataCommand(
++            session_id, aerie_tab_model::kSessionRecordIdKey,
++            aerie_record_id));
++  }
+ }
+ 
+ void SessionService::ScheduleResetCommands() {

@@ -6,8 +6,13 @@
 
 #include <algorithm>
 
+#include "base/functional/bind.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/task/sequenced_task_runner.h"
+#include "chrome/browser/aerie_tab_model/session_record_id_hook.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/sessions/session_service.h"
+#include "chrome/browser/sessions/session_service_factory.h"
 #include "chrome/browser/tab_list/tab_removed_reason.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
@@ -15,6 +20,8 @@
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "components/aerie_tab_model/tab_model.h"
 #include "components/aerie_tab_model/tab_model_types.h"
+#include "components/sessions/content/session_tab_helper.h"
+#include "content/public/browser/web_contents.h"
 
 namespace aerie_tab_model {
 
@@ -22,6 +29,7 @@ TabStripAdapter::TabStripAdapter(Profile* profile,
                                  TabModel* model,
                                  const base::Clock* clock)
     : profile_(profile), model_(model), clock_(clock) {
+  model_observation_.Observe(model_);
   // Windows that exist already, then the ones that open later.
   ForEachCurrentBrowserWindowInterfaceOrderedByActivation(
       [this](BrowserWindowInterface* browser) {
@@ -37,6 +45,13 @@ std::string TabStripAdapter::RecordIdForTab(
     const tabs::TabInterface* tab) const {
   auto it = ids_.find(tab->GetHandle());
   return it == ids_.end() ? std::string() : it->second;
+}
+
+std::string TabStripAdapter::SessionRecordIdForTab(
+    const tabs::TabInterface* tab) const {
+  const std::string id = RecordIdForTab(tab);
+  const TabRecord* record = id.empty() ? nullptr : model_->GetTab(id);
+  return record && record->section == Section::kToday ? id : std::string();
 }
 
 tabs::TabInterface* TabStripAdapter::TabForRecord(
@@ -105,6 +120,7 @@ void TabStripAdapter::OnTabStripModelChanged(
         if (!TabRemoveReasonUtils::WillDeleteTab(removed.remove_reason)) {
           continue;
         }
+        deferred_claims_.erase(removed.tab->GetHandle());
         auto it = ids_.find(removed.tab->GetHandle());
         if (it == ids_.end()) {
           continue;
@@ -117,6 +133,14 @@ void TabStripAdapter::OnTabStripModelChanged(
           if (!tab_strip_model->closing_all() && pinned_tab_gone_) {
             pinned_tab_gone_.Run();
           }
+          continue;
+        }
+        if (tab_strip_model->closing_all()) {
+          // The window is closing, perhaps because the browser is quitting:
+          // Chromium's session keeps the tab and brings it back, and the tab
+          // then claims this record (issue #223). A record whose tab does not
+          // come back is removed at the end of the next restore pass.
+          ids_.erase(it);
           continue;
         }
         model_->RemoveTab(it->second);
@@ -173,6 +197,19 @@ void TabStripAdapter::TabInserted(tabs::TabInterface* tab, int index) {
       return;
     }
   }
+  // A tab that session restore brought back carries the id its record had in
+  // the run that saved the session (issue #223). The value is untrusted: the
+  // model checks it and only looks it up.
+  const std::string restored_id = TakeRestoredRecordId(tab->GetContents());
+  if (!restored_id.empty() && model_->loaded()) {
+    std::string claimed = model_->ClaimRestoredTab(restored_id);
+    if (!claimed.empty()) {
+      // Section, folder, position and name are in the record already.
+      ids_.emplace(tab->GetHandle(), std::move(claimed));
+      SaveRecordIdSoon(tab);
+      return;
+    }
+  }
   TabRecord record;
   record.section = Section::kToday;
   record.position = index;
@@ -180,10 +217,72 @@ void TabStripAdapter::TabInserted(tabs::TabInterface* tab, int index) {
   std::string id = model_->AddTab(std::move(record));
   if (!id.empty()) {
     ids_.emplace(tab->GetHandle(), id);
+    if (!restored_id.empty() && !model_->loaded()) {
+      // The stored records are not here yet: try again when they are.
+      deferred_claims_.emplace(tab->GetHandle(), restored_id);
+    }
+    SaveRecordIdSoon(tab);
     if (tab_inserted_) {
       tab_inserted_.Run(id, tab);
     }
   }
+}
+
+void TabStripAdapter::OnModelLoaded() {
+  // Tabs that came in before the read: the ones that carried an id swap their
+  // fresh record for the stored one.
+  std::map<tabs::TabHandle, std::string> claims;
+  claims.swap(deferred_claims_);
+  for (const auto& [handle, restored_id] : claims) {
+    tabs::TabInterface* tab = handle.Get();
+    auto it = ids_.find(handle);
+    if (!tab || it == ids_.end()) {
+      continue;
+    }
+    std::string claimed =
+        model_->ClaimRestoredTabInPlaceOf(it->second, restored_id);
+    if (!claimed.empty()) {
+      it->second = std::move(claimed);
+      SaveRecordIdSoon(tab);
+    }
+  }
+}
+
+void TabStripAdapter::OnTabMoved(const TabRecord& tab, const Placement& from) {
+  // A record that enters or leaves Today: the session saves the id for Today
+  // only.
+  if (from.section == tab.section) {
+    return;
+  }
+  if (tabs::TabInterface* live = TabForRecord(tab.id)) {
+    SaveRecordIdSoon(live);
+  }
+}
+
+void TabStripAdapter::SaveRecordIdSoon(tabs::TabInterface* tab) {
+  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE, base::BindOnce(&TabStripAdapter::SaveRecordId,
+                                weak_factory_.GetWeakPtr(), tab->GetHandle()));
+}
+
+void TabStripAdapter::SaveRecordId(tabs::TabHandle handle) {
+  tabs::TabInterface* tab = handle.Get();
+  content::WebContents* contents = tab ? tab->GetContents() : nullptr;
+  SessionService* service =
+      SessionServiceFactory::GetForProfileIfExisting(profile_);
+  if (!contents || !service) {
+    return;
+  }
+  const SessionID window_id =
+      sessions::SessionTabHelper::IdForWindowContainingTab(contents);
+  const SessionID tab_id = sessions::SessionTabHelper::IdForTab(contents);
+  if (!window_id.is_valid() || !tab_id.is_valid()) {
+    return;
+  }
+  // An empty value clears an id that an earlier save left (the record left
+  // Today).
+  service->AddTabExtraData(window_id, tab_id, kSessionRecordIdKey,
+                           SessionRecordIdForTab(tab));
 }
 
 void TabStripAdapter::TouchActive(tabs::TabInterface* tab) {

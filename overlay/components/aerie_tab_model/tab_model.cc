@@ -11,6 +11,7 @@
 #include "base/json/values_util.h"
 #include "base/time/clock.h"
 #include "base/uuid.h"
+#include "components/aerie_tab_model/session_record_id.h"
 
 namespace aerie_tab_model {
 
@@ -365,6 +366,7 @@ base::DictValue TabModel::ToValue() const {
 
 void TabModel::MergeLoaded(std::optional<ModelState> stored) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  loaded_ = true;
   if (!stored) {
     if (workspace_.change == 0) {
       Stamp(workspace_, ChangeType::kAdded, RecordKind::kWorkspace);
@@ -404,10 +406,11 @@ void TabModel::MergeLoaded(std::optional<ModelState> stored) {
   const std::string old_workspace_id = workspace_.id;
   workspace_ = std::move(stored->workspace);
 
-  std::vector<std::string> stale;
   for (TabRecord& tab : stored->tabs) {
+    stored_tab_ids_.insert(tab.id);
+    // Open when it was saved: it waits for a restored tab to claim it.
     if (tab.section == Section::kToday && !tab.sleeping && !tab.archived_at) {
-      stale.push_back(tab.id);
+      awaiting_restore_.insert(tab.id);
     }
     tabs_.emplace(tab.id, std::move(tab));
   }
@@ -430,11 +433,64 @@ void TabModel::MergeLoaded(std::optional<ModelState> stored) {
     }
   }
 
-  for (const std::string& id : stale) {
-    RemoveTab(id);
-  }
   NotifyChanged();
   observers_.Notify(&TabModelObserver::OnModelLoaded);
+}
+
+std::string TabModel::ClaimRestoredTab(std::string_view raw_id) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  std::optional<std::string> id = ParseSessionRecordId(raw_id);
+  if (!id) {
+    return std::string();
+  }
+  auto it = awaiting_restore_.find(*id);
+  if (it == awaiting_restore_.end()) {
+    return std::string();
+  }
+  // Only the set says what can be claimed; the record must still be there and
+  // still be an open Today tab.
+  const TabRecord* record = GetTab(*id);
+  if (!record || record->section != Section::kToday || record->sleeping ||
+      record->archived_at) {
+    awaiting_restore_.erase(it);
+    return std::string();
+  }
+  std::string claimed = std::move(*id);
+  awaiting_restore_.erase(it);
+  return claimed;
+}
+
+std::string TabModel::ClaimRestoredTabInPlaceOf(const std::string& fresh_id,
+                                                std::string_view raw_id) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  const TabRecord* fresh = GetTab(fresh_id);
+  // The record that is replaced must be one this run made for the tab.
+  if (!fresh || fresh->section != Section::kToday ||
+      stored_tab_ids_.contains(fresh_id)) {
+    return std::string();
+  }
+  std::string claimed = ClaimRestoredTab(raw_id);
+  if (!claimed.empty()) {
+    RemoveTab(fresh_id);
+  }
+  return claimed;
+}
+
+bool TabModel::IsAwaitingRestore(const std::string& id) const {
+  return awaiting_restore_.contains(id);
+}
+
+size_t TabModel::RemoveUnclaimedRestoredTabs() {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  std::set<std::string> unclaimed;
+  unclaimed.swap(awaiting_restore_);
+  size_t removed = 0;
+  for (const std::string& id : unclaimed) {
+    if (RemoveTab(id)) {
+      ++removed;
+    }
+  }
+  return removed;
 }
 
 }  // namespace aerie_tab_model

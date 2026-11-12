@@ -1,0 +1,43 @@
+Aerie-Purpose: Keep the Tab Model record id from a restored tab's extra data on the tab, so the tab strip adapter can join the tab to its record.
+Aerie-Upstream-Area: chrome/browser/ui (browser_tabrestore.cc, BUILD.gn)
+Aerie-Kind: hook
+
+Issue #223. chrome::AddRestoredTab already passes the tab's session extra data to
+glic::RestoreGlicStateFromExtraData and SendTabToSelfActivationTracker::RestoreFromExtraData before
+the tab goes into its strip. It now also calls aerie_tab_model::StashRestoredRecordId (overlay,
+chrome/browser/aerie_tab_model/session_record_id_hook.h). The call keeps a well-formed record id
+(1 to 64 characters of A-Z a-z 0-9 - _) as user data on the WebContents and ignores anything else;
+TabStripAdapter::TabInserted reads it and forgets it. The value comes from the session file on disk
+and is only looked up in the Tab Model, never used as an index. The header has no dependencies, so
+the new dep of browser_tabrestore_impl cannot make a cycle.
+
+--- a/chrome/browser/ui/BUILD.gn
++++ b/chrome/browser/ui/BUILD.gn
+@@ -501,6 +501,7 @@
+       ":browser_window_header",
+       ":tab_ui_helper",
+       "//base",
++      "//chrome/browser/aerie_tab_model:session_record_id_hook",
+       "//chrome/browser/apps/app_service",
+       "//chrome/browser/glic",
+       "//chrome/browser/profiles:profile",
+--- a/chrome/browser/ui/browser_tabrestore.cc
++++ b/chrome/browser/ui/browser_tabrestore.cc
+@@ -10,6 +10,7 @@
+ 
+ #include "base/containers/span.h"
+ #include "build/build_config.h"
++#include "chrome/browser/aerie_tab_model/session_record_id_hook.h"
+ #include "chrome/browser/apps/app_service/web_contents_app_id_utils.h"
+ #include "chrome/browser/glic/glic_tab_restore_helper.h"
+ #include "chrome/browser/profiles/profile.h"
+@@ -86,6 +87,9 @@
+   glic::RestoreGlicStateFromExtraData(web_contents.get(), extra_data);
+   send_tab_to_self::SendTabToSelfActivationTracker::RestoreFromExtraData(
+       web_contents.get(), extra_data);
++  // Aerie: a Today tab comes back with the id of its Tab Model record (issue
++  // #223). The tab strip adapter reads it when the tab is inserted.
++  aerie_tab_model::StashRestoredRecordId(web_contents.get(), extra_data);
+ 
+   std::vector<std::unique_ptr<NavigationEntry>> entries =
+       ContentSerializedNavigationBuilder::ToNavigationEntries(

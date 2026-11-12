@@ -24,6 +24,7 @@ namespace aerie_tab_model {
 
 class AutoFileController;
 class PinnedTabsController;
+class RestorePass;
 class TabStripAdapter;
 
 // The Tab Model of one profile (issue #176). The sidebar observes `model()`;
@@ -52,6 +53,8 @@ class TabModelService : public KeyedService {
   // Files new tabs into auto-filing folders (issue #139). It only watches tabs
   // created in the last few seconds. Null after Shutdown().
   AutoFileController* auto_file() { return auto_file_.get(); }
+  // Null after Shutdown().
+  RestorePass* restore_pass() { return restore_pass_.get(); }
 
   // nullopt means never.
   std::optional<base::TimeDelta> archive_after() const;
@@ -76,6 +79,9 @@ class TabModelService : public KeyedService {
   std::unique_ptr<TabStripAdapter> adapter_;
   std::unique_ptr<PinnedTabsController> pinned_tabs_;
   std::unique_ptr<AutoFileController> auto_file_;
+  // Ends the restore pass (issue #223). Declared after the adapter, so it is
+  // destroyed first.
+  std::unique_ptr<RestorePass> restore_pass_;
 };
 
 }  // namespace aerie_tab_model

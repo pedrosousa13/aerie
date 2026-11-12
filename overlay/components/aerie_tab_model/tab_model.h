@@ -8,7 +8,9 @@
 #include <deque>
 #include <map>
 #include <optional>
+#include <set>
 #include <string>
+#include <string_view>
 
 #include "base/functional/callback.h"
 #include "base/functional/function_ref.h"
@@ -99,10 +101,42 @@ class TabModel {
   // going on. The stored records and log come first; this run's records keep
   // their ids, and their counters move up behind the stored ones. A stored
   // Today tab that was neither sleeping nor archived was open in the run that
-  // saved it; nothing can match it to a tab now, so it is removed (and
-  // logged). Pass nullopt when there is nothing stored. Then tells the
-  // observers with OnModelLoaded.
+  // saved it. It is kept, and it waits for a restored tab to claim it (issue
+  // #223, ClaimRestoredTab); what no tab claims by the end of the restore pass
+  // is removed by RemoveUnclaimedRestoredTabs. Pass nullopt when there is
+  // nothing stored. Then tells the observers with OnModelLoaded.
   void MergeLoaded(std::optional<ModelState> stored);
+  // True once MergeLoaded has run.
+  bool loaded() const { return loaded_; }
+
+  // The join with session restore (issue #223). A restored tab carries the id
+  // of the record it had in the run that saved the session. `raw_id` is that
+  // value as it came from the session file: untrusted. It is checked
+  // (ParseSessionRecordId), and then only looked up, never used to index
+  // anything else.
+  //
+  // Returns the id of the record that the tab re-attaches to, and the record is
+  // no longer waiting. The record keeps its section, folder, position and
+  // manual name; nothing is written. Returns an empty string, and changes
+  // nothing, for no id, a malformed id, an id that is unknown or whose record
+  // is not waiting (a record this run made, a Pinned or sleeping record, a
+  // record that another tab claimed already). The caller then gives the tab a
+  // fresh record. Never matches by anything but the id.
+  std::string ClaimRestoredTab(std::string_view raw_id);
+  // Same, for a tab that was inserted, and got the fresh record `fresh_id`,
+  // before the read of state.json was merged. On a claim the fresh record is
+  // removed (only if it is a Today record that this run made, not one that came
+  // from state.json). On no claim nothing changes.
+  std::string ClaimRestoredTabInPlaceOf(const std::string& fresh_id,
+                                        std::string_view raw_id);
+  // Today records that were open when the model was saved and that no restored
+  // tab has claimed yet.
+  bool IsAwaitingRestore(const std::string& id) const;
+  size_t awaiting_restore_count() const { return awaiting_restore_.size(); }
+  // Ends the restore pass: removes (and logs) every record that still waits.
+  // Returns how many. Folders are not touched: a folder is the user's own and
+  // stays, empty if need be.
+  size_t RemoveUnclaimedRestoredTabs();
 
  private:
   // Sets modified and change on `record`, appends a ChangeRecord.
@@ -128,6 +162,13 @@ class TabModel {
   std::map<std::string, FolderRecord> folders_;
   std::deque<ChangeRecord> change_log_;
   int64_t next_change_ = 1;
+  bool loaded_ = false;
+  // Ids of the stored Today tabs that wait for a restored tab (issue #223). Not
+  // saved: it only covers the start of one run.
+  std::set<std::string> awaiting_restore_;
+  // Ids of every tab that came from state.json, to tell them from the records
+  // this run made.
+  std::set<std::string> stored_tab_ids_;
 
   base::ObserverList<TabModelObserver> observers_;
   SEQUENCE_CHECKER(sequence_checker_);
