@@ -51,6 +51,7 @@
   --aerie-size-pinned-max-rows: 6;
   --aerie-size-back-button: 20px;
   --aerie-size-pencil-button: 20px;
+  --aerie-size-folder-dot: 6px;
   --aerie-size-inset-comfortable: 8px;
   --aerie-size-inset-compact: 4px;
   --aerie-size-favicon-comfortable: 20px;
@@ -170,6 +171,7 @@
   --aerie-workspace-mint-stop-1: #6EE7B7;
   --aerie-workspace-mint-stop-2: #22D3EE;
   --aerie-motion-ratio-folder-edge: 0.2;
+  --aerie-motion-ratio-chevron-turn: 0.25;
   --aerie-motion-ratio-rubber-band: 4.5;
   --aerie-motion-ratio-swipe-velocity: 0.5;
 }
@@ -537,6 +539,7 @@
     --aerie-motion-timing-autofile-delay: 120ms;
     --aerie-motion-timing-toast-action: 6000ms;
     --aerie-motion-ratio-folder-edge: 0.2;
+    --aerie-motion-ratio-chevron-turn: 0.25;
     --aerie-motion-ratio-rubber-band: 4.5;
     --aerie-motion-ratio-swipe-velocity: 0.5;
 }
@@ -580,6 +583,7 @@
   --aerie-motion-timing-autofile-delay: 120ms;
   --aerie-motion-timing-toast-action: 6000ms;
   --aerie-motion-ratio-folder-edge: 0.2;
+  --aerie-motion-ratio-chevron-turn: 0.25;
   --aerie-motion-ratio-rubber-band: 4.5;
   --aerie-motion-ratio-swipe-velocity: 0.5;
 }

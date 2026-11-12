@@ -222,4 +222,49 @@ TEST(AerieSidebarMotionTest, TheRenameFadeOutIsXfastAndGoesFromOneToZero) {
   EXPECT_FLOAT_EQ(m.to_opacity, 0.f);
 }
 
+TEST(AerieSidebarMotionTest, AFolderRevealsOnFolderRevealWithAStaggerOfFifteenForTheFirstSix) {
+  const FolderMotion m = FolderRevealMotion(/*reduced=*/false);
+  EXPECT_EQ(m.duration, MotionDuration::kFolderReveal);
+  EXPECT_EQ(m.duration_ms, 200);
+  EXPECT_EQ(m.easing, MotionEasing::kInOut);
+  EXPECT_FLOAT_EQ(m.from_opacity, 0.f);
+  EXPECT_FLOAT_EQ(m.to_opacity, 1.f);
+  EXPECT_EQ(m.stagger_ms, 15);
+  EXPECT_EQ(m.stagger_cap, 6);
+  EXPECT_TRUE(m.animate_height);
+  EXPECT_EQ(m.height_duration_ms, 200);
+}
+
+TEST(AerieSidebarMotionTest, AFolderCollapsesOnFolderCollapseWithNoStagger) {
+  const FolderMotion m = FolderCollapseMotion(/*reduced=*/false);
+  EXPECT_EQ(m.duration, MotionDuration::kFolderCollapse);
+  EXPECT_EQ(m.duration_ms, 180);
+  EXPECT_EQ(m.stagger_ms, 0);
+  EXPECT_FLOAT_EQ(m.from_opacity, 1.f);
+  EXPECT_FLOAT_EQ(m.to_opacity, 0.f);
+  EXPECT_TRUE(m.animate_height);
+  EXPECT_EQ(m.height_duration_ms, 180);
+}
+
+TEST(AerieSidebarMotionTest, UnderReducedMotionAFolderOnlyFadesAndTheHeightSnaps) {
+  for (const FolderMotion& m :
+       {FolderRevealMotion(true), FolderCollapseMotion(true)}) {
+    EXPECT_EQ(m.duration_ms, 90);
+    EXPECT_LE(m.duration_ms, aerie::motion::kMaxReducedOpacityMs);
+    EXPECT_EQ(m.stagger_ms, 0);
+    EXPECT_FALSE(m.animate_height);
+    EXPECT_EQ(m.height_duration_ms, 0);
+  }
+}
+
+TEST(AerieSidebarMotionTest, TheChevronTurnsAQuarterOnFastAndStandardAndSnapsWhenReduced) {
+  const ChevronMotion m = FolderChevronMotion(/*reduced=*/false);
+  EXPECT_TRUE(m.animate);
+  EXPECT_FLOAT_EQ(m.open_turn, 0.25f);
+  EXPECT_EQ(m.duration, MotionDuration::kFast);
+  EXPECT_EQ(m.easing, MotionEasing::kStandard);
+  EXPECT_EQ(m.duration_ms, 140);
+  EXPECT_FALSE(FolderChevronMotion(/*reduced=*/true).animate);
+}
+
 }  // namespace aerie_sidebar

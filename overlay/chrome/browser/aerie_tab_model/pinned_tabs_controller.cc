@@ -174,7 +174,7 @@ BrowserWindowInterface* PinnedTabsController::RestoreTarget() const {
 std::vector<std::string> PinnedTabsController::RecordsWithoutTab() const {
   std::vector<std::string> ids;
   for (Section section : {Section::kFavorite, Section::kPinned}) {
-    for (const std::string& id : SectionTabIds(*model_, section)) {
+    for (const std::string& id : AllSectionTabIds(*model_, section)) {
       const TabRecord* record = model_->GetTab(id);
       if (record && record->pinned_url && !adapter_->TabForRecord(id)) {
         ids.push_back(id);

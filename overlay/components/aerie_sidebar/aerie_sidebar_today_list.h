@@ -19,7 +19,12 @@ namespace aerie_sidebar {
 
 // The keys of the Today tree (docs/sidebar-design.md, "Keyboard and screen
 // reader"): arrows move the one tab stop, Home and End jump, Delete closes.
-enum class ListKey { kUp, kDown, kHome, kEnd, kDelete };
+//
+// A tree with folders (issue #181) adds Right and Left (expand, collapse and
+// move between a folder and its children) and Toggle (Enter or Space on a
+// folder row). HandleListKey, for a flat list, leaves the stop where it is for
+// those three; HandleTreeKey (aerie_sidebar_tree.h) handles them.
+enum class ListKey { kUp, kDown, kHome, kEnd, kDelete, kRight, kLeft, kToggle };
 
 struct ListKeyResult {
   // The row that holds the tab stop afterwards; -1 when the list is empty.

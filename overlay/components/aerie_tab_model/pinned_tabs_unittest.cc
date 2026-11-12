@@ -52,6 +52,25 @@ TEST_F(PinnedTabsTest, TheSidebarOrderIsFavoritesThenPinnedThenToday) {
             (std::vector<std::string>{favorite, pinned, today}));
 }
 
+TEST_F(PinnedTabsTest, FolderTabsFollowTheTreeAndHiddenOnesAreNotInTheOrder) {
+  FolderRecord folder;
+  folder.section = Section::kPinned;
+  folder.expanded = true;
+  const std::string folder_id = model_.AddFolder(std::move(folder));
+  const std::string loose = Add(Section::kPinned, 5);
+  TabRecord inside;
+  inside.section = Section::kPinned;
+  inside.parent = folder_id;
+  const std::string in_folder = model_.AddTab(std::move(inside));
+  EXPECT_EQ(SidebarTabOrder(model_),
+            (std::vector<std::string>{in_folder, loose}));
+  // Folded away: not a row, so not in the order; still a Pinned tab to restore.
+  model_.UpdateFolder(folder_id, [](FolderRecord& f) { f.expanded = false; });
+  EXPECT_EQ(SidebarTabOrder(model_), (std::vector<std::string>{loose}));
+  EXPECT_EQ(AllSectionTabIds(model_, Section::kPinned),
+            (std::vector<std::string>{in_folder, loose}));
+}
+
 TEST(PickNextTabTest, TheRowBelowThenTheRowAboveThenNothing) {
   const std::vector<std::string> order = {"a", "b", "c"};
   EXPECT_EQ(PickNextTab(order, "a"), "b");
