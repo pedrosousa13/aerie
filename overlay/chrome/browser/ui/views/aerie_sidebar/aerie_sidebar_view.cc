@@ -315,6 +315,8 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
   list->GetViewAccessibility().SetName(
       l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_TODAY));
   list_ = scroll_->SetContents(std::move(list));
+  list_->set_context_menu_controller(this);
+  pinned_list_->set_context_menu_controller(this);
   layout->SetFlexForView(scroll_, 1);
 
   // The toast: one short message, polite for a screen reader (docs/sidebar-
@@ -1939,6 +1941,10 @@ void AerieSidebarView::ShowRowContextMenu(
     const std::string& tab_id,
     const gfx::Point& screen_point,
     ui::mojom::MenuSourceType source_type) {
+  if (model_ && model_->GetFolder(tab_id)) {
+    ShowFolderContextMenu(tab_id, screen_point, source_type);
+    return;
+  }
   tabs::TabInterface* tab = FindTab(tab_id);
   auto* controller = aerie_tab_model::SleepControllerFactory::GetForProfile(
       browser_->GetProfile());
@@ -1959,6 +1965,34 @@ void AerieSidebarView::ShowRowContextMenu(
   if (!options.sleep.enabled) {
     options.sleep.tooltip =
         l10n_util::GetStringUTF16(eligibility.tooltip_message_id);
+  }
+  if (record->section != aerie_tab_model::Section::kFavorite) {
+    const aerie_tab_model::Section section = record->section;
+    const bool in_folder = !record->parent.empty();
+    options.show_new_folder = true;
+    options.new_folder_enabled =
+        aerie_tab_model::CanCreateFolderIn(*model_, record->parent);
+    if (!options.new_folder_enabled) {
+      options.new_folder_tooltip = l10n_util::GetStringFUTF16(
+          IDS_AERIE_SIDEBAR_FOLDER_TOO_DEEP,
+          base::NumberToString16(aerie_tab_model::kMaxFolderDepth));
+    }
+    options.show_move_to_new_folder = true;
+    options.move_to_new_folder_enabled = aerie_tab_model::CanCreateFolderIn(
+        *model_, record->parent);
+    options.show_move_out = in_folder;
+    for (const aerie_tab_model::FolderChoice& choice :
+         aerie_tab_model::FolderChoices(*model_, section)) {
+      if (choice.id == record->parent) {
+        continue;
+      }
+      AerieSidebarContextMenu::MoveTarget target;
+      target.folder_id = choice.id;
+      target.label = std::u16string(choice.level > 1 ? 2 * (choice.level - 1) : 0,
+                                    u' ') +
+                     base::UTF8ToUTF16(choice.name);
+      options.move_targets.push_back(std::move(target));
+    }
   }
   context_menu_ = std::make_unique<AerieSidebarContextMenu>(
       std::move(options),
@@ -2025,10 +2059,51 @@ void AerieSidebarView::OnContextCommand(const std::string& tab_id,
     case AerieSidebarContextMenu::kCommandResetName:
       ResetName(tab_id);
       break;
+    case AerieSidebarContextMenu::kCommandNewFolder: {
+      const aerie_tab_model::TabRecord* record =
+          model_ ? model_->GetTab(tab_id) : nullptr;
+      if (record) {
+        CreateFolderIn(record->section, record->parent);
+      }
+      break;
+    }
+    case AerieSidebarContextMenu::kCommandMoveToNewFolder:
+      if (model_) {
+        const std::string id = aerie_tab_model::MoveTabToNewFolder(
+            *model_, tab_id,
+            l10n_util::GetStringUTF8(IDS_AERIE_SIDEBAR_NEW_FOLDER));
+        if (!id.empty()) {
+          RenameNewFolderSoon(id);
+        }
+      }
+      break;
+    case AerieSidebarContextMenu::kCommandMoveOutOfFolder:
+      if (model_) {
+        aerie_tab_model::MoveTabToFolder(*model_, tab_id, std::string());
+      }
+      break;
+    default: {
+      const std::string folder =
+          context_menu_ ? context_menu_->FolderIdForCommand(command)
+                        : std::string();
+      if (model_ && !folder.empty()) {
+        aerie_tab_model::MoveTabToFolder(*model_, tab_id, folder);
+      }
+    }
   }
 }
 
 bool AerieSidebarView::StartRename(const std::string& tab_id) {
+  if (const aerie_tab_model::FolderRecord* folder =
+          model_ ? model_->GetFolder(tab_id) : nullptr) {
+    // A folder row renames in place with the field of a tab row.
+    if (AerieSidebarRowView* row = RowForId(tab_id)) {
+      row->BeginRename(base::UTF8ToUTF16(folder->name),
+                       browser_->GetProfile()->GetPrefs());
+      return row->renaming();
+    }
+    return false;
+  }
   tabs::TabInterface* tab = FindTab(tab_id);
   const aerie_tab_model::TabRecord* record =
       model_ ? model_->GetTab(tab_id) : nullptr;
@@ -2088,6 +2163,11 @@ void AerieSidebarView::OnTilePopoverDone(const std::string& tab_id,
 
 void AerieSidebarView::CommitRename(const std::string& tab_id,
                                     const std::u16string& text) {
+  if (model_ && model_->GetFolder(tab_id)) {
+    // An empty name keeps the old one.
+    aerie_tab_model::RenameFolder(*model_, tab_id, base::UTF16ToUTF8(text));
+    return;
+  }
   tabs::TabInterface* tab = FindTab(tab_id);
   if (!tab || !model_) {
     return;

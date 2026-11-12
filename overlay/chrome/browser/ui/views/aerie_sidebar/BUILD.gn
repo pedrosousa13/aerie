@@ -88,6 +88,7 @@ source_set("browser_tests") {
   defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
   sources = [
     "aerie_sidebar_browsertest.cc",
+    "aerie_sidebar_folders_browsertest.cc",
     "aerie_sidebar_pinned_browsertest.cc",
     "aerie_sidebar_rename_browsertest.cc",
     "aerie_sidebar_sleep_browsertest.cc",

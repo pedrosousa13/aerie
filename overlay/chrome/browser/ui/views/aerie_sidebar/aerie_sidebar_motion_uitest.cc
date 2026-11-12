@@ -19,7 +19,12 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_group.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_row_view.h"
+#include "chrome/browser/aerie_tab_model/tab_model_service.h"
+#include "chrome/browser/aerie_tab_model/tab_model_service_factory.h"
+#include "components/aerie_tab_model/folder_tree.h"
+#include "components/aerie_tab_model/tab_model.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_view.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/multi_contents_view.h"
@@ -459,4 +464,64 @@ IN_PROC_BROWSER_TEST_P(AerieSidebarReducedMotionUiTest, ReducedMotionDragMovesNo
   row->OnMouseReleased(release);
   EXPECT_FALSE(row->layer() && Animates(row->layer(), ui::LayerAnimationElement::TRANSFORM));
   EXPECT_FALSE(row->has_drag_layers());
+}
+
+namespace {
+// Fails when anything in `view` animates a transform; returns the longest
+// opacity animation in ms.
+int WalkFolderLayers(views::View* view, bool allow_transform, int* longest) {
+  if (view->layer()) {
+    if (!allow_transform) {
+      EXPECT_FALSE(Animates(view->layer(), ui::LayerAnimationElement::TRANSFORM));
+    }
+    if (Animates(view->layer(), ui::LayerAnimationElement::OPACITY)) {
+      *longest = std::max(
+          *longest,
+          static_cast<int>(OpacityDuration(view->layer()).InMilliseconds()));
+    }
+  }
+  for (views::View* child : view->children()) {
+    WalkFolderLayers(child, allow_transform, longest);
+  }
+  return *longest;
+}
+}  // namespace
+
+// Reduced motion (issue #181): a folder opens and shuts by opacity only, within
+// 90 ms, the height does not animate and the chevron does not turn.
+IN_PROC_BROWSER_TEST_P(AerieSidebarReducedMotionUiTest,
+                       FolderRevealAndCollapseFadeOnlyAndSnapTheHeight) {
+  ReduceMotion();
+  OpenTab();
+  auto* service = aerie_tab_model::TabModelServiceFactory::GetForProfile(
+      browser()->GetProfile());
+  const std::string tab_id = sidebar()->tree_rows(
+      aerie_tab_model::Section::kToday).back().id;
+  const std::string folder = sidebar()->CreateFolderIn(
+      aerie_tab_model::Section::kToday, std::string());
+  ASSERT_FALSE(folder.empty());
+  ASSERT_TRUE(aerie_tab_model::MoveTabToFolder(*service->model(), tab_id, folder));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    AerieSidebarRowView* row = sidebar()->RowForId(tab_id);
+    return row && row->level() == 1;
+  }));
+  for (bool expand : {false, true}) {
+    sidebar()->SetFolderExpanded(folder, expand);
+    if (sidebar()->folder_group() && sidebar()->folder_group()->running()) {
+      EXPECT_EQ(sidebar()->folder_group()->height_animation(), nullptr);
+      int longest = 0;
+      WalkFolderLayers(sidebar(), /*allow_transform=*/false, &longest);
+      EXPECT_LE(longest, 90);
+    }
+    // The chevron is at rest at once: no layer, no turn in progress.
+    AerieSidebarRowView* folder_row = sidebar()->RowForId(folder);
+    ASSERT_TRUE(folder_row);
+    if (views::View* chevron = folder_row->chevron_view(); chevron->layer()) {
+      EXPECT_FALSE(Animates(chevron->layer(),
+                            ui::LayerAnimationElement::TRANSFORM));
+    }
+    ASSERT_TRUE(base::test::RunUntil([&] {
+      return !sidebar()->folder_group() || !sidebar()->folder_group()->running();
+    }));
+  }
 }
