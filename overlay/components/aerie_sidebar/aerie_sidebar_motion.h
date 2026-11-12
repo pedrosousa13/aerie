@@ -184,6 +184,51 @@ struct RenameFadeMotion {
 RenameFadeMotion RenameFade();
 RenameFadeMotion RenameFadeOut();
 
+// A folder opens or shuts (issue #181, docs/sidebar-design.md, "Folder reveal
+// and collapse"). Reveal: the children fade in on `folder-reveal` (200 ms) and
+// `in-out`, the first `stagger_cap` of them `stagger_ms` apart, while the
+// container height grows over the same time (the layout exception: the height
+// of this one clipped list). Collapse: the children fade out together on
+// `xfast` (90 ms) with no stagger, then the height shrinks for the rest of
+// `folder-collapse` (180 ms). The two phases are in sequence and the time is
+// split from the tokens: nothing is added to `folder-collapse`. Reduced motion:
+// opacity only, 90 ms, no stagger; the height snaps.
+struct FolderMotion {
+  aerie::tokens::MotionDuration duration;
+  aerie::tokens::MotionEasing easing;
+  int duration_ms;
+  float from_opacity;
+  float to_opacity;
+  // The gap between the starts of the first children, and how many children it
+  // applies to. Zero for a collapse and under reduced motion.
+  int stagger_ms;
+  int stagger_cap;
+  bool animate_height;
+  // When the height starts, counted from the start of the motion (0: with the
+  // fade), and how long it takes.
+  int height_delay_ms;
+  int height_duration_ms;
+  // The length of the whole motion, without the stagger.
+  int total_ms;
+};
+
+FolderMotion FolderRevealMotion(bool reduced);
+FolderMotion FolderCollapseMotion(bool reduced);
+
+// The chevron of a folder turns a quarter turn (`motion-ratio-chevron-turn`)
+// on `fast` and `standard`: the transform of its layer. Reduced motion: it
+// snaps to the new angle (no animation, no transform element).
+struct ChevronMotion {
+  bool animate;
+  // Share of a full turn the chevron has when open.
+  float open_turn;
+  aerie::tokens::MotionDuration duration;
+  aerie::tokens::MotionEasing easing;
+  int duration_ms;
+};
+
+ChevronMotion FolderChevronMotion(bool reduced);
+
 RowMotion OpenRowMotion(bool reduced);
 RowMotion CloseRowMotion(int outer_edge_sign, bool reduced);
 

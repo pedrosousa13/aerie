@@ -304,6 +304,7 @@ base::DictValue FolderToValue(const FolderRecord& folder) {
   dict.Set("name", folder.name);
   dict.Set("icon", folder.icon);
   dict.Set("kind", FolderKindToString(folder.kind));
+  dict.Set("expanded", folder.expanded);
   if (folder.rules) {
     dict.Set("rules", folder.rules->Clone());
   }
@@ -331,6 +332,14 @@ std::optional<FolderRecord> FolderFromValue(const base::DictValue& dict) {
     return std::nullopt;
   }
   folder.kind = *kind;
+  // Added by issue #181 without a schema bump: absent in older files (no folder
+  // was drawn before), which read as collapsed.
+  if (const base::Value* expanded = dict.Find("expanded")) {
+    if (!expanded->is_bool()) {
+      return std::nullopt;
+    }
+    folder.expanded = expanded->GetBool();
+  }
   return folder;
 }
 

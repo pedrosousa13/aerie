@@ -196,4 +196,52 @@
   <message name="IDS_SETTINGS_AERIE_PINNED_CLOSE_CLOSE" desc="Option of the pinned-close drop-down in Settings. Closing a pinned tab unpins and closes it.">
     Close
   </message>
+  <message name="IDS_AERIE_SIDEBAR_NEW_FOLDER" desc="Item of the context menu in the sidebar that makes a new, empty folder for tabs. It is also the name that a new folder starts with, until the user renames it.">
+    New folder
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_FOLDER_TOO_DEEP" desc="Tooltip of the disabled New folder item of the sidebar context menu, and the hint shown when a folder would be nested too deeply. The number is the most levels of folders inside folders that the sidebar allows.">
+    Can't nest deeper than <ph name="LEVELS">$1<ex>5</ex></ph> levels
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_RENAME_FOLDER" desc="Item of the context menu of a folder in the sidebar. It opens a field in place of the folder's name, where the user types a new name.">
+    Rename folder
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_DELETE_FOLDER" desc="Item of the context menu of a folder in the sidebar, and the button of the question that asks whether to delete a folder that holds tabs. The tabs in the folder are not closed: they move out of it.">
+    Delete folder
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_MOVE_TO_NEW_FOLDER" desc="Item of the context menu of a tab in the sidebar. It makes a new folder where the tab is and puts the tab in it.">
+    Move to new folder
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_MOVE_TO_FOLDER" desc="Item of the context menu of a tab in the sidebar. It opens a list of the folders; choosing one puts the tab in that folder.">
+    Move to folder
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_MOVE_OUT_OF_FOLDER" desc="Item of the context menu of a tab in a folder in the sidebar. It moves the tab out of the folder, to the place next to the folder.">
+    Move out of folder
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_FOLDER_ITEMS" desc="The number of things (tabs and folders) that a folder in the sidebar holds. A screen reader reads it as part of the folder's name.">
+    {COUNT, plural,
+      =0 {empty}
+      =1 {1 item}
+      other {# items}}
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_FOLDER_NAME_EXPANDED" desc="Accessible name of a folder row in the sidebar that is open and shows what is in it. The folder's name comes first, then the word folder, the state, and the number of items, for example: Trips, folder, expanded, 3 items.">
+    <ph name="NAME">$1<ex>Trips</ex></ph>, folder, expanded, <ph name="ITEMS">$2<ex>3 items</ex></ph>
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_FOLDER_NAME_COLLAPSED" desc="Accessible name of a folder row in the sidebar that is shut and hides what is in it. The folder's name comes first, then the word folder, the state, and the number of items, for example: Trips, folder, collapsed, 3 items.">
+    <ph name="NAME">$1<ex>Trips</ex></ph>, folder, collapsed, <ph name="ITEMS">$2<ex>3 items</ex></ph>
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_FOLDER_HAS_SELECTED" desc="End of the accessible name of a shut folder row in the sidebar that holds the tab that is open now. The rest of the name comes first.">
+    <ph name="NAME">$1<ex>Trips, folder, collapsed, 3 items</ex></ph>, holds the open tab
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_FOLDER_RENAME_FIELD_NAME" desc="Accessible name of the text field in which the user types a new name for a folder in the sidebar.">
+    Folder name
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_FOLDER_RENAME_CAPTION" desc="Short help text under the text field in which the user types a new name for a folder in the sidebar. A screen reader reads it as the description of the field.">
+    Enter keeps, Esc cancels. Empty keeps the old name.
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_FOLDER_DELETE_TITLE" desc="Title of the question that asks whether to delete a folder in the sidebar that holds tabs.">
+    Delete this folder?
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_FOLDER_DELETE_BODY" desc="Text of the question that asks whether to delete a folder in the sidebar that holds tabs. It says what the folder holds. No tab is closed: they move out, next to the folder.">
+    This folder holds <ph name="ITEMS">$1<ex>3 items</ex></ph>. They move out, next to the folder. No tab closes.
+  </message>
 </grit-part>

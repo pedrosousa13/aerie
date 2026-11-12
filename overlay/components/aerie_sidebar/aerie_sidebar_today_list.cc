@@ -35,6 +35,12 @@ ListKeyResult HandleListKey(int count, int focused, ListKey key) {
       result.close_focused = true;
       result.focus_index = std::min(at, count - 2);
       break;
+    case ListKey::kRight:
+    case ListKey::kLeft:
+    case ListKey::kToggle:
+      // A flat list has no folders: the stop stays.
+      result.focus_index = at;
+      break;
   }
   return result;
 }

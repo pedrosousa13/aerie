@@ -133,6 +133,52 @@ RenameFadeMotion RenameFadeOut() {
   return motion;
 }
 
+FolderMotion FolderRevealMotion(bool reduced) {
+  FolderMotion motion;
+  motion.duration = MotionDuration::kFolderReveal;
+  motion.easing = MotionEasing::kInOut;
+  motion.duration_ms = GetDurationMs(motion.duration, reduced);
+  motion.from_opacity = 0.f;
+  motion.to_opacity = 1.f;
+  motion.stagger_ms = reduced ? 0 : aerie::tokens::kMotionTimingStagger;
+  motion.stagger_cap = aerie::tokens::kMotionTimingStaggerCap;
+  motion.animate_height = !reduced;
+  motion.height_delay_ms = 0;
+  motion.height_duration_ms = reduced ? 0 : motion.duration_ms;
+  motion.total_ms = motion.duration_ms;
+  return motion;
+}
+
+FolderMotion FolderCollapseMotion(bool reduced) {
+  FolderMotion motion;
+  // The fade takes `xfast`; the height takes what `folder-collapse` has left.
+  const int whole = GetDurationMs(MotionDuration::kFolderCollapse, reduced);
+  motion.duration =
+      reduced ? MotionDuration::kFolderCollapse : MotionDuration::kXfast;
+  motion.easing = MotionEasing::kInOut;
+  motion.duration_ms = GetDurationMs(motion.duration, reduced);
+  motion.from_opacity = 1.f;
+  motion.to_opacity = 0.f;
+  motion.stagger_ms = 0;
+  motion.stagger_cap = 0;
+  motion.animate_height = !reduced;
+  motion.height_delay_ms = reduced ? 0 : motion.duration_ms;
+  motion.height_duration_ms = reduced ? 0 : whole - motion.duration_ms;
+  motion.total_ms = reduced ? motion.duration_ms : whole;
+  return motion;
+}
+
+ChevronMotion FolderChevronMotion(bool reduced) {
+  ChevronMotion motion;
+  motion.animate = !reduced;
+  motion.open_turn = reduced ? aerie::tokens::kMotionRatioChevronTurnReduced
+                             : aerie::tokens::kMotionRatioChevronTurn;
+  motion.duration = MotionDuration::kFast;
+  motion.easing = MotionEasing::kStandard;
+  motion.duration_ms = GetDurationMs(motion.duration, reduced);
+  return motion;
+}
+
 RowMotion OpenRowMotion(bool reduced) {
   RowMotion motion;
   motion.content_duration = MotionDuration::kFast;

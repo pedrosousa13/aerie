@@ -88,6 +88,20 @@ source_set("motion") {
   ]
 }
 
+# The keys and the stagger of the Pinned and Today trees with folders (issue #181).
+source_set("tree") {
+  sources = [
+    "aerie_sidebar_tree.cc",
+    "aerie_sidebar_tree.h",
+  ]
+  deps = [ "//components/aerie_design_tokens:tokens" ]
+  public_deps = [
+    ":today_list",
+    "//base",
+    "//components/aerie_tab_model",
+  ]
+}
+
 # The Today list kept from the Tab Model, and the keys of the tree.
 source_set("today_list") {
   sources = [
@@ -108,6 +122,7 @@ source_set("unit_tests") {
     "aerie_sidebar_motion_unittest.cc",
     "aerie_sidebar_palette_unittest.cc",
     "aerie_sidebar_today_list_unittest.cc",
+    "aerie_sidebar_tree_unittest.cc",
     "aerie_sidebar_unittest.cc",
   ]
   deps = [
@@ -118,6 +133,7 @@ source_set("unit_tests") {
     ":palette",
     ":prefs",
     ":today_list",
+    ":tree",
     "//base",
     "//base/test:test_support",
     "//components/aerie_design_tokens:tokens",

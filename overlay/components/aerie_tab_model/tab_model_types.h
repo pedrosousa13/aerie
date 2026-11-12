@@ -98,6 +98,9 @@ struct FolderRecord : Record {
   std::string name;
   std::string icon;
   FolderKind kind = FolderKind::kManual;
+  // Whether the folder shows its children (issue #181). Kept in the record, so
+  // it survives a restart. Written by SetFolderExpanded.
+  bool expanded = false;
   // Owned by the slices that define them (auto-filing rules and the folder
   // behaviours). Stored as they are.
   std::optional<base::DictValue> rules;

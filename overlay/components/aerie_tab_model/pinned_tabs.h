@@ -26,7 +26,13 @@ class TabModel;
 // folder, not archived, ordered by position and then by id.
 std::vector<std::string> SectionTabIds(const TabModel& model, Section section);
 
-// The order of the whole sidebar, top to bottom: Favorites, Pinned, Today.
+// Every tab of one section, inside folders too (expanded or not), in the order
+// of the tree (issue #181). What restoring Pinned tabs after a restart walks.
+std::vector<std::string> AllSectionTabIds(const TabModel& model,
+                                          Section section);
+
+// The order of the whole sidebar, top to bottom: Favorites, Pinned, Today. The
+// tabs inside a collapsed folder are not rows, so they are not in it.
 std::vector<std::string> SidebarTabOrder(const TabModel& model);
 
 // The tab to select when `id` goes away or sleeps: the row below it in `order`,

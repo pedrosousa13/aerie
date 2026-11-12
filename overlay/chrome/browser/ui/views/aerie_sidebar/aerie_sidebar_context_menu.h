@@ -7,6 +7,7 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
@@ -48,6 +49,33 @@ class AerieSidebarContextMenu : public views::MenuDelegate {
   static constexpr int kCommandBackToPinned = 7;
   static constexpr int kCommandRename = 8;
   static constexpr int kCommandResetName = 9;
+  // Folders (issue #181).
+  static constexpr int kCommandNewFolder = 10;
+  static constexpr int kCommandRenameFolder = 11;
+  static constexpr int kCommandDeleteFolder = 12;
+  static constexpr int kCommandMoveToNewFolder = 13;
+  static constexpr int kCommandMoveOutOfFolder = 14;
+  // The "Move to folder" item opens a list; its entries are
+  // kCommandMoveToFolderBase plus their index in Options::move_targets.
+  static constexpr int kCommandMoveToFolderList = 15;
+  static constexpr int kCommandMoveToFolderBase = 100;
+
+  // What the menu is for.
+  enum class Target {
+    // A tab row or a Favorites tile.
+    kTab,
+    // A folder row: New folder (inside it), Rename folder, Delete folder.
+    kFolder,
+    // The heading of a section: New folder only.
+    kSection,
+  };
+
+  struct MoveTarget {
+    std::string folder_id;
+    // The folder's name with its parents', for example "Trips / Rome".
+    std::u16string label;
+    bool enabled = true;
+  };
 
   struct SleepItem {
     bool enabled = false;
@@ -65,6 +93,23 @@ class AerieSidebarContextMenu : public views::MenuDelegate {
     // "Reset name".
     bool has_manual_name = false;
     SleepItem sleep;
+
+    Target target = Target::kTab;
+    // "New folder" (issue #181): in a tab's menu it makes the folder next to
+    // the tab (in the tab's own folder), in a folder's menu inside the folder,
+    // in a section's menu at the top of the section. Disabled, with the reason
+    // in its tooltip, when it would nest deeper than 5 levels.
+    bool show_new_folder = false;
+    bool new_folder_enabled = true;
+    std::u16string new_folder_tooltip;
+    // A tab in Pinned or Today: "Move to new folder", and the "Move to folder"
+    // list of `move_targets` (hidden when there is no folder to choose).
+    bool show_move_to_new_folder = false;
+    bool move_to_new_folder_enabled = true;
+    std::u16string move_to_new_folder_tooltip;
+    std::vector<MoveTarget> move_targets;
+    // A tab that is in a folder: "Move out of folder".
+    bool show_move_out = false;
   };
 
   // Runs with the command id when an enabled item is chosen.
@@ -86,6 +131,10 @@ class AerieSidebarContextMenu : public views::MenuDelegate {
   // Closes the menu without choosing.
   void Close();
 
+  // The folder that the "Move to folder" entry `command` stands for, or an
+  // empty string.
+  std::string FolderIdForCommand(int command) const;
+
   // The menu items, for tests. Null when the menu does not have the item.
   views::MenuItemView* sleep_item() const;
   views::MenuItemView* item(int command) const;
@@ -102,6 +151,7 @@ class AerieSidebarContextMenu : public views::MenuDelegate {
 
  private:
   bool HasCommand(int id) const;
+  void BuildTabItems();
 
   Options options_;
   CommandCallback on_command_;

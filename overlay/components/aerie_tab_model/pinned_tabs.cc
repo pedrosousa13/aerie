@@ -6,6 +6,7 @@
 
 #include <algorithm>
 
+#include "components/aerie_tab_model/folder_tree.h"
 #include "components/aerie_tab_model/tab_model.h"
 #include "url/gurl.h"
 
@@ -57,10 +58,29 @@ std::vector<std::string> SectionTabIds(const TabModel& model, Section section) {
   return ids;
 }
 
+namespace {
+std::vector<std::string> TabsOfRows(const std::vector<TreeRow>& rows) {
+  std::vector<std::string> ids;
+  for (const TreeRow& row : rows) {
+    if (!row.is_folder) {
+      ids.push_back(row.id);
+    }
+  }
+  return ids;
+}
+}  // namespace
+
+std::vector<std::string> AllSectionTabIds(const TabModel& model,
+                                          Section section) {
+  return TabsOfRows(BuildAllRows(model, section,
+                                 [](const std::string&) { return true; }));
+}
+
 std::vector<std::string> SidebarTabOrder(const TabModel& model) {
   std::vector<std::string> order = SectionTabIds(model, Section::kFavorite);
   for (Section section : {Section::kPinned, Section::kToday}) {
-    std::vector<std::string> ids = SectionTabIds(model, section);
+    std::vector<std::string> ids = TabsOfRows(BuildVisibleRows(
+        model, section, [](const std::string&) { return true; }));
     order.insert(order.end(), ids.begin(), ids.end());
   }
   return order;

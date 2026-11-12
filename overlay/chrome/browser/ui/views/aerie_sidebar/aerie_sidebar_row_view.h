@@ -28,11 +28,16 @@
 class AerieSidebarRenameField;
 class PrefService;
 
+namespace aerie_sidebar {
+struct FolderMotion;
+}  // namespace aerie_sidebar
+
 namespace gfx {
 class SlideAnimation;
 }  // namespace gfx
 
 namespace views {
+class BoxLayout;
 class ImageButton;
 class ImageView;
 class Label;
@@ -71,6 +76,11 @@ class AerieSidebarRowView : public views::View,
   METADATA_HEADER(AerieSidebarRowView, views::View)
 
  public:
+  // A row keeps its layers this long after the motion's own duration, so the
+  // last frame is drawn before they go. Not a design value. The folder group
+  // uses the same slack.
+  static constexpr int kDropLayersSlackMs = 50;
+
   struct Callbacks {
     base::RepeatingClosure select;
     base::RepeatingClosure close;
@@ -187,6 +197,9 @@ class AerieSidebarRowView : public views::View,
                  int outer_edge_sign,
                  base::OnceClosure done);
   bool is_closing() const { return closing_; }
+  base::WeakPtr<AerieSidebarRowView> GetWeakPtr() {
+    return weak_factory_.GetWeakPtr();
+  }
   // Drag motion (item 8). All of it is `transform` of a layer, and nothing else:
   // the row's own layer carries the pointer offset and the shift, and the
   // content layer carries the lift. The layers exist only for the drag.
@@ -211,6 +224,47 @@ class AerieSidebarRowView : public views::View,
   int drag_offset() const { return drag_offset_; }
   // True while a drag layer exists (the drag, or a settle in progress).
   bool has_drag_layers() const { return drag_layers_; }
+
+  // Folders (issue #181). A folder row is a row of the same class, so that the
+  // rename (double-click, F2, the menu) and the keys work the same way. It shows
+  // a chevron, a folder glyph and the name; it has no close button, no pencil and
+  // no favicon. MakeFolderRow is called once, right after the row is made.
+  void MakeFolderRow();
+  bool is_folder() const { return is_folder_; }
+  // The indent: `level` times `size-indent` on the leading side. The
+  // accessibility level is `level` + 1.
+  void SetLevel(int level);
+  int level() const { return level_; }
+  // What a folder row shows: its name, its accessible name (for example
+  // "Trips, folder, expanded, 3 items"), whether it is open, and the dot that
+  // says a shut folder holds the open tab. `motion_prefs` set: a change of
+  // `expanded` turns the chevron with the motion (a transform of its layer);
+  // null, and the first call, set the chevron at once with no layer.
+  void SetFolderState(const std::u16string& name,
+                      const std::u16string& accessible_name,
+                      bool expanded,
+                      bool holds_selected_tab,
+                      const PrefService* motion_prefs);
+  bool expanded() const { return expanded_; }
+  views::View* chevron_view() const;
+  views::View* selection_dot() const { return selection_dot_; }
+
+  // A folder opens or shuts and this row appears or goes with it (issue #181).
+  // PlayFolderFade fades the content on `motion` (opacity only) after
+  // `delay_ms` (the stagger); the row starts at `motion.from_opacity`. The
+  // sidebar owns one height animation for all the rows of a group and sets
+  // each row's share with SetHeightFraction (the layout exception);
+  // EndFolderMotion puts the row back at rest and drops its layers.
+  // `start_from_current`: a turn-around of a motion that runs (the fade then
+  // starts from the opacity it has reached, not from `motion.from_opacity`).
+  void PlayFolderFade(const aerie_sidebar::FolderMotion& motion,
+                      int delay_ms,
+                      const PrefService* prefs,
+                      bool start_from_current = false);
+  void SetHeightFraction(double fraction);
+  double height_fraction() const { return height_fraction_; }
+  void EndFolderMotion();
+  bool folder_fading() const;
 
   // True while the row height animates (the layout exception).
   bool height_animating() const;
@@ -275,6 +329,8 @@ class AerieSidebarRowView : public views::View,
   // sidebar. `cancelled`: the drag was abandoned (Esc or lost capture).
   void FinishDrag(int dy, bool cancelled, bool outside);
   gfx::Transform LiftTransform(float scale) const;
+  void UpdateIndent();
+  void EndChevronTurn();
 
   Callbacks callbacks_;
   aerie_sidebar::SidebarPalette palette_;
@@ -330,6 +386,19 @@ class AerieSidebarRowView : public views::View,
   aerie::motion::MotionHandle title_motion_;
   // The height the caption needs under the field at the field's width.
   int caption_height_ = 0;
+
+  // Folders (issue #181).
+  bool is_folder_ = false;
+  int level_ = 0;
+  bool expanded_ = false;
+  bool folder_state_applied_ = false;
+  std::u16string folder_accessible_name_;
+  raw_ptr<views::BoxLayout> content_layout_ = nullptr;
+  raw_ptr<views::ImageView> chevron_ = nullptr;
+  raw_ptr<views::View> selection_dot_ = nullptr;
+  aerie::motion::MotionHandle chevron_motion_;
+  base::OneShotTimer chevron_timer_;
+  base::OneShotTimer fade_timer_;
 
   base::WeakPtrFactory<AerieSidebarRowView> weak_factory_{this};
 };
