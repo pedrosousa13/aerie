@@ -16,6 +16,9 @@
 #include "chrome/browser/aerie_tab_model/tab_model_service_factory.h"
 #include "chrome/browser/aerie_tab_model/tab_strip_adapter.h"
 #include "chrome/browser/prefs/session_startup_pref.h"
+#include "chrome/browser/profiles/keep_alive/profile_keep_alive_types.h"
+#include "chrome/browser/profiles/keep_alive/scoped_profile_keep_alive.h"
+#include "chrome/browser/sessions/tab_restore_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
@@ -27,6 +30,9 @@
 #include "components/aerie_tab_model/folder_tree.h"
 #include "components/aerie_tab_model/sleep_summary.h"
 #include "components/aerie_tab_model/tab_model.h"
+#include "components/keep_alive_registry/keep_alive_types.h"
+#include "components/keep_alive_registry/scoped_keep_alive.h"
+#include "components/sessions/core/tab_restore_service.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/browser_test.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
@@ -56,7 +62,9 @@ class AerieRestoreJoinBrowserTest : public InProcessBrowserTest {
   void SetUpOnMainThread() override {
     InProcessBrowserTest::SetUpOnMainThread();
     ASSERT_TRUE(embedded_test_server()->Start());
-    service_ = TabModelServiceFactory::GetForProfile(browser()->GetProfile());
+    // The profile outlives the window, which some tests close.
+    profile_ = browser()->GetProfile();
+    service_ = TabModelServiceFactory::GetForProfile(profile_);
     ASSERT_TRUE(service_);
     if (!service_->loaded()) {
       LoadedWaiter waiter(service_->model());
@@ -87,7 +95,7 @@ class AerieRestoreJoinBrowserTest : public InProcessBrowserTest {
     BrowserWindowInterface* found = nullptr;
     ForEachCurrentBrowserWindowInterfaceOrderedByActivation(
         [&](BrowserWindowInterface* window) {
-          if (window->GetProfile() != browser()->GetProfile() ||
+          if (window->GetProfile() != profile_ ||
               window->GetType() != BrowserWindowInterface::TYPE_NORMAL) {
             return true;
           }
@@ -121,7 +129,7 @@ class AerieRestoreJoinBrowserTest : public InProcessBrowserTest {
     size_t count = 0;
     ForEachCurrentBrowserWindowInterfaceOrderedByActivation(
         [&](BrowserWindowInterface* window) {
-          if (window->GetProfile() == browser()->GetProfile() &&
+          if (window->GetProfile() == profile_ &&
               window->GetType() == BrowserWindowInterface::TYPE_NORMAL) {
             count += window->GetTabStripModel()->count();
           }
@@ -135,6 +143,7 @@ class AerieRestoreJoinBrowserTest : public InProcessBrowserTest {
         [&] { return service_->restore_pass()->finished(); }));
   }
 
+  raw_ptr<Profile> profile_ = nullptr;
   raw_ptr<TabModelService, DanglingUntriaged> service_ = nullptr;
 };
 
@@ -278,6 +287,74 @@ IN_PROC_BROWSER_TEST_F(AerieRestoreJoinBrowserTest, ClosingAWindowMidRunRemovesI
   EXPECT_EQ(sleeping_before, 2);
   EXPECT_EQ(CountSleepingTabs(*model()), 1);
   // Nothing waits for a claim either.
+  EXPECT_EQ(model()->awaiting_restore_count(), 0u);
+}
+
+// The last window closed while a keep-alive holds the process (macOS always;
+// Linux with a background app): nothing restores the tab, so its record waits
+// only until the next window opens. A window that is not a restore ends the wait
+// and the record is removed.
+IN_PROC_BROWSER_TEST_F(AerieRestoreJoinBrowserTest, TheLastWindowUnderAKeepAliveKeepsItsRecordsOnlyUntilTheNextWindow) {
+  Profile* profile = browser()->GetProfile();
+  ScopedKeepAlive keep_alive(KeepAliveOrigin::SESSION_RESTORE,
+                             KeepAliveRestartOption::DISABLED);
+  ScopedProfileKeepAlive profile_keep_alive(
+      profile, ProfileKeepAliveOrigin::kBrowserWindow);
+  const std::string id = OpenTab(browser(), "/title1.html");
+  ASSERT_FALSE(id.empty());
+  Name(id, "Waiting");
+
+  CloseBrowserSynchronously(browser());
+
+  // The tab is gone; the record waits, and no row or count can show it.
+  ASSERT_TRUE(model()->GetTab(id));
+  EXPECT_TRUE(model()->IsAwaitingRestore(id));
+  EXPECT_EQ(service_->adapter()->TabForRecord(id), nullptr);
+  EXPECT_EQ(CountSleepingTabs(*model()), 0);
+
+  // A new window that is not a restore: the wait is over.
+  CreateBrowser(profile);
+  ASSERT_TRUE(base::test::RunUntil(
+      [&] { return service_->restore_pass()->finished(); }));
+  EXPECT_EQ(model()->GetTab(id), nullptr);
+  EXPECT_EQ(model()->awaiting_restore_count(), 0u);
+}
+
+// The same, but the window is reopened (Ctrl+Shift+T): its tabs carry their old
+// record ids, claim the waiting records, and keep their names.
+IN_PROC_BROWSER_TEST_F(AerieRestoreJoinBrowserTest, ReopeningTheLastClosedWindowGivesItsTabsTheirRecordsBack) {
+  Profile* profile = browser()->GetProfile();
+  ScopedKeepAlive keep_alive(KeepAliveOrigin::SESSION_RESTORE,
+                             KeepAliveRestartOption::DISABLED);
+  ScopedProfileKeepAlive profile_keep_alive(
+      profile, ProfileKeepAliveOrigin::kBrowserWindow);
+  const std::string named = OpenTab(browser(), "/title1.html");
+  const std::string other = OpenTab(browser(), "/title2.html");
+  ASSERT_FALSE(named.empty());
+  ASSERT_FALSE(other.empty());
+  Name(named, "Reopened");
+  base::RunLoop().RunUntilIdle();
+
+  CloseBrowserSynchronously(browser());
+  ASSERT_TRUE(model()->IsAwaitingRestore(named));
+
+  sessions::TabRestoreService* restore =
+      TabRestoreServiceFactory::GetForProfile(profile);
+  ASSERT_TRUE(restore);
+  ASSERT_FALSE(restore->entries().empty());
+  restore->RestoreMostRecentEntry(nullptr);
+  ASSERT_TRUE(base::test::RunUntil(
+      [&] { return WindowWithPage("/title1.html") != nullptr; }));
+  ASSERT_TRUE(base::test::RunUntil(
+      [&] { return service_->restore_pass()->finished(); }));
+
+  BrowserWindowInterface* window = WindowWithPage("/title1.html");
+  ASSERT_TRUE(window);
+  // The same records, claimed by the reopened tabs.
+  EXPECT_EQ(RecordInWindow(window, "/title1.html"), named);
+  EXPECT_EQ(RecordInWindow(window, "/title2.html"), other);
+  ASSERT_TRUE(model()->GetTab(named));
+  EXPECT_EQ(model()->GetTab(named)->manual_name, "Reopened");
   EXPECT_EQ(model()->awaiting_restore_count(), 0u);
 }
 

@@ -102,6 +102,12 @@ class TabStripAdapter : public BrowserCollectionObserver,
                                    tabs::TabInterface* tab)>;
   void SetTabInsertedCallback(TabInsertedCallback callback);
 
+  // Runs when a record stays in the model although its tab went away with a
+  // closing window, because Chromium's session will bring the tab back (issue
+  // #223). The record waits for a claim; the callee starts the restore pass
+  // again, so that a window that opens later in the same run ends the wait.
+  void SetRecordKeptCallback(base::RepeatingClosure callback);
+
  private:
   // BrowserCollectionObserver:
   void OnBrowserCreated(BrowserWindowInterface* browser) override;
@@ -146,6 +152,7 @@ class TabStripAdapter : public BrowserCollectionObserver,
   base::RepeatingClosure pinned_tab_gone_;
   TabChangedCallback tab_changed_;
   TabInsertedCallback tab_inserted_;
+  base::RepeatingClosure record_kept_;
   base::ScopedObservation<GlobalBrowserCollection, BrowserCollectionObserver>
       browser_collection_observation_{this};
   base::ScopedObservation<TabModel, TabModelObserver> model_observation_{this};

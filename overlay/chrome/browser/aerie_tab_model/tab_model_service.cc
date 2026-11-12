@@ -70,6 +70,8 @@ TabModelService::TabModelService(Profile* profile)
           },
           base::Unretained(profile_.get())));
   restore_pass_ = std::make_unique<RestorePass>(profile_, &model_);
+  adapter_->SetRecordKeptCallback(base::BindRepeating(
+      &RestorePass::Rearm, base::Unretained(restore_pass_.get())));
   adapter_->SetTabInsertedCallback(base::BindRepeating(
       &TabModelService::OnTabInserted, base::Unretained(this)));
   adapter_->SetTabChangedCallback(base::BindRepeating(
@@ -119,6 +121,7 @@ std::optional<base::TimeDelta> TabModelService::sleep_after() const {
 }
 
 void TabModelService::Shutdown() {
+  adapter_->SetRecordKeptCallback(base::RepeatingClosure());
   restore_pass_.reset();
   auto_file_.reset();
   pinned_tabs_.reset();

@@ -129,6 +129,14 @@ class TabModel {
   // from state.json). On no claim nothing changes.
   std::string ClaimRestoredTabInPlaceOf(const std::string& fresh_id,
                                         std::string_view raw_id);
+  // Makes the awake Today record `id`, which lost its tab because the window
+  // closed while Chromium's session still keeps the tab (the last window of the
+  // profile closed, or the browser quitting), wait for a claim like a stored
+  // record does. Returns false, and does nothing, for any other record. If the
+  // browser quits, the record is saved and the next launch claims it; if the
+  // process lives on and a new window opens, the next restore pass removes what
+  // no restored tab claimed.
+  bool MarkAwaitingRestore(const std::string& id);
   // Today records that were open when the model was saved and that no restored
   // tab has claimed yet. IsAwaitingRestore and awaiting_restore_count are test
   // seams: no production code reads them.

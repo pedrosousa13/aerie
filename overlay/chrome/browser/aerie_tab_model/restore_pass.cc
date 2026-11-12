@@ -6,6 +6,7 @@
 
 #include "base/functional/bind.h"
 #include "base/task/single_thread_task_runner.h"
+#include "chrome/browser/lifetime/browser_shutdown.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/sessions/session_restore.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
@@ -22,6 +23,11 @@ RestorePass::RestorePass(Profile* profile, TabModel* model)
 }
 
 RestorePass::~RestorePass() = default;
+
+void RestorePass::Rearm() {
+  finished_ = false;
+  restore_reported_ = false;
+}
 
 void RestorePass::OnModelLoaded() {
   ScheduleCheck();
@@ -65,6 +71,10 @@ bool RestorePass::HasNormalWindow() const {
 
 void RestorePass::MaybeFinish() {
   if (finished_ || !model_->loaded()) {
+    return;
+  }
+  if (browser_shutdown::IsTryingToQuit()) {
+    // Windows are closing one by one: what waits stays for the next launch.
     return;
   }
   if (!restore_reported_ && SessionRestore::IsRestoring(profile_)) {

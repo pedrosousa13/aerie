@@ -82,6 +82,10 @@ void TabStripAdapter::SetTabInsertedCallback(TabInsertedCallback callback) {
   tab_inserted_ = std::move(callback);
 }
 
+void TabStripAdapter::SetRecordKeptCallback(base::RepeatingClosure callback) {
+  record_kept_ = std::move(callback);
+}
+
 bool TabStripAdapter::Watches(BrowserWindowInterface* browser) const {
   return browser->GetProfile() == profile_ &&
          browser->GetType() == BrowserWindowInterface::TYPE_NORMAL;
@@ -138,9 +142,15 @@ void TabStripAdapter::OnTabStripModelChanged(
         }
         if (record && KeepRecordWithClosingWindow(tab_strip_model, *record)) {
           // Chromium's session keeps this tab and brings it back, and the tab
-          // then claims this record (issue #223). A record whose tab does not
-          // come back is removed at the end of the next restore pass.
+          // then claims this record (issue #223). Until then the record waits
+          // like a stored one, and has no tab, so no row and no count shows it.
+          // If the process lives on and a window opens that is not a restore,
+          // the next restore pass removes it.
+          model_->MarkAwaitingRestore(record->id);
           ids_.erase(it);
+          if (record_kept_) {
+            record_kept_.Run();
+          }
           continue;
         }
         model_->RemoveTab(it->second);

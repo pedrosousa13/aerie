@@ -479,6 +479,17 @@ std::string TabModel::ClaimRestoredTabInPlaceOf(const std::string& fresh_id,
   return claimed;
 }
 
+bool TabModel::MarkAwaitingRestore(const std::string& id) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  const TabRecord* record = GetTab(id);
+  if (!record || record->section != Section::kToday || record->sleeping ||
+      record->archived_at) {
+    return false;
+  }
+  awaiting_restore_.insert(id);
+  return true;
+}
+
 bool TabModel::IsAwaitingRestore(const std::string& id) const {
   return awaiting_restore_.contains(id);
 }

@@ -562,6 +562,29 @@ TEST_F(TabModelRestoreJoinTest, TheSwapNeverRemovesARecordThatIsNotFresh) {
   EXPECT_TRUE(model_->IsAwaitingRestore(open_));
 }
 
+TEST_F(TabModelRestoreJoinTest, ALiveAwakeTodayRecordCanBeMadeToWaitAndThenBeClaimedOrSwept) {
+  model_->MergeLoaded(std::nullopt);
+  const std::string kept = AddTab();
+  const std::string swept = AddTab();
+  EXPECT_TRUE(model_->MarkAwaitingRestore(kept));
+  EXPECT_TRUE(model_->MarkAwaitingRestore(swept));
+  EXPECT_EQ(model_->ClaimRestoredTab(kept), kept);
+  EXPECT_EQ(model_->RemoveUnclaimedRestoredTabs(), 1u);
+  EXPECT_TRUE(model_->GetTab(kept));
+  EXPECT_EQ(model_->GetTab(swept), nullptr);
+}
+
+TEST_F(TabModelRestoreJoinTest, OnlyAnAwakeTodayRecordCanBeMadeToWait) {
+  model_->MergeLoaded(std::nullopt);
+  const std::string pinned = AddTab(Section::kPinned);
+  const std::string asleep = AddTab();
+  ASSERT_TRUE(model_->UpdateTab(asleep, [](TabRecord& t) { t.sleeping = true; }));
+  EXPECT_FALSE(model_->MarkAwaitingRestore(pinned));
+  EXPECT_FALSE(model_->MarkAwaitingRestore(asleep));
+  EXPECT_FALSE(model_->MarkAwaitingRestore("no-such-id"));
+  EXPECT_EQ(model_->awaiting_restore_count(), 0u);
+}
+
 TEST_F(TabModelRestoreJoinTest, NothingWaitsWhenNothingIsStored) {
   model_->MergeLoaded(std::nullopt);
   const std::string tab = AddTab();

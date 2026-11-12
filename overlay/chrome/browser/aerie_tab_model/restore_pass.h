@@ -49,6 +49,14 @@ class RestorePass : public TabModelObserver, public BrowserCollectionObserver {
   // Ends the pass now if the conditions hold. Safe to call again.
   void MaybeFinish();
 
+  // Starts the pass again, because records of closed tabs now wait for a claim
+  // (TabModel::MarkAwaitingRestore): the last window closed while the process
+  // lives on. It ends by the same rule when the next window opens (and never
+  // while the browser is quitting, when the records must stay for the next
+  // launch). It does not look at the windows now: the closing window is still
+  // in the list for a moment.
+  void Rearm();
+
   // TabModelObserver:
   void OnModelLoaded() override;
 
