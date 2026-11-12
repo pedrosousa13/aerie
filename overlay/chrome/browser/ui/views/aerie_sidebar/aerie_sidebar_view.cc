@@ -2357,7 +2357,13 @@ void AerieSidebarView::OpenFolderSheet(const std::string& folder_id) {
   params.sidebar_on_right = OuterEdgeSign() > 0;
   params.closed = base::BindOnce(
       [](base::WeakPtr<AerieSidebarView> self, std::string id, bool refocus) {
-        if (self && refocus) {
+        if (!self) {
+          return;
+        }
+        // The window is closing: the sheet is gone as far as the sidebar goes,
+        // whenever the window object itself is destroyed.
+        self->folder_sheet_.reset();
+        if (refocus) {
           self->FocusRowById(id);
         }
       },

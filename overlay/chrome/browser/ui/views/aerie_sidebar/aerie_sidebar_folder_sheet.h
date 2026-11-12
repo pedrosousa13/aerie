@@ -105,6 +105,9 @@ class AerieSidebarFolderSheet : public views::BubbleDialogDelegate,
 
   // views::BubbleDialogDelegate:
   bool ShouldShowCloseButton() const override { return false; }
+  // Esc anywhere in the sheet: close with the exit motion and give focus back
+  // to the folder row.
+  bool Cancel() override;
   // views::TextfieldController:
   void ContentsChanged(views::Textfield* sender,
                        const std::u16string& new_contents) override;

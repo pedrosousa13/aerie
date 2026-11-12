@@ -10,6 +10,7 @@
 // sidebar. Run with ./aerie test-cpp --target aerie_interactive_ui_tests.
 
 #include <optional>
+#include <set>
 #include <string>
 
 #include "base/test/run_until.h"
@@ -35,7 +36,6 @@
 #include "components/aerie_tab_model/tab_model.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/test/browser_test.h"
-#include "net/dns/mock_host_resolver.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "ui/compositor/layer.h"
 #include "ui/compositor/layer_animation_element.h"
@@ -66,18 +66,52 @@ bool Animates(ui::Layer* layer, ui::LayerAnimationElement::AnimatableProperty p)
   return layer && layer->GetAnimator()->IsAnimatingProperty(p);
 }
 
-// True when any layer in the subtree animates a transform.
-bool AnyTransformAnimation(views::View* root) {
-  if (root->layer() &&
+// The class of the first view in the subtree whose layer animates a transform,
+// or an empty string.
+//
+// Animations that were already running when the test began (the first row's
+// opening at start-up, which no frame has played yet) are in `ignored`.
+std::string AnyTransformAnimation(views::View* root,
+                                  const std::set<ui::Layer*>& ignored = {}) {
+  if (root->layer() && !ignored.count(root->layer()) &&
       Animates(root->layer(), ui::LayerAnimationElement::TRANSFORM)) {
-    return true;
+    std::string path(root->GetClassName());
+    {
+      ui::LayerAnimatorTestController controller(root->layer()->GetAnimator());
+      ui::LayerAnimationSequence* sequence =
+          controller.GetRunningSequence(ui::LayerAnimationElement::TRANSFORM);
+      if (sequence) {
+        path += " [" +
+                std::to_string(
+                    sequence->FirstElement()->duration().InMilliseconds()) +
+                " ms, target " +
+                root->layer()->GetTargetTransform().ToString() +
+                ", opacity target " +
+                std::to_string(root->layer()->GetTargetOpacity()) + "]";
+      }
+    }
+    for (views::View* up = root->parent(); up; up = up->parent()) {
+      path += "<" + std::string(up->GetClassName());
+    }
+    return path;
   }
   for (views::View* child : root->children()) {
-    if (AnyTransformAnimation(child)) {
-      return true;
+    std::string found = AnyTransformAnimation(child, ignored);
+    if (!found.empty()) {
+      return found;
     }
   }
-  return false;
+  return std::string();
+}
+
+void CollectTransformAnimating(views::View* root, std::set<ui::Layer*>* out) {
+  if (root->layer() &&
+      Animates(root->layer(), ui::LayerAnimationElement::TRANSFORM)) {
+    out->insert(root->layer());
+  }
+  for (views::View* child : root->children()) {
+    CollectTransformAnimating(child, out);
+  }
 }
 
 // No property other than transform and opacity runs on the layer.
@@ -110,8 +144,7 @@ class AerieSidebarAutoFileUiTest : public InProcessBrowserTest {
   void SetUpOnMainThread() override {
     InProcessBrowserTest::SetUpOnMainThread();
     ASSERT_TRUE(ui_test_utils::BringBrowserWindowToFront(browser()));
-    host_resolver()->AddRule("*", "127.0.0.1");
-    embedded_test_server()->ServeFilesFromSourceDirectory("chrome/test/data");
+        embedded_test_server()->ServeFilesFromSourceDirectory("chrome/test/data");
     ASSERT_TRUE(embedded_test_server()->Start());
     ASSERT_TRUE(base::test::RunUntil(
         [&] { return sidebar() && sidebar()->row_count() == 1u; }));
@@ -143,7 +176,7 @@ class AerieSidebarAutoFileUiTest : public InProcessBrowserTest {
         *service()->model(), id, aerie_tab_model::FolderKind::kAuto));
     EXPECT_FALSE(aerie_tab_model::AddRule(*service()->model(), id,
                                           aerie_tab_model::RuleType::kDomain,
-                                          "trips.test")
+                                          "trips.localhost")
                      .empty());
     EXPECT_TRUE(base::test::RunUntil(
         [&] { return sidebar()->RowForId(id) != nullptr; }));
@@ -239,10 +272,10 @@ IN_PROC_BROWSER_TEST_P(AerieSidebarAutoFileReducedUiTest,
   // A switch toggled in the sheet moves no transform either.
   sheet->all_switch()->SetOn(!sheet->all_switch()->on(),
                              browser()->GetProfile()->GetPrefs());
-  EXPECT_FALSE(AnyTransformAnimation(sheet->GetContentsView()));
+  EXPECT_EQ(AnyTransformAnimation(sheet->GetContentsView()), "");
   sheet->Dismiss(false);
   EXPECT_EQ(OpacityDurationMs(sheet->fade_layer()), 90);
-  EXPECT_FALSE(AnyTransformAnimation(sheet->GetContentsView()));
+  EXPECT_EQ(AnyTransformAnimation(sheet->GetContentsView()), "");
 }
 
 IN_PROC_BROWSER_TEST_P(AerieSidebarAutoFileReducedUiTest,
@@ -252,21 +285,32 @@ IN_PROC_BROWSER_TEST_P(AerieSidebarAutoFileReducedUiTest,
   AerieSidebarRowView* row = sidebar()->RowForId(folder);
   ASSERT_TRUE(row);
   ASSERT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
-      browser(), embedded_test_server()->GetURL("trips.test", "/title1.html"),
+      browser(), embedded_test_server()->GetURL("trips.localhost", "/title1.html"),
       WindowOpenDisposition::NEW_FOREGROUND_TAB,
       ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
   const std::string tab = service()->adapter()->RecordIdForTab(
       browser()->tab_strip_model()->GetActiveTab());
   // While the tab is filed, the pulse runs and the toast shows, nothing in the
   // sidebar animates a transform.
-  bool saw_transform = false;
+  std::set<ui::Layer*> ignored;
+  CollectTransformAnimating(sidebar(), &ignored);
+  std::string saw_transform;
   ASSERT_TRUE(base::test::RunUntil([&] {
-    saw_transform = saw_transform || AnyTransformAnimation(sidebar());
+    if (saw_transform.empty()) {
+      saw_transform = AnyTransformAnimation(sidebar(), ignored);
+      const auto* now = service()->model()->GetTab(tab);
+      if (!saw_transform.empty()) {
+        saw_transform += now && now->parent == folder ? " (after filing)"
+                                                       : " (before filing)";
+      }
+    }
     const auto* record = service()->model()->GetTab(tab);
     return record && record->parent == folder && sidebar()->toast_visible();
   }));
-  saw_transform = saw_transform || AnyTransformAnimation(sidebar());
-  EXPECT_FALSE(saw_transform);
+  if (saw_transform.empty()) {
+    saw_transform = AnyTransformAnimation(sidebar(), ignored);
+  }
+  EXPECT_EQ(saw_transform, "");
   ui::Layer* pulse = row->pulse_view()->layer();
   ASSERT_TRUE(pulse);
   EXPECT_FALSE(Animates(pulse, ui::LayerAnimationElement::TRANSFORM));

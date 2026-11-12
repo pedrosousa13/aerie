@@ -573,6 +573,11 @@ void AerieSidebarFolderSheet::PlayOpen() {
   }
 }
 
+bool AerieSidebarFolderSheet::Cancel() {
+  Dismiss(/*refocus=*/true);
+  return false;
+}
+
 void AerieSidebarFolderSheet::Dismiss(bool refocus) {
   if (closing_) {
     return;

@@ -38,7 +38,6 @@
 #include "components/aerie_tab_model/tab_model_prefs.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/test/browser_test.h"
-#include "net/dns/mock_host_resolver.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "ui/accessibility/ax_node_data.h"
 #include "ui/events/event.h"
@@ -100,8 +99,7 @@ class AerieSidebarAutoFileBrowserTest : public InProcessBrowserTest {
  protected:
   void SetUpOnMainThread() override {
     InProcessBrowserTest::SetUpOnMainThread();
-    host_resolver()->AddRule("*", "127.0.0.1");
-    embedded_test_server()->ServeFilesFromSourceDirectory(
+        embedded_test_server()->ServeFilesFromSourceDirectory(
         "chrome/test/data");
     ASSERT_TRUE(embedded_test_server()->Start());
     ASSERT_TRUE(base::test::RunUntil(
@@ -132,12 +130,16 @@ class AerieSidebarAutoFileBrowserTest : public InProcessBrowserTest {
     aerie_tab_model::FolderRecord folder;
     folder.name = name;
     folder.section = section;
+    // In the order they are made, as the sidebar makes them.
+    folder.position = next_folder_position_++;
     const std::string id = model()->AddFolder(std::move(folder));
     EXPECT_TRUE(aerie_tab_model::SetFolderRuleKind(*model(), id,
                                                    FolderKind::kAuto));
     EXPECT_FALSE(aerie_tab_model::AddRule(*model(), id, type, value).empty());
     return id;
   }
+
+  int next_folder_position_ = 0;
 
   std::string OpenTabAt(const GURL& url) {
     EXPECT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
@@ -169,8 +171,8 @@ class AerieSidebarAutoFileBrowserTest : public InProcessBrowserTest {
 IN_PROC_BROWSER_TEST_F(AerieSidebarAutoFileBrowserTest,
                        ANewMatchingTabIsFiledAndTheToastOffersUndo) {
   const std::string folder =
-      MakeAutoFolder("Trips", RuleType::kDomain, "trips.test");
-  const std::string tab = OpenTabAt(UrlOn("trips.test"));
+      MakeAutoFolder("Trips", RuleType::kDomain, "trips.localhost");
+  const std::string tab = OpenTabAt(UrlOn("trips.localhost"));
   ASSERT_TRUE(WaitFiledInto(tab, folder));
   ASSERT_TRUE(base::test::RunUntil([&] { return sidebar()->toast_visible(); }));
   EXPECT_EQ(base::UTF16ToUTF8(sidebar()->toast()->GetText()),
@@ -192,46 +194,46 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarAutoFileBrowserTest,
 IN_PROC_BROWSER_TEST_F(AerieSidebarAutoFileBrowserTest,
                        DontFileThisSiteStopsFilingThatHost) {
   const std::string folder =
-      MakeAutoFolder("Trips", RuleType::kDomain, "trips.test");
-  const std::string first = OpenTabAt(UrlOn("trips.test"));
+      MakeAutoFolder("Trips", RuleType::kDomain, "trips.localhost");
+  const std::string first = OpenTabAt(UrlOn("trips.localhost"));
   ASSERT_TRUE(WaitFiledInto(first, folder));
   ASSERT_TRUE(base::test::RunUntil([&] { return sidebar()->toast_visible(); }));
   Click(sidebar()->toast_dont_file_button());
   const auto rules = aerie_tab_model::ReadFolderRules(*model()->GetFolder(folder));
   ASSERT_EQ(rules.excluded_hosts.size(), 1u);
-  EXPECT_EQ(rules.excluded_hosts[0], "trips.test");
-  const std::string second = OpenTabAt(UrlOn("trips.test"));
+  EXPECT_EQ(rules.excluded_hosts[0], "trips.localhost");
+  const std::string second = OpenTabAt(UrlOn("trips.localhost"));
   ExpectNotFiled(second);
 }
 
 IN_PROC_BROWSER_TEST_F(AerieSidebarAutoFileBrowserTest,
                        ALaterNavigationOrAHandMovedTabIsNotFiled) {
   const std::string folder =
-      MakeAutoFolder("Trips", RuleType::kDomain, "trips.test");
+      MakeAutoFolder("Trips", RuleType::kDomain, "trips.localhost");
   // A tab whose first page does not match stays out, whatever it opens next.
-  const std::string tab = OpenTabAt(UrlOn("other.test"));
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), UrlOn("trips.test")));
+  const std::string tab = OpenTabAt(UrlOn("other.localhost"));
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), UrlOn("trips.localhost")));
   ExpectNotFiled(tab);
   // A tab that was filed and then moved out by hand is not filed again.
-  const std::string second = OpenTabAt(UrlOn("trips.test"));
+  const std::string second = OpenTabAt(UrlOn("trips.localhost"));
   ASSERT_TRUE(WaitFiledInto(second, folder));
   ASSERT_TRUE(aerie_tab_model::MoveTabToFolder(*model(), second, ""));
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), UrlOn("trips.test")));
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), UrlOn("trips.localhost")));
   ExpectNotFiled(second);
 }
 
 IN_PROC_BROWSER_TEST_F(AerieSidebarAutoFileBrowserTest,
                        TheFirstFolderWinsAndPinnedBeatsToday) {
   const std::string first =
-      MakeAutoFolder("First", RuleType::kDomain, "trips.test");
+      MakeAutoFolder("First", RuleType::kDomain, "trips.localhost");
   const std::string second =
       MakeAutoFolder("Second", RuleType::kUrlContains, "title1");
-  const std::string tab = OpenTabAt(UrlOn("trips.test"));
+  const std::string tab = OpenTabAt(UrlOn("trips.localhost"));
   ASSERT_TRUE(WaitFiledInto(tab, first));
   // A matching Pinned folder beats both.
   const std::string pinned = MakeAutoFolder("Pinned one", RuleType::kDomain,
-                                            "trips.test", Section::kPinned);
-  const std::string next = OpenTabAt(UrlOn("trips.test"));
+                                            "trips.localhost", Section::kPinned);
+  const std::string next = OpenTabAt(UrlOn("trips.localhost"));
   ASSERT_TRUE(WaitFiledInto(next, pinned));
   EXPECT_EQ(model()->GetTab(next)->section, Section::kPinned);
   EXPECT_NE(ParentOf(next), second);
@@ -240,32 +242,32 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarAutoFileBrowserTest,
 IN_PROC_BROWSER_TEST_F(AerieSidebarAutoFileBrowserTest,
                        TheThreeSwitchesEachStopFiling) {
   const std::string folder =
-      MakeAutoFolder("Trips", RuleType::kDomain, "trips.test");
+      MakeAutoFolder("Trips", RuleType::kDomain, "trips.localhost");
   const std::string rule_id =
       aerie_tab_model::ReadFolderRules(*model()->GetFolder(folder)).rules[0].id;
 
   ASSERT_TRUE(aerie_tab_model::SetRuleEnabled(*model(), folder, rule_id, false));
-  ExpectNotFiled(OpenTabAt(UrlOn("trips.test")));
+  ExpectNotFiled(OpenTabAt(UrlOn("trips.localhost")));
   ASSERT_TRUE(aerie_tab_model::SetRuleEnabled(*model(), folder, rule_id, true));
 
   ASSERT_TRUE(aerie_tab_model::SetFolderRulesEnabled(*model(), folder, false));
-  ExpectNotFiled(OpenTabAt(UrlOn("trips.test")));
+  ExpectNotFiled(OpenTabAt(UrlOn("trips.localhost")));
   ASSERT_TRUE(aerie_tab_model::SetFolderRulesEnabled(*model(), folder, true));
 
   prefs()->SetBoolean(aerie_tab_model::kFolderRulesEnabled, false);
-  ExpectNotFiled(OpenTabAt(UrlOn("trips.test")));
+  ExpectNotFiled(OpenTabAt(UrlOn("trips.localhost")));
   prefs()->SetBoolean(aerie_tab_model::kFolderRulesEnabled, true);
 
   // With all three on again, it files.
-  const std::string tab = OpenTabAt(UrlOn("trips.test"));
+  const std::string tab = OpenTabAt(UrlOn("trips.localhost"));
   EXPECT_TRUE(WaitFiledInto(tab, folder));
 }
 
 IN_PROC_BROWSER_TEST_F(AerieSidebarAutoFileBrowserTest,
                        StopThisRuleMatchingThisTabAddsAnExceptionAndMovesTheTabOut) {
   const std::string folder =
-      MakeAutoFolder("Trips", RuleType::kDomain, "trips.test");
-  const std::string tab = OpenTabAt(UrlOn("trips.test"));
+      MakeAutoFolder("Trips", RuleType::kDomain, "trips.localhost");
+  const std::string tab = OpenTabAt(UrlOn("trips.localhost"));
   ASSERT_TRUE(WaitFiledInto(tab, folder));
   sidebar()->ContextCommandForTesting(
       tab, AerieSidebarContextMenu::kCommandStopRuleMatching);
@@ -284,7 +286,7 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarAutoFileBrowserTest,
     return model()->AddFolder(std::move(folder));
   }();
   const std::string folder =
-      MakeAutoFolder("Trips", RuleType::kDomain, "trips.test");
+      MakeAutoFolder("Trips", RuleType::kDomain, "trips.localhost");
   ASSERT_TRUE(base::test::RunUntil([&] {
     return sidebar()->RowForId(folder) && sidebar()->RowForId(manual);
   }));
@@ -324,7 +326,7 @@ class AerieSidebarFolderSheetBrowserTest
 IN_PROC_BROWSER_TEST_F(AerieSidebarFolderSheetBrowserTest,
                        TheSheetOpensFromTheThreeEntryPoints) {
   const std::string folder =
-      MakeAutoFolder("Trips", RuleType::kDomain, "trips.test");
+      MakeAutoFolder("Trips", RuleType::kDomain, "trips.localhost");
   ASSERT_TRUE(base::test::RunUntil(
       [&] { return sidebar()->RowForId(folder) != nullptr; }));
   AerieSidebarRowView* row = sidebar()->RowForId(folder);
@@ -371,11 +373,11 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarFolderSheetBrowserTest,
 
   // A rule is added with the type and the text.
   sheet->type_combobox()->SetSelectedIndex(0);
-  sheet->value_field()->SetText(u"trips.test");
+  sheet->value_field()->SetText(u"trips.localhost");
   Click(sheet->add_button());
   auto rules = aerie_tab_model::ReadFolderRules(*model()->GetFolder(folder));
   ASSERT_EQ(rules.rules.size(), 1u);
-  EXPECT_EQ(rules.rules[0].value, "trips.test");
+  EXPECT_EQ(rules.rules[0].value, "trips.localhost");
   sheet->FlushForTesting();
   ASSERT_EQ(sheet->rules_list()->children().size(), 1u);
 
@@ -394,7 +396,7 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarFolderSheetBrowserTest,
   }
   ASSERT_TRUE(remove);
   EXPECT_EQ(DataOf(remove).GetStringAttribute(ax::mojom::StringAttribute::kName),
-            "Remove rule Domain: trips.test");
+            "Remove rule Domain: trips.localhost");
 
   // The rule's own switch, the folder's "All" switch and the global switch.
   ui::MouseEvent click(ui::EventType::kMouseReleased, gfx::Point(1, 1),
@@ -431,7 +433,7 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarFolderSheetBrowserTest,
 IN_PROC_BROWSER_TEST_F(AerieSidebarFolderSheetBrowserTest,
                        TheSheetIsADialogTrapsFocusAndClosesOnEscAndDone) {
   const std::string folder =
-      MakeAutoFolder("Trips", RuleType::kDomain, "trips.test");
+      MakeAutoFolder("Trips", RuleType::kDomain, "trips.localhost");
   AerieSidebarFolderSheet* sheet = OpenSheet(folder);
   views::Widget* widget = sheet->GetWidget();
   EXPECT_EQ(sheet->GetAccessibleWindowRole(), ax::mojom::Role::kDialog);
@@ -458,7 +460,12 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarFolderSheetBrowserTest,
   CloseSheetAndWait();
   AerieSidebarRowView* row = sidebar()->RowForId(folder);
   ASSERT_TRUE(row);
-  EXPECT_TRUE(base::test::RunUntil([&] { return row->HasFocus(); }));
+  // The browser window may not be the active window in this environment; then
+  // the focus manager keeps the view to focus when it is.
+  EXPECT_TRUE(base::test::RunUntil([&] {
+    views::FocusManager* manager = row->GetFocusManager();
+    return row->HasFocus() || (manager && manager->GetStoredFocusView() == row);
+  }));
 
   // Done closes it too.
   sheet = OpenSheet(folder);
