@@ -281,4 +281,63 @@ TEST(AerieSidebarMotionTest, TheChevronTurnsAQuarterOnFastAndStandardAndSnapsWhe
   EXPECT_FALSE(FolderChevronMotion(/*reduced=*/true).animate);
 }
 
+TEST(AerieSidebarMotionTest, AToastWithActionsHoldsForTheActionTiming) {
+  EXPECT_EQ(ToastShowMotion(false, /*has_actions=*/true).hold_ms, 6000);
+  EXPECT_EQ(ToastShowMotion(true, /*has_actions=*/true).hold_ms, 6000);
+  EXPECT_EQ(ToastHideMotion(false, /*has_actions=*/true).hold_ms, 6000);
+  EXPECT_EQ(ToastShowMotion(false).hold_ms, aerie::tokens::kMotionTimingToast);
+  // The fade and the rise are the same as for a plain toast.
+  EXPECT_EQ(ToastShowMotion(false, true).duration_ms, ToastShowMotion(false).duration_ms);
+  EXPECT_EQ(ToastShowMotion(false, true).rise_px, 6);
+}
+
+TEST(AerieSidebarMotionTest, TheSheetSlidesTenPixelsAndFadesInOnSheetEnterDecelerate) {
+  const SheetMotion m = SheetEnterMotion(/*reduced=*/false);
+  EXPECT_TRUE(m.animate_slide);
+  EXPECT_EQ(m.slide_px, 10);
+  EXPECT_FLOAT_EQ(m.from_opacity, 0.f);
+  EXPECT_FLOAT_EQ(m.to_opacity, 1.f);
+  EXPECT_EQ(m.duration, MotionDuration::kSheetEnter);
+  EXPECT_EQ(m.easing, MotionEasing::kDecelerate);
+  EXPECT_EQ(m.duration_ms, 180);
+}
+
+TEST(AerieSidebarMotionTest, TheSheetOnlyFadesOutOnSheetExitAccelerate) {
+  const SheetMotion m = SheetExitMotion(/*reduced=*/false);
+  EXPECT_FALSE(m.animate_slide);
+  EXPECT_FLOAT_EQ(m.from_opacity, 1.f);
+  EXPECT_FLOAT_EQ(m.to_opacity, 0.f);
+  EXPECT_EQ(m.duration, MotionDuration::kSheetExit);
+  EXPECT_EQ(m.easing, MotionEasing::kAccelerate);
+  EXPECT_EQ(m.duration_ms, 120);
+}
+
+TEST(AerieSidebarMotionTest, UnderReducedMotionTheSheetIsOpacityOnlyAndNinetyMilliseconds) {
+  for (const SheetMotion& m : {SheetEnterMotion(true), SheetExitMotion(true)}) {
+    EXPECT_FALSE(m.animate_slide);
+    EXPECT_EQ(m.slide_px, 0);
+    EXPECT_EQ(m.duration_ms, 90);
+    EXPECT_LE(m.duration_ms, aerie::motion::kMaxReducedOpacityMs);
+  }
+}
+
+TEST(AerieSidebarMotionTest, ThePulseTakesTheTokenDurationAndShortensUnderReducedMotion) {
+  const PulseMotion full = AutoFilePulseMotion(/*reduced=*/false);
+  EXPECT_EQ(full.total_ms, 700);
+  EXPECT_EQ(full.rise_ms + full.fall_ms, full.total_ms);
+  EXPECT_EQ(full.fall_easing, MotionEasing::kStandard);
+  EXPECT_FLOAT_EQ(full.peak_opacity, aerie::tokens::kMotionOpacityAutofilePulse);
+  const PulseMotion reduced = AutoFilePulseMotion(/*reduced=*/true);
+  EXPECT_EQ(reduced.total_ms, 300);
+  EXPECT_EQ(reduced.rise_ms + reduced.fall_ms, reduced.total_ms);
+  EXPECT_GT(reduced.fall_ms, 0);
+}
+
+TEST(AerieSidebarMotionTest, TheSwitchThumbTakesOneHundredTwentyMillisecondsAndSixtyReduced) {
+  EXPECT_EQ(SwitchThumbMotion(false).duration_ms, 120);
+  EXPECT_EQ(SwitchThumbMotion(true).duration_ms, 60);
+  EXPECT_EQ(SwitchThumbMotion(false).duration, MotionDuration::kSwitch);
+  EXPECT_EQ(SwitchThumbMotion(false).easing, MotionEasing::kStandard);
+}
+
 }  // namespace aerie_sidebar
