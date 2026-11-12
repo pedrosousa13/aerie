@@ -569,13 +569,13 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarFolderSheetBrowserTest,
   )JS";
   EXPECT_TRUE(prefs()->GetBoolean(aerie_tab_model::kFolderRulesEnabled));
   auto on = content::EvalJs(contents, "(" + script + ")(true)");
-  ASSERT_TRUE(on.error.empty()) << on.error;
-  const base::DictValue on_dict = on.ExtractDict();
+  ASSERT_TRUE(on.is_ok()) << on.ExtractError();
+  const base::DictValue& on_dict = on.ExtractDict();
   EXPECT_EQ(*on_dict.FindString("label"), "Folder rules everywhere");
   EXPECT_TRUE(*on_dict.FindBool("visible"));
   prefs()->SetBoolean(aerie_tab_model::kFolderRulesEnabled, false);
   auto off = content::EvalJs(contents, "(" + script + ")(false)");
-  ASSERT_TRUE(off.error.empty()) << off.error;
+  ASSERT_TRUE(off.is_ok()) << off.ExtractError();
   EXPECT_FALSE(*off.ExtractDict().FindBool("checked"));
 }
 
