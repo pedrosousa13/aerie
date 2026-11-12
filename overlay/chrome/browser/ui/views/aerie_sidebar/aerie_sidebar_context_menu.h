@@ -106,6 +106,7 @@ class AerieSidebarContextMenu : public views::MenuDelegate {
     // list of `move_targets` (hidden when there is no folder to choose).
     bool show_move_to_new_folder = false;
     bool move_to_new_folder_enabled = true;
+    std::u16string move_to_new_folder_tooltip;
     std::vector<MoveTarget> move_targets;
     // A tab that is in a folder: "Move out of folder".
     bool show_move_out = false;

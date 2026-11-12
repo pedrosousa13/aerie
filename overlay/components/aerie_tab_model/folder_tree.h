@@ -25,6 +25,10 @@ class TabModel;
 // this level; a folder cannot.
 inline constexpr int kMaxFolderDepth = 5;
 
+// How many parents a walk up or down the folders follows before it gives up. A
+// loop in damaged data stops there; real trees are 5 levels at most.
+inline constexpr int kWalkBound = 64;
+
 // The level of a folder: a folder in the section itself is level 1, a folder
 // in that one is level 2. 0 for an empty or unknown id (the section itself).
 // A loop in damaged data stops the walk.

@@ -17,8 +17,6 @@ namespace aerie_tab_model {
 
 namespace {
 
-// More than any real tree: stops a walk through a loop in damaged data.
-constexpr int kWalkBound = 64;
 
 struct Child {
   bool is_folder = false;

@@ -76,6 +76,11 @@ class AerieSidebarRowView : public views::View,
   METADATA_HEADER(AerieSidebarRowView, views::View)
 
  public:
+  // A row keeps its layers this long after the motion's own duration, so the
+  // last frame is drawn before they go. Not a design value. The folder group
+  // uses the same slack.
+  static constexpr int kDropLayersSlackMs = 50;
+
   struct Callbacks {
     base::RepeatingClosure select;
     base::RepeatingClosure close;
@@ -257,6 +262,7 @@ class AerieSidebarRowView : public views::View,
                       const PrefService* prefs,
                       bool start_from_current = false);
   void SetHeightFraction(double fraction);
+  double height_fraction() const { return height_fraction_; }
   void EndFolderMotion();
   bool folder_fading() const;
 

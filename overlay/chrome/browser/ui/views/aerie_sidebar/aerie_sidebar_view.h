@@ -221,8 +221,6 @@ class AerieSidebarView : public views::View,
   const AerieSidebarFolderGroup* folder_group() const { return group_.get(); }
   // True while the question about deleting a folder shows.
   bool delete_question_open() const { return delete_question_open_; }
-  // Where tests say how long the last build of the rows took, in ms.
-  double last_sync_ms() const { return last_sync_ms_; }
   // Rows of a collapsed folder that still slide away.
   size_t collapsing_row_count() const { return collapsing_rows_.size(); }
 
@@ -277,9 +275,34 @@ class AerieSidebarView : public views::View,
   // rows move to their new places with the FLIP motion (issue #180).
   void SyncAll();
   void SyncFavorites();
-  void SyncPinned();
+  void SyncPinned(const std::vector<aerie_tab_model::TreeRow>& wanted);
   // Makes the rows match the Today list, keeping the views of rows that stay.
-  void SyncRows();
+  void SyncRows(const std::vector<aerie_tab_model::TreeRow>& wanted);
+  // What a sync of one tree finds: the rows in order, the new rows that play the
+  // open motion, the rows that are no longer wanted, and where each old row was.
+  struct Reconciled {
+    std::vector<Row> next;
+    std::vector<AerieSidebarRowView*> added;
+    std::vector<Row> gone;
+    std::map<std::string, int> old_index;
+  };
+  Reconciled ReconcileRows(const std::vector<Row>& current,
+                           const std::vector<aerie_tab_model::TreeRow>& wanted,
+                           AerieSidebarTodayTree* list,
+                           bool today);
+  // True, and the row stays in its list until the collapse motion ends, when the
+  // row goes because the folder the user shut holds it.
+  bool KeepAsCollapsing(const Row& row);
+  // Puts the live rows of `list` in the order of `rows`.
+  void OrderRows(AerieSidebarTodayTree* list, const std::vector<Row>& rows);
+  // The row of a tab or a folder in either tree: its tree and index.
+  struct RowPlace {
+    bool today = false;
+    size_t index = 0;
+  };
+  std::optional<RowPlace> FindRow(const std::string& id) const;
+  // Pointer comparison only: whether `row` is one of the rows of the sidebar.
+  bool IsLiveRow(const AerieSidebarRowView* row) const;
   // Where every row and tile is now, in this view's coordinates, by tab id.
   std::map<std::string, gfx::Point> CapturePositions() const;
   // The FLIP motion: from the places in `before` to the places now.
@@ -319,7 +342,8 @@ class AerieSidebarView : public views::View,
   bool IsInsideFolder(const std::string& folder_id,
                       const std::string& id) const;
   // Whether the rows of a section differ from what the Tab Model wants.
-  bool TreeChanged(aerie_tab_model::Section section) const;
+  bool TreeChanged(const std::vector<aerie_tab_model::TreeRow>& wanted,
+                   const std::vector<Row>& rows) const;
   void StartToggleGroup();
   void RemoveCollapsedRows();
   void FocusRowById(const std::string& id);
@@ -350,12 +374,9 @@ class AerieSidebarView : public views::View,
   // header, or hides them when no tab sleeps.
   void UpdateSleepingSummary();
   void CloseTab(const std::string& tab_id);
-  // A key of the Today tree on the row of `tab_id` (arrows, Home, End, Delete).
-  void OnRowKey(const std::string& tab_id, aerie_sidebar::ListKey key);
   // Keyboard focus is on a row: it is the Tab stop from now on.
   void OnRowFocused();
   // The same for the Pinned tree and the Favorites grid (issue #180).
-  void OnPinnedRowKey(const std::string& tab_id, aerie_sidebar::ListKey key);
   void OnPinnedRowFocused();
   void UpdatePinnedTabStop();
   void FocusPinnedRow(int index);
@@ -455,8 +476,8 @@ class AerieSidebarView : public views::View,
   };
   PendingToggle toggle_;
   // What the sync that a toggle caused found.
-  std::vector<AerieSidebarRowView*> toggle_revealed_;
-  std::vector<AerieSidebarRowView*> toggle_collapsing_;
+  std::vector<raw_ptr<AerieSidebarRowView>> toggle_revealed_;
+  std::vector<raw_ptr<AerieSidebarRowView>> toggle_collapsing_;
   std::unique_ptr<AerieSidebarFolderGroup> group_;
   // The folder row that takes keyboard focus when the row that had it went
   // into a folder that shut.
@@ -465,7 +486,6 @@ class AerieSidebarView : public views::View,
   // While set, FindTab reads this map instead of walking the strip.
   raw_ptr<const std::map<std::string, tabs::TabInterface*>> tab_lookup_ =
       nullptr;
-  double last_sync_ms_ = 0;
   raw_ptr<views::Label> toast_ = nullptr;
   base::OneShotTimer toast_timer_;
   aerie::motion::MotionHandle toast_motion_;

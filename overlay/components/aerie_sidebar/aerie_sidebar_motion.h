@@ -189,8 +189,10 @@ RenameFadeMotion RenameFadeOut();
 // `in-out`, the first `stagger_cap` of them `stagger_ms` apart, while the
 // container height grows over the same time (the layout exception: the height
 // of this one clipped list). Collapse: the children fade out together on
-// `folder-collapse` (180 ms) with no stagger while the height shrinks over the
-// same time. Reduced motion: opacity only, 90 ms, no stagger; the height snaps.
+// `xfast` (90 ms) with no stagger, then the height shrinks for the rest of
+// `folder-collapse` (180 ms). The two phases are in sequence and the time is
+// split from the tokens: nothing is added to `folder-collapse`. Reduced motion:
+// opacity only, 90 ms, no stagger; the height snaps.
 struct FolderMotion {
   aerie::tokens::MotionDuration duration;
   aerie::tokens::MotionEasing easing;
@@ -202,7 +204,12 @@ struct FolderMotion {
   int stagger_ms;
   int stagger_cap;
   bool animate_height;
+  // When the height starts, counted from the start of the motion (0: with the
+  // fade), and how long it takes.
+  int height_delay_ms;
   int height_duration_ms;
+  // The length of the whole motion, without the stagger.
+  int total_ms;
 };
 
 FolderMotion FolderRevealMotion(bool reduced);

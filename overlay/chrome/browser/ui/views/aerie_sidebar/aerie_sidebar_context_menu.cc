@@ -263,5 +263,10 @@ std::u16string AerieSidebarContextMenu::GetTooltipText(
     return options_.new_folder_enabled ? std::u16string()
                                        : options_.new_folder_tooltip;
   }
+  if (id == kCommandMoveToNewFolder) {
+    return options_.move_to_new_folder_enabled
+               ? std::u16string()
+               : options_.move_to_new_folder_tooltip;
+  }
   return id == kCommandSleepTab ? options_.sleep.tooltip : std::u16string();
 }

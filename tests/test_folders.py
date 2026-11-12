@@ -57,6 +57,30 @@ class SourceTest(unittest.TestCase):
         self.assertIn("//components/aerie_sidebar:tree", build)
 
 
+class ReviewTest(unittest.TestCase):
+    def test_the_too_deep_tooltip_has_one_helper_used_by_both_items(self):
+        text = (VIEWS / "aerie_sidebar_view.cc").read_text()
+        self.assertEqual(text.count("IDS_AERIE_SIDEBAR_FOLDER_TOO_DEEP"), 1)
+        self.assertGreaterEqual(text.count("TooDeepTooltip()"), 3)
+        self.assertIn("move_to_new_folder_tooltip", text)
+
+    def test_no_literal_walk_bound_or_turn_angle(self):
+        self.assertNotIn("<= 64", (VIEWS / "aerie_sidebar_view.cc").read_text())
+        row = (VIEWS / "aerie_sidebar_row_view.cc").read_text()
+        self.assertEqual(len(re.findall(r"\b360\b", row)), 1)
+
+    def test_the_group_reuses_the_row_slack(self):
+        group = (VIEWS / "aerie_sidebar_folder_group.cc").read_text()
+        self.assertNotIn("kEndSlackMs", group)
+        self.assertIn("kDropLayersSlackMs", group)
+
+    def test_production_code_has_no_sync_timer(self):
+        for name in ("aerie_sidebar_view.cc", "aerie_sidebar_view.h"):
+            text = (VIEWS / name).read_text()
+            self.assertNotIn("last_sync_ms", text)
+            self.assertNotIn("ElapsedTimer", text)
+
+
 class DocsTest(unittest.TestCase):
     def test_the_design_doc_records_the_choices(self):
         text = (REPO / "docs" / "sidebar-design.md").read_text()

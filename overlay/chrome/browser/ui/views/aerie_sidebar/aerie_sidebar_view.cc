@@ -6,9 +6,14 @@
 
 #include <algorithm>
 #include <map>
+#include <optional>
+#include <string>
 #include <utility>
+#include <vector>
 
+#include "base/auto_reset.h"
 #include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/no_destructor.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
@@ -43,15 +48,12 @@
 #include "components/aerie_sidebar/aerie_sidebar_motion.h"
 #include "components/aerie_sidebar/aerie_sidebar_tree.h"
 #include "components/aerie_tab_model/folder_tree.h"
-#include "components/constrained_window/constrained_window_views.h"
-#include "ui/base/models/dialog_model.h"
-#include "base/auto_reset.h"
-#include "base/timer/elapsed_timer.h"
 #include "components/aerie_tab_model/pinned_tabs.h"
 #include "components/aerie_tab_model/sleep_summary.h"
 #include "components/aerie_tab_model/tab_model.h"
 #include "components/aerie_tab_model/tab_model_prefs.h"
 #include "components/aerie_tab_model/title_resolver.h"
+#include "components/constrained_window/constrained_window_views.h"
 #include "components/favicon/content/content_favicon_driver.h"
 #include "components/prefs/pref_service.h"
 #include "components/tabs/public/tab_interface.h"
@@ -60,6 +62,7 @@
 #include "ui/base/base_window.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
+#include "ui/base/models/dialog_model.h"
 #include "ui/base/models/image_model.h"
 #include "ui/color/color_provider_key.h"
 #include "ui/compositor/layer.h"
@@ -95,6 +98,14 @@ int CloseTooltipMessageId(aerie_tab_model::PinnedCloseAction action) {
     case aerie_tab_model::PinnedCloseAction::kUnpinClose:
       return IDS_AERIE_SIDEBAR_CLOSE_CLOSE;
   }
+}
+
+// "Can't nest deeper than 5 levels": the tooltip of New folder and of Move to
+// new folder when the folder they would make is too deep.
+std::u16string TooDeepTooltip() {
+  return l10n_util::GetStringFUTF16(
+      IDS_AERIE_SIDEBAR_FOLDER_TOO_DEEP,
+      base::NumberToString16(aerie_tab_model::kMaxFolderDepth));
 }
 
 ui::ImageModel FaviconFor(tabs::TabInterface* tab, SkColor icon_color) {
@@ -546,10 +557,9 @@ std::vector<aerie_tab_model::TreeRow> AerieSidebarView::WantedRows(
       [this](const std::string& id) { return FindTab(id) != nullptr; });
 }
 
-bool AerieSidebarView::TreeChanged(aerie_tab_model::Section section) const {
-  const std::vector<aerie_tab_model::TreeRow> wanted = WantedRows(section);
-  const std::vector<Row>& rows =
-      section == aerie_tab_model::Section::kToday ? rows_ : pinned_rows_;
+bool AerieSidebarView::TreeChanged(
+    const std::vector<aerie_tab_model::TreeRow>& wanted,
+    const std::vector<Row>& rows) const {
   if (wanted.size() != rows.size()) {
     return true;
   }
@@ -616,36 +626,29 @@ AerieSidebarRowView* AerieSidebarView::MakeRow(
   return view;
 }
 
-void AerieSidebarView::SyncRows() {
-  // The rows' slots change: a drag in progress would move rows that are not
-  // where it measured them.
-  if (drag_.active) {
-    CancelDrag();
-  }
-  const std::vector<aerie_tab_model::TreeRow> wanted =
-      WantedRows(aerie_tab_model::Section::kToday);
-  const bool animate = CanAnimateRows();
-  const PrefService* prefs = browser_->GetProfile()->GetPrefs();
-
-  // Keep the views of rows that stay, drop the others, add the new ones, and
-  // put them in order.
+AerieSidebarView::Reconciled AerieSidebarView::ReconcileRows(
+    const std::vector<Row>& current,
+    const std::vector<aerie_tab_model::TreeRow>& wanted,
+    AerieSidebarTodayTree* list,
+    bool today) {
+  Reconciled result;
+  // Keep the views of rows that stay, drop the others, add the new ones.
   std::map<std::string, Row> existing;
-  std::map<std::string, int> old_index;
-  for (size_t i = 0; i < rows_.size(); ++i) {
-    existing[rows_[i].tab_id] = rows_[i];
-    old_index[rows_[i].tab_id] = static_cast<int>(i);
+  for (size_t i = 0; i < current.size(); ++i) {
+    existing[current[i].tab_id] = current[i];
+    result.old_index[current[i].tab_id] = static_cast<int>(i);
   }
-  // A folder that was shutting and is opened again takes its rows back: they
-  // go on from where they got to.
+  // A folder that was shutting and is opened again takes its rows back: they go
+  // on from where they got to.
   if (toggle_.active && toggle_.expand && group_ && group_->running() &&
       group_->folder_id() == toggle_.folder_id) {
     for (auto it = collapsing_rows_.begin(); it != collapsing_rows_.end();) {
       const bool wanted_again =
+          it->view->parent() == list &&
           std::any_of(wanted.begin(), wanted.end(),
                       [&](const aerie_tab_model::TreeRow& entry) {
                         return entry.id == it->tab_id;
-                      }) &&
-          it->view->parent() == list_;
+                      });
       if (wanted_again) {
         it->view->GetViewAccessibility().SetIsIgnored(false);
         existing[it->tab_id] = *it;
@@ -655,56 +658,101 @@ void AerieSidebarView::SyncRows() {
       }
     }
   }
-  const int old_count = static_cast<int>(rows_.size());
-  std::vector<Row> next;
-  std::vector<AerieSidebarRowView*> added;
   for (const aerie_tab_model::TreeRow& entry : wanted) {
     auto it = existing.find(entry.id);
     if (it != existing.end()) {
       Row row = it->second;
       row.item_count = entry.item_count;
       row.view->SetLevel(entry.level);
-      next.push_back(row);
+      result.next.push_back(row);
       existing.erase(it);
       continue;
     }
-    AerieSidebarRowView* view = MakeRow(entry, list_, /*today=*/true);
+    AerieSidebarRowView* view = MakeRow(entry, list, today);
     view->SetLevel(entry.level);
-    next.push_back({entry.id, view, entry.is_folder, entry.item_count});
+    result.next.push_back(
+        {entry.id, view, entry.is_folder, entry.item_count});
     if (toggle_.active && toggle_.expand &&
         IsInsideFolder(toggle_.folder_id, entry.id)) {
       toggle_revealed_.push_back(view);
     } else {
-      added.push_back(view);
+      result.added.push_back(view);
     }
   }
+  for (auto& [id, row] : existing) {
+    result.gone.push_back(row);
+  }
+  return result;
+}
+
+bool AerieSidebarView::KeepAsCollapsing(const Row& row) {
+  // A row that goes because its folder shut keeps its place until the collapse
+  // has played, then goes (issue #181). Keyboard focus in it went to the folder
+  // row (SetFolderExpanded).
+  if (!CanAnimateRows() || !toggle_.active || toggle_.expand ||
+      !IsInsideFolder(toggle_.folder_id, row.tab_id)) {
+    return false;
+  }
+  collapsing_rows_.push_back(row);
+  toggle_collapsing_.push_back(row.view);
+  row.view->SetFocusBehavior(views::View::FocusBehavior::ACCESSIBLE_ONLY);
+  row.view->GetViewAccessibility().SetIsIgnored(true);
+  return true;
+}
+
+void AerieSidebarView::OrderRows(AerieSidebarTodayTree* list,
+                                 const std::vector<Row>& rows) {
+  // The live rows in order; a row that still closes or collapses keeps its
+  // place.
+  std::vector<views::View*> order;
+  size_t next_live = 0;
+  const std::vector<views::View*> children(list->children().begin(),
+                                           list->children().end());
+  for (views::View* child : children) {
+    const bool keeps_place =
+        std::find(closing_rows_.begin(), closing_rows_.end(), child) !=
+            closing_rows_.end() ||
+        std::any_of(collapsing_rows_.begin(), collapsing_rows_.end(),
+                    [child](const Row& row) { return row.view == child; });
+    order.push_back(keeps_place ? child : rows[next_live++].view.get());
+  }
+  for (size_t i = 0; i < order.size(); ++i) {
+    list->ReorderChildView(order[i], i);
+  }
+}
+
+void AerieSidebarView::SyncRows(
+    const std::vector<aerie_tab_model::TreeRow>& wanted) {
+  // The rows' slots change: a drag in progress would move rows that are not
+  // where it measured them.
+  if (drag_.active) {
+    CancelDrag();
+  }
+  const bool animate = CanAnimateRows();
+  const PrefService* prefs = browser_->GetProfile()->GetPrefs();
+  const int old_count = static_cast<int>(rows_.size());
+  Reconciled result = ReconcileRows(rows_, wanted, list_, /*today=*/true);
 
   // A removed row that has keyboard focus hands it to the row that takes its
   // place (HandleListKey: the same index, or the new last row).
   int refocus_index = -1;
-  for (auto& [id, row] : existing) {
-    AerieSidebarRowView* view = row.view;
-    // A row that goes because its folder shut keeps its place until the
-    // collapse has played, then goes (issue #181). Keyboard focus in it went to
-    // the folder row (ToggleFolder).
-    if (animate && toggle_.active && !toggle_.expand &&
-        IsInsideFolder(toggle_.folder_id, id)) {
-      collapsing_rows_.push_back(row);
-      toggle_collapsing_.push_back(view);
-      view->SetFocusBehavior(views::View::FocusBehavior::ACCESSIBLE_ONLY);
-      view->GetViewAccessibility().SetIsIgnored(true);
+  for (Row& row : result.gone) {
+    if (KeepAsCollapsing(row)) {
       continue;
     }
+    AerieSidebarRowView* view = row.view;
     // A tab that went to Pinned or Favorites (issue #180) leaves the list at
     // once: the FLIP motion moves its new row from here, so it does not play
     // the close motion as well.
     const aerie_tab_model::TabRecord* moved_record =
-        model_ ? model_->GetTab(id) : nullptr;
+        model_ ? model_->GetTab(row.tab_id) : nullptr;
     const bool changed_section =
-        moved_record && moved_record->section != aerie_tab_model::Section::kToday;
-    if (view->HasFocus() || id == refocus_after_close_id_) {
+        moved_record &&
+        moved_record->section != aerie_tab_model::Section::kToday;
+    if (view->HasFocus() || row.tab_id == refocus_after_close_id_) {
       refocus_index =
-          aerie_sidebar::HandleListKey(old_count, old_index[id],
+          aerie_sidebar::HandleListKey(old_count,
+                                       result.old_index[row.tab_id],
                                        aerie_sidebar::ListKey::kDelete)
               .focus_index;
     }
@@ -732,31 +780,12 @@ void AerieSidebarView::SyncRows() {
       list_->RemoveChildViewT(view);
     }
   }
-  rows_ = std::move(next);
+  rows_ = std::move(result.next);
   today_tree_rows_ = wanted;
   if (refocus_index >= 0) {
     refocus_after_close_id_.clear();
   }
-
-  // Put the live rows in order. A row that is still closing or collapsing
-  // keeps its place.
-  {
-    std::vector<views::View*> order;
-    size_t next_live = 0;
-    std::vector<views::View*> children(list_->children().begin(),
-                                       list_->children().end());
-    for (views::View* child : children) {
-      const bool closing =
-          std::find(closing_rows_.begin(), closing_rows_.end(), child) !=
-              closing_rows_.end() ||
-          std::any_of(collapsing_rows_.begin(), collapsing_rows_.end(),
-                      [child](const Row& row) { return row.view == child; });
-      order.push_back(closing ? child : rows_[next_live++].view.get());
-    }
-    for (size_t i = 0; i < order.size(); ++i) {
-      list_->ReorderChildView(order[i], i);
-    }
-  }
+  OrderRows(list_, rows_);
   UpdateRows();
   UpdateTabStop();
   list_->InvalidateLayout();
@@ -765,18 +794,22 @@ void AerieSidebarView::SyncRows() {
     FocusRow(std::min(refocus_index, static_cast<int>(rows_.size()) - 1));
   }
   if (animate) {
-    for (AerieSidebarRowView* view : added) {
+    for (AerieSidebarRowView* view : result.added) {
       view->PlayOpen(prefs);
     }
   }
 }
 
 void AerieSidebarView::SyncAll() {
-  base::ElapsedTimer timer;
   // One pass over the strip serves every row (issue #181: 300 tabs).
   const std::map<std::string, tabs::TabInterface*> lookup = BuildTabLookup();
   base::AutoReset<raw_ptr<const std::map<std::string, tabs::TabInterface*>>>
       use_lookup(&tab_lookup_, &lookup);
+  // The two trees are walked once for the whole sync.
+  const std::vector<aerie_tab_model::TreeRow> today =
+      WantedRows(aerie_tab_model::Section::kToday);
+  const std::vector<aerie_tab_model::TreeRow> pinned =
+      WantedRows(aerie_tab_model::Section::kPinned);
   // A folder motion that runs goes on only when the sync is the turn-around of
   // the same folder or changes no row. Anything else ends it at once, so that
   // no row is moved under it.
@@ -784,9 +817,8 @@ void AerieSidebarView::SyncAll() {
     const bool turn_around = toggle_.active &&
                              group_->folder_id() == toggle_.folder_id;
     if (!turn_around &&
-        (toggle_.active ||
-         TreeChanged(aerie_tab_model::Section::kToday) ||
-         TreeChanged(aerie_tab_model::Section::kPinned))) {
+        (toggle_.active || TreeChanged(today, rows_) ||
+         TreeChanged(pinned, pinned_rows_))) {
       group_->Finish();
     }
   }
@@ -802,14 +834,13 @@ void AerieSidebarView::SyncAll() {
   std::map<std::string, gfx::Point> before = std::move(flip_before_);
   flip_before_.clear();
   SyncFavorites();
-  SyncPinned();
-  SyncRows();
+  SyncPinned(pinned);
+  SyncRows(today);
   StartToggleGroup();
   if (play_flip) {
     DeprecatedLayoutImmediately();
     PlayFlip(before, moved_id);
   }
-  last_sync_ms_ = timer.Elapsed().InMillisecondsF();
 }
 
 std::map<std::string, gfx::Point> AerieSidebarView::CapturePositions() const {
@@ -943,100 +974,33 @@ void AerieSidebarView::SyncFavorites() {
   }
 }
 
-void AerieSidebarView::SyncPinned() {
-  const std::vector<aerie_tab_model::TreeRow> wanted =
-      WantedRows(aerie_tab_model::Section::kPinned);
-  const bool animate = CanAnimateRows();
-  std::map<std::string, Row> existing;
-  std::map<std::string, int> old_index;
-  for (size_t i = 0; i < pinned_rows_.size(); ++i) {
-    existing[pinned_rows_[i].tab_id] = pinned_rows_[i];
-    old_index[pinned_rows_[i].tab_id] = static_cast<int>(i);
-  }
-  if (toggle_.active && toggle_.expand && group_ && group_->running() &&
-      group_->folder_id() == toggle_.folder_id) {
-    for (auto it = collapsing_rows_.begin(); it != collapsing_rows_.end();) {
-      const bool wanted_again =
-          std::any_of(wanted.begin(), wanted.end(),
-                      [&](const aerie_tab_model::TreeRow& entry) {
-                        return entry.id == it->tab_id;
-                      }) &&
-          it->view->parent() == pinned_list_;
-      if (wanted_again) {
-        it->view->GetViewAccessibility().SetIsIgnored(false);
-        existing[it->tab_id] = *it;
-        it = collapsing_rows_.erase(it);
-      } else {
-        ++it;
-      }
-    }
-  }
+void AerieSidebarView::SyncPinned(
+    const std::vector<aerie_tab_model::TreeRow>& wanted) {
   const int old_count = static_cast<int>(pinned_rows_.size());
-  std::vector<Row> next;
-  for (const aerie_tab_model::TreeRow& entry : wanted) {
-    auto it = existing.find(entry.id);
-    if (it != existing.end()) {
-      Row row = it->second;
-      row.item_count = entry.item_count;
-      row.view->SetLevel(entry.level);
-      next.push_back(row);
-      existing.erase(it);
-      continue;
-    }
-    // A pinned row has no drag: Pinned and Favorites dragging is issue #182.
-    AerieSidebarRowView* view = MakeRow(entry, pinned_list_, /*today=*/false);
-    view->SetLevel(entry.level);
-    next.push_back({entry.id, view, entry.is_folder, entry.item_count});
-    if (toggle_.active && toggle_.expand &&
-        IsInsideFolder(toggle_.folder_id, entry.id)) {
-      toggle_revealed_.push_back(view);
-    }
-  }
+  Reconciled result =
+      ReconcileRows(pinned_rows_, wanted, pinned_list_, /*today=*/false);
   int refocus_index = -1;
-  for (auto& [id, row] : existing) {
-    AerieSidebarRowView* view = row.view;
-    if (animate && toggle_.active && !toggle_.expand &&
-        IsInsideFolder(toggle_.folder_id, id)) {
-      collapsing_rows_.push_back(row);
-      toggle_collapsing_.push_back(view);
-      view->SetFocusBehavior(views::View::FocusBehavior::ACCESSIBLE_ONLY);
-      view->GetViewAccessibility().SetIsIgnored(true);
+  for (Row& row : result.gone) {
+    if (KeepAsCollapsing(row)) {
       continue;
     }
-    if (view->HasFocus() || id == pinned_refocus_after_close_id_) {
+    if (row.view->HasFocus() || row.tab_id == pinned_refocus_after_close_id_) {
       refocus_index = aerie_sidebar::HandleListKey(
-                          old_count, old_index[id],
+                          old_count, result.old_index[row.tab_id],
                           aerie_sidebar::ListKey::kDelete)
                           .focus_index;
     }
-    pinned_list_->RemoveChildViewT(view);
+    pinned_list_->RemoveChildViewT(row.view.get());
   }
-  pinned_rows_ = std::move(next);
+  pinned_rows_ = std::move(result.next);
   pinned_tree_rows_ = wanted;
-  {
-    // The live rows in order; a collapsing row keeps its place.
-    std::vector<views::View*> order;
-    size_t next_live = 0;
-    std::vector<views::View*> children(pinned_list_->children().begin(),
-                                       pinned_list_->children().end());
-    for (views::View* child : children) {
-      const bool collapsing =
-          std::any_of(collapsing_rows_.begin(), collapsing_rows_.end(),
-                      [child](const Row& row) { return row.view == child; });
-      order.push_back(collapsing ? child
-                                 : pinned_rows_[next_live++].view.get());
-    }
-    for (size_t i = 0; i < order.size(); ++i) {
-      pinned_list_->ReorderChildView(order[i], i);
-    }
-  }
-  pinned_scroll_->SetVisible(!pinned_rows_.empty() ||
-                             std::any_of(collapsing_rows_.begin(),
-                                         collapsing_rows_.end(),
-                                         [this](const Row& row) {
-                                           return row.view->parent() ==
-                                                  pinned_list_;
-                                         }));
+  OrderRows(pinned_list_, pinned_rows_);
+  pinned_scroll_->SetVisible(
+      !pinned_rows_.empty() ||
+      std::any_of(collapsing_rows_.begin(), collapsing_rows_.end(),
+                  [this](const Row& row) {
+                    return row.view->parent() == pinned_list_;
+                  }));
   pinned_list_->InvalidateLayout();
   for (const Row& row : pinned_rows_) {
     UpdateRow(row);
@@ -1196,7 +1160,7 @@ void AerieSidebarView::MoveTodayRow(int source, int target) {
   // The strip told the Tab Model (TabStripAdapter), which told the Today list.
   // The rows are put in the new order now, not in a task, so that the dropped
   // row can settle from where it was released, so the layout runs now too.
-  SyncRows();
+  SyncRows(WantedRows(aerie_tab_model::Section::kToday));
   list_->DeprecatedLayoutImmediately();
 }
 
@@ -1255,11 +1219,6 @@ AerieSidebarRowView* AerieSidebarView::tab_stop_row() const {
     }
   }
   return nullptr;
-}
-
-void AerieSidebarView::OnRowKey(const std::string& tab_id,
-                                aerie_sidebar::ListKey key) {
-  OnTreeRowKey(/*today=*/true, tab_id, key);
 }
 
 void AerieSidebarView::OnTreeRowKey(bool today,
@@ -1620,7 +1579,7 @@ bool AerieSidebarView::IsInsideFolder(const std::string& folder_id,
   // A folder is not inside itself.
   walk = walk && !walk->parent.empty() ? model_->GetFolder(walk->parent)
                                        : nullptr;
-  for (int steps = 0; walk && steps <= 64; ++steps) {
+  for (int steps = 0; walk && steps <= aerie_tab_model::kWalkBound; ++steps) {
     if (walk->id == folder_id) {
       return true;
     }
@@ -1629,18 +1588,27 @@ bool AerieSidebarView::IsInsideFolder(const std::string& folder_id,
   return false;
 }
 
+std::optional<AerieSidebarView::RowPlace> AerieSidebarView::FindRow(
+    const std::string& id) const {
+  for (size_t i = 0; i < rows_.size(); ++i) {
+    if (rows_[i].tab_id == id) {
+      return RowPlace{true, i};
+    }
+  }
+  for (size_t i = 0; i < pinned_rows_.size(); ++i) {
+    if (pinned_rows_[i].tab_id == id) {
+      return RowPlace{false, i};
+    }
+  }
+  return std::nullopt;
+}
+
 AerieSidebarRowView* AerieSidebarView::RowForId(const std::string& id) const {
-  for (const Row& row : rows_) {
-    if (row.tab_id == id) {
-      return row.view;
-    }
+  const std::optional<RowPlace> place = FindRow(id);
+  if (!place) {
+    return nullptr;
   }
-  for (const Row& row : pinned_rows_) {
-    if (row.tab_id == id) {
-      return row.view;
-    }
-  }
-  return nullptr;
+  return (place->today ? rows_ : pinned_rows_)[place->index].view;
 }
 
 const std::vector<aerie_tab_model::TreeRow>& AerieSidebarView::tree_rows(
@@ -1650,17 +1618,9 @@ const std::vector<aerie_tab_model::TreeRow>& AerieSidebarView::tree_rows(
 }
 
 void AerieSidebarView::FocusRowById(const std::string& id) {
-  for (size_t i = 0; i < rows_.size(); ++i) {
-    if (rows_[i].tab_id == id) {
-      FocusRow(static_cast<int>(i));
-      return;
-    }
-  }
-  for (size_t i = 0; i < pinned_rows_.size(); ++i) {
-    if (pinned_rows_[i].tab_id == id) {
-      FocusPinnedRow(static_cast<int>(i));
-      return;
-    }
+  if (const std::optional<RowPlace> place = FindRow(id)) {
+    const int index = static_cast<int>(place->index);
+    place->today ? FocusRow(index) : FocusPinnedRow(index);
   }
 }
 
@@ -1707,8 +1667,10 @@ void AerieSidebarView::SetFolderExpanded(const std::string& folder_id,
 
 void AerieSidebarView::StartToggleGroup() {
   const PendingToggle toggle = toggle_;
-  std::vector<AerieSidebarRowView*> revealed = std::move(toggle_revealed_);
-  std::vector<AerieSidebarRowView*> collapsing = std::move(toggle_collapsing_);
+  std::vector<raw_ptr<AerieSidebarRowView>> revealed =
+      std::move(toggle_revealed_);
+  std::vector<raw_ptr<AerieSidebarRowView>> collapsing =
+      std::move(toggle_collapsing_);
   toggle_revealed_.clear();
   toggle_collapsing_.clear();
   if (!toggle.active) {
@@ -1721,17 +1683,25 @@ void AerieSidebarView::StartToggleGroup() {
     }
     group_->Finish();
   }
-  std::vector<AerieSidebarRowView*> rows =
+  std::vector<raw_ptr<AerieSidebarRowView>> rows =
       toggle.expand ? std::move(revealed) : std::move(collapsing);
+  // A row can go between the sync that found it and here (ending another
+  // folder's motion removes the rows that were collapsing). Only rows that are
+  // still the sidebar's own are animated; this compares pointers and never
+  // reads a row that may be gone.
+  std::erase_if(rows, [this](const raw_ptr<AerieSidebarRowView>& row) {
+    return !IsLiveRow(row.get());
+  });
   if (rows.empty() || !CanAnimateRows()) {
     RemoveCollapsedRows();
     return;
   }
   views::View* list = rows.front()->parent();
   std::sort(rows.begin(), rows.end(),
-            [list](AerieSidebarRowView* a, AerieSidebarRowView* b) {
-              return list->GetIndexOf(a).value_or(0) <
-                     list->GetIndexOf(b).value_or(0);
+            [list](const raw_ptr<AerieSidebarRowView>& a,
+                   const raw_ptr<AerieSidebarRowView>& b) {
+              return list->GetIndexOf(a.get()).value_or(0) <
+                     list->GetIndexOf(b.get()).value_or(0);
             });
   group_ = std::make_unique<AerieSidebarFolderGroup>(
       toggle.folder_id, std::move(rows), list,
@@ -1741,9 +1711,21 @@ void AerieSidebarView::StartToggleGroup() {
   group_->Start(toggle.expand);
 }
 
+bool AerieSidebarView::IsLiveRow(const AerieSidebarRowView* row) const {
+  for (const std::vector<Row>* rows : {&rows_, &pinned_rows_, &collapsing_rows_}) {
+    for (const Row& entry : *rows) {
+      if (entry.view == row) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 void AerieSidebarView::RemoveCollapsedRows() {
   std::vector<Row> rows = std::move(collapsing_rows_);
   collapsing_rows_.clear();
+  toggle_collapsing_.clear();
   for (const Row& row : rows) {
     if (views::View* parent = row.view->parent()) {
       parent->RemoveChildViewT(row.view.get());
@@ -1804,7 +1786,11 @@ bool AerieSidebarView::RequestDeleteFolder(const std::string& folder_id) {
   for (const auto& [id, folder] : model_->folders()) {
     items += folder.parent == folder_id ? 1 : 0;
   }
-  delete_question_open_ = true;
+  // Without a window there is nothing to show the question in: nothing is
+  // asked and the flag stays clear.
+  if (!GetWidget()) {
+    return false;
+  }
   auto closed = base::BindOnce(
       [](base::WeakPtr<AerieSidebarView> self) {
         if (self) {
@@ -1820,7 +1806,8 @@ bool AerieSidebarView::RequestDeleteFolder(const std::string& folder_id) {
       },
       weak_factory_.GetWeakPtr(), folder_id);
   ui::DialogModel::Builder builder;
-  builder.SetTitle(l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_FOLDER_DELETE_TITLE))
+  builder
+      .SetTitle(l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_FOLDER_DELETE_TITLE))
       .AddParagraph(ui::DialogModelLabel(l10n_util::GetStringFUTF16(
           IDS_AERIE_SIDEBAR_FOLDER_DELETE_BODY,
           l10n_util::GetPluralStringFUTF16(IDS_AERIE_SIDEBAR_FOLDER_ITEMS,
@@ -1831,11 +1818,11 @@ bool AerieSidebarView::RequestDeleteFolder(const std::string& folder_id) {
               l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_DELETE_FOLDER)))
       .AddCancelButton(base::DoNothing())
       .SetDialogDestroyingCallback(std::move(closed));
-  if (GetWidget()) {
-    constrained_window::ShowBrowserModal(builder.Build(),
-                                         GetWidget()->GetNativeWindow());
-  }
-  return true;
+  views::Widget* dialog = constrained_window::ShowBrowserModal(
+      builder.Build(), GetWidget()->GetNativeWindow());
+  // The flag says a question is on screen, so it is set once it is.
+  delete_question_open_ = dialog != nullptr;
+  return delete_question_open_;
 }
 
 void AerieSidebarView::DeleteFolderNow(const std::string& folder_id) {
@@ -1896,9 +1883,7 @@ void AerieSidebarView::ShowFolderContextMenu(
   options.new_folder_enabled =
       aerie_tab_model::CanCreateFolderIn(*model_, folder_id);
   if (!options.new_folder_enabled) {
-    options.new_folder_tooltip = l10n_util::GetStringFUTF16(
-        IDS_AERIE_SIDEBAR_FOLDER_TOO_DEEP,
-        base::NumberToString16(aerie_tab_model::kMaxFolderDepth));
+    options.new_folder_tooltip = TooDeepTooltip();
   }
   context_menu_ = std::make_unique<AerieSidebarContextMenu>(
       std::move(options),
@@ -1974,16 +1959,16 @@ void AerieSidebarView::ShowRowContextMenu(
     const aerie_tab_model::Section section = record->section;
     const bool in_folder = !record->parent.empty();
     options.show_new_folder = true;
-    options.new_folder_enabled =
+    // Both items make a folder where the tab is, so one test serves both.
+    const bool can_make_folder =
         aerie_tab_model::CanCreateFolderIn(*model_, record->parent);
-    if (!options.new_folder_enabled) {
-      options.new_folder_tooltip = l10n_util::GetStringFUTF16(
-          IDS_AERIE_SIDEBAR_FOLDER_TOO_DEEP,
-          base::NumberToString16(aerie_tab_model::kMaxFolderDepth));
-    }
+    options.new_folder_enabled = can_make_folder;
     options.show_move_to_new_folder = true;
-    options.move_to_new_folder_enabled = aerie_tab_model::CanCreateFolderIn(
-        *model_, record->parent);
+    options.move_to_new_folder_enabled = can_make_folder;
+    if (!can_make_folder) {
+      options.new_folder_tooltip = TooDeepTooltip();
+      options.move_to_new_folder_tooltip = TooDeepTooltip();
+    }
     options.show_move_out = in_folder;
     for (const aerie_tab_model::FolderChoice& choice :
          aerie_tab_model::FolderChoices(*model_, section)) {
@@ -2117,17 +2102,9 @@ bool AerieSidebarView::StartRename(const std::string& tab_id) {
   const PrefService* prefs = browser_->GetProfile()->GetPrefs();
   // The field opens with what the row shows: the name, or the page title.
   const std::u16string initial = ShownTitleFor(tab, record).text;
-  for (const Row& row : rows_) {
-    if (row.tab_id == tab_id) {
-      row.view->BeginRename(initial, prefs);
-      return row.view->renaming();
-    }
-  }
-  for (const Row& row : pinned_rows_) {
-    if (row.tab_id == tab_id) {
-      row.view->BeginRename(initial, prefs);
-      return row.view->renaming();
-    }
+  if (AerieSidebarRowView* row = RowForId(tab_id)) {
+    row->BeginRename(initial, prefs);
+    return row->renaming();
   }
   for (const Tile& tile : tiles_) {
     if (tile.tab_id != tab_id) {
@@ -2314,11 +2291,6 @@ int AerieSidebarView::IndexOfTile(const std::string& tab_id) const {
     }
   }
   return -1;
-}
-
-void AerieSidebarView::OnPinnedRowKey(const std::string& tab_id,
-                                      aerie_sidebar::ListKey key) {
-  OnTreeRowKey(/*today=*/false, tab_id, key);
 }
 
 void AerieSidebarView::OnPinnedRowFocused() {

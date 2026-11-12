@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "base/functional/callback.h"
+#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/timer/timer.h"
 #include "ui/gfx/animation/animation_delegate.h"
@@ -31,19 +32,21 @@ class View;
 // exception, a clipped, single list), and the end of the motion. Each row fades
 // its own content with its own layer (AnimateLayer). Reveal: the rows fade in
 // `motion-timing-stagger` apart for the first `motion-timing-stagger-cap`
-// rows, while the height grows. Collapse: the rows fade out together while the
-// height shrinks, and the sidebar removes them when it is over. Reduced motion:
-// opacity only, no stagger, the height does not animate.
+// rows, while the height grows. Collapse, in sequence: the rows fade out
+// together, then the height shrinks (the split of `folder-collapse` is in
+// FolderCollapseMotion), and the sidebar removes the rows when it is over.
+// Reduced motion: opacity only, no stagger, the height does not animate.
 //
 // A new toggle of the same folder while the motion runs turns it around from
-// the values it has reached (Retarget). Anything else that changes the rows
-// ends the motion at once (Finish).
+// the values it has reached (Retarget); when reduced motion changed since the
+// motion began, it snaps to the end state instead. Anything else that changes
+// the rows ends the motion at once (Finish), and so does destroying the group.
 class AerieSidebarFolderGroup : public gfx::AnimationDelegate {
  public:
   // `rows` are in order, top to bottom. `list` is the view that lays them out.
   // `done` runs once when the motion is over, from Finish too.
   AerieSidebarFolderGroup(std::string folder_id,
-                          std::vector<AerieSidebarRowView*> rows,
+                          std::vector<raw_ptr<AerieSidebarRowView>> rows,
                           views::View* list,
                           const PrefService* prefs,
                           base::OnceClosure done);
@@ -68,6 +71,7 @@ class AerieSidebarFolderGroup : public gfx::AnimationDelegate {
 
  private:
   void Play(bool reveal, bool turn_around);
+  void StartHeight(bool reveal, int duration_ms);
   void SetHeights(double fraction);
   void End();
 
@@ -78,7 +82,11 @@ class AerieSidebarFolderGroup : public gfx::AnimationDelegate {
   base::OnceClosure done_;
   bool reveal_ = true;
   bool running_ = false;
+  // Whether reduced motion was on when the motion began.
+  bool reduced_ = false;
   std::unique_ptr<gfx::SlideAnimation> slide_;
+  // Starts the height of a collapse after the fade.
+  base::OneShotTimer height_timer_;
   base::OneShotTimer end_timer_;
 };
 

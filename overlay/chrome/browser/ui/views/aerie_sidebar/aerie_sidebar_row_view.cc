@@ -57,9 +57,10 @@ constexpr int kSleepBadgeSize = aerie::tokens::kSizeSleepBadge;
 constexpr int kSleepBadgeOffset = aerie::tokens::kSizeSleepBadgeOffset;
 constexpr int kRowHeight = aerie::tokens::kSizeRowHeightComfortable;
 
-// A row keeps its drag layers this long after the motion's own duration, so the
-// last frame is drawn before they go. Not a design value.
-constexpr int kDropLayersSlackMs = 50;
+// Degrees in one full turn: the chevron's turn is a share of it.
+constexpr float kDegreesPerTurn = 360.f;
+
+constexpr int kDropLayersSlackMs = AerieSidebarRowView::kDropLayersSlackMs;
 
 // The row height animates on the design's `standard` curve, which is exactly
 // this Tween type (aerie_motion.h).
@@ -124,7 +125,7 @@ class FolderChevron : public views::ImageView {
     }
     canvas->Save();
     canvas->Translate(gfx::Vector2d(width() / 2, height() / 2));
-    canvas->sk_canvas()->rotate(turn_ * 360.f);
+    canvas->sk_canvas()->rotate(turn_ * kDegreesPerTurn);
     canvas->Translate(gfx::Vector2d(-width() / 2, -height() / 2));
     views::ImageView::OnPaint(canvas);
     canvas->Restore();
@@ -140,7 +141,11 @@ END_METADATA
 gfx::Transform TurnTransform(float turn) {
   return gfx::TransformAboutPivot(
       gfx::PointF(kFaviconSize / 2.0f, kFaviconSize / 2.0f),
-      [turn] { gfx::Transform t; t.RotateAboutZAxis(turn * 360.0); return t; }());
+      [turn] {
+        gfx::Transform rotation;
+        rotation.RotateAboutZAxis(turn * kDegreesPerTurn);
+        return rotation;
+      }());
 }
 
 bool IsCloseShortcut(const ui::KeyEvent& event) {

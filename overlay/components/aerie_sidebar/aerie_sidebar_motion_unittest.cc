@@ -235,15 +235,27 @@ TEST(AerieSidebarMotionTest, AFolderRevealsOnFolderRevealWithAStaggerOfFifteenFo
   EXPECT_EQ(m.height_duration_ms, 200);
 }
 
-TEST(AerieSidebarMotionTest, AFolderCollapsesOnFolderCollapseWithNoStagger) {
+TEST(AerieSidebarMotionTest, AFolderCollapsesInSequenceInsideFolderCollapse) {
   const FolderMotion m = FolderCollapseMotion(/*reduced=*/false);
-  EXPECT_EQ(m.duration, MotionDuration::kFolderCollapse);
-  EXPECT_EQ(m.duration_ms, 180);
+  // The children fade together first (`xfast`), then the height shrinks for the
+  // rest of `folder-collapse`.
+  EXPECT_EQ(m.duration, MotionDuration::kXfast);
+  EXPECT_EQ(m.duration_ms, 90);
   EXPECT_EQ(m.stagger_ms, 0);
   EXPECT_FLOAT_EQ(m.from_opacity, 1.f);
   EXPECT_FLOAT_EQ(m.to_opacity, 0.f);
   EXPECT_TRUE(m.animate_height);
-  EXPECT_EQ(m.height_duration_ms, 180);
+  EXPECT_EQ(m.height_delay_ms, m.duration_ms);
+  EXPECT_EQ(m.height_duration_ms, 90);
+  EXPECT_EQ(m.height_delay_ms + m.height_duration_ms,
+            GetDurationMs(MotionDuration::kFolderCollapse, false));
+  EXPECT_EQ(m.total_ms, 180);
+}
+
+TEST(AerieSidebarMotionTest, AFolderRevealRunsTheHeightAtTheSameTimeAsTheFade) {
+  const FolderMotion m = FolderRevealMotion(/*reduced=*/false);
+  EXPECT_EQ(m.height_delay_ms, 0);
+  EXPECT_EQ(m.total_ms, 200);
 }
 
 TEST(AerieSidebarMotionTest, UnderReducedMotionAFolderOnlyFadesAndTheHeightSnaps) {
@@ -254,6 +266,8 @@ TEST(AerieSidebarMotionTest, UnderReducedMotionAFolderOnlyFadesAndTheHeightSnaps
     EXPECT_EQ(m.stagger_ms, 0);
     EXPECT_FALSE(m.animate_height);
     EXPECT_EQ(m.height_duration_ms, 0);
+    EXPECT_EQ(m.height_delay_ms, 0);
+    EXPECT_EQ(m.total_ms, 90);
   }
 }
 
