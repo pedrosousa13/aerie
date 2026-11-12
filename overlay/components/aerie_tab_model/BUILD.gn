@@ -10,6 +10,8 @@ import("//testing/test.gni")
 # //chrome/browser/aerie_tab_model.
 source_set("aerie_tab_model") {
   sources = [
+    "auto_file_controller.cc",
+    "auto_file_controller.h",
     "folder_rules.cc",
     "folder_rules.h",
     "folder_tree.cc",
@@ -55,6 +57,7 @@ source_set("prefs") {
 source_set("unit_tests") {
   testonly = true
   sources = [
+    "auto_file_controller_unittest.cc",
     "folder_rules_unittest.cc",
     "folder_tree_unittest.cc",
     "pinned_tabs_unittest.cc",
