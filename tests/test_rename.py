@@ -195,10 +195,11 @@ class ReviewFixesTest(unittest.TestCase):
         for word in ("Enter", "Esc", "Empty", "page title"):
             self.assertIn(word, text)
 
-    def test_the_field_border_uses_the_focus_ring_token_not_a_literal(self):
+    def test_the_field_border_uses_the_hairline_width_token_not_a_literal(self):
         field = code(VIEWS / "aerie_sidebar_rename_field.cc")
         self.assertNotRegex(field, r"CreateRoundedRectBorder\(\s*\d")
-        self.assertIn("kSizeFocusRingWidth", field)
+        self.assertIn("kSizeBorderHairlineWidth", field)
+        self.assertNotIn("kSizeFocusRingWidth", field)
 
     def test_the_fades_share_one_helper(self):
         for name in ("aerie_sidebar_row_view.cc", "aerie_sidebar_rename_popover.cc"):
