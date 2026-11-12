@@ -16,6 +16,15 @@ source_set("pinned_close_hook") {
   sources = [ "pinned_close_hook.h" ]
 }
 
+# The two calls that session restore and the session service make to save and
+# read back a Today tab's record id (issue #223, patches/sidebar/0039 and 0040).
+# A header with no dependencies, for the same reason as pinned_close_hook; its
+# definitions are in session_record_id_hook.cc.
+source_set("session_record_id_hook") {
+  visibility = [ "//chrome/*" ]
+  sources = [ "session_record_id_hook.h" ]
+}
+
 # chrome/browser/ui/browser_tabrestore.h (chrome::AddRestoredTab, which
 # PinnedTabsController calls) is deliberately not a dependency: its target
 # depends on //chrome/browser/profiles, which depends on this one (patches/sidebar/0011), so
@@ -24,6 +33,7 @@ source_set("aerie_tab_model") {
   visibility = [ "//chrome/*" ]
   public = [
     "pinned_tabs_controller.h",
+    "restore_pass.h",
     "sleep_controller.h",
     "sleep_controller_factory.h",
     "tab_model_service.h",
@@ -33,6 +43,9 @@ source_set("aerie_tab_model") {
   sources = [
     "pinned_tabs_controller.cc",
     "pinned_tabs_controller.h",
+    "restore_pass.cc",
+    "restore_pass.h",
+    "session_record_id_hook.cc",
     "sleep_controller.cc",
     "sleep_controller_factory.cc",
     "tab_model_service.cc",
@@ -53,11 +66,13 @@ source_set("aerie_tab_model") {
   ]
   deps = [
     ":pinned_close_hook",
+    ":session_record_id_hook",
     "//chrome/app:generated_resources",
     "//chrome/browser/performance_manager",
     "//chrome/browser/performance_manager/public/user_tuning",
     "//chrome/browser/resource_coordinator",
     "//chrome/browser/resource_coordinator:mojo_bindings",
+    "//chrome/browser/sessions",
     "//chrome/browser/tab_list",
     "//chrome/browser/ui/tabs:tab_strip",
     "//chrome/common",
@@ -77,7 +92,10 @@ source_set("browser_tests") {
   testonly = true
   # content/public/test/browser_test.h refuses to compile without it.
   defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
-  sources = [ "sleep_controller_browsertest.cc" ]
+  sources = [
+    "restore_join_browsertest.cc",
+    "sleep_controller_browsertest.cc",
+  ]
   deps = [
     ":aerie_tab_model",
     "//base",

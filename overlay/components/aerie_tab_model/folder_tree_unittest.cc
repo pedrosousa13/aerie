@@ -489,4 +489,11 @@ TEST_F(FolderTreeTest, ThreeHundredTabsInTwentyFoldersBuildInUnderSixteenMs) {
   LOG(INFO) << "tree build, 300 tabs in 20 folders: " << per_build_ms << " ms";
 }
 
+TEST_F(FolderTreeTest, AFolderWithOnlyRecordsAwaitingARestoredTabIsEmpty) {
+  const std::string folder = Folder("f");
+  const std::string tab = Tab(folder);
+  ASSERT_TRUE(model_.MarkAwaitingRestore(tab));
+  EXPECT_TRUE(FolderIsEmpty(model_, folder));
+}
+
 }  // namespace aerie_tab_model

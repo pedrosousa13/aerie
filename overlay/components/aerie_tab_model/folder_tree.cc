@@ -321,7 +321,8 @@ bool RenameFolder(TabModel& model, const std::string& id, std::string_view input
 
 bool FolderIsEmpty(const TabModel& model, const std::string& id) {
   for (const auto& [tab_id, tab] : model.tabs()) {
-    if (tab.parent == id) {
+    // A record that waits for a restored tab has no tab and is not shown.
+    if (tab.parent == id && !model.IsAwaitingRestore(tab_id)) {
       return false;
     }
   }

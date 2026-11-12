@@ -370,6 +370,13 @@ TEST_F(TabModelTest, MergeKeepsStoredRecordsAndPutsThisRunsCountersBehindThem) {
 
   EXPECT_TRUE(model_->GetTab(pinned_id));
   EXPECT_TRUE(model_->GetTab(sleeping_id));
+  // The open Today tab waits for a restored tab to claim it (issue #223): it is
+  // still there until the restore pass ends.
+  ASSERT_TRUE(model_->GetTab(open_id));
+  EXPECT_TRUE(model_->IsAwaitingRestore(open_id));
+  EXPECT_FALSE(model_->IsAwaitingRestore(pinned_id));
+  EXPECT_FALSE(model_->IsAwaitingRestore(sleeping_id));
+  EXPECT_EQ(model_->RemoveUnclaimedRestoredTabs(), 1u);
   EXPECT_EQ(model_->GetTab(open_id), nullptr);
   ASSERT_TRUE(model_->GetTab(live));
   EXPECT_EQ(model_->GetTab(live)->change, stored_next);
@@ -381,7 +388,6 @@ TEST_F(TabModelTest, MergeKeepsStoredRecordsAndPutsThisRunsCountersBehindThem) {
   }
   EXPECT_EQ(model_->change_log().back().type, ChangeType::kRemoved);
   EXPECT_EQ(model_->change_log().back().record_id, open_id);
-  EXPECT_EQ(observer_.events.back(), "loaded");
 }
 
 TEST_F(TabModelTest, MergeUsesTheStoredWorkspace) {
@@ -398,6 +404,194 @@ TEST_F(TabModelTest, MergeUsesTheStoredWorkspace) {
   EXPECT_EQ(model_->workspace().colour, "tide");
   EXPECT_EQ(model_->workspace().theme, "soft");
   EXPECT_EQ(model_->workspace().mode, "system");
+}
+
+// The join with session restore (issue #223).
+
+class TabModelRestoreJoinTest : public TabModelTest {
+ protected:
+  // A model that was saved with some Today tabs and a Today folder, and is read
+  // by model_. `open_`, `in_folder_` and `asleep_` are the stored ids.
+  void StoreAndLoad() {
+    TabModel earlier(&clock_, base::BindRepeating([](int* n) { return "old-" + base::NumberToString((*n)++); }, &next_id_));
+    earlier.MergeLoaded(std::nullopt);
+    folder_ = [&] {
+      FolderRecord folder;
+      folder.name = "Work";
+      folder.section = Section::kToday;
+      return earlier.AddFolder(std::move(folder));
+    }();
+    TabRecord named;
+    named.manual_name = "My name";
+    named.position = 3;
+    open_ = earlier.AddTab(std::move(named));
+    TabRecord filed;
+    filed.parent = folder_;
+    filed.position = 1;
+    in_folder_ = earlier.AddTab(std::move(filed));
+    TabRecord sleeping;
+    sleeping.sleeping = true;
+    asleep_ = earlier.AddTab(std::move(sleeping));
+    ParseResult stored = ParseState(earlier.ToValue());
+    ASSERT_EQ(stored.status, LoadStatus::kOk);
+    model_->MergeLoaded(std::move(stored.state));
+  }
+
+  std::string folder_;
+  std::string open_;
+  std::string in_folder_;
+  std::string asleep_;
+};
+
+TEST_F(TabModelRestoreJoinTest, ALoadedTodayTabIsClaimedByItsIdAndKeepsEverything) {
+  StoreAndLoad();
+  EXPECT_EQ(model_->ClaimRestoredTab(open_), open_);
+  EXPECT_EQ(model_->ClaimRestoredTab(in_folder_), in_folder_);
+  const TabRecord* named = model_->GetTab(open_);
+  ASSERT_TRUE(named);
+  EXPECT_EQ(named->manual_name, "My name");
+  EXPECT_EQ(named->section, Section::kToday);
+  EXPECT_EQ(named->position, 3);
+  const TabRecord* filed = model_->GetTab(in_folder_);
+  ASSERT_TRUE(filed);
+  EXPECT_EQ(filed->parent, folder_);
+  EXPECT_EQ(filed->position, 1);
+  // Claimed records are not removed when the pass ends.
+  EXPECT_EQ(model_->RemoveUnclaimedRestoredTabs(), 0u);
+  EXPECT_TRUE(model_->GetTab(open_));
+  EXPECT_TRUE(model_->GetTab(in_folder_));
+  // The sleeping tab was never waiting: the Tab Model keeps it as before.
+  EXPECT_TRUE(model_->GetTab(asleep_));
+}
+
+TEST_F(TabModelRestoreJoinTest, NoIdGivesNoClaimAndChangesNothing) {
+  StoreAndLoad();
+  const size_t tabs = model_->tabs().size();
+  const int64_t next = model_->next_change();
+  EXPECT_EQ(model_->ClaimRestoredTab(""), "");
+  EXPECT_EQ(model_->tabs().size(), tabs);
+  EXPECT_EQ(model_->next_change(), next);
+  EXPECT_TRUE(model_->IsAwaitingRestore(open_));
+}
+
+TEST_F(TabModelRestoreJoinTest, AnUnknownIdGivesNoClaim) {
+  StoreAndLoad();
+  EXPECT_EQ(model_->ClaimRestoredTab("old-9999"), "");
+  EXPECT_EQ(model_->ClaimRestoredTab("0f8fad5b-d9cb-469f-a165-70867728950e"), "");
+  EXPECT_TRUE(model_->IsAwaitingRestore(open_));
+}
+
+TEST_F(TabModelRestoreJoinTest, AMalformedIdGivesNoClaim) {
+  StoreAndLoad();
+  EXPECT_EQ(model_->ClaimRestoredTab("../../etc"), "");
+  EXPECT_EQ(model_->ClaimRestoredTab(std::string(100000, 'x')), "");
+  EXPECT_EQ(model_->ClaimRestoredTab(std::string("old-1\0old-2", 11)), "");
+  EXPECT_TRUE(model_->IsAwaitingRestore(open_));
+}
+
+TEST_F(TabModelRestoreJoinTest, OnlyAWaitingTodayRecordCanBeClaimed) {
+  StoreAndLoad();
+  // A sleeping record, a folder id and a record made in this run are not
+  // claimable.
+  EXPECT_EQ(model_->ClaimRestoredTab(asleep_), "");
+  EXPECT_EQ(model_->ClaimRestoredTab(folder_), "");
+  const std::string fresh = AddTab();
+  EXPECT_EQ(model_->ClaimRestoredTab(fresh), "");
+}
+
+TEST_F(TabModelRestoreJoinTest, TwoTabsWithTheSameIdDoNotShareARecord) {
+  StoreAndLoad();
+  // Two windows that both carry the same id (a damaged file): the first claims,
+  // the second gets a fresh record.
+  EXPECT_EQ(model_->ClaimRestoredTab(open_), open_);
+  EXPECT_EQ(model_->ClaimRestoredTab(open_), "");
+}
+
+TEST_F(TabModelRestoreJoinTest, TwoWindowsClaimTheirOwnRecordsWithoutCrossing) {
+  StoreAndLoad();
+  // Window one holds `open_`, window two holds `in_folder_`; they restore in
+  // either order.
+  EXPECT_EQ(model_->ClaimRestoredTab(in_folder_), in_folder_);
+  EXPECT_EQ(model_->ClaimRestoredTab(open_), open_);
+  EXPECT_EQ(model_->GetTab(open_)->manual_name, "My name");
+  EXPECT_EQ(model_->GetTab(in_folder_)->parent, folder_);
+  EXPECT_EQ(model_->GetTab(open_)->parent, "");
+}
+
+TEST_F(TabModelRestoreJoinTest, UnclaimedTodayTabsAreRemovedAtTheEndOfThePassButFoldersStay) {
+  StoreAndLoad();
+  EXPECT_EQ(model_->ClaimRestoredTab(open_), open_);
+  EXPECT_EQ(model_->RemoveUnclaimedRestoredTabs(), 1u);
+  EXPECT_EQ(model_->GetTab(in_folder_), nullptr);
+  EXPECT_TRUE(model_->GetTab(open_));
+  EXPECT_TRUE(model_->GetFolder(folder_));
+  EXPECT_EQ(model_->change_log().back().type, ChangeType::kRemoved);
+  EXPECT_EQ(model_->change_log().back().record_id, in_folder_);
+  // The pass is over: nothing waits, and a second sweep does nothing.
+  EXPECT_FALSE(model_->IsAwaitingRestore(in_folder_));
+  EXPECT_EQ(model_->RemoveUnclaimedRestoredTabs(), 0u);
+  // A late claim finds nothing.
+  EXPECT_EQ(model_->ClaimRestoredTab(in_folder_), "");
+}
+
+TEST_F(TabModelRestoreJoinTest, ATabInsertedBeforeTheReadFinishedSwapsItsFreshRecordForTheStoredOne) {
+  // The tab was inserted, and got a fresh record, before the read was merged.
+  const std::string fresh = AddTab();
+  StoreAndLoad();
+  EXPECT_EQ(model_->ClaimRestoredTabInPlaceOf(fresh, open_), open_);
+  EXPECT_EQ(model_->GetTab(fresh), nullptr);
+  EXPECT_EQ(model_->GetTab(open_)->manual_name, "My name");
+}
+
+TEST_F(TabModelRestoreJoinTest, TheSwapKeepsTheFreshRecordWhenThereIsNothingToClaim) {
+  const std::string fresh = AddTab();
+  StoreAndLoad();
+  EXPECT_EQ(model_->ClaimRestoredTabInPlaceOf(fresh, "old-9999"), "");
+  EXPECT_EQ(model_->ClaimRestoredTabInPlaceOf(fresh, ""), "");
+  EXPECT_TRUE(model_->GetTab(fresh));
+}
+
+TEST_F(TabModelRestoreJoinTest, TheSwapNeverRemovesARecordThatIsNotFresh) {
+  StoreAndLoad();
+  // `asleep_` is a stored, Today, sleeping record: a swap that names it as the
+  // fresh one must not delete it.
+  EXPECT_EQ(model_->ClaimRestoredTabInPlaceOf(asleep_, open_), "");
+  EXPECT_TRUE(model_->GetTab(asleep_));
+  EXPECT_TRUE(model_->IsAwaitingRestore(open_));
+  EXPECT_EQ(model_->ClaimRestoredTabInPlaceOf("old-9999", open_), "");
+  EXPECT_TRUE(model_->IsAwaitingRestore(open_));
+}
+
+TEST_F(TabModelRestoreJoinTest, ALiveAwakeTodayRecordCanBeMadeToWaitAndThenBeClaimedOrSwept) {
+  model_->MergeLoaded(std::nullopt);
+  const std::string kept = AddTab();
+  const std::string swept = AddTab();
+  EXPECT_TRUE(model_->MarkAwaitingRestore(kept));
+  EXPECT_TRUE(model_->MarkAwaitingRestore(swept));
+  EXPECT_EQ(model_->ClaimRestoredTab(kept), kept);
+  EXPECT_EQ(model_->RemoveUnclaimedRestoredTabs(), 1u);
+  EXPECT_TRUE(model_->GetTab(kept));
+  EXPECT_EQ(model_->GetTab(swept), nullptr);
+}
+
+TEST_F(TabModelRestoreJoinTest, OnlyAnAwakeTodayRecordCanBeMadeToWait) {
+  model_->MergeLoaded(std::nullopt);
+  const std::string pinned = AddTab(Section::kPinned);
+  const std::string asleep = AddTab();
+  ASSERT_TRUE(model_->UpdateTab(asleep, [](TabRecord& t) { t.sleeping = true; }));
+  EXPECT_FALSE(model_->MarkAwaitingRestore(pinned));
+  EXPECT_FALSE(model_->MarkAwaitingRestore(asleep));
+  EXPECT_FALSE(model_->MarkAwaitingRestore("no-such-id"));
+  EXPECT_EQ(model_->awaiting_restore_count(), 0u);
+}
+
+TEST_F(TabModelRestoreJoinTest, NothingWaitsWhenNothingIsStored) {
+  model_->MergeLoaded(std::nullopt);
+  const std::string tab = AddTab();
+  EXPECT_FALSE(model_->IsAwaitingRestore(tab));
+  EXPECT_EQ(model_->ClaimRestoredTab(tab), "");
+  EXPECT_EQ(model_->RemoveUnclaimedRestoredTabs(), 0u);
+  EXPECT_TRUE(model_->GetTab(tab));
 }
 
 // ParseState.

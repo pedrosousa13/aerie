@@ -12,6 +12,7 @@
 #include "base/time/default_clock.h"
 #include "base/time/default_tick_clock.h"
 #include "chrome/browser/aerie_tab_model/pinned_tabs_controller.h"
+#include "chrome/browser/aerie_tab_model/restore_pass.h"
 #include "chrome/browser/aerie_tab_model/tab_strip_adapter.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/sessions/session_restore.h"
@@ -68,6 +69,9 @@ TabModelService::TabModelService(Profile* profile)
                 aerie::motion::ShouldReduceMotion(profile->GetPrefs()));
           },
           base::Unretained(profile_.get())));
+  restore_pass_ = std::make_unique<RestorePass>(profile_, &model_);
+  adapter_->SetRecordKeptCallback(base::BindRepeating(
+      &RestorePass::Rearm, base::Unretained(restore_pass_.get())));
   adapter_->SetTabInsertedCallback(base::BindRepeating(
       &TabModelService::OnTabInserted, base::Unretained(this)));
   adapter_->SetTabChangedCallback(base::BindRepeating(
@@ -117,6 +121,8 @@ std::optional<base::TimeDelta> TabModelService::sleep_after() const {
 }
 
 void TabModelService::Shutdown() {
+  adapter_->SetRecordKeptCallback(base::RepeatingClosure());
+  restore_pass_.reset();
   auto_file_.reset();
   pinned_tabs_.reset();
   adapter_.reset();

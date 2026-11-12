@@ -1,0 +1,47 @@
+Aerie-Purpose: Keep the Tab Model record id of a closed tab or window in the tab restore service, so that reopening it gives the tabs their records back.
+Aerie-Upstream-Area: chrome/browser/ui (browser_live_tab_context.cc, BUILD.gn)
+Aerie-Kind: hook
+
+Issue #223. BrowserLiveTabContext::GetExtraDataForTab is what the tab restore service saves with a
+closed tab or window. It now also puts the record id (aerie_tab_model::RecordIdToSave, overlay,
+chrome/browser/aerie_tab_model/session_record_id_hook.h) under the key aerie.tab_record_id when the tab
+has a Today record. chrome::AddRestoredTab then passes that extra data to StashRestoredRecordId
+(patches/sidebar/0040), the same way as for session restore. An id that matches no waiting record
+gives a fresh record. The header has no dependencies, so the new dep cannot make a cycle.
+
+--- a/chrome/browser/ui/BUILD.gn
++++ b/chrome/browser/ui/BUILD.gn
+@@ -564,6 +564,7 @@
+       ":browser_window_header",
+       ":ui_features",
+       "//base",
++      "//chrome/browser/aerie_tab_model:session_record_id_hook",
+       "//chrome/browser/apps/app_service",
+       "//chrome/browser/glic",
+       "//chrome/browser/performance_manager",
+--- a/chrome/browser/ui/browser_live_tab_context.cc
++++ b/chrome/browser/ui/browser_live_tab_context.cc
+@@ -14,6 +14,7 @@
+ #include "base/token.h"
+ #include "base/uuid.h"
+ #include "base/values.h"
++#include "chrome/browser/aerie_tab_model/session_record_id_hook.h"
+ #include "chrome/browser/apps/app_service/web_contents_app_id_utils.h"
+ #include "chrome/browser/glic/glic_tab_restore_helper.h"
+ #include "chrome/browser/performance_manager/public/background_tab_loading_policy.h"
+@@ -207,6 +208,15 @@
+   glic::PopulateGlicExtraData(tab_strip_model_->GetTabAtIndex(index),
+                               &extra_data);
+ 
++  // Aerie: a closed tab or window keeps the Tab Model record id of its tab, so
++  // that "Reopen closed tab or window" can give the tab its record back (issue
++  // #223).
++  const std::string aerie_record_id =
++      aerie_tab_model::RecordIdToSave(tab_strip_model_->GetWebContentsAt(index));
++  if (!aerie_record_id.empty()) {
++    extra_data[aerie_tab_model::kSessionRecordIdKey] = aerie_record_id;
++  }
++
+   return extra_data;
+ }
+ 

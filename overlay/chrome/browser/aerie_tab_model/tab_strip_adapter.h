@@ -11,10 +11,13 @@
 #include "base/functional/callback.h"
 
 #include "base/memory/raw_ptr.h"
+#include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
 #include "base/time/clock.h"
 #include "chrome/browser/ui/browser_window/public/browser_collection_observer.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
+#include "components/aerie_tab_model/tab_model.h"
+#include "components/aerie_tab_model/tab_model_observer.h"
 #include "components/tabs/public/tab_interface.h"
 
 class BrowserWindowInterface;
@@ -22,8 +25,6 @@ class GlobalBrowserCollection;
 class Profile;
 
 namespace aerie_tab_model {
-
-class TabModel;
 
 // Keeps the Tab Model in step with the tab strips of one profile (issue #176).
 // It watches every normal browser window of the profile and, through
@@ -44,10 +45,22 @@ class TabModel;
 // Today first. A tab's `position` follows the strip only in Today: Pinned and
 // Favorites are ordered by the user, not by the strip.
 //
+// Today tabs and a restart (issue #223). The record id of every Today tab is
+// saved with the tab in Chromium's session file (SaveRecordIdSoon). When session
+// restore brings a tab back with that id (the id is on its WebContents when the
+// tab is inserted, see session_record_id_hook.h), the tab re-attaches to the
+// record the Tab Model read from state.json (TabModel::ClaimRestoredTab): same
+// section, folder, position and manual name. A tab with no id, a malformed id
+// or an id that matches nothing gets a fresh record. A tab that comes in before
+// the Tab Model has read state.json gets a fresh record first and swaps it for
+// the stored one when the read is merged. Nothing is matched by address, title
+// or position.
+//
 // It does not set the Chromium pinned bit, and it does not use TabGroupModel.
 // It does not mirror the Tab Model order into the tab strip (issue #186).
 class TabStripAdapter : public BrowserCollectionObserver,
-                        public TabStripModelObserver {
+                        public TabStripModelObserver,
+                        public TabModelObserver {
  public:
   TabStripAdapter(Profile* profile, TabModel* model, const base::Clock* clock);
   TabStripAdapter(const TabStripAdapter&) = delete;
@@ -56,6 +69,9 @@ class TabStripAdapter : public BrowserCollectionObserver,
 
   // The record id of a live tab, or an empty string.
   std::string RecordIdForTab(const tabs::TabInterface* tab) const;
+  // The record id to save in the session for `tab`: its id when its record is a
+  // Today record, else an empty string.
+  std::string SessionRecordIdForTab(const tabs::TabInterface* tab) const;
   // The live tab of a record, or null when the record has no tab (a Pinned or
   // Favorites tab that is not restored yet).
   tabs::TabInterface* TabForRecord(const std::string& record_id) const;
@@ -86,6 +102,12 @@ class TabStripAdapter : public BrowserCollectionObserver,
                                    tabs::TabInterface* tab)>;
   void SetTabInsertedCallback(TabInsertedCallback callback);
 
+  // Runs when a record stays in the model although its tab went away with a
+  // closing window, because Chromium's session will bring the tab back (issue
+  // #223). The record waits for a claim; the callee starts the restore pass
+  // again, so that a window that opens later in the same run ends the wait.
+  void SetRecordKeptCallback(base::RepeatingClosure callback);
+
  private:
   // BrowserCollectionObserver:
   void OnBrowserCreated(BrowserWindowInterface* browser) override;
@@ -96,7 +118,21 @@ class TabStripAdapter : public BrowserCollectionObserver,
                               const TabStripModelChange& change,
                               const TabStripSelectionChange& selection) override;
 
+  // TabModelObserver:
+  void OnModelLoaded() override;
+  void OnTabMoved(const TabRecord& tab, const Placement& from) override;
+
   bool Watches(BrowserWindowInterface* browser) const;
+  // True when the record of a tab that goes away with its closing window should
+  // stay, because session restore will bring the tab back.
+  bool KeepRecordWithClosingWindow(TabStripModel* tab_strip_model,
+                                   const TabRecord& record) const;
+  // Saves (or, for a record that left Today, clears) the record id of `tab` in
+  // the session file. Runs after the call that is inserting the tab has
+  // returned: the session service learns of the tab and its window from its own
+  // observer of the same strip.
+  void SaveRecordIdSoon(tabs::TabInterface* tab);
+  void SaveRecordId(tabs::TabHandle handle);
   // Adds a record for `tab`, or, if the tab already has one (it came from
   // another window), moves the record.
   void TabInserted(tabs::TabInterface* tab, int index);
@@ -110,11 +146,17 @@ class TabStripAdapter : public BrowserCollectionObserver,
   // Live tab handle to record id.
   std::map<tabs::TabHandle, std::string> ids_;
   std::string pending_restore_record_;
+  // Tabs inserted before the Tab Model read state.json: the id each carried from
+  // the session, to be claimed when the read is merged.
+  std::map<tabs::TabHandle, std::string> deferred_claims_;
   base::RepeatingClosure pinned_tab_gone_;
   TabChangedCallback tab_changed_;
   TabInsertedCallback tab_inserted_;
+  base::RepeatingClosure record_kept_;
   base::ScopedObservation<GlobalBrowserCollection, BrowserCollectionObserver>
       browser_collection_observation_{this};
+  base::ScopedObservation<TabModel, TabModelObserver> model_observation_{this};
+  base::WeakPtrFactory<TabStripAdapter> weak_factory_{this};
 };
 
 }  // namespace aerie_tab_model

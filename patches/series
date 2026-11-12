@@ -150,3 +150,8 @@ sidebar/0037-add-the-pinned-close-row-to-the-sidebar-section-of-settings.patch
 
 # Auto-filing new tabs into folders (#139): the "Folder rules everywhere" row in the Sidebar section of Settings.
 sidebar/0038-add-the-folder-rules-row-to-the-sidebar-section-of-settings.patch
+
+# Keeping Today tabs matched to their records across a restart (#223): the record id is saved with the tab in the session and read back when the tab is restored.
+sidebar/0039-save-the-tab-model-record-id-in-the-session.patch
+sidebar/0040-read-the-tab-model-record-id-when-restoring-a-tab.patch
+sidebar/0041-keep-the-tab-model-record-id-when-a-tab-is-closed.patch

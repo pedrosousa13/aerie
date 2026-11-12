@@ -120,6 +120,7 @@ TEST_F(TabModelPersistenceTest, FolderOrderExpandStateAndPinnedContentsSurviveAR
   std::string inner;
   std::string pinned_tab;
   std::string today_tab;
+  std::string today_folder;
   Session([&](TabModel& model) {
     open_folder = CreateFolder(model, Section::kPinned, std::string(), "Open");
     shut_folder = CreateFolder(model, Section::kPinned, std::string(), "Shut");
@@ -134,7 +135,8 @@ TEST_F(TabModelPersistenceTest, FolderOrderExpandStateAndPinnedContentsSurviveAR
     today.section = Section::kToday;
     today.last_active = clock_.Now();
     today_tab = model.AddTab(std::move(today));
-    model.MoveTab(today_tab, Section::kToday, CreateFolder(model, Section::kToday, std::string(), "T"), 0);
+    today_folder = CreateFolder(model, Section::kToday, std::string(), "T");
+    model.MoveTab(today_tab, Section::kToday, today_folder, 0);
   });
   Session([&](TabModel& model) {
     ASSERT_TRUE(model.GetFolder(open_folder));
@@ -148,9 +150,12 @@ TEST_F(TabModelPersistenceTest, FolderOrderExpandStateAndPinnedContentsSurviveAR
     ASSERT_EQ(rows.size(), 4u);
     EXPECT_EQ(rows[0].id, shut_folder);
     EXPECT_EQ(rows[1].id, open_folder);
-    // What does not survive without #223: a live Today tab is dropped, the
-    // folder that held it stays (empty).
+    // A live Today tab that no restored tab claims is dropped when the restore
+    // pass ends (issue #223); the folder that held it stays (empty).
+    EXPECT_TRUE(model.IsAwaitingRestore(today_tab));
+    model.RemoveUnclaimedRestoredTabs();
     EXPECT_EQ(model.GetTab(today_tab), nullptr);
+    EXPECT_TRUE(model.GetFolder(today_folder));
   });
 }
 
@@ -164,8 +169,43 @@ TEST_F(TabModelPersistenceTest, ALiveTodayTabIsNotKeptButASleepingOneIs) {
     asleep = model.AddTab(std::move(tab));
   });
   Session([&](TabModel& model) {
+    model.RemoveUnclaimedRestoredTabs();
     EXPECT_EQ(model.GetTab(live), nullptr);
     EXPECT_TRUE(model.GetTab(asleep));
+  });
+}
+
+// Issue #223: a restored tab that carries the record's id gets the record back,
+// with its name, folder and place in the folder.
+TEST_F(TabModelPersistenceTest, AClaimedTodayTabKeepsItsRecordAcrossARestart) {
+  std::string folder;
+  std::string named;
+  std::string plain;
+  Session([&](TabModel& model) {
+    folder = CreateFolder(model, Section::kToday, std::string(), "Work");
+    TabRecord first;
+    first.manual_name = "Kept name";
+    first.last_active = clock_.Now();
+    named = model.AddTab(std::move(first));
+    ASSERT_TRUE(model.MoveTab(named, Section::kToday, folder, 2));
+    plain = model.AddTab(TabRecord());
+  });
+  Session([&](TabModel& model) {
+    // Only `named` is claimed by a restored tab; `plain` is not.
+    EXPECT_EQ(model.ClaimRestoredTab(named), named);
+    EXPECT_EQ(model.RemoveUnclaimedRestoredTabs(), 1u);
+    EXPECT_EQ(model.GetTab(plain), nullptr);
+    const TabRecord* tab = model.GetTab(named);
+    ASSERT_TRUE(tab);
+    EXPECT_EQ(tab->manual_name, "Kept name");
+    EXPECT_EQ(tab->parent, folder);
+    EXPECT_EQ(tab->position, 2);
+    EXPECT_TRUE(model.GetFolder(folder));
+  });
+  // And it is still there for the restart after that.
+  Session([&](TabModel& model) {
+    EXPECT_EQ(model.ClaimRestoredTab(named), named);
+    EXPECT_EQ(model.GetTab(named)->manual_name, "Kept name");
   });
 }
 
