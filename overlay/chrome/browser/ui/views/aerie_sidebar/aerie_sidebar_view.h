@@ -148,6 +148,12 @@ class AerieSidebarView : public views::View,
   // The folder editor (issue #139): null when it is not open.
   AerieSidebarFolderSheet* folder_sheet() const { return folder_sheet_.get(); }
   void OpenFolderSheet(const std::string& folder_id);
+  void FolderContextCommandForTesting(const std::string& folder_id, int command) {
+    OnFolderContextCommand(folder_id, command);
+  }
+  void ContextCommandForTesting(const std::string& tab_id, int command) {
+    OnContextCommand(tab_id, command);
+  }
   // aerie_tab_model::AutoFileController::Observer:
   void OnTabFiled(const aerie_tab_model::AutoFileController::Filed& filed) override;
   bool toast_visible() const;
