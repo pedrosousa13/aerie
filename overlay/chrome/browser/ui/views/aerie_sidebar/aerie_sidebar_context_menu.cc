@@ -202,7 +202,8 @@ bool AerieSidebarContextMenu::HasCommand(int id) const {
     case kCommandMoveOutOfFolder:
       return options_.target == Target::kTab && options_.show_move_out;
     case kCommandMoveToFolderList:
-      return false;
+      // The parent of the list: it has to be enabled for the list to open.
+      return options_.target == Target::kTab && !options_.move_targets.empty();
     case kCommandSleepTab:
     case kCommandClose:
     case kCommandRename:

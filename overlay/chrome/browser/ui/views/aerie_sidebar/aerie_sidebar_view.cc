@@ -315,8 +315,12 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
   list->GetViewAccessibility().SetName(
       l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_TODAY));
   list_ = scroll_->SetContents(std::move(list));
+  // Right-click on the empty part of a section offers New folder.
   list_->set_context_menu_controller(this);
   pinned_list_->set_context_menu_controller(this);
+  scroll_->set_context_menu_controller(this);
+  pinned_scroll_->set_context_menu_controller(this);
+  today_header->set_context_menu_controller(this);
   layout->SetFlexForView(scroll_, 1);
 
   // The toast: one short message, polite for a screen reader (docs/sidebar-
