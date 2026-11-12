@@ -31,6 +31,7 @@
 #include "ui/compositor/layer.h"
 #include "ui/events/event.h"
 #include "ui/gfx/animation/slide_animation.h"
+#include "ui/gfx/canvas.h"
 #include "ui/gfx/geometry/insets.h"
 #include "ui/gfx/geometry/transform.h"
 #include "ui/gfx/geometry/transform_util.h"
@@ -99,6 +100,49 @@ class FaviconHolder : public views::View {
 BEGIN_METADATA(FaviconHolder)
 END_METADATA
 
+// The chevron of a folder row. At rest it paints the right-pointing icon turned
+// by `turn` (a share of a full turn), so that a row that is open when it is made
+// needs no layer. While the chevron animates it has a layer, the layer's
+// transform carries the angle, and it paints unturned.
+class FolderChevron : public views::ImageView {
+  METADATA_HEADER(FolderChevron, views::ImageView)
+
+ public:
+  void SetTurn(float turn) {
+    if (turn_ == turn) {
+      return;
+    }
+    turn_ = turn;
+    SchedulePaint();
+  }
+  float turn() const { return turn_; }
+
+  void OnPaint(gfx::Canvas* canvas) override {
+    if (turn_ == 0.f) {
+      views::ImageView::OnPaint(canvas);
+      return;
+    }
+    canvas->Save();
+    canvas->Translate(gfx::Vector2d(width() / 2, height() / 2));
+    canvas->sk_canvas()->rotate(turn_ * 360.f);
+    canvas->Translate(gfx::Vector2d(-width() / 2, -height() / 2));
+    views::ImageView::OnPaint(canvas);
+    canvas->Restore();
+  }
+
+ private:
+  float turn_ = 0.f;
+};
+
+BEGIN_METADATA(FolderChevron)
+END_METADATA
+
+gfx::Transform TurnTransform(float turn) {
+  return gfx::TransformAboutPivot(
+      gfx::PointF(kFaviconSize / 2.0f, kFaviconSize / 2.0f),
+      [turn] { gfx::Transform t; t.RotateAboutZAxis(turn * 360.0); return t; }());
+}
+
 bool IsCloseShortcut(const ui::KeyEvent& event) {
   if (event.key_code() != ui::VKEY_W) {
     return false;
@@ -122,6 +166,7 @@ AerieSidebarRowView::AerieSidebarRowView(
   auto* layout = content_->SetLayoutManager(std::make_unique<views::BoxLayout>(
       views::BoxLayout::Orientation::kHorizontal,
       gfx::Insets::VH(0, aerie::tokens::kSpace8), aerie::tokens::kSpace8));
+  content_layout_ = layout;
   layout->set_cross_axis_alignment(
       views::BoxLayout::CrossAxisAlignment::kCenter);
   content_->GetViewAccessibility().SetIsIgnored(true);
@@ -244,6 +289,7 @@ AerieSidebarRowView::~AerieSidebarRowView() {
   row_motion_.Abort();
   lift_motion_.Abort();
   sleep_motion_.Abort();
+  chevron_motion_.Abort();
 }
 
 void AerieSidebarRowView::SetTabStop(bool tab_stop) {
@@ -308,6 +354,14 @@ void AerieSidebarRowView::SetPalette(
   AerieSidebarFocusRing::Get(this)->SetColor(palette_.accent);
   sleep_badge_->SetImage(ui::ImageModel::FromVectorIcon(
       aerie_sidebar::kAerieSleepBadgeIcon, palette_.text, kSleepBadgeSize));
+  if (is_folder_) {
+    favicon_->SetImage(ui::ImageModel::FromVectorIcon(
+        vector_icons::kFolderFilledIcon, palette_.text_muted, kFaviconSize));
+    chevron_->SetImage(ui::ImageModel::FromVectorIcon(
+        vector_icons::kKeyboardArrowRightFlippableIcon, palette_.text_muted, kFaviconSize));
+    selection_dot_->SetBackground(views::CreateRoundedRectBackground(
+        palette_.accent, aerie::tokens::kSizeFolderDot / 2));
+  }
   UpdateState();
 }
 
@@ -320,7 +374,7 @@ void AerieSidebarRowView::UpdateTrailing() {
   back_to_pinned_->SetVisible(back_to_pinned_wanted_ && !closing_ &&
                               !renaming_);
   pencil_->SetVisible(renamed_ && !closing_ && !renaming_);
-  close_button_->SetVisible(!closing_ && !renaming_ &&
+  close_button_->SetVisible(!is_folder_ && !closing_ && !renaming_ &&
                             (hovered_ || HasFocus()));
 }
 
@@ -337,6 +391,10 @@ void AerieSidebarRowView::SetTitle(const std::u16string& title) {
 
 void AerieSidebarRowView::UpdateName() {
   // The shown title, then ", asleep", then ", renamed".
+  if (is_folder_) {
+    GetViewAccessibility().SetName(folder_accessible_name_);
+    return;
+  }
   std::u16string name = title_text_;
   if (sleeping_) {
     name = l10n_util::GetStringFUTF16(IDS_AERIE_SIDEBAR_ROW_ASLEEP_NAME, name);
@@ -385,11 +443,13 @@ void AerieSidebarRowView::EnsureRenameField() {
       &AerieSidebarRowView::OnRenameBlur, weak_factory_.GetWeakPtr()));
   field->set_controller(this);
   field->SetVisible(false);
-  field->GetViewAccessibility().SetName(
-      l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_RENAME_FIELD_NAME));
+  field->GetViewAccessibility().SetName(l10n_util::GetStringUTF16(
+      is_folder_ ? IDS_AERIE_SIDEBAR_FOLDER_RENAME_FIELD_NAME
+                 : IDS_AERIE_SIDEBAR_RENAME_FIELD_NAME));
   // The caption is the field's description.
-  field->GetViewAccessibility().SetDescription(
-      l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_RENAME_CAPTION));
+  field->GetViewAccessibility().SetDescription(l10n_util::GetStringUTF16(
+      is_folder_ ? IDS_AERIE_SIDEBAR_FOLDER_RENAME_CAPTION
+                 : IDS_AERIE_SIDEBAR_RENAME_CAPTION));
   views::FocusRing::Remove(field.get());
   // Right after the title, so that it takes the title's place in the layout.
   const std::optional<size_t> title_index = content_->GetIndexOf(title_);
@@ -790,6 +850,12 @@ bool AerieSidebarRowView::OnKeyPressed(const ui::KeyEvent& event) {
         return true;
       }
       return false;
+    case ui::VKEY_RIGHT:
+      callbacks_.key.Run(aerie_sidebar::ListKey::kRight);
+      return true;
+    case ui::VKEY_LEFT:
+      callbacks_.key.Run(aerie_sidebar::ListKey::kLeft);
+      return true;
     case ui::VKEY_UP:
       callbacks_.key.Run(aerie_sidebar::ListKey::kUp);
       return true;
@@ -1096,6 +1162,184 @@ void AerieSidebarRowView::CollapseAfterContent() {
   if (closed_) {
     std::move(closed_).Run();
   }
+}
+
+void AerieSidebarRowView::MakeFolderRow() {
+  if (is_folder_) {
+    return;
+  }
+  is_folder_ = true;
+  // The folder glyph takes the favicon's place; the sleep badge never shows.
+  sleep_badge_->SetVisible(false);
+  auto chevron = std::make_unique<FolderChevron>();
+  chevron->SetImageSize(gfx::Size(kFaviconSize, kFaviconSize));
+  chevron->GetViewAccessibility().SetIsIgnored(true);
+  chevron_ = content_->AddChildViewAt(std::move(chevron), 0);
+  // The dot of a shut folder that holds the open tab, after the name.
+  auto dot = std::make_unique<views::View>();
+  dot->SetPreferredSize(gfx::Size(aerie::tokens::kSizeFolderDot,
+                                  aerie::tokens::kSizeFolderDot));
+  dot->GetViewAccessibility().SetIsIgnored(true);
+  dot->SetVisible(false);
+  const std::optional<size_t> title_index = content_->GetIndexOf(title_);
+  selection_dot_ = content_->AddChildViewAt(
+      std::move(dot), title_index ? *title_index + 1 : content_->children().size());
+  rename_caption_->SetText(
+      l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_FOLDER_RENAME_CAPTION));
+  GetViewAccessibility().SetIsSelected(false);
+  GetViewAccessibility().SetIsIgnored(false);
+  SetPalette(palette_);
+  UpdateName();
+}
+
+void AerieSidebarRowView::SetLevel(int level) {
+  if (level_ == level) {
+    return;
+  }
+  level_ = level;
+  UpdateIndent();
+}
+
+void AerieSidebarRowView::UpdateIndent() {
+  content_layout_->set_inside_border_insets(gfx::Insets::TLBR(
+      0, aerie::tokens::kSpace8 + level_ * aerie::tokens::kSizeIndent, 0,
+      aerie::tokens::kSpace8));
+  content_->InvalidateLayout();
+  GetViewAccessibility().SetHierarchicalLevel(level_ + 1);
+}
+
+views::View* AerieSidebarRowView::chevron_view() const {
+  return chevron_;
+}
+
+void AerieSidebarRowView::SetFolderState(const std::u16string& name,
+                                         const std::u16string& accessible_name,
+                                         bool expanded,
+                                         bool holds_selected_tab,
+                                         const PrefService* motion_prefs) {
+  CHECK(is_folder_);
+  if (title_text_ != name) {
+    SetTitle(name);
+  }
+  folder_accessible_name_ = accessible_name;
+  UpdateName();
+  selection_dot_->SetVisible(holds_selected_tab && !expanded);
+  const bool changed = !folder_state_applied_ || expanded_ != expanded;
+  const bool animate = folder_state_applied_ && motion_prefs;
+  folder_state_applied_ = true;
+  expanded_ = expanded;
+  if (expanded) {
+    GetViewAccessibility().SetIsExpanded();
+  } else {
+    GetViewAccessibility().SetIsCollapsed();
+  }
+  if (!changed) {
+    return;
+  }
+  auto* chevron = static_cast<FolderChevron*>(chevron_.get());
+  const aerie_sidebar::ChevronMotion motion = aerie_sidebar::FolderChevronMotion(
+      aerie::motion::ShouldReduceMotion(motion_prefs));
+  const float target_turn = expanded ? motion.open_turn : 0.f;
+  chevron_motion_.Abort();
+  chevron_timer_.Stop();
+  if (!animate || !motion.animate) {
+    // At once: painted turned, no layer, no transform.
+    if (chevron->layer()) {
+      chevron->DestroyLayer();
+    }
+    chevron->SetTurn(target_turn);
+    return;
+  }
+  // The turn: the layer carries the angle, from the angle the chevron has now
+  // (a running turn that is reversed starts from where it got to).
+  const gfx::Transform start = chevron->layer()
+                                   ? chevron->layer()->transform()
+                                   : TurnTransform(chevron->turn());
+  if (!chevron->layer()) {
+    chevron->SetPaintToLayer();
+    chevron->layer()->SetFillsBoundsOpaquely(false);
+  }
+  chevron->SetTurn(0.f);
+  chevron->layer()->SetTransform(start);
+  const float open_turn = motion.open_turn;
+  aerie::motion::LayerMotion target;
+  target.transform = TurnTransform(expanded ? open_turn : 0.f);
+  chevron_motion_ = aerie::motion::AnimateLayer(
+      chevron->layer(), target, motion.duration, motion.easing, motion_prefs);
+  chevron_timer_.Start(
+      FROM_HERE, base::Milliseconds(motion.duration_ms + kDropLayersSlackMs),
+      base::BindOnce(&AerieSidebarRowView::EndChevronTurn,
+                     base::Unretained(this)));
+}
+
+void AerieSidebarRowView::EndChevronTurn() {
+  auto* chevron = static_cast<FolderChevron*>(chevron_.get());
+  chevron_motion_.Abort();
+  if (chevron->layer()) {
+    chevron->DestroyLayer();
+  }
+  chevron->SetTurn(expanded_ ? aerie_sidebar::FolderChevronMotion(false).open_turn
+                             : 0.f);
+}
+
+void AerieSidebarRowView::PlayFolderFade(
+    const aerie_sidebar::FolderMotion& motion,
+    int delay_ms,
+    const PrefService* prefs,
+    bool start_from_current) {
+  fade_timer_.Stop();
+  content_motion_.Abort();
+  if (!content_->layer()) {
+    content_->SetPaintToLayer();
+    content_->layer()->SetFillsBoundsOpaquely(false);
+  }
+  if (!start_from_current) {
+    content_->layer()->SetOpacity(motion.from_opacity);
+  }
+  auto start = [](base::WeakPtr<AerieSidebarRowView> row,
+                  aerie_sidebar::FolderMotion motion, const PrefService* prefs) {
+    if (!row || !row->content_->layer()) {
+      return;
+    }
+    aerie::motion::LayerMotion target;
+    target.opacity = motion.to_opacity;
+    row->content_motion_ = aerie::motion::AnimateLayer(
+        row->content_->layer(), target, motion.duration, motion.easing, prefs);
+  };
+  if (delay_ms <= 0) {
+    start(weak_factory_.GetWeakPtr(), motion, prefs);
+    return;
+  }
+  fade_timer_.Start(FROM_HERE, base::Milliseconds(delay_ms),
+                    base::BindOnce(start, weak_factory_.GetWeakPtr(), motion,
+                                   prefs));
+}
+
+bool AerieSidebarRowView::folder_fading() const {
+  return fade_timer_.IsRunning() || content_motion_.IsAnimating();
+}
+
+void AerieSidebarRowView::SetHeightFraction(double fraction) {
+  if (!layer()) {
+    SetPaintToLayer();
+    layer()->SetFillsBoundsOpaquely(false);
+  }
+  layer()->SetMasksToBounds(true);
+  height_fraction_ = fraction;
+  PreferredSizeChanged();
+}
+
+void AerieSidebarRowView::EndFolderMotion() {
+  fade_timer_.Stop();
+  content_motion_.Abort();
+  height_fraction_ = 1.0;
+  if (content_->layer() && !drag_layers_) {
+    content_->DestroyLayer();
+  }
+  if (layer() && !drag_layers_ && !height_animating()) {
+    DestroyLayer();
+  }
+  PreferredSizeChanged();
 }
 
 BEGIN_METADATA(AerieSidebarRowView)

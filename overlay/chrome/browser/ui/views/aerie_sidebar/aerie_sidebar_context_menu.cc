@@ -22,9 +22,34 @@
 AerieSidebarContextMenu::AerieSidebarContextMenu(Options options,
                                                  CommandCallback on_command)
     : options_(std::move(options)), on_command_(std::move(on_command)) {
-  using aerie_tab_model::Section;
   auto root = std::make_unique<views::MenuItemView>(this);
   root_ = root.get();
+  auto append_new_folder = [this]() {
+    views::MenuItemView* item = root_->AppendMenuItem(
+        kCommandNewFolder,
+        l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_NEW_FOLDER));
+    item->SetEnabled(options_.new_folder_enabled);
+  };
+  if (options_.target == Target::kSection) {
+    append_new_folder();
+  } else if (options_.target == Target::kFolder) {
+    append_new_folder();
+    root_->AppendMenuItem(
+        kCommandRenameFolder,
+        l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_RENAME_FOLDER));
+    root_->AppendSeparator();
+    root_->AppendMenuItem(
+        kCommandDeleteFolder,
+        l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_DELETE_FOLDER));
+  } else {
+    BuildTabItems();
+  }
+  runner_ = std::make_unique<views::MenuRunner>(
+      std::move(root), views::MenuRunner::HAS_MNEMONICS);
+}
+
+void AerieSidebarContextMenu::BuildTabItems() {
+  using aerie_tab_model::Section;
   if (options_.away_from_pinned && options_.section == Section::kPinned) {
     root_->AppendMenuItem(
         kCommandBackToPinned,
@@ -54,14 +79,44 @@ AerieSidebarContextMenu::AerieSidebarContextMenu(Options options,
     root_->AppendMenuItem(kCommandResetName, l10n_util::GetStringUTF16(
                                                  IDS_AERIE_SIDEBAR_RESET_NAME));
   }
+  if (options_.section != Section::kFavorite &&
+      (options_.show_new_folder || options_.show_move_to_new_folder ||
+       !options_.move_targets.empty() || options_.show_move_out)) {
+    root_->AppendSeparator();
+    if (options_.show_new_folder) {
+      root_->AppendMenuItem(
+          kCommandNewFolder,
+          l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_NEW_FOLDER))
+          ->SetEnabled(options_.new_folder_enabled);
+    }
+    if (options_.show_move_to_new_folder) {
+      root_->AppendMenuItem(
+              kCommandMoveToNewFolder,
+              l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_MOVE_TO_NEW_FOLDER))
+          ->SetEnabled(options_.move_to_new_folder_enabled);
+    }
+    if (!options_.move_targets.empty()) {
+      views::MenuItemView* list = root_->AppendSubMenu(
+          kCommandMoveToFolderList,
+          l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_MOVE_TO_FOLDER));
+      for (size_t i = 0; i < options_.move_targets.size(); ++i) {
+        list->AppendMenuItem(kCommandMoveToFolderBase + static_cast<int>(i),
+                             options_.move_targets[i].label)
+            ->SetEnabled(options_.move_targets[i].enabled);
+      }
+    }
+    if (options_.show_move_out) {
+      root_->AppendMenuItem(
+          kCommandMoveOutOfFolder,
+          l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_MOVE_OUT_OF_FOLDER));
+    }
+  }
   root_->AppendSeparator();
   views::MenuItemView* sleep = root_->AppendMenuItem(
       kCommandSleepTab, l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_SLEEP_TAB));
   sleep->SetEnabled(options_.sleep.enabled);
   root_->AppendMenuItem(kCommandClose,
                         l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_CLOSE_TAB));
-  runner_ = std::make_unique<views::MenuRunner>(
-      std::move(root), views::MenuRunner::HAS_MNEMONICS);
 }
 
 AerieSidebarContextMenu::~AerieSidebarContextMenu() {
@@ -121,13 +176,37 @@ views::MenuItemView* AerieSidebarContextMenu::item(int command) const {
   return root_->GetMenuItemByID(command);
 }
 
+std::string AerieSidebarContextMenu::FolderIdForCommand(int command) const {
+  const int index = command - kCommandMoveToFolderBase;
+  if (index < 0 || index >= static_cast<int>(options_.move_targets.size())) {
+    return std::string();
+  }
+  return options_.move_targets[index].folder_id;
+}
+
 bool AerieSidebarContextMenu::HasCommand(int id) const {
   using aerie_tab_model::Section;
+  if (id >= kCommandMoveToFolderBase) {
+    return options_.target == Target::kTab &&
+           id - kCommandMoveToFolderBase <
+               static_cast<int>(options_.move_targets.size());
+  }
   switch (id) {
+    case kCommandNewFolder:
+      return options_.target != Target::kTab || options_.show_new_folder;
+    case kCommandRenameFolder:
+    case kCommandDeleteFolder:
+      return options_.target == Target::kFolder;
+    case kCommandMoveToNewFolder:
+      return options_.target == Target::kTab && options_.show_move_to_new_folder;
+    case kCommandMoveOutOfFolder:
+      return options_.target == Target::kTab && options_.show_move_out;
+    case kCommandMoveToFolderList:
+      return false;
     case kCommandSleepTab:
     case kCommandClose:
     case kCommandRename:
-      return true;
+      return options_.target == Target::kTab;
     case kCommandResetName:
       return options_.has_manual_name;
     case kCommandPin:
@@ -151,6 +230,15 @@ bool AerieSidebarContextMenu::IsCommandEnabled(int id) const {
   if (!HasCommand(id)) {
     return false;
   }
+  if (id == kCommandNewFolder) {
+    return options_.new_folder_enabled;
+  }
+  if (id == kCommandMoveToNewFolder) {
+    return options_.move_to_new_folder_enabled;
+  }
+  if (id >= kCommandMoveToFolderBase) {
+    return options_.move_targets[id - kCommandMoveToFolderBase].enabled;
+  }
   return id != kCommandSleepTab || options_.sleep.enabled;
 }
 
@@ -170,5 +258,9 @@ void AerieSidebarContextMenu::OnMenuClosed(views::MenuItemView* menu) {
 std::u16string AerieSidebarContextMenu::GetTooltipText(
     int id,
     const gfx::Point& screen_loc) const {
+  if (id == kCommandNewFolder) {
+    return options_.new_folder_enabled ? std::u16string()
+                                       : options_.new_folder_tooltip;
+  }
   return id == kCommandSleepTab ? options_.sleep.tooltip : std::u16string();
 }
