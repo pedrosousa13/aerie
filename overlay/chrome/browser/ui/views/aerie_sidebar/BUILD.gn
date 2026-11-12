@@ -20,6 +20,10 @@ source_set("aerie_sidebar") {
     "aerie_sidebar_focus_ring.h",
     "aerie_sidebar_regions.cc",
     "aerie_sidebar_regions.h",
+    "aerie_sidebar_rename_field.cc",
+    "aerie_sidebar_rename_field.h",
+    "aerie_sidebar_rename_popover.cc",
+    "aerie_sidebar_rename_popover.h",
     "aerie_sidebar_row_view.cc",
     "aerie_sidebar_row_view.h",
     "aerie_sidebar_tile_view.cc",
@@ -80,12 +84,14 @@ source_set("browser_tests") {
   sources = [
     "aerie_sidebar_browsertest.cc",
     "aerie_sidebar_pinned_browsertest.cc",
+    "aerie_sidebar_rename_browsertest.cc",
     "aerie_sidebar_sleep_browsertest.cc",
   ]
   deps = [
     ":aerie_sidebar",
     "//chrome/browser:browser",
     "//chrome/browser/aerie_tab_model",
+    "//chrome/browser/history",
     "//chrome/browser/profiles:profile",
     "//chrome/browser/resource_coordinator",
     "//chrome/browser/ui:view_ids",
@@ -101,6 +107,7 @@ source_set("browser_tests") {
     "//components/aerie_sidebar:palette",
     "//components/aerie_sidebar:prefs",
     "//components/aerie_tab_model",
+    "//components/history/core/browser",
     "//components/prefs",
     "//content/test:test_support",
     "//net:test_support",
@@ -124,6 +131,7 @@ source_set("interactive_tests") {
     "aerie_sidebar_keyboard_uitest.cc",
     "aerie_sidebar_motion_uitest.cc",
     "aerie_sidebar_pinned_uitest.cc",
+    "aerie_sidebar_rename_uitest.cc",
     "aerie_sidebar_sleep_uitest.cc",
   ]
   deps = [

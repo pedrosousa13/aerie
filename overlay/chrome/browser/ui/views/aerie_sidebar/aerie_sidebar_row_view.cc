@@ -5,17 +5,21 @@
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_row_view.h"
 
 #include <cmath>
+#include <optional>
 #include <utility>
 
 #include "base/functional/bind.h"
+#include "base/strings/string_util.h"
 #include "build/build_config.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_focus_ring.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_rename_field.h"
 #include "chrome/browser/ui/views/aerie_sidebar/vector_icons/vector_icons.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/aerie_design_tokens/aerie_motion.h"
 #include "components/aerie_design_tokens/aerie_tokens.h"
 #include "components/aerie_sidebar/aerie_sidebar_drag.h"
 #include "components/aerie_sidebar/aerie_sidebar_motion.h"
+#include "components/aerie_tab_model/title_resolver.h"
 #include "components/prefs/pref_service.h"
 #include "components/vector_icons/vector_icons.h"
 #include "ui/base/accelerators/accelerator.h"
@@ -31,11 +35,13 @@
 #include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/animation/ink_drop.h"
 #include "ui/views/background.h"
+#include "ui/views/border.h"
 #include "ui/views/controls/button/image_button.h"
 #include "ui/views/controls/button/image_button_factory.h"
 #include "ui/views/controls/focus_ring.h"
 #include "ui/views/controls/image_view.h"
 #include "ui/views/controls/label.h"
+#include "ui/views/controls/textfield/textfield.h"
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/style/typography.h"
 #include "ui/views/widget/widget.h"
@@ -137,6 +143,39 @@ AerieSidebarRowView::AerieSidebarRowView(
   title_->GetViewAccessibility().SetIsIgnored(true);
   layout->SetFlexForView(title_, 1);
 
+  // The pencil of a renamed tab (issue #145). It resets the name. Like the
+  // back button it is a pointer affordance: the keyboard way is the context
+  // menu ("Reset name") or F2 and an empty name.
+  pencil_ = content_->AddChildView(views::CreateVectorImageButton(
+      base::BindRepeating(
+          [](AerieSidebarRowView* row) {
+            if (row->callbacks_.reset_name) {
+              row->callbacks_.reset_name.Run();
+            }
+          },
+          base::Unretained(this))));
+  pencil_->SetPreferredSize(gfx::Size(aerie::tokens::kSizePencilButton,
+                                      aerie::tokens::kSizePencilButton));
+  pencil_->SetVisible(false);
+  pencil_->SetFocusBehavior(views::View::FocusBehavior::NEVER);
+  pencil_->SetInstallFocusRingOnFocus(false);
+  views::FocusRing::Remove(pencil_);
+  pencil_->GetViewAccessibility().SetName(
+      l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_RESET_NAME));
+
+  // The caption under the rename field. It is a child of the row, below the
+  // content, and only shows while the field is open.
+  rename_caption_ = AddChildView(std::make_unique<views::Label>(
+      l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_RENAME_CAPTION),
+      views::style::CONTEXT_LABEL, views::style::STYLE_BODY_5));
+  rename_caption_->SetFontList(rename_caption_->font_list().DeriveWithSizeDelta(
+      aerie::tokens::kTypeSizeCaption -
+      rename_caption_->font_list().GetFontSize()));
+  rename_caption_->SetHorizontalAlignment(gfx::ALIGN_LEFT);
+  rename_caption_->SetElideBehavior(gfx::ELIDE_TAIL);
+  rename_caption_->SetVisible(false);
+  rename_caption_->GetViewAccessibility().SetIsIgnored(true);
+
   // The "Back to pinned page" button, shown only on a pinned row that has left
   // its page. It is not a focus stop: the row's own keys are the keyboard way
   // (the context menu has no entry for it either; the button is a pointer
@@ -191,6 +230,11 @@ AerieSidebarRowView::AerieSidebarRowView(
 }
 
 AerieSidebarRowView::~AerieSidebarRowView() {
+  // The field's blur must not reach a row that is going away.
+  renaming_ = false;
+  weak_factory_.InvalidateWeakPtrs();
+  pencil_motion_.Abort();
+  field_motion_.Abort();
   // A row that goes away mid-motion must not leave an animation behind.
   content_motion_.Abort();
   row_motion_.Abort();
@@ -242,6 +286,21 @@ void AerieSidebarRowView::SetPalette(
                                               palette_.text, kFaviconSize));
   }
   views::InkDrop::Get(back_to_pinned_)->SetBaseColor(palette_.text);
+  for (views::Button::ButtonState state :
+       {views::Button::STATE_NORMAL, views::Button::STATE_DISABLED}) {
+    pencil_->SetImageModel(
+        state, ui::ImageModel::FromVectorIcon(vector_icons::kEditIcon,
+                                              palette_.text_muted, kFaviconSize));
+  }
+  for (views::Button::ButtonState state :
+       {views::Button::STATE_HOVERED, views::Button::STATE_PRESSED}) {
+    pencil_->SetImageModel(
+        state, ui::ImageModel::FromVectorIcon(vector_icons::kEditIcon,
+                                              palette_.text, kFaviconSize));
+  }
+  views::InkDrop::Get(pencil_)->SetBaseColor(palette_.text);
+  rename_caption_->SetEnabledColor(palette_.text_muted);
+  StyleRenameField();
   AerieSidebarFocusRing::Get(this)->SetColor(palette_.accent);
   sleep_badge_->SetImage(ui::ImageModel::FromVectorIcon(
       aerie_sidebar::kAerieSleepBadgeIcon, palette_.text, kSleepBadgeSize));
@@ -249,7 +308,16 @@ void AerieSidebarRowView::SetPalette(
 }
 
 void AerieSidebarRowView::SetBackToPinnedVisible(bool visible) {
-  back_to_pinned_->SetVisible(visible && !closing_);
+  back_to_pinned_wanted_ = visible;
+  UpdateTrailing();
+}
+
+void AerieSidebarRowView::UpdateTrailing() {
+  back_to_pinned_->SetVisible(back_to_pinned_wanted_ && !closing_ &&
+                              !renaming_);
+  pencil_->SetVisible(renamed_ && !closing_ && !renaming_);
+  close_button_->SetVisible(!closing_ && !renaming_ &&
+                            (hovered_ || HasFocus()));
 }
 
 void AerieSidebarRowView::SetCloseTooltip(const std::u16string& text) {
@@ -264,10 +332,173 @@ void AerieSidebarRowView::SetTitle(const std::u16string& title) {
 }
 
 void AerieSidebarRowView::UpdateName() {
-  GetViewAccessibility().SetName(
-      sleeping_ ? l10n_util::GetStringFUTF16(IDS_AERIE_SIDEBAR_ROW_ASLEEP_NAME,
-                                             title_text_)
-                : title_text_);
+  // The shown title, then ", asleep", then ", renamed".
+  std::u16string name = title_text_;
+  if (sleeping_) {
+    name = l10n_util::GetStringFUTF16(IDS_AERIE_SIDEBAR_ROW_ASLEEP_NAME, name);
+  }
+  if (renamed_) {
+    name =
+        l10n_util::GetStringFUTF16(IDS_AERIE_SIDEBAR_ROW_RENAMED_NAME, name);
+  }
+  GetViewAccessibility().SetName(name);
+}
+
+void AerieSidebarRowView::SetRenamed(bool renamed,
+                                     const std::u16string& pencil_tooltip,
+                                     const PrefService* reduced_motion_prefs) {
+  pencil_->SetTooltipText(pencil_tooltip);
+  if (renamed_applied_ && renamed_ == renamed) {
+    return;
+  }
+  const bool animate = renamed_applied_ && renamed && reduced_motion_prefs;
+  renamed_applied_ = true;
+  renamed_ = renamed;
+  UpdateName();
+  UpdateTrailing();
+  pencil_motion_.Abort();
+  if (!renamed_) {
+    if (pencil_->layer()) {
+      pencil_->DestroyLayer();
+    }
+    return;
+  }
+  if (!animate) {
+    return;
+  }
+  // The pencil fades in: opacity only, on `xfast`.
+  if (!pencil_->layer()) {
+    pencil_->SetPaintToLayer();
+    pencil_->layer()->SetFillsBoundsOpaquely(false);
+  }
+  const aerie_sidebar::RenameFadeMotion motion = aerie_sidebar::RenameFade(
+      aerie::motion::ShouldReduceMotion(reduced_motion_prefs));
+  pencil_->layer()->SetOpacity(motion.from_opacity);
+  aerie::motion::LayerMotion target;
+  target.opacity = motion.to_opacity;
+  pencil_motion_ = aerie::motion::AnimateLayer(
+      pencil_->layer(), target, motion.duration, motion.easing,
+      reduced_motion_prefs);
+}
+
+AerieSidebarRenameField* AerieSidebarRowView::rename_field() const {
+  return rename_field_;
+}
+
+void AerieSidebarRowView::EnsureRenameField() {
+  if (rename_field_) {
+    return;
+  }
+  auto field = std::make_unique<AerieSidebarRenameField>(base::BindRepeating(
+      &AerieSidebarRowView::OnRenameBlur, weak_factory_.GetWeakPtr()));
+  field->set_controller(this);
+  field->SetVisible(false);
+  field->GetViewAccessibility().SetName(
+      l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_RENAME_FIELD_NAME));
+  // The caption is the field's description.
+  field->GetViewAccessibility().SetDescription(
+      l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_RENAME_CAPTION));
+  views::FocusRing::Remove(field.get());
+  // Right after the title, so that it takes the title's place in the layout.
+  const std::optional<size_t> title_index = content_->GetIndexOf(title_);
+  rename_field_ = content_->AddChildViewAt(
+      std::move(field), title_index ? *title_index + 1 : 0);
+  static_cast<views::BoxLayout*>(content_->GetLayoutManager())
+      ->SetFlexForView(rename_field_, 1);
+  StyleRenameField();
+}
+
+void AerieSidebarRowView::StyleRenameField() {
+  if (!rename_field_) {
+    return;
+  }
+  rename_field_->SetPaletteColors(palette_);
+}
+
+void AerieSidebarRowView::BeginRename(const std::u16string& initial_text,
+                                      const PrefService* reduced_motion_prefs) {
+  if (closing_ || renaming_) {
+    return;
+  }
+  EnsureRenameField();
+  renaming_ = true;
+  title_->SetVisible(false);
+  rename_field_->SetText(initial_text);
+  rename_field_->SetVisible(true);
+  rename_caption_->SetVisible(true);
+  UpdateTrailing();
+  PreferredSizeChanged();
+  // The field fades in on `xfast`: opacity only, nothing moves.
+  field_motion_.Abort();
+  if (!rename_field_->layer()) {
+    rename_field_->SetPaintToLayer();
+    rename_field_->layer()->SetFillsBoundsOpaquely(false);
+  }
+  const aerie_sidebar::RenameFadeMotion motion = aerie_sidebar::RenameFade(
+      aerie::motion::ShouldReduceMotion(reduced_motion_prefs));
+  rename_field_->layer()->SetOpacity(motion.from_opacity);
+  aerie::motion::LayerMotion target;
+  target.opacity = motion.to_opacity;
+  field_motion_ = aerie::motion::AnimateLayer(
+      rename_field_->layer(), target, motion.duration, motion.easing,
+      reduced_motion_prefs);
+  rename_field_->RequestFocus();
+  rename_field_->SelectAll(false);
+}
+
+void AerieSidebarRowView::EndRename(bool commit, bool refocus) {
+  if (!renaming_) {
+    return;
+  }
+  renaming_ = false;
+  const std::u16string text(rename_field_->GetText());
+  field_motion_.Abort();
+  rename_field_->SetVisible(false);
+  rename_caption_->SetVisible(false);
+  title_->SetVisible(true);
+  UpdateTrailing();
+  PreferredSizeChanged();
+  if (refocus) {
+    RequestFocus();
+  }
+  if (commit && callbacks_.commit_rename) {
+    callbacks_.commit_rename.Run(text);
+  }
+}
+
+void AerieSidebarRowView::CancelRename() {
+  EndRename(/*commit=*/false, /*refocus=*/false);
+}
+
+void AerieSidebarRowView::OnRenameBlur() {
+  // Focus loss keeps the name (decision for #145).
+  if (renaming_) {
+    EndRename(/*commit=*/true, /*refocus=*/false);
+  }
+}
+
+void AerieSidebarRowView::ContentsChanged(views::Textfield* sender,
+                                          const std::u16string& new_contents) {
+  // The field holds at most kMaxManualNameLength characters.
+  if (new_contents.size() > aerie_tab_model::kMaxManualNameLength) {
+    sender->SetText(new_contents.substr(0, aerie_tab_model::kMaxManualNameLength));
+  }
+}
+
+bool AerieSidebarRowView::HandleKeyEvent(views::Textfield* sender,
+                                         const ui::KeyEvent& key_event) {
+  if (key_event.type() != ui::EventType::kKeyPressed) {
+    return false;
+  }
+  if (key_event.key_code() == ui::VKEY_RETURN) {
+    EndRename(/*commit=*/true, /*refocus=*/true);
+    return true;
+  }
+  if (key_event.key_code() == ui::VKEY_ESCAPE) {
+    EndRename(/*commit=*/false, /*refocus=*/true);
+    return true;
+  }
+  return false;
 }
 
 void AerieSidebarRowView::SetSleeping(bool sleeping,
@@ -354,6 +585,13 @@ void AerieSidebarRowView::Layout(PassKey) {
   LayoutSuperclass<views::View>(this);
   // The content keeps its full height while the row grows or collapses.
   content_->SetBoundsRect(gfx::Rect(0, 0, width(), kRowHeight));
+  if (renaming_ && rename_field_) {
+    // The caption sits under the field, as wide as the field.
+    content_->DeprecatedLayoutImmediately();
+    rename_caption_->SetBoundsRect(
+        gfx::Rect(rename_field_->x(), kRowHeight, rename_field_->width(),
+                  aerie::tokens::kTypeLineCaption));
+  }
 }
 
 std::u16string AerieSidebarRowView::GetRenderedTooltipText(
@@ -365,18 +603,36 @@ std::u16string AerieSidebarRowView::GetRenderedTooltipText(
 
 gfx::Size AerieSidebarRowView::CalculatePreferredSize(
     const views::SizeBounds& available_size) const {
+  // While the field is open the row is taller by the caption under it. That
+  // is a layout change on a user action, not an animation.
+  const int caption_block =
+      renaming_ ? aerie::tokens::kTypeLineCaption + aerie::tokens::kSpace4 : 0;
   return gfx::Size(
       available_size.width().value_or(aerie::tokens::kSizeSidebarMin),
-      static_cast<int>(std::lround(kRowHeight * height_fraction_)));
+      static_cast<int>(std::lround(kRowHeight * height_fraction_)) +
+          caption_block);
 }
 
 bool AerieSidebarRowView::OnMousePressed(const ui::MouseEvent& event) {
-  if (closing_) {
+  if (closing_ || renaming_) {
     return false;
   }
+  suppress_release_ = false;
   pressed_ = event.IsOnlyLeftMouseButton();
   drag_cancelled_ = false;
   press_point_ = event.root_location();
+  // A double-click on the title starts a rename (issue #145).
+  if (event.IsOnlyLeftMouseButton() && event.GetClickCount() == 2 &&
+      callbacks_.begin_rename) {
+    gfx::Point in_title = event.location();
+    views::View::ConvertPointToTarget(this, title_, &in_title);
+    if (title_->GetVisible() && title_->GetLocalBounds().Contains(in_title)) {
+      pressed_ = false;
+      suppress_release_ = true;
+      callbacks_.begin_rename.Run();
+      return true;
+    }
+  }
   return event.IsOnlyLeftMouseButton() || event.IsOnlyMiddleMouseButton();
 }
 
@@ -408,6 +664,12 @@ bool AerieSidebarRowView::OnMouseDragged(const ui::MouseEvent& event) {
 
 void AerieSidebarRowView::OnMouseReleased(const ui::MouseEvent& event) {
   pressed_ = false;
+  if (suppress_release_) {
+    // The release of the double-click that opened the field: selecting the tab
+    // now would take focus from it.
+    suppress_release_ = false;
+    return;
+  }
   if (dragging_) {
     const views::Widget* widget = GetWidget();
     const bool outside =
@@ -466,7 +728,9 @@ void AerieSidebarRowView::OnMouseExited(const ui::MouseEvent& event) {
 }
 
 bool AerieSidebarRowView::OnKeyPressed(const ui::KeyEvent& event) {
-  if (closing_) {
+  // While the field is open its keys are its own: Backspace in the field must
+  // never reach "back to pinned page" (issue #180), nor Delete close the tab.
+  if (closing_ || renaming_) {
     return false;
   }
   if (IsCloseShortcut(event)) {
@@ -477,6 +741,13 @@ bool AerieSidebarRowView::OnKeyPressed(const ui::KeyEvent& event) {
     return false;
   }
   switch (event.key_code()) {
+    case ui::VKEY_F2:
+      // Rename (issue #145).
+      if (callbacks_.begin_rename && !event.IsShiftDown()) {
+        callbacks_.begin_rename.Run();
+        return true;
+      }
+      return false;
     case ui::VKEY_RETURN:
     case ui::VKEY_SPACE:
       callbacks_.select.Run();
@@ -541,7 +812,7 @@ void AerieSidebarRowView::OnThemeChanged() {
 }
 
 void AerieSidebarRowView::UpdateState() {
-  close_button_->SetVisible(!closing_ && (hovered_ || HasFocus()));
+  UpdateTrailing();
   // The content draws the background, so that it scales and fades with it.
   if (selected_) {
     content_->SetBackground(views::CreateRoundedRectBackground(
@@ -758,6 +1029,8 @@ void AerieSidebarRowView::PlayClose(const PrefService* prefs,
   if (closing_) {
     return;
   }
+  // A field that is open when the tab goes away is dropped.
+  CancelRename();
   closing_ = true;
   closed_ = std::move(done);
   SetFocusBehavior(views::View::FocusBehavior::ACCESSIBLE_ONLY);
