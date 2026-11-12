@@ -244,6 +244,9 @@ class NoNetworkNoStringsTest(unittest.TestCase):
                         # makes no request.
                         if include == "url/gurl.h" and path.name.startswith("pinned_tabs"):
                             continue
+                        # Auto-filing (#139) matches a page's URL against folder rules: same parse, no request.
+                        if include == "url/gurl.h" and path.name.startswith(("rule_matcher", "folder_rules", "auto_file")):
+                            continue
                         self.assertFalse(include.startswith(("net/", "services/network", "url/")), f"{path.name}: {include}")
                         # The sleep controller (#179) words its refusals from the sidebar's grd.
                         if path.name != "sleep_controller.cc":
