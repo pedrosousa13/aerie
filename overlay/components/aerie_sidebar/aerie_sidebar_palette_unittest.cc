@@ -18,16 +18,6 @@ namespace {
 using aerie::tokens::ColorMode;
 using aerie::tokens::ThemeId;
 
-TEST(AerieSidebarPaletteTest, TheTextOnAccentComesFromTheTokens) {
-  for (ColorMode mode : {ColorMode::kLight, ColorMode::kDark}) {
-    const SidebarPalette p =
-        ResolveSidebarPalette(ThemeId::kVivid, mode, "dusk");
-    EXPECT_EQ(p.text_on_accent,
-              aerie::tokens::GetThemeTokens(ThemeId::kVivid, mode)
-                  .color_text_on_accent);
-  }
-}
-
 TEST(AerieSidebarPaletteTest, RowColoursAreTheThemeTokens) {
   for (ColorMode mode : {ColorMode::kLight, ColorMode::kDark}) {
     const SidebarPalette p = ResolveSidebarPalette(ThemeId::kVivid, mode, "dusk");

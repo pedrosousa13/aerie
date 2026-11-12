@@ -39,7 +39,9 @@
 #include "ui/views/controls/combobox/combobox.h"
 #include "ui/views/controls/image_view.h"
 #include "ui/views/controls/label.h"
+#include "ui/gfx/color_utils.h"
 #include "ui/views/background.h"
+#include "ui/views/border.h"
 #include "ui/views/controls/textfield/textfield.h"
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/layout/box_layout_view.h"
@@ -202,6 +204,8 @@ void AerieSidebarFolderSheet::Build() {
                             base::Unretained(this), i),
         l10n_util::GetStringUTF16(kKinds[i].label_id));
     segment->GetViewAccessibility().SetRole(ax::mojom::Role::kRadioButton);
+    segment->SetBorder(views::CreateEmptyBorder(
+        gfx::Insets::VH(aerie::tokens::kSpace4, aerie::tokens::kSpace12)));
     segment->SetFocusBehavior(views::View::FocusBehavior::ALWAYS);
     kind_buttons_.push_back(segments->AddChildView(std::move(segment)));
   }
@@ -297,9 +301,11 @@ void AerieSidebarFolderSheet::Build() {
       base::BindRepeating(&AerieSidebarFolderSheet::Dismiss,
                           base::Unretained(this), /*refocus=*/true),
       l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_SHEET_DONE));
-  done->SetEnabledTextColors(palette_.text);
+  done->SetEnabledTextColors(color_utils::GetColorWithMaxContrast(palette_.accent));
   done->SetBackground(views::CreateRoundedRectBackground(
-      palette_.row_selected, aerie::tokens::kRadiusMd));
+      palette_.accent, aerie::tokens::kRadiusMd));
+  done->SetBorder(views::CreateEmptyBorder(
+      gfx::Insets::VH(aerie::tokens::kSpace4, aerie::tokens::kSpace16)));
   done_button_ = done_row->AddChildView(std::move(done));
   contents->AddChildView(std::move(done_row));
 
@@ -364,9 +370,12 @@ void AerieSidebarFolderSheet::Rebuild() {
     segment->GetViewAccessibility().SetCheckedState(
         checked ? ax::mojom::CheckedState::kTrue
                 : ax::mojom::CheckedState::kFalse);
-    segment->SetEnabledTextColors(checked ? palette_.text : palette_.text_muted);
+    // The chosen segment is filled with the Workspace accent: the sidebar's
+    // translucent row colours would not show on the sheet's own background.
+    segment->SetEnabledTextColors(checked ? color_utils::GetColorWithMaxContrast(palette_.accent)
+                                          : palette_.text_muted);
     segment->SetBackground(
-        checked ? views::CreateRoundedRectBackground(palette_.row_selected,
+        checked ? views::CreateRoundedRectBackground(palette_.accent,
                                                      aerie::tokens::kRadiusMd)
                 : nullptr);
   }

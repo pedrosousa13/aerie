@@ -25,8 +25,6 @@ struct SidebarPalette {
   SkColor text_muted;
   // The Workspace hue mixed toward the theme's accent base: the focus ring.
   SkColor accent;
-  // `text-on-accent`: text and thumbs drawn on the accent colour.
-  SkColor text_on_accent;
   // `row-hover` and `row-selected`: translucent, drawn over the frame.
   SkColor row_hover;
   SkColor row_selected;

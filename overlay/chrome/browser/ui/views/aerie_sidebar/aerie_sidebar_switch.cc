@@ -18,6 +18,7 @@
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/geometry/transform.h"
 #include "ui/views/accessibility/view_accessibility.h"
+#include "ui/gfx/color_utils.h"
 #include "ui/views/background.h"
 #include "ui/base/ui_base_types.h"
 
@@ -78,7 +79,7 @@ void AerieSidebarSwitch::SetPalette(
   palette_ = palette;
   static_cast<RoundedFill*>(accent_track_.get())->SetFill(palette_.accent);
   thumb_->SetBackground(views::CreateRoundedRectBackground(
-      palette_.text_on_accent, kThumbSize / 2.0f));
+      color_utils::GetColorWithMaxContrast(palette_.accent), kThumbSize / 2.0f));
   AerieSidebarFocusRing::Get(this)->SetColor(palette_.accent);
   SchedulePaint();
 }
