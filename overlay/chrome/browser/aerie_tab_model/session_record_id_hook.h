@@ -14,10 +14,12 @@ class WebContents;
 
 namespace aerie_tab_model {
 
-// The two calls that connect Chromium's session file to the Tab Model (issue
+// The three calls that connect Chromium's session file to the Tab Model (issue
 // #223). A Today tab's record id is saved with the tab as tab "extra data" under
 // this key (the same per-tab key and value map that session restore already
-// reads, see sessions::SessionTab::extra_data).
+// reads, see sessions::SessionTab::extra_data). This header has no Chromium
+// dependencies, so that //chrome/browser/sessions and //chrome/browser/ui can
+// include it without a cycle; the definitions are in session_record_id_hook.cc.
 inline constexpr char kSessionRecordIdKey[] = "aerie.tab_record_id";
 
 // Called by chrome::AddRestoredTab (patches/sidebar/0040) with the extra data of
@@ -36,10 +38,6 @@ std::string TakeRestoredRecordId(content::WebContents* contents);
 // when it has none to save (a tab with no record, or a record that is not in
 // Today).
 std::string RecordIdToSave(content::WebContents* contents);
-
-// This header has no dependencies, so that //chrome/browser/sessions and
-// //chrome/browser/ui can include it without a cycle. The definitions are in
-// session_record_id_hook.cc.
 
 }  // namespace aerie_tab_model
 

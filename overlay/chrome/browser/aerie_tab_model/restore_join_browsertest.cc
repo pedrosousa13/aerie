@@ -25,6 +25,7 @@
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/aerie_tab_model/folder_tree.h"
+#include "components/aerie_tab_model/sleep_summary.h"
 #include "components/aerie_tab_model/tab_model.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/browser_test.h"
@@ -81,26 +82,39 @@ class AerieRestoreJoinBrowserTest : public InProcessBrowserTest {
         id, [&](TabRecord& tab) { tab.manual_name = name; }));
   }
 
-  // The record id of the restored tab whose page is `path`, over all windows of
-  // the profile; empty when there is none. The tab is found by its address only
-  // so that the test can ask about it. The join under test is by id.
-  std::string RecordOfPage(const std::string& path) {
-    std::string found;
+  // The window of the profile that has a tab showing `path`, or null.
+  BrowserWindowInterface* WindowWithPage(const std::string& path) {
+    BrowserWindowInterface* found = nullptr;
     ForEachCurrentBrowserWindowInterfaceOrderedByActivation(
         [&](BrowserWindowInterface* window) {
           if (window->GetProfile() != browser()->GetProfile() ||
               window->GetType() != BrowserWindowInterface::TYPE_NORMAL) {
             return true;
           }
-          TabStripModel* strip = window->GetTabStripModel();
-          for (int i = 0; i < strip->count(); ++i) {
-            if (strip->GetWebContentsAt(i)->GetVisibleURL().path() == path) {
-              found = service_->adapter()->RecordIdForTab(strip->GetTabAtIndex(i));
-            }
+          if (!RecordInWindow(window, path).empty()) {
+            found = window;
+            return false;
           }
           return true;
         });
     return found;
+  }
+
+  // The record id of the tab of `window` whose page is `path`; empty when there
+  // is none. Tabs are found by address only so that the test can ask about
+  // them; the join under test is by id.
+  std::string RecordInWindow(BrowserWindowInterface* window,
+                             const std::string& path) {
+    if (!window) {
+      return std::string();
+    }
+    TabStripModel* strip = window->GetTabStripModel();
+    for (int i = 0; i < strip->count(); ++i) {
+      if (strip->GetWebContentsAt(i)->GetVisibleURL().path() == path) {
+        return service_->adapter()->RecordIdForTab(strip->GetTabAtIndex(i));
+      }
+    }
+    return std::string();
   }
 
   size_t TabCount() {
@@ -124,8 +138,11 @@ class AerieRestoreJoinBrowserTest : public InProcessBrowserTest {
   raw_ptr<TabModelService, DanglingUntriaged> service_ = nullptr;
 };
 
-// Two windows. In the first, a named tab inside a folder, and a named tab at the
-// top level; in the second, a named tab. A fourth tab has no name.
+// Two windows that show the SAME page, with different names, so that a join
+// that crossed records between the windows would be seen. The first window has a
+// folder with two named tabs; the second has a named tab. Each has an unnamed
+// tab with a page of its own, so that a window can be told apart after the
+// restart.
 IN_PROC_BROWSER_TEST_F(AerieRestoreJoinBrowserTest, PRE_TodayTabsKeepTheirRecords) {
   SessionStartupPref::SetStartupPref(
       browser()->GetProfile(), SessionStartupPref(SessionStartupPref::LAST));
@@ -134,7 +151,7 @@ IN_PROC_BROWSER_TEST_F(AerieRestoreJoinBrowserTest, PRE_TodayTabsKeepTheirRecord
 
   const std::string alpha = OpenTab(first, "/title1.html");
   const std::string beta = OpenTab(first, "/title2.html");
-  const std::string gamma = OpenTab(second, "/title3.html");
+  const std::string gamma = OpenTab(second, "/title1.html");
   OpenTab(second, "/simple.html");
   ASSERT_FALSE(alpha.empty());
   ASSERT_FALSE(beta.empty());
@@ -147,6 +164,7 @@ IN_PROC_BROWSER_TEST_F(AerieRestoreJoinBrowserTest, PRE_TodayTabsKeepTheirRecord
       CreateFolder(*model(), Section::kToday, std::string(), "Work");
   ASSERT_FALSE(folder.empty());
   ASSERT_TRUE(model()->MoveTab(alpha, Section::kToday, folder, 0));
+  ASSERT_TRUE(model()->MoveTab(beta, Section::kToday, folder, 1));
   ASSERT_TRUE(SetFolderExpanded(*model(), folder, false));
 
   // Let the ids reach the session service before the browser is shut down.
@@ -155,38 +173,48 @@ IN_PROC_BROWSER_TEST_F(AerieRestoreJoinBrowserTest, PRE_TodayTabsKeepTheirRecord
 
 IN_PROC_BROWSER_TEST_F(AerieRestoreJoinBrowserTest, TodayTabsKeepTheirRecords) {
   WaitForRestorePass();
-  // Two windows came back, with the tabs of both, and nothing is left over.
   EXPECT_EQ(model()->awaiting_restore_count(), 0u);
 
-  const std::string alpha = RecordOfPage("/title1.html");
-  const std::string beta = RecordOfPage("/title2.html");
-  const std::string gamma = RecordOfPage("/title3.html");
+  // The first window is the one with title2, the second the one with simple.
+  BrowserWindowInterface* first = WindowWithPage("/title2.html");
+  BrowserWindowInterface* second = WindowWithPage("/simple.html");
+  ASSERT_TRUE(first);
+  ASSERT_TRUE(second);
+  ASSERT_NE(first, second);
+
+  // The same page is open in both windows. Each tab has the record, and so the
+  // name, that it had in its own window.
+  const std::string alpha = RecordInWindow(first, "/title1.html");
+  const std::string beta = RecordInWindow(first, "/title2.html");
+  const std::string gamma = RecordInWindow(second, "/title1.html");
   ASSERT_FALSE(alpha.empty());
   ASSERT_FALSE(beta.empty());
   ASSERT_FALSE(gamma.empty());
+  EXPECT_NE(alpha, gamma);
   ASSERT_TRUE(model()->GetTab(alpha));
   ASSERT_TRUE(model()->GetTab(beta));
   ASSERT_TRUE(model()->GetTab(gamma));
-
-  // Each tab is joined to its own record: its name, and for the first its
-  // folder (which is still shut).
   EXPECT_EQ(model()->GetTab(alpha)->manual_name, "Alpha");
   EXPECT_EQ(model()->GetTab(beta)->manual_name, "Beta");
   EXPECT_EQ(model()->GetTab(gamma)->manual_name, "Gamma");
+
+  // The two tabs of the folder keep it and their places in it; the folder is
+  // still shut.
   const std::string folder_id = model()->GetTab(alpha)->parent;
   ASSERT_FALSE(folder_id.empty());
+  EXPECT_EQ(model()->GetTab(beta)->parent, folder_id);
+  EXPECT_EQ(model()->GetTab(alpha)->position, 0);
+  EXPECT_EQ(model()->GetTab(beta)->position, 1);
   ASSERT_TRUE(model()->GetFolder(folder_id));
   EXPECT_EQ(model()->GetFolder(folder_id)->name, "Work");
   EXPECT_FALSE(model()->GetFolder(folder_id)->expanded);
-  EXPECT_EQ(model()->GetTab(alpha)->position, 0);
-  EXPECT_EQ(model()->GetTab(beta)->parent, "");
+  EXPECT_EQ(model()->GetTab(gamma)->parent, "");
 
   // The tab that had no name has a record, and there is one record per tab:
   // none is left behind and none is shared.
-  const std::string plain = RecordOfPage("/simple.html");
+  const std::string plain = RecordInWindow(second, "/simple.html");
   ASSERT_FALSE(plain.empty());
   EXPECT_FALSE(model()->GetTab(plain)->manual_name);
-  EXPECT_NE(alpha, gamma);
   size_t today = 0;
   for (const auto& [id, tab] : model()->tabs()) {
     if (tab.section == Section::kToday) {
@@ -194,6 +222,63 @@ IN_PROC_BROWSER_TEST_F(AerieRestoreJoinBrowserTest, TodayTabsKeepTheirRecords) {
     }
   }
   EXPECT_EQ(today, TabCount());
+}
+
+// The last window of the profile closed with its X button: Chromium's session
+// still restores it, so its tabs keep their records.
+IN_PROC_BROWSER_TEST_F(AerieRestoreJoinBrowserTest, PRE_TheLastWindowClosedWithXIsRestoredWithItsRecords) {
+  SessionStartupPref::SetStartupPref(
+      browser()->GetProfile(), SessionStartupPref(SessionStartupPref::LAST));
+  const std::string named = OpenTab(browser(), "/title1.html");
+  ASSERT_FALSE(named.empty());
+  Name(named, "Kept after X");
+  base::RunLoop().RunUntilIdle();
+  CloseBrowserSynchronously(browser());
+}
+
+IN_PROC_BROWSER_TEST_F(AerieRestoreJoinBrowserTest, TheLastWindowClosedWithXIsRestoredWithItsRecords) {
+  WaitForRestorePass();
+  BrowserWindowInterface* window = WindowWithPage("/title1.html");
+  ASSERT_TRUE(window);
+  const std::string id = RecordInWindow(window, "/title1.html");
+  ASSERT_FALSE(id.empty());
+  ASSERT_TRUE(model()->GetTab(id));
+  EXPECT_EQ(model()->GetTab(id)->manual_name, "Kept after X");
+}
+
+// A window closed while the browser keeps running is not restored, so its
+// records go with it, the sleeping ones too: no ghost records, and the count of
+// sleeping tabs (the Today header) is unchanged.
+IN_PROC_BROWSER_TEST_F(AerieRestoreJoinBrowserTest, ClosingAWindowMidRunRemovesItsRecords) {
+  BrowserWindowInterface* second = CreateBrowser(browser()->GetProfile());
+  const std::string awake = OpenTab(second, "/title1.html");
+  const std::string asleep = OpenTab(second, "/title2.html");
+  const std::string kept = OpenTab(browser(), "/title3.html");
+  ASSERT_FALSE(awake.empty());
+  ASSERT_FALSE(asleep.empty());
+  ASSERT_FALSE(kept.empty());
+  ASSERT_TRUE(model()->UpdateTab(
+      asleep, [](TabRecord& tab) { tab.sleeping = true; }));
+  ASSERT_TRUE(model()->UpdateTab(
+      kept, [](TabRecord& tab) { tab.sleeping = true; }));
+  // The first window's tab sleeps; the second window has one sleeping tab too.
+  const int sleeping_before = CountSleepingTabs(*model());
+  const int second_tabs = second->GetTabStripModel()->count();
+  ASSERT_GE(second_tabs, 3);
+  const size_t records_before = model()->tabs().size();
+
+  CloseBrowserSynchronously(second);
+
+  EXPECT_EQ(model()->GetTab(awake), nullptr);
+  EXPECT_EQ(model()->GetTab(asleep), nullptr);
+  ASSERT_TRUE(model()->GetTab(kept));
+  EXPECT_EQ(model()->tabs().size(), records_before - static_cast<size_t>(second_tabs));
+  // The sleeping tab of the closed window is gone from the count; the other
+  // one stays. (Before: two sleeping tabs; after: one.)
+  EXPECT_EQ(sleeping_before, 2);
+  EXPECT_EQ(CountSleepingTabs(*model()), 1);
+  // Nothing waits for a claim either.
+  EXPECT_EQ(model()->awaiting_restore_count(), 0u);
 }
 
 }  // namespace aerie_tab_model

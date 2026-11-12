@@ -130,12 +130,13 @@ class TabModel {
   std::string ClaimRestoredTabInPlaceOf(const std::string& fresh_id,
                                         std::string_view raw_id);
   // Today records that were open when the model was saved and that no restored
-  // tab has claimed yet.
+  // tab has claimed yet. IsAwaitingRestore and awaiting_restore_count are test
+  // seams: no production code reads them.
   bool IsAwaitingRestore(const std::string& id) const;
   size_t awaiting_restore_count() const { return awaiting_restore_.size(); }
   // Ends the restore pass: removes (and logs) every record that still waits.
-  // Returns how many. Folders are not touched: a folder is the user's own and
-  // stays, empty if need be.
+  // Returns how many were removed; only tests read the count. Folders are not
+  // touched: a folder is the user's own and stays, empty if need be.
   size_t RemoveUnclaimedRestoredTabs();
 
  private:

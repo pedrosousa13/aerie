@@ -26,7 +26,6 @@ class Profile;
 
 namespace aerie_tab_model {
 
-
 // Keeps the Tab Model in step with the tab strips of one profile (issue #176).
 // It watches every normal browser window of the profile and, through
 // TabStripModelObserver::OnTabStripModelChanged:
@@ -118,6 +117,10 @@ class TabStripAdapter : public BrowserCollectionObserver,
   void OnTabMoved(const TabRecord& tab, const Placement& from) override;
 
   bool Watches(BrowserWindowInterface* browser) const;
+  // True when the record of a tab that goes away with its closing window should
+  // stay, because session restore will bring the tab back.
+  bool KeepRecordWithClosingWindow(TabStripModel* tab_strip_model,
+                                   const TabRecord& record) const;
   // Saves (or, for a record that left Today, clears) the record id of `tab` in
   // the session file. Runs after the call that is inserting the tab has
   // returned: the session service learns of the tab and its window from its own

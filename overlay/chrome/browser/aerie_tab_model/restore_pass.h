@@ -25,6 +25,12 @@ namespace aerie_tab_model {
 // unclaimed when the pass ends is removed (TabModel::RemoveUnclaimedRestoredTabs);
 // empty Today folders stay.
 //
+// Startup order (checked in the source): SessionRestore::RestoreSession makes
+// its SessionRestoreImpl, which registers itself as "restoring" in its
+// constructor (session_restore.cc, GetActiveSessionRestorers().insert), before
+// it creates any window. So a window never exists first with IsRestoring() still
+// false on the startup path.
+//
 // The pass ends once, at the first moment when the Tab Model has read
 // state.json, session restore is not running for the profile, and a normal
 // window exists. If session restore is running at that moment, the pass ends

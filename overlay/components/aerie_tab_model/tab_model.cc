@@ -439,6 +439,9 @@ void TabModel::MergeLoaded(std::optional<ModelState> stored) {
 
 std::string TabModel::ClaimRestoredTab(std::string_view raw_id) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  // The id is checked where it is read (StashRestoredRecordId) and again here:
+  // the second check is deliberate defence in depth, so that the model does not
+  // rely on its callers.
   std::optional<std::string> id = ParseSessionRecordId(raw_id);
   if (!id) {
     return std::string();

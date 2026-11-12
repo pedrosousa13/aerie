@@ -10,6 +10,7 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/sequenced_task_runner.h"
 #include "chrome/browser/aerie_tab_model/session_record_id_hook.h"
+#include "chrome/browser/lifetime/browser_shutdown.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/sessions/session_service.h"
 #include "chrome/browser/sessions/session_service_factory.h"
@@ -135,9 +136,8 @@ void TabStripAdapter::OnTabStripModelChanged(
           }
           continue;
         }
-        if (tab_strip_model->closing_all()) {
-          // The window is closing, perhaps because the browser is quitting:
-          // Chromium's session keeps the tab and brings it back, and the tab
+        if (record && KeepRecordWithClosingWindow(tab_strip_model, *record)) {
+          // Chromium's session keeps this tab and brings it back, and the tab
           // then claims this record (issue #223). A record whose tab does not
           // come back is removed at the end of the next restore pass.
           ids_.erase(it);
@@ -176,6 +176,36 @@ void TabStripAdapter::OnTabStripModelChanged(
   if (selection.active_tab_changed() && selection.new_tab) {
     TouchActive(selection.new_tab);
   }
+}
+
+bool TabStripAdapter::KeepRecordWithClosingWindow(
+    TabStripModel* tab_strip_model,
+    const TabRecord& record) const {
+  // Only an awake Today record: sleeping Today records go with their tab, as
+  // they always did (the Tab Model restores sleeping tabs its own way).
+  if (!tab_strip_model->closing_all() || record.section != Section::kToday ||
+      record.sleeping) {
+    return false;
+  }
+  // The browser is quitting: session restore brings every window back.
+  if (browser_shutdown::IsTryingToQuit()) {
+    return true;
+  }
+  // Else only the last window of the profile: this is the test that
+  // SessionService::WindowClosing makes (has_open_trackable_browsers_), and it
+  // is also true when the last window is closed with its X button, which does
+  // not set IsTryingToQuit() until the window is gone. Any other window that is
+  // closed is not restored, so its records go with it.
+  bool other_window = false;
+  ForEachCurrentBrowserWindowInterfaceOrderedByActivation(
+      [&](BrowserWindowInterface* browser) {
+        if (Watches(browser) && browser->GetTabStripModel() != tab_strip_model) {
+          other_window = true;
+          return false;
+        }
+        return true;
+      });
+  return !other_window;
 }
 
 void TabStripAdapter::TabInserted(tabs::TabInterface* tab, int index) {
