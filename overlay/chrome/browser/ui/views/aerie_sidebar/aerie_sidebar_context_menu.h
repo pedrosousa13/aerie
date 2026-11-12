@@ -33,7 +33,8 @@ class Widget;
 // Pinned), Add to Favorites or Remove from Favorites, Sleep tab and Close tab.
 // Sleep tab is disabled, with the reason in its tooltip, when the tab cannot
 // sleep. Close tab follows the pinned-close setting for a Pinned or Favorites
-// tab. Later slices add Rename and the folder items to this menu. The menu is
+// tab. Rename and, only when the tab has a name of its own, Reset name follow
+// the section items (issue #145); later slices add the folder items to this menu. The menu is
 // the views menu, so the keyboard works as in every menu: arrows, Enter and
 // Esc.
 class AerieSidebarContextMenu : public views::MenuDelegate {
@@ -45,6 +46,8 @@ class AerieSidebarContextMenu : public views::MenuDelegate {
   static constexpr int kCommandRemoveFromFavorites = 5;
   static constexpr int kCommandClose = 6;
   static constexpr int kCommandBackToPinned = 7;
+  static constexpr int kCommandRename = 8;
+  static constexpr int kCommandResetName = 9;
 
   struct SleepItem {
     bool enabled = false;
@@ -58,6 +61,9 @@ class AerieSidebarContextMenu : public views::MenuDelegate {
     // A pinned tab that has left its pinned page: the menu offers "Back to pinned
     // page" first, the keyboard way to the button of the row.
     bool away_from_pinned = false;
+    // The tab has a name the user typed (issue #145): the menu then also offers
+    // "Reset name".
+    bool has_manual_name = false;
     SleepItem sleep;
   };
 
