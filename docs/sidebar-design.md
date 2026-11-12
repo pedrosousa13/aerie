@@ -169,7 +169,7 @@ The tooltip on the close button names the current action: "Reset and sleep", "Sl
 (#145, #146, #147.) Only the sidebar changes. The page's real `document.title` and the command bar's titles do not change.
 
 - Any tab can be renamed: Pinned, Today, in a folder. Rename with a double-click on the title, F2, the context menu, or a command bar action (M3).
-- Enter keeps the name. Esc cancels. An empty name resets. Typing the real page title back resets too. A caption under the field says so.
+- Enter keeps the name. Esc cancels. An empty name resets. Typing the real page title back resets too. A two-line caption under the field says so ("Enter keeps, Esc cancels. Empty or the page title resets."); the row grows by what the wrapped caption needs.
 - A manual name survives navigation and restarts. It is stored in the Tab Model with the tab, so it syncs later.
 - A renamed tab shows a small pencil after the title. Clicking it, or "Reset name" in the context menu, resets the name. Its tooltip shows the real page title and the precedence list.
 
@@ -194,7 +194,7 @@ A tidied or AI-titled tab has a tooltip with the original title and the reason (
 - **Look.** The row grows by one caption line (`type-line-caption` plus `space-4`) while the field is open; the caption is the field's accessible description. The field is a `views::Textfield` (role `textbox`, name "Tab name"). The pencil is a `size-pencil-button` (20 px) vector button among the trailing items, before "back to pinned page" and close; it has no focus stop (the keyboard way is the context menu or F2 and an empty name). Its tooltip is "Page title: <real title>. Shown: your name." and a line with the order.
 - **Motion.** The field fades in and the title view goes away on `xfast` (90 ms), and the pencil fades in with the same `aerie_sidebar::RenameFade`; both change `opacity` only (`aerie_sidebar_rename_uitest.cc` asserts that no transform animates). This is already the reduced-motion form, so reduced motion changes nothing.
 - **Accessible name of a row or tile.** The shown title, then ", asleep" when the tab sleeps, then ", renamed" when it has a name.
-- **Restarts.** A Pinned or Favorite tab comes back from the Tab Model with its name. A Today tab that was open when the browser closed is not matched with its old record by this build (see "Tab Model": the slice that restores tabs does that), so its name goes with the record, except for a sleeping Today tab, which is kept.
+- **Restarts.** A Pinned or Favorite tab comes back from the Tab Model with its name. A Today tab that was open when the browser closed is not matched with its old record by this build (see "Tab Model": the slice that restores tabs does that), so its name goes with the record, except for a sleeping Today tab, which is kept. Why: Chromium's session restore brings the tab back with no id the Tab Model can join to, and matching by URL and position would guess. Fixing it needs a stable record id saved with the tab in the session (a patch, with the join in `TabStripAdapter::TabInserted`). No open issue owns that yet; it also gates keeping folder membership of Today tabs.
 
 ## Densities, side and auto-hide
 

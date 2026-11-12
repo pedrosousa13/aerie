@@ -2,13 +2,13 @@
 // You can use, redistribute, and/or modify this source code under
 // the terms of the GPL-3.0 license that can be found in the LICENSE file.
 
-// Browser tests of tab rename (issue #145): the four ways to start (double-click,
-// F2, the context menu), on a Today row, a Pinned row and a Favorites tile;
-// Enter, Esc, an empty name and the page title typed back; focus loss and the
-// 200-character limit; the name across navigation and a restart; the page's
-// title, its history entry and the window title unchanged; the pencil and its
-// tooltip; the two menu items; and what a screen reader hears. PRE_ tests are
-// the first run of a pair; the next run is the restart.
+// Browser tests of tab rename (issue #145): the four ways to start
+// (double-click, F2, the context menu), on a Today row, a Pinned row and a
+// Favorites tile; Enter, Esc, an empty name and the page title typed back;
+// focus loss and the 200-character limit; the name across navigation and a
+// restart; the page's title, its history entry and the window title unchanged;
+// the pencil and its tooltip; the two menu items; and what a screen reader
+// hears. PRE_ tests are the first run of a pair; the next run is the restart.
 
 #include <memory>
 #include <optional>
@@ -254,7 +254,9 @@ class AerieSidebarRenameBrowserTest : public InProcessBrowserTest {
     return model()->GetTab(target.id)->manual_name;
   }
 
-  void KeyDown(views::View* view, ui::KeyboardCode key, int flags = ui::EF_NONE) {
+  void KeyDown(views::View* view,
+               ui::KeyboardCode key,
+               int flags = ui::EF_NONE) {
     ui::KeyEvent event(ui::EventType::kKeyPressed, key, flags);
     view->OnKeyPressed(event);
   }
@@ -276,7 +278,8 @@ class AerieSidebarRenameBrowserTest : public InProcessBrowserTest {
     switch (way) {
       case Way::kDoubleClick:
         if (target.row) {
-          views::Label* title = FindDescendant<views::Label>(target.row->content());
+          views::Label* title =
+              FindDescendant<views::Label>(target.row->content());
           ASSERT_TRUE(title);
           DoubleClick(target.row, title->bounds().CenterPoint());
         } else {
@@ -294,7 +297,8 @@ class AerieSidebarRenameBrowserTest : public InProcessBrowserTest {
         view->ShowContextMenu(gfx::Point(5, 5),
                               ui::mojom::MenuSourceType::kMouse);
         ASSERT_TRUE(sidebar()->context_menu());
-        views::MenuItemView* item = sidebar()->context_menu()->item(M::kCommandRename);
+        views::MenuItemView* item =
+            sidebar()->context_menu()->item(M::kCommandRename);
         ASSERT_TRUE(item);
         EXPECT_TRUE(item->GetEnabled());
         EXPECT_EQ(base::UTF16ToUTF8(item->title()),
@@ -304,7 +308,8 @@ class AerieSidebarRenameBrowserTest : public InProcessBrowserTest {
         break;
       }
     }
-    ASSERT_TRUE(base::test::RunUntil([&] { return Editor(target) != nullptr; }));
+    ASSERT_TRUE(
+        base::test::RunUntil([&] { return Editor(target) != nullptr; }));
   }
 
   // The open editor of the target, or null.
@@ -322,20 +327,25 @@ class AerieSidebarRenameBrowserTest : public InProcessBrowserTest {
     field->SelectAll(false);
     field->InsertOrReplaceText(text);
   }
-  void Enter(AerieSidebarRenameField* field) { KeyDown(field, ui::VKEY_RETURN); }
+  void Enter(AerieSidebarRenameField* field) {
+    KeyDown(field, ui::VKEY_RETURN);
+  }
   void Esc(AerieSidebarRenameField* field) { KeyDown(field, ui::VKEY_ESCAPE); }
 
   // Waits for the editor to be gone.
   void WaitClosed(const Target& target) {
-    ASSERT_TRUE(base::test::RunUntil([&] { return Editor(target) == nullptr; }));
+    ASSERT_TRUE(
+        base::test::RunUntil([&] { return Editor(target) == nullptr; }));
+    // The commit of a rename runs in a task after the editor is gone.
+    base::RunLoop().RunUntilIdle();
   }
 
   // The shown title of the target's view.
   // What a screen reader hears for the row or tile.
   std::u16string Shown(const Target& target) {
-    return base::UTF8ToUTF16(NameOf(target.row
-                                        ? static_cast<views::View*>(target.row)
-                                        : static_cast<views::View*>(target.tile)));
+    return base::UTF8ToUTF16(
+        NameOf(target.row ? static_cast<views::View*>(target.row)
+                          : static_cast<views::View*>(target.tile)));
   }
 
   void Click(views::Button* button) {
@@ -357,10 +367,9 @@ class AerieSidebarRenameStartBrowserTest
 INSTANTIATE_TEST_SUITE_P(
     AerieRenameStart,
     AerieSidebarRenameStartBrowserTest,
-    testing::Combine(testing::Values(Section::kToday,
-                                     Section::kPinned,
-                                     Section::kFavorite),
-                     testing::Values(Way::kDoubleClick, Way::kF2, Way::kMenu)),
+    testing::Combine(
+        testing::Values(Section::kToday, Section::kPinned, Section::kFavorite),
+        testing::Values(Way::kDoubleClick, Way::kF2, Way::kMenu)),
     [](const testing::TestParamInfo<std::tuple<Section, Way>>& info) {
       return std::string(SectionName(std::get<0>(info.param))) +
              WayName(std::get<1>(info.param));
@@ -405,7 +414,8 @@ IN_PROC_BROWSER_TEST_P(AerieSidebarRenameEndBrowserTest, EnterKeepsTheName) {
   Enter(Editor(target));
   WaitClosed(target);
   EXPECT_EQ(ManualName(target), "My inbox");
-  EXPECT_TRUE(base::test::RunUntil([&] { return Shown(target) == u"My inbox, renamed"; }));
+  EXPECT_TRUE(base::test::RunUntil(
+      [&] { return Shown(target) == u"My inbox, renamed"; }));
 }
 
 // Acceptance: Esc cancels.
@@ -442,7 +452,8 @@ IN_PROC_BROWSER_TEST_P(AerieSidebarRenameEndBrowserTest, AnEmptyNameResets) {
 }
 
 // Acceptance: typing the page title back resets (case-sensitive).
-IN_PROC_BROWSER_TEST_P(AerieSidebarRenameEndBrowserTest, TheRealPageTitleResets) {
+IN_PROC_BROWSER_TEST_P(AerieSidebarRenameEndBrowserTest,
+                       TheRealPageTitleResets) {
   Target target = MakeTarget(GetParam());
   model()->UpdateTab(target.id, [](aerie_tab_model::TabRecord& tab) {
     tab.manual_name = "Old";
@@ -458,11 +469,13 @@ IN_PROC_BROWSER_TEST_P(AerieSidebarRenameEndBrowserTest, TheRealPageTitleResets)
   Type(Editor(target), base::ToLowerASCII(PageTitle(target)));
   Enter(Editor(target));
   WaitClosed(target);
-  EXPECT_EQ(ManualName(target), base::UTF16ToUTF8(base::ToLowerASCII(PageTitle(target))));
+  EXPECT_EQ(ManualName(target),
+            base::UTF16ToUTF8(base::ToLowerASCII(PageTitle(target))));
 }
 
 // Decision: focus loss keeps the name.
-IN_PROC_BROWSER_TEST_P(AerieSidebarRenameEndBrowserTest, FocusLossKeepsTheName) {
+IN_PROC_BROWSER_TEST_P(AerieSidebarRenameEndBrowserTest,
+                       FocusLossKeepsTheName) {
   Target target = MakeTarget(GetParam());
   Start(target, Way::kF2);
   Type(Editor(target), u"Kept on blur");
@@ -477,14 +490,33 @@ IN_PROC_BROWSER_TEST_P(AerieSidebarRenameEndBrowserTest, FocusLossKeepsTheName) 
 }
 
 // Decision: the field holds at most 200 characters.
-IN_PROC_BROWSER_TEST_P(AerieSidebarRenameEndBrowserTest, TheFieldHoldsTwoHundredCharacters) {
+IN_PROC_BROWSER_TEST_P(AerieSidebarRenameEndBrowserTest,
+                       TheFieldHoldsTwoHundredCharacters) {
   Target target = MakeTarget(GetParam());
   Start(target, Way::kF2);
   Type(Editor(target), std::u16string(300, u'x'));
-  EXPECT_EQ(Editor(target)->GetText().size(), aerie_tab_model::kMaxManualNameLength);
+  EXPECT_EQ(Editor(target)->GetText().size(),
+            aerie_tab_model::kMaxManualNameLength);
   Enter(Editor(target));
   WaitClosed(target);
   EXPECT_EQ(ManualName(target)->size(), 200u);
+}
+
+// A paste that ends in a pair of UTF-16 units at the limit never keeps half of
+// it: the field holds 199 characters and the saved name has no U+FFFD.
+IN_PROC_BROWSER_TEST_P(AerieSidebarRenameEndBrowserTest,
+                       APasteNeverLeavesHalfASurrogatePair) {
+  Target target = MakeTarget(GetParam());
+  Start(target, Way::kF2);
+  std::u16string text(199, u'a');
+  text += u"\U0001F600tail";
+  Type(Editor(target), text);
+  EXPECT_EQ(Editor(target)->GetText(), std::u16string(199, u'a'));
+  Enter(Editor(target));
+  WaitClosed(target);
+  ASSERT_TRUE(ManualName(target));
+  EXPECT_EQ(*ManualName(target), std::string(199, 'a'));
+  EXPECT_EQ(ManualName(target)->find("\xEF\xBF\xBD"), std::string::npos);
 }
 
 // Acceptance: Enter or Esc (not a blur) puts focus on the view again; a rename
@@ -522,7 +554,8 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarRenameBrowserTest,
   strip()->ActivateTabAt(strip()->GetIndexOfTab(target.tab));
   const std::u16string window_title =
       BrowserView::GetBrowserViewForBrowser(browser())->GetWindowTitle();
-  EXPECT_NE(window_title.find(real_title), std::u16string::npos) << window_title;
+  EXPECT_NE(window_title.find(real_title), std::u16string::npos)
+      << window_title;
   EXPECT_EQ(window_title.find(u"Renamed"), std::u16string::npos);
 
   // The history entry keeps the real title.
@@ -537,7 +570,8 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarRenameBrowserTest,
     history->QueryURL(
         Url("/title1.html"),
         base::BindLambdaForTesting([&](history::QueryURLResult result) {
-          history_title = result.success ? result.row.title() : std::u16string();
+          history_title =
+              result.success ? result.row.title() : std::u16string();
           answered = true;
         }),
         &tracker);
@@ -567,7 +601,8 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarRenameBrowserTest,
 
 // Acceptance: the name survives a browser restart (Pinned and Favorites come
 // back from the Tab Model).
-IN_PROC_BROWSER_TEST_F(AerieSidebarRenameBrowserTest, PRE_TheNameSurvivesARestart) {
+IN_PROC_BROWSER_TEST_F(AerieSidebarRenameBrowserTest,
+                       PRE_TheNameSurvivesARestart) {
   Target pinned_target = MakeTarget(Section::kPinned, "/title1.html");
   sidebar()->CommitRename(pinned_target.id, u"Kept pinned");
   Target favorite_target = MakeTarget(Section::kFavorite, "/title2.html");
@@ -637,13 +672,12 @@ IN_PROC_BROWSER_TEST_P(AerieSidebarRenamePencilBrowserTest,
   EXPECT_TRUE(target.row->renamed());
   EXPECT_EQ(NameOf(target.row->pencil_button()),
             l10n_util::GetStringUTF8(IDS_AERIE_SIDEBAR_RESET_NAME));
-  const std::u16string tooltip =
-      target.row->pencil_button()->GetTooltipText();
-  EXPECT_EQ(tooltip,
-            l10n_util::GetStringFUTF16(IDS_AERIE_SIDEBAR_RENAMED_TOOLTIP,
-                                       PageTitle(target)) +
-                u"\n" +
-                l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_RENAMED_PRECEDENCE));
+  const std::u16string tooltip = target.row->pencil_button()->GetTooltipText();
+  EXPECT_EQ(tooltip, l10n_util::GetStringFUTF16(
+                         IDS_AERIE_SIDEBAR_RENAMED_TOOLTIP, PageTitle(target)) +
+                         u"\n" +
+                         l10n_util::GetStringUTF16(
+                             IDS_AERIE_SIDEBAR_RENAMED_PRECEDENCE));
   EXPECT_NE(tooltip.find(PageTitle(target)), std::u16string::npos);
   EXPECT_NE(tooltip.find(u"Shown: your name."), std::u16string::npos);
   EXPECT_NE(tooltip.find(u"page title"), std::u16string::npos);
@@ -659,8 +693,10 @@ IN_PROC_BROWSER_TEST_P(AerieSidebarRenamePencilBrowserTest,
 
 // Acceptance: "Reset name" is in the menu only when a name is set; "Rename" is
 // always there and both are enabled.
-IN_PROC_BROWSER_TEST_F(AerieSidebarRenameBrowserTest, ResetNameIsInTheMenuOnlyWhenANameIsSet) {
-  for (Section section : {Section::kToday, Section::kPinned, Section::kFavorite}) {
+IN_PROC_BROWSER_TEST_F(AerieSidebarRenameBrowserTest,
+                       ResetNameIsInTheMenuOnlyWhenANameIsSet) {
+  for (Section section :
+       {Section::kToday, Section::kPinned, Section::kFavorite}) {
     AerieSidebarContextMenu::Options options;
     options.section = section;
     M without(options, base::DoNothing());
@@ -682,14 +718,16 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarRenameBrowserTest, ResetNameIsInTheMenuOnlyWh
 // in it clears the name.
 IN_PROC_BROWSER_TEST_F(AerieSidebarRenameBrowserTest, TheRowMenuResetsTheName) {
   Target target = MakeTarget(Section::kToday);
-  target.row->ShowContextMenu(gfx::Point(5, 5), ui::mojom::MenuSourceType::kMouse);
+  target.row->ShowContextMenu(gfx::Point(5, 5),
+                              ui::mojom::MenuSourceType::kMouse);
   ASSERT_TRUE(sidebar()->context_menu());
   EXPECT_EQ(sidebar()->context_menu()->item(M::kCommandResetName), nullptr);
   EXPECT_TRUE(sidebar()->context_menu()->item(M::kCommandRename));
   sidebar()->context_menu()->Close();
 
   sidebar()->CommitRename(target.id, u"Mine");
-  target.row->ShowContextMenu(gfx::Point(5, 5), ui::mojom::MenuSourceType::kMouse);
+  target.row->ShowContextMenu(gfx::Point(5, 5),
+                              ui::mojom::MenuSourceType::kMouse);
   ASSERT_TRUE(sidebar()->context_menu());
   ASSERT_TRUE(sidebar()->context_menu()->item(M::kCommandResetName));
   sidebar()->context_menu()->ExecuteCommand(M::kCommandResetName);
@@ -701,14 +739,16 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarRenameBrowserTest, TheRowMenuResetsTheName) {
 
 // Acceptance: the editor is a textbox named "Tab name" and described by the
 // caption; the row name is the shown title, ", asleep", ", renamed".
-IN_PROC_BROWSER_TEST_F(AerieSidebarRenameBrowserTest, TheEditorIsATextboxNamedTabNameDescribedByTheCaption) {
+IN_PROC_BROWSER_TEST_F(AerieSidebarRenameBrowserTest,
+                       TheEditorIsATextboxNamedTabNameDescribedByTheCaption) {
   Target target = MakeTarget(Section::kToday);
   Start(target, Way::kF2);
   AerieSidebarRenameField* field = Editor(target);
   ASSERT_TRUE(field);
   EXPECT_EQ(DataOf(field).role, ax::mojom::Role::kTextField);
   EXPECT_EQ(NameOf(field), "Tab name");
-  EXPECT_EQ(NameOf(field), l10n_util::GetStringUTF8(IDS_AERIE_SIDEBAR_RENAME_FIELD_NAME));
+  EXPECT_EQ(NameOf(field),
+            l10n_util::GetStringUTF8(IDS_AERIE_SIDEBAR_RENAME_FIELD_NAME));
   EXPECT_EQ(DescriptionOf(field),
             l10n_util::GetStringUTF8(IDS_AERIE_SIDEBAR_RENAME_CAPTION));
   EXPECT_TRUE(target.row->rename_caption()->GetVisible());
@@ -716,19 +756,29 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarRenameBrowserTest, TheEditorIsATextboxNamedTa
             l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_RENAME_CAPTION));
   // The caption is under the field, inside the row, and the row is taller.
   EXPECT_GT(target.row->GetPreferredSize().height(), 34);
+  LayOut(target.row);
+  views::Label* caption = target.row->rename_caption();
+  EXPECT_GT(caption->height(), 0);
+  EXPECT_EQ(caption->height(), caption->GetHeightForWidth(caption->width()));
+  EXPECT_LE(caption->bounds().bottom(), target.row->height());
+  EXPECT_GE(caption->y(), 34);
+  // The caption can wrap, and the row grows by what the wrapped text needs.
+  EXPECT_TRUE(caption->GetMultiLine());
   Esc(field);
   WaitClosed(target);
   EXPECT_FALSE(target.row->rename_caption()->GetVisible());
   EXPECT_EQ(target.row->GetPreferredSize().height(), 34);
 }
 
-IN_PROC_BROWSER_TEST_F(AerieSidebarRenameBrowserTest, TheRowNameEndsWithAsleepThenRenamed) {
+IN_PROC_BROWSER_TEST_F(AerieSidebarRenameBrowserTest,
+                       TheRowNameEndsWithAsleepThenRenamed) {
   Target target = MakeTarget(Section::kToday);
   OpenTab("/title2.html");
   const std::string page = base::UTF16ToUTF8(PageTitle(target));
   EXPECT_EQ(NameOf(target.row), page);
   sidebar()->CommitRename(target.id, u"Mine");
-  ASSERT_TRUE(base::test::RunUntil([&] { return NameOf(target.row) == "Mine, renamed"; }));
+  ASSERT_TRUE(base::test::RunUntil(
+      [&] { return NameOf(target.row) == "Mine, renamed"; }));
   // Put the tab to sleep: ", asleep" comes before ", renamed".
   strip()->ActivateTabAt(strip()->count() - 1);
   ASSERT_TRUE(aerie_tab_model::SleepControllerFactory::GetForProfile(
@@ -744,18 +794,21 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarRenameBrowserTest, TheRowNameEndsWithAsleepTh
 }
 
 // A Favorites tile names the same way.
-IN_PROC_BROWSER_TEST_F(AerieSidebarRenameBrowserTest, TheTileNameEndsWithRenamed) {
+IN_PROC_BROWSER_TEST_F(AerieSidebarRenameBrowserTest,
+                       TheTileNameEndsWithRenamed) {
   Target target = MakeTarget(Section::kFavorite);
   sidebar()->CommitRename(target.id, u"Mine");
   ASSERT_TRUE(base::test::RunUntil([&] { return target.tile->renamed(); }));
   EXPECT_EQ(NameOf(target.tile), "Mine, renamed");
   EXPECT_EQ(DataOf(target.tile).role, ax::mojom::Role::kButton);
-  const std::u16string tooltip = target.tile->GetRenderedTooltipText(gfx::Point());
+  const std::u16string tooltip =
+      target.tile->GetRenderedTooltipText(gfx::Point());
   EXPECT_NE(tooltip.find(u"Shown: your name."), std::u16string::npos);
 }
 
 // The popover of a tile: a textbox named "Tab name", described by the caption.
-IN_PROC_BROWSER_TEST_F(AerieSidebarRenameBrowserTest, ThePopoverOfATileHasTheSameField) {
+IN_PROC_BROWSER_TEST_F(AerieSidebarRenameBrowserTest,
+                       ThePopoverOfATileHasTheSameField) {
   Target target = MakeTarget(Section::kFavorite);
   Start(target, Way::kF2);
   AerieSidebarRenameField* field = Editor(target);
@@ -768,8 +821,39 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarRenameBrowserTest, ThePopoverOfATileHasTheSam
             l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_RENAME_CAPTION));
 }
 
+// The popover of a tile closes, and keeps nothing, when its tile goes away.
+IN_PROC_BROWSER_TEST_F(AerieSidebarRenameBrowserTest,
+                       TheTilePopoverClosesWhenItsTabCloses) {
+  OpenTab("/title2.html");
+  Target target = MakeTarget(Section::kFavorite);
+  Start(target, Way::kF2);
+  ASSERT_TRUE(sidebar()->rename_popover());
+  Type(sidebar()->rename_popover()->field(), u"Never saved");
+  strip()->CloseWebContentsAt(strip()->GetIndexOfTab(target.tab),
+                              TabCloseTypes::CLOSE_NONE);
+  ASSERT_TRUE(base::test::RunUntil(
+      [&] { return sidebar()->rename_popover() == nullptr; }));
+  base::RunLoop().RunUntilIdle();
+  const auto* record = model()->GetTab(target.id);
+  EXPECT_TRUE(!record || record->manual_name == std::nullopt);
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarRenameBrowserTest,
+                       TheTilePopoverClosesWhenItsTabLeavesFavorites) {
+  Target target = MakeTarget(Section::kFavorite);
+  Start(target, Way::kF2);
+  ASSERT_TRUE(sidebar()->rename_popover());
+  Type(sidebar()->rename_popover()->field(), u"Never saved");
+  ASSERT_TRUE(pinned()->RemoveFromFavorites(target.tab));
+  ASSERT_TRUE(base::test::RunUntil(
+      [&] { return sidebar()->rename_popover() == nullptr; }));
+  base::RunLoop().RunUntilIdle();
+  EXPECT_EQ(ManualName(target), std::nullopt);
+}
+
 // A rename of a tab whose page then goes away does not leave an editor behind.
-IN_PROC_BROWSER_TEST_F(AerieSidebarRenameBrowserTest, ClosingTheTabDropsTheEditor) {
+IN_PROC_BROWSER_TEST_F(AerieSidebarRenameBrowserTest,
+                       ClosingTheTabDropsTheEditor) {
   OpenTab("/title2.html");
   Target target = MakeTarget(Section::kToday);
   Start(target, Way::kF2);

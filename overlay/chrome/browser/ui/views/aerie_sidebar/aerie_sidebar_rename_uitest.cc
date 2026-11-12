@@ -7,8 +7,8 @@
 // other editing keys staying in the field (a pinned row that left its page goes
 // back on a bare Backspace, and must not while the field is open); focus loss
 // keeping the name; and the motion of the field and the pencil, which is an
-// opacity fade on `xfast` and never a transform, with or without reduced motion.
-// Run with ./aerie test-cpp --target aerie_interactive_ui_tests.
+// opacity fade on `xfast` and never a transform, with or without reduced
+// motion. Run with ./aerie test-cpp --target aerie_interactive_ui_tests.
 
 #include <optional>
 #include <string>
@@ -50,6 +50,7 @@
 #include "ui/gfx/range/range.h"
 #include "ui/views/controls/button/image_button.h"
 #include "ui/views/view.h"
+#include "ui/views/view_class_properties.h"
 #include "ui/views/view_utils.h"
 #include "ui/views/widget/widget.h"
 
@@ -186,13 +187,15 @@ class AerieSidebarRenameUiTest : public InProcessBrowserTest {
 };
 
 // Acceptance: F2 starts, Enter keeps, and focus goes back to the row.
-IN_PROC_BROWSER_TEST_F(AerieSidebarRenameUiTest, F2StartsEnterKeepsAndFocusReturnsToTheRow) {
+IN_PROC_BROWSER_TEST_F(AerieSidebarRenameUiTest,
+                       F2StartsEnterKeepsAndFocusReturnsToTheRow) {
   ForceReducedMotion(true);
   AerieSidebarRowView* row = FocusTodayRow();
   const std::string id = sidebar()->tab_id_at(sidebar()->row_count() - 1);
   Press(ui::VKEY_F2);
   ASSERT_TRUE(row->renaming());
-  ASSERT_TRUE(base::test::RunUntil([&] { return focused() == row->rename_field(); }));
+  ASSERT_TRUE(
+      base::test::RunUntil([&] { return focused() == row->rename_field(); }));
   // The whole title is selected, so a typed letter replaces it.
   Press(ui::VKEY_X);
   EXPECT_EQ(base::ToLowerASCII(row->rename_field()->GetText()), u"x");
@@ -205,12 +208,14 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarRenameUiTest, F2StartsEnterKeepsAndFocusRetur
 }
 
 // Acceptance: Esc cancels and focus goes back to the row.
-IN_PROC_BROWSER_TEST_F(AerieSidebarRenameUiTest, EscCancelsAndFocusReturnsToTheRow) {
+IN_PROC_BROWSER_TEST_F(AerieSidebarRenameUiTest,
+                       EscCancelsAndFocusReturnsToTheRow) {
   ForceReducedMotion(true);
   AerieSidebarRowView* row = FocusTodayRow();
   const std::string id = sidebar()->tab_id_at(sidebar()->row_count() - 1);
   Press(ui::VKEY_F2);
-  ASSERT_TRUE(base::test::RunUntil([&] { return focused() == row->rename_field(); }));
+  ASSERT_TRUE(
+      base::test::RunUntil([&] { return focused() == row->rename_field(); }));
   Press(ui::VKEY_X);
   Press(ui::VKEY_ESCAPE);
   EXPECT_FALSE(row->renaming());
@@ -219,9 +224,10 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarRenameUiTest, EscCancelsAndFocusReturnsToTheR
 }
 
 // Known trap (#180): a pinned row that has left its page goes back on a bare
-// Backspace. While the field is open, Backspace edits the text and never reaches
-// the row, with text in the field and with the field empty.
-IN_PROC_BROWSER_TEST_F(AerieSidebarRenameUiTest, BackspaceInTheFieldNeverGoesBackToThePinnedPage) {
+// Backspace. While the field is open, Backspace edits the text and never
+// reaches the row, with text in the field and with the field empty.
+IN_PROC_BROWSER_TEST_F(AerieSidebarRenameUiTest,
+                       BackspaceInTheFieldNeverGoesBackToThePinnedPage) {
   ForceReducedMotion(true);
   tabs::TabInterface* tab = OpenTab("/title1.html");
   ASSERT_TRUE(service()->pinned_tabs()->Pin(tab));
@@ -238,7 +244,8 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarRenameUiTest, BackspaceInTheFieldNeverGoesBac
   ASSERT_EQ(focused(), row);
 
   Press(ui::VKEY_F2);
-  ASSERT_TRUE(base::test::RunUntil([&] { return focused() == row->rename_field(); }));
+  ASSERT_TRUE(
+      base::test::RunUntil([&] { return focused() == row->rename_field(); }));
   row->rename_field()->SetText(u"abc");
   row->rename_field()->SetSelectedRange(gfx::Range(3, 3));
   Press(ui::VKEY_BACK);
@@ -250,8 +257,7 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarRenameUiTest, BackspaceInTheFieldNeverGoesBac
   EXPECT_TRUE(row->rename_field()->GetText().empty());
   EXPECT_TRUE(row->renaming());
   EXPECT_EQ(tab->GetContents()->GetLastCommittedURL().path(), "/title2.html");
-  EXPECT_TRUE(row->back_to_pinned_button()->GetVisible() ||
-              row->renaming());
+  EXPECT_TRUE(row->back_to_pinned_button()->GetVisible() || row->renaming());
   // Delete and Ctrl+Backspace edit as well; they do not close or go back.
   Press(ui::VKEY_DELETE);
   Press(ui::VKEY_BACK, /*control=*/true);
@@ -275,16 +281,21 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarRenameUiTest, MovingFocusAwayKeepsTheName) {
   AerieSidebarRowView* row = FocusTodayRow();
   const std::string id = sidebar()->tab_id_at(sidebar()->row_count() - 1);
   Press(ui::VKEY_F2);
-  ASSERT_TRUE(base::test::RunUntil([&] { return focused() == row->rename_field(); }));
+  ASSERT_TRUE(
+      base::test::RunUntil([&] { return focused() == row->rename_field(); }));
   row->rename_field()->SetText(u"Kept on blur");
   browser()->tab_strip_model()->GetActiveWebContents()->Focus();
   ASSERT_TRUE(base::test::RunUntil([&] { return !row->renaming(); }));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return NameOf(id) == std::optional<std::string>("Kept on blur");
+  }));
   EXPECT_EQ(NameOf(id), "Kept on blur");
 }
 
 // Acceptance: the field swap and the pencil use `xfast` and only `opacity`.
 // An interactive test asserts that no transform animation exists.
-IN_PROC_BROWSER_TEST_F(AerieSidebarRenameUiTest, TheFieldAndThePencilFadeOnXfastWithNoTransform) {
+IN_PROC_BROWSER_TEST_F(AerieSidebarRenameUiTest,
+                       TheFieldAndThePencilFadeOnXfastWithNoTransform) {
   ForceReducedMotion(false);
   AerieSidebarRowView* row = FocusTodayRow();
   const std::string id = sidebar()->tab_id_at(sidebar()->row_count() - 1);
@@ -295,11 +306,23 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarRenameUiTest, TheFieldAndThePencilFadeOnXfast
   EXPECT_TRUE(OnlyOpacityAnimates(field_layer));
   EXPECT_EQ(OpacityDurationMs(field_layer), 90);
   EXPECT_EQ(OpacityDurationMs(field_layer),
-            aerie::tokens::GetDurationMs(aerie::tokens::MotionDuration::kXfast, false));
+            aerie::tokens::GetDurationMs(aerie::tokens::MotionDuration::kXfast,
+                                         false));
   EXPECT_TRUE(field_layer->transform().IsIdentity());
+  // The title goes out the same way: opacity only, on `xfast`, and nothing of
+  // it moves.
+  ui::Layer* title_layer = row->title_view()->layer();
+  ASSERT_TRUE(title_layer);
+  EXPECT_TRUE(OnlyOpacityAnimates(title_layer));
+  EXPECT_EQ(OpacityDurationMs(title_layer), 90);
+  EXPECT_TRUE(title_layer->transform().IsIdentity());
+  EXPECT_FLOAT_EQ(title_layer->GetTargetOpacity(), 0.f);
   Press(ui::VKEY_X);
   Press(ui::VKEY_RETURN);
   ASSERT_TRUE(base::test::RunUntil([&] { return row->renamed(); }));
+  // The title is back at full opacity and in the layout.
+  EXPECT_FLOAT_EQ(row->title_view()->layer()->GetTargetOpacity(), 1.f);
+  EXPECT_FALSE(row->title_view()->GetProperty(views::kViewIgnoredByLayoutKey));
 
   // The pencil fades in the same way. (It faded in when the name was set.)
   ui::Layer* pencil_layer = row->pencil_button()->layer();
@@ -311,7 +334,8 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarRenameUiTest, TheFieldAndThePencilFadeOnXfast
 }
 
 // The pencil's own fade, read at the moment it starts.
-IN_PROC_BROWSER_TEST_F(AerieSidebarRenameUiTest, ThePencilAppearsWithAnXfastOpacityFade) {
+IN_PROC_BROWSER_TEST_F(AerieSidebarRenameUiTest,
+                       ThePencilAppearsWithAnXfastOpacityFade) {
   ForceReducedMotion(false);
   AerieSidebarRowView* row = FocusTodayRow();
   const std::string id = sidebar()->tab_id_at(sidebar()->row_count() - 1);
@@ -329,7 +353,8 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarRenameUiTest, ThePencilAppearsWithAnXfastOpac
 }
 
 // Reduced motion: unchanged. It is already an opacity-only fade at 90 ms.
-IN_PROC_BROWSER_TEST_F(AerieSidebarRenameUiTest, ReducedMotionLeavesTheFadeUnchanged) {
+IN_PROC_BROWSER_TEST_F(AerieSidebarRenameUiTest,
+                       ReducedMotionLeavesTheFadeUnchanged) {
   ForceReducedMotion(true);
   AerieSidebarRowView* row = FocusTodayRow();
   Press(ui::VKEY_F2);
@@ -344,7 +369,8 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarRenameUiTest, ReducedMotionLeavesTheFadeUncha
 
 // Acceptance: F2 on a Favorites tile opens the popover; Enter keeps the name
 // and focus goes back to the tile.
-IN_PROC_BROWSER_TEST_F(AerieSidebarRenameUiTest, F2OnATileOpensThePopoverAndEnterBringsFocusBack) {
+IN_PROC_BROWSER_TEST_F(AerieSidebarRenameUiTest,
+                       F2OnATileOpensThePopoverAndEnterBringsFocusBack) {
   ForceReducedMotion(true);
   tabs::TabInterface* tab = OpenTab();
   ASSERT_EQ(service()->pinned_tabs()->AddToFavorites(tab),
@@ -358,7 +384,10 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarRenameUiTest, F2OnATileOpensThePopoverAndEnte
   ASSERT_TRUE(base::test::RunUntil(
       [&] { return sidebar()->rename_popover() != nullptr; }));
   AerieSidebarRenameField* field = sidebar()->rename_popover()->field();
-  ASSERT_TRUE(base::test::RunUntil([&] { return field->GetFocusManager() && field->GetFocusManager()->GetFocusedView() == field; }));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return field->GetFocusManager() &&
+           field->GetFocusManager()->GetFocusedView() == field;
+  }));
   Press(ui::VKEY_X);
   Press(ui::VKEY_RETURN);
   ASSERT_TRUE(base::test::RunUntil(
@@ -368,7 +397,8 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarRenameUiTest, F2OnATileOpensThePopoverAndEnte
   ASSERT_TRUE(base::test::RunUntil([&] { return focused() == tile; }));
 }
 
-IN_PROC_BROWSER_TEST_F(AerieSidebarRenameUiTest, EscInThePopoverCancelsAndBringsFocusBack) {
+IN_PROC_BROWSER_TEST_F(AerieSidebarRenameUiTest,
+                       EscInThePopoverCancelsAndBringsFocusBack) {
   ForceReducedMotion(true);
   tabs::TabInterface* tab = OpenTab();
   ASSERT_EQ(service()->pinned_tabs()->AddToFavorites(tab),
@@ -381,9 +411,9 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarRenameUiTest, EscInThePopoverCancelsAndBrings
   ASSERT_TRUE(base::test::RunUntil(
       [&] { return sidebar()->rename_popover() != nullptr; }));
   ASSERT_TRUE(base::test::RunUntil([&] {
-        auto* f = sidebar()->rename_popover()->field();
-        return f->GetFocusManager() && f->GetFocusManager()->GetFocusedView() == f;
-      }));
+    auto* f = sidebar()->rename_popover()->field();
+    return f->GetFocusManager() && f->GetFocusManager()->GetFocusedView() == f;
+  }));
   Press(ui::VKEY_X);
   Press(ui::VKEY_ESCAPE);
   ASSERT_TRUE(base::test::RunUntil(

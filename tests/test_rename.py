@@ -93,16 +93,13 @@ class StringsTest(unittest.TestCase):
 class MotionTest(unittest.TestCase):
     def test_the_rename_fade_is_xfast_and_the_views_animate_nothing_else(self):
         cc = code(SIDEBAR / "aerie_sidebar_motion.cc")
-        body = cc.split("RenameFade(bool reduced)")[1].split("\n}\n")[0]
+        body = cc.split("RenameFade()")[1].split("\n}\n")[0]
         self.assertIn("MotionDuration::kXfast", body)
         self.assertNotIn("transform", body.lower())
-        # The views start the fade with an opacity target only.
-        for name in ("aerie_sidebar_row_view.cc", "aerie_sidebar_rename_popover.cc"):
-            text = code(VIEWS / name)
-            for part in text.split("RenameFade(")[1:]:
-                chunk = part.split("}\n\n")[0] if "}\n\n" in part else part
-                chunk = chunk[:900]
-                self.assertNotIn("target.transform", chunk, name)
+        # The fade helper starts the fade with an opacity target only.
+        fade = code(VIEWS / "aerie_sidebar_rename_fade.cc")
+        self.assertNotIn("target.transform", fade)
+        self.assertNotIn("SetTransform", fade)
 
     def test_the_motion_struct_names_no_transform(self):
         header = (SIDEBAR / "aerie_sidebar_motion.h").read_text()
@@ -181,3 +178,59 @@ class DocsTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReviewFixesTest(unittest.TestCase):
+    def test_one_pair_safe_cut_is_used_at_every_site(self):
+        resolver = code(TAB_MODEL / "title_resolver.cc")
+        self.assertIn("std::u16string CutToManualNameLength(", resolver)
+        self.assertEqual(resolver.count("CutToManualNameLength("), 2)  # definition and TrimAndCut
+        for name in ("aerie_sidebar_row_view.cc", "aerie_sidebar_rename_popover.cc"):
+            text = code(VIEWS / name)
+            self.assertIn("CutToManualNameLength(new_contents)", text, name)
+            self.assertNotIn("substr(0, aerie_tab_model::kMaxManualNameLength)", text, name)
+
+    def test_the_caption_names_all_four_things(self):
+        text = re.search(r"IDS_AERIE_SIDEBAR_RENAME_CAPTION[^>]*>\s*(.*?)\s*</message>", GRDP, re.S).group(1)
+        for word in ("Enter", "Esc", "Empty", "page title"):
+            self.assertIn(word, text)
+
+    def test_the_field_border_uses_the_focus_ring_token_not_a_literal(self):
+        field = code(VIEWS / "aerie_sidebar_rename_field.cc")
+        self.assertNotRegex(field, r"CreateRoundedRectBorder\(\s*\d")
+        self.assertIn("kSizeFocusRingWidth", field)
+
+    def test_the_fades_share_one_helper(self):
+        for name in ("aerie_sidebar_row_view.cc", "aerie_sidebar_rename_popover.cc"):
+            text = code(VIEWS / name)
+            self.assertIn("FadeRenameViewIn(", text, name)
+            self.assertNotIn("aerie_sidebar::RenameFade", text, name)
+
+    def test_the_title_fades_out_and_the_commit_is_posted(self):
+        row = code(VIEWS / "aerie_sidebar_row_view.cc")
+        self.assertIn("FadeRenameViewOut(title_", row)
+        self.assertNotIn("AnimateLayer(", code(VIEWS / "aerie_sidebar_rename_popover.cc"))
+        end = row.split("void AerieSidebarRowView::EndRename(")[1].split("\n}\n")[0]
+        self.assertIn("PostTask", end)
+        self.assertNotIn("callbacks_.commit_rename.Run", end)
+
+    def test_the_shared_resolver_has_a_clear_name(self):
+        view = code(VIEWS / "aerie_sidebar_view.cc")
+        self.assertIn("SharedTitleResolver()", view)
+        self.assertNotRegex(view, r"[^\w]Resolver\(\)")
+
+    def test_the_popover_closes_without_a_commit_when_its_tile_goes(self):
+        view = code(VIEWS / "aerie_sidebar_view.cc")
+        destructor = view.split("AerieSidebarView::~AerieSidebarView()")[1].split("\n}\n")[0]
+        self.assertIn("rename_popover_->CancelRename()", destructor)
+        sync = view.split("void AerieSidebarView::SyncFavorites()")[1].split("\n}\n")[0]
+        self.assertIn("rename_popover_->CancelRename()", sync)
+
+    def test_the_rename_files_stay_within_eighty_columns(self):
+        names = ["aerie_sidebar_rename_field.cc", "aerie_sidebar_rename_field.h",
+                 "aerie_sidebar_rename_popover.cc", "aerie_sidebar_rename_popover.h",
+                 "aerie_sidebar_rename_fade.cc", "aerie_sidebar_rename_fade.h",
+                 "aerie_sidebar_rename_browsertest.cc", "aerie_sidebar_rename_uitest.cc"]
+        for name in names:
+            for number, line in enumerate((VIEWS / name).read_text().split("\n"), 1):
+                self.assertLessEqual(len(line), 80, f"{name}:{number}")
