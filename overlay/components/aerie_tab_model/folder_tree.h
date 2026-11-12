@@ -109,6 +109,12 @@ struct FolderChoice {
 std::vector<FolderChoice> FolderChoices(const TabModel& model,
                                         Section section);
 
+// The position that puts an item before every child of `parent_folder_id`
+// (empty: of the section itself).
+int FirstPosition(const TabModel& model,
+                  Section section,
+                  const std::string& parent_folder_id);
+
 // --- Edits ---
 
 // Makes an empty manual folder named `name`, expanded, at the top of

@@ -33,6 +33,7 @@
 #include "chrome/browser/ui/tabs/tab_strip_model_delegate.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_context_menu.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_focus_ring.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_sheet.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_group.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_regions.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_rename_popover.h"
@@ -47,6 +48,7 @@
 #include "components/aerie_sidebar/aerie_sidebar_layout.h"
 #include "components/aerie_sidebar/aerie_sidebar_motion.h"
 #include "components/aerie_sidebar/aerie_sidebar_tree.h"
+#include "components/aerie_tab_model/folder_rules.h"
 #include "components/aerie_tab_model/folder_tree.h"
 #include "components/aerie_tab_model/pinned_tabs.h"
 #include "components/aerie_tab_model/sleep_summary.h"
@@ -183,6 +185,10 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
           browser_->GetProfile())) {
     model_ = service->model();
     model_->AddObserver(this);
+    auto_file_ = service->auto_file();
+    if (auto_file_) {
+      auto_file_->AddObserver(this);
+    }
   }
   palette_ = ResolvePalette();
   auto* layout = SetLayoutManager(std::make_unique<views::BoxLayout>(
@@ -336,14 +342,33 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
 
   // The toast: one short message, polite for a screen reader (docs/sidebar-
   // design.md, "Roles and names").
-  toast_ = AddChildView(std::make_unique<views::Label>(
+  auto card = std::make_unique<views::BoxLayoutView>();
+  card->SetOrientation(views::BoxLayout::Orientation::kVertical);
+  card->SetCrossAxisAlignment(views::BoxLayout::CrossAxisAlignment::kStretch);
+  toast_ = card->AddChildView(std::make_unique<views::Label>(
       std::u16string(), views::style::CONTEXT_LABEL, views::style::STYLE_BODY_4));
   toast_->SetMultiLine(true);
   toast_->SetHorizontalAlignment(gfx::ALIGN_LEFT);
   toast_->GetViewAccessibility().SetRole(ax::mojom::Role::kStatus);
   toast_->SetBorder(views::CreateEmptyBorder(gfx::Insets::VH(
       aerie::tokens::kSpace8, aerie::tokens::kSpace12)));
-  toast_->SetVisible(false);
+  // The buttons of a toast that offers a choice (issue #139).
+  auto actions = std::make_unique<views::BoxLayoutView>();
+  actions->SetOrientation(views::BoxLayout::Orientation::kHorizontal);
+  actions->SetBetweenChildSpacing(aerie::tokens::kSpace8);
+  actions->SetInsideBorderInsets(gfx::Insets::TLBR(
+      0, aerie::tokens::kSpace8, aerie::tokens::kSpace8, aerie::tokens::kSpace8));
+  toast_undo_ = actions->AddChildView(std::make_unique<views::LabelButton>(
+      base::BindRepeating(&AerieSidebarView::UndoFiling, base::Unretained(this)),
+      l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_FILED_UNDO)));
+  toast_dont_file_ = actions->AddChildView(std::make_unique<views::LabelButton>(
+      base::BindRepeating(&AerieSidebarView::DontFileThisSite,
+                          base::Unretained(this)),
+      l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_FILED_DONT_FILE_SITE)));
+  actions->SetVisible(false);
+  toast_actions_ = card->AddChildView(std::move(actions));
+  card->SetVisible(false);
+  toast_card_ = AddChildView(std::move(card));
 
   // Bottom bar: a placeholder until the Archive button and the Workspace
   // switcher come. The toolbar's remaining buttons (extensions, profile, menu)
@@ -393,6 +418,9 @@ AerieSidebarView::~AerieSidebarView() {
   }
   if (model_) {
     model_->RemoveObserver(this);
+  }
+  if (auto_file_) {
+    auto_file_->RemoveObserver(this);
   }
   // The toolbar outlives nothing here, but its members point at the views that
   // moved out of it. Give them back so that none points at a view that is
@@ -483,8 +511,10 @@ void AerieSidebarView::ApplyPalette() {
     tile.view->SetPalette(palette_);
   }
   toast_->SetEnabledColor(palette_.text);
-  toast_->SetBackground(views::CreateRoundedRectBackground(
+  toast_card_->SetBackground(views::CreateRoundedRectBackground(
       palette_.row_selected, aerie::tokens::kRadiusMd));
+  toast_undo_->SetEnabledTextColors(palette_.text);
+  toast_dont_file_->SetEnabledTextColors(palette_.text);
   // The favicon of a tab without one is drawn in the muted text colour.
   UpdateRows();
 }
@@ -618,6 +648,10 @@ AerieSidebarRowView* AerieSidebarView::MakeRow(
       &AerieSidebarView::CommitRename, base::Unretained(this), id);
   callbacks.reset_name = base::BindRepeating(&AerieSidebarView::ResetName,
                                              base::Unretained(this), id);
+  if (entry.is_folder) {
+    callbacks.edit_folder = base::BindRepeating(
+        &AerieSidebarView::OpenFolderSheet, base::Unretained(this), id);
+  }
   auto* view = list->AddChildView(
       std::make_unique<AerieSidebarRowView>(std::move(callbacks), palette_));
   if (entry.is_folder) {
@@ -1370,9 +1404,15 @@ void AerieSidebarView::UpdateFolderRow(const Row& row) {
   const bool holds_selected =
       !active.empty() &&
       aerie_tab_model::FolderContainsTab(*model_, folder->id, active);
+  const bool auto_filing = aerie_tab_model::IsAutoFiling(*folder);
+  // An auto-filing folder says so in its name: "Trips, auto-filing folder, ...".
   std::u16string accessible_name = l10n_util::GetStringFUTF16(
-      folder->expanded ? IDS_AERIE_SIDEBAR_FOLDER_NAME_EXPANDED
-                       : IDS_AERIE_SIDEBAR_FOLDER_NAME_COLLAPSED,
+      auto_filing ? (folder->expanded
+                         ? IDS_AERIE_SIDEBAR_AUTO_FOLDER_NAME_EXPANDED
+                         : IDS_AERIE_SIDEBAR_AUTO_FOLDER_NAME_COLLAPSED)
+                  : (folder->expanded
+                         ? IDS_AERIE_SIDEBAR_FOLDER_NAME_EXPANDED
+                         : IDS_AERIE_SIDEBAR_FOLDER_NAME_COLLAPSED),
       name, items);
   if (holds_selected && !folder->expanded) {
     accessible_name = l10n_util::GetStringFUTF16(
@@ -1381,6 +1421,8 @@ void AerieSidebarView::UpdateFolderRow(const Row& row) {
   row.view->SetFolderState(
       name, accessible_name, folder->expanded, holds_selected,
       CanAnimateRows() ? browser_->GetProfile()->GetPrefs() : nullptr);
+  row.view->SetAutoFiling(
+      auto_filing, l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_FOLDER_RULES_BUTTON));
 }
 
 void AerieSidebarView::UpdateRow(const Row& row) {
@@ -1913,6 +1955,20 @@ void AerieSidebarView::OnFolderContextCommand(const std::string& folder_id,
               },
               weak_factory_.GetWeakPtr(), folder_id));
       break;
+    case AerieSidebarContextMenu::kCommandEditFolder:
+      // Open the sheet after this menu command returns, so that the menu has
+      // closed and given up its grab: the sheet anchors on the row and takes
+      // focus, and neither works while the menu still owns them.
+      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+          FROM_HERE,
+          base::BindOnce(
+              [](base::WeakPtr<AerieSidebarView> self, std::string id) {
+                if (self) {
+                  self->OpenFolderSheet(id);
+                }
+              },
+              weak_factory_.GetWeakPtr(), folder_id));
+      break;
     case AerieSidebarContextMenu::kCommandDeleteFolder:
       RequestDeleteFolder(folder_id);
       break;
@@ -1970,6 +2026,7 @@ void AerieSidebarView::ShowRowContextMenu(
       options.move_to_new_folder_tooltip = TooDeepTooltip();
     }
     options.show_move_out = in_folder;
+    options.show_stop_rule = record->filed_by.has_value();
     for (const aerie_tab_model::FolderChoice& choice :
          aerie_tab_model::FolderChoices(*model_, section)) {
       if (choice.id == record->parent) {
@@ -2064,6 +2121,13 @@ void AerieSidebarView::OnContextCommand(const std::string& tab_id,
         if (!id.empty()) {
           RenameNewFolderSoon(id);
         }
+      }
+      break;
+    case AerieSidebarContextMenu::kCommandStopRuleMatching:
+      // The tab is an exception of its folder from now on, and it leaves the
+      // folder (the user said the rule is wrong for it).
+      if (model_ && aerie_tab_model::StopRuleMatchingTab(*model_, tab_id)) {
+        aerie_tab_model::UndoFiling(*model_, tab_id);
       }
       break;
     case AerieSidebarContextMenu::kCommandMoveOutOfFolder:
@@ -2164,29 +2228,30 @@ void AerieSidebarView::ResetName(const std::string& tab_id) {
 }
 
 ui::Layer* AerieSidebarView::toast_layer() const {
-  return toast_->layer();
+  return toast_card_->layer();
 }
 
 bool AerieSidebarView::toast_visible() const {
-  return toast_->GetVisible();
+  return toast_card_->GetVisible();
 }
 
-void AerieSidebarView::ShowToast(const std::u16string& text) {
+void AerieSidebarView::ShowToast(const std::u16string& text, bool has_actions) {
   toast_motion_.Abort();
   toast_timer_.Stop();
   toast_->SetText(text);
-  toast_->SetVisible(true);
+  toast_actions_->SetVisible(has_actions);
+  toast_card_->SetVisible(true);
   // A polite announcement: the label has the status role, and its text change
   // is what a screen reader reads.
   toast_->NotifyAccessibilityEventDeprecated(ax::mojom::Event::kAlert, true);
   const PrefService* prefs = browser_->GetProfile()->GetPrefs();
-  const aerie_sidebar::ToastMotion motion =
-      aerie_sidebar::ToastShowMotion(aerie::motion::ShouldReduceMotion(prefs));
-  if (!toast_->layer()) {
-    toast_->SetPaintToLayer();
-    toast_->layer()->SetFillsBoundsOpaquely(false);
+  const aerie_sidebar::ToastMotion motion = aerie_sidebar::ToastShowMotion(
+      aerie::motion::ShouldReduceMotion(prefs), has_actions);
+  if (!toast_card_->layer()) {
+    toast_card_->SetPaintToLayer();
+    toast_card_->layer()->SetFillsBoundsOpaquely(false);
   }
-  ui::Layer* layer = toast_->layer();
+  ui::Layer* layer = toast_card_->layer();
   layer->SetOpacity(motion.from_opacity);
   aerie::motion::LayerMotion target;
   target.opacity = motion.to_opacity;
@@ -2206,18 +2271,18 @@ void AerieSidebarView::ShowToast(const std::u16string& text) {
 void AerieSidebarView::HideToast() {
   toast_motion_.Abort();
   toast_timer_.Stop();
-  if (!toast_->GetVisible() || !toast_->layer()) {
+  if (!toast_card_->GetVisible() || !toast_card_->layer()) {
     return;
   }
   const PrefService* prefs = browser_->GetProfile()->GetPrefs();
-  const aerie_sidebar::ToastMotion motion =
-      aerie_sidebar::ToastHideMotion(aerie::motion::ShouldReduceMotion(prefs));
+  const aerie_sidebar::ToastMotion motion = aerie_sidebar::ToastHideMotion(
+      aerie::motion::ShouldReduceMotion(prefs), toast_actions_->GetVisible());
   aerie::motion::LayerMotion target;
   target.opacity = motion.to_opacity;
-  toast_motion_ = aerie::motion::AnimateLayer(toast_->layer(), target,
+  toast_motion_ = aerie::motion::AnimateLayer(toast_card_->layer(), target,
                                               motion.duration, motion.easing,
                                               prefs);
-  // The label goes when the fade has ended.
+  // The card goes when the fade has ended.
   toast_timer_.Start(
       FROM_HERE, base::Milliseconds(motion.duration_ms),
       base::BindOnce(&AerieSidebarView::FinishToastHide,
@@ -2226,10 +2291,95 @@ void AerieSidebarView::HideToast() {
 
 void AerieSidebarView::FinishToastHide() {
   toast_motion_.Abort();
-  toast_->SetVisible(false);
+  toast_card_->SetVisible(false);
+  toast_actions_->SetVisible(false);
   toast_->SetText(std::u16string());
-  if (toast_->layer()) {
-    toast_->DestroyLayer();
+  last_filed_ = aerie_tab_model::AutoFileController::Filed();
+  if (toast_card_->layer()) {
+    toast_card_->DestroyLayer();
+  }
+}
+
+void AerieSidebarView::OnAutoFileControllerDestroyed() {
+  // The service shuts down (and drops the controller) before this window is
+  // gone in some orders, such as a profile that is deleted: let go of it.
+  auto_file_ = nullptr;
+}
+
+void AerieSidebarView::OnTabFiled(
+    const aerie_tab_model::AutoFileController::Filed& filed) {
+  // Only the window that holds the tab shows the notice and the pulse.
+  if (!FindTab(filed.tab_id) || !model_) {
+    return;
+  }
+  const aerie_tab_model::FolderRecord* folder =
+      model_->GetFolder(filed.folder_id);
+  if (!folder) {
+    return;
+  }
+  const PrefService* prefs = browser_->GetProfile()->GetPrefs();
+  if (AerieSidebarRowView* row = RowForId(filed.folder_id)) {
+    row->PlayFilingPulse(prefs);
+  }
+  last_filed_ = filed;
+  ShowToast(l10n_util::GetStringFUTF16(IDS_AERIE_SIDEBAR_FILED_INTO,
+                                       base::UTF8ToUTF16(folder->name)),
+            /*has_actions=*/true);
+}
+
+void AerieSidebarView::UndoFiling() {
+  if (model_ && !last_filed_.tab_id.empty()) {
+    aerie_tab_model::UndoFiling(*model_, last_filed_.tab_id);
+  }
+  HideToast();
+}
+
+void AerieSidebarView::DontFileThisSite() {
+  if (model_ && !last_filed_.folder_id.empty() && !last_filed_.host.empty()) {
+    aerie_tab_model::AddExcludedHost(*model_, last_filed_.folder_id,
+                                     last_filed_.host);
+  }
+  HideToast();
+}
+
+void AerieSidebarView::OpenFolderSheet(const std::string& folder_id) {
+  if (!model_ || !GetWidget() || !model_->GetFolder(folder_id)) {
+    return;
+  }
+  if (folder_sheet_) {
+    const bool same = folder_sheet_->folder_id() == folder_id;
+    folder_sheet_->Dismiss(/*refocus=*/false);
+    if (same) {
+      return;
+    }
+  }
+  AerieSidebarRowView* row = RowForId(folder_id);
+  if (!row) {
+    return;
+  }
+  AerieSidebarFolderSheet::Params params;
+  params.anchor = row;
+  params.model = model_;
+  params.prefs = browser_->GetProfile()->GetPrefs();
+  params.folder_id = folder_id;
+  params.palette = palette_;
+  params.sidebar_on_right = OuterEdgeSign() > 0;
+  params.closed = base::BindOnce(
+      [](base::WeakPtr<AerieSidebarView> self, std::string id, bool refocus) {
+        if (!self) {
+          return;
+        }
+        // The window is closing: the sheet is gone as far as the sidebar goes,
+        // whenever the window object itself is destroyed.
+        self->folder_sheet_.reset();
+        if (refocus) {
+          self->FocusRowById(id);
+        }
+      },
+      weak_factory_.GetWeakPtr(), folder_id);
+  if (AerieSidebarFolderSheet* sheet =
+          AerieSidebarFolderSheet::Show(std::move(params))) {
+    folder_sheet_ = sheet->GetWeakPtr();
   }
 }
 

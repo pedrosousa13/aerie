@@ -37,6 +37,9 @@ AerieSidebarContextMenu::AerieSidebarContextMenu(Options options,
     root_->AppendMenuItem(
         kCommandRenameFolder,
         l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_RENAME_FOLDER));
+    root_->AppendMenuItem(
+        kCommandEditFolder,
+        l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_EDIT_FOLDER));
     root_->AppendSeparator();
     root_->AppendMenuItem(
         kCommandDeleteFolder,
@@ -110,6 +113,11 @@ void AerieSidebarContextMenu::BuildTabItems() {
           kCommandMoveOutOfFolder,
           l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_MOVE_OUT_OF_FOLDER));
     }
+  }
+  if (options_.show_stop_rule) {
+    root_->AppendMenuItem(
+        kCommandStopRuleMatching,
+        l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_STOP_RULE_MATCHING));
   }
   root_->AppendSeparator();
   views::MenuItemView* sleep = root_->AppendMenuItem(
@@ -195,8 +203,11 @@ bool AerieSidebarContextMenu::HasCommand(int id) const {
     case kCommandNewFolder:
       return options_.target != Target::kTab || options_.show_new_folder;
     case kCommandRenameFolder:
+    case kCommandEditFolder:
     case kCommandDeleteFolder:
       return options_.target == Target::kFolder;
+    case kCommandStopRuleMatching:
+      return options_.target == Target::kTab && options_.show_stop_rule;
     case kCommandMoveToNewFolder:
       return options_.target == Target::kTab && options_.show_move_to_new_folder;
     case kCommandMoveOutOfFolder:

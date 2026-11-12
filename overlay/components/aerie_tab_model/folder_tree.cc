@@ -145,6 +145,12 @@ int EndPosition(const TabModel& model, Section section,
 
 }  // namespace
 
+int FirstPosition(const TabModel& model,
+                  Section section,
+                  const std::string& parent_folder_id) {
+  return TopPosition(model, section, parent_folder_id);
+}
+
 int Depth(const TabModel& model, const std::string& folder_id) {
   int depth = 0;
   const FolderRecord* folder = model.GetFolder(folder_id);

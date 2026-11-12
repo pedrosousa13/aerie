@@ -196,6 +196,12 @@
   <message name="IDS_SETTINGS_AERIE_PINNED_CLOSE_CLOSE" desc="Option of the pinned-close drop-down in Settings. Closing a pinned tab unpins and closes it.">
     Close
   </message>
+  <message name="IDS_SETTINGS_AERIE_FOLDER_RULES" desc="Label of the switch in the Sidebar section of Settings that turns the rules of all folders on or off. A folder can have rules that put new tabs into it by themselves.">
+    Folder rules everywhere
+  </message>
+  <message name="IDS_SETTINGS_AERIE_FOLDER_RULES_DESC" desc="Line under the folder-rules switch in Settings. When the switch is off, no folder moves a new tab into itself.">
+    Let folders with rules file new tabs by themselves. Turn this off to stop every folder at once.
+  </message>
   <message name="IDS_AERIE_SIDEBAR_NEW_FOLDER" desc="Item of the context menu in the sidebar that makes a new, empty folder for tabs. It is also the name that a new folder starts with, until the user renames it.">
     New folder
   </message>
@@ -243,5 +249,101 @@
   </message>
   <message name="IDS_AERIE_SIDEBAR_FOLDER_DELETE_BODY" desc="Text of the question that asks whether to delete a folder in the sidebar that holds tabs. It says what the folder holds. No tab is closed: they move out, next to the folder.">
     This folder holds <ph name="ITEMS">$1<ex>3 items</ex></ph>. They move out, next to the folder. No tab closes.
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_EDIT_FOLDER" desc="Item of the context menu of a folder in the sidebar. It opens the folder editor, where the user sets the folder's name, its kind and its rules. The three dots say that more input follows.">
+    Edit folder...
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_STOP_RULE_MATCHING" desc="Item of the context menu of a tab that a folder rule filed by itself. It adds this tab to the folder's exceptions, so that the rule never files it again, and moves the tab out of the folder.">
+    Stop this rule matching this tab
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_FOLDER_RULES_BUTTON" desc="Tooltip and accessible name of the small funnel button on the row of an auto-filing folder in the sidebar. It opens the folder editor.">
+    Edit folder rules
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_AUTO_FOLDER_NAME_EXPANDED" desc="Accessible name of a folder row in the sidebar that files new tabs by rules and is open. The name comes first, then the kind, the state and the number of items, for example: Trips, auto-filing folder, expanded, 3 items.">
+    <ph name="NAME">$1<ex>Trips</ex></ph>, auto-filing folder, expanded, <ph name="ITEMS">$2<ex>3 items</ex></ph>
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_AUTO_FOLDER_NAME_COLLAPSED" desc="Accessible name of a folder row in the sidebar that files new tabs by rules and is shut. The name comes first, then the kind, the state and the number of items, for example: Trips, auto-filing folder, collapsed, 3 items.">
+    <ph name="NAME">$1<ex>Trips</ex></ph>, auto-filing folder, collapsed, <ph name="ITEMS">$2<ex>3 items</ex></ph>
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_FILED_INTO" desc="Message in the small notice at the bottom of the sidebar after a folder rule moved a new tab into a folder by itself. A screen reader reads it politely.">
+    Filed into <ph name="FOLDER">$1<ex>Trips</ex></ph>
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_FILED_UNDO" desc="Button in the notice that says a tab was filed into a folder by a rule. It puts the tab back where it was.">
+    Undo
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_FILED_DONT_FILE_SITE" desc="Button in the notice that says a tab was filed into a folder by a rule. It adds the tab's website to the folder's exceptions, so that no tab of that website is filed there again.">
+    Don't file this site
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_SHEET_TITLE" desc="Accessible name of the folder editor, a small panel next to the sidebar. A screen reader reads it when the panel opens.">
+    Edit folder <ph name="NAME">$1<ex>Trips</ex></ph>
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_SHEET_NAME_FIELD" desc="Accessible name of the text field in the folder editor where the user types the folder's name.">
+    Folder name
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_SHEET_KIND_LABEL" desc="Label of the choice in the folder editor between the kinds of folder.">
+    Kind
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_SHEET_KIND_MANUAL" desc="Choice in the folder editor: a folder that only holds what the user puts in it.">
+    Manual
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_SHEET_KIND_AUTO" desc="Choice in the folder editor: a folder that moves new tabs into itself when they match its rules.">
+    Auto-filing
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_SHEET_RULES_LABEL" desc="Heading of the list of rules in the folder editor, and the accessible name of that list. A rule says which new tabs go into the folder.">
+    Rules
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_SHEET_RULE_TYPE" desc="Accessible name of the choice of rule type in the folder editor.">
+    Rule type
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_SHEET_RULE_VALUE" desc="Accessible name of the text field in the folder editor where the user types what a rule looks for.">
+    Rule text
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_SHEET_ADD_RULE" desc="Button in the folder editor that adds the rule the user typed to the folder.">
+    Add rule
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_RULE_TYPE_DOMAIN" desc="Type of a folder rule: the website or one of its subdomains, for example example.com.">
+    Domain
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_RULE_TYPE_URL_STARTS" desc="Type of a folder rule: the address of the page starts with the text.">
+    URL starts with
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_RULE_TYPE_URL_CONTAINS" desc="Type of a folder rule: the address of the page has the text somewhere in it.">
+    URL contains
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_RULE_TYPE_TITLE_CONTAINS" desc="Type of a folder rule: the title of the page has the text somewhere in it. Capital letters do not matter.">
+    Title contains
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_RULE_CHIP" desc="Text of one rule in the folder editor: the type, then the text the rule looks for, for example: Domain: example.com.">
+    <ph name="TYPE">$1<ex>Domain</ex></ph>: <ph name="VALUE">$2<ex>example.com</ex></ph>
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_RULE_CHIP_OFF" desc="Accessible name of the switch of one rule in the folder editor. The switch turns that one rule on or off.">
+    Rule <ph name="RULE">$1<ex>Domain: example.com</ex></ph>
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_RULE_REMOVE" desc="Accessible name of the small button that removes one rule in the folder editor.">
+    Remove rule <ph name="RULE">$1<ex>Domain: example.com</ex></ph>
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_SHEET_EXCEPTIONS_LABEL" desc="Heading of the list of exceptions in the folder editor. An exception is a website or a tab that the folder's rules never file.">
+    Exceptions
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_SHEET_EXCEPTION_REMOVE" desc="Accessible name of the small button that removes one exception in the folder editor.">
+    Remove exception <ph name="HOST">$1<ex>example.com</ex></ph>
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_SHEET_EXCEPTIONS_EMPTY" desc="Text in the folder editor when the folder has no exceptions.">
+    No exceptions.
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_SHEET_ALL_SWITCH" desc="Label and accessible name of the switch in the folder editor that turns all rules of this one folder on or off.">
+    All rules in this folder
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_SHEET_GLOBAL_SWITCH" desc="Label and accessible name of the switch in the folder editor that turns the rules of every folder on or off. The same switch is in Settings.">
+    Folder rules everywhere
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_SHEET_DONE" desc="Button that closes the folder editor. Changes are already saved.">
+    Done
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_SHEET_RULES_FULL" desc="Text in the folder editor when the folder has the most rules it can have.">
+    This folder has the most rules it can have.
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_SHEET_SAVE_RULE" desc="Button in the folder editor that replaces a rule the user is editing with the new text. It takes the place of the Add rule button while a rule is edited.">
+    Save rule
   </message>
 </grit-part>

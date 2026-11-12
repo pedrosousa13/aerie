@@ -165,8 +165,11 @@ struct ToastMotion {
   int hold_ms;
 };
 
-ToastMotion ToastShowMotion(bool reduced);
-ToastMotion ToastHideMotion(bool reduced);
+// A toast with actions (Undo, "Don't file this site", issue #139) holds for
+// `motion-timing-toast-action` (6 s) instead of `motion-timing-toast`, so there
+// is time to read it and to click.
+ToastMotion ToastShowMotion(bool reduced, bool has_actions = false);
+ToastMotion ToastHideMotion(bool reduced, bool has_actions = false);
 
 // The rename field swaps in for the title, the title goes out, and the pencil
 // of a renamed tab appears (issue #145): an opacity fade on `xfast` (90 ms),
@@ -231,6 +234,52 @@ ChevronMotion FolderChevronMotion(bool reduced);
 
 RowMotion OpenRowMotion(bool reduced);
 RowMotion CloseRowMotion(int outer_edge_sign, bool reduced);
+
+// The folder editor sheet opens and closes (issue #139, docs/sidebar-design.md,
+// "Folders"). Open: it slides `slide_px` (`motion-distance-sheet-slide`, 10 px)
+// from the sidebar edge while it fades in, on `sheet-enter` and `decelerate`.
+// Close: it only fades out, on `sheet-exit` and `accelerate`. Reduced motion:
+// opacity only, on the reduced durations (90 ms), no slide.
+struct SheetMotion {
+  bool animate_slide;
+  int slide_px;
+  float from_opacity;
+  float to_opacity;
+  aerie::tokens::MotionDuration duration;
+  aerie::tokens::MotionEasing easing;
+  int duration_ms;
+};
+
+SheetMotion SheetEnterMotion(bool reduced);
+SheetMotion SheetExitMotion(bool reduced);
+
+// A folder row pulses after a tab was filed into it (issue #139): a wash of the
+// accent colour over the row rises to `peak_opacity` on `rise_duration` and
+// `rise_easing`, then falls back to 0 for the rest of `motion-duration-autofile-
+// pulse` (700 ms; 300 ms under reduced motion) on `standard`. Only opacity
+// moves, reduced motion or not; the reduced pulse is shorter.
+struct PulseMotion {
+  float peak_opacity;
+  aerie::tokens::MotionDuration rise_duration;
+  aerie::tokens::MotionEasing rise_easing;
+  int rise_ms;
+  aerie::tokens::MotionEasing fall_easing;
+  int fall_ms;
+  // rise_ms + fall_ms.
+  int total_ms;
+};
+
+PulseMotion AutoFilePulseMotion(bool reduced);
+
+// The thumb of a switch moves on `motion-duration-switch` (120 ms; 60 ms
+// reduced) and `standard`. The thumb's transform is the only thing that moves.
+struct SwitchMotion {
+  aerie::tokens::MotionDuration duration;
+  aerie::tokens::MotionEasing easing;
+  int duration_ms;
+};
+
+SwitchMotion SwitchThumbMotion(bool reduced);
 
 }  // namespace aerie_sidebar
 

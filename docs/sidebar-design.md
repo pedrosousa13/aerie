@@ -108,7 +108,7 @@ Each folder also has Folder behaviour (#141), except smart folders.
 | Switching a folder with tabs to Smart | Its tabs move out, next to the folder, and a toast says so. |
 | Rules on and off | Each rule has an on switch. A folder has an "All" switch. A global switch ("Folder rules everywhere") sits in the sheet footer. |
 
-**Auto-filing flow.** A new tab that matches lands at the top of Today as usual. After `motion-timing-autofile-delay` it flies into the folder, the folder row pulses, and a toast says "Filed into Trips" with "Undo" and "Don't file this site" (the toast stays `motion-timing-toast-action`, 6 s). Dragging a filed tab out offers "Stop this rule matching this tab". The same action is in the tab's context menu.
+**Auto-filing flow.** A new tab that matches (within 10 s of its creation) lands at the top of Today as usual. After `motion-timing-autofile-delay` it flies into the folder, the folder row pulses, and a toast says "Filed into Trips" with "Undo" and "Don't file this site" (the toast stays `motion-timing-toast-action`, 6 s). Dragging a filed tab out offers "Stop this rule matching this tab". The same action is in the tab's context menu.
 
 **Smart folder rows.** A row shows a quiet "Today" or "Pinned" hint on hover. Its close button closes the real tab, and its tooltip says so. Rows cannot be dragged. Nothing can be dropped into a smart folder.
 
@@ -136,6 +136,39 @@ Each folder also has Folder behaviour (#141), except smart folders.
 - **Motion as built.** Reveal fades each child in with a stagger while one height animation grows the group, both inside `motion-duration-folder-reveal` (200 ms). Collapse runs in sequence inside `motion-duration-folder-collapse` (180 ms): the children fade out together over `motion-duration-xfast` (90 ms), then the height shrinks for the rest (180 minus 90 = 90 ms). The split comes from the tokens; nothing is added to the 180 ms. The chevron turns 90 degrees with a transform (`motion-ratio-chevron-turn`, a quarter turn). Under reduced motion only opacity changes, within 90 ms; the height and the chevron snap. A second toggle of the same folder turns the motion around from where it is; if reduced motion changed in between, the rows go to the end state at once. Frame trace (browser test, 300 tabs in 20 folders, expanding a folder of 15): the toggle costs about 4 ms on the main thread, with 19 main frames, 0 missed and a longest gap of 17 ms. Expanding one folder that holds all 300 tabs costs about 175 ms on the main thread (300 rows are made at once) and missed 2 frames.
 
 **Folder motion.** Collapse takes `motion-duration-folder-collapse` (180 ms) and reveal takes `motion-duration-folder-reveal` (200 ms). Reveal staggers the first 6 children 15 ms apart. Collapse does not stagger. See "Motion".
+
+### Folders as built (#139)
+
+Auto-filing folders are built as the brief says. What the brief left open, and what was chosen:
+
+- **The window.** A tab can be auto-filed for 10 s after it is created (`kAutoFileWindow`). Ten, not five: the first
+  navigation of a tab can wait several seconds on a cold DNS lookup, and a shorter window let the filing miss it. The
+  first committed address of a real page fixes the page the rules are asked about (the New Tab page that Ctrl+T shows,
+  and a blank page, do not count, so typing an address into a new tab still files it); a title that arrives later is matched against that
+  address. A later navigation never files the tab. A tab that the user moves by hand before the pause ends is left
+  where it is. The controller watches only the tabs its owner hands it (`Watch`): a tab that session restore, Reopen
+  closed tab or Duplicate made is never handed over, and nothing is watched while session restore runs, so no
+  auto-filing work runs at startup. An entry goes when its tab closes or leaves Today, when the window ends, or (for a
+  matched tab whose move never ran) a few seconds after its pause.
+- **Domain rules and IP addresses.** A Domain rule matches the host and its subdomains; an IP address (v4 or v6) matches
+  only that exact address, so `3.4` and `2.3.4` do not match `1.2.3.4`. A Domain value is normalised once, when the rule
+  is saved or loaded; the matcher compares it as it is.
+- **The pause.** A matched tab waits `motion-timing-autofile-delay` (280 ms; 120 ms under reduced motion) in Today and
+  then moves to the top of its folder. The folder row pulses with an accent wash on `autofile-pulse` (700 ms, 300 ms
+  under reduced motion; opacity only, peak `motion-opacity-autofile-pulse`, 0.3). A toast says "Filed into <folder>"
+  with Undo and "Don't file this site" and holds for `motion-timing-toast-action` (6 s).
+- **Order.** Pinned folders first, then Today folders, each from the top down. The first rule that matches wins.
+- **Where it lives.** Rules are in the folder's own record (`rules`: `enabled`, `rules`, `excluded_hosts`,
+  `excluded_tabs`), so they survive a restart with the Tab Model. A filed tab keeps `filed_by` (folder and rule) so that
+  Undo and "Stop this rule matching this tab" know where it came from; moving the tab by hand clears it. "Stop this rule
+  matching this tab" adds the tab to the folder's exceptions and also moves it out of the folder.
+- **Switches.** Rule, folder ("All rules in this folder") and global ("Folder rules everywhere", the pref
+  `aerie.folders.rules_enabled`, also a row in Settings, Sidebar). Each one stops filing; none removes a rule.
+- **The sheet.** One native panel (`AerieSidebarFolderSheet`) next to the sidebar; three ways in: "Edit folder..." in the
+  folder menu, a double-click on the folder icon, and the funnel on an auto-filing row. Edits apply at once. It opens on
+  `sheet-enter` (slides `motion-distance-sheet-slide`, 10 px, and fades) and closes on `sheet-exit` (fades). Reduced
+  motion: opacity only, 90 ms. Kinds come from a table, and the sheet has two empty, hidden slots for the Smart body (#140) and the Behaviour section (#141), so each is one row and one fill later.
+- **Limits.** 50 rules and 200 exceptions per folder, 512 bytes per rule text. No regex.
 
 ### Today, auto-archive and the archive panel
 

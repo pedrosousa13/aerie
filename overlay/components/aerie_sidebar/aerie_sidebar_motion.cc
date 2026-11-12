@@ -91,7 +91,7 @@ MenuOpenMotion ContextMenuOpenMotion(bool reduced) {
   return motion;
 }
 
-ToastMotion ToastShowMotion(bool reduced) {
+ToastMotion ToastShowMotion(bool reduced, bool has_actions) {
   ToastMotion motion;
   motion.animate_rise = !reduced;
   motion.rise_px = reduced ? 0 : aerie::tokens::kMotionDistanceToastRise;
@@ -100,13 +100,18 @@ ToastMotion ToastShowMotion(bool reduced) {
   motion.duration = MotionDuration::kFast;
   motion.easing = MotionEasing::kDecelerate;
   motion.duration_ms = GetDurationMs(motion.duration, reduced);
-  motion.hold_ms = reduced ? aerie::tokens::kMotionTimingToastReduced
-                           : aerie::tokens::kMotionTimingToast;
+  if (has_actions) {
+    motion.hold_ms = reduced ? aerie::tokens::kMotionTimingToastActionReduced
+                             : aerie::tokens::kMotionTimingToastAction;
+  } else {
+    motion.hold_ms = reduced ? aerie::tokens::kMotionTimingToastReduced
+                             : aerie::tokens::kMotionTimingToast;
+  }
   return motion;
 }
 
-ToastMotion ToastHideMotion(bool reduced) {
-  ToastMotion motion = ToastShowMotion(reduced);
+ToastMotion ToastHideMotion(bool reduced, bool has_actions) {
+  ToastMotion motion = ToastShowMotion(reduced, has_actions);
   motion.animate_rise = false;
   motion.rise_px = 0;
   motion.from_opacity = 1.f;
@@ -215,6 +220,51 @@ RowMotion CloseRowMotion(int outer_edge_sign, bool reduced) {
   motion.height_easing = MotionEasing::kStandard;
   motion.height_duration_ms =
       reduced ? 0 : GetDurationMs(motion.height_duration, false);
+  return motion;
+}
+
+SheetMotion SheetEnterMotion(bool reduced) {
+  SheetMotion motion;
+  motion.animate_slide = !reduced;
+  motion.slide_px = reduced ? aerie::tokens::kMotionDistanceSheetSlideReduced
+                            : aerie::tokens::kMotionDistanceSheetSlide;
+  motion.from_opacity = 0.f;
+  motion.to_opacity = 1.f;
+  motion.duration = MotionDuration::kSheetEnter;
+  motion.easing = MotionEasing::kDecelerate;
+  motion.duration_ms = GetDurationMs(motion.duration, reduced);
+  return motion;
+}
+
+SheetMotion SheetExitMotion(bool reduced) {
+  SheetMotion motion;
+  motion.animate_slide = false;
+  motion.slide_px = 0;
+  motion.from_opacity = 1.f;
+  motion.to_opacity = 0.f;
+  motion.duration = MotionDuration::kSheetExit;
+  motion.easing = MotionEasing::kAccelerate;
+  motion.duration_ms = GetDurationMs(motion.duration, reduced);
+  return motion;
+}
+
+PulseMotion AutoFilePulseMotion(bool reduced) {
+  PulseMotion motion;
+  motion.peak_opacity = aerie::tokens::kMotionOpacityAutofilePulse;
+  motion.rise_duration = MotionDuration::kXfast;
+  motion.rise_easing = MotionEasing::kDecelerate;
+  motion.rise_ms = GetDurationMs(motion.rise_duration, reduced);
+  motion.fall_easing = MotionEasing::kStandard;
+  motion.total_ms = GetDurationMs(MotionDuration::kAutofilePulse, reduced);
+  motion.fall_ms = motion.total_ms - motion.rise_ms;
+  return motion;
+}
+
+SwitchMotion SwitchThumbMotion(bool reduced) {
+  SwitchMotion motion;
+  motion.duration = MotionDuration::kSwitch;
+  motion.easing = MotionEasing::kStandard;
+  motion.duration_ms = GetDurationMs(motion.duration, reduced);
   return motion;
 }
 

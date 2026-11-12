@@ -16,8 +16,13 @@
 
 class Profile;
 
+namespace tabs {
+class TabInterface;
+}
+
 namespace aerie_tab_model {
 
+class AutoFileController;
 class PinnedTabsController;
 class TabStripAdapter;
 
@@ -44,6 +49,9 @@ class TabModelService : public KeyedService {
   // Restores Pinned and Favorites tabs and runs their close and section
   // commands (issue #180). Null after Shutdown().
   PinnedTabsController* pinned_tabs() { return pinned_tabs_.get(); }
+  // Files new tabs into auto-filing folders (issue #139). It only watches tabs
+  // created in the last few seconds. Null after Shutdown().
+  AutoFileController* auto_file() { return auto_file_.get(); }
 
   // nullopt means never.
   std::optional<base::TimeDelta> archive_after() const;
@@ -53,6 +61,13 @@ class TabModelService : public KeyedService {
   void Shutdown() override;
 
  private:
+  // A tab got a Today record. A tab that is not a brand-new, blank one (session
+  // restore, Reopen closed tab, a duplicate) is not a candidate for filing.
+  void OnTabInserted(const std::string& record_id, tabs::TabInterface* tab);
+  // A tab with a record changed (its address, title, loading state...): hands a
+  // watched new tab's page to the auto-filing controller.
+  void OnTabChanged(const std::string& record_id, tabs::TabInterface* tab);
+
   const raw_ptr<Profile> profile_;
   // The members below are destroyed in reverse order: the adapter first, then
   // the persistence (which writes what is pending), then the model.
@@ -60,6 +75,7 @@ class TabModelService : public KeyedService {
   TabModelPersistence persistence_;
   std::unique_ptr<TabStripAdapter> adapter_;
   std::unique_ptr<PinnedTabsController> pinned_tabs_;
+  std::unique_ptr<AutoFileController> auto_file_;
 };
 
 }  // namespace aerie_tab_model
