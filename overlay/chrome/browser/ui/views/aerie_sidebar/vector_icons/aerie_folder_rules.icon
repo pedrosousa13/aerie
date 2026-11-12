@@ -1,0 +1,15 @@
+// Copyright 2026 The Aerie Authors
+// You can use, redistribute, and/or modify this source code under
+// the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+// The funnel on the row of an auto-filing folder (issue #139): a wide mouth on
+// top, a short neck below.
+CANVAS_DIMENSIONS, 16,
+FILL_RULE_NONZERO,
+MOVE_TO, 2, 3,
+LINE_TO, 14, 3,
+LINE_TO, 9.5f, 8.5f,
+LINE_TO, 9.5f, 13,
+LINE_TO, 6.5f, 11.5f,
+LINE_TO, 6.5f, 8.5f,
+CLOSE

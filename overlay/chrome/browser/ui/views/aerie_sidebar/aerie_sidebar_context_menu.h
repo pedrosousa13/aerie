@@ -58,6 +58,10 @@ class AerieSidebarContextMenu : public views::MenuDelegate {
   // The "Move to folder" item opens a list; its entries are
   // kCommandMoveToFolderBase plus their index in Options::move_targets.
   static constexpr int kCommandMoveToFolderList = 15;
+  // Auto-filing folders (issue #139): the folder's menu opens the editor; the
+  // menu of a tab that a rule filed can stop that rule matching it.
+  static constexpr int kCommandEditFolder = 16;
+  static constexpr int kCommandStopRuleMatching = 17;
   static constexpr int kCommandMoveToFolderBase = 100;
 
   // What the menu is for.
@@ -110,6 +114,9 @@ class AerieSidebarContextMenu : public views::MenuDelegate {
     std::vector<MoveTarget> move_targets;
     // A tab that is in a folder: "Move out of folder".
     bool show_move_out = false;
+    // A tab that a folder rule filed (issue #139): "Stop this rule matching this
+    // tab".
+    bool show_stop_rule = false;
   };
 
   // Runs with the command id when an enabled item is chosen.

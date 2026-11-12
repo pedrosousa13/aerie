@@ -10,7 +10,10 @@ import("//components/vector_icons/vector_icons.gni")
 # aerie_sidebar.
 aggregate_vector_icons("aerie_sidebar_vector_icons") {
   icon_directory = "."
-  sources = [ "aerie_sleep_badge.icon" ]
+  sources = [
+    "aerie_folder_rules.icon",
+    "aerie_sleep_badge.icon",
+  ]
 }
 
 source_set("vector_icons") {
