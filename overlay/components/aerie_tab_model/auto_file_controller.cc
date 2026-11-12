@@ -9,6 +9,7 @@
 #include "base/auto_reset.h"
 #include "base/functional/bind.h"
 #include "base/task/sequenced_task_runner.h"
+#include "components/aerie_design_tokens/aerie_tokens.h"
 #include "components/aerie_tab_model/folder_rules.h"
 #include "components/aerie_tab_model/tab_model.h"
 
@@ -32,6 +33,12 @@ bool AnyAutoFilingFolder(const TabModel& model) {
 }
 
 }  // namespace
+
+base::TimeDelta AutoFileDelay(bool reduced) {
+  return base::Milliseconds(reduced
+                                ? aerie::tokens::kMotionTimingAutofileDelayReduced
+                                : aerie::tokens::kMotionTimingAutofileDelay);
+}
 
 AutoFileController::AutoFileController(TabModel* model,
                                        const base::TickClock* clock,
@@ -82,9 +89,6 @@ void AutoFileController::OnTabAdded(const TabRecord& tab) {
   // Only a new Today tab can be filed, and only when some folder could take it.
   if (tab.section != Section::kToday || !tab.parent.empty() ||
       !AnyAutoFilingFolder(*model_)) {
-    return;
-  }
-  if (new_tab_filter_ && !new_tab_filter_.Run()) {
     return;
   }
   watched_[tab.id].deadline = clock_->NowTicks() + window_;

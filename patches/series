@@ -147,3 +147,6 @@ sidebar/0035-add-the-sleep-row-to-the-sidebar-section-of-settings.patch
 # Keeping Pinned tabs and Favorites (#180): Ctrl+W follows the pinned-close setting, and the "Close a pinned tab" row in Settings.
 sidebar/0036-close-pinned-tabs-by-the-pinned-close-setting.patch
 sidebar/0037-add-the-pinned-close-row-to-the-sidebar-section-of-settings.patch
+
+# Auto-filing new tabs into folders (#139): the "Folder rules everywhere" row in the Sidebar section of Settings.
+sidebar/0038-add-the-folder-rules-row-to-the-sidebar-section-of-settings.patch

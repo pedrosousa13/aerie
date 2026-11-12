@@ -58,6 +58,14 @@ void TabStripAdapter::SetPinnedTabGoneCallback(
   pinned_tab_gone_ = std::move(callback);
 }
 
+void TabStripAdapter::SetTabChangedCallback(TabChangedCallback callback) {
+  tab_changed_ = std::move(callback);
+}
+
+void TabStripAdapter::SetTabInsertedCallback(TabInsertedCallback callback) {
+  tab_inserted_ = std::move(callback);
+}
+
 bool TabStripAdapter::Watches(BrowserWindowInterface* browser) const {
   return browser->GetProfile() == profile_ &&
          browser->GetType() == BrowserWindowInterface::TYPE_NORMAL;
@@ -171,7 +179,10 @@ void TabStripAdapter::TabInserted(tabs::TabInterface* tab, int index) {
   record.last_active = clock_->Now();
   std::string id = model_->AddTab(std::move(record));
   if (!id.empty()) {
-    ids_.emplace(tab->GetHandle(), std::move(id));
+    ids_.emplace(tab->GetHandle(), id);
+    if (tab_inserted_) {
+      tab_inserted_.Run(id, tab);
+    }
   }
 }
 
@@ -195,6 +206,9 @@ void TabStripAdapter::OnTabChangedAt(tabs::TabInterface* tab,
   // A Pinned or Favorites tab remembers its title, for the row that is shown
   // before the tab loads again.
   auto it = ids_.find(tab->GetHandle());
+  if (it != ids_.end() && tab_changed_) {
+    tab_changed_.Run(it->second, tab);
+  }
   const TabRecord* record =
       it == ids_.end() ? nullptr : model_->GetTab(it->second);
   if (!record || record->section == Section::kToday) {

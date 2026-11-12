@@ -5,14 +5,22 @@
 #include "chrome/browser/aerie_tab_model/tab_model_service.h"
 
 #include "base/files/file_path.h"
+#include "base/functional/bind.h"
+#include "base/strings/utf_string_conversions.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
 #include "base/time/default_clock.h"
+#include "base/time/default_tick_clock.h"
 #include "chrome/browser/aerie_tab_model/pinned_tabs_controller.h"
 #include "chrome/browser/aerie_tab_model/tab_strip_adapter.h"
 #include "chrome/browser/profiles/profile.h"
+#include "components/aerie_design_tokens/aerie_motion.h"
+#include "components/aerie_tab_model/auto_file_controller.h"
 #include "components/aerie_tab_model/tab_model_prefs.h"
 #include "components/prefs/pref_service.h"
+#include "components/tabs/public/tab_interface.h"
+#include "content/public/browser/navigation_controller.h"
+#include "content/public/browser/web_contents.h"
 
 namespace aerie_tab_model {
 
@@ -44,6 +52,51 @@ TabModelService::TabModelService(Profile* profile)
       profile_, &model_, base::DefaultClock::GetInstance());
   pinned_tabs_ = std::make_unique<PinnedTabsController>(profile_, &model_,
                                                         adapter_.get());
+  // Auto-filing (issue #139). Nothing runs here: the controller listens for
+  // new tabs and keeps the few seconds of state each one needs.
+  auto_file_ = std::make_unique<AutoFileController>(
+      &model_, base::DefaultTickClock::GetInstance(),
+      base::BindRepeating(
+          [](Profile* profile) {
+            return AreFolderRulesEnabled(*profile->GetPrefs());
+          },
+          base::Unretained(profile_.get())),
+      base::BindRepeating(
+          [](Profile* profile) {
+            return AutoFileDelay(
+                aerie::motion::ShouldReduceMotion(profile->GetPrefs()));
+          },
+          base::Unretained(profile_.get())));
+  adapter_->SetTabInsertedCallback(base::BindRepeating(
+      &TabModelService::OnTabInserted, base::Unretained(this)));
+  adapter_->SetTabChangedCallback(base::BindRepeating(
+      &TabModelService::OnTabChanged, base::Unretained(this)));
+}
+
+void TabModelService::OnTabInserted(const std::string& record_id,
+                                    tabs::TabInterface* tab) {
+  if (!auto_file_ || !auto_file_->IsWatching(record_id)) {
+    return;
+  }
+  // A tab that session restore, Reopen closed tab or Duplicate made has history
+  // already. Only a tab that has not committed a page of its own yet is new.
+  content::WebContents* contents = tab->GetContents();
+  if (!contents || !contents->GetController().IsInitialBlankNavigation()) {
+    auto_file_->Forget(record_id);
+  }
+}
+
+void TabModelService::OnTabChanged(const std::string& record_id,
+                                   tabs::TabInterface* tab) {
+  if (!auto_file_ || !auto_file_->IsWatching(record_id)) {
+    return;
+  }
+  content::WebContents* contents = tab->GetContents();
+  if (!contents) {
+    return;
+  }
+  auto_file_->OnTabPage(record_id, contents->GetLastCommittedURL(),
+                        base::UTF16ToUTF8(tab->GetTitle()));
 }
 
 TabModelService::~TabModelService() = default;
@@ -57,6 +110,7 @@ std::optional<base::TimeDelta> TabModelService::sleep_after() const {
 }
 
 void TabModelService::Shutdown() {
+  auto_file_.reset();
   pinned_tabs_.reset();
   adapter_.reset();
   persistence_.FlushPendingWrite();

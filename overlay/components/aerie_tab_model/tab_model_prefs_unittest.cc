@@ -47,4 +47,13 @@ TEST(TabModelPrefsTest, TheModelReadsWhatThePrefsHold) {
   EXPECT_EQ(GetSleepAfter(prefs), std::nullopt);
 }
 
+TEST(TabModelPrefsTest, FolderRulesAreOnByDefaultAndSwitchOffEverywhere) {
+  TestingPrefServiceSimple prefs;
+  RegisterProfilePrefs(prefs.registry());
+  EXPECT_STREQ("aerie.folders.rules_enabled", kFolderRulesEnabled);
+  EXPECT_TRUE(AreFolderRulesEnabled(prefs));
+  prefs.SetBoolean(kFolderRulesEnabled, false);
+  EXPECT_FALSE(AreFolderRulesEnabled(prefs));
+}
+
 }  // namespace aerie_tab_model

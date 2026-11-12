@@ -32,6 +32,12 @@ inline constexpr char kPinnedCloseResetSleepSwitch[] = "reset-sleep-switch";
 inline constexpr char kPinnedCloseSleep[] = "sleep";
 inline constexpr char kPinnedCloseClose[] = "close";
 
+// The global switch "Folder rules everywhere" (issue #139): when it is off, no
+// folder files a new tab, whatever its own switches say. A profile pref, on by
+// default. Mirrored in the footer of the folder editor sheet and in Settings,
+// Sidebar. Also a settings_private allowlist literal (patches/sidebar/0038).
+inline constexpr char kFolderRulesEnabled[] = "aerie.folders.rules_enabled";
+
 inline constexpr char kDefaultArchiveAfter[] = "12h";
 inline constexpr char kDefaultPinnedClose[] = "reset-sleep-switch";
 inline constexpr int kDefaultSleepAfterMinutes = 60;
@@ -52,6 +58,9 @@ std::optional<base::TimeDelta> SleepAfterFromMinutes(int minutes);
 // The same, read from the prefs.
 std::optional<base::TimeDelta> GetArchiveAfter(const PrefService& prefs);
 std::optional<base::TimeDelta> GetSleepAfter(const PrefService& prefs);
+
+// The global folder-rules switch.
+bool AreFolderRulesEnabled(const PrefService& prefs);
 
 }  // namespace aerie_tab_model
 

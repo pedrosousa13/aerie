@@ -70,6 +70,22 @@ class TabStripAdapter : public BrowserCollectionObserver,
   // back).
   void SetPinnedTabGoneCallback(base::RepeatingClosure callback);
 
+  // Runs for every change of a tab that has a record: its record id and the tab
+  // (issue #139: a new tab's address and title, for auto-filing). The callee
+  // must return at once for a tab it does not care about.
+  using TabChangedCallback =
+      base::RepeatingCallback<void(const std::string& record_id,
+                                   tabs::TabInterface* tab)>;
+  void SetTabChangedCallback(TabChangedCallback callback);
+
+  // Runs once for each tab that got a new Today record because it was inserted
+  // (not for a tab that came from another window or a restored Pinned tab). The
+  // record is in the model, and the Tab Model's observers have heard of it.
+  using TabInsertedCallback =
+      base::RepeatingCallback<void(const std::string& record_id,
+                                   tabs::TabInterface* tab)>;
+  void SetTabInsertedCallback(TabInsertedCallback callback);
+
  private:
   // BrowserCollectionObserver:
   void OnBrowserCreated(BrowserWindowInterface* browser) override;
@@ -95,6 +111,8 @@ class TabStripAdapter : public BrowserCollectionObserver,
   std::map<tabs::TabHandle, std::string> ids_;
   std::string pending_restore_record_;
   base::RepeatingClosure pinned_tab_gone_;
+  TabChangedCallback tab_changed_;
+  TabInsertedCallback tab_inserted_;
   base::ScopedObservation<GlobalBrowserCollection, BrowserCollectionObserver>
       browser_collection_observation_{this};
 };

@@ -15,6 +15,7 @@ void RegisterProfilePrefs(PrefRegistrySimple* registry) {
   registry->RegisterStringPref(kArchiveAfter, kDefaultArchiveAfter);
   registry->RegisterIntegerPref(kSleepAfterMinutes, kDefaultSleepAfterMinutes);
   registry->RegisterStringPref(kPinnedClose, kDefaultPinnedClose);
+  registry->RegisterBooleanPref(kFolderRulesEnabled, true);
 }
 
 std::optional<base::TimeDelta> ParseArchiveAfter(std::string_view value) {
@@ -48,6 +49,10 @@ std::optional<base::TimeDelta> GetArchiveAfter(const PrefService& prefs) {
 
 std::optional<base::TimeDelta> GetSleepAfter(const PrefService& prefs) {
   return SleepAfterFromMinutes(prefs.GetInteger(kSleepAfterMinutes));
+}
+
+bool AreFolderRulesEnabled(const PrefService& prefs) {
+  return prefs.GetBoolean(kFolderRulesEnabled);
 }
 
 }  // namespace aerie_tab_model

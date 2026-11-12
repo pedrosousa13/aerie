@@ -196,6 +196,12 @@
   <message name="IDS_SETTINGS_AERIE_PINNED_CLOSE_CLOSE" desc="Option of the pinned-close drop-down in Settings. Closing a pinned tab unpins and closes it.">
     Close
   </message>
+  <message name="IDS_SETTINGS_AERIE_FOLDER_RULES" desc="Label of the switch in the Sidebar section of Settings that turns the rules of all folders on or off. A folder can have rules that put new tabs into it by themselves.">
+    Folder rules everywhere
+  </message>
+  <message name="IDS_SETTINGS_AERIE_FOLDER_RULES_DESC" desc="Line under the folder-rules switch in Settings. When the switch is off, no folder moves a new tab into itself.">
+    Let folders with rules file new tabs by themselves. Turn this off to stop every folder at once.
+  </message>
   <message name="IDS_AERIE_SIDEBAR_NEW_FOLDER" desc="Item of the context menu in the sidebar that makes a new, empty folder for tabs. It is also the name that a new folder starts with, until the user renames it.">
     New folder
   </message>

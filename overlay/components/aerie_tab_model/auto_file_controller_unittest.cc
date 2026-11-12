@@ -80,6 +80,11 @@ class AutoFileControllerTest : public testing::Test {
   std::unique_ptr<AutoFileController> controller_;
 };
 
+TEST(AutoFileDelayTest, IsTheTokenAndShorterWhenMotionIsReduced) {
+  EXPECT_EQ(base::Milliseconds(280), AutoFileDelay(false));
+  EXPECT_EQ(base::Milliseconds(120), AutoFileDelay(true));
+}
+
 TEST_F(AutoFileControllerTest, ANewMatchingTabStaysInTodayThenFliesIn) {
   std::string folder = AutoFolder(Section::kToday, "example.com");
   MakeController();
@@ -342,11 +347,12 @@ TEST_F(AutoFileControllerTest, NoAutoFilingFolderMeansNoTabIsWatched) {
   EXPECT_EQ(0u, controller_->watched_count());
 }
 
-TEST_F(AutoFileControllerTest, ARestoredTabIsNotWatched) {
+TEST_F(AutoFileControllerTest, AForgottenTabIsNotFiled) {
   AutoFolder(Section::kToday, "example.com");
   MakeController();
-  controller_->SetNewTabFilter(base::BindRepeating([] { return false; }));
   std::string tab = NewTab();
+  // The owner saw that session restore brought this tab back.
+  controller_->Forget(tab);
   EXPECT_FALSE(controller_->IsWatching(tab));
   controller_->OnTabPage(tab, GURL("https://example.com/"), "");
   task_environment_.FastForwardBy(kDelay);

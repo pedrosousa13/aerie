@@ -32,6 +32,10 @@ class TabModel;
 // new tabs only").
 inline constexpr base::TimeDelta kAutoFileWindow = base::Seconds(5);
 
+// How long a matched tab waits in Today before it flies into its folder:
+// `motion-timing-autofile-delay` (280 ms), 120 ms under reduced motion.
+base::TimeDelta AutoFileDelay(bool reduced);
+
 // Files new tabs into auto-filing folders (issue #139, docs/sidebar-design.md,
 // "Folders"). Headless: it observes the Tab Model for new tabs and is told by
 // its owner when a tab's page has an address or a title (the owner is the one
@@ -68,10 +72,6 @@ class AutoFileController : public TabModelObserver {
 
   using BoolProvider = base::RepeatingCallback<bool()>;
   using DelayProvider = base::RepeatingCallback<base::TimeDelta()>;
-  // True when a tab that was just added is a new tab that the user (or a page)
-  // opened, and not one that session restore brought back.
-  using NewTabFilter = base::RepeatingCallback<bool()>;
-
   // `model` and `clock` must outlive the controller. `rules_enabled` is the
   // global switch ("Folder rules everywhere"). `delay` is how long a matched tab
   // waits before it moves.
@@ -87,9 +87,6 @@ class AutoFileController : public TabModelObserver {
   void AddObserver(Observer* observer);
   void RemoveObserver(Observer* observer);
 
-  // Tabs added while this returns false are not watched. Optional.
-  void SetNewTabFilter(NewTabFilter filter) { new_tab_filter_ = std::move(filter); }
-
   // True while the tab is a candidate: created within the window, not filed or
   // moved yet. The owner asks this before it works out a URL and a title, so an
   // old tab costs one map lookup.
@@ -99,8 +96,8 @@ class AutoFileController : public TabModelObserver {
   void OnTabPage(const std::string& tab_id,
                  const GURL& url,
                  std::string_view title);
-  // Stops watching the tab: it was not opened by the user's click, or the owner
-  // knows it was restored.
+  // Stops watching the tab: the owner knows it is not a new tab (session restore
+  // brought it back).
   void Forget(const std::string& tab_id);
 
   size_t watched_count() const { return watched_.size(); }
@@ -127,7 +124,6 @@ class AutoFileController : public TabModelObserver {
   BoolProvider rules_enabled_;
   DelayProvider delay_;
   const base::TimeDelta window_;
-  NewTabFilter new_tab_filter_;
   std::map<std::string, Watched> watched_;
   // The title the last OnTabPage saw, by tab, for the revalidation after the
   // delay.
