@@ -245,8 +245,12 @@ class AerieSidebarView : public views::View,
   void UpdateRow(const Row& row);
   void UpdateTile(const Tile& tile);
   // Only the title and the pencil of a row or tile (a manual name changed).
-  void UpdateRowTitle(const Row& row);
-  void UpdateTileTitle(const Tile& tile);
+  void UpdateRowTitle(const Row& row,
+                      tabs::TabInterface* tab,
+                      const aerie_tab_model::TabRecord* record);
+  void UpdateTileTitle(const Tile& tile,
+                       tabs::TabInterface* tab,
+                       const aerie_tab_model::TabRecord* record);
   void SelectTab(const std::string& tab_id);
   // The context menu of a row or a tile (issues #179 and #180): Pin or Unpin,
   // Add to or Remove from Favorites, Sleep tab and Close tab.
@@ -342,6 +346,8 @@ class AerieSidebarView : public views::View,
   raw_ptr<views::Label> sleeping_summary_ = nullptr;
   std::unique_ptr<AerieSidebarContextMenu> context_menu_;
   base::WeakPtr<AerieSidebarRenamePopover> rename_popover_;
+  // The tab the popover renames.
+  std::string rename_popover_tab_id_;
   raw_ptr<views::LabelButton> new_tab_row_ = nullptr;
   raw_ptr<AerieSidebarTodayTree> list_ = nullptr;
   raw_ptr<views::ScrollView> scroll_ = nullptr;

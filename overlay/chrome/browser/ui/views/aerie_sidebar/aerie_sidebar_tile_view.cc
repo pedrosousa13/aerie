@@ -94,8 +94,7 @@ void AerieSidebarTileView::UpdateName() {
     name = l10n_util::GetStringFUTF16(IDS_AERIE_SIDEBAR_ROW_ASLEEP_NAME, name);
   }
   if (renamed_) {
-    name =
-        l10n_util::GetStringFUTF16(IDS_AERIE_SIDEBAR_ROW_RENAMED_NAME, name);
+    name = l10n_util::GetStringFUTF16(IDS_AERIE_SIDEBAR_ROW_RENAMED_NAME, name);
   }
   GetViewAccessibility().SetName(name);
 }
