@@ -1823,7 +1823,7 @@ bool AerieSidebarView::RequestDeleteFolder(const std::string& folder_id) {
   }
   int items = 0;
   for (const auto& [id, tab] : model_->tabs()) {
-    items += tab.parent == folder_id ? 1 : 0;
+    items += tab.parent == folder_id && !model_->IsAwaitingRestore(id) ? 1 : 0;
   }
   for (const auto& [id, folder] : model_->folders()) {
     items += folder.parent == folder_id ? 1 : 0;

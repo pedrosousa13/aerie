@@ -138,8 +138,9 @@ class TabModel {
   // no restored tab claimed.
   bool MarkAwaitingRestore(const std::string& id);
   // Today records that were open when the model was saved and that no restored
-  // tab has claimed yet. IsAwaitingRestore and awaiting_restore_count are test
-  // seams: no production code reads them.
+  // tab has claimed yet. They have no tab and are not shown: lists and counts of
+  // what the user sees skip them (FolderIsEmpty, the delete-folder count).
+  // awaiting_restore_count is a test seam.
   bool IsAwaitingRestore(const std::string& id) const;
   size_t awaiting_restore_count() const { return awaiting_restore_.size(); }
   // Ends the restore pass: removes (and logs) every record that still waits.

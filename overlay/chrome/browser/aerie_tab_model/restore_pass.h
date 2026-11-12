@@ -67,6 +67,12 @@ class RestorePass : public TabModelObserver, public BrowserCollectionObserver {
   void ScheduleCheck();
   bool HasNormalWindow() const;
   void OnSessionRestored(Profile* profile, int tab_count);
+  // The signal that a quit was cancelled (or ended without closing everything):
+  // chrome::OnClosingAllBrowsers(false), called from UnloadController (the
+  // cancel path of BrowserCloseManager, unload_controller.cc) after it reset the
+  // quit. Records that waited while the browser was quitting are looked at
+  // again.
+  void OnClosingAllBrowsers(bool closing);
 
   const raw_ptr<Profile> profile_;
   const raw_ptr<TabModel> model_;
@@ -74,6 +80,7 @@ class RestorePass : public TabModelObserver, public BrowserCollectionObserver {
   bool check_scheduled_ = false;
   bool restore_reported_ = false;
   base::CallbackListSubscription restored_subscription_;
+  base::CallbackListSubscription closing_all_browsers_subscription_;
   base::ScopedObservation<TabModel, TabModelObserver> model_observation_{this};
   base::ScopedObservation<GlobalBrowserCollection, BrowserCollectionObserver>
       browser_collection_observation_{this};

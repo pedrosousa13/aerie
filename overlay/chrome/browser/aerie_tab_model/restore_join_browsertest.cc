@@ -16,6 +16,8 @@
 #include "chrome/browser/aerie_tab_model/tab_model_service_factory.h"
 #include "chrome/browser/aerie_tab_model/tab_strip_adapter.h"
 #include "chrome/browser/prefs/session_startup_pref.h"
+#include "chrome/browser/lifetime/application_lifetime_desktop.h"
+#include "chrome/browser/lifetime/browser_shutdown.h"
 #include "chrome/browser/profiles/keep_alive/profile_keep_alive_types.h"
 #include "chrome/browser/profiles/keep_alive/scoped_profile_keep_alive.h"
 #include "chrome/browser/sessions/tab_restore_service_factory.h"
@@ -314,6 +316,36 @@ IN_PROC_BROWSER_TEST_F(AerieRestoreJoinBrowserTest, TheLastWindowUnderAKeepAlive
 
   // A new window that is not a restore: the wait is over.
   CreateBrowser(profile);
+  ASSERT_TRUE(base::test::RunUntil(
+      [&] { return service_->restore_pass()->finished(); }));
+  EXPECT_EQ(model()->GetTab(id), nullptr);
+  EXPECT_EQ(model()->awaiting_restore_count(), 0u);
+}
+
+// A quit that is cancelled (a beforeunload prompt, a download) leaves the
+// windows open: the records kept while it ran must not stay as ghosts.
+IN_PROC_BROWSER_TEST_F(AerieRestoreJoinBrowserTest, ACancelledQuitEndsTheWaitForKeptRecords) {
+  Profile* profile = browser()->GetProfile();
+  ScopedKeepAlive keep_alive(KeepAliveOrigin::SESSION_RESTORE,
+                             KeepAliveRestartOption::DISABLED);
+  ScopedProfileKeepAlive profile_keep_alive(
+      profile, ProfileKeepAliveOrigin::kBrowserWindow);
+  const std::string id = OpenTab(browser(), "/title1.html");
+  ASSERT_FALSE(id.empty());
+
+  browser_shutdown::SetTryingToQuit(true);
+  CloseBrowserSynchronously(browser());
+  ASSERT_TRUE(model()->IsAwaitingRestore(id));
+
+  // A window exists again, but the quit is still on: the wait goes on.
+  CreateBrowser(profile);
+  base::RunLoop().RunUntilIdle();
+  EXPECT_FALSE(service_->restore_pass()->finished());
+  EXPECT_TRUE(model()->IsAwaitingRestore(id));
+
+  // The quit is cancelled: the same signal Chromium sends from UnloadController.
+  browser_shutdown::SetTryingToQuit(false);
+  chrome::OnClosingAllBrowsers(false);
   ASSERT_TRUE(base::test::RunUntil(
       [&] { return service_->restore_pass()->finished(); }));
   EXPECT_EQ(model()->GetTab(id), nullptr);

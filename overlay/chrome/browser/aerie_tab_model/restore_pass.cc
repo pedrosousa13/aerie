@@ -6,6 +6,7 @@
 
 #include "base/functional/bind.h"
 #include "base/task/single_thread_task_runner.h"
+#include "chrome/browser/lifetime/application_lifetime_desktop.h"
 #include "chrome/browser/lifetime/browser_shutdown.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/sessions/session_restore.h"
@@ -20,6 +21,9 @@ RestorePass::RestorePass(Profile* profile, TabModel* model)
   model_observation_.Observe(model_);
   browser_collection_observation_.Observe(
       GlobalBrowserCollection::GetInstance());
+  closing_all_browsers_subscription_ = chrome::AddClosingAllBrowsersCallback(
+      base::BindRepeating(&RestorePass::OnClosingAllBrowsers,
+                          base::Unretained(this)));
 }
 
 RestorePass::~RestorePass() = default;
@@ -27,6 +31,14 @@ RestorePass::~RestorePass() = default;
 void RestorePass::Rearm() {
   finished_ = false;
   restore_reported_ = false;
+}
+
+void RestorePass::OnClosingAllBrowsers(bool closing) {
+  if (!closing) {
+    // Quit cancelled (a beforeunload prompt, a download): MaybeFinish ran and
+    // bailed while IsTryingToQuit() was true, and nothing else would run it.
+    ScheduleCheck();
+  }
 }
 
 void RestorePass::OnModelLoaded() {
