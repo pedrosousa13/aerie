@@ -104,6 +104,35 @@ TEST_F(FolderRulesTest, AFolderWithNoRulesReadsAsOnWithNone) {
   EXPECT_TRUE(rules.rules.empty());
 }
 
+TEST_F(FolderRulesTest, DomainValuesAreNormalisedWhenTheyAreLoaded) {
+  std::string folder = CreateFolder(model_, Section::kToday, "", "Old");
+  SetFolderRuleKind(model_, folder, FolderKind::kAuto);
+  base::DictValue dict;
+  base::ListValue list;
+  base::DictValue rule;
+  rule.Set("id", "d");
+  rule.Set("type", "domain");
+  rule.Set("value", " HTTPS://Example.COM/x ");
+  list.Append(std::move(rule));
+  base::DictValue title;
+  title.Set("id", "t");
+  title.Set("type", "title-contains");
+  title.Set("value", "Mixed Case");
+  list.Append(std::move(title));
+  dict.Set("rules", std::move(list));
+  base::ListValue hosts;
+  hosts.Append("News.Example.COM.");
+  dict.Set("excluded_hosts", std::move(hosts));
+  model_.UpdateFolder(folder, [&](FolderRecord& f) { f.rules = std::move(dict); });
+  FolderRules rules = ReadFolderRules(*model_.GetFolder(folder));
+  ASSERT_EQ(2u, rules.rules.size());
+  EXPECT_EQ("example.com", rules.rules[0].value);
+  // Only Domain values are canonical: a title rule keeps what was typed.
+  EXPECT_EQ("Mixed Case", rules.rules[1].value);
+  EXPECT_EQ(std::vector<std::string>{"news.example.com"}, rules.excluded_hosts);
+  EXPECT_TRUE(Find("https://www.example.com/").has_value());
+}
+
 TEST_F(FolderRulesTest, ADamagedRulesDictionaryDropsOnlyTheBadParts) {
   std::string folder = CreateFolder(model_, Section::kToday, "", "Odd");
   base::DictValue dict;

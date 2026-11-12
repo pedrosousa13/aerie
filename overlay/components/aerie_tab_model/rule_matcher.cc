@@ -4,6 +4,7 @@
 
 #include "components/aerie_tab_model/rule_matcher.h"
 
+#include <algorithm>
 #include <string>
 
 #include "base/i18n/case_conversion.h"
@@ -77,6 +78,19 @@ bool TitleContains(std::string_view title, std::string_view value) {
          Fold(title).find(needle) != std::string::npos;
 }
 
+// True for the canonical host of an IPv4 address (digits and dots) or an IPv6
+// address (in brackets, as a GURL host has it).
+bool IsIpLiteral(std::string_view host) {
+  if (host.empty()) {
+    return false;
+  }
+  if (host.front() == '[') {
+    return true;
+  }
+  return host.find('.') != std::string_view::npos &&
+         base::ContainsOnlyChars(host, "0123456789.");
+}
+
 }  // namespace
 
 // What a rule says a domain is, as a canonical host: lower case, no scheme, no
@@ -96,6 +110,13 @@ std::string NormalizeDomain(std::string_view text) {
   }
   // GURL makes the canonical host (lower case, IDN as punycode) and drops a
   // scheme, path or port that a user pasted with it.
+  // A bare IPv6 address needs its brackets to be a host.
+  std::string bracketed;
+  if (bare.find("://") == std::string_view::npos && bare.front() != '[' &&
+      std::count(bare.begin(), bare.end(), ':') >= 2) {
+    bracketed = "[" + std::string(bare) + "]";
+    bare = bracketed;
+  }
   std::string with_scheme = bare.find("://") == std::string_view::npos
                                 ? "http://" + std::string(bare)
                                 : std::string(bare);
@@ -137,16 +158,24 @@ bool RuleTypeFromString(std::string_view text, RuleType* type) {
 }
 
 bool HostMatchesDomain(std::string_view host, std::string_view domain) {
-  const std::string want = NormalizeDomain(domain);
-  std::string have = NormalizeDomain(host);
-  if (want.empty() || have.empty()) {
+  // `domain` is canonical already (NormalizeDomain, when the rule was saved or
+  // loaded) and `host` comes from a GURL, so nothing is normalised here. A
+  // trailing dot on the host is the only thing left to look past.
+  while (!host.empty() && host.back() == '.') {
+    host.remove_suffix(1);
+  }
+  if (domain.empty() || host.empty()) {
     return false;
   }
-  if (have == want) {
+  if (host == domain) {
     return true;
   }
-  return have.size() > want.size() && base::EndsWith(have, want) &&
-         have[have.size() - want.size() - 1] == '.';
+  // An address is a whole name: `3.4` is no part of `1.2.3.4`.
+  if (IsIpLiteral(host) || IsIpLiteral(domain)) {
+    return false;
+  }
+  return host.size() > domain.size() && base::EndsWith(host, domain) &&
+         host[host.size() - domain.size() - 1] == '.';
 }
 
 bool Matches(const Rule& rule, const GURL& url, std::string_view title) {

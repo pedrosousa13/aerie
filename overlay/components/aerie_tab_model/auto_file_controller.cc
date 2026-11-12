@@ -54,6 +54,7 @@ AutoFileController::AutoFileController(TabModel* model,
 }
 
 AutoFileController::~AutoFileController() {
+  observers_.Notify(&Observer::OnAutoFileControllerDestroyed);
   model_->RemoveObserver(this);
 }
 
@@ -74,7 +75,9 @@ bool AutoFileController::IsWatching(const std::string& tab_id) const {
 void AutoFileController::PurgeExpired() {
   const base::TimeTicks now = clock_->NowTicks();
   for (auto it = watched_.begin(); it != watched_.end();) {
-    if (!it->second.pending && now >= it->second.deadline) {
+    // A pending entry's deadline is its pause plus a grace, so one whose move
+    // never ran does not stay.
+    if (now >= it->second.deadline) {
       titles_.erase(it->first);
       it = watched_.erase(it);
     } else {
@@ -83,15 +86,16 @@ void AutoFileController::PurgeExpired() {
   }
 }
 
-void AutoFileController::OnTabAdded(const TabRecord& tab) {
+void AutoFileController::Watch(const std::string& tab_id) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   PurgeExpired();
+  const TabRecord* tab = model_->GetTab(tab_id);
   // Only a new Today tab can be filed, and only when some folder could take it.
-  if (tab.section != Section::kToday || !tab.parent.empty() ||
+  if (!tab || tab->section != Section::kToday || !tab->parent.empty() ||
       !AnyAutoFilingFolder(*model_)) {
     return;
   }
-  watched_[tab.id].deadline = clock_->NowTicks() + window_;
+  watched_[tab_id].deadline = clock_->NowTicks() + window_;
 }
 
 void AutoFileController::OnTabMoved(const TabRecord& tab,
@@ -148,11 +152,13 @@ void AutoFileController::OnTabPage(const std::string& tab_id,
     return;
   }
   watched.pending = true;
+  const base::TimeDelta delay = delay_.Run();
+  watched.deadline = clock_->NowTicks() + delay + kAutoFilePendingGrace;
   base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
       FROM_HERE,
       base::BindOnce(&AutoFileController::FileNow, weak_factory_.GetWeakPtr(),
                      tab_id),
-      delay_.Run());
+      delay);
 }
 
 void AutoFileController::FileNow(const std::string& tab_id) {

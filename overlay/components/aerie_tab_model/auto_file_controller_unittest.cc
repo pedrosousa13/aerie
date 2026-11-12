@@ -30,7 +30,9 @@ class RecordingObserver : public AutoFileController::Observer {
   void OnTabFiled(const AutoFileController::Filed& filed) override {
     events.push_back(filed);
   }
+  void OnAutoFileControllerDestroyed() override { ++destroyed; }
   std::vector<AutoFileController::Filed> events;
+  int destroyed = 0;
 };
 
 class AutoFileControllerTest : public testing::Test {
@@ -65,6 +67,19 @@ class AutoFileControllerTest : public testing::Test {
   }
 
   std::string NewTab() {
+    TabRecord tab;
+    tab.last_active = clock_.Now();
+    std::string id = model_.AddTab(std::move(tab));
+    // The owner of the controller says which tabs are new.
+    if (controller_) {
+      controller_->Watch(id);
+    }
+    return id;
+  }
+
+  // A tab that the owner did not hand to the controller (session restore,
+  // Reopen closed tab, Duplicate).
+  std::string RestoredTab() {
     TabRecord tab;
     tab.last_active = clock_.Now();
     return model_.AddTab(std::move(tab));
@@ -381,6 +396,60 @@ TEST_F(AutoFileControllerTest, WatchedTabsAreForgottenWhenTheWindowPasses) {
   // The next new tab sweeps the old ones.
   NewTab();
   EXPECT_EQ(1u, controller_->watched_count());
+}
+
+TEST_F(AutoFileControllerTest, AClosedTabLeavesNothingBehind) {
+  AutoFolder(Section::kToday, "example.com");
+  MakeController();
+  std::string waiting = NewTab();
+  std::string matched = NewTab();
+  controller_->OnTabPage(matched, GURL("https://example.com/"), "A");
+  EXPECT_EQ(2u, controller_->watched_count());
+  model_.RemoveTab(waiting);
+  EXPECT_EQ(1u, controller_->watched_count());
+  model_.RemoveTab(matched);
+  EXPECT_EQ(0u, controller_->watched_count());
+}
+
+TEST_F(AutoFileControllerTest, ATabThatIsNotHandedOverIsNeverWatched) {
+  AutoFolder(Section::kToday, "example.com");
+  MakeController();
+  std::string tab = RestoredTab();
+  EXPECT_EQ(0u, controller_->watched_count());
+  EXPECT_FALSE(controller_->IsWatching(tab));
+  controller_->OnTabPage(tab, GURL("https://example.com/"), "A");
+  task_environment_.FastForwardBy(kDelay);
+  EXPECT_TRUE(model_.GetTab(tab)->parent.empty());
+  EXPECT_TRUE(task_environment_.MainThreadIsIdle());
+}
+
+TEST_F(AutoFileControllerTest, APendingEntryDoesNotLiveForever) {
+  AutoFolder(Section::kToday, "example.com");
+  MakeController();
+  std::string stuck = NewTab();
+  controller_->OnTabPage(stuck, GURL("https://example.com/"), "A");
+  EXPECT_EQ(1u, controller_->watched_count());
+  // The clock moves past the pause and the grace without the posted move
+  // running (a task runner that stalls).
+  task_environment_.AdvanceClock(kDelay + kAutoFilePendingGrace);
+  NewTab();
+  EXPECT_EQ(1u, controller_->watched_count());
+  // The late move finds nothing to do.
+  task_environment_.FastForwardBy(kDelay);
+  EXPECT_TRUE(model_.GetTab(stuck)->parent.empty());
+  EXPECT_TRUE(observer_.events.empty());
+}
+
+TEST_F(AutoFileControllerTest, ObserversHearWhenTheControllerGoes) {
+  MakeController();
+  controller_->RemoveObserver(&observer_);
+  controller_->AddObserver(&observer_);
+  controller_.reset();
+  EXPECT_EQ(1, observer_.destroyed);
+}
+
+TEST_F(AutoFileControllerTest, TheWindowIsTenSeconds) {
+  EXPECT_EQ(base::Seconds(10), kAutoFileWindow);
 }
 
 TEST_F(AutoFileControllerTest, TheControllerDoesNothingForTabsThatExistedBeforeIt) {

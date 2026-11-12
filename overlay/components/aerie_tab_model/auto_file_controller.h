@@ -26,22 +26,27 @@ class TabModel;
 
 // How long after its creation a tab can still be auto-filed. A tab has no
 // address and no title when it is created: they come with the first navigation
-// and the page's title, in the first moments. Five seconds covers a slow first
-// response and a late title, and is short enough that a page the user opened
-// and then used is never moved while they read it (issue #139, "Rules apply to
-// new tabs only").
-inline constexpr base::TimeDelta kAutoFileWindow = base::Seconds(5);
+// and the page's title, in the first moments. Ten seconds covers a first
+// navigation that waits on a cold DNS lookup or a slow response, and a late
+// title, and is short enough that a page the user opened and then used is never
+// moved while they read it (issue #139, "Rules apply to new tabs only").
+inline constexpr base::TimeDelta kAutoFileWindow = base::Seconds(10);
+
+// How long past its own pause a matched tab's entry may stay when the move
+// never runs. The next Watch() sweeps it.
+inline constexpr base::TimeDelta kAutoFilePendingGrace = base::Seconds(5);
 
 // How long a matched tab waits in Today before it flies into its folder:
 // `motion-timing-autofile-delay` (280 ms), 120 ms under reduced motion.
 base::TimeDelta AutoFileDelay(bool reduced);
 
 // Files new tabs into auto-filing folders (issue #139, docs/sidebar-design.md,
-// "Folders"). Headless: it observes the Tab Model for new tabs and is told by
-// its owner when a tab's page has an address or a title (the owner is the one
-// that can see the Chromium tab). It does no work at startup and none for a tab
-// that is not new: it only ever holds the tabs created in the last
-// kAutoFileWindow.
+// "Folders"). Headless: its owner tells it which tabs are new (Watch) and when
+// a tab's page has an address or a title (the owner is the one that can see the
+// Chromium tab, so it knows a restored, reopened or duplicated tab and session
+// restore). It does no work at startup and none for a tab that is not new: it
+// only ever holds the tabs created in the last kAutoFileWindow, and drops a tab
+// that closes or leaves Today.
 //
 // For each new tab:
 //  - the first committed address fixes the page the rules are asked about; a
@@ -68,6 +73,9 @@ class AutoFileController : public TabModelObserver {
    public:
     // The tab went into the folder; `filed.tab_id` has `filed_by` set now.
     virtual void OnTabFiled(const Filed& filed) {}
+    // The controller is going away; drop any pointer to it. (The service
+    // drops it at shutdown, which can come before a window is destroyed.)
+    virtual void OnAutoFileControllerDestroyed() {}
   };
 
   using BoolProvider = base::RepeatingCallback<bool()>;
@@ -87,6 +95,11 @@ class AutoFileController : public TabModelObserver {
   void AddObserver(Observer* observer);
   void RemoveObserver(Observer* observer);
 
+  // Starts watching a tab that the user just made (a new, blank tab). The owner
+  // must not call it for a tab session restore, Reopen closed tab or Duplicate
+  // made. Does nothing when no auto-filing folder exists or the tab is not a
+  // top-level Today tab.
+  void Watch(const std::string& tab_id);
   // True while the tab is a candidate: created within the window, not filed or
   // moved yet. The owner asks this before it works out a URL and a title, so an
   // old tab costs one map lookup.
@@ -103,7 +116,6 @@ class AutoFileController : public TabModelObserver {
   size_t watched_count() const { return watched_.size(); }
 
   // TabModelObserver:
-  void OnTabAdded(const TabRecord& tab) override;
   void OnTabMoved(const TabRecord& tab, const Placement& from) override;
   void OnTabRemoved(const TabRecord& tab) override;
 

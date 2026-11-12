@@ -20,7 +20,10 @@ namespace aerie_tab_model {
 
 enum class RuleType {
   // The host, or any subdomain of it: `example.com` matches `example.com` and
-  // `news.example.com`, not `badexample.com`.
+  // `news.example.com`, not `badexample.com`. An IP address (v4 or v6) matches
+  // only that exact address, never as a suffix. The value is canonical
+  // (NormalizeDomain): the editor and the loader normalise it once, and the
+  // matcher does not look at its case or shape again.
   kDomain,
   // The address starts with the text. The scheme is not compared when it is
   // http or https (and the rule may leave it out), the host is not case
@@ -62,7 +65,7 @@ struct FolderRules {
 };
 
 // True when `rule` matches a page with this address and title, whatever its own
-// switch says. An empty rule value never matches. `title` may be empty (the
+// switch says. A Domain rule's value must be canonical (see NormalizeDomain). An empty rule value never matches. `title` may be empty (the
 // page has not given one yet).
 bool Matches(const Rule& rule, const GURL& url, std::string_view title);
 
@@ -72,9 +75,10 @@ bool Matches(const Rule& rule, const GURL& url, std::string_view title);
 // "Don't file this site" exception.
 std::string NormalizeDomain(std::string_view text);
 
-// True when `host` is `domain` or a subdomain of it. Both are normalised first
-// (case, a leading `*.` or `.`, a trailing dot). `badexample.com` is not a
-// subdomain of `example.com`.
+// True when `host` (a GURL host) is `domain` or a subdomain of it. `domain`
+// must be canonical, as NormalizeDomain returns it: this does not normalise.
+// `badexample.com` is not a subdomain of `example.com`, and an IP address
+// matches only itself: `1.2.3.4` is not a subdomain of `3.4`.
 bool HostMatchesDomain(std::string_view host, std::string_view domain);
 
 // The first enabled rule of `rules` that matches, or null. Null as well when

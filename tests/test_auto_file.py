@@ -105,7 +105,7 @@ class DocsTest(unittest.TestCase):
     def test_the_design_doc_describes_auto_filing(self):
         text = (REPO / "docs" / "sidebar-design.md").read_text()
         self.assertIn("Folders as built (#139)", text)
-        self.assertIn("5 s", text)
+        self.assertIn("10 s", text)
 
 
 if __name__ == "__main__":

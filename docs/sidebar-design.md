@@ -108,7 +108,7 @@ Each folder also has Folder behaviour (#141), except smart folders.
 | Switching a folder with tabs to Smart | Its tabs move out, next to the folder, and a toast says so. |
 | Rules on and off | Each rule has an on switch. A folder has an "All" switch. A global switch ("Folder rules everywhere") sits in the sheet footer. |
 
-**Auto-filing flow.** A new tab that matches lands at the top of Today as usual. After `motion-timing-autofile-delay` it flies into the folder, the folder row pulses, and a toast says "Filed into Trips" with "Undo" and "Don't file this site" (the toast stays `motion-timing-toast-action`, 6 s). Dragging a filed tab out offers "Stop this rule matching this tab". The same action is in the tab's context menu.
+**Auto-filing flow.** A new tab that matches (within 10 s of its creation) lands at the top of Today as usual. After `motion-timing-autofile-delay` it flies into the folder, the folder row pulses, and a toast says "Filed into Trips" with "Undo" and "Don't file this site" (the toast stays `motion-timing-toast-action`, 6 s). Dragging a filed tab out offers "Stop this rule matching this tab". The same action is in the tab's context menu.
 
 **Smart folder rows.** A row shows a quiet "Today" or "Pinned" hint on hover. Its close button closes the real tab, and its tooltip says so. Rows cannot be dragged. Nothing can be dropped into a smart folder.
 
@@ -141,10 +141,17 @@ Each folder also has Folder behaviour (#141), except smart folders.
 
 Auto-filing folders are built as the brief says. What the brief left open, and what was chosen:
 
-- **The window.** A tab can be auto-filed for 5 s after it is created (`kAutoFileWindow`). The first committed address
-  fixes the page the rules are asked about; a title that arrives later is matched against that address. A later
-  navigation never files the tab. A tab that the user moves by hand before the pause ends is left where it is.
-  Restored, reopened and duplicated tabs are never new (`IsInitialBlankNavigation` is checked when the tab is inserted).
+- **The window.** A tab can be auto-filed for 10 s after it is created (`kAutoFileWindow`). Ten, not five: the first
+  navigation of a tab can wait several seconds on a cold DNS lookup, and a shorter window let the filing miss it. The
+  first committed address fixes the page the rules are asked about; a title that arrives later is matched against that
+  address. A later navigation never files the tab. A tab that the user moves by hand before the pause ends is left
+  where it is. The controller watches only the tabs its owner hands it (`Watch`): a tab that session restore, Reopen
+  closed tab or Duplicate made is never handed over, and nothing is watched while session restore runs, so no
+  auto-filing work runs at startup. An entry goes when its tab closes or leaves Today, when the window ends, or (for a
+  matched tab whose move never ran) a few seconds after its pause.
+- **Domain rules and IP addresses.** A Domain rule matches the host and its subdomains; an IP address (v4 or v6) matches
+  only that exact address, so `3.4` and `2.3.4` do not match `1.2.3.4`. A Domain value is normalised once, when the rule
+  is saved or loaded; the matcher compares it as it is.
 - **The pause.** A matched tab waits `motion-timing-autofile-delay` (280 ms; 120 ms under reduced motion) in Today and
   then moves to the top of its folder. The folder row pulses with an accent wash on `autofile-pulse` (700 ms, 300 ms
   under reduced motion; opacity only, peak `motion-opacity-autofile-pulse`, 0.3). A toast says "Filed into <folder>"
@@ -159,7 +166,7 @@ Auto-filing folders are built as the brief says. What the brief left open, and w
 - **The sheet.** One native panel (`AerieSidebarFolderSheet`) next to the sidebar; three ways in: "Edit folder..." in the
   folder menu, a double-click on the folder icon, and the funnel on an auto-filing row. Edits apply at once. It opens on
   `sheet-enter` (slides `motion-distance-sheet-slide`, 10 px, and fades) and closes on `sheet-exit` (fades). Reduced
-  motion: opacity only, 90 ms. Kinds come from a table, so Smart and Behaviour are one row each later.
+  motion: opacity only, 90 ms. Kinds come from a table, and the sheet has two empty, hidden slots for the Smart body (#140) and the Behaviour section (#141), so each is one row and one fill later.
 - **Limits.** 50 rules and 200 exceptions per folder, 512 bytes per rule text. No regex.
 
 ### Today, auto-archive and the archive panel

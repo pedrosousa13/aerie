@@ -20,8 +20,10 @@ Rule MakeRule(RuleType type, const std::string& value, bool enabled = true) {
   return rule;
 }
 
+// A Domain rule as the editor and the loader store it: normalised once.
 bool DomainMatches(const std::string& domain, const std::string& url) {
-  return Matches(MakeRule(RuleType::kDomain, domain), GURL(url), "");
+  return Matches(MakeRule(RuleType::kDomain, NormalizeDomain(domain)), GURL(url),
+                 "");
 }
 
 }  // namespace
@@ -54,6 +56,34 @@ TEST(RuleMatcherTest, DomainIgnoresCaseAndTypingHabits) {
   EXPECT_TRUE(
       DomainMatches("https://example.com/path?x=1", "https://news.example.com/"));
   EXPECT_TRUE(DomainMatches("example.com:8080", "https://example.com/"));
+}
+
+TEST(RuleMatcherTest, AnIpv4HostMatchesOnlyExactly) {
+  EXPECT_TRUE(DomainMatches("1.2.3.4", "http://1.2.3.4/"));
+  EXPECT_TRUE(DomainMatches("1.2.3.4", "http://1.2.3.4:8080/x"));
+  EXPECT_FALSE(DomainMatches("3.4", "http://1.2.3.4/"));
+  EXPECT_FALSE(DomainMatches("2.3.4", "http://1.2.3.4/"));
+  // The raw strings, as the one function that compares them sees them.
+  EXPECT_FALSE(HostMatchesDomain("1.2.3.4", "3.4"));
+  EXPECT_FALSE(HostMatchesDomain("1.2.3.4", "2.3.4"));
+  EXPECT_TRUE(HostMatchesDomain("1.2.3.4", "1.2.3.4"));
+  // Not as the tail of a name either.
+  EXPECT_FALSE(HostMatchesDomain("x.1.2.3.4", "1.2.3.4"));
+}
+
+TEST(RuleMatcherTest, AnIpv6HostMatchesOnlyExactly) {
+  EXPECT_TRUE(DomainMatches("[::1]", "http://[::1]:8000/"));
+  EXPECT_TRUE(DomainMatches("::1", "http://[::1]/"));
+  EXPECT_FALSE(DomainMatches("[::2]", "http://[::1]/"));
+  EXPECT_FALSE(HostMatchesDomain("[2001:db8::1]", "[db8::1]"));
+  EXPECT_FALSE(HostMatchesDomain("[2001:db8::1]", "::1]"));
+  EXPECT_TRUE(HostMatchesDomain("[2001:db8::1]", "[2001:db8::1]"));
+}
+
+TEST(RuleMatcherTest, NormalizeDomainIsWhatTheMatcherExpects) {
+  EXPECT_EQ("example.com", NormalizeDomain("  *.Example.COM. "));
+  EXPECT_EQ("1.2.3.4", NormalizeDomain("http://1.2.3.4:80/x"));
+  EXPECT_EQ("[::1]", NormalizeDomain("::1"));
 }
 
 TEST(RuleMatcherTest, DomainHandlesInternationalHosts) {

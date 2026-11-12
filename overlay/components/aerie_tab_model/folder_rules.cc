@@ -95,11 +95,24 @@ FolderRules ReadFolderRules(const FolderRecord& folder) {
       }
       rule.id = *id;
       rule.value = *value;
+      if (rule.type == RuleType::kDomain) {
+        // Normalised once, here and when a rule is saved: the matcher takes the
+        // value as it is.
+        if (std::string canonical = NormalizeDomain(*value);
+            !canonical.empty()) {
+          rule.value = std::move(canonical);
+        }
+      }
       rule.enabled = rule_dict->FindBool("enabled").value_or(true);
       rules.rules.push_back(std::move(rule));
     }
   }
   rules.excluded_hosts = ReadStringList(dict, "excluded_hosts");
+  for (std::string& host : rules.excluded_hosts) {
+    if (std::string canonical = NormalizeDomain(host); !canonical.empty()) {
+      host = std::move(canonical);
+    }
+  }
   rules.excluded_tabs = ReadStringList(dict, "excluded_tabs");
   return rules;
 }
