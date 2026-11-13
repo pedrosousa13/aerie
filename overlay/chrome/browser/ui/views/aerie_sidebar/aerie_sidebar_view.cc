@@ -32,6 +32,8 @@
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_delegate.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_context_menu.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_drag_controller.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_drag_host.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_focus_ring.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_sheet.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_controller.h"
@@ -414,6 +416,10 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
 }
 
 AerieSidebarView::~AerieSidebarView() {
+  // A drag that is still running ends with the window: the controller goes
+  // first, so that a capture loss that follows finds none.
+  drag_controller_.reset();
+  drag_host_.reset();
   // The popover of a tile goes with the sidebar, and keeps nothing.
   if (rename_popover_) {
     rename_popover_->CancelRename();
@@ -610,8 +616,7 @@ AerieSidebarRowView* AerieSidebarView::MakeRow(
   const std::string id = entry.id;
   AerieSidebarRowView::Callbacks callbacks;
   if (entry.is_folder) {
-    // A folder row: a click, Enter or Space opens or shuts it. It cannot close
-    // and, until issue #182, it cannot be dragged.
+    // A folder row: a click, Enter or Space opens or shuts it. It cannot close.
     callbacks.select = base::BindRepeating(&AerieSidebarView::ToggleFolder,
                                            base::Unretained(this), id);
     callbacks.close = base::DoNothing();
@@ -629,14 +634,15 @@ AerieSidebarRowView* AerieSidebarView::MakeRow(
                             : base::BindRepeating(
                                   &AerieSidebarView::OnPinnedRowFocused,
                                   base::Unretained(this));
-  if (today && !entry.is_folder) {
-    callbacks.drag_begin = base::BindRepeating(
-        &AerieSidebarView::OnRowDragBegin, base::Unretained(this), id);
-    callbacks.drag_update = base::BindRepeating(
-        &AerieSidebarView::OnRowDragUpdate, base::Unretained(this), id);
-    callbacks.drag_end = base::BindRepeating(&AerieSidebarView::OnRowDragEnd,
-                                             base::Unretained(this), id);
-  }
+  callbacks.drag_begin = base::BindRepeating(
+      &AerieSidebarView::OnItemDragBegin, base::Unretained(this), id,
+      entry.is_folder);
+  callbacks.drag_update = base::BindRepeating(
+      &AerieSidebarView::OnItemDragUpdate, base::Unretained(this));
+  callbacks.drag_end = base::BindRepeating(&AerieSidebarView::OnItemDragEnd,
+                                           base::Unretained(this));
+  callbacks.move = base::BindRepeating(&AerieSidebarView::OnMoveKey,
+                                       base::Unretained(this), today, id);
   callbacks.context_menu = base::BindRepeating(
       &AerieSidebarView::ShowRowContextMenu, base::Unretained(this), id);
   if (!today && !entry.is_folder) {
@@ -725,11 +731,6 @@ void AerieSidebarView::OrderRows(AerieSidebarTodayTree* list,
 
 void AerieSidebarView::SyncRows(
     const std::vector<aerie_tab_model::TreeRow>& wanted) {
-  // The rows' slots change: a drag in progress would move rows that are not
-  // where it measured them.
-  if (drag_.active) {
-    CancelDrag();
-  }
   const bool animate = CanAnimateRows();
   const PrefService* prefs = browser_->GetProfile()->GetPrefs();
   const int old_count = static_cast<int>(rows_.size());
@@ -802,7 +803,7 @@ void AerieSidebarView::SyncRows(
   }
 }
 
-void AerieSidebarView::SyncAll() {
+void AerieSidebarView::SyncAll(bool allow_flip) {
   // One pass over the strip serves every row (issue #181: 300 tabs).
   const std::map<std::string, tabs::TabInterface*> lookup = BuildTabLookup();
   base::AutoReset<raw_ptr<const std::map<std::string, tabs::TabInterface*>>>
@@ -815,6 +816,7 @@ void AerieSidebarView::SyncAll() {
   // A folder motion that runs goes on only when the sync is the turn-around of
   // the same folder or changes no row. Anything else ends it at once, so that
   // no row is moved under it.
+  CancelDragIfListsChange(today, pinned);
   folders_.PrepareForSync([&] {
     return TreeChanged(today, rows_) || TreeChanged(pinned, pinned_rows_);
   });
@@ -825,7 +827,7 @@ void AerieSidebarView::SyncAll() {
   const std::string moved_id = std::move(flip_moved_id_);
   flip_moved_id_.clear();
   const bool play_flip =
-      flip && CanAnimateRows() &&
+      flip && allow_flip && CanAnimateRows() &&
       !aerie::motion::ShouldReduceMotion(browser_->GetProfile()->GetPrefs());
   std::map<std::string, gfx::Point> before = std::move(flip_before_);
   flip_before_.clear();
@@ -933,6 +935,13 @@ void AerieSidebarView::SyncFavorites() {
                             base::Unretained(this), id);
     callbacks.context_menu = base::BindRepeating(
         &AerieSidebarView::ShowRowContextMenu, base::Unretained(this), id);
+    callbacks.drag_begin = base::BindRepeating(
+        &AerieSidebarView::OnItemDragBegin, base::Unretained(this), id,
+        /*is_folder=*/false);
+    callbacks.drag_update = base::BindRepeating(
+        &AerieSidebarView::OnItemDragUpdate, base::Unretained(this));
+    callbacks.drag_end = base::BindRepeating(&AerieSidebarView::OnItemDragEnd,
+                                             base::Unretained(this));
     auto* view = favorites_grid_->AddChildView(
         std::make_unique<AerieSidebarTileView>(std::move(callbacks), palette_));
     next.push_back({id, view});
@@ -1010,151 +1019,127 @@ void AerieSidebarView::SyncPinned(
   }
 }
 
-bool AerieSidebarView::OnRowDragBegin(const std::string& tab_id) {
-  if (drag_.active || rows_.size() < 2 || !closing_rows_.empty() ||
-      folders_.collapsing_row_count() > 0) {
-    return false;
-  }
-  // Until issue #182 a drag only reorders a flat list: with folders in Today
-  // the slots are not a plain order.
-  for (const aerie_tab_model::TreeRow& row : today_tree_rows_) {
-    if (row.is_folder || row.level > 0) {
-      return false;
-    }
-  }
-  for (const Row& row : rows_) {
-    if (row.view->height_animating() || row.view->is_closing()) {
-      return false;
-    }
-  }
-  const int source = IndexOfRow(tab_id);
-  if (source < 0) {
-    return false;
-  }
-  DragState drag;
-  drag.active = true;
-  drag.tab_id = tab_id;
-  drag.source = source;
-  drag.target = source;
-  for (const Row& row : rows_) {
-    drag.slots.push_back({row.view->y(), row.view->height()});
-  }
-  drag_ = std::move(drag);
-  rows_[source].view->BeginLift(browser_->GetProfile()->GetPrefs());
-  return true;
+bool AerieSidebarView::dragging() const {
+  return drag_controller_ && drag_controller_->active();
 }
 
-void AerieSidebarView::OnRowDragUpdate(const std::string& tab_id, int dy) {
-  if (!drag_.active || drag_.tab_id != tab_id) {
-    return;
-  }
-  const PrefService* prefs = browser_->GetProfile()->GetPrefs();
-  const int offset = aerie_sidebar::ClampDragOffset(drag_.slots, drag_.source, dy);
-  rows_[drag_.source].view->SetDragOffset(offset);
-  const int target =
-      aerie_sidebar::DragTargetIndex(drag_.slots, drag_.source, offset);
-  if (target == drag_.target) {
-    return;
-  }
-  drag_.target = target;
-  // Reduced motion: no shift. The rows stay, and the drop moves the tab.
-  if (aerie::motion::ShouldReduceMotion(prefs)) {
-    return;
-  }
-  for (size_t i = 0; i < rows_.size(); ++i) {
-    if (static_cast<int>(i) != drag_.source) {
-      rows_[i].view->ShiftTo(
-          aerie_sidebar::DragShift(drag_.slots, drag_.source, target,
-                                   static_cast<int>(i)),
-          prefs);
+AerieSidebarDragController* AerieSidebarView::EnsureDragController() {
+  if (!drag_controller_) {
+    if (!drag_host_) {
+      drag_host_ = std::make_unique<AerieSidebarDragHost>(this);
     }
+    drag_controller_ =
+        std::make_unique<AerieSidebarDragController>(drag_host_.get());
+  }
+  return drag_controller_.get();
+}
+
+void AerieSidebarView::OnMoveKey(bool today,
+                                 const std::string& id,
+                                 aerie_sidebar::MoveKey key) {
+  if (!model_ || dragging()) {
+    return;
+  }
+  const std::vector<aerie_tab_model::TreeRow>& tree =
+      today ? today_tree_rows_ : pinned_tree_rows_;
+  const aerie_tab_model::Section section =
+      today ? aerie_tab_model::Section::kToday
+            : aerie_tab_model::Section::kPinned;
+  int focused = -1;
+  for (size_t i = 0; i < tree.size(); ++i) {
+    if (tree[i].id == id) {
+      focused = static_cast<int>(i);
+    }
+  }
+  const aerie_sidebar::KeyboardMove move =
+      aerie_sidebar::ComputeKeyboardMove(*model_, section, tree, focused, key);
+  if (move.too_deep) {
+    const std::u16string hint = TooDeepTooltip();
+    ShowToast(hint);
+    GetViewAccessibility().AnnouncePolitely(hint);
+    return;
+  }
+  if (!move.applies) {
+    return;
+  }
+  if (!drag_host_) {
+    drag_host_ = std::make_unique<AerieSidebarDragHost>(this);
+  }
+  if (drag_host_->ApplyMove(move.request) != aerie_sidebar::MoveResult::kMoved) {
+    return;
+  }
+  // The row keeps the keyboard focus (or the folder that now holds it does).
+  if (RowForId(id)) {
+    FocusRowById(id);
+  } else {
+    FocusRowById(move.request.container);
+  }
+  std::u16string container;
+  if (const aerie_tab_model::FolderRecord* folder =
+          model_->GetFolder(move.announce_container)) {
+    container = base::UTF8ToUTF16(folder->name);
+  } else {
+    container = l10n_util::GetStringUTF16(today ? IDS_AERIE_SIDEBAR_TODAY
+                                                : IDS_AERIE_SIDEBAR_PINNED);
+  }
+  GetViewAccessibility().AnnouncePolitely(l10n_util::GetStringFUTF16(
+      IDS_AERIE_SIDEBAR_MOVED_TO, container,
+      base::NumberToString16(move.announce_position),
+      base::NumberToString16(move.announce_count)));
+}
+
+bool AerieSidebarView::OnItemDragBegin(const std::string& id, bool is_folder) {
+  return EnsureDragController()->Begin(id, is_folder);
+}
+
+void AerieSidebarView::OnItemDragUpdate(const gfx::Point& widget_point) {
+  if (drag_controller_) {
+    drag_controller_->Update(widget_point);
   }
 }
 
-void AerieSidebarView::OnRowDragEnd(const std::string& tab_id,
-                                    int dy,
-                                    bool cancelled,
-                                    bool outside) {
-  if (!drag_.active || drag_.tab_id != tab_id) {
+void AerieSidebarView::OnItemDragEnd(const gfx::Point& widget_point,
+                                     bool cancelled,
+                                     bool outside) {
+  if (drag_controller_) {
+    drag_controller_->End(widget_point, cancelled, outside);
+  }
+}
+
+void AerieSidebarView::CancelDragIfListsChange(
+    const std::vector<aerie_tab_model::TreeRow>& today,
+    const std::vector<aerie_tab_model::TreeRow>& pinned) {
+  if (!drag_controller_ ||
+      (!drag_controller_->active() && !drag_controller_->settling())) {
     return;
   }
-  const PrefService* prefs = browser_->GetProfile()->GetPrefs();
-  DragState drag = std::move(drag_);
-  drag_ = DragState();
-  const int offset = aerie_sidebar::ClampDragOffset(drag.slots, drag.source, dy);
-
-  // Dropped outside the window: the tab goes to a window of its own.
-  if (!cancelled && outside) {
-    for (const Row& row : rows_) {
-      row.view->ResetDrag();
-    }
-    TabStripModel* model = browser_->GetTabStripModel();
-    tabs::TabInterface* tab = FindTab(tab_id);
-    TabStripModelDelegate* delegate = model->delegate();
-    if (tab && delegate) {
-      const std::vector<int> indices = {model->GetIndexOfTab(tab)};
-      if (delegate->CanMoveTabsToWindow(indices)) {
-        delegate->MoveTabsToNewWindow(indices);
+  bool changed = TreeChanged(today, rows_) || TreeChanged(pinned, pinned_rows_);
+  if (!changed) {
+    std::vector<std::string> favorites;
+    if (favorites_list_) {
+      for (const std::string& id : favorites_list_->rows()) {
+        if (FindTab(id)) {
+          favorites.push_back(id);
+        }
       }
     }
-    return;
-  }
-
-  const int target =
-      cancelled ? drag.source
-                : aerie_sidebar::DragTargetIndex(drag.slots, drag.source, offset);
-  AerieSidebarRowView* dragged = rows_[drag.source].view;
-  if (target == drag.source) {
-    // Nothing moved: the row settles back and the others go back to rest.
-    dragged->Settle(offset, prefs);
-    for (size_t i = 0; i < rows_.size(); ++i) {
-      if (static_cast<int>(i) != drag.source &&
-          rows_[i].view->has_drag_layers()) {
-        rows_[i].view->ShiftTo(0, prefs);
-      }
-    }
-    return;
-  }
-
-  // Dropped in another slot. The rows that shifted take their new places in
-  // the layout, which is the position the shift already showed, so they reset
-  // with no jump; the dropped row settles from where it was released.
-  for (size_t i = 0; i < rows_.size(); ++i) {
-    if (static_cast<int>(i) != drag.source) {
-      rows_[i].view->ResetDrag();
+    changed = favorites.size() != tiles_.size();
+    for (size_t i = 0; !changed && i < tiles_.size(); ++i) {
+      changed = favorites[i] != tiles_[i].tab_id;
     }
   }
-  MoveTodayRow(drag.source, target);
-  dragged->Settle(
-      aerie_sidebar::SettleOffset(drag.slots, drag.source, target, offset),
-      prefs);
-}
-
-void AerieSidebarView::CancelDrag() {
-  const bool was_active = drag_.active;
-  drag_ = DragState();
-  if (!was_active) {
-    return;
-  }
-  for (const Row& row : rows_) {
-    row.view->ResetDrag();
+  if (changed) {
+    drag_controller_->Cancel();
   }
 }
 
-void AerieSidebarView::MoveTodayRow(int source, int target) {
-  tabs::TabInterface* from = FindTab(rows_[source].tab_id);
-  tabs::TabInterface* to = FindTab(rows_[target].tab_id);
-  if (!from || !to) {
-    return;
+void AerieSidebarView::VisibilityChanged(views::View* starting_from,
+                                         bool is_visible) {
+  views::View::VisibilityChanged(starting_from, is_visible);
+  // A sidebar that hides under a drag ends it.
+  if (!is_visible && drag_controller_) {
+    drag_controller_->Cancel();
   }
-  TabStripModel* model = browser_->GetTabStripModel();
-  model->MoveWebContentsAt(model->GetIndexOfTab(from), model->GetIndexOfTab(to),
-                           /*select_after_move=*/false);
-  // The strip told the Tab Model (TabStripAdapter), which told the Today list.
-  // The rows are put in the new order now, not in a task, so that the dropped
-  // row can settle from where it was released, so the layout runs now too.
-  SyncRows(WantedRows(aerie_tab_model::Section::kToday));
-  list_->DeprecatedLayoutImmediately();
 }
 
 void AerieSidebarView::RemoveClosedRow(AerieSidebarRowView* row) {
