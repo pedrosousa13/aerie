@@ -1,0 +1,23 @@
+// Copyright 2026 The Aerie Authors
+// You can use, redistribute, and/or modify this source code under
+// the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+// The Archive button of the sidebar (issue #183): a box with a lid. The lid is a
+// bar across the top; the body below it has a slot cut out (opposite winding).
+CANVAS_DIMENSIONS, 16,
+FILL_RULE_NONZERO,
+MOVE_TO, 2, 3,
+LINE_TO, 14, 3,
+LINE_TO, 14, 6,
+LINE_TO, 2, 6,
+CLOSE,
+MOVE_TO, 3, 7.5f,
+LINE_TO, 13, 7.5f,
+LINE_TO, 13, 13,
+LINE_TO, 3, 13,
+CLOSE,
+MOVE_TO, 6, 9,
+LINE_TO, 6, 10.5f,
+LINE_TO, 10, 10.5f,
+LINE_TO, 10, 9,
+CLOSE

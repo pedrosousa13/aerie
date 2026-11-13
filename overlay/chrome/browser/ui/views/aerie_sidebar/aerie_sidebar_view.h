@@ -17,6 +17,7 @@
 #include "base/timer/timer.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_context_menu.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_archive_controller.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_controller.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_regions.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_row_entry.h"
@@ -91,7 +92,8 @@ class AerieSidebarView : public views::View,
                          public aerie_tab_model::AutoFileController::Observer,
                          public aerie_sidebar::TodayList::Delegate,
                          public views::ContextMenuController,
-                         private AerieSidebarFolderController::Host {
+                         private AerieSidebarFolderController::Host,
+                         private AerieSidebarArchiveController::ViewHost {
   METADATA_HEADER(AerieSidebarView, views::View)
 
  public:
@@ -123,6 +125,8 @@ class AerieSidebarView : public views::View,
   AerieSidebarTopRow* top_row() const { return top_row_; }
   views::View* address_pill() const { return pill_; }
   views::View* bottom_bar() const { return bottom_bar_; }
+  AerieSidebarArchiveButton* archive_button() const { return archive_button_; }
+  AerieSidebarArchiveController* archive() const { return archive_.get(); }
 
   // F6 (issue #215): the regions of the sidebar that hold keyboard focus, in
   // focus order: the top row, the address pill, the Today tree and, last, what
@@ -394,6 +398,20 @@ class AerieSidebarView : public views::View,
                       const std::string& id) const override;
   bool IsTreeRow(const AerieSidebarRowView* row) const override;
   const PrefService* GetPrefs() const override;
+
+  // AerieSidebarArchiveController::ViewHost.
+  views::View* SidebarView() override;
+  AerieSidebarArchiveButton* ArchiveButton() override;
+  const aerie_sidebar::SidebarPalette& Palette() const override;
+  bool Dark() const override;
+  PrefService* Prefs() const override;
+  BrowserWindowInterface* Browser() const override;
+  aerie_tab_model::TabModel* Model() const override;
+  bool CanAnimate() const override;
+  std::optional<AerieSidebarDragContent> RowContent(
+      const std::string& id) const override;
+  std::optional<gfx::Rect> RowBounds(const std::string& id) const override;
+  gfx::Rect TodayTopSlot() const override;
   void OnCollapsedRowsRemoved() override;
   // Whether the rows of a section differ from what the Tab Model wants.
   bool TreeChanged(const std::vector<aerie_tab_model::TreeRow>& wanted,
@@ -491,6 +509,8 @@ class AerieSidebarView : public views::View,
   raw_ptr<AerieSidebarTopRow> top_row_ = nullptr;
   raw_ptr<AerieSidebarPill> pill_ = nullptr;
   raw_ptr<views::View> bottom_bar_ = nullptr;
+  raw_ptr<AerieSidebarArchiveButton> archive_button_ = nullptr;
+  std::unique_ptr<AerieSidebarArchiveController> archive_;
   // The toolbar and its parts that moved in. They go back to the toolbar when
   // the sidebar goes, so that the toolbar never points at a view that is gone.
   raw_ptr<views::View> adopted_toolbar_ = nullptr;

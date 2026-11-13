@@ -268,4 +268,44 @@ SwitchMotion SwitchThumbMotion(bool reduced) {
   return motion;
 }
 
+ArchiveMotion ArchiveTabMotion(bool reduced) {
+  ArchiveMotion motion;
+  motion.animate_transform = !reduced;
+  motion.end_scale = reduced ? aerie::tokens::kMotionScaleArchiveCollapseReduced
+                             : aerie::tokens::kMotionScaleArchiveCollapse;
+  motion.fly_duration = MotionDuration::kArchiveCollapse;
+  motion.fly_easing = MotionEasing::kAccelerate;
+  motion.fly_ms = GetDurationMs(motion.fly_duration, reduced);
+  motion.fade_copy = reduced;
+  motion.animate_height = !reduced;
+  motion.animate_scale = !reduced;
+  motion.pulse_scale = reduced ? aerie::tokens::kMotionScaleArchivePulseReduced
+                               : aerie::tokens::kMotionScaleArchivePulse;
+  motion.pulse_duration = MotionDuration::kArchivePulse;
+  motion.pulse_easing = MotionEasing::kStandard;
+  motion.pulse_ms = GetDurationMs(motion.pulse_duration, reduced);
+  return motion;
+}
+
+ArchiveRestoreMotion RestoreTabMotion(bool reduced) {
+  ArchiveRestoreMotion motion;
+  motion.animate_transform = !reduced;
+  motion.duration = MotionDuration::kArchiveRestore;
+  motion.easing = MotionEasing::kSpring;
+  motion.duration_ms = GetDurationMs(motion.duration, reduced);
+  motion.fade_copy = reduced;
+  return motion;
+}
+
+PopoverMotion PopoverOpenMotion(bool reduced) {
+  PopoverMotion motion;
+  motion.animate_slide = !reduced;
+  motion.drop_px = reduced ? 0 : aerie::tokens::kSpace4;
+  motion.from_opacity = 0.f;
+  motion.duration = MotionDuration::kFast;
+  motion.easing = MotionEasing::kDecelerate;
+  motion.duration_ms = GetDurationMs(motion.duration, reduced);
+  return motion;
+}
+
 }  // namespace aerie_sidebar

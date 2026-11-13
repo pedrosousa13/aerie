@@ -185,7 +185,7 @@
     Close a pinned tab
   </message>
   <message name="IDS_SETTINGS_AERIE_PINNED_CLOSE_DESC" desc="Line under the pinned-close drop-down in Settings. It says that the second press closes the tab for good.">
-    A second press on a tab that is already asleep unpins and closes it.
+    A second press on a tab that is already asleep unpins it and sends it to the Archive.
   </message>
   <message name="IDS_SETTINGS_AERIE_PINNED_CLOSE_RESET_SLEEP_SWITCH" desc="Option of the pinned-close drop-down in Settings, the default. Closing a pinned tab goes back to its pinned page, puts the tab to sleep and selects the next tab.">
     Reset, sleep and switch
@@ -348,5 +348,83 @@
   </message>
   <message name="IDS_AERIE_SIDEBAR_SHEET_SAVE_RULE" desc="Button in the folder editor that replaces a rule the user is editing with the new text. It takes the place of the Add rule button while a rule is edited.">
     Save rule
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_ARCHIVE_BUTTON" desc="Label, tooltip and accessible name of the button in the bottom bar of the sidebar that opens the Archive panel. The Archive keeps the tabs the browser closed for the user because they were not used for a long time.">
+    Archive
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_ARCHIVE_PANEL" desc="Accessible name of the Archive panel, the small window that lists archived tabs. It is a dialog.">
+    Archive
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_ARCHIVE_HEADER" desc="Text before the menu in the header of the Archive panel. The menu shows how long a Today tab can stay unused before it is archived, for example: Archive Today tabs after 12 hours. Today is the name of the sidebar section of unpinned tabs.">
+    Archive Today tabs after
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_ARCHIVE_AFTER_NAME" desc="Accessible name of the menu button in the header of the Archive panel. It reads the whole sentence with the chosen time. Today is the name of the sidebar section of unpinned tabs.">
+    Archive Today tabs after <ph name="TIME">$1<ex>12 hours</ex></ph>
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_ARCHIVE_AFTER_12H" desc="Option of the archive timeout, in the Archive panel and in Settings: 12 hours. This is the default.">
+    12 hours
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_ARCHIVE_AFTER_24H" desc="Option of the archive timeout, in the Archive panel and in Settings: 24 hours.">
+    24 hours
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_ARCHIVE_AFTER_7D" desc="Option of the archive timeout, in the Archive panel and in Settings: 7 days.">
+    7 days
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_ARCHIVE_AFTER_NEVER" desc="Option of the archive timeout, in the Archive panel and in Settings: tabs are never archived by themselves.">
+    Never
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_ARCHIVE_SEARCH" desc="Placeholder and accessible name of the search field in the Archive panel. It searches the titles and the addresses of the archived tabs.">
+    Search archived tabs
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_ARCHIVE_LIST" desc="Accessible name of the list of archived tabs in the Archive panel.">
+    Archived tabs
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_ARCHIVE_GROUP_TODAY" desc="Heading in the Archive panel above the tabs that were archived on the current day.">
+    Today
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_ARCHIVE_GROUP_YESTERDAY" desc="Heading in the Archive panel above the tabs that were archived on the day before.">
+    Yesterday
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_ARCHIVE_GROUP_LAST_WEEK" desc="Heading in the Archive panel above the tabs that were archived two to seven days ago.">
+    Last week
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_ARCHIVE_GROUP_EARLIER" desc="Heading in the Archive panel above the tabs that were archived more than seven days ago.">
+    Earlier
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_ARCHIVE_EMPTY" desc="Text in the Archive panel when no tab is archived.">
+    Nothing is archived yet. Tabs you do not use go here.
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_ARCHIVE_NO_MATCHES" desc="Text in the Archive panel when the search finds no archived tab.">
+    No archived tab matches.
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_ARCHIVE_ROW_NAME" desc="Accessible name of one archived tab in the Archive panel: its title, then the name of the Workspace it came from. A Workspace is a named group of tabs, for example Personal.">
+    <ph name="TITLE">$1<ex>Example page</ex></ph>, <ph name="WORKSPACE">$2<ex>Personal</ex></ph>
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_ARCHIVE_RESTORED" desc="Said by a screen reader after the user restored an archived tab from the Archive panel.">
+    Restored <ph name="TITLE">$1<ex>Example page</ex></ph>
+  </message>
+  <message name="IDS_SETTINGS_AERIE_ARCHIVE_AFTER" desc="Label of the drop-down in the Sidebar section of Settings that sets how long a Today tab can stay unused before it is archived. Today is the name of the sidebar section of unpinned tabs.">
+    Archive Today tabs after
+  </message>
+  <message name="IDS_SETTINGS_AERIE_ARCHIVE_AFTER_DESC" desc="Line under the archive drop-down in Settings. It says which tabs the browser leaves alone.">
+    The tab you are viewing and tabs that play sound stay. Pinned tabs and Favorites are never archived.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_ARCHIVE_KEEP" desc="Label of the drop-down in the Sidebar section of Settings that sets how long the Archive keeps an archived tab before it drops it.">
+    Keep archived tabs for
+  </message>
+  <message name="IDS_SETTINGS_AERIE_ARCHIVE_KEEP_DESC" desc="Line under the archive-keep drop-down in Settings. It says what is dropped.">
+    After this time an archived tab is removed from the Archive.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_ARCHIVE_KEEP_7D" desc="Option of the archive-keep drop-down in Settings: 7 days.">
+    7 days
+  </message>
+  <message name="IDS_SETTINGS_AERIE_ARCHIVE_KEEP_30D" desc="Option of the archive-keep drop-down in Settings: 30 days. This is the default.">
+    30 days
+  </message>
+  <message name="IDS_SETTINGS_AERIE_ARCHIVE_KEEP_90D" desc="Option of the archive-keep drop-down in Settings: 90 days.">
+    90 days
+  </message>
+  <message name="IDS_SETTINGS_AERIE_ARCHIVE_KEEP_FOREVER" desc="Option of the archive-keep drop-down in Settings: archived tabs are never dropped.">
+    Forever
   </message>
 </grit-part>

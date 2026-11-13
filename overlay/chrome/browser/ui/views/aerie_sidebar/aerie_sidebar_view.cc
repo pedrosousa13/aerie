@@ -32,6 +32,7 @@
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_delegate.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_context_menu.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_archive_button.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_drag_controller.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_drag_host.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_focus_ring.h"
@@ -385,7 +386,24 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
   // switcher come. The toolbar's remaining buttons (extensions, profile, menu)
   // sit in it so that they stay reachable.
   bottom_bar_ = AddChildView(std::make_unique<views::View>());
-  bottom_bar_->SetLayoutManager(std::make_unique<views::FillLayout>());
+  auto* bottom_layout =
+      bottom_bar_->SetLayoutManager(std::make_unique<views::BoxLayout>(
+          views::BoxLayout::Orientation::kHorizontal, gfx::Insets(),
+          aerie::tokens::kSpace4));
+  bottom_layout->set_cross_axis_alignment(
+      views::BoxLayout::CrossAxisAlignment::kCenter);
+  // The Archive button (issue #183) takes the room the toolbar's buttons leave.
+  archive_button_ =
+      bottom_bar_->AddChildView(std::make_unique<AerieSidebarArchiveButton>(
+          base::BindRepeating(
+              [](base::WeakPtr<AerieSidebarView> self) {
+                if (self && self->archive_) {
+                  self->archive_->TogglePanel();
+                }
+              },
+              weak_factory_.GetWeakPtr())));
+  bottom_layout->SetFlexForView(archive_button_, 1);
+  archive_ = std::make_unique<AerieSidebarArchiveController>(this);
 
   browser_->GetTabStripModel()->AddObserver(this);
 
@@ -416,6 +434,9 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
             if (self) {
               aerie_tab_model::SleepControllerFactory::GetForProfile(
                   self->browser_->GetProfile());
+              // The archiver is built now too, and not before: it costs
+              // nothing at startup (issue #183).
+              self->archive_->Attach();
             }
           },
           weak_factory_.GetWeakPtr()),
@@ -423,6 +444,7 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
 }
 
 AerieSidebarView::~AerieSidebarView() {
+  archive_.reset();
   // A drag that is still running ends with the window: the controller goes
   // first, so that a capture loss that follows finds none.
   drag_controller_.reset();
@@ -509,6 +531,7 @@ void AerieSidebarView::ApplyPalette() {
   pinned_divider_->SetPalette(palette_);
   today_heading_->SetEnabledColor(palette_.text_muted);
   sleeping_summary_->SetEnabledColor(palette_.text_muted);
+  archive_button_->SetPalette(palette_);
   new_tab_row_->SetEnabledTextColors(palette_.text);
   new_tab_row_->SetImageModel(
       views::Button::STATE_NORMAL,
@@ -1165,6 +1188,75 @@ void AerieSidebarView::RemoveClosedRow(AerieSidebarRowView* row) {
   closing_rows_.erase(it);
   list_->RemoveChildViewT(row);
   list_->InvalidateLayout();
+}
+
+views::View* AerieSidebarView::SidebarView() {
+  return this;
+}
+
+AerieSidebarArchiveButton* AerieSidebarView::ArchiveButton() {
+  return archive_button_;
+}
+
+const aerie_sidebar::SidebarPalette& AerieSidebarView::Palette() const {
+  return palette_;
+}
+
+bool AerieSidebarView::Dark() const {
+  return GetWidget() && GetWidget()->GetColorMode() ==
+                            ui::ColorProviderKey::ColorMode::kDark;
+}
+
+PrefService* AerieSidebarView::Prefs() const {
+  return browser_->GetProfile()->GetPrefs();
+}
+
+BrowserWindowInterface* AerieSidebarView::Browser() const {
+  return browser_;
+}
+
+aerie_tab_model::TabModel* AerieSidebarView::Model() const {
+  return model_;
+}
+
+bool AerieSidebarView::CanAnimate() const {
+  return CanAnimateRows();
+}
+
+std::optional<AerieSidebarDragContent> AerieSidebarView::RowContent(
+    const std::string& id) const {
+  AerieSidebarRowView* row = RowForId(id);
+  if (!row) {
+    return std::nullopt;
+  }
+  return row->GetDragContent();
+}
+
+std::optional<gfx::Rect> AerieSidebarView::RowBounds(
+    const std::string& id) const {
+  AerieSidebarRowView* row = RowForId(id);
+  if (!row || !row->parent()) {
+    return std::nullopt;
+  }
+  gfx::Rect rect = row->bounds();
+  views::View::ConvertRectToTarget(row->parent(), this, &rect);
+  return rect;
+}
+
+gfx::Rect AerieSidebarView::TodayTopSlot() const {
+  // The first row of Today, or where it will be: the top of the list, one
+  // row high, as wide as the list.
+  const views::View* contents = scroll_->contents();
+  gfx::Rect rect(0, 0, contents->width(), aerie::tokens::kSizeRowHeightComfortable);
+  if (!rows_.empty() && rows_.front().view) {
+    rect = rows_.front().view->bounds();
+    gfx::Rect in_sidebar = rect;
+    views::View::ConvertRectToTarget(rows_.front().view->parent(), this,
+                                     &in_sidebar);
+    return in_sidebar;
+  }
+  views::View::ConvertRectToTarget(contents, this, &rect);
+  return rect;
 }
 
 bool AerieSidebarView::CanAnimateRows() const {

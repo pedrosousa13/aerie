@@ -11,6 +11,7 @@ import("//components/vector_icons/vector_icons.gni")
 aggregate_vector_icons("aerie_sidebar_vector_icons") {
   icon_directory = "."
   sources = [
+    "aerie_archive.icon",
     "aerie_folder_rules.icon",
     "aerie_sleep_badge.icon",
   ]

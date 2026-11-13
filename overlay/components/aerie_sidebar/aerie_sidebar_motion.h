@@ -281,6 +281,66 @@ struct SwitchMotion {
 
 SwitchMotion SwitchThumbMotion(bool reduced);
 
+// A tab is archived (issue #183, docs/sidebar-design.md, "Motion", row "Archive
+// moment"). A copy of the row flies to the Archive button: it shrinks to
+// `motion-scale-archive-collapse` (0.25) over `archive-collapse` (320 ms) on
+// `accelerate` while the real row collapses; when it lands the button pulses to
+// `motion-scale-archive-pulse` (1.25) and back over `archive-pulse` (360 ms) on
+// `standard`. Reduced motion: the copy fades in place over 120 ms, the button
+// flashes its colour for 140 ms with no scale (the scale tokens are 1 then), and
+// the row's height snaps.
+struct ArchiveMotion {
+  // The copy flies and shrinks (a transform); false under reduced motion, when
+  // it only fades.
+  bool animate_transform;
+  float end_scale;
+  aerie::tokens::MotionDuration fly_duration;
+  aerie::tokens::MotionEasing fly_easing;
+  int fly_ms;
+  // The copy fades out in place (reduced motion) over `fly_ms`.
+  bool fade_copy;
+  // The real row's height collapses over `fly_ms`; it snaps under reduced
+  // motion (the layout exception of the design).
+  bool animate_height;
+  // The button pulses: it scales to `pulse_scale` and back over `pulse_ms`
+  // (half each way). Reduced: no scale, a colour flash of `pulse_ms`.
+  bool animate_scale;
+  float pulse_scale;
+  aerie::tokens::MotionDuration pulse_duration;
+  aerie::tokens::MotionEasing pulse_easing;
+  int pulse_ms;
+};
+
+ArchiveMotion ArchiveTabMotion(bool reduced);
+
+// A tab is restored (issue #183): a copy flies from the archive panel into
+// Today on the spring over `archive-restore` (340 ms). Reduced motion: it fades
+// over 120 ms and does not move.
+struct ArchiveRestoreMotion {
+  bool animate_transform;
+  aerie::tokens::MotionDuration duration;
+  aerie::tokens::MotionEasing easing;
+  int duration_ms;
+  bool fade_copy;
+};
+
+ArchiveRestoreMotion RestoreTabMotion(bool reduced);
+
+// The archive panel opens (issue #183): it drops `drop_px` and fades in on
+// `fast` and `decelerate`; there is no closing animation. Reduced motion:
+// opacity only, on the reduced `fast` duration (90 ms). The 4 px is
+// `space-4`: the token set has no popover distance.
+struct PopoverMotion {
+  bool animate_slide;
+  int drop_px;
+  float from_opacity;
+  aerie::tokens::MotionDuration duration;
+  aerie::tokens::MotionEasing easing;
+  int duration_ms;
+};
+
+PopoverMotion PopoverOpenMotion(bool reduced);
+
 }  // namespace aerie_sidebar
 
 #endif  // COMPONENTS_AERIE_SIDEBAR_AERIE_SIDEBAR_MOTION_H_
