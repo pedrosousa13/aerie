@@ -2,26 +2,26 @@
 # when moving to a new Helium release (see README "Updating Helium").
 
 [helium]
-# Helium release this tree builds: helium-linux tag 0.21.1.1.
-version = "0.21.1.1"
-chromium_version = "157.0.8103.38"
+# Helium release this tree builds: helium-linux tag 0.21.3.1.
+version = "0.21.3.1"
+chromium_version = "157.0.8103.78"
 # helium-chromium submodule -> github.com/imputnet/helium
-core_tag = "0.21.1"
-core_commit = "ecb36f09c4a4140e4cf4e67e77a3150bf3f3e7eb"
+core_tag = "0.21.3"
+core_commit = "a2d96a753a3e9f10e10170615f8eaed6b159e85b"
 # helium-linux submodule -> github.com/imputnet/helium-linux
-platform_tag = "0.21.1.1"
-platform_commit = "4da5fdc8f90175592f62b6a3f62e90a65e171789"
+platform_tag = "0.21.3.1"
+platform_commit = "039f557c925b5860c3e207ca6bae869e0ab7923b"
 
 # sha256 of every file Helium's downloads INI files fetch. Values are copied
 # from the publisher: the prepared Chromium tarballs from the SHA256SUMS of
-# github.com/imputnet/chromium-tarballs release chromium-157.0.8103.38, the
+# github.com/imputnet/chromium-tarballs release chromium-157.0.8103.78, the
 # rest from helium-chromium/deps.ini, except the sections Aerie does not download
 # (tools/aerie_build/helium_deps.py: the uBlock Origin build is not pinned because it is
 # not fetched). The build refuses any download that is
 # not listed here or does not match.
 [downloads]
-"chromium-157.0.8103.38-base.tar.zst" = "a1f8fba6dd1657dc7e7e639b80f9d8419c5523df1f37f7d8d44a3fdeb6f859f3"
-"chromium-157.0.8103.38-linux-x64.tar.zst" = "da5817db6880ee37aa8148517711e461923ad0b749abc71df270c02bf0afcdb2"
+"chromium-157.0.8103.78-base.tar.zst" = "660fa7236e06f325da2c23df5f7fd1a4f613e3a5519771815ef103e27921b2e9"
+"chromium-157.0.8103.78-linux-x64.tar.zst" = "a21823bd958611f2368065d4dc831def595ed9f629d3c5b932fad5dbfe677c3e"
 "nonfree-search-engines-data-202609082320.tar.gz" = "2a8d63af41454446d64bb5f19786d908419265f152adaff087132d8e0cda51a7"
 
 # Official Chromium release tarball for the same Chromium version. Used only
@@ -29,9 +29,9 @@ platform_commit = "4da5fdc8f90175592f62b6a3f62e90a65e171789"
 # sha256 is copied from the published .hashes file next to the tarball. The
 # build refuses the tarball if the published value and this one differ.
 [fallback.chromium]
-url = "https://commondatastorage.googleapis.com/chromium-browser-official/chromium-157.0.8103.38.tar.xz"
-hashes_url = "https://commondatastorage.googleapis.com/chromium-browser-official/chromium-157.0.8103.38.tar.xz.hashes"
-sha256 = "01dbaa7a2ccdbe2092e190147a5fc28760ba3158816fb9eb2f92ecef64bda30a"
+url = "https://commondatastorage.googleapis.com/chromium-browser-official/chromium-157.0.8103.78.tar.xz"
+hashes_url = "https://commondatastorage.googleapis.com/chromium-browser-official/chromium-157.0.8103.78.tar.xz.hashes"
+sha256 = "d7af88cd8d9abf0ed1adc3f2ad2c507aeda79b4373dc83557f27a0b78f1bdc6c"
 
 # Build tools Aerie installs into the build root. Each is checked against its
 # publisher's signature before use.
