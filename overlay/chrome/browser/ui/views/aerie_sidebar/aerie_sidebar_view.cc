@@ -36,6 +36,7 @@
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_sheet.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_controller.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_group.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_row_view.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_regions.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_rename_popover.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_row_view.h"
@@ -653,12 +654,12 @@ AerieSidebarRowView* AerieSidebarView::MakeRow(
     callbacks.edit_folder = base::BindRepeating(
         &AerieSidebarView::OpenFolderSheet, base::Unretained(this), id);
   }
-  auto* view = list->AddChildView(
-      std::make_unique<AerieSidebarRowView>(std::move(callbacks), palette_));
   if (entry.is_folder) {
-    view->MakeFolderRow();
+    return list->AddChildView(std::make_unique<AerieSidebarFolderRowView>(
+        std::move(callbacks), palette_));
   }
-  return view;
+  return list->AddChildView(
+      std::make_unique<AerieSidebarRowView>(std::move(callbacks), palette_));
 }
 
 AerieSidebarView::Reconciled AerieSidebarView::ReconcileRows(
@@ -1376,10 +1377,13 @@ void AerieSidebarView::UpdateFolderRow(const Row& row) {
     accessible_name = l10n_util::GetStringFUTF16(
         IDS_AERIE_SIDEBAR_FOLDER_HAS_SELECTED, accessible_name);
   }
-  row.view->SetFolderState(
+  AerieSidebarFolderRowView* folder_row =
+      AerieSidebarFolderRowView::From(row.view);
+  CHECK(folder_row);
+  folder_row->SetFolderState(
       name, accessible_name, folder->expanded, holds_selected,
       CanAnimateRows() ? browser_->GetProfile()->GetPrefs() : nullptr);
-  row.view->SetAutoFiling(
+  folder_row->SetAutoFiling(
       auto_filing, l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_FOLDER_RULES_BUTTON));
 }
 
@@ -1609,6 +1613,11 @@ AerieSidebarRowView* AerieSidebarView::RowForId(const std::string& id) const {
     return nullptr;
   }
   return (place->today ? rows_ : pinned_rows_)[place->index].view;
+}
+
+AerieSidebarFolderRowView* AerieSidebarView::FolderRowForId(
+    const std::string& id) const {
+  return AerieSidebarFolderRowView::From(RowForId(id));
 }
 
 const std::vector<aerie_tab_model::TreeRow>& AerieSidebarView::tree_rows(
@@ -2225,7 +2234,7 @@ void AerieSidebarView::OnTabFiled(
     return;
   }
   const PrefService* prefs = browser_->GetProfile()->GetPrefs();
-  if (AerieSidebarRowView* row = RowForId(filed.folder_id)) {
+  if (AerieSidebarFolderRowView* row = FolderRowForId(filed.folder_id)) {
     row->PlayFilingPulse(prefs);
   }
   last_filed_ = filed;

@@ -20,6 +20,7 @@
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_group.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_row_view.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_row_view.h"
 #include "chrome/browser/aerie_tab_model/tab_model_service.h"
 #include "chrome/browser/aerie_tab_model/tab_model_service_factory.h"
@@ -538,7 +539,8 @@ IN_PROC_BROWSER_TEST_P(AerieSidebarReducedMotionUiTest,
       EXPECT_LE(longest, 90);
     }
     // The chevron is at rest at once: no layer, no turn in progress.
-    AerieSidebarRowView* folder_row = sidebar()->RowForId(folder);
+    AerieSidebarFolderRowView* folder_row =
+      sidebar()->FolderRowForId(folder);
     ASSERT_TRUE(folder_row);
     if (views::View* chevron = folder_row->chevron_view(); chevron->layer()) {
       EXPECT_FALSE(Animates(chevron->layer(),

@@ -20,6 +20,8 @@ source_set("aerie_sidebar") {
     "aerie_sidebar_focus_ring.h",
     "aerie_sidebar_folder_controller.cc",
     "aerie_sidebar_folder_controller.h",
+    "aerie_sidebar_folder_row_view.cc",
+    "aerie_sidebar_folder_row_view.h",
     "aerie_sidebar_folder_sheet.cc",
     "aerie_sidebar_folder_sheet.h",
     "aerie_sidebar_folder_group.cc",

@@ -41,6 +41,7 @@ class AerieSidebarTopRow;
 class AerieSidebarContextMenu;
 class AerieSidebarRenamePopover;
 class AerieSidebarFolderGroup;
+class AerieSidebarFolderRowView;
 
 namespace aerie_tab_model {
 class PinnedTabsController;
@@ -238,6 +239,8 @@ class AerieSidebarView : public views::View,
   void DeleteFolderNow(const std::string& folder_id);
   // The row of a tab or a folder in either tree, or null.
   AerieSidebarRowView* RowForId(const std::string& id) const;
+  // The same, when `id` is a folder; null for a tab or an unknown id.
+  AerieSidebarFolderRowView* FolderRowForId(const std::string& id) const;
   // The rows of a tree as they are drawn now.
   const std::vector<aerie_tab_model::TreeRow>& tree_rows(
       aerie_tab_model::Section section) const;

@@ -25,6 +25,7 @@
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_context_menu.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_sheet.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_row_view.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_row_view.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_switch.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_view.h"
@@ -182,7 +183,7 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarAutoFileBrowserTest,
   ASSERT_TRUE(sidebar()->toast_undo_button()->GetVisible());
   ASSERT_TRUE(sidebar()->toast_dont_file_button()->GetVisible());
   // The folder row pulses.
-  AerieSidebarRowView* row = sidebar()->RowForId(folder);
+  AerieSidebarFolderRowView* row = sidebar()->FolderRowForId(folder);
   ASSERT_TRUE(row);
   ASSERT_TRUE(row->pulse_view()->layer());
   // Undo returns the tab to Today.
@@ -323,12 +324,12 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarAutoFileBrowserTest,
   ASSERT_TRUE(base::test::RunUntil([&] {
     return sidebar()->RowForId(folder) && sidebar()->RowForId(manual);
   }));
-  AerieSidebarRowView* row = sidebar()->RowForId(folder);
+  AerieSidebarFolderRowView* row = sidebar()->FolderRowForId(folder);
   EXPECT_NE(DataOf(row).GetStringAttribute(ax::mojom::StringAttribute::kName)
                 .find("Trips, auto-filing folder"),
             std::string::npos);
   EXPECT_TRUE(row->funnel_button()->GetVisible());
-  EXPECT_FALSE(sidebar()->RowForId(manual)->funnel_button()->GetVisible());
+  EXPECT_FALSE(sidebar()->FolderRowForId(manual)->funnel_button()->GetVisible());
   EXPECT_EQ(DataOf(sidebar()->RowForId(manual))
                 .GetStringAttribute(ax::mojom::StringAttribute::kName)
                 .find("auto-filing"),
@@ -362,7 +363,7 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarFolderSheetBrowserTest,
       MakeAutoFolder("Trips", RuleType::kDomain, "trips.localhost");
   ASSERT_TRUE(base::test::RunUntil(
       [&] { return sidebar()->RowForId(folder) != nullptr; }));
-  AerieSidebarRowView* row = sidebar()->RowForId(folder);
+  AerieSidebarFolderRowView* row = sidebar()->FolderRowForId(folder);
 
   // The funnel.
   Click(row->funnel_button());
@@ -491,7 +492,7 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarFolderSheetBrowserTest,
   sheet->done_button()->RequestFocus();
   PressKey(widget, ui::VKEY_ESCAPE);
   CloseSheetAndWait();
-  AerieSidebarRowView* row = sidebar()->RowForId(folder);
+  AerieSidebarFolderRowView* row = sidebar()->FolderRowForId(folder);
   ASSERT_TRUE(row);
   // The browser window may not be the active window in this environment; then
   // the focus manager keeps the view to focus when it is.
