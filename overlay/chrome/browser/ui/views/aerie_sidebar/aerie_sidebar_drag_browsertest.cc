@@ -807,7 +807,15 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarDragTraceBrowserTest, DraggingAmong50RowsKeep
   // Starting the drag adds the ghost, the indicator and the drop bands to the
   // sidebar, which asks for one layout. That one is the drag's start, not a
   // frame of it, so it runs before the trace begins.
-  sidebar()->GetWidget()->LayoutRootViewIfNecessary();
+  // Late title and icon updates of the 50 new tabs also ask for layouts; let
+  // them land first so the count below is the drag's alone.
+  for (int i = 0; i < 3; ++i) {
+    base::RunLoop loop;
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+        FROM_HERE, loop.QuitClosure(), base::Milliseconds(100));
+    loop.Run();
+    sidebar()->GetWidget()->LayoutRootViewIfNecessary();
+  }
   std::vector<gfx::Rect> bounds;
   for (size_t i = 0; i < sidebar()->row_count(); ++i) {
     bounds.push_back(sidebar()->row_at(i)->bounds());

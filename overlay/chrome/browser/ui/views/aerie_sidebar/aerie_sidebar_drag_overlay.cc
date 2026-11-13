@@ -54,7 +54,7 @@ AerieSidebarDragGhost::AerieSidebarDragGhost(
     title_->SetHorizontalAlignment(gfx::ALIGN_LEFT);
     title_->SetEnabledColor(palette_.text);
     title_->SetElideBehavior(gfx::ELIDE_TAIL);
-    title_->SetBackgroundColor(SkColors::kTransparent);
+    title_->SetBackgroundColor(SkColorSetA(palette_.text, 0));
   }
 }
 
