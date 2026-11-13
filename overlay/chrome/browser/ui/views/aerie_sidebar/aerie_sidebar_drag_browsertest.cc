@@ -887,3 +887,65 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarDragTraceBrowserTest, DraggingAmong50RowsKeep
       ui::Accelerator(ui::VKEY_ESCAPE, ui::EF_NONE)));
   EXPECT_FALSE(sidebar()->dragging());
 }
+
+// The list scrolls while the pointer rests in its bottom or top 24 px.
+IN_PROC_BROWSER_TEST_F(AerieSidebarDragBrowserTest, TheListScrollsWhileThePointerRestsAtItsBottomAndTopEdges) {
+  OpenTabs(40);
+  views::ScrollView* scroll = sidebar()->today_scroll();
+  ASSERT_GT(scroll->contents()->height(), scroll->height());
+  ASSERT_EQ(scroll->contents()->y(), 0);
+  views::View* row = sidebar()->row_at(0);
+  Press(row);
+  Lift(row);
+  ASSERT_TRUE(sidebar()->dragging());
+  // 8 px inside the bottom edge of the list.
+  gfx::Point bottom(scroll->width() / 2, scroll->height() - 8);
+  views::View::ConvertPointToWidget(scroll, &bottom);
+  DragTo(row, bottom);
+  ASSERT_TRUE(WaitFor([&] { return scroll->contents()->y() < -100; }));
+  const int scrolled = scroll->contents()->y();
+  // Now 8 px inside the top edge: it scrolls back.
+  gfx::Point top(scroll->width() / 2, 8);
+  views::View::ConvertPointToWidget(scroll, &top);
+  ui::MouseEvent move = Mouse(ui::EventType::kMouseDragged, row, top);
+  row->OnMouseDragged(move);
+  ASSERT_TRUE(WaitFor([&] { return scroll->contents()->y() > scrolled + 50; }));
+  // Out of both edges it stops.
+  gfx::Point middle(scroll->width() / 2, scroll->height() / 2);
+  views::View::ConvertPointToWidget(scroll, &middle);
+  ui::MouseEvent stay = Mouse(ui::EventType::kMouseDragged, row, middle);
+  row->OnMouseDragged(stay);
+  const int at_rest = scroll->contents()->y();
+  base::RunLoop loop;
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+      FROM_HERE, loop.QuitClosure(), base::Milliseconds(150));
+  loop.Run();
+  EXPECT_EQ(scroll->contents()->y(), at_rest);
+  EXPECT_TRUE(row->GetWidget()->GetFocusManager()->ProcessAccelerator(
+      ui::Accelerator(ui::VKEY_ESCAPE, ui::EF_NONE)));
+}
+
+// Alt+Left and Alt+Right are the row's keys while it has focus: they reach it
+// before the browser's Back and Forward and the row says it wants them.
+IN_PROC_BROWSER_TEST_F(AerieSidebarDragBrowserTest, AltRightOnAFocusedRowIndentsItAndTheRowClaimsTheKey) {
+  OpenTabs(2);
+  const std::string a = IdAt(0);
+  const std::string folder = NewFolder(Section::kToday, "", "Trips");
+  WaitForRows();
+  AerieSidebarRowView* row = sidebar()->RowForId(a);
+  ASSERT_TRUE(row);
+  ui::KeyEvent alt_right(ui::EventType::kKeyPressed, ui::VKEY_RIGHT,
+                         ui::EF_ALT_DOWN);
+  EXPECT_TRUE(row->SkipDefaultKeyEventProcessing(alt_right));
+  // A plain arrow is not claimed.
+  ui::KeyEvent plain(ui::EventType::kKeyPressed, ui::VKEY_RIGHT, ui::EF_NONE);
+  EXPECT_FALSE(row->SkipDefaultKeyEventProcessing(plain));
+  EXPECT_TRUE(row->OnKeyPressed(alt_right));
+  EXPECT_EQ(model()->GetTab(a)->parent, folder);
+  // The Back accelerator is not the row's: with no row involved the event is
+  // not claimed (a view that is not a row has the default).
+  views::View other;
+  ui::KeyEvent alt_left(ui::EventType::kKeyPressed, ui::VKEY_LEFT,
+                        ui::EF_ALT_DOWN);
+  EXPECT_FALSE(other.SkipDefaultKeyEventProcessing(alt_left));
+}
