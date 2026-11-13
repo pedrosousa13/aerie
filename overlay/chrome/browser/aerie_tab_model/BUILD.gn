@@ -99,6 +99,7 @@ source_set("browser_tests") {
   sources = [
     "restore_join_browsertest.cc",
     "sleep_controller_browsertest.cc",
+    "tab_archiver_browsertest.cc",
   ]
   deps = [
     ":aerie_tab_model",
