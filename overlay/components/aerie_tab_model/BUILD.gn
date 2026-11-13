@@ -12,6 +12,8 @@ source_set("aerie_tab_model") {
   sources = [
     "archive.cc",
     "archive.h",
+    "archive_schedule.cc",
+    "archive_schedule.h",
     "auto_file_controller.cc",
     "auto_file_controller.h",
     "folder_rules.cc",
@@ -62,6 +64,7 @@ source_set("prefs") {
 source_set("unit_tests") {
   testonly = true
   sources = [
+    "archive_schedule_unittest.cc",
     "archive_unittest.cc",
     "auto_file_controller_unittest.cc",
     "folder_rules_unittest.cc",
