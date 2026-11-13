@@ -54,7 +54,7 @@ AerieSidebarDragGhost::AerieSidebarDragGhost(
     title_->SetHorizontalAlignment(gfx::ALIGN_LEFT);
     title_->SetEnabledColor(palette_.text);
     title_->SetElideBehavior(gfx::ELIDE_TAIL);
-    title_->SetBackgroundColor(SK_ColorTRANSPARENT);
+    title_->SetBackgroundColor(SkColors::kTransparent);
   }
 }
 
@@ -107,7 +107,7 @@ void AerieSidebarDragGhost::OnPaint(gfx::Canvas* canvas) {
   }
   cc::PaintFlags shadow_flags;
   shadow_flags.setAntiAlias(true);
-  shadow_flags.setColor(SK_ColorTRANSPARENT);
+  shadow_flags.setColor(SkColors::kTransparent);
   shadow_flags.setLooper(gfx::CreateShadowDrawLooper(shadows));
   canvas->sk_canvas()->drawRoundRect(rect, radius, radius, shadow_flags);
   cc::PaintFlags fill;
