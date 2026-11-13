@@ -24,7 +24,7 @@ class TabModel;
 
 // How long the Archive keeps a record after `archived_at`: nullopt means for
 // ever. The names are the values of the pref aerie.tabs.archive_keep.
-inline constexpr base::TimeDelta kDefaultArchiveKeep = base::Days(30);
+inline constexpr base::TimeDelta kDefaultArchiveRetention = base::Days(30);
 
 // Turns a Today tab into an archived record: `archived_at` is `now`, `archive`
 // is `data` with `folder` set to the folder the tab is in. The record keeps its

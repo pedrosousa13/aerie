@@ -19,6 +19,8 @@
 #include "chrome/browser/aerie_tab_model/pinned_close_hook.h"
 #include "chrome/browser/aerie_tab_model/sleep_controller.h"
 #include "chrome/browser/aerie_tab_model/sleep_controller_factory.h"
+#include "chrome/browser/aerie_tab_model/tab_archiver.h"
+#include "chrome/browser/aerie_tab_model/tab_archiver_factory.h"
 #include "chrome/browser/aerie_tab_model/tab_model_service.h"
 #include "chrome/browser/aerie_tab_model/tab_model_service_factory.h"
 #include "chrome/browser/aerie_tab_model/tab_strip_adapter.h"
@@ -253,10 +255,16 @@ bool PinnedTabsController::HandleClose(tabs::TabInterface* tab) {
   const PinnedCloseAction action = ActionFor(tab);
   switch (action) {
     case PinnedCloseAction::kUnpinClose:
-      // The record goes to Today first, so that the adapter removes it with the
-      // tab. Once the archive exists (slice F) this is where the tab lands in
-      // it; until then it closes.
+      // The record goes to Today first, and then the archiver keeps it (issue
+      // #183, "unpin and close (it goes to the archive)"): the record stays as
+      // an archived one and the tab closes. A tab that the archiver refuses (its
+      // page asks to confirm leaving) closes as before, and its Today record
+      // goes with it.
       UnpinTab(*model_, id);
+      if (TabArchiver* archiver = TabArchiverFactory::GetForProfile(profile_);
+          archiver && archiver->Archive(tab)) {
+        return true;
+      }
       tab->Close();
       return true;
     case PinnedCloseAction::kSleepSwitch:

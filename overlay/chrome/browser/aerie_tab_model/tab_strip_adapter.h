@@ -31,7 +31,7 @@ namespace aerie_tab_model {
 // TabStripModelObserver::OnTabStripModelChanged:
 //  - adds a `today` TabRecord for each tab that is inserted,
 //  - sets `position` when a tab moves, and `last_active` when it becomes the
-//    active tab,
+//    active tab and when it stops being it,
 //  - removes the record when the tab is closed.
 // A tab that moves to another window is the same tab: its handle
 // (tabs::TabHandle) stays, so its record stays. The handle is the join key at
@@ -55,6 +55,10 @@ namespace aerie_tab_model {
 // the Tab Model has read state.json gets a fresh record first and swaps it for
 // the stored one when the read is merged. Nothing is matched by address, title
 // or position.
+//
+// An archived record (issue #183) is the one exception to "a closed tab loses
+// its record": the archiver writes `archived_at` before it closes the tab, and
+// the adapter then keeps the record and forgets only the handle.
 //
 // It does not set the Chromium pinned bit, and it does not use TabGroupModel.
 // It does not mirror the Tab Model order into the tab strip (issue #186).
@@ -137,6 +141,8 @@ class TabStripAdapter : public BrowserCollectionObserver,
   // another window), moves the record.
   void TabInserted(tabs::TabInterface* tab, int index);
   void TouchActive(tabs::TabInterface* tab);
+  // Sets `last_active` of the tab that stops being the selected one.
+  void TouchLeft(tabs::TabInterface* tab);
   // TabStripModelObserver:
   void OnTabChangedAt(tabs::TabInterface* tab, TabChangeType change_type) override;
 
