@@ -84,9 +84,11 @@ class StringsTest(unittest.TestCase):
                 self.assertFalse(re.search(r"[A-Za-z]{4,} [A-Za-z]{3,}", text), f"{name}: {text}")
 
     def test_the_accessible_name_order_is_title_asleep_renamed(self):
-        for name in ("aerie_sidebar_row_view.cc", "aerie_sidebar_tile_view.cc"):
+        # The row builds the name in AccessibleName() (UpdateName() only applies it); the tile builds it in UpdateName().
+        for name, func in (("aerie_sidebar_row_view.cc", "::AccessibleName() const"),
+                           ("aerie_sidebar_tile_view.cc", "::UpdateName()")):
             text = code(VIEWS / name)
-            body = text.split("::UpdateName()")[1].split("\n}\n")[0]
+            body = text.split(func)[1].split("\n}\n")[0]
             self.assertLess(body.index("ROW_ASLEEP_NAME"), body.index("ROW_RENAMED_NAME"), name)
 
 
@@ -142,11 +144,11 @@ class WiringTest(unittest.TestCase):
 
     def test_there_is_one_context_menu_and_it_has_the_two_commands(self):
         menu = (VIEWS / "aerie_sidebar_context_menu.h").read_text()
-        self.assertIn("kCommandRename = 8", menu)
-        self.assertIn("kCommandResetName = 9", menu)
+        self.assertIn("kRename = 8", menu)
+        self.assertIn("kResetName = 9", menu)
         self.assertEqual(len(list(VIEWS.glob("*context_menu*.cc"))), 1)
         cc = code(VIEWS / "aerie_sidebar_context_menu.cc")
-        self.assertRegex(cc, r"if \(options_\.has_manual_name\) \{\s*root_->AppendMenuItem\(\s*kCommandResetName")
+        self.assertRegex(cc, r"if \(options_\.has_manual_name\) \{\s*root_->AppendMenuItem\(\s*Id\(Command::kResetName\)")
 
     def test_no_patch_is_needed_and_the_row_reads_the_resolver_not_the_raw_title(self):
         view = code(VIEWS / "aerie_sidebar_view.cc")

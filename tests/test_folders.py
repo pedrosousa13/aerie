@@ -62,11 +62,12 @@ class ReviewTest(unittest.TestCase):
         text = (VIEWS / "aerie_sidebar_view.cc").read_text()
         self.assertEqual(text.count("IDS_AERIE_SIDEBAR_FOLDER_TOO_DEEP"), 1)
         self.assertGreaterEqual(text.count("TooDeepTooltip()"), 3)
-        self.assertIn("move_to_new_folder_tooltip", text)
+        self.assertIn("move_to_new_folder.tooltip", text)
 
     def test_no_literal_walk_bound_or_turn_angle(self):
         self.assertNotIn("<= 64", (VIEWS / "aerie_sidebar_view.cc").read_text())
-        row = (VIEWS / "aerie_sidebar_row_view.cc").read_text()
+        # The turn angle now lives with the folder row (the chevron), not the tab row.
+        row = (VIEWS / "aerie_sidebar_folder_row_view.cc").read_text()
         self.assertEqual(len(re.findall(r"\b360\b", row)), 1)
 
     def test_the_group_reuses_the_row_slack(self):
