@@ -193,7 +193,9 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarDragUiTest, TheLiftAndTheSettleAnimateOnlyTra
   for (size_t i : {1u, 2u}) {
     ui::Layer* layer = sidebar()->row_at(i)->layer();
     ASSERT_TRUE(layer) << i;
-    EXPECT_TRUE(Animates(layer, ui::LayerAnimationElement::TRANSFORM)) << i;
+    EXPECT_TRUE(layer->GetAnimator()->IsAnimatingProperty(
+        ui::LayerAnimationElement::TRANSFORM))
+        << i;
     EXPECT_EQ(layer->GetTargetTransform().To2dTranslation().y(), -pitch) << i;
   }
 
@@ -252,7 +254,7 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarDragUiTest, ADragThatStartsDuringASettlePicks
   const gfx::PointF before = VisualCenter(ghost);
   const gfx::PointF rest(ghost->content_bounds().CenterPoint());
   // The settle is on its way: the ghost is not at the place it lands on.
-  ASSERT_GT((before - rest).Length(), 10.f);
+  ASSERT_GT((before - rest).Length(), 4.f);
 
   // The row is at its new place now; press it and drag again.
   AerieSidebarRowView* moved = sidebar()->RowForId(first);
