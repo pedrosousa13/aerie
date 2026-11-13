@@ -16,6 +16,7 @@
 #include "base/memory/weak_ptr.h"
 #include "base/timer/timer.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_context_menu.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_controller.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_regions.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_row_entry.h"
@@ -152,10 +153,13 @@ class AerieSidebarView : public views::View,
   // The folder editor (issue #139): null when it is not open.
   AerieSidebarFolderSheet* folder_sheet() const { return folder_sheet_.get(); }
   void OpenFolderSheet(const std::string& folder_id);
-  void FolderContextCommandForTesting(const std::string& folder_id, int command) {
+  void FolderContextCommandForTesting(
+      const std::string& folder_id,
+      AerieSidebarContextMenu::Command command) {
     OnFolderContextCommand(folder_id, command);
   }
-  void ContextCommandForTesting(const std::string& tab_id, int command) {
+  void ContextCommandForTesting(const std::string& tab_id,
+                                AerieSidebarContextMenu::Command command) {
     OnContextCommand(tab_id, command);
   }
   // aerie_tab_model::AutoFileController::Observer:
@@ -375,8 +379,10 @@ class AerieSidebarView : public views::View,
   void ShowSectionContextMenu(aerie_tab_model::Section section,
                               const gfx::Point& screen_point,
                               ui::mojom::MenuSourceType source_type);
-  void OnFolderContextCommand(const std::string& folder_id, int command);
-  void OnSectionContextCommand(aerie_tab_model::Section section, int command);
+  void OnFolderContextCommand(const std::string& folder_id,
+                              AerieSidebarContextMenu::Command command);
+  void OnSectionContextCommand(aerie_tab_model::Section section,
+                               AerieSidebarContextMenu::Command command);
   // Opens the name of a folder for editing once its row exists.
   void RenameNewFolderSoon(const std::string& folder_id);
   // The context menu of a row or a tile (issues #179 and #180): Pin or Unpin,
@@ -384,7 +390,8 @@ class AerieSidebarView : public views::View,
   void ShowRowContextMenu(const std::string& tab_id,
                           const gfx::Point& screen_point,
                           ui::mojom::MenuSourceType source_type);
-  void OnContextCommand(const std::string& tab_id, int command);
+  void OnContextCommand(const std::string& tab_id,
+                        AerieSidebarContextMenu::Command command);
   // Shows the toast for `kMotionTimingToast` ms and says it politely to a
   // screen reader.
   void ShowToast(const std::u16string& text, bool has_actions = false);
@@ -422,7 +429,7 @@ class AerieSidebarView : public views::View,
   int IndexOfRow(const std::string& tab_id) const;
   // True when rows animate: the window is shown and no session is being
   // restored (docs/sidebar-design.md, "Performance rules", rule 3).
-  bool CanAnimateRows() const;
+  bool CanAnimateRows() const override;
   // The side of the window the sidebar is on: -1 left, +1 right.
   int OuterEdgeSign() const;
   void RemoveClosedRow(AerieSidebarRowView* row);

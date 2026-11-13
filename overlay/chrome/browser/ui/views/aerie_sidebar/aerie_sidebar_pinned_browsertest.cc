@@ -361,7 +361,7 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarPinnedBrowserTest, TheThirteenthFavoriteIsRef
       gfx::Point(5, 5), ui::mojom::MenuSourceType::kMouse);
   ASSERT_TRUE(sidebar()->context_menu());
   sidebar()->context_menu()->ExecuteCommand(
-      AerieSidebarContextMenu::kCommandAddToFavorites);
+      AerieSidebarContextMenu::Command::kAddToFavorites);
   sidebar()->context_menu()->Close();
   EXPECT_EQ(sidebar()->favorite_tile_count(), 12u);
   ASSERT_TRUE(sidebar()->toast_visible());
@@ -535,19 +535,19 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarPinnedBrowserTest, ContextMenuItemsFollowTheS
   AerieSidebarContextMenu::Options options;
   options.section = aerie_tab_model::Section::kToday;
   M today(options, base::DoNothing());
-  EXPECT_NE(today.item(M::kCommandPin), nullptr);
-  EXPECT_EQ(today.item(M::kCommandUnpin), nullptr);
-  EXPECT_NE(today.item(M::kCommandAddToFavorites), nullptr);
-  EXPECT_NE(today.item(M::kCommandSleepTab), nullptr);
-  EXPECT_NE(today.item(M::kCommandClose), nullptr);
+  EXPECT_NE(today.item(M::Command::kPin), nullptr);
+  EXPECT_EQ(today.item(M::Command::kUnpin), nullptr);
+  EXPECT_NE(today.item(M::Command::kAddToFavorites), nullptr);
+  EXPECT_NE(today.item(M::Command::kSleepTab), nullptr);
+  EXPECT_NE(today.item(M::Command::kClose), nullptr);
   options.section = aerie_tab_model::Section::kPinned;
   M pin(options, base::DoNothing());
-  EXPECT_NE(pin.item(M::kCommandUnpin), nullptr);
-  EXPECT_EQ(pin.item(M::kCommandPin), nullptr);
+  EXPECT_NE(pin.item(M::Command::kUnpin), nullptr);
+  EXPECT_EQ(pin.item(M::Command::kPin), nullptr);
   options.section = aerie_tab_model::Section::kFavorite;
   M fav(options, base::DoNothing());
-  EXPECT_NE(fav.item(M::kCommandRemoveFromFavorites), nullptr);
-  EXPECT_EQ(fav.item(M::kCommandAddToFavorites), nullptr);
+  EXPECT_NE(fav.item(M::Command::kRemoveFromFavorites), nullptr);
+  EXPECT_EQ(fav.item(M::Command::kAddToFavorites), nullptr);
 }
 
 // Roles and names for a screen reader.
@@ -593,8 +593,8 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarPinnedBrowserTest, TheContextMenuOffersBackTo
   using M = AerieSidebarContextMenu;
   row->ShowContextMenu(gfx::Point(5, 5), ui::mojom::MenuSourceType::kMouse);
   ASSERT_TRUE(sidebar()->context_menu());
-  EXPECT_EQ(sidebar()->context_menu()->item(M::kCommandBackToPinned), nullptr);
-  EXPECT_FALSE(sidebar()->context_menu()->IsCommandEnabled(M::kCommandBackToPinned));
+  EXPECT_EQ(sidebar()->context_menu()->item(M::Command::kBackToPinned), nullptr);
+  EXPECT_FALSE(sidebar()->context_menu()->IsCommandEnabled(M::Command::kBackToPinned));
   sidebar()->context_menu()->Close();
 
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), Url("/title2.html")));
@@ -602,11 +602,11 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarPinnedBrowserTest, TheContextMenuOffersBackTo
       [&] { return row->back_to_pinned_button()->GetVisible(); }));
   row->ShowContextMenu(gfx::Point(5, 5), ui::mojom::MenuSourceType::kMouse);
   ASSERT_TRUE(sidebar()->context_menu());
-  views::MenuItemView* item = sidebar()->context_menu()->item(M::kCommandBackToPinned);
+  views::MenuItemView* item = sidebar()->context_menu()->item(M::Command::kBackToPinned);
   ASSERT_TRUE(item);
   EXPECT_EQ(base::UTF16ToUTF8(item->title()),
             l10n_util::GetStringUTF8(IDS_AERIE_SIDEBAR_BACK_TO_PINNED));
-  sidebar()->context_menu()->ExecuteCommand(M::kCommandBackToPinned);
+  sidebar()->context_menu()->ExecuteCommand(M::Command::kBackToPinned);
   sidebar()->context_menu()->Close();
   ASSERT_TRUE(base::test::RunUntil([&] {
     return tab->GetContents()->GetLastCommittedURL() == Url("/title1.html");
@@ -621,20 +621,20 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarPinnedBrowserTest, ACommandThatTheMenuLacksIs
   AerieSidebarContextMenu::Options options;
   options.section = aerie_tab_model::Section::kFavorite;
   M menu(options, base::DoNothing());
-  EXPECT_FALSE(menu.IsCommandEnabled(M::kCommandPin));
-  EXPECT_FALSE(menu.IsCommandEnabled(M::kCommandUnpin));
-  EXPECT_FALSE(menu.IsCommandEnabled(M::kCommandAddToFavorites));
-  EXPECT_FALSE(menu.IsCommandEnabled(M::kCommandBackToPinned));
-  EXPECT_TRUE(menu.IsCommandEnabled(M::kCommandRemoveFromFavorites));
-  EXPECT_TRUE(menu.IsCommandEnabled(M::kCommandClose));
+  EXPECT_FALSE(menu.IsCommandEnabled(M::Command::kPin));
+  EXPECT_FALSE(menu.IsCommandEnabled(M::Command::kUnpin));
+  EXPECT_FALSE(menu.IsCommandEnabled(M::Command::kAddToFavorites));
+  EXPECT_FALSE(menu.IsCommandEnabled(M::Command::kBackToPinned));
+  EXPECT_TRUE(menu.IsCommandEnabled(M::Command::kRemoveFromFavorites));
+  EXPECT_TRUE(menu.IsCommandEnabled(M::Command::kClose));
   // The items themselves are enabled (the menu asks while it adds them, so this
   // is what the user sees), and "Sleep tab" follows its own flag.
-  EXPECT_TRUE(menu.item(M::kCommandRemoveFromFavorites)->GetEnabled());
-  EXPECT_TRUE(menu.item(M::kCommandClose)->GetEnabled());
+  EXPECT_TRUE(menu.item(M::Command::kRemoveFromFavorites)->GetEnabled());
+  EXPECT_TRUE(menu.item(M::Command::kClose)->GetEnabled());
   options.section = aerie_tab_model::Section::kToday;
   M today(options, base::DoNothing());
-  EXPECT_TRUE(today.item(M::kCommandPin)->GetEnabled());
-  EXPECT_TRUE(today.item(M::kCommandAddToFavorites)->GetEnabled());
+  EXPECT_TRUE(today.item(M::Command::kPin)->GetEnabled());
+  EXPECT_TRUE(today.item(M::Command::kAddToFavorites)->GetEnabled());
 }
 
 // A sleeping Favorite tile says why it is dim.

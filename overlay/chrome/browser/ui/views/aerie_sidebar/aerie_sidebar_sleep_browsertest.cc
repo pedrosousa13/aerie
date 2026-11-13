@@ -234,10 +234,10 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarSleepBrowserTest,
   ASSERT_TRUE(item);
   EXPECT_EQ(item->title(), l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_SLEEP_TAB));
   EXPECT_TRUE(sidebar()->context_menu()->IsCommandEnabled(
-      AerieSidebarContextMenu::kCommandSleepTab));
+      AerieSidebarContextMenu::Command::kSleepTab));
 
   sidebar()->context_menu()->ExecuteCommand(
-      AerieSidebarContextMenu::kCommandSleepTab);
+      AerieSidebarContextMenu::Command::kSleepTab);
   EXPECT_TRUE(base::test::RunUntil([&] { return RowAt(index)->sleeping(); }));
   sidebar()->context_menu()->Close();
 }
@@ -249,12 +249,12 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarSleepBrowserTest,
                             ui::mojom::MenuSourceType::kKeyboard);
   ASSERT_TRUE(sidebar()->context_menu());
   auto* menu = sidebar()->context_menu();
-  EXPECT_FALSE(menu->IsCommandEnabled(AerieSidebarContextMenu::kCommandSleepTab));
-  EXPECT_EQ(menu->GetTooltipText(AerieSidebarContextMenu::kCommandSleepTab,
+  EXPECT_FALSE(menu->IsCommandEnabled(AerieSidebarContextMenu::Command::kSleepTab));
+  EXPECT_EQ(menu->GetTooltipText(AerieSidebarContextMenu::Command::kSleepTab,
                                  gfx::Point()),
             l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_SLEEP_TAB_SELECTED));
   // Choosing a disabled item does nothing: the tab keeps its row.
-  menu->ExecuteCommand(AerieSidebarContextMenu::kCommandSleepTab);
+  menu->ExecuteCommand(AerieSidebarContextMenu::Command::kSleepTab);
   EXPECT_FALSE(RowAt(0)->sleeping());
   EXPECT_FALSE(strip()->GetWebContentsAt(0)->WasDiscarded());
   menu->Close();
@@ -268,8 +268,8 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarSleepBrowserTest,
                                 ui::mojom::MenuSourceType::kKeyboard);
   ASSERT_TRUE(sidebar()->context_menu());
   auto* menu = sidebar()->context_menu();
-  EXPECT_FALSE(menu->IsCommandEnabled(AerieSidebarContextMenu::kCommandSleepTab));
-  EXPECT_EQ(menu->GetTooltipText(AerieSidebarContextMenu::kCommandSleepTab,
+  EXPECT_FALSE(menu->IsCommandEnabled(AerieSidebarContextMenu::Command::kSleepTab));
+  EXPECT_EQ(menu->GetTooltipText(AerieSidebarContextMenu::Command::kSleepTab,
                                  gfx::Point()),
             l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_SLEEP_TAB_ASLEEP));
   menu->Close();

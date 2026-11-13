@@ -304,7 +304,7 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarAutoFileBrowserTest,
   const std::string tab = OpenTabAt(UrlOn("trips.localhost"));
   ASSERT_TRUE(WaitFiledInto(tab, folder));
   sidebar()->ContextCommandForTesting(
-      tab, AerieSidebarContextMenu::kCommandStopRuleMatching);
+      tab, AerieSidebarContextMenu::Command::kStopRuleMatching);
   EXPECT_EQ(ParentOf(tab), "");
   EXPECT_EQ(aerie_tab_model::ReadFolderRules(*model()->GetFolder(folder))
                 .excluded_tabs.size(),
@@ -373,7 +373,7 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarFolderSheetBrowserTest,
 
   // The menu item "Edit folder...".
   sidebar()->FolderContextCommandForTesting(
-      folder, AerieSidebarContextMenu::kCommandEditFolder);
+      folder, AerieSidebarContextMenu::Command::kEditFolder);
   ASSERT_TRUE(base::test::RunUntil(
       [&] { return sidebar()->folder_sheet() != nullptr; }));
   sidebar()->folder_sheet()->Dismiss(false);

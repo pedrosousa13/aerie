@@ -1809,8 +1809,7 @@ void AerieSidebarView::ShowSectionContextMenu(
   AerieSidebarContextMenu::Options options;
   options.target = AerieSidebarContextMenu::Target::kSection;
   options.section = section;
-  options.show_new_folder = true;
-  options.new_folder_enabled = true;
+  options.new_folder.shown = true;
   context_menu_ = std::make_unique<AerieSidebarContextMenu>(
       std::move(options),
       base::BindRepeating(&AerieSidebarView::OnSectionContextCommand,
@@ -1821,8 +1820,8 @@ void AerieSidebarView::ShowSectionContextMenu(
 
 void AerieSidebarView::OnSectionContextCommand(
     aerie_tab_model::Section section,
-    int command) {
-  if (command == AerieSidebarContextMenu::kCommandNewFolder) {
+    AerieSidebarContextMenu::Command command) {
+  if (command == AerieSidebarContextMenu::Command::kNewFolder) {
     CreateFolderIn(section, std::string());
   }
 }
@@ -1837,11 +1836,11 @@ void AerieSidebarView::ShowFolderContextMenu(
   AerieSidebarContextMenu::Options options;
   options.target = AerieSidebarContextMenu::Target::kFolder;
   options.section = model_->GetFolder(folder_id)->section;
-  options.show_new_folder = true;
-  options.new_folder_enabled =
+  options.new_folder.shown = true;
+  options.new_folder.enabled =
       aerie_tab_model::CanCreateFolderIn(*model_, folder_id);
-  if (!options.new_folder_enabled) {
-    options.new_folder_tooltip = TooDeepTooltip();
+  if (!options.new_folder.enabled) {
+    options.new_folder.tooltip = TooDeepTooltip();
   }
   context_menu_ = std::make_unique<AerieSidebarContextMenu>(
       std::move(options),
@@ -1851,16 +1850,17 @@ void AerieSidebarView::ShowFolderContextMenu(
                      browser_->GetProfile()->GetPrefs());
 }
 
-void AerieSidebarView::OnFolderContextCommand(const std::string& folder_id,
-                                              int command) {
+void AerieSidebarView::OnFolderContextCommand(
+    const std::string& folder_id,
+    AerieSidebarContextMenu::Command command) {
   if (!model_ || !model_->GetFolder(folder_id)) {
     return;
   }
   switch (command) {
-    case AerieSidebarContextMenu::kCommandNewFolder:
+    case AerieSidebarContextMenu::Command::kNewFolder:
       CreateFolderIn(model_->GetFolder(folder_id)->section, folder_id);
       break;
-    case AerieSidebarContextMenu::kCommandRenameFolder:
+    case AerieSidebarContextMenu::Command::kRenameFolder:
       base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
           FROM_HERE,
           base::BindOnce(
@@ -1871,7 +1871,7 @@ void AerieSidebarView::OnFolderContextCommand(const std::string& folder_id,
               },
               weak_factory_.GetWeakPtr(), folder_id));
       break;
-    case AerieSidebarContextMenu::kCommandEditFolder:
+    case AerieSidebarContextMenu::Command::kEditFolder:
       // Open the sheet after this menu command returns, so that the menu has
       // closed and given up its grab: the sheet anchors on the row and takes
       // focus, and neither works while the menu still owns them.
@@ -1885,8 +1885,10 @@ void AerieSidebarView::OnFolderContextCommand(const std::string& folder_id,
               },
               weak_factory_.GetWeakPtr(), folder_id));
       break;
-    case AerieSidebarContextMenu::kCommandDeleteFolder:
+    case AerieSidebarContextMenu::Command::kDeleteFolder:
       RequestDeleteFolder(folder_id);
+      break;
+    default:
       break;
   }
 }
@@ -1930,19 +1932,19 @@ void AerieSidebarView::ShowRowContextMenu(
   if (record->section != aerie_tab_model::Section::kFavorite) {
     const aerie_tab_model::Section section = record->section;
     const bool in_folder = !record->parent.empty();
-    options.show_new_folder = true;
+    options.new_folder.shown = true;
     // Both items make a folder where the tab is, so one test serves both.
     const bool can_make_folder =
         aerie_tab_model::CanCreateFolderIn(*model_, record->parent);
-    options.new_folder_enabled = can_make_folder;
-    options.show_move_to_new_folder = true;
-    options.move_to_new_folder_enabled = can_make_folder;
+    options.new_folder.enabled = can_make_folder;
+    options.move_to_new_folder.shown = true;
+    options.move_to_new_folder.enabled = can_make_folder;
     if (!can_make_folder) {
-      options.new_folder_tooltip = TooDeepTooltip();
-      options.move_to_new_folder_tooltip = TooDeepTooltip();
+      options.new_folder.tooltip = TooDeepTooltip();
+      options.move_to_new_folder.tooltip = TooDeepTooltip();
     }
-    options.show_move_out = in_folder;
-    options.show_stop_rule = record->filed_by.has_value();
+    options.move_out.shown = in_folder;
+    options.stop_rule.shown = record->filed_by.has_value();
     for (const aerie_tab_model::FolderChoice& choice :
          aerie_tab_model::FolderChoices(*model_, section)) {
       if (choice.id == record->parent) {
@@ -1964,48 +1966,49 @@ void AerieSidebarView::ShowRowContextMenu(
                      browser_->GetProfile()->GetPrefs());
 }
 
-void AerieSidebarView::OnContextCommand(const std::string& tab_id,
-                                        int command) {
+void AerieSidebarView::OnContextCommand(
+    const std::string& tab_id,
+    AerieSidebarContextMenu::Command command) {
   tabs::TabInterface* tab = FindTab(tab_id);
   if (!tab) {
     return;
   }
   auto* pinned = PinnedController();
   switch (command) {
-    case AerieSidebarContextMenu::kCommandSleepTab:
+    case AerieSidebarContextMenu::Command::kSleepTab:
       if (auto* sleep = aerie_tab_model::SleepControllerFactory::GetForProfile(
               browser_->GetProfile())) {
         sleep->Sleep(tab);
       }
       break;
-    case AerieSidebarContextMenu::kCommandBackToPinned:
+    case AerieSidebarContextMenu::Command::kBackToPinned:
       GoBackToPinnedPage(tab_id);
       break;
-    case AerieSidebarContextMenu::kCommandPin:
+    case AerieSidebarContextMenu::Command::kPin:
       if (pinned) {
         pinned->Pin(tab);
       }
       break;
-    case AerieSidebarContextMenu::kCommandUnpin:
+    case AerieSidebarContextMenu::Command::kUnpin:
       if (pinned) {
         pinned->Unpin(tab);
       }
       break;
-    case AerieSidebarContextMenu::kCommandAddToFavorites:
+    case AerieSidebarContextMenu::Command::kAddToFavorites:
       if (pinned && pinned->AddToFavorites(tab) ==
                         aerie_tab_model::FavoriteResult::kFull) {
         ShowToast(l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_FAVORITES_FULL));
       }
       break;
-    case AerieSidebarContextMenu::kCommandRemoveFromFavorites:
+    case AerieSidebarContextMenu::Command::kRemoveFromFavorites:
       if (pinned) {
         pinned->RemoveFromFavorites(tab);
       }
       break;
-    case AerieSidebarContextMenu::kCommandClose:
+    case AerieSidebarContextMenu::Command::kClose:
       CloseTab(tab_id);
       break;
-    case AerieSidebarContextMenu::kCommandRename:
+    case AerieSidebarContextMenu::Command::kRename:
       // The menu is still closing and giving focus back: the field takes focus
       // after that.
       base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
@@ -2018,10 +2021,10 @@ void AerieSidebarView::OnContextCommand(const std::string& tab_id,
               },
               weak_factory_.GetWeakPtr(), tab_id));
       break;
-    case AerieSidebarContextMenu::kCommandResetName:
+    case AerieSidebarContextMenu::Command::kResetName:
       ResetName(tab_id);
       break;
-    case AerieSidebarContextMenu::kCommandNewFolder: {
+    case AerieSidebarContextMenu::Command::kNewFolder: {
       const aerie_tab_model::TabRecord* record =
           model_ ? model_->GetTab(tab_id) : nullptr;
       if (record) {
@@ -2029,7 +2032,7 @@ void AerieSidebarView::OnContextCommand(const std::string& tab_id,
       }
       break;
     }
-    case AerieSidebarContextMenu::kCommandMoveToNewFolder:
+    case AerieSidebarContextMenu::Command::kMoveToNewFolder:
       if (model_) {
         const std::string id = aerie_tab_model::MoveTabToNewFolder(
             *model_, tab_id,
@@ -2039,14 +2042,14 @@ void AerieSidebarView::OnContextCommand(const std::string& tab_id,
         }
       }
       break;
-    case AerieSidebarContextMenu::kCommandStopRuleMatching:
+    case AerieSidebarContextMenu::Command::kStopRuleMatching:
       // The tab is an exception of its folder from now on, and it leaves the
       // folder (the user said the rule is wrong for it).
       if (model_ && aerie_tab_model::StopRuleMatchingTab(*model_, tab_id)) {
         aerie_tab_model::UndoFiling(*model_, tab_id);
       }
       break;
-    case AerieSidebarContextMenu::kCommandMoveOutOfFolder:
+    case AerieSidebarContextMenu::Command::kMoveOutOfFolder:
       if (model_) {
         aerie_tab_model::MoveTabToFolder(*model_, tab_id, std::string());
       }
