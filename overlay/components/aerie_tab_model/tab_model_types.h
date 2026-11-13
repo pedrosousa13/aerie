@@ -79,6 +79,39 @@ struct FiledBy {
   bool operator==(const FiledBy&) const = default;
 };
 
+// How many navigation entries an archived tab keeps: the one it showed and up
+// to four before it (issue #183), so that a restored tab keeps its Back.
+inline constexpr size_t kMaxArchivedNavigationEntries = 5;
+
+// One navigation entry of an archived tab. Only the address and the title: the
+// page state of a session entry holds form data and scroll position, and the
+// Archive does not write that to disk.
+struct ArchivedNavigation {
+  std::string url;
+  std::string title;
+
+  bool operator==(const ArchivedNavigation&) const = default;
+};
+
+// What an archived tab keeps beside `archived_at` (issue #183). The record of an
+// archived tab stays in the model as a Today record that no row shows.
+struct ArchiveData {
+  // The page the tab showed, its title and the key its favicon is looked up by
+  // (the page address, for the favicon service).
+  std::string url;
+  std::string title;
+  std::string favicon_key;
+  // The Today folder the tab was in. Restore puts the tab back there if the
+  // folder still exists. The record's own `parent` follows a deleted folder up,
+  // this one does not.
+  std::string folder;
+  // The last entries, oldest first; the last one is the page shown. At most
+  // kMaxArchivedNavigationEntries.
+  std::vector<ArchivedNavigation> entries;
+
+  bool operator==(const ArchiveData&) const = default;
+};
+
 struct TabRecord : Record {
   std::string workspace_id;
   Section section = Section::kToday;
@@ -90,6 +123,8 @@ struct TabRecord : Record {
   base::Time last_active;
   bool sleeping = false;
   std::optional<base::Time> archived_at;
+  // Set with `archived_at` by ArchiveTab (archive.h).
+  std::optional<ArchiveData> archive;
   // Where the tab was before it became a Favorite (issue #180): removing the
   // Favorite puts it back there. Set by TabModel::MoveTab when a tab enters
   // Favorites, cleared when it leaves them. Absent for every other tab.
