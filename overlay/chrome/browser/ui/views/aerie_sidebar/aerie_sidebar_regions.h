@@ -66,6 +66,9 @@ class AerieSidebarFavoritesGrid : public views::View {
   void SetFocusHandler(base::RepeatingClosure focus_tab_stop);
   // The columns the grid lays out in.
   int columns() const;
+  // A least height, so that an empty grid can take a drop (issue #182); 0
+  // puts it away.
+  void SetMinHeight(int height);
 
   // views::View:
   void RequestFocus() override;
@@ -75,6 +78,7 @@ class AerieSidebarFavoritesGrid : public views::View {
 
  private:
   base::RepeatingClosure focus_tab_stop_;
+  int min_height_ = 0;
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_AERIE_SIDEBAR_AERIE_SIDEBAR_REGIONS_H_

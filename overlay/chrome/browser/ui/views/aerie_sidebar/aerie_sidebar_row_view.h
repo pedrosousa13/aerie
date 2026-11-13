@@ -6,6 +6,7 @@
 #define CHROME_BROWSER_UI_VIEWS_AERIE_SIDEBAR_AERIE_SIDEBAR_ROW_VIEW_H_
 
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "base/functional/callback.h"
@@ -13,8 +14,11 @@
 #include "base/memory/weak_ptr.h"
 #include "base/timer/timer.h"
 #include "components/aerie_design_tokens/aerie_motion.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_drag_overlay.h"
+#include "components/aerie_sidebar/aerie_sidebar_move.h"
 #include "components/aerie_sidebar/aerie_sidebar_palette.h"
 #include "components/aerie_sidebar/aerie_sidebar_today_list.h"
+#include "ui/base/cursor/cursor.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/models/image_model.h"
 #include "ui/base/mojom/menu_source_type.mojom-forward.h"
@@ -88,17 +92,20 @@ class AerieSidebarRowView : public views::View,
     base::RepeatingCallback<void(aerie_sidebar::ListKey)> key;
     // The row took keyboard focus.
     base::RepeatingClosure focused;
-    // Dragging the row to reorder it (issue #215, item 8). The row knows only
-    // the pointer; the sidebar knows the other rows.
-    // `drag_begin` asks whether a drag may start (it may not while rows are
-    // opening or closing). `drag_update` gets the pointer's travel along the
-    // list in px. `drag_end` gets it again, whether the drag was cancelled
-    // (the mouse capture was lost) and whether the pointer was released
-    // outside the window.
+    // Dragging the row (issues #215 and #182). The row knows only the pointer;
+    // the drag controller knows the rest. `drag_begin` asks whether a drag may
+    // start. `drag_update` gets the pointer in the widget's coordinates.
+    // `drag_end` gets it again, whether the drag was cancelled (Esc or the mouse
+    // capture was lost) and whether the pointer was released outside the
+    // window.
     base::RepeatingCallback<bool()> drag_begin;
-    base::RepeatingCallback<void(int dy)> drag_update;
-    base::RepeatingCallback<void(int dy, bool cancelled, bool outside)>
+    base::RepeatingCallback<void(const gfx::Point& widget_point)> drag_update;
+    base::RepeatingCallback<void(const gfx::Point& widget_point,
+                                 bool cancelled,
+                                 bool outside)>
         drag_end;
+    // Alt+Arrow on the row (issue #182): the keyboard way to move it.
+    base::RepeatingCallback<void(aerie_sidebar::MoveKey)> move;
     // The context menu was asked for, with the pointer or, from the Menu key,
     // the row's own place (screen coordinates).
     base::RepeatingCallback<void(const gfx::Point& screen_point,
@@ -225,6 +232,14 @@ class AerieSidebarRowView : public views::View,
   void ResetDrag();
   // The row's current offset from its slot, in px, for tests.
   int drag_offset() const { return drag_offset_; }
+  // What the drag layer draws for this row (issue #182).
+  AerieSidebarDragContent GetDragContent() const;
+  // While the row is dragged its slot stays but it is not drawn (the drag
+  // layer is): a static opacity of 0, not an animation.
+  void SetDragHidden(bool hidden);
+  bool drag_hidden() const { return drag_hidden_; }
+  // The cursor while this row holds a drag: not-allowed on a refused drop.
+  void SetDragCursor(const ui::Cursor& cursor);
   // True while a drag layer exists (the drag, or a settle in progress).
   bool has_drag_layers() const { return drag_layers_; }
 
@@ -263,6 +278,7 @@ class AerieSidebarRowView : public views::View,
   gfx::Size CalculatePreferredSize(
       const views::SizeBounds& available_size) const override;
   void Layout(PassKey) override;
+  ui::Cursor GetCursor(const ui::MouseEvent& event) override;
   bool OnMousePressed(const ui::MouseEvent& event) override;
   bool OnMouseDragged(const ui::MouseEvent& event) override;
   void OnMouseReleased(const ui::MouseEvent& event) override;
@@ -339,7 +355,7 @@ class AerieSidebarRowView : public views::View,
   void DropDragLayers();
   // Ends the drag the pointer started: stops listening for Esc and tells the
   // sidebar. `cancelled`: the drag was abandoned (Esc or lost capture).
-  void FinishDrag(int dy, bool cancelled, bool outside);
+  void FinishDrag(const gfx::Point& point, bool cancelled, bool outside);
   gfx::Transform LiftTransform(float scale) const;
   void UpdateIndent();
 
@@ -363,7 +379,9 @@ class AerieSidebarRowView : public views::View,
   // Esc ended the drag; the release that follows is not a click.
   bool drag_cancelled_ = false;
   gfx::Point press_point_;
-  int last_dy_ = 0;
+  gfx::Point last_point_;
+  bool drag_hidden_ = false;
+  std::optional<ui::Cursor> drag_cursor_;
   int drag_offset_ = 0;
   bool drag_layers_ = false;
   aerie::motion::MotionHandle row_motion_;

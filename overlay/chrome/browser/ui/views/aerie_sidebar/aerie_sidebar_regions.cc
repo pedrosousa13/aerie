@@ -46,6 +46,11 @@ int AerieSidebarFavoritesGrid::columns() const {
   return aerie::tokens::kSizeFavoritesColumns;
 }
 
+void AerieSidebarFavoritesGrid::SetMinHeight(int height) {
+  min_height_ = height;
+  PreferredSizeChanged();
+}
+
 void AerieSidebarFavoritesGrid::RequestFocus() {
   if (focus_tab_stop_) {
     focus_tab_stop_.Run();
@@ -61,7 +66,7 @@ gfx::Size AerieSidebarFavoritesGrid::CalculatePreferredSize(
                 : rows * aerie::tokens::kSizeTileComfortable +
                       (rows - 1) * aerie::tokens::kSpace8;
   return gfx::Size(available_size.width().value_or(aerie::tokens::kSizeSidebarMin),
-                   height);
+                   std::max(height, min_height_));
 }
 
 void AerieSidebarFavoritesGrid::Layout(PassKey) {
