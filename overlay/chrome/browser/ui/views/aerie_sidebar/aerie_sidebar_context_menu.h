@@ -40,29 +40,35 @@ class Widget;
 // arrows, Enter and Esc.
 class AerieSidebarContextMenu : public views::MenuDelegate {
  public:
-  static constexpr int kCommandSleepTab = 1;
-  static constexpr int kCommandPin = 2;
-  static constexpr int kCommandUnpin = 3;
-  static constexpr int kCommandAddToFavorites = 4;
-  static constexpr int kCommandRemoveFromFavorites = 5;
-  static constexpr int kCommandClose = 6;
-  static constexpr int kCommandBackToPinned = 7;
-  static constexpr int kCommandRename = 8;
-  static constexpr int kCommandResetName = 9;
-  // Folders (issue #181).
-  static constexpr int kCommandNewFolder = 10;
-  static constexpr int kCommandRenameFolder = 11;
-  static constexpr int kCommandDeleteFolder = 12;
-  static constexpr int kCommandMoveToNewFolder = 13;
-  static constexpr int kCommandMoveOutOfFolder = 14;
-  // The "Move to folder" item opens a list; its entries are
-  // kCommandMoveToFolderBase plus their index in Options::move_targets.
-  static constexpr int kCommandMoveToFolderList = 15;
-  // Auto-filing folders (issue #139): the folder's menu opens the editor; the
-  // menu of a tab that a rule filed can stop that rule matching it.
-  static constexpr int kCommandEditFolder = 16;
-  static constexpr int kCommandStopRuleMatching = 17;
-  static constexpr int kCommandMoveToFolderBase = 100;
+  // The commands of the menu. The "Move to folder" list opens a menu of its
+  // own: its entries are `kMoveToFolderBase` plus their index in
+  // Options::move_targets (see MoveToFolderCommand).
+  enum class Command {
+    kSleepTab = 1,
+    kPin = 2,
+    kUnpin = 3,
+    kAddToFavorites = 4,
+    kRemoveFromFavorites = 5,
+    kClose = 6,
+    kBackToPinned = 7,
+    kRename = 8,
+    kResetName = 9,
+    // Folders (issue #181).
+    kNewFolder = 10,
+    kRenameFolder = 11,
+    kDeleteFolder = 12,
+    kMoveToNewFolder = 13,
+    kMoveOutOfFolder = 14,
+    kMoveToFolderList = 15,
+    // Auto-filing folders (issue #139): the folder's menu opens the editor; the
+    // menu of a tab that a rule filed can stop that rule matching it.
+    kEditFolder = 16,
+    kStopRuleMatching = 17,
+    kMoveToFolderBase = 100,
+  };
+
+  // The command of the "Move to folder" entry for `Options::move_targets[index]`.
+  static Command MoveToFolderCommand(size_t index);
 
   // What the menu is for.
   enum class Target {
@@ -79,6 +85,14 @@ class AerieSidebarContextMenu : public views::MenuDelegate {
     // The folder's name with its parents', for example "Trips / Rome".
     std::u16string label;
     bool enabled = true;
+  };
+
+  // How one optional item of the menu shows: whether the menu has it, whether
+  // it can be chosen, and, when it cannot, the reason for its tooltip.
+  struct ItemState {
+    bool shown = false;
+    bool enabled = true;
+    std::u16string tooltip;
   };
 
   struct SleepItem {
@@ -102,25 +116,22 @@ class AerieSidebarContextMenu : public views::MenuDelegate {
     // "New folder" (issue #181): in a tab's menu it makes the folder next to
     // the tab (in the tab's own folder), in a folder's menu inside the folder,
     // in a section's menu at the top of the section. Disabled, with the reason
-    // in its tooltip, when it would nest deeper than 5 levels.
-    bool show_new_folder = false;
-    bool new_folder_enabled = true;
-    std::u16string new_folder_tooltip;
+    // in its tooltip, when it would nest deeper than 5 levels. A folder's and a
+    // section's menu always have it.
+    ItemState new_folder;
     // A tab in Pinned or Today: "Move to new folder", and the "Move to folder"
     // list of `move_targets` (hidden when there is no folder to choose).
-    bool show_move_to_new_folder = false;
-    bool move_to_new_folder_enabled = true;
-    std::u16string move_to_new_folder_tooltip;
+    ItemState move_to_new_folder;
     std::vector<MoveTarget> move_targets;
     // A tab that is in a folder: "Move out of folder".
-    bool show_move_out = false;
+    ItemState move_out;
     // A tab that a folder rule filed (issue #139): "Stop this rule matching this
     // tab".
-    bool show_stop_rule = false;
+    ItemState stop_rule;
   };
 
   // Runs with the command id when an enabled item is chosen.
-  using CommandCallback = base::RepeatingCallback<void(int command)>;
+  using CommandCallback = base::RepeatingCallback<void(Command command)>;
 
   AerieSidebarContextMenu(Options options, CommandCallback on_command);
   AerieSidebarContextMenu(const AerieSidebarContextMenu&) = delete;
@@ -140,16 +151,23 @@ class AerieSidebarContextMenu : public views::MenuDelegate {
 
   // The folder that the "Move to folder" entry `command` stands for, or an
   // empty string.
-  std::string FolderIdForCommand(int command) const;
+  std::string FolderIdForCommand(Command command) const;
 
   // The menu items, for tests. Null when the menu does not have the item.
   views::MenuItemView* sleep_item() const;
-  views::MenuItemView* item(int command) const;
+  views::MenuItemView* item(Command command) const;
   // The layer the open motion plays on; null before Run or when the menu has
   // no layer.
   ui::Layer* open_layer_for_testing() const { return motion_layer_; }
 
-  // views::MenuDelegate:
+  // The same three, by command.
+  bool IsCommandEnabled(Command command) const;
+  void ExecuteCommand(Command command);
+  std::u16string GetTooltipText(Command command,
+                                const gfx::Point& screen_loc) const;
+
+  // views::MenuDelegate (the menu's own int ids are the Command values):
+  using views::MenuDelegate::ExecuteCommand;
   bool IsCommandEnabled(int id) const override;
   void ExecuteCommand(int id) override;
   std::u16string GetTooltipText(int id,
@@ -157,7 +175,7 @@ class AerieSidebarContextMenu : public views::MenuDelegate {
   void OnMenuClosed(views::MenuItemView* menu) override;
 
  private:
-  bool HasCommand(int id) const;
+  bool HasCommand(Command command) const;
   void BuildTabItems();
 
   Options options_;

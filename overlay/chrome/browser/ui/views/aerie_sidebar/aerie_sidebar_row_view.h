@@ -228,41 +228,15 @@ class AerieSidebarRowView : public views::View,
   // True while a drag layer exists (the drag, or a settle in progress).
   bool has_drag_layers() const { return drag_layers_; }
 
-  // Folders (issue #181). A folder row is a row of the same class, so that the
-  // rename (double-click, F2, the menu) and the keys work the same way. It shows
-  // a chevron, a folder glyph and the name; it has no close button, no pencil and
-  // no favicon. MakeFolderRow is called once, right after the row is made.
-  void MakeFolderRow();
-  bool is_folder() const { return is_folder_; }
+  // Folders (issue #181). A folder row is an AerieSidebarFolderRowView, a
+  // subclass, so that the rename (double-click, F2, the menu) and the keys work
+  // the same way. It shows a chevron, a folder glyph and the name; it has no
+  // close button, no pencil and no favicon.
+  virtual bool is_folder() const;
   // The indent: `level` times `size-indent` on the leading side. The
   // accessibility level is `level` + 1.
   void SetLevel(int level);
   int level() const { return level_; }
-  // What a folder row shows: its name, its accessible name (for example
-  // "Trips, folder, expanded, 3 items"), whether it is open, and the dot that
-  // says a shut folder holds the open tab. `motion_prefs` set: a change of
-  // `expanded` turns the chevron with the motion (a transform of its layer);
-  // null, and the first call, set the chevron at once with no layer.
-  void SetFolderState(const std::u16string& name,
-                      const std::u16string& accessible_name,
-                      bool expanded,
-                      bool holds_selected_tab,
-                      const PrefService* motion_prefs);
-  bool expanded() const { return expanded_; }
-  views::View* chevron_view() const;
-
-  // Auto-filing folders (issue #139). An auto-filing folder shows a funnel after
-  // its name; it opens the folder editor. `tooltip` names it ("Edit folder
-  // rules"). Does nothing for a row that is not a folder.
-  void SetAutoFiling(bool auto_filing, const std::u16string& tooltip);
-  views::ImageButton* funnel_button() const { return funnel_; }
-  // A tab was filed into this folder: a wash of the accent colour rises over the
-  // row and falls back (`autofile-pulse`: 700 ms, 300 ms under reduced motion;
-  // opacity only). `prefs` says whether motion is reduced.
-  void PlayFilingPulse(const PrefService* prefs);
-  views::View* pulse_view() const { return pulse_; }
-  views::View* selection_dot() const { return selection_dot_; }
-
   // A folder opens or shuts and this row appears or goes with it (issue #181).
   // PlayFolderFade fades the content on `motion` (opacity only) after
   // `delay_ms` (the stagger); the row starts at `motion.from_opacity`. The
@@ -318,9 +292,33 @@ class AerieSidebarRowView : public views::View,
   void AnimationProgressed(const gfx::Animation* animation) override;
   void AnimationEnded(const gfx::Animation* animation) override;
 
+ protected:
+  // What a folder row changes (AerieSidebarFolderRowView). The base class
+  // draws a tab row.
+  // Draws the colours that only this kind of row has; called by SetPalette.
+  virtual void ApplyKindPalette() {}
+  // Whether the row has a close button.
+  virtual bool ShowsCloseButton() const;
+  // The accessible name: the shown title, then ", asleep", then ", renamed".
+  virtual std::u16string AccessibleName() const;
+  // The grit ids of the rename field's name and of the caption under it.
+  virtual int RenameFieldNameId() const;
+  virtual int RenameCaptionId() const;
+  // Whether a press is a double-click on the part of the row that opens the
+  // folder editor (issue #139); the row then runs `callbacks().edit_folder`.
+  virtual bool IsEditFolderClick(const ui::MouseEvent& event) const;
+  // Sizes the views that cover the whole row, after the content is placed.
+  virtual void LayoutKindViews() {}
+
+  const Callbacks& callbacks() const { return callbacks_; }
+  views::Label* title_label() const { return title_; }
+  views::ImageView* sleep_badge_view() const { return sleep_badge_; }
+  views::Label* rename_caption_label() const { return rename_caption_; }
+  const std::u16string& title_text() const { return title_text_; }
+  void UpdateName();
+
  private:
   void UpdateState();
-  void UpdateName();
   // Shows or hides the pencil, the back button and the close button for the
   // row's state (renaming hides them all).
   void UpdateTrailing();
@@ -344,7 +342,6 @@ class AerieSidebarRowView : public views::View,
   void FinishDrag(int dy, bool cancelled, bool outside);
   gfx::Transform LiftTransform(float scale) const;
   void UpdateIndent();
-  void EndChevronTurn();
 
   Callbacks callbacks_;
   aerie_sidebar::SidebarPalette palette_;
@@ -401,21 +398,11 @@ class AerieSidebarRowView : public views::View,
   // The height the caption needs under the field at the field's width.
   int caption_height_ = 0;
 
-  // Folders (issue #181).
-  bool is_folder_ = false;
+  // Folders (issue #181): the indent and the fade of a row that a folder
+  // reveals or hides. The rest of a folder row is in
+  // AerieSidebarFolderRowView.
   int level_ = 0;
-  bool expanded_ = false;
-  bool folder_state_applied_ = false;
-  std::u16string folder_accessible_name_;
   raw_ptr<views::BoxLayout> content_layout_ = nullptr;
-  raw_ptr<views::ImageView> chevron_ = nullptr;
-  raw_ptr<views::View> selection_dot_ = nullptr;
-  raw_ptr<views::ImageButton> funnel_ = nullptr;
-  raw_ptr<views::View> pulse_ = nullptr;
-  aerie::motion::MotionHandle pulse_motion_;
-  base::OneShotTimer pulse_timer_;
-  aerie::motion::MotionHandle chevron_motion_;
-  base::OneShotTimer chevron_timer_;
   base::OneShotTimer fade_timer_;
 
   base::WeakPtrFactory<AerieSidebarRowView> weak_factory_{this};

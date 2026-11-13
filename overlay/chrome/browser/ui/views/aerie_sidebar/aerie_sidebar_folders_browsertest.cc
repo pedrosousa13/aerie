@@ -24,6 +24,7 @@
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_group.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_row_view.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_row_view.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_view.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
@@ -217,7 +218,8 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarFoldersBrowserTest,
     AerieSidebarRowView* row = sidebar()->RowForId(tab);
     return row && row->level() == 1;
   }));
-  AerieSidebarRowView* folder_row = sidebar()->RowForId(folder);
+  AerieSidebarFolderRowView* folder_row =
+      sidebar()->FolderRowForId(folder);
   ASSERT_TRUE(folder_row);
   EXPECT_TRUE(folder_row->is_folder());
   EXPECT_TRUE(folder_row->expanded());
@@ -255,11 +257,12 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarFoldersBrowserTest, KeysOpenShutAndMove) {
   // A new folder opens its name for editing; the keys are the field's while it
   // is open, so leave it first.
   ASSERT_TRUE(base::test::RunUntil([&] {
-    AerieSidebarRowView* row = sidebar()->RowForId(folder);
+    AerieSidebarFolderRowView* row = sidebar()->FolderRowForId(folder);
     return row && row->renaming();
   }));
   sidebar()->RowForId(folder)->CancelRename();
-  AerieSidebarRowView* folder_row = sidebar()->RowForId(folder);
+  AerieSidebarFolderRowView* folder_row =
+      sidebar()->FolderRowForId(folder);
   Key(folder_row, ui::VKEY_LEFT);
   EXPECT_FALSE(model()->GetFolder(folder)->expanded);
   Key(sidebar()->RowForId(folder), ui::VKEY_RIGHT);

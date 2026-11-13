@@ -298,12 +298,12 @@ class AerieSidebarRenameBrowserTest : public InProcessBrowserTest {
                               ui::mojom::MenuSourceType::kMouse);
         ASSERT_TRUE(sidebar()->context_menu());
         views::MenuItemView* item =
-            sidebar()->context_menu()->item(M::kCommandRename);
+            sidebar()->context_menu()->item(M::Command::kRename);
         ASSERT_TRUE(item);
         EXPECT_TRUE(item->GetEnabled());
         EXPECT_EQ(base::UTF16ToUTF8(item->title()),
                   l10n_util::GetStringUTF8(IDS_AERIE_SIDEBAR_RENAME_TAB));
-        sidebar()->context_menu()->ExecuteCommand(M::kCommandRename);
+        sidebar()->context_menu()->ExecuteCommand(M::Command::kRename);
         sidebar()->context_menu()->Close();
         break;
       }
@@ -700,17 +700,17 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarRenameBrowserTest,
     AerieSidebarContextMenu::Options options;
     options.section = section;
     M without(options, base::DoNothing());
-    ASSERT_TRUE(without.item(M::kCommandRename)) << SectionName(section);
-    EXPECT_TRUE(without.item(M::kCommandRename)->GetEnabled());
-    EXPECT_EQ(without.item(M::kCommandResetName), nullptr);
-    EXPECT_FALSE(without.IsCommandEnabled(M::kCommandResetName));
+    ASSERT_TRUE(without.item(M::Command::kRename)) << SectionName(section);
+    EXPECT_TRUE(without.item(M::Command::kRename)->GetEnabled());
+    EXPECT_EQ(without.item(M::Command::kResetName), nullptr);
+    EXPECT_FALSE(without.IsCommandEnabled(M::Command::kResetName));
     options.has_manual_name = true;
     M with(options, base::DoNothing());
-    ASSERT_TRUE(with.item(M::kCommandResetName)) << SectionName(section);
-    EXPECT_TRUE(with.item(M::kCommandResetName)->GetEnabled());
-    EXPECT_EQ(base::UTF16ToUTF8(with.item(M::kCommandResetName)->title()),
+    ASSERT_TRUE(with.item(M::Command::kResetName)) << SectionName(section);
+    EXPECT_TRUE(with.item(M::Command::kResetName)->GetEnabled());
+    EXPECT_EQ(base::UTF16ToUTF8(with.item(M::Command::kResetName)->title()),
               l10n_util::GetStringUTF8(IDS_AERIE_SIDEBAR_RESET_NAME));
-    EXPECT_TRUE(with.IsCommandEnabled(M::kCommandResetName));
+    EXPECT_TRUE(with.IsCommandEnabled(M::Command::kResetName));
   }
 }
 
@@ -721,16 +721,16 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarRenameBrowserTest, TheRowMenuResetsTheName) {
   target.row->ShowContextMenu(gfx::Point(5, 5),
                               ui::mojom::MenuSourceType::kMouse);
   ASSERT_TRUE(sidebar()->context_menu());
-  EXPECT_EQ(sidebar()->context_menu()->item(M::kCommandResetName), nullptr);
-  EXPECT_TRUE(sidebar()->context_menu()->item(M::kCommandRename));
+  EXPECT_EQ(sidebar()->context_menu()->item(M::Command::kResetName), nullptr);
+  EXPECT_TRUE(sidebar()->context_menu()->item(M::Command::kRename));
   sidebar()->context_menu()->Close();
 
   sidebar()->CommitRename(target.id, u"Mine");
   target.row->ShowContextMenu(gfx::Point(5, 5),
                               ui::mojom::MenuSourceType::kMouse);
   ASSERT_TRUE(sidebar()->context_menu());
-  ASSERT_TRUE(sidebar()->context_menu()->item(M::kCommandResetName));
-  sidebar()->context_menu()->ExecuteCommand(M::kCommandResetName);
+  ASSERT_TRUE(sidebar()->context_menu()->item(M::Command::kResetName));
+  sidebar()->context_menu()->ExecuteCommand(M::Command::kResetName);
   sidebar()->context_menu()->Close();
   EXPECT_EQ(ManualName(target), std::nullopt);
 }

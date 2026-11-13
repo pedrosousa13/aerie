@@ -354,7 +354,7 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarPinnedUiTest, ArrowsMoveInThePinnedTreeAndThe
   ASSERT_TRUE(base::test::RunUntil([&] {
     return sidebar()->context_menu() && sidebar()->context_menu()->is_running();
   }));
-  EXPECT_NE(sidebar()->context_menu()->item(AerieSidebarContextMenu::kCommandUnpin),
+  EXPECT_NE(sidebar()->context_menu()->item(AerieSidebarContextMenu::Command::kUnpin),
             nullptr);
   Press(ui::VKEY_ESCAPE);
   EXPECT_TRUE(base::test::RunUntil(

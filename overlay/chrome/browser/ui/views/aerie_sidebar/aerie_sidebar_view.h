@@ -16,7 +16,10 @@
 #include "base/memory/weak_ptr.h"
 #include "base/timer/timer.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_context_menu.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_controller.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_regions.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_row_entry.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_toolbar_parts.h"
 #include "components/aerie_design_tokens/aerie_motion.h"
 #include "components/aerie_sidebar/aerie_sidebar_drag.h"
@@ -39,6 +42,7 @@ class AerieSidebarTopRow;
 class AerieSidebarContextMenu;
 class AerieSidebarRenamePopover;
 class AerieSidebarFolderGroup;
+class AerieSidebarFolderRowView;
 
 namespace aerie_tab_model {
 class PinnedTabsController;
@@ -83,7 +87,8 @@ class AerieSidebarView : public views::View,
                          public aerie_tab_model::TabModelObserver,
                          public aerie_tab_model::AutoFileController::Observer,
                          public aerie_sidebar::TodayList::Delegate,
-                         public views::ContextMenuController {
+                         public views::ContextMenuController,
+                         private AerieSidebarFolderController::Host {
   METADATA_HEADER(AerieSidebarView, views::View)
 
  public:
@@ -148,10 +153,13 @@ class AerieSidebarView : public views::View,
   // The folder editor (issue #139): null when it is not open.
   AerieSidebarFolderSheet* folder_sheet() const { return folder_sheet_.get(); }
   void OpenFolderSheet(const std::string& folder_id);
-  void FolderContextCommandForTesting(const std::string& folder_id, int command) {
+  void FolderContextCommandForTesting(
+      const std::string& folder_id,
+      AerieSidebarContextMenu::Command command) {
     OnFolderContextCommand(folder_id, command);
   }
-  void ContextCommandForTesting(const std::string& tab_id, int command) {
+  void ContextCommandForTesting(const std::string& tab_id,
+                                AerieSidebarContextMenu::Command command) {
     OnContextCommand(tab_id, command);
   }
   // aerie_tab_model::AutoFileController::Observer:
@@ -235,15 +243,21 @@ class AerieSidebarView : public views::View,
   void DeleteFolderNow(const std::string& folder_id);
   // The row of a tab or a folder in either tree, or null.
   AerieSidebarRowView* RowForId(const std::string& id) const;
+  // The same, when `id` is a folder; null for a tab or an unknown id.
+  AerieSidebarFolderRowView* FolderRowForId(const std::string& id) const;
   // The rows of a tree as they are drawn now.
   const std::vector<aerie_tab_model::TreeRow>& tree_rows(
       aerie_tab_model::Section section) const;
   // The motion of the folder that opens or shuts now, or null.
-  const AerieSidebarFolderGroup* folder_group() const { return group_.get(); }
+  const AerieSidebarFolderGroup* folder_group() const {
+    return folders_.group();
+  }
   // True while the question about deleting a folder shows.
   bool delete_question_open() const { return delete_question_open_; }
   // Rows of a collapsed folder that still slide away.
-  size_t collapsing_row_count() const { return collapsing_rows_.size(); }
+  size_t collapsing_row_count() const {
+    return folders_.collapsing_row_count();
+  }
 
   // views::ContextMenuController: the heading and the empty part of a list.
   void ShowContextMenuForViewImpl(views::View* source,
@@ -262,13 +276,7 @@ class AerieSidebarView : public views::View,
                       TabChangeType change_type) override;
 
  private:
-  struct Row {
-    // The record id of the tab, or of the folder when `is_folder`.
-    std::string tab_id;
-    raw_ptr<AerieSidebarRowView> view;
-    bool is_folder = false;
-    int item_count = 0;
-  };
+  using Row = AerieSidebarRowEntry;
   struct Tile {
     std::string tab_id;
     raw_ptr<AerieSidebarTileView> view;
@@ -311,9 +319,6 @@ class AerieSidebarView : public views::View,
                            const std::vector<aerie_tab_model::TreeRow>& wanted,
                            AerieSidebarTodayTree* list,
                            bool today);
-  // True, and the row stays in its list until the collapse motion ends, when the
-  // row goes because the folder the user shut holds it.
-  bool KeepAsCollapsing(const Row& row);
   // Puts the live rows of `list` in the order of `rows`.
   void OrderRows(AerieSidebarTodayTree* list, const std::vector<Row>& rows);
   // The row of a tab or a folder in either tree: its tree and index.
@@ -322,8 +327,6 @@ class AerieSidebarView : public views::View,
     size_t index = 0;
   };
   std::optional<RowPlace> FindRow(const std::string& id) const;
-  // Pointer comparison only: whether `row` is one of the rows of the sidebar.
-  bool IsLiveRow(const AerieSidebarRowView* row) const;
   // Where every row and tile is now, in this view's coordinates, by tab id.
   std::map<std::string, gfx::Point> CapturePositions() const;
   // The FLIP motion: from the places in `before` to the places now.
@@ -358,15 +361,17 @@ class AerieSidebarView : public views::View,
   void OnTreeRowKey(bool today,
                     const std::string& id,
                     aerie_sidebar::ListKey key);
-  // True when the row `id` (a tab or a folder) is inside the folder
-  // `folder_id`, at any depth, and still has a record.
+  // AerieSidebarFolderController::Host. IsInsideFolder: true when the row `id`
+  // (a tab or a folder) is inside the folder `folder_id`, at any depth, and
+  // still has a record. IsTreeRow compares pointers only.
   bool IsInsideFolder(const std::string& folder_id,
-                      const std::string& id) const;
+                      const std::string& id) const override;
+  bool IsTreeRow(const AerieSidebarRowView* row) const override;
+  const PrefService* GetPrefs() const override;
+  void OnCollapsedRowsRemoved() override;
   // Whether the rows of a section differ from what the Tab Model wants.
   bool TreeChanged(const std::vector<aerie_tab_model::TreeRow>& wanted,
                    const std::vector<Row>& rows) const;
-  void StartToggleGroup();
-  void RemoveCollapsedRows();
   void FocusRowById(const std::string& id);
   void ShowFolderContextMenu(const std::string& folder_id,
                              const gfx::Point& screen_point,
@@ -374,8 +379,10 @@ class AerieSidebarView : public views::View,
   void ShowSectionContextMenu(aerie_tab_model::Section section,
                               const gfx::Point& screen_point,
                               ui::mojom::MenuSourceType source_type);
-  void OnFolderContextCommand(const std::string& folder_id, int command);
-  void OnSectionContextCommand(aerie_tab_model::Section section, int command);
+  void OnFolderContextCommand(const std::string& folder_id,
+                              AerieSidebarContextMenu::Command command);
+  void OnSectionContextCommand(aerie_tab_model::Section section,
+                               AerieSidebarContextMenu::Command command);
   // Opens the name of a folder for editing once its row exists.
   void RenameNewFolderSoon(const std::string& folder_id);
   // The context menu of a row or a tile (issues #179 and #180): Pin or Unpin,
@@ -383,7 +390,8 @@ class AerieSidebarView : public views::View,
   void ShowRowContextMenu(const std::string& tab_id,
                           const gfx::Point& screen_point,
                           ui::mojom::MenuSourceType source_type);
-  void OnContextCommand(const std::string& tab_id, int command);
+  void OnContextCommand(const std::string& tab_id,
+                        AerieSidebarContextMenu::Command command);
   // Shows the toast for `kMotionTimingToast` ms and says it politely to a
   // screen reader.
   void ShowToast(const std::u16string& text, bool has_actions = false);
@@ -421,7 +429,7 @@ class AerieSidebarView : public views::View,
   int IndexOfRow(const std::string& tab_id) const;
   // True when rows animate: the window is shown and no session is being
   // restored (docs/sidebar-design.md, "Performance rules", rule 3).
-  bool CanAnimateRows() const;
+  bool CanAnimateRows() const override;
   // The side of the window the sidebar is on: -1 left, +1 right.
   int OuterEdgeSign() const;
   void RemoveClosedRow(AerieSidebarRowView* row);
@@ -487,23 +495,12 @@ class AerieSidebarView : public views::View,
   // `rows_` and `pinned_rows_` (issue #181).
   std::vector<aerie_tab_model::TreeRow> today_tree_rows_;
   std::vector<aerie_tab_model::TreeRow> pinned_tree_rows_;
-  // Rows of a folder that shut: they are no longer rows but stay in their list
-  // until the collapse motion ends.
-  std::vector<Row> collapsing_rows_;
-  // The folder that was just opened or shut by the user, until the sync that
-  // follows has played its motion.
-  struct PendingToggle {
-    bool active = false;
-    std::string folder_id;
-    bool expand = false;
-  };
-  PendingToggle toggle_;
-  // What the sync that a toggle caused found.
-  std::vector<raw_ptr<AerieSidebarRowView>> toggle_revealed_;
-  std::vector<raw_ptr<AerieSidebarRowView>> toggle_collapsing_;
-  // Must stay declared after rows_, pinned_rows_, collapsing_rows_,
-  // pinned_scroll_ and pinned_list_: its destructor runs End(), which touches them.
-  std::unique_ptr<AerieSidebarFolderGroup> group_;
+  // The folder state and motion (issue #228): the toggle hand-off, the rows of
+  // a folder that shut and still slide away, and the group that plays the
+  // motion. Must stay declared after rows_, pinned_rows_, pinned_scroll_ and
+  // pinned_list_: its group's destructor runs End(), which touches them (and
+  // calls OnCollapsedRowsRemoved on this view).
+  AerieSidebarFolderController folders_{this};
   // The folder row that takes keyboard focus when the row that had it went
   // into a folder that shut.
   std::string refocus_folder_id_;

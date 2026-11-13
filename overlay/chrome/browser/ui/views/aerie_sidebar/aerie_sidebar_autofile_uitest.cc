@@ -21,6 +21,7 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_sheet.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_row_view.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_row_view.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_switch.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_view.h"
@@ -222,7 +223,7 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarAutoFileUiTest,
                        FilingPulsesTheFolderOnOpacityAlone) {
   ForceReducedMotion(false);
   const std::string folder = MakeAutoFolder();
-  AerieSidebarRowView* row = sidebar()->RowForId(folder);
+  AerieSidebarFolderRowView* row = sidebar()->FolderRowForId(folder);
   ASSERT_TRUE(row);
   row->PlayFilingPulse(browser()->GetProfile()->GetPrefs());
   ui::Layer* layer = row->pulse_view()->layer();
@@ -283,7 +284,7 @@ IN_PROC_BROWSER_TEST_P(AerieSidebarAutoFileReducedUiTest,
                        FilingMakesNoTransformAnimationAndThePulseIsShort) {
   Reduce();
   const std::string folder = MakeAutoFolder();
-  AerieSidebarRowView* row = sidebar()->RowForId(folder);
+  AerieSidebarFolderRowView* row = sidebar()->FolderRowForId(folder);
   ASSERT_TRUE(row);
   ASSERT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
       browser(), embedded_test_server()->GetURL("trips.localhost", "/title1.html"),
