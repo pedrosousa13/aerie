@@ -9,6 +9,7 @@
 // --gtest-filter='AerieSidebarDragUi*'.
 
 #include <optional>
+#include <set>
 
 #include "base/test/run_until.h"
 #include "chrome/app/chrome_command_ids.h"
@@ -21,7 +22,11 @@
 #include "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/interactive_test_utils.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_drag_overlay.h"
 #include "components/aerie_design_tokens/aerie_motion_prefs.h"
+#include "components/aerie_design_tokens/aerie_tokens.h"
+#include "ui/compositor/test/layer_animator_test_controller.h"
+#include "ui/compositor/layer_animation_sequence.h"
 #include "chrome/browser/profiles/profile.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/test/browser_test.h"
@@ -167,6 +172,8 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarDragUiTest, TheLiftAndTheSettleAnimateOnlyTra
   ForceReducedMotion(false);
   OpenTabs(3);
   views::View* row = sidebar()->row_at(0);
+  // One row pitch: the distance between two rows at rest.
+  const int pitch = sidebar()->row_at(1)->y() - sidebar()->row_at(0)->y();
   Press(row);
   Drag(row, PointIn(row, 50) + gfx::Vector2d(0, 20));
   const gfx::Point target = PointIn(sidebar()->row_at(2), 80);
@@ -175,10 +182,20 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarDragUiTest, TheLiftAndTheSettleAnimateOnlyTra
   AerieSidebarDragController* controller = sidebar()->drag_controller();
   ASSERT_TRUE(controller && controller->ghost());
 
-  // The lift is a transform on the ghost; nothing else animates, and the
-  // siblings shift with transforms.
+  // The lift is a transform on the ghost (scale `motion-scale-lift`, 1.02);
+  // nothing else animates.
   EXPECT_TRUE(OnlyTransformAndOpacityAnimate(sidebar()));
   EXPECT_TRUE(AnyTransformAnimates(sidebar()));
+  EXPECT_NEAR(controller->ghost()->layer()->GetTargetTransform().To2dScale().x(),
+              aerie::tokens::kMotionScaleLift, 0.001f);
+  // A row the dragged row passes shifts by one row with a transform: up, by
+  // the pitch (the dragged row takes its place at the end).
+  for (size_t i : {1u, 2u}) {
+    ui::Layer* layer = sidebar()->row_at(i)->layer();
+    ASSERT_TRUE(layer) << i;
+    EXPECT_TRUE(Animates(layer, ui::LayerAnimationElement::TRANSFORM)) << i;
+    EXPECT_EQ(layer->GetTargetTransform().To2dTranslation().y(), -pitch) << i;
+  }
 
   Release(row, target);
   // The drop settles with a spring (a transform) and ends at rest.
@@ -187,25 +204,72 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarDragUiTest, TheLiftAndTheSettleAnimateOnlyTra
   EXPECT_FALSE(AnyTransformAnimates(sidebar()));
 }
 
-IN_PROC_BROWSER_TEST_F(AerieSidebarDragUiTest, EachLayerHasAtMostOneTransformAnimation) {
+namespace {
+
+// How many different animations run on `layer` now: a sequence that animates
+// two properties counts once.
+size_t RunningSequences(ui::Layer* layer) {
+  ui::LayerAnimatorTestController controller(layer->GetAnimator());
+  std::set<ui::LayerAnimationSequence*> sequences;
+  for (int bit = ui::LayerAnimationElement::FIRST_PROPERTY;
+       bit != ui::LayerAnimationElement::SENTINEL; bit <<= 1) {
+    if (auto* sequence = controller.GetRunningSequence(
+            static_cast<Property>(bit))) {
+      sequences.insert(sequence);
+    }
+  }
+  return sequences.size();
+}
+
+// Where the middle of the ghost is on screen now, transform included.
+gfx::PointF VisualCenter(views::View* view) {
+  const gfx::PointF center = view->layer()->transform().MapPoint(
+      gfx::PointF(view->width() / 2.f, view->height() / 2.f));
+  return center + gfx::Vector2dF(view->x(), view->y());
+}
+
+}  // namespace
+
+// A new drag over a row that is still settling picks its layer up where the
+// settle has brought it, with no second animation on that layer.
+IN_PROC_BROWSER_TEST_F(AerieSidebarDragUiTest, ADragThatStartsDuringASettlePicksTheLayerUpWhereItWas) {
   ForceReducedMotion(false);
-  OpenTabs(4);
+  OpenTabs(3);
+  const std::string first = sidebar()->tab_id_at(0);
   views::View* row = sidebar()->row_at(0);
   Press(row);
   Drag(row, PointIn(row, 50) + gfx::Vector2d(0, 20));
-  Drag(row, PointIn(sidebar()->row_at(3), 80));
-  Drag(row, PointIn(sidebar()->row_at(1), 50));
-  Drag(row, PointIn(sidebar()->row_at(3), 80));
-  ForEachLayer(sidebar(), [&](ui::Layer* layer) {
-    // A new shift replaces the running one: the animator holds one sequence
-    // for the transform.
-    EXPECT_LE(layer->GetAnimator()->IsAnimatingProperty(
-                  ui::LayerAnimationElement::TRANSFORM)
-                  ? 1
-                  : 0,
-              1);
-  });
-  Release(row, PointIn(sidebar()->row_at(3), 80));
+  const gfx::Point target = PointIn(sidebar()->row_at(2), 80);
+  Drag(row, target);
+  AerieSidebarDragController* controller = sidebar()->drag_controller();
+  ASSERT_TRUE(controller && controller->ghost());
+  Release(row, target);
+  ASSERT_TRUE(controller->settling());
+  AerieSidebarDragGhost* ghost = controller->ghost();
+  ASSERT_TRUE(ghost);
+  ASSERT_EQ(RunningSequences(ghost->layer()), 1u);
+
+  const gfx::PointF before = VisualCenter(ghost);
+  const gfx::PointF rest(ghost->content_bounds().CenterPoint());
+  // The settle is on its way: the ghost is not at the place it lands on.
+  ASSERT_GT((before - rest).Length(), 10.f);
+
+  // The row is at its new place now; press it and drag again.
+  AerieSidebarRowView* moved = sidebar()->RowForId(first);
+  ASSERT_TRUE(moved);
+  Press(moved);
+  Drag(moved, PointIn(moved, 50) + gfx::Vector2d(0, 20));
+  ASSERT_TRUE(controller->active());
+  EXPECT_FALSE(controller->settling());
+  // The same layer, in one animation (the lift), from where the settle was.
+  EXPECT_EQ(controller->ghost(), ghost);
+  EXPECT_EQ(RunningSequences(ghost->layer()), 1u);
+  EXPECT_LT((VisualCenter(ghost) - before).Length(), 3.f);
+  EXPECT_TRUE(OnlyTransformAndOpacityAnimate(sidebar()));
+  // It is a drag again: the target scale is the lift's.
+  EXPECT_NEAR(ghost->layer()->GetTargetTransform().To2dScale().x(),
+              aerie::tokens::kMotionScaleLift, 0.001f);
+  Release(moved, PointIn(moved, 50));
 }
 
 class AerieSidebarDragReducedMotionUiTest

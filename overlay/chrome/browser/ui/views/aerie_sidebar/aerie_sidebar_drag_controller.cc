@@ -16,6 +16,7 @@
 #include "ui/base/cursor/mojom/cursor_type.mojom.h"
 #include "ui/compositor/layer.h"
 #include "ui/gfx/geometry/transform.h"
+#include "ui/gfx/geometry/vector2d_conversions.h"
 #include "ui/views/view.h"
 #include "ui/views/view_class_properties.h"
 
@@ -131,7 +132,12 @@ bool AerieSidebarDragController::Begin(const std::string& id, bool is_folder) {
   if (active_ || !host_->CanBeginDrag()) {
     return false;
   }
-  FinishSettle();
+  // A drag that starts on the row that is still settling picks the settling
+  // layer up where it is (one animation per layer); any other settle ends.
+  const bool resume = settling_ && ghost_ && id == id_;
+  if (!resume) {
+    FinishSettle();
+  }
   EnsureOverlay();
   gfx::Rect rect;
   AerieSidebarDragContent content;
@@ -185,10 +191,33 @@ bool AerieSidebarDragController::Begin(const std::string& id, bool is_folder) {
   refusal_shown_ = false;
   shift_by_id_.clear();
 
-  ghost_ = host_->SidebarView()->AddChildView(
-      std::make_unique<AerieSidebarDragGhost>(content, host_->Palette(),
-                                              host_->Dark()));
-  ghost_->SetContentBounds(rect);
+  resume_shift_ = gfx::Vector2d();
+  float resume_scale = 1.f;
+  if (resume) {
+    // Take the layer from where the settle has brought it: the scale it has
+    // now, and how far its centre is from the place it lands on.
+    const gfx::Transform now = ghost_->layer()->transform();
+    resume_scale = now.To2dScale().x();
+    const gfx::Vector2dF t = now.To2dTranslation();
+    const float cx = ghost_->width() / 2.f;
+    const float cy = ghost_->height() / 2.f;
+    resume_shift_ = gfx::ToRoundedVector2d(
+        gfx::Vector2dF(t.x() - cx * (1.f - resume_scale),
+                       t.y() - cy * (1.f - resume_scale)));
+    ghost_motion_.Abort();
+    settle_timer_.Stop();
+    settling_ = false;
+    settle_ids_.clear();
+    gfx::Rect at = ghost_->content_bounds();
+    at.Offset(resume_shift_);
+    ghost_->SetContentBounds(at);
+    ghost_->layer()->SetTransform(LiftTransform(resume_scale));
+  } else {
+    ghost_ = host_->SidebarView()->AddChildView(
+        std::make_unique<AerieSidebarDragGhost>(content, host_->Palette(),
+                                                host_->Dark()));
+    ghost_->SetContentBounds(rect);
+  }
   for (const std::string& hidden : block_ids_) {
     host_->SetDragHidden(hidden, true);
   }
@@ -212,11 +241,14 @@ void AerieSidebarDragController::PlaceGhost(const gfx::Point& p) {
     return;
   }
   if (!grab_set_) {
-    grab_ = p - source_rect_.origin();
+    grab_ = p - (source_rect_.origin() + resume_shift_);
     grab_set_ = true;
   }
   gfx::Rect rect = source_rect_;
   rect.set_y(p.y() - grab_.y());
+  if (!source_is_tile_) {
+    rect.set_x(source_rect_.x() + resume_shift_.x());
+  }
   if (source_is_tile_) {
     rect.set_x(p.x() - grab_.x());
   }

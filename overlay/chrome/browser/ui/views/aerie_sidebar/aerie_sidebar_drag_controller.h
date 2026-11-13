@@ -179,6 +179,9 @@ class AerieSidebarDragController {
   // pointer inside it.
   gfx::Rect source_rect_;
   gfx::Vector2d grab_;
+  // Set when a drag picks up a row that was still settling: how far the ghost
+  // is from the place the row rests at.
+  gfx::Vector2d resume_shift_;
   // The item and the rows below it that are not drawn while it is dragged.
   std::vector<std::string> block_ids_;
   // The height one row (or the folder with its rows) takes, spacing included.
