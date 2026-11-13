@@ -86,6 +86,21 @@ std::vector<TreeRow> BuildVisibleRows(
     Section section,
     base::FunctionRef<bool(const std::string&)> tab_is_listed);
 
+// A child of a folder (or of the section itself) in order, for moves.
+struct ChildRef {
+  bool is_folder = false;
+  std::string id;
+};
+// The direct children of `parent_folder_id` (empty: of the section) in order,
+// Favorites included. With `listed_only` an archived tab, and a tab that
+// `tab_is_listed` turns away, is left out.
+std::vector<ChildRef> OrderedChildren(
+    const TabModel& model,
+    Section section,
+    const std::string& parent_folder_id,
+    bool listed_only,
+    base::FunctionRef<bool(const std::string&)> tab_is_listed);
+
 // The same walk for every row of the tree, expanded or not. Used where a
 // collapsed folder's tabs still matter (restoring Pinned tabs).
 std::vector<TreeRow> BuildAllRows(
