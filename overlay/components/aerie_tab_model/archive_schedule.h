@@ -106,7 +106,7 @@ class ArchiveSchedule : public TabModelObserver {
   const ArchiveCallback archive_;
   const ExemptCallback exempt_;
   std::optional<base::TimeDelta> archive_after_;
-  std::optional<base::TimeDelta> keep_ = kDefaultArchiveKeep;
+  std::optional<base::TimeDelta> keep_ = kDefaultArchiveRetention;
   // A tab that could not be archived is counted as used at that moment.
   std::map<std::string, base::Time> retry_from_;
   base::OneShotTimer timer_;

@@ -131,6 +131,13 @@ void TabStripAdapter::OnTabStripModelChanged(
           continue;
         }
         const TabRecord* record = model_->GetTab(it->second);
+        if (record && record->archived_at) {
+          // The archiver closed this tab on purpose (issue #183). The archived
+          // record is the tab now: it stays, and no session keeps the tab, so
+          // nothing will claim it.
+          ids_.erase(it);
+          continue;
+        }
         if (record && record->section != Section::kToday) {
           // Pinned and Favorites outlive their tab (issue #180). When the
           // window is not closing, the tab comes back.
@@ -183,6 +190,12 @@ void TabStripAdapter::OnTabStripModelChanged(
     case TabStripModelChange::kSelectionOnly:
       break;
   }
+  if (selection.active_tab_changed() && selection.old_tab &&
+      selection.old_tab != selection.new_tab) {
+    // The tab that stops being selected was in use until now (issue #183): the
+    // archive timeout counts from this moment, not from when it was selected.
+    TouchLeft(selection.old_tab);
+  }
   if (selection.active_tab_changed() && selection.new_tab) {
     TouchActive(selection.new_tab);
   }
@@ -232,8 +245,14 @@ void TabStripAdapter::TabInserted(tabs::TabInterface* tab, int index) {
     // The unloaded tab of a Pinned or Favorites record that was saved.
     std::string id = std::move(pending_restore_record_);
     pending_restore_record_.clear();
-    if (model_->GetTab(id)) {
+    if (const TabRecord* record = model_->GetTab(id)) {
+      const bool today = record->section == Section::kToday;
       ids_.emplace(tab->GetHandle(), std::move(id));
+      if (today) {
+        // A tab restored from the Archive (issue #183): the session keeps its
+        // record id like that of any other Today tab.
+        SaveRecordIdSoon(tab);
+      }
       return;
     }
   }
@@ -338,6 +357,16 @@ void TabStripAdapter::TouchActive(tabs::TabInterface* tab) {
     record.last_active = now;
     record.sleeping = false;
   });
+}
+
+void TabStripAdapter::TouchLeft(tabs::TabInterface* tab) {
+  auto it = ids_.find(tab->GetHandle());
+  if (it == ids_.end()) {
+    return;
+  }
+  const base::Time now = clock_->Now();
+  model_->UpdateTab(it->second,
+                    [now](TabRecord& record) { record.last_active = now; });
 }
 
 void TabStripAdapter::OnTabChangedAt(tabs::TabInterface* tab,
