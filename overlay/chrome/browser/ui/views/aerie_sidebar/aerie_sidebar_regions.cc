@@ -10,6 +10,8 @@
 #include "chrome/browser/ui/view_ids.h"
 #include "components/aerie_design_tokens/aerie_tokens.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
+#include "ui/gfx/canvas.h"
+#include "ui/views/accessibility/view_accessibility.h"
 
 AerieSidebarPill::AerieSidebarPill() = default;
 AerieSidebarPill::~AerieSidebarPill() = default;
@@ -89,6 +91,37 @@ BEGIN_METADATA(AerieSidebarPill)
 END_METADATA
 
 BEGIN_METADATA(AerieSidebarTodayTree)
+END_METADATA
+
+AerieSidebarSectionDivider::AerieSidebarSectionDivider(
+    const aerie_sidebar::SidebarPalette& palette,
+    const std::u16string& name)
+    : palette_(palette) {
+  GetViewAccessibility().SetRole(ax::mojom::Role::kSplitter);
+  GetViewAccessibility().SetName(name);
+}
+
+AerieSidebarSectionDivider::~AerieSidebarSectionDivider() = default;
+
+void AerieSidebarSectionDivider::SetPalette(
+    const aerie_sidebar::SidebarPalette& palette) {
+  palette_ = palette;
+  SchedulePaint();
+}
+
+gfx::Size AerieSidebarSectionDivider::CalculatePreferredSize(
+    const views::SizeBounds& available_size) const {
+  // The view is as high as its hit area; the line is one pixel in the middle.
+  return gfx::Size(
+      available_size.width().value_or(aerie::tokens::kSizeSidebarMin),
+      aerie::tokens::kSpace8);
+}
+
+void AerieSidebarSectionDivider::OnPaint(gfx::Canvas* canvas) {
+  canvas->FillRect(gfx::Rect(0, height() / 2, width(), 1), palette_.divider);
+}
+
+BEGIN_METADATA(AerieSidebarSectionDivider)
 END_METADATA
 
 BEGIN_METADATA(AerieSidebarFavoritesGrid)

@@ -23,6 +23,7 @@
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_toolbar_parts.h"
 #include "components/aerie_design_tokens/aerie_motion.h"
 #include "components/aerie_sidebar/aerie_sidebar_drag.h"
+#include "components/aerie_sidebar/aerie_sidebar_move.h"
 #include "components/aerie_sidebar/aerie_sidebar_palette.h"
 #include "components/aerie_sidebar/aerie_sidebar_today_list.h"
 #include "components/aerie_tab_model/folder_tree.h"
@@ -43,6 +44,8 @@ class AerieSidebarContextMenu;
 class AerieSidebarRenamePopover;
 class AerieSidebarFolderGroup;
 class AerieSidebarFolderRowView;
+class AerieSidebarDragController;
+class AerieSidebarDragHost;
 
 namespace aerie_tab_model {
 class PinnedTabsController;
@@ -128,9 +131,22 @@ class AerieSidebarView : public views::View,
   // follows them.
   void GetAccessiblePanes(std::vector<views::View*>* panes);
 
-  // True while a row is being dragged, and the slot it would take, for tests.
-  bool dragging() const { return drag_.active; }
-  int drag_target_index() const { return drag_.target; }
+  // True while a row or tile is being dragged (issue #182). The controller is
+  // made on the first drag; null before.
+  bool dragging() const;
+  AerieSidebarDragController* drag_controller() const {
+    return drag_controller_.get();
+  }
+  // What the last keyboard move or refusal said to a screen reader, for tests.
+  const std::u16string& last_announcement_for_testing() const {
+    return last_announcement_;
+  }
+  // The same as the keys Alt+Arrow on the row `id`, for tests.
+  void MoveKeyForTesting(const std::string& id,
+                         aerie_sidebar::MoveKey key,
+                         aerie_tab_model::Section section) {
+    OnMoveKey(section, id, key);
+  }
 
   // The Pinned list and the Favorites grid (issue #180), for tests.
   size_t pinned_row_count() const { return pinned_rows_.size(); }
@@ -142,6 +158,11 @@ class AerieSidebarView : public views::View,
   AerieSidebarTileView* tile_at(size_t index) const;
   std::string favorite_tab_id_at(size_t index) const;
   AerieSidebarFavoritesGrid* favorites_grid() const { return favorites_grid_; }
+  // The hairlines between the sections, for tests.
+  AerieSidebarSectionDivider* favorites_divider() const {
+    return favorites_divider_;
+  }
+  AerieSidebarSectionDivider* pinned_divider() const { return pinned_divider_; }
   AerieSidebarTileView* tile_stop() const;
   // The short message above the bottom bar, and whether it shows now.
   views::Label* toast() const { return toast_; }
@@ -182,6 +203,8 @@ class AerieSidebarView : public views::View,
   // The row that holds the roving tab stop, or null when the list is empty.
   AerieSidebarRowView* tab_stop_row() const;
   AerieSidebarTodayTree* today_tree() const { return list_; }
+  views::ScrollView* pinned_scroll() const { return pinned_scroll_; }
+  views::ScrollView* today_scroll() const { return scroll_; }
 
   // The colours the sidebar draws with now: the theme, the colour mode of the
   // window and the Workspace colour (issue #215, item 7). They follow a change
@@ -266,6 +289,7 @@ class AerieSidebarView : public views::View,
 
   // views::View:
   void OnThemeChanged() override;
+  void VisibilityChanged(views::View* starting_from, bool is_visible) override;
 
   // TabStripModelObserver:
   void OnTabStripModelChanged(
@@ -276,6 +300,7 @@ class AerieSidebarView : public views::View,
                       TabChangeType change_type) override;
 
  private:
+  friend class AerieSidebarDragHost;
   using Row = AerieSidebarRowEntry;
   struct Tile {
     std::string tab_id;
@@ -301,8 +326,9 @@ class AerieSidebarView : public views::View,
   // Every tab of this window by record id, built in one pass over the strip.
   std::map<std::string, tabs::TabInterface*> BuildTabLookup() const;
   // Makes every section match the Tab Model. When a tab changed section, the
-  // rows move to their new places with the FLIP motion (issue #180).
-  void SyncAll();
+  // rows move to their new places with the FLIP motion (issue #180), unless
+  // `allow_flip` is false (a drop: the drag layer is the motion, issue #182).
+  void SyncAll(bool allow_flip = true);
   void SyncFavorites();
   void SyncPinned(const std::vector<aerie_tab_model::TreeRow>& wanted);
   // Makes the rows match the Today list, keeping the views of rows that stay.
@@ -436,28 +462,24 @@ class AerieSidebarView : public views::View,
 
   void ToggleSidebar();
 
-  // Dragging a row to reorder it (issue #215, item 8; the geometry is
-  // aerie_sidebar::DragTargetIndex and its neighbours). The dragged row follows
-  // the pointer and lifts, the rows it passes shift one slot, and a drop moves
-  // the tab in the window's tab strip: the Tab Model follows the strip
-  // (TabStripAdapter), so the list follows the Tab Model. Dropping outside the
-  // window moves the tab to a window of its own.
-  //
-  // Issue #182 (drag between Today, Pinned, folders and Favorites) starts
-  // here: it replaces the target computation in OnRowDragUpdate and the move
-  // in MoveTodayRow with a drop target that names a section, a parent and a
-  // position, and moves the record in the Tab Model.
-  bool OnRowDragBegin(const std::string& tab_id);
-  void OnRowDragUpdate(const std::string& tab_id, int dy);
-  void OnRowDragEnd(const std::string& tab_id,
-                    int dy,
-                    bool cancelled,
-                    bool outside);
-  // Puts every row at its slot at once and forgets the drag.
-  void CancelDrag();
-  // Moves the tab of row `source` to the place of row `target` in the strip and
-  // brings the rows into the new order at once.
-  void MoveTodayRow(int source, int target);
+  // Dragging a row or a tile (issues #215 and #182): the callbacks of the rows
+  // and tiles go to AerieSidebarDragController, which is made on the first
+  // drag. A change of the lists under a drag ends it (CancelDragIfListsChange).
+  AerieSidebarDragController* EnsureDragController();
+  bool OnItemDragBegin(const std::string& id, bool is_folder);
+  void OnItemDragUpdate(const gfx::Point& widget_point);
+  void OnItemDragEnd(const gfx::Point& widget_point,
+                     bool cancelled,
+                     bool outside);
+  // Alt+Arrow on a row of the Today (`today`) or the Pinned tree.
+  void OnMoveKey(aerie_tab_model::Section section,
+                 const std::string& id,
+                 aerie_sidebar::MoveKey key);
+  // Ends a drag, or a settle, when the rows or tiles `today` and `pinned` would
+  // make are not the ones there are now.
+  void CancelDragIfListsChange(
+      const std::vector<aerie_tab_model::TreeRow>& today,
+      const std::vector<aerie_tab_model::TreeRow>& pinned);
   // Works the palette out for the window's colour mode and the Workspace colour
   // and hands it to every view that draws with it. Does nothing when it did not
   // change.
@@ -487,6 +509,9 @@ class AerieSidebarView : public views::View,
   std::vector<Row> rows_;
   // The Favorites grid and the Pinned list (issue #180).
   raw_ptr<AerieSidebarFavoritesGrid> favorites_grid_ = nullptr;
+  std::u16string last_announcement_;
+  raw_ptr<AerieSidebarSectionDivider> favorites_divider_ = nullptr;
+  raw_ptr<AerieSidebarSectionDivider> pinned_divider_ = nullptr;
   std::vector<Tile> tiles_;
   raw_ptr<views::ScrollView> pinned_scroll_ = nullptr;
   raw_ptr<AerieSidebarTodayTree> pinned_list_ = nullptr;
@@ -524,16 +549,8 @@ class AerieSidebarView : public views::View,
   bool flip_pending_ = false;
   std::map<std::string, gfx::Point> flip_before_;
   std::string flip_moved_id_;
-  // The drag in progress, if any.
-  struct DragState {
-    bool active = false;
-    std::string tab_id;
-    int source = -1;
-    int target = -1;
-    // The rows' slots when the drag began.
-    std::vector<aerie_sidebar::DragSlot> slots;
-  };
-  DragState drag_;
+  std::unique_ptr<AerieSidebarDragHost> drag_host_;
+  std::unique_ptr<AerieSidebarDragController> drag_controller_;
   // Rows whose tab has gone and that are still sliding out and collapsing. They
   // stay in the list so that the others do not jump, and take no input.
   std::vector<raw_ptr<AerieSidebarRowView>> closing_rows_;

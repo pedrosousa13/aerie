@@ -111,6 +111,17 @@ bool IsCloseShortcut(const ui::KeyEvent& event) {
   return event.IsControlDown() && !event.IsShiftDown() && !event.IsAltDown();
 #endif
 }
+
+// Alt+Arrow, with no other modifier (issue #182).
+bool IsMoveShortcut(const ui::KeyEvent& event) {
+  if (!event.IsAltDown() || event.IsControlDown() || event.IsShiftDown() ||
+      event.IsCommandDown()) {
+    return false;
+  }
+  return event.key_code() == ui::VKEY_UP || event.key_code() == ui::VKEY_DOWN ||
+         event.key_code() == ui::VKEY_LEFT ||
+         event.key_code() == ui::VKEY_RIGHT;
+}
 }  // namespace
 
 AerieSidebarRowView::AerieSidebarRowView(
@@ -718,8 +729,8 @@ bool AerieSidebarRowView::OnMouseDragged(const ui::MouseEvent& event) {
     // it before the browser's own.
     AddAccelerator(ui::Accelerator(ui::VKEY_ESCAPE, ui::EF_NONE));
   }
-  last_dy_ = dy;
-  callbacks_.drag_update.Run(dy);
+  last_point_ = point;
+  callbacks_.drag_update.Run(point);
   return true;
 }
 
@@ -736,8 +747,7 @@ void AerieSidebarRowView::OnMouseReleased(const ui::MouseEvent& event) {
     const bool outside =
         widget && !widget->GetRootView()->GetLocalBounds().Contains(
                       event.root_location());
-    FinishDrag(event.root_location().y() - press_point_.y(),
-               /*cancelled=*/false, outside);
+    FinishDrag(event.root_location(), /*cancelled=*/false, outside);
     return;
   }
   if (drag_cancelled_) {
@@ -757,7 +767,7 @@ void AerieSidebarRowView::OnMouseReleased(const ui::MouseEvent& event) {
 void AerieSidebarRowView::OnMouseCaptureLost() {
   pressed_ = false;
   if (dragging_) {
-    FinishDrag(last_dy_, /*cancelled=*/true, /*outside=*/false);
+    FinishDrag(last_point_, /*cancelled=*/true, /*outside=*/false);
   }
 }
 
@@ -768,14 +778,49 @@ bool AerieSidebarRowView::AcceleratorPressed(
   }
   pressed_ = false;
   drag_cancelled_ = true;
-  FinishDrag(last_dy_, /*cancelled=*/true, /*outside=*/false);
+  FinishDrag(last_point_, /*cancelled=*/true, /*outside=*/false);
   return true;
 }
 
-void AerieSidebarRowView::FinishDrag(int dy, bool cancelled, bool outside) {
+void AerieSidebarRowView::FinishDrag(const gfx::Point& point,
+                                     bool cancelled,
+                                     bool outside) {
   dragging_ = false;
+  drag_cursor_.reset();
   RemoveAccelerator(ui::Accelerator(ui::VKEY_ESCAPE, ui::EF_NONE));
-  callbacks_.drag_end.Run(dy, cancelled, outside);
+  callbacks_.drag_end.Run(point, cancelled, outside);
+}
+
+ui::Cursor AerieSidebarRowView::GetCursor(const ui::MouseEvent& event) {
+  if (dragging_ && drag_cursor_) {
+    return *drag_cursor_;
+  }
+  return views::View::GetCursor(event);
+}
+
+void AerieSidebarRowView::SetDragCursor(const ui::Cursor& cursor) {
+  drag_cursor_ = cursor;
+}
+
+AerieSidebarDragContent AerieSidebarRowView::GetDragContent() const {
+  AerieSidebarDragContent content;
+  content.title = title_text_;
+  content.icon = favicon_->GetImageModel();
+  content.indent = level_ * aerie::tokens::kSizeIndent;
+  return content;
+}
+
+void AerieSidebarRowView::SetDragHidden(bool hidden) {
+  drag_hidden_ = hidden;
+  if (hidden) {
+    EnsureDragLayers();
+    layer()->SetOpacity(0.f);
+    return;
+  }
+  if (layer()) {
+    layer()->SetOpacity(1.f);
+  }
+  DropDragLayers();
 }
 
 void AerieSidebarRowView::OnMouseEntered(const ui::MouseEvent& event) {
@@ -796,6 +841,25 @@ bool AerieSidebarRowView::OnKeyPressed(const ui::KeyEvent& event) {
   }
   if (IsCloseShortcut(event)) {
     callbacks_.key.Run(aerie_sidebar::ListKey::kDelete);
+    return true;
+  }
+  // Alt+Arrow moves the row (issue #182).
+  if (IsMoveShortcut(event) && callbacks_.move) {
+    aerie_sidebar::MoveKey key = aerie_sidebar::MoveKey::kUp;
+    switch (event.key_code()) {
+      case ui::VKEY_DOWN:
+        key = aerie_sidebar::MoveKey::kDown;
+        break;
+      case ui::VKEY_LEFT:
+        key = aerie_sidebar::MoveKey::kOutdent;
+        break;
+      case ui::VKEY_RIGHT:
+        key = aerie_sidebar::MoveKey::kIndent;
+        break;
+      default:
+        break;
+    }
+    callbacks_.move.Run(key);
     return true;
   }
   if (event.IsControlDown() || event.IsAltDown() || event.IsCommandDown()) {
@@ -856,7 +920,10 @@ bool AerieSidebarRowView::SkipDefaultKeyEventProcessing(
   // Ctrl+W is the browser's "close tab" accelerator, which closes the selected
   // tab. On a focused row it closes the row's own tab, so the row sees the key
   // first.
+  // Alt+Left is the browser's Back; on a row that has a move callback it
+  // outdents the row.
   return IsCloseShortcut(event) ||
+         (IsMoveShortcut(event) && callbacks_.move) ||
          views::View::SkipDefaultKeyEventProcessing(event);
 }
 

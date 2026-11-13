@@ -11,6 +11,7 @@
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_focus_ring.h"
 #include "chrome/browser/ui/views/aerie_sidebar/vector_icons/vector_icons.h"
 #include "chrome/grit/generated_resources.h"
+#include "components/aerie_sidebar/aerie_sidebar_drag.h"
 #include "components/aerie_design_tokens/aerie_motion.h"
 #include "components/aerie_design_tokens/aerie_tokens.h"
 #include "components/aerie_sidebar/aerie_sidebar_motion.h"
@@ -23,6 +24,7 @@
 #include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/background.h"
 #include "ui/views/controls/image_view.h"
+#include "ui/views/widget/widget.h"
 
 namespace {
 
@@ -242,6 +244,8 @@ std::u16string AerieSidebarTileView::GetRenderedTooltipText(
 bool AerieSidebarTileView::OnMousePressed(const ui::MouseEvent& event) {
   suppress_release_ = false;
   pressed_ = event.IsOnlyLeftMouseButton();
+  drag_cancelled_ = false;
+  press_point_ = event.root_location();
   if (event.IsOnlyLeftMouseButton() && event.GetClickCount() == 2 &&
       callbacks_.begin_rename) {
     pressed_ = false;
@@ -252,8 +256,103 @@ bool AerieSidebarTileView::OnMousePressed(const ui::MouseEvent& event) {
   return event.IsOnlyLeftMouseButton() || event.IsOnlyMiddleMouseButton();
 }
 
+bool AerieSidebarTileView::OnMouseDragged(const ui::MouseEvent& event) {
+  if (!pressed_) {
+    return false;
+  }
+  const gfx::Point point = event.root_location();
+  if (!dragging_) {
+    if (!aerie_sidebar::ExceedsDragThreshold(point.x() - press_point_.x(),
+                                             point.y() - press_point_.y())) {
+      return true;
+    }
+    if (!callbacks_.drag_begin || !callbacks_.drag_begin.Run()) {
+      return true;
+    }
+    dragging_ = true;
+    AddAccelerator(ui::Accelerator(ui::VKEY_ESCAPE, ui::EF_NONE));
+  }
+  last_point_ = point;
+  callbacks_.drag_update.Run(point);
+  return true;
+}
+
+void AerieSidebarTileView::FinishDrag(const gfx::Point& point,
+                                      bool cancelled,
+                                      bool outside) {
+  dragging_ = false;
+  drag_cursor_.reset();
+  RemoveAccelerator(ui::Accelerator(ui::VKEY_ESCAPE, ui::EF_NONE));
+  callbacks_.drag_end.Run(point, cancelled, outside);
+}
+
+void AerieSidebarTileView::OnMouseCaptureLost() {
+  pressed_ = false;
+  if (dragging_) {
+    FinishDrag(last_point_, /*cancelled=*/true, /*outside=*/false);
+  }
+}
+
+bool AerieSidebarTileView::AcceleratorPressed(
+    const ui::Accelerator& accelerator) {
+  if (!dragging_ || accelerator.key_code() != ui::VKEY_ESCAPE) {
+    return false;
+  }
+  pressed_ = false;
+  drag_cancelled_ = true;
+  FinishDrag(last_point_, /*cancelled=*/true, /*outside=*/false);
+  return true;
+}
+
+ui::Cursor AerieSidebarTileView::GetCursor(const ui::MouseEvent& event) {
+  if (dragging_ && drag_cursor_) {
+    return *drag_cursor_;
+  }
+  return views::View::GetCursor(event);
+}
+
+void AerieSidebarTileView::SetDragCursor(const ui::Cursor& cursor) {
+  drag_cursor_ = cursor;
+}
+
+AerieSidebarDragContent AerieSidebarTileView::GetDragContent() const {
+  AerieSidebarDragContent content;
+  content.title = title_text_;
+  content.icon = favicon_->GetImageModel();
+  content.tile = true;
+  return content;
+}
+
+void AerieSidebarTileView::SetDragHidden(bool hidden) {
+  drag_hidden_ = hidden;
+  if (hidden) {
+    if (!layer()) {
+      SetPaintToLayer();
+      layer()->SetFillsBoundsOpaquely(false);
+    }
+    layer()->SetOpacity(0.f);
+    return;
+  }
+  if (layer()) {
+    layer()->SetOpacity(1.f);
+    DestroyLayer();
+  }
+}
+
 void AerieSidebarTileView::OnMouseReleased(const ui::MouseEvent& event) {
   pressed_ = false;
+  if (dragging_) {
+    const views::Widget* widget = GetWidget();
+    const bool outside =
+        widget && !widget->GetRootView()->GetLocalBounds().Contains(
+                      event.root_location());
+    FinishDrag(event.root_location(), /*cancelled=*/false, outside);
+    return;
+  }
+  if (drag_cancelled_) {
+    drag_cancelled_ = false;
+    return;
+  }
   if (suppress_release_) {
     // The release of the double-click that opened the rename popover.
     suppress_release_ = false;

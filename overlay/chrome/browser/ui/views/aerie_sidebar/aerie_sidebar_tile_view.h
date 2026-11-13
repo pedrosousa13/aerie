@@ -5,14 +5,17 @@
 #ifndef CHROME_BROWSER_UI_VIEWS_AERIE_SIDEBAR_AERIE_SIDEBAR_TILE_VIEW_H_
 #define CHROME_BROWSER_UI_VIEWS_AERIE_SIDEBAR_AERIE_SIDEBAR_TILE_VIEW_H_
 
+#include <optional>
 #include <string>
 
 #include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "base/timer/timer.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_drag_overlay.h"
 #include "components/aerie_design_tokens/aerie_motion.h"
 #include "components/aerie_sidebar/aerie_sidebar_palette.h"
 #include "components/aerie_sidebar/aerie_sidebar_today_list.h"
+#include "ui/base/cursor/cursor.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/models/image_model.h"
 #include "ui/base/mojom/menu_source_type.mojom-forward.h"
@@ -50,6 +53,13 @@ class AerieSidebarTileView : public views::View,
     // A double-click or F2 on the tile: the sidebar opens the rename popover
     // (issue #145; a tile has no title to edit in place).
     base::RepeatingClosure begin_rename;
+    // Dragging the tile (issue #182); as for AerieSidebarRowView::Callbacks.
+    base::RepeatingCallback<bool()> drag_begin;
+    base::RepeatingCallback<void(const gfx::Point& widget_point)> drag_update;
+    base::RepeatingCallback<void(const gfx::Point& widget_point,
+                                 bool cancelled,
+                                 bool outside)>
+        drag_end;
   };
 
   AerieSidebarTileView(Callbacks callbacks,
@@ -85,6 +95,14 @@ class AerieSidebarTileView : public views::View,
   // Reduced motion puts it at its place at once.
   void PlayFlipFrom(const gfx::Vector2d& delta, const PrefService* prefs);
 
+  // What the drag layer draws for this tile, and the hidden state while it is
+  // dragged (a static opacity of 0).
+  AerieSidebarDragContent GetDragContent() const;
+  void SetDragHidden(bool hidden);
+  bool drag_hidden() const { return drag_hidden_; }
+  void SetDragCursor(const ui::Cursor& cursor);
+  bool dragging() const { return dragging_; }
+
   // For tests.
   views::ImageView* favicon_view() const { return favicon_; }
   views::ImageView* sleep_badge() const { return sleep_badge_; }
@@ -92,7 +110,11 @@ class AerieSidebarTileView : public views::View,
 
   // views::View:
   void Layout(PassKey) override;
+  ui::Cursor GetCursor(const ui::MouseEvent& event) override;
   bool OnMousePressed(const ui::MouseEvent& event) override;
+  bool OnMouseDragged(const ui::MouseEvent& event) override;
+  void OnMouseCaptureLost() override;
+  bool AcceleratorPressed(const ui::Accelerator& accelerator) override;
   void OnMouseReleased(const ui::MouseEvent& event) override;
   void OnMouseEntered(const ui::MouseEvent& event) override;
   void OnMouseExited(const ui::MouseEvent& event) override;
@@ -112,6 +134,7 @@ class AerieSidebarTileView : public views::View,
   void UpdateState();
   void UpdateName();
   void ApplySleepLook(bool animate, const PrefService* prefs);
+  void FinishDrag(const gfx::Point& point, bool cancelled, bool outside);
 
   Callbacks callbacks_;
   aerie_sidebar::SidebarPalette palette_;
@@ -122,6 +145,12 @@ class AerieSidebarTileView : public views::View,
   bool sleep_look_applied_ = false;
   bool renamed_ = false;
   bool suppress_release_ = false;
+  bool dragging_ = false;
+  bool drag_cancelled_ = false;
+  bool drag_hidden_ = false;
+  gfx::Point press_point_;
+  gfx::Point last_point_;
+  std::optional<ui::Cursor> drag_cursor_;
   std::u16string renamed_tooltip_;
   std::u16string title_text_;
   raw_ptr<views::ImageView> favicon_ = nullptr;

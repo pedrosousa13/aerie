@@ -5,7 +5,10 @@
 #ifndef CHROME_BROWSER_UI_VIEWS_AERIE_SIDEBAR_AERIE_SIDEBAR_REGIONS_H_
 #define CHROME_BROWSER_UI_VIEWS_AERIE_SIDEBAR_AERIE_SIDEBAR_REGIONS_H_
 
+#include <string>
+
 #include "base/functional/callback.h"
+#include "components/aerie_sidebar/aerie_sidebar_palette.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/views/layout/box_layout_view.h"
 #include "ui/views/view.h"
@@ -75,6 +78,33 @@ class AerieSidebarFavoritesGrid : public views::View {
 
  private:
   base::RepeatingClosure focus_tab_stop_;
+};
+
+// A hairline between two sections (issue #182): between Favorites and Pinned,
+// and between Pinned and Today. It is always there, also when the sections are
+// empty, and it is the place to drop a tab to put it at the end of the section
+// above (Favorites or Pinned, as the accessible name says). The line is one
+// pixel; the view is `space-8` high so that it is easy to hit. It has no label.
+class AerieSidebarSectionDivider : public views::View {
+  METADATA_HEADER(AerieSidebarSectionDivider, views::View)
+
+ public:
+  AerieSidebarSectionDivider(const aerie_sidebar::SidebarPalette& palette,
+                             const std::u16string& name);
+  AerieSidebarSectionDivider(const AerieSidebarSectionDivider&) = delete;
+  AerieSidebarSectionDivider& operator=(const AerieSidebarSectionDivider&) =
+      delete;
+  ~AerieSidebarSectionDivider() override;
+
+  void SetPalette(const aerie_sidebar::SidebarPalette& palette);
+
+  // views::View:
+  gfx::Size CalculatePreferredSize(
+      const views::SizeBounds& available_size) const override;
+  void OnPaint(gfx::Canvas* canvas) override;
+
+ private:
+  aerie_sidebar::SidebarPalette palette_;
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_AERIE_SIDEBAR_AERIE_SIDEBAR_REGIONS_H_

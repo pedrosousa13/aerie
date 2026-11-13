@@ -208,6 +208,9 @@
   <message name="IDS_AERIE_SIDEBAR_FOLDER_TOO_DEEP" desc="Tooltip of the disabled New folder item of the sidebar context menu, and the hint shown when a folder would be nested too deeply. The number is the most levels of folders inside folders that the sidebar allows.">
     Can't nest deeper than <ph name="LEVELS">$1<ex>5</ex></ph> levels
   </message>
+  <message name="IDS_AERIE_SIDEBAR_MOVED_TO" desc="Said to a screen reader after the user moves a tab or folder with Alt and an arrow key in the sidebar. The first number is the new place among the items next to it, the second is how many items there are.">
+    Moved to <ph name="CONTAINER">$1<ex>Trips</ex></ph>, position <ph name="POSITION">$2<ex>2</ex></ph> of <ph name="COUNT">$3<ex>4</ex></ph>
+  </message>
   <message name="IDS_AERIE_SIDEBAR_RENAME_FOLDER" desc="Item of the context menu of a folder in the sidebar. It opens a field in place of the folder's name, where the user types a new name.">
     Rename folder
   </message>

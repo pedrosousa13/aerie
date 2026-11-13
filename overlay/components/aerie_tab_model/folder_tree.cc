@@ -224,6 +224,24 @@ std::vector<TreeRow> BuildVisibleRows(
   return BuildRows(model, section, /*only_expanded=*/true, tab_is_listed);
 }
 
+std::vector<ChildRef> OrderedChildren(
+    const TabModel& model,
+    Section section,
+    const std::string& parent_folder_id,
+    bool listed_only,
+    base::FunctionRef<bool(const std::string&)> tab_is_listed) {
+  ChildMap children =
+      BuildChildMap(model, section, listed_only, tab_is_listed);
+  std::vector<ChildRef> result;
+  auto it = children.find(parent_folder_id);
+  if (it != children.end()) {
+    for (const Child& child : it->second) {
+      result.push_back({child.is_folder, child.id});
+    }
+  }
+  return result;
+}
+
 std::vector<TreeRow> BuildAllRows(
     const TabModel& model,
     Section section,
