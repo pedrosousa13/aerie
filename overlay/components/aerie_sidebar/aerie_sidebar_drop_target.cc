@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cstdlib>
+#include <limits>
 
 #include "components/aerie_design_tokens/aerie_tokens.h"
 #include "components/aerie_tab_model/tab_model.h"
@@ -220,6 +221,25 @@ DropTarget ComputeDropTarget(const aerie_tab_model::TabModel& model,
                              int y,
                              const DropGeometry& geometry,
                              const DragItem& item) {
+  // A divider wins over the rows and tiles next to it: it is the target of
+  // "the end of this section", whether or not the section has anything in it.
+  if (geometry.favorites_divider.height > 0 &&
+      Inside(geometry.favorites_divider, x, y)) {
+    // A pointer far below every tile gives the slot after the last one.
+    DropTarget target = TargetInFavorites(
+        model, x, std::numeric_limits<int>::max() / 2, geometry, item);
+    target.on_divider = true;
+    return target;
+  }
+  if (geometry.pinned_divider.height > 0 &&
+      Inside(geometry.pinned_divider, x, y)) {
+    DropList list = geometry.pinned;
+    list.section = Section::kPinned;
+    DropTarget target =
+        TargetInList(model, list, std::numeric_limits<int>::max() / 2, item);
+    target.on_divider = true;
+    return target;
+  }
   if (geometry.favorites_area.height > 0 &&
       Inside(geometry.favorites_area, x, y)) {
     return TargetInFavorites(model, x, y, geometry, item);

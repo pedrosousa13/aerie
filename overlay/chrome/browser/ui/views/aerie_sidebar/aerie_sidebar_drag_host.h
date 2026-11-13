@@ -34,7 +34,6 @@ class AerieSidebarDragHost : public AerieSidebarDragController::Host {
   void SetDragCursor(const std::string& id, const ui::Cursor& cursor) override;
   void ShiftRow(const std::string& id, int dy) override;
   void ResetRowShift(const std::string& id) override;
-  void SetDropZonesRevealed(bool revealed) override;
   bool ScrollList(aerie_tab_model::Section section, int dy) override;
   aerie_sidebar::MoveResult ApplyMove(
       const aerie_sidebar::MoveRequest& request) override;
@@ -42,17 +41,8 @@ class AerieSidebarDragHost : public AerieSidebarDragController::Host {
   void HideRefusal() override;
   void MoveToNewWindow(const std::string& tab_id) override;
 
-  // Where the floating drop bands are while a drag is on (empty rects when the
-  // section is not empty, or no drag), for tests.
-  gfx::Rect PinnedZone() const;
-  gfx::Rect FavoritesZone() const;
-
  private:
   const raw_ptr<AerieSidebarView> view_;
-  // Floating bands over the bottom of the Today list while a drag is on and the
-  // section is empty (they are children of the sidebar view).
-  raw_ptr<views::View> pinned_band_ = nullptr;
-  raw_ptr<views::View> favorites_band_ = nullptr;
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_AERIE_SIDEBAR_AERIE_SIDEBAR_DRAG_HOST_H_

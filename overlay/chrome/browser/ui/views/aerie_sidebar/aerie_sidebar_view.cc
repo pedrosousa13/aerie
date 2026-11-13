@@ -244,6 +244,10 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
   favorites_grid_->GetViewAccessibility().SetName(
       l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_FAVORITES));
   favorites_grid_->SetVisible(false);
+  // The hairline under Favorites: the drop target for "the end of Favorites"
+  // when the grid is empty or not (issue #182).
+  favorites_divider_ = AddChildView(std::make_unique<AerieSidebarSectionDivider>(
+      palette_, l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_FAVORITES)));
 
   // Pinned (issue #180): a flat list of rows above the New Tab row. It scrolls
   // on its own after a few rows, so that twenty pinned tabs do not push the
@@ -272,6 +276,9 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
       l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_PINNED));
   pinned_list_ = pinned_scroll_->SetContents(std::move(pinned));
   pinned_scroll_->SetVisible(false);
+  // The hairline under Pinned, above the New Tab row and Today.
+  pinned_divider_ = AddChildView(std::make_unique<AerieSidebarSectionDivider>(
+      palette_, l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_PINNED)));
 
   // New Tab row.
   new_tab_row_ = AddChildView(std::make_unique<views::LabelButton>(
@@ -495,6 +502,8 @@ aerie_sidebar::SidebarPalette AerieSidebarView::ResolvePalette() const {
 void AerieSidebarView::ApplyPalette() {
   palette_ = ResolvePalette();
   top_row_->SetPalette(palette_);
+  favorites_divider_->SetPalette(palette_);
+  pinned_divider_->SetPalette(palette_);
   today_heading_->SetEnabledColor(palette_.text_muted);
   sleeping_summary_->SetEnabledColor(palette_.text_muted);
   new_tab_row_->SetEnabledTextColors(palette_.text);
@@ -1056,6 +1065,7 @@ void AerieSidebarView::OnMoveKey(bool today,
   if (move.too_deep) {
     const std::u16string hint = TooDeepTooltip();
     ShowToast(hint);
+    last_announcement_ = hint;
     GetViewAccessibility().AnnouncePolitely(hint);
     return;
   }
@@ -1082,10 +1092,11 @@ void AerieSidebarView::OnMoveKey(bool today,
     container = l10n_util::GetStringUTF16(today ? IDS_AERIE_SIDEBAR_TODAY
                                                 : IDS_AERIE_SIDEBAR_PINNED);
   }
-  GetViewAccessibility().AnnouncePolitely(l10n_util::GetStringFUTF16(
+  last_announcement_ = l10n_util::GetStringFUTF16(
       IDS_AERIE_SIDEBAR_MOVED_TO, container,
       base::NumberToString16(move.announce_position),
-      base::NumberToString16(move.announce_count)));
+      base::NumberToString16(move.announce_count));
+  GetViewAccessibility().AnnouncePolitely(last_announcement_);
 }
 
 bool AerieSidebarView::OnItemDragBegin(const std::string& id, bool is_folder) {

@@ -29,7 +29,6 @@
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_drag_controller.h"
-#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_drag_host.h"
 #include "components/aerie_sidebar/aerie_sidebar_drop_target.h"
 #include "components/aerie_sidebar/aerie_sidebar_move.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_row_view.h"
@@ -257,22 +256,29 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarDragBrowserTest, TheControllerIsMadeOnTheFirs
   EXPECT_FALSE(sidebar()->dragging());
 }
 
-// The empty Pinned and Favorites zones float over the list: no row moves when
-// a drag starts.
+// Nothing opens, floats or moves when a drag starts: the dividers between the
+// sections are always there, so no row moves.
 IN_PROC_BROWSER_TEST_F(AerieSidebarDragBrowserTest, StartingADragDoesNotMoveAnyRow) {
   OpenTabs(3);
   std::vector<int> ys;
   for (size_t i = 0; i < 3; ++i) {
     ys.push_back(sidebar()->row_at(i)->y());
   }
+  const gfx::Rect favorites_divider = sidebar()->favorites_divider()->bounds();
+  const gfx::Rect pinned_divider = sidebar()->pinned_divider()->bounds();
+  const size_t children = sidebar()->children().size();
   views::View* row = sidebar()->row_at(0);
   Press(row);
   Lift(row);
   ASSERT_TRUE(sidebar()->dragging());
-  ASSERT_FALSE(sidebar()->drag_host_for_testing()->PinnedZone().IsEmpty());
+  sidebar()->GetWidget()->LayoutRootViewIfNecessary();
   for (size_t i = 0; i < 3; ++i) {
     EXPECT_EQ(sidebar()->row_at(i)->y(), ys[i]) << i;
   }
+  EXPECT_EQ(sidebar()->favorites_divider()->bounds(), favorites_divider);
+  EXPECT_EQ(sidebar()->pinned_divider()->bounds(), pinned_divider);
+  // Only the ghost and the indicator are added; nothing covers the list.
+  EXPECT_LE(sidebar()->children().size(), children + 2);
   Release(row, PointIn(row, 50));
 }
 
@@ -369,22 +375,21 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarDragBrowserTest, TheEdgesOfAFolderRowMeanBefo
   EXPECT_EQ(model()->GetTab(a)->parent, folder);
 }
 
-IN_PROC_BROWSER_TEST_F(AerieSidebarDragBrowserTest, ATabDroppedOnAnEmptyPinnedSectionIsPinned) {
+IN_PROC_BROWSER_TEST_F(AerieSidebarDragBrowserTest, ATabDroppedOnTheDividerOfAnEmptyPinnedIsPinned) {
   OpenTabs(2);
   const std::string a = IdAt(0);
+  ASSERT_EQ(sidebar()->pinned_row_count(), 0u);
   views::View* source = sidebar()->RowForId(a);
   Press(source);
   Lift(source);
-  // Dragging reveals room for the empty Pinned list.
-  gfx::Point probe = PointIn(source);
-  probe.Offset(0, -10);
-  DragTo(source, probe, 2);
-  ASSERT_TRUE(controller() && controller()->active());
-  const gfx::Rect zone = sidebar()->drag_host_for_testing()->PinnedZone();
-  ASSERT_FALSE(zone.IsEmpty());
-  const gfx::Point pinned = zone.CenterPoint();
+  const gfx::Point pinned = PointIn(sidebar()->pinned_divider(), 50);
   DragTo(source, pinned);
   EXPECT_EQ(controller()->target().section, Section::kPinned);
+  EXPECT_TRUE(controller()->target().on_divider);
+  // The divider is the highlighted target.
+  EXPECT_TRUE(controller()->indicator()->shown());
+  EXPECT_EQ(controller()->indicator()->mode(),
+            AerieSidebarDropIndicator::Mode::kLine);
   Release(source, pinned);
   EXPECT_EQ(model()->GetTab(a)->section, Section::kPinned);
   EXPECT_TRUE(model()->GetTab(a)->pinned_url.has_value());
@@ -406,20 +411,17 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarDragBrowserTest, APinnedTabDraggedToTodayIsUn
   EXPECT_EQ(sidebar()->row_count(), 2u);
 }
 
-IN_PROC_BROWSER_TEST_F(AerieSidebarDragBrowserTest, ATabDroppedOnFavoritesBecomesATileAndComesBack) {
+IN_PROC_BROWSER_TEST_F(AerieSidebarDragBrowserTest, ATabDroppedOnTheDividerOfEmptyFavoritesBecomesATileAndComesBack) {
   OpenTabs(2);
   const std::string a = IdAt(0);
   views::View* source = sidebar()->RowForId(a);
   Press(source);
   Lift(source);
-  gfx::Point probe = PointIn(source);
-  probe.Offset(0, -10);
-  DragTo(source, probe, 2);
-  const gfx::Rect zone = sidebar()->drag_host_for_testing()->FavoritesZone();
-  ASSERT_FALSE(zone.IsEmpty());
-  const gfx::Point grid = zone.origin() + gfx::Vector2d(5, zone.height() / 2);
+  const gfx::Point grid = PointIn(sidebar()->favorites_divider(), 50);
   DragTo(source, grid);
   EXPECT_EQ(controller()->target().kind, aerie_sidebar::DropKind::kFavoritesSlot);
+  EXPECT_TRUE(controller()->target().on_divider);
+  EXPECT_TRUE(controller()->indicator()->shown());
   Release(source, grid);
   EXPECT_EQ(model()->GetTab(a)->section, Section::kFavorite);
   ASSERT_TRUE(WaitFor([&] { return sidebar()->favorite_tile_count() == 1u; }));
@@ -451,12 +453,7 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarDragBrowserTest, TheThirteenthFavoriteIsRefus
   views::View* source = sidebar()->RowForId(a);
   Press(source);
   Lift(source);
-  gfx::Point probe = PointIn(source);
-  probe.Offset(0, -10);
-  DragTo(source, probe, 2);
-  const gfx::Rect zone = sidebar()->drag_host_for_testing()->FavoritesZone();
-  ASSERT_FALSE(zone.IsEmpty());
-  const gfx::Point grid = zone.origin() + gfx::Vector2d(5, zone.height() / 2);
+  const gfx::Point grid = PointIn(sidebar()->favorites_divider(), 50);
   DragTo(source, grid);
   EXPECT_EQ(controller()->target().kind, aerie_sidebar::DropKind::kRefused);
   EXPECT_EQ(controller()->target().reason,
@@ -535,8 +532,7 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarDragBrowserTest, AFolderTakesItsTabsToPinned)
   probe.Offset(0, -12);
   DragTo(source, probe, 2);
   ASSERT_TRUE(controller() && controller()->active());
-  const gfx::Point pinned =
-      sidebar()->drag_host_for_testing()->PinnedZone().CenterPoint();
+  const gfx::Point pinned = PointIn(sidebar()->pinned_divider(), 50);
   DragTo(source, pinned);
   Release(source, pinned);
   EXPECT_EQ(model()->GetFolder(folder)->section, Section::kPinned);
@@ -664,6 +660,8 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarDragBrowserTest, AltArrowsMoveTheFocusedRowAn
   const std::string a = IdAt(0), b = IdAt(1), c = IdAt(2);
   sidebar()->MoveKeyForTesting(a, aerie_sidebar::MoveKey::kDown, /*today=*/true);
   EXPECT_EQ(Children(Section::kToday), (std::vector<std::string>{b, a, c}));
+  EXPECT_EQ(sidebar()->last_announcement_for_testing(),
+            u"Moved to Today, position 2 of 3");
   sidebar()->MoveKeyForTesting(a, aerie_sidebar::MoveKey::kUp, true);
   EXPECT_EQ(Children(Section::kToday), (std::vector<std::string>{a, b, c}));
   // Nothing before the first row; nothing happens, nothing is written.
@@ -677,10 +675,14 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarDragBrowserTest, AltArrowsMoveTheFocusedRowAn
   // after it, so first move a, b, c below it.
   sidebar()->MoveKeyForTesting(a, aerie_sidebar::MoveKey::kIndent, true);
   EXPECT_EQ(model()->GetTab(a)->parent, folder);
+  EXPECT_EQ(sidebar()->last_announcement_for_testing(),
+            u"Moved to Trips, position 1 of 1");
   sidebar()->MoveKeyForTesting(a, aerie_sidebar::MoveKey::kOutdent, true);
   EXPECT_EQ(model()->GetTab(a)->parent, "");
   EXPECT_EQ(Children(Section::kToday).front(), folder);
   EXPECT_EQ(Children(Section::kToday)[1], a);
+  EXPECT_EQ(sidebar()->last_announcement_for_testing(),
+            u"Moved to Today, position 2 of 4");
 }
 
 IN_PROC_BROWSER_TEST_F(AerieSidebarDragBrowserTest, AltRightRefusesPastFiveLevels) {

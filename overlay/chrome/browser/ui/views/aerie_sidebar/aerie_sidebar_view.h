@@ -137,8 +137,9 @@ class AerieSidebarView : public views::View,
   AerieSidebarDragController* drag_controller() const {
     return drag_controller_.get();
   }
-  AerieSidebarDragHost* drag_host_for_testing() const {
-    return drag_host_.get();
+  // What the last keyboard move or refusal said to a screen reader, for tests.
+  const std::u16string& last_announcement_for_testing() const {
+    return last_announcement_;
   }
   // The same as the keys Alt+Arrow on the row `id`, for tests.
   void MoveKeyForTesting(const std::string& id, aerie_sidebar::MoveKey key,
@@ -156,6 +157,11 @@ class AerieSidebarView : public views::View,
   AerieSidebarTileView* tile_at(size_t index) const;
   std::string favorite_tab_id_at(size_t index) const;
   AerieSidebarFavoritesGrid* favorites_grid() const { return favorites_grid_; }
+  // The hairlines between the sections, for tests.
+  AerieSidebarSectionDivider* favorites_divider() const {
+    return favorites_divider_;
+  }
+  AerieSidebarSectionDivider* pinned_divider() const { return pinned_divider_; }
   AerieSidebarTileView* tile_stop() const;
   // The short message above the bottom bar, and whether it shows now.
   views::Label* toast() const { return toast_; }
@@ -500,6 +506,9 @@ class AerieSidebarView : public views::View,
   std::vector<Row> rows_;
   // The Favorites grid and the Pinned list (issue #180).
   raw_ptr<AerieSidebarFavoritesGrid> favorites_grid_ = nullptr;
+  std::u16string last_announcement_;
+  raw_ptr<AerieSidebarSectionDivider> favorites_divider_ = nullptr;
+  raw_ptr<AerieSidebarSectionDivider> pinned_divider_ = nullptr;
   std::vector<Tile> tiles_;
   raw_ptr<views::ScrollView> pinned_scroll_ = nullptr;
   raw_ptr<AerieSidebarTodayTree> pinned_list_ = nullptr;

@@ -78,6 +78,13 @@ struct DropGeometry {
   std::vector<DropRect> tiles;
   // Record ids of `tiles`, same order.
   std::vector<std::string> tile_ids;
+  // The hairlines between Favorites and Pinned, and between Pinned and Today,
+  // with the hit area around each (about 8 px). They are always there, even
+  // when the section above is empty. A drop on the Favorites divider is a drop
+  // at the end of Favorites; on the Pinned divider, at the end of Pinned. A
+  // divider with no height takes no drop.
+  DropRect favorites_divider;
+  DropRect pinned_divider;
 };
 
 struct DragItem {
@@ -97,6 +104,9 @@ struct DropTarget {
   // for an empty list or a Favorites slot.
   std::string anchor_id;
   RefusalReason reason = RefusalReason::kNone;
+  // True when the pointer is over a divider (also for a refusal there), so the
+  // view highlights that divider.
+  bool on_divider = false;
 };
 
 // How many Favorites the Workspace has, and whether `item` is one already, is

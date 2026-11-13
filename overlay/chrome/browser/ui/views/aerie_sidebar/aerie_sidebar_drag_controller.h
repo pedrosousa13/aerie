@@ -64,6 +64,9 @@ class AerieSidebarDragController {
     // The Favorites grid, and its tiles in order (id and rect).
     gfx::Rect favorites_area;
     std::vector<std::pair<std::string, gfx::Rect>> tiles;
+    // The two dividers, with their hit areas.
+    gfx::Rect favorites_divider;
+    gfx::Rect pinned_divider;
   };
 
   class Host {
@@ -94,7 +97,6 @@ class AerieSidebarDragController {
     virtual void ResetRowShift(const std::string& id) = 0;
     // Opens room in an empty Pinned list and an empty Favorites grid so that
     // they can take the drop, and puts them away again.
-    virtual void SetDropZonesRevealed(bool revealed) = 0;
     // Scrolls the list of `section` by `dy` px; false when it cannot.
     virtual bool ScrollList(aerie_tab_model::Section section, int dy) = 0;
     // Writes the move into the Tab Model and brings the rows and tiles up to
@@ -187,7 +189,6 @@ class AerieSidebarDragController {
   bool refusal_shown_ = false;
   // The rows that have a shift now, by id.
   std::map<std::string, int> shift_by_id_;
-  bool zones_revealed_ = false;
   bool grab_set_ = false;
   // A drag layer stays this long after the motion's own duration so that the
   // last frame is drawn. Not a design value.

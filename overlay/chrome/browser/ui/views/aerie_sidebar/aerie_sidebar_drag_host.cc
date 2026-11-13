@@ -23,60 +23,10 @@
 #include "content/public/browser/web_contents.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/color/color_provider_key.h"
-#include "cc/paint/paint_flags.h"
-#include "ui/gfx/canvas.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
-#include "ui/views/accessibility/view_accessibility.h"
-#include "ui/views/controls/label.h"
 #include "ui/views/controls/scroll_view.h"
-#include "ui/views/layout/fill_layout.h"
-#include "ui/views/view_class_properties.h"
 #include "ui/views/widget/widget.h"
 
 namespace {
-
-// A quiet band that marks where an empty Pinned list or Favorites grid would
-// take a drop. It floats over the bottom of the Today list and takes no part in
-// the layout, so nothing moves when a drag starts.
-class DropZoneBand : public views::View {
- public:
-  METADATA_HEADER(DropZoneBand, views::View)
-
- public:
-
-  DropZoneBand(const std::u16string& text,
-               const aerie_sidebar::SidebarPalette& palette)
-      : palette_(palette) {
-    SetProperty(views::kViewIgnoredByLayoutKey, true);
-    auto* label = AddChildView(std::make_unique<views::Label>(text));
-    label->SetEnabledColor(palette.text);
-    label->SetHorizontalAlignment(gfx::ALIGN_CENTER);
-    SetLayoutManager(std::make_unique<views::FillLayout>());
-    GetViewAccessibility().SetIsIgnored(true);
-  }
-
-  void OnPaint(gfx::Canvas* canvas) override {
-    cc::PaintFlags fill;
-    fill.setAntiAlias(true);
-    fill.setColor(palette_.row_selected);
-    const float radius = aerie::tokens::kRadiusMd;
-    canvas->DrawRoundRect(GetLocalBounds(), radius, fill);
-    cc::PaintFlags stroke;
-    stroke.setAntiAlias(true);
-    stroke.setStyle(cc::PaintFlags::kStroke_Style);
-    stroke.setStrokeWidth(1);
-    stroke.setColor(palette_.accent);
-    gfx::RectF inner(GetLocalBounds());
-    inner.Inset(0.5f);
-    canvas->DrawRoundRect(inner, radius, stroke);
-  }
-
- private:
-  aerie_sidebar::SidebarPalette palette_;
-};
-
-BEGIN_METADATA(DropZoneBand)
-END_METADATA
 
 gfx::Rect RectIn(views::View* ancestor, views::View* view) {
   return views::View::ConvertRectToTarget(view->parent(), ancestor,
@@ -141,28 +91,14 @@ AerieSidebarDragController::MeasuredLayout AerieSidebarDragHost::Measure() {
   if (view_->scroll_->GetVisible()) {
     layout.today_viewport = RectIn(view_, view_->scroll_);
     rows_of(view_->rows_, view_->today_tree_rows_, &layout.today);
-    // The bands cover the bottom of the list; a point in one means that
-    // section, so the Today list ends above them.
-    int covered = 0;
-    for (views::View* band : {pinned_band_.get(), favorites_band_.get()}) {
-      if (band) {
-        covered = std::max(covered, layout.today_viewport.bottom() -
-                                        band->bounds().y());
-      }
-    }
-    if (covered > 0) {
-      layout.today_viewport.Inset(gfx::Insets::TLBR(0, 0, covered, 0));
-    }
   }
-  if (pinned_band_) {
-    layout.pinned_viewport = pinned_band_->bounds();
-  } else if (view_->pinned_scroll_->GetVisible()) {
+  if (view_->pinned_scroll_->GetVisible()) {
     layout.pinned_viewport = RectIn(view_, view_->pinned_scroll_);
     rows_of(view_->pinned_rows_, view_->pinned_tree_rows_, &layout.pinned);
   }
-  if (favorites_band_) {
-    layout.favorites_area = favorites_band_->bounds();
-  } else if (view_->favorites_grid_->GetVisible()) {
+  layout.favorites_divider = RectIn(view_, view_->favorites_divider_);
+  layout.pinned_divider = RectIn(view_, view_->pinned_divider_);
+  if (view_->favorites_grid_->GetVisible()) {
     layout.favorites_area = RectIn(view_, view_->favorites_grid_);
     for (const AerieSidebarView::Tile& tile : view_->tiles_) {
       layout.tiles.emplace_back(tile.tab_id, RectIn(view_, tile.view));
@@ -238,41 +174,6 @@ void AerieSidebarDragHost::ResetRowShift(const std::string& id) {
     if (!row->drag_hidden()) {
       row->ResetDrag();
     }
-  }
-}
-
-void AerieSidebarDragHost::SetDropZonesRevealed(bool revealed) {
-  if (!revealed) {
-    if (pinned_band_) {
-      view_->RemoveChildViewT(pinned_band_.ExtractAsDangling());
-    }
-    if (favorites_band_) {
-      view_->RemoveChildViewT(favorites_band_.ExtractAsDangling());
-    }
-    return;
-  }
-  // The bands sit over the bottom of the Today list, Favorites above Pinned,
-  // where an empty list leaves free room. The list and the empty sections
-  // keep their layout, so no row moves.
-  const gfx::Rect area = RectIn(view_, view_->scroll_);
-  const bool want_favorites = view_->tiles_.empty() && !favorites_band_;
-  const bool want_pinned = view_->pinned_rows_.empty() && !pinned_band_ &&
-                           !view_->pinned_scroll_->GetVisible();
-  const int favorites_h = aerie::tokens::kSizeTileComfortable;
-  const int pinned_h = aerie::tokens::kSizeRowHeightComfortable;
-  int y = area.bottom() - (want_pinned ? pinned_h : 0) -
-          (want_favorites ? favorites_h + 2 : 0);
-  if (want_favorites) {
-    favorites_band_ = view_->AddChildView(std::make_unique<DropZoneBand>(
-        l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_FAVORITES), Palette()));
-    favorites_band_->SetBoundsRect(
-        gfx::Rect(area.x(), y, area.width(), favorites_h));
-    y += favorites_h + 2;
-  }
-  if (want_pinned) {
-    pinned_band_ = view_->AddChildView(std::make_unique<DropZoneBand>(
-        l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_PINNED), Palette()));
-    pinned_band_->SetBoundsRect(gfx::Rect(area.x(), y, area.width(), pinned_h));
   }
 }
 
@@ -359,12 +260,4 @@ void AerieSidebarDragHost::MoveToNewWindow(const std::string& tab_id) {
       delegate->MoveTabsToNewWindow(indices);
     }
   }
-}
-
-gfx::Rect AerieSidebarDragHost::PinnedZone() const {
-  return pinned_band_ ? pinned_band_->bounds() : gfx::Rect();
-}
-
-gfx::Rect AerieSidebarDragHost::FavoritesZone() const {
-  return favorites_band_ ? favorites_band_->bounds() : gfx::Rect();
 }

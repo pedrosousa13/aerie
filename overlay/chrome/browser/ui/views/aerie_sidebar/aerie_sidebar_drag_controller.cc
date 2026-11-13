@@ -102,6 +102,11 @@ aerie_sidebar::DropGeometry AerieSidebarDragController::BuildGeometry(
   fill(Section::kPinned, layout.pinned, layout.pinned_viewport,
        &geometry.pinned);
   fill(Section::kToday, layout.today, layout.today_viewport, &geometry.today);
+  auto to_rect = [](const gfx::Rect& r) {
+    return aerie_sidebar::DropRect{r.x(), r.y(), r.width(), r.height()};
+  };
+  geometry.favorites_divider = to_rect(layout.favorites_divider);
+  geometry.pinned_divider = to_rect(layout.pinned_divider);
   geometry.favorites_area = {layout.favorites_area.x(), layout.favorites_area.y(),
                              layout.favorites_area.width(),
                              layout.favorites_area.height()};
@@ -128,11 +133,9 @@ bool AerieSidebarDragController::Begin(const std::string& id, bool is_folder) {
   }
   FinishSettle();
   EnsureOverlay();
-  host_->SetDropZonesRevealed(true);
   gfx::Rect rect;
   AerieSidebarDragContent content;
   if (!host_->RectFor(id, &rect) || !host_->DragContentFor(id, &content)) {
-    host_->SetDropZonesRevealed(false);
     return false;
   }
   const MeasuredLayout layout = host_->Measure();
@@ -170,10 +173,8 @@ bool AerieSidebarDragController::Begin(const std::string& id, bool is_folder) {
     }
   }
   if (!found) {
-    host_->SetDropZonesRevealed(false);
     return false;
   }
-  zones_revealed_ = true;
   id_ = id;
   is_folder_ = is_folder;
   source_rect_ = rect;
@@ -352,6 +353,18 @@ void AerieSidebarDragController::ShowFeedback(const MeasuredLayout& layout) {
   } else if (refusal_shown_) {
     host_->HideRefusal();
     refusal_shown_ = false;
+  }
+
+  if (target_.on_divider && target_.kind != DropKind::kNone) {
+    // Over a divider: it lights up (or goes red) and no row shifts.
+    const gfx::Rect divider = target_.section == Section::kFavorite
+                                  ? layout.favorites_divider
+                                  : layout.pinned_divider;
+    indicator_->Show(refused ? AerieSidebarDropIndicator::Mode::kRefused
+                             : AerieSidebarDropIndicator::Mode::kLine,
+                     gfx::Rect(divider.x(), divider.CenterPoint().y() - 1,
+                               divider.width(), 2));
+    return;
   }
 
   const auto& rows =
@@ -535,12 +548,6 @@ void AerieSidebarDragController::End(const gfx::Point& widget_point,
   }
   // A release outside the window drops nowhere, whatever the last move showed.
   const DropTarget target = (outside && !cancelled) ? DropTarget() : target_;
-  auto reveal_off = [&] {
-    if (zones_revealed_) {
-      zones_revealed_ = false;
-      host_->SetDropZonesRevealed(false);
-    }
-  };
   auto settle_back = [&] {
     gfx::Rect dest = source_rect_;
     host_->RectFor(id_, &dest);
@@ -549,7 +556,6 @@ void AerieSidebarDragController::End(const gfx::Point& widget_point,
 
   if (cancelled || target.kind == DropKind::kNone) {
     if (!cancelled && outside && !is_folder_ && !source_is_tile_) {
-      reveal_off();
       Unhide();
       RemoveGhost();
       HideRefusalIfShown();
@@ -557,19 +563,16 @@ void AerieSidebarDragController::End(const gfx::Point& widget_point,
       return;
     }
     HideRefusalIfShown();
-    reveal_off();
     settle_back();
     return;
   }
   if (target.kind == DropKind::kRefused) {
-    reveal_off();
     host_->ShowRefusal(target.reason, /*on_drop=*/true);
     refusal_shown_ = false;
     settle_back();
     return;
   }
   HideRefusalIfShown();
-  reveal_off();
   aerie_sidebar::MoveRequest request;
   request.kind = is_folder_ ? aerie_tab_model::ItemKind::kFolder
                             : aerie_tab_model::ItemKind::kTab;
@@ -668,10 +671,6 @@ void AerieSidebarDragController::Cancel() {
     host_->SetDragCursor(id_, ui::Cursor());
     ResetShifts();
     ClearFeedback();
-    if (zones_revealed_) {
-      zones_revealed_ = false;
-      host_->SetDropZonesRevealed(false);
-    }
     Unhide();
     RemoveGhost();
     return;

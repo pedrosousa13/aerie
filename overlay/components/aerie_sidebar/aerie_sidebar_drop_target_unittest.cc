@@ -278,4 +278,111 @@ TEST_F(DropTargetTest, ARowOfPinnedGivesThePinnedSection) {
   EXPECT_EQ(t.anchor_id, pinned);
 }
 
+// --- The dividers between the sections ------------------------------------
+
+TEST_F(DropTargetTest, TheDividerUnderAnEmptyPinnedPutsTheItemInPinned) {
+  const std::string dragged = Tab("", 0);
+  DropGeometry g = Geometry();
+  g.pinned = DropList();  // An empty Pinned list has no height at all.
+  g.pinned_divider = {0, 500, 400, 8};
+  DropTarget t = ComputeDropTarget(model_, 10, 504, g, TabItem(dragged));
+  EXPECT_EQ(t.kind, DropKind::kBefore);
+  EXPECT_EQ(t.section, Section::kPinned);
+  EXPECT_EQ(t.container, "");
+  EXPECT_EQ(t.index, 0);
+  EXPECT_TRUE(t.on_divider);
+}
+
+TEST_F(DropTargetTest, TheDividerUnderPinnedMeansTheEndOfPinned) {
+  Tab("", 0, Section::kPinned);
+  const std::string last = Tab("", 1, Section::kPinned);
+  const std::string dragged = Tab("", 0);
+  DropGeometry g = Geometry();
+  g.pinned_divider = {0, 500, 400, 8};
+  DropTarget t = ComputeDropTarget(model_, 10, 504, g, TabItem(dragged));
+  EXPECT_EQ(t.kind, DropKind::kAfter);
+  EXPECT_EQ(t.section, Section::kPinned);
+  EXPECT_EQ(t.index, 2);
+  EXPECT_EQ(t.anchor_id, last);
+  EXPECT_TRUE(t.on_divider);
+}
+
+TEST_F(DropTargetTest, ADraggedPinnedTabDoesNotCountItselfAtTheDivider) {
+  const std::string first = Tab("", 0, Section::kPinned);
+  Tab("", 1, Section::kPinned);
+  DropGeometry g = Geometry();
+  g.pinned_divider = {0, 500, 400, 8};
+  DropTarget t = ComputeDropTarget(model_, 10, 504, g, TabItem(first));
+  EXPECT_EQ(t.index, 1);
+}
+
+TEST_F(DropTargetTest, TheDividerUnderFavoritesPutsATabAtTheEndOfFavorites) {
+  const std::string dragged = Tab("", 0);
+  DropGeometry g = Geometry();
+  g.favorites_divider = {0, 400, 400, 8};
+  DropTarget t = ComputeDropTarget(model_, 10, 404, g, TabItem(dragged));
+  EXPECT_EQ(t.kind, DropKind::kFavoritesSlot);
+  EXPECT_EQ(t.section, Section::kFavorite);
+  EXPECT_EQ(t.index, 0);
+  EXPECT_TRUE(t.on_divider);
+}
+
+TEST_F(DropTargetTest, TheFavoritesDividerCountsTheTilesThatAreThere) {
+  std::vector<std::string> ids;
+  for (int i = 0; i < 3; ++i) {
+    ids.push_back(Tab("", i, Section::kFavorite));
+  }
+  const std::string dragged = Tab("", 0);
+  DropGeometry g = Geometry();
+  g.favorites_area = {0, 300, 400, 100};
+  for (int i = 0; i < 3; ++i) {
+    g.tiles.push_back({i * 100, 300, 100, 100});
+    g.tile_ids.push_back(ids[i]);
+  }
+  g.favorites_divider = {0, 400, 400, 8};
+  EXPECT_EQ(ComputeDropTarget(model_, 10, 404, g, TabItem(dragged)).index, 3);
+  // A Favorite dragged to its own divider leaves its own tile out.
+  EXPECT_EQ(ComputeDropTarget(model_, 10, 404, g, TabItem(ids[0])).index, 2);
+}
+
+TEST_F(DropTargetTest, TheFavoritesDividerRefusesAThirteenthAndAFolder) {
+  for (int i = 0; i < 12; ++i) {
+    Tab("", i, Section::kFavorite);
+  }
+  const std::string dragged = Tab("", 0);
+  const std::string folder = Folder("", 1);
+  DropGeometry g = Geometry();
+  g.favorites_divider = {0, 400, 400, 8};
+  DropTarget full = ComputeDropTarget(model_, 10, 404, g, TabItem(dragged));
+  EXPECT_EQ(full.kind, DropKind::kRefused);
+  EXPECT_EQ(full.reason, RefusalReason::kFavoritesFull);
+  EXPECT_TRUE(full.on_divider);
+  DropTarget f = ComputeDropTarget(model_, 10, 404, g, FolderItem(folder));
+  EXPECT_EQ(f.reason, RefusalReason::kFolderInFavorites);
+  EXPECT_TRUE(f.on_divider);
+}
+
+TEST_F(DropTargetTest, AFolderCanBeDroppedOnThePinnedDivider) {
+  const std::string folder = Folder("", 0);
+  DropGeometry g = Geometry();
+  g.pinned_divider = {0, 500, 400, 8};
+  DropTarget t = ComputeDropTarget(model_, 10, 504, g, FolderItem(folder));
+  EXPECT_EQ(t.section, Section::kPinned);
+  EXPECT_NE(t.kind, DropKind::kRefused);
+}
+
+TEST_F(DropTargetTest, ADividerWinsOverTheRowItOverlapsAndAZeroHeightOneIsIgnored) {
+  Tab("", 0);
+  const std::string dragged = Tab("", 1);
+  DropGeometry g = Geometry();
+  // The divider lies over the top of the first Today row.
+  g.pinned_divider = {0, kTop, 400, 8};
+  EXPECT_EQ(ComputeDropTarget(model_, 10, kTop + 2, g, TabItem(dragged)).section,
+            Section::kPinned);
+  g.pinned_divider = {0, kTop, 400, 0};
+  DropTarget t = ComputeDropTarget(model_, 10, kTop + 2, g, TabItem(dragged));
+  EXPECT_EQ(t.section, Section::kToday);
+  EXPECT_FALSE(t.on_divider);
+}
+
 }  // namespace aerie_sidebar
