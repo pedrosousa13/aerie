@@ -125,20 +125,22 @@ AerieSidebarDropIndicator::AerieSidebarDropIndicator(
     : palette_(palette), dark_(dark) {
   SetProperty(views::kViewIgnoredByLayoutKey, true);
   SetCanProcessEventsWithinSubtree(false);
-  SetVisible(false);
+  // Always visible, with empty bounds when there is nothing to show: a change
+  // of visibility would lay the sidebar out again.
 }
 
 AerieSidebarDropIndicator::~AerieSidebarDropIndicator() = default;
 
 void AerieSidebarDropIndicator::Show(Mode mode, const gfx::Rect& rect) {
   mode_ = mode;
+  shown_ = true;
   SetBoundsRect(rect);
-  SetVisible(true);
   SchedulePaint();
 }
 
 void AerieSidebarDropIndicator::Hide() {
-  SetVisible(false);
+  shown_ = false;
+  SetBoundsRect(gfx::Rect());
 }
 
 void AerieSidebarDropIndicator::OnPaint(gfx::Canvas* canvas) {

@@ -85,6 +85,7 @@ class AerieSidebarDropIndicator : public views::View {
   void Show(Mode mode, const gfx::Rect& rect);
   void Hide();
   Mode mode() const { return mode_; }
+  bool shown() const { return shown_; }
 
   // views::View:
   void OnPaint(gfx::Canvas* canvas) override;
@@ -93,6 +94,7 @@ class AerieSidebarDropIndicator : public views::View {
   aerie_sidebar::SidebarPalette palette_;
   bool dark_;
   Mode mode_ = Mode::kLine;
+  bool shown_ = false;
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_AERIE_SIDEBAR_AERIE_SIDEBAR_DRAG_OVERLAY_H_
