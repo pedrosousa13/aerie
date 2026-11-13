@@ -75,6 +75,18 @@ void AerieSidebarDragController::EnsureOverlay() {
     indicator_ = host_->SidebarView()->AddChildView(
         std::make_unique<AerieSidebarDropIndicator>(host_->Palette(),
                                                     host_->Dark()));
+  } else {
+    // The theme may have changed since the last drag.
+    indicator_->SetColours(host_->Palette(), host_->Dark());
+  }
+}
+
+void AerieSidebarDragController::RefreshColours() {
+  if (indicator_) {
+    indicator_->SetColours(host_->Palette(), host_->Dark());
+  }
+  if (ghost_) {
+    ghost_->SetColours(host_->Palette(), host_->Dark());
   }
 }
 
@@ -298,6 +310,11 @@ void AerieSidebarDragController::Reevaluate() {
   UpdateAutoScroll(p, layout);
 }
 
+bool AerieSidebarDragController::InBlock(const std::string& id) const {
+  return std::find(block_ids_.begin(), block_ids_.end(), id) !=
+         block_ids_.end();
+}
+
 std::map<std::string, int> AerieSidebarDragController::ComputeShifts(
     const MeasuredLayout& layout,
     int* insertion_index) const {
@@ -327,20 +344,16 @@ std::map<std::string, int> AerieSidebarDragController::ComputeShifts(
   if (height == 0 && !target_rows.empty()) {
     height = target_rows[0].rect.height() + Spacing(target_rows);
   }
-  auto in_block = [&](const std::string& id) {
-    return std::find(block_ids_.begin(), block_ids_.end(), id) !=
-           block_ids_.end();
-  };
   for (Section section : {Section::kPinned, Section::kToday}) {
     const auto& rows = section == Section::kPinned ? layout.pinned : layout.today;
     int last_block = -1;
     for (size_t i = 0; i < rows.size(); ++i) {
-      if (in_block(rows[i].tree.id)) {
+      if (InBlock(rows[i].tree.id)) {
         last_block = static_cast<int>(i);
       }
     }
     for (size_t i = 0; i < rows.size(); ++i) {
-      if (in_block(rows[i].tree.id)) {
+      if (InBlock(rows[i].tree.id)) {
         continue;
       }
       int shift = 0;
@@ -394,8 +407,9 @@ void AerieSidebarDragController::ShowFeedback(const MeasuredLayout& layout) {
                                   : layout.pinned_divider;
     indicator_->Show(refused ? AerieSidebarDropIndicator::Mode::kRefused
                              : AerieSidebarDropIndicator::Mode::kLine,
-                     gfx::Rect(divider.x(), divider.CenterPoint().y() - 1,
-                               divider.width(), 2));
+                     gfx::Rect(divider.x(),
+                               divider.CenterPoint().y() - kDropMarkHalf,
+                               divider.width(), kDropMarkThickness));
     return;
   }
 
@@ -433,7 +447,8 @@ void AerieSidebarDragController::ShowFeedback(const MeasuredLayout& layout) {
       return;
     }
     case DropKind::kFavoritesSlot: {
-      gfx::Rect bar(layout.favorites_area.x() + 2, layout.favorites_area.y(), 2,
+      gfx::Rect bar(layout.favorites_area.x() + kDropMarkThickness,
+                    layout.favorites_area.y(), kDropMarkThickness,
                     layout.favorites_area.height());
       int index = 0;
       for (const auto& [tile_id, rect] : layout.tiles) {
@@ -441,10 +456,12 @@ void AerieSidebarDragController::ShowFeedback(const MeasuredLayout& layout) {
           continue;
         }
         if (index == target_.index) {
-          bar = gfx::Rect(rect.x() - 3, rect.y(), 2, rect.height());
+          bar = gfx::Rect(rect.x() - kDropMarkThickness - kDropMarkGap,
+                          rect.y(), kDropMarkThickness, rect.height());
           break;
         }
-        bar = gfx::Rect(rect.right() + 1, rect.y(), 2, rect.height());
+        bar = gfx::Rect(rect.right() + kDropMarkGap, rect.y(),
+                        kDropMarkThickness, rect.height());
         ++index;
       }
       indicator_->Show(AerieSidebarDropIndicator::Mode::kLine, bar);
@@ -457,26 +474,24 @@ void AerieSidebarDragController::ShowFeedback(const MeasuredLayout& layout) {
                                      ? layout.pinned_viewport
                                      : layout.today_viewport;
       const int spacing = Spacing(rows);
-      auto in_block = [&](const std::string& id) {
-        return std::find(block_ids_.begin(), block_ids_.end(), id) !=
-               block_ids_.end();
-      };
-      int y = viewport.y() + 2;
+      int y = viewport.y() + kDropMarkThickness;
       gfx::Rect base = viewport;
       int p = insertion - 1;
-      while (p >= 0 && in_block(rows[p].tree.id)) {
+      while (p >= 0 && InBlock(rows[p].tree.id)) {
         --p;
       }
       int n = insertion;
       while (n >= 0 && n < static_cast<int>(rows.size()) &&
-             in_block(rows[n].tree.id)) {
+             InBlock(rows[n].tree.id)) {
         ++n;
       }
       if (p >= 0) {
-        y = rows[p].rect.bottom() + shift_of(rows[p].tree.id) + spacing / 2 - 1;
+        y = rows[p].rect.bottom() + shift_of(rows[p].tree.id) +
+            spacing / 2 - kDropMarkHalf;
         base = rows[p].rect;
       } else if (n >= 0 && n < static_cast<int>(rows.size())) {
-        y = rows[n].rect.y() + shift_of(rows[n].tree.id) - spacing / 2 - 1;
+        y = rows[n].rect.y() + shift_of(rows[n].tree.id) -
+            spacing / 2 - kDropMarkHalf;
         base = rows[n].rect;
       }
       int level = 0;
@@ -492,7 +507,7 @@ void AerieSidebarDragController::ShowFeedback(const MeasuredLayout& layout) {
                                  std::max(0, base.width() - indent -
                                                  static_cast<int>(
                                                      aerie::tokens::kSpace8)),
-                                 2));
+                                 kDropMarkThickness));
       return;
     }
   }
@@ -703,8 +718,12 @@ void AerieSidebarDragController::Cancel() {
     host_->SetDragCursor(id_, ui::Cursor());
     ResetShifts();
     ClearFeedback();
+    ghost_motion_.Abort();
     Unhide();
     RemoveGhost();
+    target_ = DropTarget();
+    target_valid_ = false;
+    block_ids_.clear();
     return;
   }
   FinishSettle();

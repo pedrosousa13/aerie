@@ -24,8 +24,6 @@
 
 namespace {
 
-constexpr int kOutlineWidth = 2;
-
 SkColor DangerColor(bool dark) {
   return dark ? aerie::tokens::kColorStatusDangerDark
               : aerie::tokens::kColorStatusDangerLight;
@@ -59,6 +57,18 @@ AerieSidebarDragGhost::AerieSidebarDragGhost(
 }
 
 AerieSidebarDragGhost::~AerieSidebarDragGhost() = default;
+
+void AerieSidebarDragGhost::SetColours(
+    const aerie_sidebar::SidebarPalette& palette,
+    bool dark) {
+  palette_ = palette;
+  dark_ = dark;
+  if (title_) {
+    title_->SetEnabledColor(palette_.text);
+    title_->SetBackgroundColor(SkColorSetA(palette_.text, 0));
+  }
+  SchedulePaint();
+}
 
 void AerieSidebarDragGhost::SetContentBounds(const gfx::Rect& rect) {
   gfx::Rect outset = rect;
@@ -131,6 +141,14 @@ AerieSidebarDropIndicator::AerieSidebarDropIndicator(
 
 AerieSidebarDropIndicator::~AerieSidebarDropIndicator() = default;
 
+void AerieSidebarDropIndicator::SetColours(
+    const aerie_sidebar::SidebarPalette& palette,
+    bool dark) {
+  palette_ = palette;
+  dark_ = dark;
+  SchedulePaint();
+}
+
 void AerieSidebarDropIndicator::Show(Mode mode, const gfx::Rect& rect) {
   mode_ = mode;
   shown_ = true;
@@ -153,10 +171,10 @@ void AerieSidebarDropIndicator::OnPaint(gfx::Canvas* canvas) {
     return;
   }
   flags.setStyle(cc::PaintFlags::kStroke_Style);
-  flags.setStrokeWidth(kOutlineWidth);
+  flags.setStrokeWidth(kDropMarkThickness);
   flags.setColor(mode_ == Mode::kRefused ? DangerColor(dark_) : palette_.accent);
   gfx::RectF inset = local;
-  inset.Inset(kOutlineWidth / 2.f);
+  inset.Inset(kDropMarkThickness / 2.f);
   canvas->DrawRoundRect(inset, aerie::tokens::kRadiusMd, flags);
 }
 

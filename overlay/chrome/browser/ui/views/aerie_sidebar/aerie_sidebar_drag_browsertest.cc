@@ -670,32 +670,32 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarDragBrowserTest, ADropOutsideTheWindowMovesTh
 IN_PROC_BROWSER_TEST_F(AerieSidebarDragBrowserTest, AltArrowsMoveTheFocusedRowAndOutdentAndIndent) {
   OpenTabs(3);
   const std::string a = IdAt(0), b = IdAt(1), c = IdAt(2);
-  sidebar()->MoveKeyForTesting(a, aerie_sidebar::MoveKey::kDown, /*today=*/true);
+  sidebar()->MoveKeyForTesting(a, aerie_sidebar::MoveKey::kDown, Section::kToday);
   EXPECT_EQ(Children(Section::kToday), (std::vector<std::string>{b, a, c}));
   EXPECT_EQ(IdAt(0), b);
   EXPECT_EQ(IdAt(1), a);
   EXPECT_EQ(IdAt(2), c);
   EXPECT_EQ(sidebar()->last_announcement_for_testing(),
             u"Moved to Today, position 2 of 3");
-  sidebar()->MoveKeyForTesting(a, aerie_sidebar::MoveKey::kUp, true);
+  sidebar()->MoveKeyForTesting(a, aerie_sidebar::MoveKey::kUp, Section::kToday);
   EXPECT_EQ(Children(Section::kToday), (std::vector<std::string>{a, b, c}));
   EXPECT_EQ(IdAt(0), a);
   EXPECT_EQ(IdAt(1), b);
   EXPECT_EQ(IdAt(2), c);
   // Nothing before the first row; nothing happens, nothing is written.
   const int64_t before = model()->next_change();
-  sidebar()->MoveKeyForTesting(a, aerie_sidebar::MoveKey::kUp, true);
+  sidebar()->MoveKeyForTesting(a, aerie_sidebar::MoveKey::kUp, Section::kToday);
   EXPECT_EQ(model()->next_change(), before);
 
   const std::string folder = NewFolder(Section::kToday, "", "Trips");
   WaitForRows();
   // The folder is first; b indents into the folder only when it is directly
   // after it, so first move a, b, c below it.
-  sidebar()->MoveKeyForTesting(a, aerie_sidebar::MoveKey::kIndent, true);
+  sidebar()->MoveKeyForTesting(a, aerie_sidebar::MoveKey::kIndent, Section::kToday);
   EXPECT_EQ(model()->GetTab(a)->parent, folder);
   EXPECT_EQ(sidebar()->last_announcement_for_testing(),
             u"Moved to Trips, position 1 of 1");
-  sidebar()->MoveKeyForTesting(a, aerie_sidebar::MoveKey::kOutdent, true);
+  sidebar()->MoveKeyForTesting(a, aerie_sidebar::MoveKey::kOutdent, Section::kToday);
   EXPECT_EQ(model()->GetTab(a)->parent, "");
   EXPECT_EQ(Children(Section::kToday).front(), folder);
   EXPECT_EQ(Children(Section::kToday)[1], a);
@@ -718,7 +718,7 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarDragBrowserTest, AltRightRefusesPastFiveLevel
   m->MoveFolder(mover, Section::kToday, parent, 5);
   WaitForRows();
   const int64_t before = m->next_change();
-  sidebar()->MoveKeyForTesting(mover, aerie_sidebar::MoveKey::kIndent, true);
+  sidebar()->MoveKeyForTesting(mover, aerie_sidebar::MoveKey::kIndent, Section::kToday);
   EXPECT_EQ(m->GetFolder(mover)->parent, parent);
   EXPECT_EQ(m->next_change(), before);
   EXPECT_TRUE(sidebar()->toast_visible());

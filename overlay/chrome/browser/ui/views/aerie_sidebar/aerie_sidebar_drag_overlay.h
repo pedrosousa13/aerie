@@ -8,6 +8,7 @@
 #include <string>
 
 #include "base/memory/raw_ptr.h"
+#include "components/aerie_design_tokens/aerie_tokens.h"
 #include "components/aerie_sidebar/aerie_sidebar_palette.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/models/image_model.h"
@@ -18,6 +19,17 @@ namespace views {
 class ImageView;
 class Label;
 }  // namespace views
+
+// The size of the drop mark (the line, the bar between two tiles, the outline
+// stroke), in px: its own geometry, all in one place. The thickness is the
+// width of the focus ring (`size-focus-ring-width`): the mark is drawn like it,
+// in the accent colour.
+inline constexpr int kDropMarkThickness =
+    static_cast<int>(aerie::tokens::kSizeFocusRingWidth);
+// Half the thickness: puts a line on the middle of a gap or a divider.
+inline constexpr int kDropMarkHalf = kDropMarkThickness / 2;
+// The air between a bar and the tile it sits next to.
+inline constexpr int kDropMarkGap = 1;
 
 // What a row or a tile lends to the drag layer: enough to draw it again above
 // the lists (issue #182).
@@ -51,6 +63,8 @@ class AerieSidebarDragGhost : public views::View {
 
   // Puts the drawn row at `rect` (the view is larger by the shadow room).
   void SetContentBounds(const gfx::Rect& rect);
+  // The theme changed.
+  void SetColours(const aerie_sidebar::SidebarPalette& palette, bool dark);
   gfx::Rect content_bounds() const;
 
   // views::View:
@@ -84,6 +98,8 @@ class AerieSidebarDropIndicator : public views::View {
   // Shows the mark. `rect` is in the parent's coordinates.
   void Show(Mode mode, const gfx::Rect& rect);
   void Hide();
+  // The theme changed.
+  void SetColours(const aerie_sidebar::SidebarPalette& palette, bool dark);
   Mode mode() const { return mode_; }
   bool shown() const { return shown_; }
 

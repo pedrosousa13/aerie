@@ -5,8 +5,8 @@
 #ifndef CHROME_BROWSER_UI_VIEWS_AERIE_SIDEBAR_AERIE_SIDEBAR_DRAG_CONTROLLER_H_
 #define CHROME_BROWSER_UI_VIEWS_AERIE_SIDEBAR_AERIE_SIDEBAR_DRAG_CONTROLLER_H_
 
-#include <memory>
 #include <map>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -95,8 +95,6 @@ class AerieSidebarDragController {
     // Moves the row `id` by `dy` px with the shift motion; 0 puts it back.
     virtual void ShiftRow(const std::string& id, int dy) = 0;
     virtual void ResetRowShift(const std::string& id) = 0;
-    // Opens room in an empty Pinned list and an empty Favorites grid so that
-    // they can take the drop, and puts them away again.
     // Scrolls the list of `section` by `dy` px; false when it cannot.
     virtual bool ScrollList(aerie_tab_model::Section section, int dy) = 0;
     // Writes the move into the Tab Model and brings the rows and tiles up to
@@ -133,6 +131,8 @@ class AerieSidebarDragController {
   void FinishSettle();
 
   bool active() const { return active_; }
+  // The theme changed: the ghost and the drop mark take the new colours.
+  void RefreshColours();
   bool settling() const { return settling_; }
   const std::string& dragged_id() const { return id_; }
   const aerie_sidebar::DropTarget& target() const { return target_; }
@@ -142,6 +142,9 @@ class AerieSidebarDragController {
   const std::vector<std::string>& hidden_ids() const { return block_ids_; }
 
  private:
+  // True when `id` is one of the rows that the drag carries.
+  bool InBlock(const std::string& id) const;
+
   void EnsureOverlay();
   void RemoveGhost();
   void Reevaluate();

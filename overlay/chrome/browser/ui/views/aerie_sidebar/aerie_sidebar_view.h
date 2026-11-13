@@ -142,9 +142,10 @@ class AerieSidebarView : public views::View,
     return last_announcement_;
   }
   // The same as the keys Alt+Arrow on the row `id`, for tests.
-  void MoveKeyForTesting(const std::string& id, aerie_sidebar::MoveKey key,
-                         bool today) {
-    OnMoveKey(today, id, key);
+  void MoveKeyForTesting(const std::string& id,
+                         aerie_sidebar::MoveKey key,
+                         aerie_tab_model::Section section) {
+    OnMoveKey(section, id, key);
   }
 
   // The Pinned list and the Favorites grid (issue #180), for tests.
@@ -471,7 +472,9 @@ class AerieSidebarView : public views::View,
                      bool cancelled,
                      bool outside);
   // Alt+Arrow on a row of the Today (`today`) or the Pinned tree.
-  void OnMoveKey(bool today, const std::string& id, aerie_sidebar::MoveKey key);
+  void OnMoveKey(aerie_tab_model::Section section,
+                 const std::string& id,
+                 aerie_sidebar::MoveKey key);
   // Ends a drag, or a settle, when the rows or tiles `today` and `pinned` would
   // make are not the ones there are now.
   void CancelDragIfListsChange(

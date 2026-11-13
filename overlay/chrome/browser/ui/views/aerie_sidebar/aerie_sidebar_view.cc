@@ -502,6 +502,9 @@ aerie_sidebar::SidebarPalette AerieSidebarView::ResolvePalette() const {
 void AerieSidebarView::ApplyPalette() {
   palette_ = ResolvePalette();
   top_row_->SetPalette(palette_);
+  if (drag_controller_) {
+    drag_controller_->RefreshColours();
+  }
   favorites_divider_->SetPalette(palette_);
   pinned_divider_->SetPalette(palette_);
   today_heading_->SetEnabledColor(palette_.text_muted);
@@ -650,8 +653,11 @@ AerieSidebarRowView* AerieSidebarView::MakeRow(
       &AerieSidebarView::OnItemDragUpdate, base::Unretained(this));
   callbacks.drag_end = base::BindRepeating(&AerieSidebarView::OnItemDragEnd,
                                            base::Unretained(this));
-  callbacks.move = base::BindRepeating(&AerieSidebarView::OnMoveKey,
-                                       base::Unretained(this), today, id);
+  callbacks.move = base::BindRepeating(
+      &AerieSidebarView::OnMoveKey, base::Unretained(this),
+      today ? aerie_tab_model::Section::kToday
+            : aerie_tab_model::Section::kPinned,
+      id);
   callbacks.context_menu = base::BindRepeating(
       &AerieSidebarView::ShowRowContextMenu, base::Unretained(this), id);
   if (!today && !entry.is_folder) {
@@ -1043,17 +1049,15 @@ AerieSidebarDragController* AerieSidebarView::EnsureDragController() {
   return drag_controller_.get();
 }
 
-void AerieSidebarView::OnMoveKey(bool today,
+void AerieSidebarView::OnMoveKey(aerie_tab_model::Section section,
                                  const std::string& id,
                                  aerie_sidebar::MoveKey key) {
   if (!model_ || dragging()) {
     return;
   }
+  const bool today = section == aerie_tab_model::Section::kToday;
   const std::vector<aerie_tab_model::TreeRow>& tree =
       today ? today_tree_rows_ : pinned_tree_rows_;
-  const aerie_tab_model::Section section =
-      today ? aerie_tab_model::Section::kToday
-            : aerie_tab_model::Section::kPinned;
   int focused = -1;
   for (size_t i = 0; i < tree.size(); ++i) {
     if (tree[i].id == id) {
