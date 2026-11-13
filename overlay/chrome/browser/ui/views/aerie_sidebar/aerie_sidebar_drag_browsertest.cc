@@ -892,7 +892,8 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarDragTraceBrowserTest, DraggingAmong50RowsKeep
 IN_PROC_BROWSER_TEST_F(AerieSidebarDragBrowserTest, TheListScrollsWhileThePointerRestsAtItsBottomAndTopEdges) {
   OpenTabs(40);
   views::ScrollView* scroll = sidebar()->today_scroll();
-  ASSERT_GT(scroll->contents()->height(), scroll->height());
+  ASSERT_TRUE(WaitFor(
+      [&] { return scroll->contents()->height() > scroll->height(); }));
   ASSERT_EQ(scroll->contents()->y(), 0);
   views::View* row = sidebar()->row_at(0);
   Press(row);
