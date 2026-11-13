@@ -27,6 +27,7 @@
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/navigation_entry.h"
 #include "content/public/browser/web_contents.h"
+#include "content/public/browser/web_contents_observer.h"
 
 namespace aerie_tab_model {
 
@@ -67,6 +68,26 @@ ArchiveData Capture(tabs::TabInterface* tab) {
 
 }  // namespace
 
+// Passes the audio state of one tab's page to the archiver.
+class TabArchiver::AudioObserver : public content::WebContentsObserver {
+ public:
+  AudioObserver(content::WebContents* contents,
+                TabArchiver* archiver,
+                tabs::TabHandle handle)
+      : content::WebContentsObserver(contents),
+        archiver_(archiver),
+        handle_(handle) {}
+
+  // content::WebContentsObserver:
+  void OnAudioStateChanged(bool audible) override {
+    archiver_->NoteAudio(handle_, audible);
+  }
+
+ private:
+  const raw_ptr<TabArchiver> archiver_;
+  const tabs::TabHandle handle_;
+};
+
 TabArchiver::TabArchiver(Profile* profile,
                          TabModelService* service,
                          const base::Clock* clock,
@@ -106,6 +127,7 @@ TabArchiver::TabArchiver(Profile* profile,
 TabArchiver::~TabArchiver() = default;
 
 void TabArchiver::Shutdown() {
+  audio_observers_.clear();
   browser_collection_observation_.Reset();
   pref_registrar_.RemoveAll();
   if (base::PowerMonitor::GetInstance()->IsInitialized()) {
@@ -133,11 +155,17 @@ void TabArchiver::OnBrowserCreated(BrowserWindowInterface* browser) {
   TabStripModel* strip = browser->GetTabStripModel();
   strip->AddObserver(this);
   for (int i = 0; i < strip->count(); ++i) {
-    tabs::TabInterface* tab = strip->GetTabAtIndex(i);
-    if (tab->GetContents() && tab->GetContents()->IsCurrentlyAudible()) {
-      audible_[tab->GetHandle()] = true;
-    }
+    ObserveAudio(strip->GetTabAtIndex(i));
   }
+}
+
+void TabArchiver::ObserveAudio(tabs::TabInterface* tab) {
+  content::WebContents* contents = tab->GetContents();
+  if (!contents) {
+    return;
+  }
+  audio_observers_[tab->GetHandle()] =
+      std::make_unique<AudioObserver>(contents, this, tab->GetHandle());
 }
 
 void TabArchiver::OnBrowserClosed(BrowserWindowInterface* browser) {
@@ -151,10 +179,25 @@ void TabArchiver::OnTabStripModelChanged(
     TabStripModel* tab_strip_model,
     const TabStripModelChange& change,
     const TabStripSelectionChange& selection) {
-  if (change.type() == TabStripModelChange::kRemoved) {
-    for (const auto& removed : change.GetRemove()->contents) {
-      audible_.erase(removed.tab->GetHandle());
-    }
+  switch (change.type()) {
+    case TabStripModelChange::kInserted:
+      for (const auto& inserted : change.GetInsert()->contents) {
+        ObserveAudio(inserted.tab);
+      }
+      break;
+    case TabStripModelChange::kRemoved:
+      for (const auto& removed : change.GetRemove()->contents) {
+        // A tab that goes to another window is observed again by that window.
+        audio_observers_.erase(removed.tab->GetHandle());
+      }
+      break;
+    case TabStripModelChange::kReplaced:
+      // A discard gives the tab new contents.
+      ObserveAudio(change.GetReplace()->tab);
+      break;
+    case TabStripModelChange::kMoved:
+    case TabStripModelChange::kSelectionOnly:
+      break;
   }
   // A tab that is selected, or stops being, changes the exemption. The
   // adapter writes `last_active` for both, which also arms the schedule; this
@@ -164,28 +207,16 @@ void TabArchiver::OnTabStripModelChanged(
   }
 }
 
-void TabArchiver::OnTabChangedAt(tabs::TabInterface* tab,
-                                 TabChangeType change_type) {
-  NoteAudio(tab);
-}
-
-void TabArchiver::NoteAudio(tabs::TabInterface* tab) {
-  content::WebContents* contents = tab->GetContents();
-  const bool audible = contents && contents->IsCurrentlyAudible();
-  auto it = audible_.find(tab->GetHandle());
-  const bool was_audible = it != audible_.end() && it->second;
-  if (audible == was_audible) {
-    return;
-  }
+void TabArchiver::NoteAudio(tabs::TabHandle handle, bool audible) {
   if (audible) {
-    audible_[tab->GetHandle()] = true;
     schedule_.Rearm();
     return;
   }
-  audible_.erase(tab->GetHandle());
   // The sound stopped: the tab was in use until now.
+  tabs::TabInterface* tab = handle.Get();
   TabStripAdapter* adapter = service_->adapter();
-  const std::string id = adapter ? adapter->RecordIdForTab(tab) : std::string();
+  const std::string id =
+      tab && adapter ? adapter->RecordIdForTab(tab) : std::string();
   if (id.empty() || !service_->model()->GetTab(id)) {
     return;
   }

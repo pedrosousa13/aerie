@@ -111,8 +111,6 @@ class TabArchiver : public KeyedService,
   void OnTabStripModelChanged(TabStripModel* tab_strip_model,
                               const TabStripModelChange& change,
                               const TabStripSelectionChange& selection) override;
-  void OnTabChangedAt(tabs::TabInterface* tab,
-                      TabChangeType change_type) override;
 
   // base::PowerSuspendObserver:
   void OnResume() override;
@@ -125,9 +123,12 @@ class TabArchiver : public KeyedService,
   // The schedule's call.
   bool OnDue(const std::string& record_id);
   void OnSettingsChanged();
-  // Tells the schedule that a tab's audio state changed. A tab that stops
-  // playing was in use until then: its timeout starts again.
-  void NoteAudio(tabs::TabInterface* tab);
+  class AudioObserver;
+  // Watches the audio state of every tab of a watched window.
+  void ObserveAudio(tabs::TabInterface* tab);
+  // A tab's audio state changed. A tab that stops playing was in use until
+  // then: its timeout starts again.
+  void NoteAudio(tabs::TabHandle handle, bool audible);
 
   const raw_ptr<Profile> profile_;
   const raw_ptr<TabModelService> service_;
@@ -135,8 +136,7 @@ class TabArchiver : public KeyedService,
   ArchiveSchedule schedule_;
   PrefChangeRegistrar pref_registrar_;
   base::ObserverList<Observer> observers_;
-  // Tabs that played audio at the last event, by handle.
-  std::map<tabs::TabHandle, bool> audible_;
+  std::map<tabs::TabHandle, std::unique_ptr<AudioObserver>> audio_observers_;
   // When the archiver was built. Tabs archived in the first moments after it
   // (kCatchUpWindow) were overdue at startup and are archived without motion.
   const base::TimeTicks created_;
