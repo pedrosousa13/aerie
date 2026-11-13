@@ -48,6 +48,20 @@ source_set("drag") {
   ]
 }
 
+# Where a dragged tab or folder would land (issue #182): the hit test over the
+# rows and the Favorites tiles, with the nesting limit and the Favorites cap.
+source_set("drop_target") {
+  sources = [
+    "aerie_sidebar_drop_target.cc",
+    "aerie_sidebar_drop_target.h",
+  ]
+  deps = [ "//components/aerie_design_tokens:tokens" ]
+  public_deps = [
+    "//base",
+    "//components/aerie_tab_model",
+  ]
+}
+
 # Locks Helium's layout prefs to the sidebar in the command-line layer of the
 # PrefService (ADR 0008). Called from ChromeCommandLinePrefStore
 # (patches/sidebar/0034).
@@ -127,6 +141,7 @@ source_set("unit_tests") {
   testonly = true
   sources = [
     "aerie_sidebar_drag_unittest.cc",
+    "aerie_sidebar_drop_target_unittest.cc",
     "aerie_sidebar_folder_toggle_unittest.cc",
     "aerie_sidebar_layout_lock_unittest.cc",
     "aerie_sidebar_motion_unittest.cc",
@@ -137,6 +152,7 @@ source_set("unit_tests") {
   ]
   deps = [
     ":drag",
+    ":drop_target",
     ":folder_toggle",
     ":layout",
     ":layout_lock",
