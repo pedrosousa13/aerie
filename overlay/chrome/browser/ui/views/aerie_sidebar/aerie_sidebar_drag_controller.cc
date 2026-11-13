@@ -533,7 +533,8 @@ void AerieSidebarDragController::End(const gfx::Point& widget_point,
   if (indicator_) {
     indicator_->Hide();
   }
-  const DropTarget target = target_;
+  // A release outside the window drops nowhere, whatever the last move showed.
+  const DropTarget target = (outside && !cancelled) ? DropTarget() : target_;
   auto reveal_off = [&] {
     if (zones_revealed_) {
       zones_revealed_ = false;

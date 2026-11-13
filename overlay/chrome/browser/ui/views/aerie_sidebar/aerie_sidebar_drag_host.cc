@@ -25,6 +25,8 @@
 #include "ui/color/color_provider_key.h"
 #include "cc/paint/paint_flags.h"
 #include "ui/gfx/canvas.h"
+#include "ui/base/metadata/metadata_impl_macros.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/controls/label.h"
 #include "ui/views/controls/scroll_view.h"
 #include "ui/views/layout/fill_layout.h"
@@ -34,10 +36,14 @@
 namespace {
 
 // A quiet band that marks where an empty Pinned list or Favorites grid would
-// take a drop. It floats over the top of the Today list and takes no part in
+// take a drop. It floats over the bottom of the Today list and takes no part in
 // the layout, so nothing moves when a drag starts.
 class DropZoneBand : public views::View {
  public:
+  METADATA_HEADER(DropZoneBand, views::View)
+
+ public:
+
   DropZoneBand(const std::u16string& text,
                const aerie_sidebar::SidebarPalette& palette)
       : palette_(palette) {
@@ -68,6 +74,9 @@ class DropZoneBand : public views::View {
  private:
   aerie_sidebar::SidebarPalette palette_;
 };
+
+BEGIN_METADATA(DropZoneBand)
+END_METADATA
 
 gfx::Rect RectIn(views::View* ancestor, views::View* view) {
   return views::View::ConvertRectToTarget(view->parent(), ancestor,
@@ -132,16 +141,17 @@ AerieSidebarDragController::MeasuredLayout AerieSidebarDragHost::Measure() {
   if (view_->scroll_->GetVisible()) {
     layout.today_viewport = RectIn(view_, view_->scroll_);
     rows_of(view_->rows_, view_->today_tree_rows_, &layout.today);
-    // The bands cover the top of the list; a point in one means that section.
+    // The bands cover the bottom of the list; a point in one means that
+    // section, so the Today list ends above them.
     int covered = 0;
     for (views::View* band : {pinned_band_.get(), favorites_band_.get()}) {
       if (band) {
-        covered = std::max(covered, band->bounds().bottom() -
-                                        layout.today_viewport.y());
+        covered = std::max(covered, layout.today_viewport.bottom() -
+                                        band->bounds().y());
       }
     }
     if (covered > 0) {
-      layout.today_viewport.Inset(gfx::Insets::TLBR(covered, 0, 0, 0));
+      layout.today_viewport.Inset(gfx::Insets::TLBR(0, 0, covered, 0));
     }
   }
   if (pinned_band_) {
@@ -241,25 +251,28 @@ void AerieSidebarDragHost::SetDropZonesRevealed(bool revealed) {
     }
     return;
   }
-  // The bands sit over the top of the Today list, Favorites first. The list
-  // and the empty sections keep their layout.
-  const gfx::Rect top = RectIn(view_, view_->scroll_);
-  int y = top.y();
-  const int width = top.width();
-  if (view_->tiles_.empty() && !favorites_band_) {
+  // The bands sit over the bottom of the Today list, Favorites above Pinned,
+  // where an empty list leaves free room. The list and the empty sections
+  // keep their layout, so no row moves.
+  const gfx::Rect area = RectIn(view_, view_->scroll_);
+  const bool want_favorites = view_->tiles_.empty() && !favorites_band_;
+  const bool want_pinned = view_->pinned_rows_.empty() && !pinned_band_ &&
+                           !view_->pinned_scroll_->GetVisible();
+  const int favorites_h = aerie::tokens::kSizeTileComfortable;
+  const int pinned_h = aerie::tokens::kSizeRowHeightComfortable;
+  int y = area.bottom() - (want_pinned ? pinned_h : 0) -
+          (want_favorites ? favorites_h + 2 : 0);
+  if (want_favorites) {
     favorites_band_ = view_->AddChildView(std::make_unique<DropZoneBand>(
         l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_FAVORITES), Palette()));
     favorites_band_->SetBoundsRect(
-        gfx::Rect(top.x(), y, width, aerie::tokens::kSizeTileComfortable));
-    y += aerie::tokens::kSizeTileComfortable + 2;
+        gfx::Rect(area.x(), y, area.width(), favorites_h));
+    y += favorites_h + 2;
   }
-  if (view_->pinned_rows_.empty() && !pinned_band_ &&
-      !view_->pinned_scroll_->GetVisible()) {
+  if (want_pinned) {
     pinned_band_ = view_->AddChildView(std::make_unique<DropZoneBand>(
         l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_PINNED), Palette()));
-    pinned_band_->SetBoundsRect(
-        gfx::Rect(top.x(), y, width,
-                  aerie::tokens::kSizeRowHeightComfortable));
+    pinned_band_->SetBoundsRect(gfx::Rect(area.x(), y, area.width(), pinned_h));
   }
 }
 

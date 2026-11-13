@@ -49,7 +49,7 @@ class AerieSidebarDragHost : public AerieSidebarDragController::Host {
 
  private:
   const raw_ptr<AerieSidebarView> view_;
-  // Floating bands over the top of the Today list while a drag is on and the
+  // Floating bands over the bottom of the Today list while a drag is on and the
   // section is empty (they are children of the sidebar view).
   raw_ptr<views::View> pinned_band_ = nullptr;
   raw_ptr<views::View> favorites_band_ = nullptr;
