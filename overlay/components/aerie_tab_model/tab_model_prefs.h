@@ -19,6 +19,10 @@ namespace aerie_tab_model {
 // "7d" or "never". A profile pref. The names are also string literals in the
 // settings_private allowlist (patches/sidebar/0010), and a test compares them.
 inline constexpr char kArchiveAfter[] = "aerie.tabs.archive_after";
+// How long the Archive keeps an archived tab (issue #183): "7d", "30d"
+// (default), "90d" or "forever". A profile pref. Also a settings_private
+// allowlist literal (patches/sidebar/0042).
+inline constexpr char kArchiveKeep[] = "aerie.tabs.archive_keep";
 // Minutes of idle time before a tab sleeps: 15 to 480, or 0 for never. Default
 // 60.
 inline constexpr char kSleepAfterMinutes[] = "aerie.tabs.sleep_after_minutes";
@@ -39,6 +43,7 @@ inline constexpr char kPinnedCloseClose[] = "close";
 inline constexpr char kFolderRulesEnabled[] = "aerie.folders.rules_enabled";
 
 inline constexpr char kDefaultArchiveAfter[] = "12h";
+inline constexpr char kDefaultArchiveKeep[] = "30d";
 inline constexpr char kDefaultPinnedClose[] = "reset-sleep-switch";
 inline constexpr int kDefaultSleepAfterMinutes = 60;
 inline constexpr int kMinSleepAfterMinutes = 15;
@@ -51,12 +56,17 @@ void RegisterProfilePrefs(PrefRegistrySimple* registry);
 // one of the four falls back to the default of 12 hours.
 std::optional<base::TimeDelta> ParseArchiveAfter(std::string_view value);
 
+// How long archived records are kept for a pref value. nullopt means for ever.
+// A value that is not one of the four falls back to 30 days.
+std::optional<base::TimeDelta> ParseArchiveKeep(std::string_view value);
+
 // The sleep delay for a pref value. nullopt means never (0). Other values are
 // clamped to 15 minutes to 8 hours; a negative one means the default.
 std::optional<base::TimeDelta> SleepAfterFromMinutes(int minutes);
 
 // The same, read from the prefs.
 std::optional<base::TimeDelta> GetArchiveAfter(const PrefService& prefs);
+std::optional<base::TimeDelta> GetArchiveKeep(const PrefService& prefs);
 std::optional<base::TimeDelta> GetSleepAfter(const PrefService& prefs);
 
 // The global folder-rules switch.

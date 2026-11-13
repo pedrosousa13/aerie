@@ -29,6 +29,20 @@ TEST(TabModelPrefsTest, AnUnknownArchiveValueFallsBackToTwelveHours) {
   EXPECT_EQ(ParseArchiveAfter("3d"), base::Hours(12));
 }
 
+TEST(TabModelPrefsTest, ArchiveKeepIsThirtyDaysByDefaultAndHasFourValues) {
+  TestingPrefServiceSimple prefs;
+  RegisterProfilePrefs(prefs.registry());
+  EXPECT_STREQ("aerie.tabs.archive_keep", kArchiveKeep);
+  EXPECT_EQ(GetArchiveKeep(prefs), base::Days(30));
+  EXPECT_EQ(ParseArchiveKeep("7d"), base::Days(7));
+  EXPECT_EQ(ParseArchiveKeep("30d"), base::Days(30));
+  EXPECT_EQ(ParseArchiveKeep("90d"), base::Days(90));
+  EXPECT_EQ(ParseArchiveKeep("forever"), std::nullopt);
+  EXPECT_EQ(ParseArchiveKeep("3d"), base::Days(30));
+  prefs.SetString(kArchiveKeep, "forever");
+  EXPECT_EQ(GetArchiveKeep(prefs), std::nullopt);
+}
+
 TEST(TabModelPrefsTest, SleepAfterRunsFromFifteenMinutesToEightHoursOrNever) {
   EXPECT_EQ(SleepAfterFromMinutes(0), std::nullopt);
   EXPECT_EQ(SleepAfterFromMinutes(15), base::Minutes(15));

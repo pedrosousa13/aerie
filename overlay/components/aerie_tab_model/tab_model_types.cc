@@ -181,6 +181,45 @@ bool ReadPlacement(const base::DictValue& dict,
   return true;
 }
 
+base::DictValue ArchiveToValue(const ArchiveData& archive) {
+  base::DictValue dict;
+  dict.Set("url", archive.url);
+  dict.Set("title", archive.title);
+  dict.Set("favicon_key", archive.favicon_key);
+  dict.Set("folder", archive.folder);
+  base::ListValue entries;
+  for (const ArchivedNavigation& entry : archive.entries) {
+    base::DictValue item;
+    item.Set("url", entry.url);
+    item.Set("title", entry.title);
+    entries.Append(std::move(item));
+  }
+  dict.Set("entries", std::move(entries));
+  return dict;
+}
+
+std::optional<ArchiveData> ArchiveFromValue(const base::DictValue& dict) {
+  ArchiveData archive;
+  const base::ListValue* entries = dict.FindList("entries");
+  if (!ReadString(dict, "url", archive.url) ||
+      !ReadString(dict, "title", archive.title) ||
+      !ReadString(dict, "favicon_key", archive.favicon_key) ||
+      !ReadString(dict, "folder", archive.folder) || !entries ||
+      entries->size() > kMaxArchivedNavigationEntries) {
+    return std::nullopt;
+  }
+  for (const base::Value& value : *entries) {
+    const base::DictValue* item = value.GetIfDict();
+    ArchivedNavigation entry;
+    if (!item || !ReadString(*item, "url", entry.url) ||
+        !ReadString(*item, "title", entry.title)) {
+      return std::nullopt;
+    }
+    archive.entries.push_back(std::move(entry));
+  }
+  return archive;
+}
+
 }  // namespace
 
 const char* SectionToString(Section section) {
@@ -249,6 +288,9 @@ base::DictValue TabToValue(const TabRecord& tab) {
   if (tab.archived_at) {
     dict.Set("archived_at", base::TimeToValue(*tab.archived_at));
   }
+  if (tab.archive) {
+    dict.Set("archive", ArchiveToValue(*tab.archive));
+  }
   if (tab.previous_section) {
     dict.Set("previous_section", SectionToString(*tab.previous_section));
   }
@@ -286,6 +328,16 @@ std::optional<TabRecord> TabFromValue(const base::DictValue& dict) {
       return std::nullopt;
     }
     tab.archived_at = *time;
+  }
+  // Added by issue #183 without a schema bump: absent in older files.
+  if (const base::Value* archive = dict.Find("archive")) {
+    const base::DictValue* archive_dict = archive->GetIfDict();
+    std::optional<ArchiveData> parsed =
+        archive_dict ? ArchiveFromValue(*archive_dict) : std::nullopt;
+    if (!parsed) {
+      return std::nullopt;
+    }
+    tab.archive = std::move(*parsed);
   }
   // Added by issue #180 without a schema bump: absent in older files.
   if (const base::Value* previous = dict.Find("previous_section")) {
