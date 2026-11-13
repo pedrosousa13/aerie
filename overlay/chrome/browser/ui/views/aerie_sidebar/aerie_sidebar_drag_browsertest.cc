@@ -353,6 +353,7 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarDragBrowserTest, ADropOnTheMiddleOfAFolderPut
   views::View* source = sidebar()->RowForId(a);
   Press(source);
   Lift(source);
+  WaitForRows();
   const gfx::Point middle = PointIn(folder_row, 50);
   DragTo(source, middle);
   ASSERT_TRUE(controller());
