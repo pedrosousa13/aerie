@@ -34,6 +34,7 @@
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_context_menu.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_focus_ring.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_sheet.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_controller.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_group.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_regions.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_rename_popover.h"
@@ -504,7 +505,7 @@ void AerieSidebarView::ApplyPalette() {
   for (const Row& row : pinned_rows_) {
     row.view->SetPalette(palette_);
   }
-  for (const Row& row : collapsing_rows_) {
+  for (const Row& row : folders_.collapsing_rows()) {
     row.view->SetPalette(palette_);
   }
   for (const Tile& tile : tiles_) {
@@ -674,23 +675,8 @@ AerieSidebarView::Reconciled AerieSidebarView::ReconcileRows(
   }
   // A folder that was shutting and is opened again takes its rows back: they go
   // on from where they got to.
-  if (toggle_.active && toggle_.expand && group_ && group_->running() &&
-      group_->folder_id() == toggle_.folder_id) {
-    for (auto it = collapsing_rows_.begin(); it != collapsing_rows_.end();) {
-      const bool wanted_again =
-          it->view->parent() == list &&
-          std::any_of(wanted.begin(), wanted.end(),
-                      [&](const aerie_tab_model::TreeRow& entry) {
-                        return entry.id == it->tab_id;
-                      });
-      if (wanted_again) {
-        it->view->GetViewAccessibility().SetIsIgnored(false);
-        existing[it->tab_id] = *it;
-        it = collapsing_rows_.erase(it);
-      } else {
-        ++it;
-      }
-    }
+  for (const Row& row : folders_.TakeReopenedRows(list, wanted)) {
+    existing[row.tab_id] = row;
   }
   for (const aerie_tab_model::TreeRow& entry : wanted) {
     auto it = existing.find(entry.id);
@@ -706,10 +692,7 @@ AerieSidebarView::Reconciled AerieSidebarView::ReconcileRows(
     view->SetLevel(entry.level);
     result.next.push_back(
         {entry.id, view, entry.is_folder, entry.item_count});
-    if (toggle_.active && toggle_.expand &&
-        IsInsideFolder(toggle_.folder_id, entry.id)) {
-      toggle_revealed_.push_back(view);
-    } else {
+    if (!folders_.NoteRevealedRow(view, entry.id)) {
       result.added.push_back(view);
     }
   }
@@ -717,21 +700,6 @@ AerieSidebarView::Reconciled AerieSidebarView::ReconcileRows(
     result.gone.push_back(row);
   }
   return result;
-}
-
-bool AerieSidebarView::KeepAsCollapsing(const Row& row) {
-  // A row that goes because its folder shut keeps its place until the collapse
-  // has played, then goes (issue #181). Keyboard focus in it went to the folder
-  // row (SetFolderExpanded).
-  if (!CanAnimateRows() || !toggle_.active || toggle_.expand ||
-      !IsInsideFolder(toggle_.folder_id, row.tab_id)) {
-    return false;
-  }
-  collapsing_rows_.push_back(row);
-  toggle_collapsing_.push_back(row.view);
-  row.view->SetFocusBehavior(views::View::FocusBehavior::ACCESSIBLE_ONLY);
-  row.view->GetViewAccessibility().SetIsIgnored(true);
-  return true;
 }
 
 void AerieSidebarView::OrderRows(AerieSidebarTodayTree* list,
@@ -746,8 +714,7 @@ void AerieSidebarView::OrderRows(AerieSidebarTodayTree* list,
     const bool keeps_place =
         std::find(closing_rows_.begin(), closing_rows_.end(), child) !=
             closing_rows_.end() ||
-        std::any_of(collapsing_rows_.begin(), collapsing_rows_.end(),
-                    [child](const Row& row) { return row.view == child; });
+        folders_.IsCollapsingView(child);
     order.push_back(keeps_place ? child : rows[next_live++].view.get());
   }
   for (size_t i = 0; i < order.size(); ++i) {
@@ -771,7 +738,7 @@ void AerieSidebarView::SyncRows(
   // place (HandleListKey: the same index, or the new last row).
   int refocus_index = -1;
   for (Row& row : result.gone) {
-    if (KeepAsCollapsing(row)) {
+    if (folders_.KeepAsCollapsing(row)) {
       continue;
     }
     AerieSidebarRowView* view = row.view;
@@ -847,15 +814,9 @@ void AerieSidebarView::SyncAll() {
   // A folder motion that runs goes on only when the sync is the turn-around of
   // the same folder or changes no row. Anything else ends it at once, so that
   // no row is moved under it.
-  if (group_ && group_->running()) {
-    const bool turn_around = toggle_.active &&
-                             group_->folder_id() == toggle_.folder_id;
-    if (!turn_around &&
-        (toggle_.active || TreeChanged(today, rows_) ||
-         TreeChanged(pinned, pinned_rows_))) {
-      group_->Finish();
-    }
-  }
+  folders_.PrepareForSync([&] {
+    return TreeChanged(today, rows_) || TreeChanged(pinned, pinned_rows_);
+  });
   // FLIP (issue #180): when a tab changed section, remember where every row is,
   // sync, lay out, and move each row from where it was.
   const bool flip = flip_pending_;
@@ -870,7 +831,7 @@ void AerieSidebarView::SyncAll() {
   SyncFavorites();
   SyncPinned(pinned);
   SyncRows(today);
-  StartToggleGroup();
+  folders_.StartGroup();
   if (play_flip) {
     DeprecatedLayoutImmediately();
     PlayFlip(before, moved_id);
@@ -1015,7 +976,7 @@ void AerieSidebarView::SyncPinned(
       ReconcileRows(pinned_rows_, wanted, pinned_list_, /*today=*/false);
   int refocus_index = -1;
   for (Row& row : result.gone) {
-    if (KeepAsCollapsing(row)) {
+    if (folders_.KeepAsCollapsing(row)) {
       continue;
     }
     if (row.view->HasFocus() || row.tab_id == pinned_refocus_after_close_id_) {
@@ -1031,10 +992,7 @@ void AerieSidebarView::SyncPinned(
   OrderRows(pinned_list_, pinned_rows_);
   pinned_scroll_->SetVisible(
       !pinned_rows_.empty() ||
-      std::any_of(collapsing_rows_.begin(), collapsing_rows_.end(),
-                  [this](const Row& row) {
-                    return row.view->parent() == pinned_list_;
-                  }));
+      folders_.HasCollapsingRowIn(pinned_list_));
   pinned_list_->InvalidateLayout();
   for (const Row& row : pinned_rows_) {
     UpdateRow(row);
@@ -1053,7 +1011,7 @@ void AerieSidebarView::SyncPinned(
 
 bool AerieSidebarView::OnRowDragBegin(const std::string& tab_id) {
   if (drag_.active || rows_.size() < 2 || !closing_rows_.empty() ||
-      !collapsing_rows_.empty()) {
+      folders_.collapsing_row_count() > 0) {
     return false;
   }
   // Until issue #182 a drag only reorders a flat list: with folders in Today
@@ -1692,7 +1650,7 @@ void AerieSidebarView::SetFolderExpanded(const std::string& folder_id,
       }
     }
   }
-  toggle_ = {true, folder_id, expanded};
+  folders_.BeginToggle(folder_id, expanded);
   // The sync runs now, with the toggle known, instead of in a task: a second
   // sync after it would end the motion.
   const bool was_pending = sync_pending_;
@@ -1700,61 +1658,15 @@ void AerieSidebarView::SetFolderExpanded(const std::string& folder_id,
   aerie_tab_model::SetFolderExpanded(*model_, folder_id, expanded);
   sync_pending_ = was_pending;
   SyncAll();
-  toggle_ = PendingToggle();
+  folders_.EndToggle();
   if (!refocus_folder_id_.empty()) {
     FocusRowById(refocus_folder_id_);
     refocus_folder_id_.clear();
   }
 }
 
-void AerieSidebarView::StartToggleGroup() {
-  const PendingToggle toggle = toggle_;
-  std::vector<raw_ptr<AerieSidebarRowView>> revealed =
-      std::move(toggle_revealed_);
-  std::vector<raw_ptr<AerieSidebarRowView>> collapsing =
-      std::move(toggle_collapsing_);
-  toggle_revealed_.clear();
-  toggle_collapsing_.clear();
-  if (!toggle.active) {
-    return;
-  }
-  if (group_ && group_->running()) {
-    if (group_->folder_id() == toggle.folder_id) {
-      group_->Retarget(toggle.expand);
-      return;
-    }
-    group_->Finish();
-  }
-  std::vector<raw_ptr<AerieSidebarRowView>> rows =
-      toggle.expand ? std::move(revealed) : std::move(collapsing);
-  // A row can go between the sync that found it and here (ending another
-  // folder's motion removes the rows that were collapsing). Only rows that are
-  // still the sidebar's own are animated; this compares pointers and never
-  // reads a row that may be gone.
-  std::erase_if(rows, [this](const raw_ptr<AerieSidebarRowView>& row) {
-    return !IsLiveRow(row.get());
-  });
-  if (rows.empty() || !CanAnimateRows()) {
-    RemoveCollapsedRows();
-    return;
-  }
-  views::View* list = rows.front()->parent();
-  std::sort(rows.begin(), rows.end(),
-            [list](const raw_ptr<AerieSidebarRowView>& a,
-                   const raw_ptr<AerieSidebarRowView>& b) {
-              return list->GetIndexOf(a.get()).value_or(0) <
-                     list->GetIndexOf(b.get()).value_or(0);
-            });
-  group_ = std::make_unique<AerieSidebarFolderGroup>(
-      toggle.folder_id, std::move(rows), list,
-      browser_->GetProfile()->GetPrefs(),
-      base::BindOnce(&AerieSidebarView::RemoveCollapsedRows,
-                     base::Unretained(this)));
-  group_->Start(toggle.expand);
-}
-
-bool AerieSidebarView::IsLiveRow(const AerieSidebarRowView* row) const {
-  for (const std::vector<Row>* rows : {&rows_, &pinned_rows_, &collapsing_rows_}) {
+bool AerieSidebarView::IsTreeRow(const AerieSidebarRowView* row) const {
+  for (const std::vector<Row>* rows : {&rows_, &pinned_rows_}) {
     for (const Row& entry : *rows) {
       if (entry.view == row) {
         return true;
@@ -1764,16 +1676,11 @@ bool AerieSidebarView::IsLiveRow(const AerieSidebarRowView* row) const {
   return false;
 }
 
-void AerieSidebarView::RemoveCollapsedRows() {
-  std::vector<Row> rows = std::move(collapsing_rows_);
-  collapsing_rows_.clear();
-  toggle_collapsing_.clear();
-  for (const Row& row : rows) {
-    if (views::View* parent = row.view->parent()) {
-      parent->RemoveChildViewT(row.view.get());
-      parent->InvalidateLayout();
-    }
-  }
+const PrefService* AerieSidebarView::GetPrefs() const {
+  return browser_->GetProfile()->GetPrefs();
+}
+
+void AerieSidebarView::OnCollapsedRowsRemoved() {
   if (!pinned_scroll_ || !pinned_list_) {
     return;
   }

@@ -102,6 +102,15 @@ source_set("tree") {
   ]
 }
 
+# The hand-off between a folder toggle and the sync that follows it (issue
+# #228). Header only.
+source_set("folder_toggle") {
+  sources = [ "aerie_sidebar_folder_toggle.h" ]
+  public_deps = [
+    "//base",
+  ]
+}
+
 # The Today list kept from the Tab Model, and the keys of the tree.
 source_set("today_list") {
   sources = [
@@ -118,6 +127,7 @@ source_set("unit_tests") {
   testonly = true
   sources = [
     "aerie_sidebar_drag_unittest.cc",
+    "aerie_sidebar_folder_toggle_unittest.cc",
     "aerie_sidebar_layout_lock_unittest.cc",
     "aerie_sidebar_motion_unittest.cc",
     "aerie_sidebar_palette_unittest.cc",
@@ -127,6 +137,7 @@ source_set("unit_tests") {
   ]
   deps = [
     ":drag",
+    ":folder_toggle",
     ":layout",
     ":layout_lock",
     ":motion",
