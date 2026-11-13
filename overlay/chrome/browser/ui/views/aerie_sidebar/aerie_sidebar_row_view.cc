@@ -232,6 +232,8 @@ AerieSidebarRowView::AerieSidebarRowView(
   GetViewAccessibility().SetIsSelected(false);
   GetViewAccessibility().SetName(std::u16string());
   set_context_menu_controller(this);
+  // Virtual hooks resolve to this class here; a subclass must call
+  // SetPalette() and UpdateName() again at the end of its constructor.
   SetPalette(palette_);
 }
 
