@@ -5,8 +5,15 @@
 #ifndef CHROME_BROWSER_UI_VIEWS_AERIE_SIDEBAR_AERIE_SIDEBAR_DRAG_HOST_H_
 #define CHROME_BROWSER_UI_VIEWS_AERIE_SIDEBAR_AERIE_SIDEBAR_DRAG_HOST_H_
 
+#include <map>
+#include <string>
+
 #include "base/memory/raw_ptr.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_drag_controller.h"
+
+namespace tabs {
+class TabInterface;
+}
 
 class AerieSidebarView;
 
@@ -42,6 +49,9 @@ class AerieSidebarDragHost : public AerieSidebarDragController::Host {
   void MoveToNewWindow(const std::string& tab_id) override;
 
  private:
+  void SyncStripToToday(
+      const std::map<std::string, tabs::TabInterface*>& lookup);
+
   const raw_ptr<AerieSidebarView> view_;
 };
 

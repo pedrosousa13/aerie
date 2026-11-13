@@ -5,6 +5,8 @@
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_drag_host.h"
 
 #include <algorithm>
+#include <functional>
+#include <map>
 
 #include "base/auto_reset.h"
 #include "base/strings/string_number_conversions.h"
@@ -17,6 +19,7 @@
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_view.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/aerie_design_tokens/aerie_tokens.h"
+#include "components/aerie_tab_model/folder_tree.h"
 #include "components/aerie_tab_model/tab_model.h"
 #include "components/prefs/pref_service.h"
 #include "components/tabs/public/tab_interface.h"
@@ -219,6 +222,10 @@ aerie_sidebar::MoveResult AerieSidebarDragHost::ApplyMove(
   };
   const aerie_sidebar::MoveResult result =
       aerie_sidebar::ApplyMove(*view_->model_, request, listed, url_for);
+  if (result == aerie_sidebar::MoveResult::kMoved &&
+      request.section == aerie_tab_model::Section::kToday) {
+    SyncStripToToday(lookup);
+  }
   if (result == aerie_sidebar::MoveResult::kMoved) {
     // The lists follow at once, so that the drag layer can land on the new
     // place. No FLIP: the layer is the motion.
@@ -258,6 +265,96 @@ void AerieSidebarDragHost::MoveToNewWindow(const std::string& tab_id) {
     const std::vector<int> indices = {model->GetIndexOfTab(tab)};
     if (delegate->CanMoveTabsToWindow(indices)) {
       delegate->MoveTabsToNewWindow(indices);
+    }
+  }
+}
+
+// The strip keeps the order of the Today list: the Today tabs of the window
+// take the strip slots they hold now, in the order of the list read from the
+// top (a folder's tabs follow the folder row). A move of the strip makes the
+// adapter write the strip index into the record, which is not a place among
+// the siblings of a folder, so the order that the move set is written back
+// afterwards (issue #182; on main a Today drop moved the tab in the strip).
+void AerieSidebarDragHost::SyncStripToToday(
+    const std::map<std::string, tabs::TabInterface*>& lookup) {
+  using aerie_tab_model::ChildRef;
+  using aerie_tab_model::Section;
+  aerie_tab_model::TabModel* model = view_->model_;
+  auto listed = [&](const std::string& id) {
+    return lookup.find(id) != lookup.end();
+  };
+  // The order of every parent now: the top of the section and each folder.
+  std::map<std::string, std::vector<ChildRef>> order;
+  order[std::string()] =
+      aerie_tab_model::OrderedChildren(*model, Section::kToday, std::string(),
+                                       /*listed_only=*/false, listed);
+  for (const auto& [id, folder] : model->folders()) {
+    if (folder.section == Section::kToday) {
+      order[id] = aerie_tab_model::OrderedChildren(
+          *model, Section::kToday, id, /*listed_only=*/false, listed);
+    }
+  }
+  // The tabs of this window in list order.
+  std::vector<tabs::TabInterface*> wanted;
+  std::function<void(const std::string&)> walk = [&](const std::string& parent) {
+    auto it = order.find(parent);
+    if (it == order.end()) {
+      return;
+    }
+    for (const ChildRef& child : it->second) {
+      if (child.is_folder) {
+        walk(child.id);
+      } else if (auto tab = lookup.find(child.id); tab != lookup.end()) {
+        wanted.push_back(tab->second);
+      }
+    }
+  };
+  walk(std::string());
+
+  TabStripModel* strip = view_->browser_->GetTabStripModel();
+  std::map<tabs::TabInterface*, std::string> id_of;
+  for (const auto& [id, tab] : lookup) {
+    id_of[tab] = id;
+  }
+  auto today_slots = [&] {
+    std::vector<int> slots;
+    for (int i = 0; i < strip->count(); ++i) {
+      auto it = id_of.find(strip->GetTabAtIndex(i));
+      const aerie_tab_model::TabRecord* record =
+          it == id_of.end() ? nullptr : model->GetTab(it->second);
+      if (record && record->section == Section::kToday) {
+        slots.push_back(i);
+      }
+    }
+    return slots;
+  };
+  for (size_t i = 0; i < wanted.size(); ++i) {
+    const std::vector<int> slots = today_slots();
+    if (i >= slots.size()) {
+      break;
+    }
+    const int from = strip->GetIndexOfTab(wanted[i]);
+    if (from >= 0 && from != slots[i]) {
+      strip->MoveWebContentsAt(from, slots[i], /*select_after_move=*/false);
+    }
+  }
+  // The strip moves wrote strip indices; put the order of the list back.
+  for (const auto& [parent, children] : order) {
+    for (size_t i = 0; i < children.size(); ++i) {
+      const int position = static_cast<int>(i);
+      if (children[i].is_folder) {
+        const aerie_tab_model::FolderRecord* folder =
+            model->GetFolder(children[i].id);
+        if (folder && folder->position != position) {
+          model->MoveFolder(folder->id, folder->section, folder->parent,
+                            position);
+        }
+      } else {
+        const aerie_tab_model::TabRecord* tab = model->GetTab(children[i].id);
+        if (tab && tab->position != position) {
+          model->MoveTab(tab->id, tab->section, tab->parent, position);
+        }
+      }
     }
   }
 }

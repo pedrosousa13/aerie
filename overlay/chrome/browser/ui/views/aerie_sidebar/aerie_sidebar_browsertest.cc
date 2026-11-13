@@ -882,4 +882,23 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarBrowserTest, TheAccessibilityTreeHasTheRolesN
   EXPECT_EQ(NameOf(close), "Close tab");
 }
 
-
+// A move of the tab strip from anywhere (the tab strip itself, the keyboard,
+// a drag) puts the Today list in the same order (issue #215, item 8).
+IN_PROC_BROWSER_TEST_F(AerieSidebarBrowserTest, TheListFollowsAMoveOfTheStripFromAnywhere) {
+  auto* service = aerie_tab_model::TabModelServiceFactory::GetForProfile(
+      browser()->GetProfile());
+  while (browser()->tab_strip_model()->count() < 3) {
+    chrome::ExecuteCommand(browser(), IDC_NEW_TAB);
+  }
+  ASSERT_TRUE(WaitFor([&] { return sidebar()->row_count() == 3u; }));
+  auto id_at = [&](int index) {
+    return service->adapter()->RecordIdForTab(
+        browser()->tab_strip_model()->GetTabAtIndex(index));
+  };
+  const std::string first = id_at(0);
+  browser()->tab_strip_model()->MoveWebContentsAt(0, 2, false);
+  ASSERT_TRUE(WaitFor([&] { return sidebar()->tab_id_at(2) == first; }));
+  for (int i = 0; i < 3; ++i) {
+    EXPECT_EQ(service->model()->GetTab(id_at(i))->position, i);
+  }
+}

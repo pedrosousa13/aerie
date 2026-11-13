@@ -288,6 +288,11 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarDragBrowserTest, DraggingARowDownReordersToda
   ASSERT_EQ(sidebar()->tab_id_at(0), a);
   DragAndDrop(a, [&] { return sidebar()->row_at(2); }, 80);
   EXPECT_EQ(Children(Section::kToday), (std::vector<std::string>{b, c, a}));
+  // The window's tab strip has the same order (a Today drop moves the tab in
+  // the strip, and the strip told the model nothing different).
+  EXPECT_EQ(IdAt(0), b);
+  EXPECT_EQ(IdAt(1), c);
+  EXPECT_EQ(IdAt(2), a);
   EXPECT_EQ(sidebar()->tab_id_at(0), b);
   EXPECT_EQ(sidebar()->tab_id_at(1), c);
   EXPECT_EQ(sidebar()->tab_id_at(2), a);
@@ -303,6 +308,9 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarDragBrowserTest, DraggingARowUpMovesItAboveTh
   const std::string a = IdAt(0), b = IdAt(1), c = IdAt(2);
   DragAndDrop(c, [&] { return sidebar()->row_at(0); }, 20);
   EXPECT_EQ(Children(Section::kToday), (std::vector<std::string>{c, a, b}));
+  EXPECT_EQ(IdAt(0), c);
+  EXPECT_EQ(IdAt(1), a);
+  EXPECT_EQ(IdAt(2), b);
 }
 
 IN_PROC_BROWSER_TEST_F(AerieSidebarDragBrowserTest, ADropOnItsOwnSlotChangesNothing) {
@@ -355,6 +363,10 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarDragBrowserTest, ADropOnTheMiddleOfAFolderPut
   EXPECT_EQ(model()->GetTab(a)->parent, folder);
   EXPECT_EQ(model()->GetTab(b)->parent, "");
   EXPECT_EQ(Children(Section::kToday, folder), (std::vector<std::string>{a}));
+  // The folder row comes first, then its tab, then the loose one: the strip
+  // is in that order too, and the folder's record order is the model's.
+  EXPECT_EQ(IdAt(0), a);
+  EXPECT_EQ(IdAt(1), b);
 }
 
 IN_PROC_BROWSER_TEST_F(AerieSidebarDragBrowserTest, TheEdgesOfAFolderRowMeanBeforeAndAfter) {
@@ -660,10 +672,16 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarDragBrowserTest, AltArrowsMoveTheFocusedRowAn
   const std::string a = IdAt(0), b = IdAt(1), c = IdAt(2);
   sidebar()->MoveKeyForTesting(a, aerie_sidebar::MoveKey::kDown, /*today=*/true);
   EXPECT_EQ(Children(Section::kToday), (std::vector<std::string>{b, a, c}));
+  EXPECT_EQ(IdAt(0), b);
+  EXPECT_EQ(IdAt(1), a);
+  EXPECT_EQ(IdAt(2), c);
   EXPECT_EQ(sidebar()->last_announcement_for_testing(),
             u"Moved to Today, position 2 of 3");
   sidebar()->MoveKeyForTesting(a, aerie_sidebar::MoveKey::kUp, true);
   EXPECT_EQ(Children(Section::kToday), (std::vector<std::string>{a, b, c}));
+  EXPECT_EQ(IdAt(0), a);
+  EXPECT_EQ(IdAt(1), b);
+  EXPECT_EQ(IdAt(2), c);
   // Nothing before the first row; nothing happens, nothing is written.
   const int64_t before = model()->next_change();
   sidebar()->MoveKeyForTesting(a, aerie_sidebar::MoveKey::kUp, true);
