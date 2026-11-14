@@ -380,11 +380,11 @@ void AerieSidebarArchivePanel::ClosePanel(bool refocus_button) {
   }
   refocus_ = refocus_button;
   views::Widget* widget = GetWidget();
+  // The host hears of it now, not when the widget has finished closing.
+  OnClosing();
   if (widget && !widget->IsClosed()) {
     // No closing animation: the widget goes at once.
     widget->Close();
-  } else {
-    OnClosing();
   }
 }
 
