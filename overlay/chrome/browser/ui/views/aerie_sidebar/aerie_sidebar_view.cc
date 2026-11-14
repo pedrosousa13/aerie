@@ -55,7 +55,7 @@
 #include "components/aerie_frame/aerie_frame_palette.h"
 #include "components/aerie_sidebar/aerie_sidebar_density.h"
 #include "components/aerie_sidebar/aerie_sidebar_drag.h"
-#include "components/aerie_sidebar/aerie_sidebar_floating.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_floating.h"
 #include "components/aerie_sidebar/aerie_sidebar_prefs.h"
 #include "components/aerie_sidebar/aerie_sidebar_layout.h"
 #include "components/aerie_sidebar/aerie_sidebar_motion.h"
@@ -92,6 +92,7 @@
 #include "ui/views/layout/box_layout_view.h"
 #include "ui/views/layout/fill_layout.h"
 #include "ui/views/style/typography.h"
+#include "ui/views/view_class_properties.h"
 #include "ui/views/widget/widget.h"
 #include "ui/views/bubble/bubble_anchor.h"
 
@@ -481,6 +482,10 @@ AerieSidebarView::~AerieSidebarView() {
   }
 }
 
+views::View* AerieSidebarView::new_tab_row_for_testing() const {
+  return new_tab_row_;
+}
+
 bool AerieSidebarView::side_on_right() const {
   return aerie_sidebar::IsOnRight(*profile_prefs());
 }
@@ -585,6 +590,50 @@ void AerieSidebarView::UpdatePeekSurface() {
 
 void AerieSidebarView::OnBoundsChanged(const gfx::Rect& previous_bounds) {
   UpdatePeekSurface();
+  UpdateRailInset();
+}
+
+void AerieSidebarView::UpdateRailInset() {
+  if (!sizes_.icons_only || width() <= 0) {
+    return;
+  }
+  // The rail centres its square tiles in whatever the region leaves of the
+  // 56 px column (the region keeps a small margin of its own). A width that is
+  // not the rail's yet (the density just changed) is corrected by the bounds
+  // change that follows.
+  // The lists keep room for the focus ring around their rows, so their rows
+  // are narrower than the column by that room on each side. The other
+  // children make up for it with a margin of the same size, so that every
+  // tile in the rail is the same square.
+  constexpr int kRingRoom = static_cast<int>(
+      aerie::tokens::kSizeFocusRingOffset + aerie::tokens::kSizeFocusRingWidth);
+  const int inset = std::max(0, (width() - sizes_.tile) / 2 - kRingRoom);
+  if (box_layout_->inside_border_insets().left() != inset) {
+    box_layout_->set_inside_border_insets(
+        gfx::Insets::VH(aerie::tokens::kSpace8, inset));
+  }
+  SetRailMargins(true);
+}
+
+void AerieSidebarView::SetRailMargins(bool rail) {
+  constexpr int kRingRoom = static_cast<int>(
+      aerie::tokens::kSizeFocusRingOffset + aerie::tokens::kSizeFocusRingWidth);
+  for (views::View* child :
+       {static_cast<views::View*>(top_row_.get()),
+        static_cast<views::View*>(pill_.get()),
+        static_cast<views::View*>(favorites_grid_.get()),
+        static_cast<views::View*>(favorites_divider_.get()),
+        static_cast<views::View*>(new_tab_row_.get()),
+        static_cast<views::View*>(bottom_bar_.get())}) {
+    if (!child) {
+      continue;
+    }
+    if (rail) {
+      child->SetProperty(views::kMarginsKey, gfx::Insets::VH(0, kRingRoom));
+    } else {
+      child->ClearProperty(views::kMarginsKey);
+    }
+  }
 }
 
 void AerieSidebarView::ApplyDensity() {
@@ -616,10 +665,14 @@ void AerieSidebarView::ApplyDensity() {
              2 * kPinnedRingRoom);
   new_tab_row_->SetPreferredSize(gfx::Size(0, sizes_.row_height));
   UpdateRail(sizes_.icons_only);
+  UpdateRailInset();
   InvalidateLayout();
 }
 
 void AerieSidebarView::UpdateRail(bool rail) {
+  if (!rail) {
+    SetRailMargins(false);
+  }
   top_row_->SetVertical(rail);
   today_header_->SetVisible(!rail);
   // The New Tab row keeps its name for a screen reader and its tooltip.

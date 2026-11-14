@@ -156,7 +156,7 @@ density change re-reads the width. A resize tells the sidebar view, so that the 
  #include "chrome/browser/ui/tabs/organizer/organizer_panel_utils.h"
  #include "chrome/browser/ui/tabs/tab_strip_model.h"
  #include "chrome/browser/ui/tabs/vertical_tab_strip_state.h"
-+#include "components/aerie_sidebar/aerie_sidebar_floating.h"
++#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_floating.h"
  #include "chrome/browser/ui/ui_features.h"
  #include "chrome/browser/ui/views/animations/organizer_panel_animations.h"
  #include "chrome/browser/ui/views/animations/side_panel_animations.h"
@@ -198,7 +198,7 @@ density change re-reads the width. A resize tells the sidebar view, so that the 
      "//base",
      "//build:buildflag_header_h",
      "//chrome/browser/ui:layout_constants",
-+    "//components/aerie_sidebar:floating",
++    "//chrome/browser/ui/views/aerie_sidebar",
      "//chrome/browser/ui:ui_features",
      "//chrome/browser/ui/browser_window",
      "//chrome/browser/ui/color:color_headers",

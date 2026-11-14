@@ -10,7 +10,7 @@
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_view.h"
 #include "components/aerie_design_tokens/aerie_tokens.h"
 #include "components/aerie_sidebar/aerie_sidebar_density.h"
-#include "components/aerie_sidebar/aerie_sidebar_floating.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_floating.h"
 #include "components/aerie_sidebar/aerie_sidebar_layout.h"
 #include "components/aerie_sidebar/aerie_sidebar_motion.h"
 #include "components/prefs/pref_service.h"

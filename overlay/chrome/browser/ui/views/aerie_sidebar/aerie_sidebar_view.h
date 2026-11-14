@@ -222,6 +222,8 @@ class AerieSidebarView : public views::View,
   const PrefService* profile_prefs() const;
   // The square Guard button that stands in for the address pill in the rail.
   views::ImageButton* guard_button() const { return guard_button_; }
+  views::View* today_header_for_testing() const { return today_header_; }
+  views::View* new_tab_row_for_testing() const;
   // Applies the density pref to every row, tile and region once. No animation.
   void ApplyDensity();
   // The auto-hide peek of this window. Made with the view; inactive unless the
@@ -506,6 +508,8 @@ class AerieSidebarView : public views::View,
   void OnLayoutPrefsChanged();
   void UpdateRail(bool rail);
   void UpdatePeekSurface();
+  void UpdateRailInset();
+  void SetRailMargins(bool rail);
 
   // Dragging a row or a tile (issues #215 and #182): the callbacks of the rows
   // and tiles go to AerieSidebarDragController, which is made on the first

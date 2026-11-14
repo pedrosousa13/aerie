@@ -2,8 +2,8 @@
 // You can use, redistribute, and/or modify this source code under
 // the terms of the GPL-3.0 license that can be found in the LICENSE file.
 
-#ifndef COMPONENTS_AERIE_SIDEBAR_AERIE_SIDEBAR_FLOATING_H_
-#define COMPONENTS_AERIE_SIDEBAR_AERIE_SIDEBAR_FLOATING_H_
+#ifndef CHROME_BROWSER_UI_VIEWS_AERIE_SIDEBAR_AERIE_SIDEBAR_FLOATING_H_
+#define CHROME_BROWSER_UI_VIEWS_AERIE_SIDEBAR_AERIE_SIDEBAR_FLOATING_H_
 
 #include "ui/base/class_properties.h"
 #include "ui/base/class_property.h"
@@ -20,4 +20,4 @@ extern const ui::ClassProperty<int>* const kFloatingWidth;
 
 }  // namespace aerie_sidebar
 
-#endif  // COMPONENTS_AERIE_SIDEBAR_AERIE_SIDEBAR_FLOATING_H_
+#endif  // CHROME_BROWSER_UI_VIEWS_AERIE_SIDEBAR_AERIE_SIDEBAR_FLOATING_H_
