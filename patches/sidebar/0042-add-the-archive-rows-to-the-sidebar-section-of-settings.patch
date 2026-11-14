@@ -1,0 +1,83 @@
+Aerie-Purpose: Put the "Archive Today tabs after" and "Keep archived tabs for" rows in the Sidebar section of Settings, let the settings page write the keep pref, and give the page its strings.
+Aerie-Upstream-Area: chrome/browser/resources/settings (appearance_page/appearance_layout_page.ts, appearance_page/appearance_layout_page.html.ts, BUILD.gn), chrome/browser/ui/webui/settings (settings_localized_strings_provider.cc), chrome/browser/extensions/api/settings_private (prefs_util.cc)
+Aerie-Kind: hook
+
+Issue #183. The rows, settings-aerie-archive-after-row and settings-aerie-archive-keep-row, are Lit
+elements in the overlay (chrome/browser/resources/settings/appearance_page/aerie_archive_*_row.*).
+Each is a settings-dropdown-menu. The first writes aerie.tabs.archive_after (12h, 24h, 7d or never;
+already in the settings_private allowlist since patches/sidebar/0010), the same pref the header
+menu of the Archive panel writes. The second writes aerie.tabs.archive_keep (7d, 30d, 90d or
+forever), added to the allowlist here as a string literal; a test compares it with
+aerie_tab_model::kArchiveKeep. Both take effect without a restart. Their strings are in the
+overlay's aerie_sidebar_strings.grdp, which patches/sidebar/0022 includes in generated_resources.grd;
+this patch hands them to the page. The elements sit in the "Sidebar" section, under the
+folder-rules row of patches/sidebar/0038.
+
+--- a/chrome/browser/resources/settings/BUILD.gn
++++ b/chrome/browser/resources/settings/BUILD.gn
+@@ -202,6 +202,10 @@
+     "ai_page/offer_writing_help_page.ts",
+     "ai_page/skills_page.html.ts",
+     "ai_page/skills_page.ts",
++    "appearance_page/aerie_archive_after_row.html.ts",
++    "appearance_page/aerie_archive_after_row.ts",
++    "appearance_page/aerie_archive_keep_row.html.ts",
++    "appearance_page/aerie_archive_keep_row.ts",
+     "appearance_page/aerie_folder_rules_row.html.ts",
+     "appearance_page/aerie_folder_rules_row.ts",
+     "appearance_page/aerie_motion_row.html.ts",
+--- a/chrome/browser/resources/settings/appearance_page/appearance_layout_page.ts
++++ b/chrome/browser/resources/settings/appearance_page/appearance_layout_page.ts
+@@ -3,6 +3,8 @@
+ // the terms of the GPL-3.0 license that can be found in the LICENSE file.
+ 
+ import '../settings_page/settings_section.js';
++import './aerie_archive_after_row.js';
++import './aerie_archive_keep_row.js';
+ import './aerie_folder_rules_row.js';
+ import './aerie_pinned_close_row.js';
+ import './aerie_sleep_row.js';
+--- a/chrome/browser/resources/settings/appearance_page/appearance_layout_page.html.ts
++++ b/chrome/browser/resources/settings/appearance_page/appearance_layout_page.html.ts
+@@ -13,6 +13,8 @@
+   <settings-aerie-sleep-row></settings-aerie-sleep-row>
+   <settings-aerie-pinned-close-row></settings-aerie-pinned-close-row>
+   <settings-aerie-folder-rules-row></settings-aerie-folder-rules-row>
++  <settings-aerie-archive-after-row></settings-aerie-archive-after-row>
++  <settings-aerie-archive-keep-row></settings-aerie-archive-keep-row>
+ </settings-section>
+ <!--_html_template_end_-->`;
+   // clang-format on
+--- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
++++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
+@@ -495,6 +495,9 @@
+   // The name is aerie_tab_model::kFolderRulesEnabled; a test compares the two.
+   (*s_allowlist)["aerie.folders.rules_enabled"] =
+       settings_api::PrefType::kBoolean;
++  // Aerie: how long the Archive keeps an archived tab (issue #183). The name
++  // is aerie_tab_model::kArchiveKeep; a test compares the two.
++  (*s_allowlist)["aerie.tabs.archive_keep"] = settings_api::PrefType::kString;
+   // Aerie: the sidebar's width and shown state (issue #177). The names are
+   // aerie_sidebar::kWidthPref and kVisiblePref; a test compares them. The
+   // layout pref is not here until issue #186 builds the second layout.
+--- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
++++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
+@@ -639,6 +639,18 @@
+       {"aeriePinnedCloseClose", IDS_SETTINGS_AERIE_PINNED_CLOSE_CLOSE},
+       {"aerieFolderRules", IDS_SETTINGS_AERIE_FOLDER_RULES},
+       {"aerieFolderRulesDesc", IDS_SETTINGS_AERIE_FOLDER_RULES_DESC},
++      {"aerieArchiveAfter", IDS_SETTINGS_AERIE_ARCHIVE_AFTER},
++      {"aerieArchiveAfterDesc", IDS_SETTINGS_AERIE_ARCHIVE_AFTER_DESC},
++      {"aerieArchiveAfter12Hours", IDS_AERIE_SIDEBAR_ARCHIVE_AFTER_12H},
++      {"aerieArchiveAfter24Hours", IDS_AERIE_SIDEBAR_ARCHIVE_AFTER_24H},
++      {"aerieArchiveAfter7Days", IDS_AERIE_SIDEBAR_ARCHIVE_AFTER_7D},
++      {"aerieArchiveAfterNever", IDS_AERIE_SIDEBAR_ARCHIVE_AFTER_NEVER},
++      {"aerieArchiveKeep", IDS_SETTINGS_AERIE_ARCHIVE_KEEP},
++      {"aerieArchiveKeepDesc", IDS_SETTINGS_AERIE_ARCHIVE_KEEP_DESC},
++      {"aerieArchiveKeep7Days", IDS_SETTINGS_AERIE_ARCHIVE_KEEP_7D},
++      {"aerieArchiveKeep30Days", IDS_SETTINGS_AERIE_ARCHIVE_KEEP_30D},
++      {"aerieArchiveKeep90Days", IDS_SETTINGS_AERIE_ARCHIVE_KEEP_90D},
++      {"aerieArchiveKeepForever", IDS_SETTINGS_AERIE_ARCHIVE_KEEP_FOREVER},
+       {"browserLayout", IDS_SETTINGS_BROWSER_LAYOUT},
+       {"browserLayoutClassic", IDS_SETTINGS_BROWSER_LAYOUT_CLASSIC},
+       {"browserLayoutDynamic", IDS_SETTINGS_BROWSER_LAYOUT_DYNAMIC},

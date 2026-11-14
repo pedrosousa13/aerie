@@ -155,3 +155,6 @@ sidebar/0038-add-the-folder-rules-row-to-the-sidebar-section-of-settings.patch
 sidebar/0039-save-the-tab-model-record-id-in-the-session.patch
 sidebar/0040-read-the-tab-model-record-id-when-restoring-a-tab.patch
 sidebar/0041-keep-the-tab-model-record-id-when-a-tab-is-closed.patch
+
+# Archiving unused Today tabs (#183): the "Archive Today tabs after" and "Keep archived tabs for" rows in the Sidebar section of Settings.
+sidebar/0042-add-the-archive-rows-to-the-sidebar-section-of-settings.patch
