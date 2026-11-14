@@ -722,3 +722,31 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarBusySourcesBrowserTest, F6FocusHoldsIt) {
       }),
       base::BindLambdaForTesting([&] { FocusPage(); }));
 }
+
+// A row that goes away in the middle of a rename (its tab closes) takes the
+// rename with it, and the hold on the peek goes too (issue #184 recheck).
+IN_PROC_BROWSER_TEST_F(AerieSidebarDensityBrowserTest,
+                       ARowDestroyedMidRenameReleasesTheHold) {
+  ASSERT_TRUE(
+      base::test::RunUntil([&] { return sidebar()->row_count() == 1u; }));
+  // A second tab, so that closing one leaves a window.
+  chrome::ExecuteCommand(browser(), IDC_NEW_TAB);
+  ASSERT_TRUE(
+      base::test::RunUntil([&] { return sidebar()->row_count() == 2u; }));
+  Choose("auto-hide");
+  FocusPage();
+  PeekOpen();
+  ASSERT_TRUE(Reaches(PeekState::kShown));
+  const std::string closing = sidebar()->tab_id_at(1);
+  sidebar()->row_at(1)->BeginRename(u"Name", prefs());
+  ASSERT_TRUE(peek()->controller().busy(PeekBusy::kRename));
+  MovePointerTo(browser_view()->GetBoundsInScreen().CenterPoint());
+  SpinFor(base::Milliseconds(500));
+  ASSERT_TRUE(peek()->controller().visible());
+  sidebar()->ContextCommandForTesting(
+      closing, AerieSidebarContextMenu::Command::kClose);
+  ASSERT_TRUE(base::test::RunUntil([&] { return sidebar()->row_count() == 1u; }));
+  ASSERT_TRUE(base::test::RunUntil(
+      [&] { return !peek()->controller().busy(PeekBusy::kRename); }));
+  EXPECT_TRUE(Reaches(PeekState::kHidden)) << FocusedName();
+}

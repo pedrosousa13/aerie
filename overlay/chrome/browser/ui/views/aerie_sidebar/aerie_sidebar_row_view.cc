@@ -258,6 +258,13 @@ AerieSidebarRowView::AerieSidebarRowView(
 }
 
 AerieSidebarRowView::~AerieSidebarRowView() {
+  // A rename that ends with the row (tab closed, resync, folder deleted) still
+  // ends: the sidebar looks again, once the row is out of its lists, so that
+  // the peek's rename hold is not left held.
+  if (renaming_ && callbacks_.rename_state_changed) {
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE, callbacks_.rename_state_changed);
+  }
   // The field's blur must not reach a row that is going away.
   renaming_ = false;
   weak_factory_.InvalidateWeakPtrs();
