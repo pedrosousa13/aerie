@@ -105,6 +105,11 @@ std::vector<ArchivedRow> ArchivedRows(const TabModel& model) {
     if (!tab.archived_at) {
       continue;
     }
+    // A record with no page to open (every entry was refused on load) has
+    // nothing to restore: it waits for retention and shows no row.
+    if (tab.archive && tab.archive->entries.empty()) {
+      continue;
+    }
     ArchivedRow row;
     row.id = id;
     row.workspace_id = tab.workspace_id;

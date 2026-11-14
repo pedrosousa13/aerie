@@ -120,6 +120,74 @@ TEST_F(ArchiveTest, ARecordWithABadArchiveBlockMakesTheFileCorrupt) {
   EXPECT_EQ(ParseState(json).status, LoadStatus::kCorrupt);
 }
 
+TEST_F(ArchiveTest, OnlyAnAddressChromiumMayLoadIsRestorable) {
+  EXPECT_TRUE(IsRestorableArchiveUrl("https://example.com/a?b=c#d"));
+  EXPECT_TRUE(IsRestorableArchiveUrl("http://127.0.0.1:8000/x"));
+  EXPECT_TRUE(IsRestorableArchiveUrl("chrome://settings/"));
+  EXPECT_FALSE(IsRestorableArchiveUrl(""));
+  EXPECT_FALSE(IsRestorableArchiveUrl("not a url"));
+  EXPECT_FALSE(IsRestorableArchiveUrl("javascript:alert(1)"));
+  EXPECT_FALSE(IsRestorableArchiveUrl("JaVaScRiPt:alert(document.cookie)"));
+  EXPECT_FALSE(IsRestorableArchiveUrl("  javascript:alert(1)"));
+  EXPECT_FALSE(IsRestorableArchiveUrl(
+      "https://example.com/" + std::string(3 * 1024 * 1024, 'a')));
+}
+
+TEST_F(ArchiveTest, HostileEntriesInTheFileAreDroppedWhenItIsRead) {
+  const std::string id = AddToday();
+  ASSERT_TRUE(ArchiveTab(model_, id, Data(), clock_.Now()));
+  base::DictValue json = model_.ToValue();
+  for (base::Value& tab : *json.FindList("tabs")) {
+    base::DictValue* archive = tab.GetDict().FindDict("archive");
+    ASSERT_TRUE(archive);
+    base::ListValue entries;
+    for (const char* url :
+         {"javascript:alert(document.domain)", "https://example.com/ok",
+          "garbage", ""}) {
+      base::DictValue item;
+      item.Set("url", url);
+      item.Set("title", "t");
+      entries.Append(std::move(item));
+    }
+    archive->Set("entries", std::move(entries));
+    archive->Set("url", "javascript:alert(1)");
+  }
+  ParseResult parsed = ParseState(json);
+  ASSERT_EQ(parsed.status, LoadStatus::kOk);
+  const TabRecord* found = nullptr;
+  for (const TabRecord& tab : parsed.state->tabs) {
+    if (tab.id == id) {
+      found = &tab;
+    }
+  }
+  ASSERT_TRUE(found && found->archive);
+  ASSERT_EQ(found->archive->entries.size(), 1u);
+  EXPECT_EQ(found->archive->entries[0].url, "https://example.com/ok");
+  // The shown address is never the refused one.
+  EXPECT_EQ(found->archive->url, "https://example.com/ok");
+}
+
+TEST_F(ArchiveTest, ARecordWithNoLoadableEntryShowsNoRowAndIsStillDropped) {
+  const std::string id = AddToday();
+  ASSERT_TRUE(ArchiveTab(model_, id, Data(), clock_.Now()));
+  base::DictValue json = model_.ToValue();
+  for (base::Value& tab : *json.FindList("tabs")) {
+    base::DictValue* archive = tab.GetDict().FindDict("archive");
+    base::ListValue entries;
+    base::DictValue item;
+    item.Set("url", "javascript:void(0)");
+    item.Set("title", "t");
+    entries.Append(std::move(item));
+    archive->Set("entries", std::move(entries));
+  }
+  TabModel reloaded(&clock_);
+  reloaded.MergeLoaded(std::move(ParseState(json).state));
+  ASSERT_TRUE(reloaded.GetTab(id));
+  EXPECT_TRUE(ArchivedRows(reloaded).empty());
+  clock_.Advance(base::Days(31));
+  EXPECT_EQ(PurgeArchive(reloaded, clock_.Now(), base::Days(30)), 1u);
+}
+
 TEST_F(ArchiveTest, AnArchivedRecordIsStoredNotWaitingForARestoredTab) {
   const std::string id = AddToday();
   ASSERT_TRUE(ArchiveTab(model_, id, Data(), clock_.Now()));

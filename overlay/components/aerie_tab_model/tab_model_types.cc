@@ -10,6 +10,8 @@
 #include "base/check.h"
 #include "base/notreached.h"
 #include "base/json/values_util.h"
+#include "url/gurl.h"
+#include "url/url_constants.h"
 
 namespace aerie_tab_model {
 
@@ -198,6 +200,18 @@ base::DictValue ArchiveToValue(const ArchiveData& archive) {
   return dict;
 }
 
+}  // namespace
+
+bool IsRestorableArchiveUrl(std::string_view url) {
+  if (url.size() > url::kMaxURLChars) {
+    return false;
+  }
+  const GURL parsed{std::string(url)};
+  return parsed.is_valid() && !parsed.SchemeIs(url::kJavaScriptScheme);
+}
+
+namespace {
+
 std::optional<ArchiveData> ArchiveFromValue(const base::DictValue& dict) {
   ArchiveData archive;
   const base::ListValue* entries = dict.FindList("entries");
@@ -215,7 +229,16 @@ std::optional<ArchiveData> ArchiveFromValue(const base::DictValue& dict) {
         !ReadString(*item, "title", entry.title)) {
       return std::nullopt;
     }
+    // An entry that Chromium must not load is dropped, not the whole record.
+    if (!IsRestorableArchiveUrl(entry.url)) {
+      continue;
+    }
     archive.entries.push_back(std::move(entry));
+  }
+  if (!IsRestorableArchiveUrl(archive.url)) {
+    archive.url =
+        archive.entries.empty() ? std::string() : archive.entries.back().url;
+    archive.favicon_key = archive.url;
   }
   return archive;
 }

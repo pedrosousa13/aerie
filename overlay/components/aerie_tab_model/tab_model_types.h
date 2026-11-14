@@ -83,6 +83,14 @@ struct FiledBy {
 // to four before it (issue #183), so that a restored tab keeps its Back.
 inline constexpr size_t kMaxArchivedNavigationEntries = 5;
 
+// Whether an address read from an archived record may be handed back to
+// Chromium to load. Chromium's own session restore (components/sessions,
+// chrome/browser/sessions) filters nothing per entry, so Aerie is stricter: an
+// address that does not parse, a `javascript:` address and one longer than
+// `url::kMaxURLChars` are refused. A state file is user data on disk; it must
+// not be able to run script in the page a restore opens.
+bool IsRestorableArchiveUrl(std::string_view url);
+
 // One navigation entry of an archived tab. Only the address and the title: the
 // page state of a session entry holds form data and scroll position, and the
 // Archive does not write that to disk.
