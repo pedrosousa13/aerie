@@ -95,6 +95,7 @@ source_set("aerie_sidebar") {
     "//components/aerie_sidebar:layout",
     "//components/aerie_sidebar:motion",
     "//components/aerie_sidebar:peek",
+    "//components/aerie_sidebar:prefs",
     "//components/favicon/content",
     "//components/prefs",
     "//components/tabs:public",
