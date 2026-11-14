@@ -241,12 +241,6 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
   top_row_ = AddChildView(std::make_unique<AerieSidebarTopRow>(
       std::move(top_row_callbacks), palette_));
 
-  // The card and shadow of the floating (peeked) sidebar, under everything
-  // (issue #184). Hidden unless the sidebar floats.
-  peek_surface_ =
-      AddChildViewAt(std::make_unique<AerieSidebarPeekSurface>(), 0);
-  peek_surface_->SetVisible(false);
-
   // Address pill: the real location bar goes in when the toolbar has made it.
   pill_ = AddChildView(std::make_unique<AerieSidebarPill>());
   pill_->SetLayoutManager(std::make_unique<views::FillLayout>());
@@ -575,16 +569,50 @@ void AerieSidebarView::OnLayoutPrefsChanged() {
   UpdatePeekSurface();
 }
 
+void AerieSidebarView::AddPeekSurface() {
+  views::View* parent_view = parent();
+  if (surface_tracker_.view() || !parent_view) {
+    return;
+  }
+  auto card = std::make_unique<AerieSidebarPeekSurface>();
+  surface_tracker_.SetView(card.get());
+  parent_view->AddChildViewAt(std::move(card), *parent_view->GetIndexOf(this));
+  UpdatePeekSurface();
+}
+
 void AerieSidebarView::UpdatePeekSurface() {
   const bool floating =
       peek_ && peek_->active() && aerie_sidebar::IsAutoHidden(*profile_prefs());
-  peek_surface_->SetVisible(floating);
+  // The card is a sibling under this view, in the column that holds it: a child
+  // layer would paint over the rows that have no layer of their own, and the
+  // shadow has to fall outside this view's bounds. This view paints to a layer
+  // while it floats, so that it stays above the card.
+  views::View* parent_view = parent();
+  views::View* surface = surface_tracker_.view();
+  if (!surface && floating && parent_view) {
+    // The parent may be walking its children (this runs from AddedToWidget):
+    // the card is added in a task of its own.
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE, base::BindOnce(&AerieSidebarView::AddPeekSurface,
+                                  weak_factory_.GetWeakPtr()));
+    return;
+  }
+  if (!surface) {
+    return;
+  }
+  auto* card = static_cast<AerieSidebarPeekSurface*>(surface);
+  card->SetVisible(floating);
   if (floating) {
-    peek_surface_->SetColours(palette_);
-    const int room = AerieSidebarPeekSurface::ShadowRoom();
-    gfx::Rect rect = GetLocalBounds();
-    rect.Outset(room);
-    peek_surface_->SetBoundsRect(rect);
+    if (!layer()) {
+      SetPaintToLayer();
+      layer()->SetFillsBoundsOpaquely(false);
+    }
+    card->SetColours(palette_);
+    gfx::Rect rect = bounds();
+    rect.Outset(AerieSidebarPeekSurface::ShadowRoom());
+    card->SetBoundsRect(rect);
+  } else if (layer()) {
+    DestroyLayer();
   }
 }
 
@@ -699,6 +727,8 @@ void AerieSidebarView::UpdateRail(bool rail) {
         weak_factory_.GetWeakPtr()));
     button->SetImageModel(views::Button::STATE_NORMAL,
                           aerie_guard::GuardImage(false, std::u16string()));
+    button->SetImageHorizontalAlignment(views::ImageButton::ALIGN_CENTER);
+    button->SetImageVerticalAlignment(views::ImageButton::ALIGN_MIDDLE);
     button->SetPreferredSize(
         gfx::Size(aerie::tokens::kSizeRailTile, aerie::tokens::kSizeRailTile));
     button->GetViewAccessibility().SetName(

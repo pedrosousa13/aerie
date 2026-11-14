@@ -36,6 +36,7 @@
 #include "ui/gfx/geometry/point.h"
 #include "ui/views/context_menu_controller.h"
 #include "ui/views/view.h"
+#include "ui/views/view_tracker.h"
 
 class BrowserWindowInterface;
 class AerieSidebarRowView;
@@ -508,6 +509,7 @@ class AerieSidebarView : public views::View,
   void OnLayoutPrefsChanged();
   void UpdateRail(bool rail);
   void UpdatePeekSurface();
+  void AddPeekSurface();
   void UpdateRailInset();
   void SetRailMargins(bool rail);
 
@@ -547,7 +549,7 @@ class AerieSidebarView : public views::View,
   aerie_sidebar::DensitySizes sizes_ =
       aerie_sidebar::SizesFor(aerie_sidebar::Density::kComfortable);
   bool resizing_ = false;
-  raw_ptr<AerieSidebarPeekSurface> peek_surface_ = nullptr;
+  views::ViewTracker surface_tracker_;
   std::unique_ptr<AerieSidebarPeekDriver> peek_;
   std::u16string new_tab_label_;
   raw_ptr<views::View> bottom_bar_ = nullptr;
