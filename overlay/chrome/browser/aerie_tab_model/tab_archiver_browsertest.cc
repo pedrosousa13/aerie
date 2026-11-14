@@ -11,13 +11,15 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "base/command_line.h"
 #include "base/functional/bind.h"
 #include "base/run_loop.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/test/run_until.h"
 #include "base/test/simple_test_clock.h"
 #include "base/test/simple_test_tick_clock.h"
+#include "base/power_monitor/power_observer.h"
 #include "base/time/time.h"
 #include "chrome/browser/aerie_tab_model/pinned_tabs_controller.h"
 #include "chrome/browser/aerie_tab_model/tab_archiver_factory.h"
@@ -35,6 +37,7 @@
 #include "components/aerie_tab_model/tab_model.h"
 #include "components/aerie_tab_model/tab_model_prefs.h"
 #include "components/prefs/pref_service.h"
+#include "components/sessions/core/serialized_navigation_entry.h"
 #include "components/sessions/core/tab_restore_service.h"
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/web_contents.h"
@@ -139,16 +142,11 @@ class AerieTabArchiverBrowserTest : public InProcessBrowserTest {
     return restore ? restore->entries().size() : 0;
   }
 
+  // Runs the message loop until `done` is true. It waits for the event, with
+  // no sleep and no real-time poll; it fails after the test timeout.
   template <typename Predicate>
   bool WaitFor(Predicate done) {
-    const base::TimeTicks deadline = base::TimeTicks::Now() + base::Seconds(10);
-    while (!done() && base::TimeTicks::Now() < deadline) {
-      base::RunLoop loop;
-      base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
-          FROM_HERE, loop.QuitClosure(), base::Milliseconds(20));
-      loop.Run();
-    }
-    return done();
+    return base::test::RunUntil(done);
   }
 
   base::SimpleTestClock clock_;
@@ -348,6 +346,117 @@ IN_PROC_BROWSER_TEST_F(AerieTabArchiverBrowserTest,
   const std::string id = OpenBackgroundTab();
   strip()->CloseWebContentsAt(IndexOf(id), TabCloseTypes::CLOSE_NONE);
   EXPECT_FALSE(model()->GetTab(id));
+}
+
+IN_PROC_BROWSER_TEST_F(AerieTabArchiverBrowserTest,
+                       ATabThatCannotBeReopenedStaysInTheArchive) {
+  const std::string id = OpenBackgroundTab();
+  AdvanceClock(base::Hours(12));
+  ASSERT_TRUE(IsArchived(id));
+  const int count = strip()->count();
+  // The tab does not open (nothing is returned).
+  archiver_->SetTabAdderForTesting(base::BindRepeating(
+      [](BrowserWindowInterface*,
+         const std::vector<sessions::SerializedNavigationEntry>&, int,
+         int) -> content::WebContents* { return nullptr; }));
+  EXPECT_EQ(archiver_->Restore(id, browser()), nullptr);
+  EXPECT_EQ(strip()->count(), count);
+  // The record is still an archived record, listed, not a Today record with no
+  // tab.
+  const TabRecord* record = model()->GetTab(id);
+  ASSERT_TRUE(record);
+  EXPECT_TRUE(record->archived_at);
+  ASSERT_TRUE(record->archive);
+  EXPECT_EQ(record->archive->url,
+            embedded_test_server()->GetURL("/title1.html").spec());
+  EXPECT_EQ(ArchivedRows(*model()).size(), 1u);
+  // And it can still be restored afterwards.
+  archiver_->SetTabAdderForTesting(TabArchiver::TabAdder());
+  EXPECT_TRUE(archiver_->Restore(id, browser()));
+  EXPECT_FALSE(IsArchived(id));
+}
+
+IN_PROC_BROWSER_TEST_F(AerieTabArchiverBrowserTest,
+                       AHostileAddressInTheRecordIsNeverHandedBackToTheBrowser) {
+  const std::string id = OpenBackgroundTab();
+  AdvanceClock(base::Hours(12));
+  ASSERT_TRUE(IsArchived(id));
+  model()->UpdateTab(id, [](TabRecord& tab) {
+    tab.archive->entries = {{"javascript:alert(document.cookie)", "x"}};
+  });
+  const int count = strip()->count();
+  EXPECT_EQ(archiver_->Restore(id, browser()), nullptr);
+  EXPECT_EQ(strip()->count(), count);
+  EXPECT_TRUE(IsArchived(id));
+}
+
+IN_PROC_BROWSER_TEST_F(AerieTabArchiverBrowserTest,
+                       AWakeFromSleepArmsTheTimerAgainByTheWallClock) {
+  const std::string id = OpenBackgroundTab();
+  // The computer sleeps 13 hours: the wall clock moves, the monotonic clock
+  // (the timer's) does not.
+  clock_.Advance(base::Hours(13));
+  EXPECT_FALSE(IsArchived(id));
+  ASSERT_TRUE(archiver_->schedule()->next_fire_in());
+  EXPECT_GT(*archiver_->schedule()->next_fire_in(), base::Hours(11));
+  // The resume reaches the archiver as the PowerMonitor delivers it, through
+  // base::PowerSuspendObserver (the monitor itself is the browser's own here and
+  // takes no test events).
+  static_cast<base::PowerSuspendObserver*>(archiver_)->OnResume();
+  ASSERT_TRUE(archiver_->schedule()->next_fire_in());
+  EXPECT_LE(*archiver_->schedule()->next_fire_in(), base::TimeDelta());
+  ASSERT_TRUE(WaitFor([&] { return IsArchived(id); }));
+}
+
+IN_PROC_BROWSER_TEST_F(AerieTabArchiverBrowserTest,
+                       AudioStartingAndStoppingArmTheTimerThroughTheObserver) {
+  const std::string audible = OpenBackgroundTab();
+  ASSERT_TRUE(archiver_->schedule()->timer_pending());
+  EXPECT_EQ(archiver_->schedule()->next_fire_in(), base::Hours(12));
+  content::WebContents* contents = strip()->GetWebContentsAt(IndexOf(audible));
+  ASSERT_TRUE(content::ExecJs(contents, R"(
+      globalThis.ctx = new AudioContext();
+      const osc = ctx.createOscillator();
+      osc.connect(ctx.destination);
+      osc.start();
+      ctx.resume();)"));
+  ASSERT_TRUE(WaitFor([&] { return contents->IsCurrentlyAudible(); }));
+  // The only other candidate is the selected tab, also exempt: nothing is due.
+  ASSERT_TRUE(WaitFor([&] { return !archiver_->schedule()->timer_pending(); }));
+  // Some time passes while it plays; then the sound stops.
+  clock_.Advance(base::Hours(5));
+  tick_clock_.Advance(base::Hours(5));
+  ASSERT_TRUE(content::ExecJs(contents, "ctx.close();"));
+  ASSERT_TRUE(WaitFor([&] { return !contents->IsCurrentlyAudible(); }));
+  ASSERT_TRUE(WaitFor([&] { return archiver_->schedule()->timer_pending(); }));
+  // Its time starts again from the end of the sound.
+  EXPECT_EQ(archiver_->schedule()->next_fire_in(), base::Hours(12));
+}
+
+IN_PROC_BROWSER_TEST_F(AerieTabArchiverBrowserTest,
+                       ShuttingTheArchiverDownStopsTheTimerForGood) {
+  const std::string id = OpenBackgroundTab();
+  ASSERT_TRUE(archiver_->schedule()->timer_pending());
+  archiver_->Shutdown();
+  EXPECT_FALSE(archiver_->schedule()->timer_pending());
+  AdvanceClock(base::Days(2));
+  EXPECT_FALSE(IsArchived(id));
+  EXPECT_EQ(strip()->count(), 2);
+}
+
+class AerieTabArchiverStartupBrowserTest : public InProcessBrowserTest {};
+
+IN_PROC_BROWSER_TEST_F(AerieTabArchiverStartupBrowserTest,
+                       NoArchiverAndNoTimerExistUntilTheSidebarAsksForIt) {
+  Profile* profile = browser()->GetProfile();
+  // The window is open and the tab model is there, but nothing has asked for
+  // the archiver (the sidebar does after a few seconds): it costs nothing at
+  // startup and no timer is armed.
+  EXPECT_TRUE(TabModelServiceFactory::GetForProfile(profile));
+  EXPECT_EQ(TabArchiverFactory::GetForProfileIfExists(profile), nullptr);
+  TabArchiver* archiver = TabArchiverFactory::GetForProfile(profile);
+  ASSERT_TRUE(archiver);
+  EXPECT_EQ(TabArchiverFactory::GetForProfileIfExists(profile), archiver);
 }
 
 }  // namespace aerie_tab_model

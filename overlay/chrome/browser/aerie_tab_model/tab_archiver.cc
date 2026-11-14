@@ -127,6 +127,9 @@ TabArchiver::TabArchiver(Profile* profile,
 TabArchiver::~TabArchiver() = default;
 
 void TabArchiver::Shutdown() {
+  // First: a RunDueNow that is late must not close a tab while the profile
+  // goes away.
+  schedule_.Shutdown();
   audio_observers_.clear();
   browser_collection_observation_.Reset();
   pref_registrar_.RemoveAll();
@@ -320,8 +323,16 @@ content::WebContents* TabArchiver::Restore(const std::string& record_id,
       !record->archive || record->archive->entries.empty()) {
     return nullptr;
   }
+  // What the record holds now, to put it back if the tab cannot be opened.
+  const ArchiveData saved = *record->archive;
+  const base::Time saved_at = *record->archived_at;
   std::vector<sessions::SerializedNavigationEntry> navigations;
-  for (const ArchivedNavigation& entry : record->archive->entries) {
+  for (const ArchivedNavigation& entry : saved.entries) {
+    // Checked again here (it is also checked when the file is read): an
+    // address Chromium must not load is never handed to it.
+    if (!IsRestorableArchiveUrl(entry.url)) {
+      continue;
+    }
     const GURL url(entry.url);
     sessions::SerializedNavigationEntry navigation;
     navigation.set_index(static_cast<int>(navigations.size()));
@@ -329,6 +340,9 @@ content::WebContents* TabArchiver::Restore(const std::string& record_id,
     navigation.set_original_request_url(url);
     navigation.set_title(base::UTF8ToUTF16(entry.title));
     navigations.push_back(std::move(navigation));
+  }
+  if (navigations.empty()) {
+    return nullptr;
   }
   const int selected = static_cast<int>(navigations.size()) - 1;
   if (!RestoreArchivedTab(*model, record_id, clock_->Now())) {
@@ -349,15 +363,26 @@ content::WebContents* TabArchiver::Restore(const std::string& record_id,
   // The adapter joins the tab that this call inserts to the record, instead of
   // making it a new Today tab.
   adapter->SetPendingRestoreRecord(record_id);
-  content::WebContents* contents = chrome::AddRestoredTab(
-      browser, navigations, index, selected,
-      /*extension_app_id=*/std::string(), /*group=*/std::nullopt,
-      /*select=*/true, /*pin=*/false,
-      /*last_active_time_ticks=*/base::TimeTicks(),
-      /*last_active_time=*/base::Time(), /*storage_namespace=*/nullptr,
-      sessions::SerializedUserAgentOverride(), /*extra_data=*/{},
-      /*from_session_restore=*/false, /*is_active_browser=*/std::nullopt);
+  content::WebContents* contents =
+      tab_adder_ ? tab_adder_.Run(browser, navigations, index, selected)
+                 : chrome::AddRestoredTab(
+                       browser, navigations, index, selected,
+                       /*extension_app_id=*/std::string(),
+                       /*group=*/std::nullopt,
+                       /*select=*/true, /*pin=*/false,
+                       /*last_active_time_ticks=*/base::TimeTicks(),
+                       /*last_active_time=*/base::Time(),
+                       /*storage_namespace=*/nullptr,
+                       sessions::SerializedUserAgentOverride(),
+                       /*extra_data=*/{},
+                       /*from_session_restore=*/false,
+                       /*is_active_browser=*/std::nullopt);
   adapter->SetPendingRestoreRecord(std::string());
+  if (!contents) {
+    // The tab did not open. The record goes back to the Archive as it was, so
+    // it is not left as a Today record with no tab.
+    ArchiveTab(*model, record_id, saved, saved_at);
+  }
   return contents;
 }
 
