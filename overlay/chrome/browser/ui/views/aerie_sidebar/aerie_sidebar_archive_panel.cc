@@ -329,7 +329,7 @@ void AerieSidebarArchivePanel::BuildList() {
           archived, host_->WorkspaceName(archived.workspace_id), palette_,
           views::Button::PressedCallback(), this));
       row->SetCallback(base::BindRepeating(
-          &AerieSidebarArchivePanel::ChooseRow, GetWeakPtr(),
+          &AerieSidebarArchivePanel::OnRowPressed, GetWeakPtr(),
           base::Unretained(row)));
     }
   }
@@ -360,16 +360,16 @@ std::vector<std::u16string> AerieSidebarArchivePanel::group_titles() const {
 void AerieSidebarArchivePanel::ChooseRow(size_t index) {
   const auto all = rows();
   if (index < all.size()) {
-    ChooseRow(all[index]);
+    RestoreRow(all[index]);
   }
 }
 
-void AerieSidebarArchivePanel::ChooseRow(AerieSidebarArchiveRow* row,
-                                         const ui::Event&) {
-  ChooseRow(row);
+void AerieSidebarArchivePanel::OnRowPressed(AerieSidebarArchiveRow* row,
+                                            const ui::Event&) {
+  RestoreRow(row);
 }
 
-void AerieSidebarArchivePanel::ChooseRow(AerieSidebarArchiveRow* row) {
+void AerieSidebarArchivePanel::RestoreRow(AerieSidebarArchiveRow* row) {
   if (!row || closed_) {
     return;
   }

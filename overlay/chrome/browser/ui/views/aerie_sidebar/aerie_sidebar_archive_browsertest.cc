@@ -225,6 +225,7 @@ class AerieSidebarArchiveBrowserTest : public InProcessBrowserTest {
     data.url = url;
     data.title = title;
     data.favicon_key = url;
+    data.entries = {{url, title}};
     tab.archive = data;
     return model()->AddTab(std::move(tab));
   }

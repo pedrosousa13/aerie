@@ -100,8 +100,8 @@ class AerieSidebarArchivePanel : public views::BubbleDialogDelegate,
   // Restores the row `index` (as a click does).
   void ChooseRow(size_t index);
   // A click on a row: the callback of the row binds the row itself.
-  void ChooseRow(AerieSidebarArchiveRow* row, const ui::Event& event);
-  void ChooseRow(AerieSidebarArchiveRow* row);
+  void OnRowPressed(AerieSidebarArchiveRow* row, const ui::Event& event);
+  void RestoreRow(AerieSidebarArchiveRow* row);
   void ClosePanel(bool refocus_button);
 
   // views::TextfieldController:
