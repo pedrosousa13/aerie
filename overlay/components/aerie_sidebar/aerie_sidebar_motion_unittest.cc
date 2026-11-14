@@ -53,7 +53,7 @@ TEST(AerieSidebarMotionTest, ReducedPeekIsAHundredMillisecondFadeWithNoTransform
   EXPECT_TRUE(hide.animate_opacity);
   EXPECT_EQ(hide.from_opacity, 1.f);
   EXPECT_EQ(hide.to_opacity, 0.f);
-  EXPECT_LE(hide.duration_ms, 100);
+  EXPECT_EQ(hide.duration_ms, 100);
 }
 
 TEST(AerieSidebarMotionTest, HideIsBaseOnAccelerate) {

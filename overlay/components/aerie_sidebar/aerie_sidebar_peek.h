@@ -7,7 +7,10 @@
 
 #include <array>
 #include <memory>
+#include <utility>
+#include <vector>
 
+#include "base/functional/callback.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
@@ -163,14 +166,19 @@ class SidebarPeekController {
   // True when the pointer is neither near the sidebar nor within the grace.
   bool PointerAway() const;
   void Evaluate();
+  // While observers are being told of a change, an input that would start
+  // another one waits: true when `input` was queued (it runs after the loops).
+  bool Defer(void (SidebarPeekController::*input)());
   void Enter(PeekState next, base::TimeDelta timer);
   void OnTimer();
 
-  scoped_refptr<base::SequencedTaskRunner> runner_;
   PeekTimings timings_;
   base::OneShotTimer timer_;
   base::ObserverList<Observer> observers_;
   PeekState state_ = PeekState::kHidden;
+  bool notifying_ = false;
+  bool reevaluate_ = false;
+  std::vector<base::OnceClosure> deferred_;
   bool in_hot_zone_ = false;
   bool over_sidebar_ = false;
   bool outside_window_ = false;

@@ -45,7 +45,10 @@ source_set("peek") {
     "aerie_sidebar_peek.cc",
     "aerie_sidebar_peek.h",
   ]
-  deps = [ "//components/aerie_design_tokens:tokens" ]
+  deps = [
+    ":motion",
+    "//components/aerie_design_tokens:tokens",
+  ]
   public_deps = [ "//base" ]
 }
 

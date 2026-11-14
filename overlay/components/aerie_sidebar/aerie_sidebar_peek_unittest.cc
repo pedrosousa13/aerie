@@ -6,8 +6,10 @@
 
 #include <algorithm>
 #include <string>
+#include <utility>
 #include <vector>
 
+#include "base/memory/raw_ptr.h"
 #include "base/test/task_environment.h"
 #include "components/aerie_design_tokens/aerie_tokens.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -104,7 +106,8 @@ TEST_F(PeekTest, ReducedMotionShortensTheSlidesAndKeepsTheDelaysAndGrace) {
   const PeekTimings normal = PeekTimingsFor(false);
   const PeekTimings reduced = PeekTimingsFor(true);
   EXPECT_EQ(reduced.show, base::Milliseconds(100));
-  EXPECT_LT(reduced.hide, normal.hide);
+  // The design says the reduced peek is a 100 ms fade, in and out.
+  EXPECT_EQ(reduced.hide, base::Milliseconds(100));
   EXPECT_EQ(reduced.delay, normal.delay);
   EXPECT_EQ(reduced.leave, normal.leave);
   EXPECT_EQ(reduced.grace_x, normal.grace_x);
@@ -613,6 +616,77 @@ TEST_F(PeekTest, ASettledShownSidebarHasNoTimer) {
   EXPECT_FALSE(controller_.timer_pending());
   EXPECT_EQ(task_environment_.GetPendingMainThreadTaskCount(), 0u);
 }
+
+// An observer that feeds the controller from inside a notification, the way the
+// view's driver does when a sidebar comes on screen and asks where the pointer
+// is (issue #184 review). The controller must finish telling every observer
+// about one change before it takes the next one, so that no observer sees a
+// transition whose `from` is not the state it saw last.
+class FeedingObserver : public SidebarPeekController::Observer {
+ public:
+  explicit FeedingObserver(SidebarPeekController* controller)
+      : controller_(controller) {}
+  void OnPeekStateChanged(PeekState from, PeekState to) override {
+    if (to == S::kShown) {
+      // The pointer is not over the sidebar after all.
+      controller_->SetPointerOverSidebar(false);
+    }
+  }
+
+ private:
+  raw_ptr<SidebarPeekController> controller_;
+};
+
+TEST_F(PeekTest, AnObserverThatFeedsTheMachineNeverSeesAStaleTransition) {
+  // The observer after the feeder is the one that would see the stale pair.
+  FeedingObserver feeder(&controller_);
+  struct Pairs : SidebarPeekController::Observer {
+    void OnPeekStateChanged(PeekState from, PeekState to) override {
+      pairs.emplace_back(from, to);
+    }
+    std::vector<std::pair<PeekState, PeekState>> pairs;
+  } after;
+  controller_.AddObserver(&feeder);
+  controller_.AddObserver(&after);
+  controller_.SetPointerInHotZone(true);
+  Advance(kDelay);
+  controller_.SetPointerInHotZone(false);
+  Advance(kShow);
+  Advance(kLeave);
+  Advance(kHide);
+  controller_.RemoveObserver(&feeder);
+  controller_.RemoveObserver(&after);
+  ASSERT_GE(after.pairs.size(), 4u);
+  PeekState last = S::kHidden;
+  for (const auto& [from, to] : after.pairs) {
+    EXPECT_EQ(from, last) << PeekStateName(from) << ">" << PeekStateName(to);
+    EXPECT_NE(from, to);
+    last = to;
+  }
+  // The pointer the observer reported is gone, so it ends hidden.
+  EXPECT_EQ(controller_.state(), S::kHidden);
+  ExpectTimerMatchesState();
+}
+
+TEST_F(PeekTest, ABusyHoldReleasedInsideANotificationIsLookedAtAfterIt) {
+  OpenByHover();
+  struct Releaser : SidebarPeekController::Observer {
+    ScopedBusy hold;
+    void OnPeekStateChanged(PeekState from, PeekState to) override {
+      if (to == S::kLeaving) {
+        hold.Reset();
+      }
+    }
+  } releaser;
+  releaser.hold = controller_.AcquireBusy(PeekBusy::kMenu);
+  controller_.AddObserver(&releaser);
+  controller_.SetPointerOverSidebar(false);
+  EXPECT_EQ(controller_.state(), S::kShown);  // busy: it stays.
+  releaser.hold.Reset();
+  EXPECT_EQ(controller_.state(), S::kLeaving);
+  controller_.RemoveObserver(&releaser);
+}
+
 
 }  // namespace
 }  // namespace aerie_sidebar

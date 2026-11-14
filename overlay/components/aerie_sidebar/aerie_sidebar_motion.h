@@ -39,6 +39,9 @@ SlideMotion HideMotion(int width, int outer_edge_sign, bool reduced);
 // (250 ms, `spring`) and out on `peek-hide` (150 ms, `accelerate`). The numbers
 // are the tokens'. Reduced motion: a fade, 100 ms in and 90 ms out, no
 // transform. Only transform and opacity animate.
+// The duration token the peek hide animates with: `peek-hide`, or `peek-show`
+// under reduced motion (one 100 ms fade).
+aerie::tokens::MotionDuration PeekHideDuration(bool reduced);
 SlideMotion PeekShowMotion(int width, int outer_edge_sign, bool reduced);
 SlideMotion PeekHideMotion(int width, int outer_edge_sign, bool reduced);
 

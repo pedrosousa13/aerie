@@ -7,7 +7,9 @@
 #include <utility>
 
 #include "base/check.h"
+#include "base/functional/bind.h"
 #include "components/aerie_design_tokens/aerie_tokens.h"
+#include "components/aerie_sidebar/aerie_sidebar_motion.h"
 
 namespace aerie_sidebar {
 
@@ -41,7 +43,7 @@ PeekTimings PeekTimingsFor(bool reduced) {
   timings.show = base::Milliseconds(
       t::GetDurationMs(t::MotionDuration::kPeekShow, reduced));
   timings.hide = base::Milliseconds(
-      t::GetDurationMs(t::MotionDuration::kPeekHide, reduced));
+      t::GetDurationMs(PeekHideDuration(reduced), reduced));
   timings.grace_x = reduced ? t::kMotionDistancePeekGraceXReduced
                             : t::kMotionDistancePeekGraceX;
   timings.grace_y = reduced ? t::kMotionDistancePeekGraceYReduced
@@ -73,7 +75,6 @@ void ScopedBusy::Reset() {
     // Take the pointer first: Release() can run an observer that destroys
     // this hold's owner.
     base::WeakPtr<SidebarPeekController> controller = std::move(controller_);
-    controller_.reset();
     controller->Release(source_);
   }
 }
@@ -81,8 +82,8 @@ void ScopedBusy::Reset() {
 SidebarPeekController::SidebarPeekController(
     scoped_refptr<base::SequencedTaskRunner> runner,
     PeekTimings timings)
-    : runner_(std::move(runner)), timings_(timings) {
-  timer_.SetTaskRunner(runner_);
+    : timings_(timings) {
+  timer_.SetTaskRunner(std::move(runner));
 }
 
 SidebarPeekController::~SidebarPeekController() = default;
@@ -113,11 +114,12 @@ void SidebarPeekController::SetPointerInsideWindow() {
 }
 
 void SidebarPeekController::OnF6() {
+  if (Defer(&SidebarPeekController::OnF6)) {
+    return;
+  }
   switch (state_) {
     case PeekState::kHidden:
     case PeekState::kArming:
-      Enter(PeekState::kShowing, timings_.show);
-      break;
     case PeekState::kHiding:
       Enter(PeekState::kShowing, timings_.show);
       break;
@@ -132,6 +134,9 @@ void SidebarPeekController::OnF6() {
 }
 
 void SidebarPeekController::ToggleKeepOpen() {
+  if (Defer(&SidebarPeekController::ToggleKeepOpen)) {
+    return;
+  }
   keep_open_ = !keep_open_;
   switch (state_) {
     case PeekState::kHidden:
@@ -162,6 +167,9 @@ void SidebarPeekController::ToggleKeepOpen() {
 }
 
 void SidebarPeekController::Reset() {
+  if (Defer(&SidebarPeekController::Reset)) {
+    return;
+  }
   keep_open_ = false;
   in_hot_zone_ = false;
   over_sidebar_ = false;
@@ -223,6 +231,14 @@ bool SidebarPeekController::PointerAway() const {
   return true;
 }
 
+bool SidebarPeekController::Defer(void (SidebarPeekController::*input)()) {
+  if (!notifying_) {
+    return false;
+  }
+  deferred_.push_back(base::BindOnce(input, base::Unretained(this)));
+  return true;
+}
+
 void SidebarPeekController::Enter(PeekState next, base::TimeDelta timer) {
   const PeekState from = state_;
   timer_.Stop();
@@ -232,6 +248,11 @@ void SidebarPeekController::Enter(PeekState next, base::TimeDelta timer) {
                  base::BindOnce(&SidebarPeekController::OnTimer,
                                 base::Unretained(this)));
   }
+  // Every observer hears of this change before the machine takes another
+  // input: what an observer feeds back waits in `deferred_` (and in
+  // `reevaluate_`) until the loops are done, so that none sees a transition
+  // whose `from` is not the state it saw last.
+  notifying_ = true;
   if (next == PeekState::kShowing) {
     for (Observer& observer : observers_) {
       observer.OnPeekShow();
@@ -246,9 +267,23 @@ void SidebarPeekController::Enter(PeekState next, base::TimeDelta timer) {
       observer.OnPeekStateChanged(from, next);
     }
   }
+  notifying_ = false;
+  while (!deferred_.empty()) {
+    base::OnceClosure input = std::move(deferred_.front());
+    deferred_.erase(deferred_.begin());
+    std::move(input).Run();
+  }
+  if (reevaluate_) {
+    reevaluate_ = false;
+    Evaluate();
+  }
 }
 
 void SidebarPeekController::Evaluate() {
+  if (notifying_) {
+    reevaluate_ = true;
+    return;
+  }
   switch (state_) {
     case PeekState::kHidden:
       if (in_hot_zone_) {
