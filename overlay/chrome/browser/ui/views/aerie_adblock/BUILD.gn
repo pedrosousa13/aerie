@@ -13,6 +13,7 @@ source_set("guard") {
   visibility = [
     "//chrome/browser/ui:browser_actions_impl",
     "//chrome/browser/ui/tabs:impl",
+    "//chrome/browser/ui/views/aerie_sidebar:aerie_sidebar",
     "//chrome/browser/ui/views/aerie_sidebar:interactive_tests",
     "//chrome/browser/ui/webui/aerie_guard:browser_tests",
   ]

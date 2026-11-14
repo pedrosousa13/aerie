@@ -24,6 +24,38 @@ TEST(AerieSidebarMotionTest, ShowIsSlowOnDecelerateAndSlidesPastItsWidth) {
   EXPECT_EQ(m.hidden_x, -(260 + 24));
 }
 
+// Auto-hide peek (issue #184): the slide is the peek-show spring (250 ms) in
+// and peek-hide accelerate (150 ms) out, past the width by the hide offset.
+TEST(AerieSidebarMotionTest, PeekShowIsTheSpringAndPeekHideAccelerates) {
+  const SlideMotion show = PeekShowMotion(260, -1, /*reduced=*/false);
+  EXPECT_EQ(show.duration, MotionDuration::kPeekShow);
+  EXPECT_EQ(show.easing, MotionEasing::kSpring);
+  EXPECT_EQ(show.duration_ms, 250);
+  EXPECT_TRUE(show.animate_transform);
+  EXPECT_FALSE(show.animate_opacity);
+  EXPECT_EQ(show.hidden_x, -(260 + 24));
+  const SlideMotion hide = PeekHideMotion(260, 1, /*reduced=*/false);
+  EXPECT_EQ(hide.duration, MotionDuration::kPeekHide);
+  EXPECT_EQ(hide.easing, MotionEasing::kAccelerate);
+  EXPECT_EQ(hide.duration_ms, 150);
+  EXPECT_EQ(hide.hidden_x, 260 + 24);
+}
+
+TEST(AerieSidebarMotionTest, ReducedPeekIsAHundredMillisecondFadeWithNoTransform) {
+  const SlideMotion show = PeekShowMotion(260, -1, /*reduced=*/true);
+  EXPECT_FALSE(show.animate_transform);
+  EXPECT_TRUE(show.animate_opacity);
+  EXPECT_EQ(show.duration_ms, 100);
+  EXPECT_EQ(show.from_opacity, 0.f);
+  EXPECT_EQ(show.to_opacity, 1.f);
+  const SlideMotion hide = PeekHideMotion(260, -1, /*reduced=*/true);
+  EXPECT_FALSE(hide.animate_transform);
+  EXPECT_TRUE(hide.animate_opacity);
+  EXPECT_EQ(hide.from_opacity, 1.f);
+  EXPECT_EQ(hide.to_opacity, 0.f);
+  EXPECT_LE(hide.duration_ms, 100);
+}
+
 TEST(AerieSidebarMotionTest, HideIsBaseOnAccelerate) {
   const SlideMotion m = HideMotion(300, 1, /*reduced=*/false);
   EXPECT_EQ(m.duration, MotionDuration::kBase);

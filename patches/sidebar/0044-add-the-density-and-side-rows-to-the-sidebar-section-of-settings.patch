@@ -1,0 +1,87 @@
+Aerie-Purpose: Put the Density and Side radio groups in the Sidebar section of Settings, let the settings page write their prefs, and give the page its strings.
+Aerie-Upstream-Area: chrome/browser/resources/settings (appearance_page/appearance_layout_page.ts, appearance_page/appearance_layout_page.html.ts, BUILD.gn), chrome/browser/ui/webui/settings (settings_localized_strings_provider.cc), chrome/browser/extensions/api/settings_private (prefs_util.cc)
+Aerie-Kind: hook
+
+Issue #184. The rows, settings-aerie-density-row and settings-aerie-side-row, are Lit elements in the overlay
+(chrome/browser/resources/settings/appearance_page/aerie_density_row.* and aerie_side_row.*). Each is a settings-radio-group on
+aerie.sidebar.density (comfortable, compact, rail, auto-hide) or aerie.sidebar.side (left, right), both strings registered by
+components/aerie_sidebar/aerie_sidebar_prefs.cc. The pref names are string literals in the settings_private allowlist, as for the other
+Aerie prefs, and a test compares them with the constants. Their strings are in the overlay aerie_sidebar_strings.grdp.
+
+--- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
++++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
+@@ -495,6 +495,10 @@
+   // The name is aerie_tab_model::kFolderRulesEnabled; a test compares the two.
+   (*s_allowlist)["aerie.folders.rules_enabled"] =
+       settings_api::PrefType::kBoolean;
++  // Aerie: the sidebar's density and side (issue #184). The names are
++  // aerie_sidebar::kDensityPref and kSidePref; a test compares them.
++  (*s_allowlist)["aerie.sidebar.density"] = settings_api::PrefType::kString;
++  (*s_allowlist)["aerie.sidebar.side"] = settings_api::PrefType::kString;
+   // Aerie: the sidebar's width and shown state (issue #177). The names are
+   // aerie_sidebar::kWidthPref and kVisiblePref; a test compares them. The
+   // layout pref is not here until issue #186 builds the second layout.
+--- a/chrome/browser/resources/settings/appearance_page/appearance_layout_page.html.ts
++++ b/chrome/browser/resources/settings/appearance_page/appearance_layout_page.html.ts
+@@ -13,6 +13,8 @@
+   <settings-aerie-sleep-row></settings-aerie-sleep-row>
+   <settings-aerie-pinned-close-row></settings-aerie-pinned-close-row>
+   <settings-aerie-folder-rules-row></settings-aerie-folder-rules-row>
++  <settings-aerie-density-row></settings-aerie-density-row>
++  <settings-aerie-side-row></settings-aerie-side-row>
+ </settings-section>
+ <!--_html_template_end_-->`;
+   // clang-format on
+--- a/chrome/browser/resources/settings/appearance_page/appearance_layout_page.ts
++++ b/chrome/browser/resources/settings/appearance_page/appearance_layout_page.ts
+@@ -3,8 +3,10 @@
+ // the terms of the GPL-3.0 license that can be found in the LICENSE file.
+ 
+ import '../settings_page/settings_section.js';
++import './aerie_density_row.js';
+ import './aerie_folder_rules_row.js';
+ import './aerie_pinned_close_row.js';
++import './aerie_side_row.js';
+ import './aerie_sleep_row.js';
+ 
+ import {CrLitElement} from 'chrome://resources/lit/v3_0/lit.rollup.js';
+--- a/chrome/browser/resources/settings/BUILD.gn
++++ b/chrome/browser/resources/settings/BUILD.gn
+@@ -202,12 +202,16 @@
+     "ai_page/offer_writing_help_page.ts",
+     "ai_page/skills_page.html.ts",
+     "ai_page/skills_page.ts",
++    "appearance_page/aerie_density_row.html.ts",
++    "appearance_page/aerie_density_row.ts",
+     "appearance_page/aerie_folder_rules_row.html.ts",
+     "appearance_page/aerie_folder_rules_row.ts",
+     "appearance_page/aerie_motion_row.html.ts",
+     "appearance_page/aerie_motion_row.ts",
+     "appearance_page/aerie_pinned_close_row.html.ts",
+     "appearance_page/aerie_pinned_close_row.ts",
++    "appearance_page/aerie_side_row.html.ts",
++    "appearance_page/aerie_side_row.ts",
+     "appearance_page/aerie_sleep_row.html.ts",
+     "appearance_page/aerie_sleep_row.ts",
+     "appearance_page/appearance_browser_proxy.ts",
+--- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
++++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
+@@ -639,6 +639,18 @@
+       {"aeriePinnedCloseClose", IDS_SETTINGS_AERIE_PINNED_CLOSE_CLOSE},
+       {"aerieFolderRules", IDS_SETTINGS_AERIE_FOLDER_RULES},
+       {"aerieFolderRulesDesc", IDS_SETTINGS_AERIE_FOLDER_RULES_DESC},
++      {"aerieSidebarDensity", IDS_SETTINGS_AERIE_SIDEBAR_DENSITY},
++      {"aerieSidebarDensityDesc", IDS_SETTINGS_AERIE_SIDEBAR_DENSITY_DESC},
++      {"aerieSidebarDensityComfortable",
++       IDS_SETTINGS_AERIE_SIDEBAR_DENSITY_COMFORTABLE},
++      {"aerieSidebarDensityCompact", IDS_SETTINGS_AERIE_SIDEBAR_DENSITY_COMPACT},
++      {"aerieSidebarDensityRail", IDS_SETTINGS_AERIE_SIDEBAR_DENSITY_RAIL},
++      {"aerieSidebarDensityAutoHide",
++       IDS_SETTINGS_AERIE_SIDEBAR_DENSITY_AUTO_HIDE},
++      {"aerieSidebarSide", IDS_SETTINGS_AERIE_SIDEBAR_SIDE},
++      {"aerieSidebarSideDesc", IDS_SETTINGS_AERIE_SIDEBAR_SIDE_DESC},
++      {"aerieSidebarSideLeft", IDS_SETTINGS_AERIE_SIDEBAR_SIDE_LEFT},
++      {"aerieSidebarSideRight", IDS_SETTINGS_AERIE_SIDEBAR_SIDE_RIGHT},
+       {"browserLayout", IDS_SETTINGS_BROWSER_LAYOUT},
+       {"browserLayoutClassic", IDS_SETTINGS_BROWSER_LAYOUT_CLASSIC},
+       {"browserLayoutDynamic", IDS_SETTINGS_BROWSER_LAYOUT_DYNAMIC},

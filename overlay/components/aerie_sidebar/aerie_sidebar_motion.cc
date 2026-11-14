@@ -44,6 +44,16 @@ SlideMotion HideMotion(int width, int outer_edge_sign, bool reduced) {
                outer_edge_sign, reduced, 1.f, 0.f);
 }
 
+SlideMotion PeekShowMotion(int width, int outer_edge_sign, bool reduced) {
+  return Slide(MotionDuration::kPeekShow, MotionEasing::kSpring, width,
+               outer_edge_sign, reduced, 0.f, 1.f);
+}
+
+SlideMotion PeekHideMotion(int width, int outer_edge_sign, bool reduced) {
+  return Slide(MotionDuration::kPeekHide, MotionEasing::kAccelerate, width,
+               outer_edge_sign, reduced, 1.f, 0.f);
+}
+
 SleepMotion SleepFaviconMotion(bool reduced) {
   SleepMotion motion;
   motion.animate_fade = !reduced;

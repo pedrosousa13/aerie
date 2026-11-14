@@ -13,6 +13,8 @@
 #include "base/timer/timer.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_drag_overlay.h"
 #include "components/aerie_design_tokens/aerie_motion.h"
+#include "components/aerie_design_tokens/aerie_tokens.h"
+#include "components/aerie_sidebar/aerie_sidebar_density.h"
 #include "components/aerie_sidebar/aerie_sidebar_palette.h"
 #include "components/aerie_sidebar/aerie_sidebar_today_list.h"
 #include "ui/base/cursor/cursor.h"
@@ -109,6 +111,8 @@ class AerieSidebarTileView : public views::View,
   const std::u16string& title() const { return title_text_; }
 
   // views::View:
+  // The favicon size of the density (issue #184).
+  void SetDensity(const aerie_sidebar::DensitySizes& sizes);
   void Layout(PassKey) override;
   ui::Cursor GetCursor(const ui::MouseEvent& event) override;
   bool OnMousePressed(const ui::MouseEvent& event) override;
@@ -131,6 +135,7 @@ class AerieSidebarTileView : public views::View,
       ui::mojom::MenuSourceType source_type) override;
 
  private:
+  int favicon_size_ = aerie::tokens::kSizeFaviconComfortable;
   void UpdateState();
   void UpdateName();
   void ApplySleepLook(bool animate, const PrefService* prefs);

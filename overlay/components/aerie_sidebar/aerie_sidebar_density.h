@@ -54,6 +54,16 @@ DensitySizes SizesFor(Density density);
 // True when the sidebar is out of the layout at rest.
 bool IsAutoHide(Density density);
 
+// True when the density is auto-hide and the sidebar is undocked, which is
+// aerie.sidebar.visible being false: the sidebar is out of the window layout
+// and only peeks. Ctrl+S docks and undocks it (it flips that pref); with auto-
+// hide on, a docked sidebar takes its room like any other.
+bool IsAutoHidden(const PrefService& prefs);
+
+// The width the sidebar takes in the layout while it is docked: the rail's
+// fixed width, or the width the user chose (clamped).
+int EffectiveWidth(const PrefService& prefs);
+
 // Which side the sidebar is on. Anything but "right" is the left.
 bool IsOnRight(const PrefService& prefs);
 

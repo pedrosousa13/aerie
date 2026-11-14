@@ -349,4 +349,43 @@
   <message name="IDS_AERIE_SIDEBAR_SHEET_SAVE_RULE" desc="Button in the folder editor that replaces a rule the user is editing with the new text. It takes the place of the Add rule button while a rule is edited.">
     Save rule
   </message>
+  <message name="IDS_SETTINGS_AERIE_SIDEBAR_DENSITY" desc="Label of the setting in the Sidebar section of Settings that chooses how dense the sidebar is.">
+    Sidebar density
+  </message>
+  <message name="IDS_SETTINGS_AERIE_SIDEBAR_DENSITY_DESC" desc="Description under the Sidebar density setting. It says what the four choices change.">
+    How much room the sidebar takes. Auto-hide hides it until you move the pointer to the edge of the window.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_SIDEBAR_DENSITY_COMFORTABLE" desc="Choice of the Sidebar density setting: the default sidebar with roomy rows.">
+    Comfortable
+  </message>
+  <message name="IDS_SETTINGS_AERIE_SIDEBAR_DENSITY_COMPACT" desc="Choice of the Sidebar density setting: the sidebar with shorter rows and smaller tiles.">
+    Compact
+  </message>
+  <message name="IDS_SETTINGS_AERIE_SIDEBAR_DENSITY_RAIL" desc="Choice of the Sidebar density setting: a thin strip that shows only icons, no titles.">
+    Collapsed rail
+  </message>
+  <message name="IDS_SETTINGS_AERIE_SIDEBAR_DENSITY_AUTO_HIDE" desc="Choice of the Sidebar density setting: the sidebar is hidden until the pointer touches the edge of the window.">
+    Auto-hide
+  </message>
+  <message name="IDS_SETTINGS_AERIE_SIDEBAR_SIDE" desc="Label of the setting in the Sidebar section of Settings that chooses which side of the window the sidebar is on.">
+    Sidebar side
+  </message>
+  <message name="IDS_SETTINGS_AERIE_SIDEBAR_SIDE_DESC" desc="Description under the Sidebar side setting.">
+    Put the sidebar on the left or on the right of the window.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_SIDEBAR_SIDE_LEFT" desc="Choice of the Sidebar side setting: the sidebar is on the left.">
+    Left
+  </message>
+  <message name="IDS_SETTINGS_AERIE_SIDEBAR_SIDE_RIGHT" desc="Choice of the Sidebar side setting: the sidebar is on the right.">
+    Right
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_PEEK_KEPT_OPEN" desc="Short message that shows in the sidebar after the user pressed Ctrl+Alt+S while the sidebar was hidden at the edge of the window. It says the sidebar stays open now.">
+    Sidebar stays open
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_PEEK_RELEASED" desc="Short message that shows in the sidebar after the user pressed Ctrl+Alt+S again. It says the sidebar hides again when the pointer moves away.">
+    Sidebar hides when you move away
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_GUARD_BUTTON" desc="Tooltip and accessible name of the square shield button that replaces the address field in the collapsed sidebar. It opens the Guard panel of the current site.">
+    Guard
+  </message>
 </grit-part>

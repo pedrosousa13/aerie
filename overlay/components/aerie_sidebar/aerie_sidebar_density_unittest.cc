@@ -93,5 +93,31 @@ TEST_F(DensityTest, AutoHideLaysOutAsComfortableAndOnlyAutoHideHides) {
   EXPECT_FALSE(IsAutoHide(Density::kCompact));
 }
 
+TEST_F(DensityTest, AutoHiddenMeansAutoHideAndUndocked) {
+  // The default is docked and comfortable.
+  EXPECT_FALSE(IsAutoHidden(prefs_));
+  prefs_.SetString(kDensityPref, kDensityAutoHide);
+  // Docked auto-hide takes its room like any sidebar.
+  EXPECT_TRUE(prefs_.GetBoolean(kVisiblePref));
+  EXPECT_FALSE(IsAutoHidden(prefs_));
+  prefs_.SetBoolean(kVisiblePref, false);
+  EXPECT_TRUE(IsAutoHidden(prefs_));
+  // A hidden sidebar of another density is not auto-hidden: it is hidden.
+  prefs_.SetString(kDensityPref, kDensityCompact);
+  EXPECT_FALSE(IsAutoHidden(prefs_));
+}
+
+TEST_F(DensityTest, TheEffectiveWidthIsTheRailsOrTheChosenOne) {
+  EXPECT_EQ(EffectiveWidth(prefs_), 260);
+  prefs_.SetInteger(kWidthPref, 320);
+  EXPECT_EQ(EffectiveWidth(prefs_), 320);
+  prefs_.SetString(kDensityPref, kDensityRail);
+  EXPECT_EQ(EffectiveWidth(prefs_), 56);
+  // The chosen width is kept for when the density changes back.
+  EXPECT_EQ(prefs_.GetInteger(kWidthPref), 320);
+  prefs_.SetString(kDensityPref, kDensityCompact);
+  EXPECT_EQ(EffectiveWidth(prefs_), 320);
+}
+
 }  // namespace
 }  // namespace aerie_sidebar

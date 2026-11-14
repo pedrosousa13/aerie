@@ -45,7 +45,15 @@ void AerieSidebarFavoritesGrid::SetFocusHandler(
 }
 
 int AerieSidebarFavoritesGrid::columns() const {
-  return aerie::tokens::kSizeFavoritesColumns;
+  return single_column_ ? 1 : aerie::tokens::kSizeFavoritesColumns;
+}
+
+void AerieSidebarFavoritesGrid::SetDensity(
+    const aerie_sidebar::DensitySizes& sizes) {
+  tile_size_ = sizes.tile;
+  single_column_ = sizes.icons_only;
+  PreferredSizeChanged();
+  InvalidateLayout();
 }
 
 void AerieSidebarFavoritesGrid::RequestFocus() {
@@ -60,7 +68,7 @@ gfx::Size AerieSidebarFavoritesGrid::CalculatePreferredSize(
   const int rows = (count + columns() - 1) / columns();
   const int height =
       rows == 0 ? 0
-                : rows * aerie::tokens::kSizeTileComfortable +
+                : rows * tile_size_ +
                       (rows - 1) * aerie::tokens::kSpace8;
   return gfx::Size(available_size.width().value_or(aerie::tokens::kSizeSidebarMin),
                    height);
@@ -81,8 +89,7 @@ void AerieSidebarFavoritesGrid::Layout(PassKey) {
     int x = col * (base_width + gap) + std::min(col, extra);
     const int w = base_width + (col < extra ? 1 : 0);
     tile->SetBounds(x,
-                    row * (aerie::tokens::kSizeTileComfortable + gap), w,
-                    aerie::tokens::kSizeTileComfortable);
+                    row * (tile_size_ + gap), w, tile_size_);
     ++index;
   }
 }

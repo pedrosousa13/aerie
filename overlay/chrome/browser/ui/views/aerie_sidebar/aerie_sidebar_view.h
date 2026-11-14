@@ -22,6 +22,7 @@
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_row_entry.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_toolbar_parts.h"
 #include "components/aerie_design_tokens/aerie_motion.h"
+#include "components/aerie_sidebar/aerie_sidebar_density.h"
 #include "components/aerie_sidebar/aerie_sidebar_drag.h"
 #include "components/aerie_sidebar/aerie_sidebar_move.h"
 #include "components/aerie_sidebar/aerie_sidebar_palette.h"
@@ -46,6 +47,8 @@ class AerieSidebarFolderGroup;
 class AerieSidebarFolderRowView;
 class AerieSidebarDragController;
 class AerieSidebarDragHost;
+class AerieSidebarPeekDriver;
+class AerieSidebarPeekSurface;
 
 namespace aerie_tab_model {
 class PinnedTabsController;
@@ -59,7 +62,9 @@ class Layer;
 class AerieSidebarFolderSheet;
 
 namespace views {
+class BoxLayout;
 class BoxLayoutView;
+class ImageButton;
 class Label;
 class LabelButton;
 class ScrollView;
@@ -205,6 +210,40 @@ class AerieSidebarView : public views::View,
   AerieSidebarTodayTree* today_tree() const { return list_; }
   views::ScrollView* pinned_scroll() const { return pinned_scroll_; }
   views::ScrollView* today_scroll() const { return scroll_; }
+
+  // Density, side and auto-hide (issue #184).
+  aerie_sidebar::Density density() const { return density_; }
+  const aerie_sidebar::DensitySizes& density_sizes() const { return sizes_; }
+  // True when the sidebar sits on the right of the window (the pref).
+  bool side_on_right() const;
+  // The width of the column while it is on screen: the rail's fixed width, or
+  // the width the user chose.
+  int column_width() const;
+  const PrefService* profile_prefs() const;
+  // The square Guard button that stands in for the address pill in the rail.
+  views::ImageButton* guard_button() const { return guard_button_; }
+  // Applies the density pref to every row, tile and region once. No animation.
+  void ApplyDensity();
+  // The auto-hide peek of this window. Made with the view; inactive unless the
+  // sidebar is auto-hidden and undocked.
+  AerieSidebarPeekDriver* peek_driver() const { return peek_.get(); }
+  // Busy sources of the peek (issue #184), read by the driver.
+  bool context_menu_open() const;
+  bool rename_popover_open() const { return !!rename_popover_; }
+  bool any_row_renaming() const;
+  bool omnibox_has_focus() const;
+  // Asks the peek driver to look at the busy sources again.
+  void SyncPeekBusy();
+  // A resize drag of the edge runs (called by the region view).
+  void SetResizing(bool resizing);
+  // F6 on an auto-hidden sidebar opens it (called when the panes are listed).
+  void PeekForFocus();
+  // The toast that Ctrl+Alt+S shows.
+  void ShowPeekToast(bool kept_open);
+  // Ctrl+Alt+S (views::View registers it with the focus manager).
+  void AddedToWidget() override;
+  void RemovedFromWidget() override;
+  void OnBoundsChanged(const gfx::Rect& previous_bounds) override;
 
   // The colours the sidebar draws with now: the theme, the colour mode of the
   // window and the Workspace colour (issue #215, item 7). They follow a change
@@ -462,6 +501,12 @@ class AerieSidebarView : public views::View,
 
   void ToggleSidebar();
 
+  // Reads the density and side prefs and the dock state, and applies them
+  // (issue #184).
+  void OnLayoutPrefsChanged();
+  void UpdateRail(bool rail);
+  void UpdatePeekSurface();
+
   // Dragging a row or a tile (issues #215 and #182): the callbacks of the rows
   // and tiles go to AerieSidebarDragController, which is made on the first
   // drag. A change of the lists under a drag ends it (CancelDragIfListsChange).
@@ -490,6 +535,17 @@ class AerieSidebarView : public views::View,
   base::RepeatingClosure new_tab_;
   raw_ptr<AerieSidebarTopRow> top_row_ = nullptr;
   raw_ptr<AerieSidebarPill> pill_ = nullptr;
+  raw_ptr<views::BoxLayout> box_layout_ = nullptr;
+  raw_ptr<views::View> today_header_ = nullptr;
+  raw_ptr<views::View> location_bar_ = nullptr;
+  raw_ptr<views::ImageButton> guard_button_ = nullptr;
+  aerie_sidebar::Density density_ = aerie_sidebar::Density::kComfortable;
+  aerie_sidebar::DensitySizes sizes_ =
+      aerie_sidebar::SizesFor(aerie_sidebar::Density::kComfortable);
+  bool resizing_ = false;
+  raw_ptr<AerieSidebarPeekSurface> peek_surface_ = nullptr;
+  std::unique_ptr<AerieSidebarPeekDriver> peek_;
+  std::u16string new_tab_label_;
   raw_ptr<views::View> bottom_bar_ = nullptr;
   // The toolbar and its parts that moved in. They go back to the toolbar when
   // the sidebar goes, so that the toolbar never points at a view that is gone.

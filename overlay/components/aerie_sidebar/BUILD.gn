@@ -32,6 +32,7 @@ source_set("density") {
     "aerie_sidebar_density.h",
   ]
   deps = [
+    ":layout",
     ":prefs",
     "//components/aerie_design_tokens:tokens",
   ]
@@ -46,6 +47,16 @@ source_set("peek") {
   ]
   deps = [ "//components/aerie_design_tokens:tokens" ]
   public_deps = [ "//base" ]
+}
+
+# The property that tells the window layout how wide a peeked sidebar floats
+# (issue #184).
+source_set("floating") {
+  sources = [
+    "aerie_sidebar_floating.cc",
+    "aerie_sidebar_floating.h",
+  ]
+  public_deps = [ "//ui/base" ]
 }
 
 source_set("layout") {
@@ -192,6 +203,7 @@ source_set("unit_tests") {
     ":density",
     ":drag",
     ":drop_target",
+    ":floating",
     ":folder_toggle",
     ":layout",
     ":layout_lock",

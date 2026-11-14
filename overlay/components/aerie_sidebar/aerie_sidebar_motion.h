@@ -35,6 +35,13 @@ struct SlideMotion {
 SlideMotion ShowMotion(int width, int outer_edge_sign, bool reduced);
 SlideMotion HideMotion(int width, int outer_edge_sign, bool reduced);
 
+// The auto-hide peek (issue #184): the sidebar floats in on `peek-show`
+// (250 ms, `spring`) and out on `peek-hide` (150 ms, `accelerate`). The numbers
+// are the tokens'. Reduced motion: a fade, 100 ms in and 90 ms out, no
+// transform. Only transform and opacity animate.
+SlideMotion PeekShowMotion(int width, int outer_edge_sign, bool reduced);
+SlideMotion PeekHideMotion(int width, int outer_edge_sign, bool reduced);
+
 // While a hide slides out the window layout already gives the room to the page,
 // in one step: the column takes no room (preferred and minimum width 0) and its
 // content keeps the width it had, hanging outside the region's own bounds

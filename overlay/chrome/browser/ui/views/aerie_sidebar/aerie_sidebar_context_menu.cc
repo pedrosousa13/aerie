@@ -141,6 +141,10 @@ void AerieSidebarContextMenu::BuildTabItems() {
                         l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_CLOSE_TAB));
 }
 
+bool AerieSidebarContextMenu::IsOpen() const {
+  return runner_ && runner_->IsRunning();
+}
+
 AerieSidebarContextMenu::~AerieSidebarContextMenu() {
   menu_motion_.Abort();
   motion_layer_ = nullptr;
@@ -283,6 +287,9 @@ void AerieSidebarContextMenu::OnMenuClosed(views::MenuItemView* menu) {
   // outlive them.
   menu_motion_.Abort();
   motion_layer_ = nullptr;
+  if (closed_) {
+    closed_.Run();
+  }
 }
 
 std::u16string AerieSidebarContextMenu::GetTooltipText(

@@ -5,6 +5,7 @@
 #include "components/aerie_sidebar/aerie_sidebar_density.h"
 
 #include "components/aerie_design_tokens/aerie_tokens.h"
+#include "components/aerie_sidebar/aerie_sidebar_layout.h"
 #include "components/aerie_sidebar/aerie_sidebar_prefs.h"
 #include "components/prefs/pref_service.h"
 
@@ -67,6 +68,15 @@ DensitySizes SizesFor(Density density) {
 
 bool IsAutoHide(Density density) {
   return density == Density::kAutoHide;
+}
+
+bool IsAutoHidden(const PrefService& prefs) {
+  return IsAutoHide(GetDensity(prefs)) && !prefs.GetBoolean(kVisiblePref);
+}
+
+int EffectiveWidth(const PrefService& prefs) {
+  const DensitySizes sizes = SizesFor(GetDensity(prefs));
+  return sizes.fixed_width > 0 ? sizes.fixed_width : GetWidth(prefs);
 }
 
 bool IsOnRight(const PrefService& prefs) {

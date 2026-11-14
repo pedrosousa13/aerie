@@ -55,7 +55,6 @@ constexpr int kFaviconSize = aerie::tokens::kSizeIcon;
 // The moon badge of a sleeping tab (issue #179), from the tokens.
 constexpr int kSleepBadgeSize = aerie::tokens::kSizeSleepBadge;
 constexpr int kSleepBadgeOffset = aerie::tokens::kSizeSleepBadgeOffset;
-constexpr int kRowHeight = aerie::tokens::kSizeRowHeightComfortable;
 // The square of the close button and of the funnel that opens a folder's sheet.
 constexpr int kRowButtonSize = 20;
 
@@ -83,17 +82,27 @@ class FaviconHolder : public views::View {
   FaviconHolder(views::ImageView* favicon, views::ImageView* badge)
       : favicon_(AddChildView(favicon)), badge_(AddChildView(badge)) {}
 
+  // The icon size of the density (issue #184).
+  void SetIconSize(int size) {
+    if (size_ != size) {
+      size_ = size;
+      favicon_->SetImageSize(gfx::Size(size_, size_));
+      PreferredSizeChanged();
+    }
+  }
+
   gfx::Size CalculatePreferredSize(
       const views::SizeBounds& available_size) const override {
-    return gfx::Size(kFaviconSize, kFaviconSize);
+    return gfx::Size(size_, size_);
   }
   void Layout(PassKey) override {
-    favicon_->SetBoundsRect(gfx::Rect(0, 0, kFaviconSize, kFaviconSize));
+    favicon_->SetBoundsRect(gfx::Rect(0, 0, size_, size_));
     badge_->SetBoundsRect(gfx::Rect(kSleepBadgeOffset, kSleepBadgeOffset,
                                     kSleepBadgeSize, kSleepBadgeSize));
   }
 
  private:
+  int size_ = kFaviconSize;
   raw_ptr<views::ImageView> favicon_;
   raw_ptr<views::ImageView> badge_;
 };
@@ -149,7 +158,7 @@ AerieSidebarRowView::AerieSidebarRowView(
   badge->SetVisible(false);
   favicon_ = favicon.get();
   sleep_badge_ = badge.get();
-  content_->AddChildView(
+  favicon_holder_ = content_->AddChildView(
       std::make_unique<FaviconHolder>(favicon.release(), badge.release()));
 
   title_ = content_->AddChildView(std::make_unique<views::Label>(
@@ -284,39 +293,39 @@ void AerieSidebarRowView::SetPalette(
        {views::Button::STATE_NORMAL, views::Button::STATE_DISABLED}) {
     close_button_->SetImageModel(
         state, ui::ImageModel::FromVectorIcon(vector_icons::kCloseSmallIcon,
-                                              palette_.text_muted, kFaviconSize));
+                                              palette_.text_muted, icon_size_));
   }
   for (views::Button::ButtonState state :
        {views::Button::STATE_HOVERED, views::Button::STATE_PRESSED}) {
     close_button_->SetImageModel(
         state, ui::ImageModel::FromVectorIcon(vector_icons::kCloseSmallIcon,
-                                              palette_.text, kFaviconSize));
+                                              palette_.text, icon_size_));
   }
   views::InkDrop::Get(close_button_)->SetBaseColor(palette_.text);
   for (views::Button::ButtonState state :
        {views::Button::STATE_NORMAL, views::Button::STATE_DISABLED}) {
     back_to_pinned_->SetImageModel(
         state, ui::ImageModel::FromVectorIcon(vector_icons::kUndoIcon,
-                                              palette_.text_muted, kFaviconSize));
+                                              palette_.text_muted, icon_size_));
   }
   for (views::Button::ButtonState state :
        {views::Button::STATE_HOVERED, views::Button::STATE_PRESSED}) {
     back_to_pinned_->SetImageModel(
         state, ui::ImageModel::FromVectorIcon(vector_icons::kUndoIcon,
-                                              palette_.text, kFaviconSize));
+                                              palette_.text, icon_size_));
   }
   views::InkDrop::Get(back_to_pinned_)->SetBaseColor(palette_.text);
   for (views::Button::ButtonState state :
        {views::Button::STATE_NORMAL, views::Button::STATE_DISABLED}) {
     pencil_->SetImageModel(
         state, ui::ImageModel::FromVectorIcon(
-                   vector_icons::kEditIcon, palette_.text_muted, kFaviconSize));
+                   vector_icons::kEditIcon, palette_.text_muted, icon_size_));
   }
   for (views::Button::ButtonState state :
        {views::Button::STATE_HOVERED, views::Button::STATE_PRESSED}) {
     pencil_->SetImageModel(
         state, ui::ImageModel::FromVectorIcon(vector_icons::kEditIcon,
-                                              palette_.text, kFaviconSize));
+                                              palette_.text, icon_size_));
   }
   views::InkDrop::Get(pencil_)->SetBaseColor(palette_.text);
   rename_caption_->SetEnabledColor(palette_.text_muted);
@@ -334,11 +343,35 @@ void AerieSidebarRowView::SetBackToPinnedVisible(bool visible) {
 }
 
 void AerieSidebarRowView::UpdateTrailing() {
+  // The rail shows icons only: no trailing item (issue #184).
   back_to_pinned_->SetVisible(back_to_pinned_wanted_ && !closing_ &&
-                              !renaming_);
-  pencil_->SetVisible(renamed_ && !closing_ && !renaming_);
+                              !renaming_ && !icons_only_);
+  pencil_->SetVisible(renamed_ && !closing_ && !renaming_ && !icons_only_);
   close_button_->SetVisible(ShowsCloseButton() && !closing_ && !renaming_ &&
-                            (hovered_ || HasFocus()));
+                            !icons_only_ && (hovered_ || HasFocus()));
+}
+
+void AerieSidebarRowView::SetDensity(
+    const aerie_sidebar::DensitySizes& sizes) {
+  row_height_ = sizes.row_icon > 0 ? sizes.row_height : row_height_;
+  icon_size_ = sizes.row_icon;
+  icons_only_ = sizes.icons_only;
+  static_cast<FaviconHolder*>(favicon_holder_.get())->SetIconSize(icon_size_);
+  favicon_->SetImageSize(gfx::Size(icon_size_, icon_size_));
+  // The title is hidden in the rail but the row keeps its full name for a
+  // screen reader: the name is set on the row, not read from the label.
+  title_->SetVisible(!icons_only_);
+  content_layout_->set_inside_border_insets(
+      icons_only_ ? gfx::Insets() : gfx::Insets::VH(0, aerie::tokens::kSpace8));
+  content_layout_->set_main_axis_alignment(
+      icons_only_ ? views::BoxLayout::MainAxisAlignment::kCenter
+                  : views::BoxLayout::MainAxisAlignment::kStart);
+  SetPalette(palette_);
+  UpdateTrailing();
+  OnDensityChanged();
+  InvalidateLayout();
+  content_->InvalidateLayout();
+  PreferredSizeChanged();
 }
 
 void AerieSidebarRowView::SetCloseTooltip(const std::u16string& text) {
@@ -455,6 +488,9 @@ void AerieSidebarRowView::BeginRename(const std::u16string& initial_text,
   }
   EnsureRenameField();
   renaming_ = true;
+  if (callbacks_.rename_state_changed) {
+    callbacks_.rename_state_changed.Run();
+  }
   rename_field_->SetText(initial_text);
   rename_field_->SetVisible(true);
   rename_caption_->SetVisible(true);
@@ -479,6 +515,11 @@ void AerieSidebarRowView::EndRename(bool commit, bool refocus) {
     return;
   }
   renaming_ = false;
+  if (callbacks_.rename_state_changed) {
+    // After the rest: the callback only reads state.
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE, callbacks_.rename_state_changed);
+  }
   const std::u16string text(rename_field_->GetText());
   field_motion_.Abort();
   title_motion_.Abort();
@@ -515,7 +556,7 @@ void AerieSidebarRowView::UpdateCaptionHeight() {
     return;
   }
   // The field's width is known once the content is laid out.
-  content_->SetBoundsRect(gfx::Rect(0, 0, width(), kRowHeight));
+  content_->SetBoundsRect(gfx::Rect(0, 0, width(), row_height_));
   LayoutKindViews();
   content_->DeprecatedLayoutImmediately();
   const int width_now = rename_field_->width();
@@ -642,13 +683,13 @@ void AerieSidebarRowView::SetSelected(bool selected) {
 void AerieSidebarRowView::Layout(PassKey) {
   LayoutSuperclass<views::View>(this);
   // The content keeps its full height while the row grows or collapses.
-  content_->SetBoundsRect(gfx::Rect(0, 0, width(), kRowHeight));
+  content_->SetBoundsRect(gfx::Rect(0, 0, width(), row_height_));
   if (renaming_ && rename_field_) {
     // The caption sits under the field, as wide as the field.
     content_->DeprecatedLayoutImmediately();
     const int caption_height =
         rename_caption_->GetHeightForWidth(rename_field_->width());
-    rename_caption_->SetBoundsRect(gfx::Rect(rename_field_->x(), kRowHeight,
+    rename_caption_->SetBoundsRect(gfx::Rect(rename_field_->x(), row_height_,
                                              rename_field_->width(),
                                              caption_height));
     if (caption_height != caption_height_) {
@@ -674,7 +715,7 @@ gfx::Size AerieSidebarRowView::CalculatePreferredSize(
       renaming_ ? caption_height_ + aerie::tokens::kSpace4 : 0;
   return gfx::Size(
       available_size.width().value_or(aerie::tokens::kSizeSidebarMin),
-      static_cast<int>(std::lround(kRowHeight * height_fraction_)) +
+      static_cast<int>(std::lround(row_height_ * height_fraction_)) +
           caption_block);
 }
 
@@ -1014,7 +1055,7 @@ void AerieSidebarRowView::AnimationEnded(const gfx::Animation* animation) {
 }
 
 gfx::Transform AerieSidebarRowView::LiftTransform(float scale) const {
-  return ScaleAboutCenter(gfx::Size(width(), kRowHeight), scale);
+  return ScaleAboutCenter(gfx::Size(width(), row_height_), scale);
 }
 
 void AerieSidebarRowView::EnsureDragLayers() {
@@ -1146,7 +1187,7 @@ void AerieSidebarRowView::PlayOpen(const PrefService* prefs) {
   if (motion.animate_scale) {
     // The row has not been laid out yet: it will be as wide as its list.
     const int row_width = parent() ? parent()->width() : width();
-    layer->SetTransform(ScaleAboutCenter(gfx::Size(row_width, kRowHeight),
+    layer->SetTransform(ScaleAboutCenter(gfx::Size(row_width, row_height_),
                                          motion.from_scale));
     target.transform = gfx::Transform();
   }

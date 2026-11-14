@@ -30,7 +30,10 @@
 #include "chrome/browser/sessions/session_restore.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/tabs/public/tab_features.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_delegate.h"
+#include "chrome/browser/ui/views/aerie_adblock/aerie_guard_image.h"
+#include "chrome/browser/ui/views/aerie_adblock/aerie_guard_page_action_controller.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_context_menu.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_drag_controller.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_drag_host.h"
@@ -39,6 +42,8 @@
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_controller.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_group.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_row_view.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_peek_driver.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_peek_surface.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_regions.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_rename_popover.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_row_view.h"
@@ -48,7 +53,10 @@
 #include "components/aerie_design_tokens/aerie_motion.h"
 #include "components/aerie_design_tokens/aerie_tokens.h"
 #include "components/aerie_frame/aerie_frame_palette.h"
+#include "components/aerie_sidebar/aerie_sidebar_density.h"
 #include "components/aerie_sidebar/aerie_sidebar_drag.h"
+#include "components/aerie_sidebar/aerie_sidebar_floating.h"
+#include "components/aerie_sidebar/aerie_sidebar_prefs.h"
 #include "components/aerie_sidebar/aerie_sidebar_layout.h"
 #include "components/aerie_sidebar/aerie_sidebar_motion.h"
 #include "components/aerie_sidebar/aerie_sidebar_tree.h"
@@ -76,6 +84,7 @@
 #include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/background.h"
 #include "ui/views/border.h"
+#include "ui/views/controls/button/image_button.h"
 #include "ui/views/controls/button/label_button.h"
 #include "ui/views/controls/label.h"
 #include "ui/views/controls/scroll_view.h"
@@ -84,6 +93,7 @@
 #include "ui/views/layout/fill_layout.h"
 #include "ui/views/style/typography.h"
 #include "ui/views/widget/widget.h"
+#include "ui/views/bubble/bubble_anchor.h"
 
 namespace {
 
@@ -201,6 +211,7 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
       aerie::tokens::kSpace4));
   layout->set_cross_axis_alignment(
       views::BoxLayout::CrossAxisAlignment::kStretch);
+  box_layout_ = layout;
 
   GetViewAccessibility().SetRole(ax::mojom::Role::kNavigation);
   GetViewAccessibility().SetName(
@@ -228,6 +239,12 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
       base::Unretained(browser_.get()));
   top_row_ = AddChildView(std::make_unique<AerieSidebarTopRow>(
       std::move(top_row_callbacks), palette_));
+
+  // The card and shadow of the floating (peeked) sidebar, under everything
+  // (issue #184). Hidden unless the sidebar floats.
+  peek_surface_ =
+      AddChildViewAt(std::make_unique<AerieSidebarPeekSurface>(), 0);
+  peek_surface_->SetVisible(false);
 
   // Address pill: the real location bar goes in when the toolbar has made it.
   pill_ = AddChildView(std::make_unique<AerieSidebarPill>());
@@ -286,6 +303,7 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
           [](AerieSidebarView* self) { self->new_tab_.Run(); },
           base::Unretained(this)),
       l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_NEW_TAB)));
+  new_tab_label_ = l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_NEW_TAB);
   new_tab_row_->SetHorizontalAlignment(gfx::ALIGN_LEFT);
   new_tab_row_->SetImageLabelSpacing(aerie::tokens::kSpace8);
   new_tab_row_->SetPreferredSize(
@@ -301,6 +319,7 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
   // The heading, and at its end the number of sleeping tabs with an estimate of
   // the memory they freed (issue #179). The estimate's tooltip says it is one.
   auto* today_header = AddChildView(std::make_unique<views::BoxLayoutView>());
+  today_header_ = today_header;
   today_header->SetOrientation(views::BoxLayout::Orientation::kHorizontal);
   today_heading_ = today_header->AddChildView(std::make_unique<views::Label>(
       l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_TODAY),
@@ -403,6 +422,16 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
   pref_registrar_.Add(
       aerie_tab_model::kPinnedClose,
       base::BindRepeating(&AerieSidebarView::UpdateRows, base::Unretained(this)));
+  // Density, side and the dock state (issue #184). The peek driver exists from
+  // the start and does nothing until the sidebar is auto-hidden.
+  peek_ = std::make_unique<AerieSidebarPeekDriver>(this);
+  for (const char* pref : {aerie_sidebar::kDensityPref, aerie_sidebar::kSidePref,
+                           aerie_sidebar::kVisiblePref}) {
+    pref_registrar_.Add(
+        pref, base::BindRepeating(&AerieSidebarView::OnLayoutPrefsChanged,
+                                  base::Unretained(this)));
+  }
+  ApplyDensity();
   ApplyPalette();
   SyncAll();
   ScheduleSync();
@@ -423,6 +452,9 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
 }
 
 AerieSidebarView::~AerieSidebarView() {
+  // The peek goes first: it holds the window's pointer monitor and the holds
+  // on the busy sources.
+  peek_.reset();
   // A drag that is still running ends with the window: the controller goes
   // first, so that a capture loss that follows finds none.
   drag_controller_.reset();
@@ -449,6 +481,187 @@ AerieSidebarView::~AerieSidebarView() {
   }
 }
 
+bool AerieSidebarView::side_on_right() const {
+  return aerie_sidebar::IsOnRight(*profile_prefs());
+}
+
+int AerieSidebarView::column_width() const {
+  return sizes_.fixed_width > 0 ? sizes_.fixed_width
+                                : aerie_sidebar::GetWidth(*profile_prefs());
+}
+
+const PrefService* AerieSidebarView::profile_prefs() const {
+  return browser_->GetProfile()->GetPrefs();
+}
+
+bool AerieSidebarView::context_menu_open() const {
+  return context_menu_ && context_menu_->IsOpen();
+}
+
+bool AerieSidebarView::any_row_renaming() const {
+  for (const std::vector<Row>* rows : {&rows_, &pinned_rows_}) {
+    for (const Row& row : *rows) {
+      if (row.view && row.view->renaming()) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+bool AerieSidebarView::omnibox_has_focus() const {
+  const views::FocusManager* fm = GetFocusManager();
+  const views::View* focused = fm ? fm->GetFocusedView() : nullptr;
+  return focused && pill_ && pill_->Contains(focused);
+}
+
+void AerieSidebarView::SyncPeekBusy() {
+  if (peek_) {
+    peek_->SyncBusy();
+  }
+}
+
+void AerieSidebarView::SetResizing(bool resizing) {
+  resizing_ = resizing;
+  if (peek_) {
+    peek_->SetResizing(resizing);
+  }
+}
+
+void AerieSidebarView::PeekForFocus() {
+  if (peek_ && peek_->active()) {
+    peek_->OnF6();
+  }
+}
+
+void AerieSidebarView::ShowPeekToast(bool kept_open) {
+  ShowToast(l10n_util::GetStringUTF16(kept_open
+                                          ? IDS_AERIE_SIDEBAR_PEEK_KEPT_OPEN
+                                          : IDS_AERIE_SIDEBAR_PEEK_RELEASED));
+}
+
+void AerieSidebarView::AddedToWidget() {
+  views::View::AddedToWidget();
+  UpdatePeekSurface();
+  OnLayoutPrefsChanged();
+}
+
+void AerieSidebarView::RemovedFromWidget() {
+  if (peek_) {
+    peek_->SetActive(false);
+  }
+  views::View::RemovedFromWidget();
+}
+
+void AerieSidebarView::OnLayoutPrefsChanged() {
+  const bool was_auto_hide = aerie_sidebar::IsAutoHide(density_);
+  ApplyDensity();
+  PrefService* prefs = browser_->GetProfile()->GetPrefs();
+  const bool auto_hide = aerie_sidebar::IsAutoHide(density_);
+  if (auto_hide != was_auto_hide) {
+    // Choosing auto-hide undocks the sidebar; leaving it docks it again. The
+    // dock state is aerie.sidebar.visible (Ctrl+S flips it); every window does
+    // the same write, so it is harmless to repeat.
+    prefs->SetBoolean(aerie_sidebar::kVisiblePref, !auto_hide);
+  }
+  if (peek_) {
+    peek_->SetActive(GetWidget() && aerie_sidebar::IsAutoHidden(*prefs));
+  }
+  UpdatePeekSurface();
+}
+
+void AerieSidebarView::UpdatePeekSurface() {
+  const bool floating =
+      peek_ && peek_->active() && aerie_sidebar::IsAutoHidden(*profile_prefs());
+  peek_surface_->SetVisible(floating);
+  if (floating) {
+    peek_surface_->SetColours(palette_);
+    const int room = AerieSidebarPeekSurface::ShadowRoom();
+    gfx::Rect rect = GetLocalBounds();
+    rect.Outset(room);
+    peek_surface_->SetBoundsRect(rect);
+  }
+}
+
+void AerieSidebarView::OnBoundsChanged(const gfx::Rect& previous_bounds) {
+  UpdatePeekSurface();
+}
+
+void AerieSidebarView::ApplyDensity() {
+  const PrefService* prefs = profile_prefs();
+  density_ = aerie_sidebar::GetDensity(*prefs);
+  sizes_ = aerie_sidebar::SizesFor(density_);
+  box_layout_->set_inside_border_insets(
+      gfx::Insets::VH(aerie::tokens::kSpace8, sizes_.inset));
+  for (const std::vector<Row>* rows : {&rows_, &pinned_rows_}) {
+    for (const Row& row : *rows) {
+      if (row.view) {
+        row.view->SetDensity(sizes_);
+      }
+    }
+  }
+  for (AerieSidebarRowView* row : closing_rows_) {
+    if (row) {
+      row->SetDensity(sizes_);
+    }
+  }
+  for (const Tile& tile : tiles_) {
+    tile.view->SetDensity(sizes_);
+  }
+  favorites_grid_->SetDensity(sizes_);
+  constexpr int kPinnedRingRoom = static_cast<int>(
+      aerie::tokens::kSizeFocusRingOffset + aerie::tokens::kSizeFocusRingWidth);
+  pinned_scroll_->ClipHeightTo(
+      0, kPinnedMaxVisibleRows * (sizes_.row_height + kPinnedRingRoom) +
+             2 * kPinnedRingRoom);
+  new_tab_row_->SetPreferredSize(gfx::Size(0, sizes_.row_height));
+  UpdateRail(sizes_.icons_only);
+  InvalidateLayout();
+}
+
+void AerieSidebarView::UpdateRail(bool rail) {
+  top_row_->SetVertical(rail);
+  today_header_->SetVisible(!rail);
+  // The New Tab row keeps its name for a screen reader and its tooltip.
+  new_tab_row_->SetText(rail ? std::u16string() : new_tab_label_);
+  new_tab_row_->GetViewAccessibility().SetName(new_tab_label_);
+  new_tab_row_->SetHorizontalAlignment(rail ? gfx::ALIGN_CENTER
+                                            : gfx::ALIGN_LEFT);
+  // The address pill becomes a square Guard button in the rail.
+  if (rail && !guard_button_) {
+    auto button = std::make_unique<views::ImageButton>(base::BindRepeating(
+        [](base::WeakPtr<AerieSidebarView> self) {
+          if (!self) {
+            return;
+          }
+          tabs::TabInterface* tab = self->browser_->GetActiveTabInterface();
+          if (!tab) {
+            return;
+          }
+          if (auto* guard = tab->GetTabFeatures()
+                                ->aerie_guard_page_action_controller()) {
+            guard->ShowPanel(views::BubbleAnchor(self->guard_button_));
+          }
+        },
+        weak_factory_.GetWeakPtr()));
+    button->SetImageModel(views::Button::STATE_NORMAL,
+                          aerie_guard::GuardImage(false, std::u16string()));
+    button->SetPreferredSize(
+        gfx::Size(aerie::tokens::kSizeRailTile, aerie::tokens::kSizeRailTile));
+    button->GetViewAccessibility().SetName(
+        l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_GUARD_BUTTON));
+    button->SetTooltipText(
+        l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_GUARD_BUTTON));
+    guard_button_ = pill_->AddChildView(std::move(button));
+  }
+  if (guard_button_) {
+    guard_button_->SetVisible(rail);
+  }
+  if (location_bar_) {
+    location_bar_->SetVisible(!rail);
+  }
+}
+
 void AerieSidebarView::AdoptToolbar(const AerieSidebarToolbarParts& parts) {
   CHECK(!adopted_toolbar_);
   CHECK(parts.toolbar);
@@ -462,6 +675,7 @@ void AerieSidebarView::AdoptToolbar(const AerieSidebarToolbarParts& parts) {
   }
   if (parts.location_bar && parts.location_bar->parent()) {
     adopted_parts_.push_back(parts.location_bar);
+    location_bar_ = parts.location_bar;
     pill_->AddChildView(
         parts.location_bar->parent()->RemoveChildViewT(parts.location_bar));
   }
@@ -471,6 +685,7 @@ void AerieSidebarView::AdoptToolbar(const AerieSidebarToolbarParts& parts) {
   }
   // The toolbar paints its own fill; here the frame tint shows through.
   parts.toolbar->SetBackground(nullptr);
+  UpdateRail(sizes_.icons_only);
   InvalidateLayout();
 }
 
@@ -675,12 +890,18 @@ AerieSidebarRowView* AerieSidebarView::MakeRow(
     callbacks.edit_folder = base::BindRepeating(
         &AerieSidebarView::OpenFolderSheet, base::Unretained(this), id);
   }
+  callbacks.rename_state_changed = base::BindRepeating(
+      &AerieSidebarView::SyncPeekBusy, weak_factory_.GetWeakPtr());
+  AerieSidebarRowView* row;
   if (entry.is_folder) {
-    return list->AddChildView(std::make_unique<AerieSidebarFolderRowView>(
+    row = list->AddChildView(std::make_unique<AerieSidebarFolderRowView>(
         std::move(callbacks), palette_));
+  } else {
+    row = list->AddChildView(
+        std::make_unique<AerieSidebarRowView>(std::move(callbacks), palette_));
   }
-  return list->AddChildView(
-      std::make_unique<AerieSidebarRowView>(std::move(callbacks), palette_));
+  row->SetDensity(sizes_);
+  return row;
 }
 
 AerieSidebarView::Reconciled AerieSidebarView::ReconcileRows(
@@ -959,6 +1180,7 @@ void AerieSidebarView::SyncFavorites() {
                                              base::Unretained(this));
     auto* view = favorites_grid_->AddChildView(
         std::make_unique<AerieSidebarTileView>(std::move(callbacks), palette_));
+    view->SetDensity(sizes_);
     next.push_back({id, view});
   }
   int refocus_index = -1;
@@ -1104,7 +1326,9 @@ void AerieSidebarView::OnMoveKey(aerie_tab_model::Section section,
 }
 
 bool AerieSidebarView::OnItemDragBegin(const std::string& id, bool is_folder) {
-  return EnsureDragController()->Begin(id, is_folder);
+  const bool began = EnsureDragController()->Begin(id, is_folder);
+  SyncPeekBusy();
+  return began;
 }
 
 void AerieSidebarView::OnItemDragUpdate(const gfx::Point& widget_point) {
@@ -1119,6 +1343,7 @@ void AerieSidebarView::OnItemDragEnd(const gfx::Point& widget_point,
   if (drag_controller_) {
     drag_controller_->End(widget_point, cancelled, outside);
   }
+  SyncPeekBusy();
 }
 
 void AerieSidebarView::CancelDragIfListsChange(
@@ -1145,6 +1370,7 @@ void AerieSidebarView::CancelDragIfListsChange(
   }
   if (changed) {
     drag_controller_->Cancel();
+    SyncPeekBusy();
   }
 }
 
@@ -1308,6 +1534,8 @@ void AerieSidebarView::FocusTabStop() {
 }
 
 void AerieSidebarView::GetAccessiblePanes(std::vector<views::View*>* panes) {
+  // F6 on an auto-hidden sidebar opens it (issue #184).
+  PeekForFocus();
   if (!GetVisible()) {
     return;
   }
@@ -1814,8 +2042,11 @@ void AerieSidebarView::ShowSectionContextMenu(
       std::move(options),
       base::BindRepeating(&AerieSidebarView::OnSectionContextCommand,
                           weak_factory_.GetWeakPtr(), section));
+  context_menu_->set_closed_callback(base::BindRepeating(
+      &AerieSidebarView::SyncPeekBusy, weak_factory_.GetWeakPtr()));
   context_menu_->Run(GetWidget(), screen_point, source_type,
                      browser_->GetProfile()->GetPrefs());
+  SyncPeekBusy();
 }
 
 void AerieSidebarView::OnSectionContextCommand(
@@ -1846,8 +2077,11 @@ void AerieSidebarView::ShowFolderContextMenu(
       std::move(options),
       base::BindRepeating(&AerieSidebarView::OnFolderContextCommand,
                           weak_factory_.GetWeakPtr(), folder_id));
+  context_menu_->set_closed_callback(base::BindRepeating(
+      &AerieSidebarView::SyncPeekBusy, weak_factory_.GetWeakPtr()));
   context_menu_->Run(GetWidget(), screen_point, source_type,
                      browser_->GetProfile()->GetPrefs());
+  SyncPeekBusy();
 }
 
 void AerieSidebarView::OnFolderContextCommand(
@@ -1962,8 +2196,11 @@ void AerieSidebarView::ShowRowContextMenu(
       std::move(options),
       base::BindRepeating(&AerieSidebarView::OnContextCommand,
                           weak_factory_.GetWeakPtr(), tab_id));
+  context_menu_->set_closed_callback(base::BindRepeating(
+      &AerieSidebarView::SyncPeekBusy, weak_factory_.GetWeakPtr()));
   context_menu_->Run(GetWidget(), screen_point, source_type,
                      browser_->GetProfile()->GetPrefs());
+  SyncPeekBusy();
 }
 
 void AerieSidebarView::OnContextCommand(
@@ -2103,6 +2340,7 @@ bool AerieSidebarView::StartRename(const std::string& tab_id) {
                           base::BindOnce(&AerieSidebarView::OnTilePopoverDone,
                                          weak_factory_.GetWeakPtr(), tab_id))
                           ->GetWeakPtr();
+    SyncPeekBusy();
     return true;
   }
   return false;
@@ -2113,6 +2351,7 @@ void AerieSidebarView::OnTilePopoverDone(const std::string& tab_id,
                                          bool refocus_anchor) {
   rename_popover_.reset();
   rename_popover_tab_id_.clear();
+  SyncPeekBusy();
   if (text) {
     CommitRename(tab_id, *text);
   }
@@ -2291,6 +2530,7 @@ void AerieSidebarView::OpenFolderSheet(const std::string& folder_id) {
         // The window is closing: the sheet is gone as far as the sidebar goes,
         // whenever the window object itself is destroyed.
         self->folder_sheet_.reset();
+        self->SyncPeekBusy();
         if (refocus) {
           self->FocusRowById(id);
         }
@@ -2299,6 +2539,7 @@ void AerieSidebarView::OpenFolderSheet(const std::string& folder_id) {
   if (AerieSidebarFolderSheet* sheet =
           AerieSidebarFolderSheet::Show(std::move(params))) {
     folder_sheet_ = sheet->GetWeakPtr();
+    SyncPeekBusy();
   }
 }
 

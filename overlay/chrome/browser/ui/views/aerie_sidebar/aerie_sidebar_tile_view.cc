@@ -28,7 +28,6 @@
 
 namespace {
 
-constexpr int kFaviconSize = aerie::tokens::kSizeFaviconComfortable;
 constexpr int kSleepBadgeSize = aerie::tokens::kSizeSleepBadge;
 // The badge sits on the lower right corner of the favicon, as on a row.
 constexpr int kSleepBadgeOffset = aerie::tokens::kSizeSleepBadgeOffset;
@@ -53,7 +52,7 @@ AerieSidebarTileView::AerieSidebarTileView(
     const aerie_sidebar::SidebarPalette& palette)
     : callbacks_(std::move(callbacks)), palette_(palette) {
   auto favicon = std::make_unique<views::ImageView>();
-  favicon->SetImageSize(gfx::Size(kFaviconSize, kFaviconSize));
+  favicon->SetImageSize(gfx::Size(favicon_size_, favicon_size_));
   favicon->GetViewAccessibility().SetIsIgnored(true);
   auto badge = std::make_unique<views::ImageView>();
   badge->SetImageSize(gfx::Size(kSleepBadgeSize, kSleepBadgeSize));
@@ -219,14 +218,21 @@ void AerieSidebarTileView::PlayFlipFrom(const gfx::Vector2d& delta,
           base::Unretained(this)));
 }
 
+void AerieSidebarTileView::SetDensity(
+    const aerie_sidebar::DensitySizes& sizes) {
+  favicon_size_ = sizes.favicon;
+  favicon_->SetImageSize(gfx::Size(favicon_size_, favicon_size_));
+  InvalidateLayout();
+}
+
 void AerieSidebarTileView::Layout(PassKey) {
   LayoutSuperclass<views::View>(this);
   favicon_->SetBoundsRect(
-      gfx::Rect((width() - kFaviconSize) / 2, (height() - kFaviconSize) / 2,
-                kFaviconSize, kFaviconSize));
+      gfx::Rect((width() - favicon_size_) / 2, (height() - favicon_size_) / 2,
+                favicon_size_, favicon_size_));
   sleep_badge_->SetBoundsRect(gfx::Rect(
-      favicon_->x() + kFaviconSize - kSleepBadgeSize / 2 - 1,
-      favicon_->y() + kFaviconSize - kSleepBadgeSize / 2 - 1, kSleepBadgeSize,
+      favicon_->x() + favicon_size_ - kSleepBadgeSize / 2 - 1,
+      favicon_->y() + favicon_size_ - kSleepBadgeSize / 2 - 1, kSleepBadgeSize,
       kSleepBadgeSize));
 }
 

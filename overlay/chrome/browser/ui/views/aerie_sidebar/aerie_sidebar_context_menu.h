@@ -70,6 +70,13 @@ class AerieSidebarContextMenu : public views::MenuDelegate {
   // The command of the "Move to folder" entry for `Options::move_targets[index]`.
   static Command MoveToFolderCommand(size_t index);
 
+  // True while the menu is on screen (the auto-hide peek keeps the sidebar open
+  // for it, issue #184), and a callback for when it closes.
+  bool IsOpen() const;
+  void set_closed_callback(base::RepeatingClosure closed) {
+    closed_ = std::move(closed);
+  }
+
   // What the menu is for.
   enum class Target {
     // A tab row or a Favorites tile.
@@ -182,6 +189,7 @@ class AerieSidebarContextMenu : public views::MenuDelegate {
   CommandCallback on_command_;
   raw_ptr<views::MenuItemView> root_ = nullptr;
   std::unique_ptr<views::MenuRunner> runner_;
+  base::RepeatingClosure closed_;
   aerie::motion::MotionHandle menu_motion_;
   raw_ptr<ui::Layer> motion_layer_ = nullptr;
 };

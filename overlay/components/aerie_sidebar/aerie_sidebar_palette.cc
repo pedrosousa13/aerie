@@ -35,6 +35,9 @@ SidebarPalette ResolveSidebarPalette(aerie::tokens::ThemeId theme,
   palette.control_rest = WithShare(frame.text, kControlRestShare);
   palette.control_hover = WithShare(frame.text, kControlHoverShare);
   palette.control_close_hover = tokens.color_status_danger;
+  palette.peek_surface =
+      frame.stop_count > 0 ? frame.stops[0] : frame.frame_base;
+  palette.peek_shadow = tokens.shadow_peek;
   return palette;
 }
 
