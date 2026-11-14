@@ -265,7 +265,6 @@ AerieSidebarArchivePanel::AerieSidebarArchivePanel(
   search_->GetViewAccessibility().SetName(
       l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_ARCHIVE_SEARCH));
   search_->GetViewAccessibility().SetRole(ax::mojom::Role::kSearchBox);
-  search_->SetTextColor(palette_.text);
 
   auto list = std::make_unique<views::BoxLayoutView>();
   list->SetOrientation(views::BoxLayout::Orientation::kVertical);
@@ -358,7 +357,7 @@ std::vector<std::u16string> AerieSidebarArchivePanel::group_titles() const {
     if (child->GetClassName() == std::string_view("Label") &&
         child->GetViewAccessibility().GetCachedRole() ==
             ax::mojom::Role::kHeading) {
-      out.push_back(static_cast<views::Label*>(child)->GetText());
+      out.emplace_back(static_cast<views::Label*>(child)->GetText());
     }
   }
   return out;

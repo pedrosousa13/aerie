@@ -111,6 +111,7 @@ source_set("browser_tests") {
   # content/public/test/browser_test.h refuses to compile without it.
   defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
   sources = [
+    "aerie_sidebar_archive_browsertest.cc",
     "aerie_sidebar_autofile_browsertest.cc",
     "aerie_sidebar_browsertest.cc",
     "aerie_sidebar_drag_browsertest.cc",
@@ -159,6 +160,7 @@ source_set("interactive_tests") {
   # content/public/test/browser_test.h refuses to compile without it.
   defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
   sources = [
+    "aerie_sidebar_archive_uitest.cc",
     "aerie_sidebar_autofile_uitest.cc",
     "aerie_sidebar_drag_uitest.cc",
     "aerie_sidebar_guard_uitest.cc",

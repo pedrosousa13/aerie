@@ -13,6 +13,7 @@
 
 #include "base/auto_reset.h"
 #include "base/functional/bind.h"
+#include "base/memory/ptr_util.h"
 #include "base/functional/callback_helpers.h"
 #include "base/no_destructor.h"
 #include "base/strings/string_number_conversions.h"
@@ -403,7 +404,8 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
               },
               weak_factory_.GetWeakPtr())));
   bottom_layout->SetFlexForView(archive_button_, 1);
-  archive_ = std::make_unique<AerieSidebarArchiveController>(this);
+  archive_ = base::WrapUnique(new AerieSidebarArchiveController(
+      static_cast<AerieSidebarArchiveController::ViewHost*>(this)));
 
   browser_->GetTabStripModel()->AddObserver(this);
 
@@ -1238,25 +1240,21 @@ std::optional<gfx::Rect> AerieSidebarView::RowBounds(
   if (!row || !row->parent()) {
     return std::nullopt;
   }
-  gfx::Rect rect = row->bounds();
-  views::View::ConvertRectToTarget(row->parent(), this, &rect);
-  return rect;
+  return views::View::ConvertRectToTarget(row->parent(), this, row->bounds());
 }
 
 gfx::Rect AerieSidebarView::TodayTopSlot() const {
   // The first row of Today, or where it will be: the top of the list, one
   // row high, as wide as the list.
   const views::View* contents = scroll_->contents();
-  gfx::Rect rect(0, 0, contents->width(), aerie::tokens::kSizeRowHeightComfortable);
-  if (!rows_.empty() && rows_.front().view) {
-    rect = rows_.front().view->bounds();
-    gfx::Rect in_sidebar = rect;
-    views::View::ConvertRectToTarget(rows_.front().view->parent(), this,
-                                     &in_sidebar);
-    return in_sidebar;
+  if (!rows_.empty() && rows_.front().view && rows_.front().view->parent()) {
+    return views::View::ConvertRectToTarget(rows_.front().view->parent(), this,
+                                            rows_.front().view->bounds());
   }
-  views::View::ConvertRectToTarget(contents, this, &rect);
-  return rect;
+  return views::View::ConvertRectToTarget(
+      contents, this,
+      gfx::Rect(0, 0, contents->width(),
+                aerie::tokens::kSizeRowHeightComfortable));
 }
 
 bool AerieSidebarView::CanAnimateRows() const {
