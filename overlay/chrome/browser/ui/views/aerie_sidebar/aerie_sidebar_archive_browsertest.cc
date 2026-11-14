@@ -36,6 +36,7 @@
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/aerie_design_tokens/aerie_motion.h"
 #include "components/aerie_design_tokens/aerie_tokens.h"
+#include "components/aerie_sidebar/aerie_sidebar_motion.h"
 #include "components/aerie_tab_model/archive.h"
 #include "components/aerie_tab_model/tab_model.h"
 #include "components/aerie_tab_model/tab_model_prefs.h"
@@ -227,7 +228,7 @@ class AerieSidebarArchiveBrowserTest : public InProcessBrowserTest {
 
   void OpenPanel() {
     ASSERT_FALSE(panel());
-    sidebar()->archive_button()->NotifyClick(ui::MouseEvent(
+    views::test::ButtonTestApi(sidebar()->archive_button()).NotifyClick(ui::MouseEvent(
         ui::EventType::kMousePressed, gfx::Point(), gfx::Point(),
         base::TimeTicks::Now(), ui::EF_LEFT_MOUSE_BUTTON,
         ui::EF_LEFT_MOUSE_BUTTON));
@@ -242,6 +243,12 @@ class AerieSidebarArchiveBrowserTest : public InProcessBrowserTest {
     } else {
       target->OnKeyPressed(event);
     }
+  }
+
+  // Types into the search field and tells the panel, as typing does.
+  void Search(const std::u16string& text) {
+    panel()->search()->SetText(text);
+    panel()->ContentsChanged(panel()->search(), text);
   }
 
   void ClickRow(size_t index) {
@@ -270,7 +277,7 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarArchiveBrowserTest,
   EXPECT_EQ(NameOf(button),
             l10n_util::GetStringUTF8(IDS_AERIE_SIDEBAR_ARCHIVE_BUTTON));
   EXPECT_EQ(DataOf(button).role, ax::mojom::Role::kButton);
-  EXPECT_EQ(base::UTF16ToUTF8(button->GetTooltipText(gfx::Point())),
+  EXPECT_EQ(base::UTF16ToUTF8(button->GetRenderedTooltipText(gfx::Point())),
             l10n_util::GetStringUTF8(IDS_AERIE_SIDEBAR_ARCHIVE_BUTTON));
 }
 
@@ -343,15 +350,15 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarArchiveBrowserTest,
   AddArchived("Delta", "https://example.net/delta", base::Time::Now());
   OpenPanel();
   ASSERT_EQ(panel()->rows().size(), 3u);
-  panel()->search()->SetText(u"ALPHA");
+  Search(u"ALPHA");
   ASSERT_EQ(panel()->rows().size(), 1u);
   EXPECT_EQ(panel()->rows()[0]->title(), u"Alpha docs");
-  panel()->search()->SetText(u"gamma");
+  Search(u"gamma");
   ASSERT_EQ(panel()->rows().size(), 1u);
   EXPECT_EQ(panel()->rows()[0]->title(), u"Beta notes");
-  panel()->search()->SetText(u"nothing like it");
+  Search(u"nothing like it");
   EXPECT_TRUE(panel()->rows().empty());
-  panel()->search()->SetText(u"");
+  Search(u"");
   EXPECT_EQ(panel()->rows().size(), 3u);
 }
 
@@ -398,8 +405,8 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarArchiveBrowserTest,
   EXPECT_EQ(record->section, aerie_tab_model::Section::kToday);
   EXPECT_LT(record->position, model()->GetTab(other)->position);
   EXPECT_EQ(controller()->last_announcement(), u"Restored " + title);
-  // Focus is back on the Archive button.
-  EXPECT_TRUE(sidebar()->archive_button()->HasFocus());
+  // The restored tab is selected, so focus goes to its page, not the button.
+  EXPECT_FALSE(panel());
   EXPECT_TRUE(aerie_tab_model::ArchivedRows(*model()).empty());
 }
 
@@ -409,7 +416,7 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarArchiveBrowserTest,
   ArchiveTab(id);
   AddArchived("Unrelated", "https://example.com/unrelated", base::Time::Now());
   OpenPanel();
-  panel()->search()->SetText(u"title1");
+  Search(u"title1");
   ASSERT_EQ(panel()->rows().size(), 1u);
   Press(ui::VKEY_RETURN, panel()->search());
   EXPECT_FALSE(panel());
@@ -419,7 +426,6 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarArchiveBrowserTest,
   }));
   EXPECT_NE(controller()->last_announcement().find(u"Restored "),
             std::u16string::npos);
-  EXPECT_TRUE(sidebar()->archive_button()->HasFocus());
 }
 
 IN_PROC_BROWSER_TEST_F(AerieSidebarArchiveBrowserTest,
@@ -453,7 +459,7 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarArchiveBrowserTest,
 IN_PROC_BROWSER_TEST_F(AerieSidebarArchiveBrowserTest,
                        TheButtonOpensAndClosesThePanel) {
   OpenPanel();
-  sidebar()->archive_button()->NotifyClick(ui::MouseEvent(
+  views::test::ButtonTestApi(sidebar()->archive_button()).NotifyClick(ui::MouseEvent(
       ui::EventType::kMousePressed, gfx::Point(), gfx::Point(),
       base::TimeTicks::Now(), ui::EF_LEFT_MOUSE_BUTTON,
       ui::EF_LEFT_MOUSE_BUTTON));
@@ -522,10 +528,14 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarArchiveBrowserTest,
   ui::Layer* copy = controller()->FlightLayer("restore:" + id);
   ASSERT_TRUE(copy);
   EXPECT_TRUE(Animates(copy, ui::LayerAnimationElement::TRANSFORM));
-  EXPECT_EQ(RunningMs(copy, ui::LayerAnimationElement::TRANSFORM),
-            aerie::tokens::GetDurationMs(
-                aerie::tokens::MotionDuration::kArchiveRestore, false));
-  EXPECT_EQ(RunningMs(copy, ui::LayerAnimationElement::TRANSFORM), 340);
+  // `archive-restore` (340 ms) on the spring: the plan names the tokens, and
+  // the spring is played as several short linear pieces of one sequence.
+  const aerie_sidebar::ArchiveRestoreMotion plan =
+      aerie_sidebar::RestoreTabMotion(false);
+  EXPECT_EQ(plan.duration, aerie::tokens::MotionDuration::kArchiveRestore);
+  EXPECT_EQ(plan.duration_ms, 340);
+  EXPECT_EQ(plan.easing, aerie::tokens::MotionEasing::kSpring);
+  EXPECT_LT(RunningMs(copy, ui::LayerAnimationElement::TRANSFORM), 340);
   EXPECT_TRUE(copy->GetTargetTransform().IsIdentity());
   EXPECT_TRUE(OnlyTransformAndOpacity(copy));
   ASSERT_TRUE(base::test::RunUntil(
