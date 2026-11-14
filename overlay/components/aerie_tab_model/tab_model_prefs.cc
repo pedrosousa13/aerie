@@ -20,17 +20,16 @@ void RegisterProfilePrefs(PrefRegistrySimple* registry) {
 }
 
 std::optional<base::TimeDelta> ParseArchiveAfter(std::string_view value) {
-  if (value == "never") {
-    return std::nullopt;
+  for (const ArchiveAfterOption& option : kArchiveAfterOptions) {
+    if (value == option.value) {
+      if (option.hours == 0) {
+        return std::nullopt;
+      }
+      return base::Hours(option.hours);
+    }
   }
-  if (value == "24h") {
-    return base::Hours(24);
-  }
-  if (value == "7d") {
-    return base::Days(7);
-  }
-  // "12h", and anything unknown.
-  return base::Hours(12);
+  // Anything unknown is the first, 12h.
+  return base::Hours(kArchiveAfterOptions[0].hours);
 }
 
 std::optional<base::TimeDelta> ParseArchiveKeep(std::string_view value) {

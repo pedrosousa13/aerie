@@ -324,8 +324,6 @@ ArchiveMotion ArchiveTabMotion(bool reduced) {
   motion.fly_duration = MotionDuration::kArchiveCollapse;
   motion.fly_easing = MotionEasing::kAccelerate;
   motion.fly_ms = GetDurationMs(motion.fly_duration, reduced);
-  motion.fade_copy = reduced;
-  motion.animate_height = !reduced;
   motion.animate_scale = !reduced;
   motion.pulse_scale = reduced ? aerie::tokens::kMotionScaleArchivePulseReduced
                                : aerie::tokens::kMotionScaleArchivePulse;
@@ -341,7 +339,6 @@ ArchiveRestoreMotion RestoreTabMotion(bool reduced) {
   motion.duration = MotionDuration::kArchiveRestore;
   motion.easing = MotionEasing::kSpring;
   motion.duration_ms = GetDurationMs(motion.duration, reduced);
-  motion.fade_copy = reduced;
   return motion;
 }
 

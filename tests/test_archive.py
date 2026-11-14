@@ -122,6 +122,20 @@ class TimerTest(unittest.TestCase):
         self.assertRegex(view, re.compile(r"PostDelayedTask\(.*?self->archive_->Attach\(\);", re.S))
 
 
+class SharedTableTest(unittest.TestCase):
+    def test_the_parser_and_the_panel_share_one_table_of_timeouts(self):
+        prefs = code(TAB_MODEL / "tab_model_prefs.cc")
+        self.assertIn("kArchiveAfterOptions", prefs)
+        panel = code(VIEWS / "aerie_sidebar_archive_panel.cc")
+        self.assertIn("kArchiveAfterOptions", panel)
+        self.assertNotIn('"12h"', panel)
+
+    def test_the_untokenised_panel_values_are_listed_in_the_design_doc(self):
+        doc = (REPO / "docs" / "sidebar-design.md").read_text()
+        for name in ("kListMaxHeight", "kLandingSlackMs"):
+            self.assertIn(name, doc)
+
+
 class MotionTest(unittest.TestCase):
     def test_the_archive_motion_uses_the_named_tokens(self):
         text = (SIDEBAR_COMPONENT / "aerie_sidebar_motion.cc").read_text()
