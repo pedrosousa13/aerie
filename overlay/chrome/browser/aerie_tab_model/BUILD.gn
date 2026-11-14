@@ -73,6 +73,7 @@ source_set("aerie_tab_model") {
     ":session_record_id_hook",
     "//chrome/app:generated_resources",
     "//chrome/browser/performance_manager",
+    "//chrome/browser/ui:browser_tabrestore",
     "//chrome/browser/performance_manager/public/user_tuning",
     "//chrome/browser/resource_coordinator",
     "//chrome/browser/resource_coordinator:mojo_bindings",
