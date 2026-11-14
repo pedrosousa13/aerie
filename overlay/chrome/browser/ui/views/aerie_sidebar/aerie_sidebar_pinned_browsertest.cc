@@ -406,7 +406,10 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarPinnedBrowserTest, CloseModeResetAndSleepGoes
   ASSERT_TRUE(base::test::RunUntil(
       [&] { return strip()->count() == tabs_before - 1; }));
   WaitForPinned(0);
-  EXPECT_EQ(model()->GetTab(id), nullptr);
+  // It goes to the Archive (issue #183): the record stays, archived, and no
+  // row shows it.
+  ASSERT_NE(model()->GetTab(id), nullptr);
+  EXPECT_TRUE(model()->GetTab(id)->archived_at);
 }
 
 IN_PROC_BROWSER_TEST_F(AerieSidebarPinnedBrowserTest, CloseModeResetAndSleepOnTheStartPageOnlySleepsAndLoadsNothing) {
@@ -448,7 +451,10 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarPinnedBrowserTest, CloseModeSleepKeepsThePage
   ASSERT_TRUE(base::test::RunUntil(
       [&] { return strip()->count() == tabs_before - 1; }));
   WaitForPinned(0);
-  EXPECT_EQ(model()->GetTab(id), nullptr);
+  // It goes to the Archive (issue #183): the record stays, archived, and no
+  // row shows it.
+  ASSERT_NE(model()->GetTab(id), nullptr);
+  EXPECT_TRUE(model()->GetTab(id)->archived_at);
 }
 
 IN_PROC_BROWSER_TEST_F(AerieSidebarPinnedBrowserTest, CloseModeCloseUnpinsAndCloses) {
@@ -465,7 +471,10 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarPinnedBrowserTest, CloseModeCloseUnpinsAndClo
   ASSERT_TRUE(base::test::RunUntil(
       [&] { return strip()->count() == tabs_before - 1; }));
   WaitForPinned(0);
-  EXPECT_EQ(model()->GetTab(id), nullptr);
+  // It goes to the Archive (issue #183): the record stays, archived, and no
+  // row shows it.
+  ASSERT_NE(model()->GetTab(id), nullptr);
+  EXPECT_TRUE(model()->GetTab(id)->archived_at);
 }
 
 // Acceptance: Ctrl+W (IDC_CLOSE_TAB) on a pinned tab follows the setting too.
