@@ -21,6 +21,10 @@
 #include "components/aerie_sidebar/aerie_sidebar_palette.h"
 #include "ui/gfx/geometry/rect.h"
 
+namespace ui {
+class Layer;
+}  // namespace ui
+
 class AerieSidebarArchiveButton;
 class BrowserWindowInterface;
 class PrefService;
@@ -89,7 +93,12 @@ class AerieSidebarArchiveController
   AerieSidebarArchivePanel* panel() const { return panel_.get(); }
   // True while a copy is in the air, for tests.
   size_t flights_in_progress() const { return flights_.size(); }
-  const aerie::motion::MotionHandle* FlightMotion(const std::string& id) const;
+  // The copy that flies for `key` ("archive:<record id>" or "restore:<record
+  // id>"), its animation and its layer; null when none is in the air.
+  const aerie::motion::MotionHandle* FlightMotion(const std::string& key) const;
+  ui::Layer* FlightLayer(const std::string& key) const;
+  // What the last restore announced to a screen reader, for tests.
+  const std::u16string& last_announcement() const { return last_announcement_; }
   void Detach();
 
   // aerie_tab_model::TabArchiver::Observer:
@@ -130,6 +139,7 @@ class AerieSidebarArchiveController
       observation_{this};
   std::map<std::string, std::unique_ptr<Flight>> flights_;
   base::WeakPtr<AerieSidebarArchivePanel> panel_;
+  std::u16string last_announcement_;
   base::WeakPtrFactory<AerieSidebarArchiveController> weak_factory_{this};
 };
 

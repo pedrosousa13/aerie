@@ -92,6 +92,14 @@ const aerie::motion::MotionHandle* AerieSidebarArchiveController::FlightMotion(
   return it == flights_.end() ? nullptr : &it->second->motion;
 }
 
+ui::Layer* AerieSidebarArchiveController::FlightLayer(
+    const std::string& key) const {
+  auto it = flights_.find(key);
+  return it == flights_.end() || !it->second->ghost
+             ? nullptr
+             : it->second->ghost->layer();
+}
+
 AerieSidebarArchiveController::Flight* AerieSidebarArchiveController::StartFlight(
     const std::string& key,
     const AerieSidebarDragContent& content,
@@ -238,8 +246,10 @@ void AerieSidebarArchiveController::RestoreArchived(
   if (!archiver_->Restore(row.id, host_->Browser())) {
     return;
   }
+  last_announcement_ =
+      l10n_util::GetStringFUTF16(IDS_AERIE_SIDEBAR_ARCHIVE_RESTORED, title);
   host_->SidebarView()->GetViewAccessibility().AnnounceText(
-      l10n_util::GetStringFUTF16(IDS_AERIE_SIDEBAR_ARCHIVE_RESTORED, title));
+      last_announcement_);
   if (!host_->CanAnimate()) {
     return;
   }
