@@ -25,6 +25,7 @@
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_archive_button.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_archive_controller.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_archive_panel.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_row_view.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_view.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h"
