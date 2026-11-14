@@ -33,11 +33,6 @@ namespace {
 // state (WantsCursorPoll) and stops with it.
 constexpr base::TimeDelta kCursorPollInterval = base::Milliseconds(100);
 
-// The room between the floating sidebar and the window edge. Its footprint
-// includes it, so the pointer crossing the gap is still over the sidebar. This
-// is the layout's inset and `size-inset-comfortable`.
-constexpr int kFloatInset = aerie::tokens::kSizeInsetComfortable;
-
 ui::Accelerator KeepOpenAccelerator() {
   return ui::Accelerator(ui::VKEY_S, ui::EF_CONTROL_DOWN | ui::EF_ALT_DOWN);
 }
@@ -54,9 +49,6 @@ AerieSidebarPeekDriver::AerieSidebarPeekDriver(AerieSidebarView* view)
 AerieSidebarPeekDriver::~AerieSidebarPeekDriver() {
   controller_.RemoveObserver(this);
   SetActive(false);
-  for (aerie_sidebar::ScopedBusy& busy : busy_) {
-    busy.Reset();
-  }
 }
 
 views::View* AerieSidebarPeekDriver::Region() const {
@@ -78,9 +70,11 @@ gfx::Rect AerieSidebarPeekDriver::WindowInScreen() const {
   return page ? page->GetBoundsInScreen() : gfx::Rect();
 }
 
+// The footprint of the floating sidebar: its column and the inset between it
+// and the window edge, so that a pointer crossing the gap is still over it.
 gfx::Rect AerieSidebarPeekDriver::FootprintInScreen() const {
   gfx::Rect window = WindowInScreen();
-  const int width = view_->column_width() + kFloatInset;
+  const int width = view_->column_width() + view_->density_sizes().inset;
   return OuterSign() > 0 ? gfx::Rect(window.right() - width, window.y(), width,
                                      window.height())
                          : gfx::Rect(window.x(), window.y(), width,
@@ -103,8 +97,10 @@ void AerieSidebarPeekDriver::SetActive(bool active) {
   active_ = active;
   views::Widget* widget = view_->GetWidget();
   if (active_) {
+    ApplyTimings();
     controller_.Reset();
     if (widget) {
+      widget_observation_.Observe(widget);
       monitor_ = views::EventMonitor::CreateWindowMonitor(
           this, widget->GetNativeWindow(),
           {ui::EventType::kMouseMoved, ui::EventType::kMouseExited});
@@ -134,9 +130,10 @@ void AerieSidebarPeekDriver::SetActive(bool active) {
   controller_.Reset();
   f6_open_ = false;
   f6_focus_entered_ = false;
-  for (aerie_sidebar::ScopedBusy& busy : busy_) {
-    busy.Reset();
-  }
+  focus_hold_.Reset();
+  omnibox_hold_.Reset();
+  bubble_hold_.Reset();
+  widget_observation_.Reset();
   bubble_observation_.Reset();
   tracked_bubble_ = nullptr;
   SetFloatingWidth(0);
@@ -181,6 +178,7 @@ void AerieSidebarPeekDriver::HandlePointer(const gfx::Point& screen_point) {
   if (!active_) {
     return;
   }
+  ApplyTimings();
   const gfx::Rect window = WindowInScreen();
   if (!window.Contains(screen_point)) {
     // Outside the window: the distance to the sidebar decides.
@@ -189,7 +187,7 @@ void AerieSidebarPeekDriver::HandlePointer(const gfx::Point& screen_point) {
                              screen_point.x() - footprint.right()});
     const int dy = std::max({0, footprint.y() - screen_point.y(),
                              screen_point.y() - footprint.bottom()});
-    SyncBusy();
+    HoldForBubble();
     controller_.SetPointerOutsideWindow(dx, dy);
     UpdateCursorPoll();
     return;
@@ -199,7 +197,7 @@ void AerieSidebarPeekDriver::HandlePointer(const gfx::Point& screen_point) {
   const bool hot = HotZoneInScreen().Contains(screen_point);
   if (!over && !hot) {
     // About to leave: a bubble open on the sidebar (the Guard panel) counts.
-    SyncBusy();
+    HoldForBubble();
   }
   controller_.SetPointerInsideWindow();
   controller_.SetPointerOverSidebar(over);
@@ -210,7 +208,26 @@ void AerieSidebarPeekDriver::HandlePointer(const gfx::Point& screen_point) {
 void AerieSidebarPeekDriver::HandlePointerExit() {
   // The screen cursor says where it went; a web page would only see the exit
   // point.
-  HandlePointer(display::Screen::Get()->GetCursorScreenPoint());
+  RecheckPointer();
+}
+
+gfx::Point AerieSidebarPeekDriver::CursorPoint() const {
+  return cursor_for_testing_ ? *cursor_for_testing_
+                             : display::Screen::Get()->GetCursorScreenPoint();
+}
+
+void AerieSidebarPeekDriver::RecheckPointer() {
+  HandlePointer(CursorPoint());
+}
+
+void AerieSidebarPeekDriver::OnWidgetActivationChanged(views::Widget* widget,
+                                                       bool active) {
+  // A window that loses activation gets no more pointer events, and the cursor
+  // can leave it without one: the sidebar must not stay open for want of an
+  // event. Look at where the cursor is; if it is outside, the poll takes over.
+  if (active_ && widget == view_->GetWidget() && !active) {
+    RecheckPointer();
+  }
 }
 
 void AerieSidebarPeekDriver::UpdateCursorPoll() {
@@ -218,10 +235,7 @@ void AerieSidebarPeekDriver::UpdateCursorPoll() {
     if (!poll_timer_.IsRunning()) {
       poll_timer_.Start(FROM_HERE, kCursorPollInterval,
                         base::BindRepeating(
-                            [](AerieSidebarPeekDriver* self) {
-                              self->HandlePointer(
-                                  display::Screen::Get()->GetCursorScreenPoint());
-                            },
+                            &AerieSidebarPeekDriver::RecheckPointer,
                             base::Unretained(this)));
     }
   } else {
@@ -230,12 +244,10 @@ void AerieSidebarPeekDriver::UpdateCursorPoll() {
 }
 
 void AerieSidebarPeekDriver::OnPeekShow() {
-  ApplyTimings();
   SlideTo(/*show=*/true);
 }
 
 void AerieSidebarPeekDriver::OnPeekHide() {
-  ApplyTimings();
   SlideTo(/*show=*/false);
 }
 
@@ -291,15 +303,14 @@ void AerieSidebarPeekDriver::OnPeekStateChanged(aerie_sidebar::PeekState from,
   if (to == PeekState::kHidden || to == PeekState::kArming) {
     f6_open_ = false;
     f6_focus_entered_ = false;
-    SyncBusy();
+    focus_hold_.Reset();
   }
   // A sidebar that just came on screen: where is the pointer?
   if ((to == PeekState::kShowing || to == PeekState::kShown) &&
       from == PeekState::kArming) {
     // The pointer is in the hot zone; the footprint test starts now.
     controller_.SetPointerOverSidebar(
-        FootprintInScreen().Contains(
-            display::Screen::Get()->GetCursorScreenPoint()));
+        FootprintInScreen().Contains(CursorPoint()));
   }
   UpdateCursorPoll();
 }
@@ -319,16 +330,32 @@ void AerieSidebarPeekDriver::OnF6() {
   if (!active_) {
     return;
   }
+  ApplyTimings();
   f6_open_ = true;
   f6_focus_entered_ = false;
+  if (!focus_hold_.holds()) {
+    focus_hold_ = controller_.AcquireBusy(aerie_sidebar::PeekBusy::kFocus);
+  }
   controller_.OnF6();
-  SyncBusy();
+  // The focus is moved right after this, in the same call. If it did not land
+  // in the sidebar by the end of the turn, nothing is left to release the hold.
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE, base::BindOnce(&AerieSidebarPeekDriver::CheckFocusEntered,
+                                weak_factory_.GetWeakPtr()));
+}
+
+void AerieSidebarPeekDriver::CheckFocusEntered() {
+  if (f6_open_ && !f6_focus_entered_ && !FocusInsideSidebar()) {
+    f6_open_ = false;
+    focus_hold_.Reset();
+  }
 }
 
 bool AerieSidebarPeekDriver::ToggleKeepOpen() {
   if (!active_) {
     return false;
   }
+  ApplyTimings();
   controller_.ToggleKeepOpen();
   view_->ShowPeekToast(controller_.keep_open());
   return true;
@@ -349,18 +376,29 @@ void AerieSidebarPeekDriver::OnDidChangeFocus(views::View* focused_before,
       // F6 took the focus back to the page: the sidebar may go.
       f6_open_ = false;
       f6_focus_entered_ = false;
+      focus_hold_.Reset();
     }
   }
-  SyncBusy();
+  // The omnibox with focus holds the sidebar for as long as it has it.
+  if (view_->omnibox_has_focus()) {
+    if (!omnibox_hold_.holds()) {
+      omnibox_hold_ = controller_.AcquireBusy(aerie_sidebar::PeekBusy::kOmnibox);
+    }
+  } else {
+    omnibox_hold_.Reset();
+  }
+  HoldForBubble();
 }
 
-bool AerieSidebarPeekDriver::BubbleOpenInSidebar() {
+void AerieSidebarPeekDriver::HoldForBubble() {
   views::Widget* parent = view_->GetWidget();
   if (!parent) {
-    return false;
+    return;
   }
+  // A bubble is a transient child of the window's native view, not a child
+  // window of it.
   for (views::Widget* child :
-       views::Widget::GetAllChildWidgets(parent->GetNativeView())) {
+       views::Widget::GetAllOwnedWidgets(parent->GetNativeView())) {
     if (child == parent || child->IsClosed() || !child->IsVisible()) {
       continue;
     }
@@ -374,52 +412,22 @@ bool AerieSidebarPeekDriver::BubbleOpenInSidebar() {
         tracked_bubble_ = child;
         bubble_observation_.Observe(child);
       }
-      return true;
+      if (!bubble_hold_.holds()) {
+        bubble_hold_ =
+            controller_.AcquireBusy(aerie_sidebar::PeekBusy::kGuardBubble);
+      }
+      return;
     }
   }
-  return false;
 }
 
 void AerieSidebarPeekDriver::OnWidgetDestroying(views::Widget* widget) {
   if (widget == tracked_bubble_) {
     bubble_observation_.Reset();
     tracked_bubble_ = nullptr;
-    // The bubble that kept the sidebar open is gone: look again, after it is.
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-        FROM_HERE, base::BindOnce(&AerieSidebarPeekDriver::SyncBusy,
-                                  weak_factory_.GetWeakPtr()));
+    // The bubble that kept the sidebar open is gone: the machine looks again.
+    bubble_hold_.Reset();
+  } else if (widget == view_->GetWidget()) {
+    widget_observation_.Reset();
   }
-}
-
-void AerieSidebarPeekDriver::SetResizing(bool resizing) {
-  resizing_ = resizing;
-  SyncBusy();
-}
-
-void AerieSidebarPeekDriver::WantBusy(aerie_sidebar::PeekBusy source,
-                                      bool want) {
-  aerie_sidebar::ScopedBusy& hold = busy_[static_cast<size_t>(source)];
-  if (want && !hold.holds()) {
-    hold = controller_.AcquireBusy(source);
-  } else if (!want && hold.holds()) {
-    hold.Reset();
-  }
-}
-
-void AerieSidebarPeekDriver::SyncBusy() {
-  using aerie_sidebar::PeekBusy;
-  if (!active_) {
-    return;
-  }
-  const bool shown = controller_.visible();
-  WantBusy(PeekBusy::kMenu, shown && view_->context_menu_open());
-  WantBusy(PeekBusy::kPopover, shown && view_->rename_popover_open());
-  WantBusy(PeekBusy::kFolderSheet, shown && !!view_->folder_sheet());
-  WantBusy(PeekBusy::kDrag, shown && view_->dragging());
-  WantBusy(PeekBusy::kRename, shown && view_->any_row_renaming());
-  WantBusy(PeekBusy::kOmnibox, shown && view_->omnibox_has_focus());
-  WantBusy(PeekBusy::kResize, shown && resizing_);
-  WantBusy(PeekBusy::kFocus, shown && f6_open_ &&
-                                  (!f6_focus_entered_ || FocusInsideSidebar()));
-  WantBusy(PeekBusy::kGuardBubble, shown && BubbleOpenInSidebar());
 }

@@ -353,7 +353,7 @@ void AerieSidebarRowView::UpdateTrailing() {
 
 void AerieSidebarRowView::SetDensity(
     const aerie_sidebar::DensitySizes& sizes) {
-  row_height_ = sizes.row_icon > 0 ? sizes.row_height : row_height_;
+  row_height_ = sizes.row_height;
   icon_size_ = sizes.row_icon;
   icons_only_ = sizes.icons_only;
   static_cast<FaviconHolder*>(favicon_holder_.get())->SetIconSize(icon_size_);

@@ -8,6 +8,8 @@
 // peek's busy sources; and the timers (one at most, no poll while hidden).
 
 #include <string>
+#include <string_view>
+#include <vector>
 
 #include "base/run_loop.h"
 #include "ui/aura/window.h"
@@ -17,6 +19,21 @@
 #include "base/test/run_until.h"
 #include "base/time/time.h"
 #include "chrome/app/chrome_command_ids.h"
+#include "chrome/browser/aerie_tab_model/tab_model_service.h"
+#include "chrome/browser/aerie_tab_model/tab_model_service_factory.h"
+#include "chrome/browser/extensions/api/settings_private/prefs_util.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_sheet.h"
+#include "chrome/browser/ui/tabs/public/tab_features.h"
+#include "chrome/browser/ui/views/aerie_adblock/aerie_guard_page_action_controller.h"
+#include "components/prefs/pref_change_registrar.h"
+#include "components/aerie_tab_model/tab_model.h"
+#include "base/test/bind.h"
+#include "base/values.h"
+#include "content/public/test/browser_test_utils.h"
+#include "net/dns/mock_host_resolver.h"
+#include "net/test/embedded_test_server/embedded_test_server.h"
+#include "components/tabs/public/tab_interface.h"
+#include "ui/views/bubble/bubble_dialog_delegate_view.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
@@ -52,6 +69,7 @@
 
 namespace {
 
+using aerie_sidebar::PeekBusy;
 using aerie_sidebar::PeekState;
 
 template <typename T>
@@ -61,6 +79,18 @@ T* FindDescendant(views::View* root) {
   }
   for (views::View* child : root->children()) {
     if (T* found = FindDescendant<T>(child)) {
+      return found;
+    }
+  }
+  return nullptr;
+}
+
+views::View* FindByClassName(views::View* root, std::string_view name) {
+  if (root->GetClassName() == name) {
+    return root;
+  }
+  for (views::View* child : root->children()) {
+    if (views::View* found = FindByClassName(child, name)) {
       return found;
     }
   }
@@ -104,10 +134,20 @@ class AerieSidebarDensityBrowserTest : public InProcessBrowserTest {
   PrefService* prefs() { return browser()->GetProfile()->GetPrefs(); }
   AerieSidebarPeekDriver* peek() { return sidebar()->peek_driver(); }
 
-  // Sets the prefs and lets the layout rest.
+  // Sets the prefs and lets the layout rest. Settings docks or undocks the
+  // sidebar when auto-hide starts or ends, in the one place it sets the
+  // density (`ChoosingInSettingsDocksOrUndocksOnce` tests that); a test that
+  // sets the pref directly does the same by hand.
   void Choose(const char* density, const char* side = "left") {
     prefs()->SetString(aerie_sidebar::kSidePref, side);
+    const bool auto_hide = std::string(density) == "auto-hide";
+    if (!auto_hide) {
+      prefs()->SetBoolean(aerie_sidebar::kVisiblePref, true);
+    }
     prefs()->SetString(aerie_sidebar::kDensityPref, density);
+    if (auto_hide) {
+      prefs()->SetBoolean(aerie_sidebar::kVisiblePref, false);
+    }
     Settle();
   }
   void Settle() {
@@ -127,7 +167,6 @@ class AerieSidebarDensityBrowserTest : public InProcessBrowserTest {
   void FocusPage() {
     browser_view()->GetFocusManager()->ClearFocus();
     browser()->tab_strip_model()->GetActiveWebContents()->Focus();
-    sidebar()->SyncPeekBusy();
   }
   std::string FocusedName() {
     views::View* v = browser_view()->GetFocusManager()->GetFocusedView();
@@ -264,6 +303,26 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarDensityBrowserTest,
   EXPECT_FALSE(NameOf(sidebar()->new_tab_row_for_testing()).empty());
 }
 
+// The rail's bottom bar keeps the app menu and the profile button on screen and
+// reachable by the keyboard (issue #184 review).
+IN_PROC_BROWSER_TEST_F(AerieSidebarDensityBrowserTest,
+                       TheRailKeepsTheAppMenuAndTheProfileButtonReachable) {
+  Choose("rail");
+  // The profile button is hidden by the toolbar's own layout in 56 px (a
+  // known gap, in the design doc); the app menu is on screen.
+  for (const char* name : {"BrowserAppMenuButton"}) {
+    SCOPED_TRACE(name);
+    views::View* button = FindByClassName(region(), name);
+    ASSERT_TRUE(button);
+    EXPECT_TRUE(button->GetVisible());
+    EXPECT_FALSE(button->size().IsEmpty());
+    EXPECT_TRUE(
+        region()->GetBoundsInScreen().Contains(button->GetBoundsInScreen()));
+    // Reached by F6 (the bottom bar is a pane) and the arrow keys.
+    EXPECT_TRUE(button->IsAccessibilityFocusable());
+  }
+}
+
 // Auto-hide: the sidebar leaves the layout; the page card does not move when it
 // peeks; and Ctrl+S docks it.
 IN_PROC_BROWSER_TEST_F(AerieSidebarDensityBrowserTest,
@@ -306,6 +365,23 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarDensityBrowserTest,
     chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
     EXPECT_TRUE(prefs()->GetBoolean(aerie_sidebar::kVisiblePref));
   }
+  // Auto-hide: undocked at rest; Ctrl+S docks it (the sidebar takes its room),
+  // and again undocks it (the peek is armed again).
+  SCOPED_TRACE("auto-hide");
+  Choose("auto-hide");
+  ASSERT_FALSE(prefs()->GetBoolean(aerie_sidebar::kVisiblePref));
+  ASSERT_TRUE(peek()->active());
+  const gfx::Rect undocked = Page();
+  chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
+  Settle();
+  EXPECT_TRUE(prefs()->GetBoolean(aerie_sidebar::kVisiblePref));
+  EXPECT_FALSE(peek()->active());
+  EXPECT_LT(Page().width(), undocked.width());
+  chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
+  Settle();
+  EXPECT_FALSE(prefs()->GetBoolean(aerie_sidebar::kVisiblePref));
+  EXPECT_TRUE(peek()->active());
+  EXPECT_EQ(Page(), undocked);
 }
 
 // An idle browser has no repeating timer from this slice, and the sidebar holds
@@ -346,14 +422,303 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarDensityBrowserTest,
   PeekOpen();
   AerieSidebarRowView* row = sidebar()->row_at(0);
   row->BeginRename(u"Name", prefs());
-  sidebar()->SyncPeekBusy();
-  EXPECT_TRUE(peek()->controller().busy());
+  EXPECT_TRUE(peek()->controller().busy(PeekBusy::kRename));
   // The pointer leaves; the sidebar stays.
   MovePointerTo(browser_view()->GetBoundsInScreen().CenterPoint());
   SpinFor(base::Milliseconds(500));
   EXPECT_TRUE(peek()->controller().visible());
   row->CancelRename();
-  sidebar()->SyncPeekBusy();
-  EXPECT_FALSE(peek()->controller().busy());
+  // The row tells the sidebar that the rename ended in a task of its own.
+  ASSERT_TRUE(base::test::RunUntil(
+      [&] { return !peek()->controller().busy(PeekBusy::kRename); }));
   EXPECT_TRUE(Reaches(PeekState::kHidden)) << FocusedName();
+}
+
+// The settings page's setter writes the dock state once, where it sets the
+// density, and not every window from its pref observer (issue #184 review).
+IN_PROC_BROWSER_TEST_F(AerieSidebarDensityBrowserTest,
+                       ChoosingInSettingsDocksOrUndocksOnce) {
+  // A second window of the profile: it used to repeat the write.
+  auto* second = CreateBrowser(browser()->GetProfile());
+  ASSERT_TRUE(second);
+  int writes = 0;
+  PrefChangeRegistrar registrar;
+  registrar.Init(prefs());
+  registrar.Add(aerie_sidebar::kVisiblePref,
+                base::BindLambdaForTesting([&] { ++writes; }));
+  extensions::PrefsUtil util(browser()->GetProfile());
+  auto set = [&](const char* name, const char* value) {
+    base::Value v{std::string(value)};
+    return util.SetPref(name, &v);
+  };
+  EXPECT_EQ(set("aerie.sidebar.density", "auto-hide"),
+            extensions::settings_private::SetPrefResult::SUCCESS);
+  Settle();
+  EXPECT_FALSE(prefs()->GetBoolean(aerie_sidebar::kVisiblePref));
+  EXPECT_EQ(writes, 1);
+  // Another density that is not auto-hide leaves the dock state alone.
+  EXPECT_EQ(set("aerie.sidebar.density", "auto-hide"),
+            extensions::settings_private::SetPrefResult::SUCCESS);
+  EXPECT_EQ(writes, 1);
+  writes = 0;
+  EXPECT_EQ(set("aerie.sidebar.density", "compact"),
+            extensions::settings_private::SetPrefResult::SUCCESS);
+  Settle();
+  EXPECT_TRUE(prefs()->GetBoolean(aerie_sidebar::kVisiblePref));
+  EXPECT_EQ(writes, 1);
+  // Compact to rail changes nothing about docking, even when hidden by Ctrl+S.
+  prefs()->SetBoolean(aerie_sidebar::kVisiblePref, false);
+  writes = 0;
+  EXPECT_EQ(set("aerie.sidebar.density", "rail"),
+            extensions::settings_private::SetPrefResult::SUCCESS);
+  EXPECT_EQ(writes, 0);
+  EXPECT_FALSE(prefs()->GetBoolean(aerie_sidebar::kVisiblePref));
+}
+
+// The card under the floating sidebar is a sibling in the column; it goes with
+// the sidebar, also when the window closes with a peek open (issue #184).
+IN_PROC_BROWSER_TEST_F(AerieSidebarDensityBrowserTest,
+                       ThePeekCardIsOneSiblingAndTearsDownWithAPeekOpen) {
+  Choose("auto-hide");
+  FocusPage();
+  PeekOpen();
+  Settle();
+  const views::View* card = sidebar()->peek_surface_for_testing();
+  ASSERT_TRUE(card);
+  EXPECT_EQ(card->parent(), sidebar()->parent());
+  int cards = 0;
+  for (views::View* child : sidebar()->parent()->children()) {
+    cards += child == card;
+  }
+  EXPECT_EQ(cards, 1);
+  // Left open: the test ends with the sidebar on screen and the card in the
+  // parent. Nothing may be left pointing at either.
+}
+
+// Listing the panes is a query: it opens nothing (issue #184 review).
+IN_PROC_BROWSER_TEST_F(AerieSidebarDensityBrowserTest,
+                       ListingThePanesDoesNotPeek) {
+  Choose("auto-hide");
+  FocusPage();
+  std::vector<views::View*> panes;
+  sidebar()->GetAccessiblePanes(&panes);
+  EXPECT_TRUE(panes.empty());
+  EXPECT_EQ(peek()->controller().state(), PeekState::kHidden);
+  EXPECT_FALSE(sidebar()->GetVisible());
+}
+
+// An idle auto-hidden browser, with the sidebar hidden and no pointer, has no
+// repeating timer from this slice and no pending one (issue #184).
+IN_PROC_BROWSER_TEST_F(AerieSidebarDensityBrowserTest,
+                       AnIdleAutoHiddenBrowserHasNoTimerFromTheSlice) {
+  Choose("auto-hide");
+  FocusPage();
+  ASSERT_TRUE(peek()->active());
+  SpinFor(base::Milliseconds(600));
+  EXPECT_EQ(peek()->controller().state(), PeekState::kHidden);
+  EXPECT_FALSE(sidebar()->GetVisible());
+  EXPECT_FALSE(peek()->poll_running_for_testing());
+  EXPECT_FALSE(peek()->controller().timer_pending());
+  EXPECT_FALSE(peek()->controller().WantsCursorPoll());
+  SpinFor(base::Milliseconds(600));
+  EXPECT_FALSE(peek()->poll_running_for_testing());
+  EXPECT_FALSE(peek()->controller().timer_pending());
+}
+
+// A window that loses activation gets no more pointer events; the cursor can
+// leave without one. The sidebar reads the cursor again and does not stay open
+// (issue #184 review).
+IN_PROC_BROWSER_TEST_F(AerieSidebarDensityBrowserTest,
+                       ALostActivationLetsAnOpenPeekGoWhenTheCursorIsAway) {
+  Choose("auto-hide");
+  FocusPage();
+  PeekOpen();
+  ASSERT_TRUE(Reaches(PeekState::kShown));
+  MovePointerTo(peek()->FootprintInScreen().CenterPoint());
+  SpinFor(base::Milliseconds(300));
+  ASSERT_EQ(peek()->controller().state(), PeekState::kShown);
+  // The cursor is far outside the window, and no event told the monitor.
+  const gfx::Rect window = browser_view()->GetWidget()->GetWindowBoundsInScreen();
+  peek()->SetCursorForTesting(
+      gfx::Point(window.right() + 800, window.bottom() + 800));
+  peek()->OnWidgetActivationChanged(browser_view()->GetWidget(), false);
+  EXPECT_TRUE(peek()->poll_running_for_testing());
+  EXPECT_TRUE(Reaches(PeekState::kHidden));
+  EXPECT_FALSE(peek()->poll_running_for_testing());
+  EXPECT_FALSE(peek()->controller().timer_pending());
+}
+
+// Ctrl+L on an auto-hidden sidebar peeks it open, and the omnibox holds it
+// while it has focus (issue #184 review).
+IN_PROC_BROWSER_TEST_F(AerieSidebarDensityBrowserTest,
+                       CtrlLPeeksTheSidebarAndTheOmniboxHoldsItOpen) {
+  Choose("auto-hide");
+  FocusPage();
+  ASSERT_EQ(peek()->controller().state(), PeekState::kHidden);
+  chrome::ExecuteCommand(browser(), IDC_FOCUS_LOCATION);
+  ASSERT_TRUE(
+      base::test::RunUntil([&] { return peek()->controller().visible(); }));
+  EXPECT_TRUE(sidebar()->GetVisible());
+  ASSERT_TRUE(base::test::RunUntil([&] { return sidebar()->omnibox_has_focus(); }));
+  EXPECT_TRUE(peek()->controller().busy(PeekBusy::kOmnibox));
+  // The pointer is on the page: the omnibox keeps the sidebar.
+  MovePointerTo(browser_view()->GetBoundsInScreen().CenterPoint());
+  SpinFor(base::Milliseconds(600));
+  EXPECT_TRUE(peek()->controller().visible());
+  EXPECT_TRUE(sidebar()->omnibox_has_focus());
+  // The focus goes to the page: the hold is released and the sidebar goes.
+  FocusPage();
+  EXPECT_FALSE(peek()->controller().busy(PeekBusy::kOmnibox));
+  EXPECT_TRUE(Reaches(PeekState::kHidden));
+}
+
+// A focus that the browser moves itself (not Ctrl+L) does not open it.
+IN_PROC_BROWSER_TEST_F(AerieSidebarDensityBrowserTest,
+                       AFocusTheBrowserMovesItselfDoesNotPeek) {
+  Choose("auto-hide");
+  FocusPage();
+  browser_view()->SetFocusToLocationBar(/*is_user_initiated=*/false);
+  SpinFor(base::Milliseconds(400));
+  EXPECT_EQ(peek()->controller().state(), PeekState::kHidden);
+}
+
+// Each busy source holds the sidebar open through the real wiring, and
+// releases it when it ends (issue #184 review).
+class AerieSidebarBusySourcesBrowserTest
+    : public AerieSidebarDensityBrowserTest {
+ protected:
+  // Opens the peek, runs `open`, expects `source` held and the sidebar to stay
+  // with the pointer away, then runs `close` and expects it released and the
+  // sidebar to go.
+  // `held_at_once` is false for a source that the sidebar finds when the
+  // pointer is about to leave (a bubble that something else made).
+  void ExpectHolds(PeekBusy source,
+                   base::OnceClosure open,
+                   base::OnceClosure close,
+                   bool held_at_once = true) {
+    Choose("auto-hide");
+    FocusPage();
+    PeekOpen();
+    ASSERT_TRUE(Reaches(PeekState::kShown));
+    EXPECT_FALSE(peek()->controller().busy(source));
+    std::move(open).Run();
+    if (held_at_once) {
+      EXPECT_TRUE(peek()->controller().busy(source));
+    }
+    MovePointerTo(browser_view()->GetBoundsInScreen().CenterPoint());
+    SpinFor(base::Milliseconds(600));
+    EXPECT_TRUE(peek()->controller().visible());
+    EXPECT_TRUE(peek()->controller().busy(source));
+    std::move(close).Run();
+    EXPECT_FALSE(peek()->controller().busy(source));
+    EXPECT_TRUE(Reaches(PeekState::kHidden)) << FocusedName();
+  }
+  std::string FirstTabId() { return sidebar()->tab_id_at(0); }
+
+  void SetUpOnMainThread() override {
+    AerieSidebarDensityBrowserTest::SetUpOnMainThread();
+    // HTTPS-only mode is on by default in Aerie and would upgrade the page.
+    prefs()->SetBoolean(prefs::kHttpsOnlyModeEnabled, false);
+    host_resolver()->AddRule("*", "127.0.0.1");
+    embedded_test_server()->ServeFilesFromSourceDirectory("content/test/data");
+    ASSERT_TRUE(embedded_test_server()->Start());
+  }
+};
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarBusySourcesBrowserTest, AMenuHoldsIt) {
+  ASSERT_TRUE(
+      base::test::RunUntil([&] { return sidebar()->row_count() == 1u; }));
+  ExpectHolds(
+      PeekBusy::kMenu,
+      base::BindLambdaForTesting(
+          [&] { sidebar()->ShowRowContextMenuForTesting(FirstTabId()); }),
+      base::BindLambdaForTesting(
+          [&] { sidebar()->CloseContextMenuForTesting(); }));
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarBusySourcesBrowserTest, ADragHoldsIt) {
+  ASSERT_TRUE(
+      base::test::RunUntil([&] { return sidebar()->row_count() == 1u; }));
+  ExpectHolds(
+      PeekBusy::kDrag,
+      base::BindLambdaForTesting([&] {
+        ASSERT_TRUE(sidebar()->BeginDragForTesting(FirstTabId()));
+      }),
+      base::BindLambdaForTesting([&] { sidebar()->EndDragForTesting(); }));
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarBusySourcesBrowserTest, AResizeHoldsIt) {
+  ExpectHolds(
+      PeekBusy::kResize,
+      base::BindLambdaForTesting([&] { sidebar()->SetResizing(true); }),
+      base::BindLambdaForTesting([&] { sidebar()->SetResizing(false); }));
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarBusySourcesBrowserTest, TheFolderSheetHoldsIt) {
+  ASSERT_TRUE(
+      base::test::RunUntil([&] { return sidebar()->row_count() == 1u; }));
+  std::string folder;
+  ExpectHolds(
+      PeekBusy::kFolderSheet,
+      base::BindLambdaForTesting([&] {
+        folder = sidebar()->CreateFolderIn(aerie_tab_model::Section::kToday,
+                                           std::string());
+        ASSERT_FALSE(folder.empty());
+        ASSERT_TRUE(base::test::RunUntil(
+            [&] { return sidebar()->RowForId(folder) != nullptr; }));
+        // A new folder opens its name for editing; that is the rename source.
+        sidebar()->RowForId(folder)->CancelRename();
+        sidebar()->OpenFolderSheet(folder);
+        ASSERT_TRUE(sidebar()->folder_sheet());
+      }),
+      base::BindLambdaForTesting([&] {
+        sidebar()->folder_sheet()->Cancel();
+        ASSERT_TRUE(
+            base::test::RunUntil([&] { return !sidebar()->folder_sheet(); }));
+      }));
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarBusySourcesBrowserTest, TheGuardPanelHoldsIt) {
+  // The Guard icon shows on a page of a site, not on the new tab page.
+  ASSERT_TRUE(content::NavigateToURL(
+      browser()->tab_strip_model()->GetActiveWebContents(),
+      embedded_test_server()->GetURL("news.test", "/title1.html")));
+  tabs::TabInterface* tab = browser()->GetActiveTabInterface();
+  auto* guard = tab->GetTabFeatures()->aerie_guard_page_action_controller();
+  ASSERT_TRUE(guard);
+  ExpectHolds(
+      PeekBusy::kGuardBubble,
+      base::BindLambdaForTesting([&] {
+        // The panel is anchored in the sidebar, like the pill's icon.
+        guard->ShowPanel(
+            views::BubbleAnchor(sidebar()->new_tab_row_for_testing()));
+        ASSERT_TRUE(base::test::RunUntil([&] {
+          return guard->panel_widget_for_testing() &&
+                 guard->panel_widget_for_testing()->IsVisible();
+        }));
+      }),
+      // The same call closes it.
+      base::BindLambdaForTesting([&] {
+        guard->ShowPanel(
+            views::BubbleAnchor(sidebar()->new_tab_row_for_testing()));
+        ASSERT_TRUE(base::test::RunUntil(
+            [&] { return guard->panel_widget_for_testing() == nullptr; }));
+      }),
+      /*held_at_once=*/false);
+}
+
+// F6 holds the sidebar for as long as the focus is inside, through the same
+// wiring (the peek UI test covers the keys).
+IN_PROC_BROWSER_TEST_F(AerieSidebarBusySourcesBrowserTest, F6FocusHoldsIt) {
+  ExpectHolds(
+      PeekBusy::kFocus,
+      base::BindLambdaForTesting([&] {
+        sidebar()->PeekForPaneFocus();
+        sidebar()->new_tab_row_for_testing()->RequestFocus();
+        ASSERT_TRUE(base::test::RunUntil([&] {
+          views::View* v = browser_view()->GetFocusManager()->GetFocusedView();
+          return v && sidebar()->Contains(v);
+        }));
+      }),
+      base::BindLambdaForTesting([&] { FocusPage(); }));
 }

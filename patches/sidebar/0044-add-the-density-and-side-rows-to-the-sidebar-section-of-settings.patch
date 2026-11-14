@@ -1,4 +1,4 @@
-Aerie-Purpose: Put the Density and Side radio groups in the Sidebar section of Settings, let the settings page write their prefs, and give the page its strings.
+Aerie-Purpose: Put the Density and Side radio groups in the Sidebar section of Settings, let the settings page write their prefs (choosing or leaving auto-hide also docks or undocks the sidebar, in the one place the density is set), and give the page its strings.
 Aerie-Upstream-Area: chrome/browser/resources/settings (appearance_page/appearance_layout_page.ts, appearance_page/appearance_layout_page.html.ts, BUILD.gn), chrome/browser/ui/webui/settings (settings_localized_strings_provider.cc), chrome/browser/extensions/api/settings_private (prefs_util.cc)
 Aerie-Kind: hook
 
@@ -21,6 +21,31 @@ Aerie prefs, and a test compares them with the constants. Their strings are in t
    // Aerie: the sidebar's width and shown state (issue #177). The names are
    // aerie_sidebar::kWidthPref and kVisiblePref; a test compares them. The
    // layout pref is not here until issue #186 builds the second layout.
+@@ -1739,7 +1743,24 @@
+         }
+       }
+
++      // Aerie (issue #184): choosing auto-hide in Settings undocks the sidebar
++      // and leaving it docks it again. The write is made here, once, where the
++      // density is set, and not by every window from its pref observer. Docking
++      // goes first, so that the sidebar is back before the density changes; the
++      // undock goes after, so that it is not a slide in the old density. The
++      // names are aerie_sidebar::kDensityPref and kVisiblePref; a test
++      // compares them.
++      const bool aerie_auto_hide_changes =
++          pref_name == "aerie.sidebar.density" &&
++          (pref_service->GetString(pref_name) == "auto-hide") !=
++              (string_value == "auto-hide");
++      if (aerie_auto_hide_changes && string_value != "auto-hide") {
++        pref_service->SetBoolean("aerie.sidebar.visible", true);
++      }
+       pref_service->SetString(pref_name, string_value);
++      if (aerie_auto_hide_changes && string_value == "auto-hide") {
++        pref_service->SetBoolean("aerie.sidebar.visible", false);
++      }
+       break;
+     }
+     default:
 --- a/chrome/browser/resources/settings/appearance_page/appearance_layout_page.html.ts
 +++ b/chrome/browser/resources/settings/appearance_page/appearance_layout_page.html.ts
 @@ -13,6 +13,8 @@

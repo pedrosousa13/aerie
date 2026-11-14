@@ -95,8 +95,10 @@ class AerieSidebarPeekUiTest : public InProcessBrowserTest {
     browser_view()->GetWidget()->SetBounds(gfx::Rect(0, 0, 1100, 750));
     ASSERT_TRUE(base::test::RunUntil(
         [&] { return sidebar() && sidebar()->row_count() == 1u; }));
+    // What the settings setter does for auto-hide: undock and choose it.
     prefs()->SetString(aerie_sidebar::kDensityPref,
                        aerie_sidebar::kDensityAutoHide);
+    prefs()->SetBoolean(aerie_sidebar::kVisiblePref, false);
     ASSERT_TRUE(base::test::RunUntil([&] { return peek()->active(); }));
     // The page takes the room the sidebar leaves.
     ASSERT_TRUE(base::test::RunUntil([&] {
@@ -126,7 +128,6 @@ class AerieSidebarPeekUiTest : public InProcessBrowserTest {
   void FocusPage() {
     browser_view()->GetFocusManager()->ClearFocus();
     browser()->tab_strip_model()->GetActiveWebContents()->Focus();
-    sidebar()->SyncPeekBusy();
   }
   void MovePointerTo(const gfx::Point& screen_point) {
     views::Widget* widget = browser_view()->GetWidget();
@@ -225,6 +226,43 @@ IN_PROC_BROWSER_TEST_P(AerieSidebarPeekReducedMotionUiTest,
   EXPECT_EQ(reduced.grace_x, normal.grace_x);
   EXPECT_EQ(reduced.grace_y, normal.grace_y);
   EXPECT_EQ(reduced.show, base::Milliseconds(100));
+  EXPECT_EQ(reduced.hide, base::Milliseconds(100));
+  // The sidebar in force of the reduced timings now, and the hide fades for
+  // 100 ms as well.
+  EXPECT_EQ(peek()->controller().timings().hide, base::Milliseconds(100));
+  ASSERT_TRUE(Reaches(PeekState::kShown) || Reaches(PeekState::kLeaving));
+  PointerToThePage();
+  ASSERT_TRUE(Reaches(PeekState::kHiding));
+  EXPECT_EQ(OpacityDuration(layer), base::Milliseconds(100));
+}
+
+// A change of the reduced-motion setting is in force for the very next peek:
+// the controller is given the timings before it takes the pointer, not after
+// the slide begins (issue #184 review).
+IN_PROC_BROWSER_TEST_P(AerieSidebarPeekReducedMotionUiTest,
+                       TheFirstPeekAfterTheChangeUsesTheReducedTimings) {
+  ForceReducedMotion(false);
+  // Peek once with motion on, so that the controller holds the full timings.
+  PointerToTheEdge();
+  ASSERT_TRUE(Reaches(PeekState::kShown));
+  PointerToThePage();
+  ASSERT_TRUE(Reaches(PeekState::kHidden));
+  ASSERT_EQ(peek()->controller().timings().show,
+            aerie_sidebar::PeekTimingsFor(false).show);
+  if (GetParam() == ReduceVia::kOsFlag) {
+    ForceReducedMotion(true);
+  } else {
+    prefs()->SetString(aerie::motion::kReduceMotionPref,
+                       aerie::motion::kReduceMotionOn);
+  }
+  // The pointer reaches the edge: the timings are the reduced ones before the
+  // arming timer starts, not only once the sidebar slides.
+  PointerToTheEdge();
+  EXPECT_EQ(peek()->controller().state(), PeekState::kArming);
+  EXPECT_EQ(peek()->controller().timings().show,
+            aerie_sidebar::PeekTimingsFor(true).show);
+  EXPECT_EQ(peek()->controller().timings().hide,
+            aerie_sidebar::PeekTimingsFor(true).hide);
 }
 
 // F6 opens a hidden sidebar, moves focus into it, and holds it open while the

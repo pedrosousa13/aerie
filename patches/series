@@ -158,3 +158,4 @@ sidebar/0041-keep-the-tab-model-record-id-when-a-tab-is-closed.patch
 sidebar/0042-follow-the-sidebar-side-and-density-in-the-vertical-tab-strip-state.patch
 sidebar/0043-float-the-auto-hidden-sidebar-and-fix-the-rail-width-in-the-layout.patch
 sidebar/0044-add-the-density-and-side-rows-to-the-sidebar-section-of-settings.patch
+sidebar/0045-peek-an-auto-hidden-sidebar-from-the-f6-and-ctrl-l-commands.patch

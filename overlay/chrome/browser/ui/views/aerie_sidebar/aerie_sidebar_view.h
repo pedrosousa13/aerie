@@ -25,6 +25,7 @@
 #include "components/aerie_sidebar/aerie_sidebar_density.h"
 #include "components/aerie_sidebar/aerie_sidebar_drag.h"
 #include "components/aerie_sidebar/aerie_sidebar_move.h"
+#include "components/aerie_sidebar/aerie_sidebar_peek.h"
 #include "components/aerie_sidebar/aerie_sidebar_palette.h"
 #include "components/aerie_sidebar/aerie_sidebar_today_list.h"
 #include "components/aerie_tab_model/folder_tree.h"
@@ -225,22 +226,36 @@ class AerieSidebarView : public views::View,
   views::ImageButton* guard_button() const { return guard_button_; }
   views::View* today_header_for_testing() const { return today_header_; }
   views::View* new_tab_row_for_testing() const;
+  // The card under the floating sidebar, or null before the first peek.
+  const views::View* peek_surface_for_testing() const {
+    return surface_tracker_.view();
+  }
+  void CloseContextMenuForTesting() {
+    if (context_menu_) {
+      context_menu_->Close();
+    }
+  }
   // Applies the density pref to every row, tile and region once. No animation.
   void ApplyDensity();
   // The auto-hide peek of this window. Made with the view; inactive unless the
   // sidebar is auto-hidden and undocked.
   AerieSidebarPeekDriver* peek_driver() const { return peek_.get(); }
-  // Busy sources of the peek (issue #184), read by the driver.
-  bool context_menu_open() const;
-  bool rename_popover_open() const { return !!rename_popover_; }
+  // Busy sources of the peek (issue #184). Each source holds a ScopedBusy of its
+  // own while it is open (`menu_hold_` and the others below), so that none can
+  // forget to release it.
   bool any_row_renaming() const;
   bool omnibox_has_focus() const;
-  // Asks the peek driver to look at the busy sources again.
-  void SyncPeekBusy();
   // A resize drag of the edge runs (called by the region view).
   void SetResizing(bool resizing);
-  // F6 on an auto-hidden sidebar opens it (called when the panes are listed).
-  void PeekForFocus();
+  // F6 on an auto-hidden sidebar opens it. Called by the window's pane
+  // rotation just before it lists the panes (never by the listing itself).
+  void PeekForPaneFocus();
+  // For tests: the menus, the drag and the Guard panel that a click would open.
+  void ShowRowContextMenuForTesting(const std::string& tab_id);
+  bool BeginDragForTesting(const std::string& tab_id);
+  void EndDragForTesting();
+  // A hold on the peek for `source`; empty when there is no peek.
+  aerie_sidebar::ScopedBusy HoldPeek(aerie_sidebar::PeekBusy source);
   // The toast that Ctrl+Alt+S shows.
   void ShowPeekToast(bool kept_open);
   // Ctrl+Alt+S (views::View registers it with the focus manager).
@@ -460,6 +475,14 @@ class AerieSidebarView : public views::View,
                           ui::mojom::MenuSourceType source_type);
   void OnContextCommand(const std::string& tab_id,
                         AerieSidebarContextMenu::Command command);
+  // Runs `context_menu_` and holds the peek open until it closes.
+  void RunContextMenu(const gfx::Point& screen_point,
+                      ui::mojom::MenuSourceType source_type);
+  void OnRenameStateChanged();
+  // Holds or releases `hold` for `source`, to match whether it is wanted.
+  void SetHold(aerie_sidebar::ScopedBusy& hold,
+               aerie_sidebar::PeekBusy source,
+               bool wanted);
   // Shows the toast for `kMotionTimingToast` ms and says it politely to a
   // screen reader.
   void ShowToast(const std::u16string& text, bool has_actions = false);
@@ -551,6 +574,15 @@ class AerieSidebarView : public views::View,
   bool resizing_ = false;
   views::ViewTracker surface_tracker_;
   std::unique_ptr<AerieSidebarPeekDriver> peek_;
+  // The busy sources of the sidebar itself (the driver holds the ones that
+  // are about focus, the pointer and bubbles). A hold exists exactly while its
+  // source is open.
+  aerie_sidebar::ScopedBusy menu_hold_;
+  aerie_sidebar::ScopedBusy popover_hold_;
+  aerie_sidebar::ScopedBusy folder_sheet_hold_;
+  aerie_sidebar::ScopedBusy drag_hold_;
+  aerie_sidebar::ScopedBusy rename_hold_;
+  aerie_sidebar::ScopedBusy resize_hold_;
   std::u16string new_tab_label_;
   raw_ptr<views::View> bottom_bar_ = nullptr;
   // The toolbar and its parts that moved in. They go back to the toolbar when

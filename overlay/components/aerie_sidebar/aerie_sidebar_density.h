@@ -7,12 +7,21 @@
 
 #include <string>
 
+#include "components/aerie_design_tokens/aerie_tokens.h"
+
 class PrefService;
 
 // The density of the sidebar and the side it sits on (issue #184,
 // docs/sidebar-design.md, "Densities, side and auto-hide"). Headless, so it has
 // unit tests; the sizes come from the generated tokens.
 namespace aerie_sidebar {
+
+// The room a list keeps around its rows for a focus ring: the ring's offset and
+// width (`size-focus-ring-offset` + `size-focus-ring-width`). The rail's lists,
+// and the children that sit beside them, use the same room, so that every tile
+// is the same square.
+inline constexpr int kFocusRingRoom = static_cast<int>(
+    aerie::tokens::kSizeFocusRingOffset + aerie::tokens::kSizeFocusRingWidth);
 
 enum class Density {
   kComfortable,

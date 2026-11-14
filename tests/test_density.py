@@ -140,13 +140,43 @@ class ZenTest(unittest.TestCase):
         self.assertNotIn("kHeliumZenMode", STATE_PATCH.read_text() + REGION_PATCH.read_text())
 
 
+class SourceTest(unittest.TestCase):
+    def test_no_view_polls_the_busy_sources_any_more(self):
+        for path in VIEWS.glob("*.cc"):
+            if path.name.endswith(("test.cc", "uitest.cc")):
+                continue
+            self.assertNotIn("SyncBusy", path.read_text(), path.name)
+            self.assertNotIn("SyncPeekBusy", path.read_text(), path.name)
+
+    def test_listing_the_panes_does_not_peek_and_the_focus_commands_do(self):
+        view = (VIEWS / "aerie_sidebar_view.cc").read_text()
+        panes = view[view.index("void AerieSidebarView::GetAccessiblePanes"):]
+        panes = panes[:panes.index("\n}\n")]
+        self.assertNotIn("Peek", panes)
+        patch = (PATCHES / "0045-peek-an-auto-hidden-sidebar-from-the-f6-and-ctrl-l-commands.patch").read_text()
+        self.assertIn("RotatePaneFocusFromView", patch)
+        self.assertIn("SetFocusToLocationBar", patch)
+
+    def test_the_dock_state_is_written_where_the_density_is_set_and_not_by_a_window(self):
+        view = (VIEWS / "aerie_sidebar_view.cc").read_text()
+        layout = view[view.index("void AerieSidebarView::OnLayoutPrefsChanged"):]
+        layout = layout[:layout.index("\n}\n")]
+        self.assertNotIn("kVisiblePref", layout.replace("// ", ""))
+        self.assertNotIn("SetBoolean", layout)
+        self.assertIn('"aerie.sidebar.visible"', SETTINGS_PATCH.read_text())
+
+
 class DocsTest(unittest.TestCase):
-    def test_the_design_doc_has_the_section_and_the_archive_popover_note(self):
+    def test_the_design_doc_section_names_the_hold_rule_the_untokened_values_and_the_gaps(self):
         text = (REPO / "docs" / "sidebar-design.md").read_text()
         self.assertIn("## Densities, side and auto-hide, as built (issue #184)", text)
         section = text.split("## Densities, side and auto-hide, as built (issue #184)")[1]
         self.assertIn("#183", section)
         self.assertIn("ScopedBusy", section)
+        # The constants that are not design tokens are listed, and the gaps are named.
+        self.assertIn("Values that are not design tokens", section)
+        self.assertIn("kCursorPollInterval", section)
+        self.assertIn("Known gaps", section)
 
 
 if __name__ == "__main__":

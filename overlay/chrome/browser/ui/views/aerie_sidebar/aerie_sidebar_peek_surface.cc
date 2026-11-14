@@ -5,6 +5,7 @@
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_peek_surface.h"
 
 #include <algorithm>
+#include <cstdlib>
 #include <vector>
 
 #include "cc/paint/paint_flags.h"
@@ -27,13 +28,16 @@ AerieSidebarPeekSurface::AerieSidebarPeekSurface() {
 AerieSidebarPeekSurface::~AerieSidebarPeekSurface() = default;
 
 int AerieSidebarPeekSurface::ShadowRoom() {
-  // Both themes' tokens have the same geometry; only the colours differ.
-  const aerie::tokens::Shadow& token = aerie::tokens::kShadowPeekLight;
+  // The larger of the two modes' shadows, so that the card's bounds hold either
+  // (the theme tables may differ in colour and in the size of a layer).
   int room = 0;
-  for (int i = 0; i < token.count; ++i) {
-    const aerie::tokens::ShadowLayer& layer = token.layers[i];
-    room = std::max(room, layer.blur + std::abs(layer.y) + std::abs(layer.x) +
-                              layer.spread);
+  for (const aerie::tokens::Shadow* token :
+       {&aerie::tokens::kShadowPeekLight, &aerie::tokens::kShadowPeekDark}) {
+    for (int i = 0; i < token->count; ++i) {
+      const aerie::tokens::ShadowLayer& layer = token->layers[i];
+      room = std::max(room, layer.blur + std::abs(layer.y) +
+                                std::abs(layer.x) + layer.spread);
+    }
   }
   return room;
 }

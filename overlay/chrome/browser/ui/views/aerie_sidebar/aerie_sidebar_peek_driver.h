@@ -5,8 +5,8 @@
 #ifndef CHROME_BROWSER_UI_VIEWS_AERIE_SIDEBAR_AERIE_SIDEBAR_PEEK_DRIVER_H_
 #define CHROME_BROWSER_UI_VIEWS_AERIE_SIDEBAR_AERIE_SIDEBAR_PEEK_DRIVER_H_
 
-#include <array>
 #include <memory>
+#include <optional>
 
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
@@ -65,17 +65,25 @@ class AerieSidebarPeekDriver
   void OnF6();
   bool ToggleKeepOpen();
 
-  // Looks at every busy source again and holds or releases `ScopedBusy` for it.
-  // The sources call this when they start and when they end.
-  void SyncBusy();
-  // A resize drag of the sidebar's edge runs (set by the region view).
-  void SetResizing(bool resizing);
+  // Reads the reduced-motion state again and gives the controller its timings.
+  // Every input to the controller is preceded by this, so that a change of the
+  // pref or of the OS setting is in force for the next peek.
+  void ApplyTimings();
+  // Where the screen cursor is, as the monitor would have told. Called when
+  // the window loses activation (no more events come then, and the cursor can
+  // leave without one) and by the poll.
+  void RecheckPointer();
 
   // For tests: the pointer is at `screen_point`, as the monitor would tell.
   void PointerMovedForTesting(const gfx::Point& screen_point) {
     HandlePointer(screen_point);
   }
   void PointerExitedForTesting() { HandlePointerExit(); }
+  // The cursor, in place of the screen's (a test cannot move the real one
+  // without a pointer event, which the monitor would see).
+  void SetCursorForTesting(std::optional<gfx::Point> point) {
+    cursor_for_testing_ = point;
+  }
   bool monitor_for_testing() const { return !!monitor_; }
   bool poll_running_for_testing() const { return poll_timer_.IsRunning(); }
   // The rect (in screen px) that counts as "over the sidebar" when it is on
@@ -102,6 +110,7 @@ class AerieSidebarPeekDriver
                         views::View* focused_now) override;
   // views::WidgetObserver:
   void OnWidgetDestroying(views::Widget* widget) override;
+  void OnWidgetActivationChanged(views::Widget* widget, bool active) override;
 
  private:
   // The view that holds the sidebar in the window's layout.
@@ -116,9 +125,12 @@ class AerieSidebarPeekDriver
   void SlideTo(bool show);
   void FinishHidden();
   bool FocusInsideSidebar() const;
-  bool BubbleOpenInSidebar();
-  void WantBusy(aerie_sidebar::PeekBusy source, bool want);
-  void ApplyTimings();
+  // Holds the peek open for a bubble anchored in the sidebar (the Guard panel
+  // is made by the page-action code, so the sidebar finds it here) until it
+  // is destroyed.
+  void HoldForBubble();
+  gfx::Point CursorPoint() const;
+  void CheckFocusEntered();
 
   const raw_ptr<AerieSidebarView> view_;
   aerie_sidebar::SidebarPeekController controller_;
@@ -127,16 +139,20 @@ class AerieSidebarPeekDriver
   base::RepeatingTimer poll_timer_;
   aerie::motion::MotionHandle motion_;
   raw_ptr<views::FocusManager> focus_manager_ = nullptr;
-  bool resizing_ = false;
+  std::optional<gfx::Point> cursor_for_testing_;
   bool f6_open_ = false;
   bool f6_focus_entered_ = false;
-  std::array<aerie_sidebar::ScopedBusy,
-             static_cast<size_t>(aerie_sidebar::PeekBusy::kCount)>
-      busy_;
+  // The sources this driver owns: focus (F6 and the omnibox) and the bubble.
+  // The sidebar's own sources hold theirs in the view.
+  aerie_sidebar::ScopedBusy focus_hold_;
+  aerie_sidebar::ScopedBusy omnibox_hold_;
+  aerie_sidebar::ScopedBusy bubble_hold_;
   raw_ptr<views::Widget> tracked_bubble_ = nullptr;
   base::WeakPtrFactory<AerieSidebarPeekDriver> weak_factory_{this};
   base::ScopedObservation<views::Widget, views::WidgetObserver>
       bubble_observation_{this};
+  base::ScopedObservation<views::Widget, views::WidgetObserver>
+      widget_observation_{this};
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_AERIE_SIDEBAR_AERIE_SIDEBAR_PEEK_DRIVER_H_
