@@ -297,11 +297,6 @@ struct ArchiveMotion {
   aerie::tokens::MotionDuration fly_duration;
   aerie::tokens::MotionEasing fly_easing;
   int fly_ms;
-  // The copy fades out in place (reduced motion) over `fly_ms`.
-  bool fade_copy;
-  // The real row's height collapses over `fly_ms`; it snaps under reduced
-  // motion (the layout exception of the design).
-  bool animate_height;
   // The button pulses: it scales to `pulse_scale` and back over `pulse_ms`
   // (half each way). Reduced: no scale, a colour flash of `pulse_ms`.
   bool animate_scale;
@@ -321,7 +316,6 @@ struct ArchiveRestoreMotion {
   aerie::tokens::MotionDuration duration;
   aerie::tokens::MotionEasing easing;
   int duration_ms;
-  bool fade_copy;
 };
 
 ArchiveRestoreMotion RestoreTabMotion(bool reduced);
@@ -329,7 +323,8 @@ ArchiveRestoreMotion RestoreTabMotion(bool reduced);
 // The archive panel opens (issue #183): it drops `drop_px` and fades in on
 // `fast` and `decelerate`; there is no closing animation. Reduced motion:
 // opacity only, on the reduced `fast` duration (90 ms). The 4 px is
-// `space-4`: the token set has no popover distance.
+// `space-4`: the token set has no popover distance (listed in
+// docs/sidebar-design.md, "Values that are not design tokens").
 struct PopoverMotion {
   bool animate_slide;
   int drop_px;

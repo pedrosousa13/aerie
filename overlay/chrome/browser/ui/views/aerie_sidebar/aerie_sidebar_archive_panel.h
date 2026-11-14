@@ -63,8 +63,9 @@ class AerieSidebarArchivePanel : public views::BubbleDialogDelegate,
     // copy that flies into Today. The panel closes itself first.
     virtual void RestoreArchived(const aerie_tab_model::ArchivedRow& row,
                                  const gfx::Rect& row_in_screen) = 0;
-    // The panel went away. `refocus_button` is true after Esc, Enter or a
-    // choice, not after a click elsewhere.
+    // The panel went away. `refocus_button` is true after Esc, Enter, a choice,
+    // the button's own click and a click outside (the default); it is false only
+    // when the sidebar is torn down.
     virtual void OnArchivePanelClosed(bool refocus_button) = 0;
 
    protected:
@@ -98,6 +99,9 @@ class AerieSidebarArchivePanel : public views::BubbleDialogDelegate,
   void ShowTimeoutMenu();
   // Restores the row `index` (as a click does).
   void ChooseRow(size_t index);
+  // A click on a row: the callback of the row binds the row itself.
+  void ChooseRow(AerieSidebarArchiveRow* row, const ui::Event& event);
+  void ChooseRow(AerieSidebarArchiveRow* row);
   void ClosePanel(bool refocus_button);
 
   // views::TextfieldController:

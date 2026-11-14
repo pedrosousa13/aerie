@@ -56,6 +56,16 @@ void RegisterProfilePrefs(PrefRegistrySimple* registry);
 // one of the four falls back to the default of 12 hours.
 std::optional<base::TimeDelta> ParseArchiveAfter(std::string_view value);
 
+// The values `aerie.tabs.archive_after` can hold, in the order the Archive
+// panel's menu shows them, and the delay each one means (0 is never). One table
+// for the parser and the panel, so they cannot drift apart.
+struct ArchiveAfterOption {
+  const char* value;
+  int hours;
+};
+inline constexpr ArchiveAfterOption kArchiveAfterOptions[] = {
+    {"12h", 12}, {"24h", 24}, {"7d", 7 * 24}, {"never", 0}};
+
 // How long archived records are kept for a pref value. nullopt means for ever.
 // A value that is not one of the four falls back to 30 days.
 std::optional<base::TimeDelta> ParseArchiveKeep(std::string_view value);

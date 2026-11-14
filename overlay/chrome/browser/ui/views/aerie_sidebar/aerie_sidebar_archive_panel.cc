@@ -15,6 +15,7 @@
 #include "chrome/grit/generated_resources.h"
 #include "components/aerie_design_tokens/aerie_tokens.h"
 #include "components/aerie_sidebar/aerie_sidebar_motion.h"
+#include "components/aerie_tab_model/tab_model_prefs.h"
 #include "components/vector_icons/vector_icons.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
@@ -40,28 +41,30 @@
 namespace {
 
 constexpr int kPanelWidth = aerie::tokens::kSizeSidebarWidth - 2 * aerie::tokens::kSpace16;
+// Not a design token (docs/sidebar-design.md, "Values that are not design
+// tokens"): the height after which the list scrolls.
 constexpr int kListMaxHeight = 320;
 
-struct TimeoutOption {
-  const char* value;
-  int label_id;
-  int command;
+// The label of each value in aerie_tab_model::kArchiveAfterOptions, in the same
+// order. The menu command of an option is its index plus one.
+constexpr int kTimeoutLabels[] = {
+    IDS_AERIE_SIDEBAR_ARCHIVE_AFTER_12H,
+    IDS_AERIE_SIDEBAR_ARCHIVE_AFTER_24H,
+    IDS_AERIE_SIDEBAR_ARCHIVE_AFTER_7D,
+    IDS_AERIE_SIDEBAR_ARCHIVE_AFTER_NEVER,
 };
+static_assert(std::size(kTimeoutLabels) ==
+              std::size(aerie_tab_model::kArchiveAfterOptions));
 
-constexpr TimeoutOption kTimeouts[] = {
-    {"12h", IDS_AERIE_SIDEBAR_ARCHIVE_AFTER_12H, 1},
-    {"24h", IDS_AERIE_SIDEBAR_ARCHIVE_AFTER_24H, 2},
-    {"7d", IDS_AERIE_SIDEBAR_ARCHIVE_AFTER_7D, 3},
-    {"never", IDS_AERIE_SIDEBAR_ARCHIVE_AFTER_NEVER, 4},
-};
-
-const TimeoutOption& OptionFor(const std::string& value) {
-  for (const TimeoutOption& option : kTimeouts) {
-    if (value == option.value) {
-      return option;
+// The index in kArchiveAfterOptions of a pref value; unknown is the first.
+size_t OptionIndexFor(const std::string& value) {
+  for (size_t i = 0; i < std::size(aerie_tab_model::kArchiveAfterOptions);
+       ++i) {
+    if (value == aerie_tab_model::kArchiveAfterOptions[i].value) {
+      return i;
     }
   }
-  return kTimeouts[0];
+  return 0;
 }
 
 int GroupTitleId(aerie_tab_model::ArchiveGroup group) {
@@ -289,8 +292,8 @@ AerieSidebarArchivePanel::~AerieSidebarArchivePanel() {
 }
 
 void AerieSidebarArchivePanel::UpdateTimeoutLabel() {
-  const TimeoutOption& option = OptionFor(host_->ArchiveAfter());
-  const std::u16string time = l10n_util::GetStringUTF16(option.label_id);
+  const std::u16string time = l10n_util::GetStringUTF16(
+      kTimeoutLabels[OptionIndexFor(host_->ArchiveAfter())]);
   timeout_button_->SetText(time);
   timeout_button_->GetViewAccessibility().SetName(
       l10n_util::GetStringFUTF16(IDS_AERIE_SIDEBAR_ARCHIVE_AFTER_NAME, time));
@@ -322,22 +325,12 @@ void AerieSidebarArchivePanel::BuildList() {
         gfx::Insets::TLBR(aerie::tokens::kSpace8, aerie::tokens::kSpace8, 0, 0)));
     heading->GetViewAccessibility().SetRole(ax::mojom::Role::kHeading);
     for (const auto& archived : section.rows) {
-      list_->AddChildView(std::make_unique<AerieSidebarArchiveRow>(
+      auto* row = list_->AddChildView(std::make_unique<AerieSidebarArchiveRow>(
           archived, host_->WorkspaceName(archived.workspace_id), palette_,
-          base::BindRepeating(
-              [](base::WeakPtr<AerieSidebarArchivePanel> self, std::string id) {
-                if (!self) {
-                  return;
-                }
-                for (size_t i = 0; i < self->rows().size(); ++i) {
-                  if (self->rows()[i]->archived().id == id) {
-                    self->ChooseRow(i);
-                    return;
-                  }
-                }
-              },
-              GetWeakPtr(), archived.id),
-          this));
+          views::Button::PressedCallback(), this));
+      row->SetCallback(base::BindRepeating(
+          &AerieSidebarArchivePanel::ChooseRow, GetWeakPtr(),
+          base::Unretained(row)));
     }
   }
 }
@@ -345,8 +338,8 @@ void AerieSidebarArchivePanel::BuildList() {
 std::vector<AerieSidebarArchiveRow*> AerieSidebarArchivePanel::rows() const {
   std::vector<AerieSidebarArchiveRow*> out;
   for (views::View* child : list_->children()) {
-    if (child->GetClassName() == std::string_view("AerieSidebarArchiveRow")) {
-      out.push_back(static_cast<AerieSidebarArchiveRow*>(child));
+    if (auto* row = views::AsViewClass<AerieSidebarArchiveRow>(child)) {
+      out.push_back(row);
     }
   }
   return out;
@@ -355,10 +348,10 @@ std::vector<AerieSidebarArchiveRow*> AerieSidebarArchivePanel::rows() const {
 std::vector<std::u16string> AerieSidebarArchivePanel::group_titles() const {
   std::vector<std::u16string> out;
   for (views::View* child : list_->children()) {
-    if (child->GetClassName() == std::string_view("Label") &&
-        child->GetViewAccessibility().GetCachedRole() ==
-            ax::mojom::Role::kHeading) {
-      out.emplace_back(static_cast<views::Label*>(child)->GetText());
+    auto* label = views::AsViewClass<views::Label>(child);
+    if (label && label->GetViewAccessibility().GetCachedRole() ==
+                     ax::mojom::Role::kHeading) {
+      out.emplace_back(label->GetText());
     }
   }
   return out;
@@ -366,11 +359,22 @@ std::vector<std::u16string> AerieSidebarArchivePanel::group_titles() const {
 
 void AerieSidebarArchivePanel::ChooseRow(size_t index) {
   const auto all = rows();
-  if (index >= all.size() || closed_) {
+  if (index < all.size()) {
+    ChooseRow(all[index]);
+  }
+}
+
+void AerieSidebarArchivePanel::ChooseRow(AerieSidebarArchiveRow* row,
+                                         const ui::Event&) {
+  ChooseRow(row);
+}
+
+void AerieSidebarArchivePanel::ChooseRow(AerieSidebarArchiveRow* row) {
+  if (!row || closed_) {
     return;
   }
-  const aerie_tab_model::ArchivedRow archived = all[index]->archived();
-  const gfx::Rect in_screen = all[index]->GetBoundsInScreen();
+  const aerie_tab_model::ArchivedRow archived = row->archived();
+  const gfx::Rect in_screen = row->GetBoundsInScreen();
   ClosePanel(/*refocus_button=*/true);
   host_->RestoreArchived(archived, in_screen);
 }
@@ -445,9 +449,9 @@ void AerieSidebarArchivePanel::FocusNeighbour(AerieSidebarArchiveRow* from,
 
 void AerieSidebarArchivePanel::ShowTimeoutMenu() {
   menu_model_ = std::make_unique<ui::SimpleMenuModel>(this);
-  for (const TimeoutOption& option : kTimeouts) {
-    menu_model_->AddCheckItem(option.command,
-                              l10n_util::GetStringUTF16(option.label_id));
+  for (size_t i = 0; i < std::size(kTimeoutLabels); ++i) {
+    menu_model_->AddCheckItem(static_cast<int>(i) + 1,
+                              l10n_util::GetStringUTF16(kTimeoutLabels[i]));
   }
   menu_runner_ = std::make_unique<views::MenuRunner>(
       menu_model_.get(), views::MenuRunner::HAS_MNEMONICS);
@@ -458,15 +462,16 @@ void AerieSidebarArchivePanel::ShowTimeoutMenu() {
 }
 
 bool AerieSidebarArchivePanel::IsCommandIdChecked(int command_id) const {
-  return OptionFor(host_->ArchiveAfter()).command == command_id;
+  return static_cast<int>(OptionIndexFor(host_->ArchiveAfter())) + 1 ==
+         command_id;
 }
 
 void AerieSidebarArchivePanel::ExecuteCommand(int command_id, int) {
-  for (const TimeoutOption& option : kTimeouts) {
-    if (option.command == command_id) {
-      host_->SetArchiveAfter(option.value);
-      UpdateTimeoutLabel();
-      return;
-    }
+  if (command_id >= 1 &&
+      command_id <= static_cast<int>(
+                        std::size(aerie_tab_model::kArchiveAfterOptions))) {
+    host_->SetArchiveAfter(
+        aerie_tab_model::kArchiveAfterOptions[command_id - 1].value);
+    UpdateTimeoutLabel();
   }
 }

@@ -347,8 +347,6 @@ TEST(AerieSidebarMotionTest, ArchivingFliesTheCopyToQuarterSizeThenPulsesTheButt
   EXPECT_EQ(m.fly_duration, MotionDuration::kArchiveCollapse);
   EXPECT_EQ(m.fly_easing, MotionEasing::kAccelerate);
   EXPECT_EQ(m.fly_ms, 320);
-  EXPECT_TRUE(m.animate_height);
-  EXPECT_FALSE(m.fade_copy);
   EXPECT_TRUE(m.animate_scale);
   EXPECT_FLOAT_EQ(m.pulse_scale, 1.25f);
   EXPECT_EQ(m.pulse_duration, MotionDuration::kArchivePulse);
@@ -359,10 +357,8 @@ TEST(AerieSidebarMotionTest, ArchivingFliesTheCopyToQuarterSizeThenPulsesTheButt
 TEST(AerieSidebarMotionTest, UnderReducedMotionTheArchiveCopyFadesAndTheButtonOnlyFlashes) {
   const ArchiveMotion m = ArchiveTabMotion(/*reduced=*/true);
   EXPECT_FALSE(m.animate_transform);
-  EXPECT_TRUE(m.fade_copy);
   EXPECT_EQ(m.fly_ms, 120);
   EXPECT_LE(m.fly_ms, aerie::motion::kMaxReducedOpacityMs);
-  EXPECT_FALSE(m.animate_height);
   EXPECT_FALSE(m.animate_scale);
   EXPECT_FLOAT_EQ(m.pulse_scale, 1.f);
   EXPECT_EQ(m.pulse_ms, 140);
@@ -371,13 +367,11 @@ TEST(AerieSidebarMotionTest, UnderReducedMotionTheArchiveCopyFadesAndTheButtonOn
 TEST(AerieSidebarMotionTest, RestoringFliesTheCopyOnTheSpringAndFadesUnderReducedMotion) {
   const ArchiveRestoreMotion m = RestoreTabMotion(/*reduced=*/false);
   EXPECT_TRUE(m.animate_transform);
-  EXPECT_FALSE(m.fade_copy);
   EXPECT_EQ(m.duration, MotionDuration::kArchiveRestore);
   EXPECT_EQ(m.easing, MotionEasing::kSpring);
   EXPECT_EQ(m.duration_ms, 340);
   const ArchiveRestoreMotion reduced = RestoreTabMotion(/*reduced=*/true);
   EXPECT_FALSE(reduced.animate_transform);
-  EXPECT_TRUE(reduced.fade_copy);
   EXPECT_EQ(reduced.duration_ms, 120);
 }
 

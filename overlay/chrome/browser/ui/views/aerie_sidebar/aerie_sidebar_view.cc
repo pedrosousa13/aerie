@@ -404,8 +404,9 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
               },
               weak_factory_.GetWeakPtr())));
   bottom_layout->SetFlexForView(archive_button_, 1);
-  archive_ = base::WrapUnique(new AerieSidebarArchiveController(
-      static_cast<AerieSidebarArchiveController::ViewHost*>(this)));
+  // The conversion is made here, where the private base is reachable.
+  AerieSidebarArchiveController::ViewHost* archive_host = this;
+  archive_ = std::make_unique<AerieSidebarArchiveController>(archive_host);
 
   browser_->GetTabStripModel()->AddObserver(this);
 
