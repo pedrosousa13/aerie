@@ -27,6 +27,7 @@
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_archive_panel.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_row_view.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_view.h"
+#include "chrome/browser/ui/view_ids.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h"
 #include "chrome/test/base/in_process_browser_test.h"
@@ -227,6 +228,26 @@ IN_PROC_BROWSER_TEST_P(AerieSidebarArchiveReducedUiTest,
   }));
   EXPECT_TRUE(saw_flash);
   EXPECT_FALSE(button->flashing());
+}
+
+// Decided for now (the maintainer may change it): after a restore the page of
+// the restored tab has the focus, not the Archive button or the sidebar.
+IN_PROC_BROWSER_TEST_P(AerieSidebarArchiveReducedUiTest,
+                       AfterARestoreTheRestoredPageHasTheFocus) {
+  const std::string id = OpenBackgroundTab();
+  ArchiveBackgroundTab(id);
+  ASSERT_TRUE(base::test::RunUntil(
+      [&] { return controller()->flights_in_progress() == 0u; }));
+  controller()->TogglePanel();
+  AerieSidebarArchivePanel* panel = controller()->panel();
+  ASSERT_TRUE(panel);
+  ASSERT_EQ(panel->rows().size(), 1u);
+  panel->ChooseRow(0);
+  ASSERT_TRUE(base::test::RunUntil(
+      [&] { return controller()->flights_in_progress() == 0u; }));
+  EXPECT_EQ(controller()->panel(), nullptr);
+  EXPECT_EQ(browser()->tab_strip_model()->active_index(), 0);
+  EXPECT_TRUE(ui_test_utils::IsViewFocused(browser(), VIEW_ID_TAB_CONTAINER));
 }
 
 IN_PROC_BROWSER_TEST_P(AerieSidebarArchiveReducedUiTest,

@@ -57,11 +57,14 @@
 #include "ui/events/test/event_generator.h"
 #include "ui/gfx/animation/animation_test_api.h"
 #include "ui/views/accessibility/view_accessibility.h"
+#include "ui/views/bubble/bubble_border.h"
+#include "ui/views/bubble/bubble_frame_view.h"
 #include "ui/views/controls/textfield/textfield.h"
 #include "ui/views/focus/focus_manager.h"
 #include "ui/views/test/button_test_api.h"
 #include "ui/views/view.h"
 #include "ui/views/view_utils.h"
+#include "ui/views/window/non_client_view.h"
 #include "ui/views/widget/widget.h"
 
 namespace {
@@ -562,4 +565,18 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarArchiveBrowserTest,
   // There is no closing animation: the widget goes at once.
   panel()->ClosePanel(true);
   EXPECT_FALSE(panel());
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarArchiveBrowserTest,
+                       ThePanelFrameHasTheRoundedCornersOfTheTokens) {
+  OpenPanel();
+  auto* frame = static_cast<views::BubbleFrameView*>(
+      panel()->GetWidget()->non_client_view()->frame_view());
+  ASSERT_TRUE(frame->bubble_border());
+  const gfx::RoundedCornersF corners =
+      frame->bubble_border()->rounded_corners();
+  EXPECT_FLOAT_EQ(corners.upper_left(), aerie::tokens::kRadiusLg);
+  EXPECT_FLOAT_EQ(corners.upper_right(), aerie::tokens::kRadiusLg);
+  EXPECT_FLOAT_EQ(corners.lower_left(), aerie::tokens::kRadiusLg);
+  EXPECT_FLOAT_EQ(corners.lower_right(), aerie::tokens::kRadiusLg);
 }

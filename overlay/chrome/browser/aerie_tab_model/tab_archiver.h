@@ -8,6 +8,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "base/memory/raw_ptr.h"
 #include "base/observer_list.h"
@@ -19,6 +20,7 @@
 #include "chrome/browser/ui/browser_window/public/browser_collection_observer.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "components/aerie_tab_model/archive_schedule.h"
+#include "components/sessions/core/serialized_navigation_entry.h"
 #include "components/keyed_service/core/keyed_service.h"
 #include "components/prefs/pref_change_registrar.h"
 #include "components/tabs/public/tab_interface.h"
@@ -100,6 +102,16 @@ class TabArchiver : public KeyedService,
 
   ArchiveSchedule* schedule() { return &schedule_; }
 
+  // A test can make opening the tab fail, to see what Restore does then. The
+  // arguments are the window, the entries, the strip index and the selected
+  // entry. Null (the default) opens the tab with chrome::AddRestoredTab.
+  using TabAdder = base::RepeatingCallback<content::WebContents*(
+      BrowserWindowInterface*,
+      const std::vector<sessions::SerializedNavigationEntry>&,
+      int,
+      int)>;
+  void SetTabAdderForTesting(TabAdder adder) { tab_adder_ = std::move(adder); }
+
   // KeyedService:
   void Shutdown() override;
 
@@ -134,11 +146,12 @@ class TabArchiver : public KeyedService,
   const raw_ptr<TabModelService> service_;
   const raw_ptr<const base::Clock> clock_;
   ArchiveSchedule schedule_;
+  TabAdder tab_adder_;
   PrefChangeRegistrar pref_registrar_;
   base::ObserverList<Observer> observers_;
   std::map<tabs::TabHandle, std::unique_ptr<AudioObserver>> audio_observers_;
   // When the archiver was built. Tabs archived in the first moments after it
-  // (kCatchUpWindow) were overdue at startup and are archived without motion.
+  // (kArchiveCatchUpWindow) were overdue at startup and are archived without motion.
   const base::TimeTicks created_;
   const raw_ptr<const base::TickClock> tick_clock_;
   base::ScopedObservation<GlobalBrowserCollection, BrowserCollectionObserver>
