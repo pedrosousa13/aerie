@@ -748,5 +748,7 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarDensityBrowserTest,
   ASSERT_TRUE(base::test::RunUntil([&] { return sidebar()->row_count() == 1u; }));
   ASSERT_TRUE(base::test::RunUntil(
       [&] { return !peek()->controller().busy(PeekBusy::kRename); }));
+  // The new tab's omnibox holds the sidebar by itself; the page takes focus.
+  FocusPage();
   EXPECT_TRUE(Reaches(PeekState::kHidden)) << FocusedName();
 }
