@@ -78,8 +78,12 @@ class ArchiveSchedule : public TabModelObserver {
   // How long archived records stay; nullopt means for ever.
   void SetKeep(std::optional<base::TimeDelta> keep);
 
-  // Arms the timer for the earliest moment, or stops it.
+  // Arms the timer for the earliest moment, or stops it. One pass over the
+  // tabs; it asks `exempt` only about the earliest candidate(s).
   void Rearm();
+  // Stops the timer for good and stops listening to the model: nothing is
+  // archived after this, whatever calls RunDueNow or Rearm.
+  void Shutdown();
   // Drops the archived records that are too old and archives every tab that is
   // due by the clock, then arms the timer again. The timer calls it; a test
   // that moves its own clock calls it too.
@@ -97,7 +101,10 @@ class ArchiveSchedule : public TabModelObserver {
   void OnModelLoaded() override { Rearm(); }
 
  private:
-  // The moment `tab` is due, or nullopt when it is not a candidate.
+  // The moment `tab` is due if nothing exempts it, or nullopt when it is not a
+  // candidate. Cheap: no call out.
+  std::optional<base::Time> CandidateDue(const TabRecord& tab) const;
+  // CandidateDue, and nullopt when `exempt` names the tab.
   std::optional<base::Time> DueTime(const TabRecord& tab) const;
 
   const raw_ptr<TabModel> model_;
@@ -113,6 +120,7 @@ class ArchiveSchedule : public TabModelObserver {
   // True while RunDueNow calls out: the changes it makes arm the timer once, at
   // the end.
   bool running_ = false;
+  bool shut_down_ = false;
   base::ScopedObservation<TabModel, TabModelObserver> model_observation_{this};
   SEQUENCE_CHECKER(sequence_checker_);
 };

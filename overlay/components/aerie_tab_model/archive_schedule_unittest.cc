@@ -51,7 +51,10 @@ class ArchiveScheduleTest : public testing::Test {
     return ArchiveTab(model_, id, std::move(data), Now());
   }
 
-  bool IsExempt(const std::string& id) { return exempt_.contains(id); }
+  bool IsExempt(const std::string& id) {
+    ++exempt_calls_;
+    return exempt_.contains(id);
+  }
 
   bool IsArchived(const std::string& id) {
     return model_.GetTab(id) && model_.GetTab(id)->archived_at;
@@ -64,6 +67,7 @@ class ArchiveScheduleTest : public testing::Test {
   std::set<std::string> exempt_;
   std::set<std::string> refuse_;
   std::vector<std::string> archive_calls_;
+  int exempt_calls_ = 0;
 };
 
 TEST_F(ArchiveScheduleTest, ATodayTabIsArchivedAtTheTimeoutAndNotBefore) {
@@ -172,6 +176,52 @@ TEST_F(ArchiveScheduleTest, OneTimerIsPendingHoweverManyTabsAndChanges) {
   schedule_.Rearm();
   EXPECT_TRUE(schedule_.timer_pending());
   EXPECT_EQ(task_environment_.GetPendingMainThreadTaskCount(), 1u);
+}
+
+TEST_F(ArchiveScheduleTest, ARearmAsksAboutTheExemptionOfFewTabsNotOfEveryTab) {
+  schedule_.SetArchiveAfter(base::Hours(12));
+  std::string first;
+  for (int i = 0; i < 500; ++i) {
+    task_environment_.FastForwardBy(base::Seconds(1));
+    const std::string id = Add(Section::kToday);
+    if (first.empty()) {
+      first = id;
+    }
+  }
+  // The two oldest tabs are the selected ones of two windows.
+  exempt_.insert(first);
+  schedule_.Rearm();
+  exempt_calls_ = 0;
+  schedule_.Rearm();
+  // The earliest is exempt, so it is skipped: two calls, not five hundred.
+  EXPECT_LE(exempt_calls_, 3);
+  EXPECT_GE(exempt_calls_, 1);
+  EXPECT_TRUE(schedule_.timer_pending());
+  // Without an exemption it is one call.
+  exempt_.clear();
+  exempt_calls_ = 0;
+  schedule_.Rearm();
+  EXPECT_EQ(exempt_calls_, 1);
+  // And a purge that is due first needs no call at all.
+  schedule_.SetArchiveAfter(std::nullopt);
+  exempt_calls_ = 0;
+  schedule_.Rearm();
+  EXPECT_EQ(exempt_calls_, 0);
+}
+
+TEST_F(ArchiveScheduleTest, AfterShutdownNothingIsArchivedAndNothingIsArmed) {
+  schedule_.SetArchiveAfter(base::Hours(12));
+  const std::string id = Add(Section::kToday);
+  ASSERT_TRUE(schedule_.timer_pending());
+  schedule_.Shutdown();
+  EXPECT_FALSE(schedule_.timer_pending());
+  task_environment_.FastForwardBy(base::Days(3));
+  schedule_.RunDueNow();
+  schedule_.Rearm();
+  Add(Section::kToday);
+  EXPECT_FALSE(schedule_.timer_pending());
+  EXPECT_FALSE(IsArchived(id));
+  EXPECT_TRUE(archive_calls_.empty());
 }
 
 TEST_F(ArchiveScheduleTest, NothingIsPendingWithNothingToDo) {

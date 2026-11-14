@@ -5,6 +5,7 @@
 #include "components/aerie_tab_model/archive_schedule.h"
 
 #include <algorithm>
+#include <set>
 #include <utility>
 #include <vector>
 
@@ -55,9 +56,10 @@ std::optional<base::TimeDelta> ArchiveSchedule::next_fire_in() const {
   return timer_.desired_run_time() - tick_clock_->NowTicks();
 }
 
-std::optional<base::Time> ArchiveSchedule::DueTime(const TabRecord& tab) const {
+std::optional<base::Time> ArchiveSchedule::CandidateDue(
+    const TabRecord& tab) const {
   if (tab.section != Section::kToday || tab.archived_at ||
-      model_->IsAwaitingRestore(tab.id) || exempt_.Run(tab.id)) {
+      model_->IsAwaitingRestore(tab.id)) {
     return std::nullopt;
   }
   std::optional<base::TimeDelta> timeout =
@@ -66,22 +68,62 @@ std::optional<base::Time> ArchiveSchedule::DueTime(const TabRecord& tab) const {
     return std::nullopt;
   }
   base::Time used = tab.last_active;
-  if (auto retry = retry_from_.find(tab.id); retry != retry_from_.end()) {
-    used = std::max(used, retry->second);
+  if (!retry_from_.empty()) {
+    if (auto retry = retry_from_.find(tab.id); retry != retry_from_.end()) {
+      used = std::max(used, retry->second);
+    }
   }
   return used + *timeout;
 }
 
+std::optional<base::Time> ArchiveSchedule::DueTime(const TabRecord& tab) const {
+  std::optional<base::Time> due = CandidateDue(tab);
+  if (!due || exempt_.Run(tab.id)) {
+    return std::nullopt;
+  }
+  return due;
+}
+
+void ArchiveSchedule::Shutdown() {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  shut_down_ = true;
+  timer_.Stop();
+  model_observation_.Reset();
+}
+
 void ArchiveSchedule::Rearm() {
-  if (running_) {
+  if (running_ || shut_down_) {
     return;
   }
   std::optional<base::Time> earliest = NextPurgeTime(*model_, keep_);
-  for (const auto& [id, tab] : model_->tabs()) {
-    std::optional<base::Time> due = DueTime(tab);
-    if (due && (!earliest || *due < *earliest)) {
-      earliest = due;
+  // One pass over the tabs finds the earliest candidate with a cheap check per
+  // tab. `exempt` (which may look a tab up) runs only for that one tab: when it
+  // is exempt it is skipped and the pass runs again. Exempt tabs are the
+  // selected one of each window and the ones that play audio, so this is a few
+  // passes, not one call per tab.
+  std::set<std::string> exempt_ids;
+  for (;;) {
+    const TabRecord* best = nullptr;
+    base::Time best_due;
+    for (const auto& [id, tab] : model_->tabs()) {
+      if (!exempt_ids.empty() && exempt_ids.contains(id)) {
+        continue;
+      }
+      std::optional<base::Time> due = CandidateDue(tab);
+      if (due && (!best || *due < best_due)) {
+        best = &tab;
+        best_due = *due;
+      }
     }
+    if (!best || (earliest && *earliest <= best_due)) {
+      break;
+    }
+    if (exempt_.Run(best->id)) {
+      exempt_ids.insert(best->id);
+      continue;
+    }
+    earliest = best_due;
+    break;
   }
   if (!earliest) {
     timer_.Stop();
@@ -97,13 +139,16 @@ void ArchiveSchedule::Rearm() {
 
 void ArchiveSchedule::RunDueNow() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  if (shut_down_) {
+    return;
+  }
   running_ = true;
   PurgeArchive(*model_, clock_->Now(), keep_);
   const base::Time now = clock_->Now();
   std::vector<std::string> due;
   for (const auto& [id, tab] : model_->tabs()) {
-    std::optional<base::Time> when = DueTime(tab);
-    if (when && *when <= now) {
+    std::optional<base::Time> when = CandidateDue(tab);
+    if (when && *when <= now && !exempt_.Run(id)) {
       due.push_back(id);
     }
   }
