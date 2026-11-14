@@ -41,6 +41,21 @@ TEST(AerieSidebarPaletteTest, TextAndAccentAreTheFramesOwn) {
   }
 }
 
+TEST(AerieSidebarPaletteTest, ThePeekedSidebarIsOpaqueAndHasTheTokenShadow) {
+  for (aerie::tokens::ColorMode mode :
+       {aerie::tokens::ColorMode::kLight, aerie::tokens::ColorMode::kDark}) {
+    const SidebarPalette palette =
+        ResolveSidebarPalette(aerie_frame::kDefaultTheme, mode, "dusk");
+    EXPECT_EQ(SkColorGetA(palette.peek_surface), 255u);
+    const aerie::tokens::Shadow& token =
+        aerie::tokens::GetThemeTokens(aerie_frame::kDefaultTheme, mode)
+            .shadow_peek;
+    EXPECT_EQ(palette.peek_shadow.count, token.count);
+    EXPECT_EQ(palette.peek_shadow.layers[0].blur, 40);
+    EXPECT_EQ(palette.peek_shadow.layers[0].y, 12);
+  }
+}
+
 TEST(AerieSidebarPaletteTest, TheModeChangesTheColours) {
   const SidebarPalette light =
       ResolveSidebarPalette(ThemeId::kVivid, ColorMode::kLight, "dusk");

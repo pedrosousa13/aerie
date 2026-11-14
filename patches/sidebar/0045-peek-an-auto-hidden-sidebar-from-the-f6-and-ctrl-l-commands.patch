@@ -1,0 +1,64 @@
+Aerie-Purpose: Peek an auto-hidden Aerie sidebar open for F6 and for Ctrl+L, from the commands themselves and not from listing the panes.
+Aerie-Upstream-Area: chrome/browser/ui/views/frame (browser_view.cc, vertical_tab_strip_region_view.*)
+Aerie-Kind: hook
+
+Issue #184. Patch 0032 lets F6 visit the sidebar's panes, and a hidden sidebar adds none. With auto-hide the sidebar is hidden at rest, so
+BrowserView::RotatePaneFocusFromView (the F6 rotation) and BrowserView::SetFocusToLocationBar (Ctrl+L, when the user asked for it) now ask the
+region view to peek it open first (VerticalTabStripRegionView::PeekAerieSidebarForPaneFocus, which does nothing unless the sidebar is
+auto-hidden). Listing the panes (GetAccessiblePanes) is a query again and changes nothing.
+
+--- a/chrome/browser/ui/views/frame/browser_view.cc
++++ b/chrome/browser/ui/views/frame/browser_view.cc
+@@ -3038,6 +3038,12 @@
+     return;
+   }
+ #endif
++  // Aerie (issue #184): Ctrl+L on an auto-hidden sidebar peeks it open, so
++  // that the address pill the omnibox sits in is on screen. Not for a focus the
++  // browser moves itself (a new window or tab).
++  if (is_user_initiated && vertical_tab_strip_region_view_) {
++    vertical_tab_strip_region_view_->PeekAerieSidebarForPaneFocus();
++  }
+   if (!IsLocationBarVisible()) {
+     return;
+   }
+@@ -5286,6 +5292,12 @@
+ bool BrowserView::RotatePaneFocusFromView(views::View* focused_view,
+                                           bool forward,
+                                           bool enable_wrapping) {
++  // Aerie (issue #184): F6 on an auto-hidden sidebar peeks it open before the
++  // panes are listed, so that its panes are in the rotation. Listing the panes
++  // changes nothing.
++  if (vertical_tab_strip_region_view_) {
++    vertical_tab_strip_region_view_->PeekAerieSidebarForPaneFocus();
++  }
+   // If an inactive bubble is showing this intentionally focuses that dialog to
+   // provide an easy access method to these dialogs without requiring additional
+   // keyboard shortcuts or commands. To get back out to pane cycling the dialog
+--- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
++++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
+@@ -421,6 +421,12 @@
+   }
+ }
+ 
++void VerticalTabStripRegionView::PeekAerieSidebarForPaneFocus() {
++  if (aerie_sidebar_view_ && AerieAutoHides()) {
++    aerie_sidebar_view_->PeekForPaneFocus();
++  }
++}
++
+ void VerticalTabStripRegionView::SetHasLeadingExclusionForLayout(
+     bool has_leading_exclusion) {
+   if (has_leading_exclusion_ == has_leading_exclusion) {
+--- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
++++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
+@@ -163,6 +163,9 @@
+   // Aerie (issue #215): the regions of the sidebar that F6 visits, in order
+   // (none while the sidebar is hidden).
+   void GetAerieAccessiblePanes(std::vector<views::View*>* panes);
++  // Aerie (issue #184): peeks an auto-hidden sidebar open for the keyboard
++  // (F6 and Ctrl+L). Does nothing when the sidebar is not auto-hidden.
++  void PeekAerieSidebarForPaneFocus();
+   bool aerie_sidebar_target_visible() const { return aerie_target_visible_; }
+   tabs::VerticalTabStripState target_collapse_state_for_testing() {
+     return target_collapse_state_;

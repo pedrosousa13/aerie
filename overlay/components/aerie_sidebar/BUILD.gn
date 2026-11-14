@@ -25,6 +25,33 @@ source_set("prefs") {
   ]
 }
 
+# The density sizes and the side (issue #184).
+source_set("density") {
+  sources = [
+    "aerie_sidebar_density.cc",
+    "aerie_sidebar_density.h",
+  ]
+  deps = [
+    ":layout",
+    ":prefs",
+    "//components/aerie_design_tokens:tokens",
+  ]
+  public_deps = [ "//components/prefs" ]
+}
+
+# The auto-hide peek state machine (issue #184). No views.
+source_set("peek") {
+  sources = [
+    "aerie_sidebar_peek.cc",
+    "aerie_sidebar_peek.h",
+  ]
+  deps = [
+    ":motion",
+    "//components/aerie_design_tokens:tokens",
+  ]
+  public_deps = [ "//base" ]
+}
+
 source_set("layout") {
   sources = [
     "aerie_sidebar_layout.cc",
@@ -152,6 +179,7 @@ source_set("today_list") {
 source_set("unit_tests") {
   testonly = true
   sources = [
+    "aerie_sidebar_density_unittest.cc",
     "aerie_sidebar_drag_unittest.cc",
     "aerie_sidebar_drop_target_unittest.cc",
     "aerie_sidebar_folder_toggle_unittest.cc",
@@ -159,11 +187,13 @@ source_set("unit_tests") {
     "aerie_sidebar_motion_unittest.cc",
     "aerie_sidebar_move_unittest.cc",
     "aerie_sidebar_palette_unittest.cc",
+    "aerie_sidebar_peek_unittest.cc",
     "aerie_sidebar_today_list_unittest.cc",
     "aerie_sidebar_tree_unittest.cc",
     "aerie_sidebar_unittest.cc",
   ]
   deps = [
+    ":density",
     ":drag",
     ":drop_target",
     ":folder_toggle",
@@ -172,6 +202,7 @@ source_set("unit_tests") {
     ":motion",
     ":move",
     ":palette",
+    ":peek",
     ":prefs",
     ":today_list",
     ":tree",

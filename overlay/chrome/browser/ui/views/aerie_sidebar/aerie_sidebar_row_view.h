@@ -14,6 +14,8 @@
 #include "base/memory/weak_ptr.h"
 #include "base/timer/timer.h"
 #include "components/aerie_design_tokens/aerie_motion.h"
+#include "components/aerie_design_tokens/aerie_tokens.h"
+#include "components/aerie_sidebar/aerie_sidebar_density.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_drag_overlay.h"
 #include "components/aerie_sidebar/aerie_sidebar_move.h"
 #include "components/aerie_sidebar/aerie_sidebar_palette.h"
@@ -114,6 +116,9 @@ class AerieSidebarRowView : public views::View,
     // The "Back to pinned page" button of a pinned row was pressed (issue
     // #180).
     base::RepeatingClosure back_to_pinned;
+    // The rename field opened or closed (issue #184: a rename keeps an
+    // auto-hidden sidebar open).
+    base::RepeatingClosure rename_state_changed;
     // Rename (issue #145). `begin_rename`: a double-click on the title or F2.
     // `commit_rename` gets the text of the field when the user keeps it (Enter
     // or focus loss); the sidebar normalizes it and writes the Tab Model.
@@ -269,6 +274,15 @@ class AerieSidebarRowView : public views::View,
   void EndFolderMotion();
   bool folder_fading() const;
 
+  // The density of the sidebar (issue #184): the row height, the icon size and,
+  // in the rail, no title and no trailing items. The row lays out once; there
+  // is no animation. Call before the row is shown, and again when the density
+  // changes.
+  void SetDensity(const aerie_sidebar::DensitySizes& sizes);
+  int row_height() const { return row_height_; }
+  int icon_size() const { return icon_size_; }
+  bool icons_only() const { return icons_only_; }
+
   // True while the row height animates (the layout exception).
   bool height_animating() const;
   // The view that holds the row's drawing; its layer is the one that animates.
@@ -325,6 +339,9 @@ class AerieSidebarRowView : public views::View,
   virtual bool IsEditFolderClick(const ui::MouseEvent& event) const;
   // Sizes the views that cover the whole row, after the content is placed.
   virtual void LayoutKindViews() {}
+  // The density changed (SetDensity): hide or show what only some densities
+  // have.
+  virtual void OnDensityChanged() {}
 
   const Callbacks& callbacks() const { return callbacks_; }
   views::Label* title_label() const { return title_; }
@@ -422,6 +439,11 @@ class AerieSidebarRowView : public views::View,
   int level_ = 0;
   raw_ptr<views::BoxLayout> content_layout_ = nullptr;
   base::OneShotTimer fade_timer_;
+  // The density (issue #184); Comfortable until SetDensity.
+  int row_height_ = aerie::tokens::kSizeRowHeightComfortable;
+  int icon_size_ = aerie::tokens::kSizeIcon;
+  bool icons_only_ = false;
+  raw_ptr<views::View> favicon_holder_ = nullptr;
 
   base::WeakPtrFactory<AerieSidebarRowView> weak_factory_{this};
 };

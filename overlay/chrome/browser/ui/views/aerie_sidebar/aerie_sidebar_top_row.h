@@ -62,6 +62,9 @@ class AerieSidebarTopRow : public views::AccessiblePaneView {
   views::View* toggle_button() const;
   views::View* window_controls() const { return window_controls_; }
   views::View* navigation() const { return navigation_; }
+  // The rail stacks the controls in a column (issue #184).
+  void SetVertical(bool vertical);
+  bool vertical() const { return vertical_; }
 
   // True when `point` (in this view's coordinates) lies on an empty part of
   // the row, which the window manager treats as the title bar.
@@ -76,6 +79,9 @@ class AerieSidebarTopRow : public views::AccessiblePaneView {
   void Rebuild();
 
   raw_ptr<views::BoxLayout> layout_ = nullptr;
+  raw_ptr<views::BoxLayout> controls_layout_ = nullptr;
+  raw_ptr<views::BoxLayout> navigation_layout_ = nullptr;
+  bool vertical_ = false;
   raw_ptr<views::View> window_controls_ = nullptr;
   raw_ptr<views::ImageButton> toggle_ = nullptr;
   raw_ptr<views::View> spacer_ = nullptr;

@@ -1,0 +1,98 @@
+Aerie-Purpose: Make the sidebar side pref drive Helium right-aligned pref and the density pref drive the sidebar width (rail 56 px).
+Aerie-Upstream-Area: chrome/browser/ui/tabs (vertical_tab_strip_state_controller_impl.cc/.h, BUILD.gn)
+Aerie-Kind: hook
+
+Issue #184. aerie.sidebar.side is the one source of the side; SyncAerieSide copies it to the Helium pref the layout reads.
+SetTabStripRightAligned writes aerie.sidebar.side. The state width is aerie_sidebar::EffectiveWidth, so the rail is 56 px
+without touching the saved width.
+
+--- a/chrome/browser/ui/tabs/BUILD.gn
++++ b/chrome/browser/ui/tabs/BUILD.gn
+@@ -546,6 +546,7 @@
+       "//chrome/browser/actor",
+       "//chrome/browser/actor/ui",
+       "//chrome/browser/aerie_adblock:tab_helper",
++      "//components/aerie_sidebar:density",
+       "//components/aerie_sidebar:layout",
+       "//components/aerie_sidebar:prefs",
+       "//chrome/browser/banners",
+--- a/chrome/browser/ui/tabs/vertical_tab_strip_state_controller_impl.cc
++++ b/chrome/browser/ui/tabs/vertical_tab_strip_state_controller_impl.cc
+@@ -31,6 +31,7 @@
+ #include "chrome/common/pref_names.h"
+ #include "chrome/grit/generated_resources.h"
+ #include "components/feature_engagement/public/feature_constants.h"
++#include "components/aerie_sidebar/aerie_sidebar_density.h"
+ #include "components/aerie_sidebar/aerie_sidebar_layout.h"
+ #include "components/aerie_sidebar/aerie_sidebar_prefs.h"
+ #include "components/prefs/pref_notifier_impl.h"
+@@ -82,7 +83,21 @@
+     // Aerie: the sidebar is never collapsed, and its width is the
+     // aerie.sidebar.width pref, not what a window restored (issue #177).
+     state_.collapsed = false;
+-    state_.uncollapsed_width = aerie_sidebar::GetWidth(*pref_service_);
++    // The rail is 56 px wide whatever width the user chose (issue #184).
++    state_.uncollapsed_width = aerie_sidebar::EffectiveWidth(*pref_service_);
++    // The side is aerie.sidebar.side. Helium's right-aligned pref, which the
++    // window layout, the frame tint and the window menu read, follows it
++    // (issue #184).
++    SyncAerieSide();
++    pref_change_registrar_.Add(
++        aerie_sidebar::kSidePref,
++        base::BindRepeating(&VerticalTabStripStateControllerImpl::SyncAerieSide,
++                            base::Unretained(this)));
++    pref_change_registrar_.Add(
++        aerie_sidebar::kDensityPref,
++        base::BindRepeating(
++            &VerticalTabStripStateControllerImpl::SyncAerieWidth,
++            base::Unretained(this)));
+   } else {
+     if (restored_state_collapsed.has_value()) {
+       SetCollapsed(restored_state_collapsed.value());
+@@ -196,6 +211,14 @@
+ 
+ void VerticalTabStripStateControllerImpl::SetTabStripRightAligned(
+     bool right_aligned) {
++  if (IsAerieSidebar()) {
++    // Aerie: the side is aerie.sidebar.side (issue #184); SyncAerieSide moves
++    // Helium's pref after it.
++    pref_service_->SetString(aerie_sidebar::kSidePref,
++                             right_aligned ? aerie_sidebar::kSideRight
++                                           : aerie_sidebar::kSideLeft);
++    return;
++  }
+   pref_service_->SetBoolean(prefs::kHeliumVerticalRightAligned, right_aligned);
+ }
+ 
+@@ -240,6 +263,18 @@
+   return state_.uncollapsed_width;
+ }
+ 
++void VerticalTabStripStateControllerImpl::SyncAerieSide() {
++  const bool right = aerie_sidebar::IsOnRight(*pref_service_);
++  if (pref_service_->GetBoolean(prefs::kHeliumVerticalRightAligned) != right) {
++    pref_service_->SetBoolean(prefs::kHeliumVerticalRightAligned, right);
++  }
++}
++
++void VerticalTabStripStateControllerImpl::SyncAerieWidth() {
++  // The region view applies it to the layout; this keeps the state honest.
++  state_.uncollapsed_width = aerie_sidebar::EffectiveWidth(*pref_service_);
++}
++
+ bool VerticalTabStripStateControllerImpl::IsAerieSidebar() const {
+   return pref_service_ && aerie_sidebar::IsSidebarLayout(*pref_service_);
+ }
+--- a/chrome/browser/ui/tabs/vertical_tab_strip_state_controller_impl.h
++++ b/chrome/browser/ui/tabs/vertical_tab_strip_state_controller_impl.h
+@@ -83,6 +83,10 @@
+   void SetCollapsed(bool collapsed);
+   // Aerie: true while the layout is the Aerie sidebar (issue #177).
+   bool IsAerieSidebar() const;
++  // Aerie (issue #184): Helium's right-aligned pref follows aerie.sidebar.side,
++  // and the width follows the density (the rail has a fixed width).
++  void SyncAerieSide();
++  void SyncAerieWidth();
+ 
+   // Updates the SessionService with the current state (collapsed status and
+   // uncollapsed width) for the associated session ID.

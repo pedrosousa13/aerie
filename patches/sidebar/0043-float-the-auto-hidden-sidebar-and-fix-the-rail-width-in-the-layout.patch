@@ -1,0 +1,204 @@
+Aerie-Purpose: Let an auto-hidden sidebar float over the page without taking room, give the rail its fixed 56 px and no resizer, and open an auto-hidden sidebar on F6.
+Aerie-Upstream-Area: chrome/browser/ui/views/frame (vertical_tab_strip_region_view.cc/.h, layout/browser_view_tabbed_layout_impl.cc, BUILD.gn)
+Aerie-Kind: hook
+
+Issue #184. The region view stays visible when the density is auto-hide and the sidebar is undocked, with no flow width; the layout
+gives it the width in the kFloatingWidth property as expand-on-hover style overlap. The rail has min width 56 and no resize area; a
+density change re-reads the width. A resize tells the sidebar view, so that the peek holds the sidebar open while it runs.
+
+--- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
++++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
+@@ -60,6 +60,7 @@
+ #include "chrome/browser/ui/web_applications/app_browser_controller.h"
+ #include "chrome/grit/generated_resources.h"
+ #include "components/aerie_design_tokens/aerie_motion.h"
++#include "components/aerie_sidebar/aerie_sidebar_density.h"
+ #include "components/aerie_sidebar/aerie_sidebar_layout.h"
+ #include "components/aerie_sidebar/aerie_sidebar_motion.h"
+ #include "components/aerie_sidebar/aerie_sidebar_prefs.h"
+@@ -219,6 +220,12 @@
+         base::BindRepeating(
+             &VerticalTabStripRegionView::OnAerieVisibleChanged,
+             base::Unretained(this)));
++    // The density sets the rail's fixed width, the resize area and whether the
++    // column floats (issue #184).
++    aerie_pref_registrar_.Add(
++        aerie_sidebar::kDensityPref,
++        base::BindRepeating(&VerticalTabStripRegionView::OnAerieDensityChanged,
++                            base::Unretained(this)));
+   }
+ 
+   // Views that go into the content area above
+@@ -270,7 +277,9 @@
+ 
+   SetNotifyEnterExitOnChild(true);
+   UpdateInteriorMargin();
+-  if (aerie_hidden_) {
++  // An auto-hidden sidebar is out of the layout but not hidden: it floats over
++  // the page when the pointer comes (issue #184).
++  if (aerie_hidden_ && !AerieAutoHides()) {
+     SetVisible(false);
+   }
+ }
+@@ -407,7 +416,7 @@
+ 
+ void VerticalTabStripRegionView::GetAerieAccessiblePanes(
+     std::vector<views::View*>* panes) {
+-  if (aerie_sidebar_view_ && !aerie_hidden_) {
++  if (aerie_sidebar_view_ && (!aerie_hidden_ || AerieAutoHides())) {
+     aerie_sidebar_view_->GetAccessiblePanes(panes);
+   }
+ }
+@@ -598,6 +607,10 @@
+   min_size.set_width((state_controller_->IsCollapsed() || IsAnimatingSize())
+                          ? tabs::kVerticalTabStripCollapsedWidth
+                          : tabs::kVerticalTabStripUncollapsedMinWidth);
++  if (aerie_sidebar_view_ && aerie_sidebar_view_->density_sizes().fixed_width) {
++    // The rail has one width (issue #184).
++    min_size.set_width(aerie_sidebar_view_->density_sizes().fixed_width);
++  }
+   return min_size;
+ }
+ 
+@@ -823,6 +836,7 @@
+   if (!starting_width_on_resize_.has_value()) {
+     starting_width_on_resize_ = width();
+     state_controller_->SetIsResizing(true);
++    aerie_sidebar_view_->SetResizing(true);
+   }
+   bool previously_collapsed = target_collapse_state_.collapsed;
+   const int resize_delta = state_controller_->IsTabStripRightAligned()
+@@ -912,6 +926,7 @@
+   if (done_resizing) {
+     starting_width_on_resize_ = std::nullopt;
+     state_controller_->SetIsResizing(false);
++    aerie_sidebar_view_->SetResizing(false);
+     state_controller_->SetUncollapsedWidth(new_width);
+   }
+   target_collapse_state_.uncollapsed_width = new_width;
+@@ -933,6 +948,19 @@
+   aerie_target_visible_ = visible;
+   aerie_hide_timer_.Stop();
+   aerie_motion_.Abort();
++  if (AerieAutoHides()) {
++    // Auto-hide: docking and undocking move the column in and out of the
++    // layout at once. The peek driver does the sliding of the floating
++    // column (issue #184).
++    aerie_hidden_ = !visible;
++    aerie_hide_slide_.End();
++    SetVisible(true);
++    layer()->SetTransform(gfx::Transform());
++    layer()->SetOpacity(1.f);
++    UpdateResizeAreaVisibility();
++    InvalidateLayout();
++    return;
++  }
+   const bool reduced = aerie::motion::ShouldReduceMotion(prefs);
+   const bool on_right =
+       state_controller_->IsTabStripRightAligned() != base::i18n::IsRTL();
+@@ -998,6 +1026,29 @@
+           base::Unretained(this)));
+ }
+ 
++// Aerie: the density decides the rail's width, whether the column floats and
++// whether it has a resizer (issue #184).
++void VerticalTabStripRegionView::OnAerieDensityChanged() {
++  PrefService* const prefs = browser_view()->GetProfile()->GetPrefs();
++  target_collapse_state_.uncollapsed_width =
++      aerie_sidebar::EffectiveWidth(*prefs);
++  if (!AerieAutoHides() && aerie_hidden_ &&
++      aerie_sidebar::IsVisible(*prefs)) {
++    // Leaving auto-hide: the column docks.
++    aerie_hidden_ = false;
++    aerie_target_visible_ = true;
++    SetVisible(true);
++  }
++  UpdateResizeAreaVisibility();
++  InvalidateLayout();
++}
++
++bool VerticalTabStripRegionView::AerieAutoHides() const {
++  return aerie_sidebar_view_ &&
++         aerie_sidebar::IsAutoHide(aerie_sidebar::GetDensity(
++             *browser_view()->GetProfile()->GetPrefs()));
++}
++
+ void VerticalTabStripRegionView::SetCollapsedStateUpdatedCallback(
+     base::RepeatingCallback<void(bool)> callback) {
+   update_state_controller_collapsed_callback_ = std::move(callback);
+@@ -1156,6 +1207,12 @@
+ }
+ 
+ void VerticalTabStripRegionView::UpdateResizeAreaVisibility() {
++  if (aerie_sidebar_view_ &&
++      (aerie_sidebar_view_->density_sizes().fixed_width || AerieAutoHides())) {
++    // No resizer on the rail, and none on the floating sidebar (issue #184).
++    resize_area_->SetVisible(false);
++    return;
++  }
+   if (floating_style_ != FloatingStyle::kNone) {
+     resize_area_->SetVisible(false);
+     return;
+--- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
++++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
+@@ -211,6 +211,8 @@
+   // Aerie sidebar (issue #177): see the .cc.
+   void OnAerieResize(int resize_amount, bool done_resizing);
+   void OnAerieVisibleChanged();
++  void OnAerieDensityChanged();
++  bool AerieAutoHides() const;
+ 
+   void OnAnimationProgressed(const BrowserAnimationController* controller,
+                              BrowserAnimationUpdate status);
+--- a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
++++ b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
+@@ -27,6 +27,7 @@
+ #include "chrome/browser/ui/tabs/organizer/organizer_panel_utils.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
+ #include "chrome/browser/ui/tabs/vertical_tab_strip_state.h"
++#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_floating.h"
+ #include "chrome/browser/ui/ui_features.h"
+ #include "chrome/browser/ui/views/animations/organizer_panel_animations.h"
+ #include "chrome/browser/ui/views/animations/side_panel_animations.h"
+@@ -1017,11 +1018,22 @@
+   if (IsParentedTo(views().vertical_tab_strip_region_view,
+                    views().browser_view)) {
+     if (layout_data_->tab_strip_type == TabStripType::kVertical) {
+-      const int vertical_tab_strip_hover_width =
++      int vertical_tab_strip_hover_width =
+           std::max(0,
+                    views().vertical_tab_strip_region_view->uncollapsed_width() -
+                        horizontal_layout.vertical_tab_strip_width) *
+           vertical_tab_strip_animation.expand_on_hover_width;
++      // Aerie: an auto-hidden sidebar that peeks floats over the page at its
++      // own width and takes no room (issue #184). The overlap is the same
++      // overlay the expand-on-hover style uses.
++      const int aerie_floating_width =
++          views().vertical_tab_strip_region_view->GetProperty(
++              aerie_sidebar::kFloatingWidth);
++      if (aerie_floating_width > 0) {
++        vertical_tab_strip_hover_width =
++            std::max(0, aerie_floating_width -
++                            horizontal_layout.vertical_tab_strip_width);
++      }
+ 
+       int vertical_tab_strip_width =
+           horizontal_layout.vertical_tab_strip_width +
+--- a/chrome/browser/ui/views/frame/BUILD.gn
++++ b/chrome/browser/ui/views/frame/BUILD.gn
+@@ -584,6 +584,7 @@
+     "//chrome/browser/ui/views/tabs/organizer",
+     "//chrome/browser/ui/web_applications",
+     "//chrome/browser/ui:view_ids",
++    "//components/aerie_sidebar:density",
+     "//components/aerie_sidebar:layout",
+     "//components/aerie_sidebar:motion",
+     "//components/aerie_sidebar:prefs",
+@@ -3152,6 +3153,7 @@
+     "//base",
+     "//build:buildflag_header_h",
+     "//chrome/browser/ui:layout_constants",
++    "//chrome/browser/ui/views/aerie_sidebar",
+     "//chrome/browser/ui:ui_features",
+     "//chrome/browser/ui/browser_window",
+     "//chrome/browser/ui/color:color_headers",

@@ -14,6 +14,8 @@ void RegisterProfilePrefs(PrefRegistrySimple* registry) {
   registry->RegisterIntegerPref(kWidthPref,
                                 aerie::tokens::kSizeSidebarWidth);
   registry->RegisterBooleanPref(kVisiblePref, true);
+  registry->RegisterStringPref(kDensityPref, kDensityComfortable);
+  registry->RegisterStringPref(kSidePref, kSideLeft);
 }
 
 }  // namespace aerie_sidebar

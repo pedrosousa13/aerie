@@ -35,7 +35,6 @@
 
 namespace {
 constexpr int kFaviconSize = aerie::tokens::kSizeIcon;
-constexpr int kRowHeight = aerie::tokens::kSizeRowHeightComfortable;
 // The square of the funnel that opens a folder's sheet.
 constexpr int kRowButtonSize = 20;
 
@@ -191,19 +190,26 @@ bool AerieSidebarFolderRowView::IsEditFolderClick(
   return icon->GetLocalBounds().Contains(in_icon);
 }
 
+void AerieSidebarFolderRowView::OnDensityChanged() {
+  // The rail shows the folder glyph only (issue #184).
+  chevron_->SetVisible(!icons_only());
+  selection_dot_->SetVisible(holds_selected_tab_ && !icons_only());
+  funnel_->SetVisible(auto_filing_ && !icons_only());
+}
+
 void AerieSidebarFolderRowView::LayoutKindViews() {
   if (pulse_) {
-    pulse_->SetBoundsRect(gfx::Rect(0, 0, width(), kRowHeight));
+    pulse_->SetBoundsRect(gfx::Rect(0, 0, width(), row_height()));
   }
 }
 
 void AerieSidebarFolderRowView::ApplyKindPalette() {
   const aerie_sidebar::SidebarPalette& colors = palette();
   favicon_view()->SetImage(ui::ImageModel::FromVectorIcon(
-      vector_icons::kFolderFilledIcon, colors.text_muted, kFaviconSize));
+      vector_icons::kFolderFilledIcon, colors.text_muted, icon_size()));
   chevron_->SetImage(ui::ImageModel::FromVectorIcon(
       vector_icons::kKeyboardArrowRightFlippableIcon, colors.text_muted,
-      kFaviconSize));
+      icon_size()));
   selection_dot_->SetBackground(views::CreateRoundedRectBackground(
       colors.accent, aerie::tokens::kSizeFolderDot / 2));
   for (views::Button::ButtonState state :
@@ -211,14 +217,14 @@ void AerieSidebarFolderRowView::ApplyKindPalette() {
     funnel_->SetImageModel(
         state, ui::ImageModel::FromVectorIcon(
                    aerie_sidebar::kAerieFolderRulesIcon, colors.text_muted,
-                   kFaviconSize));
+                   icon_size()));
   }
   for (views::Button::ButtonState state :
        {views::Button::STATE_HOVERED, views::Button::STATE_PRESSED}) {
     funnel_->SetImageModel(
         state, ui::ImageModel::FromVectorIcon(
                    aerie_sidebar::kAerieFolderRulesIcon, colors.text,
-                   kFaviconSize));
+                   icon_size()));
   }
   pulse_->SetBackground(views::CreateRoundedRectBackground(
       colors.accent, aerie::tokens::kRadiusMd));
@@ -230,7 +236,8 @@ views::View* AerieSidebarFolderRowView::chevron_view() const {
 
 void AerieSidebarFolderRowView::SetAutoFiling(bool auto_filing,
                                               const std::u16string& tooltip) {
-  funnel_->SetVisible(auto_filing);
+  auto_filing_ = auto_filing;
+  funnel_->SetVisible(auto_filing && !icons_only());
   funnel_->SetTooltipText(tooltip);
   funnel_->GetViewAccessibility().SetName(tooltip);
 }
@@ -278,7 +285,8 @@ void AerieSidebarFolderRowView::SetFolderState(
   }
   folder_accessible_name_ = accessible_name;
   UpdateName();
-  selection_dot_->SetVisible(holds_selected_tab && !expanded);
+  holds_selected_tab_ = holds_selected_tab && !expanded;
+  selection_dot_->SetVisible(holds_selected_tab_ && !icons_only());
   const bool changed = !folder_state_applied_ || expanded_ != expanded;
   const bool animate = folder_state_applied_ && motion_prefs;
   folder_state_applied_ = true;

@@ -8,6 +8,8 @@
 #include <string>
 
 #include "base/functional/callback.h"
+#include "components/aerie_design_tokens/aerie_tokens.h"
+#include "components/aerie_sidebar/aerie_sidebar_density.h"
 #include "components/aerie_sidebar/aerie_sidebar_palette.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/views/layout/box_layout_view.h"
@@ -67,8 +69,12 @@ class AerieSidebarFavoritesGrid : public views::View {
   ~AerieSidebarFavoritesGrid() override;
 
   void SetFocusHandler(base::RepeatingClosure focus_tab_stop);
-  // The columns the grid lays out in.
+  // The columns the grid lays out in: `size-favorites-columns`, and one in the
+  // rail (issue #184).
   int columns() const;
+  // The density: the tile side and, in the rail, one column.
+  void SetDensity(const aerie_sidebar::DensitySizes& sizes);
+  int tile_size() const { return tile_size_; }
 
   // views::View:
   void RequestFocus() override;
@@ -78,6 +84,8 @@ class AerieSidebarFavoritesGrid : public views::View {
 
  private:
   base::RepeatingClosure focus_tab_stop_;
+  int tile_size_ = aerie::tokens::kSizeTileComfortable;
+  bool single_column_ = false;
 };
 
 // A hairline between two sections (issue #182): between Favorites and Pinned,

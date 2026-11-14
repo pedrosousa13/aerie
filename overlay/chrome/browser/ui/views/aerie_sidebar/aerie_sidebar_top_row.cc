@@ -106,11 +106,10 @@ AerieSidebarTopRow::AerieSidebarTopRow(
 
   // Window controls: hidden until the frame says it needs them.
   window_controls_ = AddChildView(std::make_unique<views::View>());
-  auto* controls_layout =
-      window_controls_->SetLayoutManager(std::make_unique<views::BoxLayout>(
+  controls_layout_ = window_controls_->SetLayoutManager(std::make_unique<views::BoxLayout>(
           views::BoxLayout::Orientation::kHorizontal, gfx::Insets(),
           aerie::tokens::kSpace2));
-  controls_layout->set_cross_axis_alignment(
+  controls_layout_->set_cross_axis_alignment(
       views::BoxLayout::CrossAxisAlignment::kCenter);
   window_controls_->GetViewAccessibility().SetRole(ax::mojom::Role::kGroup);
   window_controls_->GetViewAccessibility().SetName(
@@ -144,11 +143,10 @@ AerieSidebarTopRow::AerieSidebarTopRow(
 
   // Back, Forward and Reload go here, in a group of their own.
   navigation_ = AddChildView(std::make_unique<views::View>());
-  auto* navigation_layout =
-      navigation_->SetLayoutManager(std::make_unique<views::BoxLayout>(
+  navigation_layout_ = navigation_->SetLayoutManager(std::make_unique<views::BoxLayout>(
           views::BoxLayout::Orientation::kHorizontal, gfx::Insets(),
           aerie::tokens::kSpace4));
-  navigation_layout->set_cross_axis_alignment(
+  navigation_layout_->set_cross_axis_alignment(
       views::BoxLayout::CrossAxisAlignment::kCenter);
   navigation_->GetViewAccessibility().SetRole(ax::mojom::Role::kGroup);
   navigation_->GetViewAccessibility().SetName(
@@ -158,6 +156,23 @@ AerieSidebarTopRow::AerieSidebarTopRow(
 }
 
 AerieSidebarTopRow::~AerieSidebarTopRow() = default;
+
+void AerieSidebarTopRow::SetVertical(bool vertical) {
+  if (vertical_ == vertical) {
+    return;
+  }
+  vertical_ = vertical;
+  const auto orientation = vertical ? views::BoxLayout::Orientation::kVertical
+                                    : views::BoxLayout::Orientation::kHorizontal;
+  layout_->SetOrientation(orientation);
+  controls_layout_->SetOrientation(orientation);
+  navigation_layout_->SetOrientation(orientation);
+  // The spacer pushes Back, Forward and Reload to the far end of a row; in a
+  // column it would only add height.
+  layout_->SetFlexForView(spacer_, vertical ? 0 : 1);
+  spacer_->SetVisible(!vertical);
+  InvalidateLayout();
+}
 
 void AerieSidebarTopRow::SetPalette(
     const aerie_sidebar::SidebarPalette& palette) {

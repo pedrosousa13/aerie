@@ -35,6 +35,11 @@ struct SidebarPalette {
   SkColor control_rest;
   SkColor control_hover;
   SkColor control_close_hover;
+  // The opaque surface of a floating (peeked) sidebar, and its shadow
+  // (`shadow-peek`, issue #184): the frame colour of the Workspace, because the
+  // sidebar is then over the page and not over the frame.
+  SkColor peek_surface;
+  aerie::tokens::Shadow peek_shadow;
 };
 
 // The share of the text colour that a window control circle shows at rest and

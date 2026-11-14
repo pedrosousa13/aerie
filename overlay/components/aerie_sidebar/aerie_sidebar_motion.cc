@@ -44,6 +44,23 @@ SlideMotion HideMotion(int width, int outer_edge_sign, bool reduced) {
                outer_edge_sign, reduced, 1.f, 0.f);
 }
 
+SlideMotion PeekShowMotion(int width, int outer_edge_sign, bool reduced) {
+  return Slide(MotionDuration::kPeekShow, MotionEasing::kSpring, width,
+               outer_edge_sign, reduced, 0.f, 1.f);
+}
+
+MotionDuration PeekHideDuration(bool reduced) {
+  // The design's reduced peek is one 100 ms fade, in and out
+  // (docs/sidebar-design.md, "Motion"); the `peek-hide` token's reduced value
+  // is 90 ms, so the hide takes `peek-show`'s reduced value.
+  return reduced ? MotionDuration::kPeekShow : MotionDuration::kPeekHide;
+}
+
+SlideMotion PeekHideMotion(int width, int outer_edge_sign, bool reduced) {
+  return Slide(PeekHideDuration(reduced), MotionEasing::kAccelerate, width,
+               outer_edge_sign, reduced, 1.f, 0.f);
+}
+
 SleepMotion SleepFaviconMotion(bool reduced) {
   SleepMotion motion;
   motion.animate_fade = !reduced;

@@ -74,8 +74,11 @@ class AerieSidebarFolderRowView : public AerieSidebarRowView {
   int RenameCaptionId() const override;
   bool IsEditFolderClick(const ui::MouseEvent& event) const override;
   void LayoutKindViews() override;
+  void OnDensityChanged() override;
 
  private:
+  bool auto_filing_ = false;
+  bool holds_selected_tab_ = false;
   void EndChevronTurn();
 
   bool expanded_ = false;
