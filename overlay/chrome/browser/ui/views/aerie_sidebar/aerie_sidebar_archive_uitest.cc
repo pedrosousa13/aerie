@@ -78,7 +78,10 @@ bool Animates(ui::Layer* layer,
 std::string AnyTransformAnimation(views::View* root) {
   if (root->layer() &&
       Animates(root->layer(), ui::LayerAnimationElement::TRANSFORM)) {
-    return std::string(root->GetClassName());
+    return std::string(root->GetClassName()) + " layer=" +
+           root->layer()->name() + " bounds=" + root->bounds().ToString() +
+           " parent=" +
+           std::string(root->parent() ? root->parent()->GetClassName() : "");
   }
   for (views::View* child : root->children()) {
     std::string found = AnyTransformAnimation(child);
@@ -167,6 +170,12 @@ class AerieSidebarArchiveReducedUiTest
       last = row->bounds();
       return row->height() > 0 && same >= 10;
     }));
+    // And every animation the new row started has finished, so that a
+    // transform seen later belongs to the archive moment. Under reduced motion
+    // none should run at all; this ends at once then, and times out if one is
+    // stuck.
+    EXPECT_TRUE(base::test::RunUntil(
+        [&] { return AnyTransformAnimation(sidebar()).empty(); }));
     return id;
   }
 
