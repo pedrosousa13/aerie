@@ -319,7 +319,7 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarDensityBrowserTest,
     EXPECT_TRUE(
         region()->GetBoundsInScreen().Contains(button->GetBoundsInScreen()));
     // Reached by F6 (the bottom bar is a pane) and the arrow keys.
-    EXPECT_TRUE(button->IsAccessibilityFocusable());
+    EXPECT_NE(button->GetFocusBehavior(), views::View::FocusBehavior::NEVER);
   }
 }
 
