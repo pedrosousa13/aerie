@@ -229,6 +229,7 @@ AerieSidebarArchivePanel::AerieSidebarArchivePanel(
   SetShowCloseButton(false);
   SetAccessibleTitle(l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_ARCHIVE_PANEL));
   set_fixed_width(kPanelWidth);
+  set_corner_radius(aerie::tokens::kRadiusLg);
   set_margins(gfx::Insets(aerie::tokens::kSpace8));
 
   auto contents = std::make_unique<views::BoxLayoutView>();
