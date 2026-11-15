@@ -67,16 +67,25 @@ class NightlyTest(unittest.TestCase):
         self.assertIn("--download-benchmarks", bench)
         self.assertNotIn("--perf-skip-benchmarks", bench)
 
-    def test_sidebar_frames_is_left_out_so_its_failure_cannot_stop_the_perf_baseline_being_recorded(self):
+    def test_sidebar_frames_runs_in_the_nightly_and_records_its_own_baseline(self):
         self.shell.checks = "perf smoke sidebar_frames zero_traffic"
         self.run_nightly()
         bench = [c for c in self.shell.calls if "bench" in c and "--check" in c][-1]
         checks = [bench[i + 1] for i, a in enumerate(bench) if a == "--check"]
-        self.assertNotIn("sidebar_frames", checks)
+        self.assertIn("sidebar_frames", checks)
         self.assertIn("zero_traffic", checks)
+        self.assertEqual(nightly.NIGHTLY_BENCH_EXCLUDE, ())
+        self.assertEqual(bench[bench.index("--sidebar-frames-record") + 1], "/mnt/linux2/aerie-perf")
+        self.assertEqual(bench[bench.index("--sidebar-frames-baseline") + 1],
+                         "/mnt/linux2/aerie-perf/sidebar-frames-main.json")
+        self.assertIn("--sidebar-frames-first-run", bench)
         self.assertIn("--perf-record", bench)
+
+    def test_the_sidebar_frames_flags_are_left_off_when_the_check_is_not_registered(self):
+        self.shell.checks = "perf smoke zero_traffic"
+        self.run_nightly()
+        bench = [c for c in self.shell.calls if "bench" in c and "--check" in c][-1]
         self.assertNotIn("--sidebar-frames-record", bench)
-        self.assertEqual(nightly.NIGHTLY_BENCH_EXCLUDE, ("sidebar_frames",))
 
     def test_results_are_kept_under_a_dated_directory(self):
         self.run_nightly()

@@ -21,6 +21,7 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_floating.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_group.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_row_view.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_row_view.h"
@@ -300,6 +301,33 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarMotionUiTest, HideAndShowAnimateOnlyTheColumn
   const base::TimeTicks until = base::TimeTicks::Now() + base::Milliseconds(400);
   base::test::RunUntil([&] { return base::TimeTicks::Now() >= until; });
   EXPECT_EQ(card()->bounds(), card_shown);
+}
+
+// A hide that slides draws: the column keeps real bounds, at its own width, for
+// the whole slide (a zero-width region left the compositor one frame, issue
+// #237), and floats over the room the page has already taken.
+IN_PROC_BROWSER_TEST_F(AerieSidebarMotionUiTest, TheHidingColumnKeepsItsWidthAndFloatsOverThePageWhileItSlides) {
+  ForceReducedMotion(false);
+  ASSERT_TRUE(base::test::RunUntil([&] { return region()->width() > 0; }));
+  const int column_width = region()->width();
+  const gfx::Rect card_before = card()->bounds();
+
+  chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
+  ASSERT_TRUE(base::test::RunUntil([&] { return card()->width() > card_before.width(); }));
+  // Mid-slide: the page has its room, the column is still a real, visible
+  // region of its own width.
+  EXPECT_FALSE(region()->aerie_sidebar_hidden());
+  EXPECT_TRUE(region()->GetVisible());
+  EXPECT_EQ(region()->width(), column_width);
+  EXPECT_EQ(region()->GetProperty(aerie_sidebar::kFloatingWidth), column_width);
+
+  // When the slide ends the column leaves the layout and floats no more.
+  ASSERT_TRUE(base::test::RunUntil([&] { return region()->aerie_sidebar_hidden(); }));
+  EXPECT_EQ(region()->GetProperty(aerie_sidebar::kFloatingWidth), 0);
+
+  // A show starts from the hidden state and floats nothing.
+  chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
+  EXPECT_EQ(region()->GetProperty(aerie_sidebar::kFloatingWidth), 0);
 }
 
 // Where the page really is: the origin of the web contents' native layer in the

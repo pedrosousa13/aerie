@@ -172,16 +172,16 @@ TEST(AerieSidebarMotionTest, ReducedSmartRowsFadeIn90Ms) {
   }
 }
 
-TEST(AerieSidebarMotionTest, AHidingColumnKeepsItsWidthOutsideItsZeroWidthRegion) {
+TEST(AerieSidebarMotionTest, AHidingColumnFloatsAtItsWidthOverTheRoomThePageTakes) {
   HideSlide slide;
   EXPECT_FALSE(slide.active());
+  EXPECT_EQ(slide.floating_width(), 0);
   slide.Begin(260);
   EXPECT_TRUE(slide.active());
-  EXPECT_EQ(slide.content_width(), 260);
-  EXPECT_EQ(slide.content_x(/*right_aligned=*/false), 0);
-  EXPECT_EQ(slide.content_x(/*right_aligned=*/true), -260);
+  EXPECT_EQ(slide.floating_width(), 260);
   slide.End();
   EXPECT_FALSE(slide.active());
+  EXPECT_EQ(slide.floating_width(), 0);
 }
 
 }  // namespace

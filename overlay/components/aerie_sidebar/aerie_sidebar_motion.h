@@ -47,10 +47,10 @@ SlideMotion PeekHideMotion(int width, int outer_edge_sign, bool reduced);
 aerie::tokens::MotionDuration PeekHideDuration(bool reduced);
 
 // While a hide slides out the window layout already gives the room to the page,
-// in one step: the column takes no room (preferred and minimum width 0) and its
-// content keeps the width it had, hanging outside the region's own bounds
-// toward the page, so it slides out over the room the page is taking
-// (issue #215).
+// in one step: the column takes no room (preferred and minimum width 0). It
+// floats over that room at its own width, the way the auto-hide peek does
+// (aerie_sidebar::kFloatingWidth), so its region keeps real bounds for the
+// whole slide and the compositor draws every frame of it (issues #215, #237).
 class HideSlide {
  public:
   void Begin(int column_width) {
@@ -60,10 +60,8 @@ class HideSlide {
   void End() { active_ = false; }
   bool active() const { return active_; }
 
-  // The content's x and width in the region's coordinates. A column on the
-  // right hangs out to the left of its zero-width region.
-  int content_x(bool right_aligned) const { return right_aligned ? -width_ : 0; }
-  int content_width() const { return width_; }
+  // The width the column floats at, or 0 when no hide is sliding.
+  int floating_width() const { return active_ ? width_ : 0; }
 
  private:
   bool active_ = false;

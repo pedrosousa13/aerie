@@ -14,9 +14,9 @@ from .gate import CiConfig
 
 PASS, FAIL, BUSY = "pass", "fail", "busy"
 
-# sidebar_frames fails until #237 lands, and a failing Bench run is not recorded as the perf baseline the PR gate
-# compares against. It runs by hand until then; when it passes, remove it from here and the nightly records its baseline.
-NIGHTLY_BENCH_EXCLUDE = ("sidebar_frames",)
+# The nightly runs every registered check; sidebar_frames joined it when #237 made it pass. Add a name here to leave a
+# check out, for example one that fails for a known reason: a failing Bench run is not recorded as the perf baseline.
+NIGHTLY_BENCH_EXCLUDE: tuple[str, ...] = ()
 
 
 def run_nightly(cfg: CiConfig, *, today: Callable[[], str] = lambda: time.strftime("%Y-%m-%d"),
@@ -39,6 +39,12 @@ def run_nightly(cfg: CiConfig, *, today: Callable[[], str] = lambda: time.strfti
                     checks = st.bench_check_names(cfg.shell, cfg.python, tree, env, exclude=NIGHTLY_BENCH_EXCLUDE)
                     # A passing run with the perf check becomes the baseline the PR gate compares against.
                     extra = ("--download-benchmarks", "--perf-record", str(cfg.perf_dir)) if "perf" in checks else ()
+                    if "sidebar_frames" in checks:
+                        # Compare with the last recorded main build and, when the run passes, record this one (the first
+                        # run has nothing to compare with, and --sidebar-frames-first-run passes only for that).
+                        main = cfg.perf_dir / "sidebar-frames-main.json"
+                        extra += ("--sidebar-frames-baseline", str(main), "--sidebar-frames-first-run",
+                                  "--sidebar-frames-record", str(cfg.perf_dir))
                     plan = [st.Step("clean build", cmds["clean_build"]),
                             st.Step("full bench", st.bench_argv(cfg.python, tree, cfg.build_root, checks,
                                                                 out=bench_out, extra=extra)),
