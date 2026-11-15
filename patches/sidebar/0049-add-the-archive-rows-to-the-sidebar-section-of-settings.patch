@@ -15,54 +15,54 @@ folder-rules row of patches/sidebar/0038.
 
 --- a/chrome/browser/resources/settings/BUILD.gn
 +++ b/chrome/browser/resources/settings/BUILD.gn
-@@ -202,6 +202,10 @@
-     "ai_page/offer_writing_help_page.ts",
-     "ai_page/skills_page.html.ts",
+@@ -204,6 +204,10 @@
      "ai_page/skills_page.ts",
+     "appearance_page/aerie_appearance_row.html.ts",
+     "appearance_page/aerie_appearance_row.ts",
 +    "appearance_page/aerie_archive_after_row.html.ts",
 +    "appearance_page/aerie_archive_after_row.ts",
 +    "appearance_page/aerie_archive_keep_row.html.ts",
 +    "appearance_page/aerie_archive_keep_row.ts",
+     "appearance_page/aerie_density_row.html.ts",
+     "appearance_page/aerie_density_row.ts",
      "appearance_page/aerie_folder_rules_row.html.ts",
-     "appearance_page/aerie_folder_rules_row.ts",
-     "appearance_page/aerie_motion_row.html.ts",
 --- a/chrome/browser/resources/settings/appearance_page/appearance_layout_page.ts
 +++ b/chrome/browser/resources/settings/appearance_page/appearance_layout_page.ts
-@@ -3,6 +3,8 @@
- // the terms of the GPL-3.0 license that can be found in the LICENSE file.
+@@ -4,6 +4,8 @@
  
  import '../settings_page/settings_section.js';
+ import './aerie_appearance_row.js';
 +import './aerie_archive_after_row.js';
 +import './aerie_archive_keep_row.js';
+ import './aerie_density_row.js';
  import './aerie_folder_rules_row.js';
  import './aerie_pinned_close_row.js';
- import './aerie_sleep_row.js';
 --- a/chrome/browser/resources/settings/appearance_page/appearance_layout_page.html.ts
 +++ b/chrome/browser/resources/settings/appearance_page/appearance_layout_page.html.ts
-@@ -13,6 +13,8 @@
+@@ -14,6 +14,8 @@
    <settings-aerie-sleep-row></settings-aerie-sleep-row>
    <settings-aerie-pinned-close-row></settings-aerie-pinned-close-row>
    <settings-aerie-folder-rules-row></settings-aerie-folder-rules-row>
 +  <settings-aerie-archive-after-row></settings-aerie-archive-after-row>
 +  <settings-aerie-archive-keep-row></settings-aerie-archive-keep-row>
+   <settings-aerie-density-row></settings-aerie-density-row>
+   <settings-aerie-side-row></settings-aerie-side-row>
  </settings-section>
- <!--_html_template_end_-->`;
-   // clang-format on
 --- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
 +++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
 @@ -495,6 +495,9 @@
-   // The name is aerie_tab_model::kFolderRulesEnabled; a test compares the two.
-   (*s_allowlist)["aerie.folders.rules_enabled"] =
-       settings_api::PrefType::kBoolean;
+   // Aerie: what Ctrl+W does on a pinned tab (issue #180). The name is
+   // aerie_tab_model::kPinnedClose; a test compares the two.
+   (*s_allowlist)["aerie.tabs.pinned_close"] = settings_api::PrefType::kString;
 +  // Aerie: how long the Archive keeps an archived tab (issue #183). The name
 +  // is aerie_tab_model::kArchiveKeep; a test compares the two.
 +  (*s_allowlist)["aerie.tabs.archive_keep"] = settings_api::PrefType::kString;
-   // Aerie: the sidebar's width and shown state (issue #177). The names are
-   // aerie_sidebar::kWidthPref and kVisiblePref; a test compares them. The
-   // layout pref is not here until issue #186 builds the second layout.
+   // Aerie: the global switch of the rules of auto-filing folders (issue #139).
+   // The name is aerie_tab_model::kFolderRulesEnabled; a test compares the two.
+   (*s_allowlist)["aerie.folders.rules_enabled"] =
 --- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
 +++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
-@@ -639,6 +639,18 @@
+@@ -640,6 +640,18 @@
        {"aeriePinnedCloseClose", IDS_SETTINGS_AERIE_PINNED_CLOSE_CLOSE},
        {"aerieFolderRules", IDS_SETTINGS_AERIE_FOLDER_RULES},
        {"aerieFolderRulesDesc", IDS_SETTINGS_AERIE_FOLDER_RULES_DESC},
@@ -78,6 +78,6 @@ folder-rules row of patches/sidebar/0038.
 +      {"aerieArchiveKeep30Days", IDS_SETTINGS_AERIE_ARCHIVE_KEEP_30D},
 +      {"aerieArchiveKeep90Days", IDS_SETTINGS_AERIE_ARCHIVE_KEEP_90D},
 +      {"aerieArchiveKeepForever", IDS_SETTINGS_AERIE_ARCHIVE_KEEP_FOREVER},
-       {"browserLayout", IDS_SETTINGS_BROWSER_LAYOUT},
-       {"browserLayoutClassic", IDS_SETTINGS_BROWSER_LAYOUT_CLASSIC},
-       {"browserLayoutDynamic", IDS_SETTINGS_BROWSER_LAYOUT_DYNAMIC},
+       {"aerieSidebarDensity", IDS_SETTINGS_AERIE_SIDEBAR_DENSITY},
+       {"aerieSidebarDensityDesc", IDS_SETTINGS_AERIE_SIDEBAR_DENSITY_DESC},
+       {"aerieSidebarDensityComfortable",
