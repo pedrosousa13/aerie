@@ -66,7 +66,10 @@ export function getHtml(this: SettingsAerieTitleRulesRowElement) {
       aria-describedby="aerieRulesHelp"
       @keydown="${this.onListKeydown_}">
     ${this.rules_.map((rule, index) => html`
-    <li class="aerie-item ${rule.enabled ? '' : 'off'}" role="option"
+    <li class="${this.rowClass_(rule, index)}"
+        role="option" draggable="true"
+        @dragstart="${this.onDragStart_}" @dragover="${this.onDragOver_}"
+        @drop="${this.onDrop_}" @dragend="${this.onDragEnd_}"
         data-index="${index}" aria-selected="${index === this.selected_}"
         tabindex="${index === this.selected_ ? 0 : -1}"
         @focus="${this.onOptionFocus_}">

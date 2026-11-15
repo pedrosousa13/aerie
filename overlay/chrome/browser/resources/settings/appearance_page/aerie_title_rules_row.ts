@@ -41,7 +41,7 @@ import {AerieTitleRulesBrowserProxyImpl} from './aerie_title_rules_browser_proxy
 import type {AerieTitleTryResult} from './aerie_title_rules_browser_proxy.js';
 import {getHtml} from './aerie_title_rules_row.html.js';
 import type {AerieRenameRule, AerieRewriteMode, AerieRuleError, AerieRuleType} from './aerie_title_rules_model.js';
-import {hostFromInput, moveRule, newRuleId, rulesFromPref, validateRule} from './aerie_title_rules_model.js';
+import {hostFromInput, moveRule, moveRuleTo, newRuleId, rulesFromPref, validateRule} from './aerie_title_rules_model.js';
 
 export const RULES_PREF = 'aerie.tabs.rename_rules';
 export const OFF_SITES_PREF = 'aerie.tabs.tidy_off_sites';
@@ -111,6 +111,16 @@ export class SettingsAerieTitleRulesRowElement extends
         }
         .aerie-item[aria-selected='true'] {
           background: var(--cr-hover-background-color);
+        }
+        .aerie-item[draggable='true'] {
+          cursor: grab;
+        }
+        .aerie-item.dragging {
+          opacity: 0.5;
+        }
+        .aerie-item.drop-target {
+          box-shadow: inset 0 2px 0 var(--cr-focus-outline-color,
+              var(--color-sys-primary));
         }
         .aerie-item.off .aerie-item-text {
           opacity: 0.6;
@@ -247,6 +257,8 @@ export class SettingsAerieTitleRulesRowElement extends
       selected_: {type: Number},
       siteDraft_: {type: String},
       announcement_: {type: String},
+      dragFrom_: {type: Number},
+      dropAt_: {type: Number},
       tryUrl_: {type: String},
       tryTitle_: {type: String},
       tryResult_: {type: Object},
@@ -264,6 +276,9 @@ export class SettingsAerieTitleRulesRowElement extends
   protected accessor siteDraft_: string = '';
   // The note for a screen reader after a rule moved.
   protected accessor announcement_: string = '';
+  // Mouse reorder: the row being dragged and the row it hovers over (-1: none).
+  protected accessor dragFrom_: number = -1;
+  protected accessor dropAt_: number = -1;
   protected accessor tryUrl_: string = '';
   protected accessor tryTitle_: string = '';
   protected accessor tryResult_: AerieTitleTryResult|null = null;
@@ -446,17 +461,78 @@ export class SettingsAerieTitleRulesRowElement extends
   }
 
   private moveSelected_(index: number, delta: number) {
-    const moved = moveRule(this.rules_, index, delta);
+    this.moveTo_(index, index + delta);
+  }
+
+  // Keyboard and mouse reorder share this: one save, one announcement.
+  private moveTo_(from: number, to: number, focus: boolean = true) {
+    const moved = moveRuleTo(this.rules_, from, to);
     if (!moved) {
       return;
     }
-    const rule = this.rules_[index]!;
-    this.selected_ = index + delta;
-    this.focusOptionAfterRender_ = index + delta;
+    const rule = this.rules_[from]!;
+    this.selected_ = to;
+    this.focusOptionAfterRender_ = focus ? to : null;
     this.announcement_ = loadTimeData.getStringF(
-        'aerieRuleMoved', this.displayName_(rule), index + delta + 1,
-        this.rules_.length);
+        'aerieRuleMoved', this.displayName_(rule), to + 1, this.rules_.length);
     this.saveRules_(moved);
+  }
+
+  protected rowClass_(rule: AerieRenameRule, index: number): string {
+    const classes = ['aerie-item'];
+    if (!rule.enabled) {
+      classes.push('off');
+    }
+    if (index === this.dragFrom_) {
+      classes.push('dragging');
+    } else if (this.dragFrom_ >= 0 && index === this.dropAt_) {
+      classes.push('drop-target');
+    }
+    return classes.join(' ');
+  }
+
+  protected onDragStart_(e: DragEvent) {
+    const from = this.indexOfTarget_(e);
+    if (from < 0 || !e.dataTransfer) {
+      e.preventDefault();
+      return;
+    }
+    this.dragFrom_ = from;
+    this.dropAt_ = from;
+    // Only the index travels, as an opaque marker; no rule text is exported.
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('application/x-aerie-rule-index', String(from));
+  }
+
+  protected onDragOver_(e: DragEvent) {
+    if (this.dragFrom_ < 0) {
+      return;  // Not our drag (a file or text from elsewhere): not a target.
+    }
+    e.preventDefault();
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = 'move';
+    }
+    const at = this.indexOfTarget_(e);
+    if (at >= 0 && at !== this.dropAt_) {
+      this.dropAt_ = at;
+    }
+  }
+
+  protected onDrop_(e: DragEvent) {
+    if (this.dragFrom_ < 0) {
+      return;
+    }
+    e.preventDefault();
+    const from = this.dragFrom_;
+    const to = this.indexOfTarget_(e);
+    this.dragFrom_ = -1;
+    this.dropAt_ = -1;
+    this.moveTo_(from, to);
+  }
+
+  protected onDragEnd_() {
+    this.dragFrom_ = -1;
+    this.dropAt_ = -1;
   }
 
   protected onRemove_(e: Event) {

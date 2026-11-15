@@ -166,6 +166,24 @@ class PageTest(unittest.TestCase):
         self.assertRegex(self.html, r'<li[^>]*role="option"')
         self.assertIn("aria-selected", self.html)
 
+    def test_the_list_can_be_reordered_with_the_mouse_and_says_so(self):
+        # #146: drag and drop beside Alt+Up/Down, same listbox, same live region.
+        html = (PAGE / "aerie_title_rules_row.html.ts").read_text()
+        ts = (PAGE / "aerie_title_rules_row.ts").read_text()
+        self.assertIn('role="listbox"', html)
+        self.assertIn('draggable="true"', html)
+        for event in ("dragstart", "dragover", "drop", "dragend"):
+            self.assertIn(f"@{event}=", html)
+        # Keyboard and mouse share one move, which sets the live-region note.
+        self.assertIn("private moveTo_(", ts)
+        self.assertEqual(ts.count("this.moveTo_("), 2)  # moveSelected_ (keys, buttons) and the drop
+        body = ts.split("private moveTo_(")[1].split("\n  }\n")[0]
+        self.assertIn("this.announcement_ =", body)
+        # A drag from elsewhere is not a target, and nothing but the index is set on it.
+        self.assertIn("if (this.dragFrom_ < 0)", ts)
+        self.assertIn("application/x-aerie-rule-index", ts)
+        self.assertNotIn("text/plain", ts)
+
     def test_the_switches_have_the_switch_role(self):
         self.assertGreaterEqual(len(re.findall(r'role="switch"', self.html)), 3)
         self.assertEqual(len(re.findall(r'role="switch"', self.html)), len(re.findall(r"aria-checked=", self.html)))
@@ -252,6 +270,10 @@ out.up = m.moveRule(list, 2, -1).map(r => r.id).join('');
 out.down = m.moveRule(list, 0, 1).map(r => r.id).join('');
 out.top = m.moveRule(list, 0, -1);
 out.bottom = m.moveRule(list, 2, 1);
+out.drag_down = m.moveRuleTo(list, 0, 2).map(r => r.id).join('');
+out.drag_up = m.moveRuleTo(list, 2, 0).map(r => r.id).join('');
+out.drag_same = m.moveRuleTo(list, 1, 1);
+out.drag_out = [m.moveRuleTo(list, 0, 3), m.moveRuleTo(list, -1, 0), m.moveRuleTo(list, 0, 1.5), m.moveRuleTo(list, NaN, 0)];
 out.orig = list.map(r => r.id).join('');
 out.fromPref = m.rulesFromPref([{id: 'a', name: 'n', type: 'domain', value: 'x', mode: 'template', text: 't'}, 5, null,
   {id: 1}, {id: 'b', name: 'n', type: 'regex', value: 'x', mode: 'template', text: 't'},
@@ -283,6 +305,10 @@ console.log(JSON.stringify(out));
         self.assertEqual(result["multibyte"], "name-long")
         self.assertEqual(result["up"], "acb")
         self.assertEqual(result["down"], "bac")
+        self.assertEqual(result["drag_down"], "bca")
+        self.assertEqual(result["drag_up"], "cab")
+        self.assertIsNone(result["drag_same"])
+        self.assertEqual(result["drag_out"], [None, None, None, None])
         self.assertIsNone(result["top"])
         self.assertIsNone(result["bottom"])
         self.assertEqual(result["orig"], "abc")

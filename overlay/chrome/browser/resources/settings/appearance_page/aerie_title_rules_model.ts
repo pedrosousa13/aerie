@@ -130,14 +130,20 @@ export function newRuleId(now: number, random: number): string {
 export function moveRule(
     rules: AerieRenameRule[], index: number,
     delta: number): AerieRenameRule[]|null {
-  const target = index + delta;
-  if (index < 0 || index >= rules.length || target < 0 ||
-      target >= rules.length) {
+  return moveRuleTo(rules, index, index + delta);
+}
+
+/** Moves the rule at `from` so it ends at `to`; null when nothing moves. */
+export function moveRuleTo(
+    rules: AerieRenameRule[], from: number,
+    to: number): AerieRenameRule[]|null {
+  if (!Number.isInteger(from) || !Number.isInteger(to) || from === to ||
+      from < 0 || from >= rules.length || to < 0 || to >= rules.length) {
     return null;
   }
   const copy = rules.slice();
-  const [moved] = copy.splice(index, 1);
-  copy.splice(target, 0, moved!);
+  const [moved] = copy.splice(from, 1);
+  copy.splice(to, 0, moved!);
   return copy;
 }
 
