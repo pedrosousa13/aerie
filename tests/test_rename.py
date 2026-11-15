@@ -148,7 +148,7 @@ class WiringTest(unittest.TestCase):
         self.assertIn("kResetName = 9", menu)
         self.assertEqual(len(list(VIEWS.glob("*context_menu*.cc"))), 1)
         cc = code(VIEWS / "aerie_sidebar_context_menu.cc")
-        self.assertRegex(cc, r"if \(options_\.has_manual_name\) \{\s*root_->AppendMenuItem\(\s*Id\(Command::kResetName\)")
+        self.assertRegex(cc, r"if \(options_\.can_rename && options_\.has_manual_name\) \{\s*root_->AppendMenuItem\(\s*Id\(Command::kResetName\)")
 
     def test_no_patch_is_needed_and_the_row_reads_the_resolver_not_the_raw_title(self):
         view = code(VIEWS / "aerie_sidebar_view.cc")

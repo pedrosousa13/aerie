@@ -142,6 +142,36 @@ TEST(AerieSidebarMotionTest, ReducedRowMotionCreatesNoTransformAndSnapsTheHeight
   }
 }
 
+// A row of a smart folder enters and leaves as a tab starts or stops matching
+// (issue #140). It fades on `fast` and moves nothing: no scale, no slide, and
+// the list height does not animate.
+TEST(AerieSidebarMotionTest, SmartRowsFadeOnFastAndMoveNothing) {
+  const RowMotion enter = SmartRowEnterMotion(/*reduced=*/false);
+  const RowMotion leave = SmartRowLeaveMotion(/*reduced=*/false);
+  for (const RowMotion& m : {enter, leave}) {
+    EXPECT_EQ(m.content_duration, MotionDuration::kFast);
+    EXPECT_EQ(m.content_duration_ms, 140);
+    EXPECT_FALSE(m.animate_scale);
+    EXPECT_FALSE(m.animate_slide);
+    EXPECT_EQ(m.slide_x, 0);
+    EXPECT_FALSE(m.animate_height);
+  }
+  EXPECT_EQ(enter.from_opacity, 0.f);
+  EXPECT_EQ(enter.to_opacity, 1.f);
+  EXPECT_EQ(leave.from_opacity, 1.f);
+  EXPECT_EQ(leave.to_opacity, 0.f);
+}
+
+TEST(AerieSidebarMotionTest, ReducedSmartRowsFadeIn90Ms) {
+  for (const RowMotion& m : {SmartRowEnterMotion(/*reduced=*/true),
+                             SmartRowLeaveMotion(/*reduced=*/true)}) {
+    EXPECT_EQ(m.content_duration_ms, 90);
+    EXPECT_FALSE(m.animate_scale);
+    EXPECT_FALSE(m.animate_slide);
+    EXPECT_FALSE(m.animate_height);
+  }
+}
+
 TEST(AerieSidebarMotionTest, AHidingColumnKeepsItsWidthOutsideItsZeroWidthRegion) {
   HideSlide slide;
   EXPECT_FALSE(slide.active());

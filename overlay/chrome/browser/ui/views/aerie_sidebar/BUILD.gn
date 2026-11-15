@@ -125,6 +125,7 @@ source_set("browser_tests") {
     "aerie_sidebar_pinned_browsertest.cc",
     "aerie_sidebar_rename_browsertest.cc",
     "aerie_sidebar_sleep_browsertest.cc",
+    "aerie_sidebar_smart_browsertest.cc",
   ]
   deps = [
     ":aerie_sidebar",

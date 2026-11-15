@@ -246,6 +246,12 @@ ChevronMotion FolderChevronMotion(bool reduced);
 RowMotion OpenRowMotion(bool reduced);
 RowMotion CloseRowMotion(int outer_edge_sign, bool reduced);
 
+// A row of a smart folder enters or leaves as a tab starts or stops matching
+// (issue #140). It fades on `fast` (`xfast`, 90 ms, under reduced motion) and
+// moves nothing: no scale, no slide, and the list height does not animate.
+RowMotion SmartRowEnterMotion(bool reduced);
+RowMotion SmartRowLeaveMotion(bool reduced);
+
 // The folder editor sheet opens and closes (issue #139, docs/sidebar-design.md,
 // "Folders"). Open: it slides `slide_px` (`motion-distance-sheet-slide`, 10 px)
 // from the sidebar edge while it fades in, on `sheet-enter` and `decelerate`.

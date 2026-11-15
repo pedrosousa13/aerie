@@ -293,6 +293,61 @@ TEST_F(FolderTreeTest, FolderChoicesListTheFoldersOfASectionInTreeOrder) {
   EXPECT_EQ(choices[2].name, "C");
 }
 
+// --- Smart folders (issue #140) ---
+
+TEST_F(FolderTreeTest, ASmartFolderTakesNothingIn) {
+  const std::string smart = Folder("S");
+  model_.UpdateFolder(smart, [](FolderRecord& f) { f.kind = FolderKind::kSmart; });
+  const std::string tab = Tab();
+  const std::string folder = Folder("F", std::string(), 5);
+  EXPECT_FALSE(CanNest(model_, ItemKind::kTab, tab, smart));
+  EXPECT_FALSE(CanNest(model_, ItemKind::kFolder, folder, smart));
+  EXPECT_FALSE(CanCreateFolderIn(model_, smart));
+  EXPECT_FALSE(MoveTabToFolder(model_, tab, smart));
+  EXPECT_TRUE(CanNest(model_, ItemKind::kTab, tab, folder));
+}
+
+TEST_F(FolderTreeTest, FolderChoicesLeaveSmartFoldersOut) {
+  const std::string a = Folder("A", std::string(), 0);
+  const std::string smart = Folder("S", std::string(), 1);
+  model_.UpdateFolder(smart, [](FolderRecord& f) { f.kind = FolderKind::kSmart; });
+  const std::vector<FolderChoice> choices =
+      FolderChoices(model_, Section::kToday);
+  ASSERT_EQ(choices.size(), 1u);
+  EXPECT_EQ(choices[0].id, a);
+}
+
+TEST_F(FolderTreeTest, MoveContentsOutPutsThemNextToTheFolderInOrder) {
+  const std::string before = Tab(std::string(), 0);
+  const std::string folder = Folder("F", std::string(), 1);
+  const std::string after = Tab(std::string(), 2);
+  const std::string inner_b = Tab(folder, 7);
+  const std::string inner_a = Tab(folder, 3);
+  const std::string inner_folder = Folder("Inner", folder, 5);
+  const std::string deep = Tab(inner_folder, 0);
+  EXPECT_EQ(3, MoveContentsOut(model_, folder));
+  EXPECT_NE(model_.GetFolder(folder), nullptr);
+  const std::vector<TreeRow> rows =
+      BuildVisibleRows(model_, Section::kToday, All);
+  // The folder stays; its contents follow it, then the tab that was after it.
+  std::vector<std::string> ids;
+  for (const TreeRow& row : rows) {
+    ids.push_back(row.id);
+  }
+  EXPECT_EQ(ids, (std::vector<std::string>{before, folder, inner_a,
+                                           inner_folder, deep, inner_b,
+                                           after}));
+  EXPECT_EQ(model_.GetTab(inner_a)->parent, "");
+  EXPECT_EQ(model_.GetTab(deep)->parent, inner_folder);
+  EXPECT_TRUE(FolderIsEmpty(model_, folder));
+}
+
+TEST_F(FolderTreeTest, MoveContentsOutOfAnEmptyFolderMovesNothing) {
+  const std::string folder = Folder("F");
+  EXPECT_EQ(0, MoveContentsOut(model_, folder));
+  EXPECT_EQ(-1, MoveContentsOut(model_, "nope"));
+}
+
 // --- Edits ---
 
 TEST_F(FolderTreeTest, CreateFolderMakesAnExpandedManualFolderAtTheTop) {

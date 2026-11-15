@@ -44,6 +44,9 @@ enum class RefusalReason {
   kFavoritesFull,
   // Folders do not go into Favorites.
   kFolderInFavorites,
+  // A smart folder, or a row inside one (issue #140): "Smart folders show
+  // tabs. They don't hold them."
+  kSmartFolder,
 };
 
 struct DropRow {

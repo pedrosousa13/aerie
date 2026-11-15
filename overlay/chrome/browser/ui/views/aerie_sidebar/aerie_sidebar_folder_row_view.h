@@ -61,6 +61,13 @@ class AerieSidebarFolderRowView : public AerieSidebarRowView {
   // opacity only). `prefs` says whether motion is reduced.
   void PlayFilingPulse(const PrefService* prefs);
   views::View* pulse_view() const { return pulse_; }
+
+  // Smart folders (issue #140). A smart folder row has a dashed folder glyph
+  // with a sparkle, and an italic count after its name (`count_text`, for
+  // example "4"). It has no funnel. A folder that is not smart hides the count.
+  void SetSmart(bool smart, const std::u16string& count_text);
+  bool smart() const { return smart_; }
+  views::Label* count_label() const { return count_label_; }
   views::View* selection_dot() const { return selection_dot_; }
 
   // AerieSidebarRowView:
@@ -78,6 +85,8 @@ class AerieSidebarFolderRowView : public AerieSidebarRowView {
 
  private:
   bool auto_filing_ = false;
+  bool smart_ = false;
+  raw_ptr<views::Label> count_label_ = nullptr;
   bool holds_selected_tab_ = false;
   void EndChevronTurn();
 

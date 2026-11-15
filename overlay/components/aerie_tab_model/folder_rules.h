@@ -23,8 +23,9 @@ class GURL;
 // the slice that defines it):
 //   { "enabled": bool, "rules": [ {id, type, value, enabled} ... ],
 //     "excluded_hosts": [string...], "excluded_tabs": [string...] }
-// A folder files tabs only while its kind is Auto-filing. Switching it to Manual
-// keeps the rules and the tab only stops filing (the rules do not apply).
+// A folder files tabs only while its kind is Auto-filing, and lists them only
+// while its kind is Smart (smart_folder.h). Switching it to Manual keeps the
+// rules; they just do not apply.
 namespace aerie_tab_model {
 
 class TabModel;
@@ -47,9 +48,15 @@ bool IsAutoFiling(const FolderRecord& folder);
 
 // --- Edits. Each writes the folder record at once (live apply). ---
 
-// Auto-filing and Manual only; Smart is issue #140's, so it is refused here.
-// Switching to Manual keeps the rules.
-bool SetFolderRuleKind(TabModel& model, const std::string& folder_id, FolderKind kind);
+// Switches the folder to `kind` (Manual, Auto-filing or Smart). Switching to
+// Manual or Auto-filing keeps the rules. Switching to Smart moves everything
+// inside the folder out, next to it (issue #140: a smart folder holds nothing),
+// and `moved_tabs`, when given, gets how many tabs left (0 for any other
+// switch). False for an unknown folder.
+bool SetFolderRuleKind(TabModel& model,
+                       const std::string& folder_id,
+                       FolderKind kind,
+                       int* moved_tabs = nullptr);
 
 // Adds a rule at the end and returns its id. Empty for an unknown folder, a
 // blank or too long value, or a folder that has kMaxRulesPerFolder already.

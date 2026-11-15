@@ -171,6 +171,39 @@ Auto-filing folders are built as the brief says. What the brief left open, and w
   motion: opacity only, 90 ms. Kinds come from a table, and the sheet has two empty, hidden slots for the Smart body (#140) and the Behaviour section (#141), so each is one row and one fill later.
 - **Limits.** 50 rules and 200 exceptions per folder, 512 bytes per rule text. No regex.
 
+### Folders as built (#140)
+
+Smart folders are built as the brief says: a folder of kind Smart lists every tab that matches its rules, and holds
+none. What the brief left open, and what was chosen:
+
+- **What is listed.** A tab in Today or Pinned, not archived, in the folder's workspace, that the folder's rules match
+  (a Domain rule, a Title contains rule, or a URL contains rule; the first that matches is enough). Favorites tiles are
+  not listed. A sleeping tab is listed: it is a real tab. The address matched is the last committed one (or the visible
+  one before the first commit), and the title is the page title, not the name the user gave the row.
+- **Rows.** A member row is a synthetic row (`smart:<folder>:<tab>`, `MakeSmartRowId`) so that one tab can be on screen
+  twice. It selects, closes and offers the context menu of the real tab; it has no rename, no drag, no Alt+Arrow move
+  and no way back to a pinned page. The real tab keeps its own row where it is. The folder row has a dashed folder glyph
+  with a sparkle, an italic count after the name and no funnel.
+- **Cost.** The lists are an index (`SmartFolderIndex`), not stored. A title or address change matches that one tab
+  against each smart folder (O(folders)); a folder is matched against all tabs only when it is new, its rules or kind
+  change, or the model loads. Nothing runs at startup for a profile with no smart folder.
+- **Switching a folder to Smart.** The tabs it held, and its subfolders, move out to the place of the folder, and the
+  toast says "Moved N tabs out of <folder>". N counts the tabs inside subfolders too. Switching back to Manual leaves it
+  empty. A smart folder takes no drops, no new folder inside it and no Move to choice; the hint is "Smart folders show
+  tabs. They don't hold them."
+- **Switches.** The rule, "All rules in this folder" and "Folder rules everywhere" each empty the folder. Exceptions
+  (by site and by tab) apply as they do to auto-filing.
+- **Motion.** A member row fades in and out on `fast` and nothing else moves; reduced motion is the existing 90 ms. The
+  list height animates as for any folder.
+- **Names.** The folder row reads "Docs, smart folder, 4 items"; open or shut is the tree role's expanded state, not a
+  word in the name. A member row reads "<title>, shown from Today" and its menu has no Rename or Reset name.
+- **Ids.** A member row id is `smart:<folder>:<tab>`; a colon or backslash in the folder id is escaped with a backslash,
+  so the first unescaped colon ends the folder id whatever a loaded record id holds.
+- **Re-matching.** A folder change that is not about rules, switches, kind or workspace (open, shut, rename, move)
+  matches no tab. A stored rule value over 512 bytes is dropped when the rules are read.
+- **Close.** The close button of a member row closes the real tab, and its tooltip says so and where the tab is. For a
+  Pinned tab it follows the pinned-close setting, so it may sleep the tab.
+
 ### Today, auto-archive and the archive panel
 
 Today holds every unpinned tab. Tabs that stay unused for the archive timeout move to the archive (story 56).

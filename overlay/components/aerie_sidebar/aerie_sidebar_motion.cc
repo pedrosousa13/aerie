@@ -240,6 +240,37 @@ RowMotion CloseRowMotion(int outer_edge_sign, bool reduced) {
   return motion;
 }
 
+namespace {
+
+RowMotion SmartRowFade(bool entering, bool reduced) {
+  RowMotion motion;
+  motion.content_duration = MotionDuration::kFast;
+  motion.content_easing =
+      entering ? MotionEasing::kDecelerate : MotionEasing::kAccelerate;
+  motion.content_duration_ms = GetDurationMs(motion.content_duration, reduced);
+  motion.animate_scale = false;
+  motion.from_scale = 1.f;
+  motion.animate_slide = false;
+  motion.slide_x = 0;
+  motion.from_opacity = entering ? 0.f : 1.f;
+  motion.to_opacity = entering ? 1.f : 0.f;
+  motion.animate_height = false;
+  motion.height_duration = MotionDuration::kBase;
+  motion.height_easing = MotionEasing::kStandard;
+  motion.height_duration_ms = 0;
+  return motion;
+}
+
+}  // namespace
+
+RowMotion SmartRowEnterMotion(bool reduced) {
+  return SmartRowFade(/*entering=*/true, reduced);
+}
+
+RowMotion SmartRowLeaveMotion(bool reduced) {
+  return SmartRowFade(/*entering=*/false, reduced);
+}
+
 SheetMotion SheetEnterMotion(bool reduced) {
   SheetMotion motion;
   motion.animate_slide = !reduced;

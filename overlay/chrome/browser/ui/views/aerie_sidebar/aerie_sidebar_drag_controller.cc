@@ -651,6 +651,10 @@ void AerieSidebarDragController::End(const gfx::Point& widget_point,
       host_->ShowRefusal(aerie_sidebar::RefusalReason::kTooDeep,
                          /*on_drop=*/true);
       break;
+    case aerie_sidebar::MoveResult::kRefusedSmartFolder:
+      host_->ShowRefusal(aerie_sidebar::RefusalReason::kSmartFolder,
+                         /*on_drop=*/true);
+      break;
     case aerie_sidebar::MoveResult::kUnchanged:
     case aerie_sidebar::MoveResult::kInvalid:
       break;

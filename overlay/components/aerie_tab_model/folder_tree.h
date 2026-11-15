@@ -70,6 +70,13 @@ struct TreeRow {
   // holds directly (tabs and folders, whether or not it is expanded).
   bool expanded = false;
   int item_count = 0;
+  // A row of a smart folder (issue #140): it shows the tab `source_id`, which
+  // has its own row elsewhere. `id` is a row id of its own (MakeSmartRowId),
+  // `parent` is the smart folder, and `origin` is the section the real tab is
+  // in (the "Today" or "Pinned" hint).
+  bool smart_member = false;
+  std::string source_id;
+  Section origin = Section::kToday;
 
   bool operator==(const TreeRow&) const = default;
 };
@@ -164,6 +171,13 @@ bool FolderIsEmpty(const TabModel& model, const std::string& id);
 // the folder had, so the rows next to it make room (the other rows of that
 // parent move down). Returns false for an unknown folder.
 bool DeleteFolder(TabModel& model, const std::string& id);
+
+// Moves everything inside the folder (tabs and folders, in their order) out,
+// to the places right after the folder, in the folder's own parent. The folder
+// stays. Returns how many tabs moved, those inside the folders that moved too,
+// or -1 for an unknown folder. This is what switching a folder to Smart does
+// (issue #140): a smart folder holds nothing.
+int MoveContentsOut(TabModel& model, const std::string& id);
 
 // Puts the tab at the end of the folder. `folder_id` empty puts it in the
 // section of the tab itself, next to the folder it leaves (one level up). False when

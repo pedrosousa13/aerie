@@ -8,6 +8,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -29,6 +30,7 @@
 #include "components/aerie_sidebar/aerie_sidebar_palette.h"
 #include "components/aerie_sidebar/aerie_sidebar_today_list.h"
 #include "components/aerie_tab_model/folder_tree.h"
+#include "components/aerie_tab_model/smart_folder.h"
 #include "components/aerie_tab_model/auto_file_controller.h"
 #include "components/aerie_tab_model/tab_model_observer.h"
 #include "components/prefs/pref_change_registrar.h"
@@ -410,6 +412,19 @@ class AerieSidebarView : public views::View,
     size_t index = 0;
   };
   std::optional<RowPlace> FindRow(const std::string& id) const;
+  // Smart folders (issue #140). The facts the rules are matched against: the
+  // committed address and the page title of a tab of this window, or nothing.
+  std::optional<aerie_tab_model::TabFacts> SmartFactsFor(
+      const std::string& tab_id) const;
+  // Brings the index up to date with what changed since the last sync. Only
+  // the changed tabs are matched, and only the changed folders are matched
+  // against every tab.
+  void RefreshSmartIndex();
+  // The tab at the address or with the title that just changed: re-matched at
+  // once, and the lists sync when a folder's members changed.
+  void UpdateSmartTab(tabs::TabInterface* tab);
+  // The notice after a folder that held tabs became Smart.
+  void OnTabsMovedOutOfFolder(const std::string& folder_id, int moved);
   // Where every row and tile is now, in this view's coordinates, by tab id.
   std::map<std::string, gfx::Point> CapturePositions() const;
   // The FLIP motion: from the places in `before` to the places now.
@@ -614,6 +629,12 @@ class AerieSidebarView : public views::View,
   // `rows_` and `pinned_rows_` (issue #181).
   std::vector<aerie_tab_model::TreeRow> today_tree_rows_;
   std::vector<aerie_tab_model::TreeRow> pinned_tree_rows_;
+  // Smart folders (issue #140): which tabs each one lists, computed after the
+  // model loads, and what changed since the last sync. The list is not stored.
+  aerie_tab_model::SmartFolderIndex smart_index_;
+  std::set<std::string> smart_dirty_tabs_;
+  std::set<std::string> smart_dirty_folders_;
+  bool smart_all_dirty_ = true;
   // The folder state and motion (issue #228): the toggle hand-off, the rows of
   // a folder that shut and still slide away, and the group that plays the
   // motion. Must stay declared after rows_, pinned_rows_, pinned_scroll_ and

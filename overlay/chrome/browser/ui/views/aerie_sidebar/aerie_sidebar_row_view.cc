@@ -169,6 +169,16 @@ AerieSidebarRowView::AerieSidebarRowView(
   title_->GetViewAccessibility().SetIsIgnored(true);
   layout->SetFlexForView(title_, 1);
 
+  // The hint of a row inside a smart folder (issue #140): where the real tab
+  // is. Quiet, and only while the pointer is on the row.
+  origin_hint_ = content_->AddChildView(std::make_unique<views::Label>(
+      std::u16string(), views::style::CONTEXT_LABEL, views::style::STYLE_BODY_5));
+  origin_hint_->SetFontList(origin_hint_->font_list().DeriveWithSizeDelta(
+      aerie::tokens::kTypeSizeCaption - origin_hint_->font_list().GetFontSize()));
+  origin_hint_->SetEnabledColor(palette_.text_muted);
+  origin_hint_->GetViewAccessibility().SetIsIgnored(true);
+  origin_hint_->SetVisible(false);
+
   // The pencil of a renamed tab (issue #145). It resets the name. Like the
   // back button it is a pointer affordance: the keyboard way is the context
   // menu ("Reset name") or F2 and an empty name.
@@ -294,6 +304,7 @@ void AerieSidebarRowView::SetPalette(
     const aerie_sidebar::SidebarPalette& palette) {
   palette_ = palette;
   title_->SetEnabledColor(palette_.text);
+  origin_hint_->SetEnabledColor(palette_.text_muted);
   // The close icon is muted at rest and the text colour under the pointer
   // (the mockup's `.ibtn`).
   for (views::Button::ButtonState state :
@@ -355,6 +366,8 @@ void AerieSidebarRowView::UpdateTrailing() {
   back_to_pinned_->SetVisible(back_to_pinned_wanted_ && !closing_ &&
                               !renaming_ && !icons_only_);
   pencil_->SetVisible(renamed_ && !closing_ && !renaming_ && !icons_only_);
+  origin_hint_->SetVisible(smart_member_ && hovered_ && !closing_ &&
+                           !renaming_ && !icons_only_);
   close_button_->SetVisible(ShowsCloseButton() && !closing_ && !renaming_ &&
                             !icons_only_ && (hovered_ || HasFocus()));
 }
@@ -426,7 +439,24 @@ std::u16string AerieSidebarRowView::AccessibleName() const {
   if (renamed_) {
     name = l10n_util::GetStringFUTF16(IDS_AERIE_SIDEBAR_ROW_RENAMED_NAME, name);
   }
+  if (smart_member_) {
+    name = l10n_util::GetStringFUTF16(IDS_AERIE_SIDEBAR_SMART_ROW_NAME, name,
+                                      origin_name_);
+  }
   return name;
+}
+
+void AerieSidebarRowView::SetSmartMember(const std::u16string& origin_name) {
+  const bool smart = !origin_name.empty();
+  if (smart_member_ == smart && origin_name_ == origin_name) {
+    return;
+  }
+  smart_member_ = smart;
+  origin_name_ = origin_name;
+  origin_hint_->SetText(origin_name);
+  UpdateName();
+  UpdateTrailing();
+  InvalidateLayout();
 }
 
 void AerieSidebarRowView::SetRenamed(bool renamed,
@@ -1182,7 +1212,10 @@ void AerieSidebarRowView::ResetDrag() {
 
 void AerieSidebarRowView::PlayOpen(const PrefService* prefs) {
   const bool reduced = aerie::motion::ShouldReduceMotion(prefs);
-  const aerie_sidebar::RowMotion motion = aerie_sidebar::OpenRowMotion(reduced);
+  // A row of a smart folder only fades (issue #140).
+  const aerie_sidebar::RowMotion motion =
+      smart_member_ ? aerie_sidebar::SmartRowEnterMotion(reduced)
+                    : aerie_sidebar::OpenRowMotion(reduced);
   content_motion_.Abort();
   if (!content_->layer()) {
     content_->SetPaintToLayer();
@@ -1222,7 +1255,8 @@ void AerieSidebarRowView::PlayClose(const PrefService* prefs,
 
   const bool reduced = aerie::motion::ShouldReduceMotion(prefs);
   const aerie_sidebar::RowMotion motion =
-      aerie_sidebar::CloseRowMotion(outer_edge_sign, reduced);
+      smart_member_ ? aerie_sidebar::SmartRowLeaveMotion(reduced)
+                    : aerie_sidebar::CloseRowMotion(outer_edge_sign, reduced);
   content_motion_.Abort();
   if (!content_->layer()) {
     content_->SetPaintToLayer();

@@ -90,9 +90,12 @@ void AerieSidebarContextMenu::BuildTabItems() {
         Id(Command::kAddToFavorites),
         l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_ADD_TO_FAVORITES));
   }
-  root_->AppendMenuItem(
-      Id(Command::kRename), l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_RENAME_TAB));
-  if (options_.has_manual_name) {
+  if (options_.can_rename) {
+    root_->AppendMenuItem(
+        Id(Command::kRename),
+        l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_RENAME_TAB));
+  }
+  if (options_.can_rename && options_.has_manual_name) {
     root_->AppendMenuItem(Id(Command::kResetName), l10n_util::GetStringUTF16(
                                                  IDS_AERIE_SIDEBAR_RESET_NAME));
   }
@@ -236,10 +239,11 @@ bool AerieSidebarContextMenu::HasCommand(Command command) const {
       return options_.target == Target::kTab && !options_.move_targets.empty();
     case Command::kSleepTab:
     case Command::kClose:
-    case Command::kRename:
       return options_.target == Target::kTab;
+    case Command::kRename:
+      return options_.target == Target::kTab && options_.can_rename;
     case Command::kResetName:
-      return options_.has_manual_name;
+      return options_.can_rename && options_.has_manual_name;
     case Command::kPin:
       return options_.section == Section::kToday;
     case Command::kUnpin:

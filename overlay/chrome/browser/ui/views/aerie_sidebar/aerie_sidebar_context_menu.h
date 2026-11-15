@@ -116,6 +116,8 @@ class AerieSidebarContextMenu : public views::MenuDelegate {
     bool away_from_pinned = false;
     // The tab has a name the user typed (issue #145): the menu then also offers
     // "Reset name".
+    // False for a row of a smart folder: it has no Rename or Reset name.
+    bool can_rename = true;
     bool has_manual_name = false;
     SleepItem sleep;
 

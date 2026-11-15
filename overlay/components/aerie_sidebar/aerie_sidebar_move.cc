@@ -138,6 +138,9 @@ MoveResult ApplyMove(aerie_tab_model::TabModel& model,
     if (!c || c->section != request.section) {
       return MoveResult::kInvalid;
     }
+    if (c->kind == aerie_tab_model::FolderKind::kSmart) {
+      return MoveResult::kRefusedSmartFolder;
+    }
     if (!aerie_tab_model::CanNest(model, request.kind, request.id,
                                   request.container)) {
       // A loop (into itself or below itself) is invalid; the rest is depth.
@@ -307,6 +310,12 @@ KeyboardMove ComputeKeyboardMove(const aerie_tab_model::TabModel& model,
       result.announce_container = previous.id;
       result.announce_position = previous.item_count + 1;
       result.announce_count = previous.item_count + 1;
+      const aerie_tab_model::FolderRecord* target =
+          model.GetFolder(previous.id);
+      if (target && target->kind == aerie_tab_model::FolderKind::kSmart) {
+        result.smart_refused = true;
+        return result;
+      }
       if (!aerie_tab_model::CanNest(model, result.request.kind, row.id,
                                     previous.id)) {
         result.too_deep = true;
