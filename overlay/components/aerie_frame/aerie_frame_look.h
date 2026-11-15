@@ -5,6 +5,7 @@
 #ifndef COMPONENTS_AERIE_FRAME_AERIE_FRAME_LOOK_H_
 #define COMPONENTS_AERIE_FRAME_AERIE_FRAME_LOOK_H_
 
+#include <string>
 #include <string_view>
 
 #include "components/aerie_design_tokens/aerie_tokens.h"
@@ -46,6 +47,12 @@ struct SystemColours {
 // A frame of one flat colour, with the card's hairline in the text colour. No
 // tint, shade, glow or strip.
 FramePalette ResolveSystemFramePalette(const SystemColours& system);
+
+// The preview swatch of a theme in Settings, as a CSS `background` value: the
+// theme's frame with the Dusk Workspace colour, in light mode (dark mode for
+// OLED, which has no light look). Every colour is a token. The Settings page
+// only prints it.
+std::string ThemeSwatchCss(aerie::tokens::ThemeId theme);
 
 }  // namespace aerie_frame
 

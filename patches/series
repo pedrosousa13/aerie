@@ -159,3 +159,8 @@ sidebar/0042-follow-the-sidebar-side-and-density-in-the-vertical-tab-strip-state
 sidebar/0043-float-the-auto-hidden-sidebar-and-fix-the-rail-width-in-the-layout.patch
 sidebar/0044-add-the-density-and-side-rows-to-the-sidebar-section-of-settings.patch
 sidebar/0045-peek-an-auto-hidden-sidebar-from-the-f6-and-ctrl-l-commands.patch
+
+# The Theme and Mode of the whole browser (#185): the prefs, the Aerie ColorMixer after Chromium's, and the rows in the Sidebar section of Settings.
+sidebar/0046-register-the-appearance-prefs.patch
+sidebar/0047-add-the-aerie-color-mixer-after-the-chromium-mixers.patch
+sidebar/0048-add-the-theme-and-mode-rows-to-the-sidebar-section-of-settings.patch

@@ -6,6 +6,9 @@
 // own surfaces get through the ColorMixer, the system-colour frame of forced
 // colours, the strip on the sidebar's top edge, and the card's hairline.
 
+#include <set>
+#include <string>
+
 #include "base/memory/discardable_memory_allocator.h"
 #include "base/test/test_discardable_memory_allocator.h"
 #include "components/aerie_design_tokens/aerie_tokens.h"
@@ -229,6 +232,24 @@ TEST_F(AerieFrameLookPaintTest, VividDrawsNoBorder) {
   const SkColor a = with.GetBitmap().getColor(card.x() - 1, card.CenterPoint().y());
   const SkColor b = with.GetBitmap().getColor(card.x() - 6, card.CenterPoint().y());
   EXPECT_NEAR(SkColorGetR(a), SkColorGetR(b), 40);
+}
+
+// ---- The Settings swatches ----------------------------------------------
+
+TEST(AerieThemeSwatchTest, EachThemeHasAGradientOfItsOwn) {
+  std::set<std::string> seen;
+  for (int t = 0; t < aerie::tokens::kThemeCount; ++t) {
+    const std::string css = ThemeSwatchCss(static_cast<ThemeId>(t));
+    EXPECT_EQ(css.rfind("linear-gradient(135deg, #", 0), 0u) << css;
+    EXPECT_EQ(css.back(), ')') << css;
+    EXPECT_TRUE(seen.insert(css).second) << "duplicate swatch " << css;
+  }
+}
+
+TEST(AerieThemeSwatchTest, OledIsShownInDarkAndTheRestInLight) {
+  EXPECT_NE(ThemeSwatchCss(ThemeId::kOled).find("#000000"), std::string::npos);
+  EXPECT_NE(ThemeSwatchCss(ThemeId::kHighContrast).find("#FFFFFF"),
+            std::string::npos);
 }
 
 }  // namespace

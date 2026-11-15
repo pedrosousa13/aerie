@@ -9,6 +9,7 @@
 #include "chrome/browser/ui/color/aerie/aerie_color_mixer.h"
 
 #include <cstdio>
+#include <memory>
 
 #include "base/time/time.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
@@ -16,6 +17,7 @@
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/color/color_id.h"
 #include "ui/color/color_mixer.h"
+#include "ui/color/color_recipe.h"
 #include "ui/color/color_mixers.h"
 #include "ui/color/color_provider.h"
 #include "ui/color/color_provider_key.h"
@@ -40,10 +42,11 @@ class AerieColorMixerTest : public testing::Test {
   }
 
   // A provider the way Chromium builds one, then the Aerie mixer on top.
-  static ui::ColorProvider Build(const ui::ColorProviderKey& key) {
-    ui::ColorProvider provider;
-    ui::AddColorMixers(&provider, key);
-    AddAerieColorMixer(&provider, key);
+  static std::unique_ptr<ui::ColorProvider> Build(
+      const ui::ColorProviderKey& key) {
+    auto provider = std::make_unique<ui::ColorProvider>();
+    ui::AddColorMixers(provider.get(), key);
+    AddAerieColorMixer(provider.get(), key);
     return provider;
   }
 };
@@ -52,7 +55,8 @@ TEST_F(AerieColorMixerTest, NothingChangesBeforeALookIsSet) {
   const ui::ColorProviderKey key = Key(ui::ColorProviderKey::ColorMode::kLight);
   ui::ColorProvider before;
   ui::AddColorMixers(&before, key);
-  const ui::ColorProvider after = Build(key);
+  const auto after_ptr = Build(key);
+  const ui::ColorProvider& after = *after_ptr;
   for (ui::ColorId id : {ui::kColorMenuBackground, ui::kColorSysSurface,
                          ui::kColorPrimaryForeground, ui::kColorAccent}) {
     EXPECT_EQ(before.GetColor(id), after.GetColor(id));
@@ -79,7 +83,8 @@ TEST_F(AerieColorMixerTest, EveryRoleTakesTheThemeColourInBothModes) {
                                  : ColorMode::kLight;
       const aerie_frame::ChromeColors c =
           aerie_frame::ResolveChromeColors(theme, mode, "tide");
-      const ui::ColorProvider p = Build(Key(key_mode));
+      const auto p_ptr = Build(Key(key_mode));
+      const ui::ColorProvider& p = *p_ptr;
       EXPECT_EQ(p.GetColor(ui::kColorMenuBackground), c.surface);
       EXPECT_EQ(p.GetColor(ui::kColorBubbleBackground), c.surface);
       EXPECT_EQ(p.GetColor(ui::kColorDialogBackground), c.surface);
@@ -102,8 +107,10 @@ TEST_F(AerieColorMixerTest, EveryRoleTakesTheThemeColourInBothModes) {
 
 TEST_F(AerieColorMixerTest, TheOtherModeHasOtherColours) {
   SetActiveLook(ThemeId::kVivid, "dusk");
-  const ui::ColorProvider light = Build(Key(ui::ColorProviderKey::ColorMode::kLight));
-  const ui::ColorProvider dark = Build(Key(ui::ColorProviderKey::ColorMode::kDark));
+  const auto light_ptr = Build(Key(ui::ColorProviderKey::ColorMode::kLight));
+  const ui::ColorProvider& light = *light_ptr;
+  const auto dark_ptr = Build(Key(ui::ColorProviderKey::ColorMode::kDark));
+  const ui::ColorProvider& dark = *dark_ptr;
   EXPECT_NE(light.GetColor(ui::kColorMenuBackground),
             dark.GetColor(ui::kColorMenuBackground));
   EXPECT_NE(light.GetColor(ui::kColorPrimaryForeground),
@@ -113,10 +120,10 @@ TEST_F(AerieColorMixerTest, TheOtherModeHasOtherColours) {
 TEST_F(AerieColorMixerTest, AChangedThemeChangesTheNextProvider) {
   SetActiveLook(ThemeId::kVivid, "dusk");
   const SkColor vivid =
-      Build(Key(ui::ColorProviderKey::ColorMode::kDark)).GetColor(ui::kColorMenuBackground);
+      Build(Key(ui::ColorProviderKey::ColorMode::kDark))->GetColor(ui::kColorMenuBackground);
   SetActiveLook(ThemeId::kOled, "dusk");
   const SkColor oled =
-      Build(Key(ui::ColorProviderKey::ColorMode::kDark)).GetColor(ui::kColorMenuBackground);
+      Build(Key(ui::ColorProviderKey::ColorMode::kDark))->GetColor(ui::kColorMenuBackground);
   EXPECT_NE(vivid, oled);
   EXPECT_EQ(oled, SkColorSetRGB(0x0E, 0x0E, 0x10));
 }
@@ -124,7 +131,7 @@ TEST_F(AerieColorMixerTest, AChangedThemeChangesTheNextProvider) {
 TEST_F(AerieColorMixerTest, OledInLightModeShowsClean) {
   SetActiveLook(ThemeId::kOled, "dusk");
   const SkColor menu =
-      Build(Key(ui::ColorProviderKey::ColorMode::kLight)).GetColor(ui::kColorMenuBackground);
+      Build(Key(ui::ColorProviderKey::ColorMode::kLight))->GetColor(ui::kColorMenuBackground);
   EXPECT_EQ(menu, aerie_frame::ResolveChromeColors(ThemeId::kClean,
                                                    ColorMode::kLight, "dusk")
                       .surface);
@@ -136,7 +143,8 @@ TEST_F(AerieColorMixerTest, ForcedColoursKeepTheSystemColours) {
   key.forced_colors = ui::ColorProviderKey::ForcedColors::kSystem;
   ui::ColorProvider before;
   ui::AddColorMixers(&before, key);
-  const ui::ColorProvider after = Build(key);
+  const auto after_ptr = Build(key);
+  const ui::ColorProvider& after = *after_ptr;
   EXPECT_EQ(before.GetColor(ui::kColorMenuBackground),
             after.GetColor(ui::kColorMenuBackground));
   EXPECT_EQ(before.GetColor(ui::kColorPrimaryForeground),

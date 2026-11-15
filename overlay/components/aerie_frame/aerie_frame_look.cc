@@ -4,6 +4,9 @@
 
 #include "components/aerie_frame/aerie_frame_look.h"
 
+#include <algorithm>
+#include <cstdio>
+
 namespace aerie_frame {
 
 namespace {
@@ -50,6 +53,25 @@ FramePalette ResolveSystemFramePalette(const SystemColours& system) {
   p.card_border_width = kSystemCardBorderWidth;
   p.card_border_color = system.text;
   return p;
+}
+
+std::string ThemeSwatchCss(aerie::tokens::ThemeId theme) {
+  const aerie::tokens::ColorMode mode =
+      aerie::tokens::ThemeSupportsMode(theme, aerie::tokens::ColorMode::kLight)
+          ? aerie::tokens::ColorMode::kLight
+          : aerie::tokens::ColorMode::kDark;
+  const FramePalette p = ResolveFramePalette(theme, mode, "dusk");
+  std::string css = "linear-gradient(135deg";
+  for (int i = 0; i < std::max(p.stop_count, 1); ++i) {
+    // A theme with no tint (OLED, High contrast, Mono) has the base colour.
+    const SkColor c = p.stop_count > 0 ? p.stops[i] : p.frame_base;
+    char hex[16];
+    std::snprintf(hex, sizeof(hex), ", #%02X%02X%02X", SkColorGetR(c),
+                  SkColorGetG(c), SkColorGetB(c));
+    css += hex;
+  }
+  css += ")";
+  return css;
 }
 
 }  // namespace aerie_frame

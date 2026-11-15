@@ -1,0 +1,96 @@
+Aerie-Purpose: Put the Theme and Mode rows in the Sidebar section of Settings, and hand the page the preview swatch of every theme.
+Aerie-Upstream-Area: chrome/browser/resources/settings (appearance_page/appearance_layout_page.ts, appearance_page/appearance_layout_page.html.ts, BUILD.gn), chrome/browser/ui/webui/settings (settings_localized_strings_provider.cc, BUILD.gn)
+Aerie-Kind: hook
+
+Issue #185. The row, settings-aerie-appearance-row, is a Lit element in the overlay
+(chrome/browser/resources/settings/appearance_page/aerie_appearance_row.*): a radio group on
+aerie.appearance.theme (six themes, a swatch each) and a horizontal radio group on
+aerie.appearance.mode. The swatch colours come from aerie_appearance_settings::AddThemeSwatches
+(overlay, chrome/browser/ui/webui/aerie_appearance_settings), made from the Design Tokens. The
+strings are in the overlay aerie_sidebar_strings.grdp.
+
+--- a/chrome/browser/resources/settings/BUILD.gn
++++ b/chrome/browser/resources/settings/BUILD.gn
+@@ -202,6 +202,8 @@
+     "ai_page/offer_writing_help_page.ts",
+     "ai_page/skills_page.html.ts",
+     "ai_page/skills_page.ts",
++    "appearance_page/aerie_appearance_row.html.ts",
++    "appearance_page/aerie_appearance_row.ts",
+     "appearance_page/aerie_density_row.html.ts",
+     "appearance_page/aerie_density_row.ts",
+     "appearance_page/aerie_folder_rules_row.html.ts",
+--- a/chrome/browser/resources/settings/appearance_page/appearance_layout_page.html.ts
++++ b/chrome/browser/resources/settings/appearance_page/appearance_layout_page.html.ts
+@@ -10,6 +10,7 @@
+   // clang-format off
+   return html`<!--_html_template_start_-->
+ <settings-section page-title="$i18n{aerieSidebarPageTitle}">
++  <settings-aerie-appearance-row></settings-aerie-appearance-row>
+   <settings-aerie-sleep-row></settings-aerie-sleep-row>
+   <settings-aerie-pinned-close-row></settings-aerie-pinned-close-row>
+   <settings-aerie-folder-rules-row></settings-aerie-folder-rules-row>
+--- a/chrome/browser/resources/settings/appearance_page/appearance_layout_page.ts
++++ b/chrome/browser/resources/settings/appearance_page/appearance_layout_page.ts
+@@ -3,6 +3,7 @@
+ // the terms of the GPL-3.0 license that can be found in the LICENSE file.
+ 
+ import '../settings_page/settings_section.js';
++import './aerie_appearance_row.js';
+ import './aerie_density_row.js';
+ import './aerie_folder_rules_row.js';
+ import './aerie_pinned_close_row.js';
+--- a/chrome/browser/ui/webui/settings/BUILD.gn
++++ b/chrome/browser/ui/webui/settings/BUILD.gn
+@@ -319,6 +319,7 @@
+     "//chrome/browser/ui/webui:policy_indicator_localized_strings_provider",
+     "//chrome/browser/ui/webui:theme_source",
+     "//chrome/browser/ui/webui:webui_util",
++    "//chrome/browser/ui/webui/aerie_appearance_settings:swatches",
+     "//chrome/browser/ui/webui/aerie_guard_settings:handler",
+     "//chrome/browser/ui/webui/batch_upload_promo",
+     "//chrome/browser/ui/webui/cr_components/customize_color_scheme_mode",
+--- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
++++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
+@@ -57,6 +57,7 @@
+ #include "chrome/browser/ui/tabs/tab_strip_prefs.h"
+ #include "chrome/browser/ui/toasts/toast_features.h"
+ #include "chrome/browser/ui/ui_features.h"
++#include "chrome/browser/ui/webui/aerie_appearance_settings/aerie_appearance_settings.h"
+ #include "chrome/browser/ui/webui/management/management_ui.h"
+ #include "chrome/browser/ui/webui/policy_indicator_localized_strings_provider.h"
+ #include "chrome/browser/ui/webui/settings/glic_handler.h"
+@@ -651,6 +652,23 @@
+       {"aerieSidebarSideDesc", IDS_SETTINGS_AERIE_SIDEBAR_SIDE_DESC},
+       {"aerieSidebarSideLeft", IDS_SETTINGS_AERIE_SIDEBAR_SIDE_LEFT},
+       {"aerieSidebarSideRight", IDS_SETTINGS_AERIE_SIDEBAR_SIDE_RIGHT},
++      {"aerieAppearanceTheme", IDS_SETTINGS_AERIE_APPEARANCE_THEME},
++      {"aerieAppearanceThemeDesc", IDS_SETTINGS_AERIE_APPEARANCE_THEME_DESC},
++      {"aerieAppearanceThemeVivid", IDS_SETTINGS_AERIE_APPEARANCE_THEME_VIVID},
++      {"aerieAppearanceThemeSoft", IDS_SETTINGS_AERIE_APPEARANCE_THEME_SOFT},
++      {"aerieAppearanceThemeClean", IDS_SETTINGS_AERIE_APPEARANCE_THEME_CLEAN},
++      {"aerieAppearanceThemeOled", IDS_SETTINGS_AERIE_APPEARANCE_THEME_OLED},
++      {"aerieAppearanceThemeHighContrast",
++       IDS_SETTINGS_AERIE_APPEARANCE_THEME_HIGH_CONTRAST},
++      {"aerieAppearanceThemeMono", IDS_SETTINGS_AERIE_APPEARANCE_THEME_MONO},
++      {"aerieAppearanceMode", IDS_SETTINGS_AERIE_APPEARANCE_MODE},
++      {"aerieAppearanceModeDesc", IDS_SETTINGS_AERIE_APPEARANCE_MODE_DESC},
++      {"aerieAppearanceModeSystem", IDS_SETTINGS_AERIE_APPEARANCE_MODE_SYSTEM},
++      {"aerieAppearanceModeLight", IDS_SETTINGS_AERIE_APPEARANCE_MODE_LIGHT},
++      {"aerieAppearanceModeDark", IDS_SETTINGS_AERIE_APPEARANCE_MODE_DARK},
++      {"aerieAppearanceNoteOledLight",
++       IDS_SETTINGS_AERIE_APPEARANCE_NOTE_OLED_LIGHT},
++      {"aerieAppearanceNoteNoTint", IDS_SETTINGS_AERIE_APPEARANCE_NOTE_NO_TINT},
+       {"browserLayout", IDS_SETTINGS_BROWSER_LAYOUT},
+       {"browserLayoutClassic", IDS_SETTINGS_BROWSER_LAYOUT_CLASSIC},
+       {"browserLayoutDynamic", IDS_SETTINGS_BROWSER_LAYOUT_DYNAMIC},
+@@ -739,6 +757,9 @@
+       {"themeManagedDialogBody", IDS_NTP_THEME_MANAGED_DIALOG_BODY},
+   };
+   html_source->AddLocalizedStrings(kLocalizedStrings);
++  // Aerie: the preview swatch of each theme, made from the Design Tokens
++  // (issue #185).
++  aerie_appearance_settings::AddThemeSwatches(html_source);
+ 
+   html_source->AddBoolean("ntpSimplificationBookmarksBarEnabled",
+                           base::FeatureList::IsEnabled(
