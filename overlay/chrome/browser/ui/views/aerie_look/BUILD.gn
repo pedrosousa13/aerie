@@ -11,6 +11,7 @@ assert(!is_android, "The Aerie look is for desktop platforms only")
 # SidebarLookController; the sidebar view reads the look through ReadLookInputs.
 source_set("aerie_look") {
   visibility = [
+    ":*",
     "//chrome/browser/ui/views/aerie_frame:*",
     "//chrome/browser/ui/views/aerie_sidebar:*",
     "//chrome/browser/ui/views/frame:*",
