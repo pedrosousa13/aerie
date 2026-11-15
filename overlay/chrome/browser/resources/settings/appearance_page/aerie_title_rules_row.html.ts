@@ -111,7 +111,7 @@ ${this.draft_ ? html`
         autocomplete="off" .value="${this.draft_.name}" @input="${this.onDraftInput_}">
   </label>
   <label class="aerie-field">$i18n{aerieRuleMatch}
-    <select id="aerieRuleType" data-field="type" @change="${this.onDraftInput_}">
+    <select id="aerieRuleType" data-field="type" @change="${this.onDraftChange_}">
       <option value="domain" ?selected="${this.draft_.type === 'domain'}">$i18n{aerieRuleTypeDomain}</option>
       <option value="url-starts-with" ?selected="${this.draft_.type === 'url-starts-with'}">$i18n{aerieRuleTypeUrlStartsWith}</option>
       <option value="url-contains" ?selected="${this.draft_.type === 'url-contains'}">$i18n{aerieRuleTypeUrlContains}</option>
@@ -124,7 +124,7 @@ ${this.draft_ ? html`
         @input="${this.onDraftInput_}">
   </label>
   <label class="aerie-field">$i18n{aerieRuleRewrite}
-    <select id="aerieRuleMode" data-field="mode" @change="${this.onDraftInput_}">
+    <select id="aerieRuleMode" data-field="mode" @change="${this.onDraftChange_}">
       <option value="template" ?selected="${this.draft_.mode === 'template'}">$i18n{aerieRuleModeTemplate}</option>
       <option value="remove" ?selected="${this.draft_.mode === 'remove'}">$i18n{aerieRuleModeRemove}</option>
     </select>
@@ -138,9 +138,9 @@ ${this.draft_ ? html`
   <div class="aerie-error" id="aerieRuleError" role="alert">${this.errorText_()}</div>
   <div class="aerie-inline">
     <button class="aerie-button" id="aerieRuleSave" type="button"
-        @click="${this.onSaveEdit_}">$i18n{aerieRuleSave}</button>
+        @click="${this.onSaveClick_}">$i18n{aerieRuleSave}</button>
     <button class="aerie-button" id="aerieRuleCancel" type="button"
-        @click="${this.onCancelEdit_}">$i18n{aerieRuleCancel}</button>
+        @click="${this.onCancelClick_}">$i18n{aerieRuleCancel}</button>
   </div>
 </form>` : nothing}
 <div class="aerie-block" id="aerieTry">

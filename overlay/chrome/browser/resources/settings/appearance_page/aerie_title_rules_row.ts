@@ -480,6 +480,10 @@ export class SettingsAerieTitleRulesRowElement extends
     this.saveRules_(moved);
   }
 
+  protected onDraftChange_(e: Event) {
+    this.onDraftInput_(e);
+  }
+
   protected onSubmit_(e: Event) {
     e.preventDefault();
   }
@@ -655,15 +659,15 @@ export class SettingsAerieTitleRulesRowElement extends
     if (e.key === 'Escape') {
       e.preventDefault();
       e.stopPropagation();
-      this.onCancelEdit_();
+      this.onCancelClick_();
     } else if (
         e.key === 'Enter' && (e.target as HTMLElement).tagName === 'INPUT') {
       e.preventDefault();
-      this.onSaveEdit_();
+      this.onSaveClick_();
     }
   }
 
-  protected onCancelEdit_() {
+  protected onCancelClick_() {
     const wasNew = this.draft_ ? this.draft_.id === null : false;
     const id = this.draft_?.id;
     this.draft_ = null;
@@ -679,7 +683,7 @@ export class SettingsAerieTitleRulesRowElement extends
     }
   }
 
-  protected onSaveEdit_() {
+  protected onSaveClick_() {
     const draft = this.draft_;
     if (!draft) {
       return;
