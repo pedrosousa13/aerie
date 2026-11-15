@@ -214,8 +214,8 @@ export class SettingsAerieAppearanceRowElement extends
     }
     e.preventDefault();
     next = (next + modes.length) % modes.length;
-    this.setMode_(modes[next]!);
-    const button = this.shadowRoot!.querySelector<HTMLElement>(
+    this.setMode_(modes[next]);
+    const button = this.shadowRoot.querySelector<HTMLElement>(
         `#aerie-mode-${modes[next]}Button`);
     button?.focus();
   }
