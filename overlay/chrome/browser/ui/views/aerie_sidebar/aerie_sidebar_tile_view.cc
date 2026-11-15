@@ -77,7 +77,7 @@ AerieSidebarTileView::~AerieSidebarTileView() {
 void AerieSidebarTileView::SetPalette(
     const aerie_sidebar::SidebarPalette& palette) {
   palette_ = palette;
-  AerieSidebarFocusRing::Get(this)->SetColor(palette_.accent);
+  AerieSidebarFocusRing::Get(this)->SetStyle(palette_.accent, palette_.focus_ring_width);
   sleep_badge_->SetImage(ui::ImageModel::FromVectorIcon(
       aerie_sidebar::kAerieSleepBadgeIcon, palette_.text, kSleepBadgeSize));
   UpdateState();

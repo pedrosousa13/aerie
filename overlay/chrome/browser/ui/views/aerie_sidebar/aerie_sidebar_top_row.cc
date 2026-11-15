@@ -188,10 +188,10 @@ void AerieSidebarTopRow::SetPalette(
                    aerie::tokens::kSizeIcon));
   }
   views::InkDrop::Get(toggle_)->SetBaseColor(palette_.text);
-  AerieSidebarFocusRing::Get(toggle_)->SetColor(palette_.accent);
+  AerieSidebarFocusRing::Get(toggle_)->SetStyle(palette_.accent, palette_.focus_ring_width);
   for (views::View* control : window_controls_->children()) {
     if (auto* ring = AerieSidebarFocusRing::Get(control)) {
-      ring->SetColor(palette_.accent);
+      ring->SetStyle(palette_.accent, palette_.focus_ring_width);
     }
     control->SchedulePaint();
   }

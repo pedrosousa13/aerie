@@ -80,7 +80,7 @@ void AerieSidebarSwitch::SetPalette(
   static_cast<RoundedFill*>(accent_track_.get())->SetFill(palette_.accent);
   thumb_->SetBackground(views::CreateRoundedRectBackground(
       color_utils::GetColorWithMaxContrast(palette_.accent), kThumbSize / 2.0f));
-  AerieSidebarFocusRing::Get(this)->SetColor(palette_.accent);
+  AerieSidebarFocusRing::Get(this)->SetStyle(palette_.accent, palette_.focus_ring_width);
   SchedulePaint();
 }
 

@@ -1,0 +1,47 @@
+# Copyright 2026 The Aerie Authors
+# You can use, redistribute, and/or modify this source code under
+# the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+assert(!is_android, "The Aerie look is for desktop platforms only")
+
+# The effective look of a window (issue #185): its inputs, what a change of it
+# does (the colour scheme, the Aerie ColorMixer, the views) and the whole-chrome
+# crossfade. The rule is aerie::tokens::ResolveEffectiveLook() in
+# //components/aerie_design_tokens:appearance. The frame (aerie_frame) owns a
+# SidebarLookController; the sidebar view reads the look through ReadLookInputs.
+source_set("aerie_look") {
+  visibility = [
+    "//chrome/browser/ui/views/aerie_frame:*",
+    "//chrome/browser/ui/views/aerie_sidebar:*",
+    "//chrome/browser/ui/views/frame:*",
+    "//chrome/test/aerie:*",
+  ]
+  sources = [
+    "aerie_look.cc",
+    "aerie_look.h",
+    "look_crossfade.cc",
+    "look_crossfade.h",
+    "sidebar_look_controller.cc",
+    "sidebar_look_controller.h",
+  ]
+  public_deps = [
+    "//base",
+    "//components/aerie_design_tokens:appearance",
+    "//components/aerie_design_tokens:motion",
+    "//components/aerie_frame:look",
+    "//components/prefs",
+    "//ui/native_theme",
+  ]
+  deps = [
+    "//chrome/browser/profiles:profile",
+    "//chrome/browser/themes",
+    "//chrome/browser/ui/color/aerie:mixer",
+    "//chrome/common:constants",
+    "//components/aerie_tab_model",
+    "//ui/aura",
+    "//ui/color",
+    "//ui/compositor",
+    "//ui/views",
+    "//ui/wm",
+  ]
+}

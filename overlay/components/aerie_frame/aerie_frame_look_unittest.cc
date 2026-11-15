@@ -130,6 +130,36 @@ TEST(AerieSystemPaletteTest, TheTintOfAWorkspaceColourIsIgnored) {
   EXPECT_EQ(p.stops[0], SK_ColorBLACK);
 }
 
+// ---- The inputs of the tint ------------------------------------------------
+
+TEST(AerieTintInputsTest, SystemColoursReplaceTheThemePalette) {
+  FrameTintInputs in;
+  in.theme = ThemeId::kVivid;
+  in.mode = ColorMode::kLight;
+  in.colour = "dusk";
+  EXPECT_EQ(PaletteOf(in).frame_base,
+            ResolveFramePalette(ThemeId::kVivid, ColorMode::kLight, "dusk").frame_base);
+  in.system_colours = kSystem;
+  const FramePalette p = PaletteOf(in);
+  EXPECT_EQ(p.frame_base, SK_ColorBLACK);
+  EXPECT_EQ(p.stop_count, 1);
+}
+
+TEST(AerieTintInputsTest, AChangeOfTheSystemColoursOrTheThemeNeedsAPaint) {
+  FrameTintState state;
+  FrameTintInputs in;
+  EXPECT_TRUE(state.Update(in));
+  EXPECT_FALSE(state.Update(in));
+  in.theme = ThemeId::kOled;
+  EXPECT_TRUE(state.Update(in));
+  EXPECT_FALSE(state.Update(in));
+  in.system_colours = kSystem;
+  EXPECT_TRUE(state.Update(in));
+  EXPECT_FALSE(state.Update(in));
+  in.system_colours = SystemColours{SK_ColorWHITE, SK_ColorBLACK, SK_ColorBLUE};
+  EXPECT_TRUE(state.Update(in));
+}
+
 // ---- The strip -------------------------------------------------------------------
 
 TEST(AerieFrameStripTest, CleanHasAThreePixelStripAndHighContrastFour) {

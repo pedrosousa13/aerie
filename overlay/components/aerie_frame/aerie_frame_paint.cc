@@ -186,6 +186,13 @@ void PaintFrame(gfx::Canvas* canvas,
   PaintCard(canvas, palette, card);
 }
 
+FramePalette PaletteOf(const FrameTintInputs& inputs) {
+  if (inputs.system_colours) {
+    return ResolveSystemFramePalette(*inputs.system_colours);
+  }
+  return ResolveFramePalette(inputs.theme, inputs.mode, inputs.colour);
+}
+
 bool FrameTintState::Update(const FrameTintInputs& inputs) {
   if (has_inputs_ && inputs == inputs_) {
     return false;

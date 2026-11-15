@@ -5,8 +5,10 @@
 #ifndef COMPONENTS_AERIE_FRAME_AERIE_FRAME_PAINT_H_
 #define COMPONENTS_AERIE_FRAME_AERIE_FRAME_PAINT_H_
 
+#include <optional>
 #include <string>
 
+#include "components/aerie_frame/aerie_frame_look.h"
 #include "components/aerie_frame/aerie_frame_palette.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/size.h"
@@ -36,9 +38,16 @@ struct FrameTintInputs {
   gfx::Size size;
   gfx::Rect card;
   bool sidebar_on_right = false;
+  // Forced colours: the operating system's colours the frame is drawn in. Empty:
+  // the theme's own.
+  std::optional<SystemColours> system_colours;
 
   bool operator==(const FrameTintInputs&) const = default;
 };
+
+// The palette the inputs ask for: the theme's, or the system colours' under
+// forced colours.
+FramePalette PaletteOf(const FrameTintInputs& inputs);
 
 // Decides when the frame needs a paint and counts the paints.
 class FrameTintState {

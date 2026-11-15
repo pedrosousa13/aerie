@@ -10,6 +10,7 @@
 #include "chrome/browser/aerie_tab_model/tab_model_service.h"
 #include "chrome/browser/aerie_tab_model/tab_model_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/views/aerie_look/aerie_look.h"
 #include "chrome/common/pref_names.h"
 #include "components/aerie_frame/aerie_frame_palette.h"
 #include "components/prefs/pref_service.h"
@@ -34,6 +35,9 @@ FrameTintView::FrameTintView(Profile* profile) : profile_(profile) {
     model_ = service->model();
     model_->AddObserver(this);
   }
+  // The effective look and what a change of it does (issue #185).
+  look_controller_ =
+      std::make_unique<SidebarLookController>(profile_, model_, this);
   pref_registrar_.Init(profile_->GetPrefs());
   pref_registrar_.Add(prefs::kHeliumVerticalRightAligned,
                       base::BindRepeating(&FrameTintView::Refresh,
@@ -59,14 +63,13 @@ void FrameTintView::SetCard(views::View* card) {
 
 aerie_frame::FrameTintInputs FrameTintView::CurrentInputs() const {
   aerie_frame::FrameTintInputs inputs;
-  inputs.theme = aerie_frame::kDefaultTheme;
-  // Mode is the system one by default, and never follows the colour (the
-  // design's "Themes"); the global setting and the Workspace override are
-  // slice I.
-  inputs.mode = GetWidget() && GetWidget()->GetColorMode() ==
-                                   ui::ColorProviderKey::ColorMode::kDark
-                    ? aerie::tokens::ColorMode::kDark
-                    : aerie::tokens::ColorMode::kLight;
+  const aerie::tokens::EffectiveLook look = look_controller_->look();
+  inputs.theme = look.theme;
+  inputs.mode = look.mode;
+  if (look.system_colours && GetWidget()) {
+    inputs.system_colours =
+        aerie_look::ReadSystemColours(*GetWidget()->GetColorProvider());
+  }
   inputs.colour = model_ ? model_->workspace().colour
                          : std::string(aerie_frame::kFallbackColour);
   inputs.size = size();
@@ -91,23 +94,34 @@ void FrameTintView::OnPaint(gfx::Canvas* canvas) {
   state_.Update(CurrentInputs());
   state_.RecordPaint();
   const aerie_frame::FrameTintInputs& in = state_.inputs();
-  aerie_frame::PaintFrame(
-      canvas, aerie_frame::ResolveFramePalette(in.theme, in.mode, in.colour),
-      size(), in.sidebar_on_right, in.card);
+  aerie_frame::PaintFrame(canvas, aerie_frame::PaletteOf(in), size(),
+                          in.sidebar_on_right, in.card);
 }
 
 void FrameTintView::PaintToBitmapForTesting(SkBitmap* bitmap) const {
   const aerie_frame::FrameTintInputs in = CurrentInputs();
   gfx::Canvas canvas(size(), 1.0f, /*is_opaque=*/true);
-  aerie_frame::PaintFrame(
-      &canvas, aerie_frame::ResolveFramePalette(in.theme, in.mode, in.colour),
-      size(), in.sidebar_on_right, in.card);
+  aerie_frame::PaintFrame(&canvas, aerie_frame::PaletteOf(in), size(),
+                          in.sidebar_on_right, in.card);
   *bitmap = canvas.GetBitmap();
 }
 
 void FrameTintView::OnThemeChanged() {
   views::View::OnThemeChanged();
   // A change of the colour mode arrives here.
+  Refresh();
+}
+
+void FrameTintView::AddedToWidget() {
+  views::View::AddedToWidget();
+  look_controller_->OnAddedToWidget();
+}
+
+views::Widget* FrameTintView::GetLookWidget() {
+  return GetWidget();
+}
+
+void FrameTintView::OnEffectiveLookChanged() {
   Refresh();
 }
 
@@ -136,10 +150,12 @@ void FrameTintView::OnViewIsDeleting(views::View* observed_view) {
 }
 
 void FrameTintView::OnWorkspaceChanged(const aerie_tab_model::Workspace&) {
+  look_controller_->OnWorkspaceChanged();
   Refresh();
 }
 
 void FrameTintView::OnModelLoaded() {
+  look_controller_->OnWorkspaceChanged();
   Refresh();
 }
 

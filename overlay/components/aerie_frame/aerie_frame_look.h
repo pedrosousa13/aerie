@@ -42,6 +42,8 @@ struct SystemColours {
   SkColor background;
   SkColor text;
   SkColor accent;
+
+  bool operator==(const SystemColours&) const = default;
 };
 
 // A frame of one flat colour, with the card's hairline in the text colour. No

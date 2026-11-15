@@ -43,6 +43,7 @@ source_set("aerie_frame") {
   # The header includes these.
   public_deps = [
     "//base",
+    "//chrome/browser/ui/views/aerie_look",
     "//components/aerie_frame:paint",
     "//components/aerie_tab_model",
     "//components/prefs",
