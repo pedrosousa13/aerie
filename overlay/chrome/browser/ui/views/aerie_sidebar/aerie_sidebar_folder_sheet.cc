@@ -59,9 +59,10 @@ struct KindEntry {
   FolderKind kind;
   int label_id;
 };
-constexpr std::array<KindEntry, 2> kKinds = {{
+constexpr std::array<KindEntry, 3> kKinds = {{
     {FolderKind::kManual, IDS_AERIE_SIDEBAR_SHEET_KIND_MANUAL},
     {FolderKind::kAuto, IDS_AERIE_SIDEBAR_SHEET_KIND_AUTO},
+    {FolderKind::kSmart, IDS_AERIE_SIDEBAR_SHEET_KIND_SMART},
 }};
 
 struct TypeEntry {
@@ -141,7 +142,8 @@ AerieSidebarFolderSheet::AerieSidebarFolderSheet(Params params)
       prefs_(params.prefs),
       palette_(params.palette),
       sidebar_on_right_(params.sidebar_on_right),
-      closed_(std::move(params.closed)) {
+      closed_(std::move(params.closed)),
+      tabs_moved_out_(std::move(params.tabs_moved_out)) {
   SetButtons(static_cast<int>(ui::mojom::DialogButton::kNone));
   SetShowCloseButton(false);
   SetAccessibleWindowRole(ax::mojom::Role::kDialog);
@@ -276,10 +278,16 @@ void AerieSidebarFolderSheet::Build() {
   auto_section->AddChildView(std::move(all_row));
   auto_section_ = contents->AddChildView(std::move(auto_section));
 
-  // Empty slots for what later issues add: the body of a Smart folder (#140)
-  // and the Behaviour section (#141). They are hidden while empty and take no
-  // room; the owner of a later kind fills one and shows it.
+  // Slots for what other issues add: the body of a Smart folder (#140, below)
+  // and the Behaviour section (#141, empty). A slot is hidden while it has
+  // nothing to show and takes no room.
+  // The body of a Smart folder (issue #140): the rules and exceptions above are
+  // shared with Auto-filing, so the body is one line that says what the folder
+  // does. Behaviour (#141) is not shown for a smart folder.
   auto smart = MakeColumn(aerie::tokens::kSpace8);
+  smart->AddChildView(MakeLabel(
+      l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_SHEET_SMART_EXPLAIN), muted,
+      aerie::tokens::kTypeSizeCaption));
   smart->SetVisible(false);
   smart_body_slot_ = contents->AddChildView(std::move(smart));
   auto behaviour = MakeColumn(aerie::tokens::kSpace8);
@@ -330,10 +338,7 @@ views::LabelButton* AerieSidebarFolderSheet::kind_button(size_t index) const {
 
 bool AerieSidebarFolderSheet::kind_checked(size_t index) const {
   const aerie_tab_model::FolderRecord* folder = model_->GetFolder(folder_id_);
-  return folder && index < kKinds.size() &&
-         kKinds[index].kind ==
-             (aerie_tab_model::IsAutoFiling(*folder) ? FolderKind::kAuto
-                                                     : FolderKind::kManual);
+  return folder && index < kKinds.size() && kKinds[index].kind == folder->kind;
 }
 
 ui::Layer* AerieSidebarFolderSheet::slide_layer() const {
@@ -371,7 +376,9 @@ void AerieSidebarFolderSheet::Rebuild() {
   if (!folder) {
     return;
   }
-  const bool is_auto = aerie_tab_model::IsAutoFiling(*folder);
+  const bool is_smart = folder->kind == FolderKind::kSmart;
+  // Auto-filing and Smart share the rules and the exceptions.
+  const bool has_rules = aerie_tab_model::IsAutoFiling(*folder) || is_smart;
   for (size_t i = 0; i < kKinds.size(); ++i) {
     const bool checked = kind_checked(i);
     views::LabelButton* segment = kind_buttons_[i];
@@ -387,11 +394,12 @@ void AerieSidebarFolderSheet::Rebuild() {
                                                      aerie::tokens::kRadiusMd)
                 : nullptr);
   }
-  auto_section_->SetVisible(is_auto);
+  auto_section_->SetVisible(has_rules);
+  smart_body_slot_->SetVisible(is_smart);
   global_switch_->SetOn(
       aerie_tab_model::AreFolderRulesEnabled(*prefs_), prefs_);
   all_switch_->SetOn(aerie_tab_model::ReadFolderRules(*folder).enabled, prefs_);
-  if (is_auto) {
+  if (has_rules) {
     RebuildRules(*folder);
     RebuildExceptions(*folder);
   }
@@ -501,7 +509,13 @@ void AerieSidebarFolderSheet::SetKind(size_t index) {
   if (index >= kKinds.size()) {
     return;
   }
-  aerie_tab_model::SetFolderRuleKind(*model_, folder_id_, kKinds[index].kind);
+  int moved = 0;
+  aerie_tab_model::SetFolderRuleKind(*model_, folder_id_, kKinds[index].kind,
+                                     &moved);
+  // A folder that held tabs and became Smart: the sidebar says so.
+  if (moved > 0 && tabs_moved_out_) {
+    tabs_moved_out_.Run(folder_id_, moved);
+  }
 }
 
 void AerieSidebarFolderSheet::BeginEditRule(const std::string& rule_id) {

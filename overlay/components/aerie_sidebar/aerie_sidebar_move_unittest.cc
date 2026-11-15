@@ -237,6 +237,32 @@ TEST_F(MoveTest, KeyboardIndentGoesIntoThePreviousFolderAndOutdentComesOut) {
                                    MoveKey::kOutdent).applies);
 }
 
+TEST_F(MoveTest, ASmartFolderTakesNoMoveIntoIt) {
+  const std::string smart = Folder("", 0);
+  model_.UpdateFolder(smart, [](aerie_tab_model::FolderRecord& f) {
+    f.kind = aerie_tab_model::FolderKind::kSmart;
+  });
+  const std::string tab = Tab("", 1);
+  EXPECT_EQ(MoveResult::kRefusedSmartFolder,
+            Move(ItemKind::kTab, tab, Section::kToday, smart, 0));
+  EXPECT_EQ(model_.GetTab(tab)->parent, "");
+}
+
+TEST_F(MoveTest, KeyboardIndentIntoASmartFolderIsRefusedWithItsOwnFlag) {
+  const std::string smart = Folder("", 0);
+  model_.UpdateFolder(smart, [](aerie_tab_model::FolderRecord& f) {
+    f.kind = aerie_tab_model::FolderKind::kSmart;
+  });
+  const std::string tab = Tab("", 1);
+  auto rows = Rows(Section::kToday);
+  KeyboardMove in = ComputeKeyboardMove(model_, Section::kToday, rows, 1,
+                                        MoveKey::kIndent);
+  EXPECT_FALSE(in.applies);
+  EXPECT_TRUE(in.smart_refused);
+  EXPECT_FALSE(in.too_deep);
+  (void)tab;
+}
+
 TEST_F(MoveTest, KeyboardIndentRespectsTheDepthLimit) {
   std::string parent, level5;
   for (int i = 0; i < 4; ++i) {

@@ -277,6 +277,41 @@
   <message name="IDS_AERIE_SIDEBAR_FILED_DONT_FILE_SITE" desc="Button in the notice that says a tab was filed into a folder by a rule. It adds the tab's website to the folder's exceptions, so that no tab of that website is filed there again.">
     Don't file this site
   </message>
+  <message name="IDS_AERIE_SIDEBAR_SMART_FOLDER_NAME_EXPANDED" desc="Accessible name of a folder row in the sidebar that shows the open tabs that match its rules and is open. The name comes first, then the kind, the state and the number of tabs it shows, for example: Docs, smart folder, expanded, 4 items.">
+    <ph name="NAME">$1<ex>Docs</ex></ph>, smart folder, expanded, <ph name="ITEMS">$2<ex>4 items</ex></ph>
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_SMART_FOLDER_NAME_COLLAPSED" desc="Accessible name of a folder row in the sidebar that shows the open tabs that match its rules and is shut. The name comes first, then the kind, the state and the number of tabs it shows, for example: Docs, smart folder, collapsed, 4 items.">
+    <ph name="NAME">$1<ex>Docs</ex></ph>, smart folder, collapsed, <ph name="ITEMS">$2<ex>4 items</ex></ph>
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_SMART_ORIGIN_TODAY" desc="Small hint at the end of a row inside a smart folder in the sidebar, when the pointer is on the row. It says that the real tab is in the Today list.">
+    Today
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_SMART_ORIGIN_PINNED" desc="Small hint at the end of a row inside a smart folder in the sidebar, when the pointer is on the row. It says that the real tab is in the Pinned list.">
+    Pinned
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_SMART_ROW_NAME" desc="Accessible name of a row inside a smart folder in the sidebar. The tab's title comes first, then the list that the real tab is in, for example: Roadmap, shown from Today.">
+    <ph name="TITLE">$1<ex>Roadmap</ex></ph>, shown from <ph name="LIST">$2<ex>Today</ex></ph>
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_SMART_CLOSE_TOOLTIP" desc="Tooltip and accessible name of the close button on a row inside a smart folder in the sidebar. The row only shows the tab; the button acts on the real tab in the Today or Pinned list. The first part is what the button does to a tab (Close, Sleep, or Reset and sleep), and the last part is the list.">
+    <ph name="ACTION">$1<ex>Close</ex></ph> the real tab in <ph name="LIST">$2<ex>Today</ex></ph>
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_SMART_NO_DROP" desc="Hint that shows in the sidebar when the user drops a tab or a folder on a smart folder, or on a row inside one. Nothing moves. A smart folder only shows the tabs that match its rules.">
+    Smart folders show tabs. They don't hold them.
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_SMART_TABS" desc="The number of tabs that moved, as a part of the notice shown after a folder is switched to a smart folder.">
+    {COUNT, plural,
+      =1 {1 tab}
+      other {# tabs}}
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_SMART_MOVED_OUT" desc="Notice at the bottom of the sidebar after the user switched a folder that held tabs to a smart folder. A smart folder holds nothing, so the tabs moved out, next to the folder. A screen reader reads it politely. The first part is a number of tabs, for example: 3 tabs.">
+    Moved <ph name="TABS">$1<ex>3 tabs</ex></ph> out of <ph name="FOLDER">$2<ex>Docs</ex></ph>
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_SHEET_KIND_SMART" desc="Choice in the folder editor: a folder that shows the open tabs that match its rules and holds none of them.">
+    Smart
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_SHEET_SMART_EXPLAIN" desc="One line in the folder editor under the choice of kind, when the kind is Smart. It tells the user what a smart folder does.">
+    Shows open tabs that match. It moves nothing.
+  </message>
   <message name="IDS_AERIE_SIDEBAR_SHEET_TITLE" desc="Accessible name of the folder editor, a small panel next to the sidebar. A screen reader reads it when the panel opens.">
     Edit folder <ph name="NAME">$1<ex>Trips</ex></ph>
   </message>

@@ -36,6 +36,10 @@
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_view.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h"
+#include "chrome/test/base/ui_test_utils.h"
+#include "components/aerie_tab_model/folder_rules.h"
+#include "components/aerie_tab_model/smart_folder.h"
+#include "net/test/embedded_test_server/embedded_test_server.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "components/aerie_tab_model/folder_tree.h"
 #include "components/aerie_tab_model/pinned_tabs.h"
@@ -950,4 +954,135 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarDragBrowserTest, AltRightOnAFocusedRowIndents
   ui::KeyEvent alt_left(ui::EventType::kKeyPressed, ui::VKEY_LEFT,
                         ui::EF_ALT_DOWN);
   EXPECT_FALSE(other.SkipDefaultKeyEventProcessing(alt_left));
+}
+
+// --- Smart folders (issue #140) ---
+
+class AerieSidebarSmartDragBrowserTest : public AerieSidebarDragBrowserTest {
+ protected:
+  void SetUpOnMainThread() override {
+    AerieSidebarDragBrowserTest::SetUpOnMainThread();
+    embedded_test_server()->ServeFilesFromSourceDirectory("chrome/test/data");
+    ASSERT_TRUE(embedded_test_server()->Start());
+  }
+
+  // A tab on docs.localhost, a smart folder for it, and the id of the row of
+  // that tab inside the folder.
+  struct Setup {
+    std::string folder;
+    std::string tab;
+    std::string member_row;
+  };
+  Setup MakeSmartFolderWithOneMember() {
+    Setup setup;
+    EXPECT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
+        browser(), embedded_test_server()->GetURL("docs.localhost", "/title1.html"),
+        WindowOpenDisposition::NEW_FOREGROUND_TAB,
+        ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
+    setup.tab = service()->adapter()->RecordIdForTab(
+        browser()->tab_strip_model()->GetActiveTab());
+    setup.folder = aerie_tab_model::CreateFolder(*model(), Section::kToday, "",
+                                                 "Docs");
+    EXPECT_TRUE(aerie_tab_model::SetFolderRuleKind(
+        *model(), setup.folder, aerie_tab_model::FolderKind::kSmart));
+    EXPECT_FALSE(aerie_tab_model::AddRule(*model(), setup.folder,
+                                          aerie_tab_model::RuleType::kDomain,
+                                          "docs.localhost")
+                     .empty());
+    setup.member_row =
+        aerie_tab_model::MakeSmartRowId(setup.folder, setup.tab);
+    EXPECT_TRUE(WaitFor([&] { return sidebar()->RowForId(setup.member_row); }));
+    // Nothing is moving: a drag cannot begin while a row animates.
+    EXPECT_TRUE(WaitFor([&] {
+      if (sidebar()->closing_row_count() > 0 || sidebar()->folder_group()) {
+        return false;
+      }
+      for (size_t i = 0; i < sidebar()->row_count(); ++i) {
+        if (sidebar()->row_at(i)->height_animating()) {
+          return false;
+        }
+      }
+      return true;
+    }));
+    return setup;
+  }
+};
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarSmartDragBrowserTest,
+                       ADropOntoASmartFolderIsRefusedWithTheHintAndMovesNothing) {
+  const Setup setup = MakeSmartFolderWithOneMember();
+  const std::string loose = IdAt(0);
+  ASSERT_NE(loose, setup.tab);
+  views::View* source = sidebar()->RowForId(loose);
+  views::View* smart = sidebar()->RowForId(setup.folder);
+  ASSERT_TRUE(source && smart);
+  const int64_t before = model()->next_change();
+  Press(source);
+  Lift(source);
+  ASSERT_TRUE(sidebar()->dragging());
+  // The middle of the folder row means "into the folder".
+  const gfx::Point middle = PointIn(smart, 50);
+  DragTo(source, middle);
+  EXPECT_EQ(controller()->target().kind, aerie_sidebar::DropKind::kRefused);
+  EXPECT_EQ(controller()->target().reason,
+            aerie_sidebar::RefusalReason::kSmartFolder);
+  EXPECT_EQ(controller()->indicator()->mode(),
+            AerieSidebarDropIndicator::Mode::kRefused);
+  ui::MouseEvent probe = Mouse(ui::EventType::kMouseDragged, source, middle);
+  EXPECT_EQ(source->GetCursor(probe), ui::Cursor(ui::mojom::CursorType::kNotAllowed));
+  EXPECT_TRUE(sidebar()->toast_visible());
+  EXPECT_EQ(sidebar()->toast()->GetText(),
+            u"Smart folders show tabs. They don't hold them.");
+  Release(source, middle);
+  EXPECT_EQ(model()->GetTab(loose)->parent, "");
+  EXPECT_EQ(model()->next_change(), before);
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarSmartDragBrowserTest,
+                       ADropOntoARowInsideASmartFolderIsRefusedToo) {
+  const Setup setup = MakeSmartFolderWithOneMember();
+  const std::string loose = IdAt(0);
+  views::View* source = sidebar()->RowForId(loose);
+  views::View* member = sidebar()->RowForId(setup.member_row);
+  ASSERT_TRUE(source && member);
+  Press(source);
+  Lift(source);
+  ASSERT_TRUE(sidebar()->dragging());
+  for (int percent : {25, 75}) {
+    DragTo(source, PointIn(member, percent));
+    EXPECT_EQ(controller()->target().kind, aerie_sidebar::DropKind::kRefused)
+        << percent;
+    EXPECT_EQ(controller()->target().reason,
+              aerie_sidebar::RefusalReason::kSmartFolder)
+        << percent;
+  }
+  Release(source, PointIn(member, 75));
+  EXPECT_EQ(model()->GetTab(loose)->parent, "");
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarSmartDragBrowserTest, SmartRowsCannotBeDragged) {
+  const Setup setup = MakeSmartFolderWithOneMember();
+  views::View* member = sidebar()->RowForId(setup.member_row);
+  ASSERT_TRUE(member);
+  EXPECT_FALSE(sidebar()->BeginDragForTesting(setup.member_row));
+  const int64_t before = model()->next_change();
+  Press(member);
+  DragTo(member, PointIn(sidebar()->row_at(sidebar()->row_count() - 1), 80), 6);
+  EXPECT_FALSE(sidebar()->dragging());
+  Release(member, PointIn(sidebar()->row_at(sidebar()->row_count() - 1), 80));
+  EXPECT_EQ(model()->next_change(), before);
+  EXPECT_EQ(model()->GetTab(setup.tab)->parent, "");
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarSmartDragBrowserTest,
+                       AltArrowOnASmartRowDoesNothing) {
+  const Setup setup = MakeSmartFolderWithOneMember();
+  const int64_t before = model()->next_change();
+  for (aerie_sidebar::MoveKey key :
+       {aerie_sidebar::MoveKey::kUp, aerie_sidebar::MoveKey::kDown,
+        aerie_sidebar::MoveKey::kIndent, aerie_sidebar::MoveKey::kOutdent}) {
+    sidebar()->MoveKeyForTesting(setup.member_row, key, Section::kToday);
+  }
+  EXPECT_EQ(model()->next_change(), before);
+  EXPECT_EQ(model()->GetTab(setup.tab)->parent, "");
 }

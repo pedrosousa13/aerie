@@ -33,6 +33,8 @@ enum class MoveResult {
   kUnchanged,
   kRefusedTooDeep,
   kRefusedFavoritesFull,
+  // The container is a smart folder, which holds nothing (issue #140).
+  kRefusedSmartFolder,
   // Unknown item or container, a folder in Favorites, or a loop.
   kInvalid,
 };
@@ -56,6 +58,8 @@ struct KeyboardMove {
   bool applies = false;
   // True: the key would nest too deeply; show the hint, change nothing.
   bool too_deep = false;
+  // The move would go into a smart folder (issue #140).
+  bool smart_refused = false;
   MoveRequest request;
   // For "Moved to Trips, position 2 of 4": the folder (empty: the section),
   // the 1-based position among the siblings after the move, and their count.

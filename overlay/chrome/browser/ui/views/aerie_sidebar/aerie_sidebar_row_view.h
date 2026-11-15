@@ -157,6 +157,17 @@ class AerieSidebarRowView : public views::View,
   // at once.
   void SetSleeping(bool sleeping, const PrefService* reduced_motion_prefs);
   bool sleeping() const { return sleeping_; }
+  // Smart folders (issue #140). A row inside a smart folder stands for a real
+  // tab that has its own row elsewhere: the "smart-member" kind of row. It shows
+  // a quiet hint of where the real tab is (`origin_name`, "Today" or "Pinned")
+  // while the pointer is on it, and ", shown from <origin>" ends its accessible
+  // name. It enters and leaves with an opacity fade and nothing else moves. The
+  // sidebar gives it no drag callbacks, so it cannot be dragged. Call with an
+  // empty `origin_name` for a row that is not a smart member (the default).
+  void SetSmartMember(const std::u16string& origin_name);
+  bool smart_member() const { return smart_member_; }
+  views::Label* origin_hint() const { return origin_hint_; }
+
   // For tests.
   views::ImageView* favicon_view() const { return favicon_; }
   views::ImageView* sleep_badge() const { return sleep_badge_; }
@@ -413,6 +424,10 @@ class AerieSidebarRowView : public views::View,
   aerie::motion::MotionHandle sleep_motion_;
   base::OneShotTimer desaturate_timer_;
   raw_ptr<views::Label> title_ = nullptr;
+  // Smart folders (issue #140).
+  bool smart_member_ = false;
+  std::u16string origin_name_;
+  raw_ptr<views::Label> origin_hint_ = nullptr;
   raw_ptr<views::ImageButton> close_button_ = nullptr;
   raw_ptr<views::ImageButton> back_to_pinned_ = nullptr;
   bool back_to_pinned_wanted_ = false;

@@ -127,6 +127,33 @@ std::u16string TooDeepTooltip() {
       base::NumberToString16(aerie_tab_model::kMaxFolderDepth));
 }
 
+// The record id of the tab that a row stands for: the id itself, or, for a row
+// inside a smart folder (issue #140), the id of the real tab.
+std::string RealTabId(const std::string& row_id) {
+  if (std::optional<aerie_tab_model::SmartRowRef> ref =
+          aerie_tab_model::ParseSmartRowId(row_id)) {
+    return ref->tab_id;
+  }
+  return row_id;
+}
+
+// The address and title that a smart folder's rules are matched against.
+std::optional<aerie_tab_model::TabFacts> FactsFromTab(tabs::TabInterface* tab) {
+  content::WebContents* contents = tab->GetContents();
+  if (!contents) {
+    return std::nullopt;
+  }
+  aerie_tab_model::TabFacts facts;
+  facts.url = contents->GetLastCommittedURL();
+  if (facts.url.is_empty()) {
+    // A tab that has not loaded yet (a restored Pinned tab) still knows its
+    // page.
+    facts.url = contents->GetVisibleURL();
+  }
+  facts.title = base::UTF16ToUTF8(tab->GetTitle());
+  return facts;
+}
+
 ui::ImageModel FaviconFor(tabs::TabInterface* tab, SkColor icon_color) {
   content::WebContents* contents = tab->GetContents();
   if (contents) {
@@ -417,6 +444,12 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
   pref_registrar_.Add(
       aerie_tab_model::kPinnedClose,
       base::BindRepeating(&AerieSidebarView::UpdateRows, base::Unretained(this)));
+  // The global "Folder rules everywhere" switch empties every smart folder
+  // (issue #140).
+  pref_registrar_.Add(
+      aerie_tab_model::kFolderRulesEnabled,
+      base::BindRepeating(&AerieSidebarView::ScheduleSync,
+                          base::Unretained(this)));
   // Density, side and the dock state (issue #184). The peek driver exists from
   // the start and does nothing until the sidebar is auto-hidden.
   peek_ = std::make_unique<AerieSidebarPeekDriver>(this);
@@ -871,6 +904,8 @@ void AerieSidebarView::OnWorkspaceChanged(const aerie_tab_model::Workspace&) {
 }
 
 void AerieSidebarView::OnModelLoaded() {
+  smart_all_dirty_ = true;
+  ScheduleSync();
   ApplyPalette();
 }
 
@@ -897,7 +932,10 @@ std::map<std::string, tabs::TabInterface*> AerieSidebarView::BuildTabLookup()
   return lookup;
 }
 
-tabs::TabInterface* AerieSidebarView::FindTab(const std::string& tab_id) const {
+tabs::TabInterface* AerieSidebarView::FindTab(
+    const std::string& row_id) const {
+  // A row inside a smart folder stands for a real tab (issue #140).
+  const std::string tab_id = RealTabId(row_id);
   // Inside a sync or a refresh the map is built once for all the rows.
   if (tab_lookup_) {
     auto it = tab_lookup_->find(tab_id);
@@ -923,9 +961,83 @@ std::vector<aerie_tab_model::TreeRow> AerieSidebarView::WantedRows(
   if (!model_) {
     return {};
   }
-  return aerie_tab_model::BuildVisibleRows(
-      *model_, section,
-      [this](const std::string& id) { return FindTab(id) != nullptr; });
+  auto listed = [this](const std::string& id) {
+    return FindTab(id) != nullptr;
+  };
+  std::vector<aerie_tab_model::TreeRow> rows =
+      aerie_tab_model::BuildVisibleRows(*model_, section, listed);
+  // Smart folders (issue #140) show tabs that are not their children in the
+  // model.
+  if (smart_index_.HasSmartFolders()) {
+    rows = aerie_tab_model::ExpandSmartFolders(
+        *model_, smart_index_,
+        aerie_tab_model::AreFolderRulesEnabled(
+            *browser_->GetProfile()->GetPrefs()),
+        section, std::move(rows), listed);
+  }
+  return rows;
+}
+
+std::optional<aerie_tab_model::TabFacts> AerieSidebarView::SmartFactsFor(
+    const std::string& tab_id) const {
+  tabs::TabInterface* tab = FindTab(tab_id);
+  return tab ? FactsFromTab(tab) : std::nullopt;
+}
+
+void AerieSidebarView::RefreshSmartIndex() {
+  if (!model_) {
+    return;
+  }
+  auto facts = [this](const std::string& id) { return SmartFactsFor(id); };
+  // A folder is matched against every tab only when it is new or its rules
+  // changed (or after the model loaded); one tab change never does that.
+  if (smart_all_dirty_) {
+    smart_all_dirty_ = false;
+    for (const auto& [id, folder] : model_->folders()) {
+      smart_index_.RefreshFolder(*model_, id, facts);
+    }
+  }
+  for (const std::string& id : std::exchange(smart_dirty_folders_, {})) {
+    smart_index_.RefreshFolder(*model_, id, facts);
+  }
+  std::set<std::string> tabs = std::exchange(smart_dirty_tabs_, {});
+  if (!smart_index_.HasSmartFolders()) {
+    return;
+  }
+  for (const std::string& id : tabs) {
+    smart_index_.UpdateTab(*model_, id, facts(id));
+  }
+}
+
+void AerieSidebarView::UpdateSmartTab(tabs::TabInterface* tab) {
+  if (!model_ || !smart_index_.HasSmartFolders()) {
+    return;
+  }
+  auto* service = aerie_tab_model::TabModelServiceFactory::GetForProfile(
+      browser_->GetProfile());
+  if (!service || !service->adapter()) {
+    return;
+  }
+  const std::string id = service->adapter()->RecordIdForTab(tab);
+  if (id.empty()) {
+    return;
+  }
+  if (smart_index_.UpdateTab(*model_, id, FactsFromTab(tab))) {
+    ScheduleSync();
+  }
+}
+
+void AerieSidebarView::OnTabsMovedOutOfFolder(const std::string& folder_id,
+                                              int moved) {
+  const aerie_tab_model::FolderRecord* folder =
+      model_ ? model_->GetFolder(folder_id) : nullptr;
+  if (!folder || moved <= 0) {
+    return;
+  }
+  ShowToast(l10n_util::GetStringFUTF16(
+      IDS_AERIE_SIDEBAR_SMART_MOVED_OUT,
+      l10n_util::GetPluralStringFUTF16(IDS_AERIE_SIDEBAR_SMART_TABS, moved),
+      base::UTF8ToUTF16(folder->name)));
 }
 
 bool AerieSidebarView::TreeChanged(
@@ -948,6 +1060,40 @@ AerieSidebarRowView* AerieSidebarView::MakeRow(
     bool today) {
   const std::string id = entry.id;
   AerieSidebarRowView::Callbacks callbacks;
+  if (entry.smart_member) {
+    // A row inside a smart folder (issue #140) stands for a real tab: it selects
+    // and closes that tab, and takes the same context menu. It cannot be
+    // dragged and has no rename, no Alt+Arrow move and no way back to a pinned
+    // page.
+    callbacks.select = base::BindRepeating(&AerieSidebarView::SelectTab,
+                                           base::Unretained(this), id);
+    callbacks.close = base::BindRepeating(&AerieSidebarView::CloseTab,
+                                          base::Unretained(this), id);
+    callbacks.key = base::BindRepeating(&AerieSidebarView::OnTreeRowKey,
+                                        base::Unretained(this), today, id);
+    callbacks.focused = today ? base::BindRepeating(
+                                    &AerieSidebarView::OnRowFocused,
+                                    base::Unretained(this))
+                              : base::BindRepeating(
+                                    &AerieSidebarView::OnPinnedRowFocused,
+                                    base::Unretained(this));
+    callbacks.drag_begin = base::BindRepeating([] { return false; });
+    callbacks.drag_update = base::DoNothing();
+    callbacks.drag_end = base::DoNothing();
+    callbacks.context_menu = base::BindRepeating(
+        &AerieSidebarView::ShowRowContextMenu, base::Unretained(this), id);
+    callbacks.rename_state_changed = base::BindRepeating(
+        &AerieSidebarView::OnRenameStateChanged, weak_factory_.GetWeakPtr());
+    AerieSidebarRowView* member = list->AddChildView(
+        std::make_unique<AerieSidebarRowView>(std::move(callbacks), palette_));
+    member->SetDensity(sizes_);
+    // Known now, so that the open motion is the smart one.
+    member->SetSmartMember(l10n_util::GetStringUTF16(
+        entry.origin == aerie_tab_model::Section::kPinned
+            ? IDS_AERIE_SIDEBAR_SMART_ORIGIN_PINNED
+            : IDS_AERIE_SIDEBAR_SMART_ORIGIN_TODAY));
+    return member;
+  }
   if (entry.is_folder) {
     // A folder row: a click, Enter or Space opens or shuts it. It cannot close.
     callbacks.select = base::BindRepeating(&AerieSidebarView::ToggleFolder,
@@ -1150,6 +1296,8 @@ void AerieSidebarView::SyncAll(bool allow_flip) {
   const std::map<std::string, tabs::TabInterface*> lookup = BuildTabLookup();
   base::AutoReset<raw_ptr<const std::map<std::string, tabs::TabInterface*>>>
       use_lookup(&tab_lookup_, &lookup);
+  // The smart folders' lists first (issue #140): the trees below include them.
+  RefreshSmartIndex();
   // The two trees are walked once for the whole sync.
   const std::vector<aerie_tab_model::TreeRow> today =
       WantedRows(aerie_tab_model::Section::kToday);
@@ -1415,6 +1563,14 @@ void AerieSidebarView::OnMoveKey(aerie_tab_model::Section section,
     GetViewAccessibility().AnnouncePolitely(hint);
     return;
   }
+  if (move.smart_refused) {
+    const std::u16string hint =
+        l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_SMART_NO_DROP);
+    ShowToast(hint);
+    last_announcement_ = hint;
+    GetViewAccessibility().AnnouncePolitely(hint);
+    return;
+  }
   if (!move.applies) {
     return;
   }
@@ -1446,6 +1602,10 @@ void AerieSidebarView::OnMoveKey(aerie_tab_model::Section section,
 }
 
 bool AerieSidebarView::OnItemDragBegin(const std::string& id, bool is_folder) {
+  // A row of a smart folder only shows a tab: it is not dragged (issue #140).
+  if (aerie_tab_model::ParseSmartRowId(id)) {
+    return false;
+  }
   const bool began = EnsureDragController()->Begin(id, is_folder);
   SetHold(drag_hold_, aerie_sidebar::PeekBusy::kDrag, dragging());
   return began;
@@ -1711,9 +1871,13 @@ void AerieSidebarView::UpdateFolderRow(const Row& row) {
       !active.empty() &&
       aerie_tab_model::FolderContainsTab(*model_, folder->id, active);
   const bool auto_filing = aerie_tab_model::IsAutoFiling(*folder);
+  const bool smart = folder->kind == aerie_tab_model::FolderKind::kSmart;
   // An auto-filing folder says so in its name: "Trips, auto-filing folder, ...".
+  // So does a smart folder (issue #140).
   std::u16string accessible_name = l10n_util::GetStringFUTF16(
-      auto_filing ? (folder->expanded
+      smart ? (folder->expanded ? IDS_AERIE_SIDEBAR_SMART_FOLDER_NAME_EXPANDED
+                                : IDS_AERIE_SIDEBAR_SMART_FOLDER_NAME_COLLAPSED)
+      : auto_filing ? (folder->expanded
                          ? IDS_AERIE_SIDEBAR_AUTO_FOLDER_NAME_EXPANDED
                          : IDS_AERIE_SIDEBAR_AUTO_FOLDER_NAME_COLLAPSED)
                   : (folder->expanded
@@ -1730,6 +1894,8 @@ void AerieSidebarView::UpdateFolderRow(const Row& row) {
   folder_row->SetFolderState(
       name, accessible_name, folder->expanded, holds_selected,
       CanAnimateRows() ? browser_->GetProfile()->GetPrefs() : nullptr);
+  folder_row->SetSmart(smart, smart ? base::NumberToString16(row.item_count)
+                                    : std::u16string());
   folder_row->SetAutoFiling(
       auto_filing, l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_FOLDER_RULES_BUTTON));
 }
@@ -1743,13 +1909,34 @@ void AerieSidebarView::UpdateRow(const Row& row) {
   if (!tab) {
     return;
   }
+  const bool smart_member = aerie_tab_model::ParseSmartRowId(row.tab_id).has_value();
   const aerie_tab_model::TabRecord* record =
-      model_ ? model_->GetTab(row.tab_id) : nullptr;
+      model_ ? model_->GetTab(RealTabId(row.tab_id)) : nullptr;
   UpdateRowTitle(row, tab, record);
   row.view->SetFavicon(FaviconFor(tab, palette_.text_muted));
   row.view->SetSelected(tab->IsActivated());
   row.view->SetSleeping(record && record->sleeping,
                         browser_->GetProfile()->GetPrefs());
+  if (smart_member) {
+    // The row only shows the tab: the hover hint says where it is, and the
+    // close button says that it acts on the real tab.
+    const bool pinned_origin =
+        record && record->section == aerie_tab_model::Section::kPinned;
+    const std::u16string origin = l10n_util::GetStringUTF16(
+        pinned_origin ? IDS_AERIE_SIDEBAR_SMART_ORIGIN_PINNED
+                      : IDS_AERIE_SIDEBAR_SMART_ORIGIN_TODAY);
+    row.view->SetSmartMember(origin);
+    auto* controller = PinnedController();
+    const int action_id =
+        pinned_origin && controller
+            ? CloseTooltipMessageId(controller->ActionFor(tab))
+            : IDS_AERIE_SIDEBAR_CLOSE_TAB;
+    row.view->SetCloseTooltip(l10n_util::GetStringFUTF16(
+        IDS_AERIE_SIDEBAR_SMART_CLOSE_TOOLTIP,
+        l10n_util::GetStringUTF16(action_id), origin));
+    row.view->SetBackToPinnedVisible(false);
+    return;
+  }
   // A pinned row names what its close button does and offers the way back to
   // the pinned page (issue #180).
   auto* controller = PinnedController();
@@ -1799,12 +1986,17 @@ void AerieSidebarView::UpdateTile(const Tile& tile) {
                          browser_->GetProfile()->GetPrefs());
 }
 
-void AerieSidebarView::OnTabAdded(const aerie_tab_model::TabRecord&) {
+void AerieSidebarView::OnTabAdded(const aerie_tab_model::TabRecord& tab) {
+  if (smart_index_.HasSmartFolders()) {
+    smart_dirty_tabs_.insert(tab.id);
+    ScheduleSync();
+  }
   UpdateSleepingSummary();
 }
 
 void AerieSidebarView::OnTabMoved(const aerie_tab_model::TabRecord& tab,
                                   const aerie_tab_model::Placement& from) {
+  smart_dirty_tabs_.insert(tab.id);
   // A change of section plays the FLIP motion for this tab (issue #180).
   if (from.section != tab.section) {
     flip_pending_ = true;
@@ -1816,6 +2008,12 @@ void AerieSidebarView::OnTabMoved(const aerie_tab_model::TabRecord& tab,
 }
 
 void AerieSidebarView::OnTabChanged(const aerie_tab_model::TabRecord& record) {
+  // A tab that went to sleep or into the archive may enter or leave a smart
+  // folder (issue #140): only this tab is matched again.
+  if (smart_index_.HasSmartFolders() && model_ &&
+      smart_index_.UpdateTab(*model_, record.id, SmartFactsFor(record.id))) {
+    ScheduleSync();
+  }
   // The Tab Model reports every change of a record, title and favicon churn
   // included; `sleeping` is the only field this view needs. The title and
   // favicon reach the rows from OnTabChangedAt. So only the sleeping state of
@@ -1867,15 +2065,25 @@ void AerieSidebarView::OnTabChanged(const aerie_tab_model::TabRecord& record) {
   UpdateSleepingSummary();
 }
 
-void AerieSidebarView::OnTabRemoved(const aerie_tab_model::TabRecord&) {
+void AerieSidebarView::OnTabRemoved(const aerie_tab_model::TabRecord& tab) {
+  if (smart_index_.HasSmartFolders()) {
+    smart_dirty_tabs_.insert(tab.id);
+    ScheduleSync();
+  }
   UpdateSleepingSummary();
 }
 
-void AerieSidebarView::OnFolderAdded(const aerie_tab_model::FolderRecord&) {
+void AerieSidebarView::OnFolderAdded(
+    const aerie_tab_model::FolderRecord& folder) {
+  smart_dirty_folders_.insert(folder.id);
   ScheduleSync();
 }
 
-void AerieSidebarView::OnFolderChanged(const aerie_tab_model::FolderRecord&) {
+void AerieSidebarView::OnFolderChanged(
+    const aerie_tab_model::FolderRecord& folder) {
+  // A rule or a kind may have changed (issue #140): the folder is matched
+  // again, against the tabs, at the next sync.
+  smart_dirty_folders_.insert(folder.id);
   // A name, a state or a count: the sync updates the folder rows.
   ScheduleSync();
 }
@@ -1885,7 +2093,9 @@ void AerieSidebarView::OnFolderMoved(const aerie_tab_model::FolderRecord&,
   ScheduleSync();
 }
 
-void AerieSidebarView::OnFolderRemoved(const aerie_tab_model::FolderRecord&) {
+void AerieSidebarView::OnFolderRemoved(
+    const aerie_tab_model::FolderRecord& folder) {
+  smart_dirty_folders_.insert(folder.id);
   ScheduleSync();
 }
 
@@ -2276,7 +2486,7 @@ void AerieSidebarView::ShowRowContextMenu(
   auto* controller = aerie_tab_model::SleepControllerFactory::GetForProfile(
       browser_->GetProfile());
   const aerie_tab_model::TabRecord* record =
-      model_ ? model_->GetTab(tab_id) : nullptr;
+      model_ ? model_->GetTab(RealTabId(tab_id)) : nullptr;
   if (!tab || !controller || !record || !GetWidget()) {
     return;
   }
@@ -2293,7 +2503,10 @@ void AerieSidebarView::ShowRowContextMenu(
     options.sleep.tooltip =
         l10n_util::GetStringUTF16(eligibility.tooltip_message_id);
   }
-  if (record->section != aerie_tab_model::Section::kFavorite) {
+  // A row of a smart folder offers no folder items (issue #140): the real tab's
+  // own row has them.
+  if (record->section != aerie_tab_model::Section::kFavorite &&
+      !aerie_tab_model::ParseSmartRowId(tab_id)) {
     const aerie_tab_model::Section section = record->section;
     const bool in_folder = !record->parent.empty();
     options.new_folder.shown = true;
@@ -2648,6 +2861,14 @@ void AerieSidebarView::OpenFolderSheet(const std::string& folder_id) {
   params.folder_id = folder_id;
   params.palette = palette_;
   params.sidebar_on_right = OuterEdgeSign() > 0;
+  params.tabs_moved_out = base::BindRepeating(
+      [](base::WeakPtr<AerieSidebarView> self, const std::string& id,
+         int moved) {
+        if (self) {
+          self->OnTabsMovedOutOfFolder(id, moved);
+        }
+      },
+      weak_factory_.GetWeakPtr());
   params.closed = base::BindOnce(
       [](base::WeakPtr<AerieSidebarView> self, std::string id, bool refocus) {
         if (!self) {
@@ -2918,6 +3139,7 @@ void AerieSidebarView::OnTabStripModelChanged(
 
 void AerieSidebarView::OnTabChangedAt(tabs::TabInterface* tab,
                                       TabChangeType change_type) {
+  UpdateSmartTab(tab);
   UpdateRows();
 }
 

@@ -20,6 +20,7 @@
 #include "ui/compositor/layer.h"
 #include "ui/events/event.h"
 #include "ui/gfx/canvas.h"
+#include "ui/gfx/font.h"
 #include "ui/gfx/geometry/transform.h"
 #include "ui/gfx/geometry/transform_util.h"
 #include "ui/views/accessibility/view_accessibility.h"
@@ -30,6 +31,7 @@
 #include "ui/views/controls/image_view.h"
 #include "ui/views/controls/label.h"
 #include "ui/views/layout/box_layout.h"
+#include "ui/views/style/typography.h"
 #include "ui/views/view_class_properties.h"
 #include "ui/views/view_utils.h"
 
@@ -102,6 +104,19 @@ AerieSidebarFolderRowView::AerieSidebarFolderRowView(
   chevron->SetImageSize(gfx::Size(kFaviconSize, kFaviconSize));
   chevron->GetViewAccessibility().SetIsIgnored(true);
   chevron_ = content_area->AddChildViewAt(std::move(chevron), 0);
+  // The italic count of a smart folder, after the name (issue #140).
+  auto count = std::make_unique<views::Label>(
+      std::u16string(), views::style::CONTEXT_LABEL, views::style::STYLE_BODY_5);
+  count->SetFontList(
+      count->font_list().DeriveWithStyle(gfx::Font::ITALIC));
+  count->SetHorizontalAlignment(gfx::ALIGN_LEFT);
+  count->GetViewAccessibility().SetIsIgnored(true);
+  count->SetVisible(false);
+  const std::optional<size_t> name_index = content_area->GetIndexOf(title_label());
+  count_label_ = content_area->AddChildViewAt(
+      std::move(count),
+      name_index ? *name_index + 1 : content_area->children().size());
+
   // The dot of a shut folder that holds the open tab, after the name.
   auto dot = std::make_unique<views::View>();
   dot->SetPreferredSize(gfx::Size(aerie::tokens::kSizeFolderDot,
@@ -193,6 +208,7 @@ bool AerieSidebarFolderRowView::IsEditFolderClick(
 void AerieSidebarFolderRowView::OnDensityChanged() {
   // The rail shows the folder glyph only (issue #184).
   chevron_->SetVisible(!icons_only());
+  count_label_->SetVisible(smart_ && !icons_only());
   selection_dot_->SetVisible(holds_selected_tab_ && !icons_only());
   funnel_->SetVisible(auto_filing_ && !icons_only());
 }
@@ -205,8 +221,12 @@ void AerieSidebarFolderRowView::LayoutKindViews() {
 
 void AerieSidebarFolderRowView::ApplyKindPalette() {
   const aerie_sidebar::SidebarPalette& colors = palette();
-  favicon_view()->SetImage(ui::ImageModel::FromVectorIcon(
-      vector_icons::kFolderFilledIcon, colors.text_muted, icon_size()));
+  favicon_view()->SetImage(
+      smart_ ? ui::ImageModel::FromVectorIcon(aerie_sidebar::kAerieSmartFolderIcon,
+                                              colors.text_muted, icon_size())
+             : ui::ImageModel::FromVectorIcon(vector_icons::kFolderFilledIcon,
+                                              colors.text_muted, icon_size()));
+  count_label_->SetEnabledColor(colors.text_muted);
   chevron_->SetImage(ui::ImageModel::FromVectorIcon(
       vector_icons::kKeyboardArrowRightFlippableIcon, colors.text_muted,
       icon_size()));
@@ -232,6 +252,22 @@ void AerieSidebarFolderRowView::ApplyKindPalette() {
 
 views::View* AerieSidebarFolderRowView::chevron_view() const {
   return chevron_;
+}
+
+void AerieSidebarFolderRowView::SetSmart(bool smart,
+                                         const std::u16string& count_text) {
+  count_label_->SetText(count_text);
+  count_label_->SetVisible(smart && !icons_only());
+  if (smart_ == smart) {
+    return;
+  }
+  smart_ = smart;
+  // The glyph follows the kind.
+  ApplyKindPalette();
+  if (smart_) {
+    funnel_->SetVisible(false);
+  }
+  InvalidateLayout();
 }
 
 void AerieSidebarFolderRowView::SetAutoFiling(bool auto_filing,

@@ -42,8 +42,9 @@ class Textfield;
 // is a dialog for a screen reader ("Edit folder <name>"), keeps Tab inside it,
 // closes on Esc and on Done, and gives focus back to the folder's row.
 //
-// Kinds: Manual and Auto-filing, from a table (`kKinds` in the .cc), so a
-// later Smart or Behaviour kind is one more entry. Rules are chips: a switch,
+// Kinds: Manual, Auto-filing and Smart (issue #140), from a table (`kKinds` in
+// the .cc). Smart shares the rules and the exceptions with Auto-filing, adds a
+// one-line explanation, and has no Behaviour section. Rules are chips: a switch,
 // the type and text (press it to edit it) and a remove button. The footer holds
 // the switch of every folder's rules, which is the same preference as the one
 // in Settings.
@@ -68,6 +69,10 @@ class AerieSidebarFolderSheet : public views::BubbleDialogDelegate,
     // Runs once when the sheet has closed, with whether focus should go back to
     // the folder row (it should after Esc and Done, not after a click away).
     base::OnceCallback<void(bool refocus_anchor)> closed;
+    // Runs when switching the folder to Smart moved tabs out of it (issue #140),
+    // with the folder and how many tabs moved. The sidebar shows the notice.
+    base::RepeatingCallback<void(const std::string& folder_id, int moved)>
+        tabs_moved_out;
   };
 
   // Opens the sheet. Null when the folder does not exist.
@@ -89,8 +94,8 @@ class AerieSidebarFolderSheet : public views::BubbleDialogDelegate,
   views::Textfield* name_field() const { return name_field_; }
   // The buttons of the kind control (a segmented control; each says `radio`).
   views::LabelButton* kind_button(size_t index) const;
-  // Empty, hidden containers for the body of a Smart folder (#140) and the
-  // Behaviour section (#141). Nothing is in them yet.
+  // The body of a Smart folder (#140: one line, shown for that kind only) and
+  // the Behaviour section (#141: empty and hidden).
   views::View* smart_body_slot() const { return smart_body_slot_; }
   views::View* behaviour_slot() const { return behaviour_slot_; }
   bool kind_checked(size_t index) const;
@@ -142,6 +147,7 @@ class AerieSidebarFolderSheet : public views::BubbleDialogDelegate,
   aerie_sidebar::SidebarPalette palette_;
   const bool sidebar_on_right_;
   base::OnceCallback<void(bool)> closed_;
+  base::RepeatingCallback<void(const std::string&, int)> tabs_moved_out_;
   bool refocus_ = false;
   bool closing_ = false;
   bool rebuild_pending_ = false;

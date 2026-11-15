@@ -613,13 +613,15 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarFolderSheetBrowserTest,
 }
 
 IN_PROC_BROWSER_TEST_F(AerieSidebarFolderSheetBrowserTest,
-                       TheSheetKeepsEmptySlotsForSmartAndBehaviour) {
+                       TheSheetKeepsTheSmartBodyHiddenForAnAutoFolderAndTheBehaviourSlotEmpty) {
   const std::string folder =
       MakeAutoFolder("Trips", RuleType::kDomain, "trips.localhost");
   AerieSidebarFolderSheet* sheet = OpenSheet(folder);
   ASSERT_TRUE(sheet->smart_body_slot());
   ASSERT_TRUE(sheet->behaviour_slot());
-  EXPECT_TRUE(sheet->smart_body_slot()->children().empty());
+  // The Smart body (issue #140) is one line, shown for a Smart folder only; the
+  // Behaviour slot (#141) is still empty.
+  EXPECT_EQ(sheet->smart_body_slot()->children().size(), 1u);
   EXPECT_TRUE(sheet->behaviour_slot()->children().empty());
   EXPECT_FALSE(sheet->smart_body_slot()->GetVisible());
   EXPECT_FALSE(sheet->behaviour_slot()->GetVisible());

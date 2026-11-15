@@ -248,6 +248,10 @@ void AerieSidebarDragHost::ShowRefusal(aerie_sidebar::RefusalReason reason,
         view_->ShowToast(l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_FAVORITES_FULL));
       }
       break;
+    case aerie_sidebar::RefusalReason::kSmartFolder:
+      // A smart folder shows tabs and holds none (issue #140).
+      view_->ShowToast(l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_SMART_NO_DROP));
+      break;
     default:
       break;
   }

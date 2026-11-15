@@ -24,7 +24,9 @@
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_row_view.h"
 #include "chrome/browser/aerie_tab_model/tab_model_service.h"
 #include "chrome/browser/aerie_tab_model/tab_model_service_factory.h"
+#include "components/aerie_tab_model/folder_rules.h"
 #include "components/aerie_tab_model/folder_tree.h"
+#include "components/aerie_tab_model/smart_folder.h"
 #include "components/aerie_tab_model/tab_model.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_view.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
@@ -32,6 +34,8 @@
 #include "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/interactive_test_utils.h"
+#include "chrome/test/base/ui_test_utils.h"
+#include "net/test/embedded_test_server/embedded_test_server.h"
 #include "components/aerie_design_tokens/aerie_motion_prefs.h"
 #include "components/aerie_sidebar/aerie_sidebar_layout.h"
 #include "components/aerie_sidebar/aerie_sidebar_prefs.h"
@@ -453,4 +457,133 @@ IN_PROC_BROWSER_TEST_P(AerieSidebarReducedMotionUiTest,
       return !sidebar()->folder_group() || !sidebar()->folder_group()->running();
     }));
   }
+}
+
+// Smart folders (issue #140): the rows of a smart folder enter and leave with a
+// fade and nothing else moves. The rows are `fast` (140 ms); with reduced motion
+// (the OS flag, or the in-app setting) they are 90 ms with no transform.
+class AerieSidebarSmartMotionUiTest : public AerieSidebarReducedMotionUiTest {
+ protected:
+  void SetUpOnMainThread() override {
+    embedded_test_server()->ServeFilesFromSourceDirectory("chrome/test/data");
+    ASSERT_TRUE(embedded_test_server()->Start());
+    AerieSidebarReducedMotionUiTest::SetUpOnMainThread();
+  }
+
+  // A tab on a host the smart folder's rule matches, and the folder.
+  std::string OpenMatchingTabAndMakeFolder(std::string* folder) {
+    EXPECT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
+        browser(), embedded_test_server()->GetURL("docs.localhost", "/title1.html"),
+        WindowOpenDisposition::NEW_FOREGROUND_TAB,
+        ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
+    auto* service = aerie_tab_model::TabModelServiceFactory::GetForProfile(
+        browser()->GetProfile());
+    const std::string tab =
+        service->adapter()->RecordIdForTab(browser()->tab_strip_model()->GetActiveTab());
+    // Reduced motion and the folder's own reveal are set before the folder is
+    // made, so that the rows' motion is the one that is read.
+    ReduceMotion();
+    *folder = aerie_tab_model::CreateFolder(*service->model(),
+                                            aerie_tab_model::Section::kToday,
+                                            std::string(), "Docs");
+    EXPECT_TRUE(aerie_tab_model::SetFolderRuleKind(
+        *service->model(), *folder, aerie_tab_model::FolderKind::kSmart));
+    EXPECT_FALSE(aerie_tab_model::AddRule(*service->model(), *folder,
+                                          aerie_tab_model::RuleType::kDomain,
+                                          "docs.localhost")
+                     .empty());
+    return tab;
+  }
+
+  AerieSidebarRowView* WaitForSmartRow(const std::string& id) {
+    EXPECT_TRUE(base::test::RunUntil(
+        [&] { return sidebar()->RowForId(id) != nullptr; }));
+    return sidebar()->RowForId(id);
+  }
+};
+
+IN_PROC_BROWSER_TEST_P(AerieSidebarSmartMotionUiTest,
+                       SmartRowsFadeInAndOutWithNoTransformAndTheReducedDurationIs90ms) {
+  std::string folder;
+  const std::string tab = OpenMatchingTabAndMakeFolder(&folder);
+  AerieSidebarRowView* row =
+      WaitForSmartRow(aerie_tab_model::MakeSmartRowId(folder, tab));
+  ASSERT_TRUE(row);
+  ASSERT_TRUE(row->smart_member());
+  ASSERT_TRUE(row->content()->layer());
+  ui::Layer* layer = row->content()->layer();
+  // Only opacity animates on the way in: no transform, and the row does not
+  // grow in height by itself.
+  EXPECT_TRUE(Animates(layer, ui::LayerAnimationElement::OPACITY));
+  EXPECT_FALSE(Animates(layer, ui::LayerAnimationElement::TRANSFORM));
+  EXPECT_TRUE(OnlyTransformAndOpacityAnimate(layer));
+  EXPECT_TRUE(layer->GetTargetTransform().IsIdentity());
+  EXPECT_EQ(layer->GetTargetOpacity(), 1.f);
+  EXPECT_EQ(OpacityDuration(layer), base::Milliseconds(90));
+  ASSERT_TRUE(base::test::RunUntil([&] { return !row->height_animating(); }));
+
+  // The real tab closes, and the smart row fades out the same way.
+  auto* strip = browser()->tab_strip_model();
+  strip->CloseWebContentsAt(strip->active_index(), TabCloseTypes::CLOSE_NONE);
+  AerieSidebarRowView* leaving = nullptr;
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    for (size_t i = 0; i < sidebar()->closing_row_count(); ++i) {
+      if (sidebar()->closing_row_at(i)->smart_member()) {
+        leaving = sidebar()->closing_row_at(i);
+      }
+    }
+    return leaving != nullptr;
+  }));
+  ASSERT_TRUE(leaving->content()->layer());
+  ui::Layer* leaving_layer = leaving->content()->layer();
+  EXPECT_FALSE(Animates(leaving_layer, ui::LayerAnimationElement::TRANSFORM));
+  EXPECT_TRUE(OnlyTransformAndOpacityAnimate(leaving_layer));
+  EXPECT_TRUE(leaving_layer->GetTargetTransform().IsIdentity());
+  EXPECT_EQ(leaving_layer->GetTargetOpacity(), 0.f);
+  EXPECT_EQ(OpacityDuration(leaving_layer), base::Milliseconds(90));
+  ASSERT_TRUE(base::test::RunUntil(
+      [&] { return sidebar()->closing_row_count() == 0u; }));
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    AerieSmartReduceVia,
+    AerieSidebarSmartMotionUiTest,
+    testing::Values(ReduceVia::kOsFlag, ReduceVia::kPref),
+    [](const testing::TestParamInfo<ReduceVia>& info) {
+      return info.param == ReduceVia::kOsFlag ? "OsFlag" : "Pref";
+    });
+
+// Without reduced motion a smart row fades on `fast` (140 ms) and nothing else
+// moves either.
+IN_PROC_BROWSER_TEST_F(AerieSidebarMotionUiTest, SmartRowsFadeOnFastWithoutReducedMotionAndNothingElseMoves) {
+  ASSERT_TRUE(embedded_test_server()->Start());
+  ForceReducedMotion(false);
+  EXPECT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
+      browser(), embedded_test_server()->GetURL("docs.localhost", "/title1.html"),
+      WindowOpenDisposition::NEW_FOREGROUND_TAB,
+      ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
+  auto* service = aerie_tab_model::TabModelServiceFactory::GetForProfile(
+      browser()->GetProfile());
+  const std::string tab =
+      service->adapter()->RecordIdForTab(browser()->tab_strip_model()->GetActiveTab());
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return !sidebar()->RowForId(tab) || !sidebar()->RowForId(tab)->height_animating();
+  }));
+  const std::string folder = aerie_tab_model::CreateFolder(
+      *service->model(), aerie_tab_model::Section::kToday, std::string(), "Docs");
+  ASSERT_TRUE(aerie_tab_model::SetFolderRuleKind(
+      *service->model(), folder, aerie_tab_model::FolderKind::kSmart));
+  ASSERT_FALSE(aerie_tab_model::AddRule(*service->model(), folder,
+                                        aerie_tab_model::RuleType::kDomain,
+                                        "docs.localhost")
+                   .empty());
+  const std::string id = aerie_tab_model::MakeSmartRowId(folder, tab);
+  ASSERT_TRUE(base::test::RunUntil([&] { return sidebar()->RowForId(id) != nullptr; }));
+  AerieSidebarRowView* row = sidebar()->RowForId(id);
+  ASSERT_TRUE(row->content()->layer());
+  ui::Layer* layer = row->content()->layer();
+  EXPECT_TRUE(Animates(layer, ui::LayerAnimationElement::OPACITY));
+  EXPECT_FALSE(Animates(layer, ui::LayerAnimationElement::TRANSFORM));
+  EXPECT_TRUE(OnlyTransformAndOpacityAnimate(layer));
+  EXPECT_EQ(OpacityDuration(layer), base::Milliseconds(140));
 }
