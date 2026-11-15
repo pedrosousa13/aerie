@@ -90,9 +90,12 @@ void AerieSidebarContextMenu::BuildTabItems() {
         Id(Command::kAddToFavorites),
         l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_ADD_TO_FAVORITES));
   }
-  root_->AppendMenuItem(
-      Id(Command::kRename), l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_RENAME_TAB));
-  if (options_.has_manual_name) {
+  if (options_.can_rename) {
+    root_->AppendMenuItem(
+        Id(Command::kRename),
+        l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_RENAME_TAB));
+  }
+  if (options_.can_rename && options_.has_manual_name) {
     root_->AppendMenuItem(Id(Command::kResetName), l10n_util::GetStringUTF16(
                                                  IDS_AERIE_SIDEBAR_RESET_NAME));
   }

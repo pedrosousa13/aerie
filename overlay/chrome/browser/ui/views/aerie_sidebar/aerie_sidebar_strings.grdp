@@ -277,11 +277,8 @@
   <message name="IDS_AERIE_SIDEBAR_FILED_DONT_FILE_SITE" desc="Button in the notice that says a tab was filed into a folder by a rule. It adds the tab's website to the folder's exceptions, so that no tab of that website is filed there again.">
     Don't file this site
   </message>
-  <message name="IDS_AERIE_SIDEBAR_SMART_FOLDER_NAME_EXPANDED" desc="Accessible name of a folder row in the sidebar that shows the open tabs that match its rules and is open. The name comes first, then the kind, the state and the number of tabs it shows, for example: Docs, smart folder, expanded, 4 items.">
-    <ph name="NAME">$1<ex>Docs</ex></ph>, smart folder, expanded, <ph name="ITEMS">$2<ex>4 items</ex></ph>
-  </message>
-  <message name="IDS_AERIE_SIDEBAR_SMART_FOLDER_NAME_COLLAPSED" desc="Accessible name of a folder row in the sidebar that shows the open tabs that match its rules and is shut. The name comes first, then the kind, the state and the number of tabs it shows, for example: Docs, smart folder, collapsed, 4 items.">
-    <ph name="NAME">$1<ex>Docs</ex></ph>, smart folder, collapsed, <ph name="ITEMS">$2<ex>4 items</ex></ph>
+  <message name="IDS_AERIE_SIDEBAR_SMART_FOLDER_NAME" desc="Accessible name of a folder row in the sidebar that shows the open tabs that match its rules. The name comes first, then the kind and the number of tabs it shows, for example: Docs, smart folder, 4 items. Whether it is open or shut is read from its expanded state.">
+    <ph name="NAME">$1<ex>Docs</ex></ph>, smart folder, <ph name="ITEMS">$2<ex>4 items</ex></ph>
   </message>
   <message name="IDS_AERIE_SIDEBAR_SMART_ORIGIN_TODAY" desc="Small hint at the end of a row inside a smart folder in the sidebar, when the pointer is on the row. It says that the real tab is in the Today list.">
     Today

@@ -22,9 +22,21 @@ const std::set<std::string>& NoMembers() {
 
 }  // namespace
 
+// The folder id is escaped (`\\` for a backslash, `\:` for a colon) so that the
+// first unescaped colon always ends it, whatever characters a loaded record id
+// has. The tab id is the rest of the string and is not escaped.
 std::string MakeSmartRowId(const std::string& folder_id,
                            const std::string& tab_id) {
-  return std::string(kSmartRowPrefix) + folder_id + ":" + tab_id;
+  std::string id(kSmartRowPrefix);
+  for (char c : folder_id) {
+    if (c == '\\' || c == ':') {
+      id.push_back('\\');
+    }
+    id.push_back(c);
+  }
+  id.push_back(':');
+  id += tab_id;
+  return id;
 }
 
 std::optional<SmartRowRef> ParseSmartRowId(std::string_view row_id) {
@@ -32,13 +44,25 @@ std::optional<SmartRowRef> ParseSmartRowId(std::string_view row_id) {
     return std::nullopt;
   }
   row_id.remove_prefix(kSmartRowPrefix.size());
-  const size_t colon = row_id.find(':');
-  if (colon == std::string_view::npos || colon == 0 ||
-      colon + 1 == row_id.size()) {
+  std::string folder;
+  size_t i = 0;
+  for (; i < row_id.size(); ++i) {
+    const char c = row_id[i];
+    if (c == '\\') {
+      if (i + 1 >= row_id.size()) {
+        return std::nullopt;
+      }
+      folder.push_back(row_id[++i]);
+    } else if (c == ':') {
+      break;
+    } else {
+      folder.push_back(c);
+    }
+  }
+  if (i >= row_id.size() || folder.empty() || i + 1 == row_id.size()) {
     return std::nullopt;
   }
-  return SmartRowRef{std::string(row_id.substr(0, colon)),
-                     std::string(row_id.substr(colon + 1))};
+  return SmartRowRef{std::move(folder), std::string(row_id.substr(i + 1))};
 }
 
 SmartFolderIndex::SmartFolderIndex() = default;
@@ -80,7 +104,17 @@ bool SmartFolderIndex::RefreshFolder(const TabModel& model,
   Entry entry;
   entry.rules = ReadFolderRules(*folder);
   entry.workspace_id = folder->workspace_id;
+  // A change that is not about what the folder lists (it opened, was renamed
+  // or moved) costs nothing: the rules, the switches and the workspace are what
+  // decide the members, and tab changes reach the index through UpdateTab.
+  last_scanned_ = 0;
+  if (existing != entries_.end() &&
+      existing->second.rules == entry.rules &&
+      existing->second.workspace_id == entry.workspace_id) {
+    return false;
+  }
   for (const auto& [id, tab] : model.tabs()) {
+    ++last_scanned_;
     if (!IsListable(tab, entry)) {
       continue;
     }

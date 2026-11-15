@@ -416,4 +416,47 @@ TEST_F(SmartFolderTest, ATitleChangeCostsOneEvaluationPerFolderNotPerTab) {
 
 }  // namespace
 
+TEST_F(SmartFolderTest, ARowIdWithColonsInTheFolderIdStaysUnambiguous) {
+  // Loaded record ids are only checked for being non-empty.
+  const std::string folder = "f:1\\x";
+  const std::string tab = "t:2";
+  std::optional<SmartRowRef> ref = ParseSmartRowId(MakeSmartRowId(folder, tab));
+  ASSERT_TRUE(ref);
+  EXPECT_EQ(folder, ref->folder_id);
+  EXPECT_EQ(tab, ref->tab_id);
+  // Two different pairs never give one id.
+  EXPECT_NE(MakeSmartRowId("a:b", "c"), MakeSmartRowId("a", "b:c"));
+  EXPECT_EQ("a:b", ParseSmartRowId(MakeSmartRowId("a:b", "c"))->folder_id);
+  EXPECT_EQ("b:c", ParseSmartRowId(MakeSmartRowId("a", "b:c"))->tab_id);
+  // A dangling escape is not a row id.
+  EXPECT_FALSE(ParseSmartRowId("smart:abc\\"));
+}
+
+TEST_F(SmartFolderTest, ARefreshThatChangedNothingTheFolderListsByMatchesNoTab) {
+  const std::string folder = SmartFolder(Section::kToday, "docs.test");
+  for (int i = 0; i < 50; ++i) {
+    Tab("https://other" + base::NumberToString(i) + ".test/");
+  }
+  Tab("https://docs.test/");
+  Refresh(folder);
+  EXPECT_EQ(51u, index_.last_scanned());
+  // It opened, was renamed and moved: nothing it lists by changed.
+  model_.UpdateFolder(folder, [](FolderRecord& f) {
+    f.expanded = !f.expanded;
+    f.name = "Renamed";
+  });
+  Refresh(folder);
+  EXPECT_EQ(0u, index_.last_scanned());
+  EXPECT_EQ(1u, index_.Members(folder).size());
+  // A rule change scans again.
+  ASSERT_FALSE(AddRule(model_, folder, RuleType::kDomain, "other1.test").empty());
+  Refresh(folder);
+  EXPECT_EQ(51u, index_.last_scanned());
+  EXPECT_EQ(2u, index_.Members(folder).size());
+  // So does a switch.
+  ASSERT_TRUE(SetFolderRulesEnabled(model_, folder, false));
+  Refresh(folder);
+  EXPECT_EQ(51u, index_.last_scanned());
+}
+
 }  // namespace aerie_tab_model

@@ -1875,8 +1875,7 @@ void AerieSidebarView::UpdateFolderRow(const Row& row) {
   // An auto-filing folder says so in its name: "Trips, auto-filing folder, ...".
   // So does a smart folder (issue #140).
   std::u16string accessible_name = l10n_util::GetStringFUTF16(
-      smart ? (folder->expanded ? IDS_AERIE_SIDEBAR_SMART_FOLDER_NAME_EXPANDED
-                                : IDS_AERIE_SIDEBAR_SMART_FOLDER_NAME_COLLAPSED)
+      smart ? IDS_AERIE_SIDEBAR_SMART_FOLDER_NAME
       : auto_filing ? (folder->expanded
                          ? IDS_AERIE_SIDEBAR_AUTO_FOLDER_NAME_EXPANDED
                          : IDS_AERIE_SIDEBAR_AUTO_FOLDER_NAME_COLLAPSED)
@@ -2020,6 +2019,18 @@ void AerieSidebarView::OnTabChanged(const aerie_tab_model::TabRecord& record) {
   // this one row is updated, and the Today summary is computed again only when
   // that state changes.
   // A manual name set or cleared is seen here (issue #145).
+  // The rows of this tab inside smart folders follow its sleeping state too
+  // (issue #140).
+  for (const std::vector<Row>* rows : {&rows_, &pinned_rows_}) {
+    for (const Row& row : *rows) {
+      std::optional<aerie_tab_model::SmartRowRef> ref =
+          aerie_tab_model::ParseSmartRowId(row.tab_id);
+      if (ref && ref->tab_id == record.id) {
+        row.view->SetSleeping(record.sleeping,
+                              browser_->GetProfile()->GetPrefs());
+      }
+    }
+  }
   for (const Tile& tile : tiles_) {
     if (tile.tab_id == record.id) {
       if (tabs::TabInterface* tab = FindTab(record.id)) {
@@ -2132,6 +2143,13 @@ bool AerieSidebarView::IsInsideFolder(const std::string& folder_id,
                                       const std::string& id) const {
   if (!model_) {
     return false;
+  }
+  // A row of a smart folder is inside the smart folder, and inside whatever
+  // that folder is inside (issue #140).
+  if (std::optional<aerie_tab_model::SmartRowRef> ref =
+          aerie_tab_model::ParseSmartRowId(id)) {
+    return ref->folder_id == folder_id ||
+           IsInsideFolder(folder_id, ref->folder_id);
   }
   if (model_->GetTab(id)) {
     return aerie_tab_model::FolderContainsTab(*model_, folder_id, id);
@@ -2497,7 +2515,10 @@ void AerieSidebarView::ShowRowContextMenu(
   if (auto* pinned = PinnedController()) {
     options.away_from_pinned = pinned->IsAwayFromPinnedPage(tab);
   }
-  options.has_manual_name = record->manual_name.has_value();
+  // A row of a smart folder has no rename (issue #140): the real row has it.
+  options.can_rename = !aerie_tab_model::ParseSmartRowId(tab_id);
+  options.has_manual_name =
+      options.can_rename && record->manual_name.has_value();
   options.sleep.enabled = eligibility.state == Eligibility::State::kCanSleep;
   if (!options.sleep.enabled) {
     options.sleep.tooltip =

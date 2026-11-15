@@ -195,6 +195,12 @@ none. What the brief left open, and what was chosen:
   (by site and by tab) apply as they do to auto-filing.
 - **Motion.** A member row fades in and out on `fast` and nothing else moves; reduced motion is the existing 90 ms. The
   list height animates as for any folder.
+- **Names.** The folder row reads "Docs, smart folder, 4 items"; open or shut is the tree role's expanded state, not a
+  word in the name. A member row reads "<title>, shown from Today" and its menu has no Rename or Reset name.
+- **Ids.** A member row id is `smart:<folder>:<tab>`; a colon or backslash in the folder id is escaped with a backslash,
+  so the first unescaped colon ends the folder id whatever a loaded record id holds.
+- **Re-matching.** A folder change that is not about rules, switches, kind or workspace (open, shut, rename, move)
+  matches no tab. A stored rule value over 512 bytes is dropped when the rules are read.
 - **Close.** The close button of a member row closes the real tab, and its tooltip says so and where the tab is. For a
   Pinned tab it follows the pinned-close setting, so it may sleep the tab.
 

@@ -93,6 +93,12 @@ FolderRules ReadFolderRules(const FolderRecord& folder) {
           !RuleTypeFromString(*type_text, &rule.type)) {
         continue;
       }
+      // A stored value longer than a rule may be is dropped, not cut: a cut
+      // value would match something the user never wrote. Saving refuses such
+      // a value too, so only a hand-edited or hostile record has one.
+      if (value->size() > kMaxRuleValueLength) {
+        continue;
+      }
       rule.id = *id;
       rule.value = *value;
       if (rule.type == RuleType::kDomain) {

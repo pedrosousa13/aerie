@@ -91,6 +91,9 @@ class SmartFolderIndex {
 
   // How many folders the last UpdateTab matched the tab against (tests).
   size_t last_evaluations() const { return last_evaluations_; }
+  // How many tabs the last RefreshFolder matched (tests): 0 when nothing the
+  // folder lists by had changed.
+  size_t last_scanned() const { return last_scanned_; }
 
  private:
   struct Entry {
@@ -106,6 +109,7 @@ class SmartFolderIndex {
 
   std::map<std::string, Entry> entries_;
   size_t last_evaluations_ = 0;
+  size_t last_scanned_ = 0;
 };
 
 // The rows of `section` as BuildVisibleRows made them, with the rows of the

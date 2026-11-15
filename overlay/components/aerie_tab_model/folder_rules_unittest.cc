@@ -475,4 +475,27 @@ TEST_F(FolderRulesTest, FilingRefusesAFavoriteAndAnUnknownFolder) {
 
 }  // namespace
 
+TEST_F(FolderRulesTest, ARuleValueLongerThanTheLimitIsDroppedWhenLoaded) {
+  std::string folder = CreateFolder(model_, Section::kToday, "", "Hostile");
+  SetFolderRuleKind(model_, folder, FolderKind::kAuto);
+  base::DictValue dict;
+  base::ListValue list;
+  base::DictValue huge;
+  huge.Set("id", "h");
+  huge.Set("type", "title-contains");
+  huge.Set("value", std::string(kMaxRuleValueLength + 1, 'x'));
+  list.Append(std::move(huge));
+  base::DictValue fine;
+  fine.Set("id", "f");
+  fine.Set("type", "title-contains");
+  fine.Set("value", std::string(kMaxRuleValueLength, 'y'));
+  list.Append(std::move(fine));
+  dict.Set("rules", std::move(list));
+  model_.UpdateFolder(folder, [&](FolderRecord& f) { f.rules = std::move(dict); });
+  FolderRules rules = ReadFolderRules(*model_.GetFolder(folder));
+  ASSERT_EQ(1u, rules.rules.size());
+  EXPECT_EQ("f", rules.rules[0].id);
+  EXPECT_EQ(kMaxRuleValueLength, rules.rules[0].value.size());
+}
+
 }  // namespace aerie_tab_model

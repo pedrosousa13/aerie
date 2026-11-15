@@ -443,7 +443,7 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarSmartBrowserTest,
   AerieSidebarFolderRowView* folder_row = sidebar()->FolderRowForId(folder);
   ASSERT_TRUE(folder_row);
   EXPECT_EQ(DataOf(folder_row).role, ax::mojom::Role::kTreeItem);
-  EXPECT_EQ(NameOf(folder_row), "Docs, smart folder, expanded, 1 item");
+  EXPECT_EQ(NameOf(folder_row), "Docs, smart folder, 1 item");
   EXPECT_TRUE(DataOf(folder_row).HasState(ax::mojom::State::kExpanded));
 
   AerieSidebarRowView* smart = sidebar()->RowForId(SmartRow(folder, tab));
@@ -461,9 +461,12 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarSmartBrowserTest,
   // The shut folder says so, and keeps its count.
   ASSERT_TRUE(aerie_tab_model::SetFolderExpanded(*model(), folder, false));
   ASSERT_TRUE(base::test::RunUntil([&] {
-    return NameOf(sidebar()->FolderRowForId(folder)) ==
-           "Docs, smart folder, collapsed, 1 item";
+    return DataOf(sidebar()->FolderRowForId(folder))
+        .HasState(ax::mojom::State::kCollapsed);
   }));
+  // The state is the tree role's, not a word in the name.
+  EXPECT_EQ(NameOf(sidebar()->FolderRowForId(folder)),
+            "Docs, smart folder, 1 item");
   EXPECT_FALSE(sidebar()->RowForId(SmartRow(folder, tab)));
 }
 
@@ -680,4 +683,96 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarSmartBrowserTest,
        aerie_tab_model::FolderChoices(*model(), Section::kToday)) {
     EXPECT_NE(choice.id, folder);
   }
+}
+
+// A row of a smart folder has no Rename and no Reset name: both would do
+// nothing, and the real row has them.
+IN_PROC_BROWSER_TEST_F(AerieSidebarSmartBrowserTest,
+                       TheMenuOfASmartRowHasNoRenameAndNoResetName) {
+  using Command = AerieSidebarContextMenu::Command;
+  const std::string tab = OpenTabAt(UrlOn("docs.localhost"));
+  model()->UpdateTab(tab, [](aerie_tab_model::TabRecord& t) {
+    t.manual_name = "Mine";
+  });
+  const std::string folder =
+      MakeSmartFolder("Docs", RuleType::kDomain, "docs.localhost");
+  ASSERT_TRUE(WaitForRow(SmartRow(folder, tab)));
+
+  sidebar()->ShowRowContextMenuForTesting(SmartRow(folder, tab));
+  ASSERT_TRUE(sidebar()->context_menu());
+  EXPECT_EQ(sidebar()->context_menu()->item(Command::kRename), nullptr);
+  EXPECT_EQ(sidebar()->context_menu()->item(Command::kResetName), nullptr);
+  EXPECT_NE(sidebar()->context_menu()->item(Command::kClose), nullptr);
+  sidebar()->context_menu()->Close();
+
+  sidebar()->ShowRowContextMenuForTesting(tab);
+  ASSERT_TRUE(sidebar()->context_menu());
+  EXPECT_NE(sidebar()->context_menu()->item(Command::kRename), nullptr);
+  EXPECT_NE(sidebar()->context_menu()->item(Command::kResetName), nullptr);
+  sidebar()->context_menu()->Close();
+}
+
+// The smart row follows the tab's sleeping state at once, from the record's own
+// change and not from the next sync.
+IN_PROC_BROWSER_TEST_F(AerieSidebarSmartBrowserTest,
+                       ASmartRowFollowsTheSleepAndTheWakeOfItsTabAtOnce) {
+  const std::string tab = OpenTabAt(UrlOn("docs.localhost"));
+  const std::string folder =
+      MakeSmartFolder("Docs", RuleType::kDomain, "docs.localhost");
+  ASSERT_TRUE(WaitForRow(SmartRow(folder, tab)));
+  AerieSidebarRowView* smart = sidebar()->RowForId(SmartRow(folder, tab));
+  ASSERT_TRUE(smart);
+  EXPECT_FALSE(smart->sleeping());
+  model()->UpdateTab(tab, [](aerie_tab_model::TabRecord& t) { t.sleeping = true; });
+  EXPECT_TRUE(smart->sleeping());
+  EXPECT_TRUE(sidebar()->RowForId(tab)->sleeping());
+  model()->UpdateTab(tab, [](aerie_tab_model::TabRecord& t) { t.sleeping = false; });
+  EXPECT_FALSE(smart->sleeping());
+}
+
+// Shutting the folder with the keyboard focus on one of its rows puts the focus
+// on the folder row, not on an unrelated row.
+IN_PROC_BROWSER_TEST_F(AerieSidebarSmartBrowserTest,
+                       CollapsingWithFocusOnASmartRowMovesFocusToTheFolderRow) {
+  const std::string tab = OpenTabAt(UrlOn("docs.localhost"));
+  const std::string folder =
+      MakeSmartFolder("Docs", RuleType::kDomain, "docs.localhost");
+  ASSERT_TRUE(WaitForRow(SmartRow(folder, tab)));
+  AerieSidebarRowView* smart = sidebar()->RowForId(SmartRow(folder, tab));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    smart->RequestFocus();
+    return smart->HasFocus();
+  }));
+  sidebar()->SetFolderExpanded(folder, false);
+  ASSERT_TRUE(base::test::RunUntil(
+      [&] { return !sidebar()->RowForId(SmartRow(folder, tab)); }));
+  AerieSidebarRowView* folder_row = sidebar()->RowForId(folder);
+  ASSERT_TRUE(folder_row);
+  EXPECT_TRUE(folder_row->HasFocus());
+}
+
+// A smart folder inside a folder that is toggled counts as inside it.
+IN_PROC_BROWSER_TEST_F(AerieSidebarSmartBrowserTest,
+                       CollapsingTheFolderAroundASmartFolderMovesFocusToo) {
+  const std::string tab = OpenTabAt(UrlOn("docs.localhost"));
+  const std::string outer =
+      aerie_tab_model::CreateFolder(*model(), Section::kToday, "", "Outer");
+  const std::string inner = aerie_tab_model::CreateFolder(
+      *model(), Section::kToday, outer, "Docs");
+  ASSERT_FALSE(inner.empty());
+  ASSERT_TRUE(aerie_tab_model::SetFolderRuleKind(*model(), inner,
+                                                 FolderKind::kSmart));
+  ASSERT_FALSE(aerie_tab_model::AddRule(*model(), inner, RuleType::kDomain,
+                                        "docs.localhost")
+                   .empty());
+  ASSERT_TRUE(WaitForRow(SmartRow(inner, tab)));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    AerieSidebarRowView* row = sidebar()->RowForId(SmartRow(inner, tab));
+    row->RequestFocus();
+    return row->HasFocus();
+  }));
+  sidebar()->SetFolderExpanded(outer, false);
+  ASSERT_TRUE(base::test::RunUntil(
+      [&] { return !sidebar()->RowForId(SmartRow(inner, tab)); }));
+  EXPECT_TRUE(sidebar()->RowForId(outer)->HasFocus());
 }
