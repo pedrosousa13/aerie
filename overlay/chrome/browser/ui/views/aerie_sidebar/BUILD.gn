@@ -28,6 +28,8 @@ source_set("aerie_sidebar") {
     "aerie_sidebar_peek_surface.h",
     "aerie_sidebar_floating.cc",
     "aerie_sidebar_floating.h",
+    "aerie_sidebar_frame_start.cc",
+    "aerie_sidebar_frame_start.h",
     "aerie_sidebar_focus_ring.cc",
     "aerie_sidebar_focus_ring.h",
     "aerie_sidebar_folder_controller.cc",

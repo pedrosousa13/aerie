@@ -76,7 +76,7 @@ density change re-reads the width. A resize tells the sidebar view, so that the 
      state_controller_->SetUncollapsedWidth(new_width);
    }
    target_collapse_state_.uncollapsed_width = new_width;
-@@ -924,6 +939,19 @@
+@@ -934,6 +949,19 @@
    aerie_target_visible_ = visible;
    aerie_hide_timer_.Stop();
    aerie_motion_.Abort();
@@ -96,7 +96,7 @@ density change re-reads the width. A resize tells the sidebar view, so that the 
    const bool reduced = aerie::motion::ShouldReduceMotion(prefs);
    const bool on_right =
        state_controller_->IsTabStripRightAligned() != base::i18n::IsRTL();
-@@ -988,6 +1016,29 @@
+@@ -998,6 +1026,29 @@
            base::Unretained(this)));
  }
  
@@ -126,7 +126,7 @@ density change re-reads the width. A resize tells the sidebar view, so that the 
  void VerticalTabStripRegionView::SetCollapsedStateUpdatedCallback(
      base::RepeatingCallback<void(bool)> callback) {
    update_state_controller_collapsed_callback_ = std::move(callback);
-@@ -1146,6 +1197,12 @@
+@@ -1156,6 +1207,12 @@
  }
  
  void VerticalTabStripRegionView::UpdateResizeAreaVisibility() {
@@ -141,7 +141,7 @@ density change re-reads the width. A resize tells the sidebar view, so that the 
      return;
 --- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
 +++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
-@@ -212,6 +212,8 @@
+@@ -213,6 +213,8 @@
    // Aerie sidebar (issue #177): see the .cc.
    void OnAerieResize(int resize_amount, bool done_resizing);
    void OnAerieVisibleChanged();

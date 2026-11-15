@@ -214,7 +214,8 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarBrowserTest, CtrlSHidesAndShowsAndRemembers) 
 
   chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
   EXPECT_TRUE(aerie_sidebar::IsVisible(*prefs()));
-  EXPECT_FALSE(region()->aerie_sidebar_hidden());
+  // The show starts at the next begin-frame (issue #237).
+  EXPECT_TRUE(WaitFor([&] { return !region()->aerie_sidebar_hidden(); }));
   EXPECT_GT(region()->GetPreferredSize().width(), 0);
 }
 
@@ -265,8 +266,9 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarBrowserTest, FullMotionSlidesTheLayerOut) {
   ASSERT_TRUE(region());
   auto reset = gfx::AnimationTestApi::SetPrefersReducedMotionForTesting(false);
   chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
-  // Full motion slides the layer out of view.
-  EXPECT_FALSE(region()->layer()->GetTargetTransform().IsIdentity());
+  // Full motion slides the layer out of view, from the next begin-frame on.
+  EXPECT_TRUE(WaitFor(
+      [&] { return !region()->layer()->GetTargetTransform().IsIdentity(); }));
 }
 
 IN_PROC_BROWSER_TEST_F(AerieSidebarBrowserTest, ResizeIsClampedAndStored) {
