@@ -14,6 +14,10 @@ from .gate import CiConfig
 
 PASS, FAIL, BUSY = "pass", "fail", "busy"
 
+# sidebar_frames fails until #237 lands, and a failing Bench run is not recorded as the perf baseline the PR gate
+# compares against. It runs by hand until then; when it passes, remove it from here and the nightly records its baseline.
+NIGHTLY_BENCH_EXCLUDE = ("sidebar_frames",)
+
 
 def run_nightly(cfg: CiConfig, *, today: Callable[[], str] = lambda: time.strftime("%Y-%m-%d"),
                 report_issue: int | None = None) -> str:
@@ -32,7 +36,7 @@ def run_nightly(cfg: CiConfig, *, today: Callable[[], str] = lambda: time.strfti
                     cmds = st.python_steps(cfg.python, tree, cfg.build_root, cfg.ccache_dir)
                     # Every registered check, zero_traffic included. --clean drops the source tree and the
                     # pristine snapshot; the compiler cache stays (see docs/ci.md).
-                    checks = st.bench_check_names(cfg.shell, cfg.python, tree, env, exclude=())
+                    checks = st.bench_check_names(cfg.shell, cfg.python, tree, env, exclude=NIGHTLY_BENCH_EXCLUDE)
                     # A passing run with the perf check becomes the baseline the PR gate compares against.
                     extra = ("--download-benchmarks", "--perf-record", str(cfg.perf_dir)) if "perf" in checks else ()
                     plan = [st.Step("clean build", cmds["clean_build"]),

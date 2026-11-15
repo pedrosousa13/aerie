@@ -83,6 +83,18 @@ def add_arguments(p: argparse.ArgumentParser, *, binary_required: bool) -> None:
                         "Without this flag a benchmark that cannot be measured fails the check")
     p.add_argument("--perf-settle", type=float, default=3.0, metavar="SEC",
                    help="perf: wait after the ad-heavy pages before reading memory (default 3)")
+    p.add_argument("--sidebar-frames-baseline", metavar="FILE",
+                   help="sidebar_frames: compare against this document (sidebar-frames-main.json of a "
+                        "--sidebar-frames-record directory) and fail when an animation got worse past its threshold. "
+                        "A file that does not exist fails the run, unless --sidebar-frames-first-run is given")
+    p.add_argument("--sidebar-frames-first-run", action="store_true",
+                   help="sidebar_frames: with --sidebar-frames-baseline, pass when that file does not exist yet")
+    p.add_argument("--sidebar-frames-record", metavar="DIR",
+                   help="sidebar_frames: after a passing run, append sidebar_frames.json to "
+                        "DIR/sidebar-frames-history.jsonl and make it DIR/sidebar-frames-main.json "
+                        "(use it on main builds only)")
+    p.add_argument("--sidebar-frames-repeats", type=int, default=5, metavar="N",
+                   help="sidebar_frames: how many times each animation runs (default 5)")
     p.add_argument("--flag", action="append", default=[], metavar="FLAG",
                    help="extra browser command-line flag (repeatable)")
 
@@ -125,6 +137,14 @@ def run(args: argparse.Namespace, build_root: Path, default_binary: Path | None)
                              "need --check perf")
         if args.perf_first_run and not args.perf_baseline:
             raise BenchError("--perf-first-run needs --perf-baseline")
+        if (args.sidebar_frames_baseline or args.sidebar_frames_record or args.sidebar_frames_first_run) \
+                and "sidebar_frames" not in sc.checks:
+            raise BenchError("--sidebar-frames-baseline, --sidebar-frames-first-run and --sidebar-frames-record "
+                             "need --check sidebar_frames")
+        if args.sidebar_frames_first_run and not args.sidebar_frames_baseline:
+            raise BenchError("--sidebar-frames-first-run needs --sidebar-frames-baseline")
+        if args.sidebar_frames_repeats < 2:
+            raise BenchError("--sidebar-frames-repeats takes 2 or more")
         if args.download_benchmarks:
             from aerie_build import lock
 
@@ -150,6 +170,9 @@ def run(args: argparse.Namespace, build_root: Path, default_binary: Path | None)
                    "adblock_score": {"build_root": str(build_root), "baseline": args.adblock_baseline,
                                      "online_seconds": args.adblock_online},
                    "workspace_isolation": {"enforce": args.workspaces_enforce},
+                   "sidebar_frames": {"baseline": args.sidebar_frames_baseline,
+                                      "first_run": args.sidebar_frames_first_run,
+                                      "repeats": args.sidebar_frames_repeats},
                    "perf": {"baseline": args.perf_baseline, "settle_seconds": args.perf_settle,
                             "first_run": args.perf_first_run, "benchmarks": not args.perf_skip_benchmarks}}
         common = dict(headless=not args.headed, no_sandbox=args.no_sandbox, timeout=args.timeout,
@@ -160,6 +183,8 @@ def run(args: argparse.Namespace, build_root: Path, default_binary: Path | None)
         code = EXIT_PASS if result.status == "pass" else EXIT_FAIL
         if "perf" in sc.checks:
             code = max(code, _perf_followup(args, result, build_root, common))
+        if "sidebar_frames" in sc.checks and args.sidebar_frames_record:
+            _record_sidebar_frames(args, result)
         if args.baseline:
             base_out = Path(str(args.out).rstrip("/") + "-baseline") if args.out else None
             base = run_bench(Path(args.baseline), scenario.Scenario("zero-traffic-baseline", ("zero_traffic",)),
@@ -169,6 +194,18 @@ def run(args: argparse.Namespace, build_root: Path, default_binary: Path | None)
     except (BenchError, scenario.ScenarioError) as exc:
         print(f"aerie bench: error: {exc}", file=sys.stderr)
         return EXIT_HARNESS
+
+
+def _record_sidebar_frames(args, result) -> None:
+    """Make a passing run the baseline of the next comparison (use it on builds of main only)."""
+    from . import frames
+    doc_path = result.out_dir / "sidebar_frames.json"
+    if not doc_path.is_file():
+        return
+    if result.status == "pass":
+        print(f"sidebar_frames: recorded in {frames.record(Path(args.sidebar_frames_record), frames.load(doc_path))}")
+    else:
+        print("sidebar_frames: run did not pass; not recorded")
 
 
 def _perf_followup(args, result, build_root, common) -> int:

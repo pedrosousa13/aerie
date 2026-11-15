@@ -75,6 +75,19 @@ class VariantTest(unittest.TestCase):
         seeded = [l for l in self.prefs_log.read_text().splitlines() if l.startswith("{")]
         self.assertEqual(json.loads(seeded[0]), {"webrtc": {"ip_handling_policy": "default"}})
 
+    def test_a_headed_variant_has_a_window_while_the_run_stays_headless(self):
+        def body(s):
+            with s.variant(("--v",)):
+                pass
+            plain = json.loads((self.root / "args.json").read_text())
+            with s.variant(("--v",), headed=True, env={"DISPLAY": ":77"}):
+                pass
+            return {"plain": plain, "headed": json.loads((self.root / "args.json").read_text())}
+        data = self.go(body, headless=True).data["checks"][0]["data"]
+        self.assertIn("--headless=new", data["plain"])
+        self.assertNotIn("--headless=new", data["headed"])
+        self.assertIn("--v", data["headed"])
+
     def test_variant_inherits_extra_flags_and_every_profile_is_deleted(self):
         def body(s):
             with s.variant(("--v",)):

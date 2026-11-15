@@ -187,6 +187,46 @@ class UiDevTools:
                 return node_id, props
         return None
 
+    def screen_rect(self, cls: str, within: str | None = None) -> tuple[int, int, int, int] | None:
+        """(x, y, width, height) on the screen of the first visible view of class ``cls``, or None.
+
+        The server gives a view its place in its parent (``X``, ``Y``) and a widget its place on the screen
+        (``ClientAreaBoundsInScreen``), so the screen place is the widget's origin plus the offsets of the views
+        between it and the view. A scroll offset is not part of it: use a view that is not scrolled.
+        """
+        root = self.send("DOM.getDocument")["root"]
+        cache: dict[int, dict] = {}
+
+        def props_of(node: dict) -> dict:
+            if node["nodeId"] not in cache:
+                cache[node["nodeId"]] = {} if node["nodeId"] == root["nodeId"] else self.properties(node["nodeId"])
+            return cache[node["nodeId"]]
+
+        def search(node: dict, chain: list[dict], inside: bool):
+            attrs = node.get("attributes") or []
+            name = attrs[1] if len(attrs) > 1 and attrs[0] == "class" else node.get("nodeName", "")
+            below = inside or within is None or name == within
+            if node["nodeId"] != root["nodeId"] and name == cls and (inside or within is None):
+                props = props_of(node)
+                if props.get("Visible") == "true":
+                    x = y = 0
+                    for ancestor in chain + [node]:
+                        p = props_of(ancestor)
+                        if "ClientAreaBoundsInScreen" in p:
+                            x, y = (int(v) for v in p["ClientAreaBoundsInScreen"].split(" ")[0].split(","))
+                        elif "ActualBoundsInScreen" in p or "X" not in p:
+                            continue
+                        else:
+                            x, y = x + int(p["X"]), y + int(p["Y"])
+                    return x, y, int(props["Width"]), int(props["Height"])
+            for child in node.get("children") or []:
+                found = search(child, chain + [node], below)
+                if found:
+                    return found
+            return None
+
+        return search(root, [], within is None)
+
     def press(self, node_id: int, props: dict) -> None:
         """A left click in the middle of the view: press, then release."""
         x, y = int(props.get("Width", "2")) // 2, int(props.get("Height", "2")) // 2

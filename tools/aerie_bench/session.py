@@ -170,13 +170,16 @@ class Session:
         return StunProbe()
 
     def variant(self, extra_flags: tuple[str, ...] = (), prefs: dict | None = None,
-                profile=None) -> ContextManager["Session"]:
+                profile=None, headed: bool = False, env: dict | None = None) -> ContextManager["Session"]:
         """A second browser with a fresh profile (or ``profile``, from new_profile()), extra flags and
         seeded prefs. Shares the fixture server. It is stopped on exit, also on error, and a fresh
         profile is deleted. After the ``with`` block the browser has exited and the session's
-        ``netlog`` holds what that launch requested."""
+        ``netlog`` holds what that launch requested. ``headed`` opens a real window (not ``--headless``)
+        on the display that ``env`` names (``DISPLAY``); see xinput.xvfb."""
         if self.variant_launcher is None:
             raise CdpError("this session cannot start a second browser")
+        if headed or env:
+            return self.variant_launcher(tuple(extra_flags), prefs, profile, headed=headed, env=env)
         if profile is None:
             return self.variant_launcher(tuple(extra_flags), prefs)
         return self.variant_launcher(tuple(extra_flags), prefs, profile)
