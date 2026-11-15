@@ -125,6 +125,7 @@ source_set("palette") {
   ]
   public_deps = [
     "//components/aerie_design_tokens:tokens",
+    "//components/aerie_frame:look",
     "//components/aerie_frame:palette",
     "//skia",
   ]

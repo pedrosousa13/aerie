@@ -8,6 +8,7 @@
 #include <string_view>
 
 #include "components/aerie_design_tokens/aerie_tokens.h"
+#include "components/aerie_frame/aerie_frame_look.h"
 #include "third_party/skia/include/core/SkColor.h"
 
 // The colours the sidebar's own views draw with (issue #215, item 7). Headless:
@@ -40,6 +41,9 @@ struct SidebarPalette {
   // sidebar is then over the page and not over the frame.
   SkColor peek_surface;
   aerie::tokens::Shadow peek_shadow;
+  // The stroke of the focus ring (`size-focus-ring-width`: the base 2 px, wider
+  // in High contrast).
+  int focus_ring_width;
 };
 
 // The share of the text colour that a window control circle shows at rest and
@@ -54,6 +58,13 @@ inline constexpr float kControlHoverShare = 0.40f;
 SidebarPalette ResolveSidebarPalette(aerie::tokens::ThemeId theme,
                                      aerie::tokens::ColorMode mode,
                                      std::string_view colour);
+
+// The palette under forced colours (issue #185): the operating system's colours
+// and nothing of the Aerie tint. The rows are told apart by a fill of the
+// text colour mixed into the background, because forced colours leave no
+// translucent fills.
+SidebarPalette ResolveSystemSidebarPalette(
+    const aerie_frame::SystemColours& system);
 
 }  // namespace aerie_sidebar
 

@@ -9,6 +9,7 @@
 #include "components/aerie_sidebar/aerie_sidebar_palette.h"
 
 #include "components/aerie_design_tokens/aerie_tokens.h"
+#include "components/aerie_frame/aerie_frame_look.h"
 #include "components/aerie_frame/aerie_frame_palette.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -117,6 +118,63 @@ TEST(AerieSidebarPaletteTest, TextIsReadableOnTheRowColoursOverTheFrame) {
       }
     }
   }
+}
+
+
+// ---- Themes and forced colours (issue #185) ------------------------------
+
+TEST(AerieSidebarPaletteTest, TheFocusRingIsWiderInHighContrastOnly) {
+  for (ColorMode mode : {ColorMode::kLight, ColorMode::kDark}) {
+    for (int t = 0; t < aerie::tokens::kThemeCount; ++t) {
+      const ThemeId theme = static_cast<ThemeId>(t);
+      const SidebarPalette p = ResolveSidebarPalette(theme, mode, "dusk");
+      EXPECT_EQ(p.focus_ring_width,
+                theme == ThemeId::kHighContrast
+                    ? 3
+                    : static_cast<int>(aerie::tokens::kSizeFocusRingWidth))
+          << t;
+    }
+  }
+}
+
+TEST(AerieSidebarPaletteTest, EveryThemeKeepsTextReadableOnItsRowFills) {
+  const gfx::Size window(1440, 900);
+  for (int t = 0; t < aerie::tokens::kThemeCount; ++t) {
+    const ThemeId theme = static_cast<ThemeId>(t);
+    const double minimum = theme == ThemeId::kHighContrast ? 7.0 : 4.5;
+    for (ColorMode mode : {ColorMode::kLight, ColorMode::kDark}) {
+      const SidebarPalette p = ResolveSidebarPalette(theme, mode, "dusk");
+      const aerie_frame::FramePalette f =
+          aerie_frame::ResolveFramePalette(theme, mode, "dusk");
+      for (const gfx::PointF& point :
+           {gfx::PointF(0, 0), gfx::PointF(260, 900), gfx::PointF(130, 450)}) {
+        const SkColor frame = aerie_frame::FrameColorAt(f, window, false, point);
+        for (SkColor row : {p.row_selected, p.row_hover}) {
+          EXPECT_GE(aerie_frame::ContrastRatio(
+                        p.text, aerie_frame::Over(row, frame)),
+                    minimum)
+              << t << " " << static_cast<int>(mode);
+        }
+      }
+    }
+  }
+}
+
+TEST(AerieSidebarPaletteTest, ForcedColoursUseTheSystemColoursOnly) {
+  const aerie_frame::SystemColours system{SK_ColorBLACK, SK_ColorWHITE,
+                                          SkColorSetRGB(0x1A, 0xEB, 0xFF)};
+  const SidebarPalette p = ResolveSystemSidebarPalette(system);
+  EXPECT_EQ(p.text, SK_ColorWHITE);
+  EXPECT_EQ(p.text_muted, SK_ColorWHITE);
+  EXPECT_EQ(p.accent, system.accent);
+  EXPECT_EQ(p.divider, SK_ColorWHITE);
+  EXPECT_EQ(p.peek_surface, SK_ColorBLACK);
+  EXPECT_EQ(SkColorGetA(p.row_selected), 255u);
+  EXPECT_GE(p.focus_ring_width, 2);
+  // The selected row is told apart from the others by more than hue.
+  EXPECT_NE(p.row_selected, p.row_hover);
+  EXPECT_GE(aerie_frame::ContrastRatio(p.text, p.row_selected), 3.0);
+  EXPECT_GE(aerie_frame::ContrastRatio(p.text, p.row_hover), 3.0);
 }
 
 }  // namespace

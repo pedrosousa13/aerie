@@ -22,6 +22,20 @@ source_set("palette") {
   ]
 }
 
+# What a theme gives Chromium's own surfaces, and what forced colours give the
+# frame (issue #185).
+source_set("look") {
+  sources = [
+    "aerie_frame_look.cc",
+    "aerie_frame_look.h",
+  ]
+  public_deps = [
+    ":palette",
+    "//components/aerie_design_tokens:tokens",
+    "//skia",
+  ]
+}
+
 source_set("paint") {
   sources = [
     "aerie_frame_paint.cc",
@@ -49,9 +63,13 @@ source_set("enabled") {
 
 source_set("unit_tests") {
   testonly = true
-  sources = [ "aerie_frame_unittest.cc" ]
+  sources = [
+    "aerie_frame_look_unittest.cc",
+    "aerie_frame_unittest.cc",
+  ]
   deps = [
     ":enabled",
+    ":look",
     ":paint",
     ":palette",
     "//base",

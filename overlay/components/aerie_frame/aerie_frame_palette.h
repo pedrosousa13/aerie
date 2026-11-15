@@ -21,8 +21,8 @@ class PrefService;
 // the frame without a window. There is no colour constant in this component.
 namespace aerie_frame {
 
-// The theme of this slice. Theme switching is slice I (#142): until then every
-// window uses the default theme.
+// The theme that stands in when nothing chose one. The theme a window uses is
+// the effective look (aerie_effective_look.h, issue #185).
 inline constexpr aerie::tokens::ThemeId kDefaultTheme =
     aerie::tokens::ThemeId::kVivid;
 
@@ -52,6 +52,11 @@ struct FramePalette {
   SkColor accent;
   // The address pill's field colour (translucent, so it is drawn over the frame).
   SkColor field;
+  // The strip on the top edge of the sidebar column (the theme's `strip-height`,
+  // 0 for none): the Workspace gradient at full strength, unmixed.
+  int strip_height;
+  std::array<SkColor, 3> strip_stops;
+  int strip_stop_count;
   // The page card.
   SkColor card_surface;
   int card_radius;
