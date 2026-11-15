@@ -186,9 +186,17 @@ export class SettingsAerieAppearanceRowElement extends
   // The arrow keys, Home and End move the choice and check it, as in any
   // radio group. Left and Right swap in a right-to-left page.
   protected onModeKeydown_(e: KeyboardEvent) {
+    // A key with a modifier is the browser's (Alt+Left and Alt+Right are back
+    // and forward), not a move in the group.
+    if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) {
+      return;
+    }
     const modes = ['system', 'light', 'dark'];
     const rtl = getComputedStyle(this).direction === 'rtl';
-    const current = Math.max(0, modes.indexOf(this.modePref_?.value ?? 'system'));
+    // From the segment that has the key, not from the pref: a second key repeat
+    // can arrive before the first change has come back from the browser.
+    const target = e.target as HTMLElement|null;
+    const current = Math.max(0, modes.indexOf(target?.dataset?.['mode'] ?? ''));
     let next = -1;
     switch (e.key) {
       case 'ArrowRight':

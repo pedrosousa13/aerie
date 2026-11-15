@@ -41,3 +41,15 @@ class AppearanceTest(unittest.TestCase):
         src = (O / "chrome/browser/ui/views/aerie_look/look_crossfade.cc").read_text()
         self.assertIn("wm::RecreateLayers", src)
         self.assertNotIn("->Mirror(", src)
+
+    def test_the_mode_keys_ignore_modifiers_and_start_from_the_focused_segment(self):
+        start = ROW.index("onModeKeydown_(e: KeyboardEvent)")
+        body = ROW[start:ROW.index("e.preventDefault()", start)]
+        # Alt+Left and Alt+Right are history, not a move in the group.
+        for key in ("altKey", "ctrlKey", "metaKey", "shiftKey"):
+            self.assertIn("e." + key, body)
+        self.assertLess(body.index("return;"), body.index("const modes"))
+        # The step starts at the segment that has the key, not at the pref.
+        self.assertIn("e.target", body)
+        self.assertIn("dataset", body)
+        self.assertNotIn("modePref_", body)
