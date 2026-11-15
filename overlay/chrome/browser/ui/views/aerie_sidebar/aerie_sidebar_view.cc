@@ -807,7 +807,7 @@ aerie_sidebar::SidebarPalette AerieSidebarView::ResolvePalette() const {
   const aerie_tab_model::Workspace* workspace =
       model_ ? &model_->workspace() : nullptr;
   const aerie::tokens::EffectiveLook look = aerie_look::ComputeEffectiveLook(
-      *browser_->GetProfile()->GetPrefs(), workspace, *GetNativeTheme());
+      *browser_->GetProfile()->GetPrefs(), workspace, *GetNativeTheme(), GetWidget());
   // Forced colours: the operating system's colours, and nothing of the tint.
   if (look.system_colours && GetWidget()) {
     return aerie_sidebar::ResolveSystemSidebarPalette(

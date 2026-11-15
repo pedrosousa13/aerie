@@ -57,6 +57,8 @@ class AerieLookBrowserTest : public InProcessBrowserTest {
 IN_PROC_BROWSER_TEST_F(AerieLookBrowserTest, EachThemeRedrawsTheFrame) {
   prefs()->SetString(aerie::motion::kReduceMotionPref,
                      aerie::motion::kReduceMotionOn);
+  // OLED has no light table: it needs a dark mode to be the effective theme.
+  prefs()->SetString(aerie::appearance::kModePref, "dark");
   for (const char* id : {"soft", "clean", "oled", "high-contrast", "mono"}) {
     prefs()->SetString(aerie::appearance::kThemePref, id);
     Pump(base::Milliseconds(50));

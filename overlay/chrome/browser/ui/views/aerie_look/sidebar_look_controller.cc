@@ -108,7 +108,7 @@ const ui::NativeTheme& SidebarLookController::native_theme() const {
 aerie::tokens::EffectiveLook SidebarLookController::look() const {
   return aerie_look::ComputeEffectiveLook(
       *profile_->GetPrefs(), model_ ? &model_->workspace() : nullptr,
-      native_theme());
+      native_theme(), client_->GetLookWidget());
 }
 
 void SidebarLookController::OnWorkspaceChanged() {
