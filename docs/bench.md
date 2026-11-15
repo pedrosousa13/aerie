@@ -385,10 +385,10 @@ metric that the baseline has and the run does not is `missing` and fails. Record
 ./aerie bench --check sidebar_frames --sidebar-frames-baseline /mnt/linux2/aerie-perf/sidebar-frames-main.json
 ```
 
-The baseline comparison is manual (`--sidebar-frames-baseline`) until #237 lands: nothing in the nightly or the gate passes
-`--sidebar-frames-baseline` or `--sidebar-frames-record`. The nightly will record a baseline only after the check passes.
-The nightly (docs/ci.md) runs the check with the full Bench, and that step fails until the product defects in #237 (the
-hide that is a cut, the 15 to 20 ms first frame; see the numbers) are fixed. The PR gate does not run it: it needs a private Xvfb and two minutes.
+`sidebar_frames` runs by hand (`./aerie bench --check sidebar_frames`) until #237 makes it pass. Neither the nightly nor the
+PR gate runs it, and nothing passes `--sidebar-frames-baseline` or `--sidebar-frames-record`: the comparison is manual until
+then. After that it joins the nightly (docs/ci.md), which records its baseline. It needs a private Xvfb and about two minutes,
+and today it fails because of the product defects in #237 (the hide that is a cut, the 15 to 20 ms first frame; see the numbers).
 
 ### The negative control
 
@@ -420,21 +420,22 @@ fail) and whose control fails (the check passes).
 ### Measured on the train box
 
 AMD Ryzen 5 7600 (12 threads), Xvfb 1280x800 at 60 Hz, software compositing, Aerie 0.1.0 (Chromium 157), the build of
-2026-11-15 (main at c374316). This table is the fourth full run and the first with the window starting at the first input event (the three earlier
-runs started it 50 to 100 ms early and lost the end of the folder and drag animations); the hide and reduced-hide drops
+2026-11-15 (main at c374316). This table is the fifth full run. It is the first with the window starting at the first input event, which for a click
+is the button release (a row acts on release; the earlier runs started it 50 to 100 ms early and lost the end of the folder and
+drag animations); the hide and reduced-hide drops
 were the same in all of them. `dropped` is summed over the 5 repeats (the drag: 6).
 
 | animation | frames | p50 ms | p95 ms | p99 ms | dropped | layers only |
 | --- | ---: | ---: | ---: | ---: | ---: | --- |
-| `hide` | 5 | 16.6 | 17.1 | 17.1 | 50 | yes |
-| `show` | 88 | 1.8 | 18.3 | 18.6 | 0 | yes |
-| `folder_expand` | 60 | 2.8 | 8.6 | 13.4 | 0 | no, layout in 38 slots |
-| `folder_collapse` | 58 | 2.4 | 17.9 | 18.1 | 0 | no, layout in 9 slots |
-| `resize` | 150 | 9.7 | 17.2 | 17.6 | 1 | no, layout in 127 slots |
-| `reduced_hide` | 5 | 17.2 | 17.3 | 17.3 | 30 | yes |
-| `reduced_show` | 46 | 2.4 | 17.2 | 17.5 | 0 | yes |
-| `reduced_folder_expand` | 29 | 1.8 | 15.9 | 18.5 | 0 | yes |
-| `reduced_folder_collapse` | 30 | 1.8 | 18.0 | 18.1 | 0 | yes |
+| `hide` | 5 | 13.5 | 17.4 | 17.4 | 50 | yes |
+| `show` | 90 | 1.8 | 18.4 | 19.0 | 0 | yes |
+| `folder_expand` | 65 | 3.0 | 4.8 | 10.7 | 0 | no, layout in 42 slots |
+| `folder_collapse` | 59 | 1.9 | 3.5 | 3.8 | 0 | no, layout in 15 slots |
+| `resize` | 150 | 9.9 | 17.0 | 17.4 | 0 | no, layout in 127 slots |
+| `reduced_hide` | 5 | 13.5 | 17.3 | 17.3 | 30 | yes |
+| `reduced_show` | 48 | 2.2 | 17.3 | 18.9 | 0 | yes |
+| `reduced_folder_expand` | 33 | 1.6 | 8.2 | 9.9 | 0 | yes |
+| `reduced_folder_collapse` | 31 | 1.9 | 18.1 | 18.1 | 0 | yes |
 
 **The acceptance criteria are not met on this build.** The product defects are filed as #237.
 
@@ -447,16 +448,16 @@ were the same in all of them. `dropped` is summed over the 5 repeats (the drag: 
   and the compositor sees no damage in the other 11 frames. The show slide, which runs the same layer from a region
   that has its width, draws every frame (18 frames in 280 ms, no gap above 17.5 ms).
   `HideAndShowAnimateOnlyTheColumnAndTheCardSnaps` asserts only that a transform animation exists on the layer, so it passes.
-- **The first frame of an animation takes 15 to 20 ms.** The p95 of most animations (15.9 to 18.3 ms in the table, except the folder expand at 8.6 ms, against
+- **The first frame of an animation takes 15 to 20 ms.** The p95 of the slides and the reduced forms (17.3 to 18.4 ms in the table, except the folder animations at 3.5 to 8.2 ms, against
   the 16.7 ms limit) is its first frame, the layout at the toggle and the raster of the new layers, while the frames after
   it take 1.5 to 3 ms. The frames still come every 16.7 ms, so nothing is missed in the show, the folder and the reduced
-  forms (0 dropped; the folder collapse lays out in 9 slots, allowed there), but the p95 limit is not met. The limit is not changed.
-- **The drag drops 1 vsync in 6 drags and its p95 is 17.2 ms**, with a p50 of 9.7 ms,
+  forms (0 dropped; the folder lays out in 42 and 15 slots, allowed there), but the p95 limit is not met. The limit is not changed.
+- **The drag drops no vsync in 6 drags in this run (1 in the one before) and its p95 is 17.0 ms**, with a p50 of 9.7 ms,
   because the card and the page lay out for every pointer move (127 of the 150 frames' slots). That is by design: the width is not
   animated, the user drives it. It is judged by the same limits and does not meet them.
 - **The control fails as it must**, for p95 and dropped frames (the judge's own two reasons; "not measured" would be a
-  separate harness failure): 12 of 12 vsyncs missed in every expand of the 300-tab folder, frames of about 660 ms, p95 667 ms.
-  The folder now has 12 frames per expand (the window starts at the click), where earlier runs had 9.
+  separate harness failure): 12 of 12 vsyncs missed in every expand of the 300-tab folder, frames of about 660 ms, p95 672 ms.
+  The folder now has 11 to 13 frames per run (the window starts at the click), where earlier runs had 9.
 
 ## Checks
 

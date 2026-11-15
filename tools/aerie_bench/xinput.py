@@ -108,6 +108,8 @@ def xvfb(width: int = 1280, height: int = 800, depth: int = 24, timeout: float =
             except subprocess.TimeoutExpired:
                 proc.kill()
                 proc.wait()
+            if proc.stdout is not None:
+                proc.stdout.close()
         shutil.rmtree(tmp, ignore_errors=True)
 
 
@@ -177,14 +179,16 @@ class XInput:
         self._flush()
 
     def click(self, x: int, y: int, pause: float = 0.05) -> int:
-        """Click; return the trace-clock time (``now_us``) of the button press, the first event that changes state."""
+        """Click; return the trace-clock time (``now_us``) of the button release. A sidebar row acts on the release
+        (``AerieSidebarRowView::OnMouseReleased`` runs ``select``; the press only arms it), so the release is the
+        first event that changes state."""
         self.move(x, y)
         time.sleep(pause)
-        pressed = now_us()
         self.button(1, True)
         time.sleep(0.02)
+        released = now_us()
         self.button(1, False)
-        return pressed
+        return released
 
     def drag(self, x0: int, y0: int, x1: int, y1: int, steps: int, step_seconds: float,
              pause: float = 0.05) -> int:

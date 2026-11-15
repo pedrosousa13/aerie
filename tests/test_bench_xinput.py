@@ -133,24 +133,36 @@ class InputTimeTest(unittest.TestCase):
         x._dpy = 1
         return x
 
-    def test_click_reports_the_press_not_the_move_before_it(self):
-        x = self.make()
-        before = xinput.now_us()
-        with mock.patch.object(xinput.time, "sleep"):
-            pressed = x.click(1, 2, pause=0.0)
-        self.assertGreaterEqual(pressed, before)
-        self.assertEqual(x.events[0], "move")
-
-    def test_click_stamps_after_the_pause_that_follows_the_move(self):
+    def test_click_reports_the_release_because_a_row_acts_on_release(self):
         x = self.make()
         stamps = []
         orig = xinput.now_us
+        x.button = lambda n, down: x.events.append(("button", down, orig()))
+
+        with mock.patch.object(xinput.time, "sleep"):
+            released = x.click(1, 2, pause=0.0)
+        press = next(e for e in x.events if e[:2] == ("button", True))
+        release = next(e for e in x.events if e[:2] == ("button", False))
+        self.assertGreaterEqual(released, press[2])
+        self.assertLessEqual(released, release[2])  # stamped just before the release event, not at the press
+
+    def test_click_stamps_after_the_wait_between_press_and_release(self):
+        x = self.make()
+        marks = []
+        orig = xinput.now_us
 
         def sleep(seconds):
-            stamps.append(("sleep", orig()))
+            marks.append(orig())
         with mock.patch.object(xinput.time, "sleep", side_effect=sleep):
-            pressed = x.click(1, 2, pause=0.05)
-        self.assertGreaterEqual(pressed, stamps[0][1])  # the press is stamped after the pause, not before it
+            released = x.click(1, 2, pause=0.05)
+        self.assertGreaterEqual(released, marks[-1])
+
+    def test_the_server_pipe_is_closed_when_it_stops(self):
+        proc = FakeProc(b"3\n")
+        with mock.patch.object(xinput.subprocess, "Popen", return_value=proc):
+            with xinput.xvfb():
+                pass
+        self.assertTrue(proc.stdout.closed)
 
     def test_chord_reports_the_first_key_down(self):
         x = self.make()
