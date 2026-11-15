@@ -33,6 +33,12 @@
 #include "content/public/test/browser_test.h"
 #include "ui/color/color_id.h"
 #include "ui/color/color_provider_manager.h"
+#include "ui/compositor/layer_animation_element.h"
+#include "ui/compositor/layer_animation_sequence.h"
+#include "ui/compositor/layer_animator.h"
+#include "ui/compositor/test/layer_animator_test_controller.h"
+#include "ui/gfx/animation/tween.h"
+#include "ui/compositor/layer.h"
 #include "ui/native_theme/native_theme.h"
 #include "ui/views/widget/widget.h"
 
@@ -159,6 +165,39 @@ IN_PROC_BROWSER_TEST_F(AerieLookBrowserTest, ACrossfadeRunsAndLeavesNoLayer) {
   EXPECT_EQ(fade().snapshot_layer_for_testing(), nullptr);
 }
 
+// The snapshot fades by `opacity` alone: 380 ms (motion-duration-xslow) on the
+// standard curve, and nothing else of the layer animates.
+IN_PROC_BROWSER_TEST_F(AerieLookBrowserTest, TheFadeIsOpacityOnlyAt380msOnTheStandardCurve) {
+  prefs()->SetString(aerie::motion::kReduceMotionPref,
+                     aerie::motion::kReduceMotionSystem);
+  prefs()->SetString(aerie::appearance::kThemePref, "clean");
+  ASSERT_TRUE(fade().running());
+  ui::Layer* layer = fade().snapshot_layer_for_testing();
+  ASSERT_TRUE(layer);
+  ui::LayerAnimator* animator = layer->GetAnimator();
+  EXPECT_TRUE(animator->IsAnimatingProperty(ui::LayerAnimationElement::OPACITY));
+  for (int bit = ui::LayerAnimationElement::FIRST_PROPERTY;
+       bit != ui::LayerAnimationElement::SENTINEL; bit <<= 1) {
+    if (bit == ui::LayerAnimationElement::OPACITY) {
+      continue;
+    }
+    EXPECT_FALSE(animator->IsAnimatingProperty(
+        static_cast<ui::LayerAnimationElement::AnimatableProperty>(bit)))
+        << "property " << bit << " animates";
+  }
+  ui::LayerAnimatorTestController controller(animator);
+  ui::LayerAnimationSequence* sequence =
+      controller.GetRunningSequence(ui::LayerAnimationElement::OPACITY);
+  ASSERT_TRUE(sequence);
+  ASSERT_EQ(sequence->size(), 1u);
+  EXPECT_EQ(sequence->FirstElement()->duration(),
+            base::Milliseconds(aerie::tokens::kMotionDurationXslow));
+  EXPECT_EQ(sequence->FirstElement()->tween_type(),
+            gfx::Tween::FAST_OUT_SLOW_IN_3);
+  EXPECT_EQ(animator->GetTargetOpacity(), 0.0f);
+  ASSERT_TRUE(WaitFor([&] { return !fade().running(); }));
+}
+
 IN_PROC_BROWSER_TEST_F(AerieLookBrowserTest, ReducedMotionStartsNoFade) {
   prefs()->SetString(aerie::motion::kReduceMotionPref,
                      aerie::motion::kReduceMotionOn);
@@ -171,15 +210,48 @@ IN_PROC_BROWSER_TEST_F(AerieLookBrowserTest, NoFadeAtLaunch) {
   EXPECT_EQ(fade().finished_count(), 0);
 }
 
-IN_PROC_BROWSER_TEST_F(AerieLookBrowserTest, ASecondChangeKeepsOneSnapshot) {
+IN_PROC_BROWSER_TEST_F(AerieLookBrowserTest, ASecondChangeRestartsFromTheCurrentOpacity) {
   prefs()->SetString(aerie::motion::kReduceMotionPref,
                      aerie::motion::kReduceMotionSystem);
   prefs()->SetString(aerie::appearance::kThemePref, "soft");
-  Pump(base::Milliseconds(100));
+  ASSERT_TRUE(fade().running());
+  ui::Layer* snapshot = fade().snapshot_layer_for_testing();
+  ASSERT_TRUE(WaitFor([&] { return fade().opacity() < 0.8f; }));
+  const float before = fade().opacity();
   prefs()->SetString(aerie::appearance::kThemePref, "clean");
-  EXPECT_TRUE(fade().running());
+  // The same snapshot, not a new one, and it carries on from where it was:
+  // not from 1.0.
+  ASSERT_TRUE(fade().running());
+  EXPECT_EQ(fade().snapshot_layer_for_testing(), snapshot);
+  EXPECT_LT(fade().opacity(), 0.85f);
+  EXPECT_NEAR(fade().opacity(), before, 0.15f);
   ASSERT_TRUE(WaitFor([&] { return !fade().running(); }));
   EXPECT_EQ(fade().finished_count(), 1);
+}
+
+// A window that closes in the middle of a fade takes the snapshot, the timer
+// and the animation with it, and the other window's fade is not disturbed.
+IN_PROC_BROWSER_TEST_F(AerieLookBrowserTest, ClosingTheWindowMidFadeLeavesNothingBehind) {
+  prefs()->SetString(aerie::motion::kReduceMotionPref,
+                     aerie::motion::kReduceMotionSystem);
+  Browser* second = CreateBrowser(browser()->GetProfile());
+  BrowserView* second_view = BrowserView::GetBrowserViewForBrowser(second);
+  ASSERT_TRUE(second_view->frame_tint_view_for_testing());
+  prefs()->SetString(aerie::appearance::kThemePref, "soft");
+  ASSERT_TRUE(second_view->frame_tint_view_for_testing()
+                  ->look_controller()
+                  ->crossfade_for_testing()
+                  .running());
+  ASSERT_TRUE(fade().running());
+  CloseBrowserSynchronously(second);
+  Pump(base::Milliseconds(100));
+  // The first window carries on and finishes.
+  ASSERT_TRUE(WaitFor([&] { return !fade().running(); }));
+  EXPECT_EQ(fade().finished_count(), 1);
+  EXPECT_EQ(tint()->inputs_for_testing().theme, aerie::tokens::ThemeId::kSoft);
+  // A later change does not reach the closed window.
+  prefs()->SetString(aerie::appearance::kThemePref, "clean");
+  Pump(base::Milliseconds(50));
 }
 
 IN_PROC_BROWSER_TEST_F(AerieLookBrowserTest, PaintedContrastMeetsTheMinimumsForEveryThemeAndMode) {

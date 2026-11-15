@@ -18,7 +18,13 @@
 LookCrossfade::LookCrossfade(PrefService* prefs) : prefs_(prefs) {}
 
 LookCrossfade::~LookCrossfade() {
+  Cancel();
+}
+
+void LookCrossfade::Cancel() {
+  end_timer_.Stop();
   handle_.Abort();
+  snapshot_.reset();
 }
 
 bool LookCrossfade::Start(views::Widget* widget) {

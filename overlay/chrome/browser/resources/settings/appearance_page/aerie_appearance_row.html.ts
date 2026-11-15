@@ -64,12 +64,10 @@ export function getHtml(this: SettingsAerieAppearanceRowElement) {
     </controlled-radio-button>
   </settings-radio-group>
 </div>
-${this.showOledNote_() ? html`
-  <div class="secondary aerie-note" id="settings-aerie-theme-note-oled"
-      role="status">$i18n{aerieAppearanceNoteOledLight}</div>` : nothing}
-${this.showNoTintNote_() ? html`
-  <div class="secondary aerie-note" id="settings-aerie-theme-note-no-tint"
-      role="status">$i18n{aerieAppearanceNoteNoTint}</div>` : nothing}
+<div class="secondary aerie-note" id="settings-aerie-theme-notes"
+    role="status" aria-live="polite">${this.showOledNote_() ? html`
+  <div id="settings-aerie-theme-note-oled">$i18n{aerieAppearanceNoteOledLight}</div>` : nothing}${this.showNoTintNote_() ? html`
+  <div id="settings-aerie-theme-note-no-tint">$i18n{aerieAppearanceNoteNoTint}</div>` : nothing}</div>
 <div class="settings-box" id="settings-aerie-mode-box">
   <div class="flex cr-padded-text">
     <div id="settings-aerie-mode-label">$i18n{aerieAppearanceMode}</div>
@@ -77,25 +75,26 @@ ${this.showNoTintNote_() ? html`
   </div>
 </div>
 <div class="cr-row continuation">
-  <settings-radio-group id="settings-aerie-mode-group" is-horizontal
-      pref-key="aerie.appearance.mode"
-      group-aria-label="$i18n{aerieAppearanceMode}">
-    <controlled-radio-button id="aerie-mode-systemButton"
-        label="$i18n{aerieAppearanceModeSystem}"
-        name="system"
-        pref-key="aerie.appearance.mode">
-    </controlled-radio-button>
-    <controlled-radio-button id="aerie-mode-lightButton"
-        label="$i18n{aerieAppearanceModeLight}"
-        name="light"
-        pref-key="aerie.appearance.mode">
-    </controlled-radio-button>
-    <controlled-radio-button id="aerie-mode-darkButton"
-        label="$i18n{aerieAppearanceModeDark}"
-        name="dark"
-        pref-key="aerie.appearance.mode">
-    </controlled-radio-button>
-  </settings-radio-group>
+  <div class="aerie-segmented" id="settings-aerie-mode-group"
+      role="radiogroup" aria-labelledby="settings-aerie-mode-label"
+      aria-describedby="settings-aerie-mode-desc"
+      @keydown="${this.onModeKeydown_}">
+    <button type="button" role="radio" class="aerie-segment"
+        id="aerie-mode-systemButton" data-mode="system"
+        aria-checked="${this.isModeChecked_('system')}"
+        tabindex="${this.isModeChecked_('system') ? 0 : -1}"
+        @click="${this.onModeClick_}">$i18n{aerieAppearanceModeSystem}</button>
+    <button type="button" role="radio" class="aerie-segment"
+        id="aerie-mode-lightButton" data-mode="light"
+        aria-checked="${this.isModeChecked_('light')}"
+        tabindex="${this.isModeChecked_('light') ? 0 : -1}"
+        @click="${this.onModeClick_}">$i18n{aerieAppearanceModeLight}</button>
+    <button type="button" role="radio" class="aerie-segment"
+        id="aerie-mode-darkButton" data-mode="dark"
+        aria-checked="${this.isModeChecked_('dark')}"
+        tabindex="${this.isModeChecked_('dark') ? 0 : -1}"
+        @click="${this.onModeClick_}">$i18n{aerieAppearanceModeDark}</button>
+  </div>
 </div>
 <!--_html_template_end_-->`;
 }

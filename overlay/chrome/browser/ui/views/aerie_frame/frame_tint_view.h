@@ -65,6 +65,7 @@ class FrameTintView : public views::View,
   void OnPaint(gfx::Canvas* canvas) override;
   void OnThemeChanged() override;
   void AddedToWidget() override;
+  void RemovedFromWidget() override;
   void ViewHierarchyChanged(const views::ViewHierarchyChangedDetails& details) override;
 
   // views::ViewObserver:

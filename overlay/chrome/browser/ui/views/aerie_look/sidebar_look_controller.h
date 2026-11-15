@@ -71,6 +71,9 @@ class SidebarLookController : public ui::NativeThemeObserver {
   void OnWorkspaceChanged();
   // The window got a widget and a native theme: read the look once more.
   void OnAddedToWidget();
+  // The window leaves its widget (it is closing): the crossfade ends and the
+  // widget's native theme is not watched any more.
+  void OnRemovedFromWidget();
 
   const LookCrossfade& crossfade_for_testing() const { return crossfade_; }
   LookCrossfade& crossfade_for_testing() { return crossfade_; }
@@ -99,6 +102,8 @@ class SidebarLookController : public ui::NativeThemeObserver {
   aerie::tokens::EffectiveLook applied_look_;
   std::string applied_colour_;
   bool has_applied_ = false;
+  // The native theme of the widget the window is in, watched until it leaves.
+  raw_ptr<ui::NativeTheme> widget_native_theme_ = nullptr;
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_AERIE_LOOK_SIDEBAR_LOOK_CONTROLLER_H_

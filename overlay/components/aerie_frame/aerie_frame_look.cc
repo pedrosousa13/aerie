@@ -25,6 +25,17 @@ ChromeColors ResolveChromeColors(aerie::tokens::ThemeId theme,
   c.text = t.color_text;
   c.text_muted = t.color_text_muted;
   c.accent = frame.accent;
+  // The token is white in every theme. On a light accent (High contrast dark,
+  // the pale accents of dark themes) white is unreadable, so the better of
+  // black and white takes over below the floor: 4.5:1, and 7:1 for High contrast.
+  const double floor = theme == aerie::tokens::ThemeId::kHighContrast ? 7.0 : 4.5;
+  c.on_accent = t.color_text_on_accent;
+  if (ContrastRatio(c.on_accent, c.accent) < floor) {
+    c.on_accent = ContrastRatio(SK_ColorBLACK, c.accent) >=
+                          ContrastRatio(SK_ColorWHITE, c.accent)
+                      ? SK_ColorBLACK
+                      : SK_ColorWHITE;
+  }
   c.focus_ring = frame.accent;
   c.divider = t.color_divider;
   c.hairline = t.color_border_hairline;

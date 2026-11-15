@@ -209,5 +209,38 @@ TEST_F(AerieColorMixerTest, TheMixerAddsNoMeasurableCostToAProviderBuild) {
   EXPECT_LT(per_build_us, 25.0);
 }
 
+// Text on the accent is readable in every theme and mode: 4.5:1, and 7:1 under
+// High contrast. Chromium derives these roles from its own primary otherwise.
+TEST_F(AerieColorMixerTest, TextOnTheAccentIsReadableInEveryThemeAndMode) {
+  for (int i = 0; i < aerie::tokens::kThemeCount; ++i) {
+    const ThemeId theme = static_cast<ThemeId>(i);
+    for (ColorMode mode : {ColorMode::kLight, ColorMode::kDark}) {
+      if (!aerie::tokens::ThemeSupportsMode(theme, mode)) {
+        continue;
+      }
+      for (const char* colour : {"dusk", "tide", "moss", "ember", "#336699"}) {
+        SCOPED_TRACE(std::string(aerie::tokens::kThemeIds[i]) + "/" + colour +
+                     (mode == ColorMode::kDark ? "/dark" : "/light"));
+        SetActiveLook(theme, colour);
+        const auto provider = Build(Key(mode == ColorMode::kDark
+                                            ? ui::ColorProviderKey::ColorMode::kDark
+                                            : ui::ColorProviderKey::ColorMode::kLight));
+        const double floor = theme == ThemeId::kHighContrast ? 7.0 : 4.5;
+        for (ui::ColorId on : {ui::kColorSysOnPrimary,
+                               ui::kColorButtonForegroundProminent}) {
+          EXPECT_GE(aerie_frame::ContrastRatio(
+                        provider->GetColor(on),
+                        provider->GetColor(ui::kColorSysPrimary)),
+                    floor);
+        }
+        EXPECT_GE(aerie_frame::ContrastRatio(
+                      provider->GetColor(ui::kColorSysOnPrimaryContainer),
+                      provider->GetColor(ui::kColorSysPrimaryContainer)),
+                  floor);
+      }
+    }
+  }
+}
+
 }  // namespace
 }  // namespace aerie_color

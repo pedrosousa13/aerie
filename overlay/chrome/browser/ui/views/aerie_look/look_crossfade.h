@@ -57,6 +57,11 @@ class LookCrossfade {
   // the window has no layer yet.
   bool Start(views::Widget* widget);
 
+  // Ends the fade at once, with no callback of its own: the timer stops, the
+  // animation is aborted and the snapshot's layers are destroyed. The window
+  // calls it when it leaves its widget, so no layer or timer outlives it.
+  void Cancel();
+
   bool running() const { return snapshot_ != nullptr; }
   // The opacity of the snapshot, 0 when there is none.
   float opacity() const;

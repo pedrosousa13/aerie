@@ -117,6 +117,11 @@ void FrameTintView::AddedToWidget() {
   look_controller_->OnAddedToWidget();
 }
 
+void FrameTintView::RemovedFromWidget() {
+  look_controller_->OnRemovedFromWidget();
+  views::View::RemovedFromWidget();
+}
+
 views::Widget* FrameTintView::GetLookWidget() {
   return GetWidget();
 }

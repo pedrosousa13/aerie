@@ -105,7 +105,15 @@ void AddAerieColorMixer(ui::ColorProvider* provider,
                          ui::kColorSysOnSurfaceSubtle,
                          ui::kColorSysOnSurfaceSecondary}, c.text_muted);
   // Accent.
-  Set(mixer, {ui::kColorAccent, ui::kColorSysPrimary}, c.accent);
+  Set(mixer,
+      {ui::kColorAccent, ui::kColorSysPrimary, ui::kColorSysPrimaryContainer},
+      c.accent);
+  // Text and icons on the accent (prominent buttons, tonal fills). Chromium
+  // derives these from its own primary, which the roles above no longer are.
+  Set(mixer,
+      {ui::kColorSysOnPrimary, ui::kColorSysOnPrimaryContainer,
+       ui::kColorButtonForegroundProminent},
+      c.on_accent);
   // Focus ring.
   Set(mixer, {ui::kColorFocusableBorderFocused, ui::kColorSysStateFocusRing}, c.focus_ring);
   // Divider and hairline.

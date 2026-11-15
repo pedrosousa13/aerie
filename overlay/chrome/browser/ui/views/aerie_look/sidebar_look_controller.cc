@@ -97,7 +97,10 @@ SidebarLookController::SidebarLookController(Profile* profile,
   Apply(/*notify_client=*/false);
 }
 
-SidebarLookController::~SidebarLookController() = default;
+SidebarLookController::~SidebarLookController() {
+  // Nothing of the fade outlives the controller, in any order of teardown.
+  crossfade_.Cancel();
+}
 
 const ui::NativeTheme& SidebarLookController::native_theme() const {
   views::Widget* widget = client_->GetLookWidget();
@@ -119,9 +122,19 @@ void SidebarLookController::OnAddedToWidget() {
   views::Widget* widget = client_->GetLookWidget();
   if (widget && !native_theme_observations_.IsObservingSource(
                     widget->GetNativeTheme())) {
-    native_theme_observations_.AddObservation(widget->GetNativeTheme());
+    widget_native_theme_ = widget->GetNativeTheme();
+    native_theme_observations_.AddObservation(widget_native_theme_);
   }
   Apply();
+}
+
+void SidebarLookController::OnRemovedFromWidget() {
+  crossfade_.Cancel();
+  if (widget_native_theme_ &&
+      native_theme_observations_.IsObservingSource(widget_native_theme_)) {
+    native_theme_observations_.RemoveObservation(widget_native_theme_);
+  }
+  widget_native_theme_ = nullptr;
 }
 
 void SidebarLookController::OnNativeThemeUpdated(

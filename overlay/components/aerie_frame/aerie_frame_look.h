@@ -26,6 +26,7 @@ struct ChromeColors {
   SkColor text;        // `text`
   SkColor text_muted;  // `text-muted`
   SkColor accent;      // The Workspace hue toward the theme's accent base.
+  SkColor on_accent;   // `text-on-accent`, or the readable one of black and white.
   SkColor focus_ring;  // The accent.
   SkColor divider;     // `divider`
   SkColor hairline;    // `border-hairline`

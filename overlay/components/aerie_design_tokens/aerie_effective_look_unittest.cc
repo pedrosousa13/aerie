@@ -214,5 +214,19 @@ TEST_F(AerieAppearanceInputsTest, ABadStoredValueReadsAsNotChosenAndSystem) {
   EXPECT_EQ(in.global_mode, ModeChoice::kSystem);
 }
 
+// Only the exact ids are accepted: no other case, no empty string, no padding.
+TEST_F(AerieAppearanceInputsTest, OnlyTheKnownIdsAreAccepted) {
+  for (const char* junk : {"", "OLED", " oled", "oled ", "high_contrast", "0", "default"}) {
+    SCOPED_TRACE(junk);
+    prefs_.SetString(appearance::kThemePref, junk);
+    prefs_.SetString(appearance::kModePref, junk);
+    const EffectiveLookInputs in = appearance::ReadGlobalChoice(prefs_);
+    EXPECT_FALSE(in.global_theme.has_value());
+    EXPECT_EQ(in.global_mode, ModeChoice::kSystem);
+  }
+  EXPECT_FALSE(appearance::ParseThemeId("").has_value());
+  EXPECT_FALSE(appearance::ParseModeChoice("Dark").has_value());
+}
+
 }  // namespace
 }  // namespace aerie

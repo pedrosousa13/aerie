@@ -72,6 +72,9 @@ source_set("browser_tests") {
     "//components/aerie_design_tokens:tokens",
     "//components/prefs",
     "//content/test:test_support",
+    "//ui/compositor",
+    "//ui/compositor:test_support",
+    "//ui/gfx",
     "//ui/native_theme",
     "//ui/views",
   ]
