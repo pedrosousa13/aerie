@@ -35,6 +35,7 @@ source_set("aerie_frame") {
   visibility = [
     ":browser_tests",
     "//chrome/browser/ui/views/aerie_look:browser_tests",
+    "//chrome/browser/ui/views/aerie_look:interactive_tests",
     "//chrome/browser/ui/views/frame:*",
   ]
   sources = [
