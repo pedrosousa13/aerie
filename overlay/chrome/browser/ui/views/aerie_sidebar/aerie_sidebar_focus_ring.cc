@@ -23,7 +23,8 @@ AerieSidebarFocusRing::AerieSidebarFocusRing(views::View* host,
       corner_radius_(corner_radius),
       // Until the sidebar gives the Workspace accent, an opaque stroke of the
       // default theme's text colour; the sidebar sets the real one at once.
-      color_(aerie::tokens::kColorTextLight) {
+      color_(aerie::tokens::kColorTextLight),
+      width_(aerie::tokens::kSizeFocusRingWidth) {
   // The ring sits outside its host. A view without a layer paints inside the
   // clip of every ancestor without one, and each of those clips to its own
   // bounds, so without a layer of its own the ring showed only as dots at the
@@ -65,8 +66,18 @@ void AerieSidebarFocusRing::SetColor(SkColor color) {
   SchedulePaint();
 }
 
+void AerieSidebarFocusRing::SetStyle(SkColor color, float width) {
+  const bool resized = width_ != width;
+  width_ = width;
+  SetColor(color);
+  if (resized) {
+    Refresh();
+    SchedulePaint();
+  }
+}
+
 float AerieSidebarFocusRing::thickness() const {
-  return aerie::tokens::kSizeFocusRingWidth;
+  return width_;
 }
 
 float AerieSidebarFocusRing::offset() const {
