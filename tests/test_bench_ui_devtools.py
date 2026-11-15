@@ -228,3 +228,46 @@ class ClientTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ScreenRectServer(FakeServer):
+    """A widget at (100, 50) on the screen, a sidebar in it at (0, 0), a row 30 down and 4 across inside a tree
+    that sits at (8, 72), and a hidden twin of the row."""
+
+    TREE = {"nodeId": 1, "nodeName": "root", "children": [
+        {"nodeId": 2, "attributes": ["class", "Window"], "children": [
+            {"nodeId": 3, "attributes": ["class", "Widget"], "children": [
+                {"nodeId": 4, "attributes": ["class", "AerieSidebarView"], "children": [
+                    {"nodeId": 5, "attributes": ["class", "AerieSidebarTodayTree"], "children": [
+                        {"nodeId": 6, "attributes": ["class", "AerieSidebarFolderRowView"]},
+                        {"nodeId": 7, "attributes": ["class", "AerieSidebarFolderRowView"]}]}]},
+                {"nodeId": 8, "attributes": ["class", "AerieSidebarFolderRowView"]}]}]}]}
+    PROPS = {2: {"ActualBoundsInScreen": "100,50 1200x760", "X": "100", "Y": "50", "Visible": "true"},
+             3: {"ClientAreaBoundsInScreen": "100,50 1200x760", "X": "100", "Y": "50", "Visible": "true"},
+             4: {"X": "0", "Y": "0", "Width": "260", "Height": "754", "Visible": "true"},
+             5: {"X": "8", "Y": "72", "Width": "244", "Height": "80", "Visible": "true"},
+             6: {"X": "4", "Y": "30", "Width": "236", "Height": "34", "Visible": "false"},
+             7: {"X": "4", "Y": "38", "Width": "236", "Height": "34", "Visible": "true"},
+             8: {"X": "900", "Y": "900", "Width": "5", "Height": "5", "Visible": "true"}}
+
+
+class ScreenRectTest(unittest.TestCase):
+    def rect(self, cls, within=None):
+        server = ScreenRectServer()
+        ui = ui_devtools.UiDevTools(server.port, timeout=5)
+        try:
+            return ui.screen_rect(cls, within)
+        finally:
+            ui.close()
+
+    def test_a_view_is_placed_from_the_widgets_screen_origin_and_the_offsets_between(self):
+        self.assertEqual(self.rect("AerieSidebarFolderRowView", within="AerieSidebarView"), (112, 160, 236, 34))
+
+    def test_a_hidden_view_is_skipped(self):
+        self.assertEqual(self.rect("AerieSidebarFolderRowView", within="AerieSidebarView")[1], 160)  # row 7, not row 6
+
+    def test_within_excludes_a_view_outside_the_ancestor(self):
+        self.assertEqual(self.rect("AerieSidebarFolderRowView", within="AerieSidebarTodayTree")[0], 112)
+
+    def test_a_missing_class_is_none(self):
+        self.assertIsNone(self.rect("NoSuchView"))

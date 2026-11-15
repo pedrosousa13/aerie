@@ -156,7 +156,8 @@ def run_bench(binary: Path | str, scenario: Scenario, build_root: Path, *, out_d
         variant_count = [0]
 
         @contextmanager
-        def variant(variant_flags: tuple[str, ...], prefs: dict | None, profile=None):
+        def variant(variant_flags: tuple[str, ...], prefs: dict | None, profile=None, headed: bool = False,
+                    env: dict | None = None):
             variant_count[0] += 1
             # ``profile``: a profile from session.new_profile(), to restart a browser on the same
             # profile; the caller owns it, so it is not deleted here. Default: a fresh one.
@@ -167,9 +168,11 @@ def run_bench(binary: Path | str, scenario: Scenario, build_root: Path, *, out_d
                 # Discarded with the profile; one file per launch. Parsed into the variant session
                 # after the browser exits, before the profile goes (vsession.netlog).
                 vnetlog = vprofile.path / f"netlog-{variant_count[0]}.json"
-                vargv = launcher.build_argv(binary, vprofile.path, vnetlog, headless=headless,
+                # ``headed``: a real window, for a check that has its own display (xinput.xvfb) and gives its
+                # name in ``env`` (DISPLAY). The run's own browser stays as the run was asked for.
+                vargv = launcher.build_argv(binary, vprofile.path, vnetlog, headless=headless and not headed,
                                             no_sandbox=no_sandbox, extra=(*extra_flags, *variant_flags))
-                venv = browser_env(os.environ, vprofile.path, extra_env)
+                venv = browser_env(os.environ, vprofile.path, {**(extra_env or {}), **(env or {})})
                 try:
                     vproc = launcher.spawn(vargv, env=venv,
                                            stderr_path=out / f"browser-stderr-variant-{variant_count[0]}.log")
