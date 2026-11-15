@@ -67,12 +67,12 @@ class AerieLookReducedMotionUiTest
     }
   }
 
-  static int CountLayers(const ui::Layer* layer, int* animating) {
+  static int CountLayers(ui::Layer* layer, int* animating) {
     int n = 1;
     if (layer->GetAnimator() && layer->GetAnimator()->is_animating()) {
       ++*animating;
     }
-    for (const ui::Layer* child : layer->children()) {
+    for (ui::Layer* child : layer->children()) {
       n += CountLayers(child, animating);
     }
     return n;
