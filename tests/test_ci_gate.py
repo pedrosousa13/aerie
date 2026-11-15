@@ -195,6 +195,9 @@ class StepsTest(GateTestBase):
         checks = [bench[0][i + 1] for i, a in enumerate(bench[0]) if a == "--check"]
         self.assertEqual(checks, ["ad_blocking", "branding"])
 
+    def test_sidebar_frames_is_left_to_the_nightly(self):
+        self.assertIn("sidebar_frames", gate.GATE_BENCH_EXCLUDE)
+
     def test_perf_step_compares_with_the_last_main_build(self):
         gate.gate_pr(self.cfg(environ={"PATH": "/usr/bin", "AERIE_PERF_DIR": "/p/perf"}), pr())
         perf = [c for c in self.shell.calls if "bench" in c and "perf" in c]

@@ -48,6 +48,10 @@ Options:
 | `--baseline PATH` | `zero_traffic`: also run the check on this browser (an unmodified Helium build, or any browser that talks to Google) and require it to fail. If it passes, the check is vacuous and the command exits 1. |
 | `--perf-baseline FILE` | `perf`: compare with this perf document (`main.json` of a `--perf-record` directory) and fail when a metric regressed past its threshold. A file that does not exist fails the run, unless `--perf-first-run` is given. |
 | `--perf-first-run` | `perf`: with `--perf-baseline`, pass when that file does not exist yet. For the very first run, before any main build was recorded. It does not excuse an unreadable baseline or a regression. |
+| `--sidebar-frames-baseline FILE` | `sidebar_frames`: compare with this document (`sidebar-frames-main.json` of a `--sidebar-frames-record` directory) and fail when an animation got worse past its threshold. A file that does not exist fails the run, unless `--sidebar-frames-first-run` is given. |
+| `--sidebar-frames-first-run` | `sidebar_frames`: with `--sidebar-frames-baseline`, pass when that file does not exist yet. It does not excuse an unreadable baseline or a regression. |
+| `--sidebar-frames-record DIR` | `sidebar_frames`: after a passing run, append `sidebar_frames.json` to `DIR/sidebar-frames-history.jsonl` and make it `DIR/sidebar-frames-main.json`. Use it on builds of main only. The nightly does. |
+| `--sidebar-frames-repeats N` | `sidebar_frames`: how many times each animation runs (default 5, at least 2). |
 | `--download-benchmarks` | Download the pinned Speedometer and JetStream copies into the build root, check their sha256 and unpack them (see "Pinned benchmark copies"). Needs the network; a copy that is already there is not downloaded again. |
 | `--perf-record DIR` | `perf`: after a passing run, append `perf.json` to `DIR/history.jsonl` and make it `DIR/main.json`. Use it on builds of main only. |
 | `--perf-compare-binary PATH` | `perf`: run the same suite on this browser (Helium, stock Chromium) and write `perf-comparison.md`, both side by side. |
@@ -296,6 +300,155 @@ table. The other browser is a reference: its own failures, or a run that gives n
 works the same way (`--perf-compare-name "Stock Chromium"`). Memory and startup are lower-is-better;
 scores are higher-is-better.
 
+## Sidebar frame times
+
+`./aerie bench --check sidebar_frames` measures whether the native sidebar's motion reaches the screen at the display's
+rate (issue #195). Arc-like motion only counts if it never drops a frame, so the Bench fails when it does. It writes
+`sidebar_frames.json` (schema 1, the shape of `perf.json`: `metrics`, plus `animations` with every number, plus
+`control`) and `sidebar_frames_traces.json` (the condensed traces, for looking at a failure; see "Privacy and limits
+of the method"). A run takes about two minutes.
+
+### What it does
+
+1. Starts a private **Xvfb** (`-nolisten tcp`, no window manager, 60 Hz) and a browser with a real window on it
+   (`session.variant(headed=True, env=DISPLAY)`; the run's own browser stays headless). Without Xvfb or the X11 and
+   Xtst libraries the check fails and says what is missing.
+2. Seeds the profile's `Default/AerieTabModel/state.json` with one **auto-filing folder** in Today (collapsed, rule: the
+   domain `folder.localhost`) and opens 15 tabs on `t<N>.folder.localhost`; the folder files them. The pages are
+   `fixtures/sidebar_frames/tab.html`. Nothing leaves the machine: every name is on `*.localhost`, everything else
+   fails to resolve (`launcher.RESOLVER_RULES`), and `zero_traffic` does not change.
+3. Drives the sidebar with **real X events** through XTEST (`xinput.py`, `ctypes`, no `xdotool`): Ctrl+S to hide and
+   show, a click on the folder row to expand and collapse (the row is found in the views tree through UI DevTools,
+   `UiDevTools.screen_rect`), and a mouse drag on the resize edge (24 moves, one per vsync, 100 px out and back). It
+   waits out the "Filed into..." toast, runs one of each untraced (the first run of a layer or a glyph cache is not
+   what the user feels every time), and then runs each animation 5 times (`--sidebar-frames-repeats`), alternating
+   (hide, show, hide, show, ...), with a CDP `Tracing` session around each group.
+4. Repeats it in a second browser with `--force-prefers-reduced-motion` (the crossfades: `reduced_show`,
+   `reduced_hide`, `reduced_folder_expand`, `reduced_folder_collapse`; there is no reduced form of dragging the edge).
+5. Runs the **negative control** (below).
+
+### What it records (observe) and what it decides (judge)
+
+`checks/sidebar_frames.py` observes and decides nothing. `frames.py` reads a trace and judges, with unit tests on traces
+recorded from real runs (`tools/aerie_bench/testdata/sidebar_frames/`, `tests/test_bench_frames.py`). The trace holds the
+browser's compositor events and viz's display events, on the clock that Python's `time.monotonic` uses, so the check
+knows when it pressed the key. From each animation's window (its start to its nominal end plus one vsync):
+
+| Number | Meaning |
+| --- | --- |
+| `frame_time_ms` p50, p95, p99 | The pipeline time of the frames the compositor presented (the `PipelineReporter` async events: from the begin-frame to the frame on screen), nearest-rank percentiles over all repeats. |
+| `interval_ms` p50, p95, p99 | The gaps between frames on screen (`STEP_DRAW_AND_SWAP` of `Graphics.Pipeline`). Informational: a vsync timer under Xvfb ticks 16.6 to 18 ms apart. |
+| `missed_frames` | Vsyncs with no frame on screen: a gap of 1.5 vsyncs or more counts `round(gap / 16.67) - 1`, and a stall between the last frame and the animation's nominal end counts too. An animation that puts nothing on screen misses all of its frames. |
+| `dropped_reports` | Frames the compositor itself reports as `STATE_DROPPED`. |
+| `dropped_frames` | The larger of `missed_frames` and `dropped_reports` (a dropped frame also leaves a gap; adding them would count it twice). `dropped_per_run` has the count of each repeat. |
+| `layout_frames`, `compositor_only` | Vsync slots, between the first and the last frame and not within 1.5 vsyncs of them, in which `View::LayoutImmediately` ran. `compositor_only` is true when there are none: only layers animated (docs/sidebar-design.md, "Motion", rule 2). The start and the end of a slide lay out once (the card snaps, the column leaves the layout); that is not a layout per frame. |
+
+The nominal durations are the design tokens (`tests/test_bench_frames.py` compares them with
+`prototypes/sidebar/tokens.json`): show 280 ms, hide 200, folder expand 200, folder collapse 180, drag 400; reduced
+140, 140, 90, 90.
+
+### Limits and thresholds
+
+The acceptance limits are absolute, from the issue, at 60 Hz. Every animation is judged against them, in normal and in
+reduced motion. `compositor_only` applies only where the design allows no layout per frame: show, hide and their
+reduced forms. It does not apply to the folder, whose row height is the one allowed exception, nor to the drag, which
+lays out for every pointer move by nature.
+
+<!-- sidebar-frames-limits:start -->
+| measure | limit | meaning |
+| --- | --- | --- |
+| `p95_frame_time_ms` | at most 16.7 ms | The 95th percentile of the time from a frame's begin-frame to the frame on screen. One vsync at 60 Hz is the budget: a frame that needs longer than that is on screen a vsync late. |
+| `dropped_frames` | 0 | Vsyncs with no new frame while an animation runs, counted from gaps between frames on screen (1.5 vsyncs or more) and from the compositor's own `STATE_DROPPED` reports, whichever is larger. The issue allows none. |
+| `compositor_only` | true where the design allows no layout per frame | No Views layout between the first and last frame of the slide or the crossfade. A layout per frame means something animates a size or a position and not a layer's transform or opacity. |
+<!-- sidebar-frames-limits:end -->
+
+The comparison with the last main build is the one `perf` makes: a change is a regression when it is worse by more than
+the percentage and by more than the absolute floor. The metric name in a document is `<animation>.<kind>`, for example
+`show.p95_ms`. `frames.METRICS` is the code; a test fails when this table and the code differ.
+
+<!-- sidebar-frames-thresholds:start -->
+| metric | better | fails when worse by more than | rationale |
+| --- | --- | --- | --- |
+| `<animation>.p95_ms` | lower | 25% and 2 ms | The 95th percentile frame time of one animation. Frame time is a few ms in the steady state and about one vsync for the first frame of a slide, and a run of a few repeats moves by a millisecond or two on its own, so a change needs both 25% and 2 ms. |
+| `<animation>.dropped_frames` | lower | 0% | Dropped frames, summed over the repeats of one animation. Any increase over the baseline fails: the acceptance limit is zero, so a baseline above zero can only go down. |
+<!-- sidebar-frames-thresholds:end -->
+
+A missing baseline file fails the check (or passes with `--sidebar-frames-first-run`); an unreadable one is an error; a
+metric that the baseline has and the run does not is `missing` and fails. Recording and reading are as for `perf`:
+
+```sh
+./aerie bench --check sidebar_frames --sidebar-frames-record /mnt/linux2/aerie-perf          # on a main build; the nightly does this
+./aerie bench --check sidebar_frames --sidebar-frames-baseline /mnt/linux2/aerie-perf/sidebar-frames-main.json
+```
+
+The nightly (docs/ci.md) records it in `AERIE_PERF_DIR`, next to the perf baseline. The PR gate does not run it: it needs
+a private Xvfb and two minutes, and it fails today (see the numbers).
+
+### The negative control
+
+A judge that cannot fail proves nothing, so the check runs a third browser whose folder holds **300 tabs**, and expands
+and collapses it. Expanding a folder of that size creates 300 rows and lays them out inside the animation
+(docs/sidebar-design.md measured 175 ms of main thread and missed frames). On the train box the frames of that expand
+take about 660 ms and 12 of the 12 vsyncs of each 200 ms animation have no frame on screen. The same judge must fail it;
+if it does not, the whole check fails ("the negative control did not fail"). It needs no C++ and no switch in the
+browser: it is a layout-heavy path that the product already has. `tests/test_bench_frames.py` runs the judge on the
+recorded control (`folder-expand-300-tabs.json`) and on recorded passing and failing traces.
+`tests/test_bench_sidebar_frames.py` runs the check with a scripted observer whose control passes (the check must
+fail) and whose control fails (the check passes).
+
+### Privacy and limits of the method
+
+- Every page is a fixture on `*.localhost`; the browser's own traffic is refused as in every Bench run. The traces are
+  written to the results directory and nowhere else; nothing uploads them. They hold timestamps and event names and
+  no page content, but treat them like the NetLog and do not attach them to a public report without a look.
+- 60 Hz only: Xvfb has no 120 Hz mode. A macOS run, and 120 Hz, wait for #132. The frame source under Xvfb is a 60 Hz
+  timer and the compositor draws in software (`SoftwareRenderer`), so these are the compositor's frame times on this
+  box, not a GPU's.
+- "p95" is nearest-rank over every frame of every repeat. An animation has 9 to 18 frames, so one slow first frame
+  per repeat (see the numbers) is 5% to 11% of them and decides the p95. Tighten nothing until the history shows the
+  spread.
+- The check does not look at what the frames show, so an animation that draws the wrong thing at 60 Hz passes. The
+  Views UI tests (`aerie_sidebar_motion_uitest.cc`) assert which properties animate, and for reduced motion that no
+  transform animation exists.
+
+### Measured on the train box
+
+AMD Ryzen 5 7600 (12 threads), Xvfb 1280x800 at 60 Hz, software compositing, Aerie 0.1.0 (Chromium 157), the build of
+2026-11-15 (main at c374316). Three full runs; this table is the third. The first two differ from it by up to 2 ms in p95
+and give the same dropped frames. `dropped` is summed over the 5 repeats (the drag: 6).
+
+| animation | frames | p50 ms | p95 ms | p99 ms | dropped | layers only |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| `hide` | 5 | 16.6 | 17.1 | 17.1 | 50 | yes |
+| `show` | 90 | 1.6 | 17.0 | 18.5 | 0 | yes |
+| `folder_expand` | 46 | 3.0 | 14.7 | 18.8 | 0 | no, layout in 23 slots |
+| `folder_collapse` | 42 | 2.4 | 12.2 | 16.6 | 0 | yes |
+| `resize` | 120 | 9.8 | 17.3 | 24.2 | 6 | no, layout in 93 slots |
+| `reduced_hide` | 5 | 15.3 | 17.2 | 17.2 | 30 | yes |
+| `reduced_show` | 49 | 2.6 | 19.0 | 19.7 | 0 | yes |
+| `reduced_folder_expand` | 14 | 2.0 | 18.7 | 18.7 | 0 | yes |
+| `reduced_folder_collapse` | 16 | 2.4 | 18.7 | 18.7 | 0 | yes |
+
+**The acceptance criteria are not met on this build.**
+
+- **Hide drops every frame but one.** The 200 ms slide of the hide is a `LayerAnimator` transform (the animators keep
+  ticking for 200 ms), but one frame reaches the screen in each hide, at the start, and 10 vsyncs are missed. A recording at 60
+  fps (`ffmpeg -f x11grab`) shows the card at its full width and the column gone in the same frame: the hide is a cut, not
+  a slide. The same happens in reduced motion (the 140 ms fade: 6 of 8 vsyncs missed). Likely cause, not verified in a
+  debugger: patch `sidebar/0033` gives the page card its room at once and lets the column's content hang outside a
+  zero-width region, so the card (full width, in front of the column) or the region's own bounds hide the sliding column,
+  and the compositor sees no damage in the other 11 frames. The show slide, which runs the same layer from a region
+  that has its width, draws every frame (18 frames in 280 ms, no gap above 17.5 ms).
+  `HideAndShowAnimateOnlyTheColumnAndTheCardSnaps` asserts only that a transform animation exists on the layer, so it passes.
+- **The first frame of an animation takes 15 to 20 ms.** The p95 of most animations (12.2 to 19.0 ms in the table, against
+  the 16.7 ms limit) is its first frame, the layout at the toggle and the raster of the new layers, while the frames after
+  it take 1.5 to 3 ms. The frames still come every 16.7 ms, so nothing is missed in the show, the folder and the reduced
+  forms (0 dropped), but the p95 limit is not met. The limit is not changed.
+- **The drag misses frames at its start** (6 vsyncs in the first drag of the run) and each of its frames takes 10 to 19 ms,
+  because the card and the page lay out for every pointer move (93 of the 120 frames' slots). That is by design: the width is not
+  animated, the user drives it. It is judged by the same limits and does not meet them.
+- **The control fails as it must**: 12 of 12 vsyncs missed in every expand of the 300-tab folder, frames of about 660 ms.
+
 ## Checks
 
 | Name | Passes when |
@@ -317,6 +470,7 @@ scores are higher-is-better.
 | `setup_theme` | The setup page (`chrome://setup/`) starts on Neutral, Neutral is its first swatch, and Neutral is the plain theme (issue #92). After the page's own Continue clicks reach the theme step, the check chooses Alpenglow (the tint control), then Neutral under Light and under Dark. The frame colour `--color-sys-header` in `chrome://theme/colors.css` must be near grey under Neutral (channel gap at most 16; Chromium's grey palette is slightly cool), must be tinted under Alpenglow, and must differ between Light and Dark. Alpenglow is the negative control: a measure that cannot see a tint fails. |
 | `row_padding` | Every row on an Aerie-owned Settings page has the standard inline padding (issue #205). The check opens the Aerie Guard page, the Security hardening page and the Appearance page, reads every `.cr-row` and `.settings-box` (the Appearance page: only the Reduce motion row, the others are Helium's), and compares each row's inline-start and inline-end padding with `--cr-section-padding` as the browser resolves it on that row and with the padding of Helium's own rows on the Appearance page (the built-in neighbours; the check fails if none can be read), requires the own-rules row (#107) and a filter list row on the Aerie Guard page, and checks that the first child starts at least that far from the edge. A row that fails is named. Negative control: one real Aerie Guard row gets `padding: 0` and is read again; it must be reported. The setup page is also opened on its search step; its option cards have their own layout, so each must have at least 8px inline padding on both sides and its first child must start at least that far in. A `continuation` row of Helium's (a second line inside a row, no start padding by design) does not count as a neighbour. The Aerie Guard panel is not measured here, because its page draws nothing until a bubble has captured a tab; `aerie_guard_panel` opens it. The Fingerprinting site list, About and the Widevine prompt are not covered by this check; the template test `tests/test_row_padding.py` covers the Settings templates. Source audit of every surface: `docs/row-padding-audit.md`. The train must show that `row_padding` passes on a real build and fails when the padding patch is reverted. |
 | `perf` | Performance metrics (issue #16); see "Performance metrics" above. Not in the default scenario. Passes when all five metrics (memory, cold and warm startup, Speedometer and JetStream scores) were measured and, with `--perf-baseline`, none regressed past its threshold and the baseline file exists (or `--perf-first-run` was given). A metric that cannot be measured fails it; only `--perf-skip-benchmarks` skips the two scores. |
+| `sidebar_frames` | Frame times of the native sidebar (issue #195); see "Sidebar frame times". Drives show, hide, resize and folder expand and collapse with real X events on a private Xvfb, in normal and in reduced motion, and judges a Chromium trace of each. Passes when no animation drops a frame, every p95 frame time is at most one vsync (16.7 ms at 60 Hz), the slide and the crossfade animate only layers, the negative control (a folder of 300 tabs) fails the same judge, and, with a baseline, nothing regressed past its threshold. Not in the default scenario. |
 
 `browser_requests` is a self-test for the Bench and for Helium. Aerie makes no
 requests of its own, so a plain `./aerie bench` (no `--binary`, the default
