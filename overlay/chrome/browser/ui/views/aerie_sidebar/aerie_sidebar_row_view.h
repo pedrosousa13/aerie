@@ -144,6 +144,11 @@ class AerieSidebarRowView : public views::View,
   const aerie_sidebar::SidebarPalette& palette() const { return palette_; }
 
   void SetTitle(const std::u16string& title);
+  // The row's tooltip for a title that a rename rule or the tidy changed
+  // (issue #146): the original title and the reason. Empty clears it; the
+  // tooltip then shows the title only when it is cut off.
+  void SetTitleNote(const std::u16string& note) { title_note_ = note; }
+  const std::u16string& title_note() const { return title_note_; }
   void SetFavicon(const ui::ImageModel& favicon);
   void SetSelected(bool selected);
   bool selected() const { return selected_; }
@@ -418,6 +423,7 @@ class AerieSidebarRowView : public views::View,
   raw_ptr<views::ImageView> favicon_ = nullptr;
   raw_ptr<views::ImageView> sleep_badge_ = nullptr;
   std::u16string title_text_;
+  std::u16string title_note_;
   bool sleeping_ = false;
   // The first SetSleeping sets the look at once, however the row came to be.
   bool sleep_look_applied_ = false;

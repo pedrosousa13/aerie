@@ -740,6 +740,11 @@ void AerieSidebarRowView::Layout(PassKey) {
 
 std::u16string AerieSidebarRowView::GetRenderedTooltipText(
     const gfx::Point& p) const {
+  // A title that a rule or the tidy changed says so, with the original title
+  // (issue #146). It uses the standard tooltip.
+  if (!title_note_.empty()) {
+    return title_note_;
+  }
   // The tooltip tells what the row cuts off: it shows only for an elided title.
   return title_->IsDisplayTextTruncated() ? std::u16string(title_->GetText())
                                           : std::u16string();

@@ -167,3 +167,6 @@ sidebar/0048-add-the-theme-and-mode-rows-to-the-sidebar-section-of-settings.patc
 
 # Archiving unused Today tabs (#183): the "Archive Today tabs after" and "Keep archived tabs for" rows in the Sidebar section of Settings.
 sidebar/0049-add-the-archive-rows-to-the-sidebar-section-of-settings.patch
+
+# Tidy tab titles and rename rules (#146): the tidy switches, the rule list and the Try a title box in the Sidebar section of Settings.
+sidebar/0050-add-the-title-tidy-and-rename-rules-to-the-sidebar-section-of-settings.patch
