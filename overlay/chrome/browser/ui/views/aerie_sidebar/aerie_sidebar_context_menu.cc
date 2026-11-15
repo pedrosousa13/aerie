@@ -239,10 +239,11 @@ bool AerieSidebarContextMenu::HasCommand(Command command) const {
       return options_.target == Target::kTab && !options_.move_targets.empty();
     case Command::kSleepTab:
     case Command::kClose:
-    case Command::kRename:
       return options_.target == Target::kTab;
+    case Command::kRename:
+      return options_.target == Target::kTab && options_.can_rename;
     case Command::kResetName:
-      return options_.has_manual_name;
+      return options_.can_rename && options_.has_manual_name;
     case Command::kPin:
       return options_.section == Section::kToday;
     case Command::kUnpin:
