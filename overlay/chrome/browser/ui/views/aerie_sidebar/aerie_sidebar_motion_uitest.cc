@@ -24,6 +24,7 @@
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_row_view.h"
 #include "chrome/browser/aerie_tab_model/tab_model_service.h"
 #include "chrome/browser/aerie_tab_model/tab_model_service_factory.h"
+#include "chrome/browser/aerie_tab_model/tab_strip_adapter.h"
 #include "components/aerie_tab_model/folder_rules.h"
 #include "components/aerie_tab_model/folder_tree.h"
 #include "components/aerie_tab_model/smart_folder.h"
