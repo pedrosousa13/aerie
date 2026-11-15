@@ -190,6 +190,11 @@ bool CanNest(const TabModel& model,
   if (!target_folder_id.empty() && !model.GetFolder(target_folder_id)) {
     return false;
   }
+  // A smart folder shows tabs; it holds none (issue #140).
+  if (!target_folder_id.empty() &&
+      model.GetFolder(target_folder_id)->kind == FolderKind::kSmart) {
+    return false;
+  }
   if (kind == ItemKind::kTab) {
     return model.GetTab(item_id) &&
            Depth(model, target_folder_id) <= kMaxFolderDepth;
@@ -212,6 +217,11 @@ bool CanNest(const TabModel& model,
 bool CanCreateFolderIn(const TabModel& model,
                        const std::string& parent_folder_id) {
   if (!parent_folder_id.empty() && !model.GetFolder(parent_folder_id)) {
+    return false;
+  }
+  // A smart folder holds nothing, not even a folder (issue #140).
+  if (!parent_folder_id.empty() &&
+      model.GetFolder(parent_folder_id)->kind == FolderKind::kSmart) {
     return false;
   }
   return Depth(model, parent_folder_id) + 1 <= kMaxFolderDepth;
@@ -274,7 +284,9 @@ std::vector<FolderChoice> FolderChoices(const TabModel& model,
   std::vector<FolderChoice> choices;
   for (const TreeRow& row : BuildAllRows(
            model, section, [](const std::string&) { return false; })) {
-    if (row.is_folder) {
+    // A smart folder takes nothing in, so it is no choice (issue #140).
+    if (row.is_folder &&
+        model.GetFolder(row.id)->kind != FolderKind::kSmart) {
       choices.push_back({row.id, row.level + 1, model.GetFolder(row.id)->name});
     }
   }
@@ -381,6 +393,66 @@ bool DeleteFolder(TabModel& model, const std::string& id) {
     }
   }
   return model.RemoveFolder(id);
+}
+
+namespace {
+
+// How many tabs are in the subtree of `folder_id`.
+int CountTabsBelow(const TabModel& model, const std::string& folder_id, int depth) {
+  if (depth > kWalkBound) {
+    return 0;
+  }
+  int count = 0;
+  for (const auto& [id, tab] : model.tabs()) {
+    if (tab.parent == folder_id) {
+      ++count;
+    }
+  }
+  for (const auto& [id, folder] : model.folders()) {
+    if (folder.parent == folder_id) {
+      count += CountTabsBelow(model, id, depth + 1);
+    }
+  }
+  return count;
+}
+
+}  // namespace
+
+int MoveContentsOut(TabModel& model, const std::string& id) {
+  const FolderRecord* folder = model.GetFolder(id);
+  if (!folder) {
+    return -1;
+  }
+  const Section section = folder->section;
+  const std::string parent = folder->parent;
+  const int slot = folder->position;
+  const std::vector<Child> inside = AllChildren(model, section, id);
+  if (inside.empty()) {
+    return 0;
+  }
+  int tabs = 0;
+  for (const Child& child : inside) {
+    tabs += child.is_folder ? CountTabsBelow(model, child.id, 0) : 1;
+  }
+  const int count = static_cast<int>(inside.size());
+  // The siblings after the folder make room, from the last one up. One more
+  // than the contents, so that none lands on a position the contents take.
+  const std::vector<Child> siblings = AllChildren(model, section, parent);
+  Child self{true, id, slot};
+  for (auto it = siblings.rbegin(); it != siblings.rend(); ++it) {
+    if (it->id != id && ChildLess(self, *it)) {
+      Reposition(model, *it, it->position + count + 1);
+    }
+  }
+  for (int i = 0; i < count; ++i) {
+    const Child& child = inside[i];
+    if (child.is_folder) {
+      model.MoveFolder(child.id, section, parent, slot + 1 + i);
+    } else {
+      model.MoveTab(child.id, section, parent, slot + 1 + i);
+    }
+  }
+  return tabs;
 }
 
 bool MoveTabToFolder(TabModel& model,

@@ -58,6 +58,14 @@ int SiblingCount(const DropList& list, const std::string& parent,
 DropTarget Place(const aerie_tab_model::TabModel& model, DropKind kind,
                  Section section, const std::string& container, int index,
                  const std::string& anchor, const DragItem& item) {
+  // A smart folder shows tabs and holds none, so nothing goes into it or
+  // between the rows it shows (issue #140).
+  if (!container.empty()) {
+    const aerie_tab_model::FolderRecord* target = model.GetFolder(container);
+    if (target && target->kind == aerie_tab_model::FolderKind::kSmart) {
+      return Refused(section, RefusalReason::kSmartFolder, anchor);
+    }
+  }
   if (!aerie_tab_model::CanNest(model, item.kind, item.id, container)) {
     // A folder into itself or below itself is a loop; anything else that
     // fails is the depth limit.

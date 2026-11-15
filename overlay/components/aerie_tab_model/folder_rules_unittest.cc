@@ -217,11 +217,56 @@ TEST_F(FolderRulesTest, KindSwitchKeepsRulesButManualDoesNotFile) {
   EXPECT_TRUE(Find("https://example.com/"));
 }
 
-TEST_F(FolderRulesTest, SmartIsNotThisSlices) {
+TEST_F(FolderRulesTest, AFolderCanBeSwitchedToSmart) {
   std::string folder = CreateFolder(model_, Section::kToday, "", "F");
-  EXPECT_FALSE(SetFolderRuleKind(model_, folder, FolderKind::kSmart));
-  EXPECT_EQ(FolderKind::kManual, model_.GetFolder(folder)->kind);
+  EXPECT_TRUE(SetFolderRuleKind(model_, folder, FolderKind::kSmart));
+  EXPECT_EQ(FolderKind::kSmart, model_.GetFolder(folder)->kind);
   EXPECT_FALSE(SetFolderRuleKind(model_, "nope", FolderKind::kAuto));
+}
+
+TEST_F(FolderRulesTest, SwitchingToSmartMovesTheTabsOutAndCountsThem) {
+  std::string folder = CreateFolder(model_, Section::kToday, "", "Docs");
+  std::string inside_a = NewTab();
+  std::string inside_b = NewTab();
+  std::string inside_c = NewTab();
+  for (const std::string& id : {inside_a, inside_b, inside_c}) {
+    ASSERT_TRUE(MoveTabToFolder(model_, id, folder));
+  }
+  int moved = -1;
+  ASSERT_TRUE(SetFolderRuleKind(model_, folder, FolderKind::kSmart, &moved));
+  EXPECT_EQ(3, moved);
+  EXPECT_TRUE(FolderIsEmpty(model_, folder));
+  for (const std::string& id : {inside_a, inside_b, inside_c}) {
+    EXPECT_EQ("", model_.GetTab(id)->parent);
+    EXPECT_EQ(Section::kToday, model_.GetTab(id)->section);
+  }
+}
+
+TEST_F(FolderRulesTest, SwitchingAnEmptyFolderToSmartMovesNothing) {
+  std::string folder = CreateFolder(model_, Section::kToday, "", "Docs");
+  int moved = -1;
+  ASSERT_TRUE(SetFolderRuleKind(model_, folder, FolderKind::kSmart, &moved));
+  EXPECT_EQ(0, moved);
+}
+
+TEST_F(FolderRulesTest, SwitchingBackToManualLeavesTheFolderEmpty) {
+  std::string folder = CreateFolder(model_, Section::kToday, "", "Docs");
+  ASSERT_TRUE(AddRule(model_, folder, RuleType::kDomain, "example.com").size());
+  ASSERT_TRUE(SetFolderRuleKind(model_, folder, FolderKind::kSmart));
+  int moved = -1;
+  ASSERT_TRUE(SetFolderRuleKind(model_, folder, FolderKind::kManual, &moved));
+  EXPECT_EQ(0, moved);
+  EXPECT_TRUE(FolderIsEmpty(model_, folder));
+  // The rules stay, as for Auto-filing.
+  EXPECT_EQ(1u, ReadFolderRules(*model_.GetFolder(folder)).rules.size());
+}
+
+TEST_F(FolderRulesTest, SwitchingToTheSameKindMovesNothing) {
+  std::string folder = CreateFolder(model_, Section::kToday, "", "Docs");
+  ASSERT_TRUE(SetFolderRuleKind(model_, folder, FolderKind::kSmart));
+  int moved = -1;
+  ASSERT_TRUE(SetFolderRuleKind(model_, folder, FolderKind::kSmart, &moved));
+  EXPECT_EQ(0, moved);
 }
 
 TEST_F(FolderRulesTest, NoMatchWhenNoFolderMatches) {

@@ -141,13 +141,25 @@ bool IsAutoFiling(const FolderRecord& folder) {
 
 bool SetFolderRuleKind(TabModel& model,
                        const std::string& folder_id,
-                       FolderKind kind) {
+                       FolderKind kind,
+                       int* moved_tabs) {
+  if (moved_tabs) {
+    *moved_tabs = 0;
+  }
   const FolderRecord* folder = model.GetFolder(folder_id);
-  if (!folder || kind == FolderKind::kSmart) {
+  if (!folder) {
     return false;
   }
   if (folder->kind == kind) {
     return true;
+  }
+  // A smart folder holds nothing: what was inside goes out first, so that no
+  // row ever sits in a smart folder.
+  if (kind == FolderKind::kSmart) {
+    const int moved = MoveContentsOut(model, folder_id);
+    if (moved_tabs) {
+      *moved_tabs = std::max(moved, 0);
+    }
   }
   return model.UpdateFolder(
       folder_id, [kind](FolderRecord& record) { record.kind = kind; });

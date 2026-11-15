@@ -134,4 +134,44 @@ TEST(RevealStaggerTest, ReducedMotionHasNoStagger) {
   }
 }
 
+
+// Smart folder rows (issue #140): the folder row is a folder and its member rows
+// follow it one level deeper, so the arrows work as in any folder, and Delete on
+// a member closes the real tab (the sidebar maps the row to its tab).
+namespace {
+std::vector<TreeRow> SmartRows() {
+  TreeRow member_a = Tab("smart:S:a", "S", 1);
+  member_a.smart_member = true;
+  member_a.source_id = "a";
+  TreeRow member_b = Tab("smart:S:b", "S", 1);
+  member_b.smart_member = true;
+  member_b.source_id = "b";
+  return {Folder("S", "", 0, true, 2), member_a, member_b, Tab("a", "", 0)};
+}
+}  // namespace
+
+TEST(HandleTreeKeyTest, RightOnAnOpenSmartFolderGoesToItsFirstMember) {
+  EXPECT_EQ(HandleTreeKey(SmartRows(), 0, ListKey::kRight).focus_index, 1);
+}
+
+TEST(HandleTreeKeyTest, LeftOnASmartMemberGoesToItsFolder) {
+  EXPECT_EQ(HandleTreeKey(SmartRows(), 2, ListKey::kLeft).focus_index, 0);
+}
+
+TEST(HandleTreeKeyTest, LeftOnAnOpenSmartFolderShutsIt) {
+  const TreeKeyResult result = HandleTreeKey(SmartRows(), 0, ListKey::kLeft);
+  EXPECT_EQ(result.toggle_folder_id, "S");
+  EXPECT_FALSE(result.expand);
+}
+
+TEST(HandleTreeKeyTest, DeleteOnASmartMemberClosesThatRow) {
+  const TreeKeyResult result = HandleTreeKey(SmartRows(), 1, ListKey::kDelete);
+  EXPECT_TRUE(result.close_focused);
+}
+
+TEST(HandleTreeKeyTest, UpAndDownWalkThroughMembersAndTheRealRow) {
+  EXPECT_EQ(HandleTreeKey(SmartRows(), 2, ListKey::kDown).focus_index, 3);
+  EXPECT_EQ(HandleTreeKey(SmartRows(), 1, ListKey::kUp).focus_index, 0);
+}
+
 }  // namespace aerie_sidebar

@@ -7,6 +7,7 @@
 #include "base/functional/bind.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/test/simple_test_clock.h"
+#include "components/aerie_tab_model/smart_folder.h"
 #include "components/aerie_tab_model/tab_model.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -383,6 +384,78 @@ TEST_F(DropTargetTest, ADividerWinsOverTheRowItOverlapsAndAZeroHeightOneIsIgnore
   DropTarget t = ComputeDropTarget(model_, 10, kTop + 2, g, TabItem(dragged));
   EXPECT_EQ(t.section, Section::kToday);
   EXPECT_FALSE(t.on_divider);
+}
+
+
+// A smart folder shows tabs and holds none, so a drop into it, or onto a row
+// inside it, is refused with its own reason (issue #140).
+TEST_F(DropTargetTest, ASmartFolderRefusesADropIntoItWithItsOwnReason) {
+  const std::string dragged = Tab("", 0);
+  const std::string smart = Folder("", 1, Section::kToday, /*expanded=*/false);
+  model_.UpdateFolder(smart, [](FolderRecord& f) {
+    f.kind = aerie_tab_model::FolderKind::kSmart;
+  });
+  for (int percent : {20, 50, 79}) {
+    DropTarget t = At(TabItem(dragged), 1, percent);
+    EXPECT_EQ(t.kind, DropKind::kRefused) << percent;
+    EXPECT_EQ(t.reason, RefusalReason::kSmartFolder) << percent;
+  }
+  // Next to it is fine: the edges still mean before and after.
+  EXPECT_EQ(At(TabItem(dragged), 1, 5).kind, DropKind::kBefore);
+  EXPECT_EQ(At(TabItem(dragged), 1, 95).kind, DropKind::kAfter);
+}
+
+TEST_F(DropTargetTest, AnExpandedSmartFoldersBottomEdgeIsRefusedToo) {
+  const std::string dragged = Tab("", 0);
+  const std::string smart = Folder("", 1, Section::kToday, /*expanded=*/true);
+  model_.UpdateFolder(smart, [](FolderRecord& f) {
+    f.kind = aerie_tab_model::FolderKind::kSmart;
+  });
+  DropTarget t = At(TabItem(dragged), 1, 90);
+  EXPECT_EQ(t.kind, DropKind::kRefused);
+  EXPECT_EQ(t.reason, RefusalReason::kSmartFolder);
+}
+
+TEST_F(DropTargetTest, ARowInsideASmartFolderRefusesEveryDrop) {
+  const std::string dragged = Tab("", 0);
+  const std::string smart = Folder("", 1, Section::kToday, /*expanded=*/true);
+  model_.UpdateFolder(smart, [](FolderRecord& f) {
+    f.kind = aerie_tab_model::FolderKind::kSmart;
+  });
+  const std::string real = Tab("", 2);
+  DropGeometry g = Geometry();
+  // Rows now: dragged, smart, real. Put a member row after the smart folder.
+  aerie_tab_model::TreeRow member;
+  member.id = aerie_tab_model::MakeSmartRowId(smart, real);
+  member.parent = smart;
+  member.level = 1;
+  member.smart_member = true;
+  member.source_id = real;
+  g.today.rows.insert(g.today.rows.begin() + 2, {member, 0, kRowHeight});
+  int y = kTop;
+  for (DropRow& row : g.today.rows) {
+    row.top = y;
+    y += kRowHeight;
+  }
+  g.today.bottom = y;
+  // The member row is the third row (index 2).
+  for (int percent : {10, 30, 50, 70, 90}) {
+    DropTarget t = ComputeDropTarget(
+        model_, 10, kTop + 2 * kRowHeight + percent, g, TabItem(dragged));
+    EXPECT_EQ(t.kind, DropKind::kRefused) << percent;
+    EXPECT_EQ(t.reason, RefusalReason::kSmartFolder) << percent;
+  }
+}
+
+TEST_F(DropTargetTest, AFolderCannotBeDroppedIntoASmartFolderEither) {
+  const std::string dragged = Folder("", 0);
+  const std::string smart = Folder("", 1, Section::kToday, false);
+  model_.UpdateFolder(smart, [](FolderRecord& f) {
+    f.kind = aerie_tab_model::FolderKind::kSmart;
+  });
+  DropTarget t = At(FolderItem(dragged), 1, 50);
+  EXPECT_EQ(t.kind, DropKind::kRefused);
+  EXPECT_EQ(t.reason, RefusalReason::kSmartFolder);
 }
 
 }  // namespace aerie_sidebar
