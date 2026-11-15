@@ -21,7 +21,7 @@ namespace aerie_tab_model {
 inline constexpr char kArchiveAfter[] = "aerie.tabs.archive_after";
 // How long the Archive keeps an archived tab (issue #183): "7d", "30d"
 // (default), "90d" or "forever". A profile pref. Also a settings_private
-// allowlist literal (patches/sidebar/0042).
+// allowlist literal (patches/sidebar/0049).
 inline constexpr char kArchiveKeep[] = "aerie.tabs.archive_keep";
 // Minutes of idle time before a tab sleeps: 15 to 480, or 0 for never. Default
 // 60.

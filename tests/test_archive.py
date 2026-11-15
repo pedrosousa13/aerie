@@ -13,7 +13,7 @@ SIDEBAR_COMPONENT = REPO / "overlay" / "components" / "aerie_sidebar"
 SERVICE = REPO / "overlay" / "chrome" / "browser" / "aerie_tab_model"
 VIEWS = REPO / "overlay" / "chrome" / "browser" / "ui" / "views" / "aerie_sidebar"
 RESOURCES = REPO / "overlay" / "chrome" / "browser" / "resources" / "settings" / "appearance_page"
-PATCH = REPO / "patches" / "sidebar" / "0042-add-the-archive-rows-to-the-sidebar-section-of-settings.patch"
+PATCH = REPO / "patches" / "sidebar" / "0049-add-the-archive-rows-to-the-sidebar-section-of-settings.patch"
 GRDP = (VIEWS / "aerie_sidebar_strings.grdp").read_text()
 SERIES = [l.strip() for l in (REPO / "patches" / "series").read_text().splitlines() if l.strip() and not l.startswith("#")]
 
