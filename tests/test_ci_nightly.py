@@ -67,12 +67,13 @@ class NightlyTest(unittest.TestCase):
         self.assertIn("--download-benchmarks", bench)
         self.assertNotIn("--perf-skip-benchmarks", bench)
 
-    def test_a_registered_sidebar_frames_check_is_recorded_as_the_baseline_in_the_perf_folder(self):
+    def test_a_registered_sidebar_frames_check_runs_but_records_no_baseline(self):
         self.shell.checks = "smoke sidebar_frames"
         self.run_nightly()
         bench = [c for c in self.shell.calls if "bench" in c and "--check" in c][-1]
-        self.assertEqual(bench[bench.index("--sidebar-frames-record") + 1], "/mnt/linux2/aerie-perf")
-        self.assertNotIn("--perf-record", bench)
+        self.assertIn("sidebar_frames", bench)
+        self.assertNotIn("--sidebar-frames-record", bench)
+        self.assertNotIn("--sidebar-frames-baseline", bench)
 
     def test_results_are_kept_under_a_dated_directory(self):
         self.run_nightly()

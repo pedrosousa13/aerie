@@ -79,15 +79,20 @@ def tab_urls(base_url: str, count: int) -> list[str]:
     return [f"http://t{i}.{FOLDER_HOST}:{port}{TAB_PAGE}?n={i}" for i in range(count)]
 
 
-def now_us() -> int:
-    return int(time.monotonic() * 1_000_000)
+now_us = xinput.now_us
+
+
+class InputLost(RuntimeError):
+    """A key or click did not change the sidebar, so the animation that was timed never ran."""
 
 
 class Observer:
     """Drives one browser through the animations and records a trace around each. Plain recording: it decides nothing."""
 
-    def __init__(self, browser: Session, ui: ui_devtools.UiDevTools, xin: xinput.XInput, *, repeats: int) -> None:
+    def __init__(self, browser: Session, ui: ui_devtools.UiDevTools, xin: xinput.XInput, *, repeats: int,
+                 read_expanded: bool = True) -> None:
         self.browser, self.ui, self.xin, self.repeats = browser, ui, xin, repeats
+        self.read_expanded = read_expanded
         self.traces: dict[str, dict] = {}
 
     # -- recording
@@ -113,32 +118,65 @@ class Observer:
 
     # -- the animations
 
-    def _pair(self, label: str, first: str, second: str, act_first, act_second) -> dict[str, dict]:
-        """Alternate two actions ``repeats`` times in one trace; measure each action's animation."""
+    def _pair(self, label: str, first: str, second: str, act_first, act_second, expect_first, expect_second
+              ) -> dict[str, dict]:
+        """Alternate two actions ``repeats`` times in one trace; measure each action's animation.
+
+        An action returns the trace-clock time of its first state-changing input event (the key going down, the
+        button press); the window starts there, not before the pointer or the keys were moved into place.
+        ``expect_*`` are (description, callable): after the animation the callable must be true, or the input
+        was lost and the run fails."""
         starts: dict[str, list[int]] = {first: [], second: []}
 
         def run():
             for _ in range(self.repeats):
-                for name, act in ((first, act_first), (second, act_second)):
-                    starts[name].append(now_us())
-                    act()
+                for name, act, expect in ((first, act_first, expect_first), (second, act_second, expect_second)):
+                    before = now_us()
+                    pressed = act()
+                    starts[name].append(pressed if pressed is not None else before)
                     time.sleep(frames.duration_ms(name) / 1000.0 + 0.45)
+                    self.expect(name, *expect)
 
         got = self.record(label, run)
         return {name: frames.measure_runs(got["trace"], starts[name], frames.duration_ms(name))
                 for name in (first, second)}
 
+    def expect(self, name: str, description: str, check) -> None:
+        """Fail the run, clearly, when the input of ``name`` did not take effect."""
+        if check is not None and not check():
+            raise InputLost(f"{name}: the input was lost, {description} (the sidebar did not change; the animation "
+                            "that was timed never ran)")
+
+    def sidebar_open(self) -> bool:
+        rect = self.ui.screen_rect("VerticalTabStripRegionView")
+        return rect is not None and rect[2] > 0
+
+    def folder_rows(self) -> int:
+        """Tab rows in the views tree. Counted from the tree alone: asking for the properties of 300 rows is slow."""
+        return sum(1 for _, cls in self.ui.nodes_within("AerieSidebarView") if cls == "AerieSidebarRowView")
+
+    def folder_expanded(self) -> bool:
+        return self.folder_rows() > self.collapsed_rows
+
+    # The expanded folder of the control (300 tabs) cannot be read: the views tree of 300 rows does not come back from
+    # UI DevTools within the time limit. Its expand is then not read; the collapse is, and since expand and collapse
+    # alternate, a lost expand leaves the folder expanded after the collapse click, which fails that check.
+
     def hide_show(self, reduced: bool) -> dict[str, dict]:
         key = (lambda n: f"reduced_{n}" if reduced else n)
         toggle = lambda: self.xin.chord("ctrl", "s")
-        return self._pair("hide_show" + ("_reduced" if reduced else ""), key("hide"), key("show"), toggle, toggle)
+        return self._pair("hide_show" + ("_reduced" if reduced else ""), key("hide"), key("show"), toggle, toggle,
+                          ("the sidebar is still visible after Ctrl+S", lambda: not self.sidebar_open()),
+                          ("the sidebar is still hidden after Ctrl+S", self.sidebar_open))
 
     def folder(self, reduced: bool) -> dict[str, dict]:
         x, y = self.folder_point
         click = lambda: self.xin.click(x, y)
         key = (lambda n: f"reduced_{n}" if reduced else n)
         return self._pair("folder" + ("_reduced" if reduced else ""), key("folder_expand"), key("folder_collapse"),
-                          click, click)
+                          click, click,
+                          ("the folder is still collapsed after the click", self.folder_expanded if self.read_expanded else None),
+                          ("the folder is still expanded after the click", lambda: not self.folder_expanded()))
 
     def resize(self) -> dict[str, dict]:
         rect = self.ui.screen_rect("ResizeArea", within="VerticalTabStripRegionView")
@@ -151,9 +189,8 @@ class Observer:
         def run():
             for _ in range(max(1, self.repeats // 2 + 1)):
                 for sign in (1, -1):
-                    starts.append(now_us())
                     start_x = x if sign == 1 else x + RESIZE_DELTA
-                    self.xin.drag(start_x, y, start_x + sign * RESIZE_DELTA, y, RESIZE_STEPS, step)
+                    starts.append(self.xin.drag(start_x, y, start_x + sign * RESIZE_DELTA, y, RESIZE_STEPS, step))
                     time.sleep(0.5)
 
         got = self.record("resize", run)
@@ -166,18 +203,25 @@ class Observer:
         if folder is None:
             raise RuntimeError("the sidebar shows no folder row: the auto-filing folder was not loaded")
         self.folder_point = (folder[0] + folder[2] // 2, folder[1] + folder[3] // 2)
+        self.collapsed_rows = self.folder_rows()  # the folder starts collapsed: more rows than this means expanded
 
     def warm_up(self) -> None:
         """One of each, untraced: the first run of a view's layer, a shader or a glyph cache is not what the user feels
         every time."""
         self.xin.chord("ctrl", "s")
         time.sleep(0.8)
+        self.expect("warm-up hide", "the sidebar is still visible after Ctrl+S", lambda: not self.sidebar_open())
         self.xin.chord("ctrl", "s")
         time.sleep(0.8)
+        self.expect("warm-up show", "the sidebar is still hidden after Ctrl+S", self.sidebar_open)
         self.xin.click(*self.folder_point)
         time.sleep(0.8)
+        self.expect("warm-up expand", "the folder is still collapsed after the click",
+                    self.folder_expanded if self.read_expanded else None)
         self.xin.click(*self.folder_point)
         time.sleep(0.8)
+        self.expect("warm-up collapse", "the folder is still expanded after the click",
+                    lambda: not self.folder_expanded())
 
 
 @register
@@ -214,7 +258,7 @@ class SidebarFrames:
                 try:
                     xin.move(WINDOW_W // 2, WINDOW_H // 2)  # no window manager: the key focus follows the pointer
                     time.sleep(0.5)
-                    obs = Observer(browser, ui, xin, repeats=self.repeats)
+                    obs = Observer(browser, ui, xin, repeats=self.repeats, read_expanded=tabs <= 50)
                     obs.locate()
                     obs.warm_up()
                     measured: dict[str, dict] = {}
@@ -257,7 +301,13 @@ class SidebarFrames:
         data = {"animations": animations, "control": control, "problems": problems,
                 "control_problems": control_problems, "metrics": doc["metrics"]}
         summary = summarise(animations)
-        if not control_problems:
+        verdict = frames.control_verdict(control_problems)
+        data["control_verdict"] = verdict
+        if verdict == "broken":
+            return CheckResult(self.name, "fail", "the negative control did not run: " + "; ".join(control_problems)
+                               + ". The harness measured nothing for a folder of "
+                               f"{self.control_tabs} tabs, so the judge was not tried. " + summary, data=data)
+        if verdict == "passed":
             return CheckResult(self.name, "fail", "the negative control did not fail: a folder of "
                                f"{self.control_tabs} tabs expanded and collapsed within the limits, so the judge cannot "
                                "be trusted. " + summary, data=data)

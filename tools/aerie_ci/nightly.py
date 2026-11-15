@@ -35,9 +35,8 @@ def run_nightly(cfg: CiConfig, *, today: Callable[[], str] = lambda: time.strfti
                     checks = st.bench_check_names(cfg.shell, cfg.python, tree, env, exclude=())
                     # A passing run with the perf check becomes the baseline the PR gate compares against.
                     extra = ("--download-benchmarks", "--perf-record", str(cfg.perf_dir)) if "perf" in checks else ()
-                    # The same for the sidebar frame times, in the same folder.
-                    if "sidebar_frames" in checks:
-                        extra += ("--sidebar-frames-record", str(cfg.perf_dir))
+                    # sidebar_frames runs in the full bench but records nothing: its baseline is compared by hand
+                    # (--sidebar-frames-baseline) until the check passes and the maintainer decides when to record one.
                     plan = [st.Step("clean build", cmds["clean_build"]),
                             st.Step("full bench", st.bench_argv(cfg.python, tree, cfg.build_root, checks,
                                                                 out=bench_out, extra=extra)),

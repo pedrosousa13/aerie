@@ -191,6 +191,32 @@ class RecordedTraceTest(unittest.TestCase):
         self.assertTrue(any("dropped frames" in p for p in problems), problems)
 
 
+class ControlVerdictTest(unittest.TestCase):
+    def verdict(self, **over):
+        names = ("folder_expand", "folder_collapse")
+        return frames.control_verdict(frames.judge(observation(**over), names=names))
+
+    def test_slow_or_dropped_frames_are_the_control_failing_as_it_must(self):
+        slow = {"frames": 5, "frame_time_ms": {"p95": 600.0}, "dropped_frames": 0, "compositor_only": True}
+        self.assertEqual(self.verdict(folder_expand=slow), "failed")
+        self.assertEqual(self.verdict(folder_collapse={"frames": 5, "frame_time_ms": {"p95": 3.0},
+                                                       "dropped_frames": 4, "compositor_only": True}), "failed")
+
+    def test_a_control_within_the_limits_is_a_pass_and_so_vacuous(self):
+        self.assertEqual(self.verdict(), "passed")
+
+    def test_nothing_measured_or_no_frame_is_a_broken_harness_not_a_failure(self):
+        names = ("folder_expand", "folder_collapse")
+        self.assertEqual(frames.control_verdict(frames.judge({"animations": {}}, names=names)), "broken")
+        self.assertEqual(frames.control_verdict(frames.judge({"animations": {"folder_expand": {"frames": 0}}},
+                                                             names=names)), "broken")
+
+    def test_broken_wins_over_failed(self):
+        heavy = {"frames": 5, "frame_time_ms": {"p95": 600.0}, "dropped_frames": 9, "compositor_only": True}
+        obs = {"animations": {"folder_expand": heavy}}
+        self.assertEqual(frames.control_verdict(frames.judge(obs, names=("folder_expand", "folder_collapse"))), "broken")
+
+
 class JudgeTest(unittest.TestCase):
     def test_a_clean_observation_passes(self):
         self.assertEqual(frames.judge(observation()), [])

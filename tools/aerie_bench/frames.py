@@ -166,9 +166,9 @@ def measure(trace: dict, start_us: int, duration_ms: float, vsync_ms: float = VS
 
 
 def pool(runs: list[dict]) -> dict:
-    """One animation measured several times, as one result. ``frame_time_ms`` and ``interval_ms`` are not
-    recomputed here (the raw frames are gone), so they carry the per-run values the pool needs:
-    ``frame_times`` and ``intervals`` hold every value of every run; the summary is taken over those."""
+    """One animation measured several times, as one result. Each run carries its raw values in ``_times`` (the
+    frame times) and ``_gaps`` (the intervals between frames on screen); the summary is taken over those of
+    every run."""
     times = [t for r in runs for t in r.get("_times", [])]
     gaps = [g for r in runs for g in r.get("_gaps", [])]
     out = {
@@ -280,6 +280,22 @@ def judge(observation: dict, names: tuple[str, ...] | None = None) -> list[str]:
             problems.append(f"{name}: layout ran in {m.get('layout_frames')} frames of the animation; only layers "
                             "may animate")
     return problems
+
+
+NOT_RUN = ("not measured", "no frame was presented", "no animation was measured")
+
+
+def control_verdict(problems: list[str]) -> str:
+    """How the negative control went, from what ``judge`` said about it.
+
+    ``"failed"``: it dropped frames or was too slow, as a layout-heavy path must. ``"broken"``: something did not run
+    (an animation not measured, no frame presented), so the control proves nothing. ``"passed"``: it ran and met
+    the limits, so the judge cannot tell a bad animation from a good one."""
+    if any(any(marker in p for marker in NOT_RUN) for p in problems):
+        return "broken"
+    if any("p95 frame time" in p or "dropped frames" in p for p in problems):
+        return "failed"
+    return "passed"
 
 
 # --- baseline --------------------------------------------------------------------------------------

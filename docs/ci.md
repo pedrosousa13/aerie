@@ -48,7 +48,7 @@ Options for `poll` and `gate`: `--build-root DIR` (env `AERIE_BUILD_ROOT`) and
    JetStream copies into the build root once, and runs them on every PR (a few minutes; the limits are 600 s and 900 s,
    or 180 s without progress).
    The `sidebar_frames` check (docs/bench.md, "Sidebar frame times") is not a gate step: it needs a private Xvfb and about two
-   minutes, and it is left out of the gate's Bench list like `perf`. The nightly runs it.
+   minutes, and it is left out of the gate's Bench list like `perf`. The nightly runs it (and it fails there today, see below).
    Each step shows in the pending status description.
 6. Removes the worktree, posts `success` or `failure`, and records the SHA.
 
@@ -97,8 +97,10 @@ full Bench (every registered check, `zero_traffic` included). After the Bench it
 the interactive one needs `xvfb-run` on the host). It is the last step, so a failing UI test does not hide the
 Bench result; the step is named `views ui tests` in `summary.json` and in the issue the nightly opens. When the whole run passes, its `perf`
 result is recorded as the new baseline in `AERIE_PERF_DIR` (a failing check such as `zero_traffic`
-blocks recording, and so does a perf check that could not measure a metric). The `sidebar_frames` document is recorded in the
-same folder, as `sidebar-frames-main.json`, by the same rule (the run must pass). It passes `--download-benchmarks` too. It does this in its own build root, so it never replaces the build the maintainer tests from.
+blocks recording, and so does a perf check that could not measure a metric). The nightly runs `sidebar_frames` with the rest of the Bench but records no baseline for it and compares with none: the
+comparison is manual (`--sidebar-frames-baseline`, docs/bench.md) until the product defects in #237 (the hide that is a cut, the
+15 to 20 ms first frame) land and the check passes; the nightly records its baseline only after that. Until then the nightly's
+`sidebar_frames` step fails. It passes `--download-benchmarks` too. It does this in its own build root, so it never replaces the build the maintainer tests from.
 
 | Setting | Flag | Environment | Default |
 | --- | --- | --- | --- |

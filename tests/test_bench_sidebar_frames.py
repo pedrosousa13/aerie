@@ -125,6 +125,15 @@ class RunTest(unittest.TestCase):
         mixed = {"folder_expand": good()["folder_expand"], "folder_collapse": bad_control()["folder_collapse"]}
         self.assertEqual(self.run_check(control=mixed).status, "pass")
 
+    def test_a_control_that_measured_nothing_is_a_harness_failure_not_a_pass_of_the_control(self):
+        for broken in ({}, {"folder_expand": bad_control()["folder_expand"]},
+                       {"folder_expand": bad_control()["folder_expand"],
+                        "folder_collapse": bad_control()["folder_collapse"] | {"frames": 0}}):
+            res = self.run_check(control=broken)
+            self.assertEqual(res.status, "fail", broken)
+            self.assertIn("negative control did not run", res.detail)
+            self.assertNotIn("failed as it must", res.detail)
+
     def test_the_documents_are_written_and_listed(self):
         self.run_check()
         doc = json.loads((self.dir / "sidebar_frames.json").read_text())
@@ -232,3 +241,120 @@ class CliTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FakeUi:
+    """UI DevTools with a sidebar that is open or not, and a folder with some rows."""
+
+    def __init__(self, open_=True, rows=3):
+        self.open, self.rows = open_, rows
+
+    def screen_rect(self, cls, within=None):
+        return (0, 0, 280 if self.open else 0, 700) if cls == "VerticalTabStripRegionView" else (0, 0, 10, 10)
+
+    def nodes_within(self, ancestor):
+        return iter([(i, "AerieSidebarRowView") for i in range(self.rows)] + [(99, "AerieSidebarTopRow")])
+
+
+class FakeXin:
+    """XInput that returns the time of its press, as the real one does, and changes the fake UI when told to."""
+
+    def __init__(self, ui=None, works=True):
+        self.ui, self.works, self.presses = ui, works, 0
+
+    def chord(self, *keys):
+        self.presses += 1
+        if self.works:
+            self.ui.open = not self.ui.open
+        return 1_000_000 + self.presses * 10_000_000  # the press, long after the call started
+
+    click = chord
+
+    def drag(self, *a):
+        return 7_000_000
+
+
+def observer(ui, xin, repeats=2):
+    from aerie_bench.checks import sidebar_frames as sf
+    obs = sf.Observer(SimpleNamespace(), ui, xin, repeats=repeats)
+    obs.collapsed_rows = 3
+    obs.record = lambda label, action: {"trace": {}, "result": action()}
+    return obs
+
+
+class ObserverTest(unittest.TestCase):
+    def setUp(self):
+        from aerie_bench.checks import sidebar_frames as sf
+        patch = mock.patch.object(sf.time, "sleep")
+        patch.start()
+        self.addCleanup(patch.stop)
+
+    def test_a_window_starts_at_the_first_input_event_the_action_reports_not_before_the_action(self):
+        ui = FakeUi()
+        obs = observer(ui, FakeXin(ui))
+        seen = []
+        with mock.patch.object(frames, "measure_runs", side_effect=lambda trace, starts, dur: seen.append(list(starts)) or {}):
+            obs.hide_show(reduced=False)
+        # hide is the 1st, 3rd press; show the 2nd and 4th
+        self.assertEqual(seen, [[11_000_000, 31_000_000], [21_000_000, 41_000_000]])
+
+    def test_the_window_of_a_drag_starts_at_the_first_move(self):
+        ui = FakeUi()
+        obs = observer(ui, FakeXin(ui))
+        obs.ui = SimpleNamespace(screen_rect=lambda cls, within=None: (5, 0, 5, 700))
+        seen = []
+        with mock.patch.object(frames, "measure_runs", side_effect=lambda trace, starts, dur: seen.append(list(starts)) or {}):
+            obs.resize()
+        self.assertTrue(seen and all(x == 7_000_000 for x in seen[0]))
+
+    def test_a_key_that_did_nothing_fails_the_run_with_a_clear_error(self):
+        from aerie_bench.checks.sidebar_frames import InputLost
+        ui = FakeUi()
+        obs = observer(ui, FakeXin(ui, works=False))
+        with self.assertRaisesRegex(InputLost, "hide: the input was lost.*still visible"):
+            obs.hide_show(reduced=False)
+
+    def test_a_click_that_did_not_expand_the_folder_fails_the_run(self):
+        from aerie_bench.checks.sidebar_frames import InputLost
+        ui = FakeUi(rows=3)  # no new rows after the click
+        obs = observer(ui, FakeXin(ui, works=False))
+        obs.folder_point = (10, 10)
+        with self.assertRaisesRegex(InputLost, "folder_expand: the input was lost.*still collapsed"):
+            obs.folder(reduced=False)
+
+    def test_the_expand_of_a_huge_folder_is_not_read_but_a_lost_expand_is_caught_by_the_collapse(self):
+        from aerie_bench.checks.sidebar_frames import InputLost
+        ui = FakeUi(rows=3)
+
+        class Xin(FakeXin):
+            def chord(self, *keys):  # an honest click: odd presses expand, even ones collapse
+                self.presses += 1
+                ui.rows = 18 if self.presses % 2 == 1 else 3
+                return 1_000_000 * self.presses
+            click = chord
+
+        obs = observer(ui, Xin(ui), repeats=2)
+        obs.read_expanded = False
+        obs.folder_point = (1, 1)
+        with mock.patch.object(frames, "measure_runs", return_value={}):
+            obs.folder(reduced=False)  # honest toggling passes without reading the expanded tree
+        ui2 = FakeUi(rows=3)
+        obs2 = observer(ui2, FakeXin(ui2, works=False))
+        obs2.read_expanded = False
+        obs2.folder_point = (1, 1)
+        obs2.xin.click = lambda *a: 5
+        ui2.rows = 18  # the folder stays expanded: the collapse check fails
+        with mock.patch.object(frames, "measure_runs", return_value={}):
+            with self.assertRaisesRegex(InputLost, "folder_collapse: the input was lost"):
+                obs2.folder(reduced=False)
+
+    def test_an_expanded_folder_shows_more_rows_than_the_collapsed_one(self):
+        ui = FakeUi(rows=3)
+        obs = observer(ui, FakeXin(ui))
+        self.assertFalse(obs.folder_expanded())
+        ui.rows = 18
+        self.assertTrue(obs.folder_expanded())
+
+    def test_a_hidden_sidebar_has_no_width(self):
+        ui = FakeUi(open_=False)
+        self.assertFalse(observer(ui, FakeXin(ui)).sidebar_open())
