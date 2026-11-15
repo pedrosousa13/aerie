@@ -10,7 +10,6 @@ import type {SettingsAerieTitleRulesRowElement} from './aerie_title_rules_row.js
 // title, a rule's name or value) is only ever bound as text or as the value of
 // a field, never as HTML.
 export function getHtml(this: SettingsAerieTitleRulesRowElement) {
-  const draft = this.draft_;
   return html`<!--_html_template_start_-->
 <div class="settings-box" id="aerieTidyBox">
   <div class="flex cr-padded-text">
@@ -20,7 +19,7 @@ export function getHtml(this: SettingsAerieTitleRulesRowElement) {
   <button class="aerie-switch" id="aerieTidyToggle" type="button"
       role="switch" aria-checked="${this.tidyOn_}"
       aria-labelledby="aerieTidyLabel" aria-describedby="aerieTidyDesc"
-      @click="${this.onTidyToggle_}"></button>
+      @click="${this.onTidyClick_}"></button>
 </div>
 <div class="aerie-block" id="aerieTidySites">
   <div id="aerieTidySitesLabel">$i18n{aerieTidyOffSites}</div>
@@ -34,7 +33,7 @@ export function getHtml(this: SettingsAerieTitleRulesRowElement) {
         @keydown="${this.onSiteKeydown_}">
     <button class="aerie-button" id="aerieTidySiteAdd" type="button"
         ?disabled="${this.siteDraft_.trim() === ''}"
-        @click="${this.addSite_}">$i18n{aerieTidyOffSitesAdd}</button>
+        @click="${this.onAddSiteClick_}">$i18n{aerieTidyOffSitesAdd}</button>
   </div>
   <ul class="aerie-list" id="aerieTidySiteList"
       aria-labelledby="aerieTidySitesLabel">
@@ -43,7 +42,7 @@ export function getHtml(this: SettingsAerieTitleRulesRowElement) {
       <span class="aerie-item-text aerie-item-name">${host}</span>
       <button class="aerie-button" type="button" data-host="${host}"
           aria-label="$i18n{aerieTidyOffSitesRemove}: ${host}"
-          @click="${this.removeSite_}">$i18n{aerieRuleRemove}</button>
+          @click="${this.onRemoveSiteClick_}">$i18n{aerieRuleRemove}</button>
     </li>`)}
   </ul>
 </div>
@@ -57,7 +56,7 @@ export function getHtml(this: SettingsAerieTitleRulesRowElement) {
   <button class="aerie-switch" id="aerieRulesToggle" type="button"
       role="switch" aria-checked="${this.rulesOn_}"
       aria-labelledby="aerieRulesAllLabel" aria-describedby="aerieRulesAllDesc"
-      @click="${this.onRulesToggle_}"></button>
+      @click="${this.onRulesClick_}"></button>
 </div>
 <div class="aerie-block">
   <div class="aerie-hint" id="aerieRulesHelp">$i18n{aerieRulesHelp}</div>
@@ -68,74 +67,74 @@ export function getHtml(this: SettingsAerieTitleRulesRowElement) {
     ${this.rules_.map((rule, index) => html`
     <li class="${this.rowClass_(rule, index)}"
         role="option" draggable="true"
-        @dragstart="${this.onDragStart_}" @dragover="${this.onDragOver_}"
-        @drop="${this.onDrop_}" @dragend="${this.onDragEnd_}"
+        @dragstart="${this.onDragstart_}" @dragover="${this.onDragover_}"
+        @drop="${this.onDrop_}" @dragend="${this.onDragend_}"
         data-index="${index}" aria-selected="${index === this.selected_}"
         tabindex="${index === this.selected_ ? 0 : -1}"
         @focus="${this.onOptionFocus_}">
       <button class="aerie-switch" type="button" role="switch"
           aria-checked="${rule.enabled}" tabindex="-1"
           aria-label="$i18n{aerieRuleSwitch}: ${this.displayName_(rule)}"
-          @click="${this.onToggleRule_}"></button>
+          @click="${this.onToggleRuleClick_}"></button>
       <span class="aerie-item-text">
         <div class="aerie-item-name">${this.displayName_(rule)}</div>
         <div class="aerie-item-summary">${this.summary_(rule)}</div>
       </span>
       <button class="aerie-button" type="button"
           aria-label="$i18n{aerieRuleMoveUp}: ${this.displayName_(rule)}"
-          ?disabled="${index === 0}" @click="${this.onMoveUp_}">$i18n{aerieRuleUp}</button>
+          ?disabled="${index === 0}" @click="${this.onMoveUpClick_}">$i18n{aerieRuleUp}</button>
       <button class="aerie-button" type="button"
           aria-label="$i18n{aerieRuleMoveDown}: ${this.displayName_(rule)}"
           ?disabled="${index === this.rules_.length - 1}"
-          @click="${this.onMoveDown_}">$i18n{aerieRuleDown}</button>
+          @click="${this.onMoveDownClick_}">$i18n{aerieRuleDown}</button>
       <button class="aerie-button" type="button"
           aria-label="$i18n{aerieRuleEdit}: ${this.displayName_(rule)}"
-          @click="${this.onEdit_}">$i18n{aerieRuleEdit}</button>
+          @click="${this.onEditClick_}">$i18n{aerieRuleEdit}</button>
       <button class="aerie-button" type="button"
           aria-label="$i18n{aerieRuleRemove}: ${this.displayName_(rule)}"
-          @click="${this.onRemove_}">$i18n{aerieRuleRemove}</button>
+          @click="${this.onRemoveClick_}">$i18n{aerieRuleRemove}</button>
     </li>`)}
   </ul>
   <div class="aerie-hint" id="aerieRulesEmpty" ?hidden="${this.rules_.length > 0}">$i18n{aerieRulesEmpty}</div>
   <div class="aerie-hint aerie-status" id="aerieRulesAnnounce" role="status"
       aria-live="polite">${this.announcement_}</div>
   <button class="aerie-button" id="aerieAddRule" type="button"
-      @click="${this.onAddRule_}">$i18n{aerieRuleAdd}</button>
+      @click="${this.onAddRuleClick_}">$i18n{aerieRuleAdd}</button>
 </div>
-${draft ? html`
+${this.draft_ ? html`
 <form class="aerie-form" id="aerieRuleForm" @keydown="${this.onDraftKeydown_}"
-    @submit="${(e: Event) => e.preventDefault()}"
+    @submit="${this.onSubmit_}"
     aria-labelledby="aerieRuleFormTitle">
-  <div id="aerieRuleFormTitle">${draft.id === null ? html`$i18n{aerieRuleNew}` : html`$i18n{aerieRuleEditing}`}</div>
+  <div id="aerieRuleFormTitle">${this.draft_.id === null ? html`$i18n{aerieRuleNew}` : html`$i18n{aerieRuleEditing}`}</div>
   <label class="aerie-field">$i18n{aerieRuleName}
     <input id="aerieRuleName" type="text" data-field="name" maxlength="100"
-        autocomplete="off" .value="${draft.name}" @input="${this.onDraftInput_}">
+        autocomplete="off" .value="${this.draft_.name}" @input="${this.onDraftInput_}">
   </label>
   <label class="aerie-field">$i18n{aerieRuleMatch}
     <select id="aerieRuleType" data-field="type" @change="${this.onDraftInput_}">
-      <option value="domain" ?selected="${draft.type === 'domain'}">$i18n{aerieRuleTypeDomain}</option>
-      <option value="url-starts-with" ?selected="${draft.type === 'url-starts-with'}">$i18n{aerieRuleTypeUrlStartsWith}</option>
-      <option value="url-contains" ?selected="${draft.type === 'url-contains'}">$i18n{aerieRuleTypeUrlContains}</option>
-      <option value="title-contains" ?selected="${draft.type === 'title-contains'}">$i18n{aerieRuleTypeTitleContains}</option>
+      <option value="domain" ?selected="${this.draft_.type === 'domain'}">$i18n{aerieRuleTypeDomain}</option>
+      <option value="url-starts-with" ?selected="${this.draft_.type === 'url-starts-with'}">$i18n{aerieRuleTypeUrlStartsWith}</option>
+      <option value="url-contains" ?selected="${this.draft_.type === 'url-contains'}">$i18n{aerieRuleTypeUrlContains}</option>
+      <option value="title-contains" ?selected="${this.draft_.type === 'title-contains'}">$i18n{aerieRuleTypeTitleContains}</option>
     </select>
   </label>
   <label class="aerie-field">$i18n{aerieRuleValue}
     <input id="aerieRuleValue" type="text" data-field="value" maxlength="512"
-        autocomplete="off" spellcheck="false" .value="${draft.value}"
+        autocomplete="off" spellcheck="false" .value="${this.draft_.value}"
         @input="${this.onDraftInput_}">
   </label>
   <label class="aerie-field">$i18n{aerieRuleRewrite}
     <select id="aerieRuleMode" data-field="mode" @change="${this.onDraftInput_}">
-      <option value="template" ?selected="${draft.mode === 'template'}">$i18n{aerieRuleModeTemplate}</option>
-      <option value="remove" ?selected="${draft.mode === 'remove'}">$i18n{aerieRuleModeRemove}</option>
+      <option value="template" ?selected="${this.draft_.mode === 'template'}">$i18n{aerieRuleModeTemplate}</option>
+      <option value="remove" ?selected="${this.draft_.mode === 'remove'}">$i18n{aerieRuleModeRemove}</option>
     </select>
   </label>
-  <label class="aerie-field">${draft.mode === 'template' ? html`$i18n{aerieRuleTemplate}` : html`$i18n{aerieRuleRemoveText}`}
+  <label class="aerie-field">${this.draft_.mode === 'template' ? html`$i18n{aerieRuleTemplate}` : html`$i18n{aerieRuleRemoveText}`}
     <input id="aerieRuleText" type="text" data-field="text" maxlength="512"
-        autocomplete="off" spellcheck="false" .value="${draft.text}"
+        autocomplete="off" spellcheck="false" .value="${this.draft_.text}"
         aria-describedby="aerieRuleTextHint" @input="${this.onDraftInput_}">
   </label>
-  <div class="aerie-hint" id="aerieRuleTextHint">${draft.mode === 'template' ? html`$i18n{aerieRuleTemplateHint}` : html`$i18n{aerieRuleRemoveHint}`}</div>
+  <div class="aerie-hint" id="aerieRuleTextHint">${this.draft_.mode === 'template' ? html`$i18n{aerieRuleTemplateHint}` : html`$i18n{aerieRuleRemoveHint}`}</div>
   <div class="aerie-error" id="aerieRuleError" role="alert">${this.errorText_()}</div>
   <div class="aerie-inline">
     <button class="aerie-button" id="aerieRuleSave" type="button"

@@ -31,6 +31,7 @@
 import '../i18n_setup.js';
 
 import {css, CrLitElement} from 'chrome://resources/lit/v3_0/lit.rollup.js';
+import type {PropertyValues} from 'chrome://resources/lit/v3_0/lit.rollup.js';
 import {PrefService} from '/shared/settings/prefs2/pref_service.js';
 import {PrefServiceObserverMixinLit} from '/shared/settings/prefs2/pref_service_observer_mixin_lit.js';
 
@@ -318,16 +319,17 @@ export class SettingsAerieTitleRulesRowElement extends
     }
   }
 
-  override updated() {
+  override updated(changed: PropertyValues<this>) {
+    super.updated(changed);
     if (this.focusOptionAfterRender_ !== null) {
-      const options = this.shadowRoot!.querySelectorAll<HTMLElement>(
+      const options = this.shadowRoot.querySelectorAll<HTMLElement>(
           '.aerie-item');
       options[this.focusOptionAfterRender_]?.focus();
       this.focusOptionAfterRender_ = null;
     }
     if (this.focusDraftAfterRender_) {
       this.focusDraftAfterRender_ = false;
-      const name = this.shadowRoot!.querySelector<HTMLElement>(
+      const name = this.shadowRoot.querySelector<HTMLElement>(
           '#aerieRuleName');
       name?.focus();
       name?.scrollIntoView({block: 'nearest'});
@@ -370,11 +372,11 @@ export class SettingsAerieTitleRulesRowElement extends
     void PrefService.getInstance().setPrefValue(OFF_SITES_PREF, sites);
   }
 
-  protected onTidyToggle_() {
+  protected onTidyClick_() {
     void PrefService.getInstance().setPrefValue(TIDY_PREF, !this.tidyOn_);
   }
 
-  protected onRulesToggle_() {
+  protected onRulesClick_() {
     void PrefService.getInstance().setPrefValue(RULES_ON_PREF, !this.rulesOn_);
   }
 
@@ -387,11 +389,11 @@ export class SettingsAerieTitleRulesRowElement extends
   protected onSiteKeydown_(e: KeyboardEvent) {
     if (e.key === 'Enter') {
       e.preventDefault();
-      this.addSite_();
+      this.onAddSiteClick_();
     }
   }
 
-  protected addSite_() {
+  protected onAddSiteClick_() {
     const host = hostFromInput(this.siteDraft_);
     if (host === '') {
       return;
@@ -402,7 +404,7 @@ export class SettingsAerieTitleRulesRowElement extends
     this.siteDraft_ = '';
   }
 
-  protected removeSite_(e: Event) {
+  protected onRemoveSiteClick_(e: Event) {
     const host = (e.currentTarget as HTMLElement).dataset['host']!;
     this.saveOffSites_(this.offSites_.filter(s => s !== host));
   }
@@ -437,7 +439,7 @@ export class SettingsAerieTitleRulesRowElement extends
     return Number(element?.dataset['index'] ?? -1);
   }
 
-  protected onToggleRule_(e: Event) {
+  protected onToggleRuleClick_(e: Event) {
     e.stopPropagation();
     this.toggleRule_(this.indexOfTarget_(e));
   }
@@ -452,11 +454,11 @@ export class SettingsAerieTitleRulesRowElement extends
     this.saveRules_(copy);
   }
 
-  protected onMoveUp_(e: Event) {
+  protected onMoveUpClick_(e: Event) {
     this.moveSelected_(this.indexOfTarget_(e), -1);
   }
 
-  protected onMoveDown_(e: Event) {
+  protected onMoveDownClick_(e: Event) {
     this.moveSelected_(this.indexOfTarget_(e), 1);
   }
 
@@ -470,12 +472,16 @@ export class SettingsAerieTitleRulesRowElement extends
     if (!moved) {
       return;
     }
-    const rule = this.rules_[from]!;
+    const rule = this.rules_[from];
     this.selected_ = to;
     this.focusOptionAfterRender_ = focus ? to : null;
     this.announcement_ = loadTimeData.getStringF(
         'aerieRuleMoved', this.displayName_(rule), to + 1, this.rules_.length);
     this.saveRules_(moved);
+  }
+
+  protected onSubmit_(e: Event) {
+    e.preventDefault();
   }
 
   protected rowClass_(rule: AerieRenameRule, index: number): string {
@@ -491,7 +497,7 @@ export class SettingsAerieTitleRulesRowElement extends
     return classes.join(' ');
   }
 
-  protected onDragStart_(e: DragEvent) {
+  protected onDragstart_(e: DragEvent) {
     const from = this.indexOfTarget_(e);
     if (from < 0 || !e.dataTransfer) {
       e.preventDefault();
@@ -504,7 +510,7 @@ export class SettingsAerieTitleRulesRowElement extends
     e.dataTransfer.setData('application/x-aerie-rule-index', String(from));
   }
 
-  protected onDragOver_(e: DragEvent) {
+  protected onDragover_(e: DragEvent) {
     if (this.dragFrom_ < 0) {
       return;  // Not our drag (a file or text from elsewhere): not a target.
     }
@@ -530,12 +536,12 @@ export class SettingsAerieTitleRulesRowElement extends
     this.moveTo_(from, to);
   }
 
-  protected onDragEnd_() {
+  protected onDragend_() {
     this.dragFrom_ = -1;
     this.dropAt_ = -1;
   }
 
-  protected onRemove_(e: Event) {
+  protected onRemoveClick_(e: Event) {
     const index = this.indexOfTarget_(e);
     const rule = this.rules_[index];
     if (!rule) {
@@ -549,7 +555,7 @@ export class SettingsAerieTitleRulesRowElement extends
     this.saveRules_(copy);
   }
 
-  protected onEdit_(e: Event) {
+  protected onEditClick_(e: Event) {
     this.startEdit_(this.indexOfTarget_(e));
   }
 
@@ -623,7 +629,7 @@ export class SettingsAerieTitleRulesRowElement extends
     this.focusDraftAfterRender_ = true;
   }
 
-  protected onAddRule_() {
+  protected onAddRuleClick_() {
     this.draft_ = {
       id: null,
       name: '',
@@ -668,7 +674,7 @@ export class SettingsAerieTitleRulesRowElement extends
       this.focusOptionAfterRender_ = index;
     } else {
       this.updateComplete.then(() => {
-        this.shadowRoot!.querySelector<HTMLElement>('#aerieAddRule')?.focus();
+        this.shadowRoot.querySelector<HTMLElement>('#aerieAddRule')?.focus();
       });
     }
   }
@@ -703,7 +709,7 @@ export class SettingsAerieTitleRulesRowElement extends
         copy.push(rule);
         focusIndex = copy.length - 1;
       } else {
-        copy[focusIndex] = {...rule, enabled: copy[focusIndex]!.enabled};
+        copy[focusIndex] = {...rule, enabled: copy[focusIndex].enabled};
       }
     }
     this.draft_ = null;
