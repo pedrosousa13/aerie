@@ -26,7 +26,8 @@ class ColorProvider;
 //   text (`text`)                 kColorPrimaryForeground, menu, dialog, label
 //                                 and omnibox text, kColorSysOnSurface
 //   text muted (`text-muted`)     kColorSecondaryForeground, the omnibox's dim
-//                                 text, kColorSysOnSurfaceVariant, ...Subtle and
+//                                 text, kColorSysOnSurfaceVariant, ...Subtle
+//                                 and
 //                                 ...Secondary
 //   accent (Workspace hue)        kColorAccent, kColorSysPrimary
 //   focus ring (the accent)       kColorFocusableBorderFocused,

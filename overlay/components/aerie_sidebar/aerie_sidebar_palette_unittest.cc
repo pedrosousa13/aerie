@@ -120,7 +120,6 @@ TEST(AerieSidebarPaletteTest, TextIsReadableOnTheRowColoursOverTheFrame) {
   }
 }
 
-
 // ---- Themes and forced colours (issue #185) ------------------------------
 
 TEST(AerieSidebarPaletteTest, TheFocusRingIsWiderInHighContrastOnly) {
@@ -148,11 +147,12 @@ TEST(AerieSidebarPaletteTest, EveryThemeKeepsTextReadableOnItsRowFills) {
           aerie_frame::ResolveFramePalette(theme, mode, "dusk");
       for (const gfx::PointF& point :
            {gfx::PointF(0, 0), gfx::PointF(260, 900), gfx::PointF(130, 450)}) {
-        const SkColor frame = aerie_frame::FrameColorAt(f, window, false, point);
+        const SkColor frame =
+            aerie_frame::FrameColorAt(f, window, false, point);
         for (SkColor row : {p.row_selected, p.row_hover}) {
-          EXPECT_GE(aerie_frame::ContrastRatio(
-                        p.text, aerie_frame::Over(row, frame)),
-                    minimum)
+          EXPECT_GE(
+              aerie_frame::ContrastRatio(p.text, aerie_frame::Over(row, frame)),
+              minimum)
               << t << " " << static_cast<int>(mode);
         }
       }

@@ -26,10 +26,10 @@ aerie::tokens::EffectiveLookInputs ReadLookInputs(
     inputs.workspace_theme = aerie::appearance::ParseThemeId(workspace->theme);
     inputs.workspace_mode = aerie::appearance::ParseModeChoice(workspace->mode);
   }
-  inputs.os_dark = widget ? widget->GetColorMode() ==
-                                ui::ColorProviderKey::ColorMode::kDark
-                          : native_theme.preferred_color_scheme() ==
-                                ui::NativeTheme::PreferredColorScheme::kDark;
+  inputs.os_dark =
+      widget ? widget->GetColorMode() == ui::ColorProviderKey::ColorMode::kDark
+             : native_theme.preferred_color_scheme() ==
+                   ui::NativeTheme::PreferredColorScheme::kDark;
   inputs.os_contrast_more = native_theme.preferred_contrast() ==
                             ui::NativeTheme::PreferredContrast::kMore;
   inputs.forced_colors =

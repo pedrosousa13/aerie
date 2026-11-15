@@ -7,8 +7,8 @@
 // system asks for. The table is docs/sidebar-design.md, "Themes" and
 // "prefers-contrast".
 
-#include "components/aerie_design_tokens/aerie_appearance_prefs.h"
 #include "components/aerie_design_tokens/aerie_effective_look.h"
+#include "components/aerie_design_tokens/aerie_appearance_prefs.h"
 #include "components/aerie_design_tokens/aerie_tokens.h"
 #include "components/prefs/pref_registry_simple.h"
 #include "components/prefs/testing_pref_service.h"
@@ -216,7 +216,8 @@ TEST_F(AerieAppearanceInputsTest, ABadStoredValueReadsAsNotChosenAndSystem) {
 
 // Only the exact ids are accepted: no other case, no empty string, no padding.
 TEST_F(AerieAppearanceInputsTest, OnlyTheKnownIdsAreAccepted) {
-  for (const char* junk : {"", "OLED", " oled", "oled ", "high_contrast", "0", "default"}) {
+  for (const char* junk :
+       {"", "OLED", " oled", "oled ", "high_contrast", "0", "default"}) {
     SCOPED_TRACE(junk);
     prefs_.SetString(appearance::kThemePref, junk);
     prefs_.SetString(appearance::kModePref, junk);

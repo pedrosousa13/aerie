@@ -38,8 +38,8 @@ struct FrameTintInputs {
   gfx::Size size;
   gfx::Rect card;
   bool sidebar_on_right = false;
-  // Forced colours: the operating system's colours the frame is drawn in. Empty:
-  // the theme's own.
+  // Forced colours: the operating system's colours the frame is drawn in.
+  // Empty: the theme's own.
   std::optional<SystemColours> system_colours;
 
   bool operator==(const FrameTintInputs&) const = default;

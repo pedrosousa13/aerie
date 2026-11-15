@@ -52,8 +52,9 @@ struct FramePalette {
   SkColor accent;
   // The address pill's field colour (translucent, so it is drawn over the frame).
   SkColor field;
-  // The strip on the top edge of the sidebar column (the theme's `strip-height`,
-  // 0 for none): the Workspace gradient at full strength, unmixed.
+  // The strip on the top edge of the sidebar column (the theme's
+  // `strip-height`, 0 for none): the Workspace gradient at full strength,
+  // unmixed.
   int strip_height;
   std::array<SkColor, 3> strip_stops;
   int strip_stop_count;

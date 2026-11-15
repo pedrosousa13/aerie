@@ -92,7 +92,8 @@ void PaintGlow(gfx::Canvas* canvas, const FramePalette& palette,
 // is drawn at the left; PaintFrame() mirrors the canvas for a sidebar on the
 // right.
 void PaintStrip(gfx::Canvas* canvas, const FramePalette& palette, int width) {
-  if (palette.strip_height <= 0 || palette.strip_stop_count <= 0 || width <= 0) {
+  if (palette.strip_height <= 0 || palette.strip_stop_count <= 0 ||
+      width <= 0) {
     return;
   }
   const int count = std::max(palette.strip_stop_count, 2);
@@ -151,8 +152,8 @@ void PaintCard(gfx::Canvas* canvas, const FramePalette& palette,
     border.setStyle(cc::PaintFlags::kFill_Style);
     border.setAntiAlias(true);
     border.setColor(palette.card_border_color);
-    canvas->DrawRoundRect(outer, palette.card_radius + palette.card_border_width,
-                          border);
+    canvas->DrawRoundRect(
+        outer, palette.card_radius + palette.card_border_width, border);
   }
   cc::PaintFlags surface;
   surface.setStyle(cc::PaintFlags::kFill_Style);

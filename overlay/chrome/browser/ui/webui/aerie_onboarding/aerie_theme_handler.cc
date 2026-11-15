@@ -9,9 +9,9 @@
 #include "base/functional/bind.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/themes/theme_service.h"
+#include "chrome/browser/themes/theme_service_factory.h"
 #include "components/aerie_design_tokens/aerie_appearance_prefs.h"
 #include "components/prefs/pref_service.h"
-#include "chrome/browser/themes/theme_service_factory.h"
 #include "content/public/browser/web_ui.h"
 #include "ui/base/mojom/themes.mojom.h"
 
@@ -60,8 +60,8 @@ void AerieThemeHandler::HandleSetColorScheme(const base::ListValue& args) {
     return;
   }
   // The Mode pref is what the Aerie look reads (issue #185); the window's look
-  // controller mirrors it to the browser colour scheme, which is set here too so
-  // the change holds when no window is open.
+  // controller mirrors it to the browser colour scheme, which is set here too
+  // so the change holds when no window is open.
   profile_->GetPrefs()->SetString(aerie::appearance::kModePref, *value);
   ThemeServiceFactory::GetForProfile(profile_)->SetBrowserColorScheme(scheme);
 }

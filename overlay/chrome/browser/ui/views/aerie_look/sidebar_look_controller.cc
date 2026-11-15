@@ -120,8 +120,8 @@ void SidebarLookController::OnWorkspaceChanged() {
 
 void SidebarLookController::OnAddedToWidget() {
   views::Widget* widget = client_->GetLookWidget();
-  if (widget && !native_theme_observations_.IsObservingSource(
-                    widget->GetNativeTheme())) {
+  if (widget &&
+      !native_theme_observations_.IsObservingSource(widget->GetNativeTheme())) {
     widget_native_theme_ = widget->GetNativeTheme();
     native_theme_observations_.AddObservation(widget_native_theme_);
   }
@@ -144,9 +144,9 @@ void SidebarLookController::OnNativeThemeUpdated(
 
 void SidebarLookController::OnAppearancePrefChanged() {
   // The snapshot is taken first, while the window still has the old look. The
-  // views paint in the next frame, so nothing of the new look is in it. A change
-  // that leaves the effective look as it was (OLED in light mode, for Clean)
-  // has nothing to fade.
+  // views paint in the next frame, so nothing of the new look is in it. A
+  // change that leaves the effective look as it was (OLED in light mode, for
+  // Clean) has nothing to fade.
   const aerie::tokens::EffectiveLook next = look();
   if (has_applied_ && next != applied_look_) {
     crossfade_.Start(client_->GetLookWidget());

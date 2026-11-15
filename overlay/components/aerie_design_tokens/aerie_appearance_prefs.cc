@@ -53,8 +53,8 @@ tokens::EffectiveLookInputs ReadGlobalChoice(const PrefService& prefs) {
   if (prefs.GetUserPrefValue(kThemePref)) {
     inputs.global_theme = ParseThemeId(prefs.GetString(kThemePref));
   }
-  inputs.global_mode =
-      ParseModeChoice(prefs.GetString(kModePref)).value_or(tokens::ModeChoice::kSystem);
+  inputs.global_mode = ParseModeChoice(prefs.GetString(kModePref))
+                           .value_or(tokens::ModeChoice::kSystem);
   return inputs;
 }
 

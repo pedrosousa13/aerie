@@ -2,9 +2,10 @@
 // You can use, redistribute, and/or modify this source code under
 // the terms of the GPL-3.0 license that can be found in the LICENSE file.
 
-// The parts of a theme that issue #185 adds to the frame: the colours Chromium's
-// own surfaces get through the ColorMixer, the system-colour frame of forced
-// colours, the strip on the sidebar's top edge, and the card's hairline.
+// The parts of a theme that issue #185 adds to the frame: the colours
+// Chromium's own surfaces get through the ColorMixer, the system-colour frame
+// of forced colours, the strip on the sidebar's top edge, and the card's
+// hairline.
 
 #include <set>
 #include <string>
@@ -47,7 +48,8 @@ TEST(AerieChromeColorsTest, TheColoursAreTheThemeTokens) {
 TEST(AerieChromeColorsTest, TheAccentAndTheFocusRingAreTheFramesAccent) {
   for (ColorMode mode : {ColorMode::kLight, ColorMode::kDark}) {
     const ChromeColors c = ResolveChromeColors(ThemeId::kVivid, mode, "tide");
-    EXPECT_EQ(c.accent, ResolveFramePalette(ThemeId::kVivid, mode, "tide").accent);
+    EXPECT_EQ(c.accent,
+              ResolveFramePalette(ThemeId::kVivid, mode, "tide").accent);
     EXPECT_EQ(c.focus_ring, c.accent);
   }
   // The Workspace colour moves the accent and nothing else.
@@ -62,16 +64,20 @@ TEST(AerieChromeColorsTest, TheAccentAndTheFocusRingAreTheFramesAccent) {
 
 TEST(AerieChromeColorsTest, OledIsBlackAndHighContrastIsBlackOnWhite) {
   // Copied from tokens.json on purpose: a token edit must change the test.
-  EXPECT_EQ(ResolveChromeColors(ThemeId::kOled, ColorMode::kDark, "dusk").surface,
-            SkColorSetRGB(0x0E, 0x0E, 0x10));
   EXPECT_EQ(
-      ResolveChromeColors(ThemeId::kHighContrast, ColorMode::kLight, "dusk").text,
+      ResolveChromeColors(ThemeId::kOled, ColorMode::kDark, "dusk").surface,
+      SkColorSetRGB(0x0E, 0x0E, 0x10));
+  EXPECT_EQ(
+      ResolveChromeColors(ThemeId::kHighContrast, ColorMode::kLight, "dusk")
+          .text,
       SK_ColorBLACK);
   EXPECT_EQ(
-      ResolveChromeColors(ThemeId::kHighContrast, ColorMode::kLight, "dusk").surface,
+      ResolveChromeColors(ThemeId::kHighContrast, ColorMode::kLight, "dusk")
+          .surface,
       SK_ColorWHITE);
   EXPECT_EQ(
-      ResolveChromeColors(ThemeId::kHighContrast, ColorMode::kDark, "dusk").surface,
+      ResolveChromeColors(ThemeId::kHighContrast, ColorMode::kDark, "dusk")
+          .surface,
       SK_ColorBLACK);
 }
 
@@ -96,7 +102,8 @@ TEST(AerieChromeColorsTest, TextReadsOnTheSurfaceInEveryThemeAndMode) {
   }
 }
 
-// ---- Forced colours -----------------------------------------------------------
+// ---- Forced colours
+// -----------------------------------------------------------
 
 constexpr SystemColours kSystem{SK_ColorBLACK, SK_ColorWHITE,
                                 SkColorSetRGB(0x1A, 0xEB, 0xFF)};
@@ -138,7 +145,8 @@ TEST(AerieTintInputsTest, SystemColoursReplaceTheThemePalette) {
   in.mode = ColorMode::kLight;
   in.colour = "dusk";
   EXPECT_EQ(PaletteOf(in).frame_base,
-            ResolveFramePalette(ThemeId::kVivid, ColorMode::kLight, "dusk").frame_base);
+            ResolveFramePalette(ThemeId::kVivid, ColorMode::kLight, "dusk")
+                .frame_base);
   in.system_colours = kSystem;
   const FramePalette p = PaletteOf(in);
   EXPECT_EQ(p.frame_base, SK_ColorBLACK);
@@ -160,14 +168,26 @@ TEST(AerieTintInputsTest, AChangeOfTheSystemColoursOrTheThemeNeedsAPaint) {
   EXPECT_TRUE(state.Update(in));
 }
 
-// ---- The strip -------------------------------------------------------------------
+// ---- The strip
+// -------------------------------------------------------------------
 
 TEST(AerieFrameStripTest, CleanHasAThreePixelStripAndHighContrastFour) {
-  EXPECT_EQ(ResolveFramePalette(ThemeId::kVivid, ColorMode::kLight, "dusk").strip_height, 0);
-  EXPECT_EQ(ResolveFramePalette(ThemeId::kSoft, ColorMode::kDark, "dusk").strip_height, 0);
-  EXPECT_EQ(ResolveFramePalette(ThemeId::kClean, ColorMode::kLight, "dusk").strip_height, 3);
-  EXPECT_EQ(ResolveFramePalette(ThemeId::kHighContrast, ColorMode::kDark, "dusk").strip_height, 4);
-  EXPECT_EQ(ResolveFramePalette(ThemeId::kOled, ColorMode::kDark, "dusk").strip_height, 0);
+  EXPECT_EQ(ResolveFramePalette(ThemeId::kVivid, ColorMode::kLight, "dusk")
+                .strip_height,
+            0);
+  EXPECT_EQ(ResolveFramePalette(ThemeId::kSoft, ColorMode::kDark, "dusk")
+                .strip_height,
+            0);
+  EXPECT_EQ(ResolveFramePalette(ThemeId::kClean, ColorMode::kLight, "dusk")
+                .strip_height,
+            3);
+  EXPECT_EQ(
+      ResolveFramePalette(ThemeId::kHighContrast, ColorMode::kDark, "dusk")
+          .strip_height,
+      4);
+  EXPECT_EQ(ResolveFramePalette(ThemeId::kOled, ColorMode::kDark, "dusk")
+                .strip_height,
+            0);
 }
 
 TEST(AerieFrameStripTest, TheStripIsTheWorkspaceGradientAtFullStrength) {
@@ -230,14 +250,17 @@ TEST_F(AerieFrameLookPaintTest, NoStripMeansNoStripPixels) {
       ResolveFramePalette(ThemeId::kVivid, ColorMode::kLight, "dusk");
   gfx::Canvas with_strip_gap(kWindow, 1.0f, true);
   PaintFrame(&with_strip_gap, p, kWindow, false, gfx::Rect(268, 8, 1164, 884));
-  const SkColor model = FrameColorAt(p, kWindow, false, gfx::PointF(1.5f, 1.5f));
+  const SkColor model =
+      FrameColorAt(p, kWindow, false, gfx::PointF(1.5f, 1.5f));
   const SkColor got = with_strip_gap.GetBitmap().getColor(1, 1);
   EXPECT_NEAR(SkColorGetR(got), SkColorGetR(model), 3);
 }
 
-// ---- The card's hairline -------------------------------------------------------
+// ---- The card's hairline
+// -------------------------------------------------------
 
-TEST_F(AerieFrameLookPaintTest, HighContrastDrawsATwoPixelBorderOutsideTheCard) {
+TEST_F(AerieFrameLookPaintTest,
+       HighContrastDrawsATwoPixelBorderOutsideTheCard) {
   const FramePalette p =
       ResolveFramePalette(ThemeId::kHighContrast, ColorMode::kLight, "dusk");
   ASSERT_EQ(p.card_border_width, 2);
@@ -259,8 +282,10 @@ TEST_F(AerieFrameLookPaintTest, VividDrawsNoBorder) {
   gfx::Canvas with(kWindow, 1.0f, true);
   PaintFrame(&with, p, kWindow, false, card);
   // Two pixels left of the card is the shadow at most, never an opaque line.
-  const SkColor a = with.GetBitmap().getColor(card.x() - 1, card.CenterPoint().y());
-  const SkColor b = with.GetBitmap().getColor(card.x() - 6, card.CenterPoint().y());
+  const SkColor a =
+      with.GetBitmap().getColor(card.x() - 1, card.CenterPoint().y());
+  const SkColor b =
+      with.GetBitmap().getColor(card.x() - 6, card.CenterPoint().y());
   EXPECT_NEAR(SkColorGetR(a), SkColorGetR(b), 40);
 }
 

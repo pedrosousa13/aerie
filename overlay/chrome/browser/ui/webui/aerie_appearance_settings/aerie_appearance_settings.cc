@@ -14,13 +14,12 @@ namespace aerie_appearance_settings {
 
 void AddThemeSwatches(content::WebUIDataSource* source) {
   static constexpr const char* kKeys[aerie::tokens::kThemeCount] = {
-      "aerieThemeSwatchVivid", "aerieThemeSwatchSoft",
-      "aerieThemeSwatchClean", "aerieThemeSwatchOled",
+      "aerieThemeSwatchVivid",        "aerieThemeSwatchSoft",
+      "aerieThemeSwatchClean",        "aerieThemeSwatchOled",
       "aerieThemeSwatchHighContrast", "aerieThemeSwatchMono"};
   for (int i = 0; i < aerie::tokens::kThemeCount; ++i) {
-    source->AddString(
-        kKeys[i],
-        aerie_frame::ThemeSwatchCss(static_cast<aerie::tokens::ThemeId>(i)));
+    source->AddString(kKeys[i], aerie_frame::ThemeSwatchCss(
+                                    static_cast<aerie::tokens::ThemeId>(i)));
   }
 }
 

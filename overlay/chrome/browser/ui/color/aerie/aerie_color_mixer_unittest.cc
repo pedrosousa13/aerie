@@ -17,10 +17,10 @@
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/color/color_id.h"
 #include "ui/color/color_mixer.h"
-#include "ui/color/color_recipe.h"
 #include "ui/color/color_mixers.h"
 #include "ui/color/color_provider.h"
 #include "ui/color/color_provider_key.h"
+#include "ui/color/color_recipe.h"
 #include "ui/gfx/color_palette.h"
 
 namespace aerie_color {
@@ -119,19 +119,19 @@ TEST_F(AerieColorMixerTest, TheOtherModeHasOtherColours) {
 
 TEST_F(AerieColorMixerTest, AChangedThemeChangesTheNextProvider) {
   SetActiveLook(ThemeId::kVivid, "dusk");
-  const SkColor vivid =
-      Build(Key(ui::ColorProviderKey::ColorMode::kDark))->GetColor(ui::kColorMenuBackground);
+  const SkColor vivid = Build(Key(ui::ColorProviderKey::ColorMode::kDark))
+                            ->GetColor(ui::kColorMenuBackground);
   SetActiveLook(ThemeId::kOled, "dusk");
-  const SkColor oled =
-      Build(Key(ui::ColorProviderKey::ColorMode::kDark))->GetColor(ui::kColorMenuBackground);
+  const SkColor oled = Build(Key(ui::ColorProviderKey::ColorMode::kDark))
+                           ->GetColor(ui::kColorMenuBackground);
   EXPECT_NE(vivid, oled);
   EXPECT_EQ(oled, SkColorSetRGB(0x0E, 0x0E, 0x10));
 }
 
 TEST_F(AerieColorMixerTest, OledInLightModeShowsClean) {
   SetActiveLook(ThemeId::kOled, "dusk");
-  const SkColor menu =
-      Build(Key(ui::ColorProviderKey::ColorMode::kLight))->GetColor(ui::kColorMenuBackground);
+  const SkColor menu = Build(Key(ui::ColorProviderKey::ColorMode::kLight))
+                           ->GetColor(ui::kColorMenuBackground);
   EXPECT_EQ(menu, aerie_frame::ResolveChromeColors(ThemeId::kClean,
                                                    ColorMode::kLight, "dusk")
                       .surface);
@@ -158,7 +158,8 @@ TEST_F(AerieColorMixerTest, ItWinsOverAnEarlierMixer) {
   provider.AddMixer()[ui::kColorMenuBackground] = {SK_ColorRED};
   AddAerieColorMixer(&provider, key);
   EXPECT_EQ(provider.GetColor(ui::kColorMenuBackground),
-            aerie_frame::ResolveChromeColors(ThemeId::kVivid, ColorMode::kLight, "dusk")
+            aerie_frame::ResolveChromeColors(ThemeId::kVivid, ColorMode::kLight,
+                                             "dusk")
                 .surface);
 }
 
@@ -222,12 +223,13 @@ TEST_F(AerieColorMixerTest, TextOnTheAccentIsReadableInEveryThemeAndMode) {
         SCOPED_TRACE(std::string(aerie::tokens::kThemeIds[i]) + "/" + colour +
                      (mode == ColorMode::kDark ? "/dark" : "/light"));
         SetActiveLook(theme, colour);
-        const auto provider = Build(Key(mode == ColorMode::kDark
-                                            ? ui::ColorProviderKey::ColorMode::kDark
-                                            : ui::ColorProviderKey::ColorMode::kLight));
+        const auto provider =
+            Build(Key(mode == ColorMode::kDark
+                          ? ui::ColorProviderKey::ColorMode::kDark
+                          : ui::ColorProviderKey::ColorMode::kLight));
         const double floor = theme == ThemeId::kHighContrast ? 7.0 : 4.5;
-        for (ui::ColorId on : {ui::kColorSysOnPrimary,
-                               ui::kColorButtonForegroundProminent}) {
+        for (ui::ColorId on :
+             {ui::kColorSysOnPrimary, ui::kColorButtonForegroundProminent}) {
           EXPECT_GE(aerie_frame::ContrastRatio(
                         provider->GetColor(on),
                         provider->GetColor(ui::kColorSysPrimary)),

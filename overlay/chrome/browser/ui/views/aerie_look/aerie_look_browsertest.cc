@@ -8,14 +8,15 @@
 #include <utility>
 #include <vector>
 
+#include <algorithm>
 #include "base/run_loop.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
+#include "base/timer/elapsed_timer.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/themes/theme_service.h"
 #include "chrome/browser/themes/theme_service_factory.h"
 #include "chrome/browser/ui/browser.h"
-#include "base/timer/elapsed_timer.h"
 #include "chrome/browser/ui/color/aerie/aerie_color_mixer.h"
 #include "chrome/browser/ui/views/aerie_frame/frame_tint_view.h"
 #include "chrome/browser/ui/views/aerie_look/sidebar_look_controller.h"
@@ -27,18 +28,17 @@
 #include "components/aerie_frame/aerie_frame_look.h"
 #include "components/aerie_frame/aerie_frame_paint.h"
 #include "components/aerie_frame/aerie_frame_palette.h"
-#include "third_party/skia/include/core/SkBitmap.h"
-#include <algorithm>
 #include "components/prefs/pref_service.h"
 #include "content/public/test/browser_test.h"
+#include "third_party/skia/include/core/SkBitmap.h"
 #include "ui/color/color_id.h"
 #include "ui/color/color_provider_manager.h"
+#include "ui/compositor/layer.h"
 #include "ui/compositor/layer_animation_element.h"
 #include "ui/compositor/layer_animation_sequence.h"
 #include "ui/compositor/layer_animator.h"
 #include "ui/compositor/test/layer_animator_test_controller.h"
 #include "ui/gfx/animation/tween.h"
-#include "ui/compositor/layer.h"
 #include "ui/native_theme/native_theme.h"
 #include "ui/views/widget/widget.h"
 
@@ -49,7 +49,9 @@ class AerieLookBrowserTest : public InProcessBrowserTest {
   BrowserView* browser_view() {
     return BrowserView::GetBrowserViewForBrowser(browser());
   }
-  FrameTintView* tint() { return browser_view()->frame_tint_view_for_testing(); }
+  FrameTintView* tint() {
+    return browser_view()->frame_tint_view_for_testing();
+  }
   PrefService* prefs() { return browser()->GetProfile()->GetPrefs(); }
   LookCrossfade& fade() {
     return tint()->look_controller()->crossfade_for_testing();
@@ -66,7 +68,8 @@ class AerieLookBrowserTest : public InProcessBrowserTest {
   }
   // Theme and mode through the prefs the Settings page writes, then waits for
   // the frame to show them.
-  bool Choose(const char* theme, const char* mode,
+  bool Choose(const char* theme,
+              const char* mode,
               aerie::tokens::ThemeId want_theme,
               aerie::tokens::ColorMode want_mode) {
     prefs()->SetString(aerie::appearance::kThemePref, theme);
@@ -95,9 +98,10 @@ class AerieLookBrowserTest : public InProcessBrowserTest {
     auto sample = [&](int x, int y) {
       const SkColor under = bitmap.getColor(std::min(x, size.width() - 1),
                                             std::min(y, size.height() - 1));
-      m.text = std::min(m.text, aerie_frame::ContrastRatio(palette.text, under));
-      m.muted = std::min(
-          m.muted, aerie_frame::ContrastRatio(palette.text_muted, under));
+      m.text =
+          std::min(m.text, aerie_frame::ContrastRatio(palette.text, under));
+      m.muted = std::min(m.muted,
+                         aerie_frame::ContrastRatio(palette.text_muted, under));
       m.accent =
           std::min(m.accent, aerie_frame::ContrastRatio(palette.accent, under));
     };
@@ -143,7 +147,8 @@ IN_PROC_BROWSER_TEST_F(AerieLookBrowserTest, EachThemeRedrawsTheFrame) {
   }
 }
 
-IN_PROC_BROWSER_TEST_F(AerieLookBrowserTest, ModeFollowsTheBrowserColourScheme) {
+IN_PROC_BROWSER_TEST_F(AerieLookBrowserTest,
+                       ModeFollowsTheBrowserColourScheme) {
   prefs()->SetString(aerie::motion::kReduceMotionPref,
                      aerie::motion::kReduceMotionOn);
   prefs()->SetString(aerie::appearance::kModePref, "dark");
@@ -167,7 +172,8 @@ IN_PROC_BROWSER_TEST_F(AerieLookBrowserTest, ACrossfadeRunsAndLeavesNoLayer) {
 
 // The snapshot fades by `opacity` alone: 380 ms (motion-duration-xslow) on the
 // standard curve, and nothing else of the layer animates.
-IN_PROC_BROWSER_TEST_F(AerieLookBrowserTest, TheFadeIsOpacityOnlyAt380msOnTheStandardCurve) {
+IN_PROC_BROWSER_TEST_F(AerieLookBrowserTest,
+                       TheFadeIsOpacityOnlyAt380msOnTheStandardCurve) {
   prefs()->SetString(aerie::motion::kReduceMotionPref,
                      aerie::motion::kReduceMotionSystem);
   prefs()->SetString(aerie::appearance::kThemePref, "clean");
@@ -175,7 +181,8 @@ IN_PROC_BROWSER_TEST_F(AerieLookBrowserTest, TheFadeIsOpacityOnlyAt380msOnTheSta
   ui::Layer* layer = fade().snapshot_layer_for_testing();
   ASSERT_TRUE(layer);
   ui::LayerAnimator* animator = layer->GetAnimator();
-  EXPECT_TRUE(animator->IsAnimatingProperty(ui::LayerAnimationElement::OPACITY));
+  EXPECT_TRUE(
+      animator->IsAnimatingProperty(ui::LayerAnimationElement::OPACITY));
   for (int bit = ui::LayerAnimationElement::FIRST_PROPERTY;
        bit != ui::LayerAnimationElement::SENTINEL; bit <<= 1) {
     if (bit == ui::LayerAnimationElement::OPACITY) {
@@ -210,7 +217,8 @@ IN_PROC_BROWSER_TEST_F(AerieLookBrowserTest, NoFadeAtLaunch) {
   EXPECT_EQ(fade().finished_count(), 0);
 }
 
-IN_PROC_BROWSER_TEST_F(AerieLookBrowserTest, ASecondChangeRestartsFromTheCurrentOpacity) {
+IN_PROC_BROWSER_TEST_F(AerieLookBrowserTest,
+                       ASecondChangeRestartsFromTheCurrentOpacity) {
   prefs()->SetString(aerie::motion::kReduceMotionPref,
                      aerie::motion::kReduceMotionSystem);
   prefs()->SetString(aerie::appearance::kThemePref, "soft");
@@ -231,7 +239,8 @@ IN_PROC_BROWSER_TEST_F(AerieLookBrowserTest, ASecondChangeRestartsFromTheCurrent
 
 // A window that closes in the middle of a fade takes the snapshot, the timer
 // and the animation with it, and the other window's fade is not disturbed.
-IN_PROC_BROWSER_TEST_F(AerieLookBrowserTest, ClosingTheWindowMidFadeLeavesNothingBehind) {
+IN_PROC_BROWSER_TEST_F(AerieLookBrowserTest,
+                       ClosingTheWindowMidFadeLeavesNothingBehind) {
   prefs()->SetString(aerie::motion::kReduceMotionPref,
                      aerie::motion::kReduceMotionSystem);
   Browser* second = CreateBrowser(browser()->GetProfile());
@@ -254,7 +263,8 @@ IN_PROC_BROWSER_TEST_F(AerieLookBrowserTest, ClosingTheWindowMidFadeLeavesNothin
   Pump(base::Milliseconds(50));
 }
 
-IN_PROC_BROWSER_TEST_F(AerieLookBrowserTest, PaintedContrastMeetsTheMinimumsForEveryThemeAndMode) {
+IN_PROC_BROWSER_TEST_F(AerieLookBrowserTest,
+                       PaintedContrastMeetsTheMinimumsForEveryThemeAndMode) {
   using aerie::tokens::ColorMode;
   using aerie::tokens::ThemeId;
   SetReducedMotion();
@@ -267,17 +277,20 @@ IN_PROC_BROWSER_TEST_F(AerieLookBrowserTest, PaintedContrastMeetsTheMinimumsForE
   std::vector<Case> cases;
   for (int i = 0; i < aerie::tokens::kThemeCount; ++i) {
     const ThemeId theme = static_cast<ThemeId>(i);
-    cases.push_back({aerie::tokens::kThemeIds[i], theme, "dark", ColorMode::kDark});
+    cases.push_back(
+        {aerie::tokens::kThemeIds[i], theme, "dark", ColorMode::kDark});
     if (theme != ThemeId::kOled) {  // OLED has no light table.
-      cases.push_back({aerie::tokens::kThemeIds[i], theme, "light", ColorMode::kLight});
+      cases.push_back(
+          {aerie::tokens::kThemeIds[i], theme, "light", ColorMode::kLight});
     }
   }
   for (const Case& c : cases) {
     SCOPED_TRACE(std::string(c.id) + "/" + c.mode);
     ASSERT_TRUE(Choose(c.id, c.mode, c.theme, c.color_mode));
     const Measured m = MeasurePainted();
-    LOG(INFO) << "AERIE_CONTRAST " << c.id << "/" << c.mode << " text=" << m.text
-              << " muted=" << m.muted << " accent=" << m.accent;
+    LOG(INFO) << "AERIE_CONTRAST " << c.id << "/" << c.mode
+              << " text=" << m.text << " muted=" << m.muted
+              << " accent=" << m.accent;
     const double floor = c.theme == ThemeId::kHighContrast ? 7.0 : 4.5;
     EXPECT_GE(m.text, floor);
     EXPECT_GE(m.muted, floor);
@@ -294,7 +307,8 @@ IN_PROC_BROWSER_TEST_F(AerieLookBrowserTest, OledInLightModeIsClean) {
 // What the Aerie mixer adds to a real ColorProvider build, with all of
 // Chromium's own mixers (browser, ui and Helium's) in place. Logged as
 // AERIE_COLOR_COST; the bound is generous so a loaded machine does not fail it.
-IN_PROC_BROWSER_TEST_F(AerieLookBrowserTest, TheMixerAddsLittleToARealProviderBuild) {
+IN_PROC_BROWSER_TEST_F(AerieLookBrowserTest,
+                       TheMixerAddsLittleToARealProviderBuild) {
   SetReducedMotion();
   ui::ColorProviderKey key;
   key.color_mode = browser_view()->GetWidget()->GetColorMode();
@@ -317,9 +331,10 @@ IN_PROC_BROWSER_TEST_F(AerieLookBrowserTest, TheMixerAddsLittleToARealProviderBu
     aerie_color::SetActiveLook(aerie::tokens::ThemeId::kSoft, "dusk");
     with = std::min(with, time_builds());
   }
-  LOG(INFO) << "AERIE_COLOR_COST without=" << without << " us/build with=" << with
-            << " us/build delta=" << (with - without) << " us/build (" << kBuilds
-            << " builds, best of 3, full Chromium mixers)";
+  LOG(INFO) << "AERIE_COLOR_COST without=" << without
+            << " us/build with=" << with
+            << " us/build delta=" << (with - without) << " us/build ("
+            << kBuilds << " builds, best of 3, full Chromium mixers)";
   EXPECT_LT(with - without, 200.0);
 }
 
@@ -361,7 +376,9 @@ class ScopedNativeThemeFlags {
       saved_;
 };
 
-IN_PROC_BROWSER_TEST_F(AerieLookBrowserTest, PrefersContrastMoreSelectsHighContrastUnlessAThemeWasChosen) {
+IN_PROC_BROWSER_TEST_F(
+    AerieLookBrowserTest,
+    PrefersContrastMoreSelectsHighContrastUnlessAThemeWasChosen) {
   using aerie::tokens::ThemeId;
   SetReducedMotion();
   ScopedNativeThemeFlags flags(browser_view()->GetWidget(),
@@ -373,38 +390,35 @@ IN_PROC_BROWSER_TEST_F(AerieLookBrowserTest, PrefersContrastMoreSelectsHighContr
   }));
   // Chosen, Vivid included: the choice wins.
   prefs()->SetString(aerie::appearance::kThemePref, "vivid");
-  ASSERT_TRUE(WaitFor([&] {
-    return tint()->inputs_for_testing().theme == ThemeId::kVivid;
-  }));
+  ASSERT_TRUE(WaitFor(
+      [&] { return tint()->inputs_for_testing().theme == ThemeId::kVivid; }));
   prefs()->SetString(aerie::appearance::kThemePref, "soft");
-  ASSERT_TRUE(WaitFor([&] {
-    return tint()->inputs_for_testing().theme == ThemeId::kSoft;
-  }));
+  ASSERT_TRUE(WaitFor(
+      [&] { return tint()->inputs_for_testing().theme == ThemeId::kSoft; }));
   // Back to no preference with nothing chosen is Vivid again.
   prefs()->ClearPref(aerie::appearance::kThemePref);
   flags.Set(ui::NativeTheme::PreferredContrast::kNoPreference,
             ui::ColorProviderKey::ForcedColors::kNone);
-  ASSERT_TRUE(WaitFor([&] {
-    return tint()->inputs_for_testing().theme == ThemeId::kVivid;
-  }));
+  ASSERT_TRUE(WaitFor(
+      [&] { return tint()->inputs_for_testing().theme == ThemeId::kVivid; }));
 }
 
-IN_PROC_BROWSER_TEST_F(AerieLookBrowserTest, ForcedColoursPaintWithSystemColoursAndNoAerieTint) {
+IN_PROC_BROWSER_TEST_F(AerieLookBrowserTest,
+                       ForcedColoursPaintWithSystemColoursAndNoAerieTint) {
   using aerie::tokens::ThemeId;
   SetReducedMotion();
   prefs()->SetString(aerie::appearance::kThemePref, "soft");
-  ASSERT_TRUE(WaitFor([&] {
-    return tint()->inputs_for_testing().theme == ThemeId::kSoft;
-  }));
+  ASSERT_TRUE(WaitFor(
+      [&] { return tint()->inputs_for_testing().theme == ThemeId::kSoft; }));
   const aerie_frame::FramePalette tinted =
       aerie_frame::PaletteOf(tint()->inputs_for_testing());
   EXPECT_GT(tinted.stop_count, 1);
-  ScopedNativeThemeFlags flags(browser_view()->GetWidget(),
-                               ui::NativeTheme::PreferredContrast::kNoPreference,
-                               ui::ColorProviderKey::ForcedColors::kSystem);
-  ASSERT_TRUE(WaitFor([&] {
-    return tint()->inputs_for_testing().system_colours.has_value();
-  }));
+  ScopedNativeThemeFlags flags(
+      browser_view()->GetWidget(),
+      ui::NativeTheme::PreferredContrast::kNoPreference,
+      ui::ColorProviderKey::ForcedColors::kSystem);
+  ASSERT_TRUE(WaitFor(
+      [&] { return tint()->inputs_for_testing().system_colours.has_value(); }));
   const aerie_frame::FramePalette forced =
       aerie_frame::PaletteOf(tint()->inputs_for_testing());
   // One flat colour, no gradient stops: the system's, not the theme's.
@@ -437,7 +451,8 @@ IN_PROC_BROWSER_TEST_F(AerieLookBrowserTest, ThemeAndModeSurviveARestart) {
   EXPECT_EQ(prefs()->GetString(aerie::appearance::kThemePref), "oled");
   EXPECT_EQ(prefs()->GetString(aerie::appearance::kModePref), "dark");
   ASSERT_TRUE(WaitFor([&] {
-    return tint()->inputs_for_testing().theme == aerie::tokens::ThemeId::kOled &&
+    return tint()->inputs_for_testing().theme ==
+               aerie::tokens::ThemeId::kOled &&
            tint()->inputs_for_testing().mode == aerie::tokens::ColorMode::kDark;
   }));
   EXPECT_EQ(ThemeServiceFactory::GetForProfile(browser()->GetProfile())

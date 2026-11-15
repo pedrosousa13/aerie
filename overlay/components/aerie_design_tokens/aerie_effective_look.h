@@ -24,8 +24,8 @@ struct EffectiveLookInputs {
   // High contrast. Choosing Vivid on purpose is a choice.
   std::optional<ThemeId> global_theme;
   ModeChoice global_mode = ModeChoice::kSystem;
-  // The Workspace's own theme and mode; empty is "default" (use the global one).
-  // Slice M (M5) adds the editor; M2 has one Workspace and no override.
+  // The Workspace's own theme and mode; empty is "default" (use the global
+  // one). Slice M (M5) adds the editor; M2 has one Workspace and no override.
   std::optional<ThemeId> workspace_theme;
   std::optional<ModeChoice> workspace_mode;
   // What the operating system says.

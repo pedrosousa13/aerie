@@ -10,8 +10,8 @@ EffectiveLook ResolveEffectiveLook(const EffectiveLookInputs& in) {
   EffectiveLook look;
 
   // Theme: the Workspace override, else the global choice, else the default,
-  // which is High contrast under `prefers-contrast: more`. Both choices beat the
-  // contrast switch.
+  // which is High contrast under `prefers-contrast: more`. Both choices beat
+  // the contrast switch.
   if (in.workspace_theme) {
     look.theme = *in.workspace_theme;
   } else if (in.global_theme) {

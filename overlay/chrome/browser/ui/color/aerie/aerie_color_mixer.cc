@@ -13,8 +13,8 @@
 #include "components/aerie_frame/aerie_frame_look.h"
 #include "ui/color/color_id.h"
 #include "ui/color/color_mixer.h"
-#include "ui/color/color_recipe.h"
 #include "ui/color/color_provider.h"
+#include "ui/color/color_recipe.h"
 
 namespace aerie_color {
 
@@ -90,20 +90,24 @@ void AddAerieColorMixer(ui::ColorProvider* provider,
 
   ui::ColorMixer& mixer = provider->AddMixer();
   // Surface.
-  Set(mixer, {ui::kColorMenuBackground, ui::kColorBubbleBackground,
-                         ui::kColorDialogBackground, ui::kColorPrimaryBackground,
-                         kColorOmniboxResultsBackground, ui::kColorSysSurface,
-                         ui::kColorSysSurfaceContainer,
-                         ui::kColorSysSurfaceContainerLow}, c.surface);
+  Set(mixer,
+      {ui::kColorMenuBackground, ui::kColorBubbleBackground,
+       ui::kColorDialogBackground, ui::kColorPrimaryBackground,
+       kColorOmniboxResultsBackground, ui::kColorSysSurface,
+       ui::kColorSysSurfaceContainer, ui::kColorSysSurfaceContainerLow},
+      c.surface);
   // Text.
-  Set(mixer, {ui::kColorPrimaryForeground, ui::kColorMenuItemForeground,
-                         ui::kColorDialogForeground, ui::kColorLabelForeground,
-                         kColorOmniboxText, ui::kColorSysOnSurface}, c.text);
+  Set(mixer,
+      {ui::kColorPrimaryForeground, ui::kColorMenuItemForeground,
+       ui::kColorDialogForeground, ui::kColorLabelForeground, kColorOmniboxText,
+       ui::kColorSysOnSurface},
+      c.text);
   // Text muted.
-  Set(mixer, {ui::kColorSecondaryForeground, kColorOmniboxTextDimmed,
-                         ui::kColorSysOnSurfaceVariant,
-                         ui::kColorSysOnSurfaceSubtle,
-                         ui::kColorSysOnSurfaceSecondary}, c.text_muted);
+  Set(mixer,
+      {ui::kColorSecondaryForeground, kColorOmniboxTextDimmed,
+       ui::kColorSysOnSurfaceVariant, ui::kColorSysOnSurfaceSubtle,
+       ui::kColorSysOnSurfaceSecondary},
+      c.text_muted);
   // Accent.
   Set(mixer,
       {ui::kColorAccent, ui::kColorSysPrimary, ui::kColorSysPrimaryContainer},
@@ -115,9 +119,12 @@ void AddAerieColorMixer(ui::ColorProvider* provider,
        ui::kColorButtonForegroundProminent},
       c.on_accent);
   // Focus ring.
-  Set(mixer, {ui::kColorFocusableBorderFocused, ui::kColorSysStateFocusRing}, c.focus_ring);
+  Set(mixer, {ui::kColorFocusableBorderFocused, ui::kColorSysStateFocusRing},
+      c.focus_ring);
   // Divider and hairline.
-  Set(mixer, {ui::kColorSeparator, ui::kColorMenuSeparator, ui::kColorSysDivider}, c.divider);
+  Set(mixer,
+      {ui::kColorSeparator, ui::kColorMenuSeparator, ui::kColorSysDivider},
+      c.divider);
   Set(mixer, {ui::kColorMenuBorder, ui::kColorBubbleBorder}, c.hairline);
 }
 

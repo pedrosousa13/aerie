@@ -41,7 +41,9 @@ class AerieLookReducedMotionUiTest
   BrowserView* browser_view() {
     return BrowserView::GetBrowserViewForBrowser(browser());
   }
-  FrameTintView* tint() { return browser_view()->frame_tint_view_for_testing(); }
+  FrameTintView* tint() {
+    return browser_view()->frame_tint_view_for_testing();
+  }
   PrefService* prefs() { return browser()->GetProfile()->GetPrefs(); }
 
   void Pump(base::TimeDelta d) {
@@ -81,12 +83,12 @@ class AerieLookReducedMotionUiTest
   std::optional<gfx::AnimationTestApi::PrefersReducedMotionResetter> os_flag_;
 };
 
-IN_PROC_BROWSER_TEST_P(AerieLookReducedMotionUiTest, AThemeChangeCreatesNoAnimation) {
+IN_PROC_BROWSER_TEST_P(AerieLookReducedMotionUiTest,
+                       AThemeChangeCreatesNoAnimation) {
   ui::Layer* root = browser_view()->GetWidget()->GetNativeView()->layer();
   int animating_before = 0;
   const int layers_before = CountLayers(root, &animating_before);
-  LookCrossfade& fade =
-      tint()->look_controller()->crossfade_for_testing();
+  LookCrossfade& fade = tint()->look_controller()->crossfade_for_testing();
 
   for (const char* id : {"soft", "clean", "high-contrast", "mono", "vivid"}) {
     prefs()->SetString(aerie::appearance::kThemePref, id);
@@ -111,12 +113,14 @@ IN_PROC_BROWSER_TEST_P(AerieLookReducedMotionUiTest, AThemeChangeCreatesNoAnimat
   EXPECT_EQ(tint()->inputs_for_testing().theme, aerie::tokens::ThemeId::kVivid);
 }
 
-INSTANTIATE_TEST_SUITE_P(
-    All, AerieLookReducedMotionUiTest,
-    testing::Values(Source::kOperatingSystem, Source::kAppPreference),
-    [](const testing::TestParamInfo<Source>& info) {
-      return info.param == Source::kOperatingSystem ? "OperatingSystem"
-                                                    : "AppPreference";
-    });
+INSTANTIATE_TEST_SUITE_P(All,
+                         AerieLookReducedMotionUiTest,
+                         testing::Values(Source::kOperatingSystem,
+                                         Source::kAppPreference),
+                         [](const testing::TestParamInfo<Source>& info) {
+                           return info.param == Source::kOperatingSystem
+                                      ? "OperatingSystem"
+                                      : "AppPreference";
+                         });
 
 }  // namespace

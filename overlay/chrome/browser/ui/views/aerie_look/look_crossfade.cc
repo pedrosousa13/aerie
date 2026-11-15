@@ -67,10 +67,9 @@ void LookCrossfade::FadeFrom(float opacity) {
   handle_ = aerie::motion::AnimateLayer(
       layer, target, aerie::tokens::MotionDuration::kXslow,
       aerie::tokens::MotionEasing::kStandard, prefs_);
-  end_timer_.Start(FROM_HERE,
-                   base::Milliseconds(aerie::tokens::kMotionDurationXslow),
-                   base::BindOnce(&LookCrossfade::OnFadeEnded,
-                                  base::Unretained(this)));
+  end_timer_.Start(
+      FROM_HERE, base::Milliseconds(aerie::tokens::kMotionDurationXslow),
+      base::BindOnce(&LookCrossfade::OnFadeEnded, base::Unretained(this)));
 }
 
 void LookCrossfade::OnFadeEnded() {

@@ -8,8 +8,8 @@
 #include <memory>
 
 #include "base/memory/raw_ptr.h"
-#include "base/scoped_observation.h"
 #include "base/scoped_multi_source_observation.h"
+#include "base/scoped_observation.h"
 #include "chrome/browser/ui/views/aerie_look/sidebar_look_controller.h"
 #include "components/aerie_frame/aerie_frame_paint.h"
 #include "components/aerie_tab_model/tab_model.h"
