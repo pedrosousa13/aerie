@@ -243,7 +243,7 @@ IN_PROC_BROWSER_TEST_F(AerieLookBrowserTest,
                        ClosingTheWindowMidFadeLeavesNothingBehind) {
   prefs()->SetString(aerie::motion::kReduceMotionPref,
                      aerie::motion::kReduceMotionSystem);
-  Browser* second = CreateBrowser(browser()->GetProfile());
+  BrowserWindowInterface* second = CreateBrowser(browser()->GetProfile());
   BrowserView* second_view = BrowserView::GetBrowserViewForBrowser(second);
   ASSERT_TRUE(second_view->frame_tint_view_for_testing());
   prefs()->SetString(aerie::appearance::kThemePref, "soft");
