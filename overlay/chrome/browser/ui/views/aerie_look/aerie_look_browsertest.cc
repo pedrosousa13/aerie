@@ -224,7 +224,8 @@ IN_PROC_BROWSER_TEST_F(AerieLookBrowserTest, OledInLightModeIsClean) {
 // AERIE_COLOR_COST; the bound is generous so a loaded machine does not fail it.
 IN_PROC_BROWSER_TEST_F(AerieLookBrowserTest, TheMixerAddsLittleToARealProviderBuild) {
   SetReducedMotion();
-  ui::ColorProviderKey key = browser_view()->GetWidget()->GetColorProviderKey();
+  ui::ColorProviderKey key;
+  key.color_mode = browser_view()->GetWidget()->GetColorMode();
   ui::ColorProviderManager& manager = ui::ColorProviderManager::Get();
   constexpr int kBuilds = 300;
   auto time_builds = [&] {
