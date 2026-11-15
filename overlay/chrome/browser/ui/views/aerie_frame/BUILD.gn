@@ -34,6 +34,8 @@ source_set("enabled") {
 source_set("aerie_frame") {
   visibility = [
     ":browser_tests",
+    "//chrome/browser/ui/views/aerie_look:browser_tests",
+    "//chrome/browser/ui/views/aerie_look:interactive_tests",
     "//chrome/browser/ui/views/frame:*",
   ]
   sources = [
@@ -43,6 +45,7 @@ source_set("aerie_frame") {
   # The header includes these.
   public_deps = [
     "//base",
+    "//chrome/browser/ui/views/aerie_look",
     "//components/aerie_frame:paint",
     "//components/aerie_tab_model",
     "//components/prefs",

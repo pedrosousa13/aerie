@@ -337,7 +337,8 @@ void AerieSidebarRowView::SetPalette(
   views::InkDrop::Get(pencil_)->SetBaseColor(palette_.text);
   rename_caption_->SetEnabledColor(palette_.text_muted);
   StyleRenameField();
-  AerieSidebarFocusRing::Get(this)->SetColor(palette_.accent);
+  AerieSidebarFocusRing::Get(this)->SetStyle(palette_.accent,
+                                             palette_.focus_ring_width);
   sleep_badge_->SetImage(ui::ImageModel::FromVectorIcon(
       aerie_sidebar::kAerieSleepBadgeIcon, palette_.text, kSleepBadgeSize));
   ApplyKindPalette();

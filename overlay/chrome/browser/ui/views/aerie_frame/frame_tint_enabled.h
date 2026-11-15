@@ -21,8 +21,9 @@ int FrameRadius(const BrowserView* browser_view, int helium_radius);
 // Whether the page is in a rounded card, given Helium's own pref.
 bool RoundedFrameEnabled(const BrowserView* browser_view, bool helium_pref);
 
-// Whether the card has no outline: the tint is on and the theme asks for a
-// 0 px card border.
+// Whether Helium's outline of the card is hidden: the tint is on. A theme that
+// asks for a card border (OLED, High contrast) has the frame draw it just
+// outside the card, so there is one border and it is the theme's.
 bool CardBorderHidden(const BrowserView* browser_view);
 
 }  // namespace aerie_frame

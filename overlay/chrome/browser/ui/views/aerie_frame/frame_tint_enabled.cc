@@ -7,10 +7,7 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "components/aerie_frame/aerie_frame_enabled.h"
-#include "components/aerie_frame/aerie_frame_palette.h"
 #include "components/prefs/pref_service.h"
-#include "ui/color/color_provider_key.h"
-#include "ui/views/widget/widget.h"
 
 namespace aerie_frame {
 
@@ -30,15 +27,10 @@ bool RoundedFrameEnabled(const BrowserView* browser_view, bool helium_pref) {
 }
 
 bool CardBorderHidden(const BrowserView* browser_view) {
-  if (!ShouldTintFrame(browser_view)) {
-    return false;
-  }
-  const views::Widget* widget = browser_view->GetWidget();
-  const bool dark = widget && widget->GetColorMode() ==
-                                  ui::ColorProviderKey::ColorMode::kDark;
-  return CardBorderWidth(kDefaultTheme,
-                         dark ? aerie::tokens::ColorMode::kDark
-                              : aerie::tokens::ColorMode::kLight) == 0;
+  // The card's hairline (OLED, High contrast, forced colours) is drawn by the
+  // frame, just outside the card (aerie_frame::PaintFrame), so Helium's own
+  // outline never shows while the tint is on (issue #185).
+  return ShouldTintFrame(browser_view);
 }
 
 }  // namespace aerie_frame

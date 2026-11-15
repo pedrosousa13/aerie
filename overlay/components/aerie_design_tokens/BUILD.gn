@@ -79,6 +79,23 @@ source_set("prefs") {
   ]
 }
 
+# The effective look (issue #185): which Theme and colour mode the chrome is
+# drawn in, as a pure function, and the two prefs of the global default.
+# Registered by chrome::RegisterProfilePrefs (patches/sidebar/0046).
+source_set("appearance") {
+  sources = [
+    "aerie_appearance_prefs.cc",
+    "aerie_appearance_prefs.h",
+    "aerie_effective_look.cc",
+    "aerie_effective_look.h",
+  ]
+  public_deps = [
+    ":tokens",
+    "//base",
+    "//components/prefs",
+  ]
+}
+
 # The motion helper: ShouldReduceMotion() and AnimateLayer().
 source_set("motion") {
   sources = [
@@ -98,8 +115,12 @@ source_set("motion") {
 
 source_set("unit_tests") {
   testonly = true
-  sources = [ "aerie_design_tokens_unittest.cc" ]
+  sources = [
+    "aerie_design_tokens_unittest.cc",
+    "aerie_effective_look_unittest.cc",
+  ]
   deps = [
+    ":appearance",
     ":motion",
     ":prefs",
     ":tokens",

@@ -1,0 +1,51 @@
+Aerie-Purpose: Register the global Theme and Mode prefs (aerie.appearance.theme, aerie.appearance.mode) and let the settings page write them.
+Aerie-Upstream-Area: chrome/browser/prefs (browser_prefs.cc, BUILD.gn), chrome/browser/extensions/api/settings_private/prefs_util.cc
+Aerie-Kind: hook
+
+Issue #185. The prefs, their defaults ("vivid" and "system"), the parsing and the effective-look
+function are in the overlay, components/aerie_design_tokens (aerie_appearance_prefs.*,
+aerie_effective_look.*). The names are string literals in the settings_private allowlist, as for the
+other Aerie prefs, and a test compares them with the constants. The theme default is not a choice:
+only a theme the user set counts as explicit when prefers-contrast: more decides the theme.
+
+--- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
++++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
+@@ -482,6 +482,10 @@
+   // Aerie: the in-app reduced-motion setting, "system" or "on" (issue #174).
+   // The name is aerie::motion::kReduceMotionPref; a test compares the two.
+   (*s_allowlist)["aerie.motion.reduce"] = settings_api::PrefType::kString;
++  // Aerie: the global Theme and Mode (issue #185). The names are
++  // aerie::appearance::kThemePref and kModePref; a test compares them.
++  (*s_allowlist)["aerie.appearance.theme"] = settings_api::PrefType::kString;
++  (*s_allowlist)["aerie.appearance.mode"] = settings_api::PrefType::kString;
+   // Aerie: when Today tabs are archived, and when idle tabs sleep (issue #176).
+   // The names are aerie_tab_model::kArchiveAfter and kSleepAfterMinutes; a test
+   // compares them.
+--- a/chrome/browser/prefs/BUILD.gn
++++ b/chrome/browser/prefs/BUILD.gn
+@@ -133,6 +133,7 @@
+     "//chrome/browser/updates/announcement_notification",
+     "//chrome/browser/webauthn",
+     "//components/aerie_adblock/browser:guard_prefs",
++    "//components/aerie_design_tokens:appearance",
+     "//components/aerie_design_tokens:prefs",
+     "//components/aerie_sidebar:layout_lock",
+     "//components/aerie_sidebar:prefs",
+--- a/chrome/browser/prefs/browser_prefs.cc
++++ b/chrome/browser/prefs/browser_prefs.cc
+@@ -110,6 +110,7 @@
+ #include "chrome/common/pref_names.h"
+ #include "chrome/common/secure_origin_allowlist.h"
+ #include "components/aerie_adblock/browser/aerie_guard_prefs.h"
++#include "components/aerie_design_tokens/aerie_appearance_prefs.h"
+ #include "components/aerie_design_tokens/aerie_motion_prefs.h"
+ #include "components/aerie_sidebar/aerie_sidebar_prefs.h"
+ #include "components/aerie_tab_model/tab_model_prefs.h"
+@@ -2004,6 +2005,7 @@
+   AccessibilityLabelsService::RegisterProfilePrefs(registry);
+   aerie_guard::RegisterProfilePrefs(registry);
+   aerie::motion::RegisterProfilePrefs(registry);
++  aerie::appearance::RegisterProfilePrefs(registry);
+   aerie_tab_model::RegisterProfilePrefs(registry);
+   aerie_sidebar::RegisterProfilePrefs(registry);
+   registry->RegisterBooleanPref(prefs::kRendererAccessibilityEnabled, true);

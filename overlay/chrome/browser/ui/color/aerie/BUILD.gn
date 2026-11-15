@@ -1,0 +1,50 @@
+# Copyright 2026 The Aerie Authors
+# You can use, redistribute, and/or modify this source code under
+# the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+import("//testing/test.gni")
+
+# The Aerie ColorMixer (issue #185): Chromium's own surfaces follow the
+# effective Theme. chrome_color_mixers.cc calls AddAerieColorMixer() after
+# the Chromium mixers (patches/sidebar/0047). Only ui/color and the headless
+# frame component are used here.
+source_set("mixer") {
+  sources = [
+    "aerie_color_mixer.cc",
+    "aerie_color_mixer.h",
+  ]
+  public_deps = [
+    "//components/aerie_design_tokens:tokens",
+    "//ui/color:color_headers",
+    "//ui/color:color_provider_key",
+  ]
+  deps = [
+    "//base",
+    "//chrome/browser/ui/color:color_headers",
+    "//components/aerie_frame:look",
+    "//ui/color",
+  ]
+}
+
+source_set("unit_tests") {
+  testonly = true
+  sources = [ "aerie_color_mixer_unittest.cc" ]
+  deps = [
+    ":mixer",
+    "//base",
+    "//base/test:test_support",
+    "//chrome/browser/ui/color:color_headers",
+    "//components/aerie_frame:look",
+    "//testing/gtest",
+    "//ui/color",
+    "//ui/color:mixers",
+    "//ui/gfx",
+  ]
+}
+
+test("aerie_color_unittests") {
+  deps = [
+    ":unit_tests",
+    "//base/test:run_all_unittests",
+  ]
+}

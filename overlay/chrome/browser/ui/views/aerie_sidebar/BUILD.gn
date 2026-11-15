@@ -71,6 +71,8 @@ source_set("aerie_sidebar") {
     "//components/aerie_sidebar:folder_toggle",
     "//components/aerie_sidebar:move",
     "//components/aerie_sidebar:palette",
+    "//chrome/browser/ui/views/aerie_look",
+    "//components/aerie_design_tokens:appearance",
     "//components/aerie_sidebar:today_list",
     "//components/aerie_sidebar:tree",
     "//components/aerie_tab_model",

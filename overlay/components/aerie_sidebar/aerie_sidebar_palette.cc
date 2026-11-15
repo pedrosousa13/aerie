@@ -38,6 +38,30 @@ SidebarPalette ResolveSidebarPalette(aerie::tokens::ThemeId theme,
   palette.peek_surface =
       frame.stop_count > 0 ? frame.stops[0] : frame.frame_base;
   palette.peek_shadow = tokens.shadow_peek;
+  palette.focus_ring_width = tokens.size_focus_ring_width;
+  return palette;
+}
+
+SidebarPalette ResolveSystemSidebarPalette(
+    const aerie_frame::SystemColours& system) {
+  // The fills are opaque mixes of the two system colours: a hover is a faint
+  // text-coloured wash, the selected row a strong one.
+  auto mix = [&](float share) {
+    return aerie_frame::Over(WithShare(system.text, share), system.background);
+  };
+  SidebarPalette palette;
+  palette.text = system.text;
+  palette.text_muted = system.text;
+  palette.accent = system.accent;
+  palette.row_hover = mix(0.15f);
+  palette.row_selected = mix(0.30f);
+  palette.divider = system.text;
+  palette.control_rest = system.text;
+  palette.control_hover = system.accent;
+  palette.control_close_hover = system.accent;
+  palette.peek_surface = system.background;
+  palette.peek_shadow = aerie::tokens::Shadow{};
+  palette.focus_ring_width = aerie::tokens::kSizeFocusRingWidth + 1;
   return palette;
 }
 

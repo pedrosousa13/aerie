@@ -132,6 +132,9 @@ FramePalette ResolveFramePalette(aerie::tokens::ThemeId theme,
   p.accent = ToColor(
       Mix(ToRgb(hue), ToRgb(t.theme_accent_base), t.theme_accent_hue_share));
   p.field = t.color_field;
+  p.strip_height = t.theme_strip_height;
+  p.strip_stop_count = stop_count;
+  p.strip_stops = raw_stops;
   p.card_surface = t.color_content_surface;
   p.card_radius = aerie::tokens::kRadiusXl;
   p.card_shadow = t.shadow_card;

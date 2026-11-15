@@ -5,9 +5,12 @@
 #ifndef CHROME_BROWSER_UI_VIEWS_AERIE_FRAME_FRAME_TINT_VIEW_H_
 #define CHROME_BROWSER_UI_VIEWS_AERIE_FRAME_FRAME_TINT_VIEW_H_
 
+#include <memory>
+
 #include "base/memory/raw_ptr.h"
-#include "base/scoped_observation.h"
 #include "base/scoped_multi_source_observation.h"
+#include "base/scoped_observation.h"
+#include "chrome/browser/ui/views/aerie_look/sidebar_look_controller.h"
 #include "components/aerie_frame/aerie_frame_paint.h"
 #include "components/aerie_tab_model/tab_model.h"
 #include "components/aerie_tab_model/tab_model_observer.h"
@@ -27,13 +30,15 @@ class SkBitmap;
 // on (patches/sidebar/0029 and 0030).
 //
 // It paints once, and again only when what the paint depends on changes: the
-// Workspace colour, the colour mode, the window size, the card's box or the
+// Workspace colour, the effective theme and colour mode (issue #185), the
+// system colours under forced colours, the window size, the card's box or the
 // side of the sidebar (aerie_frame::FrameTintState). Nothing about it is
 // animated: no ui::LayerAnimator element, filter, blur or shadow is ever set
 // on its layer.
 class FrameTintView : public views::View,
                       public views::ViewObserver,
-                      public aerie_tab_model::TabModelObserver {
+                      public aerie_tab_model::TabModelObserver,
+                      public SidebarLookController::Client {
   METADATA_HEADER(FrameTintView, views::View)
 
  public:
@@ -59,6 +64,8 @@ class FrameTintView : public views::View,
   // views::View:
   void OnPaint(gfx::Canvas* canvas) override;
   void OnThemeChanged() override;
+  void AddedToWidget() override;
+  void RemovedFromWidget() override;
   void ViewHierarchyChanged(const views::ViewHierarchyChangedDetails& details) override;
 
   // views::ViewObserver:
@@ -68,6 +75,13 @@ class FrameTintView : public views::View,
   // aerie_tab_model::TabModelObserver:
   void OnWorkspaceChanged(const aerie_tab_model::Workspace& workspace) override;
   void OnModelLoaded() override;
+
+  // SidebarLookController::Client:
+  views::Widget* GetLookWidget() override;
+  void OnEffectiveLookChanged() override;
+
+  // What the window does when its look may change (issue #185).
+  SidebarLookController* look_controller() { return look_controller_.get(); }
 
  private:
   aerie_frame::FrameTintInputs CurrentInputs() const;
@@ -80,6 +94,7 @@ class FrameTintView : public views::View,
   raw_ptr<views::View> card_ = nullptr;
   aerie_frame::FrameTintState state_;
   PrefChangeRegistrar pref_registrar_;
+  std::unique_ptr<SidebarLookController> look_controller_;
   base::ScopedMultiSourceObservation<views::View, views::ViewObserver>
       view_observations_{this};
 };

@@ -87,6 +87,31 @@ void PaintGlow(gfx::Canvas* canvas, const FramePalette& palette,
   canvas->DrawRect(gfx::RectF(size.width(), size.height()), flags);
 }
 
+// The strip on the top edge of the sidebar column (Clean's 3 px, High
+// contrast's 4 px): the Workspace gradient at full strength, left to right. It
+// is drawn at the left; PaintFrame() mirrors the canvas for a sidebar on the
+// right.
+void PaintStrip(gfx::Canvas* canvas, const FramePalette& palette, int width) {
+  if (palette.strip_height <= 0 || palette.strip_stop_count <= 0 ||
+      width <= 0) {
+    return;
+  }
+  const int count = std::max(palette.strip_stop_count, 2);
+  std::vector<SkColor4f> colors;
+  std::vector<SkScalar> positions;
+  for (int i = 0; i < count; ++i) {
+    colors.push_back(SkColor4f::FromColor(
+        palette.strip_stops[std::min(i, palette.strip_stop_count - 1)]));
+    positions.push_back(static_cast<SkScalar>(i) / (count - 1));
+  }
+  const SkPoint points[2] = {SkPoint::Make(0, 0), SkPoint::Make(width, 0)};
+  cc::PaintFlags flags;
+  flags.setStyle(cc::PaintFlags::kFill_Style);
+  flags.setShader(cc::PaintShader::MakeLinearGradient(
+      points, colors.data(), positions.data(), count, SkTileMode::kClamp));
+  canvas->DrawRect(gfx::RectF(width, palette.strip_height), flags);
+}
+
 // The card's shadow, from the token layers (the first layer is the top one, so
 // they are painted last to first), then the card's own surface colour under the
 // page, so a page that has not painted yet shows the token colour.
@@ -117,6 +142,19 @@ void PaintCard(gfx::Canvas* canvas, const FramePalette& palette,
     }
     canvas->DrawRoundRect(rect, radius, flags);
   }
+  // The theme's hairline (OLED, High contrast) is the ring of the border's
+  // width just outside the card: the page covers the card's own box, so a
+  // border inside it would never show.
+  if (palette.card_border_width > 0) {
+    gfx::Rect outer = card;
+    outer.Outset(palette.card_border_width);
+    cc::PaintFlags border;
+    border.setStyle(cc::PaintFlags::kFill_Style);
+    border.setAntiAlias(true);
+    border.setColor(palette.card_border_color);
+    canvas->DrawRoundRect(
+        outer, palette.card_radius + palette.card_border_width, border);
+  }
   cc::PaintFlags surface;
   surface.setStyle(cc::PaintFlags::kFill_Style);
   surface.setAntiAlias(true);
@@ -131,6 +169,11 @@ void PaintFrame(gfx::Canvas* canvas,
                 const gfx::Size& size,
                 bool sidebar_on_right,
                 const gfx::Rect& card) {
+  // The strip spans the sidebar column: from the window's edge to the card.
+  int strip_width = aerie::tokens::kSizeSidebarWidth;
+  if (!card.IsEmpty()) {
+    strip_width = sidebar_on_right ? size.width() - card.right() : card.x();
+  }
   canvas->Save();
   if (sidebar_on_right) {
     canvas->Translate(gfx::Vector2d(size.width(), 0));
@@ -139,8 +182,16 @@ void PaintFrame(gfx::Canvas* canvas,
   PaintGradient(canvas, palette, size);
   PaintShade(canvas, palette, size);
   PaintGlow(canvas, palette, size);
+  PaintStrip(canvas, palette, strip_width);
   canvas->Restore();
   PaintCard(canvas, palette, card);
+}
+
+FramePalette PaletteOf(const FrameTintInputs& inputs) {
+  if (inputs.system_colours) {
+    return ResolveSystemFramePalette(*inputs.system_colours);
+  }
+  return ResolveFramePalette(inputs.theme, inputs.mode, inputs.colour);
 }
 
 bool FrameTintState::Update(const FrameTintInputs& inputs) {

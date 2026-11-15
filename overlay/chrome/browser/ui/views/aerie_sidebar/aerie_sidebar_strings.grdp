@@ -379,6 +379,51 @@
   <message name="IDS_SETTINGS_AERIE_SIDEBAR_SIDE_RIGHT" desc="Choice of the Sidebar side setting: the sidebar is on the right.">
     Right
   </message>
+  <message name="IDS_SETTINGS_AERIE_APPEARANCE_THEME" desc="Label of the setting in the Sidebar section of Settings that chooses the Theme: how the browser window is drawn.">
+    Theme
+  </message>
+  <message name="IDS_SETTINGS_AERIE_APPEARANCE_THEME_DESC" desc="Description under the Theme setting. It says that the Theme changes how the sidebar, the window frame and the menus look.">
+    How the sidebar, the window frame and the menus are drawn. A Workspace colour tints them differently in each theme.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_APPEARANCE_THEME_VIVID" desc="Name of a Theme: the default, with a strong colour gradient from the Workspace colour.">
+    Vivid
+  </message>
+  <message name="IDS_SETTINGS_AERIE_APPEARANCE_THEME_SOFT" desc="Name of a Theme: a gentle colour gradient from the Workspace colour.">
+    Soft
+  </message>
+  <message name="IDS_SETTINGS_AERIE_APPEARANCE_THEME_CLEAN" desc="Name of a Theme: a near-neutral window with a thin strip of the Workspace colour.">
+    Clean
+  </message>
+  <message name="IDS_SETTINGS_AERIE_APPEARANCE_THEME_OLED" desc="Name of a Theme: true black surfaces, for dark mode only.">
+    OLED
+  </message>
+  <message name="IDS_SETTINGS_AERIE_APPEARANCE_THEME_HIGH_CONTRAST" desc="Name of a Theme: black and white surfaces and text with the highest contrast.">
+    High contrast
+  </message>
+  <message name="IDS_SETTINGS_AERIE_APPEARANCE_THEME_MONO" desc="Name of a Theme: grey surfaces without a colour gradient.">
+    Mono
+  </message>
+  <message name="IDS_SETTINGS_AERIE_APPEARANCE_MODE" desc="Label of the setting in the Sidebar section of Settings that chooses the colour mode: light, dark, or the same as the computer.">
+    Mode
+  </message>
+  <message name="IDS_SETTINGS_AERIE_APPEARANCE_MODE_DESC" desc="Description under the Mode setting. It says what System means.">
+    Light or dark. System follows your computer.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_APPEARANCE_MODE_SYSTEM" desc="Choice of the Mode setting: use the light or dark colours that the computer uses.">
+    System
+  </message>
+  <message name="IDS_SETTINGS_AERIE_APPEARANCE_MODE_LIGHT" desc="Choice of the Mode setting: always use light colours.">
+    Light
+  </message>
+  <message name="IDS_SETTINGS_AERIE_APPEARANCE_MODE_DARK" desc="Choice of the Mode setting: always use dark colours.">
+    Dark
+  </message>
+  <message name="IDS_SETTINGS_AERIE_APPEARANCE_NOTE_OLED_LIGHT" desc="Note under the Theme setting. It shows while the OLED theme is chosen and the mode is not dark, because OLED has only a dark look.">
+    OLED is dark only. In light mode the browser shows Clean.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_APPEARANCE_NOTE_NO_TINT" desc="Note under the Theme setting. It shows while the High contrast or Mono theme is chosen, which draw no colour gradient.">
+    This theme draws no colour gradient. The Workspace colour sets only the accent.
+  </message>
   <message name="IDS_AERIE_SIDEBAR_PEEK_KEPT_OPEN" desc="Short message that shows in the sidebar after the user pressed Ctrl+Alt+S while the sidebar was hidden at the edge of the window. It says the sidebar stays open now.">
     Sidebar stays open
   </message>

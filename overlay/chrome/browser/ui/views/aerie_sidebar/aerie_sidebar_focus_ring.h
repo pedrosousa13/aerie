@@ -35,6 +35,8 @@ class AerieSidebarFocusRing : public views::View,
   ~AerieSidebarFocusRing() override;
 
   void SetColor(SkColor color);
+  // The colour and the stroke width of the theme (High contrast draws 3 px).
+  void SetStyle(SkColor color, float width);
   SkColor color() const { return color_; }
   // The stroke width and the gap to the host, from the tokens.
   float thickness() const;
@@ -57,6 +59,7 @@ class AerieSidebarFocusRing : public views::View,
   const raw_ptr<views::View> host_;
   const float corner_radius_;
   SkColor color_;
+  float width_;
   base::ScopedObservation<views::View, views::ViewObserver> observation_{this};
 };
 

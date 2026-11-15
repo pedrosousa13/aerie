@@ -29,19 +29,21 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/sessions/session_restore.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/public/tab_features.h"
+#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_delegate.h"
 #include "chrome/browser/ui/views/aerie_adblock/aerie_guard_image.h"
 #include "chrome/browser/ui/views/aerie_adblock/aerie_guard_page_action_controller.h"
+#include "chrome/browser/ui/views/aerie_look/aerie_look.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_context_menu.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_drag_controller.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_drag_host.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_floating.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_focus_ring.h"
-#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_sheet.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_controller.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_group.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_row_view.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_sheet.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_peek_driver.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_peek_surface.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_regions.h"
@@ -50,15 +52,15 @@
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_tile_view.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_top_row.h"
 #include "chrome/grit/generated_resources.h"
+#include "components/aerie_design_tokens/aerie_appearance_prefs.h"
 #include "components/aerie_design_tokens/aerie_motion.h"
 #include "components/aerie_design_tokens/aerie_tokens.h"
 #include "components/aerie_frame/aerie_frame_palette.h"
 #include "components/aerie_sidebar/aerie_sidebar_density.h"
 #include "components/aerie_sidebar/aerie_sidebar_drag.h"
-#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_floating.h"
-#include "components/aerie_sidebar/aerie_sidebar_prefs.h"
 #include "components/aerie_sidebar/aerie_sidebar_layout.h"
 #include "components/aerie_sidebar/aerie_sidebar_motion.h"
+#include "components/aerie_sidebar/aerie_sidebar_prefs.h"
 #include "components/aerie_sidebar/aerie_sidebar_tree.h"
 #include "components/aerie_tab_model/folder_rules.h"
 #include "components/aerie_tab_model/folder_tree.h"
@@ -84,6 +86,7 @@
 #include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/background.h"
 #include "ui/views/border.h"
+#include "ui/views/bubble/bubble_anchor.h"
 #include "ui/views/controls/button/image_button.h"
 #include "ui/views/controls/button/label_button.h"
 #include "ui/views/controls/label.h"
@@ -94,7 +97,6 @@
 #include "ui/views/style/typography.h"
 #include "ui/views/view_class_properties.h"
 #include "ui/views/widget/widget.h"
-#include "ui/views/bubble/bubble_anchor.h"
 
 namespace {
 
@@ -423,6 +425,15 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
     pref_registrar_.Add(
         pref, base::BindRepeating(&AerieSidebarView::OnLayoutPrefsChanged,
                                   base::Unretained(this)));
+  }
+  // The Theme and Mode (issue #185): the palette is read again when either
+  // changes. The effective look itself is a pure function of the prefs, the
+  // Workspace and the native theme (aerie_look::ComputeEffectiveLook).
+  for (const char* pref :
+       {aerie::appearance::kThemePref, aerie::appearance::kModePref}) {
+    pref_registrar_.Add(pref,
+                        base::BindRepeating(&AerieSidebarView::ApplyPalette,
+                                            base::Unretained(this)));
   }
   ApplyDensity();
   ApplyPalette();
@@ -794,13 +805,18 @@ bool AerieSidebarView::IsPositionInWindowCaption(
 }
 
 aerie_sidebar::SidebarPalette AerieSidebarView::ResolvePalette() const {
-  const bool dark = GetWidget() && GetWidget()->GetColorMode() ==
-                                       ui::ColorProviderKey::ColorMode::kDark;
+  const aerie_tab_model::Workspace* workspace =
+      model_ ? &model_->workspace() : nullptr;
+  const aerie::tokens::EffectiveLook look = aerie_look::ComputeEffectiveLook(
+      *browser_->GetProfile()->GetPrefs(), workspace, *GetNativeTheme(),
+      GetWidget());
+  // Forced colours: the operating system's colours, and nothing of the tint.
+  if (look.system_colours && GetWidget()) {
+    return aerie_sidebar::ResolveSystemSidebarPalette(
+        aerie_look::ReadSystemColours(*GetWidget()->GetColorProvider()));
+  }
   return aerie_sidebar::ResolveSidebarPalette(
-      aerie_frame::kDefaultTheme,
-      dark ? aerie::tokens::ColorMode::kDark : aerie::tokens::ColorMode::kLight,
-      model_ ? model_->workspace().colour
-             : std::string(aerie_frame::kFallbackColour));
+      look.theme, look.mode, aerie_look::WorkspaceColour(workspace));
 }
 
 void AerieSidebarView::ApplyPalette() {
@@ -818,7 +834,8 @@ void AerieSidebarView::ApplyPalette() {
       views::Button::STATE_NORMAL,
       ui::ImageModel::FromVectorIcon(kAddIcon, palette_.text_muted,
                                      aerie::tokens::kSizeIcon));
-  AerieSidebarFocusRing::Get(new_tab_row_)->SetColor(palette_.accent);
+  AerieSidebarFocusRing::Get(new_tab_row_)
+      ->SetStyle(palette_.accent, palette_.focus_ring_width);
   for (const Row& row : rows_) {
     row.view->SetPalette(palette_);
   }

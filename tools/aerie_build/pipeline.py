@@ -61,6 +61,8 @@ TEST_BINARIES = (
     ("aerie_sidebar_unittests", ()),
     # The window frame's palette, paint and repaint gate, and when the tint is on (issue #178).
     ("aerie_frame_unittests", ()),
+    # The Aerie ColorMixer: Chromium's own surfaces take the effective Theme's colours, and its cost (issue #185).
+    ("aerie_color_unittests", ()),
 )
 # The Views UI test binaries (issue #175, seam B). They link Chromium's browser test support, so they are not
 # in a plain `./aerie test-cpp`; ask for them with --target. They are defined in overlay/chrome/test/aerie and
