@@ -58,6 +58,8 @@ source_set("browser_tests") {
     ":aerie_look",
     "//chrome/browser:browser",
     "//chrome/browser/profiles:profile",
+    "//chrome/browser/ui/color/aerie:mixer",
+    "//ui/color",
     "//chrome/browser/themes",
     "//chrome/browser/ui/views/aerie_frame",
     "//chrome/browser/ui/views/frame",

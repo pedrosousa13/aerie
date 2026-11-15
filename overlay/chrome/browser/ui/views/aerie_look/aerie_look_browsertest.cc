@@ -15,6 +15,8 @@
 #include "chrome/browser/themes/theme_service.h"
 #include "chrome/browser/themes/theme_service_factory.h"
 #include "chrome/browser/ui/browser.h"
+#include "base/timer/elapsed_timer.h"
+#include "chrome/browser/ui/color/aerie/aerie_color_mixer.h"
 #include "chrome/browser/ui/views/aerie_frame/frame_tint_view.h"
 #include "chrome/browser/ui/views/aerie_look/sidebar_look_controller.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
@@ -30,6 +32,7 @@
 #include "components/prefs/pref_service.h"
 #include "content/public/test/browser_test.h"
 #include "ui/color/color_id.h"
+#include "ui/color/color_provider_manager.h"
 #include "ui/native_theme/native_theme.h"
 #include "ui/views/widget/widget.h"
 
@@ -214,6 +217,37 @@ IN_PROC_BROWSER_TEST_F(AerieLookBrowserTest, OledInLightModeIsClean) {
   SetReducedMotion();
   ASSERT_TRUE(Choose("oled", "light", aerie::tokens::ThemeId::kClean,
                      aerie::tokens::ColorMode::kLight));
+}
+
+// What the Aerie mixer adds to a real ColorProvider build, with all of
+// Chromium's own mixers (browser, ui and Helium's) in place. Logged as
+// AERIE_COLOR_COST; the bound is generous so a loaded machine does not fail it.
+IN_PROC_BROWSER_TEST_F(AerieLookBrowserTest, TheMixerAddsLittleToARealProviderBuild) {
+  SetReducedMotion();
+  ui::ColorProviderKey key = browser_view()->GetWidget()->GetColorProviderKey();
+  ui::ColorProviderManager& manager = ui::ColorProviderManager::Get();
+  constexpr int kBuilds = 300;
+  auto time_builds = [&] {
+    base::ElapsedTimer timer;
+    for (int i = 0; i < kBuilds; ++i) {
+      manager.ResetColorProviderCache();
+      manager.GetColorProviderFor(key);
+    }
+    return timer.Elapsed().InMicrosecondsF() / kBuilds;
+  };
+  aerie_color::SetActiveLook(aerie::tokens::ThemeId::kSoft, "dusk");
+  time_builds();  // warm up
+  double with = 1e9, without = 1e9;
+  for (int round = 0; round < 3; ++round) {
+    aerie_color::ResetActiveLookForTesting();
+    without = std::min(without, time_builds());
+    aerie_color::SetActiveLook(aerie::tokens::ThemeId::kSoft, "dusk");
+    with = std::min(with, time_builds());
+  }
+  LOG(INFO) << "AERIE_COLOR_COST without=" << without << " us/build with=" << with
+            << " us/build delta=" << (with - without) << " us/build (" << kBuilds
+            << " builds, best of 3, full Chromium mixers)";
+  EXPECT_LT(with - without, 200.0);
 }
 
 // --- prefers-contrast and forced colours ------------------------------------
