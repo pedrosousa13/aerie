@@ -64,9 +64,9 @@ class TidyTitleProvider : public TitleProvider {
       : settings_(settings) {}
   TitleSource source() const override { return TitleSource::kTidy; }
   std::optional<ProvidedTitle> Provide(const TitleInput& input) const override {
-    const std::string_view host =
-        input.url.is_valid() && input.url.has_host() ? input.url.host_piece()
-                                                     : std::string_view();
+    const std::string host =
+        input.url.is_valid() && input.url.has_host() ? input.url.host()
+                                                     : std::string();
     if (!settings_->TidyAppliesTo(host)) {
       return std::nullopt;
     }
