@@ -67,18 +67,22 @@ class AerieLookBrowserTest : public InProcessBrowserTest {
              tint()->inputs_for_testing().mode == want_mode;
     });
   }
-  // Minimum contrast of the theme's text, muted text and accent over the
-  // painted pixels of the sidebar column on both sides (where #178 samples).
   struct Measured {
     double text = 99, muted = 99, accent = 99;
   };
   Measured MeasurePainted() {
+    Measured m;
+    MeasureInto(m);
+    return m;
+  }
+  // Minimum contrast of the theme's text, muted text and accent over the
+  // painted pixels of the sidebar column on both sides (where #178 samples).
+  void MeasureInto(Measured& m) {
     SkBitmap bitmap;
     tint()->PaintToBitmapForTesting(&bitmap);
     const gfx::Size size = tint()->size();
     const aerie_frame::FramePalette palette =
         aerie_frame::PaletteOf(tint()->inputs_for_testing());
-    Measured m;
     auto sample = [&](int x, int y) {
       const SkColor under = bitmap.getColor(std::min(x, size.width() - 1),
                                             std::min(y, size.height() - 1));
@@ -88,16 +92,21 @@ class AerieLookBrowserTest : public InProcessBrowserTest {
       m.accent =
           std::min(m.accent, aerie_frame::ContrastRatio(palette.accent, under));
     };
-    const int sidebar = aerie::tokens::kSizeSidebarWidth;
+    // The sidebar column is the frame left of the card (or right of it when
+    // the sidebar is on the right), less the card's own 1 px border.
+    const aerie_frame::FrameTintInputs& in = tint()->inputs_for_testing();
+    ASSERT_FALSE(in.card.IsEmpty());
+    int from = 0;
+    int to = in.card.x() - 2;
+    if (in.sidebar_on_right) {
+      from = in.card.right() + 2;
+      to = size.width() - 1;
+    }
     for (int y = 0; y <= size.height(); y += 45) {
-      for (int x = 0; x <= sidebar; x += 26) {
-        sample(x, y);
-      }
-      for (int x = size.width() - sidebar; x <= size.width(); x += 26) {
+      for (int x = from; x <= to; x += 26) {
         sample(x, y);
       }
     }
-    return m;
   }
   template <typename P>
   bool WaitFor(P done) {
