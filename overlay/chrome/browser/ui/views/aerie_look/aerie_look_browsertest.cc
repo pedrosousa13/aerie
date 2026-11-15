@@ -283,7 +283,7 @@ IN_PROC_BROWSER_TEST_F(AerieLookBrowserTest, ForcedColoursPaintWithSystemColours
   EXPECT_GT(tinted.stop_count, 1);
   ScopedNativeThemeFlags flags(browser_view()->GetWidget(),
                                ui::NativeTheme::PreferredContrast::kNoPreference,
-                               ui::ColorProviderKey::ForcedColors::kActive);
+                               ui::ColorProviderKey::ForcedColors::kSystem);
   ASSERT_TRUE(WaitFor([&] {
     return tint()->inputs_for_testing().system_colours.has_value();
   }));
