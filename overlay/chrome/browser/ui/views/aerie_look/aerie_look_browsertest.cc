@@ -102,7 +102,9 @@ class AerieLookBrowserTest : public InProcessBrowserTest {
       from = in.card.right() + 2;
       to = size.width() - 1;
     }
-    for (int y = 0; y <= size.height(); y += 45) {
+    // Below the Workspace strip: the sidebar draws no text over the strip.
+    const int top = palette.strip_height;
+    for (int y = top; y <= size.height(); y += 45) {
       for (int x = from; x <= to; x += 26) {
         sample(x, y);
       }
