@@ -28,10 +28,12 @@ class FakeProvider : public TitleProvider {
   FakeProvider(TitleSource source, std::optional<std::string> answer)
       : source_(source), answer_(std::move(answer)) {}
   TitleSource source() const override { return source_; }
-  std::optional<std::string> Provide(const TabRecord&,
-                                     std::string_view) const override {
+  std::optional<ProvidedTitle> Provide(const TitleInput&) const override {
     ++calls;
-    return answer_;
+    if (!answer_) {
+      return std::nullopt;
+    }
+    return ProvidedTitle{*answer_, std::string()};
   }
   mutable int calls = 0;
 

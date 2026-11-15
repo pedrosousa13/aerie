@@ -17,6 +17,10 @@ void RegisterProfilePrefs(PrefRegistrySimple* registry) {
   registry->RegisterIntegerPref(kSleepAfterMinutes, kDefaultSleepAfterMinutes);
   registry->RegisterStringPref(kPinnedClose, kDefaultPinnedClose);
   registry->RegisterBooleanPref(kFolderRulesEnabled, true);
+  registry->RegisterBooleanPref(kTidyTitles, true);
+  registry->RegisterListPref(kTidyOffSites);
+  registry->RegisterBooleanPref(kRenameRulesEnabled, true);
+  registry->RegisterListPref(kRenameRules);
 }
 
 std::optional<base::TimeDelta> ParseArchiveAfter(std::string_view value) {
@@ -71,6 +75,13 @@ std::optional<base::TimeDelta> GetSleepAfter(const PrefService& prefs) {
 
 bool AreFolderRulesEnabled(const PrefService& prefs) {
   return prefs.GetBoolean(kFolderRulesEnabled);
+}
+
+TitleSettings GetTitleSettings(const PrefService& prefs) {
+  return MakeTitleSettings(prefs.GetBoolean(kTidyTitles),
+                           prefs.GetList(kTidyOffSites),
+                           prefs.GetBoolean(kRenameRulesEnabled),
+                           prefs.GetList(kRenameRules));
 }
 
 }  // namespace aerie_tab_model

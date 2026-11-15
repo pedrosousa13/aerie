@@ -5,6 +5,8 @@
 #ifndef COMPONENTS_AERIE_TAB_MODEL_RULE_MATCHER_H_
 #define COMPONENTS_AERIE_TAB_MODEL_RULE_MATCHER_H_
 
+#include <stddef.h>
+
 #include <string>
 #include <string_view>
 #include <vector>
@@ -64,10 +66,38 @@ struct FolderRules {
   bool operator==(const FolderRules&) const = default;
 };
 
+// An address and a title, folded once so that a list of rules can be asked
+// about the same page without folding it again for every rule (issue #146: the
+// rename rules ask up to 50 rules about every title). Holds no reference to the
+// URL after construction.
+class MatchInput {
+ public:
+  MatchInput(const GURL& url, std::string_view title);
+  ~MatchInput();
+  MatchInput(const MatchInput&) = delete;
+  MatchInput& operator=(const MatchInput&) = delete;
+
+  bool url_ok() const { return url_ok_; }
+  const std::string& host() const { return host_; }
+  // The case-folded address, and the same without an http or https scheme.
+  const std::string& folded_spec() const { return folded_spec_; }
+  std::string_view schemeless_spec() const;
+  const std::string& folded_title() const { return folded_title_; }
+
+ private:
+  bool url_ok_ = false;
+  std::string host_;
+  std::string folded_spec_;
+  size_t scheme_length_ = 0;
+  std::string folded_title_;
+};
+
 // True when `rule` matches a page with this address and title, whatever its own
 // switch says. A Domain rule's value must be canonical (see NormalizeDomain). An empty rule value never matches. `title` may be empty (the
 // page has not given one yet).
 bool Matches(const Rule& rule, const GURL& url, std::string_view title);
+// The same for a page that was folded once.
+bool Matches(const Rule& rule, const MatchInput& input);
 
 // The canonical host that a Domain rule value stands for (lower case, a pasted
 // address cut to its host, no `*.`, no trailing dot), or an empty string when
