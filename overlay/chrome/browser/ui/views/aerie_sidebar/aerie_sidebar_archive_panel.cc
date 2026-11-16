@@ -18,6 +18,7 @@
 #include "components/aerie_tab_model/tab_model_prefs.h"
 #include "components/vector_icons/vector_icons.h"
 #include "ui/base/l10n/l10n_util.h"
+#include "ui/base/menu_source_utils.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/models/image_model.h"
 #include "ui/base/mojom/dialog_button.mojom.h"
@@ -145,6 +146,14 @@ bool AerieSidebarArchiveRow::OnKeyPressed(const ui::KeyEvent& event) {
     panel_->FocusNeighbour(this, -1);
     return true;
   }
+  if (event.key_code() == ui::VKEY_HOME) {
+    panel_->FocusEdge(/*last=*/false);
+    return true;
+  }
+  if (event.key_code() == ui::VKEY_END) {
+    panel_->FocusEdge(/*last=*/true);
+    return true;
+  }
   if (event.key_code() == ui::VKEY_ESCAPE) {
     panel_->ClosePanel(/*refocus_button=*/true);
     return true;
@@ -172,6 +181,9 @@ void AerieSidebarArchiveRow::StateChanged(ButtonState old_state) {
 
 void AerieSidebarArchiveRow::OnFocus() {
   views::Button::OnFocus();
+  // Whichever way the focus came (a key, a click, a screen reader), this is
+  // now the one Tab stop and the selected row.
+  panel_->SetActiveRow(this);
   ScrollViewToVisible();
   SchedulePaint();
 }
@@ -251,7 +263,7 @@ AerieSidebarArchivePanel::AerieSidebarArchivePanel(
   lead->SetEnabledColor(palette_.text_muted);
   lead->GetViewAccessibility().SetIsIgnored(true);
   timeout_button_ = header->AddChildView(std::make_unique<views::LabelButton>(
-      base::BindRepeating(&AerieSidebarArchivePanel::ShowTimeoutMenu,
+      base::BindRepeating(&AerieSidebarArchivePanel::OnTimeoutPressed,
                           base::Unretained(this)),
       std::u16string()));
   timeout_button_->SetEnabledTextColors(palette_.text);
@@ -300,6 +312,10 @@ void AerieSidebarArchivePanel::UpdateTimeoutLabel() {
 }
 
 void AerieSidebarArchivePanel::BuildList() {
+  // The views are about to be destroyed.
+  groups_.clear();
+  row_views_.clear();
+  headings_.clear();
   list_->RemoveAllChildViews();
   const std::string query = base::UTF16ToUTF8(query_);
   shown_ = aerie_tab_model::SearchArchive(host_->ArchivedRows(), query);
@@ -315,44 +331,70 @@ void AerieSidebarArchivePanel::BuildList() {
     return;
   }
   for (const auto& section : sections) {
-    auto* heading = list_->AddChildView(std::make_unique<views::Label>(
-        l10n_util::GetStringUTF16(GroupTitleId(section.group))));
+    // One group per day, named by its heading, so that the listbox holds only
+    // groups and the groups hold the options.
+    const std::u16string title =
+        l10n_util::GetStringUTF16(GroupTitleId(section.group));
+    auto* group =
+        list_->AddChildView(std::make_unique<views::BoxLayoutView>());
+    group->SetOrientation(views::BoxLayout::Orientation::kVertical);
+    group->SetCrossAxisAlignment(views::BoxLayout::CrossAxisAlignment::kStretch);
+    group->GetViewAccessibility().SetRole(ax::mojom::Role::kGroup);
+    group->GetViewAccessibility().SetName(title);
+    groups_.push_back(group);
+    auto* heading = group->AddChildView(std::make_unique<views::Label>(title));
     heading->SetEnabledColor(palette_.text_muted);
     heading->SetHorizontalAlignment(gfx::ALIGN_LEFT);
     heading->SetFontList(heading->font_list().DeriveWithSizeDelta(
         aerie::tokens::kTypeSizeCaption - heading->font_list().GetFontSize()));
     heading->SetBorder(views::CreateEmptyBorder(
         gfx::Insets::TLBR(aerie::tokens::kSpace8, aerie::tokens::kSpace8, 0, 0)));
-    heading->GetViewAccessibility().SetRole(ax::mojom::Role::kHeading);
+    // The group carries the name; the heading is the same text for the eye.
+    heading->GetViewAccessibility().SetIsIgnored(true);
+    headings_.push_back(heading);
     for (const auto& archived : section.rows) {
-      auto* row = list_->AddChildView(std::make_unique<AerieSidebarArchiveRow>(
+      auto* row = group->AddChildView(std::make_unique<AerieSidebarArchiveRow>(
           archived, host_->WorkspaceName(archived.workspace_id), palette_,
           views::Button::PressedCallback(), this));
       row->SetCallback(base::BindRepeating(
           &AerieSidebarArchivePanel::OnRowPressed, GetWeakPtr(),
           base::Unretained(row)));
+      row_views_.push_back(row);
     }
+  }
+  // Position and size over the whole list; the first row is the Tab stop.
+  const int size = static_cast<int>(row_views_.size());
+  for (int i = 0; i < size; ++i) {
+    row_views_[i]->GetViewAccessibility().SetPosInSet(i + 1);
+    row_views_[i]->GetViewAccessibility().SetSetSize(size);
+  }
+  SetActiveRow(row_views_.front());
+}
+
+void AerieSidebarArchivePanel::SetActiveRow(AerieSidebarArchiveRow* row) {
+  for (AerieSidebarArchiveRow* other : row_views_) {
+    const bool active = other == row;
+    // The others can still be focused by a screen reader or by code (Up, Down),
+    // but are not Tab stops.
+    other->SetFocusBehavior(active ? views::View::FocusBehavior::ALWAYS
+                                   : views::View::FocusBehavior::ACCESSIBLE_ONLY);
+    other->GetViewAccessibility().SetIsSelected(active);
   }
 }
 
+std::vector<views::View*> AerieSidebarArchivePanel::groups() const {
+  return std::vector<views::View*>(groups_.begin(), groups_.end());
+}
+
 std::vector<AerieSidebarArchiveRow*> AerieSidebarArchivePanel::rows() const {
-  std::vector<AerieSidebarArchiveRow*> out;
-  for (views::View* child : list_->children()) {
-    if (auto* row = views::AsViewClass<AerieSidebarArchiveRow>(child)) {
-      out.push_back(row);
-    }
-  }
-  return out;
+  return std::vector<AerieSidebarArchiveRow*>(row_views_.begin(),
+                                              row_views_.end());
 }
 
 std::vector<std::u16string> AerieSidebarArchivePanel::group_titles() const {
   std::vector<std::u16string> out;
-  for (views::View* child : list_->children()) {
-    auto* label = views::AsViewClass<views::Label>(child);
-    if (label && label->GetViewAccessibility().GetCachedRole() ==
-                     ax::mojom::Role::kHeading) {
-      out.emplace_back(label->GetText());
-    }
+  for (const auto& heading : headings_) {
+    out.emplace_back(heading->GetText());
   }
   return out;
 }
@@ -419,10 +461,7 @@ bool AerieSidebarArchivePanel::HandleKeyEvent(views::Textfield*,
     return true;
   }
   if (key_event.key_code() == ui::VKEY_DOWN) {
-    const auto all = rows();
-    if (!all.empty()) {
-      all.front()->RequestFocus();
-    }
+    FocusEdge(/*last=*/false);
     return true;
   }
   if (key_event.key_code() == ui::VKEY_RETURN) {
@@ -443,11 +482,31 @@ void AerieSidebarArchivePanel::FocusNeighbour(AerieSidebarArchiveRow* from,
   if (index < 0) {
     search_->RequestFocus();
   } else if (index < static_cast<int>(all.size())) {
-    all[index]->RequestFocus();
+    FocusRow(all[index]);
   }
 }
 
-void AerieSidebarArchivePanel::ShowTimeoutMenu() {
+void AerieSidebarArchivePanel::FocusEdge(bool last) {
+  const auto all = rows();
+  if (!all.empty()) {
+    FocusRow(last ? all.back() : all.front());
+  }
+}
+
+void AerieSidebarArchivePanel::FocusRow(AerieSidebarArchiveRow* row) {
+  // A row that is not the Tab stop cannot take focus until it is the stop.
+  SetActiveRow(row);
+  row->RequestFocus();
+}
+
+void AerieSidebarArchivePanel::OnTimeoutPressed(const ui::Event& event) {
+  // Enter or Space on the button is a key press: the menu opens as a keyboard
+  // menu. A click or a touch keeps its own kind.
+  ShowTimeoutMenu(ui::GetMenuSourceTypeForEvent(event));
+}
+
+void AerieSidebarArchivePanel::ShowTimeoutMenu(ui::mojom::MenuSourceType source) {
+  last_menu_source_ = source;
   menu_model_ = std::make_unique<ui::SimpleMenuModel>(this);
   for (size_t i = 0; i < std::size(kTimeoutLabels); ++i) {
     menu_model_->AddCheckItem(static_cast<int>(i) + 1,
@@ -458,7 +517,7 @@ void AerieSidebarArchivePanel::ShowTimeoutMenu() {
   menu_runner_->RunMenuAt(GetWidget(), /*button_controller=*/nullptr,
                           timeout_button_->GetBoundsInScreen(),
                           views::MenuAnchorPosition::kTopLeft,
-                          ui::mojom::MenuSourceType::kMouse);
+                          source);
 }
 
 bool AerieSidebarArchivePanel::IsCommandIdChecked(int command_id) const {

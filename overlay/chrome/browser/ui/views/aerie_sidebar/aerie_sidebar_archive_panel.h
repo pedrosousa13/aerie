@@ -15,6 +15,7 @@
 #include "components/aerie_design_tokens/aerie_motion.h"
 #include "components/aerie_sidebar/aerie_sidebar_palette.h"
 #include "components/aerie_tab_model/archive.h"
+#include "ui/base/mojom/menu_source_type.mojom.h"
 #include "ui/menus/simple_menu_model.h"
 #include "ui/views/bubble/bubble_dialog_delegate_view.h"
 #include "ui/views/controls/button/button.h"
@@ -38,9 +39,13 @@ class AerieSidebarArchiveRow;
 // Earlier), each row with its Workspace. A click or Enter on a row restores it.
 //
 // Accessibility: the panel is a dialog named "Archive"; the search is a
-// searchbox; the list is a listbox of listbox options. Up and Down move
-// between the search and the rows, Enter restores, Esc closes. Focus goes back
-// to the Archive button when the panel closes.
+// searchbox; the list is a listbox. Each day is a group named by its heading,
+// and holds that day's listbox options. The rows are ONE Tab stop with roving
+// focus: only the active row can take Tab focus, and Up, Down, Home and End
+// move it (Up from the first row goes back to the search). The active row is
+// the selected one; every row says its position in the whole list and the
+// list's size. Enter restores, Esc closes. Focus goes back to the Archive
+// button when the panel closes.
 //
 // Motion: it drops 4 px and fades in on `fast` and `decelerate`; there is no
 // closing animation. Reduced motion: opacity only, 90 ms.
@@ -95,8 +100,14 @@ class AerieSidebarArchivePanel : public views::BubbleDialogDelegate,
   const aerie::motion::MotionHandle& open_motion() const {
     return open_motion_;
   }
-  // The timeout menu, opened from the header button.
-  void ShowTimeoutMenu();
+  // The timeout menu, opened from the header button. `source` is how it was
+  // asked for: a key press (Enter or Space on the button) opens it as a
+  // keyboard menu, with the first item highlighted.
+  void ShowTimeoutMenu(
+      ui::mojom::MenuSourceType source = ui::mojom::MenuSourceType::kMouse);
+  ui::mojom::MenuSourceType last_menu_source() const {
+    return last_menu_source_;
+  }
   // Restores the row `index` (as a click does).
   void ChooseRow(size_t index);
   // A click on a row: the callback of the row binds the row itself.
@@ -116,12 +127,21 @@ class AerieSidebarArchivePanel : public views::BubbleDialogDelegate,
 
   // Moves focus along the rows; called by a row on Up and Down.
   void FocusNeighbour(AerieSidebarArchiveRow* from, int direction);
+  // Home and End: the first and the last row.
+  void FocusEdge(bool last);
+  // Makes `row` the one Tab stop and the selected row.
+  void SetActiveRow(AerieSidebarArchiveRow* row);
+  // Makes `row` the active row and gives it focus.
+  void FocusRow(AerieSidebarArchiveRow* row);
+  // The groups now shown (one per day section), in order.
+  std::vector<views::View*> groups() const;
 
  private:
   AerieSidebarArchivePanel(views::View* anchor,
                            Host* host,
                            const aerie_sidebar::SidebarPalette& palette);
   void BuildList();
+  void OnTimeoutPressed(const ui::Event& event);
   void UpdateTimeoutLabel();
   void OnClosing();
 
@@ -134,6 +154,11 @@ class AerieSidebarArchivePanel : public views::BubbleDialogDelegate,
   std::unique_ptr<ui::SimpleMenuModel> menu_model_;
   std::unique_ptr<views::MenuRunner> menu_runner_;
   std::vector<aerie_tab_model::ArchivedRow> shown_;
+  std::vector<raw_ptr<views::View>> groups_;
+  std::vector<raw_ptr<AerieSidebarArchiveRow>> row_views_;
+  std::vector<raw_ptr<views::Label>> headings_;
+  ui::mojom::MenuSourceType last_menu_source_ =
+      ui::mojom::MenuSourceType::kMouse;
   std::u16string query_;
   bool closed_ = false;
   bool refocus_ = true;

@@ -57,6 +57,8 @@
 #include "ui/events/test/event_generator.h"
 #include "ui/gfx/animation/animation_test_api.h"
 #include "ui/views/accessibility/view_accessibility.h"
+#include "ui/base/mojom/menu_source_type.mojom.h"
+#include "ui/events/event.h"
 #include "ui/views/bubble/bubble_border.h"
 #include "ui/views/bubble/bubble_frame_view.h"
 #include "ui/views/controls/textfield/textfield.h"
@@ -319,8 +321,25 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarArchiveBrowserTest,
   EXPECT_EQ(panel()->group_titles(),
             (std::vector<std::u16string>{u"Today", u"Yesterday", u"Last week",
                                          u"Earlier"}));
+  // The listbox holds only groups; each is named by its heading and holds its
+  // own rows.
+  const auto groups = panel()->groups();
+  ASSERT_EQ(groups.size(), 4u);
+  const std::vector<std::string> names = {"Today", "Yesterday", "Last week",
+                                          "Earlier"};
+  for (size_t i = 0; i < groups.size(); ++i) {
+    EXPECT_EQ(groups[i]->parent(), panel()->list());
+    EXPECT_EQ(DataOf(groups[i]).role, ax::mojom::Role::kGroup);
+    EXPECT_EQ(NameOf(groups[i]), names[i]);
+  }
+  for (views::View* child : panel()->list()->children()) {
+    EXPECT_EQ(DataOf(child).role, ax::mojom::Role::kGroup);
+  }
   const auto rows = panel()->rows();
   ASSERT_EQ(rows.size(), 4u);
+  for (size_t i = 0; i < rows.size(); ++i) {
+    EXPECT_EQ(rows[i]->parent(), groups[i]);
+  }
   EXPECT_EQ(rows[0]->title(), u"Today page");
   EXPECT_EQ(rows[1]->title(), u"Yesterday page");
   EXPECT_EQ(rows[2]->title(), u"Last week page");
@@ -458,6 +477,80 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarArchiveBrowserTest,
   Press(ui::VKEY_ESCAPE, panel()->rows()[0]);
   EXPECT_FALSE(panel());
   EXPECT_TRUE(sidebar()->archive_button()->HasFocus());
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarArchiveBrowserTest,
+                       TheRowsAreOneTabStopWithRovingFocusHomeAndEnd) {
+  AddArchived("One", "https://example.com/1", base::Time::Now());
+  AddArchived("Two", "https://example.com/2", base::Time::Now());
+  AddArchived("Three", "https://example.com/3",
+              base::Time::Now().LocalMidnight() - base::Hours(12));
+  OpenPanel();
+  views::FocusManager* focus = panel()->GetWidget()->GetFocusManager();
+  const auto rows = panel()->rows();
+  ASSERT_EQ(rows.size(), 3u);
+  auto tab_stops = [&] {
+    size_t stops = 0;
+    for (auto* row : rows) {
+      stops += row->GetFocusBehavior() == views::View::FocusBehavior::ALWAYS;
+    }
+    return stops;
+  };
+  // One Tab stop: the first row. Tab from the search lands on it, and one more
+  // Tab leaves the list instead of walking through the rows.
+  EXPECT_EQ(tab_stops(), 1u);
+  EXPECT_EQ(rows[0]->GetFocusBehavior(), views::View::FocusBehavior::ALWAYS);
+  EXPECT_EQ(focus->GetNextFocusableView(panel()->search(), nullptr, false, false),
+            rows[0]);
+  EXPECT_NE(focus->GetNextFocusableView(rows[0], nullptr, false, false),
+            rows[1]);
+  // Position and size over the whole list, across the groups; the active row
+  // is the selected one.
+  for (size_t i = 0; i < rows.size(); ++i) {
+    const ui::AXNodeData data = DataOf(rows[i]);
+    EXPECT_EQ(data.GetIntAttribute(ax::mojom::IntAttribute::kPosInSet),
+              static_cast<int>(i) + 1);
+    EXPECT_EQ(data.GetIntAttribute(ax::mojom::IntAttribute::kSetSize), 3);
+    EXPECT_EQ(data.GetBoolAttribute(ax::mojom::BoolAttribute::kSelected), i == 0);
+  }
+  // Down moves the Tab stop and the selection with the focus.
+  Press(ui::VKEY_DOWN, panel()->search());
+  Press(ui::VKEY_DOWN, rows[0]);
+  EXPECT_EQ(focus->GetFocusedView(), rows[1]);
+  EXPECT_EQ(tab_stops(), 1u);
+  EXPECT_EQ(rows[1]->GetFocusBehavior(), views::View::FocusBehavior::ALWAYS);
+  EXPECT_TRUE(DataOf(rows[1]).GetBoolAttribute(ax::mojom::BoolAttribute::kSelected));
+  EXPECT_FALSE(DataOf(rows[0]).GetBoolAttribute(ax::mojom::BoolAttribute::kSelected));
+  // End and Home jump to the last and the first row, across the groups.
+  Press(ui::VKEY_END, rows[1]);
+  EXPECT_EQ(focus->GetFocusedView(), rows[2]);
+  EXPECT_EQ(tab_stops(), 1u);
+  Press(ui::VKEY_HOME, rows[2]);
+  EXPECT_EQ(focus->GetFocusedView(), rows[0]);
+  // Enter still restores the row that has focus.
+  panel()->FocusRow(rows[1]);
+  EXPECT_EQ(focus->GetFocusedView(), rows[1]);
+  EXPECT_EQ(tab_stops(), 1u);
+  EXPECT_EQ(rows[1]->GetFocusBehavior(), views::View::FocusBehavior::ALWAYS);
+  // A search starts the stops again at the first row.
+  Search(u"Thr");
+  ASSERT_EQ(panel()->rows().size(), 1u);
+  EXPECT_EQ(panel()->rows()[0]->GetFocusBehavior(),
+            views::View::FocusBehavior::ALWAYS);
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarArchiveBrowserTest,
+                       TheTimeoutMenuOpensAsAKeyboardMenuAfterAKeyPress) {
+  OpenPanel();
+  views::test::ButtonTestApi button(panel()->timeout_button());
+  button.NotifyClick(ui::MouseEvent(
+      ui::EventType::kMousePressed, gfx::Point(), gfx::Point(),
+      base::TimeTicks::Now(), ui::EF_LEFT_MOUSE_BUTTON,
+      ui::EF_LEFT_MOUSE_BUTTON));
+  EXPECT_EQ(panel()->last_menu_source(), ui::mojom::MenuSourceType::kMouse);
+  button.NotifyClick(
+      ui::KeyEvent(ui::EventType::kKeyPressed, ui::VKEY_RETURN, ui::EF_NONE));
+  EXPECT_EQ(panel()->last_menu_source(), ui::mojom::MenuSourceType::kKeyboard);
 }
 
 IN_PROC_BROWSER_TEST_F(AerieSidebarArchiveBrowserTest,
