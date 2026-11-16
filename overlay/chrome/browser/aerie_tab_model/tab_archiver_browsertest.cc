@@ -47,6 +47,7 @@
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
+#include "content/public/test/test_navigation_observer.h"
 #include "net/dns/mock_host_resolver.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "url/gurl.h"
@@ -483,9 +484,10 @@ IN_PROC_BROWSER_TEST_F(
   for (const GURL& url :
        {GURL("data:text/html,<title>local</title>hello"),
         embedded_test_server()->GetURL("/title2.html")}) {
+    content::TestNavigationObserver observer(contents);
     content::NavigationController::LoadURLParams params(url);
     contents->GetController().LoadURLWithParams(params);
-    ASSERT_TRUE(content::WaitForLoadStop(contents));
+    observer.Wait();
   }
   ASSERT_TRUE(content::ExecJs(
       contents, "document.title = 'T'.repeat(5000);"));
