@@ -83,12 +83,15 @@ struct FiledBy {
 // to four before it (issue #183), so that a restored tab keeps its Back.
 inline constexpr size_t kMaxArchivedNavigationEntries = 5;
 
-// Whether an address read from an archived record may be handed back to
-// Chromium to load. Chromium's own session restore (components/sessions,
-// chrome/browser/sessions) filters nothing per entry, so Aerie is stricter: an
-// address that does not parse, a `javascript:` address and one longer than
-// `url::kMaxURLChars` are refused. A state file is user data on disk; it must
-// not be able to run script in the page a restore opens.
+// Whether an address of an archived record may be handed back to Chromium to
+// load. Chromium's own session restore (components/sessions,
+// chrome/browser/sessions) filters nothing per entry, so Aerie uses an
+// allowlist: http, https, about:blank, and chrome:// pages except the debug
+// addresses that crash, hang or kill the browser. Everything else (file:,
+// data:, blob:, filesystem:, javascript:, chrome-untrusted:, devtools:,
+// view-source:, chrome-extension:, ...) and an address that does not parse or
+// is longer than `url::kMaxURLChars` is refused. A state file is user data on
+// disk; it must not be able to run script or a privileged page in a restore.
 bool IsRestorableArchiveUrl(std::string_view url);
 
 // One navigation entry of an archived tab. Only the address and the title: the
@@ -230,7 +233,8 @@ base::DictValue FolderToValue(const FolderRecord& folder);
 base::DictValue ChangeToValue(const ChangeRecord& change);
 
 std::optional<Workspace> WorkspaceFromValue(const base::DictValue& dict);
-std::optional<TabRecord> TabFromValue(const base::DictValue& dict);
+std::optional<TabRecord> TabFromValue(const base::DictValue& dict,
+                                      bool* drop_record = nullptr);
 std::optional<FolderRecord> FolderFromValue(const base::DictValue& dict);
 std::optional<ChangeRecord> ChangeFromValue(const base::DictValue& dict);
 

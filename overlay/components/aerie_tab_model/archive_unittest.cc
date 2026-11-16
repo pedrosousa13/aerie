@@ -9,6 +9,7 @@
 
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
+#include "base/strings/string_util.h"
 #include "base/test/simple_test_clock.h"
 #include "components/aerie_tab_model/folder_tree.h"
 #include "components/aerie_tab_model/tab_model.h"
@@ -86,6 +87,7 @@ TEST_F(ArchiveTest, TheArchiveKeepsOnlyTheLastFiveEntries) {
   for (int i = 0; i < 8; ++i) {
     data.entries.push_back({"https://example.com/" + std::to_string(i), "t"});
   }
+  data.url = data.entries.back().url;
   ASSERT_TRUE(ArchiveTab(model_, id, std::move(data), clock_.Now()));
   const auto& entries = model_.GetTab(id)->archive->entries;
   ASSERT_EQ(entries.size(), kMaxArchivedNavigationEntries);
@@ -110,82 +112,223 @@ TEST_F(ArchiveTest, AnArchivedRecordSurvivesTheJsonRoundTrip) {
   EXPECT_EQ(found->archived_at, model_.GetTab(id)->archived_at);
 }
 
-TEST_F(ArchiveTest, ARecordWithABadArchiveBlockMakesTheFileCorrupt) {
-  const std::string id = AddToday();
-  ASSERT_TRUE(ArchiveTab(model_, id, Data(), clock_.Now()));
+// Finds the record `id` in a parsed state.
+const TabRecord* FindTab(const ParseResult& parsed, const std::string& id) {
+  for (const TabRecord& tab : parsed.state->tabs) {
+    if (tab.id == id) {
+      return &tab;
+    }
+  }
+  return nullptr;
+}
+
+TEST_F(ArchiveTest, ABadArchiveBlockDropsThatRecordAndKeepsTheRestOfTheFile) {
+  const std::string bad = AddToday();
+  const std::string good = AddToday();
+  TabRecord pinned;
+  pinned.section = Section::kPinned;
+  const std::string pinned_id = model_.AddTab(std::move(pinned));
+  const std::string folder =
+      CreateFolder(model_, Section::kToday, std::string(), "Reading");
+  ASSERT_TRUE(ArchiveTab(model_, bad, Data(), clock_.Now()));
+  ASSERT_TRUE(ArchiveTab(model_, good, Data(), clock_.Now()));
   base::DictValue json = model_.ToValue();
   for (base::Value& tab : *json.FindList("tabs")) {
-    tab.GetDict().FindDict("archive")->Set("url", 5);
+    if (*tab.GetDict().FindString("id") == bad) {
+      tab.GetDict().FindDict("archive")->Set("url", 5);
+    }
   }
-  EXPECT_EQ(ParseState(json).status, LoadStatus::kCorrupt);
+  ParseResult parsed = ParseState(json);
+  ASSERT_EQ(parsed.status, LoadStatus::kOk);
+  // The archived record with the malformed archive is gone ...
+  EXPECT_FALSE(FindTab(parsed, bad));
+  // ... and nothing else is lost.
+  ASSERT_TRUE(FindTab(parsed, good));
+  EXPECT_TRUE(FindTab(parsed, good)->archive);
+  EXPECT_TRUE(FindTab(parsed, pinned_id));
+  ASSERT_EQ(parsed.state->folders.size(), 1u);
+  EXPECT_EQ(parsed.state->folders[0].id, folder);
+}
+
+TEST_F(ArchiveTest, ABadArchiveBlockOnALiveRecordIsLeftOutAndTheRecordKept) {
+  const std::string id = AddToday();
+  base::DictValue json = model_.ToValue();
+  for (base::Value& tab : *json.FindList("tabs")) {
+    tab.GetDict().Set("archive", "not a dict");
+  }
+  ParseResult parsed = ParseState(json);
+  ASSERT_EQ(parsed.status, LoadStatus::kOk);
+  const TabRecord* found = FindTab(parsed, id);
+  ASSERT_TRUE(found);
+  EXPECT_FALSE(found->archive);
 }
 
 TEST_F(ArchiveTest, OnlyAnAddressChromiumMayLoadIsRestorable) {
   EXPECT_TRUE(IsRestorableArchiveUrl("https://example.com/a?b=c#d"));
   EXPECT_TRUE(IsRestorableArchiveUrl("http://127.0.0.1:8000/x"));
+  EXPECT_TRUE(IsRestorableArchiveUrl("about:blank"));
   EXPECT_TRUE(IsRestorableArchiveUrl("chrome://settings/"));
-  EXPECT_FALSE(IsRestorableArchiveUrl(""));
-  EXPECT_FALSE(IsRestorableArchiveUrl("not a url"));
-  EXPECT_FALSE(IsRestorableArchiveUrl("javascript:alert(1)"));
-  EXPECT_FALSE(IsRestorableArchiveUrl("JaVaScRiPt:alert(document.cookie)"));
-  EXPECT_FALSE(IsRestorableArchiveUrl("  javascript:alert(1)"));
+  EXPECT_TRUE(IsRestorableArchiveUrl("chrome://newtab/"));
+  EXPECT_TRUE(IsRestorableArchiveUrl("chrome://history/"));
+  for (const char* refused : {
+           "", "not a url", "javascript:alert(1)",
+           "JaVaScRiPt:alert(document.cookie)", "  javascript:alert(1)",
+           "file:///etc/passwd", "data:text/html,<script>alert(1)</script>",
+           "blob:https://example.com/00000000-0000-0000-0000-000000000000",
+           "filesystem:https://example.com/temporary/a",
+           "chrome-untrusted://terminal/", "chrome-extension://abc/page.html",
+           "devtools://devtools/bundled/inspector.html",
+           "view-source:https://example.com/", "about:srcdoc",
+           "about:version", "ftp://example.com/", "ws://example.com/",
+           "chrome-error://chromewebdata/", "chrome-search://local-ntp/",
+           "isolated-app://abc/", "chrome-native://x/", "helium-unknown://x/",
+       }) {
+    EXPECT_FALSE(IsRestorableArchiveUrl(refused)) << refused;
+  }
   EXPECT_FALSE(IsRestorableArchiveUrl(
       "https://example.com/" + std::string(3 * 1024 * 1024, 'a')));
 }
 
-TEST_F(ArchiveTest, HostileEntriesInTheFileAreDroppedWhenItIsRead) {
+TEST_F(ArchiveTest, TheChromeDebugAddressesAreNotRestorable) {
+  for (const char* refused : {
+           "chrome://crash/", "chrome://crash/browser/heap-overflow",
+           "chrome://kill/", "chrome://hang/", "chrome://shorthang/",
+           "chrome://gpucrash/", "chrome://gpuhang/", "chrome://gpuclean/",
+           "chrome://badcastcrash/", "chrome://checkcrash/",
+           "chrome://crashdump/", "chrome://memory-exhaust/",
+           "chrome://memory-pressure-critical/",
+           "chrome://memory-pressure-moderate/", "chrome://blink-oom/",
+           "chrome://v8-oom/", "chrome://uithreadhang/",
+           "chrome://delayeduithreadhang/",
+           "chrome://inducebrowsercrashforrealz/",
+           "chrome://inducebrowserdcheckforrealz/", "chrome://quit/",
+           "chrome://restart/", "chrome://webuijserror/",
+       }) {
+    EXPECT_FALSE(IsRestorableArchiveUrl(refused)) << refused;
+  }
+}
+
+TEST_F(ArchiveTest, AnAddressOverTheCapIsNotArchivable) {
+  const std::string at_cap =
+      "https://example.com/" +
+      std::string(kMaxArchivedUrlBytes - std::string("https://example.com/").size(),
+                  'a');
+  ASSERT_EQ(at_cap.size(), kMaxArchivedUrlBytes);
+  EXPECT_TRUE(IsArchivableUrl(at_cap));
+  EXPECT_FALSE(IsArchivableUrl(at_cap + "a"));
+  EXPECT_FALSE(IsArchivableUrl("file:///etc/passwd"));
+}
+
+TEST_F(ArchiveTest, ArchivingSkipsEntriesThatCannotBeKeptAndCutsTitles) {
   const std::string id = AddToday();
-  ASSERT_TRUE(ArchiveTab(model_, id, Data(), clock_.Now()));
-  base::DictValue json = model_.ToValue();
+  ArchiveData data = Data("https://example.com/now", std::string(5000, 'T'));
+  data.entries = {
+      {"file:///etc/passwd", "local"},
+      {"https://example.com/huge/" + std::string(9000, 'a'), "huge"},
+      {"https://example.com/prev", std::string(4000, 'p')},
+      {"https://example.com/now", std::string(5000, 'T')},
+  };
+  ASSERT_TRUE(ArchiveTab(model_, id, std::move(data), clock_.Now()));
+  const ArchiveData& kept = *model_.GetTab(id)->archive;
+  ASSERT_EQ(kept.entries.size(), 2u);
+  EXPECT_EQ(kept.entries[0].url, "https://example.com/prev");
+  EXPECT_EQ(kept.entries[1].url, "https://example.com/now");
+  EXPECT_EQ(kept.entries[0].title.size(), kMaxArchivedTitleBytes);
+  EXPECT_EQ(kept.entries[1].title.size(), kMaxArchivedTitleBytes);
+  EXPECT_EQ(kept.title.size(), kMaxArchivedTitleBytes);
+}
+
+TEST_F(ArchiveTest, ATitleIsCutOnACharacterBoundary) {
+  const std::string id = AddToday();
+  // Three-byte characters: the cap is not a multiple of 3, so a plain cut
+  // would split one.
+  std::string title;
+  for (size_t i = 0; i < kMaxArchivedTitleBytes; ++i) {
+    title += "\xE2\x82\xAC";
+  }
+  ASSERT_TRUE(
+      ArchiveTab(model_, id, Data("https://example.com/a", title), clock_.Now()));
+  const std::string& kept = model_.GetTab(id)->archive->title;
+  EXPECT_LE(kept.size(), kMaxArchivedTitleBytes);
+  EXPECT_TRUE(base::IsStringUTF8(kept));
+}
+
+TEST_F(ArchiveTest, ATabIsNotArchivedWhenItsCurrentPageCannotBeKept) {
+  for (const std::string& url :
+       {std::string("file:///etc/passwd"), std::string("chrome://kill/"),
+        std::string("data:text/html,hi"),
+        "https://example.com/" + std::string(9000, 'a')}) {
+    const std::string id = AddToday();
+    ArchiveData data = Data("https://example.com/a");
+    data.url = url;
+    data.entries.push_back({url, "now"});
+    EXPECT_FALSE(ArchiveTab(model_, id, std::move(data), clock_.Now())) << url;
+    EXPECT_FALSE(model_.GetTab(id)->archived_at);
+    EXPECT_FALSE(model_.GetTab(id)->archive);
+  }
+}
+
+// Rewrites the archive of the one archived record in the saved form: its
+// entries (urls) and the url it names.
+base::DictValue SavedWith(const TabModel& model,
+                          const std::vector<std::string>& urls,
+                          const std::string& archive_url) {
+  base::DictValue json = model.ToValue();
   for (base::Value& tab : *json.FindList("tabs")) {
     base::DictValue* archive = tab.GetDict().FindDict("archive");
-    ASSERT_TRUE(archive);
+    if (!archive) {
+      continue;
+    }
     base::ListValue entries;
-    for (const char* url :
-         {"javascript:alert(document.domain)", "https://example.com/ok",
-          "garbage", ""}) {
+    for (const std::string& url : urls) {
       base::DictValue item;
       item.Set("url", url);
       item.Set("title", "t");
       entries.Append(std::move(item));
     }
     archive->Set("entries", std::move(entries));
-    archive->Set("url", "javascript:alert(1)");
+    archive->Set("url", archive_url);
   }
-  ParseResult parsed = ParseState(json);
+  return json;
+}
+
+TEST_F(ArchiveTest, HostileEntriesInTheFileAreDroppedWhenItIsRead) {
+  const std::string id = AddToday();
+  ASSERT_TRUE(ArchiveTab(model_, id, Data(), clock_.Now()));
+  ParseResult parsed = ParseState(SavedWith(
+      model_,
+      {"javascript:alert(document.domain)", "file:///etc/passwd",
+       "https://example.com/ok", "garbage", "chrome://kill/"},
+      "https://example.com/ok"));
   ASSERT_EQ(parsed.status, LoadStatus::kOk);
-  const TabRecord* found = nullptr;
-  for (const TabRecord& tab : parsed.state->tabs) {
-    if (tab.id == id) {
-      found = &tab;
-    }
-  }
+  const TabRecord* found = FindTab(parsed, id);
   ASSERT_TRUE(found && found->archive);
   ASSERT_EQ(found->archive->entries.size(), 1u);
   EXPECT_EQ(found->archive->entries[0].url, "https://example.com/ok");
-  // The shown address is never the refused one.
   EXPECT_EQ(found->archive->url, "https://example.com/ok");
 }
 
-TEST_F(ArchiveTest, ARecordWithNoLoadableEntryShowsNoRowAndIsStillDropped) {
+TEST_F(ArchiveTest, AnArchivedRecordWhosePageEntryWasRefusedIsDropped) {
+  const std::string id = AddToday();
+  const std::string other = AddToday();
+  ASSERT_TRUE(ArchiveTab(model_, id, Data(), clock_.Now()));
+  // The page that was archived is a file: address; an earlier entry is fine.
+  // The record must not restore onto the earlier page.
+  ParseResult parsed = ParseState(SavedWith(
+      model_, {"https://example.com/earlier", "file:///etc/passwd"},
+      "file:///etc/passwd"));
+  ASSERT_EQ(parsed.status, LoadStatus::kOk);
+  EXPECT_FALSE(FindTab(parsed, id));
+  EXPECT_TRUE(FindTab(parsed, other));
+}
+
+TEST_F(ArchiveTest, AnArchivedRecordWithNoLoadableEntryIsDropped) {
   const std::string id = AddToday();
   ASSERT_TRUE(ArchiveTab(model_, id, Data(), clock_.Now()));
-  base::DictValue json = model_.ToValue();
-  for (base::Value& tab : *json.FindList("tabs")) {
-    base::DictValue* archive = tab.GetDict().FindDict("archive");
-    base::ListValue entries;
-    base::DictValue item;
-    item.Set("url", "javascript:void(0)");
-    item.Set("title", "t");
-    entries.Append(std::move(item));
-    archive->Set("entries", std::move(entries));
-  }
-  TabModel reloaded(&clock_);
-  reloaded.MergeLoaded(std::move(ParseState(json).state));
-  ASSERT_TRUE(reloaded.GetTab(id));
-  EXPECT_TRUE(ArchivedRows(reloaded).empty());
-  clock_.Advance(base::Days(31));
-  EXPECT_EQ(PurgeArchive(reloaded, clock_.Now(), base::Days(30)), 1u);
+  ParseResult parsed =
+      ParseState(SavedWith(model_, {"javascript:void(0)"}, "javascript:void(0)"));
+  ASSERT_EQ(parsed.status, LoadStatus::kOk);
+  EXPECT_FALSE(FindTab(parsed, id));
 }
 
 TEST_F(ArchiveTest, AnArchivedRecordIsStoredNotWaitingForARestoredTab) {

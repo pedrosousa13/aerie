@@ -8,11 +8,16 @@
 #include <utility>
 
 #include "base/i18n/case_conversion.h"
+#include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "components/aerie_tab_model/folder_tree.h"
 #include "components/aerie_tab_model/tab_model.h"
 
 namespace aerie_tab_model {
+
+bool IsArchivableUrl(std::string_view url) {
+  return url.size() <= kMaxArchivedUrlBytes && IsRestorableArchiveUrl(url);
+}
 
 bool ArchiveTab(TabModel& model,
                 const std::string& id,
@@ -23,6 +28,22 @@ bool ArchiveTab(TabModel& model,
     return false;
   }
   data.folder = tab->parent;
+  // The page the tab showed is the last entry; if it cannot be written, the
+  // tab is not archived (a restore would open a different page).
+  if (data.entries.empty()) {
+    data.entries.push_back({data.url, data.title});
+  }
+  if (!IsArchivableUrl(data.url) || data.entries.back().url != data.url) {
+    return false;
+  }
+  std::erase_if(data.entries, [](const ArchivedNavigation& entry) {
+    return !IsArchivableUrl(entry.url);
+  });
+  data.title = base::TruncateUTF8ToByteSize(data.title, kMaxArchivedTitleBytes);
+  for (ArchivedNavigation& entry : data.entries) {
+    entry.title =
+        base::TruncateUTF8ToByteSize(entry.title, kMaxArchivedTitleBytes);
+  }
   // Keep the page and up to four entries before it.
   if (data.entries.size() > kMaxArchivedNavigationEntries) {
     data.entries.erase(data.entries.begin(),

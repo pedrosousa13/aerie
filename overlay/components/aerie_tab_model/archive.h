@@ -26,10 +26,23 @@ class TabModel;
 // ever. The names are the values of the pref aerie.tabs.archive_keep.
 inline constexpr base::TimeDelta kDefaultArchiveRetention = base::Days(30);
 
+// The most a record keeps of one address, and of one title, in bytes. A page
+// can set a title or an address as long as it likes; the state file is
+// rewritten on every change, so a record must not grow with the page.
+inline constexpr size_t kMaxArchivedUrlBytes = 8 * 1024;
+inline constexpr size_t kMaxArchivedTitleBytes = 1024;
+
+// Whether an entry with this address may be written to an archived record: it
+// is restorable (IsRestorableArchiveUrl) and at most `kMaxArchivedUrlBytes`.
+bool IsArchivableUrl(std::string_view url);
+
 // Turns a Today tab into an archived record: `archived_at` is `now`, `archive`
 // is `data` with `folder` set to the folder the tab is in. The record keeps its
 // id, so the tab restores into the same record. False, and nothing changes, for
-// an unknown tab, a tab that is not in Today, or one that is archived already.
+// an unknown tab, a tab that is not in Today, or one that is archived already,
+// or when `data.url` is not archivable or is not the last entry. Entries that are
+// not archivable (see IsArchivableUrl) are left out, and titles are cut to
+// `kMaxArchivedTitleBytes`.
 bool ArchiveTab(TabModel& model,
                 const std::string& id,
                 ArchiveData data,

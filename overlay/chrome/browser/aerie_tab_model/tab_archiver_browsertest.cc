@@ -11,11 +11,13 @@
 
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "base/command_line.h"
 #include "base/functional/bind.h"
 #include "base/run_loop.h"
+#include "base/strings/cstring_view.h"
 #include "base/test/run_until.h"
 #include "base/test/simple_test_clock.h"
 #include "base/test/simple_test_tick_clock.h"
@@ -31,6 +33,7 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/test/base/in_process_browser_test.h"
+#include "chrome/common/webui_url_constants.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/aerie_tab_model/archive.h"
 #include "components/aerie_tab_model/folder_tree.h"
@@ -445,6 +448,72 @@ IN_PROC_BROWSER_TEST_F(AerieTabArchiverBrowserTest,
 }
 
 class AerieTabArchiverStartupBrowserTest : public InProcessBrowserTest {};
+IN_PROC_BROWSER_TEST_F(AerieTabArchiverBrowserTest,
+                       ATabShowingAPageThatCannotBeRestoredStaysOpen) {
+  // A data: page, a page over the address cap and a chrome:// page that
+  // crashes the browser are never written to the Archive: the tab is left open.
+  for (const GURL& url :
+       {GURL("data:text/html,<title>local</title>hello"),
+        embedded_test_server()->GetURL("/title1.html?" +
+                                       std::string(kMaxArchivedUrlBytes, 'a'))}) {
+    ASSERT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
+        browser(), url, WindowOpenDisposition::NEW_BACKGROUND_TAB,
+        ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
+    const std::string id = IdAt(strip()->count() - 1);
+    ASSERT_FALSE(id.empty());
+    UseNow(id);
+    const int count = strip()->count();
+    AdvanceClock(base::Days(2));
+    EXPECT_FALSE(IsArchived(id)) << url.possibly_invalid_spec().substr(0, 40);
+    EXPECT_EQ(strip()->count(), count);
+    // The Archive button does not archive it either.
+    EXPECT_FALSE(archiver_->Archive(strip()->GetTabAtIndex(IndexOf(id))));
+    EXPECT_FALSE(IsArchived(id));
+    EXPECT_EQ(strip()->count(), count);
+  }
+}
+
+IN_PROC_BROWSER_TEST_F(
+    AerieTabArchiverBrowserTest,
+    AnEarlierEntryThatCannotBeRestoredIsLeftOutAndTitlesAreCut) {
+  const std::string id = OpenBackgroundTab("/title1.html");
+  content::WebContents* contents = strip()->GetWebContentsAt(IndexOf(id));
+  // The test server has no files, so a page is a 404: the pages here only need
+  // to be committed, not to be 200.
+  for (const GURL& url :
+       {GURL("data:text/html,<title>local</title>hello"),
+        embedded_test_server()->GetURL("/title2.html")}) {
+    content::NavigationController::LoadURLParams params(url);
+    contents->GetController().LoadURLWithParams(params);
+    ASSERT_TRUE(content::WaitForLoadStop(contents));
+  }
+  ASSERT_TRUE(content::ExecJs(
+      contents, "document.title = 'T'.repeat(5000);"));
+  UseNow(id);
+  AdvanceClock(base::Hours(12));
+  ASSERT_TRUE(IsArchived(id));
+  const ArchiveData& archive = *model()->GetTab(id)->archive;
+  ASSERT_EQ(archive.entries.size(), 2u);
+  EXPECT_EQ(archive.entries[0].url,
+            embedded_test_server()->GetURL("/title1.html").spec());
+  EXPECT_EQ(archive.entries[1].url,
+            embedded_test_server()->GetURL("/title2.html").spec());
+  EXPECT_LE(archive.title.size(), kMaxArchivedTitleBytes);
+  for (const ArchivedNavigation& entry : archive.entries) {
+    EXPECT_LE(entry.title.size(), kMaxArchivedTitleBytes);
+    EXPECT_LE(entry.url.size(), kMaxArchivedUrlBytes);
+  }
+}
+
+IN_PROC_BROWSER_TEST_F(AerieTabArchiverBrowserTest,
+                       EveryChromiumDebugAddressIsRefusedByTheArchive) {
+  // Chromium's own list, so that a page added there is caught here.
+  for (const base::cstring_view debug : chrome::ChromeDebugURLs()) {
+    EXPECT_FALSE(IsRestorableArchiveUrl(std::string_view(debug)))
+        << std::string_view(debug);
+  }
+}
+
 
 IN_PROC_BROWSER_TEST_F(AerieTabArchiverStartupBrowserTest,
                        NoArchiverAndNoTimerExistUntilTheSidebarAsksForIt) {

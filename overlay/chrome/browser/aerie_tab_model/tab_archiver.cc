@@ -36,6 +36,25 @@ namespace {
 // The page the tab shows, its title, and the last entries of its history up to
 // the one shown. Forward entries are dropped: the restored tab opens on the page
 // that was shown.
+// The address of the entry that shows the page, or the visible address when the
+// tab has no entry yet.
+GURL CurrentUrl(tabs::TabInterface* tab) {
+  content::WebContents* contents = tab->GetContents();
+  // The entry Capture ends on.
+  content::NavigationController& controller = contents->GetController();
+  const int current = controller.GetCurrentEntryIndex();
+  content::NavigationEntry* entry =
+      current >= 0 ? controller.GetEntryAtIndex(current) : nullptr;
+  return entry ? entry->GetVirtualURL() : contents->GetVisibleURL();
+}
+
+// Whether the page the tab shows can be written to the Archive and opened
+// again: an address Chromium may load (IsArchivableUrl). A tab that shows
+// another page is left open.
+bool IsArchivable(tabs::TabInterface* tab) {
+  return IsArchivableUrl(CurrentUrl(tab).possibly_invalid_spec());
+}
+
 ArchiveData Capture(tabs::TabInterface* tab) {
   ArchiveData data;
   content::WebContents* contents = tab->GetContents();
@@ -50,8 +69,15 @@ ArchiveData Capture(tabs::TabInterface* tab) {
       if (!entry) {
         continue;
       }
-      data.entries.push_back({entry->GetVirtualURL().spec(),
-                              base::UTF16ToUTF8(entry->GetTitleForDisplay())});
+      // An entry that cannot be restored, or is over the cap, is skipped here
+      // (ArchiveTab checks again) so a huge address is never copied.
+      const GURL& url = entry->GetVirtualURL();
+      if (url.possibly_invalid_spec().size() > kMaxArchivedUrlBytes ||
+          !IsArchivableUrl(url.possibly_invalid_spec())) {
+        continue;
+      }
+      data.entries.push_back(
+          {url.spec(), base::UTF16ToUTF8(entry->GetTitleForDisplay())});
     }
   }
   if (data.entries.empty()) {
@@ -248,7 +274,10 @@ bool TabArchiver::IsExempt(const std::string& record_id) const {
     return true;
   }
   content::WebContents* contents = tab->GetContents();
-  return tab->IsActivated() || !contents || contents->IsCurrentlyAudible();
+  // A tab that shows a page the Archive cannot keep (file:, data:, a debug
+  // page, an address over the cap) stays open.
+  return tab->IsActivated() || !contents || contents->IsCurrentlyAudible() ||
+         !IsArchivable(tab);
 }
 
 bool TabArchiver::OnDue(const std::string& record_id) {
@@ -282,6 +311,10 @@ bool TabArchiver::ArchiveWithMotion(tabs::TabInterface* tab, bool animate) {
   // the user can answer. An automatic archive must never raise a dialog or
   // lose what the user was typing.
   if (contents->NeedToFireBeforeUnloadOrUnloadEvents()) {
+    return false;
+  }
+  // A page that cannot be restored is not archived: the tab stays open.
+  if (!IsArchivable(tab)) {
     return false;
   }
   for (Observer& observer : observers_) {

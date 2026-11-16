@@ -202,12 +202,73 @@ base::DictValue ArchiveToValue(const ArchiveData& archive) {
 
 }  // namespace
 
+namespace {
+
+// The hosts of the chrome:// addresses that crash, hang, kill or restart the
+// browser or one of its processes (blink/public/common/chrome_debug_urls.h, the
+// Chromium list `chrome::ChromeDebugURLs()` in chrome/common, and the quit and
+// restart pages). A restore must never open one: it would act on load. The test
+// in //chrome/browser/aerie_tab_model checks this list against Chromium's own.
+bool IsDebugHost(std::string_view host) {
+  static constexpr std::string_view kDebugHosts[] = {
+      "badcastcrash",
+      "inducebrowsercrashforrealz",
+      "inducebrowserdcheckforrealz",
+      "inducebrowserheapcorruption",
+      "crash",
+      "checkcrash",
+      "crashdump",
+      "delayeduithreadhang",
+      "gpuclean",
+      "gpucrash",
+      "gpuhang",
+      "gpu-java-crash",
+      "hang",
+      "heapcorruptioncrash",
+      "kill",
+      "memory-exhaust",
+      "memory-pressure-critical",
+      "memory-pressure-moderate",
+      "blink-oom",
+      "v8-oom",
+      "shorthang",
+      "uithreadhang",
+      "java-crash",
+      "webuijserror",
+      "quit",
+      "restart",
+  };
+  for (std::string_view debug : kDebugHosts) {
+    if (host == debug) {
+      return true;
+    }
+  }
+  return false;
+}
+
+}  // namespace
+
 bool IsRestorableArchiveUrl(std::string_view url) {
   if (url.size() > url::kMaxURLChars) {
     return false;
   }
   const GURL parsed{std::string(url)};
-  return parsed.is_valid() && !parsed.SchemeIs(url::kJavaScriptScheme);
+  if (!parsed.is_valid()) {
+    return false;
+  }
+  if (parsed.SchemeIs(url::kHttpScheme) || parsed.SchemeIs(url::kHttpsScheme)) {
+    return true;
+  }
+  if (parsed.SchemeIs(url::kAboutScheme)) {
+    return parsed.spec() == "about:blank";
+  }
+  if (parsed.SchemeIs("chrome")) {
+    return !IsDebugHost(parsed.host());
+  }
+  // Everything else (file:, data:, blob:, filesystem:, javascript:,
+  // chrome-untrusted:, chrome-extension:, devtools:, view-source:, ...) is
+  // refused.
+  return false;
 }
 
 namespace {
@@ -235,10 +296,10 @@ std::optional<ArchiveData> ArchiveFromValue(const base::DictValue& dict) {
     }
     archive.entries.push_back(std::move(entry));
   }
-  if (!IsRestorableArchiveUrl(archive.url)) {
-    archive.url =
-        archive.entries.empty() ? std::string() : archive.entries.back().url;
-    archive.favicon_key = archive.url;
+  // The page that was archived must still be there: if the entry that
+  // `url` names was refused, the record is not restored onto another page.
+  if (archive.entries.empty() || archive.entries.back().url != archive.url) {
+    return std::nullopt;
   }
   return archive;
 }
@@ -329,7 +390,8 @@ base::DictValue TabToValue(const TabRecord& tab) {
   return dict;
 }
 
-std::optional<TabRecord> TabFromValue(const base::DictValue& dict) {
+std::optional<TabRecord> TabFromValue(const base::DictValue& dict,
+                                      bool* drop_record) {
   TabRecord tab;
   std::optional<base::Time> last_active =
       base::ValueToTime(dict.Find("last_active"));
@@ -357,10 +419,14 @@ std::optional<TabRecord> TabFromValue(const base::DictValue& dict) {
     const base::DictValue* archive_dict = archive->GetIfDict();
     std::optional<ArchiveData> parsed =
         archive_dict ? ArchiveFromValue(*archive_dict) : std::nullopt;
-    if (!parsed) {
-      return std::nullopt;
+    if (parsed) {
+      tab.archive = std::move(*parsed);
+    } else if (tab.archived_at && drop_record) {
+      // A bad archive loses only its own record, never the rest of the file;
+      // an archived record with no usable archive has nothing to restore.
+      *drop_record = true;
     }
-    tab.archive = std::move(*parsed);
+    // On a live record the bad archive is left out and the record is kept.
   }
   // Added by issue #180 without a schema bump: absent in older files.
   if (const base::Value* previous = dict.Find("previous_section")) {
@@ -554,8 +620,12 @@ ParseResult ParseState(const base::DictValue& json,
 
   for (const base::Value& item : *tabs) {
     const base::DictValue* dict = item.GetIfDict();
+    bool drop_record = false;
     std::optional<TabRecord> tab =
-        dict ? TabFromValue(*dict) : std::nullopt;
+        dict ? TabFromValue(*dict, &drop_record) : std::nullopt;
+    if (tab && drop_record) {
+      continue;
+    }
     if (!tab || tab->change >= state.next_change ||
         !ids.insert(tab->id).second) {
       return result;
