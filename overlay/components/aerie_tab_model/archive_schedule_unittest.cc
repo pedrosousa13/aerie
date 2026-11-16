@@ -30,6 +30,9 @@ class ArchiveScheduleTest : public testing::Test {
                   base::BindRepeating(&ArchiveScheduleTest::IsExempt,
                                       base::Unretained(this))) {}
 
+  // The destructor expects the timer to be stopped, as the owner does.
+  void TearDown() override { schedule_.Shutdown(); }
+
   base::Time Now() { return task_environment_.GetMockClock()->Now(); }
 
   std::string Add(Section section, const std::string& parent = std::string()) {

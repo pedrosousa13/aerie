@@ -35,7 +35,11 @@ ArchiveSchedule::ArchiveSchedule(TabModel* model,
   model_observation_.Observe(model_);
 }
 
-ArchiveSchedule::~ArchiveSchedule() = default;
+ArchiveSchedule::~ArchiveSchedule() {
+  // The timer holds an Unretained pointer to this object: it must be stopped
+  // (Shutdown) before the object goes.
+  DCHECK(shut_down_ || !timer_.IsRunning());
+}
 
 void ArchiveSchedule::SetArchiveAfter(std::optional<base::TimeDelta> delay) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
