@@ -13,23 +13,37 @@ namespace aerie_tab_model {
 
 void RegisterProfilePrefs(PrefRegistrySimple* registry) {
   registry->RegisterStringPref(kArchiveAfter, kDefaultArchiveAfter);
+  registry->RegisterStringPref(kArchiveKeep, kDefaultArchiveKeep);
   registry->RegisterIntegerPref(kSleepAfterMinutes, kDefaultSleepAfterMinutes);
   registry->RegisterStringPref(kPinnedClose, kDefaultPinnedClose);
   registry->RegisterBooleanPref(kFolderRulesEnabled, true);
 }
 
 std::optional<base::TimeDelta> ParseArchiveAfter(std::string_view value) {
-  if (value == "never") {
-    return std::nullopt;
+  for (const ArchiveAfterOption& option : kArchiveAfterOptions) {
+    if (value == option.value) {
+      if (option.hours == 0) {
+        return std::nullopt;
+      }
+      return base::Hours(option.hours);
+    }
   }
-  if (value == "24h") {
-    return base::Hours(24);
+  // Anything unknown is the first, 12h.
+  return base::Hours(kArchiveAfterOptions[0].hours);
+}
+
+std::optional<base::TimeDelta> ParseArchiveKeep(std::string_view value) {
+  if (value == "forever") {
+    return std::nullopt;
   }
   if (value == "7d") {
     return base::Days(7);
   }
-  // "12h", and anything unknown.
-  return base::Hours(12);
+  if (value == "90d") {
+    return base::Days(90);
+  }
+  // "30d", and anything unknown.
+  return base::Days(30);
 }
 
 std::optional<base::TimeDelta> SleepAfterFromMinutes(int minutes) {
@@ -45,6 +59,10 @@ std::optional<base::TimeDelta> SleepAfterFromMinutes(int minutes) {
 
 std::optional<base::TimeDelta> GetArchiveAfter(const PrefService& prefs) {
   return ParseArchiveAfter(prefs.GetString(kArchiveAfter));
+}
+
+std::optional<base::TimeDelta> GetArchiveKeep(const PrefService& prefs) {
+  return ParseArchiveKeep(prefs.GetString(kArchiveKeep));
 }
 
 std::optional<base::TimeDelta> GetSleepAfter(const PrefService& prefs) {

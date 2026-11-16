@@ -14,6 +14,12 @@ source_set("aerie_sidebar") {
     "//chrome/browser/ui/views/frame:*",
   ]
   sources = [
+    "aerie_sidebar_archive_button.cc",
+    "aerie_sidebar_archive_controller.cc",
+    "aerie_sidebar_archive_controller.h",
+    "aerie_sidebar_archive_button.h",
+    "aerie_sidebar_archive_panel.cc",
+    "aerie_sidebar_archive_panel.h",
     "aerie_sidebar_context_menu.cc",
     "aerie_sidebar_context_menu.h",
     "aerie_sidebar_drag_controller.cc",
@@ -117,6 +123,7 @@ source_set("browser_tests") {
   # content/public/test/browser_test.h refuses to compile without it.
   defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
   sources = [
+    "aerie_sidebar_archive_browsertest.cc",
     "aerie_sidebar_autofile_browsertest.cc",
     "aerie_sidebar_browsertest.cc",
     "aerie_sidebar_density_browsertest.cc",
@@ -173,6 +180,7 @@ source_set("interactive_tests") {
   # content/public/test/browser_test.h refuses to compile without it.
   defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
   sources = [
+    "aerie_sidebar_archive_uitest.cc",
     "aerie_sidebar_autofile_uitest.cc",
     "aerie_sidebar_drag_uitest.cc",
     "aerie_sidebar_guard_uitest.cc",

@@ -164,3 +164,6 @@ sidebar/0045-peek-an-auto-hidden-sidebar-from-the-f6-and-ctrl-l-commands.patch
 sidebar/0046-register-the-appearance-prefs.patch
 sidebar/0047-add-the-aerie-color-mixer-after-the-chromium-mixers.patch
 sidebar/0048-add-the-theme-and-mode-rows-to-the-sidebar-section-of-settings.patch
+
+# Archiving unused Today tabs (#183): the "Archive Today tabs after" and "Keep archived tabs for" rows in the Sidebar section of Settings.
+sidebar/0049-add-the-archive-rows-to-the-sidebar-section-of-settings.patch
