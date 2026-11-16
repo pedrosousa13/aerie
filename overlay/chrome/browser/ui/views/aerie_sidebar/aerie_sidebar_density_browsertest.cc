@@ -19,6 +19,7 @@
 #include "base/test/run_until.h"
 #include "base/time/time.h"
 #include "chrome/app/chrome_command_ids.h"
+#include "chrome/browser/aerie_tab_model/pinned_tabs_controller.h"
 #include "chrome/browser/aerie_tab_model/tab_model_service.h"
 #include "chrome/browser/aerie_tab_model/tab_model_service_factory.h"
 #include "chrome/browser/extensions/api/settings_private/prefs_util.h"
@@ -189,6 +190,31 @@ class AerieSidebarDensityBrowserTest : public InProcessBrowserTest {
         base::test::RunUntil([&] { return peek()->controller().visible(); }));
   }
 };
+
+// The slot a restored Archive row flies to, with no Today row to measure, is one
+// row of the density in use, not the Comfortable one.
+IN_PROC_BROWSER_TEST_F(AerieSidebarDensityBrowserTest,
+                       TheEmptyTodaySlotHasTheRowHeightOfTheDensity) {
+  ASSERT_TRUE(
+      base::test::RunUntil([&] { return sidebar()->row_count() == 1u; }));
+  Choose("compact");
+  ASSERT_EQ(sidebar()->density(), aerie_sidebar::Density::kCompact);
+  // The only tab becomes a Favorite: Today has no row.
+  aerie_tab_model::TabModelService* service =
+      aerie_tab_model::TabModelServiceFactory::GetForProfile(
+          browser()->GetProfile());
+  ASSERT_TRUE(service);
+  ASSERT_EQ(service->pinned_tabs()->AddToFavorites(
+                browser()->tab_strip_model()->GetTabAtIndex(0)),
+            aerie_tab_model::FavoriteResult::kAdded);
+  ASSERT_TRUE(
+      base::test::RunUntil([&] { return sidebar()->row_count() == 0u; }));
+  Settle();
+  EXPECT_EQ(sidebar()->TodayTopSlotForTesting().height(),
+            aerie::tokens::kSizeRowHeightCompact);
+  EXPECT_NE(aerie::tokens::kSizeRowHeightCompact,
+            aerie::tokens::kSizeRowHeightComfortable);
+}
 
 IN_PROC_BROWSER_TEST_F(AerieSidebarDensityBrowserTest,
                        TheDefaultIsComfortableOnTheLeft) {

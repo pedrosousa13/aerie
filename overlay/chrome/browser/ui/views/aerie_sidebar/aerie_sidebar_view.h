@@ -135,6 +135,9 @@ class AerieSidebarView : public views::View,
   views::View* address_pill() const { return pill_; }
   views::View* bottom_bar() const { return bottom_bar_; }
   AerieSidebarArchiveButton* archive_button() const { return archive_button_; }
+  // Where a restored row lands: the first Today row or, with none, one row of
+  // the current density at the top of the list.
+  gfx::Rect TodayTopSlotForTesting() const;
   AerieSidebarArchiveController* archive() const { return archive_.get(); }
 
   // F6 (issue #215): the regions of the sidebar that hold keyboard focus, in

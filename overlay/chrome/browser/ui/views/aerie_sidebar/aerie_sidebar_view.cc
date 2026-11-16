@@ -1755,6 +1755,10 @@ std::optional<gfx::Rect> AerieSidebarView::RowBounds(
   return views::View::ConvertRectToTarget(row->parent(), this, row->bounds());
 }
 
+gfx::Rect AerieSidebarView::TodayTopSlotForTesting() const {
+  return TodayTopSlot();
+}
+
 gfx::Rect AerieSidebarView::TodayTopSlot() const {
   // The first row of Today, or where it will be: the top of the list, one
   // row high, as wide as the list.
@@ -1765,8 +1769,7 @@ gfx::Rect AerieSidebarView::TodayTopSlot() const {
   }
   return views::View::ConvertRectToTarget(
       contents, this,
-      gfx::Rect(0, 0, contents->width(),
-                aerie::tokens::kSizeRowHeightComfortable));
+      gfx::Rect(0, 0, contents->width(), sizes_.row_height));
 }
 
 bool AerieSidebarView::CanAnimateRows() const {
