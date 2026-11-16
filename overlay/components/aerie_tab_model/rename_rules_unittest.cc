@@ -47,7 +47,7 @@ std::optional<std::string> Apply(const RenameRule& rule,
 }
 
 base::DictValue Dict(const std::string& json) {
-  std::optional<base::Value> value = base::JSONReader::Read(json);
+  std::optional<base::Value> value = base::JSONReader::Read(json, base::JSON_PARSE_RFC);
   EXPECT_TRUE(value && value->is_dict()) << json;
   return value ? std::move(value->GetDict()) : base::DictValue();
 }
