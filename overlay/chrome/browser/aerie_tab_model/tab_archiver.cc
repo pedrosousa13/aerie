@@ -145,9 +145,10 @@ TabArchiver::TabArchiver(Profile* profile,
         return true;
       });
   browser_collection_observation_.Observe(GlobalBrowserCollection::GetInstance());
-  if (base::PowerMonitor::GetInstance()->IsInitialized()) {
-    base::PowerMonitor::GetInstance()->AddPowerSuspendObserver(this);
-  }
+  // Safe before the PowerMonitor is initialized (base/power_monitor): the
+  // observer is kept and told once it is, so wake re-arming does not depend on
+  // the order of construction.
+  base::PowerMonitor::GetInstance()->AddPowerSuspendObserver(this);
 }
 
 TabArchiver::~TabArchiver() = default;
@@ -159,9 +160,7 @@ void TabArchiver::Shutdown() {
   audio_observers_.clear();
   browser_collection_observation_.Reset();
   pref_registrar_.RemoveAll();
-  if (base::PowerMonitor::GetInstance()->IsInitialized()) {
-    base::PowerMonitor::GetInstance()->RemovePowerSuspendObserver(this);
-  }
+  base::PowerMonitor::GetInstance()->RemovePowerSuspendObserver(this);
 }
 
 void TabArchiver::AddObserver(Observer* observer) {
