@@ -31,9 +31,10 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/sessions/tab_restore_service_factory.h"
 #include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
-#include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/common/webui_url_constants.h"
+#include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/aerie_tab_model/archive.h"
 #include "components/aerie_tab_model/folder_tree.h"
@@ -447,7 +448,6 @@ IN_PROC_BROWSER_TEST_F(AerieTabArchiverBrowserTest,
   EXPECT_EQ(strip()->count(), 2);
 }
 
-class AerieTabArchiverStartupBrowserTest : public InProcessBrowserTest {};
 IN_PROC_BROWSER_TEST_F(AerieTabArchiverBrowserTest,
                        ATabShowingAPageThatCannotBeRestoredStaysOpen) {
   // A data: page, a page over the address cap and a chrome:// page that
@@ -514,6 +514,32 @@ IN_PROC_BROWSER_TEST_F(AerieTabArchiverBrowserTest,
   }
 }
 
+IN_PROC_BROWSER_TEST_F(AerieTabArchiverBrowserTest,
+                       AnIncognitoTabIsNeverArchived) {
+  BrowserWindowInterface* incognito = CreateIncognitoBrowser();
+  Profile* otr = incognito->GetProfile();
+  ASSERT_TRUE(otr->IsOffTheRecord());
+  // No archiver is built for an off-the-record profile.
+  EXPECT_EQ(TabArchiverFactory::GetForProfile(otr), nullptr);
+  EXPECT_EQ(TabArchiverFactory::GetForProfileIfExists(otr), nullptr);
+  ASSERT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
+      incognito, embedded_test_server()->GetURL("/title1.html"),
+      WindowOpenDisposition::NEW_BACKGROUND_TAB,
+      ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
+  // The regular profile's archiver does not watch the window either, and its
+  // timeout passing archives nothing there.
+  const int count = incognito->GetTabStripModel()->count();
+  AdvanceClock(base::Days(2));
+  EXPECT_EQ(incognito->GetTabStripModel()->count(), count);
+  TabModelService* otr_service = TabModelServiceFactory::GetForProfile(otr);
+  if (otr_service) {
+    for (const auto& [id, tab] : otr_service->model()->tabs()) {
+      EXPECT_FALSE(tab.archived_at) << id;
+    }
+  }
+}
+
+class AerieTabArchiverStartupBrowserTest : public InProcessBrowserTest {};
 
 IN_PROC_BROWSER_TEST_F(AerieTabArchiverStartupBrowserTest,
                        NoArchiverAndNoTimerExistUntilTheSidebarAsksForIt) {

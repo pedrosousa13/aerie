@@ -81,6 +81,10 @@ void AerieSidebarArchiveController::TogglePanel() {
     return;
   }
   Attach();
+  if (!archiver_) {
+    // No archiver (an off-the-record window): no Archive to open.
+    return;
+  }
   panel_ = AerieSidebarArchivePanel::Show(host_->ArchiveButton(), this,
                                           host_->Palette())
                ->GetWeakPtr();

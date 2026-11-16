@@ -48,14 +48,12 @@ TabArchiverFactory* TabArchiverFactory::GetInstance() {
 TabArchiverFactory::TabArchiverFactory()
     : ProfileKeyedServiceFactory(
           "AerieTabArchiver",
-          // The same as the Tab Model service: in ProfileSelections an
-          // off-the-record profile takes the Regular value, so kOwnInstance
-          // gives a regular profile one controller and each off-the-record
-          // profile its own, which works on that profile's own in-memory Tab
-          // Model. Incognito tabs archive too, in memory. Guest and system profiles default
-          // to kNone and get none.
+          // Regular profiles only. An off-the-record profile gets no archiver:
+          // its tabs are never archived (they would outlive the session in the
+          // Archive's list, and an Archive of private pages is not private).
+          // Guest and system profiles default to kNone and get none.
           ProfileSelections::Builder()
-              .WithRegular(ProfileSelection::kOwnInstance)
+              .WithRegular(ProfileSelection::kOriginalOnly)
               .Build()) {
   DependsOn(TabModelServiceFactory::GetInstance());
 }

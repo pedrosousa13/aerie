@@ -445,6 +445,10 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
               },
               weak_factory_.GetWeakPtr())));
   bottom_layout->SetFlexForView(archive_button_, 1);
+  // An off-the-record window has no Archive: its tabs are never archived, so
+  // there is nothing to show and no record that could outlive the session. The
+  // button is hidden, not inert, so the bar does not offer what it cannot do.
+  archive_button_->SetVisible(!browser_->GetProfile()->IsOffTheRecord());
   // The conversion is made here, where the private base is reachable.
   AerieSidebarArchiveController::ViewHost* archive_host = this;
   archive_ = std::make_unique<AerieSidebarArchiveController>(archive_host);
