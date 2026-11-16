@@ -28,6 +28,7 @@
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_view.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h"
+#include "chrome/common/pref_names.h"
 #include "chrome/grit/generated_resources.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
@@ -109,6 +110,8 @@ class AerieSidebarTitleBrowserTest : public InProcessBrowserTest {
  protected:
   void SetUpOnMainThread() override {
     InProcessBrowserTest::SetUpOnMainThread();
+    // The test server is plain HTTP; HTTPS-only mode is on by default.
+    prefs()->SetBoolean(prefs::kHttpsOnlyModeEnabled, false);
     host_resolver()->AddRule("*", "127.0.0.1");
     embedded_test_server()->RegisterRequestHandler(
         base::BindRepeating(&ServeTitles));
