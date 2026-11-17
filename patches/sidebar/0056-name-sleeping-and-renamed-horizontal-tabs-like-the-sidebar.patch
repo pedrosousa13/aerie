@@ -1,8 +1,8 @@
 Aerie-Purpose: Name a sleeping or renamed tab of the horizontal strip the way the sidebar names its rows.
-Aerie-Upstream-Area: chrome/browser/ui/views/tabs/tab (tab_accessibility.cc, BUILD.gn)
+Aerie-Upstream-Area: chrome/browser/ui/views/tabs/tab (tab_accessibility.cc, BUILD.gn), chrome/browser/ui/views/frame (horizontal_tab_strip_region_view.cc)
 Aerie-Kind: hook
 
-Issue #186. GetAccessibleTabLabel calls aerie_tab_model::AccessibleTabName for a tab's title.
+Issue #186. GetAccessibleTabLabel calls aerie_tab_model::AccessibleTabName for a tab's title, and the horizontal region of the collection strip takes the tablist role.
 
 --- a/chrome/browser/ui/views/tabs/tab/tab_accessibility.cc
 +++ b/chrome/browser/ui/views/tabs/tab/tab_accessibility.cc
@@ -50,3 +50,16 @@ Issue #186. GetAccessibleTabLabel calls aerie_tab_model::AccessibleTabName for a
      "//chrome/browser:browser_process",
      "//chrome/browser:primitives",
      "//chrome/browser/actor/resources:grit",
+--- a/chrome/browser/ui/views/frame/horizontal_tab_strip_region_view.cc
++++ b/chrome/browser/ui/views/frame/horizontal_tab_strip_region_view.cc
+@@ -822,6 +822,10 @@
+   SetBackground(std::make_unique<ThemedBackground>(
+       browser_view, ThemedBackground::kFrameTheme));
+ 
++  // Aerie (issue #186): the strip is the tab list, as the older strip's tab
++  // container is, and as the vertical region is; its tabs have the tab role.
++  GetViewAccessibility().SetRole(ax::mojom::Role::kTabList);
++
+   SetLayoutManager(std::make_unique<views::FlexLayout>())
+       ->SetOrientation(views::LayoutOrientation::kHorizontal);
+ 
