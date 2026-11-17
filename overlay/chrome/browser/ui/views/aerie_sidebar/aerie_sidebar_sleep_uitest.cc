@@ -237,9 +237,9 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarSleepUiTest,
   ASSERT_TRUE(item);
   EXPECT_TRUE(sidebar()->context_menu()->IsCommandEnabled(
       AerieSidebarContextMenu::Command::kSleepTab));
-  // The menu also has the Pin and Favorites items above it (issue #180): walk
+  // The menu also has the Pin, Favorites and rename-rule items above it: walk
   // down to "Sleep tab".
-  for (int i = 0; i < 6 && !item->IsSelected(); ++i) {
+  for (int i = 0; i < 12 && !item->IsSelected(); ++i) {
     Press(ui::VKEY_DOWN);
   }
   ASSERT_TRUE(item->IsSelected());
