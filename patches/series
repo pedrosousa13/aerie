@@ -179,3 +179,4 @@ sidebar/0054-size-the-horizontal-tabs-from-the-aerie-tokens.patch
 sidebar/0055-animate-horizontal-tabs-opening-and-closing-with-the-aerie-motion.patch
 sidebar/0056-name-sleeping-and-renamed-horizontal-tabs-like-the-sidebar.patch
 sidebar/0057-add-the-tab-layout-row-to-the-sidebar-section-of-settings.patch
+sidebar/0058-use-the-tab-collection-strip-for-the-horizontal-layouts.patch

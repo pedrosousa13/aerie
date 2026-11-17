@@ -204,9 +204,8 @@ IN_PROC_BROWSER_TEST_P(AerieHzReducedMotionUiTest,
   ui::Layer* layer = tab->layer();
   EXPECT_FALSE(Animates(layer, ui::LayerAnimationElement::TRANSFORM));
   EXPECT_TRUE(OnlyTransformAndOpacityAnimate(layer));
-  if (Animates(layer, ui::LayerAnimationElement::OPACITY)) {
-    EXPECT_LE(OpacityDuration(layer), base::Milliseconds(140));
-  }
+  ASSERT_TRUE(Animates(layer, ui::LayerAnimationElement::OPACITY));
+  EXPECT_LE(OpacityDuration(layer), base::Milliseconds(140));
 }
 
 IN_PROC_BROWSER_TEST_P(AerieHzReducedMotionUiTest,
@@ -217,13 +216,11 @@ IN_PROC_BROWSER_TEST_P(AerieHzReducedMotionUiTest,
   ASSERT_TRUE(base::test::RunUntil(
       [&] { return !tab->layer() || !Animates(tab->layer(), ui::LayerAnimationElement::OPACITY); }));
   strip()->CloseWebContentsAt(strip()->count() - 1, TabCloseTypes::CLOSE_USER_GESTURE);
-  if (tab->layer()) {
-    EXPECT_FALSE(Animates(tab->layer(), ui::LayerAnimationElement::TRANSFORM));
-    EXPECT_TRUE(OnlyTransformAndOpacityAnimate(tab->layer()));
-    if (Animates(tab->layer(), ui::LayerAnimationElement::OPACITY)) {
-      EXPECT_LE(OpacityDuration(tab->layer()), base::Milliseconds(90));
-    }
-  }
+  ASSERT_TRUE(tab->layer());
+  EXPECT_FALSE(Animates(tab->layer(), ui::LayerAnimationElement::TRANSFORM));
+  EXPECT_TRUE(OnlyTransformAndOpacityAnimate(tab->layer()));
+  ASSERT_TRUE(Animates(tab->layer(), ui::LayerAnimationElement::OPACITY));
+  EXPECT_LE(OpacityDuration(tab->layer()), base::Milliseconds(90));
 }
 
 IN_PROC_BROWSER_TEST_F(AerieHzLayoutUiTest, CtrlTabAndCtrlNumberMoveTheSelection) {

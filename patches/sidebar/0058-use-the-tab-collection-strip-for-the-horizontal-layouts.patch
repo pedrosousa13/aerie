@@ -1,0 +1,22 @@
+Aerie-Purpose: Turn Tab Strip Unification on, so that the horizontal tab layouts use the tab collection strip that the Aerie sizes, icon-only rule and motion are built on.
+Aerie-Upstream-Area: chrome/browser/ui/tabs (features.cc)
+Aerie-Kind: hook
+
+Issue #186. kTabStripUnification chooses HorizontalTabStripRegionViewNew (the tab collection strip) over HorizontalTabStripRegionViewOld (TabStrip and Tab). Helium's vertical strip already uses the collection strip, and the sidebar layout does not change. The flag can still be turned off in chrome://flags, which brings back the older strip without the Aerie tab sizes and motion.
+
+--- a/chrome/browser/ui/tabs/features.cc
++++ b/chrome/browser/ui/tabs/features.cc
+@@ -34,7 +34,12 @@
+              base::FEATURE_DISABLED_BY_DEFAULT);
+ BASE_FEATURE(kVerticalTabsNewBadge, base::FEATURE_ENABLED_BY_DEFAULT);
+ 
+-BASE_FEATURE(kTabStripUnification, base::FEATURE_DISABLED_BY_DEFAULT);
++// Aerie (issue #186): on. The horizontal layouts use the tab collection strip
++// (HorizontalTabStripRegionViewNew), the one the vertical strip is built on, so
++// that the sizes, the icon-only rule and the open and close motion of the Aerie
++// tokens apply to a single strip implementation. With the feature off, the
++// horizontal region is the older TabStrip, which none of those hooks reach.
++BASE_FEATURE(kTabStripUnification, base::FEATURE_ENABLED_BY_DEFAULT);
+ 
+ BASE_FEATURE(kNewHorizontalPinnedTabStyling, base::FEATURE_DISABLED_BY_DEFAULT);
+ 

@@ -72,8 +72,8 @@ class StringsTest(unittest.TestCase):
 
 class PatchTest(unittest.TestCase):
     def test_the_patches_are_in_the_series_in_order_with_the_three_headers(self):
-        ours = sorted(p for p in PATCHES.glob("00*.patch") if 51 <= int(p.name[:4]) <= 57)
-        self.assertEqual(len(ours), 7)
+        ours = sorted(p for p in PATCHES.glob("00*.patch") if 51 <= int(p.name[:4]) <= 58)
+        self.assertEqual(len(ours), 8)
         indexes = [SERIES.index(p.relative_to(REPO / "patches").as_posix()) for p in ours]
         self.assertEqual(indexes, sorted(indexes))
         for patch in ours:
@@ -107,6 +107,12 @@ class PatchTest(unittest.TestCase):
         self.assertIn("AnimateLayer", src)
         self.assertNotIn("PrefersReducedMotion", src)
         self.assertNotIn("ShouldRenderRichAnimation", src)
+
+
+class StripImplementationTest(unittest.TestCase):
+    def test_the_horizontal_layouts_use_the_tab_collection_strip(self):
+        text = next(PATCHES.glob("0058-*.patch")).read_text()
+        self.assertIn("+BASE_FEATURE(kTabStripUnification, base::FEATURE_ENABLED_BY_DEFAULT);", text)
 
 
 class NetworkTest(unittest.TestCase):
