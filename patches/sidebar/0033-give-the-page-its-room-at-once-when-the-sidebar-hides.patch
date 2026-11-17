@@ -102,7 +102,7 @@ Pref changes that come in before the frame are read together, so two Ctrl+S in o
  #include "components/prefs/pref_change_registrar.h"
  #include "chrome/browser/ui/animation/browser_animation_types.h"
  #include "chrome/browser/ui/omnibox/omnibox_tab_helper.h"
-@@ -266,6 +270,63 @@
+@@ -266,6 +270,66 @@
    bool aerie_target_visible_ = true;
    PrefChangeRegistrar aerie_pref_registrar_;
    base::OneShotTimer aerie_hide_timer_;
@@ -113,9 +113,12 @@ Pref changes that come in before the frame are read together, so two Ctrl+S in o
 +  // begin-frame (issue #237).
 +  aerie_sidebar::AerieFrameStart aerie_frame_start_;
 +  bool aerie_starting_slide_ = false;
++ public:
 +  bool aerie_slide_start_pending_for_testing() const {
 +    return aerie_frame_start_.pending();
 +  }
++
++ private:
 +  void AerieStartVisibleChange() {
 +    aerie_starting_slide_ = true;
 +    OnAerieVisibleChanged();
