@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "base/functional/bind.h"
+#include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/run_until.h"
 #include "chrome/browser/aerie_tab_model/tab_model_service.h"
@@ -226,7 +227,11 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarTitleBrowserTest,
 IN_PROC_BROWSER_TEST_F(AerieSidebarTitleBrowserTest,
                        RulesMatchByPrefixContainsAndTitle) {
   AerieSidebarRowView* row = OpenRow("mail.test", "/mail.html");
-  SetRules({MakeRule("r1", "Prefix", RuleType::kUrlStartsWith, "mail.test/mail",
+  // The test server has a port, which is part of the address.
+  SetRules({MakeRule("r1", "Prefix", RuleType::kUrlStartsWith,
+                     "mail.test:" + base::NumberToString(
+                                        embedded_test_server()->port()) +
+                         "/mail",
                      "By prefix")});
   ExpectRowTitle(row, "By prefix");
   SetRules({MakeRule("r1", "Contains", RuleType::kUrlContains, "/mail.",
