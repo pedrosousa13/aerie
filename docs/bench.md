@@ -388,7 +388,7 @@ metric that the baseline has and the run does not is `missing` and fails. Record
 `sidebar_frames` runs by hand (`./aerie bench --check sidebar_frames`) until #237 makes it pass. Neither the nightly nor the
 PR gate runs it, and nothing passes `--sidebar-frames-baseline` or `--sidebar-frames-record`: the comparison is manual until
 then. After that it joins the nightly (docs/ci.md), which records its baseline. It needs a private Xvfb and about two minutes,
-and today it fails because of the product defects in #237 (the hide that is a cut, the 15 to 20 ms first frame; see the numbers).
+and today it fails (the p95 of the first frames and the drag; see the numbers; the hide slides since #237).
 
 ### The negative control
 
@@ -420,44 +420,39 @@ fail) and whose control fails (the check passes).
 ### Measured on the train box
 
 AMD Ryzen 5 7600 (12 threads), Xvfb 1280x800 at 60 Hz, software compositing, Aerie 0.1.0 (Chromium 157), the build of
-2026-11-15 (main at c374316). This table is the fifth full run. It is the first with the window starting at the first input event, which for a click
-is the button release (a row acts on release; the earlier runs started it 50 to 100 ms early and lost the end of the folder and
-drag animations); the hide and reduced-hide drops
-were the same in all of them. `dropped` is summed over the 5 repeats (the drag: 6).
+2026-11-17 (the #237 branch on main at 45e813c: the hide fix and `AerieFrameStart`). `dropped` is summed over the 5
+repeats (the drag: 6). Before #237 (main at c374316, 2026-11-15): hide 5 frames and 50 dropped, reduced hide 5 frames and
+30 dropped; main at 45e813c, 2026-11-17, gave the same (hide p95 18.3 ms, reduced hide 18.4 ms).
 
 | animation | frames | p50 ms | p95 ms | p99 ms | dropped | layers only |
 | --- | ---: | ---: | ---: | ---: | ---: | --- |
-| `hide` | 5 | 13.5 | 17.4 | 17.4 | 50 | yes |
-| `show` | 90 | 1.8 | 18.4 | 19.0 | 0 | yes |
-| `folder_expand` | 65 | 3.0 | 4.8 | 10.7 | 0 | no, layout in 42 slots |
-| `folder_collapse` | 59 | 1.9 | 3.5 | 3.8 | 0 | no, layout in 15 slots |
-| `resize` | 150 | 9.9 | 17.0 | 17.4 | 0 | no, layout in 127 slots |
-| `reduced_hide` | 5 | 13.5 | 17.3 | 17.3 | 30 | yes |
-| `reduced_show` | 48 | 2.2 | 17.3 | 18.9 | 0 | yes |
-| `reduced_folder_expand` | 33 | 1.6 | 8.2 | 9.9 | 0 | yes |
-| `reduced_folder_collapse` | 31 | 1.9 | 18.1 | 18.1 | 0 | yes |
+| `hide` | 65 | 1.9 | 17.0 | 17.4 | 0 | yes |
+| `show` | 90 | 2.2 | 18.5 | 19.1 | 0 | yes |
+| `folder_expand` | 65 | 3.0 | 4.7 | 12.8 | 0 | no, layout in 42 slots |
+| `folder_collapse` | 58 | 2.2 | 4.0 | 4.7 | 0 | no, layout in 15 slots |
+| `resize` | 140 | 10.0 | 10.7 | 34.1 | 11 | no, layout in 125 slots |
+| `reduced_hide` | 48 | 2.0 | 17.1 | 19.9 | 0 | yes |
+| `reduced_show` | 48 | 2.3 | 17.2 | 19.4 | 0 | yes |
+| `reduced_folder_expand` | 32 | 2.1 | 18.0 | 18.3 | 0 | yes |
+| `reduced_folder_collapse` | 31 | 1.8 | 17.5 | 17.8 | 0 | yes |
 
-**The acceptance criteria are not met on this build.** The product defects are filed as #237.
+**The acceptance criteria are still not met on this build.** The check fails on the p95 of seven animations and on
+the dropped frames of the drag. Tracked in #237.
 
-- **Hide drops every frame but one.** The 200 ms slide of the hide is a `LayerAnimator` transform (the animators keep
-  ticking for 200 ms), but one frame reaches the screen in each hide, at the start, and 10 vsyncs are missed. A recording at 60
-  fps (`ffmpeg -f x11grab`) shows the card at its full width and the column gone in the same frame: the hide is a cut, not
-  a slide. The same happens in reduced motion (the 140 ms fade: 6 of 8 vsyncs missed). Likely cause, not verified in a
-  debugger: patch `sidebar/0033` gives the page card its room at once and lets the column's content hang outside a
-  zero-width region, so the card (full width, in front of the column) or the region's own bounds hide the sliding column,
-  and the compositor sees no damage in the other 11 frames. The show slide, which runs the same layer from a region
-  that has its width, draws every frame (18 frames in 280 ms, no gap above 17.5 ms).
-  `HideAndShowAnimateOnlyTheColumnAndTheCardSnaps` asserts only that a transform animation exists on the layer, so it passes.
-- **The first frame of an animation takes 15 to 20 ms.** The p95 of the slides and the reduced forms (17.3 to 18.4 ms in the table, except the folder animations at 3.5 to 8.2 ms, against
-  the 16.7 ms limit) is its first frame, the layout at the toggle and the raster of the new layers, while the frames after
-  it take 1.5 to 3 ms. The frames still come every 16.7 ms, so nothing is missed in the show, the folder and the reduced
-  forms (0 dropped; the folder lays out in 42 and 15 slots, allowed there), but the p95 limit is not met. The limit is not changed.
-- **The drag drops no vsync in 6 drags in this run (1 in the one before) and its p95 is 17.0 ms**, with a p50 of 9.7 ms,
-  because the card and the page lay out for every pointer move (127 of the 150 frames' slots). That is by design: the width is not
-  animated, the user drives it. It is judged by the same limits and does not meet them.
-- **The control fails as it must**, for p95 and dropped frames (the judge's own two reasons; "not measured" would be a
-  separate harness failure): 12 of 12 vsyncs missed in every expand of the 300-tab folder, frames of about 660 ms, p95 672 ms.
-  The folder now has 11 to 13 frames per run (the window starts at the click), where earlier runs had 9.
+- **The hide slides now.** Patch `sidebar/0033` left the hiding column in a zero-width region, so nothing of the slide
+  reached the screen. The column now floats over the room the page takes, and the hide has 65 frames and no dropped
+  frame (before: 5 frames, 50 dropped), on layers only. Reduced hide: 48 frames, 0 dropped (before: 5 and 30).
+- **The p95 limit is not met.** `AerieFrameStart` starts the work of an animation at the next begin-frame. It moved the
+  layout out of a frame that began before the input (first frame 24 ms before, about 10 ms now), but the next frame still
+  takes 17 to 18 ms: its draw is done in 1 to 2 ms, and the frame is on screen one vsync later. The first large damage of
+  a slide (the whole column) is presented late by the software path under Xvfb, so the p95 of an animation of 9 to 18
+  frames stays at about 17 ms. A frame time over one vsync cannot be fixed on the main thread. The folder expand and
+  collapse, which have small damage, are at 3.5 to 4.7 ms. The limit is not changed.
+- **The drag dropped 11 vsyncs in this run** (per repeat: 0, 2, 6, 1, 1, 1; the run before, on main, dropped none),
+  with a p50 of 10 ms. The card and the page lay out for every pointer move (125 of the 140 frames' slots). That is by
+  design: the user drives the width. The drag is not in the "Done when" list of #237 (show, hide and folder expand), but
+  the check judges it with the same limits.
+- **The control fails as it must**, for p95 and dropped frames.
 
 ## Checks
 
