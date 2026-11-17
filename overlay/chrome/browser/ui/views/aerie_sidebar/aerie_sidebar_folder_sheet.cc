@@ -5,18 +5,23 @@
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_sheet.h"
 
 #include <array>
+#include <cstdlib>
 #include <memory>
+#include <optional>
 #include <utility>
+#include <vector>
 
 #include "base/functional/bind.h"
 #include "base/location.h"
 #include "base/memory/ptr_util.h"
+#include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/single_thread_task_runner.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_switch.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/aerie_design_tokens/aerie_tokens.h"
 #include "components/aerie_sidebar/aerie_sidebar_motion.h"
+#include "components/aerie_tab_model/folder_behaviour.h"
 #include "components/aerie_tab_model/folder_rules.h"
 #include "components/aerie_tab_model/folder_tree.h"
 #include "components/aerie_tab_model/tab_model_prefs.h"
@@ -113,6 +118,134 @@ std::unique_ptr<views::BoxLayoutView> MakeColumn(int spacing) {
   return column;
 }
 
+
+// --- Behaviour (issue #141) ---
+
+using Behaviour = AerieSidebarFolderSheet::Behaviour;
+
+struct BehaviourInfo {
+  Behaviour behaviour;
+  int label_id;
+};
+constexpr std::array<BehaviourInfo, 3> kBehaviours = {{
+    {Behaviour::kArchive, IDS_AERIE_SIDEBAR_BEHAVIOUR_ARCHIVE},
+    {Behaviour::kSleep, IDS_AERIE_SIDEBAR_BEHAVIOUR_SLEEP},
+    {Behaviour::kLinks, IDS_AERIE_SIDEBAR_BEHAVIOUR_LINKS},
+}};
+
+size_t Index(Behaviour behaviour) {
+  return static_cast<size_t>(behaviour);
+}
+
+struct ArchiveEntry {
+  aerie_tab_model::ArchiveChoice choice;
+  int label_id;
+};
+constexpr std::array<ArchiveEntry, 4> kArchiveEntries = {{
+    {aerie_tab_model::ArchiveChoice::kNever,
+     IDS_AERIE_SIDEBAR_ARCHIVE_AFTER_NEVER},
+    {aerie_tab_model::ArchiveChoice::k12Hours,
+     IDS_AERIE_SIDEBAR_ARCHIVE_AFTER_12H},
+    {aerie_tab_model::ArchiveChoice::k24Hours,
+     IDS_AERIE_SIDEBAR_ARCHIVE_AFTER_24H},
+    {aerie_tab_model::ArchiveChoice::k7Days,
+     IDS_AERIE_SIDEBAR_ARCHIVE_AFTER_7D},
+}};
+
+// The minutes the folder's sleep drop-down offers: the same as Settings.
+struct SleepEntry {
+  int minutes;
+  int label_id;
+};
+constexpr std::array<SleepEntry, 7> kSleepEntries = {{
+    {15, IDS_SETTINGS_AERIE_SLEEP_15_MIN},
+    {30, IDS_SETTINGS_AERIE_SLEEP_30_MIN},
+    {60, IDS_SETTINGS_AERIE_SLEEP_1_HOUR},
+    {120, IDS_SETTINGS_AERIE_SLEEP_2_HOURS},
+    {240, IDS_SETTINGS_AERIE_SLEEP_4_HOURS},
+    {480, IDS_SETTINGS_AERIE_SLEEP_8_HOURS},
+    {0, IDS_SETTINGS_AERIE_SLEEP_NEVER},
+}};
+
+struct LinksEntry {
+  aerie_tab_model::LinksOpen links;
+  int label_id;
+};
+constexpr std::array<LinksEntry, 2> kLinksEntries = {{
+    {aerie_tab_model::LinksOpen::kNewTab, IDS_AERIE_SIDEBAR_LINKS_NEW_TAB},
+    {aerie_tab_model::LinksOpen::kInPlace, IDS_AERIE_SIDEBAR_LINKS_IN_PLACE},
+}};
+
+std::u16string ArchiveText(std::optional<base::TimeDelta> delay) {
+  aerie_tab_model::ArchiveChoice choice = aerie_tab_model::ArchiveChoice::kNever;
+  if (delay) {
+    for (const ArchiveEntry& entry : kArchiveEntries) {
+      if (aerie_tab_model::ArchiveChoiceDelay(entry.choice) == delay) {
+        choice = entry.choice;
+      }
+    }
+  }
+  for (const ArchiveEntry& entry : kArchiveEntries) {
+    if (entry.choice == choice) {
+      return l10n_util::GetStringUTF16(entry.label_id);
+    }
+  }
+  return std::u16string();
+}
+
+std::u16string SleepText(std::optional<base::TimeDelta> delay) {
+  const int minutes = delay ? static_cast<int>(delay->InMinutes()) : 0;
+  for (const SleepEntry& entry : kSleepEntries) {
+    if (entry.minutes == minutes) {
+      return l10n_util::GetStringUTF16(entry.label_id);
+    }
+  }
+  // A number that Settings does not offer (a pref edited by hand): say it as
+  // it is.
+  return l10n_util::GetStringFUTF16(IDS_AERIE_SIDEBAR_BEHAVIOUR_MINUTES,
+                                    base::NumberToString16(minutes));
+}
+
+std::u16string LinksText(aerie_tab_model::LinksOpen links) {
+  for (const LinksEntry& entry : kLinksEntries) {
+    if (entry.links == links) {
+      return l10n_util::GetStringUTF16(entry.label_id);
+    }
+  }
+  return std::u16string();
+}
+
+std::unique_ptr<ui::SimpleComboboxModel> ModelOf(
+    const std::vector<std::u16string>& names) {
+  std::vector<ui::SimpleComboboxModel::Item> items;
+  for (const std::u16string& name : names) {
+    items.push_back(ui::SimpleComboboxModel::Item(name));
+  }
+  return std::make_unique<ui::SimpleComboboxModel>(std::move(items));
+}
+
+std::vector<std::u16string> OwnNames(Behaviour behaviour) {
+  std::vector<std::u16string> names;
+  switch (behaviour) {
+    case Behaviour::kArchive:
+      for (const ArchiveEntry& entry : kArchiveEntries) {
+        names.push_back(l10n_util::GetStringUTF16(entry.label_id));
+      }
+      break;
+    case Behaviour::kSleep:
+      for (const SleepEntry& entry : kSleepEntries) {
+        names.push_back(l10n_util::GetStringUTF16(entry.label_id));
+      }
+      break;
+    case Behaviour::kLinks:
+      for (const LinksEntry& entry : kLinksEntries) {
+        names.push_back(l10n_util::GetStringUTF16(entry.label_id));
+      }
+      break;
+  }
+  return names;
+}
+
 }  // namespace
 
 // static
@@ -152,10 +285,14 @@ AerieSidebarFolderSheet::AerieSidebarFolderSheet(Params params)
   Build();
   model_observation_.Observe(model_);
   pref_registrar_.Init(prefs_);
-  pref_registrar_.Add(
-      aerie_tab_model::kFolderRulesEnabled,
-      base::BindRepeating(&AerieSidebarFolderSheet::ScheduleRebuild,
-                          base::Unretained(this)));
+  // The three global values show on the Behaviour rows that inherit.
+  for (const char* pref :
+       {aerie_tab_model::kFolderRulesEnabled, aerie_tab_model::kArchiveAfter,
+        aerie_tab_model::kSleepAfterMinutes, aerie_tab_model::kLinksOpen}) {
+    pref_registrar_.Add(
+        pref, base::BindRepeating(&AerieSidebarFolderSheet::ScheduleRebuild,
+                                  base::Unretained(this)));
+  }
   RegisterWindowClosingCallback(base::BindOnce(
       &AerieSidebarFolderSheet::OnClosing, base::Unretained(this)));
 }
@@ -290,9 +427,19 @@ void AerieSidebarFolderSheet::Build() {
       aerie::tokens::kTypeSizeCaption));
   smart->SetVisible(false);
   smart_body_slot_ = contents->AddChildView(std::move(smart));
+  // The Behaviour section (issue #141): shown for every kind but Smart.
   auto behaviour = MakeColumn(aerie::tokens::kSpace8);
-  behaviour->SetVisible(false);
+  behaviour->GetViewAccessibility().SetRole(ax::mojom::Role::kGroup);
+  behaviour->GetViewAccessibility().SetName(
+      l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_BEHAVIOUR_HEADING));
+  behaviour->AddChildView(MakeLabel(
+      l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_BEHAVIOUR_HEADING), muted,
+      aerie::tokens::kTypeSizeCaption));
   behaviour_slot_ = contents->AddChildView(std::move(behaviour));
+  for (const BehaviourInfo& info : kBehaviours) {
+    BuildBehaviourRow(static_cast<views::BoxLayoutView*>(behaviour_slot_.get()),
+                      info.behaviour);
+  }
 
   // Footer: the global switch and Done.
   auto footer = MakeRow();
@@ -396,6 +543,7 @@ void AerieSidebarFolderSheet::Rebuild() {
   }
   auto_section_->SetVisible(has_rules);
   smart_body_slot_->SetVisible(is_smart);
+  RebuildBehaviour(*folder);
   global_switch_->SetOn(
       aerie_tab_model::AreFolderRulesEnabled(*prefs_), prefs_);
   all_switch_->SetOn(aerie_tab_model::ReadFolderRules(*folder).enabled, prefs_);
@@ -505,6 +653,283 @@ void AerieSidebarFolderSheet::RebuildExceptions(
   }
 }
 
+AerieSidebarSwitch* AerieSidebarFolderSheet::behaviour_switch(
+    Behaviour behaviour) const {
+  return behaviour_rows_[Index(behaviour)].toggle;
+}
+
+views::Combobox* AerieSidebarFolderSheet::behaviour_value(
+    Behaviour behaviour) const {
+  return behaviour_rows_[Index(behaviour)].value;
+}
+
+views::Label* AerieSidebarFolderSheet::behaviour_source(
+    Behaviour behaviour) const {
+  return behaviour_rows_[Index(behaviour)].source;
+}
+
+void AerieSidebarFolderSheet::BuildBehaviourRow(views::BoxLayoutView* section,
+                                                Behaviour behaviour) {
+  BehaviourRow& row = behaviour_rows_[Index(behaviour)];
+  const std::u16string name =
+      l10n_util::GetStringUTF16(kBehaviours[Index(behaviour)].label_id);
+  auto group = MakeColumn(aerie::tokens::kSpace4);
+  group->GetViewAccessibility().SetRole(ax::mojom::Role::kGroup);
+  group->GetViewAccessibility().SetName(name);
+
+  auto top = MakeRow();
+  auto label = top->AddChildView(MakeLabel(name, palette_.text));
+  top->SetFlexForView(label, 1);
+  auto toggle = std::make_unique<AerieSidebarSwitch>(
+      palette_,
+      base::BindRepeating(&AerieSidebarFolderSheet::OnBehaviourSwitch,
+                          base::Unretained(this), behaviour));
+  toggle->SetMotionPrefs(prefs_);
+  toggle->GetViewAccessibility().SetName(l10n_util::GetStringFUTF16(
+      IDS_AERIE_SIDEBAR_BEHAVIOUR_SWITCH, name));
+  row.toggle = top->AddChildView(std::move(toggle));
+  group->AddChildView(std::move(top));
+
+  auto bottom = MakeRow();
+  row.source = bottom->AddChildView(
+      MakeLabel(std::u16string(), palette_.text_muted,
+                aerie::tokens::kTypeSizeCaption));
+  row.own_model = ModelOf(OwnNames(behaviour));
+  row.inherited_model = ModelOf({std::u16string()});
+  auto value = std::make_unique<views::Combobox>(row.inherited_model.get());
+  value->SetCallback(base::BindRepeating(
+      &AerieSidebarFolderSheet::OnBehaviourValue, base::Unretained(this),
+      behaviour));
+  row.value = bottom->AddChildView(std::move(value));
+  bottom->SetFlexForView(row.value, 1);
+  group->AddChildView(std::move(bottom));
+  if (behaviour == Behaviour::kArchive) {
+    auto note = MakeLabel(
+        l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_BEHAVIOUR_PINNED_NOTE),
+        palette_.text_muted, aerie::tokens::kTypeSizeCaption);
+    note->SetVisible(false);
+    behaviour_pinned_note_ = group->AddChildView(std::move(note));
+  }
+  section->AddChildView(std::move(group));
+}
+
+void AerieSidebarFolderSheet::RebuildBehaviour(
+    const aerie_tab_model::FolderRecord& folder) {
+  // Smart folders own no tabs, so they have no behaviour of their own.
+  const bool smart = folder.kind == FolderKind::kSmart;
+  behaviour_slot_->SetVisible(!smart);
+  if (smart) {
+    return;
+  }
+  const aerie_tab_model::GlobalBehaviour global =
+      aerie_tab_model::GetGlobalBehaviour(*prefs_);
+  const aerie_tab_model::FolderBehaviour own =
+      aerie_tab_model::ReadFolderBehaviour(folder);
+  const bool pinned = folder.section == aerie_tab_model::Section::kPinned;
+  behaviour_pinned_note_->SetVisible(pinned);
+
+  for (const BehaviourInfo& info : kBehaviours) {
+    BehaviourRow& row = behaviour_rows_[Index(info.behaviour)];
+    const std::u16string name = l10n_util::GetStringUTF16(info.label_id);
+    bool own_set = false;
+    size_t own_index = 0;
+    std::u16string inherited_text;
+    std::string source_folder;
+    switch (info.behaviour) {
+      case Behaviour::kArchive: {
+        own_set = own.archive_after.has_value() && !pinned;
+        for (size_t i = 0; i < kArchiveEntries.size(); ++i) {
+          if (own.archive_after == kArchiveEntries[i].choice) {
+            own_index = i;
+          }
+        }
+        const auto inherited =
+            aerie_tab_model::InheritedArchiveAfter(*model_, folder, global);
+        inherited_text = ArchiveText(inherited.value);
+        source_folder = inherited.source_folder;
+        break;
+      }
+      case Behaviour::kSleep: {
+        own_set = own.sleep_after_minutes.has_value();
+        for (size_t i = 0; i < kSleepEntries.size(); ++i) {
+          if (own.sleep_after_minutes == kSleepEntries[i].minutes) {
+            own_index = i;
+          }
+        }
+        // A stored number that is not in the list shows as the nearest offered.
+        if (own.sleep_after_minutes) {
+          int best = 0;
+          for (size_t i = 0; i < kSleepEntries.size(); ++i) {
+            if (kSleepEntries[i].minutes == 0) {
+              continue;
+            }
+            if (std::abs(kSleepEntries[i].minutes - *own.sleep_after_minutes) <
+                std::abs(kSleepEntries[best].minutes -
+                         *own.sleep_after_minutes)) {
+              best = static_cast<int>(i);
+            }
+          }
+          if (*own.sleep_after_minutes != 0 &&
+              kSleepEntries[own_index].minutes != *own.sleep_after_minutes) {
+            own_index = static_cast<size_t>(best);
+          }
+        }
+        const auto inherited =
+            aerie_tab_model::InheritedSleepAfter(*model_, folder, global);
+        inherited_text = SleepText(inherited.value);
+        source_folder = inherited.source_folder;
+        break;
+      }
+      case Behaviour::kLinks: {
+        own_set = own.links.has_value();
+        for (size_t i = 0; i < kLinksEntries.size(); ++i) {
+          if (own.links == kLinksEntries[i].links) {
+            own_index = i;
+          }
+        }
+        const auto inherited =
+            aerie_tab_model::InheritedLinksOpen(*model_, folder, global);
+        inherited_text = LinksText(inherited.value);
+        source_folder = inherited.source_folder;
+        break;
+      }
+    }
+
+    row.toggle->SetEnabled(!(pinned && info.behaviour == Behaviour::kArchive));
+    row.toggle->SetOn(own_set, prefs_);
+    if (own_set) {
+      row.source->SetVisible(false);
+      row.value->SetModel(row.own_model.get());
+      row.value->SetSelectedIndex(own_index);
+      row.value->SetEnabled(true);
+      row.value->GetViewAccessibility().SetName(l10n_util::GetStringFUTF16(
+          IDS_AERIE_SIDEBAR_BEHAVIOUR_NAME_OWN, name,
+          row.own_model->GetItemAt(own_index)));
+      continue;
+    }
+    // Not set here: the value control shows what the folder inherits, disabled.
+    std::u16string source_text;
+    if (pinned && info.behaviour == Behaviour::kArchive) {
+      source_text =
+          l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_BEHAVIOUR_PINNED_NOTE);
+    } else if (source_folder.empty()) {
+      source_text =
+          l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_BEHAVIOUR_INHERITS_GLOBAL);
+    } else {
+      const aerie_tab_model::FolderRecord* from = model_->GetFolder(source_folder);
+      source_text = l10n_util::GetStringFUTF16(
+          IDS_AERIE_SIDEBAR_BEHAVIOUR_INHERITS_FROM,
+          from ? base::UTF8ToUTF16(from->name) : std::u16string());
+    }
+    row.source->SetText(source_text);
+    // The note under the archive row already says why in a Pinned folder.
+    row.source->SetVisible(!(pinned && info.behaviour == Behaviour::kArchive));
+    auto next_model = ModelOf({inherited_text});
+    row.value->SetModel(next_model.get());
+    row.inherited_model = std::move(next_model);
+    row.value->SetSelectedIndex(0);
+    row.value->SetEnabled(false);
+    row.value->GetViewAccessibility().SetName(l10n_util::GetStringFUTF16(
+        IDS_AERIE_SIDEBAR_BEHAVIOUR_NAME_INHERITED, name, source_text,
+        inherited_text));
+  }
+}
+
+void AerieSidebarFolderSheet::OnBehaviourSwitch(Behaviour behaviour, bool on) {
+  const aerie_tab_model::FolderRecord* folder = model_->GetFolder(folder_id_);
+  if (!folder) {
+    return;
+  }
+  const aerie_tab_model::GlobalBehaviour global =
+      aerie_tab_model::GetGlobalBehaviour(*prefs_);
+  // Switching on starts from what the folder inherits now, so that nothing
+  // changes until the user picks another value.
+  switch (behaviour) {
+    case Behaviour::kArchive: {
+      std::optional<aerie_tab_model::ArchiveChoice> choice;
+      if (on) {
+        const auto inherited =
+            aerie_tab_model::InheritedArchiveAfter(*model_, *folder, global);
+        choice = aerie_tab_model::ArchiveChoice::kNever;
+        for (const ArchiveEntry& entry : kArchiveEntries) {
+          if (aerie_tab_model::ArchiveChoiceDelay(entry.choice) ==
+              inherited.value) {
+            choice = entry.choice;
+          }
+        }
+      }
+      aerie_tab_model::SetFolderArchiveAfter(*model_, folder_id_, choice);
+      break;
+    }
+    case Behaviour::kSleep: {
+      std::optional<int> minutes;
+      if (on) {
+        const auto inherited =
+            aerie_tab_model::InheritedSleepAfter(*model_, *folder, global);
+        minutes = inherited.value
+                      ? static_cast<int>(inherited.value->InMinutes())
+                      : 0;
+      }
+      aerie_tab_model::SetFolderSleepAfter(*model_, folder_id_, minutes);
+      break;
+    }
+    case Behaviour::kLinks: {
+      std::optional<aerie_tab_model::LinksOpen> links;
+      if (on) {
+        links =
+            aerie_tab_model::InheritedLinksOpen(*model_, *folder, global).value;
+      }
+      aerie_tab_model::SetFolderLinksOpen(*model_, folder_id_, links);
+      break;
+    }
+  }
+  // The model's change calls OnFolderChanged, which rebuilds the rows. When the
+  // write changed nothing (the switch was flipped back to where it was), the
+  // rows are brought in line here.
+  ScheduleRebuild();
+}
+
+void AerieSidebarFolderSheet::OnBehaviourValue(Behaviour behaviour) {
+  views::Combobox* value = behaviour_rows_[Index(behaviour)].value;
+  const std::optional<size_t> index = value->GetSelectedIndex();
+  if (!index || !behaviour_rows_[Index(behaviour)].toggle->on()) {
+    return;
+  }
+  switch (behaviour) {
+    case Behaviour::kArchive:
+      if (*index < kArchiveEntries.size()) {
+        aerie_tab_model::SetFolderArchiveAfter(
+            *model_, folder_id_, kArchiveEntries[*index].choice);
+      }
+      break;
+    case Behaviour::kSleep:
+      if (*index < kSleepEntries.size()) {
+        aerie_tab_model::SetFolderSleepAfter(*model_, folder_id_,
+                                             kSleepEntries[*index].minutes);
+      }
+      break;
+    case Behaviour::kLinks:
+      if (*index < kLinksEntries.size()) {
+        aerie_tab_model::SetFolderLinksOpen(*model_, folder_id_,
+                                            kLinksEntries[*index].links);
+      }
+      break;
+  }
+}
+
+bool AerieSidebarFolderSheet::IsAncestorFolder(const std::string& id) const {
+  const aerie_tab_model::FolderRecord* walk = model_->GetFolder(folder_id_);
+  for (int steps = 0; walk && !walk->parent.empty() &&
+                      steps < aerie_tab_model::kWalkBound;
+       ++steps) {
+    if (walk->parent == id) {
+      return true;
+    }
+    walk = model_->GetFolder(walk->parent);
+  }
+  return false;
+}
+
 void AerieSidebarFolderSheet::SetKind(size_t index) {
   if (index >= kKinds.size()) {
     return;
@@ -597,7 +1022,8 @@ bool AerieSidebarFolderSheet::HandleKeyEvent(views::Textfield* sender,
 
 void AerieSidebarFolderSheet::OnFolderChanged(
     const aerie_tab_model::FolderRecord& folder) {
-  if (folder.id == folder_id_) {
+  // A folder above this one can set a behaviour that this one inherits.
+  if (folder.id == folder_id_ || IsAncestorFolder(folder.id)) {
     ScheduleRebuild();
   }
 }

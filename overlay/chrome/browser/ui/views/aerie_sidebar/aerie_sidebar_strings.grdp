@@ -417,8 +417,11 @@
   <message name="IDS_AERIE_SIDEBAR_BEHAVIOUR_NAME_OWN" desc="Accessible name of the value control of a folder behaviour that the folder sets itself. It reads the behaviour and its value.">
     <ph name="BEHAVIOUR">$1<ex>Auto-archive</ex></ph>, <ph name="VALUE">$2<ex>24 hours</ex></ph>
   </message>
+  <message name="IDS_AERIE_SIDEBAR_BEHAVIOUR_MINUTES" desc="Value of the Sleep tabs after behaviour in the folder editor when the global setting is a number of minutes that the drop-down in Settings does not offer.">
+    <ph name="MINUTES">$1<ex>45</ex></ph> minutes
+  </message>
   <message name="IDS_AERIE_SIDEBAR_BEHAVIOUR_PINNED_NOTE" desc="Note under the Auto-archive setting in the folder editor for a folder in Pinned. The setting is off and cannot be changed there.">
-    Pinned tabs never archive.
+    Pinned tabs never archive
   </message>
   <message name="IDS_AERIE_SIDEBAR_LINKS_NEW_TAB" desc="Option of the Links open setting, in Settings and in the folder editor: a link that would open a new tab opens one. In a folder the new tab opens next to the tab inside the same folder.">
     In a new tab

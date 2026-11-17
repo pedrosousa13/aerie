@@ -5,6 +5,8 @@
 #ifndef CHROME_BROWSER_UI_VIEWS_AERIE_SIDEBAR_AERIE_SIDEBAR_FOLDER_SHEET_H_
 #define CHROME_BROWSER_UI_VIEWS_AERIE_SIDEBAR_AERIE_SIDEBAR_FOLDER_SHEET_H_
 
+#include <array>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -26,6 +28,10 @@ class PrefService;
 
 namespace ui {
 class Layer;
+}  // namespace ui
+
+namespace ui {
+class SimpleComboboxModel;
 }  // namespace ui
 
 namespace views {
@@ -54,6 +60,14 @@ class Textfield;
 // slide is the transform of the contents' layer and the fade the opacity of
 // the window's layer; nothing else animates. Reduced motion: opacity only,
 // 90 ms.
+//
+// Behaviour (issue #141, not for Smart folders): three rows, Auto-archive,
+// Sleep tabs after and Links open. Each is a switch ("this folder sets its own")
+// and a value control. With the switch off the value control is disabled and
+// shows what the folder inherits, with the words "Inherits global" (or "Inherits
+// from <folder>" when a folder above it sets the value). Auto-archive is off and
+// disabled in a Pinned folder, with the note that Pinned tabs never archive.
+// Every change is written to the Tab Model at once and applies without a restart.
 class AerieSidebarFolderSheet : public views::BubbleDialogDelegate,
                                 public views::TextfieldController,
                                 public aerie_tab_model::TabModelObserver {
@@ -95,9 +109,19 @@ class AerieSidebarFolderSheet : public views::BubbleDialogDelegate,
   // The buttons of the kind control (a segmented control; each says `radio`).
   views::LabelButton* kind_button(size_t index) const;
   // The body of a Smart folder (#140: one line, shown for that kind only) and
-  // the Behaviour section (#141: empty and hidden).
+  // the Behaviour section (#141: shown for every kind but Smart).
   views::View* smart_body_slot() const { return smart_body_slot_; }
   views::View* behaviour_slot() const { return behaviour_slot_; }
+  // The three behaviours, in the order the section lists them.
+  enum class Behaviour { kArchive, kSleep, kLinks };
+  AerieSidebarSwitch* behaviour_switch(Behaviour behaviour) const;
+  // The value control: a combobox that is disabled while the folder inherits.
+  views::Combobox* behaviour_value(Behaviour behaviour) const;
+  // "Inherits global", "Inherits from <folder>" or the Pinned note, shown while
+  // the switch is off; empty and hidden otherwise.
+  views::Label* behaviour_source(Behaviour behaviour) const;
+  // "Pinned tabs never archive", visible for a Pinned folder only.
+  views::Label* behaviour_pinned_note() const { return behaviour_pinned_note_; }
   bool kind_checked(size_t index) const;
   views::BoxLayoutView* rules_list() const { return rules_list_; }
   views::BoxLayoutView* exceptions_list() const { return exceptions_list_; }
@@ -135,6 +159,12 @@ class AerieSidebarFolderSheet : public views::BubbleDialogDelegate,
   void RebuildRules(const aerie_tab_model::FolderRecord& folder);
   void RebuildExceptions(const aerie_tab_model::FolderRecord& folder);
   void SetKind(size_t index);
+  void BuildBehaviourRow(views::BoxLayoutView* section, Behaviour behaviour);
+  void RebuildBehaviour(const aerie_tab_model::FolderRecord& folder);
+  // The switch of a behaviour was flipped, or its value was chosen.
+  void OnBehaviourSwitch(Behaviour behaviour, bool on);
+  void OnBehaviourValue(Behaviour behaviour);
+  bool IsAncestorFolder(const std::string& id) const;
   void SubmitRule();
   void BeginEditRule(const std::string& rule_id);
   void PlayOpen();
@@ -158,6 +188,18 @@ class AerieSidebarFolderSheet : public views::BubbleDialogDelegate,
   std::vector<raw_ptr<views::LabelButton>> kind_buttons_;
   raw_ptr<views::View> smart_body_slot_ = nullptr;
   raw_ptr<views::View> behaviour_slot_ = nullptr;
+  // One row of the Behaviour section.
+  struct BehaviourRow {
+    raw_ptr<AerieSidebarSwitch> toggle = nullptr;
+    raw_ptr<views::Label> source = nullptr;
+    raw_ptr<views::Combobox> value = nullptr;
+    // The choices when the folder sets its own, and the one inherited value
+    // that is shown, disabled, when it does not.
+    std::unique_ptr<ui::SimpleComboboxModel> own_model;
+    std::unique_ptr<ui::SimpleComboboxModel> inherited_model;
+  };
+  std::array<BehaviourRow, 3> behaviour_rows_;
+  raw_ptr<views::Label> behaviour_pinned_note_ = nullptr;
   raw_ptr<views::View> auto_section_ = nullptr;
   raw_ptr<views::BoxLayoutView> rules_list_ = nullptr;
   raw_ptr<views::Combobox> type_combobox_ = nullptr;

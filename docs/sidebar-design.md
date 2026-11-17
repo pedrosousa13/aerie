@@ -168,7 +168,7 @@ Auto-filing folders are built as the brief says. What the brief left open, and w
 - **The sheet.** One native panel (`AerieSidebarFolderSheet`) next to the sidebar; three ways in: "Edit folder..." in the
   folder menu, a double-click on the folder icon, and the funnel on an auto-filing row. Edits apply at once. It opens on
   `sheet-enter` (slides `motion-distance-sheet-slide`, 10 px, and fades) and closes on `sheet-exit` (fades). Reduced
-  motion: opacity only, 90 ms. Kinds come from a table, and the sheet has two empty, hidden slots for the Smart body (#140) and the Behaviour section (#141), so each is one row and one fill later.
+  motion: opacity only, 90 ms. Kinds come from a table, and the sheet has a slot for the Smart body (#140) and one for the Behaviour section (#141). The Behaviour section is built (see "Folder behaviour, as built (#141)").
 - **Limits.** 50 rules and 200 exceptions per folder, 512 bytes per rule text. No regex.
 
 ### Folders as built (#140)
@@ -825,3 +825,25 @@ What the code does, and the choices the issue left open.
 - **Panel.** A popover (`AerieSidebarArchivePanel`) above the Archive button: a dialog named "Archive", a header with the timeout as a menu button, a searchbox (title and URL, case-insensitive), and a listbox grouped Today, Yesterday, Last week, Earlier by local calendar day (a group with no row has no heading). Each day is a group (role `group`, named by its heading) inside the listbox. The rows are one Tab stop with roving focus: only the active row is a Tab stop and the selected one; Up and Down move between the search and the rows, Home and End jump to the first and the last row, and every row carries its position in the whole list and the list's size. Enter restores (from the search it restores the first match), Esc closes. The timeout menu opens as a keyboard menu when the button was activated by Enter or Space. Focus returns to the Archive button after Esc or a click outside; after a restore the restored tab is selected and focus goes to its page (decided: the user asked to see that page). After a restore the sidebar announces "Restored <title>". The Workspace filter is M5.
 - **Motion.** Archive moment: when the archiver is about to close a tab, the sidebar takes a copy of its row. The copy shrinks to `motion-scale-archive-collapse` and flies to the button over `archive-collapse` (`accelerate`) and fades as it lands. The real row leaves with the ordinary row close (it slides, fades and collapses its height), which the copy covers. Where the copy lands, the button scales to `motion-scale-archive-pulse` and back over `archive-pulse` (`standard`), half each way. Restore: a copy flies from the panel row to the top of Today over `archive-restore` on the spring. Popover: drops 4 px and fades in on `fast` and `decelerate`; no closing animation. Reduced motion (OS flag or in-app): the copy fades 120 ms, the button flashes its colour for 140 ms without scale, restore fades 120 ms, the popover fades 90 ms. Only `transform` and `opacity` animate (and the row height of the Today list).
 - **Network.** None. A restored tab loads its page like any navigation.
+
+## Folder behaviour, as built (#141)
+
+Each manual or auto-filing folder can set three behaviours. A smart folder has no Behaviour section: it owns no tabs.
+
+- **Where it is set.** The Behaviour section of the folder editor sheet. Each row has a switch and a value drop-down. With the switch off the drop-down is disabled and shows the inherited value, and the row says "Inherits global", or "Inherits from <folder>" when a folder above sets it. Edits apply at once and are stored in the folder record, so they survive a restart. Changing a global value in Settings updates the rows that inherit.
+- **Which value wins.** The nearest folder above the tab that sets the behaviour, then the global setting. A tab outside every folder uses the global setting.
+- **Auto-archive.** Never, 12 hours, 24 hours or 7 days. In a Pinned folder the row is off and disabled, with the note "Pinned tabs never archive". The selected tab and a tab that plays audio are not archived, in any folder. One archive timer is armed for the whole profile, for the earliest due tab. It is armed again when a folder is added, edited, moved or deleted.
+- **Sleep tabs after.** 15 minutes to 8 hours, or never. One sleep timer, armed again in the same cases.
+- **Links open.** New tab or in place. The global value is the new setting "Links open" in Settings, in the Sidebar section (`aerie.tabs.links_open`, default new tab).
+
+**Exact link rules.** The rule changes only a link that would open a new foreground tab and that a click on the page caused, where the new tab has no opener. That is a link with `target="_blank"` (which has no opener by default), as the browser sees it. In place, the link loads in the tab that holds it, and Back returns to the page. These are left as they are: Ctrl-click, Cmd-click and middle-click (background tab), Shift-click (new window), pop-up windows (`window.open` with features), `window.open` and links with `rel="opener"` (the new tab keeps its opener), and links that do not open a new tab. Only `http` and `https` addresses are opened in place.
+
+**Placement.** When a folder says "new tab", the new tab opens in that folder, right after the tab that held the link. When the value only comes from Settings, a new tab goes where it went before. A tab in a Pinned folder gets no placement: its new tab goes to Today.
+
+**Limits.**
+- A form that is sent with POST to a `target="_blank"` page loads as a plain GET in place. The browser cannot tell the two apart at this point, so an in-place folder should not be used for such sites.
+- The referrer is not sent for a link that opens in place.
+- A link inside an embedded frame, or on a page that has a frame sandboxed against navigating the top level, still opens a new tab. A frame must not take the tab over.
+- The global "Links open" value applies to every tab, in a folder or not.
+
+**Motion.** The sheet and the switches use the tokens of #139. Under reduced motion (the operating system's flag or the in-app setting) the sheet is opacity-only at 90 ms, and a switch moves with no transform animation.

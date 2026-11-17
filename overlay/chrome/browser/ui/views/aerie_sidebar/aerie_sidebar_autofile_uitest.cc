@@ -34,6 +34,7 @@
 #include "components/aerie_design_tokens/aerie_motion_prefs.h"
 #include "components/aerie_design_tokens/aerie_tokens.h"
 #include "components/aerie_tab_model/auto_file_controller.h"
+#include "components/aerie_tab_model/folder_behaviour.h"
 #include "components/aerie_tab_model/folder_rules.h"
 #include "components/aerie_tab_model/tab_model.h"
 #include "components/prefs/pref_service.h"
@@ -330,4 +331,43 @@ IN_PROC_BROWSER_TEST_P(AerieSidebarAutoFileReducedUiTest,
   EXPECT_FALSE(Animates(pulse, ui::LayerAnimationElement::TRANSFORM));
   EXPECT_FALSE(Animates(sidebar()->toast_layer(),
                         ui::LayerAnimationElement::TRANSFORM));
+}
+
+// The Behaviour section of the folder editor sheet (issue #141) moves on the
+// same tokens: under reduced motion its switches animate no transform.
+IN_PROC_BROWSER_TEST_P(AerieSidebarAutoFileReducedUiTest,
+                       TheBehaviourSwitchesMakeNoTransformAnimation) {
+  Reduce();
+  const std::string folder = MakeAutoFolder();
+  sidebar()->OpenFolderSheet(folder);
+  AerieSidebarFolderSheet* sheet = sidebar()->folder_sheet();
+  ASSERT_TRUE(sheet);
+  ASSERT_TRUE(sheet->behaviour_slot()->GetVisible());
+  std::set<ui::Layer*> ignored;
+  CollectTransformAnimating(sheet->GetContentsView(), &ignored);
+  for (auto b : {AerieSidebarFolderSheet::Behaviour::kArchive,
+                 AerieSidebarFolderSheet::Behaviour::kSleep,
+                 AerieSidebarFolderSheet::Behaviour::kLinks}) {
+    AerieSidebarSwitch* toggle = sheet->behaviour_switch(b);
+    toggle->SetOn(!toggle->on(), browser()->GetProfile()->GetPrefs());
+    EXPECT_EQ(AnyTransformAnimation(sheet->GetContentsView(), ignored), "");
+    EXPECT_FALSE(Animates(toggle->thumb()->layer(),
+                          ui::LayerAnimationElement::TRANSFORM));
+  }
+  sheet->Dismiss(false);
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarAutoFileUiTest,
+                       TheBehaviourSwitchSlidesItsThumbWhenMotionIsOn) {
+  ForceReducedMotion(false);
+  const std::string folder = MakeAutoFolder();
+  sidebar()->OpenFolderSheet(folder);
+  AerieSidebarFolderSheet* sheet = sidebar()->folder_sheet();
+  ASSERT_TRUE(sheet);
+  AerieSidebarSwitch* toggle =
+      sheet->behaviour_switch(AerieSidebarFolderSheet::Behaviour::kSleep);
+  toggle->SetOn(true, browser()->GetProfile()->GetPrefs());
+  EXPECT_TRUE(
+      Animates(toggle->thumb()->layer(), ui::LayerAnimationElement::TRANSFORM));
+  sheet->Dismiss(false);
 }
