@@ -738,6 +738,18 @@ void AerieSidebarRowView::Layout(PassKey) {
   }
 }
 
+views::View* AerieSidebarRowView::GetTooltipHandlerForPoint(
+    const gfx::Point& point) {
+  views::View* handler = views::View::GetTooltipHandlerForPoint(point);
+  // The row's content container would take the lookup and have no tooltip. A
+  // title that a rule or the tidy changed is explained by the row itself, but
+  // the buttons keep their own tooltips (issue #146).
+  if (!title_note_.empty() && handler == content_) {
+    return this;
+  }
+  return handler;
+}
+
 std::u16string AerieSidebarRowView::GetRenderedTooltipText(
     const gfx::Point& p) const {
   // A title that a rule or the tidy changed says so, with the original title

@@ -320,6 +320,7 @@ class AerieSidebarRowView : public views::View,
   // Esc while a drag runs cancels it (issue #215, item 8).
   bool AcceleratorPressed(const ui::Accelerator& accelerator) override;
   std::u16string GetRenderedTooltipText(const gfx::Point& p) const override;
+  views::View* GetTooltipHandlerForPoint(const gfx::Point& point) override;
   // views::ContextMenuController:
   void ShowContextMenuForViewImpl(
       views::View* source,

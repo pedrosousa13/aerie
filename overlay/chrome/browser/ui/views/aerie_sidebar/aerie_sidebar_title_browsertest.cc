@@ -190,6 +190,24 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarTitleBrowserTest,
   EXPECT_EQ(DocumentTitle(), kMailTitle);
 }
 
+// What a real hover finds: the tooltip lookup walks the row's children, and
+// the tooltip text comes from whatever view it returns.
+IN_PROC_BROWSER_TEST_F(AerieSidebarTitleBrowserTest,
+                       HoveringATidiedRowShowsTheOriginalTitle) {
+  AerieSidebarRowView* row = OpenRow("mail.test", "/mail.html");
+  ExpectRowTitle(row, "Inbox");
+  // A point inside the row, over its title and clear of the close button.
+  // A new row grows in; wait for it to have a size.
+  ASSERT_TRUE(base::test::RunUntil([&] { return row->height() > 0; }));
+  const gfx::Point p(row->width() / 3, row->height() / 2);
+  views::View* handler = row->GetTooltipHandlerForPoint(p);
+  ASSERT_TRUE(handler);
+  gfx::Point in_handler = p;
+  views::View::ConvertPointToTarget(row, handler, &in_handler);
+  EXPECT_EQ(base::UTF16ToUTF8(handler->GetRenderedTooltipText(in_handler)),
+            "Tidied, original: " + std::string(kMailTitle));
+}
+
 IN_PROC_BROWSER_TEST_F(AerieSidebarTitleBrowserTest,
                        ATitleTheTidyWouldNotChangeHasNoNote) {
   AerieSidebarRowView* row = OpenRow("example.test", "/plain.html");
