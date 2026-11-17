@@ -250,6 +250,9 @@ class NoNetworkNoStringsTest(unittest.TestCase):
                         # Archived addresses read from disk are checked with a GURL parse (#183): no request.
                         if include in {"url/gurl.h", "url/url_constants.h"} and path.name == "tab_model_types.cc":
                             continue
+                        # "Links open" (#141) reads whether a frame is sandboxed: that header is an enum of sandbox flags, no request.
+                        if include == "services/network/public/mojom/web_sandbox_flags.mojom.h" and path.name == "links_open_hook.cc":
+                            continue
                         self.assertFalse(include.startswith(("net/", "services/network", "url/")), f"{path.name}: {include}")
                         # The sleep controller (#179) words its refusals from the sidebar's grd.
                         if path.name != "sleep_controller.cc":
