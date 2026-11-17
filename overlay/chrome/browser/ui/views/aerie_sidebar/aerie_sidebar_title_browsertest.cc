@@ -80,6 +80,8 @@ std::unique_ptr<net::test_server::HttpResponse> ServeTitles(
     title = kMailTitle;
   } else if (request.relative_url == "/plain.html") {
     title = kPlainTitle;
+  } else if (request.relative_url == "/long.html") {
+    title = std::string(3000, 'a');
   } else {
     return nullptr;
   }
@@ -168,8 +170,10 @@ class AerieSidebarTitleBrowserTest : public InProcessBrowserTest {
   // The row's shown title, once it is `expected`.
   void ExpectRowTitle(AerieSidebarRowView* row, const std::string& expected) {
     EXPECT_TRUE(base::test::RunUntil([&] {
-      return base::UTF16ToUTF8(std::u16string(row->title_view()->GetText())) == expected;
-    })) << "row shows: " << base::UTF16ToUTF8(std::u16string(row->title_view()->GetText()));
+      return base::UTF16ToUTF8(std::u16string(row->title_view()->GetText())) ==
+             expected;
+    })) << "row shows: "
+        << base::UTF16ToUTF8(std::u16string(row->title_view()->GetText()));
   }
 
   std::string DocumentTitle() {
@@ -206,6 +210,32 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarTitleBrowserTest,
   views::View::ConvertPointToTarget(row, handler, &in_handler);
   EXPECT_EQ(base::UTF16ToUTF8(handler->GetRenderedTooltipText(in_handler)),
             "Tidied, original: " + std::string(kMailTitle));
+}
+
+// The tooltip tells the original title, but not all of a very long one.
+IN_PROC_BROWSER_TEST_F(AerieSidebarTitleBrowserTest,
+                       TheOriginalTitleInTheTooltipIsBounded) {
+  AerieSidebarRowView* row = OpenRow("mail.test", "/long.html");
+  SetRules({MakeRule("r1", "Long", RuleType::kDomain, "mail.test", "Short")});
+  ExpectRowTitle(row, "Short");
+  const std::string note = base::UTF16ToUTF8(row->title_note());
+  EXPECT_NE(note.find(std::string(100, 'a')), std::string::npos) << note;
+  EXPECT_LT(note.size(), 2048u + 100u);
+}
+
+// A tab with a manual name shows it whatever the rules say, and a rename back
+// to nothing brings the rule's title back.
+IN_PROC_BROWSER_TEST_F(AerieSidebarTitleBrowserTest,
+                       AManualNameSkipsTheRulesAndTheTidy) {
+  std::string id;
+  AerieSidebarRowView* row = OpenRow("mail.test", "/mail.html", &id);
+  SetRules({MakeRule("r1", "Work", RuleType::kDomain, "mail.test", "Work")});
+  ExpectRowTitle(row, "Work");
+  model_set_manual_name(id, "Mine");
+  ExpectRowTitle(row, "Mine");
+  EXPECT_TRUE(row->title_note().empty());
+  model_set_manual_name(id, "");
+  ExpectRowTitle(row, "Work");
 }
 
 IN_PROC_BROWSER_TEST_F(AerieSidebarTitleBrowserTest,
@@ -263,7 +293,8 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarTitleBrowserTest,
 IN_PROC_BROWSER_TEST_F(AerieSidebarTitleBrowserTest,
                        ReorderingAndSwitchesChangeWhichSourceWins) {
   AerieSidebarRowView* row = OpenRow("mail.test", "/mail.html");
-  RenameRule first = MakeRule("r1", "One", RuleType::kDomain, "mail.test", "One");
+  RenameRule first =
+      MakeRule("r1", "One", RuleType::kDomain, "mail.test", "One");
   RenameRule second =
       MakeRule("r2", "Two", RuleType::kUrlContains, "mail", "Two");
   SetRules({first, second});

@@ -388,8 +388,10 @@ class AerieSidebarView : public views::View,
     // original: ..." or "Renamed by rule X, original: ...". Empty otherwise.
     std::u16string note;
   };
-  ShownTitle ShownTitleFor(tabs::TabInterface* tab,
-                           const aerie_tab_model::TabRecord* record) const;
+  // The result lives until the next call; read it at once.
+  const ShownTitle& ShownTitleFor(
+      tabs::TabInterface* tab,
+      const aerie_tab_model::TabRecord* record) const;
   void OnTilePopoverDone(const std::string& tab_id,
                          std::optional<std::u16string> text,
                          bool refocus_anchor);
@@ -705,12 +707,17 @@ class AerieSidebarView : public views::View,
   // page title, the address, the manual name nor the settings does not resolve
   // again. Dropped whole when the settings change or it grows past a bound.
   struct CachedTitle {
-    std::string page_title;
-    std::string url;
-    std::optional<std::string> manual_name;
-    aerie_tab_model::ResolvedTitle resolved;
+    // The part of the page title that the answer depends on (cut as the
+    // resolver cuts it), and the address.
+    std::u16string key;
+    GURL url;
+    ShownTitle shown;
   };
   mutable std::map<std::string, CachedTitle> title_cache_;
+  // Answers that are not cached: a tab with a manual name, and a tab with no
+  // record.
+  mutable ShownTitle manual_title_;
+  mutable ShownTitle plain_title_;
   // A tab changed section: the next sync plays the FLIP motion for it.
   bool flip_pending_ = false;
   std::map<std::string, gfx::Point> flip_before_;
