@@ -6,9 +6,13 @@
 
 #include <utility>
 
+#include "base/memory/raw_ptr.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
+#include "components/aerie_tab_model/rename_rules.h"
+#include "components/aerie_tab_model/rule_matcher.h"
 #include "components/aerie_tab_model/tab_model.h"
+#include "components/aerie_tab_model/title_tidier.h"
 
 namespace aerie_tab_model {
 
@@ -17,19 +21,71 @@ namespace {
 class ManualNameProvider : public TitleProvider {
  public:
   TitleSource source() const override { return TitleSource::kManual; }
-  std::optional<std::string> Provide(const TabRecord& record,
-                                     std::string_view) const override {
-    return record.manual_name;
+  std::optional<ProvidedTitle> Provide(const TitleInput& input) const override {
+    if (!input.record.manual_name) {
+      return std::nullopt;
+    }
+    return ProvidedTitle{*input.record.manual_name, std::string()};
   }
+};
+
+// The first enabled rename rule that matches (issue #146).
+class RuleTitleProvider : public TitleProvider {
+ public:
+  explicit RuleTitleProvider(const TitleSettings* settings)
+      : settings_(settings) {}
+  TitleSource source() const override { return TitleSource::kRule; }
+  std::optional<ProvidedTitle> Provide(const TitleInput& input) const override {
+    if (!settings_->rename.enabled || settings_->rename.rules.empty()) {
+      return std::nullopt;
+    }
+    const std::string_view title = BoundTitle(input.page_title);
+    const MatchInput match(input.url, title);
+    std::optional<RenameOutcome> outcome =
+        ApplyRenameRules(settings_->rename, match, title);
+    if (!outcome) {
+      return std::nullopt;
+    }
+    // A rule with no name is told by what it matches.
+    return ProvidedTitle{std::move(outcome->text),
+                         outcome->rule->name.empty() ? outcome->rule->match.value
+                                                     : outcome->rule->name};
+  }
+
+ private:
+  const raw_ptr<const TitleSettings> settings_;
+};
+
+// The built-in tidy (issue #146). Gives nothing when it would not change the
+// title, so the row shows the page title and has no "Tidied" tooltip.
+class TidyTitleProvider : public TitleProvider {
+ public:
+  explicit TidyTitleProvider(const TitleSettings* settings)
+      : settings_(settings) {}
+  TitleSource source() const override { return TitleSource::kTidy; }
+  std::optional<ProvidedTitle> Provide(const TitleInput& input) const override {
+    const std::string_view host =
+        input.url.is_valid() && input.url.has_host() ? input.url.host()
+                                                     : std::string_view();
+    if (!settings_->TidyAppliesTo(host)) {
+      return std::nullopt;
+    }
+    std::string tidied = TidyTitle(input.page_title, host);
+    if (tidied.empty() || tidied == input.page_title) {
+      return std::nullopt;
+    }
+    return ProvidedTitle{std::move(tidied), std::string()};
+  }
+
+ private:
+  const raw_ptr<const TitleSettings> settings_;
 };
 
 class PageTitleProvider : public TitleProvider {
  public:
   TitleSource source() const override { return TitleSource::kPage; }
-  std::optional<std::string> Provide(
-      const TabRecord&,
-      std::string_view page_title) const override {
-    return std::string(page_title);
+  std::optional<ProvidedTitle> Provide(const TitleInput& input) const override {
+    return ProvidedTitle{std::string(input.page_title), std::string()};
   }
 };
 
@@ -66,22 +122,34 @@ TitleResolver& TitleResolver::operator=(TitleResolver&&) = default;
 TitleResolver::~TitleResolver() = default;
 
 // static
-TitleResolver TitleResolver::CreateDefault() {
+TitleResolver TitleResolver::CreateDefault(const TitleSettings* settings) {
   std::vector<std::unique_ptr<TitleProvider>> providers;
   providers.push_back(std::make_unique<ManualNameProvider>());
+  if (settings) {
+    providers.push_back(std::make_unique<RuleTitleProvider>(settings));
+    providers.push_back(std::make_unique<TidyTitleProvider>(settings));
+  }
   providers.push_back(std::make_unique<PageTitleProvider>());
   return TitleResolver(std::move(providers));
 }
 
 ResolvedTitle TitleResolver::ResolveTitle(const TabRecord& record,
                                           std::string_view page_title) const {
+  return ResolveTitle(record, page_title, GURL());
+}
+
+ResolvedTitle TitleResolver::ResolveTitle(const TabRecord& record,
+                                          std::string_view page_title,
+                                          const GURL& url) const {
+  const TitleInput input{record, page_title, url};
   for (const auto& provider : providers_) {
-    std::optional<std::string> title = provider->Provide(record, page_title);
-    if (title && !title->empty()) {
-      return {std::move(*title), provider->source()};
+    std::optional<ProvidedTitle> title = provider->Provide(input);
+    if (title && !title->text.empty()) {
+      return {std::move(title->text), provider->source(),
+              std::move(title->detail)};
     }
   }
-  return {std::string(page_title), TitleSource::kPage};
+  return {std::string(page_title), TitleSource::kPage, std::string()};
 }
 
 std::vector<TitleSource> TitleResolver::provider_sources() const {

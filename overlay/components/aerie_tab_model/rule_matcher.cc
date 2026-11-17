@@ -18,6 +18,10 @@ namespace {
 
 // The text with the case folded, for the comparisons that ignore case.
 std::string Fold(std::string_view text) {
+  // Most titles and addresses are ASCII: no ICU for them.
+  if (base::IsStringASCII(text)) {
+    return base::ToLowerASCII(text);
+  }
   return base::UTF16ToUTF8(base::i18n::FoldCase(base::UTF8ToUTF16(text)));
 }
 
@@ -40,13 +44,13 @@ std::string SchemeLess(std::string_view address) {
   return folded;
 }
 
-bool UrlStartsWith(const GURL& url, std::string_view value) {
+bool UrlStartsWith(const MatchInput& input, std::string_view value) {
   std::string rule = SchemeLess(value);
   rule = std::string(StripTrailingSlashes(rule));
   if (rule.empty()) {
     return false;
   }
-  const std::string spec = SchemeLess(url.spec());
+  const std::string_view spec = input.schemeless_spec();
   if (!base::StartsWith(spec, rule)) {
     return false;
   }
@@ -65,17 +69,17 @@ bool UrlStartsWith(const GURL& url, std::string_view value) {
   return true;
 }
 
-bool UrlContains(const GURL& url, std::string_view value) {
+bool UrlContains(const MatchInput& input, std::string_view value) {
   const std::string needle =
       Fold(base::TrimWhitespaceASCII(value, base::TRIM_ALL));
-  return !needle.empty() && Fold(url.spec()).find(needle) != std::string::npos;
+  return !needle.empty() && input.folded_spec().find(needle) != std::string::npos;
 }
 
-bool TitleContains(std::string_view title, std::string_view value) {
+bool TitleContains(const MatchInput& input, std::string_view value) {
   const std::string needle =
       Fold(base::TrimWhitespaceASCII(value, base::TRIM_ALL));
-  return !needle.empty() && !title.empty() &&
-         Fold(title).find(needle) != std::string::npos;
+  return !needle.empty() && !input.folded_title().empty() &&
+         input.folded_title().find(needle) != std::string::npos;
 }
 
 // True for the canonical host of an IPv4 address (digits and dots) or an IPv6
@@ -178,19 +182,46 @@ bool HostMatchesDomain(std::string_view host, std::string_view domain) {
          host[host.size() - domain.size() - 1] == '.';
 }
 
-bool Matches(const Rule& rule, const GURL& url, std::string_view title) {
+MatchInput::MatchInput(const GURL& url, std::string_view title)
+    : url_ok_(url.is_valid()), folded_title_(Fold(title)) {
+  if (!url_ok_) {
+    return;
+  }
+  if (url.has_host()) {
+    host_ = std::string(url.host());
+  }
+  folded_spec_ = Fold(url.spec());
+  for (std::string_view scheme : {"https://", "http://"}) {
+    if (base::StartsWith(folded_spec_, scheme)) {
+      scheme_length_ = scheme.size();
+      break;
+    }
+  }
+}
+
+MatchInput::~MatchInput() = default;
+
+std::string_view MatchInput::schemeless_spec() const {
+  return std::string_view(folded_spec_).substr(scheme_length_);
+}
+
+bool Matches(const Rule& rule, const MatchInput& input) {
   switch (rule.type) {
     case RuleType::kDomain:
-      return url.is_valid() && url.has_host() &&
-             HostMatchesDomain(url.host(), rule.value);
+      return input.url_ok() && !input.host().empty() &&
+             HostMatchesDomain(input.host(), rule.value);
     case RuleType::kUrlStartsWith:
-      return url.is_valid() && UrlStartsWith(url, rule.value);
+      return input.url_ok() && UrlStartsWith(input, rule.value);
     case RuleType::kUrlContains:
-      return url.is_valid() && UrlContains(url, rule.value);
+      return input.url_ok() && UrlContains(input, rule.value);
     case RuleType::kTitleContains:
-      return TitleContains(title, rule.value);
+      return TitleContains(input, rule.value);
   }
   return false;
+}
+
+bool Matches(const Rule& rule, const GURL& url, std::string_view title) {
+  return Matches(rule, MatchInput(url, title));
 }
 
 const Rule* FindMatchingRule(const FolderRules& rules,

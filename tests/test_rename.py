@@ -31,7 +31,8 @@ class ResolverTest(unittest.TestCase):
 
     def test_the_default_list_is_manual_then_page_and_a_list_of_providers(self):
         cc = code(TAB_MODEL / "title_resolver.cc")
-        body = cc.split("TitleResolver::CreateDefault()")[1].split("}")[0]
+        # #146 added the rule and tidy providers between the two, behind the settings.
+        body = cc.split("TitleResolver::CreateDefault(const TitleSettings* settings)")[1].split("\n}\n")[0]
         self.assertLess(body.index("ManualNameProvider"), body.index("PageTitleProvider"))
         self.assertIn("std::vector<std::unique_ptr<TitleProvider>>", self.HEADER)
 
@@ -162,7 +163,9 @@ class NoNetworkTest(unittest.TestCase):
         for path in (*[TAB_MODEL / n for n in ("title_resolver.cc", "title_resolver.h")],
                      *[VIEWS / n for n in RENAME_VIEW_FILES]):
             text = code(path)
-            for forbidden in ("services/network", "net/", "url_loader", "SimpleURLLoader", "GURL"):
+            # #146: the resolver reads the page's address (GURL parses a string, it makes no request).
+            for forbidden in ("services/network", "net/", "url_loader", "SimpleURLLoader") + (
+                    () if path.name.startswith("title_resolver") else ("GURL",)):
                 self.assertNotIn(forbidden, text, path.name)
 
     def test_the_endpoint_list_is_unchanged(self):
@@ -218,8 +221,9 @@ class ReviewFixesTest(unittest.TestCase):
         self.assertNotIn("callbacks_.commit_rename.Run", end)
 
     def test_the_shared_resolver_has_a_clear_name(self):
+        # #146 made it a member that reads the settings: `title_resolver_`.
         view = code(VIEWS / "aerie_sidebar_view.cc")
-        self.assertIn("SharedTitleResolver()", view)
+        self.assertIn("title_resolver_", view)
         self.assertNotRegex(view, r"[^\w]Resolver\(\)")
 
     def test_the_popover_closes_without_a_commit_when_its_tile_goes(self):

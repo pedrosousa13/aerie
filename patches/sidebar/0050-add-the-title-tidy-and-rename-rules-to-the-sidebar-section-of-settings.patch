@@ -1,0 +1,161 @@
+Aerie-Purpose: Put the tidy switches and the rename rules in the Sidebar section of Settings, let the settings page write their prefs, and add the "Try a title" message handler.
+Aerie-Upstream-Area: chrome/browser/resources/settings (appearance_page/appearance_layout_page.ts, appearance_page/appearance_layout_page.html.ts, BUILD.gn), chrome/browser/ui/webui/settings (settings_localized_strings_provider.cc, settings_ui.cc, BUILD.gn), chrome/browser/extensions/api/settings_private (prefs_util.cc)
+Aerie-Kind: hook
+
+Issue #146. The element, settings-aerie-title-rules-row, is a Lit element in the overlay
+(chrome/browser/resources/settings/appearance_page/aerie_title_rules_row.*): the switch of the
+built-in tidy and its list of sites where it is off, the "All rename rules" switch, the rule list
+(a listbox, reordered with Alt+Up and Alt+Down or the buttons) with its editor, and a "Try a
+title" box. It writes four profile prefs registered by components/aerie_tab_model/tab_model_prefs.cc:
+aerie.tabs.tidy_titles (boolean, on), aerie.tabs.tidy_off_sites (list), aerie.tabs.rename_rules_enabled
+(boolean, on) and aerie.tabs.rename_rules (list). The names are string literals in the settings_private
+allowlist, as for the other Aerie prefs, and a test compares them with the constants. The "Try a
+title" box asks AerieTitleRulesHandler (overlay, chrome/browser/ui/webui/aerie_title_rules), a plain
+message handler on chrome://settings only, which runs the real title resolver on the saved
+settings. The strings are in the overlay's aerie_sidebar_strings.grdp, which patches/sidebar/0022
+includes in generated_resources.grd; this patch hands them to the page. The element sits last in
+the "Sidebar" section.
+
+--- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
++++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
+@@ -502,6 +502,15 @@
+   // The name is aerie_tab_model::kFolderRulesEnabled; a test compares the two.
+   (*s_allowlist)["aerie.folders.rules_enabled"] =
+       settings_api::PrefType::kBoolean;
++  // Aerie: the tidy of tab titles and the rename rules (issue #146). The names
++  // are aerie_tab_model::kTidyTitles, kTidyOffSites, kRenameRulesEnabled and
++  // kRenameRules; a test compares them. The rules are untrusted when they are
++  // read (components/aerie_tab_model/rename_rules.cc).
++  (*s_allowlist)["aerie.tabs.tidy_titles"] = settings_api::PrefType::kBoolean;
++  (*s_allowlist)["aerie.tabs.tidy_off_sites"] = settings_api::PrefType::kList;
++  (*s_allowlist)["aerie.tabs.rename_rules_enabled"] =
++      settings_api::PrefType::kBoolean;
++  (*s_allowlist)["aerie.tabs.rename_rules"] = settings_api::PrefType::kList;
+   // Aerie: the sidebar's density and side (issue #184). The names are
+   // aerie_sidebar::kDensityPref and kSidePref; a test compares them.
+   (*s_allowlist)["aerie.sidebar.density"] = settings_api::PrefType::kString;
+--- a/chrome/browser/resources/settings/BUILD.gn
++++ b/chrome/browser/resources/settings/BUILD.gn
+@@ -220,6 +220,10 @@
+     "appearance_page/aerie_side_row.ts",
+     "appearance_page/aerie_sleep_row.html.ts",
+     "appearance_page/aerie_sleep_row.ts",
++    "appearance_page/aerie_title_rules_browser_proxy.ts",
++    "appearance_page/aerie_title_rules_model.ts",
++    "appearance_page/aerie_title_rules_row.html.ts",
++    "appearance_page/aerie_title_rules_row.ts",
+     "appearance_page/appearance_browser_proxy.ts",
+     "appearance_page/appearance_fonts_page.html.ts",
+     "appearance_page/appearance_fonts_page.ts",
+--- a/chrome/browser/resources/settings/appearance_page/appearance_layout_page.ts
++++ b/chrome/browser/resources/settings/appearance_page/appearance_layout_page.ts
+@@ -11,6 +11,7 @@
+ import './aerie_pinned_close_row.js';
+ import './aerie_side_row.js';
+ import './aerie_sleep_row.js';
++import './aerie_title_rules_row.js';
+ 
+ import {CrLitElement} from 'chrome://resources/lit/v3_0/lit.rollup.js';
+ 
+--- a/chrome/browser/resources/settings/appearance_page/appearance_layout_page.html.ts
++++ b/chrome/browser/resources/settings/appearance_page/appearance_layout_page.html.ts
+@@ -18,6 +18,7 @@
+   <settings-aerie-archive-keep-row></settings-aerie-archive-keep-row>
+   <settings-aerie-density-row></settings-aerie-density-row>
+   <settings-aerie-side-row></settings-aerie-side-row>
++  <settings-aerie-title-rules-row></settings-aerie-title-rules-row>
+ </settings-section>
+ <!--_html_template_end_-->`;
+   // clang-format on
+--- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
++++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
+@@ -652,6 +652,58 @@
+       {"aerieArchiveKeep30Days", IDS_SETTINGS_AERIE_ARCHIVE_KEEP_30D},
+       {"aerieArchiveKeep90Days", IDS_SETTINGS_AERIE_ARCHIVE_KEEP_90D},
+       {"aerieArchiveKeepForever", IDS_SETTINGS_AERIE_ARCHIVE_KEEP_FOREVER},
++      {"aerieTidyTitles", IDS_SETTINGS_AERIE_TITLE_TIDY},
++      {"aerieTidyTitlesDesc", IDS_SETTINGS_AERIE_TITLE_TIDY_DESC},
++      {"aerieTidyOffSites", IDS_SETTINGS_AERIE_TITLE_TIDY_OFF_SITES},
++      {"aerieTidyOffSitesDesc", IDS_SETTINGS_AERIE_TITLE_TIDY_OFF_SITES_DESC},
++      {"aerieTidyOffSitesAdd", IDS_SETTINGS_AERIE_TITLE_TIDY_OFF_SITES_ADD},
++      {"aerieTidyOffSitesRemove", IDS_SETTINGS_AERIE_TITLE_TIDY_OFF_SITES_REMOVE},
++      {"aerieRulesTitle", IDS_SETTINGS_AERIE_TITLE_RULES},
++      {"aerieRulesAll", IDS_SETTINGS_AERIE_TITLE_RULES_ALL},
++      {"aerieRulesAllDesc", IDS_SETTINGS_AERIE_TITLE_RULES_ALL_DESC},
++      {"aerieRulesHelp", IDS_SETTINGS_AERIE_TITLE_RULES_HELP},
++      {"aerieRulesEmpty", IDS_SETTINGS_AERIE_TITLE_RULES_EMPTY},
++      {"aerieRuleSwitch", IDS_SETTINGS_AERIE_TITLE_RULE_SWITCH},
++      {"aerieRuleMoveUp", IDS_SETTINGS_AERIE_TITLE_RULE_MOVE_UP},
++      {"aerieRuleMoveDown", IDS_SETTINGS_AERIE_TITLE_RULE_MOVE_DOWN},
++      {"aerieRuleUp", IDS_SETTINGS_AERIE_TITLE_RULE_UP},
++      {"aerieRuleDown", IDS_SETTINGS_AERIE_TITLE_RULE_DOWN},
++      {"aerieRuleEdit", IDS_SETTINGS_AERIE_TITLE_RULE_EDIT},
++      {"aerieRuleRemove", IDS_SETTINGS_AERIE_TITLE_RULE_REMOVE},
++      {"aerieRuleAdd", IDS_SETTINGS_AERIE_TITLE_RULE_ADD},
++      {"aerieRuleNew", IDS_SETTINGS_AERIE_TITLE_RULE_NEW},
++      {"aerieRuleEditing", IDS_SETTINGS_AERIE_TITLE_RULE_EDITING},
++      {"aerieRuleName", IDS_SETTINGS_AERIE_TITLE_RULE_NAME},
++      {"aerieRuleMatch", IDS_SETTINGS_AERIE_TITLE_RULE_MATCH},
++      {"aerieRuleValue", IDS_SETTINGS_AERIE_TITLE_RULE_VALUE},
++      {"aerieRuleRewrite", IDS_SETTINGS_AERIE_TITLE_RULE_REWRITE},
++      {"aerieRuleModeTemplate", IDS_SETTINGS_AERIE_TITLE_RULE_MODE_TEMPLATE},
++      {"aerieRuleModeRemove", IDS_SETTINGS_AERIE_TITLE_RULE_MODE_REMOVE},
++      {"aerieRuleTemplate", IDS_SETTINGS_AERIE_TITLE_RULE_TEMPLATE},
++      {"aerieRuleRemoveText", IDS_SETTINGS_AERIE_TITLE_RULE_REMOVE_TEXT},
++      {"aerieRuleTemplateHint", IDS_SETTINGS_AERIE_TITLE_RULE_TEMPLATE_HINT},
++      {"aerieRuleRemoveHint", IDS_SETTINGS_AERIE_TITLE_RULE_REMOVE_HINT},
++      {"aerieRuleSave", IDS_SETTINGS_AERIE_TITLE_RULE_SAVE},
++      {"aerieRuleCancel", IDS_SETTINGS_AERIE_TITLE_RULE_CANCEL},
++      {"aerieRuleTypeDomain", IDS_SETTINGS_AERIE_TITLE_RULE_TYPE_DOMAIN},
++      {"aerieRuleTypeUrlStartsWith", IDS_SETTINGS_AERIE_TITLE_RULE_TYPE_URL_STARTS_WITH},
++      {"aerieRuleTypeUrlContains", IDS_SETTINGS_AERIE_TITLE_RULE_TYPE_URL_CONTAINS},
++      {"aerieRuleTypeTitleContains", IDS_SETTINGS_AERIE_TITLE_RULE_TYPE_TITLE_CONTAINS},
++      {"aerieRuleErrorTooMany", IDS_SETTINGS_AERIE_TITLE_RULE_ERROR_TOO_MANY},
++      {"aerieRuleErrorNameLong", IDS_SETTINGS_AERIE_TITLE_RULE_ERROR_NAME_LONG},
++      {"aerieRuleErrorValueEmpty", IDS_SETTINGS_AERIE_TITLE_RULE_ERROR_VALUE_EMPTY},
++      {"aerieRuleErrorValueLong", IDS_SETTINGS_AERIE_TITLE_RULE_ERROR_VALUE_LONG},
++      {"aerieRuleErrorTextLong", IDS_SETTINGS_AERIE_TITLE_RULE_ERROR_TEXT_LONG},
++      {"aerieRuleErrorTemplateEmpty", IDS_SETTINGS_AERIE_TITLE_RULE_ERROR_TEMPLATE_EMPTY},
++      {"aerieRuleErrorRemoveEmpty", IDS_SETTINGS_AERIE_TITLE_RULE_ERROR_REMOVE_EMPTY},
++      {"aerieRuleMoved", IDS_SETTINGS_AERIE_TITLE_RULE_MOVED},
++      {"aerieRuleRemoved", IDS_SETTINGS_AERIE_TITLE_RULE_REMOVED},
++      {"aerieTryTitle", IDS_SETTINGS_AERIE_TITLE_TRY},
++      {"aerieTryUrl", IDS_SETTINGS_AERIE_TITLE_TRY_URL},
++      {"aerieTryPageTitle", IDS_SETTINGS_AERIE_TITLE_TRY_PAGE_TITLE},
++      {"aerieTryResultRule", IDS_SETTINGS_AERIE_TITLE_TRY_RESULT_RULE},
++      {"aerieTryResultTidy", IDS_SETTINGS_AERIE_TITLE_TRY_RESULT_TIDY},
++      {"aerieTryResultPage", IDS_SETTINGS_AERIE_TITLE_TRY_RESULT_PAGE},
+       {"aerieSidebarDensity", IDS_SETTINGS_AERIE_SIDEBAR_DENSITY},
+       {"aerieSidebarDensityDesc", IDS_SETTINGS_AERIE_SIDEBAR_DENSITY_DESC},
+       {"aerieSidebarDensityComfortable",
+--- a/chrome/browser/ui/webui/settings/settings_ui.cc
++++ b/chrome/browser/ui/webui/settings/settings_ui.cc
+@@ -63,6 +63,7 @@
+ #include "chrome/browser/ui/webui/plural_string_handler.h"
+ #include "chrome/browser/ui/webui/sanitized_image/sanitized_image_source.h"
+ #include "chrome/browser/ui/webui/aerie_guard_settings/aerie_guard_settings_handler.h"
++#include "chrome/browser/ui/webui/aerie_title_rules/aerie_title_rules_handler.h"
+ #include "chrome/browser/ui/webui/settings/about_handler.h"
+ #include "chrome/browser/ui/webui/settings/aerie_hardening_handler.h"
+ #include "chrome/browser/ui/webui/settings/accessibility_main_handler.h"
+@@ -281,6 +282,10 @@
+   // in the settings page handlers' lifetime rules, and exists on this WebUI only.
+   web_ui->AddMessageHandler(
+       std::make_unique<aerie_guard::AerieGuardSettingsHandler>(profile));
++  // The "Try a title" box of the rename rules (issue #146): the same kind of
++  // plain message handler, on this WebUI only.
++  web_ui->AddMessageHandler(
++      std::make_unique<aerie_title_rules::AerieTitleRulesHandler>(profile));
+   AddSettingsPageUIHandler(std::make_unique<BraveImportDataHandler>());
+   AddSettingsPageUIHandler(std::make_unique<HatsHandler>());
+ 
+--- a/chrome/browser/ui/webui/settings/BUILD.gn
++++ b/chrome/browser/ui/webui/settings/BUILD.gn
+@@ -321,6 +321,7 @@
+     "//chrome/browser/ui/webui:webui_util",
+     "//chrome/browser/ui/webui/aerie_appearance_settings:swatches",
+     "//chrome/browser/ui/webui/aerie_guard_settings:handler",
++    "//chrome/browser/ui/webui/aerie_title_rules:handler",
+     "//chrome/browser/ui/webui/batch_upload_promo",
+     "//chrome/browser/ui/webui/cr_components/customize_color_scheme_mode",
+     "//chrome/browser/ui/webui/cr_components/theme_color_picker:impl",

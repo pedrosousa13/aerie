@@ -244,8 +244,8 @@ class NoNetworkNoStringsTest(unittest.TestCase):
                         # makes no request.
                         if include == "url/gurl.h" and path.name.startswith("pinned_tabs"):
                             continue
-                        # Auto-filing (#139) and smart folders (#140) match a page's URL against folder rules: same parse, no request.
-                        if include == "url/gurl.h" and path.name.startswith(("rule_matcher", "folder_rules", "auto_file", "smart_folder")):
+                        # Auto-filing (#139), smart folders (#140) and title rules (#146) match a page's URL: same parse, no request.
+                        if include == "url/gurl.h" and path.name.startswith(("rule_matcher", "folder_rules", "auto_file", "smart_folder", "title_resolver", "rename_rules")):
                             continue
                         # Archived addresses read from disk are checked with a GURL parse (#183): no request.
                         if include in {"url/gurl.h", "url/url_constants.h"} and path.name == "tab_model_types.cc":

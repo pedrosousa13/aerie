@@ -99,6 +99,8 @@ void AerieSidebarContextMenu::BuildTabItems() {
     root_->AppendMenuItem(Id(Command::kResetName), l10n_util::GetStringUTF16(
                                                  IDS_AERIE_SIDEBAR_RESET_NAME));
   }
+  root_->AppendMenuItem(Id(Command::kMakeRule),
+                        l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_MAKE_RULE));
   if (options_.section != Section::kFavorite &&
       (options_.new_folder.shown || options_.move_to_new_folder.shown ||
        !options_.move_targets.empty() || options_.move_out.shown)) {
@@ -244,6 +246,8 @@ bool AerieSidebarContextMenu::HasCommand(Command command) const {
       return options_.target == Target::kTab && options_.can_rename;
     case Command::kResetName:
       return options_.can_rename && options_.has_manual_name;
+    case Command::kMakeRule:
+      return options_.target == Target::kTab;
     case Command::kPin:
       return options_.section == Section::kToday;
     case Command::kUnpin:

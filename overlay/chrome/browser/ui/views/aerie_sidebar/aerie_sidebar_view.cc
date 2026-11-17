@@ -71,17 +71,21 @@
 #include "components/aerie_tab_model/tab_model.h"
 #include "components/aerie_tab_model/tab_model_prefs.h"
 #include "components/aerie_tab_model/title_resolver.h"
+#include "components/aerie_tab_model/title_settings.h"
+#include "components/aerie_tab_model/title_tidier.h"
 #include "components/constrained_window/constrained_window_views.h"
 #include "components/favicon/content/content_favicon_driver.h"
 #include "components/prefs/pref_service.h"
 #include "components/tabs/public/tab_interface.h"
 #include "components/vector_icons/vector_icons.h"
 #include "content/public/browser/web_contents.h"
+#include "net/base/url_util.h"
 #include "ui/base/base_window.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/models/dialog_model.h"
 #include "ui/base/models/image_model.h"
+#include "ui/base/window_open_disposition.h"
 #include "ui/color/color_provider_key.h"
 #include "ui/compositor/layer.h"
 #include "ui/gfx/geometry/insets.h"
@@ -99,6 +103,7 @@
 #include "ui/views/style/typography.h"
 #include "ui/views/view_class_properties.h"
 #include "ui/views/widget/widget.h"
+#include "url/gurl.h"
 
 namespace {
 
@@ -171,43 +176,113 @@ ui::ImageModel FaviconFor(tabs::TabInterface* tab, SkColor icon_color) {
                                         aerie::tokens::kSizeIcon);
 }
 
-// The precedence for the titles the sidebar shows (issue #145): the manual name
-// first, then the page title. #146 and #147 add providers to this list.
-const aerie_tab_model::TitleResolver& SharedTitleResolver() {
-  static const base::NoDestructor<aerie_tab_model::TitleResolver> resolver(
-      aerie_tab_model::TitleResolver::CreateDefault());
-  return *resolver;
-}
+// The most tabs whose resolved title is kept (issue #146).
+constexpr size_t kMaxCachedTitles = 2000;
+
+// Settings, Sidebar section, where the rename rules are edited.
+constexpr char kRuleEditorSettingsUrl[] = "chrome://settings/appearance";
 
 }  // namespace
 
-AerieSidebarView::ShownTitle AerieSidebarView::ShownTitleFor(
+const AerieSidebarView::ShownTitle& AerieSidebarView::ShownTitleFor(
     tabs::TabInterface* tab,
     const aerie_tab_model::TabRecord* record) const {
-  const std::u16string page_title = tab->GetTitle();
-  ShownTitle shown;
-  if (!record) {
-    shown.text = page_title;
-    return shown;
-  }
-  const aerie_tab_model::ResolvedTitle resolved =
-      SharedTitleResolver().ResolveTitle(*record,
-                                         base::UTF16ToUTF8(page_title));
-  if (resolved.source == aerie_tab_model::TitleSource::kPage) {
-    shown.text = page_title;
-    return shown;
-  }
-  shown.text = base::UTF8ToUTF16(resolved.text);
-  // Only a manual name has a pencil in M2; #146 and #147 give the other sources
-  // their own "original title" tooltip.
-  if (resolved.source == aerie_tab_model::TitleSource::kManual) {
-    shown.renamed = true;
-    shown.tooltip =
-        l10n_util::GetStringFUTF16(IDS_AERIE_SIDEBAR_RENAMED_TOOLTIP,
-                                   page_title) +
+  // A tab with a manual name needs neither the rules nor the tidy: answer
+  // before anything is converted, built or looked up (issue #146).
+  if (record && record->manual_name) {
+    const std::u16string page_title = tab->GetTitle();
+    manual_title_ = ShownTitle();
+    manual_title_.text = base::UTF8ToUTF16(*record->manual_name);
+    manual_title_.source = aerie_tab_model::TitleSource::kManual;
+    manual_title_.renamed = true;
+    manual_title_.tooltip =
+        l10n_util::GetStringFUTF16(
+            IDS_AERIE_SIDEBAR_RENAMED_TOOLTIP,
+            std::u16string(aerie_tab_model::BoundTitleUtf16(page_title))) +
         u"\n" + l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_RENAMED_PRECEDENCE);
+    return manual_title_;
+  }
+  const std::u16string page_title = tab->GetTitle();
+  if (!record) {
+    plain_title_ = ShownTitle();
+    plain_title_.text = page_title;
+    return plain_title_;
+  }
+  // Resolve only when something the answer depends on changed: the page title,
+  // the address. The settings drop the cache. A hit compares what is already
+  // held and builds nothing.
+  static const GURL kNoUrl;
+  const GURL& url = tab->GetContents()
+                        ? tab->GetContents()->GetLastCommittedURL()
+                        : kNoUrl;
+  auto cached = title_cache_.find(record->id);
+  if (cached == title_cache_.end() ||
+      cached->second.key !=
+          aerie_tab_model::BoundTitleUtf16(page_title) ||
+      cached->second.url != url) {
+    if (title_cache_.size() >= kMaxCachedTitles) {
+      title_cache_.clear();
+    }
+    CachedTitle entry;
+    entry.key = std::u16string(aerie_tab_model::BoundTitleUtf16(page_title));
+    entry.url = url;
+    const std::string utf8 = base::UTF16ToUTF8(page_title);
+    const aerie_tab_model::ResolvedTitle resolved =
+        title_resolver_.ResolveTitle(*record, utf8, url);
+    // What the tooltip calls the original is cut at the bound too.
+    const std::u16string original(
+        aerie_tab_model::BoundTitleUtf16(page_title));
+    ShownTitle& shown = entry.shown;
+    shown.source = resolved.source;
+    if (resolved.source == aerie_tab_model::TitleSource::kRule) {
+      // The rule's name; a rule with no name shows what it matches.
+      shown.text = base::UTF8ToUTF16(resolved.text);
+      shown.note = l10n_util::GetStringFUTF16(
+          IDS_AERIE_SIDEBAR_RULE_RENAMED_TOOLTIP,
+          base::UTF8ToUTF16(resolved.detail), original);
+    } else if (resolved.source == aerie_tab_model::TitleSource::kTidy) {
+      shown.text = base::UTF8ToUTF16(resolved.text);
+      shown.note = l10n_util::GetStringFUTF16(IDS_AERIE_SIDEBAR_TIDIED_TOOLTIP,
+                                              original);
+    }
+    cached = title_cache_.insert_or_assign(record->id, std::move(entry)).first;
+  }
+  ShownTitle& shown = cached->second.shown;
+  if (shown.source == aerie_tab_model::TitleSource::kPage &&
+      shown.text != page_title) {
+    // The page title itself is shown whole; it is only copied when it differs.
+    shown.text = page_title;
   }
   return shown;
+}
+
+void AerieSidebarView::OnTitleSettingsChanged() {
+  title_settings_ =
+      aerie_tab_model::GetTitleSettings(*browser_->GetProfile()->GetPrefs());
+  title_cache_.clear();
+  UpdateRows();
+}
+
+void AerieSidebarView::MakeRuleFromTab(const std::string& tab_id) {
+  tabs::TabInterface* tab = FindTab(tab_id);
+  if (!tab) {
+    return;
+  }
+  // The editor opens in Settings with the tab's host and title filled in. Both
+  // come from a page, so they travel as query values (escaped) and the page
+  // only ever sets them as the text of two fields.
+  const GURL page_url =
+      tab->GetContents() ? tab->GetContents()->GetLastCommittedURL() : GURL();
+  const std::u16string title =
+      aerie_tab_model::CutToManualNameLength(tab->GetTitle());
+  const bool has_host = page_url.is_valid() && page_url.has_host();
+  GURL settings(kRuleEditorSettingsUrl);
+  settings = net::AppendQueryParameter(
+      settings, "aerieRuleHost",
+      has_host ? std::string(page_url.host()) : std::string());
+  settings = net::AppendQueryParameter(settings, "aerieRuleTitle",
+                                       base::UTF16ToUTF8(title));
+  browser_->OpenGURL(settings, WindowOpenDisposition::NEW_FOREGROUND_TAB);
 }
 
 // The Favorites and Pinned lists tell the view that they changed; the view
@@ -226,7 +301,10 @@ class AerieSidebarView::SectionNotifier
 
 AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
                                    base::RepeatingClosure new_tab)
-    : browser_(browser), new_tab_(std::move(new_tab)) {
+    : browser_(browser),
+      new_tab_(std::move(new_tab)),
+      title_resolver_(
+          aerie_tab_model::TitleResolver::CreateDefault(&title_settings_)) {
   if (auto* service = aerie_tab_model::TabModelServiceFactory::GetForProfile(
           browser_->GetProfile())) {
     model_ = service->model();
@@ -475,6 +553,17 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
       aerie_tab_model::kFolderRulesEnabled,
       base::BindRepeating(&AerieSidebarView::ScheduleSync,
                           base::Unretained(this)));
+
+  // The tidy switches and the rename rules (issue #146).
+  title_settings_ =
+      aerie_tab_model::GetTitleSettings(*browser_->GetProfile()->GetPrefs());
+  for (const char* pref :
+       {aerie_tab_model::kTidyTitles, aerie_tab_model::kTidyOffSites,
+        aerie_tab_model::kRenameRulesEnabled, aerie_tab_model::kRenameRules}) {
+    pref_registrar_.Add(
+        pref, base::BindRepeating(&AerieSidebarView::OnTitleSettingsChanged,
+                                  base::Unretained(this)));
+  }
   // Density, side and the dock state (issue #184). The peek driver exists from
   // the start and does nothing until the sidebar is auto-hidden.
   peek_ = std::make_unique<AerieSidebarPeekDriver>(this);
@@ -2054,8 +2143,9 @@ void AerieSidebarView::UpdateRowTitle(
     const Row& row,
     tabs::TabInterface* tab,
     const aerie_tab_model::TabRecord* record) {
-  const ShownTitle shown = ShownTitleFor(tab, record);
+  const ShownTitle& shown = ShownTitleFor(tab, record);
   row.view->SetTitle(shown.text);
+  row.view->SetTitleNote(shown.note);
   row.view->SetRenamed(shown.renamed, shown.tooltip,
                        browser_->GetProfile()->GetPrefs());
 }
@@ -2064,7 +2154,7 @@ void AerieSidebarView::UpdateTileTitle(
     const Tile& tile,
     tabs::TabInterface* tab,
     const aerie_tab_model::TabRecord* record) {
-  const ShownTitle shown = ShownTitleFor(tab, record);
+  const ShownTitle& shown = ShownTitleFor(tab, record);
   tile.view->SetTitle(shown.text);
   tile.view->SetRenamed(shown.renamed, shown.tooltip);
 }
@@ -2719,6 +2809,9 @@ void AerieSidebarView::OnContextCommand(
     case AerieSidebarContextMenu::Command::kResetName:
       ResetName(tab_id);
       break;
+    case AerieSidebarContextMenu::Command::kMakeRule:
+      MakeRuleFromTab(tab_id);
+      break;
     case AerieSidebarContextMenu::Command::kNewFolder: {
       const aerie_tab_model::TabRecord* record =
           model_ ? model_->GetTab(tab_id) : nullptr;
@@ -2779,7 +2872,13 @@ bool AerieSidebarView::StartRename(const std::string& tab_id) {
   }
   const PrefService* prefs = browser_->GetProfile()->GetPrefs();
   // The field opens with what the row shows: the name, or the page title.
-  const std::u16string initial = ShownTitleFor(tab, record).text;
+  // A tidied or rule-renamed title is not a name of the user's: the field
+  // starts from the page title then, so Enter on it changes nothing.
+  const ShownTitle& shown_title = ShownTitleFor(tab, record);
+  const std::u16string initial =
+      shown_title.source == aerie_tab_model::TitleSource::kManual
+          ? shown_title.text
+          : tab->GetTitle();
   if (AerieSidebarRowView* row = RowForId(tab_id)) {
     row->BeginRename(initial, prefs);
     return row->renaming();

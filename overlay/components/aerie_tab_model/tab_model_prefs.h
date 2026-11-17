@@ -9,6 +9,7 @@
 #include <string_view>
 
 #include "base/time/time.h"
+#include "components/aerie_tab_model/title_settings.h"
 
 class PrefRegistrySimple;
 class PrefService;
@@ -41,6 +42,17 @@ inline constexpr char kPinnedCloseClose[] = "close";
 // default. Mirrored in the footer of the folder editor sheet and in Settings,
 // Sidebar. Also a settings_private allowlist literal (patches/sidebar/0038).
 inline constexpr char kFolderRulesEnabled[] = "aerie.folders.rules_enabled";
+
+// The titles of the sidebar (issue #146). `kTidyTitles` is the global switch of
+// the built-in tidy (on by default); `kTidyOffSites` lists hosts where it is off;
+// `kRenameRulesEnabled` is the "All rules" switch; `kRenameRules` is the ordered
+// list of rename rules (rename_rules.h). Profile prefs, and settings_private
+// allowlist literals (patches/sidebar/0050). Whatever they hold is read through
+// GetTitleSettings, which checks it.
+inline constexpr char kTidyTitles[] = "aerie.tabs.tidy_titles";
+inline constexpr char kTidyOffSites[] = "aerie.tabs.tidy_off_sites";
+inline constexpr char kRenameRulesEnabled[] = "aerie.tabs.rename_rules_enabled";
+inline constexpr char kRenameRules[] = "aerie.tabs.rename_rules";
 
 inline constexpr char kDefaultArchiveAfter[] = "12h";
 inline constexpr char kDefaultArchiveKeep[] = "30d";
@@ -81,6 +93,9 @@ std::optional<base::TimeDelta> GetSleepAfter(const PrefService& prefs);
 
 // The global folder-rules switch.
 bool AreFolderRulesEnabled(const PrefService& prefs);
+
+// The tidy switches and the rename rules, checked (rename_rules.h).
+TitleSettings GetTitleSettings(const PrefService& prefs);
 
 }  // namespace aerie_tab_model
 

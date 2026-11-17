@@ -34,6 +34,8 @@
 #include "components/aerie_tab_model/smart_folder.h"
 #include "components/aerie_tab_model/auto_file_controller.h"
 #include "components/aerie_tab_model/tab_model_observer.h"
+#include "components/aerie_tab_model/title_resolver.h"
+#include "components/aerie_tab_model/title_settings.h"
 #include "components/prefs/pref_change_registrar.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/mojom/menu_source_type.mojom-forward.h"
@@ -380,9 +382,16 @@ class AerieSidebarView : public views::View,
     bool renamed = false;
     // The pencil's tooltip; empty unless renamed.
     std::u16string tooltip;
+    // Where the text came from (issue #146).
+    aerie_tab_model::TitleSource source = aerie_tab_model::TitleSource::kPage;
+    // The row's tooltip for a title that a rule or the tidy changed: "Tidied,
+    // original: ..." or "Renamed by rule X, original: ...". Empty otherwise.
+    std::u16string note;
   };
-  ShownTitle ShownTitleFor(tabs::TabInterface* tab,
-                           const aerie_tab_model::TabRecord* record) const;
+  // The result lives until the next call; read it at once.
+  const ShownTitle& ShownTitleFor(
+      tabs::TabInterface* tab,
+      const aerie_tab_model::TabRecord* record) const;
   void OnTilePopoverDone(const std::string& tab_id,
                          std::optional<std::u16string> text,
                          bool refocus_anchor);
@@ -442,6 +451,12 @@ class AerieSidebarView : public views::View,
   // change, and several changes make one sync.
   void ScheduleSync();
   void UpdateRows();
+  // The tidy and rename-rule prefs changed (issue #146): read them again and
+  // show the titles again.
+  void OnTitleSettingsChanged();
+  // Opens Settings, Sidebar with the rule editor filled in from this tab
+  // ("Make a rename rule from this tab...").
+  void MakeRuleFromTab(const std::string& tab_id);
   void UpdateRow(const Row& row);
   void UpdateTile(const Tile& tile);
   // Only the title and the pencil of a row or tile (a manual name changed).
@@ -683,6 +698,26 @@ class AerieSidebarView : public views::View,
   base::OneShotTimer toast_timer_;
   aerie::motion::MotionHandle toast_motion_;
   PrefChangeRegistrar pref_registrar_;
+  // The tidy switches and the rename rules (issue #146), read from the prefs
+  // and read again when one changes. `title_resolver_` holds a pointer to
+  // `title_settings_`, so the settings are declared first.
+  aerie_tab_model::TitleSettings title_settings_;
+  aerie_tab_model::TitleResolver title_resolver_;
+  // What was resolved for each tab, so that a sync that changes neither the
+  // page title, the address, the manual name nor the settings does not resolve
+  // again. Dropped whole when the settings change or it grows past a bound.
+  struct CachedTitle {
+    // The part of the page title that the answer depends on (cut as the
+    // resolver cuts it), and the address.
+    std::u16string key;
+    GURL url;
+    ShownTitle shown;
+  };
+  mutable std::map<std::string, CachedTitle> title_cache_;
+  // Answers that are not cached: a tab with a manual name, and a tab with no
+  // record.
+  mutable ShownTitle manual_title_;
+  mutable ShownTitle plain_title_;
   // A tab changed section: the next sync plays the FLIP motion for it.
   bool flip_pending_ = false;
   std::map<std::string, gfx::Point> flip_before_;
