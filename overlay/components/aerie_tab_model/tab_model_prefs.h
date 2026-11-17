@@ -9,6 +9,7 @@
 #include <string_view>
 
 #include "base/time/time.h"
+#include "components/aerie_tab_model/title_settings.h"
 
 class PrefRegistrySimple;
 class PrefService;
@@ -19,6 +20,10 @@ namespace aerie_tab_model {
 // "7d" or "never". A profile pref. The names are also string literals in the
 // settings_private allowlist (patches/sidebar/0010), and a test compares them.
 inline constexpr char kArchiveAfter[] = "aerie.tabs.archive_after";
+// How long the Archive keeps an archived tab (issue #183): "7d", "30d"
+// (default), "90d" or "forever". A profile pref. Also a settings_private
+// allowlist literal (patches/sidebar/0049).
+inline constexpr char kArchiveKeep[] = "aerie.tabs.archive_keep";
 // Minutes of idle time before a tab sleeps: 15 to 480, or 0 for never. Default
 // 60.
 inline constexpr char kSleepAfterMinutes[] = "aerie.tabs.sleep_after_minutes";
@@ -38,7 +43,19 @@ inline constexpr char kPinnedCloseClose[] = "close";
 // Sidebar. Also a settings_private allowlist literal (patches/sidebar/0038).
 inline constexpr char kFolderRulesEnabled[] = "aerie.folders.rules_enabled";
 
+// The titles of the sidebar (issue #146). `kTidyTitles` is the global switch of
+// the built-in tidy (on by default); `kTidyOffSites` lists hosts where it is off;
+// `kRenameRulesEnabled` is the "All rules" switch; `kRenameRules` is the ordered
+// list of rename rules (rename_rules.h). Profile prefs, and settings_private
+// allowlist literals (patches/sidebar/0050). Whatever they hold is read through
+// GetTitleSettings, which checks it.
+inline constexpr char kTidyTitles[] = "aerie.tabs.tidy_titles";
+inline constexpr char kTidyOffSites[] = "aerie.tabs.tidy_off_sites";
+inline constexpr char kRenameRulesEnabled[] = "aerie.tabs.rename_rules_enabled";
+inline constexpr char kRenameRules[] = "aerie.tabs.rename_rules";
+
 inline constexpr char kDefaultArchiveAfter[] = "12h";
+inline constexpr char kDefaultArchiveKeep[] = "30d";
 inline constexpr char kDefaultPinnedClose[] = "reset-sleep-switch";
 inline constexpr int kDefaultSleepAfterMinutes = 60;
 inline constexpr int kMinSleepAfterMinutes = 15;
@@ -51,16 +68,34 @@ void RegisterProfilePrefs(PrefRegistrySimple* registry);
 // one of the four falls back to the default of 12 hours.
 std::optional<base::TimeDelta> ParseArchiveAfter(std::string_view value);
 
+// The values `aerie.tabs.archive_after` can hold, in the order the Archive
+// panel's menu shows them, and the delay each one means (0 is never). One table
+// for the parser and the panel, so they cannot drift apart.
+struct ArchiveAfterOption {
+  const char* value;
+  int hours;
+};
+inline constexpr ArchiveAfterOption kArchiveAfterOptions[] = {
+    {"12h", 12}, {"24h", 24}, {"7d", 7 * 24}, {"never", 0}};
+
+// How long archived records are kept for a pref value. nullopt means for ever.
+// A value that is not one of the four falls back to 30 days.
+std::optional<base::TimeDelta> ParseArchiveKeep(std::string_view value);
+
 // The sleep delay for a pref value. nullopt means never (0). Other values are
 // clamped to 15 minutes to 8 hours; a negative one means the default.
 std::optional<base::TimeDelta> SleepAfterFromMinutes(int minutes);
 
 // The same, read from the prefs.
 std::optional<base::TimeDelta> GetArchiveAfter(const PrefService& prefs);
+std::optional<base::TimeDelta> GetArchiveKeep(const PrefService& prefs);
 std::optional<base::TimeDelta> GetSleepAfter(const PrefService& prefs);
 
 // The global folder-rules switch.
 bool AreFolderRulesEnabled(const PrefService& prefs);
+
+// The tidy switches and the rename rules, checked (rename_rules.h).
+TitleSettings GetTitleSettings(const PrefService& prefs);
 
 }  // namespace aerie_tab_model
 

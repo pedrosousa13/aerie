@@ -14,6 +14,12 @@ source_set("aerie_sidebar") {
     "//chrome/browser/ui/views/frame:*",
   ]
   sources = [
+    "aerie_sidebar_archive_button.cc",
+    "aerie_sidebar_archive_controller.cc",
+    "aerie_sidebar_archive_controller.h",
+    "aerie_sidebar_archive_button.h",
+    "aerie_sidebar_archive_panel.cc",
+    "aerie_sidebar_archive_panel.h",
     "aerie_sidebar_context_menu.cc",
     "aerie_sidebar_context_menu.h",
     "aerie_sidebar_drag_controller.cc",
@@ -100,11 +106,13 @@ source_set("aerie_sidebar") {
     "//components/aerie_sidebar:motion",
     "//components/aerie_sidebar:peek",
     "//components/aerie_sidebar:prefs",
+    "//components/aerie_tab_model:prefs",
     "//components/favicon/content",
     "//components/prefs",
     "//components/tabs:public",
     "//components/vector_icons",
     "//content/public/browser",
+    "//net",
     "//ui/color",
     "//ui/compositor",
     "//ui/gfx",
@@ -119,6 +127,7 @@ source_set("browser_tests") {
   # content/public/test/browser_test.h refuses to compile without it.
   defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
   sources = [
+    "aerie_sidebar_archive_browsertest.cc",
     "aerie_sidebar_autofile_browsertest.cc",
     "aerie_sidebar_browsertest.cc",
     "aerie_sidebar_density_browsertest.cc",
@@ -128,6 +137,7 @@ source_set("browser_tests") {
     "aerie_sidebar_rename_browsertest.cc",
     "aerie_sidebar_sleep_browsertest.cc",
     "aerie_sidebar_smart_browsertest.cc",
+    "aerie_sidebar_title_browsertest.cc",
   ]
   deps = [
     ":aerie_sidebar",
@@ -152,6 +162,7 @@ source_set("browser_tests") {
     "//components/aerie_sidebar:palette",
     "//components/aerie_sidebar:prefs",
     "//components/aerie_tab_model",
+    "//components/aerie_tab_model:prefs",
     "//components/history/core/browser",
     "//components/prefs",
     "//content/test:test_support",
@@ -175,6 +186,7 @@ source_set("interactive_tests") {
   # content/public/test/browser_test.h refuses to compile without it.
   defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
   sources = [
+    "aerie_sidebar_archive_uitest.cc",
     "aerie_sidebar_autofile_uitest.cc",
     "aerie_sidebar_drag_uitest.cc",
     "aerie_sidebar_guard_uitest.cc",

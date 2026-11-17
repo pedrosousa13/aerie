@@ -263,3 +263,42 @@ TEST(FindMatchingRuleTest, ATitleRuleStillMatchesWhenTheUrlIsEmpty) {
 }
 
 }  // namespace aerie_tab_model
+
+namespace aerie_tab_model {
+
+// The same page asked through a MatchInput (issue #146: the rename rules fold the
+// page once and ask every rule) answers as the one-shot call does.
+TEST(RuleMatcherTest, AMatchInputAnswersAsTheDirectCallDoes) {
+  const GURL url("https://News.Example.com/Path/Page?x=1");
+  const std::string title = "Breaking NEWS today";
+  const MatchInput input(url, title);
+  for (const Rule& rule :
+       {MakeRule(RuleType::kDomain, "example.com"),
+        MakeRule(RuleType::kDomain, "other.com"),
+        MakeRule(RuleType::kUrlStartsWith, "news.example.com/path"),
+        MakeRule(RuleType::kUrlStartsWith, "https://news.example.com"),
+        MakeRule(RuleType::kUrlStartsWith, "news.example"),
+        MakeRule(RuleType::kUrlContains, "/PAGE?"),
+        MakeRule(RuleType::kUrlContains, "nowhere"),
+        MakeRule(RuleType::kTitleContains, "breaking news"),
+        MakeRule(RuleType::kTitleContains, "weather")}) {
+    EXPECT_EQ(Matches(rule, input), Matches(rule, url, title))
+        << rule.value;
+  }
+}
+
+TEST(RuleMatcherTest, ANonAsciiTitleStillMatchesIgnoringCase) {
+  const GURL url("https://example.com/");
+  const MatchInput input(url, "\xC3\x9C" "ber uns");  // "Uber uns" with umlaut
+  EXPECT_TRUE(
+      Matches(MakeRule(RuleType::kTitleContains, "\xC3\xBC" "ber"), input));
+}
+
+TEST(RuleMatcherTest, AnInvalidAddressMatchesNoUrlRuleButATitleRuleMatches) {
+  const MatchInput input(GURL(), "Hello world");
+  EXPECT_FALSE(Matches(MakeRule(RuleType::kDomain, "example.com"), input));
+  EXPECT_FALSE(Matches(MakeRule(RuleType::kUrlContains, "example"), input));
+  EXPECT_TRUE(Matches(MakeRule(RuleType::kTitleContains, "hello"), input));
+}
+
+}  // namespace aerie_tab_model

@@ -64,6 +64,9 @@ class AerieSidebarContextMenu : public views::MenuDelegate {
     // menu of a tab that a rule filed can stop that rule matching it.
     kEditFolder = 16,
     kStopRuleMatching = 17,
+    // "Make a rename rule from this tab...": opens Settings, Sidebar with the
+    // rule editor filled in from the tab (issue #146).
+    kMakeRule = 18,
     kMoveToFolderBase = 100,
   };
 

@@ -14,6 +14,8 @@
 #include <vector>
 
 #include "components/aerie_tab_model/tab_model_types.h"
+#include "components/aerie_tab_model/title_settings.h"
+#include "url/gurl.h"
 
 // Which title the sidebar shows for a tab (issue #145, docs/sidebar-design.md,
 // "Tab rename and title precedence"). Only the sidebar uses it: the page's
@@ -27,14 +29,29 @@ class TabModel;
 inline constexpr size_t kMaxManualNameLength = 200;
 
 // The sources of a title, in the order of the design's precedence table (first
-// match wins). M2 has `manual` and `page`; #146 adds `rule` and `tidy`, #147
-// adds `ai`. The names are listed now so that a provider for them only has to
-// be added to the list.
+// match wins). `manual`, `rule`, `tidy` and `page` have providers; `ai` (#147)
+// is named so that its provider only has to be added to the list.
 enum class TitleSource { kManual, kRule, kTidy, kAi, kPage };
 
 struct ResolvedTitle {
   std::string text;
   TitleSource source = TitleSource::kPage;
+  // The name of the rule that renamed the tab, for the tooltip. Empty for every
+  // other source.
+  std::string detail;
+};
+
+// What a provider reads: the tab's record, and the page's title and address.
+// Nothing else, so a provider cannot reach the page.
+struct TitleInput {
+  const TabRecord& record;
+  std::string_view page_title;
+  const GURL& url;
+};
+
+struct ProvidedTitle {
+  std::string text;
+  std::string detail;
 };
 
 // One source of titles. Returns nothing (or an empty string) when it has no
@@ -43,13 +60,10 @@ class TitleProvider {
  public:
   virtual ~TitleProvider() = default;
   virtual TitleSource source() const = 0;
-  virtual std::optional<std::string> Provide(
-      const TabRecord& record,
-      std::string_view page_title) const = 0;
+  virtual std::optional<ProvidedTitle> Provide(const TitleInput& input) const = 0;
 };
 
-// An ordered list of providers. #146 only adds entries to the default list;
-// nothing here changes for it.
+// An ordered list of providers; the default list is built by CreateDefault.
 class TitleResolver {
  public:
   explicit TitleResolver(std::vector<std::unique_ptr<TitleProvider>> providers);
@@ -57,12 +71,19 @@ class TitleResolver {
   TitleResolver& operator=(TitleResolver&&);
   ~TitleResolver();
 
-  // The M2 list: the manual name, then the page title.
-  static TitleResolver CreateDefault();
+  // The list: the manual name, the rename rules, the built-in tidy, then the
+  // page title. The rule and tidy providers read `settings` on every call, so
+  // the caller keeps it alive and changes it in place. With null settings
+  // (and in tests that only need the M2 behaviour) they are left out.
+  static TitleResolver CreateDefault(const TitleSettings* settings = nullptr);
 
   // The first provider with a title wins. When none has one, the page title.
+  // Without an address the rules that look at the address do not match.
   ResolvedTitle ResolveTitle(const TabRecord& record,
                              std::string_view page_title) const;
+  ResolvedTitle ResolveTitle(const TabRecord& record,
+                             std::string_view page_title,
+                             const GURL& url) const;
 
   // The sources of the providers, in order, for tests.
   std::vector<TitleSource> provider_sources() const;

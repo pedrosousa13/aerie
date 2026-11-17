@@ -10,6 +10,10 @@ import("//testing/test.gni")
 # //chrome/browser/aerie_tab_model.
 source_set("aerie_tab_model") {
   sources = [
+    "archive.cc",
+    "archive.h",
+    "archive_schedule.cc",
+    "archive_schedule.h",
     "auto_file_controller.cc",
     "auto_file_controller.h",
     "folder_rules.cc",
@@ -20,6 +24,8 @@ source_set("aerie_tab_model") {
     "pinned_tabs.h",
     "sleep_schedule.cc",
     "sleep_schedule.h",
+    "rename_rules.cc",
+    "rename_rules.h",
     "rule_matcher.cc",
     "rule_matcher.h",
     "session_record_id.cc",
@@ -37,6 +43,10 @@ source_set("aerie_tab_model") {
     "tab_model_types.h",
     "title_resolver.cc",
     "title_resolver.h",
+    "title_settings.cc",
+    "title_settings.h",
+    "title_tidier.cc",
+    "title_tidier.h",
   ]
   deps = [ "//components/aerie_design_tokens:tokens" ]
   public_deps = [
@@ -54,6 +64,7 @@ source_set("prefs") {
     "tab_model_prefs.h",
   ]
   public_deps = [
+    ":aerie_tab_model",
     "//base",
     "//components/prefs",
   ]
@@ -62,10 +73,13 @@ source_set("prefs") {
 source_set("unit_tests") {
   testonly = true
   sources = [
+    "archive_schedule_unittest.cc",
+    "archive_unittest.cc",
     "auto_file_controller_unittest.cc",
     "folder_rules_unittest.cc",
     "folder_tree_unittest.cc",
     "pinned_tabs_unittest.cc",
+    "rename_rules_unittest.cc",
     "rule_matcher_unittest.cc",
     "session_record_id_unittest.cc",
     "sleep_schedule_unittest.cc",
@@ -75,6 +89,7 @@ source_set("unit_tests") {
     "tab_model_prefs_unittest.cc",
     "tab_model_unittest.cc",
     "title_resolver_unittest.cc",
+    "title_tidier_unittest.cc",
   ]
   deps = [
     ":aerie_tab_model",

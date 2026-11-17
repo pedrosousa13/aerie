@@ -19,6 +19,7 @@
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_frame_start.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_context_menu.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_archive_controller.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_controller.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_regions.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_row_entry.h"
@@ -34,6 +35,8 @@
 #include "components/aerie_tab_model/smart_folder.h"
 #include "components/aerie_tab_model/auto_file_controller.h"
 #include "components/aerie_tab_model/tab_model_observer.h"
+#include "components/aerie_tab_model/title_resolver.h"
+#include "components/aerie_tab_model/title_settings.h"
 #include "components/prefs/pref_change_registrar.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/mojom/menu_source_type.mojom-forward.h"
@@ -101,7 +104,8 @@ class AerieSidebarView : public views::View,
                          public aerie_tab_model::AutoFileController::Observer,
                          public aerie_sidebar::TodayList::Delegate,
                          public views::ContextMenuController,
-                         private AerieSidebarFolderController::Host {
+                         private AerieSidebarFolderController::Host,
+                         private AerieSidebarArchiveController::ViewHost {
   METADATA_HEADER(AerieSidebarView, views::View)
 
  public:
@@ -133,6 +137,11 @@ class AerieSidebarView : public views::View,
   AerieSidebarTopRow* top_row() const { return top_row_; }
   views::View* address_pill() const { return pill_; }
   views::View* bottom_bar() const { return bottom_bar_; }
+  AerieSidebarArchiveButton* archive_button() const { return archive_button_; }
+  // Where a restored row lands: the first Today row or, with none, one row of
+  // the current density at the top of the list.
+  gfx::Rect TodayTopSlotForTesting() const;
+  AerieSidebarArchiveController* archive() const { return archive_.get(); }
 
   // F6 (issue #215): the regions of the sidebar that hold keyboard focus, in
   // focus order: the top row, the address pill, the Today tree and, last, what
@@ -381,9 +390,16 @@ class AerieSidebarView : public views::View,
     bool renamed = false;
     // The pencil's tooltip; empty unless renamed.
     std::u16string tooltip;
+    // Where the text came from (issue #146).
+    aerie_tab_model::TitleSource source = aerie_tab_model::TitleSource::kPage;
+    // The row's tooltip for a title that a rule or the tidy changed: "Tidied,
+    // original: ..." or "Renamed by rule X, original: ...". Empty otherwise.
+    std::u16string note;
   };
-  ShownTitle ShownTitleFor(tabs::TabInterface* tab,
-                           const aerie_tab_model::TabRecord* record) const;
+  // The result lives until the next call; read it at once.
+  const ShownTitle& ShownTitleFor(
+      tabs::TabInterface* tab,
+      const aerie_tab_model::TabRecord* record) const;
   void OnTilePopoverDone(const std::string& tab_id,
                          std::optional<std::u16string> text,
                          bool refocus_anchor);
@@ -443,6 +459,12 @@ class AerieSidebarView : public views::View,
   // change, and several changes make one sync.
   void ScheduleSync();
   void UpdateRows();
+  // The tidy and rename-rule prefs changed (issue #146): read them again and
+  // show the titles again.
+  void OnTitleSettingsChanged();
+  // Opens Settings, Sidebar with the rule editor filled in from this tab
+  // ("Make a rename rule from this tab...").
+  void MakeRuleFromTab(const std::string& tab_id);
   void UpdateRow(const Row& row);
   void UpdateTile(const Tile& tile);
   // Only the title and the pencil of a row or tile (a manual name changed).
@@ -474,6 +496,20 @@ class AerieSidebarView : public views::View,
                       const std::string& id) const override;
   bool IsTreeRow(const AerieSidebarRowView* row) const override;
   const PrefService* GetPrefs() const override;
+
+  // AerieSidebarArchiveController::ViewHost.
+  views::View* SidebarView() override;
+  AerieSidebarArchiveButton* ArchiveButton() override;
+  const aerie_sidebar::SidebarPalette& Palette() const override;
+  bool Dark() const override;
+  PrefService* Prefs() const override;
+  BrowserWindowInterface* Browser() const override;
+  aerie_tab_model::TabModel* Model() const override;
+  bool CanAnimate() const override;
+  std::optional<AerieSidebarDragContent> RowContent(
+      const std::string& id) const override;
+  std::optional<gfx::Rect> RowBounds(const std::string& id) const override;
+  gfx::Rect TodayTopSlot() const override;
   void OnCollapsedRowsRemoved() override;
   // Whether the rows of a section differ from what the Tab Model wants.
   bool TreeChanged(const std::vector<aerie_tab_model::TreeRow>& wanted,
@@ -608,6 +644,8 @@ class AerieSidebarView : public views::View,
   aerie_sidebar::ScopedBusy resize_hold_;
   std::u16string new_tab_label_;
   raw_ptr<views::View> bottom_bar_ = nullptr;
+  raw_ptr<AerieSidebarArchiveButton> archive_button_ = nullptr;
+  std::unique_ptr<AerieSidebarArchiveController> archive_;
   // The toolbar and its parts that moved in. They go back to the toolbar when
   // the sidebar goes, so that the toolbar never points at a view that is gone.
   raw_ptr<views::View> adopted_toolbar_ = nullptr;
@@ -671,6 +709,26 @@ class AerieSidebarView : public views::View,
   base::OneShotTimer toast_timer_;
   aerie::motion::MotionHandle toast_motion_;
   PrefChangeRegistrar pref_registrar_;
+  // The tidy switches and the rename rules (issue #146), read from the prefs
+  // and read again when one changes. `title_resolver_` holds a pointer to
+  // `title_settings_`, so the settings are declared first.
+  aerie_tab_model::TitleSettings title_settings_;
+  aerie_tab_model::TitleResolver title_resolver_;
+  // What was resolved for each tab, so that a sync that changes neither the
+  // page title, the address, the manual name nor the settings does not resolve
+  // again. Dropped whole when the settings change or it grows past a bound.
+  struct CachedTitle {
+    // The part of the page title that the answer depends on (cut as the
+    // resolver cuts it), and the address.
+    std::u16string key;
+    GURL url;
+    ShownTitle shown;
+  };
+  mutable std::map<std::string, CachedTitle> title_cache_;
+  // Answers that are not cached: a tab with a manual name, and a tab with no
+  // record.
+  mutable ShownTitle manual_title_;
+  mutable ShownTitle plain_title_;
   // A tab changed section: the next sync plays the FLIP motion for it.
   bool flip_pending_ = false;
   std::map<std::string, gfx::Point> flip_before_;

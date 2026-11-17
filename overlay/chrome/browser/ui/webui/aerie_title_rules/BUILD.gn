@@ -1,0 +1,26 @@
+# Copyright 2026 The Aerie Authors
+# You can use, redistribute, and/or modify this source code under
+# the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+# The message handler of the "Try a title" box of the rename rules (issue #146)
+# in the Sidebar section of Settings. SettingsUI adds the handler
+# (patches/sidebar/0050). The page is
+# chrome/browser/resources/settings/appearance_page/aerie_title_rules_row.*.
+source_set("handler") {
+  visibility = [ "//chrome/browser/ui/webui/settings:*" ]
+  sources = [
+    "aerie_title_rules_handler.cc",
+    "aerie_title_rules_handler.h",
+  ]
+  public_deps = [
+    "//base",
+    "//content/public/browser",
+  ]
+  deps = [
+    "//chrome/browser/profiles:profile",
+    "//components/aerie_tab_model",
+    "//components/aerie_tab_model:prefs",
+    "//components/prefs",
+    "//url",
+  ]
+}
