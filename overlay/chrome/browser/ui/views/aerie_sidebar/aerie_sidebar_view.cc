@@ -917,6 +917,21 @@ void AerieSidebarView::AdoptToolbar(const AerieSidebarToolbarParts& parts) {
   CHECK(!adopted_toolbar_);
   CHECK(parts.toolbar);
   adopted_toolbar_ = parts.toolbar;
+  // Where everything was, before the first part leaves (issue #186).
+  adopted_part_indices_.clear();
+  for (views::View* part : {parts.back.get(), parts.forward.get(),
+                            parts.reload.get(), parts.location_bar.get()}) {
+    if (part && part->parent()) {
+      adopted_parts_.push_back(part);
+      adopted_part_indices_.push_back(
+          part->parent()->GetIndexOf(part).value_or(0));
+    }
+  }
+  if (views::View* old_parent = parts.toolbar->parent()) {
+    toolbar_origin_parent_ = old_parent;
+    toolbar_origin_index_ = old_parent->GetIndexOf(parts.toolbar).value_or(0);
+  }
+  adopted_parts_.clear();
   for (views::View* part :
        {parts.back.get(), parts.forward.get(), parts.reload.get()}) {
     if (part && part->parent()) {
@@ -938,6 +953,48 @@ void AerieSidebarView::AdoptToolbar(const AerieSidebarToolbarParts& parts) {
   parts.toolbar->SetBackground(nullptr);
   UpdateRail(sizes_.icons_only);
   InvalidateLayout();
+}
+
+bool AerieSidebarView::ReleaseToolbar() {
+  if (!adopted_toolbar_) {
+    return false;
+  }
+  views::View* const toolbar = adopted_toolbar_;
+  // The parts first, lowest index first, so that each lands where it was.
+  std::vector<std::pair<size_t, views::View*>> parts;
+  for (size_t i = 0; i < adopted_parts_.size(); ++i) {
+    if (adopted_parts_[i]) {
+      parts.emplace_back(adopted_part_indices_[i], adopted_parts_[i]);
+    }
+  }
+  std::sort(parts.begin(), parts.end());
+  for (const auto& [index, part] : parts) {
+    if (part->parent() && part->parent() != toolbar) {
+      std::unique_ptr<views::View> owned =
+          part->parent()->RemoveChildViewT(part);
+      toolbar->AddChildViewAt(std::move(owned),
+                              std::min(index, toolbar->children().size()));
+    }
+    part->SetVisible(true);
+  }
+  location_bar_ = nullptr;
+  adopted_parts_.clear();
+  adopted_part_indices_.clear();
+  adopted_toolbar_ = nullptr;
+  // The toolbar goes back to the parent and the place it came from.
+  if (views::View* origin = toolbar_origin_parent_) {
+    if (toolbar->parent() && toolbar->parent() != origin) {
+      std::unique_ptr<views::View> owned =
+          toolbar->parent()->RemoveChildViewT(toolbar);
+      origin->AddChildViewAt(std::move(owned),
+                             std::min(toolbar_origin_index_,
+                                      origin->children().size()));
+    }
+    origin->InvalidateLayout();
+  }
+  toolbar_origin_parent_ = nullptr;
+  toolbar->InvalidateLayout();
+  return true;
 }
 
 void AerieSidebarView::SetWindowControls(int leading_inset,

@@ -170,3 +170,12 @@ sidebar/0049-add-the-archive-rows-to-the-sidebar-section-of-settings.patch
 
 # Tidy tab titles and rename rules (#146): the tidy switches, the rule list and the Try a title box in the Sidebar section of Settings.
 sidebar/0050-add-the-title-tidy-and-rename-rules-to-the-sidebar-section-of-settings.patch
+
+# Horizontal tab layout (#186): the layout pref drives Helium classic and compact, the sidebar is built and removed live, tab sizes and motion come from the tokens, and tabs are named like the sidebar rows.
+sidebar/0051-make-the-locked-helium-layout-follow-the-aerie-tab-layout.patch
+sidebar/0052-set-up-the-sidebar-width-and-side-for-every-window.patch
+sidebar/0053-build-and-remove-the-sidebar-when-the-layout-changes.patch
+sidebar/0054-size-the-horizontal-tabs-from-the-aerie-tokens.patch
+sidebar/0055-animate-horizontal-tabs-opening-and-closing-with-the-aerie-motion.patch
+sidebar/0056-name-sleeping-and-renamed-horizontal-tabs-like-the-sidebar.patch
+sidebar/0057-add-the-tab-layout-row-to-the-sidebar-section-of-settings.patch

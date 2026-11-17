@@ -1,0 +1,323 @@
+Aerie-Purpose: Build the sidebar view when the layout becomes the sidebar and take it away, with the toolbar returned, when it becomes a horizontal one.
+Aerie-Upstream-Area: chrome/browser/ui/views/frame (browser_view.cc, browser_view.h, vertical_tab_strip_region_view.cc, vertical_tab_strip_region_view.h), chrome/browser/ui/views/toolbar (toolbar_view.cc, toolbar_view.h)
+Aerie-Kind: hook
+
+Issue #186. The sidebar view moves out of the region's constructor into AddAerieSidebar, SetAerieSidebarEnabled builds or removes it, ReleaseAerieToolbar gives the toolbar parts back, and BrowserView updates the frame tint for the layout. No restart.
+
+--- a/chrome/browser/ui/views/frame/browser_view.cc
++++ b/chrome/browser/ui/views/frame/browser_view.cc
+@@ -1818,10 +1818,24 @@
+   if (should_be_vertical) {
+     horizontal_tab_strip_region_view_->ResetTabStrip();
+     vertical_tab_strip_region_view_->InitializeTabStrip();
++    // Aerie (issue #186): the layout is the sidebar. It builds its view and
++    // takes the toolbar's address pill, buttons and the toolbar itself.
++    vertical_tab_strip_region_view_->SetAerieSidebarEnabled(true);
++    if (toolbar_) {
++      aerie_sidebar::AdoptToolbar(vertical_tab_strip_region_view_.get(),
++                                  GetFrameView(), toolbar_.get());
++    }
+   } else {
++    // Aerie (issue #186): the sidebar gives the toolbar back and goes. Its
++    // views are not built again until the user switches to it.
++    if (toolbar_) {
++      aerie_sidebar::ReleaseToolbar(vertical_tab_strip_region_view_.get(),
++                                    GetFrameView(), toolbar_.get());
++    }
+     vertical_tab_strip_region_view_->ResetTabStrip();
+     horizontal_tab_strip_region_view_->InitializeTabStrip();
+   }
++  UpdateAerieFrameForLayout();
+   UpdateZenModeExpandOnHoverLock();
+ 
+   GetFrameView()->OnTabStripStateChanged();
+@@ -1830,6 +1844,30 @@
+   InvalidateLayout();
+ }
+ 
++// Aerie (issue #186): the window frame follows the layout. The tint is the
++// frame of the sidebar layout only (aerie_frame::ShouldTintFrame reads the
++// pref), so the view is made when the user first switches to the sidebar and
++// hidden while the layout is a horizontal one, where Helium's own frame fills
++// paint again.
++void BrowserView::UpdateAerieFrameForLayout() {
++  const bool tint = aerie_frame::ShouldTintFrame(this);
++  if (tint && !frame_tint_view_ && GetIsNormalType()) {
++    frame_tint_view_ = AddChildViewAt(
++        std::make_unique<FrameTintView>(GetProfile()), 0);
++    if (multi_contents_view_) {
++      frame_tint_view_->SetCard(
++          multi_contents_view_->GetActiveContentsContainerView());
++    }
++  }
++  if (frame_tint_view_) {
++    frame_tint_view_->SetVisible(tint);
++  }
++  if (multi_contents_view_) {
++    multi_contents_view_->InvalidateLayout();
++  }
++  SchedulePaint();
++}
++
+ void BrowserView::OnToolbarTabStripStateChanged(
+     HeliumLayoutStateController* controller) {
+   if (!horizontal_tab_strip_region_view_) {
+--- a/chrome/browser/ui/views/frame/browser_view.h
++++ b/chrome/browser/ui/views/frame/browser_view.h
+@@ -956,6 +956,8 @@
+       tabs::VerticalTabStripStateController* controller);
+ 
+   void OnToolbarTabStripStateChanged(HeliumLayoutStateController* controller);
++  // Aerie (issue #186): the frame tint and the card follow the layout.
++  void UpdateAerieFrameForLayout();
+ 
+   // Zen mode helpers.
+   void OnZenModeSideChromePinnedPrefChanged();
+--- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
++++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
+@@ -189,43 +189,11 @@
+ 
+   // Aerie: while the layout is the sidebar, the sidebar view takes the place
+   // of the tab strip and of the bottom container. This view keeps the column
+-  // (its slot, background, resize area and width). Issue #177.
++  // (its slot, background, resize area and width). Issue #177. A window that
++  // starts with a horizontal layout builds none, and builds it when the user
++  // switches to the sidebar (issue #186).
+   if (aerie_sidebar::IsSidebarLayout(*browser_view->GetProfile()->GetPrefs())) {
+-    bottom_button_container_->SetVisible(false);
+-    aerie_sidebar_view_ = content_area_view_->AddChildViewAt(
+-        std::make_unique<AerieSidebarView>(
+-            browser_view->browser(),
+-            base::BindRepeating(
+-                [](actions::ActionItem* root, BrowserView* view) {
+-                  if (auto* action = actions::ActionManager::Get().FindAction(
+-                          kActionNewTab, root)) {
+-                    action->InvokeAction();
+-                  }
+-                },
+-                base::Unretained(root_action_item),
+-                base::Unretained(browser_view))),
+-        *content_area_view_->GetIndexOf(bottom_button_container_));
+-    aerie_sidebar_view_->SetProperty(
+-        views::kFlexBehaviorKey,
+-        views::FlexSpecification(views::MinimumFlexSizeRule::kScaleToZero,
+-                                 views::MaximumFlexSizeRule::kUnbounded));
+-    // Shown or hidden as the pref says (Ctrl+S flips it), now and when it
+-    // changes.
+-    PrefService* const prefs = browser_view->GetProfile()->GetPrefs();
+-    aerie_hidden_ = !aerie_sidebar::IsVisible(*prefs);
+-    aerie_target_visible_ = !aerie_hidden_;
+-    aerie_pref_registrar_.Init(prefs);
+-    aerie_pref_registrar_.Add(
+-        aerie_sidebar::kVisiblePref,
+-        base::BindRepeating(
+-            &VerticalTabStripRegionView::OnAerieVisibleChanged,
+-            base::Unretained(this)));
+-    // The density sets the rail's fixed width, the resize area and whether the
+-    // column floats (issue #184).
+-    aerie_pref_registrar_.Add(
+-        aerie_sidebar::kDensityPref,
+-        base::BindRepeating(&VerticalTabStripRegionView::OnAerieDensityChanged,
+-                            base::Unretained(this)));
++    AddAerieSidebar();
+   }
+ 
+   // Views that go into the content area above
+@@ -238,12 +206,6 @@
+   resize_area_->GetViewAccessibility().SetName(
+       l10n_util::GetStringUTF16(IDS_VERTICAL_RESIZE_AREA));
+   resize_area_->GetViewAccessibility().SetRole(ax::mojom::Role::kSlider);
+-  if (aerie_sidebar_view_) {
+-    // Aerie: the separator at the inner edge of the sidebar (issue #177).
+-    resize_area_->GetViewAccessibility().SetName(
+-        l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_RESIZE));
+-    resize_area_->GetViewAccessibility().SetRole(ax::mojom::Role::kSplitter);
+-  }
+ 
+   state_controller_->SetDelegate(this);
+   target_collapse_state_ = state_controller_->GetState();
+@@ -255,11 +217,11 @@
+ 
+   SetProperty(views::kElementIdentifierKey, kTabStripRegionElementId);
+ 
+-  // Aerie: the sidebar view is the navigation landmark and holds the tree of
+-  // tabs, so this container is no tab list.
+-  GetViewAccessibility().SetRole(aerie_sidebar_view_
+-                                     ? ax::mojom::Role::kGenericContainer
+-                                     : ax::mojom::Role::kTabList);
++  // Aerie: the separator at the inner edge of the sidebar and the role of this
++  // container, which is no tab list while the sidebar holds the tabs (issues
++  // #177 and #186).
++  GetViewAccessibility().SetRole(ax::mojom::Role::kTabList);
++  UpdateAerieChrome();
+ 
+   SetBackground(std::make_unique<CustomCornersBackground>(
+       *this, *browser_view,
+@@ -1032,6 +994,108 @@
+           base::Unretained(this)));
+ }
+ 
++// Aerie: builds the sidebar view in the column (issue #177) and starts to follow
++// the prefs that move it. Called by the constructor for the sidebar layout, and
++// by SetAerieSidebarEnabled when the user switches to it (issue #186).
++void VerticalTabStripRegionView::AddAerieSidebar() {
++  CHECK(!aerie_sidebar_view_);
++  bottom_button_container_->SetVisible(false);
++  aerie_sidebar_view_ = content_area_view_->AddChildViewAt(
++      std::make_unique<AerieSidebarView>(
++          browser_view()->browser(),
++          base::BindRepeating(
++              [](actions::ActionItem* root, BrowserView* view) {
++                if (auto* action = actions::ActionManager::Get().FindAction(
++                        kActionNewTab, root)) {
++                  action->InvokeAction();
++                }
++              },
++              base::Unretained(root_action_item()),
++              base::Unretained(browser_view()))),
++      *content_area_view_->GetIndexOf(bottom_button_container_));
++  aerie_sidebar_view_->SetProperty(
++      views::kFlexBehaviorKey,
++      views::FlexSpecification(views::MinimumFlexSizeRule::kScaleToZero,
++                               views::MaximumFlexSizeRule::kUnbounded));
++  // Shown or hidden as the pref says (Ctrl+S flips it), now and when it
++  // changes.
++  PrefService* const prefs = browser_view()->GetProfile()->GetPrefs();
++  aerie_hidden_ = !aerie_sidebar::IsVisible(*prefs);
++  aerie_target_visible_ = !aerie_hidden_;
++  aerie_pref_registrar_.Init(prefs);
++  aerie_pref_registrar_.Add(
++      aerie_sidebar::kVisiblePref,
++      base::BindRepeating(&VerticalTabStripRegionView::OnAerieVisibleChanged,
++                          base::Unretained(this)));
++  // The density sets the rail's fixed width, the resize area and whether the
++  // column floats (issue #184).
++  aerie_pref_registrar_.Add(
++      aerie_sidebar::kDensityPref,
++      base::BindRepeating(&VerticalTabStripRegionView::OnAerieDensityChanged,
++                          base::Unretained(this)));
++}
++
++// Aerie: what the region says about itself while it holds the sidebar view.
++void VerticalTabStripRegionView::UpdateAerieChrome() {
++  if (resize_area_) {
++    resize_area_->GetViewAccessibility().SetName(l10n_util::GetStringUTF16(
++        aerie_sidebar_view_ ? IDS_AERIE_SIDEBAR_RESIZE
++                            : IDS_VERTICAL_RESIZE_AREA));
++    resize_area_->GetViewAccessibility().SetRole(
++        aerie_sidebar_view_ ? ax::mojom::Role::kSplitter
++                            : ax::mojom::Role::kSlider);
++  }
++  // The sidebar view is the navigation landmark and holds the tree of tabs, so
++  // this container is no tab list.
++  GetViewAccessibility().SetRole(aerie_sidebar_view_
++                                     ? ax::mojom::Role::kGenericContainer
++                                     : ax::mojom::Role::kTabList);
++}
++
++// Aerie (issue #186): the layout changed. Builds the sidebar view, or takes it
++// away. The toolbar's parts that the sidebar holds are given back first by
++// aerie_sidebar::ReleaseToolbar (the caller does that), and the tab strip is
++// reset or initialised by BrowserView around this call.
++void VerticalTabStripRegionView::SetAerieSidebarEnabled(bool enabled) {
++  if (enabled == !!aerie_sidebar_view_) {
++    return;
++  }
++  if (enabled) {
++    AddAerieSidebar();
++    if (tab_strip_view()) {
++      tab_strip_view()->SetVisible(false);
++    }
++  } else {
++    aerie_pref_registrar_.RemoveAll();
++    aerie_hide_timer_.Stop();
++    aerie_motion_.Abort();
++    aerie_hide_slide_.End();
++    aerie_hidden_ = false;
++    aerie_target_visible_ = true;
++    if (layer()) {
++      layer()->SetTransform(gfx::Transform());
++      layer()->SetOpacity(1.f);
++    }
++    AerieSidebarView* const view = aerie_sidebar_view_;
++    aerie_sidebar_view_ = nullptr;
++    content_area_view_->RemoveChildViewT(view);
++    bottom_button_container_->SetVisible(true);
++    if (tab_strip_view()) {
++      tab_strip_view()->SetVisible(true);
++    }
++  }
++  UpdateAerieChrome();
++  if (resize_area_) {
++    UpdateResizeAreaVisibility();
++  }
++  UpdateInteriorMargin();
++  InvalidateLayout();
++}
++
++bool VerticalTabStripRegionView::ReleaseAerieToolbar() {
++  return aerie_sidebar_view_ && aerie_sidebar_view_->ReleaseToolbar();
++}
++
+ // Aerie: the density decides the rail's width, whether the column floats and
+ // whether it has a resizer (issue #184).
+ void VerticalTabStripRegionView::OnAerieDensityChanged() {
+--- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
++++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
+@@ -155,6 +155,13 @@
+   bool aerie_sidebar_hidden() const { return aerie_hidden_; }
+   // Aerie (issue #215): true while the layout is the sidebar.
+   bool has_aerie_sidebar() const { return !!aerie_sidebar_view_; }
++  // Aerie (issue #186): builds the sidebar view or takes it away, as the layout
++  // changes. Taking it away needs the toolbar's parts back first
++  // (ReleaseAerieToolbar).
++  void SetAerieSidebarEnabled(bool enabled);
++  // Aerie (issue #186): the sidebar gives the toolbar's parts back to the
++  // toolbar, and the toolbar back to the place it had. False when it held none.
++  bool ReleaseAerieToolbar();
+   // Aerie (issue #215): hands the toolbar's parts to the sidebar. Called by
+   // aerie_sidebar::AdoptToolbar (aerie_sidebar_toolbar_hook.h).
+   void AdoptAerieToolbar(const AerieSidebarToolbarParts& parts,
+@@ -214,6 +221,8 @@
+   // Aerie sidebar (issue #177): see the .cc.
+   void OnAerieResize(int resize_amount, bool done_resizing);
+   void OnAerieVisibleChanged();
++  void AddAerieSidebar();
++  void UpdateAerieChrome();
+   void OnAerieDensityChanged();
+   bool AerieAutoHides() const;
+ 
+--- a/chrome/browser/ui/views/toolbar/toolbar_view.cc
++++ b/chrome/browser/ui/views/toolbar/toolbar_view.cc
+@@ -1793,6 +1793,17 @@
+   LayoutSuperclass<AccessiblePaneView>(this);
+ }
+ 
++void ToolbarView::RestoreBackgroundAfterAerieSidebar() {
++  if (display_mode_ != DisplayMode::kNormal) {
++    return;
++  }
++  SetBackground(std::make_unique<CustomCornersBackground>(
++      *this, *browser_view_,
++      /*primary_color=*/CustomCornersBackground::ToolbarTheme(),
++      /*corner_color=*/CustomCornersBackground::FrameTheme()));
++  SchedulePaint();
++}
++
+ void ToolbarView::OnThemeChanged() {
+   views::AccessiblePaneView::OnThemeChanged();
+   if (!initialized_) {
+--- a/chrome/browser/ui/views/toolbar/toolbar_view.h
++++ b/chrome/browser/ui/views/toolbar/toolbar_view.h
+@@ -121,6 +121,11 @@
+   ~ToolbarView() override;
+ 
+   // Create the contents of the Browser Toolbar.
++  // Aerie (issue #186): the sidebar made the toolbar's background transparent
++  // when it took the toolbar in, so that the frame tint shows through. This
++  // gives it its own background back when the toolbar returns.
++  void RestoreBackgroundAfterAerieSidebar();
++
+   void Init();
+ 
+   // Forces the toolbar (and transitively the location bar) to update its

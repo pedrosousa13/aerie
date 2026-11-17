@@ -23,6 +23,7 @@ class TabInterface;
 namespace aerie_tab_model {
 
 class AutoFileController;
+class HorizontalOrderMirror;
 class PinnedTabsController;
 class RestorePass;
 class TabStripAdapter;
@@ -55,6 +56,11 @@ class TabModelService : public KeyedService {
   AutoFileController* auto_file() { return auto_file_.get(); }
   // Null after Shutdown().
   RestorePass* restore_pass() { return restore_pass_.get(); }
+  // Keeps the tab strip's order in step with the Tab Model in the horizontal
+  // layouts (issue #186). Null after Shutdown().
+  HorizontalOrderMirror* horizontal_order_mirror() {
+    return horizontal_order_mirror_.get();
+  }
 
   // nullopt means never.
   std::optional<base::TimeDelta> archive_after() const;
@@ -82,6 +88,8 @@ class TabModelService : public KeyedService {
   // Ends the restore pass (issue #223). Declared after the adapter, so it is
   // destroyed first.
   std::unique_ptr<RestorePass> restore_pass_;
+  // Declared last, so it goes first: it watches the adapter's windows.
+  std::unique_ptr<HorizontalOrderMirror> horizontal_order_mirror_;
 };
 
 }  // namespace aerie_tab_model

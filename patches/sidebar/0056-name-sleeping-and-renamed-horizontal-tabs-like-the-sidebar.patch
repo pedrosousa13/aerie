@@ -1,0 +1,39 @@
+Aerie-Purpose: Name a sleeping or renamed tab of the horizontal strip the way the sidebar names its rows.
+Aerie-Upstream-Area: chrome/browser/ui/views/tabs/tab (tab_accessibility.cc, BUILD.gn)
+Aerie-Kind: hook
+
+Issue #186. GetAccessibleTabLabel calls aerie_tab_model::AccessibleTabName for a tab's title.
+
+--- a/chrome/browser/ui/views/tabs/tab/tab_accessibility.cc
++++ b/chrome/browser/ui/views/tabs/tab/tab_accessibility.cc
+@@ -4,6 +4,7 @@
+ 
+ #include "chrome/browser/ui/views/tabs/tab/tab_accessibility.h"
+ 
++#include "chrome/browser/aerie_tab_model/tab_accessible_name.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+ #include "chrome/browser/ui/location_bar/location_bar.h"
+ #include "chrome/browser/ui/performance_controls/tab_resource_usage_tab_helper.h"
+@@ -100,6 +101,12 @@
+       is_for_tab ? controller->GetTitleForTab(tab->GetHandle())
+                  : controller->GetWindowTitleForTab(tab->GetHandle());
+ 
++  // Aerie (issue #186): a sleeping tab and a renamed tab are named the way the
++  // sidebar names its rows.
++  if (is_for_tab) {
++    title = aerie_tab_model::AccessibleTabName(tab, title);
++  }
++
+   if (const std::optional<split_tabs::SplitTabId> split = tab->GetSplit()) {
+     if (!tab_strip_model->ContainsSplit(split.value())) {
+       // This can happen when a split tab is in the process of being closed and
+--- a/chrome/browser/ui/views/tabs/tab/BUILD.gn
++++ b/chrome/browser/ui/views/tabs/tab/BUILD.gn
+@@ -50,6 +50,7 @@
+   deps = [
+     ":tab",
+     "//chrome/app/vector_icons",
++    "//chrome/browser/aerie_tab_model",
+     "//chrome/browser:browser_process",
+     "//chrome/browser:primitives",
+     "//chrome/browser/actor/resources:grit",

@@ -50,6 +50,23 @@ void AdoptToolbar(Region* region, FrameView* frame_view, Toolbar* toolbar) {
   }
 }
 
+// The way back (issue #186): the layout changed from the sidebar to a
+// horizontal one. Gives the toolbar's parts and the toolbar to the toolbar's old
+// parent, restores the toolbar's own background (the sidebar made it
+// transparent) and the frame's caption buttons (the sidebar may have drawn its
+// own), and takes the sidebar view away. The caller then resets the tab strip.
+template <typename Region, typename FrameView, typename Toolbar>
+void ReleaseToolbar(Region* region, FrameView* frame_view, Toolbar* toolbar) {
+  if (!region || !region->has_aerie_sidebar()) {
+    return;
+  }
+  if (region->ReleaseAerieToolbar()) {
+    toolbar->RestoreBackgroundAfterAerieSidebar();
+    frame_view->SetCaptionButtonsOpacity(1.0f);
+  }
+  region->SetAerieSidebarEnabled(false);
+}
+
 }  // namespace aerie_sidebar
 
 #endif  // CHROME_BROWSER_UI_VIEWS_AERIE_SIDEBAR_AERIE_SIDEBAR_TOOLBAR_HOOK_H_

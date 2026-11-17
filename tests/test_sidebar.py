@@ -101,10 +101,13 @@ class LockTest(unittest.TestCase):
         self.assertIn("std::to_underlying(HeliumLayoutType::kClassic)", removed(HOLD_PATCH))
 
     def test_the_old_write_back_hold_is_gone(self):
-        # No patch touches HeliumLayoutStateController any more, and nothing writes the layout prefs back.
+        # Nothing writes the layout prefs back. A patch may touch HeliumLayoutStateController (issue #186 makes the
+        # command-line layer follow aerie.sidebar.layout) but never to write the user's layout pref or hold it.
         for patch in (REPO / "patches" / "sidebar").glob("*.patch"):
-            files = [l for l in patch.read_text().splitlines() if l.startswith("--- a/")]
-            self.assertFalse([f for f in files if "helium_layout_state_controller" in f], patch.name)
+            text = patch.read_text()
+            self.assertNotIn("EnforceHeliumLayout", text, patch.name)
+            self.assertNotIn("SetInteger(kHeliumLayoutPref", text, patch.name)
+            self.assertNotIn("SetInteger(\"helium.browser.layout\"", text, patch.name)
         self.assertNotIn("EnforceHeliumLayout", "".join(p.read_text() for p in COMPONENT.glob("*")))
         self.assertNotIn("EnforceHeliumLayout", "".join(p.read_text() for p in VIEWS.glob("*") if p.is_file()))
         self.assertNotIn("SetInteger(kHeliumLayoutPref", self.LOCK)

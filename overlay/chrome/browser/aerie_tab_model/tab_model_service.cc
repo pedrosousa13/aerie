@@ -11,6 +11,7 @@
 #include "base/task/thread_pool.h"
 #include "base/time/default_clock.h"
 #include "base/time/default_tick_clock.h"
+#include "chrome/browser/aerie_tab_model/horizontal_order_mirror.h"
 #include "chrome/browser/aerie_tab_model/pinned_tabs_controller.h"
 #include "chrome/browser/aerie_tab_model/restore_pass.h"
 #include "chrome/browser/aerie_tab_model/tab_strip_adapter.h"
@@ -76,6 +77,10 @@ TabModelService::TabModelService(Profile* profile)
       &TabModelService::OnTabInserted, base::Unretained(this)));
   adapter_->SetTabChangedCallback(base::BindRepeating(
       &TabModelService::OnTabChanged, base::Unretained(this)));
+  // The horizontal layouts show the Tab Model's order in Chromium's strip
+  // (issue #186). It does nothing while the layout is the sidebar.
+  horizontal_order_mirror_ = std::make_unique<HorizontalOrderMirror>(
+      profile_, &model_, adapter_.get());
 }
 
 void TabModelService::OnTabInserted(const std::string& record_id,
@@ -121,6 +126,7 @@ std::optional<base::TimeDelta> TabModelService::sleep_after() const {
 }
 
 void TabModelService::Shutdown() {
+  horizontal_order_mirror_.reset();
   adapter_->SetRecordKeptCallback(base::RepeatingClosure());
   restore_pass_.reset();
   auto_file_.reset();

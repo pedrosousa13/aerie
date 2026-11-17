@@ -1,0 +1,63 @@
+Aerie-Purpose: Add the Tab layout row to the Sidebar section of Settings and let the settings page write the layout pref.
+Aerie-Upstream-Area: chrome/browser/resources/settings (appearance_page/appearance_layout_page.ts, appearance_page/appearance_layout_page.html.ts, BUILD.gn), chrome/browser/ui/webui/settings (settings_localized_strings_provider.cc), chrome/browser/extensions/api/settings_private (prefs_util.cc)
+Aerie-Kind: hook
+
+Issue #186. settings-aerie-layout-row is a Lit element in the overlay (appearance_page/aerie_layout_row.*): a radio group on aerie.sidebar.layout with Sidebar, Horizontal (two rows) and Horizontal (one row). The pref name is a string literal in the allowlist, as for the other Aerie prefs, and a test compares it with aerie_sidebar::kLayoutPref.
+
+--- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
++++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
+@@ -517,7 +517,8 @@
+   (*s_allowlist)["aerie.sidebar.side"] = settings_api::PrefType::kString;
+   // Aerie: the sidebar's width and shown state (issue #177). The names are
+   // aerie_sidebar::kWidthPref and kVisiblePref; a test compares them. The
+-  // layout pref is not here until issue #186 builds the second layout.
++  // layout pref is the next entry (issue #186); aerie_sidebar::kLayoutPref.
++  (*s_allowlist)["aerie.sidebar.layout"] = settings_api::PrefType::kString;
+   (*s_allowlist)["aerie.sidebar.width"] = settings_api::PrefType::kNumber;
+   (*s_allowlist)["aerie.sidebar.visible"] = settings_api::PrefType::kBoolean;
+ 
+--- a/chrome/browser/resources/settings/appearance_page/appearance_layout_page.html.ts
++++ b/chrome/browser/resources/settings/appearance_page/appearance_layout_page.html.ts
+@@ -18,6 +18,7 @@
+   <settings-aerie-archive-keep-row></settings-aerie-archive-keep-row>
+   <settings-aerie-density-row></settings-aerie-density-row>
+   <settings-aerie-side-row></settings-aerie-side-row>
++  <settings-aerie-layout-row></settings-aerie-layout-row>
+   <settings-aerie-title-rules-row></settings-aerie-title-rules-row>
+ </settings-section>
+ <!--_html_template_end_-->`;
+--- a/chrome/browser/resources/settings/appearance_page/appearance_layout_page.ts
++++ b/chrome/browser/resources/settings/appearance_page/appearance_layout_page.ts
+@@ -9,6 +9,7 @@
+ import './aerie_density_row.js';
+ import './aerie_folder_rules_row.js';
+ import './aerie_pinned_close_row.js';
++import './aerie_layout_row.js';
+ import './aerie_side_row.js';
+ import './aerie_sleep_row.js';
+ import './aerie_title_rules_row.js';
+--- a/chrome/browser/resources/settings/BUILD.gn
++++ b/chrome/browser/resources/settings/BUILD.gn
+@@ -212,6 +212,8 @@
+     "appearance_page/aerie_density_row.ts",
+     "appearance_page/aerie_folder_rules_row.html.ts",
+     "appearance_page/aerie_folder_rules_row.ts",
++    "appearance_page/aerie_layout_row.html.ts",
++    "appearance_page/aerie_layout_row.ts",
+     "appearance_page/aerie_motion_row.html.ts",
+     "appearance_page/aerie_motion_row.ts",
+     "appearance_page/aerie_pinned_close_row.html.ts",
+--- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
++++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
+@@ -716,6 +716,11 @@
+       {"aerieSidebarSideDesc", IDS_SETTINGS_AERIE_SIDEBAR_SIDE_DESC},
+       {"aerieSidebarSideLeft", IDS_SETTINGS_AERIE_SIDEBAR_SIDE_LEFT},
+       {"aerieSidebarSideRight", IDS_SETTINGS_AERIE_SIDEBAR_SIDE_RIGHT},
++      {"aerieSidebarLayout", IDS_SETTINGS_AERIE_SIDEBAR_LAYOUT},
++      {"aerieSidebarLayoutDesc", IDS_SETTINGS_AERIE_SIDEBAR_LAYOUT_DESC},
++      {"aerieSidebarLayoutSidebar", IDS_SETTINGS_AERIE_SIDEBAR_LAYOUT_SIDEBAR},
++      {"aerieSidebarLayoutTwoRows", IDS_SETTINGS_AERIE_SIDEBAR_LAYOUT_TWO_ROWS},
++      {"aerieSidebarLayoutOneRow", IDS_SETTINGS_AERIE_SIDEBAR_LAYOUT_ONE_ROW},
+       {"aerieAppearanceTheme", IDS_SETTINGS_AERIE_APPEARANCE_THEME},
+       {"aerieAppearanceThemeDesc", IDS_SETTINGS_AERIE_APPEARANCE_THEME_DESC},
+       {"aerieAppearanceThemeVivid", IDS_SETTINGS_AERIE_APPEARANCE_THEME_VIVID},

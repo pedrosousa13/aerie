@@ -1,0 +1,250 @@
+Aerie-Purpose: Give the tabs of the horizontal strip the Aerie open and close motion and durations.
+Aerie-Upstream-Area: chrome/browser/ui/views/tabs/common (tab_collection_animating_layout_manager.*, unpinned_tab_container_view.*, pinned_tab_container_view.*, BUILD.gn)
+Aerie-Kind: hook
+
+Issue #186. The layout manager's delegate says when to use the Aerie motion (horizontal tabs only). A new tab fades and scales in over tab-open, a closing tab fades and slides over xfast, and the width takes tab-open or tab-close. Reduced motion shortens both and removes the transform.
+
+--- a/chrome/browser/ui/views/tabs/common/tab_collection_animating_layout_manager.cc
++++ b/chrome/browser/ui/views/tabs/common/tab_collection_animating_layout_manager.cc
+@@ -17,6 +17,8 @@
+ #include "ui/gfx/animation/tween.h"
+ #include "ui/views/controls/scroll_view.h"
+ #include "ui/views/view.h"
++#include "chrome/browser/ui/views/aerie_hz_tabs/aerie_hz_tab_motion.h"
++#include "components/aerie_sidebar/aerie_sidebar_hz_policy.h"
+ #include "ui/views/view_class_properties.h"
+ #include "ui/views/view_utils.h"
+ #include "ui/views/widget/widget.h"
+@@ -64,6 +66,16 @@
+   return false;
+ }
+ 
++bool TabCollectionAnimatingLayoutManager::Delegate::ShouldAnimateAerieMotion(
++    const views::View& child_view) const {
++  return false;
++}
++
++const PrefService*
++TabCollectionAnimatingLayoutManager::Delegate::GetPrefsForMotion() const {
++  return nullptr;
++}
++
+ std::optional<views::SizeBound> TabCollectionAnimatingLayoutManager::Delegate::
+     GetAvailableMainAxisSpaceOverride() const {
+   return std::nullopt;
+@@ -130,8 +142,12 @@
+       }
+     }
+     animation_.Reset(0.0);
+-    animation_.SetSlideDuration(
+-        gfx::Animation::RichAnimationDuration(base::Milliseconds(200)));
++    // Aerie (issue #186): the width takes tab-open or tab-close, which the
++    // manager that asked set. RichAnimationDuration still honours the system's
++    // reduced-motion flag.
++    animation_.SetSlideDuration(gfx::Animation::RichAnimationDuration(
++        aerie_duration_.is_zero() ? base::Milliseconds(200)
++                                  : aerie_duration_));
+     animation_.Show();
+   } else {
+     // We are still early in the animation. Simply update the starting offset
+@@ -235,6 +251,15 @@
+   // collection.
+   if (!view->GetProperty(kPreviousCollectionBounds) &&
+       !delegate_->IsViewDragging(*view) &&
++      delegate_->ShouldAnimateAerieMotion(*view)) {
++    // Aerie (issue #186): a tab of the horizontal strip scales in and fades in
++    // over tab-open, and its width grows over the same time.
++    animation_coordinator_->SetAerieDuration(base::Milliseconds(
++        aerie_hz_tabs::WidthDurationMs(aerie_sidebar::HzTabEvent::kOpen,
++                                       delegate_->GetPrefsForMotion())));
++    aerie_hz_tabs::AnimateOpen(view, delegate_->GetPrefsForMotion());
++  } else if (!view->GetProperty(kPreviousCollectionBounds) &&
++      !delegate_->IsViewDragging(*view) &&
+       delegate_->ShouldAnimateOpacityForAddAndRemove(*view)) {
+     // Added views should animate opacity from invisible to fully opaque.
+     view->SetPaintToLayer();
+@@ -558,7 +583,14 @@
+   child_view->SetFocusBehavior(views::View::FocusBehavior::NEVER);
+   child_view->SetProperty(kPendingDeletion, true);
+ 
+-  if (delegate_->ShouldAnimateOpacityForAddAndRemove(*child_view)) {
++  if (delegate_->ShouldAnimateAerieMotion(*child_view)) {
++    // Aerie (issue #186): a closing tab of the horizontal strip slides down and
++    // fades over xfast, and its width collapses over tab-close.
++    animation_coordinator_->SetAerieDuration(base::Milliseconds(
++        aerie_hz_tabs::WidthDurationMs(aerie_sidebar::HzTabEvent::kClose,
++                                       delegate_->GetPrefsForMotion())));
++    aerie_hz_tabs::AnimateClose(child_view, delegate_->GetPrefsForMotion());
++  } else if (delegate_->ShouldAnimateOpacityForAddAndRemove(*child_view)) {
+     // Removed views should animate opacity from fully opaque to invisible.
+     child_view->SetPaintToLayer();
+     child_view->layer()->SetFillsBoundsOpaquely(false);
+--- a/chrome/browser/ui/views/tabs/common/tab_collection_animating_layout_manager.h
++++ b/chrome/browser/ui/views/tabs/common/tab_collection_animating_layout_manager.h
+@@ -24,6 +24,8 @@
+ // to child view bounds. It wraps another LayoutManager (the
+ // target_layout_manager) which calculates the desired final positions. When the
+ // target layout changes, this manager animates the transition.
++class PrefService;
++
+ class TabCollectionAnimatingLayoutManager : public views::LayoutManagerBase {
+  public:
+   // Coordinates animations across all `TabCollectionAnimatingLayoutManager`
+@@ -55,9 +57,17 @@
+     // views::AnimationDelegateViews:
+     void AnimationProgressed(const gfx::Animation* animation) override;
+     void AnimationEnded(const gfx::Animation* animation) override;
++    // Aerie (issue #186): the width animation takes `duration` the next time it
++    // starts.
++    void SetAerieDuration(base::TimeDelta duration) {
++      aerie_duration_ = duration;
++    }
+ 
+    private:
+     bool HasAnimatingManagers() const;
++    // Aerie (issue #186): the duration of the width animation that starts next,
++    // from `tab-open` or `tab-close`; zero means Chromium's own.
++    base::TimeDelta aerie_duration_;
+ 
+     gfx::SlideAnimation animation_{this};
+     std::vector<raw_ptr<TabCollectionAnimatingLayoutManager>> managers_;
+@@ -106,6 +116,12 @@
+     virtual std::optional<views::SizeBound> GetAvailableMainAxisSpaceOverride()
+         const;
+     virtual void OnAnimationEnded();
++    // Aerie (issue #186): the horizontal strip's tabs open and close with the
++    // Aerie motion (a scale or slide and a fade, plus the token durations for
++    // the width). `GetPrefsForMotion` gives the prefs that reduced motion is
++    // read from (null: only the operating system's flag).
++    virtual bool ShouldAnimateAerieMotion(const views::View& child_view) const;
++    virtual const PrefService* GetPrefsForMotion() const;
+ 
+    protected:
+     virtual ~Delegate() = default;
+--- a/chrome/browser/ui/views/tabs/common/unpinned_tab_container_view.cc
++++ b/chrome/browser/ui/views/tabs/common/unpinned_tab_container_view.cc
+@@ -4,6 +4,10 @@
+ 
+ #include "chrome/browser/ui/views/tabs/common/unpinned_tab_container_view.h"
+ 
++#include "chrome/browser/profiles/profile.h"
++#include "chrome/browser/ui/views/frame/browser_view.h"
++#include "components/prefs/pref_service.h"
++
+ #include "chrome/browser/ui/layout_constants.h"
+ #include "chrome/browser/ui/tabs/tab_style.h"
+ #include "chrome/browser/ui/views/tabs/common/dragged_tabs_container.h"
+@@ -210,6 +214,22 @@
+   return views::IsViewClass<TabView>(&child_view);
+ }
+ 
++bool UnpinnedTabContainerView::ShouldAnimateAerieMotion(
++    const views::View& child_view) const {
++  // Only the tabs of the horizontal strip: a vertical strip has Chromium's.
++  return orientation_ == TabStripOrientation::kHorizontal &&
++         views::IsViewClass<TabView>(&child_view);
++}
++
++const PrefService* UnpinnedTabContainerView::GetPrefsForMotion() const {
++  if (!collection_node_ || !collection_node_->GetController()) {
++    return nullptr;
++  }
++  BrowserView* const browser_view =
++      collection_node_->GetController()->GetBrowserView();
++  return browser_view ? browser_view->GetProfile()->GetPrefs() : nullptr;
++}
++
+ bool UnpinnedTabContainerView::ShouldSnapToTarget(
+     const views::View& child_view) const {
+   return views::IsViewClass<SplitTabView>(&child_view);
+--- a/chrome/browser/ui/views/tabs/common/unpinned_tab_container_view.h
++++ b/chrome/browser/ui/views/tabs/common/unpinned_tab_container_view.h
+@@ -15,6 +15,8 @@
+ #include "ui/base/metadata/metadata_header_macros.h"
+ #include "ui/views/view.h"
+ 
++class PrefService;
++
+ class TabCollectionNode;
+ class TabGroupView;
+ class UnpinnedTabContainerViewLayout;
+@@ -42,6 +44,9 @@
+   bool ShouldSnapToTarget(const views::View& child_view) const override;
+   bool ShouldAnimateOpacityForAddAndRemove(
+       const views::View& child_view) const override;
++  // Aerie (issue #186): the horizontal strip's own open and close motion.
++  bool ShouldAnimateAerieMotion(const views::View& child_view) const override;
++  const PrefService* GetPrefsForMotion() const override;
+   std::optional<views::SizeBound> GetAvailableMainAxisSpaceOverride()
+       const override;
+ 
+--- a/chrome/browser/ui/views/tabs/common/pinned_tab_container_view.cc
++++ b/chrome/browser/ui/views/tabs/common/pinned_tab_container_view.cc
+@@ -4,6 +4,10 @@
+ 
+ #include "chrome/browser/ui/views/tabs/common/pinned_tab_container_view.h"
+ 
++#include "chrome/browser/profiles/profile.h"
++#include "chrome/browser/ui/views/frame/browser_view.h"
++#include "components/prefs/pref_service.h"
++
+ #include "base/i18n/rtl.h"
+ #include "chrome/browser/ui/layout_constants.h"
+ #include "chrome/browser/ui/tabs/tab_style.h"
+@@ -153,6 +157,22 @@
+   return views::IsViewClass<TabView>(&child_view);
+ }
+ 
++bool PinnedTabContainerView::ShouldAnimateAerieMotion(
++    const views::View& child_view) const {
++  // Only the tabs of the horizontal strip: a vertical strip has Chromium's.
++  return orientation_ == TabStripOrientation::kHorizontal &&
++         views::IsViewClass<TabView>(&child_view);
++}
++
++const PrefService* PinnedTabContainerView::GetPrefsForMotion() const {
++  if (!collection_node_ || !collection_node_->GetController()) {
++    return nullptr;
++  }
++  BrowserView* const browser_view =
++      collection_node_->GetController()->GetBrowserView();
++  return browser_view ? browser_view->GetProfile()->GetPrefs() : nullptr;
++}
++
+ bool PinnedTabContainerView::ShouldSnapToTarget(
+     const views::View& child_view) const {
+   return views::IsViewClass<SplitTabView>(&child_view);
+--- a/chrome/browser/ui/views/tabs/common/pinned_tab_container_view.h
++++ b/chrome/browser/ui/views/tabs/common/pinned_tab_container_view.h
+@@ -15,6 +15,8 @@
+ #include "ui/views/layout/delegating_layout_manager.h"
+ #include "ui/views/view.h"
+ 
++class PrefService;
++
+ class TabCollectionNode;
+ 
+ // The view class that represents the pinned tab region for the
+@@ -45,6 +47,9 @@
+   bool IsViewDragging(const views::View& child_view) const override;
+   bool ShouldAnimateOpacityForAddAndRemove(
+       const views::View& child_view) const override;
++  // Aerie (issue #186): the horizontal strip's own open and close motion.
++  bool ShouldAnimateAerieMotion(const views::View& child_view) const override;
++  const PrefService* GetPrefsForMotion() const override;
+   bool ShouldSnapToTarget(const views::View& child_view) const override;
+ 
+   std::optional<BrowserRootView::DropIndex> GetLinkDropIndex(
+--- a/chrome/browser/ui/views/tabs/common/BUILD.gn
++++ b/chrome/browser/ui/views/tabs/common/BUILD.gn
+@@ -94,6 +94,10 @@
+     "//chrome/app/theme:theme_resources",
+     "//chrome/browser/ui/helium:helium_layout_state_controller",
+     "//chrome/browser/ui/views/helium:native_frame_materials",
++    "//components/aerie_design_tokens:motion",
++    "//components/aerie_design_tokens:tokens",
++    "//chrome/browser/ui/views/aerie_hz_tabs",
++    "//components/aerie_sidebar:hz_policy",
+     "//chrome/browser:primitives",
+     "//chrome/browser/dictation",
+     "//chrome/browser/glic",

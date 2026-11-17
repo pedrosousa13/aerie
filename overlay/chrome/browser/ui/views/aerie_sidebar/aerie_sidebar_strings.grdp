@@ -420,6 +420,21 @@
   <message name="IDS_SETTINGS_AERIE_SIDEBAR_SIDE_RIGHT" desc="Choice of the Sidebar side setting: the sidebar is on the right.">
     Right
   </message>
+  <message name="IDS_SETTINGS_AERIE_SIDEBAR_LAYOUT" desc="Label of the setting in the Sidebar section of Settings that chooses where the tabs are: in the sidebar, or in a strip across the top of the window.">
+    Tab layout
+  </message>
+  <message name="IDS_SETTINGS_AERIE_SIDEBAR_LAYOUT_DESC" desc="Description under the Tab layout setting.">
+    Show your tabs in the sidebar, or in a strip across the top of the window.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_SIDEBAR_LAYOUT_SIDEBAR" desc="Choice of the Tab layout setting: the tabs are in the sidebar.">
+    Sidebar
+  </message>
+  <message name="IDS_SETTINGS_AERIE_SIDEBAR_LAYOUT_TWO_ROWS" desc="Choice of the Tab layout setting: the tabs are in a strip across the top, above a second row that has the address bar.">
+    Horizontal (two rows)
+  </message>
+  <message name="IDS_SETTINGS_AERIE_SIDEBAR_LAYOUT_ONE_ROW" desc="Choice of the Tab layout setting: the tabs and the address bar share one row at the top.">
+    Horizontal (one row)
+  </message>
   <message name="IDS_SETTINGS_AERIE_APPEARANCE_THEME" desc="Label of the setting in the Sidebar section of Settings that chooses the Theme: how the browser window is drawn.">
     Theme
   </message>

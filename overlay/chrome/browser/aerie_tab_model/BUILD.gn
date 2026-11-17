@@ -32,17 +32,21 @@ source_set("session_record_id_hook") {
 source_set("aerie_tab_model") {
   visibility = [ "//chrome/*" ]
   public = [
+    "horizontal_order_mirror.h",
     "pinned_tabs_controller.h",
     "restore_pass.h",
     "sleep_controller.h",
     "sleep_controller_factory.h",
     "tab_archiver.h",
+    "tab_accessible_name.h",
     "tab_archiver_factory.h",
     "tab_model_service.h",
     "tab_model_service_factory.h",
     "tab_strip_adapter.h",
   ]
   sources = [
+    "horizontal_order_mirror.cc",
+    "horizontal_order_mirror.h",
     "pinned_tabs_controller.cc",
     "pinned_tabs_controller.h",
     "restore_pass.cc",
@@ -50,6 +54,7 @@ source_set("aerie_tab_model") {
     "session_record_id_hook.cc",
     "sleep_controller.cc",
     "sleep_controller_factory.cc",
+    "tab_accessible_name.cc",
     "tab_archiver.cc",
     "tab_archiver_factory.cc",
     "tab_model_service.cc",
@@ -82,6 +87,8 @@ source_set("aerie_tab_model") {
     "//chrome/browser/ui/tabs:tab_strip",
     "//chrome/common",
     "//components/aerie_design_tokens:motion",
+    "//components/aerie_sidebar:layout",
+    "//components/aerie_sidebar:prefs",
     "//components/aerie_tab_model:prefs",
     "//components/performance_manager",
     "//components/sessions",

@@ -122,6 +122,11 @@ class AerieSidebarView : public views::View,
   // after the toolbar has made its buttons.
   void AdoptToolbar(const AerieSidebarToolbarParts& parts);
   bool has_toolbar_parts() const { return !!adopted_toolbar_; }
+  // Gives the parts back to the toolbar, in the order they had, and the toolbar
+  // back to the parent and the place it came from (issue #186: the layout
+  // changed to a horizontal one). False when none was adopted. After it the
+  // sidebar holds nothing of the toolbar and can go.
+  bool ReleaseToolbar();
 
   // `leading_inset` is the room the platform's own window controls take at
   // the leading edge of the window; `draw_window_controls` asks the top row to
@@ -642,6 +647,12 @@ class AerieSidebarView : public views::View,
   // the sidebar goes, so that the toolbar never points at a view that is gone.
   raw_ptr<views::View> adopted_toolbar_ = nullptr;
   std::vector<raw_ptr<views::View>> adopted_parts_;
+  // Where each adopted part, and the toolbar itself, were, so that a layout
+  // change can put them back (issue #186). The indices are those in the parent
+  // before any part left it.
+  std::vector<size_t> adopted_part_indices_;
+  raw_ptr<views::View> toolbar_origin_parent_ = nullptr;
+  size_t toolbar_origin_index_ = 0;
   raw_ptr<aerie_tab_model::TabModel> model_ = nullptr;
   aerie_sidebar::SidebarPalette palette_;
   raw_ptr<views::Label> today_heading_ = nullptr;

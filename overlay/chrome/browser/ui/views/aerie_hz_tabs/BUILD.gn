@@ -1,0 +1,30 @@
+# Copyright 2026 The Aerie Authors
+# You can use, redistribute, and/or modify this source code under
+# the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+assert(!is_android, "The horizontal tab layout is for desktop platforms only")
+
+# What a tab of Chromium's horizontal strip does when it opens and closes (issue
+# #186): the content scale, slide and fade, through the motion helper. The width
+# stays with Chromium's animating layout manager. The numbers are in
+# //components/aerie_sidebar:hz_policy. The manager of the strip calls it
+# (patches/sidebar/0055).
+source_set("aerie_hz_tabs") {
+  sources = [
+    "aerie_hz_tab_motion.cc",
+    "aerie_hz_tab_motion.h",
+  ]
+  public_deps = [
+    "//base",
+    "//components/aerie_design_tokens:motion",
+    "//components/aerie_sidebar:hz_policy",
+    "//components/prefs",
+    "//ui/views",
+  ]
+  deps = [
+    "//components/aerie_design_tokens:tokens",
+    "//ui/compositor",
+    "//ui/gfx",
+    "//ui/gfx/geometry",
+  ]
+}

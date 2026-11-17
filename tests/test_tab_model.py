@@ -251,8 +251,9 @@ class NoNetworkNoStringsTest(unittest.TestCase):
                         if include in {"url/gurl.h", "url/url_constants.h"} and path.name == "tab_model_types.cc":
                             continue
                         self.assertFalse(include.startswith(("net/", "services/network", "url/")), f"{path.name}: {include}")
-                        # The sleep controller (#179) words its refusals from the sidebar's grd.
-                        if path.name != "sleep_controller.cc":
+                        # The sleep controller (#179) words its refusals from the sidebar's grd, and the horizontal strip names
+                        # a sleeping tab with the same words (#186).
+                        if path.name not in ("sleep_controller.cc", "tab_accessible_name.cc"):
                             self.assertNotIn("generated_resources", include)
 
 

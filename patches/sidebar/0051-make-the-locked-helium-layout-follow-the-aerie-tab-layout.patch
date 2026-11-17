@@ -1,0 +1,88 @@
+Aerie-Purpose: Make the locked Helium layout follow aerie.sidebar.layout, so the horizontal layouts use Helium's classic and compact tab strips.
+Aerie-Upstream-Area: chrome/browser/prefs (chrome_pref_service_factory.cc), chrome/browser/ui/helium (helium_layout_state_controller.cc, BUILD.gn)
+Aerie-Kind: hook
+
+Issue #186. The command-line pref layer holds helium.browser.layout (ADR 0008). PrepareFactory registers that store by profile path, and HeliumLayoutStateController sets it from aerie.sidebar.layout now and whenever the pref changes: sidebar is vertical, two rows is classic, one row is compact.
+
+--- a/chrome/browser/prefs/chrome_pref_service_factory.cc
++++ b/chrome/browser/prefs/chrome_pref_service_factory.cc
+@@ -29,6 +29,7 @@
+ #include "chrome/browser/enterprise/signin/enterprise_signin_prefs.h"
+ #include "chrome/browser/policy/chrome_browser_policy_connector.h"
+ #include "chrome/browser/prefs/chrome_command_line_pref_store.h"
++#include "components/aerie_sidebar/aerie_sidebar_layout_lock.h"
+ #include "chrome/browser/prefs/chrome_pref_model_associator_client.h"
+ #include "chrome/browser/prefs/profile_pref_store_manager.h"
+ #include "chrome/browser/profiles/profile.h"
+@@ -309,9 +310,14 @@
+   factory->SetRecommendedPolicies(policy_service, policy_connector);
+   factory->set_async(async);
+   factory->set_extension_prefs(std::move(extension_prefs));
+-  factory->set_command_line_prefs(
+-      base::MakeRefCounted<ChromeCommandLinePrefStore>(
+-          base::CommandLine::ForCurrentProcess()));
++  // Aerie: the command-line layer holds Helium's layout (ADR 0008). The
++  // layout lock keeps a handle on it, by the file's path, so that it can follow
++  // aerie.sidebar.layout (issue #186).
++  auto command_line_prefs = base::MakeRefCounted<ChromeCommandLinePrefStore>(
++      base::CommandLine::ForCurrentProcess());
++  aerie_sidebar::RegisterLayoutLockStore(pref_filename,
++                                         command_line_prefs.get());
++  factory->set_command_line_prefs(std::move(command_line_prefs));
+   factory->set_read_error_callback(base::BindRepeating(
+       &chrome_prefs::HandlePersistentPrefStoreReadError, pref_filename));
+   factory->set_user_prefs(std::move(user_pref_store));
+--- a/chrome/browser/ui/helium/helium_layout_state_controller.cc
++++ b/chrome/browser/ui/helium/helium_layout_state_controller.cc
+@@ -7,7 +7,12 @@
+ #include <utility>
+ 
+ #include "base/functional/bind.h"
++#include "base/files/file_path.h"
++#include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
++#include "components/aerie_sidebar/aerie_sidebar_layout.h"
++#include "components/aerie_sidebar/aerie_sidebar_layout_lock.h"
++#include "components/aerie_sidebar/aerie_sidebar_prefs.h"
+ #include "chrome/common/pref_names.h"
+ #include "components/prefs/pref_service.h"
+ 
+@@ -21,6 +26,24 @@
+                                 *this) {
+   pref_change_registrar_.Init(pref_service_);
+ 
++  // Aerie (issue #186): Helium's layout follows aerie.sidebar.layout. The
++  // layout is held in the command-line layer of the pref service (ADR 0008),
++  // so this controller, the first thing in a window that reads the layout,
++  // moves that layer to the layout the pref asks for, and does it again each
++  // time the pref changes. The observers of kHeliumLayout, among them this
++  // class and the tab strip state controller, hear of it.
++  const base::FilePath profile_path = browser_window->GetProfile()->GetPath();
++  aerie_sidebar::FollowTabLayout(
++      profile_path, aerie_sidebar::GetTabLayout(*pref_service_));
++  pref_change_registrar_.Add(
++      aerie_sidebar::kLayoutPref,
++      base::BindRepeating(
++          [](PrefService* prefs, base::FilePath path) {
++            aerie_sidebar::FollowTabLayout(
++                path, aerie_sidebar::GetTabLayout(*prefs));
++          },
++          pref_service_, profile_path));
++
+   pref_change_registrar_.AddMultiple(
+       {prefs::kHeliumLayout, prefs::kHeliumZenMode},
+       base::BindRepeating(&HeliumLayoutStateController::NotifyStateChanged,
+--- a/chrome/browser/ui/helium/BUILD.gn
++++ b/chrome/browser/ui/helium/BUILD.gn
+@@ -15,7 +15,11 @@
+     "//ui/base/unowned_user_data",
+   ]
+   deps = [
++    "//chrome/browser/profiles:profile",
+     "//chrome/browser/ui/browser_window",
+     "//chrome/common:constants",
++    "//components/aerie_sidebar:layout",
++    "//components/aerie_sidebar:layout_lock",
++    "//components/aerie_sidebar:prefs",
+   ]
+ }
