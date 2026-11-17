@@ -13,8 +13,46 @@
 
 namespace aerie_sidebar {
 
+TabLayout TabLayoutFromString(std::string_view value) {
+  if (value == kLayoutHorizontal) {
+    return TabLayout::kHorizontalTwoRows;
+  }
+  if (value == kLayoutHorizontalOneRow) {
+    return TabLayout::kHorizontalOneRow;
+  }
+  return TabLayout::kSidebar;
+}
+
+const char* TabLayoutToString(TabLayout layout) {
+  switch (layout) {
+    case TabLayout::kSidebar:
+      return kLayoutSidebar;
+    case TabLayout::kHorizontalTwoRows:
+      return kLayoutHorizontal;
+    case TabLayout::kHorizontalOneRow:
+      return kLayoutHorizontalOneRow;
+  }
+  return kLayoutSidebar;
+}
+
+TabLayout GetTabLayout(const PrefService& prefs) {
+  return TabLayoutFromString(prefs.GetString(kLayoutPref));
+}
+
+int HeliumLayoutFor(TabLayout layout) {
+  switch (layout) {
+    case TabLayout::kSidebar:
+      return kHeliumLayoutVertical;
+    case TabLayout::kHorizontalTwoRows:
+      return kHeliumLayoutClassic;
+    case TabLayout::kHorizontalOneRow:
+      return kHeliumLayoutCompact;
+  }
+  return kHeliumLayoutVertical;
+}
+
 bool IsSidebarLayout(const PrefService& prefs) {
-  return prefs.GetString(kLayoutPref) != kLayoutHorizontal;
+  return GetTabLayout(prefs) == TabLayout::kSidebar;
 }
 
 int ClampWidth(int width) {

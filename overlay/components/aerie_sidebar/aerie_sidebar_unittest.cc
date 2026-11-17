@@ -107,5 +107,31 @@ TEST_F(AerieSidebarTest, ALeadingExclusionIsRoundedUpToWholePixels) {
   EXPECT_EQ(PlanWindowControls(-3, 0, false).leading_inset, 0);
 }
 
+TEST_F(AerieSidebarTest, TheThreeTabLayoutsAreTheThreePrefValues) {
+  EXPECT_EQ(GetTabLayout(prefs_), TabLayout::kSidebar);
+  prefs_.SetString(kLayoutPref, "horizontal");
+  EXPECT_EQ(GetTabLayout(prefs_), TabLayout::kHorizontalTwoRows);
+  prefs_.SetString(kLayoutPref, "horizontal-one-row");
+  EXPECT_EQ(GetTabLayout(prefs_), TabLayout::kHorizontalOneRow);
+  EXPECT_FALSE(IsSidebarLayout(prefs_));
+  // A damaged value is the sidebar.
+  prefs_.SetString(kLayoutPref, "horizontal-three-rows");
+  EXPECT_EQ(GetTabLayout(prefs_), TabLayout::kSidebar);
+  EXPECT_TRUE(IsSidebarLayout(prefs_));
+}
+
+TEST_F(AerieSidebarTest, EachLayoutHasItsPrefValueAndHeliumLayout) {
+  // Helium's HeliumLayoutType: classic 0, compact 1, vertical 2.
+  EXPECT_STREQ(TabLayoutToString(TabLayout::kSidebar), "sidebar");
+  EXPECT_STREQ(TabLayoutToString(TabLayout::kHorizontalTwoRows), "horizontal");
+  EXPECT_STREQ(TabLayoutToString(TabLayout::kHorizontalOneRow),
+               "horizontal-one-row");
+  EXPECT_EQ(HeliumLayoutFor(TabLayout::kSidebar), 2);
+  EXPECT_EQ(HeliumLayoutFor(TabLayout::kHorizontalTwoRows), 0);
+  EXPECT_EQ(HeliumLayoutFor(TabLayout::kHorizontalOneRow), 1);
+  EXPECT_EQ(TabLayoutFromString("horizontal-one-row"),
+            TabLayout::kHorizontalOneRow);
+}
+
 }  // namespace
 }  // namespace aerie_sidebar

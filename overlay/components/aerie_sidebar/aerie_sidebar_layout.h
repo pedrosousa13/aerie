@@ -5,6 +5,8 @@
 #ifndef COMPONENTS_AERIE_SIDEBAR_AERIE_SIDEBAR_LAYOUT_H_
 #define COMPONENTS_AERIE_SIDEBAR_AERIE_SIDEBAR_LAYOUT_H_
 
+#include <string_view>
+
 class PrefService;
 
 // What the Aerie sidebar decides without a view (issue #177): which layout is
@@ -20,9 +22,29 @@ namespace aerie_sidebar {
 inline constexpr char kHeliumLayoutPref[] = "helium.browser.layout";
 inline constexpr char kHeliumZenModePref[] = "helium.browser.zen_mode";
 inline constexpr int kHeliumLayoutVertical = 2;
+// The two Helium layouts the horizontal options use (issue #186): kClassic is
+// two rows (the tab strip, then the toolbar), kCompact is one row.
+inline constexpr int kHeliumLayoutClassic = 0;
+inline constexpr int kHeliumLayoutCompact = 1;
 
-// True when the layout pref asks for the sidebar. Anything but "horizontal" is
-// the sidebar, so a damaged value cannot bring a Helium layout back.
+// The three tab layouts of `aerie.sidebar.layout` (issue #186).
+enum class TabLayout { kSidebar, kHorizontalTwoRows, kHorizontalOneRow };
+
+// The layout a pref value names. Anything that is not one of the three values
+// is the sidebar, so a damaged value cannot bring a Helium layout back.
+TabLayout TabLayoutFromString(std::string_view value);
+// The pref value of a layout (kLayoutSidebar, kLayoutHorizontal or
+// kLayoutHorizontalOneRow).
+const char* TabLayoutToString(TabLayout layout);
+// The layout the profile's pref asks for.
+TabLayout GetTabLayout(const PrefService& prefs);
+// The value of helium.browser.layout that goes with a layout (ADR 0008): the
+// sidebar is Helium's vertical layout underneath, two rows its classic layout,
+// one row its compact layout.
+int HeliumLayoutFor(TabLayout layout);
+
+// True when the layout pref asks for the sidebar. Anything but "horizontal" or
+// "horizontal-one-row" is the sidebar.
 bool IsSidebarLayout(const PrefService& prefs);
 
 // Width limits and steps, from the tokens size-sidebar-width, -min and -max.

@@ -7,6 +7,7 @@
 #include <memory>
 #include <vector>
 
+#include "base/files/file_path.h"
 #include "base/functional/bind.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/values.h"
@@ -121,6 +122,48 @@ TEST_F(AerieSidebarLayoutLockTest, OtherPrefsStayUserModifiable) {
   factory.set_command_line_prefs(command_line_store_);
   std::unique_ptr<PrefService> prefs = factory.Create(registry);
   EXPECT_TRUE(prefs->IsUserModifiablePreference("helium.browser.other"));
+}
+
+TEST_F(AerieSidebarLayoutLockTest, HeliumFollowsTheTabLayout) {
+  SetLockedLayout(command_line_store_.get(), TabLayout::kHorizontalTwoRows);
+  EXPECT_EQ(prefs_->GetInteger(kHeliumLayoutPref), 0);  // Classic.
+  SetLockedLayout(command_line_store_.get(), TabLayout::kHorizontalOneRow);
+  EXPECT_EQ(prefs_->GetInteger(kHeliumLayoutPref), 1);  // Compact.
+  SetLockedLayout(command_line_store_.get(), TabLayout::kSidebar);
+  EXPECT_EQ(prefs_->GetInteger(kHeliumLayoutPref), kHeliumLayoutVertical);
+  // Zen mode stays off in every layout, and neither pref is the user's to set.
+  EXPECT_FALSE(prefs_->GetBoolean(kHeliumZenModePref));
+  EXPECT_FALSE(prefs_->IsUserModifiablePreference(kHeliumLayoutPref));
+}
+
+TEST_F(AerieSidebarLayoutLockTest, ObserversHearTheLayoutChange) {
+  std::vector<int> seen;
+  PrefChangeRegistrar registrar;
+  registrar.Init(prefs_.get());
+  registrar.Add(kHeliumLayoutPref,
+                base::BindRepeating(
+                    [](std::vector<int>* out, PrefService* prefs) {
+                      out->push_back(prefs->GetInteger(kHeliumLayoutPref));
+                    },
+                    base::Unretained(&seen), base::Unretained(prefs_.get())));
+  SetLockedLayout(command_line_store_.get(), TabLayout::kHorizontalTwoRows);
+  // The same layout again is no change.
+  SetLockedLayout(command_line_store_.get(), TabLayout::kHorizontalTwoRows);
+  SetLockedLayout(command_line_store_.get(), TabLayout::kSidebar);
+  EXPECT_EQ(seen, (std::vector<int>{0, kHeliumLayoutVertical}));
+}
+
+TEST_F(AerieSidebarLayoutLockTest, ARegisteredProfileStoreIsFoundByItsPath) {
+  const base::FilePath profile(FILE_PATH_LITERAL("/profiles/one"));
+  const base::FilePath other(FILE_PATH_LITERAL("/profiles/two"));
+  RegisterLayoutLockStore(profile, command_line_store_.get());
+  EXPECT_TRUE(FollowTabLayout(profile, TabLayout::kHorizontalOneRow));
+  EXPECT_EQ(prefs_->GetInteger(kHeliumLayoutPref), 1);
+  // Another profile has no store here, and this one is not touched.
+  EXPECT_FALSE(FollowTabLayout(other, TabLayout::kSidebar));
+  EXPECT_EQ(prefs_->GetInteger(kHeliumLayoutPref), 1);
+  UnregisterLayoutLockStore(profile);
+  EXPECT_FALSE(FollowTabLayout(profile, TabLayout::kSidebar));
 }
 
 }  // namespace

@@ -116,6 +116,17 @@ source_set("layout_lock") {
   ]
 }
 
+# The pure rules of the horizontal tab layouts (issue #186): how wide each tab
+# is and when it shows the icon only, and how long a tab opens and closes. Only
+# tokens.
+source_set("hz_policy") {
+  sources = [
+    "aerie_sidebar_hz_policy.cc",
+    "aerie_sidebar_hz_policy.h",
+  ]
+  public_deps = [ "//components/aerie_design_tokens:tokens" ]
+}
+
 # The colours the sidebar's views draw with, from the token tables and the
 # frame palette (issue #215).
 source_set("palette") {
@@ -184,6 +195,7 @@ source_set("unit_tests") {
     "aerie_sidebar_drag_unittest.cc",
     "aerie_sidebar_drop_target_unittest.cc",
     "aerie_sidebar_folder_toggle_unittest.cc",
+    "aerie_sidebar_hz_policy_unittest.cc",
     "aerie_sidebar_layout_lock_unittest.cc",
     "aerie_sidebar_motion_unittest.cc",
     "aerie_sidebar_move_unittest.cc",
@@ -198,6 +210,7 @@ source_set("unit_tests") {
     ":drag",
     ":drop_target",
     ":folder_toggle",
+    ":hz_policy",
     ":layout",
     ":layout_lock",
     ":motion",

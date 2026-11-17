@@ -12,13 +12,14 @@ class PrefRegistrySimple;
 // compares them.
 namespace aerie_sidebar {
 
-// Which tab layout Aerie shows: "sidebar" (the default) or "horizontal" (the
-// layout of issue #186, slice J; this slice only knows the name). Only
-// "sidebar" is shown today. A stored value that is none of the two reads as
-// "sidebar".
+// Which tab layout Aerie shows (issues #177 and #186): "sidebar" (the default),
+// "horizontal" (Chromium's tab strip in two rows: tabs, then the toolbar) or
+// "horizontal-one-row" (the dense one: everything in one strip). A stored value
+// that is none of the three reads as "sidebar".
 inline constexpr char kLayoutPref[] = "aerie.sidebar.layout";
 inline constexpr char kLayoutSidebar[] = "sidebar";
 inline constexpr char kLayoutHorizontal[] = "horizontal";
+inline constexpr char kLayoutHorizontalOneRow[] = "horizontal-one-row";
 
 // The width of the sidebar in pixels. The default is the token size-sidebar-
 // width; a stored value is clamped to size-sidebar-min .. size-sidebar-max
