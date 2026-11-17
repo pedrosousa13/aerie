@@ -163,7 +163,7 @@ export class SettingsAerieTitleRulesRowElement extends
           background: var(--color-sys-primary, var(--cr-checked-color));
         }
         .aerie-switch[aria-checked='true']::after {
-          background: var(--color-sys-on-primary, #fff);
+          background: var(--color-sys-on-primary);
           inset-inline-start: 18px;
         }
         .aerie-button {
@@ -207,10 +207,13 @@ export class SettingsAerieTitleRulesRowElement extends
           width: 100%;
         }
         .aerie-error {
-          color: var(--cr-error-color, var(--color-sys-error, #b3261e));
+          color: var(--cr-error-color);
         }
         .aerie-error:empty, .aerie-status:empty {
           display: none;
+        }
+        #aerieTidySiteInput {
+          max-width: 280px;
         }
         .aerie-hint {
           color: var(--cr-secondary-text-color);

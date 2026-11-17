@@ -26,7 +26,7 @@ export function getHtml(this: SettingsAerieTitleRulesRowElement) {
   <div class="aerie-hint" id="aerieTidySitesDesc">$i18n{aerieTidyOffSitesDesc}</div>
   <div class="aerie-inline">
     <input id="aerieTidySiteInput" type="text" autocomplete="off"
-        spellcheck="false" maxlength="256" style="max-width: 280px"
+        spellcheck="false" maxlength="256"
         aria-labelledby="aerieTidySitesLabel"
         aria-describedby="aerieTidySitesDesc"
         .value="${this.siteDraft_}" @input="${this.onSiteInput_}"
