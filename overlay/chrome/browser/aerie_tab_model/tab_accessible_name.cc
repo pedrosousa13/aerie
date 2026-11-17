@@ -9,22 +9,25 @@
 #include "chrome/browser/aerie_tab_model/tab_model_service_factory.h"
 #include "chrome/browser/aerie_tab_model/tab_strip_adapter.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/aerie_tab_model/tab_model.h"
 #include "components/tabs/public/tab_interface.h"
+#include "content/public/browser/web_contents.h"
 #include "ui/base/l10n/l10n_util.h"
 
 namespace aerie_tab_model {
 
 std::u16string AccessibleTabName(const tabs::TabInterface* tab,
                                  const std::u16string& title) {
-  BrowserWindowInterface* browser = tab->GetBrowserWindowInterface();
-  if (!browser || !browser->GetProfile()) {
+  content::WebContents* contents = tab->GetContents();
+  Profile* profile =
+      contents ? Profile::FromBrowserContext(contents->GetBrowserContext())
+               : nullptr;
+  if (!profile) {
     return title;
   }
   TabModelService* service =
-      TabModelServiceFactory::GetForProfile(browser->GetProfile());
+      TabModelServiceFactory::GetForProfile(profile);
   if (!service || !service->adapter()) {
     return title;
   }
