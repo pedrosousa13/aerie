@@ -29,9 +29,8 @@ class TabModel;
 inline constexpr size_t kMaxManualNameLength = 200;
 
 // The sources of a title, in the order of the design's precedence table (first
-// match wins). M2 has `manual` and `page`; #146 adds `rule` and `tidy`, #147
-// adds `ai`. The names are listed now so that a provider for them only has to
-// be added to the list.
+// match wins). `manual`, `rule`, `tidy` and `page` have providers; `ai` (#147)
+// is named so that its provider only has to be added to the list.
 enum class TitleSource { kManual, kRule, kTidy, kAi, kPage };
 
 struct ResolvedTitle {
@@ -64,8 +63,7 @@ class TitleProvider {
   virtual std::optional<ProvidedTitle> Provide(const TitleInput& input) const = 0;
 };
 
-// An ordered list of providers. #146 only adds entries to the default list;
-// nothing here changes for it.
+// An ordered list of providers; the default list is built by CreateDefault.
 class TitleResolver {
  public:
   explicit TitleResolver(std::vector<std::unique_ptr<TitleProvider>> providers);

@@ -23,6 +23,11 @@ inline constexpr size_t kMaxTidyTitleBytes = 2048;
 // and the rename rules read no more than this of a title.
 std::string_view BoundTitle(std::string_view title);
 
+// The same cut for a UTF-16 title (the sidebar holds titles that way): at most
+// kMaxTidyTitleBytes units, never between the halves of a surrogate pair. What
+// the sidebar keeps of a page title, and puts in a tooltip, is cut here.
+std::u16string_view BoundTitleUtf16(std::u16string_view title);
+
 // Tidies `title` for a page on `host` (a GURL host; may be empty):
 //  - strips a leading or trailing unread count such as "(3)", "[12]" or
 //    "(99+)";

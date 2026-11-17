@@ -188,4 +188,14 @@ TEST(TitleTidierTest, CleanSeparatorsClosesTheGapOfARemovedText) {
   EXPECT_EQ(CleanSeparators("  a   b "), "a b");
 }
 
+TEST(BoundTitleUtf16Test, ALongTitleIsCutAtTheBoundAndNeverInAPair) {
+  EXPECT_EQ(BoundTitleUtf16(u"short"), u"short");
+  const std::u16string plain(kMaxTidyTitleBytes + 10, u'a');
+  EXPECT_EQ(BoundTitleUtf16(plain).size(), kMaxTidyTitleBytes);
+  // A pair that straddles the bound is dropped whole.
+  std::u16string pair(kMaxTidyTitleBytes - 1, u'a');
+  pair += u"\U0001F600tail";
+  EXPECT_EQ(BoundTitleUtf16(pair).size(), kMaxTidyTitleBytes - 1);
+}
+
 }  // namespace aerie_tab_model

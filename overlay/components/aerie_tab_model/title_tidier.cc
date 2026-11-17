@@ -141,10 +141,6 @@ std::string JoinParts(const Parts& parts, size_t count) {
   return out;
 }
 
-std::string Lower(std::string_view text) {
-  return base::ToLowerASCII(text);
-}
-
 // The text without spaces and punctuation, lower case, for comparing a site's
 // name with a part of its host.
 std::string Squash(std::string_view text) {
@@ -208,15 +204,15 @@ bool NameMatchesHost(std::string_view name, std::string_view host) {
   if (squashed.size() < 2) {
     return false;
   }
-  const std::string lower_host = Lower(host);
+  const std::string lower_host = base::ToLowerASCII(host);
   for (const HostName& entry : kHostNames) {
     if (HostIsOrUnder(lower_host, entry.domain) && squashed == entry.name) {
       return true;
     }
   }
-  // Each label of the host except the last (the TLD), and for a two-part TLD
-  // such as co.uk the one before it too. "BBC News" starts with the label
-  // "bbc"; "GitHub" is the label "github".
+  // Every label of the host except the last one (the TLD): for bbc.co.uk that
+  // is "bbc" and "co". "BBC News" starts with the label "bbc"; "GitHub" is the
+  // label "github".
   std::vector<std::string_view> labels;
   std::string_view rest = lower_host;
   while (true) {
@@ -240,7 +236,7 @@ bool NameMatchesHost(std::string_view name, std::string_view host) {
     if (squashed.size() > squashed_label.size() &&
         base::StartsWith(squashed, squashed_label) &&
         name.find(' ') != std::string_view::npos &&
-        base::StartsWith(Lower(name), squashed_label)) {
+        base::StartsWith(base::ToLowerASCII(name), squashed_label)) {
       return true;
     }
   }
@@ -251,6 +247,18 @@ std::string CleanSeparators(std::string_view text) {
   const std::vector<std::string_view> words = SplitWords(text);
   const Parts parts = SplitParts(words);
   return JoinParts(parts, parts.parts.size());
+}
+
+std::u16string_view BoundTitleUtf16(std::u16string_view title) {
+  if (title.size() <= kMaxTidyTitleBytes) {
+    return title;
+  }
+  size_t cut = kMaxTidyTitleBytes;
+  // Never keep half of a surrogate pair.
+  if ((title[cut - 1] & 0xFC00) == 0xD800) {
+    --cut;
+  }
+  return title.substr(0, cut);
 }
 
 std::string_view BoundTitle(std::string_view title) {
@@ -278,13 +286,10 @@ std::string TidyTitle(std::string_view title, std::string_view host) {
   }
   size_t count = parts.parts.size();
   if (count >= 2) {
-    std::string last;
-    for (size_t w = 0; w < parts.parts[count - 1].size(); ++w) {
-      if (w > 0) {
-        last += ' ';
-      }
-      last += parts.parts[count - 1][w];
-    }
+    // The last part alone, joined the way JoinParts joins words.
+    Parts tail;
+    tail.parts.push_back(parts.parts[count - 1]);
+    const std::string last = JoinParts(tail, 1);
     if (NameMatchesHost(last, host)) {
       --count;
     }
