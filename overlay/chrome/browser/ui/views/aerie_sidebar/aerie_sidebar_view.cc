@@ -1215,7 +1215,7 @@ AerieSidebarRowView* AerieSidebarView::MakeRow(
   }
   if (entry.is_folder) {
     // A folder row: a click, Enter or Space opens or shuts it. It cannot close.
-    callbacks.select = base::BindRepeating(&AerieSidebarView::ToggleFolderAtFrame,
+    callbacks.select = base::BindRepeating(&AerieSidebarView::ToggleFolder,
                                            base::Unretained(this), id);
     callbacks.close = base::DoNothing();
   } else {
@@ -2401,26 +2401,6 @@ void AerieSidebarView::ToggleFolder(const std::string& folder_id) {
       model_ ? model_->GetFolder(folder_id) : nullptr;
   if (folder) {
     SetFolderExpanded(folder_id, !folder->expanded);
-  }
-}
-
-void AerieSidebarView::ToggleFolderAtFrame(const std::string& folder_id) {
-  pending_folder_toggles_.push_back(folder_id);
-  if (toggle_frame_.pending()) {
-    return;
-  }
-  if (!toggle_frame_.Post(
-          this, base::BindOnce(&AerieSidebarView::RunPendingFolderToggles,
-                               base::Unretained(this)))) {
-    RunPendingFolderToggles();
-  }
-}
-
-void AerieSidebarView::RunPendingFolderToggles() {
-  std::vector<std::string> ids;
-  ids.swap(pending_folder_toggles_);
-  for (const std::string& id : ids) {
-    ToggleFolder(id);
   }
 }
 

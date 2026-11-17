@@ -274,9 +274,7 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarMotionUiTest, HideAndShowAnimateOnlyTheColumn
 
   // Hide (Ctrl+S): the column slides out by a transform, 200 ms.
   chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
-  // The slide starts at the next begin-frame (issue #237).
-  ASSERT_TRUE(base::test::RunUntil(
-      [&] { return Animates(column, ui::LayerAnimationElement::TRANSFORM); }));
+  EXPECT_TRUE(Animates(column, ui::LayerAnimationElement::TRANSFORM));
   EXPECT_FALSE(Animates(column, ui::LayerAnimationElement::OPACITY));
   EXPECT_TRUE(OnlyTransformAndOpacityAnimate(column));
 
@@ -295,9 +293,7 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarMotionUiTest, HideAndShowAnimateOnlyTheColumn
 
   // Show: the card is narrower at once.
   chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
-  ASSERT_TRUE(base::test::RunUntil([&] {
-    return Animates(region()->layer(), ui::LayerAnimationElement::TRANSFORM);
-  }));
+  EXPECT_TRUE(Animates(region()->layer(), ui::LayerAnimationElement::TRANSFORM));
   EXPECT_TRUE(OnlyTransformAndOpacityAnimate(region()->layer()));
   ASSERT_TRUE(base::test::RunUntil([&] { return card()->width() < card_after.width(); }));
   const gfx::Rect card_shown = card()->bounds();
@@ -305,47 +301,6 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarMotionUiTest, HideAndShowAnimateOnlyTheColumn
   const base::TimeTicks until = base::TimeTicks::Now() + base::Milliseconds(400);
   base::test::RunUntil([&] { return base::TimeTicks::Now() >= until; });
   EXPECT_EQ(card()->bounds(), card_shown);
-}
-
-// The first frame of a slide fits in one vsync only when its work starts with
-// a begin-frame, not inside the key press (issue #237): nothing is laid out or
-// animated before the compositor asks for the frame, and a second Ctrl+S in the
-// same frame cancels the first without a flicker.
-IN_PROC_BROWSER_TEST_F(AerieSidebarMotionUiTest, TheSlideStartsAtTheNextBeginFrameAndTwoTogglesInOneFrameCancel) {
-  ForceReducedMotion(false);
-  ASSERT_TRUE(base::test::RunUntil([&] { return region()->width() > 0; }));
-  const gfx::Rect card_before = card()->bounds();
-  ui::Layer* column = region()->layer();
-
-  chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
-  EXPECT_TRUE(region()->aerie_slide_start_pending_for_testing());
-  EXPECT_FALSE(Animates(column, ui::LayerAnimationElement::TRANSFORM));
-  EXPECT_EQ(card()->bounds(), card_before);
-  ASSERT_TRUE(base::test::RunUntil([&] { return !region()->aerie_slide_start_pending_for_testing(); }));
-  EXPECT_TRUE(Animates(column, ui::LayerAnimationElement::TRANSFORM));
-  ASSERT_TRUE(base::test::RunUntil([&] { return region()->aerie_sidebar_hidden(); }));
-
-  // Hidden: two toggles before the frame end where they began.
-  chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
-  chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
-  ASSERT_TRUE(base::test::RunUntil([&] { return !region()->aerie_slide_start_pending_for_testing(); }));
-  EXPECT_TRUE(region()->aerie_sidebar_hidden());
-  EXPECT_FALSE(Animates(column, ui::LayerAnimationElement::TRANSFORM));
-}
-
-// A click on a folder row starts the folder motion at the next begin-frame too.
-IN_PROC_BROWSER_TEST_F(AerieSidebarMotionUiTest, AFolderToggleFromAClickStartsAtTheNextBeginFrame) {
-  ForceReducedMotion(false);
-  auto* model = aerie_tab_model::TabModelServiceFactory::GetForProfile(browser()->GetProfile())->model();
-  const std::string folder = sidebar()->CreateFolderIn(aerie_tab_model::Section::kToday, std::string());
-  ASSERT_FALSE(folder.empty());
-  ASSERT_TRUE(model->GetFolder(folder));
-  const bool expanded = model->GetFolder(folder)->expanded;
-  sidebar()->ToggleFolderAtFrame(folder);
-  EXPECT_TRUE(sidebar()->folder_toggle_pending_for_testing());
-  EXPECT_EQ(model->GetFolder(folder)->expanded, expanded);
-  ASSERT_TRUE(base::test::RunUntil([&] { return model->GetFolder(folder)->expanded != expanded; }));
-  EXPECT_FALSE(sidebar()->folder_toggle_pending_for_testing());
 }
 
 // A hide that slides draws: the column keeps real bounds, at its own width, for
@@ -424,11 +379,9 @@ IN_PROC_BROWSER_TEST_P(AerieSidebarReducedMotionUiTest, ReducedMotionFadesTheCol
   ui::Layer* column = region()->layer();
 
   chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
-  // The column fades (opacity, at most 140 ms); no transform is created. It
-  // starts at the next begin-frame (issue #237).
-  ASSERT_TRUE(base::test::RunUntil(
-      [&] { return Animates(column, ui::LayerAnimationElement::OPACITY); }));
+  // The column fades (opacity, at most 140 ms); no transform is created.
   EXPECT_FALSE(Animates(column, ui::LayerAnimationElement::TRANSFORM));
+  EXPECT_TRUE(Animates(column, ui::LayerAnimationElement::OPACITY));
   EXPECT_TRUE(OnlyTransformAndOpacityAnimate(column));
   EXPECT_LE(OpacityDuration(column), base::Milliseconds(140));
   EXPECT_TRUE(column->GetTargetTransform().IsIdentity());
@@ -442,9 +395,6 @@ IN_PROC_BROWSER_TEST_P(AerieSidebarReducedMotionUiTest, ReducedMotionFadesTheCol
 
   ASSERT_TRUE(base::test::RunUntil([&] { return region()->aerie_sidebar_hidden(); }));
   chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
-  ASSERT_TRUE(base::test::RunUntil([&] {
-    return Animates(region()->layer(), ui::LayerAnimationElement::OPACITY);
-  }));
   EXPECT_FALSE(Animates(region()->layer(), ui::LayerAnimationElement::TRANSFORM));
   EXPECT_LE(OpacityDuration(region()->layer()), base::Milliseconds(140));
   ASSERT_TRUE(base::test::RunUntil([&] { return card()->width() < card_before.width() + 1; }));

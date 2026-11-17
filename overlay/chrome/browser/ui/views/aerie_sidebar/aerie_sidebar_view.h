@@ -17,7 +17,6 @@
 #include "base/memory/weak_ptr.h"
 #include "base/timer/timer.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
-#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_frame_start.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_context_menu.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_archive_controller.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_controller.h"
@@ -323,13 +322,6 @@ class AerieSidebarView : public views::View,
   // appear or go play the folder motion. A toggle while the motion of the same
   // folder runs turns it around.
   void ToggleFolder(const std::string& folder_id);
-  // What a click, Enter or Space on a folder row calls: the toggle starts at
-  // the next begin-frame, so that the first frame of the motion fits in one
-  // vsync (issue #237). Toggles that come in before it run in order.
-  void ToggleFolderAtFrame(const std::string& folder_id);
-  bool folder_toggle_pending_for_testing() const {
-    return toggle_frame_.pending();
-  }
   void SetFolderExpanded(const std::string& folder_id, bool expanded);
   // Makes a folder named "New folder" at the top of `parent_folder_id` (empty:
   // of the section) and opens its name for editing. Returns its id, or an empty
@@ -687,9 +679,6 @@ class AerieSidebarView : public views::View,
   // pinned_list_: its group's destructor runs End(), which touches them (and
   // calls OnCollapsedRowsRemoved on this view).
   AerieSidebarFolderController folders_{this};
-  aerie_sidebar::AerieFrameStart toggle_frame_;
-  std::vector<std::string> pending_folder_toggles_;
-  void RunPendingFolderToggles();
   // The folder row that takes keyboard focus when the row that had it went
   // into a folder that shut.
   std::string refocus_folder_id_;

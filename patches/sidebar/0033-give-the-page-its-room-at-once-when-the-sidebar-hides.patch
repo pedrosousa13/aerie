@@ -9,16 +9,9 @@ follows a bounds change ran after the transform started, so the page stayed one 
 
 A show already gave the page its room in one step. A hide used to hold the room until the slide had ended; now it gives it at once and
 the column slides out over the room the card is taking. The state and the numbers are in the overlay
-(aerie_sidebar::HideSlide, components/aerie_sidebar/aerie_sidebar_motion.h). While the slide runs the region's preferred and minimum
-width are 0, so the page has its room, and the region floats at the column's own width over that room (aerie_sidebar::kFloatingWidth,
-the property the auto-hide peek uses; issue #237). A zero-width region with its content hanging outside left the compositor one frame
-of the slide (the Bench's sidebar_frames check measured 1 frame in 12), because the region had no bounds to draw. When the slide
-ends the column leaves the layout as before.
-
-The show and the hide also start at the next begin-frame, not inside the key press (aerie_sidebar::AerieFrameStart), and a drag of the
-resize edge applies once per begin-frame, not once per pointer move. A key press lands anywhere in a vsync, and the layout, paint and
-raster it causes then run from that moment: the first frame was on screen 15 to 25 ms after its begin-frame, against a 16.7 ms budget.
-Pref changes that come in before the frame are read together, so two Ctrl+S in one frame cancel each other.
+(aerie_sidebar::HideSlide, components/aerie_sidebar/aerie_sidebar_motion.h): while it is active the region's preferred and minimum
+width are 0 and Layout puts the column's content at its old width, outside the region's own bounds. When the slide ends the column
+leaves the layout as before.
 
 --- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
 +++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
@@ -40,32 +33,6 @@ Pref changes that come in before the frame are read together, so two Ctrl+S in o
      size.set_width(0);
      return size;
    }
-@@ -806,7 +806,7 @@
- void VerticalTabStripRegionView::OnResize(int resize_amount,
-                                           bool done_resizing) {
-   if (aerie_sidebar_view_) {
--    OnAerieResize(resize_amount, done_resizing);
-+    AerieResizeAtFrame(resize_amount, done_resizing);
-     return;
-   }
-   CHECK(tab_strip_view());
-@@ -914,6 +923,16 @@
- // only, opacity alone under reduced motion). On the way out the layout waits
- // for the slide to end (issue #177).
- void VerticalTabStripRegionView::OnAerieVisibleChanged() {
-+  // The slide starts at the next begin-frame, not inside the key press, so
-+  // that the first frame's layout, paint and raster fit in one vsync
-+  // (issue #237). Pref changes that come in before it are read together.
-+  if (!aerie_starting_slide_ &&
-+      aerie_frame_start_.Post(
-+          this,
-+          base::BindOnce(&VerticalTabStripRegionView::AerieStartVisibleChange,
-+                         base::Unretained(this)))) {
-+    return;
-+  }
-   PrefService* const prefs = browser_view()->GetProfile()->GetPrefs();
-   const bool visible = aerie_sidebar::IsVisible(*prefs);
-   // The target state, not aerie_hidden_: a hide only takes effect when its
 @@ -936,6 +945,7 @@
      // layout yet: the show then starts from where the column is.
      const bool was_hidden = aerie_hidden_;
@@ -92,60 +59,22 @@ Pref changes that come in before the frame are read together, so two Ctrl+S in o
              self->layer()->SetOpacity(1.f);
 --- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
 +++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
-@@ -14,6 +14,9 @@
+@@ -14,6 +14,8 @@
  #include "base/time/time.h"
  #include "base/timer/timer.h"
  #include "components/aerie_design_tokens/aerie_motion.h"
 +#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_floating.h"
-+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_frame_start.h"
 +#include "components/aerie_sidebar/aerie_sidebar_motion.h"
  #include "components/prefs/pref_change_registrar.h"
  #include "chrome/browser/ui/animation/browser_animation_types.h"
  #include "chrome/browser/ui/omnibox/omnibox_tab_helper.h"
-@@ -266,6 +270,66 @@
+@@ -266,6 +270,29 @@
    bool aerie_target_visible_ = true;
    PrefChangeRegistrar aerie_pref_registrar_;
    base::OneShotTimer aerie_hide_timer_;
 +  // While a hide slides out the layout already gives the room to the page and
 +  // the column floats over it at its own width (issues #215, #237).
 +  aerie_sidebar::HideSlide aerie_hide_slide_;
-+  // Starts the show or hide that aerie.sidebar.visible asks for at the next
-+  // begin-frame (issue #237).
-+  aerie_sidebar::AerieFrameStart aerie_frame_start_;
-+  bool aerie_starting_slide_ = false;
-+ public:
-+  bool aerie_slide_start_pending_for_testing() const {
-+    return aerie_frame_start_.pending();
-+  }
-+
-+ private:
-+  void AerieStartVisibleChange() {
-+    aerie_starting_slide_ = true;
-+    OnAerieVisibleChanged();
-+    aerie_starting_slide_ = false;
-+  }
-+  // A drag moves the sidebar's edge once per begin-frame, not once per pointer
-+  // move: the layout and the paint of the move then start with the frame and
-+  // fit in one vsync (issue #237). The last move of a drag applies at once.
-+  aerie_sidebar::AerieFrameStart aerie_resize_frame_;
-+  int aerie_pending_resize_ = 0;
-+  void AerieResizeAtFrame(int resize_amount, bool done_resizing) {
-+    aerie_pending_resize_ = resize_amount;
-+    if (done_resizing) {
-+      aerie_resize_frame_.Cancel();
-+      OnAerieResize(resize_amount, true);
-+      return;
-+    }
-+    if (aerie_resize_frame_.pending()) {
-+      return;
-+    }
-+    if (!aerie_resize_frame_.Post(
-+            this, base::BindOnce(&VerticalTabStripRegionView::AerieApplyResize,
-+                                 base::Unretained(this)))) {
-+      OnAerieResize(resize_amount, false);
-+    }
-+  }
-+  void AerieApplyResize() { OnAerieResize(aerie_pending_resize_, false); }
 +  void AerieBeginHideSlide(int column_width) {
 +    aerie_hide_slide_.Begin(column_width);
 +    SetProperty(aerie_sidebar::kFloatingWidth,
