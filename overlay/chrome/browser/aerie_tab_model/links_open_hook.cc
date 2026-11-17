@@ -64,12 +64,12 @@ bool OpenInPlace(NavigateParams* params, content::WebContents* source) {
   in_place.is_renderer_initiated = true;
   in_place.initiator_origin = initiator->GetLastCommittedOrigin();
   in_place.initiator_frame_token = initiator->GetFrameToken();
-  in_place.initiator_process_id = initiator->GetProcess()->GetID();
+  in_place.initiator_process_id = initiator->GetProcess()->GetID().GetUnsafeValue();
   in_place.user_gesture = true;
   in_place.original_user_gesture = true;
   // The new contents that the page asked for is not needed.
   params->contents_to_insert.reset();
-  chrome::Navigate(&in_place);
+  Navigate(&in_place);
   return true;
 }
 

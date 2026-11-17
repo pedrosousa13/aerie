@@ -51,6 +51,7 @@ source_set("aerie_tab_model") {
     "tab_strip_adapter.h",
   ]
   sources = [
+    "links_open_hook.cc",
     "pinned_tabs_controller.cc",
     "pinned_tabs_controller.h",
     "restore_pass.cc",

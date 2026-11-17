@@ -690,7 +690,7 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarFolderSheetBrowserTest,
   EXPECT_EQ(sheet->behaviour_value(Behaviour::kSleep)->GetModel()->GetItemAt(0),
             u"1 hour");
   EXPECT_EQ(sheet->behaviour_value(Behaviour::kLinks)->GetModel()->GetItemAt(0),
-            u"New tab");
+            u"In a new tab");
   sheet->Dismiss(false);
   CloseSheetAndWait();
 }
@@ -733,7 +733,7 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarFolderSheetBrowserTest,
 
   // What a restart reads back is the same record.
   aerie_tab_model::FolderRecord copy;
-  copy.behaviour = model()->GetFolder(folder)->behaviour.Clone();
+  copy.behaviour = model()->GetFolder(folder)->behaviour->Clone();
   const aerie_tab_model::FolderBehaviour again =
       aerie_tab_model::ReadFolderBehaviour(copy);
   EXPECT_EQ(again.archive_after, aerie_tab_model::ArchiveChoice::k7Days);
