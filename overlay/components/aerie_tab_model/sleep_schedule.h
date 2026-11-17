@@ -59,6 +59,11 @@ class SleepSchedule {
   bool IsTracked(Key key) const { return since_.contains(key); }
   size_t tracked_count() const { return since_.size(); }
 
+  // Works out the earliest due moment again and arms the one timer for it. The
+  // owner calls it when the answer of the override can have changed (a folder's
+  // sleep time was edited, a tab moved to another folder).
+  void Rearm();
+
   bool timer_pending() const { return timer_.IsRunning(); }
   // How long until the timer runs, or nullopt when it is not armed.
   std::optional<base::TimeDelta> next_fire_in() const;
@@ -69,9 +74,6 @@ class SleepSchedule {
 
  private:
   std::optional<base::TimeDelta> DelayFor(Key key) const;
-  // Arms the timer for the earliest tab to expire, or stops it.
-  void Rearm();
-
   const raw_ptr<const base::TickClock> clock_;
   const DueCallback on_due_;
   DelayOverride delay_override_;

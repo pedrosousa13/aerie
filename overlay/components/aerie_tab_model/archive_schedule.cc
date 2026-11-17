@@ -11,6 +11,7 @@
 
 #include "base/check.h"
 #include "components/aerie_tab_model/archive.h"
+#include "components/aerie_tab_model/folder_behaviour.h"
 
 namespace aerie_tab_model {
 
@@ -18,7 +19,9 @@ std::optional<base::TimeDelta> EffectiveArchiveTimeout(
     const TabModel& model,
     const TabRecord& tab,
     std::optional<base::TimeDelta> global) {
-  return global;
+  GlobalBehaviour values;
+  values.archive_after = global;
+  return EffectiveArchiveAfter(model, tab, values);
 }
 
 ArchiveSchedule::ArchiveSchedule(TabModel* model,

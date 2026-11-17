@@ -10,6 +10,7 @@
 #include "base/functional/bind.h"
 #include "base/test/task_environment.h"
 #include "components/aerie_tab_model/archive.h"
+#include "components/aerie_tab_model/folder_behaviour.h"
 #include "components/aerie_tab_model/folder_tree.h"
 #include "components/aerie_tab_model/tab_model.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -125,6 +126,108 @@ TEST_F(ArchiveScheduleTest, PinnedFavoritesAndPinnedFolderTabsNeverArchive) {
   EXPECT_FALSE(IsArchived(favorite));
   EXPECT_FALSE(IsArchived(in_pinned_folder));
   EXPECT_TRUE(IsArchived(in_today_folder));
+}
+
+TEST_F(ArchiveScheduleTest, ANeverFolderKeepsItsTabsWhileSiblingsArchive) {
+  schedule_.SetArchiveAfter(base::Hours(12));
+  const std::string folder =
+      CreateFolder(model_, Section::kToday, std::string(), "Keep");
+  ASSERT_TRUE(SetFolderArchiveAfter(model_, folder, ArchiveChoice::kNever));
+  const std::string kept = Add(Section::kToday, folder);
+  const std::string sibling = Add(Section::kToday);
+  task_environment_.FastForwardBy(base::Days(3));
+  EXPECT_FALSE(IsArchived(kept));
+  EXPECT_TRUE(IsArchived(sibling));
+}
+
+TEST_F(ArchiveScheduleTest, AFolderOwnTimeoutArchivesItsTabsAtThatTimeout) {
+  schedule_.SetArchiveAfter(base::Hours(12));
+  const std::string folder =
+      CreateFolder(model_, Section::kToday, std::string(), "Week");
+  ASSERT_TRUE(SetFolderArchiveAfter(model_, folder, ArchiveChoice::k7Days));
+  const std::string inside = Add(Section::kToday, folder);
+  const std::string outside = Add(Section::kToday);
+  task_environment_.FastForwardBy(base::Hours(12));
+  EXPECT_TRUE(IsArchived(outside));
+  EXPECT_FALSE(IsArchived(inside));
+  task_environment_.FastForwardBy(base::Days(7) - base::Hours(12) -
+                                  base::Seconds(1));
+  EXPECT_FALSE(IsArchived(inside));
+  task_environment_.FastForwardBy(base::Seconds(1));
+  EXPECT_TRUE(IsArchived(inside));
+}
+
+TEST_F(ArchiveScheduleTest, ANestedFolderUsesTheNearestAncestorThatSetsIt) {
+  schedule_.SetArchiveAfter(base::Hours(12));
+  const std::string outer =
+      CreateFolder(model_, Section::kToday, std::string(), "Outer");
+  const std::string inner = CreateFolder(model_, Section::kToday, outer, "In");
+  ASSERT_TRUE(SetFolderArchiveAfter(model_, outer, ArchiveChoice::k24Hours));
+  const std::string tab = Add(Section::kToday, inner);
+  task_environment_.FastForwardBy(base::Hours(23));
+  EXPECT_FALSE(IsArchived(tab));
+  task_environment_.FastForwardBy(base::Hours(1));
+  EXPECT_TRUE(IsArchived(tab));
+}
+
+TEST_F(ArchiveScheduleTest, EditingAFolderSettingArmsTheTimerAgainAtOnce) {
+  schedule_.SetArchiveAfter(base::Hours(12));
+  const std::string folder =
+      CreateFolder(model_, Section::kToday, std::string(), "F");
+  const std::string tab = Add(Section::kToday, folder);
+  EXPECT_EQ(schedule_.next_fire_in(), base::Hours(12));
+  ASSERT_TRUE(SetFolderArchiveAfter(model_, folder, ArchiveChoice::k7Days));
+  EXPECT_EQ(schedule_.next_fire_in(), base::Days(7));
+  ASSERT_TRUE(SetFolderArchiveAfter(model_, folder, ArchiveChoice::kNever));
+  EXPECT_FALSE(schedule_.timer_pending());
+  // Back to inheriting: the global timeout counts again, from the last use.
+  task_environment_.FastForwardBy(base::Hours(5));
+  ASSERT_TRUE(SetFolderArchiveAfter(model_, folder, std::nullopt));
+  EXPECT_EQ(schedule_.next_fire_in(), base::Hours(7));
+  task_environment_.FastForwardBy(base::Hours(7));
+  EXPECT_TRUE(IsArchived(tab));
+}
+
+TEST_F(ArchiveScheduleTest, MovingATabIntoANeverFolderStopsItsArchiving) {
+  schedule_.SetArchiveAfter(base::Hours(12));
+  const std::string folder =
+      CreateFolder(model_, Section::kToday, std::string(), "Keep");
+  ASSERT_TRUE(SetFolderArchiveAfter(model_, folder, ArchiveChoice::kNever));
+  const std::string tab = Add(Section::kToday);
+  EXPECT_TRUE(schedule_.timer_pending());
+  ASSERT_TRUE(MoveTabToFolder(model_, tab, folder));
+  EXPECT_FALSE(schedule_.timer_pending());
+}
+
+TEST_F(ArchiveScheduleTest, ADeletedFolderGivesItsTabsBackTheGlobalTimeout) {
+  schedule_.SetArchiveAfter(base::Hours(12));
+  const std::string folder =
+      CreateFolder(model_, Section::kToday, std::string(), "Keep");
+  ASSERT_TRUE(SetFolderArchiveAfter(model_, folder, ArchiveChoice::kNever));
+  const std::string tab = Add(Section::kToday, folder);
+  EXPECT_FALSE(schedule_.timer_pending());
+  ASSERT_TRUE(DeleteFolder(model_, folder));
+  EXPECT_EQ(schedule_.next_fire_in(), base::Hours(12));
+  task_environment_.FastForwardBy(base::Hours(12));
+  EXPECT_TRUE(IsArchived(tab));
+}
+
+TEST_F(ArchiveScheduleTest, OneTimerIsPendingWhateverTheFoldersSay) {
+  schedule_.SetArchiveAfter(base::Hours(12));
+  const ArchiveChoice choices[] = {ArchiveChoice::k12Hours,
+                                   ArchiveChoice::k24Hours,
+                                   ArchiveChoice::k7Days, ArchiveChoice::kNever};
+  for (int i = 0; i < 20; ++i) {
+    const std::string folder =
+        CreateFolder(model_, Section::kToday, std::string(), "F");
+    SetFolderArchiveAfter(model_, folder, choices[i % 4]);
+    Add(Section::kToday, folder);
+    Add(Section::kToday, folder);
+  }
+  EXPECT_TRUE(schedule_.timer_pending());
+  EXPECT_EQ(task_environment_.GetPendingMainThreadTaskCount(), 1u);
+  task_environment_.FastForwardBy(base::Hours(13));
+  EXPECT_EQ(task_environment_.GetPendingMainThreadTaskCount(), 1u);
 }
 
 TEST_F(ArchiveScheduleTest, TheSelectedOrAudibleTabIsLeftAloneUntilItIsFree) {

@@ -129,4 +129,31 @@ TEST(TabModelPrefsTest, JunkInTheRulesPrefIsDroppedOnLoad) {
   EXPECT_TRUE(GetTitleSettings(prefs).rename.rules.empty());
 }
 
+TEST(TabModelPrefsTest, LinksOpenIsNewTabByDefaultAndHasTwoValues) {
+  TestingPrefServiceSimple prefs;
+  RegisterProfilePrefs(prefs.registry());
+  EXPECT_STREQ("aerie.tabs.links_open", kLinksOpen);
+  EXPECT_EQ(GetLinksOpen(prefs), LinksOpen::kNewTab);
+  prefs.SetString(kLinksOpen, "in-place");
+  EXPECT_EQ(GetLinksOpen(prefs), LinksOpen::kInPlace);
+  prefs.SetString(kLinksOpen, "somewhere");
+  EXPECT_EQ(GetLinksOpen(prefs), LinksOpen::kNewTab);
+}
+
+TEST(TabModelPrefsTest, TheGlobalBehaviourIsWhatThePrefsHold) {
+  TestingPrefServiceSimple prefs;
+  RegisterProfilePrefs(prefs.registry());
+  GlobalBehaviour global = GetGlobalBehaviour(prefs);
+  EXPECT_EQ(global.archive_after, base::Hours(12));
+  EXPECT_EQ(global.sleep_after, base::Minutes(60));
+  EXPECT_EQ(global.links, LinksOpen::kNewTab);
+  prefs.SetString(kArchiveAfter, "never");
+  prefs.SetInteger(kSleepAfterMinutes, 120);
+  prefs.SetString(kLinksOpen, "in-place");
+  global = GetGlobalBehaviour(prefs);
+  EXPECT_EQ(global.archive_after, std::nullopt);
+  EXPECT_EQ(global.sleep_after, base::Hours(2));
+  EXPECT_EQ(global.links, LinksOpen::kInPlace);
+}
+
 }  // namespace aerie_tab_model
