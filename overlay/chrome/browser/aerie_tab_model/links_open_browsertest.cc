@@ -8,12 +8,14 @@
 // window.open that keeps its opener and links in embedded frames are left
 // alone. One test per case.
 
+#include <map>
 #include <memory>
 #include <string>
 #include <utility>
 
 #include "base/functional/bind.h"
 #include "base/run_loop.h"
+#include "base/synchronization/lock.h"
 #include "base/strings/stringprintf.h"
 #include "base/test/run_until.h"
 #include "chrome/browser/aerie_tab_model/tab_model_service.h"
@@ -53,6 +55,10 @@ constexpr char kLinksPage[] = R"HTML(<!doctype html><html><body style="margin:0"
 <a id="blank" href="/title2.html" target="_blank" style="display:block;height:40px">blank</a>
 <a id="same" href="/title2.html" style="display:block;height:40px">same</a>
 <a id="opener" href="/title2.html" target="_blank" rel="opener" style="display:block;height:40px">opener</a>
+<a id="refblank" href="/ref?c=blank" target="_blank" style="display:block;height:40px">refblank</a>
+<a id="refsame" href="/ref?c=same" style="display:block;height:40px">refsame</a>
+<form action="/posted" method="post" target="_blank"><input type="hidden" name="k" value="v">
+  <button id="submit_post" type="submit" style="display:block;height:40px">post</button></form>
 <button id="popup" style="display:block;height:40px"
   onclick="window.open('/title2.html', 'p', 'popup=yes,width=300,height=300')">popup</button>
 <button id="open" style="display:block;height:40px"
@@ -81,6 +87,10 @@ std::unique_ptr<net::test_server::HttpResponse> ServePages(
     body = kSandboxPage;
   } else if (request.relative_url == "/frame_with_link.html") {
     body = kFramePage;
+  } else if (request.relative_url == "/title2.html" ||
+             request.relative_url == "/posted" ||
+             request.relative_url.rfind("/ref?", 0) == 0) {
+    body = "<!doctype html><html><body>target</body></html>";
   } else {
     return nullptr;
   }
@@ -97,6 +107,8 @@ class AerieLinksOpenBrowserTest : public InProcessBrowserTest {
   void SetUpOnMainThread() override {
     InProcessBrowserTest::SetUpOnMainThread();
     host_resolver()->AddRule("*", "127.0.0.1");
+    embedded_test_server()->RegisterRequestMonitor(base::BindRepeating(
+        &AerieLinksOpenBrowserTest::Log, base::Unretained(this)));
     embedded_test_server()->RegisterRequestHandler(
         base::BindRepeating(&ServePages));
     ASSERT_TRUE(embedded_test_server()->Start());
@@ -105,6 +117,24 @@ class AerieLinksOpenBrowserTest : public InProcessBrowserTest {
     ASSERT_TRUE(ui_test_utils::NavigateToURL(
         browser(), embedded_test_server()->GetURL("/links.html")));
     ASSERT_TRUE(content::WaitForLoadStop(contents()));
+  }
+
+  // Every request the server saw: "METHOD url", and the Referer header of each
+  // by url. Written on the server's thread.
+  void Log(const net::test_server::HttpRequest& request) {
+    base::AutoLock lock(log_lock_);
+    methods_[request.relative_url] = request.method_string;
+    auto it = request.headers.find("Referer");
+    referers_[request.relative_url] =
+        it == request.headers.end() ? std::string("<none>") : it->second;
+  }
+  std::string MethodOf(const std::string& url) {
+    base::AutoLock lock(log_lock_);
+    return methods_.count(url) ? methods_[url] : std::string();
+  }
+  std::string RefererOf(const std::string& url) {
+    base::AutoLock lock(log_lock_);
+    return referers_.count(url) ? referers_[url] : std::string("<unseen>");
   }
 
   TabStripModel* strip() { return browser()->tab_strip_model(); }
@@ -183,6 +213,9 @@ class AerieLinksOpenBrowserTest : public InProcessBrowserTest {
   }
 
   raw_ptr<TabModelService> service_ = nullptr;
+  base::Lock log_lock_;
+  std::map<std::string, std::string> methods_;
+  std::map<std::string, std::string> referers_;
 };
 
 // --- In place ---
@@ -274,10 +307,62 @@ IN_PROC_BROWSER_TEST_F(AerieLinksOpenBrowserTest,
   EXPECT_FALSE(model()->GetFolder(folder)->behaviour);
 }
 
+// A tab in no folder is never rewritten: Settings are the default for the tabs
+// of folders only.
 IN_PROC_BROWSER_TEST_F(AerieLinksOpenBrowserTest,
-                       SettingsApplyToATabThatIsInNoFolder) {
+                       ATabInNoFolderIsLeftAloneWhateverSettingsSay) {
+  prefs()->SetString(kLinksOpen, "in-place");
+  ASSERT_TRUE(model()->GetTab(RecordIdAt(0))->parent.empty());
+  ClickAndExpectNewTab("blank");
+  EXPECT_EQ(contents()->GetLastCommittedURL(),
+            embedded_test_server()->GetURL("/links.html"));
+}
+
+// The same Settings value rewrites a tab that is in a folder that sets nothing.
+IN_PROC_BROWSER_TEST_F(AerieLinksOpenBrowserTest,
+                       AFolderTabThatInheritsGlobalInPlaceIsRewritten) {
+  const std::string folder = MovePageTabIntoFolder();
+  ASSERT_FALSE(model()->GetFolder(folder)->behaviour);
   prefs()->SetString(kLinksOpen, "in-place");
   ClickAndExpectInPlace("blank");
+}
+
+
+// A form sent with POST to a target=_blank page is not a link: it still opens a
+// new tab, and the browser still sends the POST.
+IN_PROC_BROWSER_TEST_F(AerieLinksOpenBrowserTest,
+                       APostFormInAnInPlaceFolderStillOpensANewTabAndPosts) {
+  const std::string folder = MovePageTabIntoFolder();
+  ASSERT_TRUE(SetFolderLinksOpen(*model(), folder, LinksOpen::kInPlace));
+  ClickAndExpectNewTab("submit_post");
+  ASSERT_TRUE(base::test::RunUntil([&] { return MethodOf("/posted") == "POST"; }));
+  EXPECT_EQ(contents()->GetLastCommittedURL(),
+            embedded_test_server()->GetURL("/links.html"));
+}
+
+// An in-place link carries the referrer that a plain click on a same-tab link
+// carries.
+IN_PROC_BROWSER_TEST_F(AerieLinksOpenBrowserTest,
+                       AnInPlaceLinkSendsTheSameReferrerAsAPlainLink) {
+  const std::string folder = MovePageTabIntoFolder();
+  ASSERT_TRUE(SetFolderLinksOpen(*model(), folder, LinksOpen::kInPlace));
+  {
+    content::TestNavigationObserver observer(contents());
+    Click("refblank");
+    observer.Wait();
+  }
+  EXPECT_EQ(strip()->count(), 1);
+  const std::string in_place = RefererOf("/ref?c=blank");
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(
+      browser(), embedded_test_server()->GetURL("/links.html")));
+  {
+    content::TestNavigationObserver observer(contents());
+    Click("refsame");
+    observer.Wait();
+  }
+  const std::string plain = RefererOf("/ref?c=same");
+  EXPECT_EQ(in_place, plain);
+  EXPECT_EQ(plain, embedded_test_server()->GetURL("/links.html").spec());
 }
 
 // --- Left alone ---
@@ -355,6 +440,7 @@ IN_PROC_BROWSER_TEST_F(AerieLinksOpenBrowserTest,
 IN_PROC_BROWSER_TEST_F(AerieLinksOpenBrowserTest,
                        ShiftClickStillOpensANewWindow) {
   prefs()->SetString(kLinksOpen, "in-place");
+  MovePageTabIntoFolder();
   ui_test_utils::BrowserCreatedObserver created;
   Click("same", blink::WebInputEvent::kShiftKey);
   BrowserWindowInterface* other = created.Wait();
@@ -367,6 +453,7 @@ IN_PROC_BROWSER_TEST_F(AerieLinksOpenBrowserTest,
 IN_PROC_BROWSER_TEST_F(AerieLinksOpenBrowserTest,
                        AWindowOpenWithFeaturesStillOpensAPopup) {
   prefs()->SetString(kLinksOpen, "in-place");
+  MovePageTabIntoFolder();
   ui_test_utils::BrowserCreatedObserver created;
   Click("popup");
   BrowserWindowInterface* other = created.Wait();
@@ -380,6 +467,7 @@ IN_PROC_BROWSER_TEST_F(AerieLinksOpenBrowserTest,
 IN_PROC_BROWSER_TEST_F(AerieLinksOpenBrowserTest,
                        AWindowOpenThatKeepsItsOpenerStillOpensATab) {
   prefs()->SetString(kLinksOpen, "in-place");
+  MovePageTabIntoFolder();
   content::WebContents* added = ClickAndExpectNewTab("open");
   // The new tab can still reach the page through window.opener.
   EXPECT_EQ(true, content::EvalJs(added, "window.opener !== null"));
@@ -390,6 +478,7 @@ IN_PROC_BROWSER_TEST_F(AerieLinksOpenBrowserTest,
 IN_PROC_BROWSER_TEST_F(AerieLinksOpenBrowserTest,
                        ATargetBlankLinkThatKeepsItsOpenerStillOpensATab) {
   prefs()->SetString(kLinksOpen, "in-place");
+  MovePageTabIntoFolder();
   ClickAndExpectNewTab("opener");
   EXPECT_EQ(contents()->GetLastCommittedURL(),
             embedded_test_server()->GetURL("/links.html"));
@@ -398,6 +487,7 @@ IN_PROC_BROWSER_TEST_F(AerieLinksOpenBrowserTest,
 IN_PROC_BROWSER_TEST_F(AerieLinksOpenBrowserTest,
                        ALinkInAnEmbeddedFrameStillOpensANewTab) {
   prefs()->SetString(kLinksOpen, "in-place");
+  MovePageTabIntoFolder();
   ui_test_utils::TabAddedWaiter waiter(browser());
   // The frame that is clicked takes focus, so the click is not the page's own.
   ClickFrame("frame");
@@ -412,6 +502,7 @@ IN_PROC_BROWSER_TEST_F(AerieLinksOpenBrowserTest,
   prefs()->SetString(kLinksOpen, "in-place");
   ASSERT_TRUE(ui_test_utils::NavigateToURL(
       browser(), embedded_test_server()->GetURL("/sandbox.html")));
+  MovePageTabIntoFolder();
   ui_test_utils::TabAddedWaiter waiter(browser());
   // Even a click on the page's own link opens a tab while a frame of the page
   // is sandboxed: the browser cannot tell which frame the click came from.

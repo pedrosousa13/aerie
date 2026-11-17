@@ -429,11 +429,11 @@
   <message name="IDS_AERIE_SIDEBAR_LINKS_IN_PLACE" desc="Option of the Links open setting, in Settings and in the folder editor: a link that would open a new tab opens in the tab that holds the link instead.">
     In place
   </message>
-  <message name="IDS_SETTINGS_AERIE_LINKS_OPEN" desc="Label of the drop-down in the Sidebar section of Settings that sets where a link opens when it would open a new tab. A folder can set its own.">
+  <message name="IDS_SETTINGS_AERIE_LINKS_OPEN" desc="Label of the drop-down in the Sidebar section of Settings that sets where a link opens when it would open a new tab. A folder can set its own. It is the default for tabs in folders.">
     Links open
   </message>
   <message name="IDS_SETTINGS_AERIE_LINKS_OPEN_DESC" desc="Line under the Links open drop-down in Settings. It says what the setting changes and what it leaves alone.">
-    Where a link opens when the page asks for a new tab. A folder can set its own. Ctrl+click, middle-click, pop-up windows and links in embedded frames are not changed.
+    Where a link opens when the page asks for a new tab, for tabs in folders that do not set their own. Tabs that are in no folder are not changed. Ctrl+click, middle-click, pop-up windows, forms and links in embedded frames are not changed.
   </message>
   <message name="IDS_SETTINGS_AERIE_SIDEBAR_DENSITY" desc="Label of the setting in the Sidebar section of Settings that chooses how dense the sidebar is.">
     Sidebar density

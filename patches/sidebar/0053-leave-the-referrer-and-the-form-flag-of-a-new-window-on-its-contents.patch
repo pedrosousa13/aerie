@@ -1,0 +1,50 @@
+Aerie-Purpose: Tell the delegate whether a window with no opener starts as a form sent with POST, and which referrer the page chose, so that "Links open" leaves forms alone and passes the referrer on.
+Aerie-Upstream-Area: content/browser/web_contents (web_contents_impl.cc), content/public/browser (BUILD.gn)
+Aerie-Kind: hook
+
+Issue #141. WebContentsImpl::CreateNewWindow adds a window that the renderer made with no opener (a link or a form
+with target=_blank) to a tab strip through the delegate, and only after that starts its load with the referrer and
+the POST body of the request. The delegate therefore cannot see either when it decides where the link opens. This
+patch sets one user data object, AerieCreatedWindowInfo (overlay,
+content/public/browser/aerie_created_window_info.h), on the new contents before the delegate is called: the
+referrer of the request and a flag that says the request is a form sent with POST. Nothing else changes. The
+header is a new source of //content/public/browser.
+
+--- a/content/public/browser/BUILD.gn
++++ b/content/public/browser/BUILD.gn
+@@ -29,6 +29,7 @@
+   sources = [
+     "active_url_message_filter.cc",
+     "active_url_message_filter.h",
++    "aerie_created_window_info.h",
+     "allow_service_worker_result.cc",
+     "allow_service_worker_result.h",
+     "anchor_element_preconnect_delegate.h",
+--- a/content/browser/web_contents/web_contents_impl.cc
++++ b/content/browser/web_contents/web_contents_impl.cc
+@@ -142,6 +142,7 @@
+ #include "content/browser/webui/web_ui_impl.h"
+ #include "content/common/content_switches_internal.h"
+ #include "content/common/features.h"
++#include "content/public/browser/aerie_created_window_info.h"
+ #include "content/public/browser/ax_inspect_factory.h"
+ #include "content/public/browser/browser_context.h"
+ #include "content/public/browser/browser_plugin_guest_manager.h"
+@@ -5947,6 +5948,17 @@
+     AddWebContentsDestructionObserver(new_contents_impl);
+   }
+ 
++  if (params.opener_suppressed) {
++    // Aerie (issue #141): the load of a window with no opener starts only after
++    // the delegate has added it to a tab strip, so what the delegate needs to
++    // know about it (a form sent with POST, the referrer) is left on the contents.
++    new_contents_impl->SetUserData(
++        &kAerieCreatedWindowInfoKey,
++        std::make_unique<AerieCreatedWindowInfo>(
++            params.referrer.To<Referrer>(),
++            params.form_submission_post_data != nullptr));
++  }
++
+   if (delegate_) {
+     delegate_->WebContentsCreated(
+         this,

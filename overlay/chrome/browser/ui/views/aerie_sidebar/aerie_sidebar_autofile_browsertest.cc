@@ -679,18 +679,31 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarFolderSheetBrowserTest,
               ax::mojom::CheckedState::kFalse);
     EXPECT_FALSE(sheet->behaviour_value(b)->GetEnabled());
     EXPECT_EQ(sheet->behaviour_source(b)->GetText(), u"Inherits global");
-    EXPECT_NE(NameOf(sheet->behaviour_value(b)).find("Inherits global"),
-              std::string::npos)
-        << NameOf(sheet->behaviour_value(b));
   }
-  // The inherited value is the global one: Settings default to 12 hours (the
-  // archive timeout) and 1 hour (sleep), and "new tab" for links.
-  EXPECT_EQ(sheet->behaviour_value(Behaviour::kArchive)->GetModel()->GetItemAt(0),
-            u"12 hours");
-  EXPECT_EQ(sheet->behaviour_value(Behaviour::kSleep)->GetModel()->GetItemAt(0),
-            u"1 hour");
-  EXPECT_EQ(sheet->behaviour_value(Behaviour::kLinks)->GetModel()->GetItemAt(0),
-            u"In a new tab");
+  // The full names: "<behaviour>, <where from>, <value>" for a row that
+  // inherits, and "<behaviour>, <value>" for one that sets its own.
+  EXPECT_EQ(NameOf(sheet->behaviour_switch(Behaviour::kArchive)),
+            "Set Auto-archive for this folder");
+  EXPECT_EQ(NameOf(sheet->behaviour_value(Behaviour::kArchive)),
+            "Auto-archive, Inherits global, 12 hours");
+  EXPECT_EQ(NameOf(sheet->behaviour_value(Behaviour::kSleep)),
+            "Sleep tabs after, Inherits global, 1 hour");
+  EXPECT_EQ(NameOf(sheet->behaviour_value(Behaviour::kLinks)),
+            "Links open, Inherits global, In a new tab");
+  ASSERT_TRUE(aerie_tab_model::SetFolderArchiveAfter(
+      *model(), folder, aerie_tab_model::ArchiveChoice::k24Hours));
+  ASSERT_TRUE(aerie_tab_model::SetFolderSleepAfter(*model(), folder, 30));
+  ASSERT_TRUE(aerie_tab_model::SetFolderLinksOpen(
+      *model(), folder, aerie_tab_model::LinksOpen::kInPlace));
+  sheet->FlushForTesting();
+  EXPECT_EQ(NameOf(sheet->behaviour_value(Behaviour::kArchive)),
+            "Auto-archive, 24 hours");
+  EXPECT_EQ(NameOf(sheet->behaviour_value(Behaviour::kSleep)),
+            "Sleep tabs after, 30 minutes");
+  EXPECT_EQ(NameOf(sheet->behaviour_value(Behaviour::kLinks)),
+            "Links open, In place");
+  EXPECT_EQ(DataOf(sheet->behaviour_switch(Behaviour::kSleep)).GetCheckedState(),
+            ax::mojom::CheckedState::kTrue);
   sheet->Dismiss(false);
   CloseSheetAndWait();
 }
@@ -796,6 +809,35 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarFolderSheetBrowserTest,
   sheet->FlushForTesting();
   EXPECT_EQ(sheet->behaviour_value(Behaviour::kLinks)->GetModel()->GetItemAt(0),
             u"In place");
+  sheet->Dismiss(false);
+  CloseSheetAndWait();
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarFolderSheetBrowserTest,
+                       ASmartFolderEditorHasNoBehaviourSection) {
+  const std::string folder = aerie_tab_model::CreateFolder(
+      *model(), Section::kToday, std::string(), "Open docs");
+  int moved = 0;
+  ASSERT_TRUE(aerie_tab_model::SetFolderRuleKind(*model(), folder,
+                                                 FolderKind::kSmart, &moved));
+  ASSERT_FALSE(aerie_tab_model::AddRule(*model(), folder, RuleType::kDomain,
+                                        "docs.localhost")
+                   .empty());
+  AerieSidebarFolderSheet* sheet = OpenSheet(folder);
+  sheet->FlushForTesting();
+  // The Smart body shows; the Behaviour section does not, and none of its
+  // controls can be reached.
+  EXPECT_TRUE(sheet->smart_body_slot()->GetVisible());
+  EXPECT_FALSE(sheet->behaviour_slot()->GetVisible());
+  for (Behaviour b : {Behaviour::kArchive, Behaviour::kSleep, Behaviour::kLinks}) {
+    EXPECT_FALSE(sheet->behaviour_switch(b)->IsDrawn());
+    EXPECT_FALSE(sheet->behaviour_value(b)->IsDrawn());
+  }
+  // Switching the folder to Manual brings the section back.
+  ASSERT_TRUE(aerie_tab_model::SetFolderRuleKind(*model(), folder,
+                                                 FolderKind::kManual, &moved));
+  sheet->FlushForTesting();
+  EXPECT_TRUE(sheet->behaviour_slot()->GetVisible());
   sheet->Dismiss(false);
   CloseSheetAndWait();
 }

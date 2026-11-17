@@ -18,6 +18,7 @@
 #include "components/aerie_tab_model/tab_model_prefs.h"
 #include "components/prefs/pref_service.h"
 #include "components/tabs/public/tab_interface.h"
+#include "content/public/browser/aerie_created_window_info.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/web_contents.h"
@@ -57,8 +58,20 @@ bool OpenInPlace(NavigateParams* params, content::WebContents* source) {
   if (!initiator->IsInPrimaryMainFrame()) {
     return false;
   }
+  // What the renderer asked for is on the new contents (patches/sidebar/0053).
+  // A form sent with POST is not a link: it carries a body that a plain load
+  // would drop. Without the information nothing is changed.
+  const auto* info = static_cast<const content::AerieCreatedWindowInfo*>(
+      params->contents_to_insert->GetUserData(
+          &content::kAerieCreatedWindowInfoKey));
+  if (!info || info->is_form_post || params->post_data) {
+    return false;
+  }
   NavigateParams in_place(params->browser, params->url,
                           ui::PAGE_TRANSITION_LINK);
+  // The referrer is the one the page chose for this link (its policy, and
+  // rel=noreferrer, are already applied); Navigate sanitises it again.
+  in_place.referrer = info->referrer;
   in_place.disposition = WindowOpenDisposition::CURRENT_TAB;
   in_place.source_contents = source;
   in_place.is_renderer_initiated = true;
@@ -92,6 +105,12 @@ bool HandleLinkOpen(NavigateParams* params) {
   const std::string id = adapter->RecordIdForTab(tab);
   const TabRecord* record = id.empty() ? nullptr : service->model()->GetTab(id);
   if (!record) {
+    return false;
+  }
+  // Only a tab that is in a folder is ever rewritten. A tab in no folder (and
+  // Pinned and Favorites tabs, which are in none) keeps its links as they are,
+  // whatever Settings say: Settings are the default for the tabs of folders.
+  if (record->parent.empty()) {
     return false;
   }
   const Resolved<LinksOpen> links = ResolveLinksOpen(

@@ -12,6 +12,7 @@ SERVICE = REPO / "overlay" / "chrome" / "browser" / "aerie_tab_model"
 VIEWS = REPO / "overlay" / "chrome" / "browser" / "ui" / "views" / "aerie_sidebar"
 RESOURCES = REPO / "overlay" / "chrome" / "browser" / "resources" / "settings" / "appearance_page"
 ROW_PATCH = REPO / "patches" / "sidebar" / "0051-add-the-links-open-row-to-the-sidebar-section-of-settings.patch"
+WINDOW_PATCH = REPO / "patches" / "sidebar" / "0053-leave-the-referrer-and-the-form-flag-of-a-new-window-on-its-contents.patch"
 NAV_PATCH = REPO / "patches" / "sidebar" / "0052-let-a-folder-open-links-in-place-from-chrome-navigate.patch"
 GRDP = (VIEWS / "aerie_sidebar_strings.grdp").read_text()
 SERIES = [l.strip() for l in (REPO / "patches" / "series").read_text().splitlines() if l.strip() and not l.startswith("#")]
@@ -23,6 +24,14 @@ class PatchesTest(unittest.TestCase):
         for name in names:
             self.assertIn(name, SERIES)
         self.assertLess(SERIES.index(names[0]), SERIES.index(names[1]))
+
+    def test_the_window_patch_sets_the_user_data_before_the_delegate_is_called(self):
+        name = WINDOW_PATCH.relative_to(REPO / "patches").as_posix()
+        self.assertIn(name, SERIES)
+        self.assertLess(SERIES.index("sidebar/0052-let-a-folder-open-links-in-place-from-chrome-navigate.patch"), SERIES.index(name))
+        patch = WINDOW_PATCH.read_text()
+        self.assertIn("+            params.form_submission_post_data != nullptr));", patch)
+        self.assertLess(patch.index("kAerieCreatedWindowInfoKey"), patch.index("delegate_->WebContentsCreated"))
 
     def test_the_navigate_patch_is_one_hook_call_and_one_dep(self):
         patch = NAV_PATCH.read_text()

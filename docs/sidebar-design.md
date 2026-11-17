@@ -831,19 +831,19 @@ What the code does, and the choices the issue left open.
 Each manual or auto-filing folder can set three behaviours. A smart folder has no Behaviour section: it owns no tabs.
 
 - **Where it is set.** The Behaviour section of the folder editor sheet. Each row has a switch and a value drop-down. With the switch off the drop-down is disabled and shows the inherited value, and the row says "Inherits global", or "Inherits from <folder>" when a folder above sets it. Edits apply at once and are stored in the folder record, so they survive a restart. Changing a global value in Settings updates the rows that inherit.
-- **Which value wins.** The nearest folder above the tab that sets the behaviour, then the global setting. A tab outside every folder uses the global setting.
+- **Which value wins.** The nearest folder above the tab that sets the behaviour, then the global setting. For archive and sleep a tab outside every folder uses the global setting. For links, a tab outside every folder is not changed at all (see the limits).
 - **Auto-archive.** Never, 12 hours, 24 hours or 7 days. In a Pinned folder the row is off and disabled, with the note "Pinned tabs never archive". The selected tab and a tab that plays audio are not archived, in any folder. One archive timer is armed for the whole profile, for the earliest due tab. It is armed again when a folder is added, edited, moved or deleted.
 - **Sleep tabs after.** 15 minutes to 8 hours, or never. One sleep timer, armed again in the same cases.
-- **Links open.** New tab or in place. The global value is the new setting "Links open" in Settings, in the Sidebar section (`aerie.tabs.links_open`, default new tab).
+- **Links open.** New tab or in place. The global value is the new setting "Links open" in Settings, in the Sidebar section (`aerie.tabs.links_open`, default new tab). It is the default for the tabs in folders only: a tab in no folder keeps opening links as the page asks.
 
-**Exact link rules.** The rule changes only a link that would open a new foreground tab and that a click on the page caused, where the new tab has no opener. That is a link with `target="_blank"` (which has no opener by default), as the browser sees it. In place, the link loads in the tab that holds it, and Back returns to the page. These are left as they are: Ctrl-click, Cmd-click and middle-click (background tab), Shift-click (new window), pop-up windows (`window.open` with features), `window.open` and links with `rel="opener"` (the new tab keeps its opener), and links that do not open a new tab. Only `http` and `https` addresses are opened in place.
+**Exact link rules.** The rule changes only a link, from a tab that is in a folder, that would open a new foreground tab and that a click on the page caused, where the new tab has no opener. That is a link with `target="_blank"` (which has no opener by default), as the browser sees it. In place, the link loads in the tab that holds it, and Back returns to the page. These are left as they are: Ctrl-click, Cmd-click and middle-click (background tab), Shift-click (new window), pop-up windows (`window.open` with features), `window.open` and links with `rel="opener"` (the new tab keeps its opener), and links that do not open a new tab. Only `http` and `https` addresses are opened in place.
 
 **Placement.** When a folder says "new tab", the new tab opens in that folder, right after the tab that held the link. When the value only comes from Settings, a new tab goes where it went before. A tab in a Pinned folder gets no placement: its new tab goes to Today.
 
 **Limits.**
-- A form that is sent with POST to a `target="_blank"` page loads as a plain GET in place. The browser cannot tell the two apart at this point, so an in-place folder should not be used for such sites.
-- The referrer is not sent for a link that opens in place.
+- A form that is sent with POST to a `target="_blank"` page is not a link, and keeps opening a new tab and sending the POST. A small Chromium patch (0053) leaves the "form sent with POST" flag of a new window, and the referrer the page chose, on the new tab before the browser decides.
+- A link that opens in place sends the referrer that the page chose for that link (its referrer policy, and `rel="noreferrer"`, are kept), the same as a plain link in the same tab.
 - A link inside an embedded frame, or on a page that has a frame sandboxed against navigating the top level, still opens a new tab. A frame must not take the tab over.
-- The global "Links open" value applies to every tab, in a folder or not.
+- A tab that is in no folder is never changed, whatever Settings say. The global "Links open" value is the default for the tabs of folders that set nothing (their own value, or that of a folder above them, comes first). Pinned and Favorites tabs are in no folder, so they are not changed.
 
 **Motion.** The sheet and the switches use the tokens of #139. Under reduced motion (the operating system's flag or the in-app setting) the sheet is opacity-only at 90 ms, and a switch moves with no transform animation.

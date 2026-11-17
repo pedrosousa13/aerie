@@ -240,8 +240,11 @@ void TabStripAdapter::PlaceNextTabAfter(const std::string& sibling_record_id) {
     return;
   }
   next_tab_after_ = sibling_record_id;
-  // The tab is inserted inside the call that follows; if it never is (the
-  // navigation was refused), the request goes with the task.
+  // Timing contract: the caller (links_open_hook, from chrome::Navigate) returns
+  // false, and Navigate inserts the new tab in that same call, synchronously, so
+  // TabInserted reads and clears the request before any other task runs. The
+  // posted task only clears a request that nobody used (Navigate refused to open
+  // the tab), so that it cannot move a tab that opens much later.
   base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
       FROM_HERE, base::BindOnce(
                      [](base::WeakPtr<TabStripAdapter> self) {

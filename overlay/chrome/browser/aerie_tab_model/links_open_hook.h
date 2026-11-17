@@ -29,8 +29,12 @@ namespace aerie_tab_model {
 //   - A user gesture started it, the clicked page is the one the tab shows and
 //     is not sandboxed against top-level navigation (nor is any frame of it),
 //     the address is http or https, and the tab has a Tab Model record.
+//   - The tab is in a folder. A tab in no folder is never rewritten, whatever
+//     Settings say.
+//   - It is not a form sent with POST (a body cannot be passed on).
 //   - "Links open" for that tab is "in place": the nearest folder above the
-//     tab that sets it, else Settings.
+//     tab that sets it, else Settings (the default for the tabs of folders).
+// The link keeps the referrer that the page chose for it.
 // When the value is "in a new tab" and a folder sets it, the new tab is also
 // put inside that folder, next to the tab that opened it.
 bool HandleLinkOpen(NavigateParams* params);
