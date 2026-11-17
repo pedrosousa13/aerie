@@ -29,6 +29,8 @@
 #include "chrome/grit/generated_resources.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
+#include "components/aerie_tab_model/folder_behaviour.h"
+#include "components/aerie_tab_model/folder_tree.h"
 #include "components/aerie_tab_model/tab_model.h"
 #include "components/aerie_tab_model/tab_model_prefs.h"
 #include "components/performance_manager/public/decorators/page_live_state_decorator.h"
@@ -173,6 +175,51 @@ IN_PROC_BROWSER_TEST_F(
   EXPECT_TRUE(controller_->schedule()->timer_pending());
   AdvanceClock(base::Minutes(1));
   EXPECT_TRUE(WaitFor([&] { return Asleep(background); }));
+}
+
+IN_PROC_BROWSER_TEST_F(
+    AerieSleepControllerBrowserTest,
+    AFolderWithSleepAfterFifteenMinutesSleepsItsTabsThenAndOthersAtTheGlobalValue) {
+  // Global: 1 hour. The folder says 15 minutes (issue #141).
+  prefs()->SetInteger(kSleepAfterMinutes, 60);
+  const int in_folder = OpenBackgroundTab();
+  const int outside = OpenBackgroundTab();
+  const std::string folder = CreateFolder(*service_->model(), Section::kToday,
+                                          std::string(), "Quick");
+  ASSERT_TRUE(MoveTabToFolder(*service_->model(), RecordOf(in_folder)->id,
+                              folder));
+  ASSERT_TRUE(SetFolderSleepAfter(*service_->model(), folder, 15));
+
+  AdvanceClock(base::Minutes(14));
+  EXPECT_FALSE(RecordOf(in_folder)->sleeping);
+  AdvanceClock(base::Minutes(1));
+  EXPECT_TRUE(WaitFor([&] { return Asleep(in_folder); }));
+  // The tab outside the folder is not due until the global hour.
+  EXPECT_FALSE(RecordOf(outside)->sleeping);
+  EXPECT_FALSE(strip()->GetWebContentsAt(outside)->WasDiscarded());
+  AdvanceClock(base::Minutes(45));
+  EXPECT_TRUE(WaitFor([&] { return Asleep(outside); }));
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSleepControllerBrowserTest,
+                       EditingAFolderSleepTimeArmsTheTimerAgainAtOnce) {
+  prefs()->SetInteger(kSleepAfterMinutes, 60);
+  const int tab = OpenBackgroundTab();
+  const std::string folder = CreateFolder(*service_->model(), Section::kToday,
+                                          std::string(), "F");
+  ASSERT_TRUE(MoveTabToFolder(*service_->model(), RecordOf(tab)->id, folder));
+  ASSERT_TRUE(controller_->schedule()->timer_pending());
+  // "Never" for the folder: no timer is pending, and the tab stays awake.
+  ASSERT_TRUE(SetFolderSleepAfter(*service_->model(), folder, 0));
+  EXPECT_FALSE(controller_->schedule()->timer_pending());
+  AdvanceClock(base::Hours(3));
+  base::RunLoop().RunUntilIdle();
+  EXPECT_FALSE(RecordOf(tab)->sleeping);
+  // Back to inheriting: the global hour is long past, so the tab is due.
+  ASSERT_TRUE(SetFolderSleepAfter(*service_->model(), folder, std::nullopt));
+  EXPECT_TRUE(controller_->schedule()->timer_pending());
+  AdvanceClock(base::Minutes(1));
+  EXPECT_TRUE(WaitFor([&] { return Asleep(tab); }));
 }
 
 IN_PROC_BROWSER_TEST_F(AerieSleepControllerBrowserTest,

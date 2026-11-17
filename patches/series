@@ -170,3 +170,7 @@ sidebar/0049-add-the-archive-rows-to-the-sidebar-section-of-settings.patch
 
 # Tidy tab titles and rename rules (#146): the tidy switches, the rule list and the Try a title box in the Sidebar section of Settings.
 sidebar/0050-add-the-title-tidy-and-rename-rules-to-the-sidebar-section-of-settings.patch
+
+# Folder behaviour (#141): the "Links open" row in the Sidebar section of Settings, and the one call chrome::Navigate makes to open a link in place.
+sidebar/0051-add-the-links-open-row-to-the-sidebar-section-of-settings.patch
+sidebar/0052-let-a-folder-open-links-in-place-from-chrome-navigate.patch

@@ -16,6 +16,14 @@ source_set("pinned_close_hook") {
   sources = [ "pinned_close_hook.h" ]
 }
 
+# The one call that chrome::Navigate makes to apply "Links open" (issue #141,
+# patches/sidebar/0052). A header with no dependencies, for the same reason as
+# pinned_close_hook; its definition is in links_open_hook.cc.
+source_set("links_open_hook") {
+  visibility = [ "//chrome/*" ]
+  sources = [ "links_open_hook.h" ]
+}
+
 # The two calls that session restore and the session service make to save and
 # read back a Today tab's record id (issue #223, patches/sidebar/0039 and 0040).
 # A header with no dependencies, for the same reason as pinned_close_hook; its
@@ -69,8 +77,11 @@ source_set("aerie_tab_model") {
     "//components/tabs:public",
   ]
   deps = [
+    ":links_open_hook",
     ":pinned_close_hook",
     ":session_record_id_hook",
+    "//chrome/browser/ui/navigator",
+    "//services/network/public/mojom:mojom_web_sandbox_flags",
     "//chrome/app:generated_resources",
     "//chrome/browser/performance_manager",
     "//chrome/browser/ui:browser_tabrestore",
@@ -98,6 +109,7 @@ source_set("browser_tests") {
   # content/public/test/browser_test.h refuses to compile without it.
   defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
   sources = [
+    "links_open_browsertest.cc",
     "restore_join_browsertest.cc",
     "sleep_controller_browsertest.cc",
     "tab_archiver_browsertest.cc",

@@ -85,6 +85,13 @@ class TabStripAdapter : public BrowserCollectionObserver,
   // the unloaded tab.
   void SetPendingRestoreRecord(std::string record_id);
 
+  // The next new tab that a watched window inserts goes into the Today folder
+  // of `sibling_record_id`, right after it (issue #141: a folder that opens its
+  // links in a new tab). The links hook sets it just before chrome::Navigate
+  // inserts the tab; it is forgotten after the current task. Ignored when the
+  // record is not a Today tab inside a folder.
+  void PlaceNextTabAfter(const std::string& sibling_record_id);
+
   // Runs when the tab of a Pinned or Favorites record goes away for a reason
   // that does not close the window (the record stays; the tab should come
   // back).
@@ -152,6 +159,8 @@ class TabStripAdapter : public BrowserCollectionObserver,
   // Live tab handle to record id.
   std::map<tabs::TabHandle, std::string> ids_;
   std::string pending_restore_record_;
+  // See PlaceNextTabAfter.
+  std::string next_tab_after_;
   // Tabs inserted before the Tab Model read state.json: the id each carried from
   // the session, to be claimed when the read is merged.
   std::map<tabs::TabHandle, std::string> deferred_claims_;

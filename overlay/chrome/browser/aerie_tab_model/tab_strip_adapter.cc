@@ -5,6 +5,7 @@
 #include "chrome/browser/aerie_tab_model/tab_strip_adapter.h"
 
 #include <algorithm>
+#include <utility>
 
 #include "base/functional/bind.h"
 #include "base/strings/utf_string_conversions.h"
@@ -19,6 +20,7 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "components/aerie_tab_model/folder_tree.h"
 #include "components/aerie_tab_model/tab_model.h"
 #include "components/aerie_tab_model/tab_model_types.h"
 #include "components/sessions/content/session_tab_helper.h"
@@ -231,6 +233,25 @@ bool TabStripAdapter::KeepRecordWithClosingWindow(
   return !other_window;
 }
 
+void TabStripAdapter::PlaceNextTabAfter(const std::string& sibling_record_id) {
+  const TabRecord* sibling = model_->GetTab(sibling_record_id);
+  if (!sibling || sibling->section != Section::kToday ||
+      sibling->parent.empty() || sibling->archived_at) {
+    return;
+  }
+  next_tab_after_ = sibling_record_id;
+  // The tab is inserted inside the call that follows; if it never is (the
+  // navigation was refused), the request goes with the task.
+  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE, base::BindOnce(
+                     [](base::WeakPtr<TabStripAdapter> self) {
+                       if (self) {
+                         self->next_tab_after_.clear();
+                       }
+                     },
+                     weak_factory_.GetWeakPtr()));
+}
+
 void TabStripAdapter::TabInserted(tabs::TabInterface* tab, int index) {
   auto it = ids_.find(tab->GetHandle());
   if (it != ids_.end()) {
@@ -275,6 +296,10 @@ void TabStripAdapter::TabInserted(tabs::TabInterface* tab, int index) {
   record.last_active = clock_->Now();
   std::string id = model_->AddTab(std::move(record));
   if (!id.empty()) {
+    if (!next_tab_after_.empty()) {
+      // A link opened in a new tab by a folder that says so (issue #141).
+      MoveTabAfter(*model_, id, std::exchange(next_tab_after_, std::string()));
+    }
     ids_.emplace(tab->GetHandle(), id);
     if (!restored_id.empty() && !model_->loaded()) {
       // The stored records are not here yet: try again when they are.

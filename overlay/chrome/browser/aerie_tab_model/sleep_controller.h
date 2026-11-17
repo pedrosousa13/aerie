@@ -8,6 +8,7 @@
 #include <stdint.h>
 
 #include <map>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -17,6 +18,8 @@
 #include "chrome/browser/ui/browser_window/public/browser_collection_observer.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "components/aerie_tab_model/sleep_schedule.h"
+#include "components/aerie_tab_model/tab_model.h"
+#include "components/aerie_tab_model/tab_model_observer.h"
 #include "components/keyed_service/core/keyed_service.h"
 #include "components/prefs/pref_change_registrar.h"
 #include "components/tabs/public/tab_interface.h"
@@ -48,7 +51,8 @@ class TabModelService;
 // itself (memory pressure) is marked asleep too.
 class SleepController : public KeyedService,
                         public BrowserCollectionObserver,
-                        public TabStripModelObserver {
+                        public TabStripModelObserver,
+                        public TabModelObserver {
  public:
   struct Eligibility {
     enum class State {
@@ -113,6 +117,17 @@ class SleepController : public KeyedService,
   void OnTabChangedAt(tabs::TabInterface* tab,
                       TabChangeType change_type) override;
 
+  // TabModelObserver. A folder's own sleep time is in its record (issue #141):
+  // when a folder is edited or moved, or a tab moves to another folder, the
+  // time of some tab can change, so the one timer is armed again.
+  void OnTabMoved(const TabRecord& tab, const Placement& from) override;
+  void OnFolderAdded(const FolderRecord&) override { schedule_.Rearm(); }
+  void OnFolderChanged(const FolderRecord&) override { schedule_.Rearm(); }
+  void OnFolderMoved(const FolderRecord&, const Placement&) override {
+    schedule_.Rearm();
+  }
+  void OnFolderRemoved(const FolderRecord&) override { schedule_.Rearm(); }
+
  private:
   bool Watches(BrowserWindowInterface* browser) const;
   // The Tab Model record says the tab is asleep (a restored tab that has not
@@ -124,6 +139,11 @@ class SleepController : public KeyedService,
   bool OnDue(SleepSchedule::Key key);
   void SetSleeping(tabs::TabInterface* tab, bool sleeping);
   void OnSleepAfterChanged();
+  // The schedule's hook: the sleep time of the tab behind `key`, from the
+  // folder chain of its record (Effective, issue #141), else `global`.
+  std::optional<base::TimeDelta> DelayForTab(
+      SleepSchedule::Key key,
+      std::optional<base::TimeDelta> global) const;
 
   const raw_ptr<Profile> profile_;
   const raw_ptr<TabModelService> service_;
@@ -134,6 +154,7 @@ class SleepController : public KeyedService,
   std::map<tabs::TabHandle, int64_t> estimates_;
   base::ScopedObservation<GlobalBrowserCollection, BrowserCollectionObserver>
       browser_collection_observation_{this};
+  base::ScopedObservation<TabModel, TabModelObserver> model_observation_{this};
 };
 
 }  // namespace aerie_tab_model

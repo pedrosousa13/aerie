@@ -186,6 +186,16 @@ bool MoveTabToFolder(TabModel& model,
                      const std::string& tab_id,
                      const std::string& folder_id);
 
+// Puts `tab_id` right after `sibling_id`, in the same folder (or in the section
+// itself) and the same section, and numbers that folder's children 0..n-1 in
+// the new order so that nothing sits on the same position. This is where a new
+// tab goes when a folder opens its links in a new tab next to the one they were
+// clicked in (issue #141). False for an unknown tab or sibling, the same tab,
+// a sibling in Favorites, or a move that CanNest refuses.
+bool MoveTabAfter(TabModel& model,
+                  const std::string& tab_id,
+                  const std::string& sibling_id);
+
 // Makes a folder named `name` where the tab is and moves the tab into it.
 // Returns the folder id, or an empty string for an unknown tab or a tab that
 // is not in Pinned or Today.

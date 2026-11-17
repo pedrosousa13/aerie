@@ -1,0 +1,51 @@
+Aerie-Purpose: Let a folder, or Settings, open a link that the page asked to open in a new tab in the page's own tab instead, and put a new tab next to its opener inside a folder that says so.
+Aerie-Upstream-Area: chrome/browser/ui/navigator (browser_navigator.cc, BUILD.gn)
+Aerie-Kind: hook
+
+Issue #141. chrome::Navigate calls aerie_tab_model::HandleLinkOpen (overlay,
+chrome/browser/aerie_tab_model/links_open_hook.h) after its shutdown checks and before it does anything
+else. The call changes something only for one case: Chromium has already made the contents of a page-requested
+new tab (a link with target=_blank, or window.open without window features), the disposition is
+NEW_FOREGROUND_TAB, the contents has no opener, a user gesture started it, and "Links open" for the source tab
+is "in place" (the nearest folder that sets it, else aerie.tabs.links_open). Then it navigates the source tab to
+the address with a second chrome::Navigate (CURRENT_TAB), drops the new contents, and returns true, and this
+call returns nullptr. Ctrl+click, Shift+click, middle-click, "Open link in new tab", popups and window.open with
+features have other dispositions or no contents, and a window.open call that keeps window.opener has an opener:
+none of these is touched. When the value is "in a new tab" and a folder sets it, the call only tells the tab
+strip adapter to file the next new tab inside that folder, next to the source tab, and returns false. The header
+has no dependencies, so the new dep of :impl cannot make a cycle; the definition is in links_open_hook.cc.
+
+--- a/chrome/browser/ui/navigator/BUILD.gn
++++ b/chrome/browser/ui/navigator/BUILD.gn
+@@ -86,6 +86,7 @@
+     ]
+ 
+     deps += [
++      "//chrome/browser/aerie_tab_model:links_open_hook",
+       "//chrome/browser/apps/app_service",
+       "//chrome/browser/apps/link_capturing",
+       "//chrome/browser/ui:browser_init_state",
+--- a/chrome/browser/ui/navigator/browser_navigator.cc
++++ b/chrome/browser/ui/navigator/browser_navigator.cc
+@@ -19,6 +19,7 @@
+ #include "base/task/single_thread_task_runner.h"
+ #include "base/trace_event/trace_event.h"
+ #include "build/build_config.h"
++#include "chrome/browser/aerie_tab_model/links_open_hook.h"
+ #include "chrome/browser/apps/app_service/web_contents_app_id_utils.h"
+ #include "chrome/browser/apps/link_capturing/link_capturing_tab_data.h"
+ #include "chrome/browser/browser_about_handler.h"
+@@ -726,6 +727,13 @@
+     return nullptr;
+   }
+ 
++  // Aerie: a folder, or Settings, can open a link that the page asked to open
++  // in a new tab in the page's own tab instead (issue #141). Every other
++  // disposition passes through untouched; see links_open_hook.h for the rules.
++  if (aerie_tab_model::HandleLinkOpen(params)) {
++    return nullptr;
++  }
++
+ #if BUILDFLAG(IS_CHROMEOS)
+   // Block navigation requests when in locked fullscreen mode. We allow
+   // navigation requests in the webapp when locked for OnTask (only relevant for

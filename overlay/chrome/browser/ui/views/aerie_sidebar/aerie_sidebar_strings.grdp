@@ -390,6 +390,48 @@
   <message name="IDS_AERIE_SIDEBAR_SHEET_SAVE_RULE" desc="Button in the folder editor that replaces a rule the user is editing with the new text. It takes the place of the Add rule button while a rule is edited.">
     Save rule
   </message>
+  <message name="IDS_AERIE_SIDEBAR_BEHAVIOUR_HEADING" desc="Heading of the Behaviour section in the folder editor, and the accessible name of its group. The section holds three settings that a folder can set for the tabs inside it.">
+    Behaviour
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_BEHAVIOUR_ARCHIVE" desc="Label of the folder behaviour that sets when unused Today tabs in the folder are archived.">
+    Auto-archive
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_BEHAVIOUR_SLEEP" desc="Label of the folder behaviour that sets how long a tab in the folder is unused before it goes to sleep.">
+    Sleep tabs after
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_BEHAVIOUR_LINKS" desc="Label of the folder behaviour that sets where a link opens when it would open a new tab.">
+    Links open
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_BEHAVIOUR_SWITCH" desc="Accessible name of a switch in the folder editor. On means the folder has its own value for the behaviour; off means it uses the value of the folder above it, or the global one.">
+    Set <ph name="BEHAVIOUR">$1<ex>Auto-archive</ex></ph> for this folder
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_BEHAVIOUR_INHERITS_GLOBAL" desc="Text next to a folder behaviour that the folder does not set. The value that follows is the global one, from Settings.">
+    Inherits global
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_BEHAVIOUR_INHERITS_FROM" desc="Text next to a folder behaviour that the folder does not set, when the folder above it sets it. The value that follows is the one of that folder.">
+    Inherits from <ph name="FOLDER">$1<ex>Trips</ex></ph>
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_BEHAVIOUR_NAME_INHERITED" desc="Accessible name of the value control of a folder behaviour that the folder does not set. It reads the behaviour, where the value comes from, and the value.">
+    <ph name="BEHAVIOUR">$1<ex>Auto-archive</ex></ph>, <ph name="SOURCE">$2<ex>Inherits global</ex></ph>, <ph name="VALUE">$3<ex>12 hours</ex></ph>
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_BEHAVIOUR_NAME_OWN" desc="Accessible name of the value control of a folder behaviour that the folder sets itself. It reads the behaviour and its value.">
+    <ph name="BEHAVIOUR">$1<ex>Auto-archive</ex></ph>, <ph name="VALUE">$2<ex>24 hours</ex></ph>
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_BEHAVIOUR_PINNED_NOTE" desc="Note under the Auto-archive setting in the folder editor for a folder in Pinned. The setting is off and cannot be changed there.">
+    Pinned tabs never archive.
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_LINKS_NEW_TAB" desc="Option of the Links open setting, in Settings and in the folder editor: a link that would open a new tab opens one. In a folder the new tab opens next to the tab inside the same folder.">
+    In a new tab
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_LINKS_IN_PLACE" desc="Option of the Links open setting, in Settings and in the folder editor: a link that would open a new tab opens in the tab that holds the link instead.">
+    In place
+  </message>
+  <message name="IDS_SETTINGS_AERIE_LINKS_OPEN" desc="Label of the drop-down in the Sidebar section of Settings that sets where a link opens when it would open a new tab. A folder can set its own.">
+    Links open
+  </message>
+  <message name="IDS_SETTINGS_AERIE_LINKS_OPEN_DESC" desc="Line under the Links open drop-down in Settings. It says what the setting changes and what it leaves alone.">
+    Where a link opens when the page asks for a new tab. A folder can set its own. Ctrl+click, middle-click, pop-up windows and links in embedded frames are not changed.
+  </message>
   <message name="IDS_SETTINGS_AERIE_SIDEBAR_DENSITY" desc="Label of the setting in the Sidebar section of Settings that chooses how dense the sidebar is.">
     Sidebar density
   </message>
