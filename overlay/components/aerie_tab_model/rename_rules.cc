@@ -6,8 +6,9 @@
 
 #include <set>
 #include <utility>
+#include <vector>
 
-#include "base/i18n/string_search.h"
+#include "base/i18n/case_conversion.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "components/aerie_tab_model/title_resolver.h"
@@ -31,13 +32,50 @@ bool OnlyRuleIdChars(std::string_view id) {
   return true;
 }
 
-// Finds `needle` in `haystack` (UTF-16 offsets), ignoring case.
+// Finds `needle` in `haystack` (UTF-16 offsets), ignoring case only, as the
+// rule matcher does for "Title contains": both sides are case-folded and an
+// accent is a different letter. `index` and `length` are in `haystack`.
 bool FindIgnoringCase(const std::u16string& needle,
                       const std::u16string& haystack,
                       size_t* index,
                       size_t* length) {
-  return base::i18n::StringSearchIgnoringCaseAndAccents(needle, haystack, index,
-                                                        length);
+  const std::u16string folded_needle = base::i18n::FoldCase(needle);
+  if (folded_needle.empty()) {
+    return false;
+  }
+  // Fold one character at a time, so that a position in the folded text maps
+  // back to a position in the title (folding can change the length).
+  std::u16string folded;
+  std::vector<std::pair<size_t, size_t>> starts;  // folded offset, source index
+  for (size_t i = 0; i < haystack.size();) {
+    const size_t width =
+        i + 1 < haystack.size() && (haystack[i] & 0xFC00) == 0xD800 &&
+                (haystack[i + 1] & 0xFC00) == 0xDC00
+            ? 2
+            : 1;
+    starts.emplace_back(folded.size(), i);
+    folded += base::i18n::FoldCase(haystack.substr(i, width));
+    i += width;
+  }
+  const size_t found = folded.find(folded_needle);
+  if (found == std::u16string::npos) {
+    return false;
+  }
+  const size_t end = found + folded_needle.size();
+  size_t from = haystack.size();
+  size_t to = haystack.size();
+  for (size_t k = 0; k < starts.size(); ++k) {
+    if (starts[k].first <= found) {
+      from = starts[k].second;
+    }
+    if (starts[k].first >= end) {
+      to = starts[k].second;
+      break;
+    }
+  }
+  *index = from;
+  *length = to - from;
+  return *length > 0;
 }
 
 // `title` without the first match of `needle`, or `title` when it is not found.
@@ -48,8 +86,7 @@ std::string RemoveFirst(std::string_view title, std::string_view needle) {
   size_t index = 0;
   size_t length = 0;
   if (wide_needle.empty() ||
-      !FindIgnoringCase(wide_needle, wide_title, &index, &length) ||
-      length == 0) {
+      !FindIgnoringCase(wide_needle, wide_title, &index, &length)) {
     return std::string(title);
   }
   std::u16string result = wide_title;

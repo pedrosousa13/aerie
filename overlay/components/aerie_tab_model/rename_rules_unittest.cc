@@ -95,6 +95,26 @@ TEST(RenameRulesTest, RemoveTextDeletesEveryOccurrenceIgnoringCase) {
             "Foo Bar");
 }
 
+// Matching and removing agree: both only ignore case, so an accent is a
+// different letter for both.
+TEST(RenameRulesTest, RemoveTextIgnoresCaseButNotAccents) {
+  const RenameRule rule = MakeRule("a", RuleType::kTitleContains, "menu",
+                                   RewriteMode::kRemoveText, "cafe");
+  // "cafe" is not "Café": nothing is removed, so nothing changes.
+  EXPECT_EQ(Apply(rule, "https://example.com/", "Menu Café"), std::nullopt);
+  EXPECT_EQ(Apply(rule, "https://example.com/", "Menu CAFE Bar"), "Menu Bar");
+  const RenameRule accented = MakeRule("b", RuleType::kTitleContains, "CAFÉ",
+                                       RewriteMode::kRemoveText, "");
+  EXPECT_EQ(Apply(accented, "https://example.com/", "Menu café Bar"),
+            "Menu Bar");
+}
+
+TEST(RenameRulesTest, TitleContainsDoesNotMatchAnAccentedLetterForAPlainOne) {
+  const RenameRule rule = MakeRule("a", RuleType::kTitleContains, "cafe",
+                                   RewriteMode::kRemoveText, "");
+  EXPECT_EQ(Apply(rule, "https://example.com/", "Café Menu"), std::nullopt);
+}
+
 TEST(RenameRulesTest, RemoveTextCanUseItsOwnTextForAnUrlRule) {
   const RenameRule rule = MakeRule("a", RuleType::kDomain, "example.com",
                                    RewriteMode::kRemoveText, "Example Inc.");
@@ -372,7 +392,7 @@ TEST(TitleResolverWithSettingsTest, AnUnnamedAddressRuleDoesNotMatchWithoutAUrl)
 // match (the common case: every title is asked of every rule).
 TEST(TitleResolverWithSettingsTest, TenThousandTitlesWithFiftyRulesAreFast) {
   TitleSettings settings;
-  for (int i = 0; i < 50; ++i) {
+  for (int i = 0; i < 48; ++i) {
     const std::string id = "r" + std::to_string(i);
     switch (i % 4) {
       case 0:
@@ -406,6 +426,18 @@ TEST(TitleResolverWithSettingsTest, TenThousandTitlesWithFiftyRulesAreFast) {
                       ".example.com/articles/" + std::to_string(i) + "?ref=x");
     titles.push_back("Headline number " + std::to_string(i) +
                      " about something - News Site " + std::to_string(i % 97));
+  }
+  // The last rules match a few titles, so every title is also asked of every
+  // rule that comes before them.
+  settings.rename.rules.push_back(
+      MakeRule("m1", RuleType::kDomain, "news0.example.com",
+               RewriteMode::kTemplate, "{title}!"));
+  settings.rename.rules.push_back(
+      MakeRule("m2", RuleType::kTitleContains, "number 7",
+               RewriteMode::kRemoveText, ""));
+  // A pass before the timed one, so that caches and the allocator are warm.
+  for (int i = 0; i < 10000; ++i) {
+    resolver.ResolveTitle(tab, titles[i], urls[i]);
   }
   const base::TimeTicks start = base::TimeTicks::Now();
   size_t changed = 0;
