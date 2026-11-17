@@ -19,7 +19,7 @@ namespace aerie_tab_model {
 
 std::u16string AccessibleTabName(const tabs::TabInterface* tab,
                                  const std::u16string& title) {
-  const BrowserWindowInterface* browser = tab->GetBrowserWindowInterface();
+  BrowserWindowInterface* browser = tab->GetBrowserWindowInterface();
   if (!browser || !browser->GetProfile()) {
     return title;
   }
