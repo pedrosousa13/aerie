@@ -57,6 +57,9 @@ def add_arguments(p: argparse.ArgumentParser, *, binary_required: bool) -> None:
     p.add_argument("--workspaces-enforce", action="store_true",
                    help="workspace_isolation: judge every probe for real. Without it the probes listed in "
                         "EXPECTED_TO_FAIL (all of them until Workspaces ship) may fail and the check reports xfail")
+    p.add_argument("--layout", choices=("sidebar", "horizontal", "horizontal-one-row"),
+                   help="start the browser with this tab layout (the pref aerie.sidebar.layout; issue #186): the "
+                        "sidebar (the default of the browser), the horizontal strip in two rows, or in one row")
     p.add_argument("--baseline", metavar="PATH",
                    help="also run zero_traffic on this browser (an unmodified Helium build, or any browser "
                         "that talks to Google) and require it to FAIL; if it passes the check is vacuous")
@@ -176,7 +179,8 @@ def run(args: argparse.Namespace, build_root: Path, default_binary: Path | None)
                    "perf": {"baseline": args.perf_baseline, "settle_seconds": args.perf_settle,
                             "first_run": args.perf_first_run, "benchmarks": not args.perf_skip_benchmarks}}
         common = dict(headless=not args.headed, no_sandbox=args.no_sandbox, timeout=args.timeout,
-                      extra_flags=tuple(args.flag), check_options=options)
+                      extra_flags=tuple(args.flag), check_options=options,
+                      seed_prefs={"aerie": {"sidebar": {"layout": args.layout}}} if args.layout else None)
         result = run_bench(binary, sc, build_root, out_dir=Path(args.out) if args.out else None, **common)
         print((result.out_dir / "summary.txt").read_text(), end="")
         print(f"results: {result.out_dir / 'results.json'}")

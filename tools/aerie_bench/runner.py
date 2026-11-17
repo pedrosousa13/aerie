@@ -119,7 +119,8 @@ def _timed(check, phase: str, *args) -> CheckResult:
 def run_bench(binary: Path | str, scenario: Scenario, build_root: Path, *, out_dir: Path | None = None,
               headless: bool = True, no_sandbox: bool = False, timeout: float = 30.0,
               extra_flags: tuple[str, ...] = (),
-              check_options: dict | None = None, extra_env: dict | None = None) -> RunResult:
+              check_options: dict | None = None, extra_env: dict | None = None,
+              seed_prefs: dict | None = None) -> RunResult:
     binary = Path(binary)
     if not binary.is_file() or not os.access(binary, os.X_OK):
         raise BenchError(f"browser binary not found or not executable: {binary}")
@@ -138,6 +139,9 @@ def run_bench(binary: Path | str, scenario: Scenario, build_root: Path, *, out_d
         for c in instances:
             if hasattr(c, "profile_prefs"):
                 _merge(prefs, c.profile_prefs(server))
+        if seed_prefs:
+            # ``--layout`` and the like: the run was asked for these, so they win over a check's own.
+            _merge(prefs, seed_prefs)
         if prefs:
             profile.seed_prefs(prefs)
         # A check can ask for browser flags once the fixture server is up (``browser_flags(server)``).

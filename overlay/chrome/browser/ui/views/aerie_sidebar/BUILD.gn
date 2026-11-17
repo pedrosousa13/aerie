@@ -130,6 +130,7 @@ source_set("browser_tests") {
     "aerie_sidebar_browsertest.cc",
     "aerie_sidebar_density_browsertest.cc",
     "aerie_sidebar_drag_browsertest.cc",
+    "aerie_hz_layout_browsertest.cc",
     "aerie_sidebar_folders_browsertest.cc",
     "aerie_sidebar_pinned_browsertest.cc",
     "aerie_sidebar_rename_browsertest.cc",
@@ -184,6 +185,7 @@ source_set("interactive_tests") {
   # content/public/test/browser_test.h refuses to compile without it.
   defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
   sources = [
+    "aerie_hz_layout_uitest.cc",
     "aerie_sidebar_archive_uitest.cc",
     "aerie_sidebar_autofile_uitest.cc",
     "aerie_sidebar_drag_uitest.cc",
