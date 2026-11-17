@@ -37,8 +37,7 @@
 #include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/browser_test.h"
-#include "net/dns/mock_host_resolver.h"
-#include "net/test/embedded_test_server/embedded_test_server.h"
+#include "url/gurl.h"
 #include "ui/accessibility/ax_node_data.h"
 #include "ui/gfx/animation/animation_test_api.h"
 #include "ui/views/accessibility/view_accessibility.h"
@@ -87,8 +86,6 @@ class AerieHzLayoutBrowserTest : public InProcessBrowserTest {
  protected:
   void SetUpOnMainThread() override {
     InProcessBrowserTest::SetUpOnMainThread();
-    host_resolver()->AddRule("*", "127.0.0.1");
-    ASSERT_TRUE(embedded_test_server()->Start());
     // The instant look: motion is tested in the interactive tests.
     reduced_motion_.emplace(
         gfx::AnimationTestApi::SetPrefersReducedMotionForTesting(true));
@@ -136,9 +133,12 @@ class AerieHzLayoutBrowserTest : public InProcessBrowserTest {
     Settle();
   }
 
-  void OpenTab(const char* path = "/title1.html") {
+  // The pages are data: URLs, so that no tab is in Chromium's network error
+  // state, which adds its own words to a tab's name.
+  void OpenTab(const char* title = "one") {
     ASSERT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
-        browser(), embedded_test_server()->GetURL(path),
+        browser(),
+        GURL(std::string("data:text/html,<title>") + title + "</title>"),
         WindowOpenDisposition::NEW_BACKGROUND_TAB,
         ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
   }
@@ -241,8 +241,8 @@ IN_PROC_BROWSER_TEST_F(AerieHzLayoutBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(AerieHzLayoutBrowserTest,
                        AReorderInTheStripIsWrittenBackAndShowsInTheSidebar) {
-  OpenTab("/title2.html");
-  OpenTab("/title3.html");
+  OpenTab("two");
+  OpenTab("three");
   const std::vector<std::string> ids = StripIds();
   Choose(aerie_sidebar::kLayoutHorizontal);
   // The user drags the first tab to the end.

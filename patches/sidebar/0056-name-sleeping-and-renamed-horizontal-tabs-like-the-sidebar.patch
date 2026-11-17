@@ -14,19 +14,32 @@ Issue #186. GetAccessibleTabLabel calls aerie_tab_model::AccessibleTabName for a
  #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
  #include "chrome/browser/ui/location_bar/location_bar.h"
  #include "chrome/browser/ui/performance_controls/tab_resource_usage_tab_helper.h"
-@@ -100,6 +101,12 @@
+@@ -100,6 +101,16 @@
        is_for_tab ? controller->GetTitleForTab(tab->GetHandle())
                   : controller->GetWindowTitleForTab(tab->GetHandle());
  
 +  // Aerie (issue #186): a sleeping tab and a renamed tab are named the way the
 +  // sidebar names its rows.
++  bool aerie_named = false;
 +  if (is_for_tab) {
-+    title = aerie_tab_model::AccessibleTabName(tab, title);
++    const std::u16string aerie_title =
++        aerie_tab_model::AccessibleTabName(tab, title);
++    aerie_named = aerie_title != title;
++    title = aerie_title;
 +  }
 +
    if (const std::optional<split_tabs::SplitTabId> split = tab->GetSplit()) {
      if (!tab_strip_model->ContainsSplit(split.value())) {
        // This can happen when a split tab is in the process of being closed and
+@@ -174,7 +185,7 @@
+     }
+   }
+ 
+-  if (tab_data.should_show_discard_status) {
++  if (tab_data.should_show_discard_status && !aerie_named) {
+     title = l10n_util::GetStringFUTF16(IDS_TAB_AX_INACTIVE_TAB, title);
+     std::optional<base::ByteSize> discarded_memory_savings =
+         tab_data.discarded_memory_savings;
 --- a/chrome/browser/ui/views/tabs/tab/BUILD.gn
 +++ b/chrome/browser/ui/views/tabs/tab/BUILD.gn
 @@ -50,6 +50,7 @@
