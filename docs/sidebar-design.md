@@ -702,11 +702,11 @@ Issue #180. Pinned tabs and Favorites are kept across restarts, they never carry
 
 ## Sidebar layout and Helium's layouts
 
-Decided with issue #177. Helium ships four tab layouts (classic, compact, vertical, dynamic) and a Zen mode. Aerie has one layout, the sidebar, and one more planned, horizontal tabs (#186). Helium's layout patches stay applied, because other Helium code reads their prefs, and Aerie locks them instead.
+Decided with issue #177. Helium ships four tab layouts (classic, compact, vertical, dynamic) and a Zen mode. Aerie has one layout, the sidebar, and one more planned, horizontal tabs (#186). Helium's layout patches stay applied, because other Helium code reads their prefs, and Aerie locks them instead. Since issue #186 the lock follows `aerie.sidebar.layout`: vertical for the sidebar, classic for two rows, compact for one row.
 
 | Pref | Meaning |
 | --- | --- |
-| `aerie.sidebar.layout` | `sidebar` (default) or `horizontal`. Only `sidebar` is built. A value that is neither reads as `sidebar`. |
+| `aerie.sidebar.layout` | `sidebar` (default), `horizontal` (two rows) or `horizontal-one-row`. A value that is none of the three reads as `sidebar`. The horizontal layouts are built (issue #186, "Horizontal tabs, as built"). |
 | `aerie.sidebar.width` | Width in pixels. Default `size-sidebar-width` (260). It is clamped to `size-sidebar-min` .. `size-sidebar-max` (200 to 400) when read. |
 | `aerie.sidebar.visible` | Shown (default) or hidden. |
 
@@ -825,3 +825,35 @@ What the code does, and the choices the issue left open.
 - **Panel.** A popover (`AerieSidebarArchivePanel`) above the Archive button: a dialog named "Archive", a header with the timeout as a menu button, a searchbox (title and URL, case-insensitive), and a listbox grouped Today, Yesterday, Last week, Earlier by local calendar day (a group with no row has no heading). Each day is a group (role `group`, named by its heading) inside the listbox. The rows are one Tab stop with roving focus: only the active row is a Tab stop and the selected one; Up and Down move between the search and the rows, Home and End jump to the first and the last row, and every row carries its position in the whole list and the list's size. Enter restores (from the search it restores the first match), Esc closes. The timeout menu opens as a keyboard menu when the button was activated by Enter or Space. Focus returns to the Archive button after Esc or a click outside; after a restore the restored tab is selected and focus goes to its page (decided: the user asked to see that page). After a restore the sidebar announces "Restored <title>". The Workspace filter is M5.
 - **Motion.** Archive moment: when the archiver is about to close a tab, the sidebar takes a copy of its row. The copy shrinks to `motion-scale-archive-collapse` and flies to the button over `archive-collapse` (`accelerate`) and fades as it lands. The real row leaves with the ordinary row close (it slides, fades and collapses its height), which the copy covers. Where the copy lands, the button scales to `motion-scale-archive-pulse` and back over `archive-pulse` (`standard`), half each way. Restore: a copy flies from the panel row to the top of Today over `archive-restore` on the spring. Popover: drops 4 px and fades in on `fast` and `decelerate`; no closing animation. Reduced motion (OS flag or in-app): the copy fades 120 ms, the button flashes its colour for 140 ms without scale, restore fades 120 ms, the popover fades 90 ms. Only `transform` and `opacity` animate (and the row height of the Today list).
 - **Network.** None. A restored tab loads its page like any navigation.
+
+## Horizontal tabs, as built (issue #186)
+
+The option is in Settings, Sidebar section, "Tab layout": Sidebar, Horizontal (two rows), Horizontal (one row). A switch needs no restart. Every tab, the selection, sleeping state and loaded pages stay as they are: the `WebContents` do not move, only the views are built or removed.
+
+- **How it is wired.** `aerie.sidebar.layout` drives Helium's locked `helium.browser.layout` (`HeliumLayoutStateController`, patch 0051; ADR 0008): classic for two rows, compact for one row, vertical for the sidebar. The controller never writes or holds the pref. `BrowserView` builds the sidebar when the layout becomes the sidebar and removes it, with the toolbar parts returned, when it becomes horizontal (patches 0052 and 0053). The unused layout's views are not built.
+- **Chromium's strip, the collection strip.** The horizontal layouts use the tab collection strip (`HorizontalTabStripRegionViewNew`, the strip Helium's vertical layout already uses). Patch 0058 turns `kTabStripUnification` on for that, so it is on in the sidebar layout too (the sidebar hides the strip view and does not draw it). The older `TabStrip` and `Tab` classes have none of the hooks below. The flag can still be turned off in `chrome://flags`, which brings back the older strip without the Aerie sizes and motion.
+- **Order.** The Tab Model order is mirrored into `TabStripModel` with `MoveWebContentsAt`: Favorites, Pinned (folders flattened, depth first), Today. A reorder in the strip is written back as positions for Pinned and Favorites; Today follows the strip by itself. `horizontal_order.*` holds the rules, with unit tests; the browser test `AerieHzLayoutBrowserTest` covers the mirror and the write-back.
+- **Sizes and the icon-only rule.** Tab widths, minimums and the flare radius come from the `size-hz-*` tokens (patch 0054). `aerie_sidebar::ShowsIconOnly` is the one icon-only rule (72 px, never for the selected tab). `ComputeHzTabLayout` in `aerie_sidebar_hz_policy.*` holds the same shrink rules as plain data for the unit tests.
+- **Motion.** Chromium keeps its width animation, with the duration set to `tab-open` or `tab-close`. The tab's layer gets the scale and fade (open) or the slide and fade (close) through `aerie::motion::AnimateLayer`, so the reduced motion rules of `ShouldReduceMotion` apply: open fades in 140 ms, close in 90 ms, no transform. Two things in Chromium's layout manager needed care (patch 0055). It sets the opacity of an adding or removing tab from the width animation's value on every frame, which aborts the opacity animation of the layer; it now skips that for tabs that take the Aerie motion. And a closing tab is handed to the strip in a task after the model change, so its layer exists a moment later; the interactive tests wait for it. Tests: `AerieHzLayoutUiTest` and `AerieHzReducedMotionUiTest` (the OS flag and the in-app setting).
+- **Names.** A tab's accessible name comes from `AccessibleTabName` (sleeping and renamed states), so screen readers hear what the sidebar's rows say, and the horizontal region has the `tablist` role (patch 0056). Chromium's own "inactive" words for a sleeping tab are left out so that the state is said once.
+- **Network.** None. `docs/network-endpoints.md` is unchanged.
+
+### Spike: does Helium's compact layout match the design's one row?
+
+Mostly yes in structure, with gaps. Helium's compact patch (`helium/ui/layout/compact.patch`) moves the tab strip region view into the toolbar (`ToolbarView::AttachTabStripRegionView`), after the location bar, with the lowest flex priority, so the tab strip takes whatever room the toolbar's other parts leave. That is the design's "everything in one strip", and the tab strip's empty part is the window drag area. Two rows is Helium's classic layout, which is the tab strip above the toolbar, as the design has it. So both horizontal options come from Helium's two layouts and the pref lock, with no layout code of our own, which was the cheapest path the issue named.
+
+What differs from the design, and what is left:
+
+| Gap | Detail |
+| --- | --- |
+| Address pill width | Compact sets the location bar's preferred width to 350 px (`kPreferredCompactWidth` in the compact patch); the design has 240 px, minimum 160. Not changed: it is Helium's constant and the omnibox is not an Aerie surface in this slice. |
+| New Tab button | Compact hides the New Tab button when it does not fit; that rule is in `HorizontalTabStripRegionViewOld` only, so with the collection strip the button does not hide. |
+| Workspace chip | The design's first item of the strip is not built. M2 has one Workspace, and the switcher ships in M5. |
+| Favorites tiles | The design puts them in the toolbar row (two rows) and omits them in one row. They are not drawn in the toolbar row yet; Favorites tabs are in the strip, first. |
+| Folder label chip | Folders are flattened in the strip with no label chip. |
+| Scroll fades and chevrons | When even icon-only tabs do not fit, the strip uses Chromium's own overflow handling, not the design's fading edges (`size-hz-scroll-fade`) and chevron buttons. |
+| Toolbar joined to the page card | The selected tab joining the toolbar at the top of the page card (flare, `size-hz-flare-radius`) is Chromium's tab shape with the token radius; the card's rounded top edge is not changed for the horizontal layouts. |
+| Chromium pinned look | See below. |
+| Sidebar width limits | `vertical_tab_strip_state.h` still holds the 260 default and 200 minimum; they are only used by the sidebar. |
+
+**Pinned tabs and the Chromium pinned look.** Decision for this slice: a pinned tab does not use the Chromium pinned look. Aerie Pinned and Favorites tabs have no Chromium pinned bit, so they are ordinary tabs in the strip, first in order. The look (`size-hz-tab-pinned`, 32 px, favicon only) would need a style flag in `TabStyle` and a change to the width rules that the collection strip's pinned container does by the bit; and a Pinned tab keeps its title, which is what the sidebar shows. The token stays defined for when the maintainer decides to add it. The browser test `tab_model_browsertest.cc` still checks that no tab has the bit.
