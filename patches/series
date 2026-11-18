@@ -181,3 +181,4 @@ sidebar/0056-name-sleeping-and-renamed-horizontal-tabs-like-the-sidebar.patch
 sidebar/0057-add-the-tab-layout-row-to-the-sidebar-section-of-settings.patch
 sidebar/0058-use-the-tab-collection-strip-for-the-horizontal-layouts.patch
 sidebar/0059-size-the-horizontal-chrome-and-its-fades-from-the-aerie-tokens.patch
+sidebar/0060-add-the-workspace-chip-and-the-favorites-bar-to-the-horizontal-layouts.patch

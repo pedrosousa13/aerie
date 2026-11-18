@@ -139,6 +139,7 @@ source_set("browser_tests") {
     "aerie_sidebar_title_browsertest.cc",
   ]
   deps = [
+    "//chrome/browser/ui/views/aerie_hz_chrome",
     ":aerie_sidebar",
     "//chrome/browser:browser",
     "//chrome/browser/aerie_tab_model",

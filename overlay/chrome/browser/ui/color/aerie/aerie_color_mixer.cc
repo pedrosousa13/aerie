@@ -153,6 +153,7 @@ void AddAerieColorMixer(ui::ColorProvider* provider,
       c.divider);
   Set(mixer, {kColorTabStripScrollButtonIcon, kColorToolbarButtonIcon},
       c.text_muted);
+  Set(mixer, {kColorTabStripScrollButtonBackground}, SK_ColorTRANSPARENT);
 }
 
 }  // namespace aerie_color

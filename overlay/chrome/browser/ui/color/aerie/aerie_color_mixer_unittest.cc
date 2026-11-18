@@ -138,6 +138,8 @@ TEST_F(AerieColorMixerTest, TheHorizontalChromeTakesTheThemeAndCardColours) {
                 c.row_hover);
       EXPECT_EQ(p.GetColor(kColorTabStripScrollButtonIcon), c.text_muted);
       EXPECT_EQ(p.GetColor(kColorToolbarButtonIcon), c.text_muted);
+      EXPECT_EQ(SkColorGetA(p.GetColor(kColorTabStripScrollButtonBackground)),
+                0u);
     }
   }
 }

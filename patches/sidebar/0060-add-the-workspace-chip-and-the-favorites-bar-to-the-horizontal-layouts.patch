@@ -1,0 +1,36 @@
+Aerie-Purpose: Make the Workspace chip and the Favorites bar of the horizontal layouts when the layout changes.
+Aerie-Upstream-Area: chrome/browser/ui/views/frame (browser_view.cc, BUILD.gn)
+Aerie-Kind: hook
+
+Issue #186. BrowserView::UpdateAerieFrameForLayout calls aerie_hz_chrome::UpdateForLayout, which adds the Workspace chip at the start of the horizontal tab strip region and, in two rows, the Favorites bar at the end of the toolbar, and takes them away again for the other layouts.
+
+--- a/chrome/browser/ui/views/frame/browser_view.cc
++++ b/chrome/browser/ui/views/frame/browser_view.cc
+@@ -154,6 +154,7 @@
+ #include "chrome/browser/ui/views/accessibility/caret_browsing_dialog_delegate.h"
+ #include "chrome/browser/ui/views/aerie_frame/frame_tint_enabled.h"
+ #include "chrome/browser/ui/views/aerie_frame/frame_tint_view.h"
++#include "chrome/browser/ui/views/aerie_hz_chrome/aerie_hz_chrome.h"
+ #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_toolbar_hook.h"
+ #include "chrome/browser/ui/views/autofill/autofill_bubble_handler_impl.h"
+ #include "chrome/browser/ui/views/bookmarks/bookmark_bar_view.h"
+@@ -1866,6 +1867,9 @@
+   if (multi_contents_view_) {
+     multi_contents_view_->InvalidateLayout();
+   }
++  // The Workspace chip and the Favorites bar of the horizontal layouts.
++  aerie_hz_chrome::UpdateForLayout(this, horizontal_tab_strip_region_view_.get(),
++                                   toolbar_.get());
+   SchedulePaint();
+ }
+ 
+--- a/chrome/browser/ui/views/frame/BUILD.gn
++++ b/chrome/browser/ui/views/frame/BUILD.gn
+@@ -578,6 +578,7 @@
+     "//chrome/browser/ui/color:color_headers",
+     "//chrome/browser/ui/tabs:features",
+     "//chrome/browser/ui/tabs:tab_strip",
++    "//chrome/browser/ui/views/aerie_hz_chrome",
+     "//chrome/browser/ui/views/aerie_sidebar",
+     "//chrome/browser/ui/views/animations",
+     "//chrome/browser/ui/views/tabs/common:impl",

@@ -24,6 +24,7 @@
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/layout_constants.h"
+#include "chrome/browser/ui/views/aerie_hz_chrome/aerie_hz_chrome.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_row_view.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_view.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
@@ -363,4 +364,53 @@ IN_PROC_BROWSER_TEST_F(AerieHzLayoutBrowserTest,
     }
     return found;
   }));
+}
+
+// The Workspace chip and the Favorites tiles (issue #186).
+IN_PROC_BROWSER_TEST_F(AerieHzLayoutBrowserTest,
+                       TheWorkspaceChipIsAtTheStartOfTheStripAndNamedForReaders) {
+  EXPECT_EQ(FindDescendant<AerieHzWorkspaceChip>(browser_view()), nullptr);
+  Choose(aerie_sidebar::kLayoutHorizontal);
+  auto* chip = FindDescendant<AerieHzWorkspaceChip>(browser_view());
+  ASSERT_TRUE(chip);
+  EXPECT_EQ(NameOf(chip), "Workspace: Personal");
+  // The first child of the strip's region.
+  EXPECT_EQ(chip->parent()->children().front(), chip);
+  Choose(aerie_sidebar::kLayoutHorizontalOneRow);
+  chip = FindDescendant<AerieHzWorkspaceChip>(browser_view());
+  ASSERT_TRUE(chip);
+  EXPECT_EQ(NameOf(chip), "Workspace: Personal");
+  Choose(aerie_sidebar::kLayoutSidebar);
+  EXPECT_EQ(FindDescendant<AerieHzWorkspaceChip>(browser_view()), nullptr);
+}
+
+IN_PROC_BROWSER_TEST_F(AerieHzLayoutBrowserTest,
+                       FavoritesAreTilesInTheToolbarInTwoRowsAndNotInOneRow) {
+  OpenTab("alpha");
+  OpenTab("beta");
+  ASSERT_TRUE(service()->model()->MoveTab(
+      RecordId(1), aerie_tab_model::Section::kFavorite, "", 0));
+  Choose(aerie_sidebar::kLayoutHorizontal);
+  auto* bar = FindDescendant<AerieHzFavoritesBar>(browser_view()->toolbar());
+  ASSERT_TRUE(bar);
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    Settle();
+    return bar->tile_count() == 1u;
+  }));
+  EXPECT_EQ(NameOf(bar->children()[0]), "alpha");
+  // The Favorite is not in the strip as well.
+  int visible = 0;
+  for (views::View* tab : StripTabViews()) {
+    visible += tab->GetVisible() ? 1 : 0;
+  }
+  EXPECT_EQ(visible, 2);  // the first tab and "beta"
+
+  Choose(aerie_sidebar::kLayoutHorizontalOneRow);
+  EXPECT_EQ(FindDescendant<AerieHzFavoritesBar>(browser_view()->toolbar()),
+            nullptr);
+  visible = 0;
+  for (views::View* tab : StripTabViews()) {
+    visible += tab->GetVisible() ? 1 : 0;
+  }
+  EXPECT_EQ(visible, 3);
 }

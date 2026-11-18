@@ -1,0 +1,43 @@
+# Copyright 2026 The Aerie Authors
+# You can use, redistribute, and/or modify this source code under
+# the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+assert(!is_android, "The horizontal tab layout is for desktop platforms only")
+
+# The Workspace chip and the Favorites bar of Chromium's horizontal layouts
+# (issue #186). BrowserView, in //chrome/browser/ui/views/frame, makes them when
+# the layout changes (patches/sidebar/0060).
+source_set("aerie_hz_chrome") {
+  visibility = [
+    "//chrome/browser/ui/views/frame:*",
+    "//chrome/browser/ui/views/aerie_sidebar:*",
+  ]
+  sources = [
+    "aerie_hz_chrome.cc",
+    "aerie_hz_chrome.h",
+  ]
+  public_deps = [
+    "//base",
+    "//chrome/browser/ui/tabs:tab_strip_model_observer",
+    "//components/aerie_tab_model",
+    "//ui/base",
+    "//ui/base/metadata",
+    "//ui/views",
+  ]
+  deps = [
+    "//chrome/browser/aerie_tab_model",
+    "//chrome/browser/profiles:profile",
+    "//chrome/browser/ui/browser_window",
+    "//chrome/browser/ui/tabs:tab_strip",
+    "//components/aerie_design_tokens:tokens",
+    "//components/aerie_sidebar:hz_policy",
+    "//components/aerie_sidebar:layout",
+    "//components/favicon/content",
+    "//components/prefs",
+    "//components/tabs:public",
+    "//components/vector_icons",
+    "//content/public/browser",
+    "//ui/color",
+    "//ui/gfx",
+  ]
+}

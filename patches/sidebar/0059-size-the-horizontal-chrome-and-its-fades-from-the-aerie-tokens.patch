@@ -55,12 +55,13 @@ Issue #186. HeliumLayoutStateController sets the active horizontal metrics (aeri
  #include "components/contextual_tasks/public/features.h"
  #include "components/feature_engagement/public/feature_constants.h"
 @@ -2275,8 +2276,11 @@
-   const bool is_compact_layout = IsCompactLayout();
+-  const bool is_compact_layout = IsCompactLayout();
++  // Aerie (issue #186): in both horizontal layouts, two rows included, the
++  // pill is size-hz-address-pill wide (not Helium's 350) and does not grow.
++  const auto hz = aerie_sidebar::GetActiveHzMetrics();
++  const bool is_compact_layout = IsCompactLayout() || hz.has_value();
    if (location_bar_view_) {
      if (is_compact_layout) {
-+      // Aerie (issue #186): the pill is size-hz-address-pill wide in the
-+      // horizontal layouts, not Helium's 350.
-+      const auto hz = aerie_sidebar::GetActiveHzMetrics();
        location_bar_view_->SetPreferredSize(gfx::Size(
 -          kPreferredCompactWidth,
 +          hz ? hz->address_pill : kPreferredCompactWidth,
