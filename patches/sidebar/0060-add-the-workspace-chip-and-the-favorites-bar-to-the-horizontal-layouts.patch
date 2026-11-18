@@ -24,6 +24,18 @@ Issue #186. BrowserView::UpdateAerieFrameForLayout calls aerie_hz_chrome::Update
    SchedulePaint();
  }
  
+@@ -1893,6 +1897,11 @@
+ 
+   UpdateZenModeState();
+   UpdateTabSearchBubbleHost();
++  // Aerie (issue #186): two rows and one row are Helium's classic and compact
++  // layouts, so a switch between them arrives here and not in the orientation
++  // change.
++  aerie_hz_chrome::UpdateForLayout(this, horizontal_tab_strip_region_view_.get(),
++                                   toolbar_.get());
+   InvalidateLayout();
+ }
+ 
 --- a/chrome/browser/ui/views/frame/BUILD.gn
 +++ b/chrome/browser/ui/views/frame/BUILD.gn
 @@ -578,6 +578,7 @@

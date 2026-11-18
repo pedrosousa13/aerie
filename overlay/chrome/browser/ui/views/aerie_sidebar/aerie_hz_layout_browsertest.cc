@@ -414,3 +414,23 @@ IN_PROC_BROWSER_TEST_F(AerieHzLayoutBrowserTest,
   }
   EXPECT_EQ(visible, 3);
 }
+
+IN_PROC_BROWSER_TEST_F(AerieHzLayoutBrowserTest,
+                       TheScrollChevronsAreNamedForScreenReaders) {
+  Choose(aerie_sidebar::kLayoutHorizontal);
+  for (int i = 0; i < 40; ++i) {
+    OpenTab();
+  }
+  Settle();
+  std::vector<views::View*> buttons;
+  CollectByRole(strip_region(), ax::mojom::Role::kButton, &buttons);
+  bool leading = false;
+  bool trailing = false;
+  for (views::View* b : buttons) {
+    const std::string name = NameOf(b);
+    leading |= name == "Scroll towards the first tab";
+    trailing |= name == "Scroll towards the last tab";
+  }
+  EXPECT_TRUE(leading);
+  EXPECT_TRUE(trailing);
+}
