@@ -851,7 +851,8 @@ What differs from the design, and what is left:
 | Workspace chip | The design's first item of the strip is not built. M2 has one Workspace, and the switcher ships in M5. |
 | Favorites tiles | The design puts them in the toolbar row (two rows) and omits them in one row. They are not drawn in the toolbar row yet; Favorites tabs are in the strip, first. |
 | Folder label chip | Folders are flattened in the strip with no label chip. |
-| Scroll fades and chevrons | When even icon-only tabs do not fit, the strip uses Chromium's own overflow handling, not the design's fading edges (`size-hz-scroll-fade`) and chevron buttons. |
+| Scroll fades and chevrons | With 43 tabs the tabs shrink to icon-only, the selected tab keeps its width, and Chromium's own scroll chevrons appear (gallery, "43 tabs (overflow)"). The design's fading edges (`size-hz-scroll-fade`) are not drawn, and the chevrons are Chromium's, not Aerie-styled. |
+| Colours | The strip, the toolbar and the page card use Chromium's theme colours, not the Aerie theme and Workspace tint (the sidebar's colour bridge of ADR 0007 is not applied to the horizontal layouts). In the screenshots the selected tab and the toolbar are close in tone, so the join is weak. |
 | Toolbar joined to the page card | The selected tab joining the toolbar at the top of the page card (flare, `size-hz-flare-radius`) is Chromium's tab shape with the token radius; the card's rounded top edge is not changed for the horizontal layouts. |
 | Chromium pinned look | See below. |
 | Sidebar width limits | `vertical_tab_strip_state.h` still holds the 260 default and 200 minimum; they are only used by the sidebar. |
