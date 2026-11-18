@@ -15,6 +15,7 @@
 #include "chrome/browser/aerie_tab_model/tab_strip_adapter.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
+#include "chrome/grit/generated_resources.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/tab_strip_region_view.h"
@@ -29,6 +30,7 @@
 #include "components/tabs/public/tab_interface.h"
 #include "components/vector_icons/vector_icons.h"
 #include "content/public/browser/web_contents.h"
+#include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/models/image_model.h"
 #include "ui/color/color_id.h"
@@ -100,7 +102,8 @@ AerieHzWorkspaceChip::~AerieHzWorkspaceChip() {
 
 void AerieHzWorkspaceChip::Refresh() {
   name_ = model_ ? base::UTF8ToUTF16(model_->workspace().name) : u"";
-  GetViewAccessibility().SetName(u"Workspace: " + name_);
+  GetViewAccessibility().SetName(
+      l10n_util::GetStringFUTF16(IDS_AERIE_HZ_WORKSPACE_CHIP, name_));
   InvalidateLayout();
   SchedulePaint();
 }
@@ -158,7 +161,8 @@ AerieHzFavoritesBar::AerieHzFavoritesBar(BrowserView* browser_view,
   layout->set_cross_axis_alignment(views::BoxLayout::CrossAxisAlignment::kCenter);
   SetLayoutManager(std::move(layout));
   GetViewAccessibility().SetRole(ax::mojom::Role::kToolbar);
-  GetViewAccessibility().SetName(u"Favorites");
+  GetViewAccessibility().SetName(
+      l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_FAVORITES));
   SetProperty(views::kFlexBehaviorKey,
               views::FlexSpecification(views::MinimumFlexSizeRule::kPreferred,
                                        views::MaximumFlexSizeRule::kPreferred));

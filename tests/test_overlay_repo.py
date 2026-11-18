@@ -29,7 +29,7 @@ class RepoOverlayTest(unittest.TestCase):
                                             "chrome/browser/resources/settings/appearance_page/aerie_folder_rules_row.",
                                             "chrome/browser/resources/settings/appearance_page/aerie_density_row.",
                                             "chrome/browser/resources/settings/appearance_page/aerie_layout_row.",
-                                            "chrome/browser/ui/views/aerie_hz_tabs/",
+                                            "chrome/browser/ui/views/aerie_hz_tabs/", "chrome/browser/ui/views/aerie_hz_chrome/",
                                             "chrome/browser/resources/settings/appearance_page/aerie_side_row.",
                                             "chrome/browser/resources/settings/appearance_page/aerie_title_rules_",
                                             "chrome/browser/resources/settings/appearance_page/aerie_appearance_row.",

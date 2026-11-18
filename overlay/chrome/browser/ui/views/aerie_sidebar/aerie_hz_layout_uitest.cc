@@ -41,6 +41,7 @@
 #include "ui/gfx/animation/animation_test_api.h"
 #include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/test/views_test_utils.h"
+#include "ui/views/focus/focus_manager.h"
 #include "ui/views/view.h"
 #include "ui/views/widget/widget.h"
 
@@ -251,4 +252,19 @@ IN_PROC_BROWSER_TEST_F(AerieHzLayoutUiTest, CtrlTabAndCtrlNumberMoveTheSelection
   // Ctrl+9 is the last tab.
   Key(ui::VKEY_9, true, false);
   EXPECT_EQ(strip()->active_index(), 3);
+}
+
+IN_PROC_BROWSER_TEST_F(AerieHzLayoutUiTest, ArrowKeysMoveTheFocusBetweenTabs) {
+  OpenTab();
+  OpenTab();
+  ASSERT_TRUE(base::test::RunUntil([&] { return Tabs().size() == 3u; }));
+  views::FocusManager* focus = browser_view()->GetFocusManager();
+  Tabs()[0]->RequestFocus();
+  ASSERT_EQ(focus->GetFocusedView(), Tabs()[0]);
+  Key(ui::VKEY_RIGHT, false, false);
+  EXPECT_EQ(focus->GetFocusedView(), Tabs()[1]);
+  Key(ui::VKEY_RIGHT, false, false);
+  EXPECT_EQ(focus->GetFocusedView(), Tabs()[2]);
+  Key(ui::VKEY_LEFT, false, false);
+  EXPECT_EQ(focus->GetFocusedView(), Tabs()[1]);
 }

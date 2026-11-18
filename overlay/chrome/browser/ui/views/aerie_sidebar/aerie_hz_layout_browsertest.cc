@@ -345,6 +345,19 @@ IN_PROC_BROWSER_TEST_F(AerieHzLayoutBrowserTest,
     OpenTab();
   }
   Settle();
+  // At 40 tabs the selected tab keeps its width and the others are icon-only.
+  {
+    std::vector<views::View*> tabs = StripTabViews();
+    ASSERT_GE(tabs.size(), 40u);
+    views::View* selected = tabs[strip()->active_index()];
+    EXPECT_GE(selected->width(), 120);
+    for (views::View* tab : tabs) {
+      if (tab != selected && tab->GetVisible()) {
+        EXPECT_LT(tab->width(), 72);
+        break;
+      }
+    }
+  }
   bool found = false;
   ASSERT_TRUE(base::test::RunUntil([&] {
     Settle();

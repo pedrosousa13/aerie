@@ -94,6 +94,9 @@
   <message name="IDS_AERIE_SIDEBAR_SLEEPING_TOOLTIP" desc="Tooltip of the text at the end of the Today heading that says how many tabs are asleep. It tells the user that the memory number is an estimate.">
     Estimate of the memory that sleeping tabs freed
   </message>
+  <message name="IDS_AERIE_HZ_WORKSPACE_CHIP" desc="Accessible name of the Workspace chip at the start of the horizontal tab strip. The chip shows the name of the current Workspace, a named set of tabs.">
+    Workspace: <ph name="NAME">$1<ex>Personal</ex></ph>
+  </message>
   <message name="IDS_AERIE_SIDEBAR_FAVORITES" desc="Accessible name of the grid of Favorites at the top of the sidebar. Favorites are small tiles, one per page the user keeps close.">
     Favorites
   </message>

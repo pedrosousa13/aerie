@@ -25,6 +25,7 @@ source_set("aerie_hz_chrome") {
     "//ui/views",
   ]
   deps = [
+    "//chrome/app:generated_resources",
     "//chrome/browser/aerie_tab_model",
     "//chrome/browser/profiles:profile",
     "//chrome/browser/ui/browser_window",
