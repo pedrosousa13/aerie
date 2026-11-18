@@ -79,6 +79,26 @@ Issue #186. The layout manager's delegate says when to use the Aerie motion (hor
      // Removed views should animate opacity from fully opaque to invisible.
      child_view->SetPaintToLayer();
      child_view->layer()->SetFillsBoundsOpaquely(false);
+@@ -718,7 +750,8 @@
+           }
+           interpolated_child.bounds = host_offsets.InterpolateChildBounds(
+               value, initial_bounds, target_it->second.bounds);
+-          if (child_view->layer()) {
++          if (child_view->layer() &&
++              !delegate_->ShouldAnimateAerieMotion(*child_view)) {
+             child_view->layer()->SetOpacity(static_cast<float>(value));
+           }
+         }
+@@ -764,7 +797,8 @@
+       }
+       interpolated_child.bounds = host_offsets.InterpolateChildBounds(
+           value, start_it->second.bounds, target_bounds);
+-      if (child_view->layer()) {
++      if (child_view->layer() &&
++          !delegate_->ShouldAnimateAerieMotion(*child_view)) {
+         child_view->layer()->SetOpacity(static_cast<float>(1.0 - value));
+       }
+ 
 --- a/chrome/browser/ui/views/tabs/common/tab_collection_animating_layout_manager.h
 +++ b/chrome/browser/ui/views/tabs/common/tab_collection_animating_layout_manager.h
 @@ -24,6 +24,8 @@

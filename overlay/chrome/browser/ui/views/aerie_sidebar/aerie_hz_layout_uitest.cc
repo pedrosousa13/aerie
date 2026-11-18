@@ -129,6 +129,15 @@ class AerieHzLayoutUiTest : public InProcessBrowserTest {
     return Tabs().back();
   }
 
+  // Closes the last tab and waits until the strip has taken `tab` over for its
+  // close animation (it does that in a task after the model change; the view
+  // stays in the strip until the animation ends).
+  void CloseLastTab(views::View* tab) {
+    strip()->CloseWebContentsAt(strip()->count() - 1,
+                                TabCloseTypes::CLOSE_USER_GESTURE);
+    EXPECT_TRUE(base::test::RunUntil([&] { return tab->layer() != nullptr; }));
+  }
+
   void Key(ui::KeyboardCode key, bool control, bool shift) {
     ASSERT_TRUE(ui_test_utils::SendKeyPressSync(browser(), key, control, shift,
                                                 false, false));
@@ -160,7 +169,7 @@ IN_PROC_BROWSER_TEST_F(AerieHzLayoutUiTest,
   // Let the open settle, so that the close is what animates.
   ASSERT_TRUE(base::test::RunUntil(
       [&] { return !tab->layer() || !Animates(tab->layer(), ui::LayerAnimationElement::OPACITY); }));
-  strip()->CloseWebContentsAt(strip()->count() - 1, TabCloseTypes::CLOSE_USER_GESTURE);
+  CloseLastTab(tab);
   ASSERT_TRUE(tab->layer());
   ui::Layer* layer = tab->layer();
   EXPECT_TRUE(Animates(layer, ui::LayerAnimationElement::OPACITY));
@@ -215,7 +224,7 @@ IN_PROC_BROWSER_TEST_P(AerieHzReducedMotionUiTest,
   ReduceMotion();
   ASSERT_TRUE(base::test::RunUntil(
       [&] { return !tab->layer() || !Animates(tab->layer(), ui::LayerAnimationElement::OPACITY); }));
-  strip()->CloseWebContentsAt(strip()->count() - 1, TabCloseTypes::CLOSE_USER_GESTURE);
+  CloseLastTab(tab);
   ASSERT_TRUE(tab->layer());
   EXPECT_FALSE(Animates(tab->layer(), ui::LayerAnimationElement::TRANSFORM));
   EXPECT_TRUE(OnlyTransformAndOpacityAnimate(tab->layer()));
