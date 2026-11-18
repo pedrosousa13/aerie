@@ -434,3 +434,22 @@ IN_PROC_BROWSER_TEST_F(AerieHzLayoutBrowserTest,
   EXPECT_TRUE(leading);
   EXPECT_TRUE(trailing);
 }
+
+// A window made while the layout is horizontal has the chip, the look and the
+// Favorites bar from the start, not only after a switch.
+IN_PROC_BROWSER_TEST_F(AerieHzLayoutBrowserTest,
+                       AWindowMadeInTwoRowsHasTheChipAndTheBarAtOnce) {
+  prefs()->SetString(aerie_sidebar::kLayoutPref,
+                     aerie_sidebar::kLayoutHorizontal);
+  BrowserWindowInterface* second = CreateBrowser(browser()->GetProfile());
+  BrowserView* view = BrowserView::GetBrowserViewForBrowser(second);
+  view->GetWidget()->SetBounds(gfx::Rect(0, 0, 1100, 750));
+  base::RunLoop().RunUntilIdle();
+  views::test::RunScheduledLayout(view);
+  auto* chip = FindDescendant<AerieHzWorkspaceChip>(view);
+  ASSERT_TRUE(chip);
+  EXPECT_TRUE(chip->GetVisible());
+  EXPECT_GT(chip->width(), 20);
+  EXPECT_GT(chip->height(), 10);
+  EXPECT_TRUE(FindDescendant<AerieHzFavoritesBar>(view->toolbar()));
+}
