@@ -846,15 +846,23 @@ What differs from the design, and what is left:
 
 | Gap | Detail |
 | --- | --- |
-| Address pill width | Compact sets the location bar's preferred width to 350 px (`kPreferredCompactWidth` in the compact patch); the design has 240 px, minimum 160. Not changed: it is Helium's constant and the omnibox is not an Aerie surface in this slice. |
-| New Tab button | Compact hides the New Tab button when it does not fit; that rule is in `HorizontalTabStripRegionViewOld` only, so with the collection strip the button does not hide. |
-| Workspace chip | The design's first item of the strip is not built. M2 has one Workspace, and the switcher ships in M5. |
-| Favorites tiles | The design puts them in the toolbar row (two rows) and omits them in one row. They are not drawn in the toolbar row yet; Favorites tabs are in the strip, first. |
-| Folder label chip | Folders are flattened in the strip with no label chip. |
-| Scroll fades and chevrons | With 43 tabs the tabs shrink to icon-only, the selected tab keeps its width, and Chromium's own scroll chevrons appear (gallery, "43 tabs (overflow)"). The design's fading edges (`size-hz-scroll-fade`) are not drawn, and the chevrons are Chromium's, not Aerie-styled. |
-| Colours | The strip, the toolbar and the page card use Chromium's theme colours, not the Aerie theme and Workspace tint (the sidebar's colour bridge of ADR 0007 is not applied to the horizontal layouts). In the screenshots the selected tab and the toolbar are close in tone, so the join is weak. |
-| Toolbar joined to the page card | The selected tab joining the toolbar at the top of the page card (flare, `size-hz-flare-radius`) is Chromium's tab shape with the token radius; the card's rounded top edge is not changed for the horizontal layouts. |
+| Address pill width | Done. In both horizontal layouts the pill is `size-hz-address-pill` (240) wide and never narrower than `size-hz-address-pill-min` (160): `ToolbarView` treats a horizontal layout as compact for the pill's sizing, and `LocationBarView::GetMinimumSize` takes the minimum (patch 0059). Browser test `TheStripTheTabAndThePillTakeTheTokenSizes`. |
+| New Tab button | Open. Compact hides the New Tab button when it does not fit; that rule is in `HorizontalTabStripRegionViewOld` only, so with the collection strip the button does not hide. Not in the brief of #186. |
+| Workspace chip | Done, read-only. `AerieHzWorkspaceChip` is the first child of the strip's region, in both horizontal layouts, named "Workspace: <name>" (role static text). It opens no menu: the switcher ships in M5. |
+| Favorites tiles | Done for two rows. `AerieHzFavoritesBar` at the end of the toolbar holds one button per Favorite, named by the tab's title; a press selects the tab. While it exists, the Favorite tabs' views are hidden in the strip. One row has no bar and no tiles; there the Favorites are ordinary tabs at the start of the strip. The mockup draws Favorites tiles in the one-row strip; the issue text says none. |
+| Folder label chip | Not built. See "Folder label chip, open question" below. |
+| Scroll fades and chevrons | Done. The overflow indicator is `size-hz-scroll-fade` (28) wide and fades from the frame colour to clear (patch 0059). The chevrons are Chromium's, with their accessible names ("Scroll towards the first tab" and "...last tab", in Chromium's grd) and the Aerie colours (muted icon on a clear background). Browser tests `ATabbedOverflowFadesTheEdgeOfTheScrollingGroup` and `TheScrollChevronsAreNamedForScreenReaders`. |
+| Colours | Done. The Aerie colour mixer maps the frame, the toolbar, the selected tab (the card surface), the other tabs (clear, `row-hover` on hover), the tab text and dividers, in light and dark (`aerie_color_mixer_unittest.cc`). `BrowserView` makes the look controller's owner (the hidden `FrameTintView`) for every normal window, so the mixer's look is set in the horizontal layouts too; the frame is the theme's flat frame colour, without the Workspace gradient. |
+| Toolbar joined to the page card | Done by colour. The toolbar and the selected tab are both the card surface, so the tab joins the toolbar (gallery, "Two rows: 10 tabs, styled with the Aerie theme"). The toolbar is Helium's, above the page card; it is not drawn inside the card's rounded top. Tab height, strip padding come from the tokens (`kTabHeight`, `kTabStripPadding` read the active metrics, patch 0059); the toolbar row's own height (`size-hz-toolbar-height`) is Helium's, not the token. |
 | Chromium pinned look | See below. |
 | Sidebar width limits | `vertical_tab_strip_state.h` still holds the 260 default and 200 minimum; they are only used by the sidebar. |
 
 **Pinned tabs and the Chromium pinned look.** Decision for this slice: a pinned tab does not use the Chromium pinned look. Aerie Pinned and Favorites tabs have no Chromium pinned bit, so they are ordinary tabs in the strip, first in order. The look (`size-hz-tab-pinned`, 32 px, favicon only) would need a style flag in `TabStyle` and a change to the width rules that the collection strip's pinned container does by the bit; and a Pinned tab keeps its title, which is what the sidebar shows. The token stays defined for when the maintainer decides to add it. The browser test `tab_model_browsertest.cc` still checks that no tab has the bit.
+
+### Folder label chip, open question
+
+The brief asks for "folders flattened with a folder label chip". The strip's container lays out tab and group views only; a chip that takes room between the first tab of a folder and the tab before it needs a new child type in `UnpinnedTabContainerViewLayout` and in the animating layout manager (its width must animate with the tabs). A decorative overlay on a tab would cover it. The alternative that costs the least is to map each Pinned folder to a Chromium tab group, which already has a label chip with a colour; that puts a group id on tabs, which Aerie's Tab Model does not use today. Which one to build is a design call. Not built.
+
+### Known process-global limit
+
+`GetLayoutConstant` has no window to ask, so the horizontal sizes live in one process-wide value (`aerie_sidebar::SetActiveHzMetrics`), set by the window that last changed its layout or density. Windows of one profile share the pref, so they agree; two profiles with different layouts in one process do not.
