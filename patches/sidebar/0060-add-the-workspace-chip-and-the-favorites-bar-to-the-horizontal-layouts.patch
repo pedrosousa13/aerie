@@ -1,5 +1,5 @@
 Aerie-Purpose: Make the Workspace chip and the Favorites bar of the horizontal layouts when the layout changes.
-Aerie-Upstream-Area: chrome/browser/ui/views/frame (browser_view.cc, BUILD.gn)
+Aerie-Upstream-Area: chrome/browser/ui/views/frame (browser_view.cc, horizontal_tab_strip_region_view.cc, BUILD.gn)
 Aerie-Kind: hook
 
 Issue #186. BrowserView::UpdateAerieFrameForLayout calls aerie_hz_chrome::UpdateForLayout, which adds the Workspace chip at the start of the horizontal tab strip region and, in two rows, the Favorites bar at the end of the toolbar, and takes them away again for the other layouts.
@@ -36,9 +36,40 @@ Issue #186. BrowserView::UpdateAerieFrameForLayout calls aerie_hz_chrome::Update
    InvalidateLayout();
  }
  
+--- a/chrome/browser/ui/views/frame/horizontal_tab_strip_region_view.cc
++++ b/chrome/browser/ui/views/frame/horizontal_tab_strip_region_view.cc
+@@ -3,6 +3,7 @@
+ // found in the LICENSE file.
+ 
+ #include "chrome/browser/ui/views/frame/horizontal_tab_strip_region_view.h"
++#include "chrome/browser/ui/views/aerie_hz_chrome/aerie_hz_chrome.h"
+ 
+ #include "base/feature_list.h"
+ #include "base/functional/bind.h"
+@@ -927,6 +928,12 @@
+   if (tab_strip_action_container_) {
+     children.emplace_back(tab_strip_action_container_.get());
+   }
++  // Aerie (issue #186): the Workspace chip is painted and hit-tested too.
++  for (views::View* child : View::children()) {
++    if (views::IsViewClass<AerieHzWorkspaceChip>(child)) {
++      children.emplace_back(child);
++    }
++  }
+   return children;
+ }
+ 
 --- a/chrome/browser/ui/views/frame/BUILD.gn
 +++ b/chrome/browser/ui/views/frame/BUILD.gn
-@@ -578,6 +578,7 @@
+@@ -517,6 +517,7 @@
+     "//chrome/browser/ui/immersive:immersive_mode_controller",
+     "//chrome/browser/ui/tabs:features",
+     "//chrome/browser/ui/tabs:tab_strip",
++    "//chrome/browser/ui/views/aerie_hz_chrome",
+     "//chrome/browser/ui/views:tab_search_bubble_host",
+     "//chrome/browser/ui/views/tabs:base",
+     "//chrome/browser/ui/views/tabs:new_tab_button",
+@@ -578,6 +579,7 @@
      "//chrome/browser/ui/color:color_headers",
      "//chrome/browser/ui/tabs:features",
      "//chrome/browser/ui/tabs:tab_strip",
