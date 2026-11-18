@@ -59,6 +59,7 @@ Options:
 | `--perf-skip-benchmarks` | `perf`: do not run Speedometer and JetStream. Their metrics are listed under `skipped` in `perf.json`. Without this flag a benchmark that cannot be measured fails the check. |
 | `--perf-settle SEC` | `perf`: wait after the ad-heavy pages before reading memory (default 3). |
 | `--flag FLAG` | Extra browser flag; repeat for several. |
+| `--layout LAYOUT` | Start the browser with this tab layout (the pref `aerie.sidebar.layout`, issue #186): `sidebar` (the default of the browser), `horizontal` (two rows) or `horizontal-one-row`. Run `perf` with each to compare the layouts against a fresh main run. |
 | `--build-root DIR` | Build root (env `AERIE_BUILD_ROOT`, default `/mnt/linux2/aerie-build`). `./aerie bench` only for the flag; `python3 -m aerie_bench` takes it too. |
 | `--lock-timeout SEC` | `./aerie bench` only. How long to wait for the build-tree lock (default: wait; `0` fails at once). See [ci.md](ci.md). |
 
