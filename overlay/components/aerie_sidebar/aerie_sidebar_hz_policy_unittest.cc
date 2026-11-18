@@ -139,5 +139,64 @@ TEST(AerieHzMotionTest, ReducedMotionFadesOnlyAndIsShort) {
   EXPECT_EQ(close.slide_px, 0);
 }
 
+// The sizes of the strips, from tokens.json (the literals are the design's:
+// docs/sidebar-design.md, "Horizontal tabs").
+TEST(AerieHzMetricsTest, OneRowComfortable) {
+  const HzMetrics m = GetHzMetrics(HzRows::kOne, HzDensity::kComfortable);
+  EXPECT_EQ(m.strip_height, 46);
+  EXPECT_EQ(m.tab_height, 38);
+  EXPECT_EQ(m.tab_strip_padding, 8);
+  EXPECT_EQ(m.toolbar_height, 46);
+  EXPECT_EQ(m.tab_max, 180);
+  EXPECT_EQ(m.tile, 26);
+  EXPECT_EQ(m.favicon, 18);
+}
+
+TEST(AerieHzMetricsTest, OneRowCompact) {
+  const HzMetrics m = GetHzMetrics(HzRows::kOne, HzDensity::kCompact);
+  EXPECT_EQ(m.strip_height, 38);
+  EXPECT_EQ(m.tab_height, 30);
+  EXPECT_EQ(m.tab_strip_padding, 8);
+  EXPECT_EQ(m.tab_max, 160);
+  EXPECT_EQ(m.tile, 24);
+  EXPECT_EQ(m.favicon, 16);
+}
+
+TEST(AerieHzMetricsTest, TwoRowsComfortable) {
+  const HzMetrics m = GetHzMetrics(HzRows::kTwo, HzDensity::kComfortable);
+  EXPECT_EQ(m.strip_height, 42);
+  EXPECT_EQ(m.tab_height, 34);
+  EXPECT_EQ(m.tab_strip_padding, 8);
+  EXPECT_EQ(m.toolbar_height, 40);
+  EXPECT_EQ(m.tab_max, 180);
+}
+
+TEST(AerieHzMetricsTest, TwoRowsCompact) {
+  const HzMetrics m = GetHzMetrics(HzRows::kTwo, HzDensity::kCompact);
+  EXPECT_EQ(m.strip_height, 34);
+  EXPECT_EQ(m.tab_height, 26);
+  EXPECT_EQ(m.toolbar_height, 34);
+  EXPECT_EQ(m.tile, 22);
+}
+
+TEST(AerieHzMetricsTest, TheSharedSizesDoNotDependOnTheRows) {
+  for (HzRows rows : {HzRows::kOne, HzRows::kTwo}) {
+    const HzMetrics m = GetHzMetrics(rows, HzDensity::kComfortable);
+    EXPECT_EQ(m.address_pill, 240);
+    EXPECT_EQ(m.address_pill_min, 160);
+    EXPECT_EQ(m.flare_radius, 10);
+    EXPECT_EQ(m.scroll_fade, 28);
+  }
+}
+
+TEST(AerieHzMetricsTest, TheActiveMetricsAreSetAndCleared) {
+  EXPECT_FALSE(GetActiveHzMetrics().has_value());
+  SetActiveHzMetrics(GetHzMetrics(HzRows::kTwo, HzDensity::kCompact));
+  ASSERT_TRUE(GetActiveHzMetrics().has_value());
+  EXPECT_EQ(GetActiveHzMetrics()->tab_height, 26);
+  SetActiveHzMetrics(std::nullopt);
+  EXPECT_FALSE(GetActiveHzMetrics().has_value());
+}
+
 }  // namespace
 }  // namespace aerie_sidebar

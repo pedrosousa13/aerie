@@ -31,6 +31,9 @@ struct ChromeColors {
   SkColor focus_ring;  // The accent.
   SkColor divider;     // `divider`
   SkColor hairline;    // `border-hairline`
+  SkColor frame;       // The frame's base colour.
+  SkColor card_surface;  // `content-surface`: the page card, and the toolbar.
+  SkColor row_hover;     // `row-hover`
 };
 
 ChromeColors ResolveChromeColors(aerie::tokens::ThemeId theme,

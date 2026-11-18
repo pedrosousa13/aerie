@@ -5,6 +5,7 @@
 #ifndef COMPONENTS_AERIE_SIDEBAR_AERIE_SIDEBAR_HZ_POLICY_H_
 #define COMPONENTS_AERIE_SIDEBAR_AERIE_SIDEBAR_HZ_POLICY_H_
 
+#include <optional>
 #include <vector>
 
 // The pure rules of the horizontal tab layouts (issue #186, docs/sidebar-design.md,
@@ -13,6 +14,35 @@
 namespace aerie_sidebar {
 
 enum class HzDensity { kComfortable, kCompact };
+enum class HzRows { kOne, kTwo };
+
+// The sizes of the horizontal chrome for a number of rows and a density, all
+// from the size-hz-* tokens.
+struct HzMetrics {
+  // The tab strip's height, the tab's, and what the strip adds above the tab.
+  int strip_height = 0;
+  int tab_height = 0;
+  int tab_strip_padding = 0;
+  // The toolbar row. In one row the toolbar holds the strip, so it is as high
+  // as the strip.
+  int toolbar_height = 0;
+  int tab_max = 0;
+  // A Favorites tile and a favicon.
+  int tile = 0;
+  int favicon = 0;
+  int address_pill = 0;
+  int address_pill_min = 0;
+  int flare_radius = 0;
+  int scroll_fade = 0;
+};
+
+HzMetrics GetHzMetrics(HzRows rows, HzDensity density);
+
+// The metrics of the window that last changed its layout. Chromium's layout
+// constants (GetLayoutConstant) have no window to ask, so the horizontal
+// layouts read them from here; nullopt is the sidebar layout. UI thread only.
+void SetActiveHzMetrics(std::optional<HzMetrics> metrics);
+std::optional<HzMetrics> GetActiveHzMetrics();
 
 struct HzTabLayoutInput {
   // The room for tabs, in px.

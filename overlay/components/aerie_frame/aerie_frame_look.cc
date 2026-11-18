@@ -41,6 +41,9 @@ ChromeColors ResolveChromeColors(aerie::tokens::ThemeId theme,
   c.focus_ring = frame.accent;
   c.divider = t.color_divider;
   c.hairline = t.color_border_hairline;
+  c.frame = frame.frame_base;
+  c.card_surface = t.color_content_surface;
+  c.row_hover = t.color_row_hover;
   return c;
 }
 

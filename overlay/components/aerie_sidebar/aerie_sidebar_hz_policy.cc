@@ -18,6 +18,52 @@ constexpr int kCloseSlidePx = 8;
 
 }  // namespace
 
+namespace {
+
+std::optional<HzMetrics>& ActiveMetrics() {
+  static std::optional<HzMetrics> metrics;
+  return metrics;
+}
+
+}  // namespace
+
+HzMetrics GetHzMetrics(HzRows rows, HzDensity density) {
+  namespace t = aerie::tokens;
+  const bool compact = density == HzDensity::kCompact;
+  const bool two = rows == HzRows::kTwo;
+  HzMetrics m;
+  if (two) {
+    m.strip_height =
+        compact ? t::kSizeHzStripHeightTwoRowCompact : t::kSizeHzStripHeightTwoRow;
+    m.tab_height =
+        compact ? t::kSizeHzTabHeightTwoRowCompact : t::kSizeHzTabHeightTwoRow;
+    m.toolbar_height =
+        compact ? t::kSizeHzToolbarHeightCompact : t::kSizeHzToolbarHeight;
+    m.tile = compact ? t::kSizeHzTileStripTwoRowCompact : t::kSizeHzTileStrip;
+  } else {
+    m.strip_height = compact ? t::kSizeHzStripHeightCompact : t::kSizeHzStripHeight;
+    m.tab_height = compact ? t::kSizeHzTabHeightCompact : t::kSizeHzTabHeight;
+    m.toolbar_height = m.strip_height;
+    m.tile = compact ? t::kSizeHzTileStripCompact : t::kSizeHzTileStrip;
+  }
+  m.tab_strip_padding = m.strip_height - m.tab_height;
+  m.tab_max = compact ? t::kSizeHzTabMaxCompact : t::kSizeHzTabMax;
+  m.favicon = compact ? t::kSizeHzFaviconCompact : t::kSizeHzFavicon;
+  m.address_pill = t::kSizeHzAddressPill;
+  m.address_pill_min = t::kSizeHzAddressPillMin;
+  m.flare_radius = t::kSizeHzFlareRadius;
+  m.scroll_fade = t::kSizeHzScrollFade;
+  return m;
+}
+
+void SetActiveHzMetrics(std::optional<HzMetrics> metrics) {
+  ActiveMetrics() = metrics;
+}
+
+std::optional<HzMetrics> GetActiveHzMetrics() {
+  return ActiveMetrics();
+}
+
 HzTabLayoutResult::HzTabLayoutResult() = default;
 HzTabLayoutResult::HzTabLayoutResult(const HzTabLayoutResult&) = default;
 HzTabLayoutResult& HzTabLayoutResult::operator=(const HzTabLayoutResult&) =

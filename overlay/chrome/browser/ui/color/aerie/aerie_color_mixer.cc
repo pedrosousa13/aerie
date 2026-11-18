@@ -126,6 +126,33 @@ void AddAerieColorMixer(ui::ColorProvider* provider,
       {ui::kColorSeparator, ui::kColorMenuSeparator, ui::kColorSysDivider},
       c.divider);
   Set(mixer, {ui::kColorMenuBorder, ui::kColorBubbleBorder}, c.hairline);
+
+  // The horizontal tab strip and toolbar (issue #186). The selected tab and
+  // the toolbar are the page card's surface, so the tab joins the toolbar at
+  // the top of the card; the other tabs are clear over the frame.
+  Set(mixer, {ui::kColorFrameActive, ui::kColorFrameInactive}, c.frame);
+  Set(mixer,
+      {kColorTabBackgroundActiveFrameActive,
+       kColorTabBackgroundActiveFrameInactive, kColorToolbar},
+      c.card_surface);
+  Set(mixer,
+      {kColorTabBackgroundInactiveFrameActive,
+       kColorTabBackgroundInactiveFrameInactive},
+      SK_ColorTRANSPARENT);
+  Set(mixer,
+      {kColorTabBackgroundInactiveHoverFrameActive,
+       kColorTabBackgroundInactiveHoverFrameInactive},
+      c.row_hover);
+  Set(mixer,
+      {kColorTabForegroundActiveFrameActive,
+       kColorTabForegroundActiveFrameInactive,
+       kColorTabForegroundInactiveFrameActive,
+       kColorTabForegroundInactiveFrameInactive},
+      c.text);
+  Set(mixer, {kColorTabDividerFrameActive, kColorTabDividerFrameInactive},
+      c.divider);
+  Set(mixer, {kColorTabStripScrollButtonIcon, kColorToolbarButtonIcon},
+      c.text_muted);
 }
 
 }  // namespace aerie_color

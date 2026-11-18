@@ -105,6 +105,43 @@ TEST_F(AerieColorMixerTest, EveryRoleTakesTheThemeColourInBothModes) {
   }
 }
 
+// The horizontal tab strip and toolbar (issue #186): the selected tab and the
+// toolbar are the card's surface, so that the tab joins the toolbar at the top
+// of the page card; the other tabs are clear over the frame; the frame, text
+// and dividers are the theme's.
+TEST_F(AerieColorMixerTest, TheHorizontalChromeTakesTheThemeAndCardColours) {
+  for (ThemeId theme : {ThemeId::kVivid, ThemeId::kOled, ThemeId::kHighContrast,
+                        ThemeId::kMono}) {
+    SetActiveLook(theme, "tide");
+    for (auto key_mode : {ui::ColorProviderKey::ColorMode::kLight,
+                          ui::ColorProviderKey::ColorMode::kDark}) {
+      const ColorMode mode = key_mode == ui::ColorProviderKey::ColorMode::kDark
+                                 ? ColorMode::kDark
+                                 : ColorMode::kLight;
+      const aerie_frame::ChromeColors c =
+          aerie_frame::ResolveChromeColors(theme, mode, "tide");
+      const auto p_ptr = Build(Key(key_mode));
+      const ui::ColorProvider& p = *p_ptr;
+      EXPECT_EQ(p.GetColor(kColorTabBackgroundActiveFrameActive),
+                c.card_surface);
+      EXPECT_EQ(p.GetColor(kColorTabBackgroundActiveFrameInactive),
+                c.card_surface);
+      EXPECT_EQ(p.GetColor(kColorToolbar), c.card_surface);
+      EXPECT_EQ(p.GetColor(ui::kColorFrameActive), c.frame);
+      EXPECT_EQ(p.GetColor(ui::kColorFrameInactive), c.frame);
+      EXPECT_EQ(p.GetColor(kColorTabForegroundActiveFrameActive), c.text);
+      EXPECT_EQ(p.GetColor(kColorTabForegroundInactiveFrameActive), c.text);
+      EXPECT_EQ(p.GetColor(kColorTabDividerFrameActive), c.divider);
+      EXPECT_EQ(SkColorGetA(p.GetColor(kColorTabBackgroundInactiveFrameActive)),
+                0u);
+      EXPECT_EQ(p.GetColor(kColorTabBackgroundInactiveHoverFrameActive),
+                c.row_hover);
+      EXPECT_EQ(p.GetColor(kColorTabStripScrollButtonIcon), c.text_muted);
+      EXPECT_EQ(p.GetColor(kColorToolbarButtonIcon), c.text_muted);
+    }
+  }
+}
+
 TEST_F(AerieColorMixerTest, TheOtherModeHasOtherColours) {
   SetActiveLook(ThemeId::kVivid, "dusk");
   const auto light_ptr = Build(Key(ui::ColorProviderKey::ColorMode::kLight));

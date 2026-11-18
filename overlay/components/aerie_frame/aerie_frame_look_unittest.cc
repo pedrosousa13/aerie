@@ -45,6 +45,32 @@ TEST(AerieChromeColorsTest, TheColoursAreTheThemeTokens) {
   }
 }
 
+TEST(AerieChromeColorsTest, TheHorizontalStripTakesTheFrameAndTheCardColours) {
+  for (int t = 0; t < aerie::tokens::kThemeCount; ++t) {
+    for (ColorMode mode : {ColorMode::kLight, ColorMode::kDark}) {
+      const ThemeId theme = static_cast<ThemeId>(t);
+      const auto& tokens = aerie::tokens::GetThemeTokens(theme, mode);
+      const ChromeColors c = ResolveChromeColors(theme, mode, "dusk");
+      EXPECT_EQ(c.card_surface, tokens.color_content_surface) << t;
+      EXPECT_EQ(c.row_hover, tokens.color_row_hover) << t;
+      EXPECT_EQ(c.frame, ResolveFramePalette(theme, mode, "dusk").frame_base)
+          << t;
+    }
+  }
+}
+
+TEST(AerieChromeColorsTest, TheCardIsWhiteInLightAndDarkGreyInDarkVivid) {
+  // Copied from tokens.json on purpose: a token edit must change the test.
+  EXPECT_EQ(
+      ResolveChromeColors(ThemeId::kVivid, ColorMode::kLight, "dusk")
+          .card_surface,
+      SK_ColorWHITE);
+  EXPECT_EQ(
+      ResolveChromeColors(ThemeId::kVivid, ColorMode::kDark, "dusk")
+          .card_surface,
+      SkColorSetRGB(0x1F, 0x1E, 0x24));
+}
+
 TEST(AerieChromeColorsTest, TheAccentAndTheFocusRingAreTheFramesAccent) {
   for (ColorMode mode : {ColorMode::kLight, ColorMode::kDark}) {
     const ChromeColors c = ResolveChromeColors(ThemeId::kVivid, mode, "tide");
