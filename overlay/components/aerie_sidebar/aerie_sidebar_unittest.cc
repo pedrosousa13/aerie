@@ -3,6 +3,8 @@
 // the terms of the GPL-3.0 license that can be found in the LICENSE file.
 
 #include "components/aerie_design_tokens/aerie_tokens.h"
+#include "components/aerie_sidebar/aerie_sidebar_hz_active.h"
+#include "components/aerie_sidebar/aerie_sidebar_hz_policy.h"
 #include "components/aerie_sidebar/aerie_sidebar_layout.h"
 #include "components/aerie_sidebar/aerie_sidebar_prefs.h"
 #include "components/prefs/pref_registry_simple.h"
@@ -131,6 +133,29 @@ TEST_F(AerieSidebarTest, EachLayoutHasItsPrefValueAndHeliumLayout) {
   EXPECT_EQ(HeliumLayoutFor(TabLayout::kHorizontalOneRow), 1);
   EXPECT_EQ(TabLayoutFromString("horizontal-one-row"),
             TabLayout::kHorizontalOneRow);
+}
+
+TEST_F(AerieSidebarTest, TheActiveHorizontalMetricsFollowTheLayoutAndDensity) {
+  SetActiveHzMetrics(std::nullopt);
+  UpdateActiveHzMetrics(prefs_);
+  EXPECT_FALSE(GetActiveHzMetrics().has_value());  // the sidebar
+
+  prefs_.SetString(kLayoutPref, "horizontal");
+  UpdateActiveHzMetrics(prefs_);
+  ASSERT_TRUE(GetActiveHzMetrics().has_value());
+  EXPECT_EQ(GetActiveHzMetrics()->tab_height, 34);  // two rows, comfortable
+
+  prefs_.SetString(kLayoutPref, "horizontal-one-row");
+  UpdateActiveHzMetrics(prefs_);
+  EXPECT_EQ(GetActiveHzMetrics()->tab_height, 38);
+
+  prefs_.SetString(kDensityPref, "compact");
+  UpdateActiveHzMetrics(prefs_);
+  EXPECT_EQ(GetActiveHzMetrics()->tab_height, 30);
+
+  prefs_.SetString(kLayoutPref, "sidebar");
+  UpdateActiveHzMetrics(prefs_);
+  EXPECT_FALSE(GetActiveHzMetrics().has_value());
 }
 
 }  // namespace

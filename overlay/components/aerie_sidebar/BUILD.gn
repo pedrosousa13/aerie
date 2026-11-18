@@ -116,6 +116,20 @@ source_set("layout_lock") {
   ]
 }
 
+# The horizontal metrics of the profile's layout and density (issue #186).
+source_set("hz_active") {
+  sources = [
+    "aerie_sidebar_hz_active.cc",
+    "aerie_sidebar_hz_active.h",
+  ]
+  deps = [
+    ":density",
+    ":hz_policy",
+    ":layout",
+  ]
+  public_deps = [ "//components/prefs" ]
+}
+
 # The pure rules of the horizontal tab layouts (issue #186): how wide each tab
 # is and when it shows the icon only, and how long a tab opens and closes. Only
 # tokens.
@@ -210,6 +224,7 @@ source_set("unit_tests") {
     ":drag",
     ":drop_target",
     ":folder_toggle",
+    ":hz_active",
     ":hz_policy",
     ":layout",
     ":layout_lock",

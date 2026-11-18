@@ -31,18 +31,19 @@ Issue #186. The sidebar view moves out of the region's constructor into AddAerie
    UpdateZenModeExpandOnHoverLock();
  
    GetFrameView()->OnTabStripStateChanged();
-@@ -1830,6 +1844,30 @@
+@@ -1830,6 +1844,31 @@
    InvalidateLayout();
  }
  
 +// Aerie (issue #186): the window frame follows the layout. The tint is the
 +// frame of the sidebar layout only (aerie_frame::ShouldTintFrame reads the
-+// pref), so the view is made when the user first switches to the sidebar and
-+// hidden while the layout is a horizontal one, where Helium's own frame fills
-+// paint again.
++// pref), so the view is hidden while the layout is a horizontal one, where
++// Helium's own frame fills paint again. It is made for every normal window
++// all the same: it owns the look controller, which sets the theme and mode of
++// the colour mixer that the horizontal strip and toolbar read.
 +void BrowserView::UpdateAerieFrameForLayout() {
 +  const bool tint = aerie_frame::ShouldTintFrame(this);
-+  if (tint && !frame_tint_view_ && GetIsNormalType()) {
++  if (!frame_tint_view_ && GetIsNormalType()) {
 +    frame_tint_view_ = AddChildViewAt(
 +        std::make_unique<FrameTintView>(GetProfile()), 0);
 +    if (multi_contents_view_) {

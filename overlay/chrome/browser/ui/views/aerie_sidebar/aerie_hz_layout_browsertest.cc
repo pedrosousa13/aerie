@@ -23,11 +23,15 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/layout_constants.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_row_view.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_view.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/tab_strip_region_view.h"
 #include "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h"
+#include "chrome/browser/ui/views/location_bar/location_bar_view.h"
+#include "chrome/browser/ui/views/tabs/horizontal/horizontal_tab_strip_overflow_indicator_view.h"
+#include "chrome/browser/ui/views/toolbar/toolbar_view.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/aerie_sidebar/aerie_sidebar_layout.h"
@@ -302,4 +306,61 @@ IN_PROC_BROWSER_TEST_F(AerieHzLayoutBrowserTest,
   // Re-read the names: a layout switch builds the tab views fresh.
   EXPECT_EQ(NameOf(StripTabViews()[1]), sidebar_renamed);
   EXPECT_EQ(NameOf(StripTabViews()[2]), sidebar_asleep);
+}
+
+// The sizes (issue #186): the strip, the tab, the address pill and the scroll
+// fades come from the size-hz tokens. The literals are the design's
+// (docs/sidebar-design.md, "Horizontal tabs").
+IN_PROC_BROWSER_TEST_F(AerieHzLayoutBrowserTest,
+                       TheStripTheTabAndThePillTakeTheTokenSizes) {
+  const int default_tab_height = GetLayoutConstant(LayoutConstant::kTabHeight);
+  EXPECT_EQ(default_tab_height, 31);  // Helium's, in the sidebar layout
+
+  Choose(aerie_sidebar::kLayoutHorizontal);
+  EXPECT_EQ(GetLayoutConstant(LayoutConstant::kTabHeight), 34);
+  EXPECT_EQ(GetLayoutConstant(LayoutConstant::kTabStripHeight), 42);
+  LocationBarView* pill = browser_view()->toolbar()->location_bar_view();
+  EXPECT_EQ(pill->GetPreferredSize().width(), 240);
+  EXPECT_GE(pill->GetMinimumSize().width(), 160);
+
+  Choose(aerie_sidebar::kLayoutHorizontalOneRow);
+  EXPECT_EQ(GetLayoutConstant(LayoutConstant::kTabHeight), 38);
+  EXPECT_EQ(GetLayoutConstant(LayoutConstant::kTabStripHeight), 46);
+  EXPECT_EQ(pill->GetPreferredSize().width(), 240);
+
+  prefs()->SetString(aerie_sidebar::kDensityPref, "compact");
+  Settle();
+  EXPECT_EQ(GetLayoutConstant(LayoutConstant::kTabHeight), 30);
+
+  Choose(aerie_sidebar::kLayoutSidebar);
+  EXPECT_EQ(GetLayoutConstant(LayoutConstant::kTabHeight), default_tab_height);
+}
+
+IN_PROC_BROWSER_TEST_F(AerieHzLayoutBrowserTest,
+                       ATabbedOverflowFadesTheEdgeOfTheScrollingGroup) {
+  EXPECT_EQ(HorizontalTabStripOverflowIndicatorView::kTotalThickness, 28);
+  Choose(aerie_sidebar::kLayoutHorizontal);
+  for (int i = 0; i < 40; ++i) {
+    OpenTab();
+  }
+  Settle();
+  bool found = false;
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    Settle();
+    std::vector<views::View*> stack{strip_region()};
+    while (!stack.empty()) {
+      views::View* v = stack.back();
+      stack.pop_back();
+      if (auto* fade =
+              views::AsViewClass<HorizontalTabStripOverflowIndicatorView>(v)) {
+        if (fade->GetVisible() && fade->width() == 28) {
+          found = true;
+        }
+      }
+      for (views::View* c : v->children()) {
+        stack.push_back(c);
+      }
+    }
+    return found;
+  }));
 }

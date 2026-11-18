@@ -1,0 +1,227 @@
+Aerie-Purpose: Size the horizontal tab strip, address pill and scroll fades from the Aerie tokens, and follow the layout and density prefs.
+Aerie-Upstream-Area: chrome/browser/ui (layout_constants.cc, BUILD.gn), chrome/browser/ui/views/toolbar (toolbar_view.cc, BUILD.gn), chrome/browser/ui/views/location_bar (location_bar_view.cc, BUILD.gn), chrome/browser/ui/views/tabs/horizontal (horizontal_tab_strip_overflow_indicator_view.*, BUILD.gn), chrome/browser/ui/helium (helium_layout_state_controller.cc, BUILD.gn)
+Aerie-Kind: hook
+
+Issue #186. HeliumLayoutStateController sets the active horizontal metrics (aerie_sidebar::UpdateActiveHzMetrics) from the layout and density prefs, before the layout lock moves. GetLayoutConstant takes the tab height and the strip padding from them, the address pill is size-hz-address-pill wide (never narrower than size-hz-address-pill-min) and the scroll fades are size-hz-scroll-fade wide, painted in the frame colour.
+
+--- a/chrome/browser/ui/layout_constants.cc
++++ b/chrome/browser/ui/layout_constants.cc
+@@ -8,6 +8,7 @@
+ #include "build/build_config.h"
+ #include "chrome/browser/ui/tabs/features.h"
+ #include "chrome/browser/ui/ui_features.h"
++#include "components/aerie_sidebar/aerie_sidebar_hz_policy.h"
+ #include "components/omnibox/common/omnibox_features.h"
+ #include "ui/base/pointer/touch_ui_controller.h"
+ #include "ui/base/ui_base_features.h"
+@@ -113,11 +114,19 @@
+     case LayoutConstant::kTabCloseButtonSize:
+       return touch_ui ? 24 : (features::IsRoundedIconsEnabled() ? 14 : 16);
+     case LayoutConstant::kTabHeight:
++      // Aerie (issue #186): the horizontal layouts take their sizes from the
++      // size-hz tokens.
++      if (const auto hz = aerie_sidebar::GetActiveHzMetrics()) {
++        return hz->tab_height;
++      }
+       return 31;
+     case LayoutConstant::kTabStripHeight:
+       return GetLayoutConstant(LayoutConstant::kTabHeight) +
+              GetLayoutConstant(LayoutConstant::kTabStripPadding);
+     case LayoutConstant::kTabStripPadding:
++      if (const auto hz = aerie_sidebar::GetActiveHzMetrics()) {
++        return hz->tab_strip_padding;
++      }
+       return GetLayoutConstant(LayoutConstant::kHeliumBasePadding);
+     case LayoutConstant::kTabSeparatorHeight:
+       return touch_ui ? 24 : 20;
+--- a/chrome/browser/ui/BUILD.gn
++++ b/chrome/browser/ui/BUILD.gn
+@@ -1722,6 +1722,7 @@
+     "//base",
+     "//chrome/browser/ui:ui_features",
+     "//chrome/common:chrome_features",
++    "//components/aerie_sidebar:hz_policy",
+     "//components/omnibox/common",
+     "//ui/base",
+     "//ui/base:features",
+--- a/chrome/browser/ui/views/toolbar/toolbar_view.cc
++++ b/chrome/browser/ui/views/toolbar/toolbar_view.cc
+@@ -134,6 +134,7 @@
+ #include "chrome/grit/generated_resources.h"
+ #include "chrome/grit/theme_resources.h"
+ #include "components/autofill/core/common/autofill_payments_features.h"
++#include "components/aerie_sidebar/aerie_sidebar_hz_policy.h"
+ #include "components/aerie_sidebar/aerie_sidebar_layout.h"
+ #include "components/contextual_tasks/public/features.h"
+ #include "components/feature_engagement/public/feature_constants.h"
+@@ -2275,8 +2276,11 @@
+   const bool is_compact_layout = IsCompactLayout();
+   if (location_bar_view_) {
+     if (is_compact_layout) {
++      // Aerie (issue #186): the pill is size-hz-address-pill wide in the
++      // horizontal layouts, not Helium's 350.
++      const auto hz = aerie_sidebar::GetActiveHzMetrics();
+       location_bar_view_->SetPreferredSize(gfx::Size(
+-          kPreferredCompactWidth,
++          hz ? hz->address_pill : kPreferredCompactWidth,
+           GetLayoutConstant(LayoutConstant::kLocationBarHeight)));
+       location_bar_view_->SetProperty(
+           views::kMarginsKey, gfx::Insets::TLBR(0, location_bar_margin, 0, 0));
+--- a/chrome/browser/ui/views/toolbar/BUILD.gn
++++ b/chrome/browser/ui/views/toolbar/BUILD.gn
+@@ -344,6 +344,7 @@
+     "//chrome/common:buildflags",
+     "//chrome/common:chrome_features",
+     "//chrome/common:constants",
++    "//components/aerie_sidebar:hz_policy",
+     "//components/aerie_sidebar:layout",
+     "//components/autofill/core/common:features",
+     "//components/feature_engagement/public",
+--- a/chrome/browser/ui/views/location_bar/location_bar_view.cc
++++ b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+@@ -99,6 +99,7 @@
+ #include "chrome/common/chrome_features.h"
+ #include "chrome/grit/generated_resources.h"
+ #include "chrome/grit/omnibox_popup_resources.h"
++#include "components/aerie_sidebar/aerie_sidebar_hz_policy.h"
+ #include "components/commerce/core/commerce_feature_list.h"
+ #include "components/content_settings/core/browser/host_content_settings_map.h"
+ #include "components/content_settings/core/common/features.h"
+@@ -801,6 +802,11 @@
+   // indicators and a large security chip vs. just the location text).
+   int alt_width = leading_width + padding + trailing_width;
+   int width = inset_width + std::max(omnibox_width, alt_width);
++  // Aerie (issue #186): in the horizontal layouts the pill never shrinks below
++  // size-hz-address-pill-min.
++  if (const auto hz = aerie_sidebar::GetActiveHzMetrics()) {
++    width = std::max(width, hz->address_pill_min);
++  }
+ 
+   return gfx::Size(width, height);
+ }
+--- a/chrome/browser/ui/views/location_bar/BUILD.gn
++++ b/chrome/browser/ui/views/location_bar/BUILD.gn
+@@ -38,6 +38,7 @@
+       "//base",
+       "//chrome/browser/lens/region_search",
+       "//chrome/browser/ui:layout_constants",
++      "//components/aerie_sidebar:hz_policy",
+       "//chrome/browser/ui/color:color_headers",
+       "//chrome/browser/ui/exclusive_access",
+       "//chrome/browser/ui/immersive:immersive_mode_controller",
+--- a/chrome/browser/ui/views/tabs/horizontal/horizontal_tab_strip_overflow_indicator_view.cc
++++ b/chrome/browser/ui/views/tabs/horizontal/horizontal_tab_strip_overflow_indicator_view.cc
+@@ -42,10 +42,13 @@
+     return;
+   }
+ 
++  // Aerie (issue #186): the fade is the frame's colour, from opaque at the
++  // edge of the strip to clear over size-hz-scroll-fade, so that tabs fade out
++  // under the edge of the scrolling group.
+   const ui::ColorProvider* color_provider = GetColorProvider();
+-  const SkColor base_color =
+-      color_provider ? color_provider->GetColor(ui::kColorShadowBase)
+-                     : SK_ColorBLACK;
++  const SkColor edge_color =
++      color_provider ? color_provider->GetColor(ui::kColorFrameActive)
++                     : SK_ColorWHITE;
+ 
+   const bool is_left = side_ == views::OverflowIndicatorAlignment::kLeft;
+   const SkPoint points[2] = {
+@@ -55,23 +58,14 @@
+                     contents_bounds.y()),
+   };
+ 
+-  // Draw a horizontal drop shadow gradient matching standard elevation shadow
+-  // alpha parameters: key shadow (0x3d / ~24% opacity) and ambient shadow
+-  // (0x1f / ~12% opacity).
+-  const SkColor key_color = SkColorSetA(base_color, 0x3d);
+-  const SkColor ambient_color = SkColorSetA(base_color, 0x1f);
+-  const SkColor combined_color =
+-      color_utils::GetResultingPaintColor(key_color, ambient_color);
+-
+-  const SkColor4f colors[3] = {
+-      SkColor4f::FromColor(combined_color),
+-      SkColor4f::FromColor(ambient_color),
+-      SkColor4f::FromColor(SkColorSetA(base_color, SK_AlphaTRANSPARENT)),
++  const SkColor4f colors[2] = {
++      SkColor4f::FromColor(SkColorSetA(edge_color, SK_AlphaOPAQUE)),
++      SkColor4f::FromColor(SkColorSetA(edge_color, SK_AlphaTRANSPARENT)),
+   };
+ 
+   cc::PaintFlags flags;
+   flags.setShader(cc::PaintShader::MakeLinearGradient(
+-      points, colors, /*pos=*/nullptr, 3, SkTileMode::kClamp));
++      points, colors, /*pos=*/nullptr, 2, SkTileMode::kClamp));
+   canvas->DrawRect(contents_bounds, flags);
+ }
+ 
+--- a/chrome/browser/ui/views/tabs/horizontal/horizontal_tab_strip_overflow_indicator_view.h
++++ b/chrome/browser/ui/views/tabs/horizontal/horizontal_tab_strip_overflow_indicator_view.h
+@@ -6,6 +6,7 @@
+ #define CHROME_BROWSER_UI_VIEWS_TABS_HORIZONTAL_HORIZONTAL_TAB_STRIP_OVERFLOW_INDICATOR_VIEW_H_
+ 
+ #include "ui/base/metadata/metadata_header_macros.h"
++#include "components/aerie_design_tokens/aerie_tokens.h"
+ #include "ui/views/view.h"
+ 
+ namespace views {
+@@ -18,7 +19,8 @@
+   METADATA_HEADER(HorizontalTabStripOverflowIndicatorView, views::View)
+ 
+  public:
+-  static constexpr int kTotalThickness = 6;
++  // Aerie (issue #186): the fade is size-hz-scroll-fade wide.
++  static constexpr int kTotalThickness = aerie::tokens::kSizeHzScrollFade;
+ 
+   explicit HorizontalTabStripOverflowIndicatorView(
+       views::OverflowIndicatorAlignment side);
+--- a/chrome/browser/ui/views/tabs/horizontal/BUILD.gn
++++ b/chrome/browser/ui/views/tabs/horizontal/BUILD.gn
+@@ -17,6 +17,7 @@
+     "//base",
+     "//chrome/browser/ui/views/tabs:tab_strip_button",
+     "//chrome/browser/ui/views/tabs/shared",
++    "//components/aerie_design_tokens:tokens",
+     "//ui/base/interaction",
+     "//ui/gfx/animation",
+     "//ui/menus",
+--- a/chrome/browser/ui/helium/helium_layout_state_controller.cc
++++ b/chrome/browser/ui/helium/helium_layout_state_controller.cc
+@@ -10,6 +10,7 @@
+ #include "base/files/file_path.h"
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
++#include "components/aerie_sidebar/aerie_sidebar_hz_active.h"
+ #include "components/aerie_sidebar/aerie_sidebar_layout.h"
+ #include "components/aerie_sidebar/aerie_sidebar_layout_lock.h"
+ #include "components/aerie_sidebar/aerie_sidebar_prefs.h"
+@@ -33,12 +34,16 @@
+   // time the pref changes. The observers of kHeliumLayout, among them this
+   // class and the tab strip state controller, hear of it.
+   const base::FilePath profile_path = browser_window->GetProfile()->GetPath();
++  // The sizes of the horizontal chrome (layout_constants.cc reads them) are
++  // set first, so the observers of the layout find them in place.
++  aerie_sidebar::UpdateActiveHzMetrics(*pref_service_);
+   aerie_sidebar::FollowTabLayout(
+       profile_path, aerie_sidebar::GetTabLayout(*pref_service_));
+-  pref_change_registrar_.Add(
+-      aerie_sidebar::kLayoutPref,
++  pref_change_registrar_.AddMultiple(
++      {aerie_sidebar::kLayoutPref, aerie_sidebar::kDensityPref},
+       base::BindRepeating(
+           [](PrefService* prefs, base::FilePath path) {
++            aerie_sidebar::UpdateActiveHzMetrics(*prefs);
+             aerie_sidebar::FollowTabLayout(
+                 path, aerie_sidebar::GetTabLayout(*prefs));
+           },
+--- a/chrome/browser/ui/helium/BUILD.gn
++++ b/chrome/browser/ui/helium/BUILD.gn
+@@ -18,6 +18,7 @@
+     "//chrome/browser/profiles:profile",
+     "//chrome/browser/ui/browser_window",
+     "//chrome/common:constants",
++    "//components/aerie_sidebar:hz_active",
+     "//components/aerie_sidebar:layout",
+     "//components/aerie_sidebar:layout_lock",
+     "//components/aerie_sidebar:prefs",
