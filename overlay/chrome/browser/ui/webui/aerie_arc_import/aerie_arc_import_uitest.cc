@@ -12,6 +12,7 @@
 // With AERIE_ARC_SHOT_DIR set, the test also saves a screenshot of the window
 // at the picker and at the result, in light and in dark, for the gallery.
 
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -40,7 +41,7 @@
 #include "content/public/test/browser_test_utils.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "ui/events/keycodes/keyboard_codes.h"
-#include "ui/gfx/image/image.h"
+#include "ui/aura/window.h"
 #include "ui/shell_dialogs/fake_select_file_dialog.h"
 #include "ui/snapshot/snapshot.h"
 #include "ui/views/widget/widget.h"
@@ -98,7 +99,7 @@ class AerieArcImportUiTest : public InProcessBrowserTest {
     ASSERT_TRUE(ui_test_utils::BringBrowserWindowToFront(browser()));
     ASSERT_TRUE(ui_test_utils::NavigateToURL(
         browser(), GURL("chrome://settings/people")));
-    ASSERT_EQ(true, Js("!!(await waitFor(() => row()))"));
+    ASSERT_EQ(true, Js("return !!(await waitFor(() => row()))"));
   }
 
   content::WebContents* contents() {
@@ -110,6 +111,17 @@ class AerieArcImportUiTest : public InProcessBrowserTest {
     return content::EvalJs(
         contents(),
         base::StrCat({"(async () => {", kDeep, body, "})()"}));
+  }
+
+  // Pinned and Favorite records (the window's own first tab is a Today one).
+  size_t Arranged() {
+    size_t count = 0;
+    for (const auto& [id, tab] : service_->model()->tabs()) {
+      if (tab.section != aerie_tab_model::Section::kToday) {
+        ++count;
+      }
+    }
+    return count;
   }
 
   base::FilePath Fixture(const std::string& name) {
@@ -137,23 +149,24 @@ class AerieArcImportUiTest : public InProcessBrowserTest {
 
   // Saves a screenshot of the window when AERIE_ARC_SHOT_DIR is set.
   void Shoot(const std::string& name) {
-    std::string dir;
-    if (!base::Environment::Create()->GetVar("AERIE_ARC_SHOT_DIR", &dir) ||
-        dir.empty()) {
+    std::optional<std::string> dir =
+        base::Environment::Create()->GetVar("AERIE_ARC_SHOT_DIR");
+    if (!dir || dir->empty()) {
       return;
     }
     // Let the page settle: two frames.
     ASSERT_EQ(true, Js("await new Promise(r => requestAnimationFrame(() => "
                        "requestAnimationFrame(r))); return true;"));
-    gfx::NativeWindow window = browser()->window()->GetNativeWindow();
-    base::test::TestFuture<gfx::Image> image;
-    ui::GrabWindowSnapshot(window, gfx::Rect(window->bounds().size()),
-                           image.GetCallback());
-    scoped_refptr<base::RefCountedMemory> png = image.Get().As1xPNGBytes();
-    ASSERT_TRUE(png && png->size() > 0);
+    gfx::NativeWindow window = BrowserView::GetBrowserViewForBrowser(browser())
+                                   ->GetWidget()
+                                   ->GetNativeWindow();
+    base::test::TestFuture<scoped_refptr<base::RefCountedMemory>> png;
+    ui::GrabWindowSnapshotAsPNG(
+        window, gfx::Rect(window->bounds().size()), png.GetCallback());
+    ASSERT_TRUE(png.Get() && png.Get()->size() > 0);
     ASSERT_TRUE(base::WriteFile(
-        base::FilePath::FromUTF8Unsafe(dir).AppendASCII(name + ".png"),
-        *png));
+        base::FilePath::FromUTF8Unsafe(*dir).AppendASCII(name + ".png"),
+        *png.Get()));
   }
 
   raw_ptr<ui::FakeSelectFileDialog::Factory, DanglingUntriaged> factory_ =
@@ -182,13 +195,14 @@ IN_PROC_BROWSER_TEST_F(AerieArcImportUiTest, ThePickerListsEachSpaceByNameAndIco
                ".map(e => e.checked).join();"),
             "true,false,false");
   // Nothing is imported yet.
-  EXPECT_TRUE(service_->model()->tabs().empty());
+  EXPECT_EQ(Arranged(), 0u);
 
   // The arrow key moves the choice to the next Space.
   ASSERT_EQ(true, Js("inRowAll('input[name=aerieArcSpace]')[0].focus(); "
                      "return true;"));
-  ASSERT_TRUE(ui_test_utils::SendKeyPressSync(
-      browser(), ui::VKEY_DOWN, false, false, false, false));
+  content::SimulateKeyPress(contents(), ui::DomKey::ARROW_DOWN,
+                            ui::DomCode::ARROW_DOWN, ui::VKEY_DOWN, false,
+                            false, false, false);
   EXPECT_EQ(Js("return inRowAll('input[name=aerieArcSpace]')"
                ".map(e => e.checked).join();"),
             "false,true,false");
@@ -202,7 +216,7 @@ IN_PROC_BROWSER_TEST_F(AerieArcImportUiTest, ThePickerListsEachSpaceByNameAndIco
   ASSERT_EQ(true, Js("inRow('#aerieArcImportCancel').click(); "
                      "return !!(await waitFor(() => "
                      "!inRow('#aerieArcImportDialog')));"));
-  EXPECT_TRUE(service_->model()->tabs().empty());
+  EXPECT_EQ(Arranged(), 0u);
 }
 
 IN_PROC_BROWSER_TEST_F(AerieArcImportUiTest, TheResultSaysWhatCameInAndWhatDidNot) {
@@ -237,7 +251,7 @@ IN_PROC_BROWSER_TEST_F(AerieArcImportUiTest, TheResultSaysWhatCameInAndWhatDidNo
   SetDark(false);
   // The model got the Space twice, once for each pass: its pinned tab and its
   // Favorite each time.
-  EXPECT_EQ(service_->model()->tabs().size(), 4u);
+  EXPECT_EQ(Arranged(), 4u);
 }
 
 IN_PROC_BROWSER_TEST_F(AerieArcImportUiTest, TitlesFromTheFileAreTextNotMarkup) {
@@ -274,7 +288,7 @@ IN_PROC_BROWSER_TEST_F(AerieArcImportUiTest, AFileThatFailsShowsTheReasonAndChan
   ASSERT_EQ(true, Js("inRow('#aerieArcImportDone').click(); "
                      "return !!(await waitFor(() => "
                      "!inRow('#aerieArcImportDialog')));"));
-  EXPECT_TRUE(service_->model()->tabs().empty());
+  EXPECT_EQ(Arranged(), 0u);
 }
 
 }  // namespace aerie_arc_import
