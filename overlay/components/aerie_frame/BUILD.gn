@@ -42,6 +42,7 @@ source_set("paint") {
     "aerie_frame_paint.h",
   ]
   public_deps = [
+    ":corners",
     ":palette",
     "//cc/paint",
     "//ui/gfx",
@@ -55,6 +56,7 @@ source_set("corners") {
     "aerie_frame_corners.h",
   ]
   deps = [ "//components/aerie_design_tokens:tokens" ]
+  public_deps = [ "//ui/gfx/geometry" ]
 }
 
 source_set("enabled") {

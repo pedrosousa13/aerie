@@ -5,6 +5,8 @@
 #ifndef COMPONENTS_AERIE_FRAME_AERIE_FRAME_CORNERS_H_
 #define COMPONENTS_AERIE_FRAME_AERIE_FRAME_CORNERS_H_
 
+#include "ui/gfx/geometry/rounded_corners_f.h"
+
 namespace aerie_frame {
 
 // The radius, in DIPs, of the window's top corners (issue #249).
@@ -22,6 +24,11 @@ namespace aerie_frame {
 float WindowCornerRadius(float provider_radius,
                          bool restored,
                          bool can_draw_transparent_corners);
+
+// True when no corner is rounded: the window is painted as a plain box.
+inline bool IsSquare(const gfx::RoundedCornersF& corners) {
+  return corners == gfx::RoundedCornersF();
+}
 
 }  // namespace aerie_frame
 

@@ -87,13 +87,23 @@ aerie_frame::FrameTintInputs FrameTintView::CurrentInputs() const {
 
 void FrameTintView::SetWindowCornersForTesting(
     std::optional<gfx::RoundedCornersF> corners) {
-  window_corners_for_testing_ = corners;
+  if (corners) {
+    SetWindowCornersSourceForTesting(
+        base::BindRepeating([](gfx::RoundedCornersF c) { return c; }, *corners));
+  } else {
+    SetWindowCornersSourceForTesting({});
+  }
+}
+
+void FrameTintView::SetWindowCornersSourceForTesting(
+    base::RepeatingCallback<gfx::RoundedCornersF()> source) {
+  window_corners_for_testing_ = std::move(source);
   Refresh();
 }
 
 gfx::RoundedCornersF FrameTintView::WindowCorners() const {
   if (window_corners_for_testing_) {
-    return *window_corners_for_testing_;
+    return window_corners_for_testing_.Run();
   }
   // The corners the frame view draws for the window now: the OS radius while
   // the window is restored, none when it is maximised, fullscreen or tiled.
@@ -111,8 +121,8 @@ void FrameTintView::Refresh() {
   if (state_.Update(CurrentInputs())) {
     // Opaque only while the corners are square: a rounded window leaves them
     // transparent.
-    layer()->SetFillsBoundsOpaquely(state_.inputs().window_corners ==
-                                    gfx::RoundedCornersF());
+    layer()->SetFillsBoundsOpaquely(
+        aerie_frame::IsSquare(state_.inputs().window_corners));
     SchedulePaint();
   }
 }
@@ -138,7 +148,7 @@ void FrameTintView::OnPaint(gfx::Canvas* canvas) {
 void FrameTintView::PaintToBitmapForTesting(SkBitmap* bitmap) const {
   const aerie_frame::FrameTintInputs in = CurrentInputs();
   gfx::Canvas canvas(size(), 1.0f,
-                     /*is_opaque=*/in.window_corners == gfx::RoundedCornersF());
+                     /*is_opaque=*/aerie_frame::IsSquare(in.window_corners));
   aerie_frame::PaintFrame(&canvas, aerie_frame::PaletteOf(in), size(),
                           in.sidebar_on_right, in.card, in.window_corners);
   *bitmap = canvas.GetBitmap();
@@ -186,6 +196,16 @@ void FrameTintView::OnViewBoundsChanged(views::View* observed_view) {
   }
   // The card moves with the layout; the layout has run when its bounds change.
   Refresh();
+}
+
+void FrameTintView::OnViewLayoutInvalidated(views::View* observed_view) {
+  // A change of the tiled state invalidates the layout of the client view (the
+  // BrowserView) and of the frame view, even when the bounds stay the same
+  // (BrowserDesktopWindowTreeHostLinux::OnWindowTiledStateChanged), and the
+  // corners depend on it.
+  if (observed_view == parent()) {
+    Refresh();
+  }
 }
 
 void FrameTintView::OnViewIsDeleting(views::View* observed_view) {

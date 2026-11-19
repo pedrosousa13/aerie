@@ -8,6 +8,7 @@
 #include <memory>
 #include <optional>
 
+#include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "base/scoped_multi_source_observation.h"
 #include "base/scoped_observation.h"
@@ -17,11 +18,10 @@
 #include "components/aerie_tab_model/tab_model_observer.h"
 #include "components/prefs/pref_change_registrar.h"
 #include "ui/base/metadata/metadata_header_macros.h"
+#include "ui/gfx/geometry/rounded_corners_f.h"
 #include "ui/views/view.h"
 #include "ui/views/view_observer.h"
 #include "ui/views/widget/widget_observer.h"
-#include "ui/gfx/geometry/rounded_corners_f.h"
-#include "base/scoped_observation.h"
 
 class Profile;
 class SkBitmap;
@@ -66,6 +66,10 @@ class FrameTintView : public views::View,
   // the frame view's again for nullopt. The headless test window has no
   // compositing, so its frame has no radius; this stands in for the OS one.
   void SetWindowCornersForTesting(std::optional<gfx::RoundedCornersF> corners);
+  // The same, from a source that is read on every refresh, so a test can change
+  // the corners the way a tiled change does and send the real signal.
+  void SetWindowCornersSourceForTesting(
+      base::RepeatingCallback<gfx::RoundedCornersF()> source);
 
   // Paints exactly what OnPaint paints into `bitmap`, which is made `size()`
   // big, without touching the paint counter. For tests.
@@ -81,6 +85,7 @@ class FrameTintView : public views::View,
   // views::ViewObserver:
   void OnViewBoundsChanged(views::View* observed_view) override;
   void OnViewIsDeleting(views::View* observed_view) override;
+  void OnViewLayoutInvalidated(views::View* observed_view) override;
 
   // views::WidgetObserver: a maximise, restore or tile changes the corners.
   void OnWidgetShowStateChanged(views::Widget* widget) override;
@@ -109,7 +114,7 @@ class FrameTintView : public views::View,
   const raw_ptr<Profile> profile_;
   raw_ptr<aerie_tab_model::TabModel> model_ = nullptr;
   raw_ptr<views::View> card_ = nullptr;
-  std::optional<gfx::RoundedCornersF> window_corners_for_testing_;
+  base::RepeatingCallback<gfx::RoundedCornersF()> window_corners_for_testing_;
   aerie_frame::FrameTintState state_;
   PrefChangeRegistrar pref_registrar_;
   std::unique_ptr<SidebarLookController> look_controller_;

@@ -8,6 +8,7 @@
 #include <optional>
 #include <string>
 
+#include "components/aerie_frame/aerie_frame_corners.h"
 #include "components/aerie_frame/aerie_frame_look.h"
 #include "components/aerie_frame/aerie_frame_palette.h"
 #include "ui/gfx/geometry/rect.h"

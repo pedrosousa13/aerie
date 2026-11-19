@@ -42,6 +42,7 @@
 #include "chrome/common/pref_names.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "components/aerie_design_tokens/aerie_tokens.h"
+#include "components/aerie_frame/aerie_frame_corners.h"
 #include "components/aerie_frame/aerie_frame_palette.h"
 #include "components/aerie_sidebar/aerie_sidebar_layout.h"
 #include "components/aerie_sidebar/aerie_sidebar_prefs.h"
@@ -536,6 +537,36 @@ IN_PROC_BROWSER_TEST_F(AerieFrameBrowserTest, TheTintIsSquareWhenTheWindowIsMaxi
   tint()->PaintToBitmapForTesting(&bitmap);
   EXPECT_EQ(SkColorGetA(bitmap.getColor(0, 0)), 255u);
   EXPECT_EQ(SkColorGetA(bitmap.getColor(bitmap.width() - 1, 0)), 255u);
+}
+
+// The Linux host sets the tiled flag and invalidates the layout of the frame
+// view and the client view (the BrowserView) with no change of bounds or of
+// the show state (BrowserDesktopWindowTreeHostLinux::OnWindowTiledStateChanged).
+// The tint has to follow the corners from that alone. The source stands in for
+// the frame view, which gives the OS radius while the window is not tiled.
+IN_PROC_BROWSER_TEST_F(AerieFrameBrowserTest, TheTintFollowsATiledChangeWithNoChangeOfBounds) {
+  ASSERT_TRUE(tint());
+  BrowserWidget* browser_widget = browser_view()->browser_widget();
+  tint()->SetWindowCornersSourceForTesting(base::BindRepeating(
+      [](BrowserWidget* widget) {
+        return widget->tiled()
+                   ? gfx::RoundedCornersF()
+                   : gfx::RoundedCornersF(kOsRadius, kOsRadius, 0, 0);
+      },
+      browser_widget));
+  ASSERT_FALSE(tint()->layer()->fills_bounds_opaquely());
+  const gfx::Rect bounds = tint()->bounds();
+
+  browser_widget->set_tiled(true);
+  browser_view()->InvalidateLayout();
+  ASSERT_TRUE(WaitFor([&] { return tint()->layer()->fills_bounds_opaquely(); }));
+  EXPECT_TRUE(aerie_frame::IsSquare(tint()->inputs_for_testing().window_corners));
+
+  browser_widget->set_tiled(false);
+  browser_view()->InvalidateLayout();
+  ASSERT_TRUE(WaitFor([&] { return !tint()->layer()->fills_bounds_opaquely(); }));
+  EXPECT_FALSE(aerie_frame::IsSquare(tint()->inputs_for_testing().window_corners));
+  EXPECT_EQ(tint()->bounds(), bounds);
 }
 
 // Nothing else drawn in the window's top corners is square either: the

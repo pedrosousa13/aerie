@@ -173,7 +173,7 @@ void PaintFrame(gfx::Canvas* canvas,
                 const gfx::Rect& card,
                 const gfx::RoundedCornersF& window_corners) {
   canvas->Save();
-  if (window_corners != gfx::RoundedCornersF()) {
+  if (!IsSquare(window_corners)) {
     // Issue #249: stay inside the window's rounded corners, so the opaque frame
     // does not paint a square corner over the OS-shaped one.
     const SkVector radii[4] = {

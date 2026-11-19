@@ -7,7 +7,7 @@ theme), so on a desktop whose theme gives no window radius (KDE Plasma) the wind
 GetRestoredCornerRadiusDip() now asks aerie_frame::WindowCornerRadius() (components/aerie_frame):
 the provider's radius as it is when it is non-zero, radius-xl when it is zero, square when the window
 is maximised, fullscreen or tiled, or cannot draw transparent corners. "Can draw" is the base class's
-own answer (a custom frame, no tiling, a compositor with translucency), so a bare Xvfb stays square.
+own answer (a custom frame, no tiling, a compositor with translucency; it is also what makes a tiled window square), so a bare Xvfb stays square.
 PaintRestoredFrameBorder() uses the base class's painter, with the same radius and its shadow, when
 the provider has no radius to paint with.
 
@@ -24,32 +24,33 @@ the provider has no radius to paint with.
      ]
 --- a/chrome/browser/ui/views/frame/browser_frame_view_linux_native.cc
 +++ b/chrome/browser/ui/views/frame/browser_frame_view_linux_native.cc
-@@ -6,9 +6,11 @@
+@@ -6,8 +6,10 @@
  
  #include "base/notreached.h"
  #include "chrome/browser/ui/views/frame/browser_frame_view_layout_linux_native.h"
 +#include "components/aerie_frame/aerie_frame_corners.h"
  #include "ui/base/metadata/metadata_impl_macros.h"
  #include "ui/linux/linux_ui.h"
- #include "ui/views/window/frame_background.h"
 +#include "ui/views/widget/widget.h"
+ #include "ui/views/window/frame_background.h"
  #include "ui/views/window/frame_view_utils_linux.h"
  
- BrowserFrameViewLinuxNative::BrowserFrameViewLinuxNative(
-@@ -52,11 +54,27 @@
+@@ -52,11 +54,29 @@
  }
  
  float BrowserFrameViewLinuxNative::GetRestoredCornerRadiusDip() const {
 -  return layout_->GetFrameProvider()->GetTopCornerRadiusDip();
 +  // Aerie: a restored window that can draw transparent corners is rounded even
-+  // when the provider reports no radius (issue #249). The base class answers
-+  // non-zero exactly when the window can draw them.
++  // when the provider reports no radius (issue #249).
 +  const views::Widget* widget = GetWidget();
 +  const bool restored =
 +      widget && !widget->IsMaximized() && !widget->IsFullscreen();
++  // The base class answers non-zero exactly when the window can draw them: a
++  // custom frame on a compositor with translucency. It also answers 0 for a
++  // tiled window, which is what makes a tiled window square here.
++  const bool can_draw = BrowserFrameViewLinux::GetRestoredCornerRadiusDip() > 0;
 +  return aerie_frame::WindowCornerRadius(
-+      layout_->GetFrameProvider()->GetTopCornerRadiusDip(), restored,
-+      BrowserFrameViewLinux::GetRestoredCornerRadiusDip() > 0);
++      layout_->GetFrameProvider()->GetTopCornerRadiusDip(), restored, can_draw);
  }
  
  void BrowserFrameViewLinuxNative::PaintRestoredFrameBorder(
