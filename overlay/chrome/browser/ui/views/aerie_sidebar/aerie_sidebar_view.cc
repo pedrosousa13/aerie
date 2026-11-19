@@ -714,11 +714,16 @@ void AerieSidebarView::ShowPeekToast(bool kept_open) {
 
 void AerieSidebarView::AddedToWidget() {
   views::View::AddedToWidget();
+  // AerieSidebarView -> the content area of the region -> the region.
+  if (parent() && parent()->parent()) {
+    region_observation_.Observe(parent()->parent());
+  }
   UpdatePeekSurface();
   OnLayoutPrefsChanged();
 }
 
 void AerieSidebarView::RemovedFromWidget() {
+  region_observation_.Reset();
   if (peek_) {
     peek_->SetActive(false);
   }
@@ -738,6 +743,24 @@ void AerieSidebarView::OnLayoutPrefsChanged() {
   UpdatePeekSurface();
 }
 
+bool AerieSidebarView::RegionFloats() const {
+  const views::View* region = region_observation_.GetSource();
+  return region && region->GetProperty(aerie_sidebar::kFloatingWidth) > 0;
+}
+
+void AerieSidebarView::OnViewPropertyChanged(
+    views::View* observed_view,
+    const void* key,
+    int64_t old_value) {
+  if (key == aerie_sidebar::kFloatingWidth) {
+    UpdatePeekSurface(/*immediate=*/true);
+  }
+}
+
+void AerieSidebarView::OnViewIsDeleting(views::View* observed_view) {
+  region_observation_.Reset();
+}
+
 void AerieSidebarView::AddPeekSurface() {
   views::View* parent_view = parent();
   if (surface_tracker_.view() || !parent_view) {
@@ -749,15 +772,22 @@ void AerieSidebarView::AddPeekSurface() {
   UpdatePeekSurface();
 }
 
-void AerieSidebarView::UpdatePeekSurface() {
+void AerieSidebarView::UpdatePeekSurface(bool immediate) {
+  // A peek floats the column, and so does a hide while it slides out: both set
+  // the region's kFloatingWidth, and both need the opaque card under the rows.
   const bool floating =
-      peek_ && peek_->active() && aerie_sidebar::IsAutoHidden(*profile_prefs());
+      (peek_ && peek_->active() && aerie_sidebar::IsAutoHidden(*profile_prefs())) ||
+      RegionFloats();
   // The card is a sibling under this view, in the column that holds it: a child
   // layer would paint over the rows that have no layer of their own, and the
   // shadow has to fall outside this view's bounds. This view paints to a layer
   // while it floats, so that it stays above the card.
   views::View* parent_view = parent();
   views::View* surface = surface_tracker_.view();
+  if (!surface && floating && parent_view && immediate) {
+    AddPeekSurface();
+    return;
+  }
   if (!surface && floating && parent_view) {
     // The parent may be walking its children (this runs from AddedToWidget):
     // the card is added in a task of its own.

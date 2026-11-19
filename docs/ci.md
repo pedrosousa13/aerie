@@ -97,9 +97,8 @@ full Bench (every registered check, `zero_traffic` included). After the Bench it
 the interactive one needs `xvfb-run` on the host). It is the last step, so a failing UI test does not hide the
 Bench result; the step is named `views ui tests` in `summary.json` and in the issue the nightly opens. When the whole run passes, its `perf`
 result is recorded as the new baseline in `AERIE_PERF_DIR` (a failing check such as `zero_traffic`
-blocks recording, and so does a perf check that could not measure a metric). The nightly leaves `sidebar_frames` out (`NIGHTLY_BENCH_EXCLUDE`, pinned by a test): the check fails until #237 lands (the hide that is a
-cut, the 15 to 20 ms first frame), and a failing run is not recorded as the perf baseline the PR gate compares against. It runs by
-hand (`./aerie bench --check sidebar_frames`, docs/bench.md) until #237 makes it pass; then it joins the nightly and its baseline is
+blocks recording, and so does a perf check that could not measure a metric). The nightly leaves `sidebar_frames` out (`NIGHTLY_BENCH_EXCLUDE`, pinned by a test): the check fails until its p95 goal is met (#245; the hide jump is fixed, the 15 to 20 ms first frame is not), and a failing run is not recorded as the perf baseline the PR gate compares against. It runs by
+hand (`./aerie bench --check sidebar_frames`, docs/bench.md) until it passes; then it joins the nightly and its baseline is
 recorded there. It passes `--download-benchmarks` too. It does this in its own build root, so it never replaces the build the maintainer tests from.
 
 | Setting | Flag | Environment | Default |

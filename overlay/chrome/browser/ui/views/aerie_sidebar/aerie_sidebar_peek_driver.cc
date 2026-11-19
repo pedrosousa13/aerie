@@ -116,7 +116,7 @@ void AerieSidebarPeekDriver::SetActive(bool active) {
     }
     // Out of the layout and off screen until the pointer comes.
     view_->SetVisible(false);
-    SetFloatingWidth(0);
+    aerie_sidebar::SetFloatingWidth(Region(), 0);
     return;
   }
   monitor_.reset();
@@ -136,7 +136,7 @@ void AerieSidebarPeekDriver::SetActive(bool active) {
   widget_observation_.Reset();
   bubble_observation_.Reset();
   tracked_bubble_ = nullptr;
-  SetFloatingWidth(0);
+  aerie_sidebar::SetFloatingWidth(Region(), 0);
   if (views::View* region = Region()) {
     if (region->layer()) {
       region->layer()->SetTransform(gfx::Transform());
@@ -149,18 +149,6 @@ void AerieSidebarPeekDriver::SetActive(bool active) {
 void AerieSidebarPeekDriver::ApplyTimings() {
   controller_.SetTimings(aerie_sidebar::PeekTimingsFor(
       aerie::motion::ShouldReduceMotion(view_->profile_prefs())));
-}
-
-void AerieSidebarPeekDriver::SetFloatingWidth(int width) {
-  views::View* region = Region();
-  if (!region || region->GetProperty(aerie_sidebar::kFloatingWidth) == width) {
-    return;
-  }
-  region->SetProperty(aerie_sidebar::kFloatingWidth, width);
-  region->InvalidateLayout();
-  if (views::View* page = Page()) {
-    page->InvalidateLayout();
-  }
 }
 
 void AerieSidebarPeekDriver::OnEvent(const ui::Event& event) {
@@ -265,7 +253,7 @@ void AerieSidebarPeekDriver::SlideTo(bool show) {
   if (show) {
     const bool was_off = !view_->GetVisible();
     view_->SetVisible(true);
-    SetFloatingWidth(width);
+    aerie_sidebar::SetFloatingWidth(Region(), width);
     if (views::Widget* widget = view_->GetWidget()) {
       // F6 focuses the sidebar right after this: it needs its bounds now.
       widget->LayoutRootViewIfNecessary();
@@ -323,7 +311,7 @@ void AerieSidebarPeekDriver::FinishHidden() {
     region->layer()->SetOpacity(1.f);
   }
   view_->SetVisible(false);
-  SetFloatingWidth(0);
+  aerie_sidebar::SetFloatingWidth(Region(), 0);
 }
 
 void AerieSidebarPeekDriver::OnF6() {
