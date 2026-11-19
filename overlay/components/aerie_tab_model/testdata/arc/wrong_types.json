@@ -1,0 +1,8 @@
+{"version":1,"sidebar":{"containers":[{"global":{}},{"items":[
+  "p",{"id":"p","childrenIds":"not-a-list","data":{"itemContainer":{}}},
+  7,{"id":42,"data":"nope"},
+  "t",{"id":"t","parentID":"p","title":123,"data":{"tab":{"savedURL":{"url":"https://x.example/"},"savedTitle":["a"]}}},
+  "u",{"id":"u","parentID":"p","data":{"tab":{"savedURL":"https://typed.example/","savedTitle":99}}}
+ ],
+ "spaces":["s1",{"id":"s1","title":{"x":1},"profile":"default","containerIDs":{"pinned":"p"}}, "s2", 5],
+ "topAppsContainerIDs":"none"}]}}
