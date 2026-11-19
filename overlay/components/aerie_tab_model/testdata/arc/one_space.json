@@ -1,0 +1,22 @@
+{"version":1,"sidebar":{"containers":[
+  {"global":{}},
+  {"items":[
+    "top-apps",{"id":"top-apps","parentID":null,"childrenIds":["fav-1","fav-2"],"data":{"itemContainer":{"containerType":{"topApps":{"_0":{}}}}}},
+    "fav-1",{"id":"fav-1","parentID":"top-apps","title":null,"childrenIds":[],"data":{"tab":{"savedURL":"https://example.com/calendar","savedTitle":"Calendar"}}},
+    "fav-2",{"id":"fav-2","parentID":"top-apps","title":null,"childrenIds":[],"data":{"tab":{"savedURL":"https://example.com/mail","savedTitle":"Mail"}}},
+    "pinned-1",{"id":"pinned-1","parentID":null,"childrenIds":["tab-1","folder-1","tab-4"],"data":{"itemContainer":{"containerType":{"spaceItems":{"_0":"s1"}}}}},
+    "tab-1",{"id":"tab-1","parentID":"pinned-1","title":null,"childrenIds":[],"data":{"tab":{"savedURL":"https://example.com/","savedTitle":"Example"}}},
+    "folder-1",{"id":"folder-1","parentID":"pinned-1","title":"Work","childrenIds":["tab-2","tab-3"],"data":{"list":{}}},
+    "tab-2",{"id":"tab-2","parentID":"folder-1","title":null,"childrenIds":[],"data":{"tab":{"savedURL":"https://example.com/2","savedTitle":"Two"}}},
+    "tab-3",{"id":"tab-3","parentID":"folder-1","title":null,"childrenIds":[],"data":{"tab":{"savedURL":"https://example.com/3","savedTitle":"Three"}}},
+    "tab-4",{"id":"tab-4","parentID":"pinned-1","title":null,"childrenIds":[],"data":{"tab":{"savedURL":"https://example.com/4","savedTitle":"Four"}}},
+    "unpinned-1",{"id":"unpinned-1","parentID":null,"childrenIds":["today-1"],"data":{"itemContainer":{"containerType":{"spaceItems":{"_0":"s1"}}}}},
+    "today-1",{"id":"today-1","parentID":"unpinned-1","title":null,"childrenIds":[],"data":{"tab":{"savedURL":"https://example.com/today","savedTitle":"Today"}}}
+  ],
+  "spaces":[
+    "s1",{"id":"s1","title":"Work Space","profile":{"default":{}},
+      "customInfo":{"iconType":{"emoji_v2":"🧪"}},
+      "containerIDs":["unpinned","unpinned-1","pinned","pinned-1"]}
+  ],
+  "topAppsContainerIDs":[{"default":{}},"top-apps"]}
+]}}

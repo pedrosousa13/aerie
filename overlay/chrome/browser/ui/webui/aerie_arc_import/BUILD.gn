@@ -1,0 +1,86 @@
+# Copyright 2026 The Aerie Authors
+# You can use, redistribute, and/or modify this source code under
+# the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+# The message handler of "Import from Arc" in Settings (issue #171,
+# docs/arc-import.md). SettingsUI adds the handler (patches/sidebar/0052). The
+# page is chrome/browser/resources/settings/people_page/aerie_arc_import_row.*;
+# the strings are in aerie_arc_import_strings.grdp, included by the same patch.
+source_set("handler") {
+  visibility = [
+    ":*",
+    "//chrome/browser/ui/webui/settings:*",
+  ]
+  sources = [
+    "aerie_arc_import_handler.cc",
+    "aerie_arc_import_handler.h",
+  ]
+  public_deps = [
+    "//base",
+    "//components/aerie_tab_model",
+    "//content/public/browser",
+    "//ui/shell_dialogs",
+  ]
+  deps = [
+    "//chrome/app:generated_resources",
+    "//chrome/browser/aerie_tab_model",
+    "//chrome/browser/profiles:profile",
+    "//chrome/browser/ui/browser_window",
+    "//chrome/browser/ui/select_file_policy",
+    "//ui/base",
+  ]
+}
+
+# Browser tests of the handler (issue #171). Listed in aerie_browser_tests
+# (overlay/chrome/test/aerie/BUILD.gn). The interactive test of the dialog is in
+# aerie_arc_import_uitest.cc.
+source_set("browser_tests") {
+  testonly = true
+  # content/public/test/browser_test.h refuses to compile without it.
+  defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
+  sources = [ "aerie_arc_import_browsertest.cc" ]
+  deps = [
+    ":handler",
+    "//base",
+    "//base/test:test_support",
+    "//chrome/browser:browser",
+    "//chrome/browser/aerie_tab_model",
+    "//chrome/browser/profiles:profile",
+    "//chrome/test:test_support",
+    "//chrome/browser/ui/tabs:tabs_public",
+    "//chrome/test:test_support_ui",
+    "//components/aerie_tab_model",
+    "//components/tabs:public",
+    "//content/test:test_support",
+    "//net:test_support",
+    "//testing/gmock",
+    "//testing/gtest",
+    "//ui/shell_dialogs:test_support",
+  ]
+}
+
+source_set("interactive_tests") {
+  testonly = true
+  defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
+  sources = [ "aerie_arc_import_uitest.cc" ]
+  deps = [
+    ":handler",
+    "//base",
+    "//base/test:test_support",
+    "//chrome/browser:browser",
+    "//chrome/browser/aerie_tab_model",
+    "//chrome/browser/profiles:profile",
+    "//chrome/test:test_support",
+    "//chrome/browser/ui/tabs:tabs_public",
+    "//chrome/browser/ui/views/frame",
+    "//chrome/browser/ui/views/frame:browser_view_header",
+    "//chrome/test:test_support_ui",
+    "//components/aerie_tab_model",
+    "//content/test:test_support",
+    "//testing/gmock",
+    "//testing/gtest",
+    "//ui/shell_dialogs:test_support",
+    "//ui/snapshot",
+    "//ui/views",
+  ]
+}

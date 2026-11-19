@@ -1,0 +1,7 @@
+{"version":1,"sidebar":{"containers":[{"global":{}},{"items":[
+  "p",{"id":"p","childrenIds":["f","t"],"data":{"itemContainer":{}}},
+  "f",{"id":"f","parentID":"p","title":"<img src=x onerror=alert(1)>","childrenIds":[],"data":{"list":{}}},
+  "t",{"id":"t","parentID":"p","title":"<script>alert('name')</script>","data":{"tab":{"savedURL":"https://markup.example/","savedTitle":"<b onclick=alert(2)>bold</b>&amp;\u0000\u0007 end"}}}
+ ],
+ "spaces":["s1",{"id":"s1","title":"<svg onload=alert(3)>","profile":{"default":{}},"containerIDs":["pinned","p"]}],
+ "topAppsContainerIDs":[]}]}}

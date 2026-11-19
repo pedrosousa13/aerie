@@ -1,0 +1,24 @@
+{"version":1,"sidebar":{"containers":[
+  {"global":{}},
+  {"items":[
+    "top-apps",{"id":"top-apps","childrenIds":["fav-a"],"data":{"itemContainer":{}}},
+    "fav-a",{"id":"fav-a","parentID":"top-apps","data":{"tab":{"savedURL":"https://default.example/fav","savedTitle":"Default fav"}}},
+    "top-apps-2",{"id":"top-apps-2","childrenIds":["fav-b"],"data":{"itemContainer":{}}},
+    "fav-b",{"id":"fav-b","parentID":"top-apps-2","data":{"tab":{"savedURL":"https://profile1.example/fav","savedTitle":"Profile 1 fav"}}},
+    "pinned-1",{"id":"pinned-1","childrenIds":["a1","a2"],"data":{"itemContainer":{}}},
+    "a1",{"id":"a1","parentID":"pinned-1","data":{"tab":{"savedURL":"https://work.example/one","savedTitle":"Work one"}}},
+    "a2",{"id":"a2","parentID":"pinned-1","data":{"tab":{"savedURL":"https://work.example/two","savedTitle":"Work two"}}},
+    "pinned-2",{"id":"pinned-2","childrenIds":["b1"],"data":{"itemContainer":{}}},
+    "b1",{"id":"b1","parentID":"pinned-2","data":{"tab":{"savedURL":"https://home.example/","savedTitle":"Home"}}},
+    "pinned-3",{"id":"pinned-3","childrenIds":[],"data":{"itemContainer":{}}}
+  ],
+  "spaces":[
+    "s1",{"id":"s1","title":"Work","profile":{"default":{}},"customInfo":{"iconType":{"emoji_v2":"🏛"}},"containerIDs":["unpinned","u1","pinned","pinned-1"]},
+    "s2",{"id":"s2","title":"Home","profile":{"custom":{"_0":{"machineID":"m","directoryBasename":"Profile 1"}}},"customInfo":{"iconType":{"icon":"planet"}},"containerIDs":["pinned","pinned-2"]},
+    "s3",{"id":"s3","profile":{"default":{}},"customInfo":{},"containerIDs":["pinned","pinned-3"]}
+  ],
+  "topAppsContainerIDs":[{"default":{}},"top-apps",{"custom":{"_0":{"machineID":"m","directoryBasename":"Profile 1"}}},"top-apps-2"]},
+  {"littleBrowser":{"_0":"little-1"}},
+  {"items":["lp",{"id":"lp","childrenIds":["lt"],"data":{"itemContainer":{}}},"lt",{"id":"lt","parentID":"lp","data":{"tab":{"savedURL":"https://little.example/","savedTitle":"Little"}}}],
+   "spaces":["ls",{"id":"ls","containerIDs":["pinned","lp"]}],"topAppsContainerIDs":[]}
+]}}

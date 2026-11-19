@@ -1,0 +1,18 @@
+{"version":1,"sidebar":{"containers":[{"global":{}},{"items":[
+  "top",{"id":"top","childrenIds":["fa","fb"],"data":{"itemContainer":{}}},
+  "fa",{"id":"fa","parentID":"top","data":{"tab":{"savedURL":"javascript:alert(1)","savedTitle":"Fav js"}}},
+  "fb",{"id":"fb","parentID":"top","data":{"tab":{"savedURL":"https://ok.example/fav","savedTitle":"Fav ok"}}},
+  "p",{"id":"p","childrenIds":["t1","t2","t3","t4","t5","t6","t7","t8","t9","t10"],"data":{"itemContainer":{}}},
+  "t1",{"id":"t1","parentID":"p","data":{"tab":{"savedURL":"javascript:alert(document.cookie)","savedTitle":"js"}}},
+  "t2",{"id":"t2","parentID":"p","data":{"tab":{"savedURL":"file:///etc/passwd","savedTitle":"file"}}},
+  "t3",{"id":"t3","parentID":"p","data":{"tab":{"savedURL":"data:text/html,<script>alert(1)</script>","savedTitle":"data"}}},
+  "t4",{"id":"t4","parentID":"p","data":{"tab":{"savedURL":"chrome://settings","savedTitle":"chrome"}}},
+  "t5",{"id":"t5","parentID":"p","data":{"tab":{"savedURL":"aerie://settings","savedTitle":"aerie"}}},
+  "t6",{"id":"t6","parentID":"p","data":{"tab":{"savedURL":"arc://welcome","savedTitle":"arc"}}},
+  "t7",{"id":"t7","parentID":"p","data":{"tab":{"savedURL":"  JavaScript:alert(1)","savedTitle":"js with space and case"}}},
+  "t8",{"id":"t8","parentID":"p","data":{"tab":{"savedURL":"HTTPS://Upper.Example/Path","savedTitle":"upper case scheme is fine"}}},
+  "t9",{"id":"t9","parentID":"p","data":{"tab":{"savedURL":"http://plain.example/","savedTitle":"http is fine"}}},
+  "t10",{"id":"t10","parentID":"p","data":{"tab":{"savedURL":"https://user:secret@creds.example/","savedTitle":"credentials in the address"}}}
+ ],
+ "spaces":["s1",{"id":"s1","title":"Schemes","profile":{"default":{}},"containerIDs":["pinned","p"]}],
+ "topAppsContainerIDs":[{"default":{}},"top"]}]}}
