@@ -13,8 +13,8 @@
 
 #include "base/auto_reset.h"
 #include "base/functional/bind.h"
-#include "base/memory/ptr_util.h"
 #include "base/functional/callback_helpers.h"
+#include "base/memory/ptr_util.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/no_destructor.h"
@@ -325,6 +325,10 @@ class AerieSidebarView::SlideObserver : public ui::LayerAnimationObserver {
       return;
     }
     Reset();
+    // `animator_` is set before AddObserver on purpose: AddObserver reports the
+    // running sequences at once, that reaches UpdatePeekSurface, and
+    // UpdatePeekSurface calls Observe again. With the animator already held,
+    // that inner call finds the same animator and returns, which ends the cycle.
     animator_ = layer->GetAnimator();
     animator_->AddObserver(this);
   }
