@@ -383,15 +383,20 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarMotionUiTest, TheHidingColumnKeepsItsWidthAnd
   EXPECT_EQ(region()->GetProperty(aerie_sidebar::kFloatingWidth), 0);
   ExpectTheColumnShowsNoCard();
 
-  // A show starts from the hidden state and floats nothing: check once the
-  // slide has started and again while it runs.
+  // A show starts from the hidden state and floats nothing (the layout gives
+  // the column its room at once), but the opaque card slides in under the rows
+  // for the whole of it (issue #248) and goes when the slide has ended.
   chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
   ASSERT_TRUE(Animates(region()->layer(), ui::LayerAnimationElement::TRANSFORM));
   EXPECT_EQ(region()->GetProperty(aerie_sidebar::kFloatingWidth), 0);
-  ExpectTheColumnShowsNoCard();
+  ExpectTheColumnShowsItsCard();
   const base::TimeTicks until = base::TimeTicks::Now() + base::Milliseconds(60);
-  base::test::RunUntil([&] { return base::TimeTicks::Now() >= until; });
+  EXPECT_TRUE(base::test::RunUntil([&] { return base::TimeTicks::Now() >= until; }));
   EXPECT_EQ(region()->GetProperty(aerie_sidebar::kFloatingWidth), 0);
+  ExpectTheColumnShowsItsCard();
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return !region()->layer()->GetAnimator()->is_animating();
+  }));
   ExpectTheColumnShowsNoCard();
 }
 
