@@ -42,10 +42,21 @@ source_set("paint") {
     "aerie_frame_paint.h",
   ]
   public_deps = [
+    ":corners",
     ":palette",
     "//cc/paint",
     "//ui/gfx",
   ]
+}
+
+# The radius of the window's top corners (issue #249).
+source_set("corners") {
+  sources = [
+    "aerie_frame_corners.cc",
+    "aerie_frame_corners.h",
+  ]
+  deps = [ "//components/aerie_design_tokens:tokens" ]
+  public_deps = [ "//ui/gfx/geometry" ]
 }
 
 source_set("enabled") {
@@ -64,10 +75,12 @@ source_set("enabled") {
 source_set("unit_tests") {
   testonly = true
   sources = [
+    "aerie_frame_corners_unittest.cc",
     "aerie_frame_look_unittest.cc",
     "aerie_frame_unittest.cc",
   ]
   deps = [
+    ":corners",
     ":enabled",
     ":look",
     ":paint",

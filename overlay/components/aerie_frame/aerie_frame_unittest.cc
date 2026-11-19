@@ -331,6 +331,30 @@ TEST_F(AerieFramePaintTest, TheMirroredPaintLightsTheRightCorner) {
                   SkColorGetG(a), SkColorGetB(a), 1);
 }
 
+TEST_F(AerieFramePaintTest, TheWindowsRoundedTopCornersAreLeftTransparent) {
+  const FramePalette p =
+      ResolveFramePalette(ThemeId::kVivid, ColorMode::kLight, "dusk");
+  gfx::Canvas canvas(kWindow, 1.0f, /*is_opaque=*/false);
+  PaintFrame(&canvas, p, kWindow, false, gfx::Rect(300, 40, 1000, 840),
+             gfx::RoundedCornersF(12, 12, 0, 0));
+  const SkBitmap bitmap = canvas.GetBitmap();
+  EXPECT_EQ(SkColorGetA(bitmap.getColor(0, 0)), 0u);
+  EXPECT_EQ(SkColorGetA(bitmap.getColor(kWindow.width() - 1, 0)), 0u);
+  EXPECT_EQ(SkColorGetA(bitmap.getColor(12, 12)), 255u);
+  EXPECT_EQ(SkColorGetA(bitmap.getColor(kWindow.width() / 2, 0)), 255u);
+  // The bottom corners are square: the radii are the top ones only.
+  EXPECT_EQ(SkColorGetA(bitmap.getColor(0, kWindow.height() - 1)), 255u);
+}
+
+TEST_F(AerieFramePaintTest, SquareWindowCornersPaintTheWholeBox) {
+  const FramePalette p =
+      ResolveFramePalette(ThemeId::kVivid, ColorMode::kLight, "dusk");
+  gfx::Canvas canvas(kWindow, 1.0f, /*is_opaque=*/true);
+  PaintFrame(&canvas, p, kWindow, false, gfx::Rect(300, 40, 1000, 840),
+             gfx::RoundedCornersF());
+  EXPECT_EQ(SkColorGetA(canvas.GetBitmap().getColor(0, 0)), 255u);
+}
+
 TEST_F(AerieFramePaintTest, TheCardShadowDarkensTheFrameJustOutsideTheCard) {
   const FramePalette p =
       ResolveFramePalette(ThemeId::kVivid, ColorMode::kLight, "dusk");
