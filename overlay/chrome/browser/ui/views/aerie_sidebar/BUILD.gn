@@ -191,6 +191,7 @@ source_set("interactive_tests") {
     "aerie_sidebar_drag_uitest.cc",
     "aerie_sidebar_guard_uitest.cc",
     "aerie_sidebar_keyboard_uitest.cc",
+    "aerie_sidebar_menu_layout_uitest.cc",
     "aerie_sidebar_motion_uitest.cc",
     "aerie_sidebar_peek_uitest.cc",
     "aerie_sidebar_pinned_uitest.cc",
