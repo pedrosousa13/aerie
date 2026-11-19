@@ -385,7 +385,7 @@ metric that the baseline has and the run does not is `missing` and fails. Record
 ./aerie bench --check sidebar_frames --sidebar-frames-baseline /mnt/linux2/aerie-perf/sidebar-frames-main.json
 ```
 
-`sidebar_frames` runs by hand (`./aerie bench --check sidebar_frames`) until #237 makes it pass. Neither the nightly nor the
+`sidebar_frames` runs by hand (`./aerie bench --check sidebar_frames`) until its p95 goal is met (split from #237). Neither the nightly nor the
 PR gate runs it, and nothing passes `--sidebar-frames-baseline` or `--sidebar-frames-record`: the comparison is manual until
 then. After that it joins the nightly (docs/ci.md), which records its baseline. It needs a private Xvfb and about two minutes,
 and today it fails (the p95 of the first frames and the drag; see the numbers; the hide slides since #237).
@@ -419,25 +419,32 @@ fail) and whose control fails (the check passes).
 
 ### Measured on the train box
 
-AMD Ryzen 5 7600 (12 threads), Xvfb 1280x800 at 60 Hz, software compositing, Aerie 0.1.0 (Chromium 157), the build of
-2026-11-17 (the #237 branch: the hide fix, on main at 45e813c). `dropped` is summed over the 5 repeats (the drag: 6).
-Before #237 (main at 45e813c, same day): hide 5 frames and 50 dropped, p95 18.3 ms; reduced hide 5 frames and 30
-dropped, p95 18.4 ms.
+AMD Ryzen 5 7600 (12 threads), Xvfb 1280x800 at 60 Hz, software compositing, Aerie 0.1.0 (Chromium 157), builds of
+2026-11-19: main at 45e813c, and the #237 branch (the hide fix, on that main). Both ran `./aerie bench --check
+sidebar_frames` on the same box, one after the other, 5 repeats each. `dropped` is summed over the 5 repeats.
 
-| animation | frames | p50 ms | p95 ms | p99 ms | dropped | layers only |
-| --- | ---: | ---: | ---: | ---: | ---: | --- |
-| `hide` | 65 | 1.6 | 17.3 | 18.5 | 0 | yes |
-| `show` | 90 | 1.7 | 16.9 | 17.5 | 0 | yes |
-| `folder_expand` | 65 | 3.2 | 5.0 | 8.6 | 0 | no, layout in 44 slots |
-| `folder_collapse` | 58 | 2.3 | 3.9 | 4.8 | 0 | no, layout in 14 slots |
-| `resize` | 146 | 18.4 | 19.2 | 19.5 | 0 | no, layout in 126 slots |
-| `reduced_hide` | 47 | 2.3 | 17.4 | 17.4 | 0 | yes |
-| `reduced_show` | 47 | 2.4 | 17.3 | 19.1 | 0 | yes |
-| `reduced_folder_expand` | 34 | 1.8 | 12.2 | 13.2 | 0 | yes |
-| `reduced_folder_collapse` | 31 | 2.0 | 18.3 | 18.4 | 0 | yes |
+| animation | main frames | main p95 ms | main dropped | branch frames | branch p50 ms | branch p95 ms | branch p99 ms | branch dropped | layers only (branch) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| `hide` | 5 | 17.2 | 50 | 65 | 1.6 | 17.1 | 17.6 | 0 | yes |
+| `show` | 89 | 16.8 | 0 | 90 | 1.7 | 16.9 | 18.7 | 0 | yes |
+| `folder_expand` | 65 | 18.0 | 0 | 65 | 2.9 | 4.4 | 8.4 | 0 | no, layout in 43 slots |
+| `folder_collapse` | 59 | 18.0 | 0 | 59 | 2.0 | 3.2 | 5.0 | 0 | no, layout in 16 slots |
+| `resize` | 144 | 19.3 | 0 | 144 | 18.8 | 19.2 | 19.4 | 0 | no, layout in 125 slots |
+| `reduced_hide` | 5 | 17.7 | 30 | 47 | 2.0 | 17.1 | 17.3 | 0 | yes |
+| `reduced_show` | 48 | 17.5 | 0 | 47 | 2.5 | 17.4 | 18.3 | 0 | yes |
+| `reduced_folder_expand` | 31 | 2.7 | 0 | 32 | 1.7 | 11.7 | 12.9 | 0 | yes |
+| `reduced_folder_collapse` | 30 | 2.1 | 0 | 31 | 1.6 | 2.1 | 4.3 | 0 | yes |
 
-**The acceptance criteria are still not met on this build.** The check fails on the p95 of six animations (show,
-hide, resize, reduced show, reduced hide, reduced folder collapse: 16.9 to 19.2 ms). No animation drops a frame. Tracked in #237.
+The p95 of the folder animations moves a lot from run to run, in both directions, and not with the branch: an animation has
+about 6 frames per repeat, so 30 frames in all, and the p95 is the second slowest. One slow first frame in 5 repeats
+gives about 3 ms, two give 12 to 18 ms. Folder expand and collapse were 18.0 ms on main and 4.4 and 3.2 ms on the branch in
+these runs; reduced folder expand was 2.7 on main and 11.7 on the branch; an earlier pair of runs had reduced folder
+collapse at 2.9 on main and 18.3 on the branch, and it is 2.1 on both here. No diff of the branch touches the folder
+animation. Compare p95 of these animations only over more repeats.
+
+**The acceptance criteria are still not met on this build.** The check fails on the p95 of five animations (show,
+hide, resize, reduced show, reduced hide: 16.9 to 19.2 ms). No animation drops a frame. The p95 goal of 16.7 ms is not met
+and is not claimed; it is tracked in its own issue, split from #237. Main fails the same check (and also drops 50 and 30 vsyncs in the hides).
 
 - **The hide slides now.** Patch `sidebar/0033` left the hiding column in a zero-width region, so nothing of the slide
   reached the screen. The column now floats over the room the page takes: the hide has 65 frames and no dropped frame
