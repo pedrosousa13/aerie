@@ -156,6 +156,25 @@ class AerieSidebarMotionUiTest : public InProcessBrowserTest {
   views::View* card() { return browser_view()->multi_contents_view(); }
   PrefService* prefs() { return browser()->GetProfile()->GetPrefs(); }
 
+  // The opaque card a floating column shows (AerieSidebarPeekSurface): visible,
+  // on a layer of its own, under the rows (it comes before the sidebar view in
+  // the column that holds both) and covering the sidebar's rect. Without it the
+  // rows slide over the page with no background (issue #237).
+  void ExpectTheColumnShowsItsCard() {
+    const views::View* card = sidebar()->peek_surface_for_testing();
+    ASSERT_TRUE(card);
+    EXPECT_TRUE(card->GetVisible());
+    EXPECT_TRUE(card->layer());
+    ASSERT_EQ(card->parent(), sidebar()->parent());
+    EXPECT_LT(*card->parent()->GetIndexOf(card),
+              *card->parent()->GetIndexOf(sidebar()));
+    EXPECT_TRUE(card->bounds().Contains(sidebar()->bounds()));
+  }
+  void ExpectTheColumnShowsNoCard() {
+    const views::View* card = sidebar()->peek_surface_for_testing();
+    EXPECT_TRUE(!card || !card->GetVisible());
+  }
+
   // True only mid-slide of a hide: the column animates, floats, and the layout
   // has given the page its room (the layout runs on the next frame, so the
   // animation alone is true a moment too early). Before the command the column
@@ -353,19 +372,24 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarMotionUiTest, TheHidingColumnKeepsItsWidthAnd
   EXPECT_TRUE(region()->GetVisible());
   EXPECT_EQ(region()->width(), column_width);
   EXPECT_EQ(region()->GetProperty(aerie_sidebar::kFloatingWidth), column_width);
+  ExpectTheColumnShowsItsCard();
 
-  // When the slide ends the column leaves the layout and floats no more.
+  // When the slide ends the column leaves the layout and floats no more, and
+  // its card goes with it.
   ASSERT_TRUE(base::test::RunUntil([&] { return region()->aerie_sidebar_hidden(); }));
   EXPECT_EQ(region()->GetProperty(aerie_sidebar::kFloatingWidth), 0);
+  ExpectTheColumnShowsNoCard();
 
   // A show starts from the hidden state and floats nothing: check once the
   // slide has started and again while it runs.
   chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
   ASSERT_TRUE(Animates(region()->layer(), ui::LayerAnimationElement::TRANSFORM));
   EXPECT_EQ(region()->GetProperty(aerie_sidebar::kFloatingWidth), 0);
+  ExpectTheColumnShowsNoCard();
   const base::TimeTicks until = base::TimeTicks::Now() + base::Milliseconds(60);
   base::test::RunUntil([&] { return base::TimeTicks::Now() >= until; });
   EXPECT_EQ(region()->GetProperty(aerie_sidebar::kFloatingWidth), 0);
+  ExpectTheColumnShowsNoCard();
 }
 
 // Reduced motion: the floating column fades and does not slide, within 90 to
@@ -387,9 +411,11 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarMotionUiTest, UnderReducedMotionTheHidingColu
   EXPECT_TRUE(column->GetTargetTransform().IsIdentity());
   EXPECT_GE(OpacityDuration(column), base::Milliseconds(90));
   EXPECT_LE(OpacityDuration(column), base::Milliseconds(140));
+  ExpectTheColumnShowsItsCard();
 
   ASSERT_TRUE(base::test::RunUntil([&] { return region()->aerie_sidebar_hidden(); }));
   EXPECT_EQ(region()->GetProperty(aerie_sidebar::kFloatingWidth), 0);
+  ExpectTheColumnShowsNoCard();
 }
 
 // A sidebar on the right floats at the right edge of the window and the page

@@ -40,8 +40,10 @@
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/mojom/menu_source_type.mojom-forward.h"
 #include "ui/gfx/geometry/point.h"
+#include "base/scoped_observation.h"
 #include "ui/views/context_menu_controller.h"
 #include "ui/views/view.h"
+#include "ui/views/view_observer.h"
 #include "ui/views/view_tracker.h"
 
 class BrowserWindowInterface;
@@ -98,6 +100,7 @@ class TabInterface;
 // The view reads tabs from the window's TabStripModel and asks it to select or
 // close them; it does not move tabs.
 class AerieSidebarView : public views::View,
+                         public views::ViewObserver,
                          public TabStripModelObserver,
                          public aerie_tab_model::TabModelObserver,
                          public aerie_tab_model::AutoFileController::Observer,
@@ -273,6 +276,12 @@ class AerieSidebarView : public views::View,
   void AddedToWidget() override;
   void RemovedFromWidget() override;
   void OnBoundsChanged(const gfx::Rect& previous_bounds) override;
+  // views::ViewObserver: the region's kFloatingWidth turns the opaque card on
+  // and off, for a peek and for a hide that slides (issue #237).
+  void OnViewPropertyChanged(views::View* observed_view,
+                             const void* key,
+                             int64_t old_value) override;
+  void OnViewIsDeleting(views::View* observed_view) override;
 
   // The colours the sidebar draws with now: the theme, the colour mode of the
   // window and the Workspace colour (issue #215, item 7). They follow a change
@@ -582,7 +591,9 @@ class AerieSidebarView : public views::View,
   // (issue #184).
   void OnLayoutPrefsChanged();
   void UpdateRail(bool rail);
-  void UpdatePeekSurface();
+  // `immediate`: add the card now (the caller is not inside a layout walk).
+  void UpdatePeekSurface(bool immediate = false);
+  bool RegionFloats() const;
   void AddPeekSurface();
   void UpdateRailInset();
   void SetRailMargins(bool rail);
@@ -624,6 +635,8 @@ class AerieSidebarView : public views::View,
       aerie_sidebar::SizesFor(aerie_sidebar::Density::kComfortable);
   bool resizing_ = false;
   views::ViewTracker surface_tracker_;
+  base::ScopedObservation<views::View, views::ViewObserver> region_observation_{
+      this};
   std::unique_ptr<AerieSidebarPeekDriver> peek_;
   // The busy sources of the sidebar itself (the driver holds the ones that
   // are about focus, the pointer and bubbles). A hold exists exactly while its
