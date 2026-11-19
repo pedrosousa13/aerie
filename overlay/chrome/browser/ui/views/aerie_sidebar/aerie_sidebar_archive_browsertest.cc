@@ -9,13 +9,12 @@
 // animators of the archive moment, the restore and the popover. Reduced motion
 // is tested in aerie_sidebar_archive_uitest.cc.
 
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
 
 #include "base/debug/dump_without_crashing.h"
-#include "base/run_loop.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/run_until.h"
 #include "base/time/time.h"
@@ -25,6 +24,8 @@
 #include "chrome/browser/aerie_tab_model/tab_model_service.h"
 #include "chrome/browser/aerie_tab_model/tab_model_service_factory.h"
 #include "chrome/browser/aerie_tab_model/tab_strip_adapter.h"
+#include "chrome/browser/chrome_browser_main.h"
+#include "chrome/browser/chrome_browser_main_extra_parts.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -36,8 +37,6 @@
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h"
 #include "chrome/grit/generated_resources.h"
-#include "chrome/browser/chrome_browser_main.h"
-#include "chrome/browser/chrome_browser_main_extra_parts.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/aerie_design_tokens/aerie_motion.h"
@@ -742,8 +741,9 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarNoStartDumpBrowserTest,
       BrowserView::GetBrowserViewForBrowser(browser())
           ->vertical_tab_strip_region_view_for_testing());
   ASSERT_TRUE(sidebar);
-  // The sidebar builds the sleep controller and the archiver a few seconds
-  // after the window opens; wait for that, which is when the dump was made.
+  // With patch 0011 both services exist from the creation of the profile.
+  // Without it the sidebar creates them late, a few seconds after the window
+  // opens; that late creation is the dump this test counts, so wait for it.
   Profile* profile = browser()->GetProfile();
   ASSERT_TRUE(base::test::RunUntil([&] {
     return aerie_tab_model::SleepControllerFactory::GetForProfileIfExists(
