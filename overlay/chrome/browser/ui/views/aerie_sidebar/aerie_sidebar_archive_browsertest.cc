@@ -674,3 +674,18 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarArchiveBrowserTest,
   EXPECT_FLOAT_EQ(corners.lower_left(), aerie::tokens::kRadiusLg);
   EXPECT_FLOAT_EQ(corners.lower_right(), aerie::tokens::kRadiusLg);
 }
+
+// A theme change reaches every bubble anchored in the window. A closed panel
+// must not be one of them (issue #247): its anchor observer once outlived the
+// panel's widget and called Widget::ThemeChanged() on null.
+IN_PROC_BROWSER_TEST_F(AerieSidebarArchiveBrowserTest,
+                       AThemeChangeAfterThePanelClosedDoesNotCrash) {
+  OpenPanel();
+  base::WeakPtr<views::Widget> widget = panel()->GetWidget()->GetWeakPtr();
+  panel()->ClosePanel(true);
+  ASSERT_TRUE(base::test::RunUntil([&] { return !widget; }));
+  views::Widget* window =
+      BrowserView::GetBrowserViewForBrowser(browser())->GetWidget();
+  window->ResetLastColorProviderKey();
+  window->ThemeChanged();
+}

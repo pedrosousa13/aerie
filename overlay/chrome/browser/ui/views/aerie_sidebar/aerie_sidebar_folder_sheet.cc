@@ -13,6 +13,7 @@
 #include "base/memory/ptr_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/single_thread_task_runner.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_bubble_lifetime.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_switch.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/aerie_design_tokens/aerie_tokens.h"
@@ -124,6 +125,7 @@ AerieSidebarFolderSheet* AerieSidebarFolderSheet::Show(Params params) {
   AerieSidebarFolderSheet* raw = sheet.get();
   views::Widget* widget = views::BubbleDialogDelegate::CreateBubbleDeprecated(
       std::move(sheet), views::Widget::InitParams::NATIVE_WIDGET_OWNS_WIDGET);
+  aerie_sidebar::DeleteDelegateWithWidget(raw, widget);
   widget->Show();
   raw->PlayOpen();
   raw->name_field_->RequestFocus();

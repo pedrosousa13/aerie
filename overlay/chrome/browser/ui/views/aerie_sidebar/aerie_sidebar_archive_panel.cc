@@ -11,6 +11,7 @@
 #include "base/functional/bind.h"
 #include "base/i18n/case_conversion.h"
 #include "base/memory/ptr_util.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_bubble_lifetime.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_focus_ring.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/aerie_design_tokens/aerie_tokens.h"
@@ -206,9 +207,10 @@ AerieSidebarArchivePanel* AerieSidebarArchivePanel::Show(
   auto panel =
       base::WrapUnique(new AerieSidebarArchivePanel(anchor, host, palette));
   AerieSidebarArchivePanel* raw = panel.get();
-  views::BubbleDialogDelegate::CreateBubbleDeprecated(
-      std::move(panel), views::Widget::InitParams::NATIVE_WIDGET_OWNS_WIDGET)
-      ->Show();
+  views::Widget* widget = views::BubbleDialogDelegate::CreateBubbleDeprecated(
+      std::move(panel), views::Widget::InitParams::NATIVE_WIDGET_OWNS_WIDGET);
+  aerie_sidebar::DeleteDelegateWithWidget(raw, widget);
+  widget->Show();
   // The popover motion: a 4 px drop and a fade on `fast`, `decelerate`. Only
   // the transform and the opacity of the contents' layer change.
   views::View* contents = raw->GetContentsView();

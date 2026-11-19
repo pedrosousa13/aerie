@@ -9,6 +9,7 @@
 
 #include "base/functional/bind.h"
 #include "base/memory/ptr_util.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_bubble_lifetime.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_rename_fade.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_rename_field.h"
 #include "chrome/grit/generated_resources.h"
@@ -36,9 +37,10 @@ AerieSidebarRenamePopover* AerieSidebarRenamePopover::Show(
   auto popover = base::WrapUnique(
       new AerieSidebarRenamePopover(anchor, initial_text, std::move(done)));
   AerieSidebarRenamePopover* raw = popover.get();
-  views::BubbleDialogDelegate::CreateBubbleDeprecated(
-      std::move(popover), views::Widget::InitParams::NATIVE_WIDGET_OWNS_WIDGET)
-      ->Show();
+  views::Widget* widget = views::BubbleDialogDelegate::CreateBubbleDeprecated(
+      std::move(popover), views::Widget::InitParams::NATIVE_WIDGET_OWNS_WIDGET);
+  aerie_sidebar::DeleteDelegateWithWidget(raw, widget);
+  widget->Show();
   // The field fades in on `xfast`: opacity only (issue #145).
   raw->field_motion_ = FadeRenameViewIn(raw->field_, reduced_motion_prefs);
   raw->field_->RequestFocus();
