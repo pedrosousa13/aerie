@@ -24,7 +24,7 @@ the provider has no radius to paint with.
      ]
 --- a/chrome/browser/ui/views/frame/browser_frame_view_linux_native.cc
 +++ b/chrome/browser/ui/views/frame/browser_frame_view_linux_native.cc
-@@ -6,6 +6,7 @@
+@@ -6,9 +6,11 @@
  
  #include "base/notreached.h"
  #include "chrome/browser/ui/views/frame/browser_frame_view_layout_linux_native.h"
@@ -32,7 +32,11 @@ the provider has no radius to paint with.
  #include "ui/base/metadata/metadata_impl_macros.h"
  #include "ui/linux/linux_ui.h"
  #include "ui/views/window/frame_background.h"
-@@ -52,11 +53,27 @@
++#include "ui/views/widget/widget.h"
+ #include "ui/views/window/frame_view_utils_linux.h"
+ 
+ BrowserFrameViewLinuxNative::BrowserFrameViewLinuxNative(
+@@ -52,11 +54,27 @@
  }
  
  float BrowserFrameViewLinuxNative::GetRestoredCornerRadiusDip() const {
