@@ -594,6 +594,9 @@ class AerieSidebarView : public views::View,
   // `immediate`: add the card now (the caller is not inside a layout walk).
   void UpdatePeekSurface(bool immediate = false);
   bool RegionFloats() const;
+  // True while the region's layer runs a slide or a fade: a show or a hide of
+  // the sidebar, or the peek's (issue #248).
+  bool RegionSlides() const;
   void AddPeekSurface();
   void UpdateRailInset();
   void SetRailMargins(bool rail);
@@ -637,6 +640,10 @@ class AerieSidebarView : public views::View,
   views::ViewTracker surface_tracker_;
   base::ScopedObservation<views::View, views::ViewObserver> region_observation_{
       this};
+  // Watches the animator of the region's layer, so that the card is there for
+  // a show as it is for a hide (issue #248).
+  class SlideObserver;
+  std::unique_ptr<SlideObserver> slide_observer_;
   std::unique_ptr<AerieSidebarPeekDriver> peek_;
   // The busy sources of the sidebar itself (the driver holds the ones that
   // are about focus, the pointer and bubbles). A hold exists exactly while its

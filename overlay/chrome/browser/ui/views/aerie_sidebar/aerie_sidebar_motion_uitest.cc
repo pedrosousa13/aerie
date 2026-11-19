@@ -9,15 +9,23 @@
 // under reduced motion no transform animates and every opacity animation lasts
 // 140 ms or less. Run with ./aerie test-cpp --target aerie_interactive_ui_tests.
 
+#include <algorithm>
 #include <cmath>
+#include <cstdlib>
+#include <memory>
+#include <optional>
 #include <string>
 #include <vector>
-#include <optional>
 
+#include "base/run_loop.h"
 #include "base/scoped_observation.h"
+#include "base/task/single_thread_task_runner.h"
 #include "base/test/run_until.h"
 #include "base/time/time.h"
 #include "chrome/app/chrome_command_ids.h"
+#include "chrome/browser/aerie_tab_model/tab_model_service.h"
+#include "chrome/browser/aerie_tab_model/tab_model_service_factory.h"
+#include "chrome/browser/aerie_tab_model/tab_strip_adapter.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
@@ -25,39 +33,37 @@
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_floating.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_group.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_row_view.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_peek_surface.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_row_view.h"
-#include "chrome/browser/aerie_tab_model/tab_model_service.h"
-#include "chrome/browser/aerie_tab_model/tab_model_service_factory.h"
-#include "chrome/browser/aerie_tab_model/tab_strip_adapter.h"
-#include "components/aerie_tab_model/folder_rules.h"
-#include "components/aerie_tab_model/folder_tree.h"
-#include "components/aerie_tab_model/smart_folder.h"
-#include "components/aerie_tab_model/tab_model.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_view.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
+#include "chrome/browser/ui/views/frame/contents_web_view.h"
 #include "chrome/browser/ui/views/frame/multi_contents_view.h"
 #include "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/interactive_test_utils.h"
 #include "chrome/test/base/ui_test_utils.h"
-#include "net/test/embedded_test_server/embedded_test_server.h"
 #include "components/aerie_design_tokens/aerie_motion_prefs.h"
 #include "components/aerie_sidebar/aerie_sidebar_layout.h"
 #include "components/aerie_sidebar/aerie_sidebar_prefs.h"
+#include "components/aerie_tab_model/folder_rules.h"
+#include "components/aerie_tab_model/folder_tree.h"
+#include "components/aerie_tab_model/smart_folder.h"
+#include "components/aerie_tab_model/tab_model.h"
 #include "components/prefs/pref_service.h"
-#include "content/public/test/browser_test.h"
 #include "content/public/browser/render_widget_host_view.h"
 #include "content/public/browser/web_contents.h"
-#include "ui/gfx/geometry/point_conversions.h"
+#include "content/public/test/browser_test.h"
+#include "net/test/embedded_test_server/embedded_test_server.h"
 #include "ui/aura/window.h"
-#include "chrome/browser/ui/views/frame/contents_web_view.h"
-#include "ui/events/event.h"
 #include "ui/compositor/layer.h"
 #include "ui/compositor/layer_animation_element.h"
 #include "ui/compositor/layer_animation_sequence.h"
 #include "ui/compositor/layer_animator.h"
 #include "ui/compositor/test/layer_animator_test_controller.h"
+#include "ui/events/event.h"
 #include "ui/gfx/animation/animation_test_api.h"
+#include "ui/gfx/geometry/point_conversions.h"
 #include "ui/views/view.h"
 #include "ui/views/view_observer.h"
 #include "ui/views/view_utils.h"
@@ -380,15 +386,20 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarMotionUiTest, TheHidingColumnKeepsItsWidthAnd
   EXPECT_EQ(region()->GetProperty(aerie_sidebar::kFloatingWidth), 0);
   ExpectTheColumnShowsNoCard();
 
-  // A show starts from the hidden state and floats nothing: check once the
-  // slide has started and again while it runs.
+  // A show starts from the hidden state and floats nothing (the layout gives
+  // the column its room at once), but the opaque card slides in under the rows
+  // for the whole of it (issue #248) and goes when the slide has ended.
   chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
   ASSERT_TRUE(Animates(region()->layer(), ui::LayerAnimationElement::TRANSFORM));
   EXPECT_EQ(region()->GetProperty(aerie_sidebar::kFloatingWidth), 0);
-  ExpectTheColumnShowsNoCard();
+  ExpectTheColumnShowsItsCard();
   const base::TimeTicks until = base::TimeTicks::Now() + base::Milliseconds(60);
-  base::test::RunUntil([&] { return base::TimeTicks::Now() >= until; });
+  EXPECT_TRUE(base::test::RunUntil([&] { return base::TimeTicks::Now() >= until; }));
   EXPECT_EQ(region()->GetProperty(aerie_sidebar::kFloatingWidth), 0);
+  ExpectTheColumnShowsItsCard();
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return !region()->layer()->GetAnimator()->is_animating();
+  }));
   ExpectTheColumnShowsNoCard();
 }
 
@@ -979,3 +990,271 @@ INSTANTIATE_TEST_SUITE_P(
     [](const testing::TestParamInfo<ReduceVia>& info) {
       return info.param == ReduceVia::kOsFlag ? "OsFlag" : "Pref";
     });
+
+// The card and the rows move as one (issue #248). A show or a hide has one
+// layer, the region's, that carries the slide or the fade; the opaque card and
+// the rows are under it and do not animate on their own. The test reads where
+// each is on screen (bounds in screen coordinates, with the layer transforms
+// applied) and its effective opacity at several moments of the slide: each is
+// at its resting place plus the region's own translation, the offset between
+// the card and a row never changes, and their opacities are equal. A show used
+// to have no card at all: the column's tint was the window frame, already at
+// its final place, and only the rows slid over it.
+namespace {
+
+float EffectiveOpacity(const views::View* view) {
+  for (const views::View* v = view; v; v = v->parent()) {
+    if (v->layer()) {
+      return v->layer()->GetCombinedOpacity();
+    }
+  }
+  return 1.f;
+}
+
+struct SlideSample {
+  bool card_visible;
+  const ui::Layer* card_layer;
+  const ui::Layer* sidebar_layer;
+  int card_x;
+  int row_x;
+  int sidebar_x;
+  float card_opacity;
+  float row_opacity;
+  float region_opacity;
+  int region_tx;
+};
+
+struct RestingPlace {
+  int row_x;
+  int sidebar_x;
+};
+
+}  // namespace
+
+class AerieSidebarStepUiTest : public AerieSidebarMotionUiTest {
+ protected:
+  void Wait(base::TimeDelta delay) {
+    base::RunLoop loop;
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+        FROM_HERE, loop.QuitClosure(), delay);
+    loop.Run();
+  }
+
+  SlideSample Sample() {
+    const views::View* card = sidebar()->peek_surface_for_testing();
+    SlideSample s{};
+    s.card_visible = card && card->GetVisible();
+    s.card_layer = card ? card->layer() : nullptr;
+    s.sidebar_layer = sidebar()->layer();
+    s.card_x = card ? card->GetBoundsInScreen().x() : 0;
+    s.card_opacity = card ? EffectiveOpacity(card) : -1.f;
+    s.row_x = sidebar()->row_at(0)->GetBoundsInScreen().x();
+    s.row_opacity = EffectiveOpacity(sidebar()->row_at(0));
+    s.sidebar_x = sidebar()->GetBoundsInScreen().x();
+    s.region_opacity = region()->layer()->opacity();
+    s.region_tx = static_cast<int>(
+        region()->layer()->transform().To2dTranslation().x());
+    return s;
+  }
+
+  RestingPlace Resting() {
+    return {sidebar()->row_at(0)->GetBoundsInScreen().x(),
+            sidebar()->GetBoundsInScreen().x()};
+  }
+
+  // Samples until the region's layer has stopped animating (or 1.5 s). The
+  // first sample is taken at once, before any frame ran. Samples are 4 ms
+  // apart: a reduced fade lasts 90 ms or more, so a slow box still gets
+  // several of them.
+  std::vector<SlideSample> SampleUntilRest() {
+    std::vector<SlideSample> all;
+    all.push_back(Sample());
+    const base::TimeTicks give_up =
+        base::TimeTicks::Now() + base::Milliseconds(1500);
+    bool started = region()->layer()->GetAnimator()->is_animating();
+    while (base::TimeTicks::Now() < give_up) {
+      Wait(base::Milliseconds(4));
+      if (region()->layer()->GetAnimator()->is_animating()) {
+        started = true;
+        all.push_back(Sample());
+      } else if (started) {
+        break;
+      }
+    }
+    return all;
+  }
+
+  // Presses Ctrl+S and samples until the slide has ended.
+  std::vector<SlideSample> ToggleAndSample() {
+    chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
+    return SampleUntilRest();
+  }
+
+  // The samples taken while the slide was in flight: the column part way
+  // between its two places (a transform) or part way through its fade.
+  static std::vector<SlideSample> InFlight(
+      const std::vector<SlideSample>& all,
+      bool reduced) {
+    int max_tx = 0;
+    for (const SlideSample& s : all) {
+      max_tx = std::max(max_tx, std::abs(s.region_tx));
+    }
+    std::vector<SlideSample> in_flight;
+    for (const SlideSample& s : all) {
+      const bool part_way =
+          reduced ? (s.region_opacity > 0.02f && s.region_opacity < 0.98f)
+                  : (std::abs(s.region_tx) >= 1 &&
+                     std::abs(s.region_tx) < max_tx);
+      if (part_way) {
+        in_flight.push_back(s);
+      }
+    }
+    return in_flight;
+  }
+
+  void ExpectOneMotion(const std::vector<SlideSample>& all,
+                       const RestingPlace& rest,
+                       bool reduced) {
+    // The card is there from the first frame the region's transform or opacity
+    // is off its resting value; nothing is filtered out for this check.
+    for (const SlideSample& s : all) {
+      if (s.region_tx != 0 || s.region_opacity != 1.f) {
+        EXPECT_TRUE(s.card_visible) << "no card on the first frame off rest";
+        break;
+      }
+    }
+    const std::vector<SlideSample> in_flight = InFlight(all, reduced);
+    ASSERT_GE(in_flight.size(), 2u) << "the slide had fewer than two frames";
+    int moved = 0;
+    for (const SlideSample& s : in_flight) {
+      SCOPED_TRACE(testing::Message()
+                   << "region_tx=" << s.region_tx
+                   << " region_opacity=" << s.region_opacity);
+      EXPECT_TRUE(s.card_visible) << "no card under the rows";
+      if (!s.card_visible) {
+        continue;
+      }
+      // Each is at its resting place plus the region's translation: a group
+      // that lags the region, or a part of it on a clock of its own, is off.
+      EXPECT_NEAR(s.card_x,
+                  rest.sidebar_x - AerieSidebarPeekSurface::ShadowRoom() +
+                      s.region_tx,
+                  1);
+      EXPECT_NEAR(s.row_x, rest.row_x + s.region_tx, 1);
+      EXPECT_NEAR(s.card_opacity, s.row_opacity, 0.001f);
+      EXPECT_NEAR(s.card_opacity, s.region_opacity, 0.001f);
+    }
+    for (size_t i = 1; i < in_flight.size(); ++i) {
+      if (in_flight[i].card_x != in_flight[i - 1].card_x) {
+        ++moved;
+      }
+    }
+    if (reduced) {
+      EXPECT_EQ(moved, 0) << "a reduced slide must not move";
+      EXPECT_NE(in_flight.front().card_opacity, in_flight.back().card_opacity);
+    } else {
+      EXPECT_GE(moved, 1) << "the card did not move";
+    }
+  }
+
+  void RunHideAndShow(bool reduced) {
+    ForceReducedMotion(reduced);
+    ASSERT_TRUE(base::test::RunUntil([&] { return region()->width() > 0; }));
+    const RestingPlace rest = Resting();
+    {
+      SCOPED_TRACE("hide");
+      ExpectOneMotion(ToggleAndSample(), rest, reduced);
+    }
+    ASSERT_TRUE(base::test::RunUntil(
+        [&] { return region()->aerie_sidebar_hidden(); }));
+    {
+      SCOPED_TRACE("show");
+      ExpectOneMotion(ToggleAndSample(), rest, reduced);
+    }
+  }
+
+  // Every sample from `first` on has the card up, on the same layers as the
+  // first one: the card and the sidebar's layer are not made again.
+  static void ExpectTheCardStaysUp(const std::vector<SlideSample>& samples) {
+    ASSERT_FALSE(samples.empty());
+    const ui::Layer* card_layer = samples.front().card_layer;
+    const ui::Layer* sidebar_layer = samples.front().sidebar_layer;
+    EXPECT_TRUE(card_layer);
+    EXPECT_TRUE(sidebar_layer);
+    for (const SlideSample& s : samples) {
+      EXPECT_TRUE(s.card_visible);
+      EXPECT_EQ(s.card_layer, card_layer);
+      EXPECT_EQ(s.sidebar_layer, sidebar_layer);
+    }
+  }
+};
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarStepUiTest, TheCardAndTheRowsMoveAsOneOnHideAndShow) {
+  RunHideAndShow(/*reduced=*/false);
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarStepUiTest, TheCardAndTheRowsFadeAsOneOnHideAndShowUnderReducedMotion) {
+  RunHideAndShow(/*reduced=*/true);
+}
+
+// The region's layer is made again (a new layer, a new animator): the card is
+// still there for the first show after it.
+IN_PROC_BROWSER_TEST_F(AerieSidebarStepUiTest, TheCardShowsOnTheFirstShowAfterTheRegionLayerIsRecreated) {
+  ForceReducedMotion(false);
+  ASSERT_TRUE(base::test::RunUntil([&] { return region()->width() > 0; }));
+  const RestingPlace rest = Resting();
+  chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
+  ASSERT_TRUE(base::test::RunUntil(
+      [&] { return region()->aerie_sidebar_hidden(); }));
+  std::unique_ptr<ui::Layer> old_layer = region()->RecreateLayer();
+  ASSERT_TRUE(region()->layer());
+  ASSERT_NE(region()->layer(), old_layer.get());
+  // The first slide of the new layer is a show.
+  ExpectOneMotion(ToggleAndSample(), rest, /*reduced=*/false);
+}
+
+// A show that starts while a hide is in flight, and a hide that starts while a
+// show is: the old animation goes before the new one starts, and the card and
+// the sidebar's layer stay as they were across the hand-over.
+IN_PROC_BROWSER_TEST_F(AerieSidebarStepUiTest, TheCardStaysUpWhenAShowInterruptsAHideAndAHideInterruptsAShow) {
+  ForceReducedMotion(false);
+  ASSERT_TRUE(base::test::RunUntil([&] { return region()->width() > 0; }));
+  const RestingPlace rest = Resting();
+
+  // Hide, then a show 60 ms in.
+  chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return region()->layer()->GetAnimator()->is_animating();
+  }));
+  Wait(base::Milliseconds(60));
+  ASSERT_FALSE(region()->aerie_sidebar_hidden());
+  std::vector<SlideSample> samples;
+  samples.push_back(Sample());
+  chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
+  for (const SlideSample& s : SampleUntilRest()) {
+    samples.push_back(s);
+  }
+  ExpectTheCardStaysUp(samples);
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return !region()->layer()->GetAnimator()->is_animating();
+  }));
+  EXPECT_FALSE(region()->aerie_sidebar_hidden());
+  EXPECT_EQ(Resting().row_x, rest.row_x);
+
+  // Hide to the end, then a show, then a hide 60 ms into it.
+  chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
+  ASSERT_TRUE(base::test::RunUntil(
+      [&] { return region()->aerie_sidebar_hidden(); }));
+  chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return region()->layer()->GetAnimator()->is_animating();
+  }));
+  Wait(base::Milliseconds(60));
+  samples.clear();
+  samples.push_back(Sample());
+  chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
+  for (const SlideSample& s : SampleUntilRest()) {
+    samples.push_back(s);
+  }
+  ExpectTheCardStaysUp(samples);
+}
