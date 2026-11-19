@@ -85,7 +85,7 @@ density change re-reads the width. A resize tells the sidebar view, so that the 
 +    // layout at once. The peek driver does the sliding of the floating
 +    // column (issue #184).
 +    aerie_hidden_ = !visible;
-+    AerieEndHideSlide();
++    aerie_sidebar::LandHidingColumn(this, aerie_hide_slide_);
 +    SetVisible(true);
 +    layer()->SetTransform(gfx::Transform());
 +    layer()->SetOpacity(1.f);

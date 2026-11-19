@@ -53,11 +53,16 @@ aerie::tokens::MotionDuration PeekHideDuration(bool reduced);
 // whole slide and the compositor draws every frame of it (issues #215, #237).
 class HideSlide {
  public:
-  void Begin(int column_width) {
+  void Start(int column_width) {
     width_ = column_width;
     active_ = true;
   }
-  void End() { active_ = false; }
+  // Returns whether a hide was sliding, so that a stop with none is a no-op.
+  bool Stop() {
+    const bool was_active = active_;
+    active_ = false;
+    return was_active;
+  }
   bool active() const { return active_; }
 
   // The width the column floats at, or 0 when no hide is sliding.

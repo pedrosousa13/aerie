@@ -176,12 +176,14 @@ TEST(AerieSidebarMotionTest, AHidingColumnFloatsAtItsWidthOverTheRoomThePageTake
   HideSlide slide;
   EXPECT_FALSE(slide.active());
   EXPECT_EQ(slide.floating_width(), 0);
-  slide.Begin(260);
+  slide.Start(260);
   EXPECT_TRUE(slide.active());
   EXPECT_EQ(slide.floating_width(), 260);
-  slide.End();
+  EXPECT_TRUE(slide.Stop());
   EXPECT_FALSE(slide.active());
   EXPECT_EQ(slide.floating_width(), 0);
+  // A second stop finds nothing to end.
+  EXPECT_FALSE(slide.Stop());
 }
 
 }  // namespace
