@@ -776,3 +776,23 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarSmartBrowserTest,
       [&] { return !sidebar()->RowForId(SmartRow(inner, tab)); }));
   EXPECT_TRUE(sidebar()->RowForId(outer)->HasFocus());
 }
+
+// A theme change reaches every bubble anchored in the window. A closed folder
+// sheet must not be one of them (issue #247).
+IN_PROC_BROWSER_TEST_F(AerieSidebarSmartBrowserTest,
+                       AThemeChangeAfterTheSheetClosedDoesNotCrash) {
+  const std::string folder = aerie_tab_model::CreateFolder(
+      *model(), Section::kToday, "", "Docs");
+  ASSERT_TRUE(base::test::RunUntil(
+      [&] { return sidebar()->FolderRowForId(folder) != nullptr; }));
+  sidebar()->OpenFolderSheet(folder);
+  ASSERT_TRUE(sidebar()->folder_sheet());
+  base::WeakPtr<views::Widget> widget =
+      sidebar()->folder_sheet()->GetWidget()->GetWeakPtr();
+  sidebar()->folder_sheet()->Dismiss(/*refocus=*/false);
+  ASSERT_TRUE(base::test::RunUntil([&] { return !widget; }));
+  views::Widget* window =
+      BrowserView::GetBrowserViewForBrowser(browser())->GetWidget();
+  window->ResetLastColorProviderKey();
+  window->ThemeChanged();
+}

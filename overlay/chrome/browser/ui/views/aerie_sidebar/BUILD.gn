@@ -20,6 +20,8 @@ source_set("aerie_sidebar") {
     "aerie_sidebar_archive_button.h",
     "aerie_sidebar_archive_panel.cc",
     "aerie_sidebar_archive_panel.h",
+    "aerie_sidebar_bubble_lifetime.cc",
+    "aerie_sidebar_bubble_lifetime.h",
     "aerie_sidebar_context_menu.cc",
     "aerie_sidebar_context_menu.h",
     "aerie_sidebar_drag_controller.cc",

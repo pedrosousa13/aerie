@@ -9,18 +9,23 @@
 // animators of the archive moment, the restore and the popover. Reduced motion
 // is tested in aerie_sidebar_archive_uitest.cc.
 
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
 
+#include "base/debug/dump_without_crashing.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/run_until.h"
 #include "base/time/time.h"
+#include "chrome/browser/aerie_tab_model/sleep_controller_factory.h"
 #include "chrome/browser/aerie_tab_model/tab_archiver.h"
 #include "chrome/browser/aerie_tab_model/tab_archiver_factory.h"
 #include "chrome/browser/aerie_tab_model/tab_model_service.h"
 #include "chrome/browser/aerie_tab_model/tab_model_service_factory.h"
 #include "chrome/browser/aerie_tab_model/tab_strip_adapter.h"
+#include "chrome/browser/chrome_browser_main.h"
+#include "chrome/browser/chrome_browser_main_extra_parts.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -673,4 +678,80 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarArchiveBrowserTest,
   EXPECT_FLOAT_EQ(corners.upper_right(), aerie::tokens::kRadiusLg);
   EXPECT_FLOAT_EQ(corners.lower_left(), aerie::tokens::kRadiusLg);
   EXPECT_FLOAT_EQ(corners.lower_right(), aerie::tokens::kRadiusLg);
+}
+
+// A theme change reaches every bubble anchored in the window. A closed panel
+// must not be one of them (issue #247): its anchor observer once outlived the
+// panel's widget and called Widget::ThemeChanged() on null.
+IN_PROC_BROWSER_TEST_F(AerieSidebarArchiveBrowserTest,
+                       AThemeChangeAfterThePanelClosedDoesNotCrash) {
+  OpenPanel();
+  base::WeakPtr<views::Widget> widget = panel()->GetWidget()->GetWeakPtr();
+  panel()->ClosePanel(true);
+  ASSERT_TRUE(base::test::RunUntil([&] { return !widget; }));
+  views::Widget* window =
+      BrowserView::GetBrowserViewForBrowser(browser())->GetWidget();
+  window->ResetLastColorProviderKey();
+  window->ThemeChanged();
+}
+
+// ---- no dump at start (issue #247) -------------------------------------------
+
+namespace {
+int g_dumps = 0;
+void CountDump() {
+  ++g_dumps;
+}
+}  // namespace
+
+// The first window used to report two DumpWithoutCrashing dumps on every start:
+// the sidebar asked a view with no window for its native theme, and the sleep
+// controller and archiver factories were made after the profile. Each dump is
+// a crash report in the user's Crash Reports folder.
+class AerieSidebarNoStartDumpBrowserTest : public InProcessBrowserTest {
+ protected:
+  // The crash reporter sets its own hook while the browser starts, after the
+  // test fixture is set up and before the first window is made. The counting
+  // hook is set between those two, when the profile is ready.
+  class CountingHookParts : public ChromeBrowserMainExtraParts {
+   public:
+    void PostProfileInit(Profile*, bool is_initial_profile) override {
+      if (is_initial_profile) {
+        g_dumps = 0;
+        base::debug::SetDumpWithoutCrashingFunction(nullptr);
+        base::debug::SetDumpWithoutCrashingFunction(&CountDump);
+      }
+    }
+  };
+
+  void CreatedBrowserMainParts(content::BrowserMainParts* parts) override {
+    InProcessBrowserTest::CreatedBrowserMainParts(parts);
+    static_cast<ChromeBrowserMainParts*>(parts)->AddParts(
+        std::make_unique<CountingHookParts>());
+  }
+  void TearDownOnMainThread() override {
+    base::debug::SetDumpWithoutCrashingFunction(nullptr);
+    InProcessBrowserTest::TearDownOnMainThread();
+  }
+};
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarNoStartDumpBrowserTest,
+                       TheFirstWindowAndItsSidebarMakeNoDump) {
+  auto* sidebar = FindDescendant<AerieSidebarView>(
+      BrowserView::GetBrowserViewForBrowser(browser())
+          ->vertical_tab_strip_region_view_for_testing());
+  ASSERT_TRUE(sidebar);
+  // With patch 0011 both services exist from the creation of the profile.
+  // Without it the sidebar creates them late, a few seconds after the window
+  // opens; that late creation is the dump this test counts, so wait for it.
+  Profile* profile = browser()->GetProfile();
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return aerie_tab_model::SleepControllerFactory::GetForProfileIfExists(
+               profile) &&
+           aerie_tab_model::TabArchiverFactory::GetForProfileIfExists(profile);
+  }));
+  EXPECT_EQ(g_dumps, 0);
+  // The hook is the one that is called: a dump asked for now is counted.
+  EXPECT_TRUE(base::debug::DumpWithoutCrashing());
+  EXPECT_EQ(g_dumps, 1);
 }
