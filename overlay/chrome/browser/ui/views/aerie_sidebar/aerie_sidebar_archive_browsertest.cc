@@ -13,9 +13,13 @@
 #include <string>
 #include <vector>
 
+#include "base/debug/dump_without_crashing.h"
+#include "base/run_loop.h"
+#include "base/task/single_thread_task_runner.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/run_until.h"
 #include "base/time/time.h"
+#include "chrome/browser/aerie_tab_model/sleep_controller_factory.h"
 #include "chrome/browser/aerie_tab_model/tab_archiver.h"
 #include "chrome/browser/aerie_tab_model/tab_archiver_factory.h"
 #include "chrome/browser/aerie_tab_model/tab_model_service.h"
@@ -32,6 +36,8 @@
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h"
 #include "chrome/grit/generated_resources.h"
+#include "chrome/browser/chrome_browser_main.h"
+#include "chrome/browser/chrome_browser_main_extra_parts.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/aerie_design_tokens/aerie_motion.h"
@@ -688,4 +694,64 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarArchiveBrowserTest,
       BrowserView::GetBrowserViewForBrowser(browser())->GetWidget();
   window->ResetLastColorProviderKey();
   window->ThemeChanged();
+}
+
+// ---- no dump at start (issue #247) -------------------------------------------
+
+namespace {
+int g_dumps = 0;
+void CountDump() {
+  ++g_dumps;
+}
+}  // namespace
+
+// The first window used to report two DumpWithoutCrashing dumps on every start:
+// the sidebar asked a view with no window for its native theme, and the sleep
+// controller and archiver factories were made after the profile. Each dump is
+// a crash report in the user's Crash Reports folder.
+class AerieSidebarNoStartDumpBrowserTest : public InProcessBrowserTest {
+ protected:
+  // The crash reporter sets its own hook while the browser starts, after the
+  // test fixture is set up and before the first window is made. The counting
+  // hook is set between those two, when the profile is ready.
+  class CountingHookParts : public ChromeBrowserMainExtraParts {
+   public:
+    void PostProfileInit(Profile*, bool is_initial_profile) override {
+      if (is_initial_profile) {
+        g_dumps = 0;
+        base::debug::SetDumpWithoutCrashingFunction(nullptr);
+        base::debug::SetDumpWithoutCrashingFunction(&CountDump);
+      }
+    }
+  };
+
+  void CreatedBrowserMainParts(content::BrowserMainParts* parts) override {
+    InProcessBrowserTest::CreatedBrowserMainParts(parts);
+    static_cast<ChromeBrowserMainParts*>(parts)->AddParts(
+        std::make_unique<CountingHookParts>());
+  }
+  void TearDownOnMainThread() override {
+    base::debug::SetDumpWithoutCrashingFunction(nullptr);
+    InProcessBrowserTest::TearDownOnMainThread();
+  }
+};
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarNoStartDumpBrowserTest,
+                       TheFirstWindowAndItsSidebarMakeNoDump) {
+  auto* sidebar = FindDescendant<AerieSidebarView>(
+      BrowserView::GetBrowserViewForBrowser(browser())
+          ->vertical_tab_strip_region_view_for_testing());
+  ASSERT_TRUE(sidebar);
+  // The sidebar builds the sleep controller and the archiver a few seconds
+  // after the window opens; wait for that, which is when the dump was made.
+  Profile* profile = browser()->GetProfile();
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return aerie_tab_model::SleepControllerFactory::GetForProfileIfExists(
+               profile) &&
+           aerie_tab_model::TabArchiverFactory::GetForProfileIfExists(profile);
+  }));
+  EXPECT_EQ(g_dumps, 0);
+  // The hook is the one that is called: a dump asked for now is counted.
+  EXPECT_TRUE(base::debug::DumpWithoutCrashing());
+  EXPECT_EQ(g_dumps, 1);
 }

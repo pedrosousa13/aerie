@@ -1,4 +1,4 @@
-Aerie-Purpose: Create the per-profile Tab Model service when a profile is created, so it is bound to the tab strips from the first window.
+Aerie-Purpose: Create the per-profile Tab Model, sleep controller and tab archiver services when a profile is created, so they exist before the first window and no factory is made late.
 Aerie-Upstream-Area: chrome/browser/profiles (chrome_browser_main_extra_parts_profiles.cc, BUILD.gn)
 Aerie-Kind: hook
 
