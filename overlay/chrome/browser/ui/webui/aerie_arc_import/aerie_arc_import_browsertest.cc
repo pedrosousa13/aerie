@@ -10,6 +10,12 @@
 
 #include "chrome/browser/ui/webui/aerie_arc_import/aerie_arc_import_handler.h"
 
+#include "build/build_config.h"
+
+#if BUILDFLAG(IS_POSIX)
+#include <sys/stat.h>
+#endif
+
 #include <map>
 #include <memory>
 #include <string>
@@ -153,6 +159,32 @@ class AerieArcImportBrowserTest : public InProcessBrowserTest {
     }
     web_ui_->HandleReceivedMessage(name, list);
     return Await(id);
+  }
+
+  // How many responses (resolve or reject) the page got for `id`.
+  int Responses(const std::string& id) {
+    int count = 0;
+    for (const auto& call : web_ui_->call_data()) {
+      if (call->function_name() == "cr.webUIResponse" && call->arg1() &&
+          call->arg1()->is_string() && call->arg1()->GetString() == id) {
+        ++count;
+      }
+    }
+    return count;
+  }
+  bool Answered(const std::string& id) { return Responses(id) > 0; }
+
+  // The text the page got when it rejected `id`; empty if it did not.
+  std::string Rejection(const std::string& id) {
+    for (const auto& call : web_ui_->call_data()) {
+      if (call->function_name() == "cr.webUIResponse" && call->arg1() &&
+          call->arg1()->is_string() && call->arg1()->GetString() == id &&
+          call->arg2() && call->arg2()->is_bool() && !call->arg2()->GetBool() &&
+          call->arg3() && call->arg3()->is_string()) {
+        return call->arg3()->GetString();
+      }
+    }
+    return std::string();
   }
 
   // Waits for the answer of `id` and returns a copy.
@@ -439,8 +471,84 @@ IN_PROC_BROWSER_TEST_F(AerieArcImportBrowserTest, AFileThatFailsChangesNothing) 
   EXPECT_EQ(*Choose(temp_dir_.GetPath().AppendASCII("none.json"))
                  .FindString("error"),
             "unreadable");
-  EXPECT_EQ(*Choose(temp_dir_.GetPath()).FindString("error"), "unreadable");
+  EXPECT_EQ(*Choose(temp_dir_.GetPath()).FindString("error"), "not_a_file");
   EXPECT_EQ(Take(), before);
+}
+
+#if BUILDFLAG(IS_POSIX)
+// Opening a FIFO for reading waits for a writer. The handler must refuse it
+// by its type before it opens anything: this test finishes only if it does.
+IN_PROC_BROWSER_TEST_F(AerieArcImportBrowserTest, AFifoIsRefusedWithoutBlocking) {
+  const base::FilePath fifo = temp_dir_.GetPath().AppendASCII("pipe.json");
+  ASSERT_EQ(mkfifo(fifo.value().c_str(), 0600), 0);
+  const Snapshot before = Take();
+  base::DictValue answer = Choose(fifo);
+  EXPECT_EQ(*answer.FindString("status"), "error");
+  EXPECT_EQ(*answer.FindString("error"), "not_a_file");
+  EXPECT_EQ(Take(), before);
+}
+#endif
+
+IN_PROC_BROWSER_TEST_F(AerieArcImportBrowserTest, APressWhileTheChooserIsOpenIsRejectedAsBusy) {
+  // First press: the chooser opens.
+  const std::string first = "cb" + std::to_string(++calls_);
+  base::ListValue first_args;
+  first_args.Append(first);
+  web_ui_->HandleReceivedMessage("aerieArcImport.choose", first_args);
+  ASSERT_TRUE(base::test::RunUntil(
+      [&] { return factory_->GetLastDialog() != nullptr; }));
+  ui::FakeSelectFileDialog* dialog = factory_->GetLastDialog();
+
+  // Second press while it is open: rejected at once, and the chooser is the
+  // same one.
+  const std::string second = "cb" + std::to_string(++calls_);
+  base::ListValue second_args;
+  second_args.Append(second);
+  web_ui_->HandleReceivedMessage("aerieArcImport.choose", second_args);
+  EXPECT_EQ(Rejection(second), "busy");
+  EXPECT_EQ(factory_->GetLastDialog(), dialog);
+  EXPECT_FALSE(Answered(first));
+
+  // The answer of the open chooser is the reply to the first press only.
+  ASSERT_TRUE(dialog->CallFileSelected(Fixture("one_space.json"), "json"));
+  base::DictValue answer = Await(first);
+  EXPECT_EQ(*answer.FindString("status"), "ok");
+  EXPECT_EQ(Responses(second), 1);
+  EXPECT_EQ(Responses(first), 1);
+
+  // With the chooser closed, a press works again.
+  EXPECT_EQ(*Choose(Fixture("one_space.json")).FindString("status"), "ok");
+}
+
+IN_PROC_BROWSER_TEST_F(AerieArcImportBrowserTest, EveryMalformedCallWithAnIdIsRejected) {
+  for (const std::vector<base::Value>& extra :
+       {std::vector<base::Value>(), [] {
+          std::vector<base::Value> v;
+          v.emplace_back("not a number");
+          return v;
+        }(), [] {
+          std::vector<base::Value> v;
+          v.emplace_back(0);
+          v.emplace_back(1);
+          return v;
+        }()}) {
+    const std::string id = "cb" + std::to_string(++calls_);
+    base::ListValue list;
+    list.Append(id);
+    for (const base::Value& arg : extra) {
+      list.Append(arg.Clone());
+    }
+    web_ui_->HandleReceivedMessage("aerieArcImport.import", list);
+    EXPECT_EQ(Rejection(id), "bad_argument") << extra.size();
+  }
+  // A choose that carries more than its id is rejected too.
+  const std::string id = "cb" + std::to_string(++calls_);
+  base::ListValue list;
+  list.Append(id);
+  list.Append("extra");
+  web_ui_->HandleReceivedMessage("aerieArcImport.choose", list);
+  EXPECT_EQ(Rejection(id), "bad_argument");
+  EXPECT_EQ(factory_->GetLastDialog(), nullptr);
 }
 
 IN_PROC_BROWSER_TEST_F(AerieArcImportBrowserTest, AFileOver32MiBIsRefused) {

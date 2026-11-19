@@ -14,6 +14,7 @@
 #include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/values.h"
+#include "components/aerie_tab_model/arc_import_json.h"
 #include "components/aerie_tab_model/tab_model_types.h"
 #include "testing/gtest/include/gtest/gtest.h"
 

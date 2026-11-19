@@ -48,6 +48,7 @@ const SKIP_STRINGS: {[reason: string]: string} = {
 const ERROR_STRINGS: {[error: string]: string} = {
   too_large: 'aerieArcImportErrorTooLarge',
   unreadable: 'aerieArcImportErrorUnreadable',
+  not_a_file: 'aerieArcImportErrorNotAFile',
   invalid_json: 'aerieArcImportErrorInvalidJson',
   not_arc: 'aerieArcImportErrorNotArc',
   no_spaces: 'aerieArcImportErrorNoSpaces',

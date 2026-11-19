@@ -15,6 +15,7 @@ source_set("aerie_tab_model") {
     "arc_import_apply.cc",
     "arc_import_apply.h",
     "arc_import_json.cc",
+    "arc_import_json.h",
     "archive.cc",
     "archive.h",
     "archive_schedule.cc",

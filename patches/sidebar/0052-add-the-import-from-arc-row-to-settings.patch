@@ -37,7 +37,7 @@ has the format and the limits.
  components/aerie_design_tokens/aerie_motion_strings.grdp
 --- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
 +++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
-@@ -704,6 +704,44 @@
+@@ -704,6 +704,45 @@
        {"aerieTryResultRule", IDS_SETTINGS_AERIE_TITLE_TRY_RESULT_RULE},
        {"aerieTryResultTidy", IDS_SETTINGS_AERIE_TITLE_TRY_RESULT_TIDY},
        {"aerieTryResultPage", IDS_SETTINGS_AERIE_TITLE_TRY_RESULT_PAGE},
@@ -72,6 +72,7 @@ has the format and the limits.
 +      {"aerieArcImportNoLogins", IDS_SETTINGS_AERIE_ARC_IMPORT_NO_LOGINS},
 +      {"aerieArcImportErrorTooLarge", IDS_SETTINGS_AERIE_ARC_IMPORT_ERROR_TOO_LARGE},
 +      {"aerieArcImportErrorUnreadable", IDS_SETTINGS_AERIE_ARC_IMPORT_ERROR_UNREADABLE},
++      {"aerieArcImportErrorNotAFile", IDS_SETTINGS_AERIE_ARC_IMPORT_ERROR_NOT_A_FILE},
 +      {"aerieArcImportErrorInvalidJson", IDS_SETTINGS_AERIE_ARC_IMPORT_ERROR_INVALID_JSON},
 +      {"aerieArcImportErrorNotArc", IDS_SETTINGS_AERIE_ARC_IMPORT_ERROR_NOT_ARC},
 +      {"aerieArcImportErrorNoSpaces", IDS_SETTINGS_AERIE_ARC_IMPORT_ERROR_NO_SPACES},

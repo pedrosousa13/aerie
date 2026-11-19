@@ -24,7 +24,7 @@
 //     Pinned tree, the Favorites and the custom names to import, and what was
 //     skipped and why.
 //  2. ApplyArcSpacePlan (arc_import_apply.h) writes one plan into a TabModel,
-//     after what the user already has, all or nothing.
+//     after what the user already has; rolled back if a write fails.
 namespace aerie_tab_model {
 
 // The limits of the file (issue #171). The size is checked by the caller, before
@@ -148,11 +148,6 @@ struct ArcParseResult {
 // counted. Fails only when the file has no containers (kNotAnArcSidebar) or no
 // Space (kNoSpaces); then nothing is returned.
 ArcParseResult ParseArcSidebar(const base::Value& root);
-
-// Reads `json` into a Value on a thread that is not the UI thread, with a depth
-// limit, and returns nullopt for anything that is not JSON (arc_import_json.cc;
-// docs/arc-import.md says why this is not the data_decoder service).
-std::optional<base::Value> ParseUntrustedJson(std::string_view json);
 
 // What the page shows for text from the file: control characters removed (a
 // tab, a newline and a carriage return become a space), bidirectional override

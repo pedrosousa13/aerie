@@ -117,8 +117,36 @@ class HandlerTest(unittest.TestCase):
     def test_json_is_read_in_one_place_of_the_import(self):
         reader_files = [p.name for p in COMPONENT.glob("arc_import*.cc") if "JSONReader" in code(p)]
         self.assertEqual(reader_files, ["arc_import_json.cc"])
+        self.assertIn("ParseUntrustedJson", (COMPONENT / "arc_import_json.h").read_text())
+        self.assertNotIn("ParseUntrustedJson", (COMPONENT / "arc_import.h").read_text())
         for path in HANDLER_DIR.glob("*.cc"):
             self.assertNotIn("JSONReader", code(path), path.name)
+
+    def test_a_second_press_is_rejected_and_a_dropped_dialog_is_told_first(self):
+        self.assertIn('base::Value("busy")', self.CC)
+        drop = self.CC[self.CC.index("void AerieArcImportHandler::DropDialog"):]
+        drop = drop[:drop.index("}\n}")]
+        self.assertLess(drop.index("ListenerDestroyed"), drop.index("reset()"))
+        # No place lets go of the dialog by other means.
+        self.assertEqual(self.CC.count("select_file_dialog_.reset()"), 1)
+
+    def test_a_call_with_an_id_and_bad_arguments_is_rejected(self):
+        self.assertGreaterEqual(self.CC.count('base::Value("bad_argument")'), 2)
+
+    def test_the_type_of_the_file_is_checked_before_it_is_opened(self):
+        self.assertLess(self.CC.index("KindOf(path)"), self.CC.index("ReadFileToStringWithMaxSize"))
+        self.assertIn("S_ISREG", self.CC)
+        self.assertIn('"not_a_file"', self.CC)
+
+    def test_errors_are_an_enum_with_one_mapping_to_the_names(self):
+        self.assertIn("enum class LoadError", self.CC)
+        self.assertNotIn("outcome.error = \"", self.CC)
+        self.assertEqual(self.CC.count("const char* LoadErrorName"), 1)
+
+    def test_the_import_says_it_is_rolled_back_not_atomic(self):
+        self.assertNotIn("All or nothing", DOC)
+        self.assertIn("Rolled back on failure", DOC)
+        self.assertIn("no batch or transaction API", DOC)
 
     def test_the_apply_step_writes_only_through_the_tab_model(self):
         source = code(COMPONENT / "arc_import_apply.cc")

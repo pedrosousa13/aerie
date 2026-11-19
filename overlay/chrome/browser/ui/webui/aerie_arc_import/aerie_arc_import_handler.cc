@@ -4,12 +4,18 @@
 
 #include "chrome/browser/ui/webui/aerie_arc_import/aerie_arc_import_handler.h"
 
+#include <memory>
+#include <optional>
+#include <string>
 #include <utility>
 
+#include "base/files/file.h"
+#include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
 #include "base/task/thread_pool.h"
-#include "chrome/grit/generated_resources.h"
+#include "base/values.h"
+#include "build/build_config.h"
 #include "chrome/browser/aerie_tab_model/pinned_tabs_controller.h"
 #include "chrome/browser/aerie_tab_model/tab_model_service.h"
 #include "chrome/browser/aerie_tab_model/tab_model_service_factory.h"
@@ -18,11 +24,19 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/select_file_policy/chrome_select_file_policy.h"
+#include "chrome/grit/generated_resources.h"
+#include "components/aerie_tab_model/arc_import.h"
 #include "components/aerie_tab_model/arc_import_apply.h"
+#include "components/aerie_tab_model/arc_import_json.h"
 #include "components/aerie_tab_model/tab_model.h"
 #include "content/public/browser/web_ui.h"
 #include "ui/base/l10n/l10n_util.h"
+#include "ui/shell_dialogs/select_file_dialog.h"
 #include "ui/shell_dialogs/selected_file_info.h"
+
+#if BUILDFLAG(IS_POSIX)
+#include <sys/stat.h>
+#endif
 
 namespace aerie_arc_import {
 
@@ -32,47 +46,117 @@ using aerie_tab_model::ArcParseError;
 using aerie_tab_model::ArcParseResult;
 using aerie_tab_model::ArcSkipCounts;
 
+// Why a file did not load. kNone: it did.
+enum class LoadError {
+  kNone,
+  kUnreadable,
+  kNotAFile,
+  kTooLarge,
+  kInvalidJson,
+  kNotArc,
+  kNoSpaces,
+};
+
+// The error name the page gets (the "error" of the choose answer).
+const char* LoadErrorName(LoadError error) {
+  switch (error) {
+    case LoadError::kNone:
+      return "";
+    case LoadError::kUnreadable:
+      return "unreadable";
+    case LoadError::kNotAFile:
+      return "not_a_file";
+    case LoadError::kTooLarge:
+      return "too_large";
+    case LoadError::kInvalidJson:
+      return "invalid_json";
+    case LoadError::kNotArc:
+      return "not_arc";
+    case LoadError::kNoSpaces:
+      return "no_spaces";
+  }
+  return "unreadable";
+}
+
+LoadError LoadErrorFor(ArcParseError error) {
+  switch (error) {
+    case ArcParseError::kNoSpaces:
+      return LoadError::kNoSpaces;
+    case ArcParseError::kNotAnArcSidebar:
+      return LoadError::kNotArc;
+  }
+  return LoadError::kNotArc;
+}
+
 // What the thread-pool task found out about the file.
 struct LoadOutcome {
-  // Empty when the file is fine; else the error name of the answer.
-  std::string error;
+  LoadError error = LoadError::kNone;
   ArcParseResult parsed;
 };
+
+// Whether `path` names a regular file (after links). Looks at the type before
+// anything opens the file: opening a FIFO for reading waits for a writer, and
+// a device or a socket is not a file Arc wrote. A file swapped for a FIFO
+// between this check and the open is not covered; the page cannot do that.
+enum class FileKind { kMissing, kRegular, kOther };
+FileKind KindOf(const base::FilePath& path) {
+#if BUILDFLAG(IS_POSIX)
+  base::stat_wrapper_t info;
+  if (base::File::Stat(path, &info) != 0) {
+    return FileKind::kMissing;
+  }
+  return S_ISREG(info.st_mode) ? FileKind::kRegular : FileKind::kOther;
+#else
+  base::File::Info info;
+  if (!base::GetFileInfo(path, &info)) {
+    return FileKind::kMissing;
+  }
+  return info.is_directory ? FileKind::kOther : FileKind::kRegular;
+#endif
+}
 
 // Runs on a thread-pool sequence, never on the UI thread. The size is known
 // before a byte is read, and the read is capped again in case the file grew.
 LoadOutcome ReadAndParse(const base::FilePath& path) {
   LoadOutcome outcome;
+  switch (KindOf(path)) {
+    case FileKind::kMissing:
+      outcome.error = LoadError::kUnreadable;
+      return outcome;
+    case FileKind::kOther:
+      outcome.error = LoadError::kNotAFile;
+      return outcome;
+    case FileKind::kRegular:
+      break;
+  }
   base::File::Info file_info;
-  if (!base::GetFileInfo(path, &file_info) || file_info.is_directory) {
-    outcome.error = "unreadable";
+  if (!base::GetFileInfo(path, &file_info)) {
+    outcome.error = LoadError::kUnreadable;
     return outcome;
   }
   if (file_info.size < 0 ||
       static_cast<uint64_t>(file_info.size) > aerie_tab_model::kArcMaxFileBytes) {
-    outcome.error = "too_large";
+    outcome.error = LoadError::kTooLarge;
     return outcome;
   }
   std::string contents;
   if (!base::ReadFileToStringWithMaxSize(path, &contents,
                                          aerie_tab_model::kArcMaxFileBytes)) {
     outcome.error = contents.size() >= aerie_tab_model::kArcMaxFileBytes
-                        ? "too_large"
-                        : "unreadable";
+                        ? LoadError::kTooLarge
+                        : LoadError::kUnreadable;
     return outcome;
   }
   std::optional<base::Value> value =
       aerie_tab_model::ParseUntrustedJson(contents);
   contents.clear();
   if (!value) {
-    outcome.error = "invalid_json";
+    outcome.error = LoadError::kInvalidJson;
     return outcome;
   }
   outcome.parsed = aerie_tab_model::ParseArcSidebar(*value);
   if (outcome.parsed.error) {
-    outcome.error = *outcome.parsed.error == ArcParseError::kNoSpaces
-                        ? "no_spaces"
-                        : "not_arc";
+    outcome.error = LoadErrorFor(*outcome.parsed.error);
   }
   return outcome;
 }
@@ -110,8 +194,14 @@ AerieArcImportHandler::AerieArcImportHandler(Profile* profile)
     : profile_(profile) {}
 
 AerieArcImportHandler::~AerieArcImportHandler() {
+  DropDialog();
+}
+
+void AerieArcImportHandler::DropDialog() {
   if (select_file_dialog_) {
+    // The dialog must not call this handler again.
     select_file_dialog_->ListenerDestroyed();
+    select_file_dialog_.reset();
   }
 }
 
@@ -132,6 +222,7 @@ void AerieArcImportHandler::RegisterMessages() {
 
 void AerieArcImportHandler::OnJavascriptDisallowed() {
   weak_factory_.InvalidateWeakPtrs();
+  DropDialog();
   choose_callback_id_.reset();
   parsed_.reset();
 }
@@ -148,12 +239,20 @@ void AerieArcImportHandler::Finish(base::DictValue answer) {
 
 void AerieArcImportHandler::HandleChoose(const base::ListValue& args) {
   if (args.empty() || !args[0].is_string()) {
+    // No callback id: there is no promise to reject.
     return;
   }
+  const base::Value callback_id(args[0].GetString());
   AllowJavascript();
+  if (args.size() != 1) {
+    RejectJavascriptCallback(callback_id, base::Value("bad_argument"));
+    return;
+  }
   if (choose_callback_id_) {
-    // A second press while the chooser is open: the first one is over.
-    Finish(Status("cancelled"));
+    // The chooser is open, or its file is being read: that press is not over.
+    // The second one is turned away, and the first one keeps its dialog.
+    RejectJavascriptCallback(callback_id, base::Value("busy"));
+    return;
   }
   choose_callback_id_ = args[0].GetString();
   parsed_.reset();
@@ -165,6 +264,7 @@ void AerieArcImportHandler::HandleChoose(const base::ListValue& args) {
     Finish(Status("error", "unreadable"));
     return;
   }
+  DropDialog();
   select_file_dialog_ = ui::SelectFileDialog::Create(
       this,
       std::make_unique<ChromeSelectFilePolicy>(web_ui()->GetWebContents()));
@@ -180,13 +280,13 @@ void AerieArcImportHandler::HandleChoose(const base::ListValue& args) {
 }
 
 void AerieArcImportHandler::FileSelectionCanceled() {
-  select_file_dialog_.reset();
+  DropDialog();
   Finish(Status("cancelled"));
 }
 
 void AerieArcImportHandler::FileSelected(const ui::SelectedFileInfo& file,
                                          int index) {
-  select_file_dialog_.reset();
+  DropDialog();
   base::ThreadPool::PostTaskAndReplyWithResult(
       FROM_HERE,
       {base::MayBlock(), base::TaskPriority::USER_VISIBLE,
@@ -203,8 +303,8 @@ void AerieArcImportHandler::FileSelected(const ui::SelectedFileInfo& file,
 }
 
 void AerieArcImportHandler::OnLoaded(std::unique_ptr<Loaded> loaded) {
-  if (!loaded->outcome.error.empty()) {
-    Finish(Status("error", loaded->outcome.error.c_str()));
+  if (loaded->outcome.error != LoadError::kNone) {
+    Finish(Status("error", LoadErrorName(loaded->outcome.error)));
     return;
   }
   parsed_ = std::move(loaded->outcome.parsed);
@@ -228,12 +328,13 @@ void AerieArcImportHandler::OnLoaded(std::unique_ptr<Loaded> loaded) {
 }
 
 void AerieArcImportHandler::HandleImport(const base::ListValue& args) {
-  if (args.size() != 2 || !args[0].is_string()) {
+  if (args.empty() || !args[0].is_string()) {
+    // No callback id: there is no promise to reject.
     return;
   }
   const base::Value callback_id(args[0].GetString());
   AllowJavascript();
-  if (!args[1].is_int()) {
+  if (args.size() != 2 || !args[1].is_int()) {
     RejectJavascriptCallback(callback_id, base::Value("bad_argument"));
     return;
   }
@@ -282,7 +383,9 @@ void AerieArcImportHandler::HandleImport(const base::ListValue& args) {
   ResolveJavascriptCallback(callback_id, base::Value(std::move(answer)));
 }
 
-void AerieArcImportHandler::HandleReset(const base::ListValue& args) {
+// A message with no promise: nothing to resolve or reject, and its arguments
+// are not read.
+void AerieArcImportHandler::HandleReset(const base::ListValue&) {
   parsed_.reset();
 }
 

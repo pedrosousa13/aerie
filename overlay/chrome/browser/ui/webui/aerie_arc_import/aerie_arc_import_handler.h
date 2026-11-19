@@ -28,8 +28,8 @@ namespace aerie_arc_import {
 //   aerieArcImport.choose
 //     Opens the system file chooser on a .json file. The answer is
 //       {status: "cancelled"}
-//       {status: "error", error: "too_large" | "unreadable" | "invalid_json" |
-//                                "not_arc" | "no_spaces"}
+//       {status: "error", error: "too_large" | "unreadable" | "not_a_file" |
+//                                "invalid_json" | "not_arc" | "no_spaces"}
 //       {status: "ok", spaces: [{index, name, icon, pinnedTabs, folders,
 //                                favorites, customNames}], skipped: [{reason,
 //                                count}]}
@@ -38,9 +38,13 @@ namespace aerie_arc_import {
 //     The file is refused before it is read when it is over 32 MiB. It is read and
 //     parsed on a thread-pool sequence, and nothing is written to the profile.
 //
+//   A second choose while the chooser is open (or its file is being read) is
+//   rejected with "busy"; a message with a callback id and the wrong arguments
+//   is rejected with "bad_argument".
+//
 //   aerieArcImport.import(index)
 //     Imports the Space `index` of the last chosen file into the current
-//     Workspace, all or nothing, and makes the unloaded tabs. The answer is
+//     Workspace (rolled back if a write fails), and makes the unloaded tabs. The answer is
 //       {status: "error", error: "no_file" | "not_ready" | "apply_failed"}
 //       {status: "ok", pinnedTabs, folders, favorites, customNames,
 //        skipped: [{reason, count}]}
@@ -82,6 +86,8 @@ class AerieArcImportHandler : public content::WebUIMessageHandler,
   void HandleReset(const base::ListValue& args);
   void OnLoaded(std::unique_ptr<Loaded> loaded);
   void Finish(base::DictValue answer);
+  // Lets go of the file chooser, and tells it first that nobody listens.
+  void DropDialog();
 
   const raw_ptr<Profile> profile_;
   scoped_refptr<ui::SelectFileDialog> select_file_dialog_;

@@ -18,7 +18,7 @@ struct ArcApplyOptions {
   // The name of a folder that Arc left without one (a translated string).
   std::string untitled_folder_name = "Folder";
   // Test seam: the write of record number N (counting from 0) fails, so a test
-  // can check that the import is all or nothing. -1: never.
+  // can check that a failed import is rolled back. -1: never.
   int fail_at_record_for_testing = -1;
 };
 
@@ -43,8 +43,13 @@ struct ArcImportCounts {
 // moved. A tab is a record with a pinned URL, `sleeping` set and no page: the
 // caller makes the unloaded Chromium tabs (PinnedTabsController).
 //
-// All or nothing: if a write fails, every record this call added is removed
-// again, and the result is nullopt.
+// If a write fails, every record this call added is removed again (rolled back
+// in memory), and the result is nullopt. The Tab Model has no transaction API
+// and this adds none. What reaches the disk is one atomic write after the call
+// returns: TabModelPersistence::OnModelChanged only schedules a write, and the
+// writer batches a burst of changes into one (tab_model_persistence.h:60-61,
+// tab_model_persistence.cc:120-124). A crash during the apply therefore leaves
+// the file as it was before; it does not leave half of the import.
 std::optional<ArcImportCounts> ApplyArcSpacePlan(
     TabModel& model,
     const ArcSpacePlan& plan,

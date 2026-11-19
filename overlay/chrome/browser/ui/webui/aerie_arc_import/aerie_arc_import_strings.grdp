@@ -99,6 +99,9 @@
   <message name="IDS_SETTINGS_AERIE_ARC_IMPORT_ERROR_UNREADABLE" desc="Error of the Arc import: the chosen file could not be read.">
     Aerie could not read that file.
   </message>
+  <message name="IDS_SETTINGS_AERIE_ARC_IMPORT_ERROR_NOT_A_FILE" desc="Error of the Arc import: the chosen item is not a regular file (a folder, a pipe or a device).">
+    That is not a file Aerie can read. Choose the StorableSidebar.json file.
+  </message>
   <message name="IDS_SETTINGS_AERIE_ARC_IMPORT_ERROR_INVALID_JSON" desc="Error of the Arc import: the chosen file is not JSON.">
     That file is not valid JSON, so it is not an Arc sidebar.
   </message>
