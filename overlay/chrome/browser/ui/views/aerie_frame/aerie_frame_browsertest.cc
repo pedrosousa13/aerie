@@ -29,7 +29,9 @@
 #include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/views/aerie_frame/frame_tint_enabled.h"
 #include "chrome/browser/ui/views/aerie_frame/frame_tint_view.h"
+#include "chrome/browser/ui/views/frame/browser_frame_view.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
+#include "chrome/browser/ui/views/frame/browser_widget.h"
 #include "chrome/browser/ui/views/frame/contents_container_view.h"
 #include "chrome/browser/ui/views/frame/multi_contents_view.h"
 #include "chrome/browser/ui/views/frame/top_container_view.h"
@@ -99,6 +101,10 @@ class AerieFrameBrowserTest : public InProcessBrowserTest {
     return BrowserView::GetBrowserViewForBrowser(browser());
   }
   BrowserWindow* window() { return browser_view(); }
+  // The corners the frame view draws for the window now.
+  gfx::RoundedCornersF BrowserFrameCorners() {
+    return browser_view()->browser_widget()->GetFrameView()->GetWindowRoundedCorners();
+  }
   FrameTintView* tint() { return browser_view()->frame_tint_view_for_testing(); }
   PrefService* prefs() { return browser()->GetProfile()->GetPrefs(); }
   aerie_tab_model::TabModel* model() {
@@ -472,6 +478,92 @@ IN_PROC_BROWSER_TEST_F(AerieFrameBrowserTest, AFullscreenWindowStillHasTheTintAt
   chrome::ToggleFullscreenMode(browser());
   ASSERT_TRUE(WaitFor([&] { return !window()->IsFullscreen(); }));
   EXPECT_EQ(tint()->bounds(), browser_view()->GetLocalBounds());
+}
+
+// --- The window's own corners (issue #249) ---------------------------------
+
+// The frame view draws the window's rounded top corners (the OS radius under
+// client-side decorations) and relies on the client area leaving them
+// transparent. The tint is the lowest, opaque layer of the client area, so it
+// has to follow the same corners. The headless test window has no compositing
+// and so no radius of its own: SetWindowCornersForTesting() stands in for the
+// OS radius, and the first test checks the real wiring to the frame view.
+constexpr float kOsRadius = 12.f;
+
+IN_PROC_BROWSER_TEST_F(AerieFrameBrowserTest, TheTintAsksTheFrameViewForTheWindowCorners) {
+  ASSERT_TRUE(tint());
+  ASSERT_TRUE(WaitFor([&] { return tint()->paint_count() >= 1; }));
+  EXPECT_EQ(tint()->inputs_for_testing().window_corners, BrowserFrameCorners());
+  window()->Maximize();
+  ASSERT_TRUE(WaitFor([&] { return window()->IsMaximized(); }));
+  ASSERT_TRUE(WaitFor([&] {
+    return tint()->inputs_for_testing().window_corners == BrowserFrameCorners();
+  }));
+  EXPECT_EQ(BrowserFrameCorners(), gfx::RoundedCornersF());
+}
+
+IN_PROC_BROWSER_TEST_F(AerieFrameBrowserTest, TheTintLeavesTheRoundedTopCornersOfARestoredWindowTransparent) {
+  ASSERT_TRUE(tint());
+  tint()->SetWindowCornersForTesting(
+      gfx::RoundedCornersF(kOsRadius, kOsRadius, 0, 0));
+  ASSERT_TRUE(WaitFor([&] { return tint()->paint_count() >= 1; }));
+
+  SkBitmap bitmap;
+  tint()->PaintToBitmapForTesting(&bitmap);
+  const int w = bitmap.width();
+  const int h = bitmap.height();
+  EXPECT_EQ(SkColorGetA(bitmap.getColor(0, 0)), 0u) << "top left is square";
+  EXPECT_EQ(SkColorGetA(bitmap.getColor(w - 1, 0)), 0u) << "top right is square";
+  const int inset = static_cast<int>(kOsRadius);
+  EXPECT_EQ(SkColorGetA(bitmap.getColor(inset, inset)), 255u);
+  EXPECT_EQ(SkColorGetA(bitmap.getColor(w / 2, 0)), 255u);
+  EXPECT_EQ(SkColorGetA(bitmap.getColor(0, h - 1)), 255u);
+  EXPECT_EQ(SkColorGetA(bitmap.getColor(w - 1, h - 1)), 255u);
+  // The layer does not claim to be opaque where it is not.
+  EXPECT_FALSE(tint()->layer()->fills_bounds_opaquely());
+}
+
+IN_PROC_BROWSER_TEST_F(AerieFrameBrowserTest, TheTintIsSquareWhenTheWindowIsMaximizedOrTiled) {
+  ASSERT_TRUE(tint());
+  // Rounded, as a restored window under client-side decorations is.
+  tint()->SetWindowCornersForTesting(
+      gfx::RoundedCornersF(kOsRadius, kOsRadius, 0, 0));
+  EXPECT_FALSE(tint()->layer()->fills_bounds_opaquely());
+  // Maximised or tiled: the frame view reports no corners.
+  tint()->SetWindowCornersForTesting(gfx::RoundedCornersF());
+  EXPECT_TRUE(tint()->layer()->fills_bounds_opaquely());
+  SkBitmap bitmap;
+  tint()->PaintToBitmapForTesting(&bitmap);
+  EXPECT_EQ(SkColorGetA(bitmap.getColor(0, 0)), 255u);
+  EXPECT_EQ(SkColorGetA(bitmap.getColor(bitmap.width() - 1, 0)), 255u);
+}
+
+// Nothing else drawn in the window's top corners is square either: the
+// sidebar column and the top row are drawn by Helium's CustomCornersBackground,
+// which reads the same GetWindowRoundedCorners(), and the page card is inset
+// from the corners by the frame gutter.
+IN_PROC_BROWSER_TEST_F(AerieFrameBrowserTest, ThePageCardIsInsideTheWindowsTopCorners) {
+  ASSERT_TRUE(tint());
+  ASSERT_TRUE(WaitFor([&] { return !tint()->inputs_for_testing().card.IsEmpty(); }));
+  const gfx::Rect card = tint()->inputs_for_testing().card;
+  const int width = tint()->size().width();
+  const float card_radius = aerie::tokens::kRadiusXl;
+  // Where the card's rounded corner is at 45 degrees, as a distance from the
+  // window's corner along each axis. The card's arc has to be inside the
+  // window's own arc.
+  const float card_offset = card_radius * (1 - 0.70710678f);
+  const float top = card.y() + card_offset;
+  const float left = card.x() + card_offset;
+  const float right = (width - card.right()) + card_offset;
+  auto inside_window_arc = [&](float dx, float dy) {
+    if (dx >= kOsRadius || dy >= kOsRadius) {
+      return true;  // Outside the square the window's corner cuts.
+    }
+    const float ux = kOsRadius - dx, uy = kOsRadius - dy;
+    return ux * ux + uy * uy <= kOsRadius * kOsRadius;
+  };
+  EXPECT_TRUE(inside_window_arc(left, top));
+  EXPECT_TRUE(inside_window_arc(right, top));
 }
 
 // --- Helium's own radius outside the Aerie layout (issue #178) -------------

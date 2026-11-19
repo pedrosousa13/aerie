@@ -56,6 +56,7 @@ source_set("aerie_frame") {
   deps = [
     "//chrome/browser/aerie_tab_model",
     "//chrome/browser/profiles:profile",
+    "//chrome/browser/ui/views/frame:browser_frame_view",
     "//chrome/common:constants",
     "//skia",
     "//ui/compositor",
@@ -79,7 +80,9 @@ source_set("browser_tests") {
     "//chrome/browser/profiles:profile",
     "//chrome/browser/ui:browser_window_header",
     "//chrome/browser/ui/views/frame",
+    "//chrome/browser/ui/views/frame:browser_frame_view",
     "//chrome/browser/ui/views/frame:browser_view_header",
+    "//chrome/browser/ui/views/frame:browser_widget",
     "//chrome/browser/ui/views/frame:top_container_view",
     "//chrome/browser/ui/views/helium:frame_corner_radius",
     "//chrome/browser/ui/views/helium:native_frame_materials",

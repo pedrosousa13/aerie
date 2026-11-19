@@ -11,6 +11,8 @@
 #include "cc/paint/paint_flags.h"
 #include "cc/paint/paint_shader.h"
 #include "third_party/skia/include/core/SkMatrix.h"
+#include "third_party/skia/include/core/SkPath.h"
+#include "third_party/skia/include/core/SkRRect.h"
 #include "third_party/skia/include/effects/SkGradient.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/geometry/insets.h"
@@ -168,7 +170,21 @@ void PaintFrame(gfx::Canvas* canvas,
                 const FramePalette& palette,
                 const gfx::Size& size,
                 bool sidebar_on_right,
-                const gfx::Rect& card) {
+                const gfx::Rect& card,
+                const gfx::RoundedCornersF& window_corners) {
+  canvas->Save();
+  if (window_corners != gfx::RoundedCornersF()) {
+    // Issue #249: stay inside the window's rounded corners, so the opaque frame
+    // does not paint a square corner over the OS-shaped one.
+    const SkVector radii[4] = {
+        {window_corners.upper_left(), window_corners.upper_left()},
+        {window_corners.upper_right(), window_corners.upper_right()},
+        {window_corners.lower_right(), window_corners.lower_right()},
+        {window_corners.lower_left(), window_corners.lower_left()}};
+    SkRRect window;
+    window.setRectRadii(SkRect::MakeWH(size.width(), size.height()), radii);
+    canvas->ClipPath(SkPath::RRect(window), /*do_anti_alias=*/true);
+  }
   // The strip spans the sidebar column: from the window's edge to the card.
   int strip_width = aerie::tokens::kSizeSidebarWidth;
   if (!card.IsEmpty()) {
@@ -185,6 +201,7 @@ void PaintFrame(gfx::Canvas* canvas,
   PaintStrip(canvas, palette, strip_width);
   canvas->Restore();
   PaintCard(canvas, palette, card);
+  canvas->Restore();
 }
 
 FramePalette PaletteOf(const FrameTintInputs& inputs) {

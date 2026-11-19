@@ -11,6 +11,7 @@
 #include "chrome/browser/aerie_tab_model/tab_model_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/views/aerie_look/aerie_look.h"
+#include "chrome/browser/ui/views/frame/browser_frame_view.h"
 #include "chrome/common/pref_names.h"
 #include "components/aerie_frame/aerie_frame_palette.h"
 #include "components/prefs/pref_service.h"
@@ -21,6 +22,7 @@
 #include "ui/gfx/canvas.h"
 #include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/widget/widget.h"
+#include "ui/views/window/non_client_view.h"
 
 FrameTintView::FrameTintView(Profile* profile) : profile_(profile) {
   // Its own opaque layer, made with the window: the tint is not created later
@@ -77,15 +79,50 @@ aerie_frame::FrameTintInputs FrameTintView::CurrentInputs() const {
     inputs.card =
         views::View::ConvertRectToTarget(card_->parent(), this, card_->bounds());
   }
+  inputs.window_corners = WindowCorners();
   inputs.sidebar_on_right =
       profile_->GetPrefs()->GetBoolean(prefs::kHeliumVerticalRightAligned);
   return inputs;
 }
 
+void FrameTintView::SetWindowCornersForTesting(
+    std::optional<gfx::RoundedCornersF> corners) {
+  window_corners_for_testing_ = corners;
+  Refresh();
+}
+
+gfx::RoundedCornersF FrameTintView::WindowCorners() const {
+  if (window_corners_for_testing_) {
+    return *window_corners_for_testing_;
+  }
+  // The corners the frame view draws for the window now: the OS radius while
+  // the window is restored, none when it is maximised, fullscreen or tiled.
+  // The same call Helium's own window-edge fills read (issue #249).
+  if (const views::Widget* widget = GetWidget(); widget && widget->non_client_view()) {
+    if (const auto* frame_view = static_cast<const BrowserFrameView*>(
+            widget->non_client_view()->frame_view())) {
+      return frame_view->GetWindowRoundedCorners();
+    }
+  }
+  return gfx::RoundedCornersF();
+}
+
 void FrameTintView::Refresh() {
   if (state_.Update(CurrentInputs())) {
+    // Opaque only while the corners are square: a rounded window leaves them
+    // transparent.
+    layer()->SetFillsBoundsOpaquely(state_.inputs().window_corners ==
+                                    gfx::RoundedCornersF());
     SchedulePaint();
   }
+}
+
+void FrameTintView::OnWidgetShowStateChanged(views::Widget*) {
+  Refresh();
+}
+
+void FrameTintView::OnWidgetBoundsChanged(views::Widget*, const gfx::Rect&) {
+  Refresh();
 }
 
 void FrameTintView::OnPaint(gfx::Canvas* canvas) {
@@ -95,14 +132,15 @@ void FrameTintView::OnPaint(gfx::Canvas* canvas) {
   state_.RecordPaint();
   const aerie_frame::FrameTintInputs& in = state_.inputs();
   aerie_frame::PaintFrame(canvas, aerie_frame::PaletteOf(in), size(),
-                          in.sidebar_on_right, in.card);
+                          in.sidebar_on_right, in.card, in.window_corners);
 }
 
 void FrameTintView::PaintToBitmapForTesting(SkBitmap* bitmap) const {
   const aerie_frame::FrameTintInputs in = CurrentInputs();
-  gfx::Canvas canvas(size(), 1.0f, /*is_opaque=*/true);
+  gfx::Canvas canvas(size(), 1.0f,
+                     /*is_opaque=*/in.window_corners == gfx::RoundedCornersF());
   aerie_frame::PaintFrame(&canvas, aerie_frame::PaletteOf(in), size(),
-                          in.sidebar_on_right, in.card);
+                          in.sidebar_on_right, in.card, in.window_corners);
   *bitmap = canvas.GetBitmap();
 }
 
@@ -114,10 +152,13 @@ void FrameTintView::OnThemeChanged() {
 
 void FrameTintView::AddedToWidget() {
   views::View::AddedToWidget();
+  widget_observation_.Observe(GetWidget());
+  Refresh();
   look_controller_->OnAddedToWidget();
 }
 
 void FrameTintView::RemovedFromWidget() {
+  widget_observation_.Reset();
   look_controller_->OnRemovedFromWidget();
   views::View::RemovedFromWidget();
 }
