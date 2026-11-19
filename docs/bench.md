@@ -385,7 +385,7 @@ metric that the baseline has and the run does not is `missing` and fails. Record
 ./aerie bench --check sidebar_frames --sidebar-frames-baseline /mnt/linux2/aerie-perf/sidebar-frames-main.json
 ```
 
-`sidebar_frames` runs by hand (`./aerie bench --check sidebar_frames`) until its p95 goal is met (split from #237). Neither the nightly nor the
+`sidebar_frames` runs by hand (`./aerie bench --check sidebar_frames`) until its p95 goal is met (#245). Neither the nightly nor the
 PR gate runs it, and nothing passes `--sidebar-frames-baseline` or `--sidebar-frames-record`: the comparison is manual until
 then. After that it joins the nightly (docs/ci.md), which records its baseline. It needs a private Xvfb and about two minutes,
 and today it fails (the p95 of the first frames and the drag; see the numbers; the hide slides since #237).
@@ -444,22 +444,14 @@ animation. Compare p95 of these animations only over more repeats.
 
 **The acceptance criteria are still not met on this build.** The check fails on the p95 of five animations (show,
 hide, resize, reduced show, reduced hide: 16.9 to 19.2 ms). No animation drops a frame. The p95 goal of 16.7 ms is not met
-and is not claimed; it is tracked in its own issue, split from #237. Main fails the same check (and also drops 50 and 30 vsyncs in the hides).
+and is not claimed: it is #245, which also holds the post-mortem of the `AerieFrameStart` try and the open questions.
+Main fails the same check (and also drops 50 and 30 vsyncs in the hides).
 
-- **The hide slides now.** Patch `sidebar/0033` left the hiding column in a zero-width region, so nothing of the slide
-  reached the screen. The column now floats over the room the page takes: the hide has 65 frames and no dropped frame
-  (before: 5 frames, 50 dropped), on layers only. Reduced hide: 48 frames, 0 dropped (before: 5 and 30).
-- **The p95 limit is not met.** An animation has 9 to 18 frames, and the one or two frames at its start take 17 to
-  19 ms from begin-frame to screen, so they decide the p95. A try to start the work at the next begin-frame
-  (`AerieFrameStart`) moved the layout out of a frame that began before the input, but the next frame still took 17 to 18
-  ms (its draw took 1 to 2 ms, and the first large damage of the slide was on screen a vsync later: software
-  presentation under Xvfb). It made the p95 of the reduced folder animations and the show worse and dropped 11 vsyncs in
-  the drag, so it was taken out again. The limit is not changed. Open: pre-rasterised layers, or a GPU-less
-  presentation that does not wait a vsync for large damage.
-- **The drag drops no vsync in this run** (the #237 text says about 6 at its start; the runs on main and on the branch
-  gave 0 to 6). Its p95 is 19.2 ms, p50 18 ms, because the card and the page lay out for every pointer move. That is by
-  design: the user drives the width. The drag is not in the "Done when" list of #237 (show, hide and folder expand).
-- **The control fails as it must**, for p95 and dropped frames.
+- **The hide slides now (#237).** The hiding column floats over the room the page takes, so its region keeps real bounds
+  for the whole slide: the hide has 65 frames and no dropped frame (before: 5 frames, 50 dropped), on layers only.
+  Reduced hide: 48 frames, 0 dropped (before: 5 and 30).
+- **The control fails as it must**, for p95 and dropped frames (the judge's own two reasons; "not measured" would be a
+  separate harness failure): 12 of 12 vsyncs missed in every expand of the 300-tab folder (60 of 60 over the 5 repeats), 5 frames of about 674 ms, p95 677 ms (the run of 2026-11-19 on this branch; earlier runs had 11 to 13 frames of about 660 ms, p95 672 ms).
 
 ## Checks
 
