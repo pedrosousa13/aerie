@@ -88,6 +88,8 @@
 #include "ui/base/window_open_disposition.h"
 #include "ui/color/color_provider_key.h"
 #include "ui/compositor/layer.h"
+#include "ui/compositor/layer_animation_observer.h"
+#include "ui/compositor/layer_animator.h"
 #include "ui/gfx/geometry/insets.h"
 #include "ui/native_theme/native_theme.h"
 #include "ui/views/accessibility/view_accessibility.h"
@@ -298,6 +300,55 @@ class AerieSidebarView::SectionNotifier
 
  private:
   const raw_ptr<AerieSidebarView> view_;
+};
+
+// Tells the view when the region's layer starts and stops animating. The slide
+// of a show, of a hide and of a peek is one animation of that layer, and the
+// opaque card and the rows are under it: they move and fade as one only if the
+// card is there for the whole of it (issue #248).
+class AerieSidebarView::SlideObserver : public ui::LayerAnimationObserver {
+ public:
+  explicit SlideObserver(AerieSidebarView* view) : view_(view) {}
+  ~SlideObserver() override { Reset(); }
+
+  void Observe(ui::Layer* layer) {
+    Reset();
+    if (!layer) {
+      return;
+    }
+    animator_ = layer->GetAnimator();
+    animator_->AddObserver(this);
+  }
+  void Reset() {
+    if (animator_) {
+      // Leaving the animator tells this observer about each sequence it drops;
+      // the view is on its way out or does not need to hear it.
+      quiet_ = true;
+      animator_->RemoveObserver(this);
+      animator_.reset();
+      quiet_ = false;
+    }
+  }
+  bool sliding() const { return !attached_sequences().empty(); }
+
+ private:
+  void OnLayerAnimationEnded(ui::LayerAnimationSequence*) override {}
+  void OnLayerAnimationAborted(ui::LayerAnimationSequence*) override {}
+  void OnLayerAnimationScheduled(ui::LayerAnimationSequence*) override {}
+  void OnAttachedToSequence(ui::LayerAnimationSequence*) override {
+    if (!quiet_) {
+      view_->UpdatePeekSurface(/*immediate=*/true);
+    }
+  }
+  void OnDetachedFromSequence(ui::LayerAnimationSequence*) override {
+    if (!quiet_) {
+      view_->UpdatePeekSurface();
+    }
+  }
+
+  raw_ptr<AerieSidebarView> view_;
+  bool quiet_ = false;
+  scoped_refptr<ui::LayerAnimator> animator_;
 };
 
 AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
@@ -718,6 +769,10 @@ void AerieSidebarView::AddedToWidget() {
   // AerieSidebarView -> the content area of the region -> the region.
   if (parent() && parent()->parent()) {
     region_observation_.Observe(parent()->parent());
+    if (!slide_observer_) {
+      slide_observer_ = std::make_unique<SlideObserver>(this);
+    }
+    slide_observer_->Observe(parent()->parent()->layer());
   }
   UpdatePeekSurface();
   OnLayoutPrefsChanged();
@@ -725,6 +780,9 @@ void AerieSidebarView::AddedToWidget() {
 
 void AerieSidebarView::RemovedFromWidget() {
   region_observation_.Reset();
+  if (slide_observer_) {
+    slide_observer_->Reset();
+  }
   if (peek_) {
     peek_->SetActive(false);
   }
@@ -744,6 +802,10 @@ void AerieSidebarView::OnLayoutPrefsChanged() {
   UpdatePeekSurface();
 }
 
+bool AerieSidebarView::RegionSlides() const {
+  return slide_observer_ && slide_observer_->sliding();
+}
+
 bool AerieSidebarView::RegionFloats() const {
   const views::View* region = region_observation_.GetSource();
   return region && region->GetProperty(aerie_sidebar::kFloatingWidth) > 0;
@@ -760,6 +822,9 @@ void AerieSidebarView::OnViewPropertyChanged(
 
 void AerieSidebarView::OnViewIsDeleting(views::View* observed_view) {
   region_observation_.Reset();
+  if (slide_observer_) {
+    slide_observer_->Reset();
+  }
 }
 
 void AerieSidebarView::AddPeekSurface() {
@@ -776,9 +841,13 @@ void AerieSidebarView::AddPeekSurface() {
 void AerieSidebarView::UpdatePeekSurface(bool immediate) {
   // A peek floats the column, and so does a hide while it slides out: both set
   // the region's kFloatingWidth, and both need the opaque card under the rows.
+  // A show does not float (the layout gives the column its room at once), but
+  // the frame behind it is already at its final place: without the card the
+  // rows would slide over it on a clock of their own (issue #248). So the card
+  // is there whenever the region's layer is animating.
   const bool floating =
       (peek_ && peek_->active() && aerie_sidebar::IsAutoHidden(*profile_prefs())) ||
-      RegionFloats();
+      RegionFloats() || RegionSlides();
   // The card is a sibling under this view, in the column that holds it: a child
   // layer would paint over the rows that have no layer of their own, and the
   // shadow has to fall outside this view's bounds. This view paints to a layer

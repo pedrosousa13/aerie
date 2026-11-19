@@ -58,6 +58,9 @@
 #include "ui/compositor/layer_animator.h"
 #include "ui/compositor/test/layer_animator_test_controller.h"
 #include "ui/gfx/animation/animation_test_api.h"
+#include "base/run_loop.h"
+#include "base/task/single_thread_task_runner.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_peek_surface.h"
 #include "ui/views/view.h"
 #include "ui/views/view_observer.h"
 #include "ui/views/view_utils.h"
@@ -979,3 +982,154 @@ INSTANTIATE_TEST_SUITE_P(
     [](const testing::TestParamInfo<ReduceVia>& info) {
       return info.param == ReduceVia::kOsFlag ? "OsFlag" : "Pref";
     });
+
+// The card and the rows move as one (issue #248). A show or a hide has one
+// layer, the region's, that carries the slide or the fade; the opaque card and
+// the rows are under it and do not animate on their own. The test reads where
+// each is on screen (bounds in screen coordinates, with the layer transforms
+// applied) and its effective opacity at several moments of the slide: the
+// offset between the card and a row never changes, and their opacities are
+// equal. A show used to have no card at all: the column's tint was the window
+// frame, already at its final place, and only the rows slid over it.
+namespace {
+
+float EffectiveOpacity(const views::View* view) {
+  for (const views::View* v = view; v; v = v->parent()) {
+    if (v->layer()) {
+      return v->layer()->GetCombinedOpacity();
+    }
+  }
+  return 1.f;
+}
+
+struct SlideSample {
+  bool card_visible;
+  int card_x;
+  int row_x;
+  int sidebar_x;
+  float card_opacity;
+  float row_opacity;
+  float region_opacity;
+  int region_tx;
+};
+
+}  // namespace
+
+class AerieSidebarStepUiTest : public AerieSidebarMotionUiTest {
+ protected:
+  void Wait(base::TimeDelta delay) {
+    base::RunLoop loop;
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+        FROM_HERE, loop.QuitClosure(), delay);
+    loop.Run();
+  }
+
+  SlideSample Sample() {
+    const views::View* card = sidebar()->peek_surface_for_testing();
+    SlideSample s{};
+    s.card_visible = card && card->GetVisible();
+    s.card_x = card ? card->GetBoundsInScreen().x() : 0;
+    s.card_opacity = card ? EffectiveOpacity(card) : -1.f;
+    s.row_x = sidebar()->row_at(0)->GetBoundsInScreen().x();
+    s.row_opacity = EffectiveOpacity(sidebar()->row_at(0));
+    s.sidebar_x = sidebar()->GetBoundsInScreen().x();
+    s.region_opacity = region()->layer()->opacity();
+    s.region_tx = static_cast<int>(
+        region()->layer()->transform().To2dTranslation().x());
+    return s;
+  }
+
+  // Presses Ctrl+S and samples every 8 ms until the slide has ended. Returns
+  // the samples taken while the slide was in flight: the column part way
+  // between its two places (a transform) or part way through its fade.
+  std::vector<SlideSample> ToggleAndSample(bool reduced) {
+    chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
+    std::vector<SlideSample> all;
+    const base::TimeTicks give_up =
+        base::TimeTicks::Now() + base::Milliseconds(1500);
+    bool started = false;
+    while (base::TimeTicks::Now() < give_up) {
+      Wait(base::Milliseconds(8));
+      if (region()->layer()->GetAnimator()->is_animating()) {
+        started = true;
+        all.push_back(Sample());
+      } else if (started) {
+        break;
+      }
+    }
+    int max_tx = 0;
+    for (const SlideSample& s : all) {
+      max_tx = std::max(max_tx, std::abs(s.region_tx));
+    }
+    std::vector<SlideSample> in_flight;
+    for (const SlideSample& s : all) {
+      const bool part_way =
+          reduced ? (s.region_opacity > 0.02f && s.region_opacity < 0.98f)
+                  : (std::abs(s.region_tx) >= 1 &&
+                     std::abs(s.region_tx) < max_tx);
+      if (part_way) {
+        in_flight.push_back(s);
+      }
+    }
+    return in_flight;
+  }
+
+  // `rest_row_dx` is where the first row is from its view at rest.
+  void ExpectOneMotion(const std::vector<SlideSample>& in_flight,
+                       int rest_row_dx,
+                       bool reduced) {
+    ASSERT_GE(in_flight.size(), 2u) << "the slide had fewer than two frames";
+    int moved = 0;
+    for (const SlideSample& s : in_flight) {
+      SCOPED_TRACE(testing::Message()
+                   << "region_tx=" << s.region_tx
+                   << " region_opacity=" << s.region_opacity);
+      EXPECT_TRUE(s.card_visible) << "no card under the rows";
+      if (!s.card_visible) {
+        continue;
+      }
+      // The card is the sidebar's rect, outset by its shadow room. Any other
+      // offset means one of them has moved on a clock of its own.
+      EXPECT_EQ(s.card_x - s.sidebar_x, -AerieSidebarPeekSurface::ShadowRoom());
+      EXPECT_EQ(s.row_x - s.sidebar_x, rest_row_dx);
+      EXPECT_NEAR(s.card_opacity, s.row_opacity, 0.001f);
+      EXPECT_NEAR(s.card_opacity, s.region_opacity, 0.001f);
+    }
+    for (size_t i = 1; i < in_flight.size(); ++i) {
+      if (in_flight[i].card_x != in_flight[i - 1].card_x) {
+        ++moved;
+      }
+    }
+    if (reduced) {
+      EXPECT_EQ(moved, 0) << "a reduced slide must not move";
+      EXPECT_NE(in_flight.front().card_opacity, in_flight.back().card_opacity);
+    } else {
+      EXPECT_GE(moved, 1) << "the card did not move";
+    }
+  }
+
+  void RunHideAndShow(bool reduced) {
+    ForceReducedMotion(reduced);
+    ASSERT_TRUE(base::test::RunUntil([&] { return region()->width() > 0; }));
+    const int rest_row_dx = sidebar()->row_at(0)->GetBoundsInScreen().x() -
+                            sidebar()->GetBoundsInScreen().x();
+    {
+      SCOPED_TRACE("hide");
+      ExpectOneMotion(ToggleAndSample(reduced), rest_row_dx, reduced);
+    }
+    ASSERT_TRUE(base::test::RunUntil(
+        [&] { return region()->aerie_sidebar_hidden(); }));
+    {
+      SCOPED_TRACE("show");
+      ExpectOneMotion(ToggleAndSample(reduced), rest_row_dx, reduced);
+    }
+  }
+};
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarStepUiTest, TheCardAndTheRowsMoveAsOneOnHideAndShow) {
+  RunHideAndShow(/*reduced=*/false);
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarStepUiTest, TheCardAndTheRowsFadeAsOneOnHideAndShowUnderReducedMotion) {
+  RunHideAndShow(/*reduced=*/true);
+}
