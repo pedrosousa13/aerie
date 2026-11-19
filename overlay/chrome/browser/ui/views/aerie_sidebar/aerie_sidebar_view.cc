@@ -83,6 +83,7 @@
 #include "ui/base/base_window.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
+#include "ui/native_theme/native_theme.h"
 #include "ui/base/models/dialog_model.h"
 #include "ui/base/models/image_model.h"
 #include "ui/base/window_open_disposition.h"
@@ -988,8 +989,14 @@ bool AerieSidebarView::IsPositionInWindowCaption(
 aerie_sidebar::SidebarPalette AerieSidebarView::ResolvePalette() const {
   const aerie_tab_model::Workspace* workspace =
       model_ ? &model_->workspace() : nullptr;
+  // The constructor asks before the view is in a window, and View::
+  // GetNativeTheme() then reports the fall-through to the global theme with
+  // DumpWithoutCrashing() (issue #247).
+  const ui::NativeTheme& native_theme =
+      GetWidget() ? *GetNativeTheme()
+                  : *ui::NativeTheme::GetInstanceForNativeUi();
   const aerie::tokens::EffectiveLook look = aerie_look::ComputeEffectiveLook(
-      *browser_->GetProfile()->GetPrefs(), workspace, *GetNativeTheme(),
+      *browser_->GetProfile()->GetPrefs(), workspace, native_theme,
       GetWidget());
   // Forced colours: the operating system's colours, and nothing of the tint.
   if (look.system_colours && GetWidget()) {
