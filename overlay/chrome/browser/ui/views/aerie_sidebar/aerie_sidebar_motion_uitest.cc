@@ -14,6 +14,7 @@
 #include <vector>
 #include <optional>
 
+#include "base/scoped_observation.h"
 #include "base/test/run_until.h"
 #include "base/time/time.h"
 #include "chrome/app/chrome_command_ids.h"
@@ -58,6 +59,7 @@
 #include "ui/compositor/test/layer_animator_test_controller.h"
 #include "ui/gfx/animation/animation_test_api.h"
 #include "ui/views/view.h"
+#include "ui/views/view_observer.h"
 #include "ui/views/view_utils.h"
 #include "ui/views/widget/widget.h"
 
@@ -109,6 +111,25 @@ base::TimeDelta OpacityDuration(ui::Layer* layer) {
   return sequence ? sequence->FirstElement()->duration() : base::TimeDelta();
 }
 
+// Counts the bounds changes of the views it watches. A layout that moves or
+// resizes one of them counts once, so a layout per animation frame would show.
+class BoundsChangeCounter : public views::ViewObserver {
+ public:
+  void Watch(views::View* view) {
+    observations_.AddObservation(view);
+  }
+  void OnViewBoundsChanged(views::View*) override { ++count_; }
+  void OnViewIsDeleting(views::View* view) override {
+    observations_.RemoveObservation(view);
+  }
+  int count() const { return count_; }
+
+ private:
+  int count_ = 0;
+  base::ScopedMultiSourceObservation<views::View, views::ViewObserver>
+      observations_{this};
+};
+
 }  // namespace
 
 class AerieSidebarMotionUiTest : public InProcessBrowserTest {
@@ -134,6 +155,16 @@ class AerieSidebarMotionUiTest : public InProcessBrowserTest {
   AerieSidebarView* sidebar() { return FindDescendant<AerieSidebarView>(region()); }
   views::View* card() { return browser_view()->multi_contents_view(); }
   PrefService* prefs() { return browser()->GetProfile()->GetPrefs(); }
+
+  // True only mid-slide of a hide: the column animates, floats, and the layout
+  // has given the page its room (the layout runs on the next frame, so the
+  // animation alone is true a moment too early). Before the command the column
+  // does not animate; after the slide it does not float.
+  bool HideIsSliding(int card_width_before) {
+    return region()->GetProperty(aerie_sidebar::kFloatingWidth) > 0 &&
+           region()->layer()->GetAnimator()->is_animating() &&
+           card()->width() > card_width_before;
+  }
 
   AerieSidebarRowView* OpenTab() {
     const size_t before = sidebar()->row_count();
@@ -311,11 +342,13 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarMotionUiTest, TheHidingColumnKeepsItsWidthAnd
   ASSERT_TRUE(base::test::RunUntil([&] { return region()->width() > 0; }));
   const int column_width = region()->width();
   const gfx::Rect card_before = card()->bounds();
+  EXPECT_EQ(region()->GetProperty(aerie_sidebar::kFloatingWidth), 0);
 
   chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
-  ASSERT_TRUE(base::test::RunUntil([&] { return card()->width() > card_before.width(); }));
+  ASSERT_TRUE(base::test::RunUntil([&] { return HideIsSliding(card_before.width()); }));
   // Mid-slide: the page has its room, the column is still a real, visible
   // region of its own width.
+  EXPECT_GT(card()->width(), card_before.width());
   EXPECT_FALSE(region()->aerie_sidebar_hidden());
   EXPECT_TRUE(region()->GetVisible());
   EXPECT_EQ(region()->width(), column_width);
@@ -325,9 +358,97 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarMotionUiTest, TheHidingColumnKeepsItsWidthAnd
   ASSERT_TRUE(base::test::RunUntil([&] { return region()->aerie_sidebar_hidden(); }));
   EXPECT_EQ(region()->GetProperty(aerie_sidebar::kFloatingWidth), 0);
 
-  // A show starts from the hidden state and floats nothing.
+  // A show starts from the hidden state and floats nothing: check once the
+  // slide has started and again while it runs.
   chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
+  ASSERT_TRUE(Animates(region()->layer(), ui::LayerAnimationElement::TRANSFORM));
   EXPECT_EQ(region()->GetProperty(aerie_sidebar::kFloatingWidth), 0);
+  const base::TimeTicks until = base::TimeTicks::Now() + base::Milliseconds(60);
+  base::test::RunUntil([&] { return base::TimeTicks::Now() >= until; });
+  EXPECT_EQ(region()->GetProperty(aerie_sidebar::kFloatingWidth), 0);
+}
+
+// Reduced motion: the floating column fades and does not slide, within 90 to
+// 140 ms, and floats until the fade has ended.
+IN_PROC_BROWSER_TEST_F(AerieSidebarMotionUiTest, UnderReducedMotionTheHidingColumnFloatsAndCrossfadesWithoutASlide) {
+  ForceReducedMotion(true);
+  ASSERT_TRUE(base::test::RunUntil([&] { return region()->width() > 0; }));
+  const int column_width = region()->width();
+  const gfx::Rect card_before = card()->bounds();
+  ui::Layer* column = region()->layer();
+
+  chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
+  ASSERT_TRUE(base::test::RunUntil([&] { return HideIsSliding(card_before.width()); }));
+  EXPECT_GT(card()->width(), card_before.width());
+  EXPECT_EQ(region()->width(), column_width);
+  EXPECT_EQ(region()->GetProperty(aerie_sidebar::kFloatingWidth), column_width);
+  EXPECT_TRUE(Animates(column, ui::LayerAnimationElement::OPACITY));
+  EXPECT_FALSE(Animates(column, ui::LayerAnimationElement::TRANSFORM));
+  EXPECT_TRUE(column->GetTargetTransform().IsIdentity());
+  EXPECT_GE(OpacityDuration(column), base::Milliseconds(90));
+  EXPECT_LE(OpacityDuration(column), base::Milliseconds(140));
+
+  ASSERT_TRUE(base::test::RunUntil([&] { return region()->aerie_sidebar_hidden(); }));
+  EXPECT_EQ(region()->GetProperty(aerie_sidebar::kFloatingWidth), 0);
+}
+
+// A sidebar on the right floats at the right edge of the window and the page
+// card takes the room from its left edge.
+IN_PROC_BROWSER_TEST_F(AerieSidebarMotionUiTest, TheHidingColumnOnTheRightFloatsAtTheWindowEdgeOverThePage) {
+  ForceReducedMotion(false);
+  prefs()->SetString(aerie_sidebar::kSidePref, "right");
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return region()->width() > 0 && region()->x() > card()->x();
+  }));
+  const int column_width = region()->width();
+  const gfx::Rect card_before = card()->bounds();
+  const int edge = region()->bounds().right();
+  EXPECT_EQ(edge, browser_view()->width());
+
+  chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
+  ASSERT_TRUE(base::test::RunUntil([&] { return HideIsSliding(card_before.width()); }));
+  EXPECT_EQ(region()->GetProperty(aerie_sidebar::kFloatingWidth), column_width);
+  // The column stays at the window edge at its own width, over the page.
+  EXPECT_EQ(region()->width(), column_width);
+  EXPECT_EQ(region()->bounds().right(), edge);
+  // The card keeps its left edge and takes the column's room, to the edge.
+  EXPECT_EQ(card()->x(), card_before.x());
+  EXPECT_GE(card()->width() - card_before.width(), column_width - 2);
+  EXPECT_LE(card()->bounds().right(), edge);
+  EXPECT_GT(card()->bounds().right(), region()->x());
+
+  ASSERT_TRUE(base::test::RunUntil([&] { return region()->aerie_sidebar_hidden(); }));
+  EXPECT_EQ(region()->GetProperty(aerie_sidebar::kFloatingWidth), 0);
+  EXPECT_EQ(card()->x(), card_before.x());
+  EXPECT_GE(card()->width() - card_before.width(), column_width - 2);
+}
+
+// The layout runs at the two ends of a hide, not once per animation frame: the
+// bounds of the column and the page do not change between the first frame of the
+// slide and the end.
+IN_PROC_BROWSER_TEST_F(AerieSidebarMotionUiTest, AHideLaysOutAtItsBeginAndEndAndNotPerFrame) {
+  ForceReducedMotion(false);
+  ASSERT_TRUE(base::test::RunUntil([&] { return region()->width() > 0; }));
+  const gfx::Rect card_before = card()->bounds();
+  BoundsChangeCounter counter;
+  counter.Watch(region());
+  counter.Watch(card());
+  counter.Watch(browser_view()->multi_contents_view()->GetActiveContentsView());
+
+  chrome::ExecuteCommand(browser(), IDC_CTRL_S_SHORTCUT);
+  ASSERT_TRUE(base::test::RunUntil([&] { return HideIsSliding(card_before.width()); }));
+  const int at_begin = counter.count();
+  EXPECT_GE(at_begin, 1);
+  EXPECT_LE(at_begin, 6);
+
+  // About a dozen frames of the slide pass.
+  const base::TimeTicks until = base::TimeTicks::Now() + base::Milliseconds(80);
+  base::test::RunUntil([&] { return base::TimeTicks::Now() >= until; });
+  ASSERT_TRUE(HideIsSliding(card_before.width()));
+  EXPECT_EQ(counter.count(), at_begin);
+
+  ASSERT_TRUE(base::test::RunUntil([&] { return region()->aerie_sidebar_hidden(); }));
+  EXPECT_LE(counter.count() - at_begin, 2);
 }
 
 // Where the page really is: the origin of the web contents' native layer in the
