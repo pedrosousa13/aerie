@@ -173,3 +173,6 @@ sidebar/0050-add-the-title-tidy-and-rename-rules-to-the-sidebar-section-of-setti
 
 # Window corners (#249): a restored Linux window is rounded by radius-xl when the OS frame provider reports no radius.
 sidebar/0051-round-a-restored-linux-window-by-the-token-when-the-os-has-no-radius.patch
+
+# Import from Arc (#171): the "Import from Arc" row of Settings, its dialog and its message handler.
+sidebar/0052-add-the-import-from-arc-row-to-settings.patch

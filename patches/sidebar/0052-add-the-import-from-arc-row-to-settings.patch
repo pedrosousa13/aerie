@@ -1,0 +1,147 @@
+Aerie-Purpose: Add the "Import from Arc" row beside the import entry of Settings, hand its strings to the page, and add the message handler that reads the file and imports one Space into the current Workspace.
+Aerie-Upstream-Area: chrome/browser/resources/settings (people_page/people_page.ts, people_page/people_page.html.ts, BUILD.gn), chrome/browser/ui/webui/settings (settings_localized_strings_provider.cc, settings_ui.cc, BUILD.gn), chrome/app (generated_resources.grd and its gritdeps)
+Aerie-Kind: hook
+
+Issue #171. The element, settings-aerie-arc-import-row, is a Lit element in the overlay
+(chrome/browser/resources/settings/people_page/aerie_arc_import_row.*). It sits under the
+"Import bookmarks and settings" row of the People page. A click asks AerieArcImportHandler
+(overlay, chrome/browser/ui/webui/aerie_arc_import), a plain message handler on chrome://settings
+only, to open the system file chooser on a .json file, to read it (at most 32 MiB) and to parse it
+on a thread-pool sequence. The dialog lets the user pick one Space and shows what was added and
+what was left out. The page can name no path. The import writes records to the Tab Model and makes
+unloaded tabs; it loads nothing. The strings are in the overlay's aerie_arc_import_strings.grdp,
+which this patch includes in generated_resources.grd and hands to the page. docs/arc-import.md
+has the format and the limits.
+
+--- a/chrome/app/generated_resources.grd
++++ b/chrome/app/generated_resources.grd
+@@ -305,6 +305,9 @@
+       <!-- Aerie sidebar strings -->
+       <part file="../browser/ui/views/aerie_sidebar/aerie_sidebar_strings.grdp" />
+ 
++      <!-- Aerie Arc import strings -->
++      <part file="../browser/ui/webui/aerie_arc_import/aerie_arc_import_strings.grdp" />
++
+       <!-- Aerie Widevine prompt strings -->
+       <part file="../browser/aerie_widevine/aerie_widevine_strings.grdp" />
+ 
+--- a/chrome/app/generated_resources.grd.gritdeps
++++ b/chrome/app/generated_resources.grd.gritdeps
+@@ -112,6 +112,7 @@
+ chrome/browser/aerie_widevine/aerie_widevine_strings.grdp
+ chrome/browser/ui/views/aerie_adblock/aerie_guard_strings.grdp
+ chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_strings.grdp
++chrome/browser/ui/webui/aerie_arc_import/aerie_arc_import_strings.grdp
+ chrome/browser/ui/webui/aerie_guard_settings/aerie_guard_settings_strings.grdp
+ components/aerie_alpha_notice/aerie_alpha_notice_strings.grdp
+ components/aerie_design_tokens/aerie_motion_strings.grdp
+--- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
++++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
+@@ -704,6 +704,44 @@
+       {"aerieTryResultRule", IDS_SETTINGS_AERIE_TITLE_TRY_RESULT_RULE},
+       {"aerieTryResultTidy", IDS_SETTINGS_AERIE_TITLE_TRY_RESULT_TIDY},
+       {"aerieTryResultPage", IDS_SETTINGS_AERIE_TITLE_TRY_RESULT_PAGE},
++      {"aerieArcImport", IDS_SETTINGS_AERIE_ARC_IMPORT},
++      {"aerieArcImportDesc", IDS_SETTINGS_AERIE_ARC_IMPORT_DESC},
++      {"aerieArcImportChooserTitle", IDS_SETTINGS_AERIE_ARC_IMPORT_CHOOSER_TITLE},
++      {"aerieArcImportDialogTitle", IDS_SETTINGS_AERIE_ARC_IMPORT_DIALOG_TITLE},
++      {"aerieArcImportReading", IDS_SETTINGS_AERIE_ARC_IMPORT_READING},
++      {"aerieArcImportPickerHeading", IDS_SETTINGS_AERIE_ARC_IMPORT_PICKER_HEADING},
++      {"aerieArcImportPickerDesc", IDS_SETTINGS_AERIE_ARC_IMPORT_PICKER_DESC},
++      {"aerieArcImportPickerAria", IDS_SETTINGS_AERIE_ARC_IMPORT_PICKER_ARIA},
++      {"aerieArcImportSpaceUnnamed", IDS_SETTINGS_AERIE_ARC_IMPORT_SPACE_UNNAMED},
++      {"aerieArcImportSpaceCounts", IDS_SETTINGS_AERIE_ARC_IMPORT_SPACE_COUNTS},
++      {"aerieArcImportImport", IDS_SETTINGS_AERIE_ARC_IMPORT_IMPORT},
++      {"aerieArcImportCancel", IDS_SETTINGS_AERIE_ARC_IMPORT_CANCEL},
++      {"aerieArcImportDone", IDS_SETTINGS_AERIE_ARC_IMPORT_DONE},
++      {"aerieArcImportResultHeading", IDS_SETTINGS_AERIE_ARC_IMPORT_RESULT_HEADING},
++      {"aerieArcImportResultPinned", IDS_SETTINGS_AERIE_ARC_IMPORT_RESULT_PINNED},
++      {"aerieArcImportResultFolders", IDS_SETTINGS_AERIE_ARC_IMPORT_RESULT_FOLDERS},
++      {"aerieArcImportResultFavorites", IDS_SETTINGS_AERIE_ARC_IMPORT_RESULT_FAVORITES},
++      {"aerieArcImportResultNames", IDS_SETTINGS_AERIE_ARC_IMPORT_RESULT_NAMES},
++      {"aerieArcImportSkippedHeading", IDS_SETTINGS_AERIE_ARC_IMPORT_SKIPPED_HEADING},
++      {"aerieArcImportSkipUnsupportedScheme", IDS_SETTINGS_AERIE_ARC_IMPORT_SKIP_UNSUPPORTED_SCHEME},
++      {"aerieArcImportSkipNoUsableAddress", IDS_SETTINGS_AERIE_ARC_IMPORT_SKIP_NO_USABLE_ADDRESS},
++      {"aerieArcImportSkipArcOnlyItem", IDS_SETTINGS_AERIE_ARC_IMPORT_SKIP_ARC_ONLY_ITEM},
++      {"aerieArcImportSkipTooMany", IDS_SETTINGS_AERIE_ARC_IMPORT_SKIP_TOO_MANY},
++      {"aerieArcImportSkipTooDeep", IDS_SETTINGS_AERIE_ARC_IMPORT_SKIP_TOO_DEEP},
++      {"aerieArcImportSkipFolderMerged", IDS_SETTINGS_AERIE_ARC_IMPORT_SKIP_FOLDER_MERGED},
++      {"aerieArcImportSkipFavoritesFull", IDS_SETTINGS_AERIE_ARC_IMPORT_SKIP_FAVORITES_FULL},
++      {"aerieArcImportSkipLittleArc", IDS_SETTINGS_AERIE_ARC_IMPORT_SKIP_LITTLE_ARC},
++      {"aerieArcImportNotImportedFeatures", IDS_SETTINGS_AERIE_ARC_IMPORT_NOT_IMPORTED_FEATURES},
++      {"aerieArcImportNoLogins", IDS_SETTINGS_AERIE_ARC_IMPORT_NO_LOGINS},
++      {"aerieArcImportErrorTooLarge", IDS_SETTINGS_AERIE_ARC_IMPORT_ERROR_TOO_LARGE},
++      {"aerieArcImportErrorUnreadable", IDS_SETTINGS_AERIE_ARC_IMPORT_ERROR_UNREADABLE},
++      {"aerieArcImportErrorInvalidJson", IDS_SETTINGS_AERIE_ARC_IMPORT_ERROR_INVALID_JSON},
++      {"aerieArcImportErrorNotArc", IDS_SETTINGS_AERIE_ARC_IMPORT_ERROR_NOT_ARC},
++      {"aerieArcImportErrorNoSpaces", IDS_SETTINGS_AERIE_ARC_IMPORT_ERROR_NO_SPACES},
++      {"aerieArcImportErrorNotReady", IDS_SETTINGS_AERIE_ARC_IMPORT_ERROR_NOT_READY},
++      {"aerieArcImportErrorApplyFailed", IDS_SETTINGS_AERIE_ARC_IMPORT_ERROR_APPLY_FAILED},
++      {"aerieArcImportErrorGeneric", IDS_SETTINGS_AERIE_ARC_IMPORT_ERROR_GENERIC},
++      {"aerieArcImportUntitledFolder", IDS_SETTINGS_AERIE_ARC_IMPORT_UNTITLED_FOLDER},
+       {"aerieSidebarDensity", IDS_SETTINGS_AERIE_SIDEBAR_DENSITY},
+       {"aerieSidebarDensityDesc", IDS_SETTINGS_AERIE_SIDEBAR_DENSITY_DESC},
+       {"aerieSidebarDensityComfortable",
+--- a/chrome/browser/ui/webui/settings/settings_ui.cc
++++ b/chrome/browser/ui/webui/settings/settings_ui.cc
+@@ -62,6 +62,7 @@
+ #include "chrome/browser/ui/webui/metrics_handler.h"
+ #include "chrome/browser/ui/webui/plural_string_handler.h"
+ #include "chrome/browser/ui/webui/sanitized_image/sanitized_image_source.h"
++#include "chrome/browser/ui/webui/aerie_arc_import/aerie_arc_import_handler.h"
+ #include "chrome/browser/ui/webui/aerie_guard_settings/aerie_guard_settings_handler.h"
+ #include "chrome/browser/ui/webui/aerie_title_rules/aerie_title_rules_handler.h"
+ #include "chrome/browser/ui/webui/settings/about_handler.h"
+@@ -286,6 +287,10 @@
+   // plain message handler, on this WebUI only.
+   web_ui->AddMessageHandler(
+       std::make_unique<aerie_title_rules::AerieTitleRulesHandler>(profile));
++  // "Import from Arc" (issue #171): the same kind of plain message handler, on
++  // this WebUI only. It opens the file chooser itself; the page names no path.
++  web_ui->AddMessageHandler(
++      std::make_unique<aerie_arc_import::AerieArcImportHandler>(profile));
+   AddSettingsPageUIHandler(std::make_unique<BraveImportDataHandler>());
+   AddSettingsPageUIHandler(std::make_unique<HatsHandler>());
+ 
+--- a/chrome/browser/ui/webui/settings/BUILD.gn
++++ b/chrome/browser/ui/webui/settings/BUILD.gn
+@@ -320,6 +320,7 @@
+     "//chrome/browser/ui/webui:theme_source",
+     "//chrome/browser/ui/webui:webui_util",
+     "//chrome/browser/ui/webui/aerie_appearance_settings:swatches",
++    "//chrome/browser/ui/webui/aerie_arc_import:handler",
+     "//chrome/browser/ui/webui/aerie_guard_settings:handler",
+     "//chrome/browser/ui/webui/aerie_title_rules:handler",
+     "//chrome/browser/ui/webui/batch_upload_promo",
+--- a/chrome/browser/resources/settings/BUILD.gn
++++ b/chrome/browser/resources/settings/BUILD.gn
+@@ -374,6 +374,9 @@
+     "people_page/account_page.ts",
+     "people_page/google_services_page.html.ts",
+     "people_page/google_services_page.ts",
++    "people_page/aerie_arc_import_browser_proxy.ts",
++    "people_page/aerie_arc_import_row.html.ts",
++    "people_page/aerie_arc_import_row.ts",
+     "people_page/people_page.html.ts",
+     "people_page/people_page.ts",
+     "people_page/people_page_index.html.ts",
+--- a/chrome/browser/resources/settings/people_page/people_page.ts
++++ b/chrome/browser/resources/settings/people_page/people_page.ts
+@@ -15,6 +15,7 @@
+ import 'chrome://resources/cr_elements/policy/cr_policy_indicator.js';
+ import '../controls/settings_toggle_button.js';
+ // <if expr="not is_chromeos">
++import './aerie_arc_import_row.js';
+ import './sync_account_control.js';
+ // </if>
+ import '../icons.html.js';
+--- a/chrome/browser/resources/settings/people_page/people_page.html.ts
++++ b/chrome/browser/resources/settings/people_page/people_page.html.ts
+@@ -68,6 +68,7 @@
+             label="$i18n{importTitle}"
+             @click="${this.onImportDataClick_}">
+         </cr-link-row>
++        <settings-aerie-arc-import-row></settings-aerie-arc-import-row>
+ </if>
+ 
+       </div>

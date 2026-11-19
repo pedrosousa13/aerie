@@ -61,6 +61,26 @@ What Aerie does not take, and says so in the result: the Space's unpinned ("Toda
 
 Why only Pinned and Favorites: those are what the user arranged by hand. Today tabs are open pages, and the import makes no request.
 
+## Fixtures
+
+Hand-written, in `overlay/components/aerie_tab_model/testdata/arc/`. The unit tests, the browser tests and the interactive tests read them.
+
+| File | What it holds |
+| --- | --- |
+| `one_space` | One Space with an emoji, a folder, three pinned tabs, two Favorites and a Today tab (not imported) |
+| `three_spaces` | Three Spaces over two Arc profiles (each with its own Favorites), one without a name, and a Little Arc sidebar |
+| `nested_folders` | Folders seven levels deep: levels 6 and 7 are merged into level 5 |
+| `favorites` | Fourteen Favorites: twelve fit |
+| `custom_titles` | A tab with a custom name, one without, one whose name equals its page title, one with a blank name |
+| `bad_schemes` | `javascript:`, `file:`, `data:`, `chrome:`, `aerie:`, `arc:`, a padded upper-case `JavaScript:`, an upper-case `HTTPS:` and an address with a user name and password |
+| `markup_titles` | A Space, a folder and a tab whose names are markup, and a title with control characters |
+| `bad_json` | Not JSON |
+| `wrong_types` | Lists where text belongs, text where lists belong, numbers as ids |
+| `missing_keys` | Items and no Space |
+| `not_an_object`, `no_containers` | JSON that is not an Arc sidebar |
+
+The files that are too big to keep in a repository are made by the tests: more than 10 000 items, a tree 40 levels deep, 101 Spaces, a loop in `childrenIds`, an Easel, JSON nested 100 000 levels, and a sparse file one byte over 32 MiB.
+
 ## Limits (the file is untrusted)
 
 | Limit | Value | When it is passed |
