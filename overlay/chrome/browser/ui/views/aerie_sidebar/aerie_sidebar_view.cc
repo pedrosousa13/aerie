@@ -15,6 +15,8 @@
 #include "base/functional/bind.h"
 #include "base/memory/ptr_util.h"
 #include "base/functional/callback_helpers.h"
+#include "base/memory/scoped_refptr.h"
+#include "base/memory/weak_ptr.h"
 #include "base/no_destructor.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
@@ -311,15 +313,24 @@ class AerieSidebarView::SlideObserver : public ui::LayerAnimationObserver {
   explicit SlideObserver(AerieSidebarView* view) : view_(view) {}
   ~SlideObserver() override { Reset(); }
 
+  // Observes the animator of `layer`; the same animator again is a no-op, and a
+  // layer that was recreated (a new animator) is picked up the next time this
+  // runs. Sequences already running are reported at once.
   void Observe(ui::Layer* layer) {
-    Reset();
     if (!layer) {
+      Reset();
       return;
     }
+    if (animator_.get() == layer->GetAnimator()) {
+      return;
+    }
+    Reset();
     animator_ = layer->GetAnimator();
     animator_->AddObserver(this);
   }
   void Reset() {
+    weak_factory_.InvalidateWeakPtrs();
+    sliding_ = false;
     if (animator_) {
       // Leaving the animator tells this observer about each sequence it drops;
       // the view is on its way out or does not need to hear it.
@@ -329,26 +340,47 @@ class AerieSidebarView::SlideObserver : public ui::LayerAnimationObserver {
       quiet_ = false;
     }
   }
-  bool sliding() const { return !attached_sequences().empty(); }
+  // True from the first sequence to the end of the last one. A show that
+  // interrupts a hide (or the reverse) aborts the old sequences before it
+  // schedules the new ones, so "none" is only believed once a task has run
+  // and no sequence came: the card stays up across the hand-over.
+  bool sliding() const { return sliding_; }
 
  private:
   void OnLayerAnimationEnded(ui::LayerAnimationSequence*) override {}
   void OnLayerAnimationAborted(ui::LayerAnimationSequence*) override {}
   void OnLayerAnimationScheduled(ui::LayerAnimationSequence*) override {}
   void OnAttachedToSequence(ui::LayerAnimationSequence*) override {
-    if (!quiet_) {
-      view_->UpdatePeekSurface(/*immediate=*/true);
+    if (quiet_) {
+      return;
     }
+    sliding_ = true;
+    // Only the card's visibility and the sidebar's layer change here: the card
+    // is added once, in a task of its own, so that no view is added from
+    // inside a layout walk (this runs from AnimateLayer).
+    view_->UpdatePeekSurface();
   }
   void OnDetachedFromSequence(ui::LayerAnimationSequence*) override {
-    if (!quiet_) {
-      view_->UpdatePeekSurface();
+    if (quiet_ || !attached_sequences().empty()) {
+      return;
     }
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE, base::BindOnce(&SlideObserver::Settle,
+                                  weak_factory_.GetWeakPtr()));
+  }
+  void Settle() {
+    if (!attached_sequences().empty()) {
+      return;
+    }
+    sliding_ = false;
+    view_->UpdatePeekSurface();
   }
 
   raw_ptr<AerieSidebarView> view_;
   bool quiet_ = false;
+  bool sliding_ = false;
   scoped_refptr<ui::LayerAnimator> animator_;
+  base::WeakPtrFactory<SlideObserver> weak_factory_{this};
 };
 
 AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
@@ -773,6 +805,14 @@ void AerieSidebarView::AddedToWidget() {
       slide_observer_ = std::make_unique<SlideObserver>(this);
     }
     slide_observer_->Observe(parent()->parent()->layer());
+    // The card is added once, now and not at the first show, so that a show
+    // only has to make it visible (issue #248). The parent may be walking its
+    // children: a task of its own adds it.
+    if (!surface_tracker_.view()) {
+      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+          FROM_HERE, base::BindOnce(&AerieSidebarView::AddPeekSurface,
+                                    weak_factory_.GetWeakPtr()));
+    }
   }
   UpdatePeekSurface();
   OnLayoutPrefsChanged();
@@ -839,6 +879,13 @@ void AerieSidebarView::AddPeekSurface() {
 }
 
 void AerieSidebarView::UpdatePeekSurface(bool immediate) {
+  // The region's layer is there when the view is attached (the region makes it
+  // in its constructor), but follow it if it is ever recreated.
+  if (slide_observer_) {
+    if (views::View* region = region_observation_.GetSource()) {
+      slide_observer_->Observe(region->layer());
+    }
+  }
   // A peek floats the column, and so does a hide while it slides out: both set
   // the region's kFloatingWidth, and both need the opaque card under the rows.
   // A show does not float (the layout gives the column its room at once), but
