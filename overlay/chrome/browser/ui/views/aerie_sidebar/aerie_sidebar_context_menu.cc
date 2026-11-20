@@ -58,6 +58,8 @@ AerieSidebarContextMenu::AerieSidebarContextMenu(Options options,
     root_->AppendMenuItem(
         Id(Command::kDeleteFolder),
         l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_DELETE_FOLDER));
+  } else if (options_.target == Target::kSelection) {
+    BuildSelectionItems();
   } else {
     BuildTabItems();
   }
@@ -144,6 +146,83 @@ void AerieSidebarContextMenu::BuildTabItems() {
   sleep->SetEnabled(options_.sleep.enabled);
   root_->AppendMenuItem(Id(Command::kClose),
                         l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_CLOSE_TAB));
+  if (options_.select_range.shown || options_.clear_selection.shown) {
+    root_->AppendSeparator();
+    if (options_.select_range.shown) {
+      root_->AppendMenuItem(
+          Id(Command::kSelectRange),
+          l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_SELECT_RANGE_TO_HERE));
+    }
+    if (options_.clear_selection.shown) {
+      root_->AppendMenuItem(
+          Id(Command::kClearSelection),
+          l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_CLEAR_SELECTION));
+    }
+  }
+}
+
+// The batch menu (issue #265). Every item acts on the whole selection.
+void AerieSidebarContextMenu::BuildSelectionItems() {
+  using aerie_tab_model::Section;
+  const int count = options_.selection_count;
+  if (options_.section == Section::kPinned) {
+    root_->AppendMenuItem(Id(Command::kUnpin),
+                          l10n_util::GetPluralStringFUTF16(
+                              IDS_AERIE_SIDEBAR_BATCH_UNPIN, count));
+  } else if (options_.section == Section::kToday) {
+    root_->AppendMenuItem(Id(Command::kPin),
+                          l10n_util::GetPluralStringFUTF16(
+                              IDS_AERIE_SIDEBAR_BATCH_PIN, count));
+  }
+  if (options_.section == Section::kFavorite) {
+    root_->AppendMenuItem(
+        Id(Command::kRemoveFromFavorites),
+        l10n_util::GetPluralStringFUTF16(
+            IDS_AERIE_SIDEBAR_BATCH_REMOVE_FROM_FAVORITES, count));
+  } else {
+    root_->AppendMenuItem(Id(Command::kAddToFavorites),
+                          l10n_util::GetPluralStringFUTF16(
+                              IDS_AERIE_SIDEBAR_BATCH_ADD_TO_FAVORITES, count));
+  }
+  if (options_.section != Section::kFavorite &&
+      (options_.move_to_new_folder.shown || !options_.move_targets.empty())) {
+    root_->AppendSeparator();
+    if (options_.move_to_new_folder.shown) {
+      root_->AppendMenuItem(
+              Id(Command::kMoveToNewFolder),
+              l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_MOVE_TO_NEW_FOLDER))
+          ->SetEnabled(options_.move_to_new_folder.enabled);
+    }
+    if (!options_.move_targets.empty()) {
+      views::MenuItemView* list = root_->AppendSubMenu(
+          Id(Command::kMoveToFolderList),
+          l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_MOVE_TO_FOLDER));
+      for (size_t i = 0; i < options_.move_targets.size(); ++i) {
+        list->AppendMenuItem(Id(Command::kMoveToFolderBase) + static_cast<int>(i),
+                             options_.move_targets[i].label)
+            ->SetEnabled(options_.move_targets[i].enabled);
+      }
+    }
+  }
+  root_->AppendSeparator();
+  // Only a Today tab archives; a Pinned or Favorite tab follows the pinned-close
+  // setting instead.
+  if (options_.section == Section::kToday) {
+    root_->AppendMenuItem(Id(Command::kArchive),
+                          l10n_util::GetPluralStringFUTF16(
+                              IDS_AERIE_SIDEBAR_BATCH_ARCHIVE, count));
+  }
+  root_->AppendMenuItem(Id(Command::kSleepTab),
+                        l10n_util::GetPluralStringFUTF16(
+                            IDS_AERIE_SIDEBAR_BATCH_SLEEP, count))
+      ->SetEnabled(options_.sleep.enabled);
+  root_->AppendMenuItem(Id(Command::kClose),
+                        l10n_util::GetPluralStringFUTF16(
+                            IDS_AERIE_SIDEBAR_BATCH_CLOSE, count));
+  root_->AppendSeparator();
+  root_->AppendMenuItem(
+      Id(Command::kClearSelection),
+      l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_CLEAR_SELECTION));
 }
 
 bool AerieSidebarContextMenu::IsOpen() const {
@@ -218,13 +297,14 @@ std::string AerieSidebarContextMenu::FolderIdForCommand(Command command) const {
 bool AerieSidebarContextMenu::HasCommand(Command command) const {
   using aerie_tab_model::Section;
   if (Id(command) >= Id(Command::kMoveToFolderBase)) {
-    return options_.target == Target::kTab &&
-           Id(command) - Id(Command::kMoveToFolderBase) <
-               static_cast<int>(options_.move_targets.size());
+    return IsTabLike() && Id(command) - Id(Command::kMoveToFolderBase) <
+                              static_cast<int>(options_.move_targets.size());
   }
   switch (command) {
     case Command::kNewFolder:
-      return options_.target != Target::kTab || options_.new_folder.shown;
+      return options_.target == Target::kTab
+                 ? options_.new_folder.shown
+                 : options_.target != Target::kSelection;
     case Command::kRenameFolder:
     case Command::kEditFolder:
     case Command::kDeleteFolder:
@@ -232,16 +312,22 @@ bool AerieSidebarContextMenu::HasCommand(Command command) const {
     case Command::kStopRuleMatching:
       return options_.target == Target::kTab && options_.stop_rule.shown;
     case Command::kMoveToNewFolder:
-      return options_.target == Target::kTab &&
-             options_.move_to_new_folder.shown;
+      return IsTabLike() && options_.move_to_new_folder.shown;
     case Command::kMoveOutOfFolder:
       return options_.target == Target::kTab && options_.move_out.shown;
     case Command::kMoveToFolderList:
       // The parent of the list: it has to be enabled for the list to open.
-      return options_.target == Target::kTab && !options_.move_targets.empty();
+      return IsTabLike() && !options_.move_targets.empty();
     case Command::kSleepTab:
     case Command::kClose:
-      return options_.target == Target::kTab;
+      return IsTabLike();
+    case Command::kArchive:
+      return options_.target == Target::kSelection && options_.section == Section::kToday;
+    case Command::kSelectRange:
+      return options_.target == Target::kTab && options_.select_range.shown;
+    case Command::kClearSelection:
+      return options_.target == Target::kSelection ||
+             (options_.target == Target::kTab && options_.clear_selection.shown);
     case Command::kRename:
       return options_.target == Target::kTab && options_.can_rename;
     case Command::kResetName:

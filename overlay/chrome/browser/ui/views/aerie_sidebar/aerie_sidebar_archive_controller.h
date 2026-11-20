@@ -21,6 +21,10 @@
 #include "components/aerie_sidebar/aerie_sidebar_palette.h"
 #include "ui/gfx/geometry/rect.h"
 
+namespace tabs {
+class TabInterface;
+}  // namespace tabs
+
 namespace ui {
 class Layer;
 }  // namespace ui
@@ -89,6 +93,11 @@ class AerieSidebarArchiveController
   void Attach();
 
   // Opens the panel, or closes it when it is open.
+  // Archives the tab at the user's request (issue #265, the batch menu): the
+  // same call the timer makes, so the tab flies to the Archive button as it
+  // does then. False when the archiver refuses the tab or is not attached.
+  bool ArchiveTab(tabs::TabInterface* tab);
+
   void TogglePanel();
   AerieSidebarArchivePanel* panel() const { return panel_.get(); }
   // True while a copy is in the air, for tests.

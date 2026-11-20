@@ -40,6 +40,9 @@ struct AerieSidebarDragContent {
   bool tile = false;
   // The row's indent in px (rows only).
   int indent = 0;
+  // The number of rows a drag of a selection carries (issue #265); the ghost
+  // shows it in a badge when it is above 1.
+  int count = 0;
 };
 
 // The drag layer (issue #182, "Lift"): a copy of the dragged row or tile that
@@ -71,6 +74,11 @@ class AerieSidebarDragGhost : public views::View {
   void OnPaint(gfx::Canvas* canvas) override;
   void Layout(PassKey) override;
 
+  // Where the count badge sits, in the ghost's own coordinates; empty with no
+  // badge.
+  gfx::Rect CountBadgeBounds() const;
+  bool has_count_badge() const { return !!count_; }
+
  private:
   aerie_sidebar::SidebarPalette palette_;
   bool dark_;
@@ -78,6 +86,8 @@ class AerieSidebarDragGhost : public views::View {
   int indent_;
   raw_ptr<views::ImageView> icon_ = nullptr;
   raw_ptr<views::Label> title_ = nullptr;
+  // The count badge of a drag of several rows; null for a drag of one.
+  raw_ptr<views::Label> count_ = nullptr;
 };
 
 // The mark that shows where a drop would land: a line between rows, an outline

@@ -17,6 +17,7 @@
 #include "components/aerie_design_tokens/aerie_tokens.h"
 #include "components/aerie_sidebar/aerie_sidebar_density.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_drag_overlay.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_selection_keys.h"
 #include "components/aerie_sidebar/aerie_sidebar_move.h"
 #include "components/aerie_sidebar/aerie_sidebar_palette.h"
 #include "components/aerie_sidebar/aerie_sidebar_today_list.h"
@@ -129,6 +130,14 @@ class AerieSidebarRowView : public views::View,
     // The folder editor was asked for (issue #139): the funnel on an
     // auto-filing folder's row, or a double-click on a folder's icon.
     base::RepeatingClosure edit_folder;
+    // Selecting several rows (issue #265). `modified_click`: a Ctrl+click
+    // (`range` false) or a Shift+click (`range` true) in place of `select`.
+    // `selection_key` gets Shift+Up/Down, Ctrl+A and Esc and says whether it
+    // took the key. `selection_active` says whether any row is selected, so
+    // that Esc is the row's only while there is something to clear.
+    base::RepeatingCallback<void(bool range)> modified_click;
+    base::RepeatingCallback<bool(AerieSidebarSelectionKey)> selection_key;
+    base::RepeatingCallback<bool()> selection_active;
   };
 
   AerieSidebarRowView(Callbacks callbacks,
@@ -152,6 +161,10 @@ class AerieSidebarRowView : public views::View,
   void SetFavicon(const ui::ImageModel& favicon);
   void SetSelected(bool selected);
   bool selected() const { return selected_; }
+  // The row is one of several that the user selected (issue #265). It takes the
+  // selection fill, and a screen reader reads it as selected.
+  void SetMultiSelected(bool selected);
+  bool multi_selected() const { return multi_selected_; }
 
   // A sleeping tab (issue #179): the favicon at `motion-opacity-sleeping` and,
   // after the fade, a static desaturate; a moon badge on the favicon; and
@@ -319,6 +332,11 @@ class AerieSidebarRowView : public views::View,
   bool SkipDefaultKeyEventProcessing(const ui::KeyEvent& event) override;
   // Esc while a drag runs cancels it (issue #215, item 8).
   bool AcceleratorPressed(const ui::Accelerator& accelerator) override;
+  // "Select range to here" for assistive technology (issue #265): Views has no
+  // custom actions, so it takes the standard set-selection action. "Clear
+  // selection" is in the context menu, which assistive technology opens with
+  // its show-context-menu action.
+  bool HandleAccessibleAction(const ui::AXActionData& action_data) override;
   std::u16string GetRenderedTooltipText(const gfx::Point& p) const override;
   views::View* GetTooltipHandlerForPoint(const gfx::Point& point) override;
   // views::ContextMenuController:
@@ -396,6 +414,7 @@ class AerieSidebarRowView : public views::View,
   Callbacks callbacks_;
   aerie_sidebar::SidebarPalette palette_;
   bool selected_ = false;
+  bool multi_selected_ = false;
   bool hovered_ = false;
   bool closing_ = false;
   // The share of the full row height that the row takes (1 at rest).

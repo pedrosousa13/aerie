@@ -235,6 +235,86 @@ aerie_sidebar::MoveResult AerieSidebarDragHost::ApplyMove(
   return result;
 }
 
+// A drop of a selection (issue #265). The drop target says where the dragged row
+// goes among the visible children of the container without counting itself.
+// For many tabs that place is turned into "before sibling X", X being the first
+// child at or after it that is not one of the tabs on the move (none: the end).
+// Each tab then goes right before X in display order, which keeps their order
+// whatever the old places were.
+aerie_sidebar::MoveResult AerieSidebarDragHost::ApplyMoveMany(
+    const std::vector<std::string>& ids,
+    const aerie_sidebar::MoveRequest& request) {
+  using aerie_sidebar::MoveResult;
+  if (!view_->model_ || ids.empty()) {
+    return MoveResult::kInvalid;
+  }
+  const std::map<std::string, tabs::TabInterface*> lookup =
+      view_->BuildTabLookup();
+  auto listed = [&](const std::string& id) {
+    return lookup.find(id) != lookup.end();
+  };
+  auto on_the_move = [&](const std::string& id) {
+    return std::find(ids.begin(), ids.end(), id) != ids.end();
+  };
+  auto visible_without = [&](const std::string& skip) {
+    std::vector<aerie_tab_model::ChildRef> children =
+        aerie_tab_model::OrderedChildren(*view_->model_, request.section,
+                                         request.container,
+                                         /*listed_only=*/true, listed);
+    children.erase(std::remove_if(children.begin(), children.end(),
+                                  [&](const aerie_tab_model::ChildRef& c) {
+                                    return c.id == skip;
+                                  }),
+                   children.end());
+    return children;
+  };
+  // The place was counted without the dragged row, so the first child at or
+  // after it that stays is X.
+  std::string before;
+  {
+    const auto children = visible_without(request.id);
+    for (size_t i = static_cast<size_t>(std::max(request.index, 0));
+         i < children.size(); ++i) {
+      if (!on_the_move(children[i].id)) {
+        before = children[i].id;
+        break;
+      }
+    }
+  }
+  MoveResult first_refusal = MoveResult::kUnchanged;
+  bool moved = false;
+  size_t refused_for_room = 0;
+  for (const std::string& id : ids) {
+    aerie_sidebar::MoveRequest one = request;
+    one.id = id;
+    const auto children = visible_without(id);
+    one.index = static_cast<int>(children.size());
+    for (size_t i = 0; i < children.size(); ++i) {
+      if (children[i].id == before) {
+        one.index = static_cast<int>(i);
+        break;
+      }
+    }
+    const MoveResult result = ApplyMove(one);
+    if (result == MoveResult::kMoved) {
+      moved = true;
+    } else if (result == MoveResult::kRefusedFavoritesFull) {
+      ++refused_for_room;
+    }
+    if (result != MoveResult::kMoved && result != MoveResult::kUnchanged &&
+        first_refusal == MoveResult::kUnchanged) {
+      first_refusal = result;
+    }
+  }
+  if (moved && refused_for_room > 0) {
+    // Some fitted and some did not: say so, and report the move.
+    view_->ShowToast(l10n_util::GetPluralStringFUTF16(
+        IDS_AERIE_SIDEBAR_FAVORITES_PARTLY_FULL,
+        static_cast<int>(refused_for_room)));
+  }
+  return moved ? MoveResult::kMoved : first_refusal;
+}
+
 void AerieSidebarDragHost::ShowRefusal(aerie_sidebar::RefusalReason reason,
                                        bool on_drop) {
   switch (reason) {

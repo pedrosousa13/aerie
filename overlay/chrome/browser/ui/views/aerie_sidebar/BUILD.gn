@@ -57,6 +57,7 @@ source_set("aerie_sidebar") {
     "aerie_sidebar_row_entry.h",
     "aerie_sidebar_row_view.cc",
     "aerie_sidebar_row_view.h",
+    "aerie_sidebar_selection_keys.h",
     "aerie_sidebar_switch.cc",
     "aerie_sidebar_switch.h",
     "aerie_sidebar_tile_view.cc",
@@ -79,6 +80,7 @@ source_set("aerie_sidebar") {
     "//components/aerie_sidebar:folder_toggle",
     "//components/aerie_sidebar:move",
     "//components/aerie_sidebar:palette",
+    "//components/aerie_sidebar:selection",
     "//chrome/browser/ui/views/aerie_look",
     "//components/aerie_design_tokens:appearance",
     "//components/aerie_sidebar:today_list",
@@ -195,6 +197,7 @@ source_set("interactive_tests") {
     "aerie_sidebar_peek_uitest.cc",
     "aerie_sidebar_pinned_uitest.cc",
     "aerie_sidebar_rename_uitest.cc",
+    "aerie_sidebar_selection_uitest.cc",
     "aerie_sidebar_sleep_uitest.cc",
   ]
   deps = [
@@ -220,6 +223,7 @@ source_set("interactive_tests") {
     "//content/test:test_support",
     "//net:test_support",
     "//testing/gtest",
+    "//ui/accessibility",
     "//ui/aura",
     "//ui/aura:test_support",
     "//ui/base:test_support",
