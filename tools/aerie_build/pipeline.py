@@ -46,6 +46,8 @@ TEST_BINARIES = (
     # What WebGL and WebGPU report about the graphics card (issue #112): the vendor family and the masking decision.
     ("aerie_gpu_info_unittests", ()),
     # The bucketed screen size and the decision to report it (issue #116).
+    # The request policy in the network service: which browser requests are refused (issue #257).
+    ("aerie_network_unittests", ()),
     ("aerie_screen_unittests", ()),
     # The measureText noise factor and the decision to apply it (issue #118).
     ("aerie_text_metrics_unittests", ()),

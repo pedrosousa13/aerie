@@ -52,6 +52,30 @@ constexpr net::NetworkTrafficAnnotationTag kTrafficAnnotation =
         policy_exception_justification: "Not implemented."
       })");
 
+// The same download for an address the user added. Its own annotation tells
+// the request policy (#257) that the user chose the host.
+constexpr net::NetworkTrafficAnnotationTag kCustomTrafficAnnotation =
+    net::DefineNetworkTrafficAnnotation("aerie_custom_filter_list_download", R"(
+      semantics {
+        sender: "Aerie ad blocking"
+        description:
+          "Downloads a filter list (a text file of ad and tracker rules) "
+          "from an address the user added in the filter list settings."
+        trigger:
+          "The user adds or updates the list, or the daily scheduled update "
+          "(on by default, can be turned off in the filter list settings)."
+        data: "Only the list's address. No cookies, no identifiers."
+        destination: OTHER
+        destination_other: "The server at the address the user added"
+      }
+      policy {
+        cookies_allowed: NO
+        setting:
+          "Remove the list, or turn off 'Update lists automatically' in the "
+          "filter list settings."
+        policy_exception_justification: "Not implemented."
+      })");
+
 }  // namespace
 
 FilterListFetcher::FilterListFetcher(
@@ -61,7 +85,7 @@ FilterListFetcher::FilterListFetcher(
 
 FilterListFetcher::~FilterListFetcher() = default;
 
-void FilterListFetcher::Fetch(const GURL& url, Callback callback) {
+void FilterListFetcher::Fetch(const GURL& url, Callback callback, bool user_added) {
   int id = next_id_++;
   auto download = std::make_unique<Download>();
   download->callback = std::move(callback);
@@ -86,7 +110,9 @@ void FilterListFetcher::Fetch(const GURL& url, Callback callback) {
   request->headers.SetHeader("Accept", "text/plain, */*;q=0.1");
 
   download->loader =
-      network::SimpleURLLoader::Create(std::move(request), kTrafficAnnotation);
+      network::SimpleURLLoader::Create(
+          std::move(request),
+          user_added ? kCustomTrafficAnnotation : kTrafficAnnotation);
   download->loader->SetTimeoutDuration(kListDownloadTimeout);
   download->loader->SetOnRedirectCallback(base::BindRepeating(
       [](base::WeakPtr<FilterListFetcher> self, int id,

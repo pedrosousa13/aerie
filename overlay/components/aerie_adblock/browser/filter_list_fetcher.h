@@ -55,7 +55,10 @@ class FilterListFetcher {
   FilterListFetcher& operator=(const FilterListFetcher&) = delete;
 
   // Starts a download. |callback| runs once, later, never from inside Fetch().
-  void Fetch(const GURL& url, Callback callback);
+  // |user_added| is true for a list at an address the user typed in: its download
+  // carries its own traffic annotation, which the request policy lets reach any
+  // host (docs/network-endpoints.md). A built-in list keeps to its publisher.
+  void Fetch(const GURL& url, Callback callback, bool user_added = false);
 
  private:
   struct Download;

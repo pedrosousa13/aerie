@@ -519,7 +519,8 @@ void FilterListManager::FetchList(const std::string& id) {
   Notify();  // The page shows "Updating" at once.
   fetcher_.Fetch(GURL(entry->url),
                  base::BindOnce(&FilterListManager::OnFetched,
-                                weak_factory_.GetWeakPtr(), id));
+                                weak_factory_.GetWeakPtr(), id),
+                 /*user_added=*/!entry->builtin);
 }
 
 void FilterListManager::SetError(const std::string& id, ListFailure failure) {

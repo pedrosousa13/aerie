@@ -1,0 +1,59 @@
+Aerie-Purpose: Refuse every request the browser makes on its own unless it is on the reviewed allowlist (docs/network-endpoints.md), so a request that a later Chromium or Helium adds fails at run time instead of shipping until the Bench finds it.
+Aerie-Upstream-Area: services/network/network_service_network_delegate.cc (OnBeforeURLRequest), services/network/BUILD.gn (network_service deps)
+Aerie-Kind: hook
+
+Issue #257. The decision is services/network/aerie/request_policy.cc (overlay).
+The hook gathers three facts and nothing else: the request URL (the redirect
+target on a redirect), the traffic annotation, and whether the carrying
+URLLoaderFactory belongs to a renderer process. A page cannot set any of them.
+A refusal returns ERR_BLOCKED_BY_ADMINISTRATOR, which nothing else in the
+browser returns for a network request, so the Bench can tell it from the
+ERR_BLOCKED_BY_CLIENT of the ad blocker and of the dummy-origin refusals.
+Design borrowed from Crest (pauljoda/Crest, MPL-2.0); no code is copied.
+
+--- a/services/network/BUILD.gn
++++ b/services/network/BUILD.gn
+@@ -361,6 +361,7 @@
+ 
+   deps = [
+     "//base",
++    "//services/network/aerie:request_policy",
+     "//base:build_time",
+     "//build:chromecast_buildflags",
+     "//components/content_settings/core/common",
+--- a/services/network/network_service_network_delegate.cc
++++ b/services/network/network_service_network_delegate.cc
+@@ -25,6 +25,7 @@
+ #include "net/url_request/clear_site_data.h"
+ #include "net/url_request/referrer_policy.h"
+ #include "net/url_request/url_request.h"
++#include "services/network/aerie/request_policy.h"
+ #include "services/network/cookie_manager.h"
+ #include "services/network/cookie_settings.h"
+ #include "services/network/network_context.h"
+@@ -106,6 +107,25 @@
+     effective_url = &request->url();
+   }
+ 
++  // Aerie (#257): a request the browser makes on its own goes only where
++  // the reviewed allowlist says. A redirect comes back through here with its
++  // new address. The origin is the factory's process, never a request field.
++  {
++    aerie_network::RequestFacts facts;
++    facts.url = *effective_url;
++    facts.annotation_hash = request->traffic_annotation().unique_id_hash_code;
++    if (loader) {
++      facts.origin = loader->GetProcessId() == mojom::kBrowserProcessId
++                         ? aerie_network::RequestOrigin::kBrowserProcess
++                         : aerie_network::RequestOrigin::kRenderer;
++    }
++    const aerie_network::Verdict verdict = aerie_network::Decide(facts);
++    if (aerie_network::IsRefusal(verdict)) {
++      aerie_network::RecordRefusal(verdict, facts.url);
++      return net::ERR_BLOCKED_BY_ADMINISTRATOR;
++    }
++  }
++
+   MaybeTruncateReferrer(request, *effective_url);
+ 
+   NetworkService* network_service = network_context_->network_service();
