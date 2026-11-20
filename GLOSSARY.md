@@ -73,3 +73,8 @@ The named values for colour, radius, spacing, type, size and motion, defined onc
 
 **Guard**
 Aerie's blocking and protection feature: the ad and tracker Filter Engine, plus per-site controls and the fingerprinting switch. It shows as an icon at the end of the address pill. Its panel opens from that icon, and its section of Settings is `chrome://settings/aerieGuard` ([docs/adblock.md](docs/adblock.md)). Blocking features and flows follow Brave Shields.
+
+## Privacy
+
+**Crash report**
+A minidump the crash handler writes to `Crash Reports/pending` in the browser's config folder when a process crashes. It stays on the device, is readable by the user only, and is never uploaded. Settings > Crash reports lists them (time, process type, version) and deletes them. At most 20 are kept; the oldest go first.

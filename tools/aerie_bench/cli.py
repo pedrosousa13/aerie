@@ -39,6 +39,10 @@ def add_arguments(p: argparse.ArgumentParser, *, binary_required: bool) -> None:
                    help="zero_traffic: quiet time after the first page, the first-launch phase (default 60)")
     p.add_argument("--zero-traffic-strict", action="store_true",
                    help="zero_traffic: also fail on blocked attempts to .qjz9zk dummy hosts and trk: URLs")
+    p.add_argument("--zero-traffic-no-crash", action="store_true",
+                   help="zero_traffic: leave out the crash step (crash a browser on purpose, start it again, "
+                        "and check that the crash report stays on the device and no crash upload is made; "
+                        "it starts two more browsers)")
     p.add_argument("--widevine-online", type=float, default=0.0, metavar="SEC",
                    help="widevine_opt_in: also wait up to SEC in an opted-in browser for Widevine to download "
                         "and become available (needs a network that reaches Google; default 0, off)")
@@ -172,7 +176,8 @@ def run(args: argparse.Namespace, build_root: Path, default_binary: Path | None)
                                         "skip_note": skip_note},
                    "zero_traffic": {"idle_seconds": args.zero_traffic_idle,
                                     "settle_seconds": args.zero_traffic_settle,
-                                    "strict": args.zero_traffic_strict},
+                                    "strict": args.zero_traffic_strict,
+                                    "crash": not args.zero_traffic_no_crash},
                    "widevine_opt_in": {"online_seconds": args.widevine_online},
                    "adblock_score": {"build_root": str(build_root), "baseline": args.adblock_baseline,
                                      "online_seconds": args.adblock_online},

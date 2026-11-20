@@ -1,0 +1,51 @@
+# Copyright 2026 The Aerie Authors
+# You can use, redistribute, and/or modify this source code under
+# the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+import("//testing/test.gni")
+
+# The crash reports that stay on the device (issue #262, docs/crash-reports.md): what the
+# Settings page may read from a dump (the process type and the version, nothing else), and
+# the store that lists, deletes and prunes the reports of Crashpad's database. Nothing in
+# here sends anything; the build has no crash upload address (patches/crash/0001, 0002).
+source_set("aerie_crash_reports") {
+  sources = [
+    "crash_report_store.cc",
+    "crash_report_store.h",
+    "dump_facts.cc",
+    "dump_facts.h",
+  ]
+  public_deps = [ "//base" ]
+  deps = [ "//third_party/crashpad/crashpad/client" ]
+}
+
+# Bytes of a small Crashpad minidump, for the unit tests here and the handler's browser tests.
+source_set("test_support") {
+  testonly = true
+  sources = [
+    "test_dumps.cc",
+    "test_dumps.h",
+  ]
+}
+
+source_set("unit_tests") {
+  testonly = true
+  sources = [
+    "crash_report_store_unittest.cc",
+    "dump_facts_unittest.cc",
+  ]
+  deps = [
+    ":aerie_crash_reports",
+    ":test_support",
+    "//base",
+    "//testing/gtest",
+    "//third_party/crashpad/crashpad/client",
+  ]
+}
+
+test("aerie_crash_reports_unittests") {
+  deps = [
+    ":unit_tests",
+    "//base/test:run_all_unittests",
+  ]
+}

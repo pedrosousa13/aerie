@@ -132,6 +132,13 @@ def check_secure_dns_default(root: Path, require: bool = False) -> list[Finding]
         "secure DNS must default to off (SecureDnsMode::kOff)", require)
 
 
+def _must_not_match(root: Path, rel: str, gate: str, pattern: str, message: str, require: bool) -> list[Finding]:
+    text, missing = _read(root, rel, gate, require)
+    if text is None:
+        return missing
+    return [Finding(gate, rel, message)] if re.search(pattern, text, re.S) else []
+
+
 def check_crash_reporting(root: Path, require: bool = False) -> list[Finding]:
     out = _must_match(
         root, "components/crash/core/app/crash_reporter_client.cc", "crash_reporting",
@@ -141,6 +148,24 @@ def check_crash_reporting(root: Path, require: bool = False) -> list[Finding]:
         root, "chrome/browser/crash_upload_list/helium_crash_reporting.cc", "crash_reporting",
         r"CrashReportingMode GetCrashReportingMode\(\)\s*\{(?:\s*//[^\n]*)*\s*return CrashReportingMode::kDisabled;\s*\}",
         "GetCrashReportingMode() must always return kDisabled", require)
+    # Crash reports stay on the device (issue #262): nothing can switch the database's uploads on or
+    # request one report's upload, and nothing deletes a pending report for being pending.
+    crashpad = "components/crash/core/app/crashpad.cc"
+    out += _must_match(
+        root, crashpad, "crash_reporting",
+        r"void ApplyUploadConsent\(bool[^)]*\)\s*\{[^}]*SetUploadsEnabled\(false\);\s*\}",
+        "ApplyUploadConsent() must only ever switch the database's uploads off", require)
+    out += _must_match(
+        root, crashpad, "crash_reporting",
+        r"void RequestSingleCrashUploadImpl\(const std::string& local_id\)\s*\{(?:\s*//[^\n]*)*\s*\}",
+        "RequestSingleCrashUploadImpl() must do nothing", require)
+    out += _must_not_match(
+        root, crashpad, "crash_reporting", r"SetUploadsEnabled\(\s*(?!false)[^)]",
+        "no code may switch the database's uploads on", require)
+    out += _must_not_match(
+        root, "chrome/browser/crash_upload_list/helium_crash_reporting.cc", "crash_reporting",
+        r"SetUploadConsentFromUser\(\s*true\s*\)|DeletePendingReports",
+        "the crash mode code must not switch uploads on, nor delete pending reports", require)
     return out
 
 

@@ -1,0 +1,58 @@
+# Copyright 2026 The Aerie Authors
+# You can use, redistribute, and/or modify this source code under
+# the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+# The message handler of the Crash reports page of Settings (issue #262,
+# docs/crash-reports.md). SettingsUI adds the handler (patches/crash/0003). The page is
+# chrome/browser/resources/settings/aerie_crash_reports_page; the strings are in
+# aerie_crash_reports_strings.grdp, included by the same patch.
+source_set("handler") {
+  visibility = [
+    ":*",
+    "//chrome/browser/ui/webui/settings:*",
+  ]
+  sources = [
+    "aerie_crash_reports_handler.cc",
+    "aerie_crash_reports_handler.h",
+  ]
+  public_deps = [
+    "//base",
+    "//components/aerie_crash_reports",
+    "//content/public/browser",
+  ]
+  deps = [
+    "//chrome/browser/profiles:profile",
+    "//chrome/common:constants",
+  ]
+}
+
+# Browser tests (issue #262): the handler's messages, and that no build can upload a crash.
+# Listed in aerie_browser_tests (overlay/chrome/test/aerie/BUILD.gn).
+source_set("browser_tests") {
+  testonly = true
+  # content/public/test/browser_test.h refuses to compile without it.
+  defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
+  sources = [
+    "aerie_crash_on_device_browsertest.cc",
+    "aerie_crash_reports_browsertest.cc",
+    "aerie_crash_upload_disabled_browsertest.cc",
+  ]
+  deps = [
+    ":handler",
+    "//base",
+    "//base/test:test_support",
+    "//chrome/browser:browser",
+    "//chrome/browser/crash_upload_list",
+    "//chrome/browser/profiles:profile",
+    "//chrome/common:constants",
+    "//chrome/test:test_support",
+    "//chrome/test:test_support_ui",
+    "//components/aerie_crash_reports",
+    "//components/aerie_crash_reports:test_support",
+    "//components/crash/core/app",
+    "//content/test:test_support",
+    "//testing/gmock",
+    "//testing/gtest",
+    "//third_party/crashpad/crashpad/client",
+  ]
+}

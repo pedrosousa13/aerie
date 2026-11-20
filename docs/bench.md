@@ -587,6 +587,18 @@ The verdict comes from the NetLog after the browser exits. It fails when:
   so the default run lists them as `blocked` and still passes;
 - with `--zero-traffic-strict`, the request policy refused anything (next paragraph).
 
+**Crash step** (issue #262). After the three phases the check starts a browser on a new profile, crashes it
+on purpose (`Browser.crash` over DevTools, which raises SIGTRAP in the browser process), and starts a second
+browser on the same profile. It fails when: the first browser did not crash; the crash handler process
+(`aerie_crashpad_handler`) is not found, or was started with `--url`; the database's `settings.dat` has the
+upload switch on or cannot be read; the crash left no file in `Crash Reports/pending`, or the file was gone after
+the relaunch; a dump is not mode 0600 or a folder of the database is not 0700; anything is in `completed/`
+(a report handled as sent); the relaunched browser's NetLog is truncated or it did not exit with code 0; or the
+NetLog of either browser holds a denylisted request, or any host or path with "crash" in it. The result holds
+counts, modes and switch names, never a path or the contents of a dump. `--zero-traffic-no-crash` leaves the
+step out. `tools/aerie_bench/crash_step.py`; `tests/test_bench_crash_step.py` runs it against a fake browser
+that does each thing wrong in turn.
+
 **Refused attempts.** The network service's request policy (issue #257, `docs/network-endpoints.md`,
 "Request policy") refuses a request that the browser makes on its own unless it is on the reviewed
 allowlist. A refused request fails with net error -22 (`ERR_BLOCKED_BY_ADMINISTRATOR`, which nothing else

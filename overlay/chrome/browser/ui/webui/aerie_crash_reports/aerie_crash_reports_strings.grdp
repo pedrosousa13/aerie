@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright 2026 The Aerie Authors
+     You can use, redistribute, and/or modify this source code under
+     the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+     Strings of the Crash reports page of Settings (issue #262). patches/crash/0003 includes this file in generated_resources.grd and gives each
+     string to the settings page under the name tests/test_crash_reports.py checks. -->
+<grit-part>
+  <message name="IDS_SETTINGS_AERIE_CRASH_REPORTS_TITLE" desc="Title of the Crash reports section of Settings and its entry in the menu.">
+    Crash reports
+  </message>
+  <message name="IDS_SETTINGS_AERIE_CRASH_REPORTS_INTRO" desc="First line of the Crash reports page. It says where a report is kept and that it is not sent.">
+    When Aerie crashes, it saves a report on this computer. Aerie never sends a report anywhere.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_CRASH_REPORTS_PRIVACY" desc="Second line of the Crash reports page. It warns that a report can hold parts of open pages and says how to share one.">
+    A report can hold parts of the pages you had open. Only you can read it. If you want help with a crash, you can attach a report to a GitHub issue yourself.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_CRASH_REPORTS_LIMIT" desc="Third line of the Crash reports page. It says how many reports Aerie keeps. $1 is a number.">
+    Aerie keeps the newest <ph name="COUNT">$1<ex>20</ex></ph> reports and deletes the older ones.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_CRASH_REPORTS_HEADING" desc="Heading of the list of crash reports on this computer.">
+    Saved reports
+  </message>
+  <message name="IDS_SETTINGS_AERIE_CRASH_REPORTS_OPEN_FOLDER" desc="Button that shows the folder of the crash reports in the file manager.">
+    Open folder
+  </message>
+  <message name="IDS_SETTINGS_AERIE_CRASH_REPORTS_DELETE_ALL" desc="Button that deletes every crash report.">
+    Delete all
+  </message>
+  <message name="IDS_SETTINGS_AERIE_CRASH_REPORTS_DELETE" desc="Button on a crash report that deletes it.">
+    Delete
+  </message>
+  <message name="IDS_SETTINGS_AERIE_CRASH_REPORTS_DELETE_ARIA" desc="Accessible name of the Delete button of one crash report. $1 is the date and time of the report.">
+    Delete the report from <ph name="TIME">$1<ex>20 Nov 2026, 14:30</ex></ph>
+  </message>
+  <message name="IDS_SETTINGS_AERIE_CRASH_REPORTS_EMPTY" desc="Shown instead of the list when there is no crash report.">
+    There are no crash reports on this computer.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_CRASH_REPORTS_DETAILS" desc="Line under the time of a crash report. $1 is the kind of process that crashed, $2 is the version of Aerie.">
+    <ph name="PROCESS">$1<ex>Browser</ex></ph> process, version <ph name="VERSION">$2<ex>0.1.0</ex></ph>
+  </message>
+  <message name="IDS_SETTINGS_AERIE_CRASH_REPORTS_PROCESS_BROWSER" desc="Name of the browser process in the line under a crash report. The word 'process' follows it.">
+    Browser
+  </message>
+  <message name="IDS_SETTINGS_AERIE_CRASH_REPORTS_PROCESS_RENDERER" desc="Name of a page renderer process in the line under a crash report. The word 'process' follows it.">
+    Page
+  </message>
+  <message name="IDS_SETTINGS_AERIE_CRASH_REPORTS_PROCESS_GPU" desc="Name of the graphics process in the line under a crash report. The word 'process' follows it.">
+    Graphics
+  </message>
+  <message name="IDS_SETTINGS_AERIE_CRASH_REPORTS_PROCESS_UTILITY" desc="Name of a utility process in the line under a crash report. The word 'process' follows it.">
+    Utility
+  </message>
+  <message name="IDS_SETTINGS_AERIE_CRASH_REPORTS_PROCESS_UNKNOWN" desc="Used in the line under a crash report when the report does not say which process crashed. The word 'process' follows it.">
+    Unknown
+  </message>
+  <message name="IDS_SETTINGS_AERIE_CRASH_REPORTS_VERSION_UNKNOWN" desc="Used in the line under a crash report when the report does not say the version.">
+    unknown
+  </message>
+  <message name="IDS_SETTINGS_AERIE_CRASH_REPORTS_ERROR_DELETE" desc="Error under the list of crash reports when a delete failed.">
+    Could not delete the report. It may be in use. Try again.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_CRASH_REPORTS_ERROR_OPEN" desc="Error under the list of crash reports when the folder could not be opened.">
+    Could not open the folder.
+  </message>
+</grit-part>

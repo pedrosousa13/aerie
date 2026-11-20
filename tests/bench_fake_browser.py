@@ -58,6 +58,55 @@ if profile and os.environ.get("FAKE_BROWSER_SERVICES"):
     except Exception:
         pass
 
+# Crash reports (issue #262). A "crash" writes a dump the way Crashpad's handler does, in the
+# default user data directory (under XDG_CONFIG_HOME), and dies of SIGTRAP. A stand-in handler process
+# (a script named aerie_crashpad_handler) runs while the browser runs.
+_xdg = os.environ.get("XDG_CONFIG_HOME")
+crash_dir = os.path.join(_xdg, "aerie", "Crash Reports") if _xdg else None
+
+
+def _mkdir(path):
+    os.makedirs(path, mode=0o700, exist_ok=True)
+    os.chmod(path, 0o700)
+
+
+if crash_dir and not os.environ.get("FAKE_BROWSER_NO_HANDLER"):
+    for sub in ("", "pending", "completed", "new", "attachments"):
+        _mkdir(os.path.join(crash_dir, sub) if sub else crash_dir)
+    script = os.path.join(profile or crash_dir, "aerie_crashpad_handler")
+    with open(script, "w") as f:
+        f.write("#!/usr/bin/env python3\nimport os, time\nparent = os.getppid()\n"
+                "while os.path.exists('/proc/%d' % parent):\n    time.sleep(0.2)\n")
+    os.chmod(script, 0o700)
+    import subprocess
+    handler_args = [script, "--database=" + crash_dir]
+    if os.environ.get("FAKE_BROWSER_HANDLER_URL"):
+        handler_args.append("--url=https://crash.helium.computer/crash")
+    subprocess.Popen(handler_args, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    with open(os.path.join(crash_dir, "settings.dat"), "wb") as f:
+        uploads = 1 if os.environ.get("FAKE_BROWSER_UPLOADS_ON") else 0
+        f.write(b"sdPC" + (1).to_bytes(4, "little") + uploads.to_bytes(4, "little") + bytes(28))
+    os.chmod(os.path.join(crash_dir, "settings.dat"), 0o600)
+    pending = os.path.join(crash_dir, "pending")
+    left_over = [n for n in os.listdir(pending) if n.endswith(".dmp")]
+    if left_over and os.environ.get("FAKE_BROWSER_DELETE_DUMPS_AT_START"):
+        for name in left_over:
+            os.unlink(os.path.join(pending, name))
+
+
+def crash_now():
+    """What a real crash leaves, then the death of the process."""
+    if crash_dir and not os.environ.get("FAKE_BROWSER_NO_DUMP"):
+        import uuid
+        path = os.path.join(crash_dir, "pending", str(uuid.uuid4()) + ".dmp")
+        with open(path, "wb") as f:
+            f.write(b"MDMP" + bytes(60))
+        os.chmod(path, int(os.environ.get("FAKE_BROWSER_DUMP_MODE", "600"), 8))
+    write_netlog()
+    import signal
+    os.kill(os.getpid(), signal.SIGTRAP)
+
+
 rd, wr = os.fdopen(3, "rb", buffering=0), os.fdopen(4, "wb", buffering=0)
 buf = b""
 titles = {}
@@ -71,6 +120,9 @@ if os.path.basename(sys.argv[0]).startswith("fake-google"):
     requests.append("https://www.google.com/")
 current = "about:blank"
 fake_base = ""
+if os.environ.get("FAKE_BROWSER_UPLOAD_REQUEST") and crash_dir and os.path.isdir(os.path.join(crash_dir, "pending")) \
+        and any(n.endswith(".dmp") for n in os.listdir(os.path.join(crash_dir, "pending"))):
+    requests.append("https://crash.helium.computer/crash")
 
 
 def reply(obj):
@@ -285,6 +337,8 @@ def handle(msg):
             out = {"id": i, "error": {"code": -32000, "message": "Histogram not found"}}
     elif m == "Browser.getHistogram":
         out = {"id": i, "error": {"code": -32000, "message": "Histogram not found"}}
+    elif m == "Browser.crash" and not os.environ.get("FAKE_BROWSER_NO_CRASH"):
+        crash_now()
     elif m == "Browser.close":
         reply(out)
         write_netlog()

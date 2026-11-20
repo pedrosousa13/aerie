@@ -1,0 +1,182 @@
+Aerie-Purpose: Add the Crash reports section to Settings: a top-level route, its menu entry, its place in the page switcher, its strings, and the message handler that lists, deletes and opens the folder of the crash reports on this device.
+Aerie-Upstream-Area: chrome/browser/resources/settings (route.ts, router.ts, lazy_load.ts, BUILD.gn, settings_menu/settings_menu.html, settings_main/settings_main.html), chrome/browser/ui/webui/settings (settings_ui.cc, settings_localized_strings_provider.cc, BUILD.gn), chrome/app (generated_resources.grd and its gritdeps)
+Aerie-Kind: hook
+
+Issue #262. The page, settings-aerie-crash-reports-page, is a Lit element in the overlay
+(chrome/browser/resources/settings/aerie_crash_reports_page), wired the way the Aerie Guard page is
+(adblock/0023): a section of the basic page at /crashReports, a menu entry after Aerie Guard, the
+page switcher slot. The message handler, AerieCrashReportsHandler (overlay,
+chrome/browser/ui/webui/aerie_crash_reports), is a plain message handler on chrome://settings only
+that reads the Crashpad database of this device through components/aerie_crash_reports. It lists
+the time, process type and version of each report, deletes one or all, and opens the folder. It
+returns no contents of a dump and no path, and nothing it does touches the network. The strings
+are in the overlay's aerie_crash_reports_strings.grdp, which this patch includes in
+generated_resources.grd and hands to the page. docs/crash-reports.md has the whole account.
+
+--- a/chrome/app/generated_resources.grd
++++ b/chrome/app/generated_resources.grd
+@@ -308,6 +308,9 @@
+       <!-- Aerie Arc import strings -->
+       <part file="../browser/ui/webui/aerie_arc_import/aerie_arc_import_strings.grdp" />
+ 
++      <!-- Aerie crash reports strings -->
++      <part file="../browser/ui/webui/aerie_crash_reports/aerie_crash_reports_strings.grdp" />
++
+       <!-- Aerie Widevine prompt strings -->
+       <part file="../browser/aerie_widevine/aerie_widevine_strings.grdp" />
+ 
+--- a/chrome/app/generated_resources.grd.gritdeps
++++ b/chrome/app/generated_resources.grd.gritdeps
+@@ -113,6 +113,7 @@
+ chrome/browser/ui/views/aerie_adblock/aerie_guard_strings.grdp
+ chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_strings.grdp
+ chrome/browser/ui/webui/aerie_arc_import/aerie_arc_import_strings.grdp
++chrome/browser/ui/webui/aerie_crash_reports/aerie_crash_reports_strings.grdp
+ chrome/browser/ui/webui/aerie_guard_settings/aerie_guard_settings_strings.grdp
+ components/aerie_alpha_notice/aerie_alpha_notice_strings.grdp
+ components/aerie_design_tokens/aerie_motion_strings.grdp
+--- a/chrome/browser/resources/settings/BUILD.gn
++++ b/chrome/browser/resources/settings/BUILD.gn
+@@ -170,6 +170,9 @@
+     "about_page/about_page.html.ts",
+     "about_page/about_page.ts",
+     "active_timer.ts",
++    "aerie_crash_reports_page/aerie_crash_reports_browser_proxy.ts",
++    "aerie_crash_reports_page/aerie_crash_reports_page.html.ts",
++    "aerie_crash_reports_page/aerie_crash_reports_page.ts",
+     "aerie_guard_page/aerie_guard_browser_proxy.ts",
+     "aerie_guard_page/aerie_guard_page.html.ts",
+     "aerie_guard_page/aerie_guard_page.ts",
+--- a/chrome/browser/resources/settings/lazy_load.ts
++++ b/chrome/browser/resources/settings/lazy_load.ts
+@@ -23,6 +23,7 @@
+ // <if expr="not is_chromeos">
+ import './clear_browsing_data_dialog/clear_browsing_data_account_indicator.js';
+ // </if>
++import './aerie_crash_reports_page/aerie_crash_reports_page.js';
+ import './aerie_guard_page/aerie_guard_page.js';
+ import './clear_browsing_data_dialog/clear_browsing_data_dialog.js';
+ import './clear_browsing_data_dialog/clear_browsing_data_time_picker.js';
+@@ -258,6 +259,7 @@
+ export {SettingsSyncEncryptionOptionsElement} from './people_page/sync_encryption_options.js';
+ export {NetworkPredictionOptions} from './performance_page/constants.js';
+ export {SettingsCookiesPageElement} from './privacy_page/cookies_page.js';
++export {SettingsAerieCrashReportsPageElement} from './aerie_crash_reports_page/aerie_crash_reports_page.js';
+ export {SettingsAerieGuardPageElement} from './aerie_guard_page/aerie_guard_page.js';
+ export {SettingsAerieHardeningPageElement} from './privacy_page/hardening_page.js';
+ export {SettingsDoNotTrackToggleElement} from './privacy_page/do_not_track_toggle.js';
+--- a/chrome/browser/resources/settings/router.ts
++++ b/chrome/browser/resources/settings/router.ts
+@@ -35,6 +35,7 @@
+   EDIT_DICTIONARY: Route;
+   NOISE: Route;
+   AERIE_GUARD: Route;
++  AERIE_CRASH_REPORTS: Route;
+   AERIE_HARDENING: Route;
+   FONTS: Route;
+   GEMINI: Route;
+--- a/chrome/browser/resources/settings/route.ts
++++ b/chrome/browser/resources/settings/route.ts
+@@ -164,6 +164,11 @@
+       '/aerieGuard', 'aerieGuard',
+       loadTimeData.getString('aerieGuardPageTitle'));
+ 
++  // Crash reports section (issue #262). A top-level section, like Search.
++  r.AERIE_CRASH_REPORTS = r.BASIC.createSection(
++      '/crashReports', 'aerieCrashReports',
++      loadTimeData.getString('aerieCrashReportsTitle'));
++
+   const visibility = pageVisibility || {};
+ 
+   if (visibility.people !== false) {
+--- a/chrome/browser/resources/settings/settings_main/settings_main.html
++++ b/chrome/browser/resources/settings/settings_main/settings_main.html
+@@ -76,6 +76,14 @@
+     </template>
+   </div>
+ 
++  <div slot="view" id="aerieCrashReports">
++    <template is="dom-if" if="[[renderPlugin_(
++        routes_.AERIE_CRASH_REPORTS, lastRoute_, inSearchMode_)]]"
++        update-when-false>
++      <settings-aerie-crash-reports-page></settings-aerie-crash-reports-page>
++    </template>
++  </div>
++
+   <template is="dom-if" if="[[false]]">
+     <div slot="view" id="yourSavedInfo">
+       <template is="dom-if" if="[[renderPlugin_(
+--- a/chrome/browser/resources/settings/settings_menu/settings_menu.html
++++ b/chrome/browser/resources/settings/settings_menu/settings_menu.html
+@@ -35,6 +35,12 @@
+           <span class="menu-label">$i18n{aerieGuardPageTitle}</span>
+           <cr-ripple></cr-ripple>
+         </a>
++        <a role="menuitem" id="aerieCrashReports" href="/crashReports"
++            class="cr-nav-menu-item">
++          <cr-icon icon="settings20:warning"></cr-icon>
++          <span class="menu-label">$i18n{aerieCrashReportsTitle}</span>
++          <cr-ripple></cr-ripple>
++        </a>
+         <a role="menuitem" id="performance" href="/performance"
+             class="cr-nav-menu-item"
+             ?hidden="${this.shouldHideMenuItem_(this.pageVisibility_?.performance)}">
+--- a/chrome/browser/ui/webui/settings/BUILD.gn
++++ b/chrome/browser/ui/webui/settings/BUILD.gn
+@@ -321,6 +321,7 @@
+     "//chrome/browser/ui/webui:webui_util",
+     "//chrome/browser/ui/webui/aerie_appearance_settings:swatches",
+     "//chrome/browser/ui/webui/aerie_arc_import:handler",
++    "//chrome/browser/ui/webui/aerie_crash_reports:handler",
+     "//chrome/browser/ui/webui/aerie_guard_settings:handler",
+     "//chrome/browser/ui/webui/aerie_title_rules:handler",
+     "//chrome/browser/ui/webui/batch_upload_promo",
+--- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
++++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
+@@ -743,6 +743,25 @@
+       {"aerieArcImportErrorApplyFailed", IDS_SETTINGS_AERIE_ARC_IMPORT_ERROR_APPLY_FAILED},
+       {"aerieArcImportErrorGeneric", IDS_SETTINGS_AERIE_ARC_IMPORT_ERROR_GENERIC},
+       {"aerieArcImportUntitledFolder", IDS_SETTINGS_AERIE_ARC_IMPORT_UNTITLED_FOLDER},
++      {"aerieCrashReportsTitle", IDS_SETTINGS_AERIE_CRASH_REPORTS_TITLE},
++      {"aerieCrashReportsIntro", IDS_SETTINGS_AERIE_CRASH_REPORTS_INTRO},
++      {"aerieCrashReportsPrivacy", IDS_SETTINGS_AERIE_CRASH_REPORTS_PRIVACY},
++      {"aerieCrashReportsLimit", IDS_SETTINGS_AERIE_CRASH_REPORTS_LIMIT},
++      {"aerieCrashReportsHeading", IDS_SETTINGS_AERIE_CRASH_REPORTS_HEADING},
++      {"aerieCrashReportsOpenFolder", IDS_SETTINGS_AERIE_CRASH_REPORTS_OPEN_FOLDER},
++      {"aerieCrashReportsDeleteAll", IDS_SETTINGS_AERIE_CRASH_REPORTS_DELETE_ALL},
++      {"aerieCrashReportsDelete", IDS_SETTINGS_AERIE_CRASH_REPORTS_DELETE},
++      {"aerieCrashReportsDeleteAria", IDS_SETTINGS_AERIE_CRASH_REPORTS_DELETE_ARIA},
++      {"aerieCrashReportsEmpty", IDS_SETTINGS_AERIE_CRASH_REPORTS_EMPTY},
++      {"aerieCrashReportsDetails", IDS_SETTINGS_AERIE_CRASH_REPORTS_DETAILS},
++      {"aerieCrashReportsProcessBrowser", IDS_SETTINGS_AERIE_CRASH_REPORTS_PROCESS_BROWSER},
++      {"aerieCrashReportsProcessRenderer", IDS_SETTINGS_AERIE_CRASH_REPORTS_PROCESS_RENDERER},
++      {"aerieCrashReportsProcessGpu", IDS_SETTINGS_AERIE_CRASH_REPORTS_PROCESS_GPU},
++      {"aerieCrashReportsProcessUtility", IDS_SETTINGS_AERIE_CRASH_REPORTS_PROCESS_UTILITY},
++      {"aerieCrashReportsProcessUnknown", IDS_SETTINGS_AERIE_CRASH_REPORTS_PROCESS_UNKNOWN},
++      {"aerieCrashReportsVersionUnknown", IDS_SETTINGS_AERIE_CRASH_REPORTS_VERSION_UNKNOWN},
++      {"aerieCrashReportsErrorDelete", IDS_SETTINGS_AERIE_CRASH_REPORTS_ERROR_DELETE},
++      {"aerieCrashReportsErrorOpen", IDS_SETTINGS_AERIE_CRASH_REPORTS_ERROR_OPEN},
+       {"aerieSidebarDensity", IDS_SETTINGS_AERIE_SIDEBAR_DENSITY},
+       {"aerieSidebarDensityDesc", IDS_SETTINGS_AERIE_SIDEBAR_DENSITY_DESC},
+       {"aerieSidebarDensityComfortable",
+--- a/chrome/browser/ui/webui/settings/settings_ui.cc
++++ b/chrome/browser/ui/webui/settings/settings_ui.cc
+@@ -63,6 +63,7 @@
+ #include "chrome/browser/ui/webui/plural_string_handler.h"
+ #include "chrome/browser/ui/webui/sanitized_image/sanitized_image_source.h"
+ #include "chrome/browser/ui/webui/aerie_arc_import/aerie_arc_import_handler.h"
++#include "chrome/browser/ui/webui/aerie_crash_reports/aerie_crash_reports_handler.h"
+ #include "chrome/browser/ui/webui/aerie_guard_settings/aerie_guard_settings_handler.h"
+ #include "chrome/browser/ui/webui/aerie_title_rules/aerie_title_rules_handler.h"
+ #include "chrome/browser/ui/webui/settings/about_handler.h"
+@@ -291,6 +292,10 @@
+   // this WebUI only. It opens the file chooser itself; the page names no path.
+   web_ui->AddMessageHandler(
+       std::make_unique<aerie_arc_import::AerieArcImportHandler>(profile));
++  // "Crash reports" (issue #262): a plain message handler, on this WebUI only. It lists,
++  // deletes and opens the folder of the reports on this device; it sends nothing.
++  web_ui->AddMessageHandler(
++      aerie_crash_reports::AerieCrashReportsHandler::Create(profile));
+   AddSettingsPageUIHandler(std::make_unique<BraveImportDataHandler>());
+   AddSettingsPageUIHandler(std::make_unique<HatsHandler>());
+ 

@@ -41,6 +41,17 @@ bool CrashReporterClient::ShouldRateLimitUploads() {
   return true;
 }
 """
+CRASHPAD_OK = """void ApplyUploadConsent(bool /*consent*/) {
+  if (!g_database)
+    return;
+  // Aerie: never.
+  g_database->GetSettings()->SetUploadsEnabled(false);
+}
+
+void RequestSingleCrashUploadImpl(const std::string& local_id) {
+  // Aerie: never.
+}
+"""
 CRASH_MODE_OK = """CrashReportingMode GetCrashReportingMode() {
   return CrashReportingMode::kDisabled;
 }
@@ -394,6 +405,7 @@ GOOD = {
     "chrome/browser/profiles/profile.cc": PROFILE_OK,
     "chrome/browser/net/default_dns_over_https_config_source.cc": DOH_OK,
     "components/crash/core/app/crash_reporter_client.cc": CRASH_OK,
+    "components/crash/core/app/crashpad.cc": CRASHPAD_OK,
     "chrome/browser/crash_upload_list/helium_crash_reporting.cc": CRASH_MODE_OK,
     "components/helium_services/helium_services_helpers.cc": SERVICES_OK,
     "chrome/browser/chrome_content_browser_client.cc": FEDCM_OK + LINK_PREFETCH_CLIENT_OK,
@@ -510,6 +522,22 @@ class DefaultsGatesTest(TreeCase):
                     "chrome/browser/crash_upload_list/helium_crash_reporting.cc":
                     CRASH_MODE_OK.replace("kDisabled", "kAsk")})
         self.assertEqual(len(treegate.check_crash_reporting(self.root)), 1)
+
+    def test_crash_reports_must_stay_on_the_device(self):
+        # Issue #262: no way to switch uploads on, none to request one, no deletion of pending reports.
+        crashpad = "components/crash/core/app/crashpad.cc"
+        mode = "chrome/browser/crash_upload_list/helium_crash_reporting.cc"
+        self.write({crashpad: CRASHPAD_OK, mode: CRASH_MODE_OK, "components/crash/core/app/crash_reporter_client.cc": CRASH_OK})
+        self.assertEqual(treegate.check_crash_reporting(self.root), [])
+        for bad in (CRASHPAD_OK.replace("SetUploadsEnabled(false)", "SetUploadsEnabled(consent)"),
+                    CRASHPAD_OK.replace("// Aerie: never.\n}\n", "g_database->RequestUpload(uuid);\n}\n")):
+            self.write({crashpad: bad})
+            self.assertTrue(treegate.check_crash_reporting(self.root), bad)
+        self.write({crashpad: CRASHPAD_OK})
+        for bad in (CRASH_MODE_OK + "\nvoid F() { crash_reporter::SetUploadConsentFromUser(true); }\n",
+                    CRASH_MODE_OK + "\nvoid G() { DeletePendingReports(true); }\n"):
+            self.write({mode: bad})
+            self.assertTrue(treegate.check_crash_reporting(self.root), bad)
 
     def test_fedcm_dns_resolver_prefix_must_be_empty(self):
         path = "chrome/browser/chrome_content_browser_client.cc"
@@ -861,7 +889,7 @@ class RunTest(TreeCase):
 
     def test_empty_tree_passes_unless_required(self):
         self.assertEqual(self.run_gates(), [])
-        self.assertEqual(len(self.run_gates(require=True)), 56)
+        self.assertEqual(len(self.run_gates(require=True)), 60)
 
     def test_format_report(self):
         self.write({"a.cc": '"https://services.helium.imput.net"\n'})
