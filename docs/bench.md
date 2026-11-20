@@ -48,13 +48,14 @@ Options:
 | `--baseline PATH` | `zero_traffic`: also run the check on this browser (an unmodified Helium build, or any browser that talks to Google) and require it to fail. If it passes, the check is vacuous and the command exits 1. |
 | `--perf-baseline FILE` | `perf`: compare with this perf document (`main.json` of a `--perf-record` directory) and fail when a metric regressed past its threshold. A file that does not exist fails the run, unless `--perf-first-run` is given. |
 | `--perf-first-run` | `perf`: with `--perf-baseline`, pass when that file does not exist yet. For the very first run, before any main build was recorded. It does not excuse an unreadable baseline or a regression. |
-| `--release` | `./aerie bench` only: test the browser of `./aerie build --release` (`out/Release`) and not `out/Default`. The perf document records the preset, see "Release and developer baselines". It needs a sandbox profile for `out/Release` too, or `--no-sandbox` (see "Sandbox"). |
+| `--release` | `./aerie bench`: test the browser of `./aerie build --release` (`out/Release`) and not `out/Default`. With `--binary` (also `python3 -m aerie_bench`): the browser is a release build. `perf` records it as the preset, see "Release and developer baselines". The sandbox profile must cover `out/Release` too, or the run needs `--no-sandbox` (see "Sandbox"). |
 | `--sidebar-frames-baseline FILE` | `sidebar_frames`: compare with this document (`sidebar-frames-main.json` of a `--sidebar-frames-record` directory) and fail when an animation got worse past its threshold. A file that does not exist fails the run, unless `--sidebar-frames-first-run` is given. |
 | `--sidebar-frames-first-run` | `sidebar_frames`: with `--sidebar-frames-baseline`, pass when that file does not exist yet. It does not excuse an unreadable baseline or a regression. |
 | `--sidebar-frames-record DIR` | `sidebar_frames`: after a passing run, append `sidebar_frames.json` to `DIR/sidebar-frames-history.jsonl` and make it `DIR/sidebar-frames-main.json`. Use it by hand on builds of main only; no automation passes it yet. |
 | `--sidebar-frames-repeats N` | `sidebar_frames`: how many times each animation runs (default 5, at least 2). |
 | `--download-benchmarks` | Download the pinned Speedometer and JetStream copies into the build root, check their sha256 and unpack them (see "Pinned benchmark copies"). Needs the network; a copy that is already there is not downloaded again. |
-| `--perf-record DIR` | `perf`: after a passing run, append `perf.json` to `DIR/history.jsonl` and make it `DIR/main.json`. Use it on builds of main only. |
+| `--perf-record DIR` | `perf`: after a passing run, append `perf.json` to `DIR/history.jsonl` and make it `DIR/main.json` (a release build: `history-release.jsonl` and `main-release.json`). Use it on builds of main only. A `--no-sandbox` run is refused. |
+| `--allow-unsandboxed-baseline` | `perf`: with `--perf-record`, record a `--no-sandbox` run anyway; the document keeps `no_sandbox: true`. |
 | `--perf-commit SHA` | `perf`: with `--perf-record`, the source commit the browser was built from; stored as `commit` in `main.json` and `history.jsonl`. Default: HEAD of the checkout the Bench runs from (12 characters), with a warning when `--binary` is given, because that browser may not come from HEAD. |
 | `--perf-compare-binary PATH` | `perf`: run the same suite on this browser (Helium, stock Chromium) and write `perf-comparison.md`, both side by side. |
 | `--perf-compare-name NAME` | `perf`: how that browser is named in the report (default `Helium`). |
@@ -297,20 +298,32 @@ more than the absolute floor, so a large percentage of a tiny number is not one.
 
 ### Release and developer baselines
 
-`perf.json` records `preset` (`default` for a browser in `out/Default` or any other path, `release` for one in
-`out/Release`, taken from the binary's directory) and `no_sandbox` (the run used `--no-sandbox`). A document without
-`preset` is a `default` one. Each preset has its own files in the perf directory:
+`perf.json` records `preset` (`default` or `release`) and `no_sandbox` (the run used `--no-sandbox`). A document
+without them is a sandboxed `default` one. The preset has one source:
+
+- `./aerie bench --release` (or `--release` with any `--binary`) says `release`;
+- `./aerie bench` without `--binary` runs the browser of `./aerie build`, which is `default`;
+- any other `--binary` is judged by the `args.gn` next to it: `is_official_build=true` with `chrome_pgo_phase=2` is
+  `release`, anything else `default`. Without an `args.gn` the run stops with an error; pass `--release` if it is a
+  release build.
+
+Each preset has its own files in the perf directory:
 
 | Preset | Baseline | History |
 | --- | --- | --- |
 | `default` (developer build, `./aerie build`) | `main.json` | `history.jsonl` |
 | `release` (`./aerie build --release`, docs/release-build.md) | `main-release.json` | `history-release.jsonl` |
 
-`--perf-record` writes the files of the run's own preset. A comparison with a baseline of the other preset does not run:
-`--perf-baseline` fails with "this run is a release build but the baseline is a default build" (`perf compare` exits 2).
-The PR gate builds and benchmarks `out/Default` and reads `main.json`, so it is not touched by a release baseline. The
-release baseline is refreshed by hand (or by a nightly that builds `--release`), not per PR: the release build takes
-about 2.4 hours (docs/release-build.md). Refresh it with the steps above on a `--release` build:
+`--perf-record` writes the files of the run's own preset. The comparison refuses a baseline that does not match the
+run, in the preset or in the sandbox: the check ends with status `error` (a usage error, not a regression) and the
+message names both, for example "this run is a default build but the baseline is a release build" (`perf compare`
+exits 2). A run made with `--no-sandbox` is never recorded, because the PR gate runs with the sandbox and the numbers
+are not comparable; `--perf-record` stops before it runs anything. `--allow-unsandboxed-baseline` overrides that: the
+baseline then keeps `no_sandbox: true` and only compares with runs made the same way.
+
+The PR gate builds and benchmarks `out/Default` and reads `main.json`, so a release baseline does not touch it. The
+release baseline is refreshed by hand after a release build, not per PR: the build takes hours (see
+"Measured on this box" in docs/release-build.md).
 
 ```sh
 ./aerie build --release
@@ -319,21 +332,7 @@ about 2.4 hours (docs/release-build.md). Refresh it with the steps above on a `-
 PYTHONPATH=tools python3 -m aerie_bench.perf series "${AERIE_PERF_DIR:-/mnt/linux2/aerie-perf}" --preset release
 ```
 
-**Release against the developer build (issue #261).** Measured on the build machine on 2026-11-20 (12 cores, 30 GB),
-same commit (15aa971), both browsers run with `--no-sandbox` because the AppArmor profile did not cover `out/Release`
-yet (so these numbers are not comparable to the sandboxed baseline above), one full `perf` run each:
-
-| Metric | `out/Default` | `out/Release` | Change |
-| --- | ---: | ---: | ---: |
-| `speedometer_score` (higher is better) | 27.34 | 34.98 | +27.9% |
-| `jetstream_score` (higher is better) | 301.73 | 321.50 | +6.6% |
-| `startup_cold_ms` | 496.7 | 482.9 | -2.8% |
-| `startup_warm_ms` | 142.3 | 132.5 | -6.9% |
-| `memory_after_ad_pages_mb` | 1013.8 | 1131.7 | +11.6% |
-
-A second release run (against the first as baseline) read 34.77, 325.05 and 1113.6 MB and was within thresholds. The release build
-reads about 100 MB more memory after the ad pages than the developer build: the memory threshold applies per preset,
-so that is not a regression. Only a baseline recorded on a release build, on a sandboxed run, belongs in `main-release.json`.
+The steady-state advice above applies to the release baseline too.
 
 ### Proving the gate trips
 

@@ -9,7 +9,7 @@ A metrics document (``perf.json``) is::
      "skipped": {"jetstream_score": "reason it was switched off"},
      "failed": {"speedometer_score": "reason it could not be measured"},
      "commit": "abc1234",   # only in recorded baselines (--perf-record)
-     "preset": "default",   # or "release": the build the binary comes from (preset_of); absent = "default"
+     "preset": "default",   # or "release": the build the binary comes from (resolve_preset); absent = "default"
      "no_sandbox": false}   # the browser ran without its sandbox (--no-sandbox)
 
 A run with anything in ``failed`` fails the perf check and is never recorded as a baseline.
@@ -25,18 +25,57 @@ from dataclasses import dataclass
 from pathlib import Path
 
 SCHEMA = 1
-HISTORY_FILE = "history.jsonl"
-MAIN_FILE = "main.json"
-PRESETS = ("default", "release")
+# The perf directory's files for each build preset: (baseline, history). The developer build keeps main.json,
+# which is the PR gate's baseline.
+PRESET_FILES = {
+    "default": ("main.json", "history.jsonl"),
+    "release": ("main-release.json", "history-release.jsonl"),
+}
+PRESETS = tuple(PRESET_FILES)
 
 
-class PresetMismatch(ValueError):
-    """A run was compared with a baseline from the other build preset."""
+class ComparisonError(ValueError):
+    """A run cannot be compared with a baseline: it is another preset or differs in the sandbox."""
 
 
-def preset_of(binary: str | Path) -> str:
-    """"release" for a browser in an out/Release directory (./aerie build --release), else "default"."""
-    return "release" if Path(binary).parent.name == "Release" else "default"
+class UnsandboxedBaseline(ValueError):
+    """A run without the browser sandbox must not become a baseline."""
+
+
+class PresetUnknown(ValueError):
+    """The build preset of a browser cannot be told."""
+
+
+def _gn_values(text: str) -> dict[str, str]:
+    """The effective value of each argument in an args.gn: the last assignment wins, as in GN."""
+    values = {}
+    for line in text.splitlines():
+        name, sep, value = line.partition("=")
+        if sep:
+            values[name.strip()] = value.split("#")[0].strip()
+    return values
+
+
+def resolve_preset(binary: str | Path, release: bool, explicit_binary: bool) -> str:
+    """The build preset of the browser under test, from one source each:
+
+    - ``--release`` names it (``./aerie bench --release``);
+    - the default build that ``./aerie bench`` finds is a default build;
+    - any other ``--binary`` is judged by the args.gn next to it: an official build with PGO phase 2 is
+      "release", anything else "default". Without an args.gn there is no way to tell, and that is an error.
+    """
+    if release:
+        return "release"
+    if not explicit_binary:
+        return "default"
+    args_gn = Path(binary).parent / "args.gn"
+    try:
+        values = _gn_values(args_gn.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise PresetUnknown(f"cannot tell the build preset of {binary}: no readable args.gn next to it ({exc}); "
+                            "pass --release if it is a release build") from exc
+    official = values.get("is_official_build") == "true" and values.get("chrome_pgo_phase") == "2"
+    return "release" if official else "default"
 
 
 def doc_preset(doc: dict) -> str:
@@ -45,19 +84,25 @@ def doc_preset(doc: dict) -> str:
 
 
 def baseline_name(preset: str) -> str:
-    """main.json for the developer build (the PR gate's baseline), main-<preset>.json for the others."""
-    return MAIN_FILE if preset == "default" else f"main-{preset}.json"
+    return PRESET_FILES[preset][0]
 
 
 def history_name(preset: str) -> str:
-    return HISTORY_FILE if preset == "default" else f"history-{preset}.jsonl"
+    return PRESET_FILES[preset][1]
 
 
-def check_same_preset(current: dict, baseline: dict) -> None:
+def check_comparable(current: dict, baseline: dict) -> None:
+    """Raise ComparisonError unless both documents come from the same preset and the same sandbox setting."""
     cur, base = doc_preset(current), doc_preset(baseline)
     if cur != base:
-        raise PresetMismatch(f"this run is a {cur} build but the baseline is a {base} build; "
-                             f"compare with the {cur} baseline ({baseline_name(cur)}) instead")
+        raise ComparisonError(f"this run is a {cur} build but the baseline is a {base} build; "
+                              f"compare with the {cur} baseline ({baseline_name(cur)}) instead")
+    cur_off, base_off = bool(current.get("no_sandbox")), bool(baseline.get("no_sandbox"))
+    if cur_off != base_off:
+        def state(off: bool) -> str:
+            return "without the sandbox" if off else "with the sandbox"
+        raise ComparisonError(f"this run was made {state(cur_off)} but the baseline was made {state(base_off)}; "
+                              "memory and startup are not comparable")
 
 
 @dataclass(frozen=True)
@@ -170,7 +215,7 @@ def load(path: Path) -> dict:
     return doc
 
 
-def record(directory: Path, doc: dict, commit: str | None = None) -> Path:
+def record(directory: Path, doc: dict, commit: str | None = None, allow_unsandboxed: bool = False) -> Path:
     """Append ``doc`` to the series and make it the baseline for the next comparison.
 
     Each preset has its own files (baseline_name, history_name): main.json and history.jsonl for the developer
@@ -178,6 +223,10 @@ def record(directory: Path, doc: dict, commit: str | None = None) -> Path:
 
     ``commit`` is the source commit the measured build came from; it is stored as ``doc["commit"]`` so a
     baseline can be traced back to the code it measured (issue #243)."""
+    if doc.get("no_sandbox") and not allow_unsandboxed:
+        raise UnsandboxedBaseline("this run was made without the browser sandbox, and the PR gate runs with it, so it "
+                                  "is not recorded as a baseline; run it sandboxed, or pass "
+                                  "--allow-unsandboxed-baseline to record it marked no_sandbox")
     if commit:
         doc = {**doc, "commit": commit}
     directory = Path(directory)
@@ -278,7 +327,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.cmd == "compare":
             current, baseline = load(Path(args.current)), load(Path(args.baseline))
-            check_same_preset(current, baseline)
+            check_comparable(current, baseline)
             v = compare(current, baseline)
             print("\n".join(verdict_lines(v)))
             return 1 if failures(v) else 0

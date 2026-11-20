@@ -74,8 +74,9 @@ the exact path.
 Ubuntu 23.10 and later block unprivileged user namespaces through AppArmor
 (`kernel.apparmor_restrict_unprivileged_userns = 1`). A locally built binary
 then stops at start with `No usable sandbox!`. Fix it once, as root, with an
-AppArmor profile like the one Ubuntu ships for Chrome (`out/Release` is the `./aerie build --release` build; adjust the path if
-your build root differs):
+AppArmor profile like the one Ubuntu ships for Chrome (adjust the path if
+your build root differs). The profile names both output directories:
+`out/Default` is `./aerie build`, `out/Release` is `./aerie build --release`.
 
 ```sh
 sudo tee /etc/apparmor.d/aerie >/dev/null <<'PROFILE'

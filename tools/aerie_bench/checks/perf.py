@@ -38,8 +38,9 @@ class Perf:
 
     def __init__(self, baseline: str | None = None, settle_seconds: float = 3.0, startup_runs: int = 3,
                  benchmarks: bool = True, label: str | None = None, first_run: bool = False,
-                 drivers: dict | None = None, no_sandbox: bool = False) -> None:
+                 drivers: dict | None = None, no_sandbox: bool = False, preset: str = "default") -> None:
         self.no_sandbox = no_sandbox
+        self.preset = preset
         self.baseline = baseline
         self.settle = settle_seconds
         self.startup_runs = max(1, startup_runs)
@@ -132,7 +133,7 @@ class Perf:
         doc = {"schema": perf.SCHEMA, "label": self.label, "binary": {"path": session.binary,
                "version": session.binary_version}, "started": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                "metrics": metrics, "skipped": skipped, "failed": failed,
-               "preset": perf.preset_of(session.binary), "no_sandbox": self.no_sandbox}
+               "preset": self.preset, "no_sandbox": self.no_sandbox}
         (session.out_dir / "perf.json").write_text(json.dumps(doc, indent=1) + "\n")
         session.artifacts.append("perf.json")
         data = {"metrics": metrics, "skipped": skipped, "failed": failed}
@@ -156,9 +157,10 @@ class Perf:
         except (OSError, ValueError) as exc:
             return CheckResult(self.name, "error", f"cannot read the baseline: {exc}", data=data)
         try:
-            perf.check_same_preset(doc, base)
-        except perf.PresetMismatch as exc:
-            return CheckResult(self.name, "fail", f"not compared: {exc}", data=data)
+            perf.check_comparable(doc, base)
+        except perf.ComparisonError as exc:
+            # A usage error, not a regression: like a baseline that cannot be read.
+            return CheckResult(self.name, "error", f"not compared: {exc}", data=data)
         verdicts = perf.compare(doc, base)
         data["verdicts"] = verdicts
         bad = perf.failures(verdicts)

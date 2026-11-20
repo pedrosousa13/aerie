@@ -2,6 +2,7 @@
 
 import hashlib
 import re
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -59,6 +60,35 @@ class ReleaseGnArgsTest(unittest.TestCase):
         self.assertEqual(combined["chrome_pgo_phase"], "2")
         self.assertEqual(combined["is_official_build"], "true")
         self.assertEqual(combined["safe_browsing_mode"], "0")
+
+    def test_a_tree_path_that_would_break_the_quoted_gn_string_is_refused(self):
+        for bad in ('/src/he"lium', "/src/he\\lium", "/src/he$lium"):
+            with self.assertRaisesRegex(release.ProfileError, "GN string"):
+                release.gn_args(Path(bad), self.pin)
+
+    def test_the_configure_step_turns_that_into_a_build_error(self):
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        tree = tmp / 'tr"ee'
+        profiles = tree / "chrome" / "build" / "pgo_profiles"
+        profiles.mkdir(parents=True)
+        (profiles / PROFILE).write_bytes(b"x")
+        (tree / "chrome" / "build" / "linux.pgo.txt").write_text(PROFILE + "\n")
+        paths = config.BuildPaths(tmp / "root")
+        repo = tmp / "repo"
+        (repo / "helium-chromium").mkdir(parents=True)
+        (repo / "helium-linux").mkdir(parents=True)
+        (repo / "helium-chromium" / "flags.gn").write_text("safe_browsing_mode=0\n")
+        (repo / "helium-linux" / "flags.linux.gn").write_text("")
+        pin = {"name": PROFILE, "sha256": hashlib.sha256(b"x").hexdigest()}
+        pins = lock.Lock("0.1", "1.0", "t", "c", "t", "c", tools={"ccache": {"version": "1"}}, pgo={"linux": pin})
+        ctx = pipeline.Context(repo=repo, paths=paths, pins=pins, cache_size="1G", jobs=None,
+                               log_path=paths.logs / "t.log", release=True)
+        with mock.patch.object(pipeline.Context, "tree", new_callable=mock.PropertyMock, return_value=tree), \
+                mock.patch.object(pipeline, "run") as run:
+            with self.assertRaisesRegex(pipeline.BuildError, "GN string"):
+                pipeline.configure(ctx, mock.Mock(), {})
+        run.assert_not_called()
 
     def test_release_has_its_own_output_directory(self):
         paths = config.BuildPaths(Path("/root"))

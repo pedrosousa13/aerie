@@ -1,8 +1,10 @@
 """Performance metrics (issue #16): thresholds, comparison, history, reports and the perf check."""
 
+import argparse
 import contextlib
 import io
 import json
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -83,7 +85,7 @@ class CompareTest(unittest.TestCase):
 class HistoryTest(unittest.TestCase):
     def setUp(self):
         self.dir = Path(tempfile.mkdtemp()) / "perf"
-        self.addCleanup(lambda: __import__("shutil").rmtree(self.dir.parent, ignore_errors=True))
+        self.addCleanup(shutil.rmtree, self.dir.parent, ignore_errors=True)
 
     def test_record_appends_and_replaces_the_baseline(self):
         perf.record(self.dir, doc(memory=800, label="a"))
@@ -102,7 +104,7 @@ class HistoryTest(unittest.TestCase):
 
     def test_a_torn_history_line_is_skipped(self):
         perf.record(self.dir, doc(label="a"))
-        with open(self.dir / perf.HISTORY_FILE, "a") as f:
+        with open(self.dir / perf.history_name("default"), "a") as f:
             f.write('{"schema": 1, "metr')
         self.assertEqual(len(perf.read_history(self.dir)), 1)
 
@@ -143,16 +145,52 @@ class PresetTest(unittest.TestCase):
 
     def setUp(self):
         self.dir = Path(tempfile.mkdtemp())
-        self.addCleanup(lambda: __import__("shutil").rmtree(self.dir, ignore_errors=True))
+        self.addCleanup(shutil.rmtree, self.dir, ignore_errors=True)
 
-    def test_the_preset_comes_from_the_binarys_output_directory(self):
-        self.assertEqual(perf.preset_of("/b/src/helium-1/out/Release/aerie"), "release")
-        self.assertEqual(perf.preset_of("/b/src/helium-1/out/Default/aerie"), "default")
-        self.assertEqual(perf.preset_of("/usr/bin/chromium"), "default")
+    def build_dir(self, args_gn=None):
+        out = self.dir / "built"
+        out.mkdir(exist_ok=True)
+        (out / "chrome").write_text("")
+        if args_gn is not None:
+            (out / "args.gn").write_text(args_gn)
+        return out / "chrome"
+
+    # -- where the preset comes from -----------------------------------------------------------------
+
+    def test_release_flag_gives_the_release_preset_without_reading_anything(self):
+        self.assertEqual(perf.resolve_preset(self.dir / "nowhere" / "x", release=True, explicit_binary=True), "release")
+
+    def test_our_own_default_build_is_a_default_build(self):
+        self.assertEqual(perf.resolve_preset(self.dir / "nowhere" / "x", release=False, explicit_binary=False), "default")
+
+    def test_a_binary_is_judged_by_the_args_gn_next_to_it(self):
+        release = self.build_dir("is_official_build = true\nchrome_pgo_phase = 2\nuse_thin_lto = true\n")
+        self.assertEqual(perf.resolve_preset(release, release=False, explicit_binary=True), "release")
+
+    def test_helium_defaults_are_a_default_build(self):
+        # Helium's flags are official but have PGO off; a later assignment wins, as in GN.
+        dev = self.build_dir("is_official_build=true\nchrome_pgo_phase=0\n")
+        self.assertEqual(perf.resolve_preset(dev, release=False, explicit_binary=True), "default")
+        self.build_dir("is_official_build=true\nchrome_pgo_phase=0\nchrome_pgo_phase=2\n")
+        self.assertEqual(perf.resolve_preset(dev, release=False, explicit_binary=True), "release")
+        self.build_dir("is_official_build=false\nchrome_pgo_phase=2\n")
+        self.assertEqual(perf.resolve_preset(dev, release=False, explicit_binary=True), "default")
+
+    def test_a_binary_without_args_gn_needs_the_preset_to_be_given(self):
+        with self.assertRaisesRegex(perf.PresetUnknown, "args.gn.*--release"):
+            perf.resolve_preset(self.build_dir(), release=False, explicit_binary=True)
+
+    def test_the_directory_name_means_nothing(self):
+        out = self.dir / "Release"
+        out.mkdir()
+        (out / "args.gn").write_text("is_official_build=true\nchrome_pgo_phase=0\n")
+        self.assertEqual(perf.resolve_preset(out / "aerie", release=False, explicit_binary=True), "default")
 
     def test_a_document_without_a_preset_is_a_default_build(self):
         self.assertEqual(perf.doc_preset(doc()), "default")
         self.assertEqual(perf.doc_preset({**doc(), "preset": "release"}), "release")
+
+    # -- baselines --------------------------------------------------------------------------------------
 
     def test_each_preset_has_its_own_baseline_file_and_the_default_one_is_main_json(self):
         perf.record(self.dir, doc())
@@ -168,10 +206,26 @@ class PresetTest(unittest.TestCase):
         self.assertEqual(len(perf.read_history(self.dir)), 1)
         self.assertEqual(len(perf.read_history(self.dir, "release")), 1)
 
+    def test_a_run_without_the_sandbox_is_never_recorded_unless_asked(self):
+        unsandboxed = {**doc(), "no_sandbox": True}
+        with self.assertRaisesRegex(perf.UnsandboxedBaseline, "allow-unsandboxed-baseline"):
+            perf.record(self.dir, unsandboxed)
+        with self.assertRaises(perf.UnsandboxedBaseline):
+            perf.record(self.dir, {**unsandboxed, "preset": "release"})
+        self.assertEqual(list(self.dir.iterdir()), [])
+        perf.record(self.dir, unsandboxed, allow_unsandboxed=True)
+        self.assertTrue(json.loads((self.dir / "main.json").read_text())["no_sandbox"])
+
     def test_comparing_across_presets_is_refused_and_names_both(self):
-        with self.assertRaisesRegex(perf.PresetMismatch, "release.*default|default.*release"):
-            perf.check_same_preset({**doc(), "preset": "release"}, doc())
-        perf.check_same_preset(doc(), doc())  # a legacy baseline is a default one
+        with self.assertRaisesRegex(perf.ComparisonError, "release.*default|default.*release"):
+            perf.check_comparable({**doc(), "preset": "release"}, doc())
+        perf.check_comparable(doc(), doc())  # a legacy baseline is a default, sandboxed one
+
+    def test_comparing_a_sandboxed_run_with_an_unsandboxed_baseline_is_refused_and_names_both(self):
+        with self.assertRaisesRegex(perf.ComparisonError, "sandbox"):
+            perf.check_comparable(doc(), {**doc(), "no_sandbox": True})
+        with self.assertRaisesRegex(perf.ComparisonError, "sandbox"):
+            perf.check_comparable({**doc(), "no_sandbox": True}, doc())
 
     def test_the_module_command_refuses_a_cross_preset_compare(self):
         a, b = self.dir / "a.json", self.dir / "b.json"
@@ -181,38 +235,70 @@ class PresetTest(unittest.TestCase):
             self.assertEqual(perf.main(["compare", str(a), str(b)]), 2)
         self.assertIn("release", out.getvalue())
 
-    def run_perf(self, binary_dir, baseline=None, **opts):
-        browser = self.dir / "out" / binary_dir / "aerie"
-        browser.parent.mkdir(parents=True, exist_ok=True)
-        browser.write_text(FAKE.read_text())
-        browser.chmod(0o755)
-        options = {"perf": {"settle_seconds": 0, "startup_runs": 1, "benchmarks": False, "baseline": baseline, **opts}}
+    # -- the check and the command ----------------------------------------------------------------------
+
+    def run_perf(self, preset, baseline=None, **opts):
+        options = {"perf": {"settle_seconds": 0, "startup_runs": 1, "benchmarks": False, "baseline": baseline,
+                            "preset": preset, **opts}}
         with mock.patch("aerie_bench.procmem.tree_rss_kb", return_value={"total_kb": 512 * 1024, "processes": []}):
-            return runner.run_bench(browser, scenario.Scenario(checks=("perf",)), self.dir, timeout=10, check_options=options)
+            return runner.run_bench(FAKE, scenario.Scenario(checks=("perf",)), self.dir, timeout=10, check_options=options)
 
     def test_the_run_records_its_preset_and_whether_the_sandbox_was_off(self):
-        res = self.run_perf("Release", no_sandbox=True)
-        out = perf.load(res.out_dir / "perf.json")
-        self.assertEqual(out["preset"], "release")
-        self.assertTrue(out["no_sandbox"])
-        res = self.run_perf("Default")
-        out = perf.load(res.out_dir / "perf.json")
+        out = perf.load(self.run_perf("release", no_sandbox=True).out_dir / "perf.json")
+        self.assertEqual((out["preset"], out["no_sandbox"]), ("release", True))
+        out = perf.load(self.run_perf("default").out_dir / "perf.json")
         self.assertEqual((out["preset"], out["no_sandbox"]), ("default", False))
 
-    def test_a_default_run_against_a_release_baseline_fails_and_says_why(self):
+    def test_a_preset_or_sandbox_mismatch_is_an_error_not_a_regression(self):
         base = self.dir / "main-release.json"
         base.write_text(json.dumps({**doc(memory=500, cold=60000, warm=60000, scores=False), "preset": "release"}))
-        res = self.run_perf("Default", baseline=str(base))
-        check = res.data["checks"][0]
-        self.assertEqual(check["status"], "fail")
+        check = self.run_perf("default", baseline=str(base)).data["checks"][0]
+        self.assertEqual(check["status"], "error")
         self.assertRegex(check["detail"], "release")
         self.assertRegex(check["detail"], "default")
+        base.write_text(json.dumps({**doc(memory=500, cold=60000, warm=60000, scores=False), "no_sandbox": True}))
+        check = self.run_perf("default", baseline=str(base)).data["checks"][0]
+        self.assertEqual(check["status"], "error")
+        self.assertIn("sandbox", check["detail"])
+
+    def bench(self, *argv, binary=FAKE):
+        p = argparse.ArgumentParser()
+        cli.add_arguments(p, binary_required=False)
+        args = p.parse_args(["--check", "perf", "--perf-skip-benchmarks", "--perf-settle", "0", "--timeout", "10", *argv])
+        err = io.StringIO()
+        with mock.patch("aerie_bench.procmem.tree_rss_kb", return_value={"total_kb": 1024, "processes": []}), \
+                contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+            return cli.run(args, self.dir, binary), err.getvalue()
+
+    def test_perf_record_refuses_an_unsandboxed_run_before_running_anything(self):
+        code, err = self.bench("--no-sandbox", "--release", "--perf-record", str(self.dir / "perf"))
+        self.assertEqual(code, cli.EXIT_HARNESS)
+        self.assertIn("allow-unsandboxed-baseline", err)
+        self.assertFalse((self.dir / "perf").exists())
+
+    def test_the_escape_flag_records_the_unsandboxed_run_and_keeps_the_mark(self):
+        code, _ = self.bench("--no-sandbox", "--release", "--allow-unsandboxed-baseline",
+                             "--perf-record", str(self.dir / "perf"))
+        self.assertEqual(code, cli.EXIT_PASS)
+        saved = json.loads((self.dir / "perf" / "main-release.json").read_text())
+        self.assertEqual((saved["preset"], saved["no_sandbox"]), ("release", True))
+
+    def test_an_explicit_binary_without_args_gn_needs_release_or_args_gn(self):
+        code, err = self.bench("--binary", str(FAKE))
+        self.assertEqual(code, cli.EXIT_HARNESS)
+        self.assertIn("args.gn", err)
+        code, _ = self.bench("--binary", str(FAKE), "--release")
+        self.assertEqual(code, cli.EXIT_PASS)
+
+    def test_the_allow_flag_needs_perf_record(self):
+        code, err = self.bench("--allow-unsandboxed-baseline")
+        self.assertEqual(code, cli.EXIT_HARNESS)
 
 
 class CheckTest(unittest.TestCase):
     def setUp(self):
         self.root = Path(tempfile.mkdtemp())
-        self.addCleanup(lambda: __import__("shutil").rmtree(self.root, ignore_errors=True))
+        self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
 
     def run_perf(self, baseline=None, rss_kb=None, **opts):
         sc = scenario.Scenario(checks=("perf",))
@@ -359,7 +445,7 @@ class CheckTest(unittest.TestCase):
 class BenchmarkDriverTest(unittest.TestCase):
     def setUp(self):
         self.vendor = Path(tempfile.mkdtemp())
-        self.addCleanup(lambda: __import__("shutil").rmtree(self.vendor, ignore_errors=True))
+        self.addCleanup(shutil.rmtree, self.vendor, ignore_errors=True)
         self.drivers = {"speedometer": {"entry": "index.html?x=1", "done": "done()", "score": "score()", "progress": "prog()",
                                     "timeout_s": 5, "stall_s": 2}}
 
@@ -441,13 +527,18 @@ class BenchmarkDriverTest(unittest.TestCase):
 class CliTest(unittest.TestCase):
     def setUp(self):
         self.root = Path(tempfile.mkdtemp())
-        self.addCleanup(lambda: __import__("shutil").rmtree(self.root, ignore_errors=True))
+        self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
+        # --binary is judged by the args.gn next to it: a developer build.
+        (self.root / "built").mkdir()
+        self.browser = self.root / "built" / FAKE.name
+        shutil.copy2(FAKE, self.browser)
+        (self.root / "built" / "args.gn").write_text("is_official_build=true\nchrome_pgo_phase=0\n")
 
     def invoke(self, *argv):
         out, err = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err), \
                 mock.patch("aerie_bench.procmem.tree_rss_kb", return_value={"total_kb": 100 * 1024, "processes": []}):
-            code = cli.main(["--binary", str(FAKE), "--build-root", str(self.root), "--check", "perf",
+            code = cli.main(["--binary", str(self.browser), "--build-root", str(self.root), "--check", "perf",
                              "--perf-settle", "0", "--timeout", "10", "--perf-skip-benchmarks", *argv])
         return code, out.getvalue(), err.getvalue()
 

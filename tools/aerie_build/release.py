@@ -10,7 +10,6 @@ from pathlib import Path
 
 from . import lock
 
-OUT_NAME = "Release"
 PROFILE_DIR = Path("chrome") / "build" / "pgo_profiles"
 PROFILE_LIST = Path("chrome") / "build" / "linux.pgo.txt"
 
@@ -39,6 +38,10 @@ def verify_profile(tree: Path, pin: dict) -> Path:
 def gn_args(tree: Path, pin: dict) -> str:
     """The GN arguments the release build appends to Helium's, so that they win (docs/release-build.md lists them)."""
     profile = tree / PROFILE_DIR / pin["name"]
+    bad = [c for c in '"\\$' if c in str(profile)]
+    if bad:
+        raise ProfileError(f"the path {profile} has {' '.join(bad)} in it, which would break the quoted GN string "
+                           "of pgo_data_path; build in a path without double quotes, backslashes and dollar signs")
     return "\n".join([
         "is_official_build = true",
         "chrome_pgo_phase = 2",

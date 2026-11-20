@@ -15,6 +15,9 @@ from . import ccache
 
 DEFAULT_BUILD_ROOT = Path("/mnt/linux2/aerie-build")
 DEFAULT_CACHE_SIZE = "30G"
+# The output directories of a source tree: ./aerie build, and ./aerie build --release.
+OUT_DIR_DEFAULT = "Default"
+OUT_DIR_RELEASE = "Release"
 
 ENV_BUILD_ROOT = "AERIE_BUILD_ROOT"
 ENV_CACHE_SIZE = "AERIE_CCACHE_SIZE"
@@ -136,7 +139,7 @@ class BuildPaths:
         return self.src / name
 
     def out_dir(self, name: str, release: bool = False) -> Path:
-        return self.tree(name) / "out" / ("Release" if release else "Default")
+        return self.tree(name) / "out" / (OUT_DIR_RELEASE if release else OUT_DIR_DEFAULT)
 
     def scratch_dirs(self) -> list[Path]:
         """Directories that must exist before any build step runs."""

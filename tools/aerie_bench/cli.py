@@ -7,7 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from . import checks, scenario
+from . import checks, perf, scenario
 from .runner import BenchError, run_bench
 
 EXIT_PASS, EXIT_FAIL, EXIT_HARNESS = 0, 1, 2
@@ -72,8 +72,17 @@ def add_arguments(p: argparse.ArgumentParser, *, binary_required: bool) -> None:
                    help="download the pinned Speedometer and JetStream copies into the build root, check their "
                         "sha256 and unpack them (helium.lock, docs/bench.md); needs the network, once")
     p.add_argument("--perf-record", metavar="DIR",
-                   help="perf: after a passing run, append perf.json to DIR/history.jsonl and make it DIR/main.json (a --release build: history-release.jsonl and main-release.json) "
-                        "(use it on main builds only)")
+                   help="perf: after a passing run, append perf.json to DIR/history.jsonl and make it "
+                        "DIR/main.json (a release build: history-release.jsonl and main-release.json). "
+                        "Use it on builds of main only. A run with --no-sandbox is refused, see "
+                        "--allow-unsandboxed-baseline")
+    p.add_argument("--allow-unsandboxed-baseline", action="store_true",
+                   help="perf: with --perf-record, record a --no-sandbox run anyway; the document keeps "
+                        "no_sandbox: true, and only runs made without the sandbox compare with it")
+    p.add_argument("--release", action="store_true",
+                   help="perf: the browser is a release build (./aerie build --release). For ./aerie bench "
+                        "it also selects the release build in out/Release. A --binary without --release "
+                        "is judged by the args.gn next to it")
     p.add_argument("--perf-commit", metavar="SHA",
                    help="perf: with --perf-record, the source commit the browser was built from, stored as "
                         "\"commit\" in main.json and history.jsonl. Default: HEAD of the checkout this tool runs "
@@ -142,6 +151,17 @@ def run(args: argparse.Namespace, build_root: Path, default_binary: Path | None)
                              "--perf-compare-binary need --check perf")
         if args.perf_commit and not args.perf_record:
             raise BenchError("--perf-commit needs --perf-record")
+        if args.allow_unsandboxed_baseline and not args.perf_record:
+            raise BenchError("--allow-unsandboxed-baseline needs --perf-record")
+        if args.perf_record and args.no_sandbox and not args.allow_unsandboxed_baseline:
+            raise BenchError("--perf-record refuses a --no-sandbox run: the PR gate runs with the sandbox, so such a "
+                             "baseline is not comparable. Run it sandboxed, or pass --allow-unsandboxed-baseline")
+        preset = "default"
+        if "perf" in sc.checks:
+            try:
+                preset = perf.resolve_preset(binary, args.release, bool(args.binary))
+            except perf.PresetUnknown as exc:
+                raise BenchError(str(exc)) from exc
         if args.perf_first_run and not args.perf_baseline:
             raise BenchError("--perf-first-run needs --perf-baseline")
         if (args.sidebar_frames_baseline or args.sidebar_frames_record or args.sidebar_frames_first_run) \
@@ -182,7 +202,7 @@ def run(args: argparse.Namespace, build_root: Path, default_binary: Path | None)
                                       "repeats": args.sidebar_frames_repeats},
                    "perf": {"baseline": args.perf_baseline, "settle_seconds": args.perf_settle,
                             "first_run": args.perf_first_run, "benchmarks": not args.perf_skip_benchmarks,
-                            "no_sandbox": args.no_sandbox}}
+                            "no_sandbox": args.no_sandbox, "preset": preset}}
         common = dict(headless=not args.headed, no_sandbox=args.no_sandbox, timeout=args.timeout,
                       extra_flags=tuple(args.flag), check_options=options)
         result = run_bench(binary, sc, build_root, out_dir=Path(args.out) if args.out else None, **common)
@@ -233,7 +253,6 @@ def _perf_followup(args, result, build_root, common) -> int:
     """Record the run as the new baseline and run the comparison browser, as asked.
 
     Always passes: the comparison browser is a reference, so a crash or missing metrics only prints a note."""
-    from . import perf
     doc_path = result.out_dir / "perf.json"
     if not doc_path.is_file():
         return EXIT_PASS  # the check errored before it wrote anything; its own status already failed the run
@@ -244,7 +263,9 @@ def _perf_followup(args, result, build_root, common) -> int:
             if args.binary and not args.perf_commit:
                 print(f"perf: recording commit {commit} (HEAD of this checkout); it may not match --binary. "
                       "Pass --perf-commit SHA to name the commit the binary was built from.")
-            print(f"perf: recorded in {perf.record(Path(args.perf_record), doc, commit=commit)}"
+            recorded = perf.record(Path(args.perf_record), doc, commit=commit,
+                                   allow_unsandboxed=args.allow_unsandboxed_baseline)
+            print(f"perf: recorded in {recorded}"
                   + (f" (commit {commit})" if commit else ""))
         else:
             print("perf: run did not pass; not recorded")

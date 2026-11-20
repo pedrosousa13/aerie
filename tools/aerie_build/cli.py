@@ -424,7 +424,6 @@ def main(argv: list[str] | None = None) -> int:
     from aerie_bench import cli as bench_cli
 
     bench_cli.add_arguments(p_bench, binary_required=False)
-    p_bench.add_argument("--release", action="store_true", help="test the browser of ./aerie build --release (out/Release)")
     _add_lock_timeout(p_bench)
     p_bench.set_defaults(func=cmd_bench)
 
