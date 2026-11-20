@@ -196,7 +196,7 @@ bool AerieSidebarDragController::Begin(
   if (!found) {
     return false;
   }
-  selection_ids_.clear();
+  carries_selection_ = false;
   if (!is_folder && selection.size() > 1 &&
       std::find(selection.begin(), selection.end(), id) != selection.end()) {
     // A drag of a selection: every selected row that has a place leaves with
@@ -209,7 +209,7 @@ bool AerieSidebarDragController::Begin(
       }
     }
     if (carried.size() > 1) {
-      selection_ids_ = carried;
+      carries_selection_ = true;
       block_ids_ = carried;
       block_height_ = 0;
       content.count = static_cast<int>(carried.size());
@@ -360,7 +360,7 @@ std::map<std::string, int> AerieSidebarDragController::ComputeShifts(
   }
   *insertion_index = t;
   if (aerie::motion::ShouldReduceMotion(host_->Prefs()) ||
-      !selection_ids_.empty()) {
+      carries_selection_) {
     return shifts;
   }
   int height = block_height_;
@@ -626,7 +626,7 @@ void AerieSidebarDragController::End(const gfx::Point& widget_point,
 
   if (cancelled || target.kind == DropKind::kNone) {
     if (!cancelled && outside && !is_folder_ && !source_is_tile_ &&
-        selection_ids_.empty()) {
+        !carries_selection_) {
       Unhide();
       RemoveGhost();
       HideRefusalIfShown();
@@ -652,8 +652,8 @@ void AerieSidebarDragController::End(const gfx::Point& widget_point,
   request.container = target.container;
   request.index = target.index;
   const aerie_sidebar::MoveResult result =
-      selection_ids_.empty() ? host_->ApplyMove(request)
-                             : host_->ApplyMoveMany(selection_ids_, request);
+      carries_selection_ ? host_->ApplyMoveMany(block_ids_, request)
+                         : host_->ApplyMove(request);
   switch (result) {
     case aerie_sidebar::MoveResult::kMoved: {
       // The rows of the new places are new views; keep them out of sight until

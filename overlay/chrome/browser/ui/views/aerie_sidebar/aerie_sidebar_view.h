@@ -15,26 +15,27 @@
 #include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
+#include "base/scoped_observation.h"
 #include "base/timer/timer.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
-#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_context_menu.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_archive_controller.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_context_menu.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_controller.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_regions.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_row_entry.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_selection_keys.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_toolbar_parts.h"
 #include "components/aerie_design_tokens/aerie_motion.h"
 #include "components/aerie_sidebar/aerie_sidebar_density.h"
 #include "components/aerie_sidebar/aerie_sidebar_drag.h"
 #include "components/aerie_sidebar/aerie_sidebar_move.h"
 #include "components/aerie_sidebar/aerie_sidebar_peek.h"
-#include "components/aerie_sidebar/aerie_sidebar_selection.h"
-#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_selection_keys.h"
 #include "components/aerie_sidebar/aerie_sidebar_palette.h"
+#include "components/aerie_sidebar/aerie_sidebar_selection.h"
 #include "components/aerie_sidebar/aerie_sidebar_today_list.h"
+#include "components/aerie_tab_model/auto_file_controller.h"
 #include "components/aerie_tab_model/folder_tree.h"
 #include "components/aerie_tab_model/smart_folder.h"
-#include "components/aerie_tab_model/auto_file_controller.h"
 #include "components/aerie_tab_model/tab_model_observer.h"
 #include "components/aerie_tab_model/title_resolver.h"
 #include "components/aerie_tab_model/title_settings.h"
@@ -42,7 +43,6 @@
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/mojom/menu_source_type.mojom-forward.h"
 #include "ui/gfx/geometry/point.h"
-#include "base/scoped_observation.h"
 #include "ui/views/context_menu_controller.h"
 #include "ui/views/view.h"
 #include "ui/views/view_observer.h"
@@ -308,9 +308,16 @@ class AerieSidebarView : public views::View,
   // to here" and for the tests; and Esc.
   void SelectRangeTo(const std::string& id);
   void ClearSelection();
-  // The batch menu's commands, run without the menu.
+  // The batch menu's commands, run without the menu. The menu keeps the ids it
+  // was built for: `SnapshotSelectionForTesting` is that moment, and a command
+  // run without one takes the selection as it is.
+  void SnapshotSelectionForTesting() { batch_menu_ids_ = selection_.Selected(); }
   void SelectionCommandForTesting(AerieSidebarContextMenu::Command command) {
+    if (batch_menu_ids_.empty()) {
+      SnapshotSelectionForTesting();
+    }
     OnSelectionCommand(command);
+    batch_menu_ids_.clear();
   }
   // True after the first Delete on a selection, until the second one or any
   // change of the selection.
@@ -547,8 +554,6 @@ class AerieSidebarView : public views::View,
                                AerieSidebarContextMenu::Command command);
   // Opens the name of a folder for editing once its row exists.
   void RenameNewFolderSoon(const std::string& folder_id);
-  // The context menu of a row or a tile (issues #179 and #180): Pin or Unpin,
-  // Add to or Remove from Favorites, Sleep tab and Close tab.
   // Selecting several rows (issue #265).
   void ApplySelection();
   aerie_tab_model::Section SectionOfId(const std::string& id) const;
@@ -559,11 +564,18 @@ class AerieSidebarView : public views::View,
   void DisarmCloseSelection();
   // Delete on a selection: the first press asks, the second closes.
   void RequestCloseSelection();
-  void CloseSelectionNow();
+  void CloseSelectionNow(const std::vector<std::string>& ids);
   void FocusSelectableById(const std::string& id);
   void ShowSelectionContextMenu(const gfx::Point& screen_point,
                                 ui::mojom::MenuSourceType source_type);
   void OnSelectionCommand(AerieSidebarContextMenu::Command command);
+  // True when `id` is one of two or more selected rows: the batch menu and
+  // Delete act on the selection then, not on the row alone.
+  bool IsInMultiSelection(const std::string& id) const;
+  // Ends the selection and takes the Delete question back.
+  void ResetSelection();
+  // The context menu of a row or a tile (issues #179 and #180): Pin or Unpin,
+  // Add to or Remove from Favorites, Sleep tab and Close tab.
   void ShowRowContextMenu(const std::string& tab_id,
                           const gfx::Point& screen_point,
                           ui::mojom::MenuSourceType source_type);
@@ -790,11 +802,14 @@ class AerieSidebarView : public views::View,
   // The tab that Delete or Ctrl+W asked to close from a row: when its row goes,
   // keyboard focus stays in the list (closing the selected tab would otherwise
   // hand focus to the page).
-  aerie_sidebar::SelectionModel selection_;
-  bool close_selection_armed_ = false;
-  base::OneShotTimer close_selection_timer_;
   std::string refocus_after_close_id_;
   std::string pinned_refocus_after_close_id_;
+  // The selected rows (issue #265), and the ids the open batch menu was built
+  // for: tabs may close while it is open, so a command re-resolves each one.
+  aerie_sidebar::SelectionModel selection_;
+  std::vector<std::string> batch_menu_ids_;
+  bool close_selection_armed_ = false;
+  base::OneShotTimer close_selection_timer_;
   base::WeakPtrFactory<AerieSidebarView> weak_factory_{this};
 };
 

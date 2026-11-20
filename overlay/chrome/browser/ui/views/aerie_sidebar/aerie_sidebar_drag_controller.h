@@ -198,10 +198,10 @@ class AerieSidebarDragController {
   gfx::Vector2d resume_shift_;
   // The item and the rows below it that are not drawn while it is dragged.
   std::vector<std::string> block_ids_;
-  // The tabs a drag of a selection carries, in display order; empty otherwise
-  // (issue #265). Their rows do not shift for the drop (the selected rows may be
-  // far apart); the line shows the place.
-  std::vector<std::string> selection_ids_;
+  // True while the drag carries a selection, whose tabs are `block_ids_` in
+  // display order (issue #265). Their rows do not shift for the drop (the
+  // selected rows may be far apart); the line shows the place.
+  bool carries_selection_ = false;
   // The height one row (or the folder with its rows) takes, spacing included.
   int block_height_ = 0;
   gfx::Point last_point_;

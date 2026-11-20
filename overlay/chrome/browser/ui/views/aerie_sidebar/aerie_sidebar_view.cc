@@ -115,6 +115,8 @@ namespace {
 // How long after the sidebar is built the sleep controller is created (issue
 // #179: nothing at startup).
 constexpr base::TimeDelta kSleepControllerDelay = base::Seconds(5);
+// How long the first Delete on a selection waits for the second (issue #265).
+constexpr base::TimeDelta kCloseSelectionConfirmWindow = base::Seconds(4);
 
 // How many pinned rows show before the Pinned list scrolls (`size-pinned-max-rows`).
 constexpr int kPinnedMaxVisibleRows = aerie::tokens::kSizePinnedMaxRows;
@@ -1903,7 +1905,7 @@ bool AerieSidebarView::OnItemDragBegin(const std::string& id, bool is_folder) {
   // A drag of a selected row carries the whole selection (issue #265). A drag
   // of a row outside it leaves the selection.
   std::vector<std::string> carried;
-  if (!is_folder && selection_.size() >= 2 && selection_.IsSelected(id)) {
+  if (!is_folder && IsInMultiSelection(id)) {
     carried = selection_.Selected();
   } else if (!selection_.empty() && !selection_.IsSelected(id)) {
     ClearSelection();
@@ -2112,7 +2114,7 @@ void AerieSidebarView::OnTreeRowKey(bool today,
     // Focus moves when the row has gone (the sync), to the row that takes its
     // place.
     (today ? refocus_after_close_id_ : pinned_refocus_after_close_id_) = id;
-    if (selection_.size() >= 2 && selection_.IsSelected(id)) {
+    if (IsInMultiSelection(id)) {
       // Delete on a selection asks first (issue #265).
       RequestCloseSelection();
       return;
@@ -2877,7 +2879,7 @@ void AerieSidebarView::ShowRowContextMenu(
     return;
   }
   // The batch menu: right-click on one of several selected rows (issue #265).
-  if (selection_.size() >= 2 && selection_.IsSelected(tab_id)) {
+  if (IsInMultiSelection(tab_id)) {
     ShowSelectionContextMenu(screen_point, source_type);
     return;
   }
@@ -3440,7 +3442,7 @@ void AerieSidebarView::OnTileKey(const std::string& tab_id,
       static_cast<int>(tiles_.size()), favorites_grid_->columns(), focused,
       key);
   if (result.close_focused) {
-    if (selection_.size() >= 2 && selection_.IsSelected(tab_id)) {
+    if (IsInMultiSelection(tab_id)) {
       RequestCloseSelection();
       return;
     }
@@ -3569,18 +3571,24 @@ void AerieSidebarView::ClearSelection() {
   if (selection_.empty()) {
     return;
   }
+  ResetSelection();
+  AnnounceSelection();
+}
+
+void AerieSidebarView::ResetSelection() {
   selection_.Clear();
   DisarmCloseSelection();
   ApplySelection();
-  AnnounceSelection();
+}
+
+bool AerieSidebarView::IsInMultiSelection(const std::string& id) const {
+  return selection_.size() >= 2 && selection_.IsSelected(id);
 }
 
 void AerieSidebarView::ActivateTab(const std::string& id) {
   // A plain click or Enter on a row ends the selection and opens the tab.
   if (!selection_.empty()) {
-    selection_.Clear();
-    DisarmCloseSelection();
-    ApplySelection();
+    ResetSelection();
   }
   SelectTab(id);
 }
@@ -3652,7 +3660,7 @@ void AerieSidebarView::RequestCloseSelection() {
     // seconds, takes the question back.
     close_selection_armed_ = true;
     close_selection_timer_.Start(
-        FROM_HERE, base::Seconds(4),
+        FROM_HERE, kCloseSelectionConfirmWindow,
         base::BindOnce(&AerieSidebarView::DisarmCloseSelection,
                        base::Unretained(this)));
     const std::u16string question = l10n_util::GetPluralStringFUTF16(
@@ -3664,13 +3672,12 @@ void AerieSidebarView::RequestCloseSelection() {
     return;
   }
   DisarmCloseSelection();
-  CloseSelectionNow();
+  CloseSelectionNow(selection_.Selected());
 }
 
-void AerieSidebarView::CloseSelectionNow() {
+void AerieSidebarView::CloseSelectionNow(const std::vector<std::string>& ids) {
   // Each tab closes as it would alone: a Pinned or Favorite tab follows the
   // pinned-close setting.
-  const std::vector<std::string> ids = selection_.Selected();
   selection_.Clear();
   DisarmCloseSelection();
   for (const std::string& id : ids) {
@@ -3683,6 +3690,7 @@ void AerieSidebarView::ShowSelectionContextMenu(
     const gfx::Point& screen_point,
     ui::mojom::MenuSourceType source_type) {
   const std::vector<std::string> ids = selection_.Selected();
+  batch_menu_ids_ = ids;
   const std::optional<aerie_tab_model::Section> section = selection_.section();
   auto* sleep = aerie_tab_model::SleepControllerFactory::GetForProfile(
       browser_->GetProfile());
@@ -3738,14 +3746,26 @@ void AerieSidebarView::OnSelectionCommand(
   if (!model_) {
     return;
   }
-  const std::vector<std::string> ids = selection_.Selected();
+  // The tabs the menu was built for, as far as they are still there: a tab
+  // that closed while the menu was open is skipped, and nothing is left to do
+  // when all of them went.
+  std::vector<std::string> ids;
+  for (const std::string& id : batch_menu_ids_) {
+    if (FindTab(id)) {
+      ids.push_back(id);
+    }
+  }
+  if (command == Command::kClearSelection) {
+    ClearSelection();
+    return;
+  }
+  if (ids.empty()) {
+    return;
+  }
   auto* pinned = PinnedController();
   switch (command) {
     case Command::kClose:
-      CloseSelectionNow();
-      return;
-    case Command::kClearSelection:
-      ClearSelection();
+      CloseSelectionNow(ids);
       return;
     case Command::kArchive:
       for (const std::string& id : ids) {
@@ -3753,8 +3773,7 @@ void AerieSidebarView::OnSelectionCommand(
           archive_->ArchiveTab(FindTab(id));
         }
       }
-      selection_.Clear();
-      ApplySelection();
+      ResetSelection();
       return;
     case Command::kSleepTab:
       if (auto* sleep = aerie_tab_model::SleepControllerFactory::GetForProfile(

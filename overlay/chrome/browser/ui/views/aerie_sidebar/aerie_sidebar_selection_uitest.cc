@@ -321,6 +321,30 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarSelectionUiTest, CloseInTheBatchMenuClosesEve
   EXPECT_TRUE(sidebar()->selected_ids().empty());
 }
 
+IN_PROC_BROWSER_TEST_F(AerieSidebarSelectionUiTest, TabsThatCloseWhileTheBatchMenuIsOpenAreLeftAlone) {
+  OpenTabs(4);
+  const Ids ids = TodayIds();
+  SelectRows(1, 2);
+  sidebar()->row_at(1)->ShowContextMenu(gfx::Point(5, 5),
+                                        ui::mojom::MenuSourceType::kMouse);
+  // Both selected tabs close under the open menu.
+  TabStripModel* strip_model = browser()->tab_strip_model();
+  for (size_t i : {2u, 1u}) {
+    const int index = strip_model->GetIndexOfWebContents(TabOf(ids[i])->GetContents());
+    ASSERT_GE(index, 0);
+    strip_model->CloseWebContentsAt(index, TabCloseTypes::CLOSE_NONE);
+  }
+  ASSERT_TRUE(base::test::RunUntil([&] { return sidebar()->row_count() == 2u; }));
+  const size_t folders = service()->model()->folders().size();
+  // Nothing is left for the menu to act on: no crash and no effect.
+  sidebar()->SelectionCommandForTesting(Command::kMoveToNewFolder);
+  EXPECT_EQ(service()->model()->folders().size(), folders);
+  EXPECT_EQ(TodayIds(), (Ids{ids[0], ids[3]}));
+  sidebar()->SelectionCommandForTesting(Command::kClose);
+  sidebar()->CloseContextMenuForTesting();
+  EXPECT_EQ(TodayIds(), (Ids{ids[0], ids[3]}));
+}
+
 IN_PROC_BROWSER_TEST_F(AerieSidebarSelectionUiTest, ArchiveInTheBatchMenuArchivesEveryTabOfTheSelection) {
   OpenTabs(4);
   const Ids ids = TodayIds();
