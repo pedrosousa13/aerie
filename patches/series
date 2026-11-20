@@ -13,6 +13,8 @@ services/0003-extension-proxy-not-configured.patch
 services/0004-disable-spellcheck-downloads.patch
 services/0005-remove-fedcm-dns-resolver.patch
 crash/0001-remove-crash-reporting.patch
+# Crash reports stay on the device (#262): none is deleted at startup, the oldest beyond 20 are pruned, and no upload can be turned on or requested.
+crash/0002-keep-crash-reports-on-the-device.patch
 network/0001-secure-dns-off-by-default.patch
 network/0002-refuse-browser-requests-not-on-the-allowlist.patch
 network/0003-judge-preconnect-and-name-lookups.patch
@@ -178,3 +180,6 @@ sidebar/0051-round-a-restored-linux-window-by-the-token-when-the-os-has-no-radiu
 
 # Import from Arc (#171): the "Import from Arc" row of Settings, its dialog and its message handler.
 sidebar/0052-add-the-import-from-arc-row-to-settings.patch
+
+# Crash reports page (#262): the Crash reports section of Settings, its menu entry, strings and message handler.
+crash/0003-add-the-crash-reports-settings-page.patch

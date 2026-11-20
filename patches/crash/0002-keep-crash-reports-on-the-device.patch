@@ -1,0 +1,188 @@
+Aerie-Purpose: Keep crash reports on the device: no pending report is deleted at startup, only the oldest beyond 20 are, and nothing can turn on a crash upload or request one.
+Aerie-Upstream-Area: components/crash/core/app/crashpad.cc (ApplyUploadConsent, RequestSingleCrashUploadImpl); chrome/browser/crash_upload_list/helium_crash_reporting.cc, BUILD.gn
+Aerie-Kind: hook
+
+Issue #262, on top of crash/0001 (no upload URL, mode always Disabled). Helium deletes every
+pending report at startup in Disabled mode, so no dump ever reached the user. Now a dump stays
+in <user data>/Crash Reports/pending until the user deletes it on the Crash reports page of
+Settings (crash/0003), and at startup the oldest beyond 20 are pruned on a thread-pool task
+(components/aerie_crash_reports). Uploads stay impossible at the lowest level too: the
+database's upload switch is only ever set to off, whatever consent a caller passes, and a
+request to upload one report (the chrome://crashes button, the crash dialog) does nothing, because
+an explicit request would bypass that switch. docs/crash-reports.md has the whole account.
+
+--- a/chrome/browser/crash_upload_list/BUILD.gn
++++ b/chrome/browser/crash_upload_list/BUILD.gn
+@@ -34,6 +34,7 @@
+     "//chrome/browser:browser_process",
+     "//chrome/common",
+     "//chrome/common:constants",
++    "//components/aerie_crash_reports",
+     "//components/crash/core/app",
+     "//components/crash/core/browser",
+     "//components/metrics:metrics_pref_names",
+--- a/chrome/browser/crash_upload_list/helium_crash_reporting.cc
++++ b/chrome/browser/crash_upload_list/helium_crash_reporting.cc
+@@ -4,13 +4,17 @@
+ 
+ #include "chrome/browser/crash_upload_list/helium_crash_reporting.h"
+ 
++#include <optional>
+ #include <vector>
+ 
++#include "base/files/file_path.h"
+ #include "base/functional/bind.h"
+ #include "base/logging.h"
+ #include "base/no_destructor.h"
++#include "base/task/thread_pool.h"
+ #include "chrome/browser/browser_process.h"
+ #include "chrome/common/pref_names.h"
++#include "components/aerie_crash_reports/crash_report_store.h"
+ #include "components/crash/core/app/crashpad.h"
+ #include "components/metrics/metrics_pref_names.h"
+ #include "components/prefs/pref_change_registrar.h"
+@@ -20,26 +24,24 @@
+ 
+ namespace {
+ 
+-void DeletePendingReports(bool include_explicitly_requested) {
+-  std::vector<crash_reporter::Report> reports;
+-  crash_reporter::GetReports(&reports);
+-
+-  for (const auto& report : reports) {
+-    if (report.state != crash_reporter::ReportUploadState::Pending &&
+-        report.state !=
+-            crash_reporter::ReportUploadState::Pending_UserRequested) {
+-      continue;
+-    }
+-    if (!include_explicitly_requested &&
+-        report.state ==
+-            crash_reporter::ReportUploadState::Pending_UserRequested) {
+-      continue;
+-    }
+-
+-    if (!crash_reporter::DeleteCrashReport(report.local_id)) {
+-      LOG(ERROR) << "Failed to delete crash report: " << report.local_id;
+-    }
++// Aerie keeps crash reports on the device (issue #262, docs/crash-reports.md): none is
++// deleted for being pending, and the oldest beyond the limit go. The folder walk does file
++// I/O, so it runs on the thread pool.
++void PruneReportsInBackground() {
++  std::optional<base::FilePath> database =
++      crash_reporter::GetCrashpadDatabasePath();
++  if (!database) {
++    return;
+   }
++  base::ThreadPool::PostTask(
++      FROM_HERE,
++      {base::MayBlock(), base::TaskPriority::BEST_EFFORT,
++       base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN},
++      base::BindOnce(
++          [](base::FilePath dir) {
++            aerie_crash_reports::CrashReportStore(dir).Prune();
++          },
++          *database));
+ }
+ 
+ }  // namespace
+@@ -88,28 +90,9 @@
+ 
+   crash_reporter::SetUploadConsentFromUser(false);
+ 
+-  if (UploadsDisabledByPolicy()) {
+-    // Policy overrides the stored mode without changing the user's selection.
+-    // Explicit requests bypass Crashpad's global upload toggle, so discard
+-    // those reports as well while reporting is forbidden by policy.
+-    DeletePendingReports(/*include_explicitly_requested=*/true);
+-    return;
+-  }
+-
+-  const CrashReportingMode mode = GetCrashReportingMode();
+-  switch (mode) {
+-    case CrashReportingMode::kDisabled:
+-      // Disabled mode must not retain any uploadable reports.
+-      DeletePendingReports(/*include_explicitly_requested=*/true);
+-      return;
+-    case CrashReportingMode::kAsk:
+-      // Leave reports pending so the crash dialog can offer them.
+-      return;
+-    case CrashReportingMode::kAutomatic:
+-      // Allow Crashpad to upload pending reports without prompting.
+-      crash_reporter::SetUploadConsentFromUser(true);
+-      return;
+-  }
++  // Aerie: the mode is always Disabled and a report is never uploaded. A pending report is
++  // a local file the user can see and delete in Settings; it is not discarded here.
++  PruneReportsInBackground();
+ }
+ 
+ void SetCrashReportingMode(CrashReportingMode mode) {
+@@ -121,26 +104,12 @@
+   // Aerie: crash reports are never uploaded, whatever the user picks.
+   mode = CrashReportingMode::kDisabled;
+ 
+-  // Make mode changes prospective: stop uploads and discard existing
+-  // reports before applying the new mode. Explicitly requested reports are
+-  // preserved unless reporting is disabled by the user or policy.
++  // Aerie: no upload, so there is nothing to stop and no report to discard. The reports
++  // stay on the device until the user deletes them.
+   crash_reporter::SetUploadConsentFromUser(false);
+ 
+-  const bool uploads_disabled_by_policy = UploadsDisabledByPolicy();
+-  DeletePendingReports(
+-      /*include_explicitly_requested=*/
+-      uploads_disabled_by_policy || mode == CrashReportingMode::kDisabled);
+-
+-  if (uploads_disabled_by_policy) {
+-    // Preserve the user's stored selection while policy is enforced.
+-    return;
+-  }
+-
+   local_state->SetInteger(prefs::kHeliumCrashReportingMode,
+                           static_cast<int>(mode));
+-  if (mode == CrashReportingMode::kAutomatic) {
+-    crash_reporter::SetUploadConsentFromUser(true);
+-  }
+ }
+ 
+ }  // namespace helium
+--- a/components/crash/core/app/crashpad.cc
++++ b/components/crash/core/app/crashpad.cc
+@@ -249,19 +249,13 @@
+ #if !BUILDFLAG(IS_CHROMEOS)
+ namespace {
+ 
+-void ApplyUploadConsent(bool consent) {
++void ApplyUploadConsent(bool /*consent*/) {
+   if (!g_database)
+     return;
+ 
+-  bool policy_enabled = true;
+-  CrashReporterClient* crash_reporter_client = GetCrashReporterClient();
+-  const bool reporting_disabled_by_policy =
+-      crash_reporter_client->ReportingIsEnforcedByPolicy(&policy_enabled) &&
+-      !policy_enabled;
+-
+-  crashpad::Settings* settings = g_database->GetSettings();
+-  settings->SetUploadsEnabled(consent && !reporting_disabled_by_policy &&
+-                              !crash_reporter_client->IsRunningUnattended());
++  // Aerie: crash reports are never uploaded (issue #262). No caller, no preference and no
++  // policy can turn uploads on: whatever the consent says, the database says no.
++  g_database->GetSettings()->SetUploadsEnabled(false);
+ }
+ 
+ }  // namespace
+@@ -460,11 +454,8 @@
+ }
+ 
+ void RequestSingleCrashUploadImpl(const std::string& local_id) {
+-  if (!g_database)
+-    return;
+-  crashpad::UUID uuid;
+-  uuid.InitializeFromString(local_id);
+-  g_database->RequestUpload(uuid);
++  // Aerie: crash reports are never uploaded (issue #262), not even when asked for one by
++  // one. An explicit request would bypass the database's upload switch.
+ }
+ 
+ bool DeleteCrashReportImpl(const std::string& local_id) {

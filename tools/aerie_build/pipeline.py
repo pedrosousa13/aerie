@@ -65,6 +65,8 @@ TEST_BINARIES = (
     ("aerie_frame_unittests", ()),
     # The Aerie ColorMixer: Chromium's own surfaces take the effective Theme's colours, and its cost (issue #185).
     ("aerie_color_unittests", ()),
+    # The crash reports that stay on the device: what is read from a dump, listing, deleting and pruning (issue #262).
+    ("aerie_crash_reports_unittests", ()),
 )
 # The Views UI test binaries (issue #175, seam B). They link Chromium's browser test support, so they are not
 # in a plain `./aerie test-cpp`; ask for them with --target. They are defined in overlay/chrome/test/aerie and

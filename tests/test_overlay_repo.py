@@ -19,6 +19,8 @@ class RepoOverlayTest(unittest.TestCase):
                                             "chrome/browser/ui/views/aerie_adblock/",
                                             "chrome/browser/ui/webui/aerie_guard_settings/", "chrome/browser/ui/webui/aerie_guard/",
                                             "chrome/browser/resources/settings/aerie_guard_page/",
+                                            "chrome/browser/resources/settings/aerie_crash_reports_page/",
+                                            "chrome/browser/ui/webui/aerie_crash_reports/", "components/aerie_crash_reports/",
                                             "chrome/browser/resources/aerie_guard/",
                                             "chrome/browser/ui/webui/aerie_onboarding/", "components/aerie_onboarding/",
                                             "components/aerie_widevine/", "chrome/browser/aerie_widevine/",
