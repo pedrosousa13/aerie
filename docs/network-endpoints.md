@@ -42,6 +42,8 @@ the browser, and a default `./aerie bench` makes neither:
 | `github.com/imputnet/...` | Crash page link, onboarding page, a macOS help link | Links the user clicks | Not browser-initiated. Listed with a reason in the gates' allowlist (`HOST_ALLOWLIST`). |
 | `github.com/pedrosousa13/aerie/...` | Alpha notice links (`TERMS.md`, `PRIVACY.md`) on the setup page and on About (Settings) | Links the user clicks | Plain `target=_blank` anchors. Nothing loads until the user clicks. |
 
+Crash reports (issue #262): since `crash/0002` the mode switch no longer discards pending reports. Reports stay in `Crash Reports/pending` (at most 20, mode 0600), nothing turns the database's upload switch on, and a request to upload one report does nothing. See [crash-reports.md](crash-reports.md).
+
 Settings has no Helium services page: the toggles did nothing, so the page, its
 route and its row are gone (patch `services/0006`, source gate `services_ui`).
 The "origin override" field lives on as the extension proxy row of Settings >
@@ -292,7 +294,9 @@ rulings allow as a fallback.
 
 - Requests from a process that does not use the browser's network stack. The
   NetLog does not see them. The crash handler is the one that matters, and
-  it has no upload URL.
+  it has no upload URL. The `zero_traffic` check crashes a browser on purpose and
+  checks the handler's command line and the database (`crash_step`, see
+  [bench.md](bench.md)).
 - Anything a user does: pages they open, searches they run, a proxy they
   configure, a search engine they add.
 
