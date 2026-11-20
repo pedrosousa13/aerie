@@ -29,3 +29,16 @@ of a dump. Process type and version are read from the dump with bounds checks on
 - `aerie_browser_tests`: handler messages; upload URL empty; no pref or caller turns uploads on.
 - Bench `zero_traffic` crash step: see [bench.md](bench.md).
 - Source gates (`check_crash_reporting`) pin the patched code.
+
+## Forcing a crash
+
+No dedicated debug URL exists. Chromium's own `chrome://crash` (renderer) and
+`chrome://inducebrowsercrashforrealz` (browser) force a crash, and the Bench uses DevTools
+`Browser.crash`. `AerieCrashOnDeviceBrowserTest` navigates a tab to `chrome://crash` in the browser
+test binary (Crashpad runs there, with `--enable-crash-reporter-for-testing`) and checks that a dump
+appears in the crash database with mode 0600 and nothing is added to `completed/`.
+
+## Limits of the cap
+
+The cap of 20 holds at startup (`PruneReportsInBackground`) and on every list in Settings. There is
+no hook for a crash during a session, so a session can briefly hold more than 20.

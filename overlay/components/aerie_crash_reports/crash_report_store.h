@@ -40,19 +40,25 @@ class CrashReportStore {
 
   // Every report, newest first. It also makes sure that no dump or database file is
   // readable by anyone but the user (mode 0600, directories 0700); Crashpad already
-  // writes them so, and this repairs a file that something else loosened. A missing or
+  // writes them so, and this repairs a file that something else loosened. It never follows a
+  // symbolic link, and a database folder that is itself a link is refused. A missing or
   // unreadable database gives an empty list.
   std::vector<ReportSummary> List();
+
+  // How many dump files are on disk (pending and completed), counted from the folders and
+  // not through Crashpad, so a database that cannot be opened still shows what is left.
+  size_t CountDumps() const;
 
   // Deletes one report. False when `id` is not a report UUID of this database, or the
   // report cannot be deleted. Other reports are never touched.
   bool Delete(const std::string& id);
 
-  // Deletes every report. Returns how many were deleted.
+  // Deletes every report. Returns how many were deleted; one that cannot be deleted stays.
   size_t DeleteAll();
 
-  // Deletes the oldest reports so that at most `max_reports` are left. Returns how many
-  // were deleted.
+  // Deletes the oldest reports so that at most `max_reports` are left, and repairs file
+  // modes as List() does. Returns how many were deleted; a report that cannot be deleted
+  // stays, so a caller that needs to know compares List() with the limit.
   size_t Prune(size_t max_reports = kMaxReports);
 
  private:

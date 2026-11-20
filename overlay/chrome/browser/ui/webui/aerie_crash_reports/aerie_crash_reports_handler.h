@@ -63,6 +63,10 @@ class AerieCrashReportsHandler : public content::WebUIMessageHandler {
  private:
   friend class AerieCrashReportsBrowserTest;
 
+  // The start of every message: false (and the call rejected when it has a callback id) if
+  // the arguments are not `expected_args` long with a callback id first.
+  bool BeginCall(const base::ListValue& args, size_t expected_args);
+
   void HandleList(const base::ListValue& args);
   void HandleDelete(const base::ListValue& args);
   void HandleDeleteAll(const base::ListValue& args);

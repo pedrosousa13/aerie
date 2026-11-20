@@ -61,7 +61,7 @@ TEST_F(DumpFactsTest, ReturnsNothingFromTheRestOfTheDump) {
 TEST_F(DumpFactsTest, AValueThatIsNotAPlainTokenIsDropped) {
   for (const char* hostile :
        {"<img src=x onerror=alert(1)>", "../../etc/passwd", "a b", "with\nnewline",
-        "https://example.com/secret?q=page"}) {
+        "https://example.com/secret?q=page", "1.0+x", "a+b"}) {
     TestDumpSpec spec;
     spec.process_type = hostile;
     spec.version = hostile;

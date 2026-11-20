@@ -5,6 +5,7 @@
 #include "components/aerie_crash_reports/crash_report_store.h"
 
 #include <sys/stat.h>
+#include <unistd.h>
 
 #include <memory>
 #include <string>
@@ -206,6 +207,64 @@ TEST_F(CrashReportStoreTest, ListingTightensADumpSomethingElseLoosened) {
   CrashReportStore(dir_.GetPath()).List();
   EXPECT_EQ(Mode(DumpPath(id)) & 0777, 0600);
   EXPECT_EQ(Mode(dir_.GetPath().AppendASCII("pending")) & 0777, 0700);
+}
+
+TEST_F(CrashReportStoreTest, PruneRepairsLooseModesToo) {
+  const std::string id = AddReport(TestDumpSpec());
+  ASSERT_TRUE(base::SetPosixFilePermissions(DumpPath(id), 0644));
+  CrashReportStore(dir_.GetPath()).Prune();
+  EXPECT_EQ(Mode(DumpPath(id)) & 0777, 0600);
+}
+
+TEST_F(CrashReportStoreTest, RepairNeverFollowsALink) {
+  const std::string id = AddReport(TestDumpSpec());
+  base::ScopedTempDir outside;
+  ASSERT_TRUE(outside.CreateUniqueTempDir());
+  const base::FilePath target = outside.GetPath().AppendASCII("target.txt");
+  ASSERT_TRUE(base::WriteFile(target, "x"));
+  ASSERT_TRUE(base::SetPosixFilePermissions(target, 0644));
+  ASSERT_TRUE(base::CreateSymbolicLink(
+      target, dir_.GetPath().AppendASCII("pending").AppendASCII("link.dmp")));
+  ASSERT_TRUE(base::CreateSymbolicLink(
+      outside.GetPath(), dir_.GetPath().AppendASCII("attachments").AppendASCII("dirlink")));
+  ASSERT_TRUE(base::SetPosixFilePermissions(outside.GetPath(), 0755));
+  CrashReportStore store(dir_.GetPath());
+  store.List();
+  store.Prune();
+  EXPECT_EQ(Mode(target) & 0777, 0644);
+  EXPECT_EQ(Mode(outside.GetPath()) & 0777, 0755);
+  EXPECT_EQ(Mode(DumpPath(id)) & 0777, 0600);
+}
+
+TEST_F(CrashReportStoreTest, ACrashFolderThatIsALinkIsRefused) {
+  AddReport(TestDumpSpec());
+  base::ScopedTempDir holder;
+  ASSERT_TRUE(holder.CreateUniqueTempDir());
+  const base::FilePath link = holder.GetPath().AppendASCII("Crash Reports");
+  ASSERT_TRUE(base::CreateSymbolicLink(dir_.GetPath(), link));
+  CrashReportStore store(link);
+  EXPECT_TRUE(store.List().empty());
+  EXPECT_EQ(store.Prune(0), 0u);
+  EXPECT_EQ(CrashReportStore(dir_.GetPath()).List().size(), 1u);
+}
+
+TEST_F(CrashReportStoreTest, AReportThatCannotBeDeletedStaysAndIsNotCounted) {
+  if (geteuid() == 0) {
+    GTEST_SKIP() << "root can delete from a read-only folder";
+  }
+  const std::string id = AddReport(TestDumpSpec());
+  const base::FilePath pending = dir_.GetPath().AppendASCII("pending");
+  ASSERT_TRUE(base::SetPosixFilePermissions(pending, 0500));
+  CrashReportStore store(dir_.GetPath());
+  EXPECT_FALSE(store.Delete(id));
+  EXPECT_EQ(store.DeleteAll(), 0u);
+  EXPECT_EQ(store.Prune(0), 0u);
+  // Crashpad cannot even open its lock files in a read-only folder, so List() is empty; the
+  // count from the folders still shows the dump.
+  EXPECT_EQ(store.CountDumps(), 1u);
+  EXPECT_TRUE(base::PathExists(DumpPath(id)));
+  ASSERT_TRUE(base::SetPosixFilePermissions(pending, 0700));
+  EXPECT_EQ(store.List().size(), 1u);
 }
 
 }  // namespace aerie_crash_reports

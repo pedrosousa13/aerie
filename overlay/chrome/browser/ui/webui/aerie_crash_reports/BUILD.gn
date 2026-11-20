@@ -33,6 +33,7 @@ source_set("browser_tests") {
   # content/public/test/browser_test.h refuses to compile without it.
   defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
   sources = [
+    "aerie_crash_on_device_browsertest.cc",
     "aerie_crash_reports_browsertest.cc",
     "aerie_crash_upload_disabled_browsertest.cc",
   ]

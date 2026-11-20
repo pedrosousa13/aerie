@@ -4,6 +4,9 @@
 
 #include "chrome/browser/ui/webui/aerie_crash_reports/aerie_crash_reports_handler.h"
 
+#include <errno.h>
+
+#include <string>
 #include <utility>
 
 #include "base/files/file_util.h"
@@ -18,6 +21,10 @@
 #include "chrome/common/chrome_paths.h"
 #include "content/public/browser/web_ui.h"
 
+#if BUILDFLAG(IS_POSIX)
+#include <sys/stat.h>
+#endif
+
 namespace aerie_crash_reports {
 
 namespace {
@@ -31,13 +38,50 @@ struct Answered {
   std::vector<ReportSummary> reports;
 };
 
+constexpr size_t kMaxTokenLength = 64;
+
+// What came out of a dump is untrusted text. Only letters, digits, '.', '-' and '_' reach
+// the page, at most 64 of them; anything else becomes "", which the page shows as unknown.
+std::string SafeToken(const std::string& text) {
+  if (text.size() > kMaxTokenLength) {
+    return std::string();
+  }
+  for (char c : text) {
+    const bool plain = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+                       (c >= '0' && c <= '9') || c == '.' || c == '-' ||
+                       c == '_';
+    if (!plain) {
+      return std::string();
+    }
+  }
+  return text;
+}
+
 // Only fixed fields reach the page: an id, a time, and two plain tokens.
 base::DictValue ToValue(const ReportSummary& report) {
   return base::DictValue()
       .Set("id", report.id)
       .Set("time", report.time.InMillisecondsFSinceUnixEpoch())
-      .Set("processType", report.process_type)
-      .Set("version", report.version);
+      .Set("processType", SafeToken(report.process_type))
+      .Set("version", SafeToken(report.version));
+}
+
+// Makes the folder if it is not there, with mode 0700 from the start and no chmod. A folder
+// that is there must be a real folder: a link is refused, so nothing is opened or changed
+// through it.
+bool EnsureFolder(const base::FilePath& dir) {
+#if BUILDFLAG(IS_POSIX)
+  struct stat st;
+  if (lstat(dir.value().c_str(), &st) == 0) {
+    return S_ISDIR(st.st_mode);
+  }
+  if (!base::CreateDirectory(dir.DirName())) {
+    return false;
+  }
+  return mkdir(dir.value().c_str(), 0700) == 0;
+#else
+  return base::CreateDirectory(dir);
+#endif
 }
 
 }  // namespace
@@ -46,7 +90,11 @@ base::DictValue ToValue(const ReportSummary& report) {
 std::unique_ptr<AerieCrashReportsHandler> AerieCrashReportsHandler::Create(
     Profile* profile) {
   base::FilePath dir;
-  base::PathService::Get(chrome::DIR_CRASH_DUMPS, &dir);
+  if (!base::PathService::Get(chrome::DIR_CRASH_DUMPS, &dir)) {
+    // No folder is known: every message answers "not ok" with an empty list, instead of
+    // quietly listing nothing as if there were no crashes.
+    dir.clear();
+  }
   return std::make_unique<AerieCrashReportsHandler>(
       dir, base::BindRepeating(
                [](Profile* profile, const base::FilePath& folder) {
@@ -88,8 +136,25 @@ void AerieCrashReportsHandler::OnJavascriptDisallowed() {
   weak_factory_.InvalidateWeakPtrs();
 }
 
+bool AerieCrashReportsHandler::BeginCall(const base::ListValue& args,
+                                         size_t expected_args) {
+  if (args.empty() || !args[0].is_string()) {
+    return false;
+  }
+  AllowJavascript();
+  if (args.size() != expected_args) {
+    RejectJavascriptCallback(args[0], base::Value("bad_argument"));
+    return false;
+  }
+  return true;
+}
+
 void AerieCrashReportsHandler::Answer(const base::Value& callback_id,
                                       Work work) {
+  if (database_dir_.empty()) {
+    Resolve(callback_id.Clone(), /*ok=*/false, {});
+    return;
+  }
   base::ThreadPool::PostTaskAndReplyWithResult(
       FROM_HERE, kFileTraits,
       base::BindOnce(
@@ -128,26 +193,21 @@ void AerieCrashReportsHandler::Resolve(
 }
 
 void AerieCrashReportsHandler::HandleList(const base::ListValue& args) {
-  if (args.empty() || !args[0].is_string()) {
+  if (!BeginCall(args, 1)) {
     return;
   }
-  AllowJavascript();
-  if (args.size() != 1) {
-    RejectJavascriptCallback(args[0], base::Value("bad_argument"));
-    return;
-  }
+  // Not ok when more than the limit are left: a report could not be deleted.
   Answer(args[0], base::BindOnce([](CrashReportStore& store) {
            store.Prune();
-           return true;
+           return store.CountDumps() <= kMaxReports;
          }));
 }
 
 void AerieCrashReportsHandler::HandleDelete(const base::ListValue& args) {
-  if (args.empty() || !args[0].is_string()) {
+  if (!BeginCall(args, 2)) {
     return;
   }
-  AllowJavascript();
-  if (args.size() != 2 || !args[1].is_string()) {
+  if (!args[1].is_string()) {
     RejectJavascriptCallback(args[0], base::Value("bad_argument"));
     return;
   }
@@ -159,44 +219,28 @@ void AerieCrashReportsHandler::HandleDelete(const base::ListValue& args) {
 }
 
 void AerieCrashReportsHandler::HandleDeleteAll(const base::ListValue& args) {
-  if (args.empty() || !args[0].is_string()) {
+  if (!BeginCall(args, 1)) {
     return;
   }
-  AllowJavascript();
-  if (args.size() != 1) {
-    RejectJavascriptCallback(args[0], base::Value("bad_argument"));
-    return;
-  }
+  // Not ok when anything is left: a report could not be deleted.
   Answer(args[0], base::BindOnce([](CrashReportStore& store) {
            store.DeleteAll();
-           return true;
+           return store.CountDumps() == 0;
          }));
 }
 
 void AerieCrashReportsHandler::HandleOpenFolder(const base::ListValue& args) {
-  if (args.empty() || !args[0].is_string()) {
+  if (!BeginCall(args, 1)) {
     return;
   }
-  AllowJavascript();
-  if (args.size() != 1) {
-    RejectJavascriptCallback(args[0], base::Value("bad_argument"));
+  if (database_dir_.empty()) {
+    Answer(args[0], base::BindOnce([](CrashReportStore&) { return false; }));
     return;
   }
   // The folder exists once the crash handler has started; make sure of it before the file
   // manager is asked, so that a profile with no crash yet opens an empty folder.
   base::ThreadPool::PostTaskAndReplyWithResult(
-      FROM_HERE, kFileTraits,
-      base::BindOnce(
-          [](base::FilePath dir) {
-            if (!base::CreateDirectory(dir)) {
-              return false;
-            }
-#if BUILDFLAG(IS_POSIX)
-            base::SetPosixFilePermissions(dir, 0700);
-#endif
-            return true;
-          },
-          database_dir_),
+      FROM_HERE, kFileTraits, base::BindOnce(&EnsureFolder, database_dir_),
       base::BindOnce(
           [](base::WeakPtr<AerieCrashReportsHandler> self,
              base::Value callback_id, bool exists) {

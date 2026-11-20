@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <optional>
 #include <utility>
 
 #include "base/files/file.h"
@@ -17,7 +18,9 @@
 #include "third_party/crashpad/crashpad/util/misc/uuid.h"
 
 #if BUILDFLAG(IS_POSIX)
+#include <fcntl.h>
 #include <sys/stat.h>
+#include <unistd.h>
 #endif
 
 namespace aerie_crash_reports {
@@ -29,9 +32,17 @@ using Database = crashpad::CrashReportDatabase;
 // Opens the database that is there. It never makes one: listing the reports of a profile
 // that has none must not leave a "Crash Reports" folder behind.
 std::unique_ptr<Database> Open(const base::FilePath& dir) {
+#if BUILDFLAG(IS_POSIX)
+  // A crash folder that is itself a link could point anywhere: refuse it.
+  struct stat st;
+  if (lstat(dir.value().c_str(), &st) != 0 || !S_ISDIR(st.st_mode)) {
+    return nullptr;
+  }
+#else
   if (!base::DirectoryExists(dir)) {
     return nullptr;
   }
+#endif
   return Database::InitializeWithoutCreating(dir);
 }
 
@@ -82,29 +93,42 @@ std::vector<Entry> Sorted(Database& database) {
   return entries;
 }
 
+#if BUILDFLAG(IS_POSIX)
+// Follows no link: opens `path` with O_NOFOLLOW and sets the mode through the descriptor,
+// so a link swapped in between cannot make this touch another file. A link, a device or any
+// file of another kind is skipped.
+void Tighten(const base::FilePath& path, bool directory) {
+  const int flags = O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK |
+                    (directory ? O_DIRECTORY : 0);
+  const int fd = open(path.value().c_str(), flags);
+  if (fd < 0) {
+    return;
+  }
+  struct stat st;
+  if (fstat(fd, &st) == 0 &&
+      (directory ? S_ISDIR(st.st_mode) : S_ISREG(st.st_mode)) &&
+      (st.st_mode & 077) != 0) {
+    fchmod(fd, directory ? 0700 : 0600);
+  }
+  close(fd);
+}
+#endif
+
 // Dumps hold page memory: only the user may read them. Crashpad creates them 0600 in 0700
-// folders; this repairs anything that something else loosened. It skips symbolic links.
+// folders; this repairs anything that something else loosened. It never follows a link.
 void KeepOwnerOnly(const base::FilePath& root) {
 #if BUILDFLAG(IS_POSIX)
-  auto tighten = [](const base::FilePath& path, int want) {
-    int mode = 0;
-    if (base::GetPosixFilePermissions(path, &mode) && (mode & 077) != 0) {
-      base::SetPosixFilePermissions(path, want);
-    }
-  };
-  tighten(root, 0700);
+  Tighten(root, /*directory=*/true);
   base::FileEnumerator walk(
       root, /*recursive=*/true,
-      base::FileEnumerator::FILES | base::FileEnumerator::DIRECTORIES);
+      base::FileEnumerator::FILES | base::FileEnumerator::DIRECTORIES |
+          base::FileEnumerator::SHOW_SYM_LINKS);
   for (base::FilePath path = walk.Next(); !path.empty(); path = walk.Next()) {
     const struct stat& st = walk.GetInfo().stat();
-    if (S_ISLNK(st.st_mode)) {
-      continue;
-    }
     if (S_ISDIR(st.st_mode)) {
-      tighten(path, 0700);
+      Tighten(path, /*directory=*/true);
     } else if (S_ISREG(st.st_mode)) {
-      tighten(path, 0600);
+      Tighten(path, /*directory=*/false);
     }
   }
 #endif
@@ -137,6 +161,18 @@ std::vector<ReportSummary> CrashReportStore::List() {
   return summaries;
 }
 
+size_t CrashReportStore::CountDumps() const {
+  size_t count = 0;
+  for (const char* sub : {"pending", "completed"}) {
+    base::FileEnumerator files(database_dir_.AppendASCII(sub), false,
+                               base::FileEnumerator::FILES, "*.dmp");
+    for (base::FilePath p = files.Next(); !p.empty(); p = files.Next()) {
+      ++count;
+    }
+  }
+  return count;
+}
+
 bool CrashReportStore::Delete(const std::string& id) {
   crashpad::UUID uuid;
   if (!uuid.InitializeFromString(id) || uuid.ToString() != id) {
@@ -162,6 +198,7 @@ size_t CrashReportStore::Prune(size_t max_reports) {
   if (!database) {
     return 0;
   }
+  KeepOwnerOnly(database_dir_);
   std::vector<Entry> entries = Sorted(*database);
   size_t deleted = 0;
   for (size_t i = max_reports; i < entries.size(); ++i) {

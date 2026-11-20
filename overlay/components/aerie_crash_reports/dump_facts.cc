@@ -7,9 +7,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <algorithm>
 #include <array>
+#include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include "base/containers/span.h"
 #include "base/files/file.h"
@@ -108,7 +111,7 @@ class Reader {
   const uint64_t size_;
 };
 
-// A plain token: letters, digits and . - _ + only, at most kMaxValueLength bytes.
+// A plain token: letters, digits and . - _ only, at most kMaxValueLength bytes.
 std::string PlainToken(const std::string& value) {
   if (value.empty() || value.size() > kMaxValueLength) {
     return std::string();
@@ -116,7 +119,7 @@ std::string PlainToken(const std::string& value) {
   for (char c : value) {
     const bool ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
                     (c >= '0' && c <= '9') || c == '.' || c == '-' ||
-                    c == '_' || c == '+';
+                    c == '_';
     if (!ok) {
       return std::string();
     }

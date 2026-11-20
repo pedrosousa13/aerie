@@ -23,25 +23,27 @@ an explicit request would bypass that switch. docs/crash-reports.md has the whol
      "//components/metrics:metrics_pref_names",
 --- a/chrome/browser/crash_upload_list/helium_crash_reporting.cc
 +++ b/chrome/browser/crash_upload_list/helium_crash_reporting.cc
-@@ -4,13 +4,17 @@
+@@ -4,13 +4,18 @@
  
  #include "chrome/browser/crash_upload_list/helium_crash_reporting.h"
  
 +#include <optional>
- #include <vector>
+-#include <vector>
  
 +#include "base/files/file_path.h"
  #include "base/functional/bind.h"
  #include "base/logging.h"
  #include "base/no_destructor.h"
++#include "base/path_service.h"
 +#include "base/task/thread_pool.h"
  #include "chrome/browser/browser_process.h"
++#include "chrome/common/chrome_paths.h"
  #include "chrome/common/pref_names.h"
 +#include "components/aerie_crash_reports/crash_report_store.h"
  #include "components/crash/core/app/crashpad.h"
  #include "components/metrics/metrics_pref_names.h"
  #include "components/prefs/pref_change_registrar.h"
-@@ -20,26 +24,24 @@
+@@ -20,26 +25,28 @@
  
  namespace {
  
@@ -68,9 +70,13 @@ an explicit request would bypass that switch. docs/crash-reports.md has the whol
 +// deleted for being pending, and the oldest beyond the limit go. The folder walk does file
 +// I/O, so it runs on the thread pool.
 +void PruneReportsInBackground() {
-+  std::optional<base::FilePath> database =
-+      crash_reporter::GetCrashpadDatabasePath();
-+  if (!database) {
++  // Crashpad's own path when it runs; else the folder it would use. Never skip silently.
++  base::FilePath dir;
++  if (std::optional<base::FilePath> database =
++          crash_reporter::GetCrashpadDatabasePath()) {
++    dir = *database;
++  } else if (!base::PathService::Get(chrome::DIR_CRASH_DUMPS, &dir)) {
++    LOG(ERROR) << "Aerie: no crash folder to prune";
 +    return;
    }
 +  base::ThreadPool::PostTask(
@@ -81,11 +87,11 @@ an explicit request would bypass that switch. docs/crash-reports.md has the whol
 +          [](base::FilePath dir) {
 +            aerie_crash_reports::CrashReportStore(dir).Prune();
 +          },
-+          *database));
++          dir));
  }
  
  }  // namespace
-@@ -88,28 +90,9 @@
+@@ -88,28 +93,9 @@
  
    crash_reporter::SetUploadConsentFromUser(false);
  
@@ -117,7 +123,7 @@ an explicit request would bypass that switch. docs/crash-reports.md has the whol
  }
  
  void SetCrashReportingMode(CrashReportingMode mode) {
-@@ -121,26 +104,12 @@
+@@ -121,26 +107,12 @@
    // Aerie: crash reports are never uploaded, whatever the user picks.
    mode = CrashReportingMode::kDisabled;
  

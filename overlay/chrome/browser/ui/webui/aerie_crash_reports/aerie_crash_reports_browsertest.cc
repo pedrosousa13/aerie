@@ -9,6 +9,8 @@
 
 #include "chrome/browser/ui/webui/aerie_crash_reports/aerie_crash_reports_handler.h"
 
+#include <unistd.h>
+
 #include <memory>
 #include <string>
 #include <utility>
@@ -59,6 +61,21 @@ class AerieCrashReportsBrowserTest : public InProcessBrowserTest {
     handler_.reset();
     web_ui_.reset();
     InProcessBrowserTest::TearDownOnMainThread();
+  }
+
+  // A new page with a new handler on `dir` (the friend access is the fixture's); the old
+  // handler and page are gone, so only the new handler answers.
+  void ReplaceHandler(const base::FilePath& dir) {
+    handler_->set_web_ui(nullptr);
+    handler_.reset();
+    web_ui_ = std::make_unique<content::TestWebUI>();
+    web_ui_->set_web_contents(
+        browser()->tab_strip_model()->GetActiveWebContents());
+    handler_ = std::make_unique<AerieCrashReportsHandler>(
+        dir, base::BindRepeating(&AerieCrashReportsBrowserTest::OpenFolder,
+                                 base::Unretained(this)));
+    handler_->set_web_ui(web_ui_.get());
+    handler_->RegisterMessages();
   }
 
   bool OpenFolder(const base::FilePath& folder) {
@@ -251,6 +268,49 @@ IN_PROC_BROWSER_TEST_F(AerieCrashReportsBrowserTest, OpenFolderSaysSoWhenItFails
   open_succeeds_ = false;
   base::Value answer = Send("aerieCrashReports.openFolder");
   EXPECT_THAT(answer.GetDict().FindBool("ok"), testing::Optional(false));
+}
+
+IN_PROC_BROWSER_TEST_F(AerieCrashReportsBrowserTest, AReportThatCannotBeDeletedMakesTheAnswerNotOk) {
+  if (geteuid() == 0) {
+    GTEST_SKIP() << "root can delete from a read-only folder";
+  }
+  const std::string id = AddReport(TestDumpSpec());
+  const base::FilePath pending = database_dir_.AppendASCII("pending");
+  ASSERT_TRUE(base::SetPosixFilePermissions(pending, 0500));
+
+  base::Value answer = Send("aerieCrashReports.deleteAll");
+  EXPECT_THAT(answer.GetDict().FindBool("ok"), testing::Optional(false));
+  EXPECT_TRUE(base::PathExists(DumpPath(id)));
+
+  std::vector<base::Value> one;
+  one.emplace_back(id);
+  answer = Send("aerieCrashReports.delete", std::move(one));
+  EXPECT_THAT(answer.GetDict().FindBool("ok"), testing::Optional(false));
+  EXPECT_TRUE(base::PathExists(DumpPath(id)));
+  ASSERT_TRUE(base::SetPosixFilePermissions(pending, 0700));
+}
+
+IN_PROC_BROWSER_TEST_F(AerieCrashReportsBrowserTest, WithNoKnownFolderEveryMessageSaysNotOk) {
+  ReplaceHandler(base::FilePath());
+  for (const char* name :
+       {"aerieCrashReports.list", "aerieCrashReports.deleteAll",
+        "aerieCrashReports.openFolder"}) {
+    base::Value answer = Send(name);
+    EXPECT_THAT(answer.GetDict().FindBool("ok"), testing::Optional(false)) << name;
+    EXPECT_TRUE(Ids(answer).empty()) << name;
+  }
+  EXPECT_TRUE(opened_.empty());
+}
+
+IN_PROC_BROWSER_TEST_F(AerieCrashReportsBrowserTest, OpenFolderRefusesAFolderThatIsALink) {
+  base::ScopedTempDir other;
+  ASSERT_TRUE(other.CreateUniqueTempDir());
+  const base::FilePath link = other.GetPath().AppendASCII("Crash Reports");
+  ASSERT_TRUE(base::CreateSymbolicLink(database_dir_, link));
+  ReplaceHandler(link);
+  base::Value answer = Send("aerieCrashReports.openFolder");
+  EXPECT_THAT(answer.GetDict().FindBool("ok"), testing::Optional(false));
+  EXPECT_TRUE(opened_.empty());
 }
 
 IN_PROC_BROWSER_TEST_F(AerieCrashReportsBrowserTest, TheMessagesTakeNoPathAndAWrongArgumentIsRejected) {
