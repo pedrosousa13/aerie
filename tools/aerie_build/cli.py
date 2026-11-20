@@ -270,7 +270,11 @@ def cmd_locked(args: argparse.Namespace) -> int:
 def cmd_netpolicy(args: argparse.Namespace) -> int:
     from aerie_netpolicy import __main__ as netpolicy
 
-    return netpolicy.main([args.netpolicy_command, "--repo", str(REPO)])
+    argv = [args.netpolicy_command, "--repo", str(REPO)]
+    ctx = _context(args)
+    if args.netpolicy_command == "check" and ctx.tree.is_dir():
+        argv += ["--tree", str(ctx.tree)]  # also check the annotation names against the pinned source
+    return netpolicy.main(argv)
 
 
 def cmd_hardening(args: argparse.Namespace) -> int:
@@ -425,6 +429,7 @@ def main(argv: list[str] | None = None) -> int:
     p_netpolicy = sub.add_parser(
         "netpolicy", help="generate or check the request policy allowlist from docs/network-endpoints.md (issue #257)")
     p_netpolicy.add_argument("netpolicy_command", choices=("generate", "check"))
+    p_netpolicy.add_argument("--build-root", default=None, help="build root (env AERIE_BUILD_ROOT)")
     p_netpolicy.set_defaults(func=cmd_netpolicy)
 
     args = parser.parse_args(argv)

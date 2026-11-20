@@ -23,11 +23,16 @@ DOC_SAMPLE = """# x
 | `update_client` | `update.example` | the updater |
 | `list_download` | `lists.example` | lists |
 <!-- request-policy:hosts:end -->
-<!-- request-policy:directed:begin -->
+<!-- request-policy:user:begin -->
 | Annotation | Why |
 | --- | --- |
 | `navigation_url_loader` | the user navigates |
-<!-- request-policy:directed:end -->
+<!-- request-policy:user:end -->
+<!-- request-policy:site:begin -->
+| Annotation | Why |
+| --- | --- |
+| `reporting` | the site names the endpoint |
+<!-- request-policy:site:end -->
 """
 
 
@@ -35,7 +40,8 @@ class ParseTest(unittest.TestCase):
     def test_reads_both_tables(self):
         table = model.parse_doc(DOC_SAMPLE)
         self.assertEqual(table.hosts, [("update_client", "update.example"), ("list_download", "lists.example")])
-        self.assertEqual(table.directed, ["navigation_url_loader"])
+        self.assertEqual(table.user, ["navigation_url_loader"])
+        self.assertEqual(table.site, ["reporting"])
 
     def test_a_doc_without_the_markers_is_an_error(self):
         with self.assertRaises(model.PolicyDocError):
@@ -56,13 +62,23 @@ class ParseTest(unittest.TestCase):
             model.parse_doc(DOC_SAMPLE.replace("| `navigation_url_loader` | the user navigates |",
                                                "| `a` | b |\n| `a` | b |"))
 
+    def test_an_annotation_in_two_groups_is_an_error(self):
+        # One annotation, one group: the groups say why the destination is trusted.
+        with self.assertRaises(model.PolicyDocError):
+            model.parse_doc(DOC_SAMPLE.replace("| `reporting` |", "| `navigation_url_loader` |"))
+        with self.assertRaises(model.PolicyDocError):
+            model.parse_doc(DOC_SAMPLE.replace("| `reporting` |", "| `update_client` |"))
+
 
 class RenderTest(unittest.TestCase):
     def test_render_names_every_entry(self):
         text = model.render(model.parse_doc(DOC_SAMPLE))
         self.assertIn('{"update_client", "update.example"}', text)
         self.assertIn('{"list_download", "lists.example"}', text)
-        self.assertIn('"navigation_url_loader"', text)
+        self.assertIn('{"navigation_url_loader"}', text)
+        self.assertIn("kUserDirectedAnnotations", text)
+        self.assertIn('{"reporting"}', text)
+        self.assertIn("kSiteDirectedAnnotations", text)
         self.assertIn("Do not edit", text)
 
 
@@ -76,7 +92,19 @@ class RepoTest(unittest.TestCase):
         table = model.parse_doc(DOC.read_text(encoding="utf-8"))
         self.assertIn(("aerie_filter_list_download", "easylist.to"), table.hosts)
         self.assertIn(("update_client", "update.googleapis.com"), table.hosts)
-        self.assertIn("navigation_url_loader", table.directed)
+        self.assertIn("navigation_url_loader", table.user)
+        self.assertIn("certificate_verifier_url_loader", table.site)
+
+    def test_no_fail_open_annotation_is_directed(self):
+        # Review of #257, B3: a speculative or Google-reachable feature must be refused, so it must not sit
+        # in a directed group. Extension fetchers wait for the maintainer's decision on the proxy.
+        table = model.parse_doc(DOC.read_text(encoding="utf-8"))
+        directed = set(table.user) | set(table.site)
+        for name in ("predictive_prefetch", "predictive_preconnect", "network_hints_preconnect",
+                     "search_engine_preconnect", "preload_activation_beacon", "extension_manifest_fetcher",
+                     "extension_crx_fetcher", "content_hash_verification_job", "update_client",
+                     "aerie_filter_list_download"):
+            self.assertNotIn(name, directed)
 
     def test_a_host_added_to_the_doc_only_fails_the_check(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -108,3 +136,47 @@ class RepoTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AnnotationNamesTest(unittest.TestCase):
+    """Every annotation name must exist in the pinned source or be defined by Aerie, so a typo or a rename
+    cannot turn a row into dead text (issue #257, review B3)."""
+
+    XML = '<annotations><item id="update_client" hash_code="1"/><item id="reporting" hash_code="2"/>' \
+          '<item id="navigation_url_loader" hash_code="3"/></annotations>'
+
+    def test_known_names_pass(self):
+        table = model.parse_doc(DOC_SAMPLE.replace("list_download", "aerie_list"))
+        overlay_text = 'DefineNetworkTrafficAnnotation("aerie_list", R"(x)")'
+        self.assertEqual(model.unknown_annotations(table, self.XML, overlay_text), [])
+
+    def test_a_typo_is_named(self):
+        table = model.parse_doc(DOC_SAMPLE.replace("reporting", "reportting").replace("list_download", "aerie_list"))
+        self.assertEqual(model.unknown_annotations(table, self.XML, 'DefineNetworkTrafficAnnotation("aerie_list"'),
+                         ["reportting"])
+
+    def test_an_aerie_annotation_must_be_defined_in_the_overlay(self):
+        table = model.parse_doc(DOC_SAMPLE.replace("list_download", "aerie_list"))
+        self.assertEqual(model.unknown_annotations(table, self.XML, "nothing"), ["aerie_list"])
+
+    def test_the_policy_names_exist_in_the_pinned_source(self):
+        src = model.default_tree()
+        if src is None:
+            self.skipTest("no prepared source tree")
+        xml = src / model.ANNOTATIONS_XML
+        if not xml.is_file():
+            self.skipTest(f"{model.ANNOTATIONS_XML} is not in the source tree")
+        table = model.parse_doc(DOC.read_text(encoding="utf-8"))
+        overlay_text = model.overlay_annotation_text(REPO)
+        self.assertEqual(model.unknown_annotations(table, xml.read_text(encoding="utf-8"), overlay_text), [])
+
+    def test_check_with_a_source_tree_reports_unknown_names(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, src = Path(tmp) / "repo", Path(tmp) / "src"
+            (repo / "docs").mkdir(parents=True)
+            shutil.copy(DOC, repo / "docs" / "network-endpoints.md")
+            (repo / GENERATED.relative_to(REPO)).parent.mkdir(parents=True)
+            shutil.copy(GENERATED, repo / GENERATED.relative_to(REPO))
+            (src / model.ANNOTATIONS_XML).parent.mkdir(parents=True)
+            (src / model.ANNOTATIONS_XML).write_text(self.XML, encoding="utf-8")
+            self.assertEqual(cli.main(["check", "--repo", str(repo), "--tree", str(src)]), 1)

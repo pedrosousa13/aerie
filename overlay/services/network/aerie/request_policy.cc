@@ -25,24 +25,27 @@ struct AllowedHost {
   std::string_view host;
 };
 
-// Traffic that a page or the user directs: allowed for any host.
+// An annotation whose destination is set by the user or by a site.
 struct DirectedAnnotation {
   Annotation annotation;
 };
 
-// kAllowedHosts and kDirectedAnnotations, generated from
-// docs/network-endpoints.md. Do not add a row here by hand.
+// kAllowedHosts, kUserDirectedAnnotations and kSiteDirectedAnnotations,
+// generated from docs/network-endpoints.md. Do not add a row here by hand.
 #include "services/network/aerie/request_allowlist.inc"
 
-constexpr int32_t kMissingHash = net::internal::ComputeAnnotationHash("missing");
+constexpr int32_t kMissingHash =
+    net::internal::ComputeAnnotationHash("missing");
 
 bool HasUsableAnnotation(const std::optional<int32_t>& hash) {
-  return hash && *hash != kMissingHash && *hash != net::internal::UNDEFINED_HASH &&
+  return hash && *hash != kMissingHash &&
+         *hash != net::internal::UNDEFINED_HASH &&
          *hash != net::internal::TRAFFIC_ANNOTATION_UNINITIALIZED;
 }
 
-bool IsDirected(int32_t hash) {
-  return std::ranges::any_of(kDirectedAnnotations, [hash](const DirectedAnnotation& d) {
+template <size_t N>
+bool IsIn(const DirectedAnnotation (&list)[N], int32_t hash) {
+  return std::ranges::any_of(list, [hash](const DirectedAnnotation& d) {
     return d.annotation.hash_value == hash;
   });
 }
@@ -66,6 +69,16 @@ bool IsListedFor(int32_t hash, std::string_view host) {
   });
 }
 
+bool IsListedForAnyAnnotation(std::string_view host) {
+  return std::ranges::any_of(kAllowedHosts, [&](const AllowedHost& row) {
+    return HostMatches(host, row.host);
+  });
+}
+
+bool IsJudgedScheme(const GURL& url) {
+  return url.SchemeIsHTTPOrHTTPS() || url.SchemeIsWSOrWSS();
+}
+
 const char* Reason(Verdict verdict) {
   switch (verdict) {
     case Verdict::kAllow:
@@ -80,22 +93,49 @@ const char* Reason(Verdict verdict) {
 
 }  // namespace
 
+RequestOrigin ClassifyFactory(const std::optional<FactoryFacts>& factory) {
+  if (!factory) {
+    return RequestOrigin::kUnknown;
+  }
+  if (!factory->is_browser_process && factory->is_valid_renderer_process &&
+      !factory->is_trusted && factory->has_initiator_origin_lock) {
+    return RequestOrigin::kRenderer;
+  }
+  return RequestOrigin::kBrowserProcess;
+}
+
 Verdict Decide(const RequestFacts& facts) {
   if (facts.origin == RequestOrigin::kRenderer) {
     return Verdict::kAllow;
   }
   const GURL& url = facts.url;
-  if (!url.SchemeIsHTTPOrHTTPS() && !url.SchemeIsWSOrWSS()) {
+  if (!IsJudgedScheme(url)) {
     return Verdict::kAllow;
   }
   if (!HasUsableAnnotation(facts.annotation_hash)) {
     return Verdict::kRefusedNoAnnotation;
   }
   const int32_t hash = *facts.annotation_hash;
-  if (IsDirected(hash) || IsListedFor(hash, url.host())) {
+  if (IsIn(kUserDirectedAnnotations, hash) ||
+      IsIn(kSiteDirectedAnnotations, hash) || IsListedFor(hash, url.host())) {
     return Verdict::kAllow;
   }
   return Verdict::kRefusedUnlistedHost;
+}
+
+Verdict DecideConnection(const RequestFacts& facts) {
+  if (facts.origin == RequestOrigin::kRenderer) {
+    return Verdict::kAllow;
+  }
+  if (!IsJudgedScheme(facts.url)) {
+    return Verdict::kAllow;
+  }
+  if (HasUsableAnnotation(facts.annotation_hash)) {
+    return Decide(facts);
+  }
+  return IsListedForAnyAnnotation(facts.url.host())
+             ? Verdict::kAllow
+             : Verdict::kRefusedUnlistedHost;
 }
 
 bool IsRefusal(Verdict verdict) {

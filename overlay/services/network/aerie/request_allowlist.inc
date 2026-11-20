@@ -1,8 +1,9 @@
 // Generated from docs/network-endpoints.md by: ./aerie netpolicy generate
 // Do not edit by hand. Add a reviewed row to the doc and regenerate; a test fails when they differ.
-// Included inside namespace aerie_network of request_policy.cc.
+// Included inside the anonymous namespace of request_policy.cc.
 
-// A browser request with this traffic annotation may reach this host or a subdomain of it.
+// A browser request with this traffic annotation may reach this host or a
+// subdomain of it.
 constexpr AllowedHost kAllowedHosts[] = {
     {"aerie_filter_list_download", "easylist.to"},
     {"update_client", "update.googleapis.com"},
@@ -10,58 +11,51 @@ constexpr AllowedHost kAllowedHosts[] = {
     {"update_client", "gvt1.com"},
 };
 
-// Traffic that a page or the user directs: allowed for any host.
-constexpr DirectedAnnotation kDirectedAnnotations[] = {
-    {"background_fetch_context"},
-    {"bidirectional_stream"},
-    {"blink_extension_resource_loader"},
-    {"blink_fetch_later_manager"},
-    {"blink_resource_loader"},
-    {"certificate_verifier_2qwac_loader"},
-    {"certificate_verifier_url_loader"},
-    {"certificate_verifier_url_request"},
-    {"dbsc_registration"},
-    {"devtools_cdp_network_resource"},
-    {"devtools_network_resource"},
-    {"dns_over_https"},
-    {"dns_transaction"},
+// The user typed or chose the destination: allowed for any host.
+constexpr DirectedAnnotation kUserDirectedAnnotations[] = {
+    {"navigation_url_loader"},
     {"download_bubble_retry_download"},
     {"download_manager_resume"},
     {"download_web_contents_frame"},
-    {"downloads_api_run_async"},
     {"drag_download_file"},
-    {"early_hints_preload"},
-    {"favicon_loader"},
-    {"keepalive_fetch_retry"},
-    {"navigation_url_loader"},
     {"parallel_download_job"},
-    {"payment_manifest_downloader"},
-    {"pdf_plugin_placeholder"},
-    {"predictive_prefetch"},
-    {"preload_activation_beacon"},
+    {"save_file_manager"},
+    {"render_view_context_menu"},
+    {"dns_over_https"},
     {"proxy_config_direct"},
     {"proxy_config_settings"},
     {"proxy_config_system"},
-    {"render_view_context_menu"},
-    {"renderer_initiated_download"},
-    {"reporting"},
-    {"save_file_manager"},
-    {"service_worker_navigation_preload"},
-    {"service_worker_race_network_request"},
+    {"devtools_network_resource"},
+    {"devtools_cdp_network_resource"},
+    {"aerie_custom_filter_list_download"},
+};
+
+// A site being visited, or an extension the user installed, sets the
+// destination (trusted by annotation): allowed for any host.
+constexpr DirectedAnnotation kSiteDirectedAnnotations[] = {
+    {"certificate_verifier_url_loader"},
+    {"certificate_verifier_url_request"},
+    {"certificate_verifier_2qwac_loader"},
     {"service_worker_script_load"},
     {"service_worker_update_checker"},
-    {"sigined_exchange_cert_fetcher"},
+    {"service_worker_navigation_preload"},
+    {"service_worker_race_network_request"},
+    {"worker_script_load"},
+    {"reporting"},
+    {"dbsc_registration"},
+    {"keepalive_fetch_retry"},
+    {"background_fetch_context"},
+    {"early_hints_preload"},
     {"speculation_rules_prefetch"},
     {"speculation_rules_prefetch_probe"},
-    {"ssl_name_mismatch_lookup"},
+    {"payment_manifest_downloader"},
+    {"sigined_exchange_cert_fetcher"},
+    {"webauthn_rp_id_check"},
     {"web_app_origin_association_download"},
     {"web_install_manifest_fetcher"},
-    {"webauthn_rp_id_check"},
+    {"renderer_initiated_download"},
     {"websocket_basic_stream"},
     {"websocket_stream"},
-    {"worker_script_load"},
-    {"extension_manifest_fetcher"},
-    {"extension_crx_fetcher"},
-    {"content_hash_verification_job"},
-    {"aerie_custom_filter_list_download"},
+    {"bidirectional_stream"},
+    {"downloads_api_run_async"},
 };

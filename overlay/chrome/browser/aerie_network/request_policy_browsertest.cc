@@ -11,6 +11,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "base/functional/bind.h"
 #include "base/run_loop.h"
@@ -38,12 +39,51 @@
 #include "net/test/embedded_test_server/http_response.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
 #include "net/traffic_annotation/network_traffic_annotation_test_helper.h"
+#include "mojo/public/cpp/bindings/pending_remote.h"
+#include "mojo/public/cpp/bindings/receiver.h"
+#include "net/base/address_list.h"
+#include "net/base/host_port_pair.h"
+#include "net/base/network_anonymization_key.h"
+#include "net/dns/public/host_resolver_results.h"
+#include "net/dns/public/resolve_error_info.h"
+#include "services/network/public/cpp/constants.h"
 #include "services/network/public/cpp/resource_request.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "services/network/public/cpp/simple_url_loader.h"
+#include "services/network/public/mojom/host_resolver.mojom.h"
+#include "services/network/public/mojom/network_context.mojom.h"
 #include "services/network/aerie/request_policy.h"
 
 namespace {
+
+// Collects the answer to NetworkContext::ResolveHost.
+class LookupClient : public network::mojom::ResolveHostClient {
+ public:
+  LookupClient() = default;
+
+  mojo::PendingRemote<network::mojom::ResolveHostClient> BindAndGetRemote() {
+    return receiver_.BindNewPipeAndPassRemote();
+  }
+  int Wait() {
+    run_loop_.Run();
+    return result_;
+  }
+
+  void OnComplete(int32_t error,
+                  const net::ResolveErrorInfo& resolve_error_info,
+                  const net::AddressList& resolved_addresses,
+                  const net::HostResolverEndpointResults& alternatives) override {
+    result_ = error;
+    run_loop_.Quit();
+  }
+  void OnTextResults(const std::vector<std::string>&) override {}
+  void OnHostnameResults(const std::vector<net::HostPortPair>&) override {}
+
+ private:
+  mojo::Receiver<network::mojom::ResolveHostClient> receiver_{this};
+  base::RunLoop run_loop_;
+  int result_ = net::ERR_UNEXPECTED;
+};
 
 constexpr char kHistogram[] = "Aerie.Network.RequestPolicy.Refused";
 
@@ -82,6 +122,24 @@ class AerieRequestPolicyBrowserTest : public InProcessBrowserTest {
         1024 * 1024);
     run_loop.Run();
     return loader->NetError();
+  }
+
+  // Asks the system NetworkContext to preconnect, as the browser's predictors do, and waits until the
+  // network service has handled the call.
+  void Preconnect(const GURL& url, const net::MutableNetworkTrafficAnnotationTag& annotation) {
+    g_browser_process->system_network_context_manager()->GetContext()->PreconnectSockets(
+        1, url, network::mojom::CredentialsMode::kOmit, net::NetworkAnonymizationKey::CreateTransient(),
+        network::GetNoOpNetworkRestrictionsId(), annotation, std::nullopt, mojo::NullRemote());
+    g_browser_process->system_network_context_manager()->FlushNetworkInterfaceForTesting();
+  }
+
+  // Asks the system NetworkContext to resolve |host|, as DNS prefetch does. Returns the net error.
+  int Lookup(const std::string& host) {
+    LookupClient client;
+    g_browser_process->system_network_context_manager()->GetContext()->ResolveHost(
+        network::mojom::HostResolverHost::NewHostPortPair(net::HostPortPair(host, 80)),
+        net::NetworkAnonymizationKey::CreateTransient(), nullptr, client.BindAndGetRemote());
+    return client.Wait();
   }
 
   // The network service may run in its own process; bring its histograms in.
@@ -133,6 +191,45 @@ IN_PROC_BROWSER_TEST_F(AerieRequestPolicyBrowserTest, AListedHostIsReachedWithIt
 
   EXPECT_EQ(net::OK, SystemFetch(listed, own));
   EXPECT_EQ(net::ERR_BLOCKED_BY_ADMINISTRATOR, SystemFetch(listed, TRAFFIC_ANNOTATION_FOR_TESTS));
+
+  MergeNetworkServiceHistograms();
+  histograms.ExpectBucketCount(kHistogram, aerie_network::Verdict::kRefusedUnlistedHost, 1);
+  histograms.ExpectTotalCount(kHistogram, 1);
+}
+
+// A preconnect the browser opens on its own is judged like a request: refused, counted, nothing else.
+IN_PROC_BROWSER_TEST_F(AerieRequestPolicyBrowserTest, APreconnectToAnUnlistedHostIsRefusedAndCounted) {
+  base::HistogramTester histograms;
+  const GURL url = embedded_test_server()->GetURL("unlisted.example", "/");
+
+  // With an annotation that no row names, and with none at all (navigation preconnects pass none).
+  Preconnect(url, net::MutableNetworkTrafficAnnotationTag(TRAFFIC_ANNOTATION_FOR_TESTS));
+  Preconnect(url, net::MutableNetworkTrafficAnnotationTag());
+
+  MergeNetworkServiceHistograms();
+  histograms.ExpectBucketCount(kHistogram, aerie_network::Verdict::kRefusedUnlistedHost, 2);
+  histograms.ExpectTotalCount(kHistogram, 2);
+}
+
+// A host with a row may be preconnected to, with its own annotation or with none.
+IN_PROC_BROWSER_TEST_F(AerieRequestPolicyBrowserTest, APreconnectToAListedHostIsNotRefused) {
+  base::HistogramTester histograms;
+  const GURL url = embedded_test_server()->GetURL("easylist.to", "/");
+
+  Preconnect(url, net::MutableNetworkTrafficAnnotationTag(net::DefineNetworkTrafficAnnotation(
+                      "aerie_filter_list_download", "Test copy of the filter list annotation.")));
+  Preconnect(url, net::MutableNetworkTrafficAnnotationTag());
+
+  MergeNetworkServiceHistograms();
+  histograms.ExpectTotalCount(kHistogram, 0);
+}
+
+// DNS prefetch: a name the browser looks up on its own is refused unless a row names it.
+IN_PROC_BROWSER_TEST_F(AerieRequestPolicyBrowserTest, ANameLookupForAnUnlistedHostIsRefusedAndCounted) {
+  base::HistogramTester histograms;
+
+  EXPECT_EQ(net::ERR_BLOCKED_BY_ADMINISTRATOR, Lookup("unlisted.example"));
+  EXPECT_EQ(net::OK, Lookup("easylist.to"));  // a listed host resolves (to the test server)
 
   MergeNetworkServiceHistograms();
   histograms.ExpectBucketCount(kHistogram, aerie_network::Verdict::kRefusedUnlistedHost, 1);

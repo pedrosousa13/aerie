@@ -128,21 +128,62 @@ Neither host is Google-owned or Helium-owned. Nothing is fetched on a fresh inst
 ## Request policy
 
 The network service refuses a request that the browser makes on its own unless it is listed here
-(`services/network/aerie`, issue #257, design borrowed from Crest's `crest_request_policy`). A request
-is **the browser's own** when it comes from the browser process (not a renderer), or when its origin
-is not known. Its traffic annotation then decides:
+(`services/network/aerie`, issue #257, patches `network/0002` and `network/0003`). The design is Crest's
+(`crest_request_policy`, MPL-2.0); the code is Aerie's own. It is defence in depth for the Bench check
+`zero_traffic`: a request that a later Chromium or Helium adds fails at run time, and the Bench names it.
 
-1. An annotation in the second table below is traffic that a page or the user directs: allowed for any host.
-2. An annotation in the first table is allowed to the host named in its row, and to subdomains of it.
-3. Anything else, including a missing annotation and an annotation that a later Chromium adds, fails with
-   `ERR_BLOCKED_BY_ADMINISTRATOR`, is counted in the `Aerie.Network.RequestPolicy.Refused` histogram, and is logged
-   by host only.
+### What is judged
 
-Page traffic, extension traffic (both come from renderer processes) and the `trk:` requests that
-ungoogled-chromium already refuses are not touched. No pref and no extension changes these tables: they are
-compiled in, generated from this page by `./aerie netpolicy generate`, and a test fails when they differ.
-Add a host by adding a row here, in a reviewed change. The Bench check `zero_traffic` reports every refused
-attempt by name, so a new upstream request is visible even though it is refused.
+A **URL request** (`NetworkServiceNetworkDelegate::OnBeforeURLRequest`, so every redirect hop too), a
+**preconnect** (`NetworkContext::PreconnectSockets`) and a **name lookup** the browser asks for
+(`NetworkContext::ResolveHost`: DNS prefetch). Only `http`, `https`, `ws` and `wss` URLs are judged; the
+other schemes reach no host. A refusal is net error `ERR_BLOCKED_BY_ADMINISTRATOR` (-22), a count in the
+`Aerie.Network.RequestPolicy.Refused` histogram, and a log line with the host only.
+
+**Who is trusted: the exact mechanism.** A request is skipped only when its factory is *positively* known to
+serve a renderer: the factory's `process_id` is a valid renderer process (not the browser, not null), the
+factory is not `is_trusted`, and it carries a `request_initiator_origin_lock`. Chromium requires that lock on
+every factory vended to a renderer and allows its absence only on browser factories. A request that fails any
+one of these, one with no `URLLoader` at all (WebSockets, the certificate verifier, DNS over HTTPS), and one
+from an unknown factory, is **the browser's own** and is judged. Nothing a page can set is read: no header,
+no `request_initiator`, no URL. A utility process, or a browser-made factory that carries a renderer's process
+id but is trusted or unlocked, is judged.
+
+A judged request is then decided by its traffic annotation:
+
+1. No usable annotation (missing, `undefined`, or never set): refused.
+2. An annotation in the "user" or the "site" table below: allowed for any host.
+3. An annotation with a row in the host table: allowed to that host and its subdomains, on label boundaries.
+4. Anything else, including an annotation a later Chromium adds: refused.
+
+A preconnect or lookup with no annotation (the lookup API has none) is judged by host as browser traffic:
+allowed only when some row of the host table names the host. So speculative connections and DNS prefetch are
+refused for every ordinary site. That costs a little page-load speed and is the intended trade: the browser
+does not resolve or connect to a name that nobody asked for.
+
+No pref and no extension changes these tables: they are compiled in and generated from this page by
+`./aerie netpolicy generate`. A test fails when the generated file differs from this page, and
+`./aerie netpolicy check --tree <source>` (also a source gate in `./aerie patches gates`) fails when an
+annotation name does not exist in the pinned source or in Aerie's overlay. Add a host by adding a row here, in
+a reviewed change. There is no row for the browser update check (#130): it is not a browser request yet, and
+it needs a row when it lands.
+
+### Limits: what the policy does not see
+
+Do not read this page as "every request is judged".
+
+- Requests from a renderer process (pages, workers, extensions) are not judged by design.
+- Raw DNS: the host resolver's own sockets, and a renderer's name lookups (`mojom::HostResolver`), are not
+  hooked. DNS over HTTPS is a URL request and is judged (annotation `dns_over_https`).
+- QUIC and HTTP/3: a connection to an already-allowed host can move to an alternative service the server
+  names. The alternative is not judged.
+- CORS preflight requests are made inside the network service for the request they guard and take that
+  request's decision.
+- `ftp:` is not supported by this browser. Other sockets (WebRTC, WebTransport, `UDPSocket`) are not URL
+  requests and are not judged.
+- The Bench's NetLog scan (`zero_traffic`) stays the end-to-end proof for everything above.
+
+### Host rows
 
 Annotation plus host, so a host is reachable only by the code that is meant to use it:
 
@@ -155,64 +196,87 @@ Annotation plus host, so a host is reachable only by the code that is meant to u
 | `update_client` | `gvt1.com` | Widevine component download from Google's CDN, only after the user opts in (#7) |
 <!-- request-policy:hosts:end -->
 
-Annotations that carry traffic a page or the user directs, for any host:
+### (a) Directed by the user
 
-<!-- request-policy:directed:begin -->
+The user typed or chose the destination. Allowed for any host.
+
+<!-- request-policy:user:begin -->
 | Annotation | Why |
 | --- | --- |
-| `background_fetch_context` | a page's Background Fetch |
-| `bidirectional_stream` | a page's bidirectional stream |
-| `blink_extension_resource_loader` | an extension page's subresource |
-| `blink_fetch_later_manager` | a page's fetchLater |
-| `blink_resource_loader` | a page's subresource |
-| `certificate_verifier_2qwac_loader` | certificate fetch for a page's connection |
-| `certificate_verifier_url_loader` | certificate fetch for a page's connection |
-| `certificate_verifier_url_request` | certificate fetch for a page's connection |
-| `dbsc_registration` | a site's device-bound session |
-| `devtools_cdp_network_resource` | the developer tools, started by the user |
-| `devtools_network_resource` | the developer tools, started by the user |
-| `dns_over_https` | secure DNS provider the user picked (off by default) |
-| `dns_transaction` | name lookup for a page's connection |
-| `download_bubble_retry_download` | a download the user started |
-| `download_manager_resume` | a download the user started |
-| `download_web_contents_frame` | a download the user started |
-| `downloads_api_run_async` | a download an extension started for the user |
-| `drag_download_file` | a download the user started |
-| `early_hints_preload` | a page's preload |
-| `favicon_loader` | the icon of a page the user opened |
-| `keepalive_fetch_retry` | a page's keepalive fetch |
-| `navigation_url_loader` | a navigation the user started |
-| `parallel_download_job` | a download the user started |
-| `payment_manifest_downloader` | a page's payment request |
-| `pdf_plugin_placeholder` | a PDF the user opened |
-| `predictive_prefetch` | a page's prefetch |
-| `preload_activation_beacon` | a page's preload |
-| `proxy_config_direct` | proxy the user configured |
-| `proxy_config_settings` | proxy the user configured |
-| `proxy_config_system` | proxy the operating system configured |
-| `render_view_context_menu` | a context menu action the user chose |
-| `renderer_initiated_download` | a download the user started |
-| `reporting` | a site's Reporting API |
-| `save_file_manager` | Save page as, started by the user |
-| `service_worker_navigation_preload` | a site's service worker |
-| `service_worker_race_network_request` | a site's service worker |
-| `service_worker_script_load` | a site's service worker |
-| `service_worker_update_checker` | a site's service worker |
-| `sigined_exchange_cert_fetcher` | a page's signed exchange |
-| `speculation_rules_prefetch` | a page's speculation rules |
-| `speculation_rules_prefetch_probe` | a page's speculation rules |
-| `ssl_name_mismatch_lookup` | name lookup for a page's connection |
-| `web_app_origin_association_download` | a web app the user installs |
-| `web_install_manifest_fetcher` | a web app the user installs |
-| `webauthn_rp_id_check` | a site's passkey request |
-| `websocket_basic_stream` | a page's WebSocket |
-| `websocket_stream` | a page's WebSocket |
-| `worker_script_load` | a page's worker |
-| `extension_manifest_fetcher` | extension update check; the endpoint is the user's extension proxy, https only, and none is built in |
-| `extension_crx_fetcher` | extension download; the endpoint is the user's extension proxy, https only, and none is built in |
-| `content_hash_verification_job` | extension content check; the endpoint is the user's extension proxy |
-| `aerie_custom_filter_list_download` | a filter list address the user added (#10) |
-<!-- request-policy:directed:end -->
+| `navigation_url_loader` | The user types an address or follows a link |
+| `download_bubble_retry_download` | The user retries a download |
+| `download_manager_resume` | The user resumes a download |
+| `download_web_contents_frame` | The user downloads from a page |
+| `drag_download_file` | The user drags a file out of a page |
+| `parallel_download_job` | A download the user started, in parts |
+| `save_file_manager` | The user saves a page |
+| `render_view_context_menu` | The user picks a context menu action such as save link as |
+| `dns_over_https` | The secure DNS server the user chose in Settings (off by default) |
+| `proxy_config_direct` | Fetching the proxy script the user or the operating system configured |
+| `proxy_config_settings` | Fetching the proxy script the user set in Settings |
+| `proxy_config_system` | Fetching the proxy script the operating system configured |
+| `devtools_network_resource` | The developer tools, opened by the user |
+| `devtools_cdp_network_resource` | The developer tools protocol, attached by the user |
+| `aerie_custom_filter_list_download` | A filter list at an address the user added (#10) |
+<!-- request-policy:user:end -->
+
+### (b) Trusted by annotation
+
+The destination is set by the site being visited (or by an extension the user installed), never by Google or
+Chromium code. Allowed for any host. A site can already reach any host from its own page, so this adds no
+host a site did not already pick.
+
+<!-- request-policy:site:begin -->
+| Annotation | Why |
+| --- | --- |
+| `certificate_verifier_url_loader` | Certificate chain, OCSP and CRL fetches: the address is in the site's certificate |
+| `certificate_verifier_url_request` | Certificate chain, OCSP and CRL fetches: the address is in the site's certificate |
+| `certificate_verifier_2qwac_loader` | Certificate chain fetch for a qualified website certificate: the address is in the site's certificate |
+| `service_worker_script_load` | A site's service worker script, at the site's address |
+| `service_worker_update_checker` | A site's service worker update check, at the site's address |
+| `service_worker_navigation_preload` | A site's service worker navigation preload |
+| `service_worker_race_network_request` | A site's service worker network race |
+| `worker_script_load` | A site's worker script |
+| `reporting` | Reports to the endpoint a site named in its Report-To header |
+| `dbsc_registration` | A site's device-bound session endpoint |
+| `keepalive_fetch_retry` | Retry of a site's keepalive fetch |
+| `background_fetch_context` | A site's Background Fetch |
+| `early_hints_preload` | A resource a site listed in an Early Hints response |
+| `speculation_rules_prefetch` | A prefetch a site's speculation rules asked for |
+| `speculation_rules_prefetch_probe` | The probe before such a prefetch |
+| `payment_manifest_downloader` | A payment manifest named by a site's payment request |
+| `sigined_exchange_cert_fetcher` | A signed exchange certificate named by the exchange |
+| `webauthn_rp_id_check` | The related-origins file of the site asking for a passkey |
+| `web_app_origin_association_download` | The association file of a web app the user installs |
+| `web_install_manifest_fetcher` | The manifest of a web app the user installs |
+| `renderer_initiated_download` | A download a page started after a user gesture |
+| `websocket_basic_stream` | A site's WebSocket |
+| `websocket_stream` | A site's WebSocket |
+| `bidirectional_stream` | A site's bidirectional stream |
+| `downloads_api_run_async` | A download an extension the user installed asked for |
+<!-- request-policy:site:end -->
+
+### (c) Refused
+
+Everything else, among them these browser features that Chromium would run on its own and that Aerie
+therefore refuses (a refused feature is acceptable here):
+
+- `predictive_prefetch`, `predictive_preconnect`, `network_hints_preconnect`, `search_engine_preconnect`,
+  `preload_activation_beacon`: speculative loading. Nobody asked for the destination.
+- `dns_transaction`, `ssl_name_mismatch_lookup`: name lookups, not URL requests; handled as above.
+- `well_known_path_that_should_not_exist`, `pdf_plugin_placeholder`: no Aerie feature needs them.
+- `blink_resource_loader`, `blink_extension_resource_loader`, `blink_fetch_later_manager`, `favicon_loader`:
+  renderer annotations. A renderer's request is skipped, so they need no row; the same annotation on a
+  browser request is a bug and is refused.
+
+### Extension updates and installs (decision for the maintainer)
+
+`extension_manifest_fetcher`, `extension_crx_fetcher` and `content_hash_verification_job` are **refused**
+(group c). They cannot be called "the user's extension proxy": Aerie rewrites only the Web Store update URL to
+the proxy (`ExtensionManagement::GetEffectiveUpdateUrl`); an extension with its own `update_url` in its
+manifest is fetched at that address, whoever runs it. The proxy is a pref, and no pref may widen the policy.
+Until the maintainer decides (options in the report of #257), extensions from the Web Store do not update or
+install through the browser, which matches the state today: no proxy domain is built in (#19).
 
 ## Known blocked attempts
 

@@ -164,6 +164,93 @@ TEST(AerieRequestPolicyTest, TheDecisionTakesNothingButTheRequestFacts) {
   EXPECT_EQ(Verdict::kRefusedUnlistedHost, Decide(a));
 }
 
+// --- Who is a renderer: only a factory positively known to serve one -------
+
+FactoryFacts RendererFactory() {
+  FactoryFacts f;
+  f.is_browser_process = false;
+  f.is_valid_renderer_process = true;
+  f.is_trusted = false;
+  f.has_initiator_origin_lock = true;
+  return f;
+}
+
+TEST(AerieRequestPolicyTest, AFactoryThatPositivelyServesARendererIsSkipped) {
+  EXPECT_EQ(RequestOrigin::kRenderer, ClassifyFactory(RendererFactory()));
+}
+
+TEST(AerieRequestPolicyTest, TheBrowsersOwnFactoryIsJudged) {
+  FactoryFacts f = RendererFactory();
+  f.is_browser_process = true;
+  f.is_valid_renderer_process = false;
+  f.is_trusted = true;
+  f.has_initiator_origin_lock = false;
+  EXPECT_EQ(RequestOrigin::kBrowserProcess, ClassifyFactory(f));
+}
+
+TEST(AerieRequestPolicyTest, ARequestWithNoLoaderIsJudged) {
+  EXPECT_EQ(RequestOrigin::kUnknown, ClassifyFactory(std::nullopt));
+  EXPECT_EQ(Verdict::kRefusedUnlistedHost,
+            Decide(Facts(ClassifyFactory(std::nullopt), Hash("some_new_chromium_fetch"),
+                         "https://telemetry.example/")));
+}
+
+TEST(AerieRequestPolicyTest, AUtilityOrNullProcessIsJudged) {
+  // A utility process has no valid renderer process id.
+  FactoryFacts utility = RendererFactory();
+  utility.is_valid_renderer_process = false;
+  EXPECT_NE(RequestOrigin::kRenderer, ClassifyFactory(utility));
+  EXPECT_EQ(Verdict::kRefusedUnlistedHost,
+            Decide(Facts(ClassifyFactory(utility), Hash("some_new_chromium_fetch"),
+                         "https://telemetry.example/")));
+}
+
+TEST(AerieRequestPolicyTest, ABrowserMadeFactoryWithARendererIdIsJudgedUnlessLockedAndUntrusted) {
+  FactoryFacts trusted = RendererFactory();
+  trusted.is_trusted = true;
+  FactoryFacts unlocked = RendererFactory();
+  unlocked.has_initiator_origin_lock = false;
+  for (const FactoryFacts& f : {trusted, unlocked}) {
+    EXPECT_NE(RequestOrigin::kRenderer, ClassifyFactory(f));
+    EXPECT_EQ(Verdict::kRefusedUnlistedHost,
+              Decide(Facts(ClassifyFactory(f), Hash("some_new_chromium_fetch"),
+                           "https://telemetry.example/")));
+  }
+}
+
+// --- Preconnect and name lookups -------------------------------------------
+
+TEST(AerieRequestPolicyTest, APreconnectWithAnAnnotationIsDecidedLikeARequest) {
+  EXPECT_EQ(Verdict::kRefusedUnlistedHost,
+            DecideConnection(Facts(RequestOrigin::kBrowserProcess, Hash("predictive_preconnect"),
+                                   "https://news.example/")));
+  EXPECT_EQ(Verdict::kAllow,
+            DecideConnection(Facts(RequestOrigin::kBrowserProcess, Hash("aerie_filter_list_download"),
+                                   "https://easylist.to/")));
+}
+
+TEST(AerieRequestPolicyTest, ANameLookupOrPreconnectWithNoAnnotationIsJudgedByHost) {
+  EXPECT_EQ(Verdict::kRefusedUnlistedHost,
+            DecideConnection(Facts(RequestOrigin::kBrowserProcess, std::nullopt, "https://news.example/")));
+  EXPECT_EQ(Verdict::kRefusedUnlistedHost,
+            DecideConnection(Facts(RequestOrigin::kUnknown, net::internal::TRAFFIC_ANNOTATION_UNINITIALIZED,
+                                   "https://www.google.com/")));
+  // A host that has a row, for any annotation, may be resolved and connected to.
+  EXPECT_EQ(Verdict::kAllow,
+            DecideConnection(Facts(RequestOrigin::kBrowserProcess, std::nullopt, "https://easylist.to/")));
+  EXPECT_EQ(Verdict::kAllow,
+            DecideConnection(Facts(RequestOrigin::kBrowserProcess, std::nullopt, "https://update.googleapis.com/")));
+  EXPECT_EQ(Verdict::kRefusedUnlistedHost,
+            DecideConnection(Facts(RequestOrigin::kBrowserProcess, std::nullopt, "https://noteasylist.to/")));
+}
+
+TEST(AerieRequestPolicyTest, ADirectedAnnotationOpensAPreconnectLikeARequest) {
+  // With an annotation the rule is the same as for a request.
+  EXPECT_EQ(Verdict::kAllow,
+            DecideConnection(Facts(RequestOrigin::kBrowserProcess, Hash("navigation_url_loader"),
+                                   "https://typed-by-user.example/")));
+}
+
 // --- Refusals: histogram and log ----------------------------------------------
 
 TEST(AerieRequestPolicyTest, IsRefusalIsTrueForEveryRefusalAndOnlyThem) {

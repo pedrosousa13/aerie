@@ -15,6 +15,7 @@ services/0005-remove-fedcm-dns-resolver.patch
 crash/0001-remove-crash-reporting.patch
 network/0001-secure-dns-off-by-default.patch
 network/0002-refuse-browser-requests-not-on-the-allowlist.patch
+network/0003-judge-preconnect-and-name-lookups.patch
 search/0001-trim-the-search-engine-list.patch
 
 # Hardening defaults (#12). 0004 is generated: ./aerie hardening generate

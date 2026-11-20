@@ -85,7 +85,9 @@ FilterListFetcher::FilterListFetcher(
 
 FilterListFetcher::~FilterListFetcher() = default;
 
-void FilterListFetcher::Fetch(const GURL& url, Callback callback, bool user_added) {
+void FilterListFetcher::Fetch(const GURL& url,
+                              Callback callback,
+                              Source source) {
   int id = next_id_++;
   auto download = std::make_unique<Download>();
   download->callback = std::move(callback);
@@ -112,7 +114,8 @@ void FilterListFetcher::Fetch(const GURL& url, Callback callback, bool user_adde
   download->loader =
       network::SimpleURLLoader::Create(
           std::move(request),
-          user_added ? kCustomTrafficAnnotation : kTrafficAnnotation);
+          source == Source::kUserAdded ? kCustomTrafficAnnotation
+                                       : kTrafficAnnotation);
   download->loader->SetTimeoutDuration(kListDownloadTimeout);
   download->loader->SetOnRedirectCallback(base::BindRepeating(
       [](base::WeakPtr<FilterListFetcher> self, int id,
