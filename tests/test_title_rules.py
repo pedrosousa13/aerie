@@ -116,9 +116,12 @@ class NoRegexNoNetworkTest(unittest.TestCase):
 
     def test_the_endpoint_list_is_untouched(self):
         # docs/network-endpoints.md is unchanged by this issue; the diff is empty against the branch point.
-        out = subprocess.run(["git", "diff", "--name-only", "origin/main", "--", "docs/network-endpoints.md"],
-                             cwd=REPO, capture_output=True, text=True)
-        self.assertEqual(out.stdout.strip(), "")
+        # Other issues edit the page (the request policy tables, #257). What this feature must not add is
+        # an endpoint row: a line that starts a table row with an http(s) address.
+        out = subprocess.run(["git", "diff", "-U0", "origin/main", "--", "docs/network-endpoints.md"],
+                             cwd=REPO, capture_output=True, text=True).stdout
+        added = [l for l in out.splitlines() if l.startswith("+|") and ("`http://" in l or "`https://" in l)]
+        self.assertEqual(added, [])
 
 
 class StringsTest(unittest.TestCase):
