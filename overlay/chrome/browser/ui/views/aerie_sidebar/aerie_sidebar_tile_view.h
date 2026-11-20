@@ -12,6 +12,7 @@
 #include "base/memory/raw_ptr.h"
 #include "base/timer/timer.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_drag_overlay.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_selection_keys.h"
 #include "components/aerie_design_tokens/aerie_motion.h"
 #include "components/aerie_design_tokens/aerie_tokens.h"
 #include "components/aerie_sidebar/aerie_sidebar_density.h"
@@ -62,6 +63,10 @@ class AerieSidebarTileView : public views::View,
                                  bool cancelled,
                                  bool outside)>
         drag_end;
+    // Selecting several tiles (issue #265); as on a row.
+    base::RepeatingCallback<void(bool range)> modified_click;
+    base::RepeatingCallback<bool(AerieSidebarSelectionKey)> selection_key;
+    base::RepeatingCallback<bool()> selection_active;
   };
 
   AerieSidebarTileView(Callbacks callbacks,
@@ -75,6 +80,8 @@ class AerieSidebarTileView : public views::View,
   void SetFavicon(const ui::ImageModel& favicon);
   void SetSelected(bool selected);
   bool selected() const { return selected_; }
+  void SetMultiSelected(bool selected);
+  bool multi_selected() const { return multi_selected_; }
 
   // The same look as a sleeping row (issue #179): the favicon at
   // `motion-opacity-sleeping`, then a static desaturate, and the moon badge. The
@@ -144,6 +151,7 @@ class AerieSidebarTileView : public views::View,
   Callbacks callbacks_;
   aerie_sidebar::SidebarPalette palette_;
   bool selected_ = false;
+  bool multi_selected_ = false;
   bool hovered_ = false;
   bool pressed_ = false;
   bool sleeping_ = false;

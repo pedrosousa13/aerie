@@ -708,4 +708,60 @@
   <message name="IDS_SETTINGS_AERIE_TITLE_TRY_RESULT_PAGE" desc="Result of the Try a title box when nothing changed the title.">
     Shown: <ph name="TITLE">$1<ex>Inbox</ex></ph> (the page title, unchanged)
   </message>
+  <message name="IDS_AERIE_SIDEBAR_BATCH_CLOSE" desc="Item of the menu that opens when the user right-clicks one of several selected rows in the sidebar. It acts on all of the selected tabs. It closes them. Pinned and Favorite tabs follow the pinned-close setting.">
+    {COUNT, plural,
+      =1 {Close tab}
+      other {Close # tabs}}
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_BATCH_ARCHIVE" desc="Item of the menu that opens when the user right-clicks one of several selected rows in the sidebar. It acts on all of the selected tabs. It moves them to the Archive, where the user can restore them.">
+    {COUNT, plural,
+      =1 {Archive tab}
+      other {Archive # tabs}}
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_BATCH_SLEEP" desc="Item of the menu that opens when the user right-clicks one of several selected rows in the sidebar. It acts on all of the selected tabs. It puts them to sleep, which frees their memory. A tab that cannot sleep stays awake.">
+    {COUNT, plural,
+      =1 {Sleep tab}
+      other {Sleep # tabs}}
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_BATCH_PIN" desc="Item of the menu that opens when the user right-clicks one of several selected rows in the sidebar. It acts on all of the selected tabs. It pins them.">
+    {COUNT, plural,
+      =1 {Pin tab}
+      other {Pin # tabs}}
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_BATCH_UNPIN" desc="Item of the menu that opens when the user right-clicks one of several selected rows in the sidebar. It acts on all of the selected tabs. It unpins them.">
+    {COUNT, plural,
+      =1 {Unpin tab}
+      other {Unpin # tabs}}
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_BATCH_ADD_TO_FAVORITES" desc="Item of the menu that opens when the user right-clicks one of several selected rows in the sidebar. It acts on all of the selected tabs. It adds them to Favorites, as many as fit.">
+    {COUNT, plural,
+      =1 {Add tab to Favorites}
+      other {Add # tabs to Favorites}}
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_BATCH_REMOVE_FROM_FAVORITES" desc="Item of the menu that opens when the user right-clicks one of several selected rows in the sidebar. It acts on all of the selected tabs. It takes them out of Favorites.">
+    {COUNT, plural,
+      =1 {Remove tab from Favorites}
+      other {Remove # tabs from Favorites}}
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_SELECT_RANGE_TO_HERE" desc="Item of the context menu of a tab row in the sidebar while other rows are selected, and an action for screen readers. It selects every row from the last selected row to this one.">
+    Select range to here
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_CLEAR_SELECTION" desc="Item of the context menu of a row in the sidebar while rows are selected, and an action for screen readers. It unselects every row.">
+    Clear selection
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_SELECTED_COUNT" desc="Announced by a screen reader, and shown nowhere, when the number of selected rows in the sidebar changes. For example: 3 selected.">
+    {COUNT, plural,
+      =1 {1 selected}
+      other {# selected}}
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_CONFIRM_CLOSE_SELECTION" desc="Short message that the sidebar shows when the user presses Delete with several rows selected. Nothing closes yet; pressing Delete again closes them.">
+    {COUNT, plural,
+      =1 {Press Delete again to close this tab}
+      other {Press Delete again to close # tabs}}
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_FAVORITES_PARTLY_FULL" desc="Short message that the sidebar shows after the user added several tabs to Favorites and only some fitted. The Favorites grid holds 12. The number is how many were not added.">
+    {COUNT, plural,
+      =1 {Favorites are full. 1 tab was not added.}
+      other {Favorites are full. # tabs were not added.}}
+  </message>
 </grit-part>

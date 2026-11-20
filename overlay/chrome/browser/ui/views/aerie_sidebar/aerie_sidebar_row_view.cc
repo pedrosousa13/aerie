@@ -24,6 +24,7 @@
 #include "components/aerie_tab_model/title_resolver.h"
 #include "components/prefs/pref_service.h"
 #include "components/vector_icons/vector_icons.h"
+#include "ui/accessibility/ax_action_data.h"
 #include "ui/base/accelerators/accelerator.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_header_macros.h"
@@ -262,6 +263,9 @@ AerieSidebarRowView::AerieSidebarRowView(
   GetViewAccessibility().SetIsSelected(false);
   GetViewAccessibility().SetName(std::u16string());
   set_context_menu_controller(this);
+  if (callbacks_.modified_click) {
+    GetViewAccessibility().AddAction(ax::mojom::Action::kSetSelection);
+  }
   // Virtual hooks resolve to this class here; a subclass must call
   // SetPalette() and UpdateName() again at the end of its constructor.
   SetPalette(palette_);
@@ -714,7 +718,16 @@ void AerieSidebarRowView::SetSelected(bool selected) {
     return;
   }
   selected_ = selected;
-  GetViewAccessibility().SetIsSelected(selected);
+  GetViewAccessibility().SetIsSelected(selected_ || multi_selected_);
+  UpdateState();
+}
+
+void AerieSidebarRowView::SetMultiSelected(bool selected) {
+  if (multi_selected_ == selected) {
+    return;
+  }
+  multi_selected_ = selected;
+  GetViewAccessibility().SetIsSelected(selected_ || multi_selected_);
   UpdateState();
 }
 
@@ -854,7 +867,13 @@ void AerieSidebarRowView::OnMouseReleased(const ui::MouseEvent& event) {
     return;
   }
   if (event.IsOnlyLeftMouseButton()) {
-    callbacks_.select.Run();
+    if (callbacks_.modified_click && IsSelectionToggleClick(event)) {
+      callbacks_.modified_click.Run(/*range=*/false);
+    } else if (callbacks_.modified_click && IsSelectionRangeClick(event)) {
+      callbacks_.modified_click.Run(/*range=*/true);
+    } else {
+      callbacks_.select.Run();
+    }
   } else if (event.IsOnlyMiddleMouseButton()) {
     callbacks_.close.Run();
   }
@@ -865,6 +884,16 @@ void AerieSidebarRowView::OnMouseCaptureLost() {
   if (dragging_) {
     FinishDrag(last_point_, /*cancelled=*/true, /*outside=*/false);
   }
+}
+
+bool AerieSidebarRowView::HandleAccessibleAction(
+    const ui::AXActionData& action_data) {
+  if (action_data.action == ax::mojom::Action::kSetSelection &&
+      callbacks_.modified_click && !closing_) {
+    callbacks_.modified_click.Run(/*range=*/true);
+    return true;
+  }
+  return views::View::HandleAccessibleAction(action_data);
 }
 
 bool AerieSidebarRowView::AcceleratorPressed(
@@ -938,6 +967,13 @@ bool AerieSidebarRowView::OnKeyPressed(const ui::KeyEvent& event) {
   if (IsCloseShortcut(event)) {
     callbacks_.key.Run(aerie_sidebar::ListKey::kDelete);
     return true;
+  }
+  // Selecting several rows (issue #265).
+  if (callbacks_.selection_key) {
+    if (const std::optional<AerieSidebarSelectionKey> key =
+            SelectionKeyFor(event, /*grid=*/false)) {
+      return callbacks_.selection_key.Run(*key);
+    }
   }
   // Alt+Arrow moves the row (issue #182).
   if (IsMoveShortcut(event) && callbacks_.move) {
@@ -1018,6 +1054,16 @@ bool AerieSidebarRowView::SkipDefaultKeyEventProcessing(
   // first.
   // Alt+Left is the browser's Back; on a row that has a move callback it
   // outdents the row.
+  // Ctrl+A is the browser's "select all" and Esc stops loading; on a row they
+  // select the section and clear the selection (issue #265).
+  if (const std::optional<AerieSidebarSelectionKey> key =
+          SelectionKeyFor(event, /*grid=*/false);
+      key && callbacks_.selection_key &&
+      (*key == AerieSidebarSelectionKey::kSelectAll ||
+       (*key == AerieSidebarSelectionKey::kClear && callbacks_.selection_active &&
+        callbacks_.selection_active.Run()))) {
+    return true;
+  }
   return IsCloseShortcut(event) ||
          (IsMoveShortcut(event) && callbacks_.move) ||
          views::View::SkipDefaultKeyEventProcessing(event);
@@ -1044,7 +1090,7 @@ void AerieSidebarRowView::OnThemeChanged() {
 void AerieSidebarRowView::UpdateState() {
   UpdateTrailing();
   // The content draws the background, so that it scales and fades with it.
-  if (selected_) {
+  if (selected_ || multi_selected_) {
     content_->SetBackground(views::CreateRoundedRectBackground(
         palette_.row_selected, aerie::tokens::kRadiusMd));
   } else if (hovered_) {
