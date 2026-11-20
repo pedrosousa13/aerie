@@ -73,6 +73,10 @@ def add_arguments(p: argparse.ArgumentParser, *, binary_required: bool) -> None:
     p.add_argument("--perf-record", metavar="DIR",
                    help="perf: after a passing run, append perf.json to DIR/history.jsonl and make it DIR/main.json "
                         "(use it on main builds only)")
+    p.add_argument("--perf-commit", metavar="SHA",
+                   help="perf: with --perf-record, the source commit the browser was built from, stored as "
+                        "\"commit\" in main.json and history.jsonl. Default: HEAD of the checkout this tool runs "
+                        "from (right when the binary was just built from it)")
     p.add_argument("--perf-compare-binary", metavar="PATH",
                    help="perf: run the same suite on this browser (Helium, stock Chromium) and write "
                         "perf-comparison.md with both side by side")
@@ -208,6 +212,17 @@ def _record_sidebar_frames(args, result) -> None:
         print("sidebar_frames: run did not pass; not recorded")
 
 
+def _head_commit() -> str | None:
+    """Short HEAD of the checkout this tool runs from, or None when it is not a git checkout."""
+    import subprocess
+    try:
+        out = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=Path(__file__).resolve().parent,
+                             capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return out.stdout.strip() or None if out.returncode == 0 else None
+
+
 def _perf_followup(args, result, build_root, common) -> int:
     """Record the run as the new baseline and run the comparison browser, as asked.
 
@@ -219,7 +234,9 @@ def _perf_followup(args, result, build_root, common) -> int:
     doc = perf.load(doc_path)
     if args.perf_record:
         if result.status == "pass":
-            print(f"perf: recorded in {perf.record(Path(args.perf_record), doc)}")
+            commit = args.perf_commit or _head_commit()
+            print(f"perf: recorded in {perf.record(Path(args.perf_record), doc, commit=commit)}"
+                  + (f" (commit {commit})" if commit else ""))
         else:
             print("perf: run did not pass; not recorded")
     if args.perf_compare_binary:

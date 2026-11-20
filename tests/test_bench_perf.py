@@ -91,6 +91,15 @@ class HistoryTest(unittest.TestCase):
         self.assertEqual(perf.load(main)["label"], "b")
         self.assertEqual([d["label"] for d in perf.read_history(self.dir)], ["a", "b"])
 
+    def test_record_stores_the_commit_in_main_and_in_the_history(self):
+        main = perf.record(self.dir, doc(memory=800, label="a"), commit="f80fe43")
+        self.assertEqual(perf.load(main)["commit"], "f80fe43")
+        self.assertEqual(perf.read_history(self.dir)[0]["commit"], "f80fe43")
+
+    def test_record_without_a_commit_adds_no_commit_key(self):
+        main = perf.record(self.dir, doc(memory=800, label="a"))
+        self.assertNotIn("commit", perf.load(main))
+
     def test_a_torn_history_line_is_skipped(self):
         perf.record(self.dir, doc(label="a"))
         with open(self.dir / perf.HISTORY_FILE, "a") as f:

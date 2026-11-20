@@ -238,6 +238,53 @@ That writes `main.json` and the first line of `history.jsonl`. To let one gate r
 example the PR that introduces the gate), set `AERIE_PERF_FIRST_RUN=1` in the gate's environment; the step then
 passes `--perf-first-run`. Unset it again afterwards: with it set, a missing baseline passes quietly.
 
+**Refreshing the baseline.** A baseline goes stale silently: the browser changes and so does the machine, and
+nothing fails until a gate run happens to cross the limit (issue #243: `memory_after_ad_pages_mb` read 970.6 MB
+in the baseline and 1100 to 1150 MB on every build, on every commit, since). Refresh it:
+
+- when `perf` fails on an unmodified main build (check first that the failure is not a real regression, see below);
+- after a Chromium or Helium bump (`./aerie bump`), a change of the benchmark pins or of the fixture pages in
+  `fixtures/perf/`, or a new machine or a big change to the machine (kernel, RAM, other load);
+- at least once a month, so a slow drift stays visible in `history.jsonl` and not in one failing gate.
+
+Steps, on the checkout of main with its browser built (`./aerie build` leaves the tree at the commit you record):
+
+```sh
+git checkout main && git pull --ff-only
+./aerie build
+# 1. Measure three times without recording; the memory numbers are noisy by a few percent. Use the median.
+for i in 1 2 3; do ./aerie bench --check perf --perf-skip-benchmarks; done
+# 2. Record the full run. --perf-record stores the commit (HEAD of the checkout, or --perf-commit SHA) as
+#    "commit" in main.json and in the line it appends to history.jsonl.
+./aerie bench --download-benchmarks --check perf --perf-record "${AERIE_PERF_DIR:-/mnt/linux2/aerie-perf}"
+# 3. Check the baseline against the same build: it must pass.
+./aerie bench --check perf --perf-baseline "${AERIE_PERF_DIR:-/mnt/linux2/aerie-perf}/main.json"
+python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("commit"))' "${AERIE_PERF_DIR:-/mnt/linux2/aerie-perf}/main.json"
+```
+
+`./aerie bench` leaves the old line in `history.jsonl`, so the refresh is visible in `perf.py series`. Record into a
+new directory and point `AERIE_PERF_DIR` at it only when you want the old series kept apart. A baseline without
+a `commit` key (recorded before #243) cannot be traced; refresh it. To bisect a failing `perf`, build each commit,
+run `--perf-skip-benchmarks` at least three times and compare medians: the same commit read 1044 MB on a freshly
+booted machine and 1140 MB an hour later (below).
+
+**What moved `memory_after_ad_pages_mb` (issue #243).** The recorded 970.6 MB was a single low reading that no
+build reproduces. Three runs each, on one machine, `--perf-skip-benchmarks`, median in MB:
+
+| Build | Runs | Median |
+| --- | --- | --- |
+| `95cbaa8` (before #183 and #146) | 1139.4, 1143.6, 1122.2 | 1139.4 |
+| `a4ef0ba` (#183, archive unused Today tabs) | 1155.7, 1134.7, 1154.6 | 1154.6 |
+| `45e813c` (#146, tab title rename rules) | 1136.0, 1150.0, 1129.3 | 1136.0 |
+| `f80fe43` (main, first, 54 minutes after boot) | 1023.9, 1044.5, 1047.0 | 1044.5 |
+| `f80fe43` (main, again an hour later) | 1135.6, 1143.9, 1146.8 | 1143.9 |
+
+No commit in the range adds memory: #183 is +15 MB, inside the run-to-run spread (about 30 MB), and #146 takes
+it back. Earlier Bench runs in the build root read 1030 to 1080 MB from 9 to 13 November and 1100 to 1150 MB from
+14 November on, with no change in the code that loads the pages; the machine state moves the number by 100 MB.
+The growth is therefore machine drift, not a leak, and the old baseline was a low outlier. The fix is the
+refresh above.
+
 A change is a regression when it is worse than the baseline by more than the percentage and by
 more than the absolute floor, so a large percentage of a tiny number is not one.
 
