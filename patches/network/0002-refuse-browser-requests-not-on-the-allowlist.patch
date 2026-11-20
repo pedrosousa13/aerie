@@ -1,0 +1,96 @@
+Aerie-Purpose: Refuse every URL request the browser makes on its own unless it is on the reviewed allowlist (docs/network-endpoints.md), so a request that a later Chromium or Helium adds fails at run time instead of shipping until the Bench finds it.
+Aerie-Upstream-Area: services/network/network_service_network_delegate.cc (OnBeforeURLRequest), services/network/url_loader.h (read-only accessor), services/network/BUILD.gn (network_service deps)
+Aerie-Kind: hook
+
+Issue #257. The decision is services/network/aerie/request_policy.cc (overlay).
+The hook gathers the request URL (the redirect target on a redirect), the
+traffic annotation, and facts about the carrying URLLoaderFactory: whether its
+process is a real renderer, whether it is trusted, and whether it locks the
+request initiator. A request is skipped only when the factory is positively a
+renderer's (real renderer process, untrusted, initiator lock). A request with
+no URLLoader (WebSocket, certificate fetch, DNS over HTTPS), from a utility
+process, or from a trusted or unlocked factory is judged. A page cannot set
+any of these facts.
+
+A refusal returns ERR_BLOCKED_BY_ADMINISTRATOR, which nothing else in the
+browser returns for a network request, so the Bench can tell it from the
+ERR_BLOCKED_BY_CLIENT of the ad blocker and of the dummy-origin refusals.
+
+Limits (see docs/network-endpoints.md, "Limits"): this hook sees URL requests
+only. Renderer traffic, raw DNS sockets, QUIC alternative services, CORS
+preflight (it takes its request's decision), WebRTC and other non-URL sockets
+are outside it. Preconnect and name lookups are judged by patch network/0003.
+Design borrowed from Crest (pauljoda/Crest, MPL-2.0); no code is copied.
+
+--- a/services/network/BUILD.gn
++++ b/services/network/BUILD.gn
+@@ -386,6 +386,7 @@
+     "//mojo/public/cpp/system",
+     "//net",
+     "//net:extras",
++    "//services/network/aerie:request_policy",
+     "//services/network/public/cpp",
+     "//services/network/public/cpp:crash_keys",
+     "//services/network/public/cpp/cert_verifier:mojo_cert_verifier",
+--- a/services/network/url_loader.h
++++ b/services/network/url_loader.h
+@@ -259,6 +259,12 @@
+   net::UploadProgress GetUploadProgress() const;
+ 
+   int32_t GetProcessId() const;
++
++  // Aerie (#257): what the request policy needs to know about this loader's
++  // factory. Read-only; the parameters are set by the browser, never by a page.
++  const mojom::URLLoaderFactoryParams& GetFactoryParamsForPolicy() const {
++    return *factory_params_;
++  }
+   uint32_t GetResourceType() const;
+ 
+   // Whether this URLLoader should allow sending/setting any cookies.
+--- a/services/network/network_service_network_delegate.cc
++++ b/services/network/network_service_network_delegate.cc
+@@ -25,6 +25,7 @@
+ #include "net/url_request/clear_site_data.h"
+ #include "net/url_request/referrer_policy.h"
+ #include "net/url_request/url_request.h"
++#include "services/network/aerie/request_policy.h"
+ #include "services/network/cookie_manager.h"
+ #include "services/network/cookie_settings.h"
+ #include "services/network/network_context.h"
+@@ -106,6 +107,36 @@
+     effective_url = &request->url();
+   }
+ 
++  // Aerie (#257): a request the browser makes on its own goes only where
++  // the reviewed allowlist says. A redirect comes back through here with its
++  // new address. A request is skipped only when its factory is positively a
++  // renderer's (a real renderer process, untrusted, locked to an initiator
++  // origin); everything else, a request with no URLLoader included, is judged.
++  // Nothing a page can set is read.
++  {
++    aerie_network::RequestFacts facts;
++    facts.url = *effective_url;
++    facts.annotation_hash = request->traffic_annotation().unique_id_hash_code;
++    std::optional<aerie_network::FactoryFacts> factory;
++    if (loader) {
++      const mojom::URLLoaderFactoryParams& params =
++          loader->GetFactoryParamsForPolicy();
++      factory.emplace();
++      factory->is_browser_process = params.process_id.is_browser();
++      factory->is_valid_renderer_process =
++          !params.process_id.is_browser() && !params.process_id.is_null();
++      factory->is_trusted = params.is_trusted;
++      factory->has_initiator_origin_lock =
++          params.request_initiator_origin_lock.has_value();
++    }
++    facts.origin = aerie_network::ClassifyFactory(factory);
++    const aerie_network::Verdict verdict = aerie_network::Decide(facts);
++    if (aerie_network::IsRefusal(verdict)) {
++      aerie_network::RecordRefusal(verdict, facts.url);
++      return net::ERR_BLOCKED_BY_ADMINISTRATOR;
++    }
++  }
++
+   MaybeTruncateReferrer(request, *effective_url);
+ 
+   NetworkService* network_service = network_context_->network_service();

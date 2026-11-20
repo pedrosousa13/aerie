@@ -22,6 +22,13 @@ and fails this check. Aerie must stay silent anyway, because its code no longer 
 to call, whatever the prefs say. Run the same check on an unmodified Helium binary (or any
 browser that talks to Google) with ``--baseline`` to see it fail.
 
+The network service's request policy (issue #257, ``docs/network-endpoints.md``) refuses a request that the
+browser makes on its own unless it is on a reviewed allowlist, with net error -22 (``ERR_BLOCKED_BY_ADMINISTRATOR``)
+and a count in the ``Aerie.Network.RequestPolicy.Refused`` histogram. The check names every such attempt
+(host only) from the NetLog and reads the counter at the end of the run. A refused attempt never left the
+machine, so it does not fail the run, but it shows that the browser or a later upstream version tried: it
+fails in strict mode, and the report lists it. If the policy refuses something the browser needs, that is a bug.
+
 Requests to the ``.qjz9zk`` dummy TLD (and ``trk:`` URLs) are refused inside the network stack
 before any DNS query. They are listed as ``blocked`` and fail the run only in strict mode.
 """
@@ -38,6 +45,10 @@ from ..session import CheckResult, Session
 from . import register
 
 PHASES = ("first_launch", "idle", "browse")
+# The request policy's refusal: net::ERR_BLOCKED_BY_ADMINISTRATOR, which nothing else in the browser returns
+# for a network request, and its counter (services/network/aerie/request_policy.h).
+POLICY_NET_ERROR = -22
+REFUSAL_HISTOGRAM = "Aerie.Network.RequestPolicy.Refused"
 BROWSE_PAGES = ("/browse-a.html", "/browse-b.html")
 
 
@@ -49,6 +60,10 @@ class Verdict:
     blocked: list[dict] = field(default_factory=list)
     other_hosts: list[str] = field(default_factory=list)
     fixture_requests: int = 0
+    # Attempts the request policy refused, by host: {host, phase, net_error, group}. Never a path or query.
+    refused: list[dict] = field(default_factory=list)
+    # The policy's counter as read from the browser; None when it could not be read.
+    refusal_count: int | None = None
 
 
 def _phase_of(index: int, phase_ends: dict[str, int] | None) -> str | None:
@@ -63,11 +78,13 @@ def _phase_of(index: int, phase_ends: dict[str, int] | None) -> str | None:
 
 
 def evaluate(requests: list[dict], dl: denylist_mod.Denylist, strict: bool = False,
-             phase_ends: dict[str, int] | None = None, lookups: list[dict] | None = None) -> Verdict:
+             phase_ends: dict[str, int] | None = None, lookups: list[dict] | None = None,
+             refusal_count: int | None = None) -> Verdict:
     """Judge parsed NetLog requests. ``phase_ends`` maps phase name to the cumulative request count
     at its end, in order; requests are assigned to the first phase whose end is past them."""
     hits: list[dict] = []
     blocked: list[dict] = []
+    refused: list[dict] = []
     others: set[str] = set()
     fixture_requests = 0
     for i, r in enumerate(requests):
@@ -80,6 +97,17 @@ def evaluate(requests: list[dict], dl: denylist_mod.Denylist, strict: bool = Fal
             fixture_requests += 1
             continue
         if not r["external"]:
+            continue
+        if r.get("net_error") == POLICY_NET_ERROR:
+            # The last hop was refused by the request policy before any DNS query: it left nothing. The hops
+            # before it were made, and count like any other request.
+            urls = r.get("urls", [r["url"]])
+            for u in urls[:-1]:
+                if (match := dl.match_url(u)):
+                    hits.append({**base, "url": u, "host": match.host, "group": match.group, "pattern": match.pattern})
+            last = dl.match_url(urls[-1])
+            refused.append({"host": r["host"], "phase": phase, "net_error": POLICY_NET_ERROR,
+                            "group": last.group if last else None})
             continue
         # Every hop of a redirect counts, not just the first URL.
         matches = [(u, m) for u in r.get("urls", [r["url"]]) if (m := dl.match_url(u))]
@@ -102,20 +130,32 @@ def evaluate(requests: list[dict], dl: denylist_mod.Denylist, strict: bool = Fal
               and not denylist_mod.is_dummy_host(lk["host"]) and lk["host"] not in {r["host"] for r in requests}):
             others.add(lk["host"])
     other_hosts = sorted(others)
+
+    def verdict(status: str, reason: str) -> Verdict:
+        return Verdict(status, reason, hits, blocked, other_hosts, fixture_requests, refused, refusal_count)
+
     if hits:
         shown = ", ".join(f"{h['host']} ({h['group']}, {h['phase'] or 'run'})" for h in hits[:5])
         more = f" and {len(hits) - 5} more" if len(hits) > 5 else ""
-        return Verdict("fail", f"{len(hits)} request(s) to denylisted hosts: {shown}{more}",
-                       hits, blocked, other_hosts, fixture_requests)
+        return verdict("fail", f"{len(hits)} request(s) to denylisted hosts: {shown}{more}")
     if fixture_requests == 0:
-        return Verdict("fail", "no fixture page request in the NetLog: the capture saw nothing, "
-                       "so a pass would prove nothing", hits, blocked, other_hosts, fixture_requests)
+        return verdict("fail", "no fixture page request in the NetLog: the capture saw nothing, "
+                       "so a pass would prove nothing")
+    names = sorted({r["host"] for r in refused})
+    unnamed = max(0, (refusal_count or 0) - len(refused))
+    refusal_note = ""
+    if refused:
+        refusal_note += f"; {len(refused)} attempt(s) refused by the request policy: {', '.join(names)}"
+    if unnamed:
+        refusal_note += f"; {refusal_count} refusal(s) counted, {len(refused)} named"
+    if strict and (refused or unnamed):
+        return verdict("fail", f"strict: the request policy refused {max(len(refused), refusal_count or 0)} attempt(s)"
+                       + (f": {', '.join(names)}" if names else " (not named in the NetLog)"))
     if strict and blocked:
-        return Verdict("fail", f"strict: {len(blocked)} blocked attempt(s) to dummy or trk: hosts, "
-                       f"e.g. {blocked[0]['url']}", hits, blocked, other_hosts, fixture_requests)
+        return verdict("fail", f"strict: {len(blocked)} blocked attempt(s) to dummy or trk: hosts, "
+                       f"e.g. {blocked[0]['url']}")
     note = f"; {len(blocked)} blocked attempt(s) to dummy hosts" if blocked else ""
-    return Verdict("pass", f"no request to a denylisted host in {len(requests)} URL request(s){note}",
-                   hits, blocked, other_hosts, fixture_requests)
+    return verdict("pass", f"no request to a denylisted host in {len(requests)} URL request(s){note}{refusal_note}")
 
 
 def worst_case_prefs() -> dict:
@@ -140,6 +180,8 @@ class ZeroTraffic:
         self.denylist = (denylist_mod.load(denylist_path) if denylist_path else denylist_mod.load_default())
         self.phase_ends: dict[str, int] = {}
         self.probe_error: str | None = None
+        self.refusal_count: int | None = None
+        self.counter_error: str | None = None
 
     def profile_prefs(self, server) -> dict:
         return worst_case_prefs()
@@ -159,7 +201,23 @@ class ZeroTraffic:
             session.navigate(page)
         self._poke_extension_updater(session)
         self.phase_ends["browse"] = self._count(session)
+        self.refusal_count = self.read_refusal_counter(session)
         return CheckResult(self.name, "pending")
+
+    def read_refusal_counter(self, session: Session) -> int | None:
+        """How many requests the request policy refused, from its histogram. 0 when the histogram was never
+        recorded (DevTools says "not found"); None when the reading itself failed."""
+        try:
+            hist = session.client.send("Browser.getHistogram", {"name": REFUSAL_HISTOGRAM},
+                                       timeout=session.timeout)["histogram"]
+            return int(hist["count"])
+        except CdpError as exc:
+            self.counter_error = str(exc)
+            msg = str(exc).lower()
+            return 0 if ("not found" in msg or "cannot find" in msg) else None
+        except (OSError, KeyError, TypeError, ValueError) as exc:
+            self.counter_error = f"{type(exc).__name__}: {exc}"
+            return None
 
     def _poke_extension_updater(self, session: Session) -> None:
         """Ask for an extension update check from chrome://extensions, so that path is exercised
@@ -185,7 +243,8 @@ class ZeroTraffic:
         if ends:
             ends[PHASES[-1]] = len(session.netlog) + 1
         verdict = evaluate(session.netlog, self.denylist, strict=self.strict, phase_ends=ends or None,
-                           lookups=getattr(session, "netlog_lookups", None))
+                           lookups=getattr(session, "netlog_lookups", None),
+                           refusal_count=self.refusal_count)
         # A pass needs a log that is whole and a browser that exited cleanly. A truncated log or a crash
         # may have lost exactly the traffic we are looking for.
         problems = []
@@ -203,7 +262,8 @@ class ZeroTraffic:
             "phases": {name: ends.get(name) for name in PHASES} if ends else {},
             "idle_seconds": self.idle_seconds, "settle_seconds": self.settle_seconds,
             "strict": self.strict, "denylist_entries": len(self.denylist.entries),
-            "hits": verdict.hits, "blocked": verdict.blocked, "other_hosts": verdict.other_hosts,
+            "hits": verdict.hits, "blocked": verdict.blocked, "refused": verdict.refused,
+            "refusal_counter": verdict.refusal_count, "refusal_counter_error": self.counter_error, "other_hosts": verdict.other_hosts,
             "fixture_requests": verdict.fixture_requests, "extension_update_probe_error": self.probe_error,
             "inconclusive": inconclusive, "netlog_complete": bool(getattr(session, "netlog_complete", False)),
         }

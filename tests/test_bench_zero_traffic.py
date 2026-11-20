@@ -94,6 +94,145 @@ class EvaluateTest(unittest.TestCase):
         self.assertIn("raw.githubusercontent.com", v.hits[0]["url"])
 
 
+def refused(url, host, error=-22, **extra):
+    """A NetLog record of a request that the request policy (issue #257) refused."""
+    rec = {"source_id": 70, "time": "7", "url": url, "method": "GET", "scheme": url.split(":")[0], "host": host,
+           "initiator": None, "net_error": error, "external": True}
+    rec.update(extra)
+    return rec
+
+
+class RefusedByThePolicyTest(unittest.TestCase):
+    """The policy's refusals are reported by name: the host, never a path or query (issue #257)."""
+
+    def setUp(self):
+        self.dl = denylist.load_default()
+
+    def test_a_refused_attempt_is_named_and_does_not_fail_by_default(self):
+        recs = records("aerie-real") + [refused("https://telemetry.example/collect?id=7", "telemetry.example")]
+        v = zt.evaluate(recs, self.dl)
+        self.assertEqual(v.status, "pass")
+        self.assertEqual([r["host"] for r in v.refused], ["telemetry.example"])
+        self.assertEqual(v.hits, [])
+        self.assertIn("1 attempt(s) refused by the request policy: telemetry.example", v.reason)
+
+    def test_the_report_holds_the_host_only(self):
+        recs = records("aerie-real") + [refused("https://user:pw@telemetry.example:8443/secret?token=abc", "telemetry.example")]
+        v = zt.evaluate(recs, self.dl)
+        self.assertEqual(set(v.refused[0]), {"host", "phase", "net_error", "group"})
+        self.assertNotIn("secret", repr(v.refused) + v.reason)
+        self.assertNotIn("token", repr(v.refused) + v.reason)
+
+    def test_strict_fails_on_a_refused_attempt(self):
+        recs = records("aerie-real") + [refused("https://telemetry.example/", "telemetry.example")]
+        v = zt.evaluate(recs, self.dl, strict=True)
+        self.assertEqual(v.status, "fail")
+        self.assertIn("telemetry.example", v.reason)
+
+    def test_a_refused_google_request_is_named_with_its_group_and_never_left_the_machine(self):
+        recs = records("aerie-real") + [refused("https://update.googleapis.com/service/update2/json", "update.googleapis.com")]
+        v = zt.evaluate(recs, self.dl)
+        self.assertEqual((v.status, v.hits), ("pass", []))
+        self.assertEqual((v.refused[0]["host"], v.refused[0]["group"]), ("update.googleapis.com", "google"))
+
+    def test_a_hop_before_the_refused_one_still_counts_as_traffic(self):
+        # The first hops of a redirect chain were made; only the last hop was refused.
+        recs = records("aerie-real") + [refused(
+            "https://telemetry.example/", "telemetry.example",
+            urls=["https://www.google.com/go", "https://telemetry.example/"])]
+        v = zt.evaluate(recs, self.dl)
+        self.assertEqual(v.status, "fail")
+        self.assertEqual(v.hits[0]["host"], "www.google.com")
+
+    def test_other_net_errors_are_not_policy_refusals(self):
+        recs = records("aerie-real") + [refused("https://ads.example/x.js", "ads.example", error=-20)]
+        self.assertEqual(zt.evaluate(recs, self.dl).refused, [])
+
+    def test_phases_are_kept(self):
+        recs = records("aerie-real")
+        n = len(recs)
+        v = zt.evaluate(recs + [refused("https://a.example/", "a.example")], self.dl,
+                        phase_ends={"first_launch": n, "idle": n + 1, "browse": n + 1})
+        self.assertEqual(v.refused[0]["phase"], "idle")
+
+    def test_the_counter_reading_is_reported_next_to_the_names(self):
+        recs = records("aerie-real") + [refused("https://a.example/", "a.example")]
+        v = zt.evaluate(recs, self.dl, refusal_count=1)
+        self.assertEqual((v.refusal_count, v.status), (1, "pass"))
+        self.assertNotIn("not named", v.reason)
+
+    def test_a_counted_refusal_the_netlog_does_not_name_is_flagged(self):
+        v = zt.evaluate(records("aerie-real"), self.dl, refusal_count=3)
+        self.assertEqual(v.status, "pass")
+        self.assertIn("3 refusal(s) counted, 0 named", v.reason)
+        self.assertEqual(v.refused, [])
+        self.assertEqual(zt.evaluate(records("aerie-real"), self.dl, strict=True, refusal_count=3).status, "fail")
+
+    def test_a_zero_counter_adds_nothing(self):
+        v = zt.evaluate(records("aerie-real"), self.dl, refusal_count=0)
+        self.assertNotIn("refus", v.reason)
+
+
+class StubbedCounter:
+    """A DevTools client that answers Browser.getHistogram from a canned table."""
+
+    def __init__(self, table):
+        self.table, self.calls = table, []
+
+    def send(self, method, params=None, **kw):
+        self.calls.append((method, params))
+        if method != "Browser.getHistogram" or params["name"] not in self.table:
+            from aerie_bench.cdp import CdpError
+            raise CdpError("Histogram not found")
+        return {"histogram": {"name": params["name"], "count": self.table[params["name"]], "sum": 0, "buckets": []}}
+
+
+class RefusalCounterTest(unittest.TestCase):
+    def check(self):
+        return zt.ZeroTraffic(idle_seconds=0, settle_seconds=0)
+
+    def session(self, table):
+        return mock.Mock(client=StubbedCounter(table), timeout=5)
+
+    def test_reads_the_policy_histogram(self):
+        s = self.session({"Aerie.Network.RequestPolicy.Refused": 4})
+        self.assertEqual(self.check().read_refusal_counter(s), 4)
+        self.assertEqual(s.client.calls[0][1]["name"], zt.REFUSAL_HISTOGRAM)
+
+    def test_a_histogram_that_was_never_recorded_is_zero(self):
+        self.assertEqual(self.check().read_refusal_counter(self.session({})), 0)
+
+    def test_the_real_browsers_wording_for_a_missing_histogram_is_zero(self):
+        from aerie_bench.cdp import CdpError
+
+        class Real:
+            def send(self, *a, **k):
+                raise CdpError("Browser.getHistogram: Cannot find histogram: x (code -32602)")
+        self.assertEqual(self.check().read_refusal_counter(mock.Mock(client=Real(), timeout=5)), 0)
+
+    def test_a_failed_reading_is_none_not_zero(self):
+        from aerie_bench.cdp import CdpError
+
+        class Broken:
+            def send(self, *a, **k):
+                raise CdpError("Browser.getHistogram: timeout")
+        c = self.check()
+        self.assertIsNone(c.read_refusal_counter(mock.Mock(client=Broken(), timeout=5)))
+        self.assertIn("timeout", c.counter_error)
+
+    def test_finalize_puts_the_reading_and_the_names_in_the_result(self):
+        c = self.check()
+        c.refusal_count = 2
+        session = mock.Mock(netlog=records("aerie-real") + [refused("https://a.example/x?y=1", "a.example")],
+                            netlog_lookups=[], netlog_complete=True, exit={"code": 0})
+        result = c.finalize(session, zt.CheckResult("zero_traffic", "pending"))
+        self.assertEqual(result.status, "pass")
+        self.assertEqual(result.data["refusal_counter"], 2)
+        self.assertEqual([r["host"] for r in result.data["refused"]], ["a.example"])
+        self.assertIn("a.example", result.detail)
+        self.assertIn("2 refusal(s) counted, 1 named", result.detail)
+
+
 class LookupTest(unittest.TestCase):
     def setUp(self):
         self.dl = denylist.load_default()

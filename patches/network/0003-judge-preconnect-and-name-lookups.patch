@@ -1,0 +1,75 @@
+Aerie-Purpose: Judge the connections the browser opens on its own (preconnect) and the names it looks up on its own (DNS prefetch) with the same request policy as URL requests, so speculative connections to an unlisted host do not leave the machine.
+Aerie-Upstream-Area: services/network/network_context.cc (NetworkContext::PreconnectSockets, NetworkContext::ResolveHost)
+Aerie-Kind: hook
+
+Issue #257, review round 1. Both calls are made by the browser process on its
+own NetworkContext, so they are judged as browser traffic. A preconnect has a
+traffic annotation: with a usable one it is decided like a request; with none
+(navigation and network hints preconnects pass none) the host decides, and only
+a host with a row in docs/network-endpoints.md passes. A lookup has no
+annotation and is judged by host. A refused lookup answers the client with
+ERR_BLOCKED_BY_ADMINISTRATOR and a refused preconnect does nothing.
+
+Limits: a renderer's own host resolver (mojom::HostResolver), the DNS client's
+sockets, and QUIC alternative services are not hooked. See
+docs/network-endpoints.md, "Limits".
+
+--- a/services/network/network_context.cc
++++ b/services/network/network_context.cc
+@@ -116,6 +116,7 @@
+ #include "net/url_request/url_request.h"
+ #include "net/url_request/url_request_context.h"
+ #include "net/url_request/url_request_context_builder.h"
++#include "services/network/aerie/request_policy.h"
+ #include "services/network/brokered_client_socket_factory.h"
+ #include "services/network/connection_change_observer.h"
+ #include "services/network/cookie_manager.h"
+@@ -2226,6 +2227,26 @@
+                                        host->get_host_port_pair().port())
+                        .GetURL()
+                  : host->get_scheme_host_port().GetURL();
++  // Aerie (#257): a name lookup the browser asks for (DNS prefetch) is
++  // judged by host, as browser traffic. A refusal answers the client at once.
++  {
++    aerie_network::RequestFacts facts;
++    facts.origin = aerie_network::RequestOrigin::kBrowserProcess;
++    facts.url = url;
++    const aerie_network::Verdict verdict =
++        aerie_network::DecideConnection(facts);
++    if (aerie_network::IsRefusal(verdict)) {
++      aerie_network::RecordRefusal(verdict, url);
++      mojo::Remote<mojom::ResolveHostClient> refused_client(
++          std::move(response_client));
++      refused_client->OnComplete(
++          net::ERR_BLOCKED_BY_ADMINISTRATOR,
++          net::ResolveErrorInfo(net::ERR_BLOCKED_BY_ADMINISTRATOR),
++          /*resolved_addresses=*/{}, /*alternative_endpoints=*/{});
++      return;
++    }
++  }
++
+   bool is_network_disallowed_for_restrictions_id =
+       (optional_parameters &&
+        optional_parameters->network_restrictions_id.has_value() &&
+@@ -2550,6 +2571,21 @@
+     const std::optional<net::ConnectionKeepAliveConfig>& keepalive_config,
+     mojo::PendingRemote<mojom::ConnectionChangeObserverClient>
+         connection_change_observer_client) {
++  // Aerie (#257): the browser asks for this connection on its own, so the
++  // request policy judges it. With no annotation it is judged by host.
++  {
++    aerie_network::RequestFacts facts;
++    facts.origin = aerie_network::RequestOrigin::kBrowserProcess;
++    facts.annotation_hash = traffic_annotation.unique_id_hash_code;
++    facts.url = original_url;
++    const aerie_network::Verdict verdict =
++        aerie_network::DecideConnection(facts);
++    if (aerie_network::IsRefusal(verdict)) {
++      aerie_network::RecordRefusal(verdict, original_url);
++      return;
++    }
++  }
++
+   DCHECK(!require_network_anonymization_key_ ||
+          !network_anonymization_key.IsEmpty());
+ 

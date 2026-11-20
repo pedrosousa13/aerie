@@ -39,7 +39,7 @@ Options:
 | `--services-wait SEC` | `browser_requests`: longest wait for the first browser-level request (default 20). It stops early once the condition is met. |
 | `--zero-traffic-idle SEC` | `zero_traffic`: length of the idle phase (default 300, the issue's 5 minutes). |
 | `--zero-traffic-settle SEC` | `zero_traffic`: quiet time after the first page, the first-launch phase (default 60). |
-| `--zero-traffic-strict` | `zero_traffic`: also fail on blocked attempts to `.qjz9zk` dummy hosts and `trk:` URLs. |
+| `--zero-traffic-strict` | `zero_traffic`: also fail on blocked attempts to `.qjz9zk` dummy hosts and `trk:` URLs, and on attempts the request policy refused. |
 | `--widevine-online SEC` | `widevine_opt_in`: also wait up to SEC in an opted-in browser for Widevine to download and become available. It needs a network that reaches Google, so it is off (0) by default. |
 | `--adblock-baseline FILE` | `adblock_score`: compare with a stored score, the `adblock_score.json` that an earlier run wrote. Fails when the score dropped by more than 2 points or when a host that the baseline blocked now gets through. A file that cannot be read is an error. Without the flag the check passes and records the score. |
 | `--adblock-online SEC` | `adblock_score`: also load the live `https://adblock.turtlecute.org` in a second browser, wait up to SEC seconds for its test to finish and record its score. Informational: it never fails the run. It needs the network, so it is off (0) by default. |
@@ -584,10 +584,25 @@ The verdict comes from the NetLog after the browser exits. It fails when:
   A crash or kill loses the tail of the log, which may hold the traffic that matters;
 - with `--zero-traffic-strict`, any request goes to a `.qjz9zk` dummy host or a
   `trk:` URL. These are refused inside the network stack before any DNS query,
-  so the default run lists them as `blocked` and still passes.
+  so the default run lists them as `blocked` and still passes;
+- with `--zero-traffic-strict`, the request policy refused anything (next paragraph).
+
+**Refused attempts.** The network service's request policy (issue #257, `docs/network-endpoints.md`,
+"Request policy") refuses a request that the browser makes on its own unless it is on the reviewed
+allowlist. A refused request fails with net error -22 (`ERR_BLOCKED_BY_ADMINISTRATOR`, which nothing else
+returns for a network request) before any DNS query, so it left nothing and the default run still passes.
+The check reports it by name so that a new upstream request is visible even though it is refused: the host
+(never a path or query) from the NetLog, and the count in the `Aerie.Network.RequestPolicy.Refused`
+histogram, read over DevTools at the end of the browse phase. The detail line says
+`N attempt(s) refused by the request policy: host, ...`, and, when the counter is higher than the names the NetLog
+gave, `N refusal(s) counted, M named`. A refused attempt that the browser needs (a component update the
+project keeps, a filter list, the update check) is a bug: fix the allowlist in `docs/network-endpoints.md`.
+The hops of a redirect chain before the refused one still count as traffic. The counter is recorded in the network
+service process; if the browser has not merged that process's histograms, the reading is 0 even after a refusal, so
+the NetLog names are the evidence and the counter is a cross-check (`refusal_counter_error` says why it could not be read).
 
 `checks[].data` has `hits` (url, host, group, pattern, phase, net_error),
-`blocked`, `other_hosts` (external hosts that are not on the list, for review),
+`blocked`, `refused` (host, group, phase, net_error), `refusal_counter` (int, or null when unreadable), `other_hosts` (external hosts that are not on the list, for review),
 `phases` (cumulative request count at the end of each phase), `fixture_requests`
 and `extension_update_probe_error`.
 

@@ -581,12 +581,49 @@ def check_text_metrics_noise(root: Path, require: bool = False) -> list[Finding]
     return out
 
 
+DELEGATE_PATH = "services/network/network_service_network_delegate.cc"
+NETWORK_CONTEXT_PATH = "services/network/network_context.cc"
+
+
+def check_request_policy(root: Path, require: bool = False) -> list[Finding]:
+    """The request policy (issue #257) is hooked into all three paths, and every annotation name in the
+    tables of docs/network-endpoints.md exists in the source (or in Aerie's overlay)."""
+    gate = "request_policy"
+    out: list[Finding] = []
+    text, missing = _read(root, DELEGATE_PATH, gate, require)
+    if text is None:
+        out += missing
+    else:
+        for needle, why in (("aerie_network::ClassifyFactory(", "the request origin must come from the factory facts"),
+                            ("aerie_network::Decide(", "URL requests must be judged"),
+                            ("ERR_BLOCKED_BY_ADMINISTRATOR", "a refusal must return the policy's net error")):
+            if needle not in text:
+                out.append(Finding(gate, DELEGATE_PATH, why))
+    text, missing = _read(root, NETWORK_CONTEXT_PATH, gate, require)
+    if text is None:
+        out += missing
+    elif text.count("aerie_network::DecideConnection(") != 2:
+        out.append(Finding(gate, NETWORK_CONTEXT_PATH, "both PreconnectSockets and ResolveHost must call DecideConnection"))
+    xml = Path(root) / "tools/traffic_annotation/summary/annotations.xml"
+    if xml.is_file():
+        from aerie_netpolicy import model  # tools/ is on the path whenever aerie_build is
+
+        repo = Path(__file__).resolve().parents[2]
+        try:
+            table = model.parse_doc((repo / model.DOC_PATH).read_text(encoding="utf-8"))
+        except (model.PolicyDocError, OSError) as exc:
+            return out + [Finding(gate, model.DOC_PATH, f"the request policy tables are invalid: {exc}")]
+        for name in model.unknown_annotations(table, xml.read_text(encoding="utf-8"), model.overlay_annotation_text(repo)):
+            out.append(Finding(gate, model.DOC_PATH, f"traffic annotation {name!r} does not exist in the pinned source"))
+    return out
+
+
 GATES: tuple[Callable[..., list[Finding]], ...] = (
     check_search_list, check_search_suggestions, check_secure_dns_default,
     check_crash_reporting, check_services_off, check_fedcm_resolver, check_widevine_opt_in,
     check_https_first_dialog_off, check_link_prefetch_off, check_js_optimizer, check_services_ui,
     check_audio_noise_stable, check_gpu_masking, check_webgl_readpixels, check_worker_noise_tokens, check_workspace_noise_partition, check_popup_noise_tokens,
-    check_text_metrics_noise,
+    check_text_metrics_noise, check_request_policy,
 )
 
 

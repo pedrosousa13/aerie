@@ -98,6 +98,8 @@ JS_OPT_FEATURE_OK = """BASE_FEATURE(kOriginIsolationForJsOptExceptions,
 """
 
 JS_OPT_GOOD = {
+    treegate.DELEGATE_PATH: "aerie_network::ClassifyFactory(f); aerie_network::Decide(x); net::ERR_BLOCKED_BY_ADMINISTRATOR;",
+    treegate.NETWORK_CONTEXT_PATH: "aerie_network::DecideConnection(a); aerie_network::DecideConnection(b);",
     "components/content_settings/core/browser/content_settings_registry.cc": JS_OPT_REGISTRY_OK,
     "chrome/browser/resources/settings/route.ts": JS_OPT_ROUTE_OK,
     "content/browser/renderer_host/render_process_host_impl.cc": JS_OPT_HOST_OK,
@@ -859,7 +861,7 @@ class RunTest(TreeCase):
 
     def test_empty_tree_passes_unless_required(self):
         self.assertEqual(self.run_gates(), [])
-        self.assertEqual(len(self.run_gates(require=True)), 54)
+        self.assertEqual(len(self.run_gates(require=True)), 56)
 
     def test_format_report(self):
         self.write({"a.cc": '"https://services.helium.imput.net"\n'})
@@ -873,3 +875,37 @@ class RunTest(TreeCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RequestPolicyGateTest(unittest.TestCase):
+    """The request policy (issue #257) stays hooked into URL requests, preconnect and name lookups."""
+
+    DELEGATE = "aerie_network::ClassifyFactory(f); aerie_network::Decide(x); net::ERR_BLOCKED_BY_ADMINISTRATOR;"
+    CONTEXT = "aerie_network::DecideConnection(a); aerie_network::DecideConnection(b);"
+
+    def tree(self, delegate, context):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        root = Path(tmp.name)
+        for rel, text in ((treegate.DELEGATE_PATH, delegate), (treegate.NETWORK_CONTEXT_PATH, context)):
+            (root / rel).parent.mkdir(parents=True, exist_ok=True)
+            (root / rel).write_text(text)
+        return root
+
+    def test_the_hooks_in_place_pass(self):
+        self.assertEqual(treegate.check_request_policy(self.tree(self.DELEGATE, self.CONTEXT), require=True), [])
+
+    def test_a_missing_judgement_of_urls_is_found(self):
+        found = treegate.check_request_policy(self.tree("nothing", self.CONTEXT), require=True)
+        self.assertEqual(len(found), 3)
+
+    def test_a_missing_hook_in_preconnect_or_resolve_is_found(self):
+        found = treegate.check_request_policy(
+            self.tree(self.DELEGATE, "aerie_network::DecideConnection(a);"), require=True)
+        self.assertEqual([f.path for f in found], [treegate.NETWORK_CONTEXT_PATH])
+
+    def test_a_tree_with_none_of_the_files_is_skipped_unless_required(self):
+        empty = tempfile.TemporaryDirectory()
+        self.addCleanup(empty.cleanup)
+        self.assertEqual(treegate.check_request_policy(Path(empty.name)), [])
+        self.assertTrue(treegate.check_request_policy(Path(empty.name), require=True))

@@ -84,9 +84,12 @@ class NoNetworkTest(unittest.TestCase):
 
     def test_the_endpoint_list_is_unchanged(self):
         import subprocess
-        out = subprocess.run(["git", "diff", "--name-only", "main", "--", "docs/network-endpoints.md"],
+        # Other issues edit the page (the request policy tables, #257). What this feature must not add is
+        # an endpoint row: a line that starts a table row with an http(s) address.
+        out = subprocess.run(["git", "diff", "-U0", "main", "--", "docs/network-endpoints.md"],
                              cwd=REPO, capture_output=True, text=True).stdout
-        self.assertEqual(out.strip(), "")
+        added = [l for l in out.splitlines() if l.startswith("+|") and ("`http://" in l or "`https://" in l)]
+        self.assertEqual(added, [])
 
 
 class BuildWiringTest(unittest.TestCase):

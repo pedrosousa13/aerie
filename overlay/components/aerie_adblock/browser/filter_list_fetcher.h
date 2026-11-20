@@ -54,8 +54,15 @@ class FilterListFetcher {
   FilterListFetcher(const FilterListFetcher&) = delete;
   FilterListFetcher& operator=(const FilterListFetcher&) = delete;
 
+  // Who chose the address. A user-added list's download carries its own
+  // traffic annotation, which the request policy lets reach any host
+  // (docs/network-endpoints.md). A built-in list keeps to its publisher.
+  enum class Source { kBuiltIn, kUserAdded };
+
   // Starts a download. |callback| runs once, later, never from inside Fetch().
-  void Fetch(const GURL& url, Callback callback);
+  void Fetch(const GURL& url,
+             Callback callback,
+             Source source = Source::kBuiltIn);
 
  private:
   struct Download;

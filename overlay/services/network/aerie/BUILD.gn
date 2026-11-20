@@ -1,0 +1,45 @@
+# Copyright 2026 The Aerie Authors
+# You can use, redistribute, and/or modify this source code under
+# the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+import("//testing/test.gni")
+
+# The request policy (issue #257): the network service refuses a request that
+# the browser makes on its own unless it is on a reviewed allowlist. The
+# decision is pure code with no network service in it, so it has unit tests.
+# NetworkServiceNetworkDelegate calls it (patches/network/0002).
+#
+# request_allowlist.inc is generated from docs/network-endpoints.md by
+# `./aerie netpolicy generate`; a test fails when they differ.
+source_set("request_policy") {
+  sources = [
+    "request_policy.cc",
+    "request_policy.h",
+  ]
+  inputs = [ "request_allowlist.inc" ]
+  deps = [
+    "//base",
+    "//net/traffic_annotation",
+    "//url",
+  ]
+}
+
+source_set("unit_tests") {
+  testonly = true
+  sources = [ "request_policy_unittest.cc" ]
+  deps = [
+    ":request_policy",
+    "//base",
+    "//base/test:test_support",
+    "//net/traffic_annotation",
+    "//testing/gtest",
+    "//url",
+  ]
+}
+
+test("aerie_network_unittests") {
+  deps = [
+    ":unit_tests",
+    "//base/test:run_all_unittests",
+  ]
+}
