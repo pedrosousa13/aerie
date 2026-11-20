@@ -267,6 +267,12 @@ def cmd_locked(args: argparse.Namespace) -> int:
         return 128 - code if code < 0 else code
 
 
+def cmd_netpolicy(args: argparse.Namespace) -> int:
+    from aerie_netpolicy import __main__ as netpolicy
+
+    return netpolicy.main([args.netpolicy_command, "--repo", str(REPO)])
+
+
 def cmd_hardening(args: argparse.Namespace) -> int:
     from aerie_hardening import __main__ as hardening
 
@@ -415,6 +421,11 @@ def main(argv: list[str] | None = None) -> int:
         "hardening", help="generate or check docs/hardening.md and the settings page markup (see docs/hardening.md)")
     p_hardening.add_argument("hardening_command", choices=("generate", "check"))
     p_hardening.set_defaults(func=cmd_hardening)
+
+    p_netpolicy = sub.add_parser(
+        "netpolicy", help="generate or check the request policy allowlist from docs/network-endpoints.md (issue #257)")
+    p_netpolicy.add_argument("netpolicy_command", choices=("generate", "check"))
+    p_netpolicy.set_defaults(func=cmd_netpolicy)
 
     args = parser.parse_args(argv)
     try:

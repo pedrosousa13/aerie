@@ -125,6 +125,95 @@ Left alone on purpose:
 
 Neither host is Google-owned or Helium-owned. Nothing is fetched on a fresh install before the first scheduled check, a day later. See [adblock.md](adblock.md).
 
+## Request policy
+
+The network service refuses a request that the browser makes on its own unless it is listed here
+(`services/network/aerie`, issue #257, design borrowed from Crest's `crest_request_policy`). A request
+is **the browser's own** when it comes from the browser process (not a renderer), or when its origin
+is not known. Its traffic annotation then decides:
+
+1. An annotation in the second table below is traffic that a page or the user directs: allowed for any host.
+2. An annotation in the first table is allowed to the host named in its row, and to subdomains of it.
+3. Anything else, including a missing annotation and an annotation that a later Chromium adds, fails with
+   `ERR_BLOCKED_BY_ADMINISTRATOR`, is counted in the `Aerie.Network.RequestPolicy.Refused` histogram, and is logged
+   by host only.
+
+Page traffic, extension traffic (both come from renderer processes) and the `trk:` requests that
+ungoogled-chromium already refuses are not touched. No pref and no extension changes these tables: they are
+compiled in, generated from this page by `./aerie netpolicy generate`, and a test fails when they differ.
+Add a host by adding a row here, in a reviewed change. The Bench check `zero_traffic` reports every refused
+attempt by name, so a new upstream request is visible even though it is refused.
+
+Annotation plus host, so a host is reachable only by the code that is meant to use it:
+
+<!-- request-policy:hosts:begin -->
+| Annotation | Host | Why |
+| --- | --- | --- |
+| `aerie_filter_list_download` | `easylist.to` | Built-in filter lists: EasyList and EasyPrivacy |
+| `update_client` | `update.googleapis.com` | Widevine component update check, only after the user opts in (#7) |
+| `update_client` | `dl.google.com` | Widevine component download, only after the user opts in (#7) |
+| `update_client` | `gvt1.com` | Widevine component download from Google's CDN, only after the user opts in (#7) |
+<!-- request-policy:hosts:end -->
+
+Annotations that carry traffic a page or the user directs, for any host:
+
+<!-- request-policy:directed:begin -->
+| Annotation | Why |
+| --- | --- |
+| `background_fetch_context` | a page's Background Fetch |
+| `bidirectional_stream` | a page's bidirectional stream |
+| `blink_extension_resource_loader` | an extension page's subresource |
+| `blink_fetch_later_manager` | a page's fetchLater |
+| `blink_resource_loader` | a page's subresource |
+| `certificate_verifier_2qwac_loader` | certificate fetch for a page's connection |
+| `certificate_verifier_url_loader` | certificate fetch for a page's connection |
+| `certificate_verifier_url_request` | certificate fetch for a page's connection |
+| `dbsc_registration` | a site's device-bound session |
+| `devtools_cdp_network_resource` | the developer tools, started by the user |
+| `devtools_network_resource` | the developer tools, started by the user |
+| `dns_over_https` | secure DNS provider the user picked (off by default) |
+| `dns_transaction` | name lookup for a page's connection |
+| `download_bubble_retry_download` | a download the user started |
+| `download_manager_resume` | a download the user started |
+| `download_web_contents_frame` | a download the user started |
+| `downloads_api_run_async` | a download an extension started for the user |
+| `drag_download_file` | a download the user started |
+| `early_hints_preload` | a page's preload |
+| `favicon_loader` | the icon of a page the user opened |
+| `keepalive_fetch_retry` | a page's keepalive fetch |
+| `navigation_url_loader` | a navigation the user started |
+| `parallel_download_job` | a download the user started |
+| `payment_manifest_downloader` | a page's payment request |
+| `pdf_plugin_placeholder` | a PDF the user opened |
+| `predictive_prefetch` | a page's prefetch |
+| `preload_activation_beacon` | a page's preload |
+| `proxy_config_direct` | proxy the user configured |
+| `proxy_config_settings` | proxy the user configured |
+| `proxy_config_system` | proxy the operating system configured |
+| `render_view_context_menu` | a context menu action the user chose |
+| `renderer_initiated_download` | a download the user started |
+| `reporting` | a site's Reporting API |
+| `save_file_manager` | Save page as, started by the user |
+| `service_worker_navigation_preload` | a site's service worker |
+| `service_worker_race_network_request` | a site's service worker |
+| `service_worker_script_load` | a site's service worker |
+| `service_worker_update_checker` | a site's service worker |
+| `sigined_exchange_cert_fetcher` | a page's signed exchange |
+| `speculation_rules_prefetch` | a page's speculation rules |
+| `speculation_rules_prefetch_probe` | a page's speculation rules |
+| `ssl_name_mismatch_lookup` | name lookup for a page's connection |
+| `web_app_origin_association_download` | a web app the user installs |
+| `web_install_manifest_fetcher` | a web app the user installs |
+| `webauthn_rp_id_check` | a site's passkey request |
+| `websocket_basic_stream` | a page's WebSocket |
+| `websocket_stream` | a page's WebSocket |
+| `worker_script_load` | a page's worker |
+| `extension_manifest_fetcher` | extension update check; the endpoint is the user's extension proxy, https only, and none is built in |
+| `extension_crx_fetcher` | extension download; the endpoint is the user's extension proxy, https only, and none is built in |
+| `content_hash_verification_job` | extension content check; the endpoint is the user's extension proxy |
+| `aerie_custom_filter_list_download` | a filter list address the user added (#10) |
+<!-- request-policy:directed:end -->
+
 ## Known blocked attempts
 
 The component updater, the uBlock Origin asset fetch and a few Google-origin
