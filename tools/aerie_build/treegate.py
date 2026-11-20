@@ -142,11 +142,11 @@ def _must_not_match(root: Path, rel: str, gate: str, pattern: str, message: str,
 def check_crash_reporting(root: Path, require: bool = False) -> list[Finding]:
     out = _must_match(
         root, "components/crash/core/app/crash_reporter_client.cc", "crash_reporting",
-        r"CrashReporterClient::GetUploadUrl\(\)\s*\{(?:\s*//[^\n]*)*\s*return std::string\(\);\s*\}",
+        r"CrashReporterClient::GetUploadUrl\(\)\s*\{(?:\s*//[^\n]*\n)*\s*return std::string\(\);\s*\}",
         "GetUploadUrl() must return an empty string and nothing else", require)
     out += _must_match(
         root, "chrome/browser/crash_upload_list/helium_crash_reporting.cc", "crash_reporting",
-        r"CrashReportingMode GetCrashReportingMode\(\)\s*\{(?:\s*//[^\n]*)*\s*return CrashReportingMode::kDisabled;\s*\}",
+        r"CrashReportingMode GetCrashReportingMode\(\)\s*\{(?:\s*//[^\n]*\n)*\s*return CrashReportingMode::kDisabled;\s*\}",
         "GetCrashReportingMode() must always return kDisabled", require)
     # Crash reports stay on the device (issue #262): nothing can switch the database's uploads on or
     # request one report's upload, and nothing deletes a pending report for being pending.
@@ -157,7 +157,7 @@ def check_crash_reporting(root: Path, require: bool = False) -> list[Finding]:
         "ApplyUploadConsent() must only ever switch the database's uploads off", require)
     out += _must_match(
         root, crashpad, "crash_reporting",
-        r"void RequestSingleCrashUploadImpl\(const std::string& local_id\)\s*\{(?:\s*//[^\n]*)*\s*\}",
+        r"void RequestSingleCrashUploadImpl\(const std::string& local_id\)\s*\{(?:\s*//[^\n]*\n)*\s*\}",
         "RequestSingleCrashUploadImpl() must do nothing", require)
     out += _must_not_match(
         root, crashpad, "crash_reporting", r"SetUploadsEnabled\(\s*(?!false)[^)]",
@@ -172,7 +172,7 @@ def check_crash_reporting(root: Path, require: bool = False) -> list[Finding]:
 def check_fedcm_resolver(root: Path, require: bool = False) -> list[Finding]:
     return _must_match(
         root, "chrome/browser/chrome_content_browser_client.cc", "fedcm_resolver",
-        r"ChromeContentBrowserClient::GetDnsTxtResolverUrlPrefix\(\)\s*\{(?:\s*//[^\n]*)*\s*return std::string\(\);\s*\}",
+        r"ChromeContentBrowserClient::GetDnsTxtResolverUrlPrefix\(\)\s*\{(?:\s*//[^\n]*\n)*\s*return std::string\(\);\s*\}",
         "GetDnsTxtResolverUrlPrefix() must return an empty string (no built-in dns.google)", require)
 
 
