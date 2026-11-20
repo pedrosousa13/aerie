@@ -54,6 +54,7 @@ Options:
 | `--sidebar-frames-repeats N` | `sidebar_frames`: how many times each animation runs (default 5, at least 2). |
 | `--download-benchmarks` | Download the pinned Speedometer and JetStream copies into the build root, check their sha256 and unpack them (see "Pinned benchmark copies"). Needs the network; a copy that is already there is not downloaded again. |
 | `--perf-record DIR` | `perf`: after a passing run, append `perf.json` to `DIR/history.jsonl` and make it `DIR/main.json`. Use it on builds of main only. |
+| `--perf-commit SHA` | `perf`: with `--perf-record`, the source commit the browser was built from; stored as `commit` in `main.json` and `history.jsonl`. Default: HEAD of the checkout the Bench runs from (12 characters), with a warning when `--binary` is given, because that browser may not come from HEAD. |
 | `--perf-compare-binary PATH` | `perf`: run the same suite on this browser (Helium, stock Chromium) and write `perf-comparison.md`, both side by side. |
 | `--perf-compare-name NAME` | `perf`: how that browser is named in the report (default `Helium`). |
 | `--perf-skip-benchmarks` | `perf`: do not run Speedometer and JetStream. Their metrics are listed under `skipped` in `perf.json`. Without this flag a benchmark that cannot be measured fails the check. |
@@ -252,21 +253,26 @@ Steps, on the checkout of main with its browser built (`./aerie build` leaves th
 ```sh
 git checkout main && git pull --ff-only
 ./aerie build
-# 1. Measure three times without recording; the memory numbers are noisy by a few percent. Use the median.
-for i in 1 2 3; do ./aerie bench --check perf --perf-skip-benchmarks; done
-# 2. Record the full run. --perf-record stores the commit (HEAD of the checkout, or --perf-commit SHA) as
-#    "commit" in main.json and in the line it appends to history.jsonl.
+# 1. Get a steady state: repeat until two memory readings in a row are within 3% of each other.
+#    Memory follows the machine state (a freshly booted machine reads about 100 MB low).
+./aerie bench --check perf --perf-skip-benchmarks
+./aerie bench --check perf --perf-skip-benchmarks
+# 2. Record once, in the steady state. --perf-record stores the commit (HEAD of the checkout, or
+#    --perf-commit SHA) as "commit" in main.json and in the line it appends to history.jsonl.
 ./aerie bench --download-benchmarks --check perf --perf-record "${AERIE_PERF_DIR:-/mnt/linux2/aerie-perf}"
-# 3. Check the baseline against the same build: it must pass.
+# 3. Check the baseline against the same build: it must pass, and "commit" must be the commit you built.
 ./aerie bench --check perf --perf-baseline "${AERIE_PERF_DIR:-/mnt/linux2/aerie-perf}/main.json"
 python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("commit"))' "${AERIE_PERF_DIR:-/mnt/linux2/aerie-perf}/main.json"
 ```
 
-`./aerie bench` leaves the old line in `history.jsonl`, so the refresh is visible in `perf.py series`. Record into a
-new directory and point `AERIE_PERF_DIR` at it only when you want the old series kept apart. A baseline without
-a `commit` key (recorded before #243) cannot be traced; refresh it. To bisect a failing `perf`, build each commit,
-run `--perf-skip-benchmarks` at least three times and compare medians: the same commit read 1044 MB on a freshly
-booted machine and 1140 MB an hour later (below).
+A baseline recorded while the machine is in its high-memory state is lenient by up to about 100 MB: the gate then
+accepts a build that reads low on a fresh machine. That trade-off is accepted for now; a stricter rule (the median
+of several full runs, or a fixed measurement environment) can replace the single steady-state run later.
+
+Recording appends to `history.jsonl`, so the refresh is visible in `perf.py series`; to start the series again,
+move the old directory aside first. A baseline without a `commit` key (recorded before #243) cannot be traced;
+refresh it. To bisect a failing `perf`, build each commit, run `--perf-skip-benchmarks` at least three times and
+compare medians: the same commit read 1044 MB on a freshly booted machine and 1140 MB an hour later (below).
 
 **What moved `memory_after_ad_pages_mb` (issue #243).** The recorded 970.6 MB was a single low reading that no
 build reproduces. Three runs each, on one machine, `--perf-skip-benchmarks`, median in MB:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import subprocess
 import sys
 from pathlib import Path
 
@@ -135,10 +136,12 @@ def run(args: argparse.Namespace, build_root: Path, default_binary: Path | None)
             sc = scenario.Scenario()
         if args.check:
             sc = scenario.Scenario(sc.name, tuple(args.check), sc.steps)
-        if (args.perf_baseline or args.perf_record or args.perf_compare_binary or args.perf_first_run) \
-                and "perf" not in sc.checks:
-            raise BenchError("--perf-baseline, --perf-first-run, --perf-record and --perf-compare-binary "
-                             "need --check perf")
+        if (args.perf_baseline or args.perf_record or args.perf_compare_binary or args.perf_first_run
+                or args.perf_commit) and "perf" not in sc.checks:
+            raise BenchError("--perf-baseline, --perf-first-run, --perf-record, --perf-commit and "
+                             "--perf-compare-binary need --check perf")
+        if args.perf_commit and not args.perf_record:
+            raise BenchError("--perf-commit needs --perf-record")
         if args.perf_first_run and not args.perf_baseline:
             raise BenchError("--perf-first-run needs --perf-baseline")
         if (args.sidebar_frames_baseline or args.sidebar_frames_record or args.sidebar_frames_first_run) \
@@ -212,15 +215,17 @@ def _record_sidebar_frames(args, result) -> None:
         print("sidebar_frames: run did not pass; not recorded")
 
 
-def _head_commit() -> str | None:
-    """Short HEAD of the checkout this tool runs from, or None when it is not a git checkout."""
-    import subprocess
+def _head_commit(cwd: Path | None = None) -> str | None:
+    """HEAD (12 characters) of the checkout this tool runs from, or None when it is not a git checkout."""
     try:
-        out = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=Path(__file__).resolve().parent,
+        out = subprocess.run(["git", "rev-parse", "--short=12", "HEAD"],
+                             cwd=cwd or Path(__file__).resolve().parent,
                              capture_output=True, text=True, timeout=10)
     except (OSError, subprocess.SubprocessError):
         return None
-    return out.stdout.strip() or None if out.returncode == 0 else None
+    if out.returncode != 0:
+        return None
+    return out.stdout.strip() or None
 
 
 def _perf_followup(args, result, build_root, common) -> int:
@@ -235,6 +240,9 @@ def _perf_followup(args, result, build_root, common) -> int:
     if args.perf_record:
         if result.status == "pass":
             commit = args.perf_commit or _head_commit()
+            if args.binary and not args.perf_commit:
+                print(f"perf: recording commit {commit} (HEAD of this checkout); it may not match --binary. "
+                      "Pass --perf-commit SHA to name the commit the binary was built from.")
             print(f"perf: recorded in {perf.record(Path(args.perf_record), doc, commit=commit)}"
                   + (f" (commit {commit})" if commit else ""))
         else:

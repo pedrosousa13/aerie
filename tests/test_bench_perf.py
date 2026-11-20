@@ -388,6 +388,35 @@ class CliTest(unittest.TestCase):
         code, out, _ = self.invoke("--perf-baseline", str(store / "main.json"))
         self.assertIn("within thresholds", out)
 
+    def test_perf_commit_is_stored_in_the_recorded_baseline(self):
+        store = self.root / "perfstore"
+        code, out, _ = self.invoke("--perf-record", str(store), "--perf-commit", "f80fe43")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(perf.load(store / "main.json")["commit"], "f80fe43")
+        self.assertEqual(perf.read_history(store)[0]["commit"], "f80fe43")
+        self.assertNotIn("may not match", out)
+
+    def test_without_perf_commit_the_checkout_head_is_stored_and_the_mismatch_is_warned_about(self):
+        store = self.root / "perfstore"
+        with mock.patch.object(cli, "_head_commit", return_value="abcdef123456"):
+            code, out, _ = self.invoke("--perf-record", str(store))
+        self.assertEqual(code, 0, out)
+        self.assertEqual(perf.load(store / "main.json")["commit"], "abcdef123456")
+        self.assertIn("may not match --binary", out)
+
+    def test_perf_commit_without_perf_record_is_an_error(self):
+        code, _, err = self.invoke("--perf-commit", "f80fe43")
+        self.assertEqual(code, 2)
+        self.assertIn("--perf-commit needs --perf-record", err)
+
+    def test_perf_commit_needs_the_perf_check(self):
+        code, _, err = self.invoke_other("--check", "smoke", "--perf-commit", "f80fe43")
+        self.assertEqual(code, 2)
+        self.assertIn("need --check perf", err)
+
+    def test_head_commit_is_none_outside_a_git_checkout(self):
+        self.assertIsNone(cli._head_commit(cwd=self.root))
+
     def test_a_failing_run_is_not_recorded(self):
         base = self.root / "main.json"
         base.write_text(json.dumps(doc(memory=10, cold=60000, warm=60000, scores=False)))
