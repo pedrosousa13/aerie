@@ -7,7 +7,8 @@ A metrics document (``perf.json``) is::
     {"schema": 1, "label": "...", "binary": {"path": ..., "version": ...}, "started": ISO 8601,
      "metrics": {"memory_after_ad_pages_mb": 812.4, ...},
      "skipped": {"jetstream_score": "reason it was switched off"},
-     "failed": {"speedometer_score": "reason it could not be measured"}}
+     "failed": {"speedometer_score": "reason it could not be measured"},
+     "commit": "abc1234"}   # only in recorded baselines (--perf-record)
 
 A run with anything in ``failed`` fails the perf check and is never recorded as a baseline.
 
@@ -136,8 +137,13 @@ def load(path: Path) -> dict:
     return doc
 
 
-def record(directory: Path, doc: dict) -> Path:
-    """Append ``doc`` to the series and make it the baseline (main.json) for the next comparison."""
+def record(directory: Path, doc: dict, commit: str | None = None) -> Path:
+    """Append ``doc`` to the series and make it the baseline (main.json) for the next comparison.
+
+    ``commit`` is the source commit the measured build came from; it is stored as ``doc["commit"]`` so a
+    baseline can be traced back to the code it measured (issue #243)."""
+    if commit:
+        doc = {**doc, "commit": commit}
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
     with open(directory / HISTORY_FILE, "a") as f:
