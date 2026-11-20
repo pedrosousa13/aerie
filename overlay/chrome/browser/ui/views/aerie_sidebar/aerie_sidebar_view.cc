@@ -55,7 +55,9 @@
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_row_view.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_tile_view.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_top_row.h"
+#include "chrome/common/webui_url_constants.h"
 #include "chrome/grit/generated_resources.h"
+#include "components/aerie_tab_model/archive.h"
 #include "components/aerie_design_tokens/aerie_appearance_prefs.h"
 #include "components/aerie_design_tokens/aerie_motion.h"
 #include "components/aerie_design_tokens/aerie_tokens.h"
@@ -532,6 +534,22 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
   sleeping_summary_->SetBorder(views::CreateEmptyBorder(
       gfx::Insets::TLBR(aerie::tokens::kSpace8, 0, 0, aerie::tokens::kSpace8)));
   sleeping_summary_->SetVisible(false);
+  // Clear (issue #266): archives the Today tabs; Alt+click or "Close all" in
+  // its menu closes them.
+  clear_button_ = today_header->AddChildView(std::make_unique<views::LabelButton>(
+      base::BindRepeating(&AerieSidebarView::OnClearPressed,
+                          base::Unretained(this)),
+      l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_CLEAR_BUTTON)));
+  clear_button_->SetTooltipText(
+      l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_CLEAR_TOOLTIP));
+  clear_button_->SetHorizontalAlignment(gfx::ALIGN_RIGHT);
+  clear_button_->SetBorder(views::CreateEmptyBorder(gfx::Insets::TLBR(
+      aerie::tokens::kSpace4, aerie::tokens::kSpace8, aerie::tokens::kSpace4,
+      aerie::tokens::kSpace8)));
+  clear_button_->SetInstallFocusRingOnFocus(false);
+  views::FocusRing::Remove(clear_button_);
+  AerieSidebarFocusRing::Install(clear_button_, aerie::tokens::kRadiusMd);
+  clear_button_->set_context_menu_controller(this);
 
   scroll_ = AddChildView(std::make_unique<views::ScrollView>(
       views::ScrollView::ScrollWithLayers::kDisabled));
@@ -584,7 +602,8 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
   actions->SetInsideBorderInsets(gfx::Insets::TLBR(
       0, aerie::tokens::kSpace8, aerie::tokens::kSpace8, aerie::tokens::kSpace8));
   toast_undo_ = actions->AddChildView(std::make_unique<views::LabelButton>(
-      base::BindRepeating(&AerieSidebarView::UndoFiling, base::Unretained(this)),
+      base::BindRepeating(&AerieSidebarView::OnToastUndo,
+                          base::Unretained(this)),
       l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_FILED_UNDO)));
   toast_dont_file_ = actions->AddChildView(std::make_unique<views::LabelButton>(
       base::BindRepeating(&AerieSidebarView::DontFileThisSite,
@@ -1170,6 +1189,7 @@ void AerieSidebarView::ApplyPalette() {
       palette_.row_selected, aerie::tokens::kRadiusMd));
   toast_undo_->SetEnabledTextColors(palette_.text);
   toast_dont_file_->SetEnabledTextColors(palette_.text);
+  clear_button_->SetEnabledTextColors(palette_.text_muted);
   // The favicon of a tab without one is drawn in the muted text colour.
   UpdateRows();
 }
@@ -2746,6 +2766,10 @@ void AerieSidebarView::ShowContextMenuForViewImpl(
     views::View* source,
     const gfx::Point& point,
     ui::mojom::MenuSourceType source_type) {
+  if (source == clear_button_) {
+    ShowClearMenu(point, source_type);
+    return;
+  }
   const bool pinned = source == pinned_list_ || source == pinned_scroll_;
   ShowSectionContextMenu(pinned ? aerie_tab_model::Section::kPinned
                                 : aerie_tab_model::Section::kToday,
@@ -3160,7 +3184,9 @@ bool AerieSidebarView::toast_visible() const {
   return toast_card_->GetVisible();
 }
 
-void AerieSidebarView::ShowToast(const std::u16string& text, bool has_actions) {
+void AerieSidebarView::ShowToast(const std::u16string& text,
+                                 bool has_actions,
+                                 const std::u16string& announcement) {
   toast_motion_.Abort();
   toast_timer_.Stop();
   toast_->SetText(text);
@@ -3168,7 +3194,12 @@ void AerieSidebarView::ShowToast(const std::u16string& text, bool has_actions) {
   toast_card_->SetVisible(true);
   // A polite announcement: the label has the status role, and its text change
   // is what a screen reader reads.
-  toast_->NotifyAccessibilityEventDeprecated(ax::mojom::Event::kAlert, true);
+  if (announcement.empty()) {
+    toast_->NotifyAccessibilityEventDeprecated(ax::mojom::Event::kAlert, true);
+  } else {
+    toast_->GetViewAccessibility().AnnounceText(announcement);
+    last_toast_announcement_ = announcement;
+  }
   const PrefService* prefs = browser_->GetProfile()->GetPrefs();
   const aerie_sidebar::ToastMotion motion = aerie_sidebar::ToastShowMotion(
       aerie::motion::ShouldReduceMotion(prefs), has_actions);
@@ -3219,6 +3250,7 @@ void AerieSidebarView::FinishToastHide() {
   toast_card_->SetVisible(false);
   toast_actions_->SetVisible(false);
   toast_->SetText(std::u16string());
+  cleared_.clear();
   last_filed_ = aerie_tab_model::AutoFileController::Filed();
   if (toast_card_->layer()) {
     toast_card_->DestroyLayer();
@@ -3247,9 +3279,146 @@ void AerieSidebarView::OnTabFiled(
     row->PlayFilingPulse(prefs);
   }
   last_filed_ = filed;
+  cleared_.clear();
+  toast_dont_file_->SetVisible(true);
   ShowToast(l10n_util::GetStringFUTF16(IDS_AERIE_SIDEBAR_FILED_INTO,
                                        base::UTF8ToUTF16(folder->name)),
             /*has_actions=*/true);
+}
+
+std::vector<std::string> AerieSidebarView::cleared_ids_for_testing() const {
+  std::vector<std::string> ids;
+  for (const ClearedTab& tab : cleared_) {
+    ids.push_back(tab.id);
+  }
+  return ids;
+}
+
+void AerieSidebarView::OnClearPressed(const ui::Event& event) {
+  // Alt closes the tabs and keeps nothing.
+  ClearToday(/*close_only=*/event.IsAltDown());
+}
+
+void AerieSidebarView::ShowClearMenuForTesting(const gfx::Point& screen_point) {
+  ShowClearMenu(screen_point, ui::mojom::MenuSourceType::kKeyboard);
+}
+
+void AerieSidebarView::ShowClearMenu(const gfx::Point& screen_point,
+                                     ui::mojom::MenuSourceType source_type) {
+  if (!model_ || !GetWidget()) {
+    return;
+  }
+  AerieSidebarContextMenu::Options options;
+  options.target = AerieSidebarContextMenu::Target::kClear;
+  options.section = aerie_tab_model::Section::kToday;
+  options.clear_can_archive = archive_ && archive_->CanArchive();
+  context_menu_ = std::make_unique<AerieSidebarContextMenu>(
+      std::move(options),
+      base::BindRepeating(&AerieSidebarView::OnClearMenuCommand,
+                          weak_factory_.GetWeakPtr()));
+  RunContextMenu(screen_point, source_type);
+}
+
+void AerieSidebarView::OnClearMenuCommand(
+    AerieSidebarContextMenu::Command command) {
+  if (command == AerieSidebarContextMenu::Command::kClearArchive) {
+    ClearToday(/*close_only=*/false);
+  } else if (command == AerieSidebarContextMenu::Command::kClearClose) {
+    ClearToday(/*close_only=*/true);
+  }
+}
+
+void AerieSidebarView::ClearToday(bool close_only) {
+  if (!model_ || !archive_) {
+    return;
+  }
+  // The unpinned Today tabs of this window, top to bottom, folders open or
+  // shut. Pinned and Favorites are other sections and are never listed.
+  auto listed = [this](const std::string& id) { return FindTab(id) != nullptr; };
+  std::vector<ClearedTab> tabs;
+  for (const aerie_tab_model::TreeRow& row : aerie_tab_model::BuildAllRows(
+           *model_, aerie_tab_model::Section::kToday, listed)) {
+    if (row.is_folder || row.smart_member) {
+      continue;
+    }
+    const aerie_tab_model::TabRecord* record = model_->GetTab(row.id);
+    if (record && !record->archived_at) {
+      tabs.push_back({row.id, record->parent, record->position});
+    }
+  }
+  if (tabs.empty()) {
+    return;
+  }
+  ResetSelection();
+  // A window with nothing left after Clear would close: keep it with a new tab.
+  if (browser_->GetTabStripModel()->count() <=
+      static_cast<int>(tabs.size())) {
+    browser_->OpenGURL(GURL(chrome::kChromeUINewTabURL),
+                       WindowOpenDisposition::NEW_FOREGROUND_TAB);
+  }
+  // A private window keeps no Archive (issue #183): there Clear closes.
+  if (close_only || !archive_->CanArchive()) {
+    cleared_.clear();
+    for (const ClearedTab& tab : tabs) {
+      CloseTab(tab.id);
+    }
+    return;
+  }
+  std::vector<ClearedTab> archived;
+  for (const ClearedTab& tab : tabs) {
+    if (archive_->ArchiveTab(FindTab(tab.id),
+                             aerie_tab_model::kArchiveReasonCleared)) {
+      archived.push_back(tab);
+    }
+  }
+  if (archived.empty()) {
+    return;
+  }
+  const int count = static_cast<int>(archived.size());
+  cleared_ = std::move(archived);
+  toast_dont_file_->SetVisible(false);
+  last_filed_ = aerie_tab_model::AutoFileController::Filed();
+  // The label says the count; a screen reader also hears that Undo is there.
+  ShowToast(l10n_util::GetPluralStringFUTF16(IDS_AERIE_SIDEBAR_CLEARED_TOAST,
+                                             count),
+            /*has_actions=*/true,
+            l10n_util::GetPluralStringFUTF16(
+                IDS_AERIE_SIDEBAR_CLEARED_TOAST_READ, count));
+}
+
+void AerieSidebarView::OnToastUndo() {
+  if (!cleared_.empty()) {
+    UndoClear();
+  } else {
+    UndoFiling();
+  }
+}
+
+void AerieSidebarView::UndoClear() {
+  std::vector<ClearedTab> tabs = std::move(cleared_);
+  cleared_.clear();
+  HideToast();
+  if (!model_ || !archive_) {
+    return;
+  }
+  for (const ClearedTab& tab : tabs) {
+    // Only what Clear archived and is still archived: a tab the user already
+    // restored from the Archive panel is not opened a second time.
+    const aerie_tab_model::TabRecord* record = model_->GetTab(tab.id);
+    if (!record || !record->archived_at || !record->archive ||
+        record->archive->reason != aerie_tab_model::kArchiveReasonCleared) {
+      continue;
+    }
+    if (!archive_->RestoreRecord(tab.id)) {
+      continue;
+    }
+    // Restore puts a tab at the top of its folder; put it back where it was.
+    record = model_->GetTab(tab.id);
+    if (record && record->parent == tab.parent) {
+      model_->MoveTab(tab.id, aerie_tab_model::Section::kToday, tab.parent,
+                      tab.position);
+    }
+  }
 }
 
 void AerieSidebarView::UndoFiling() {

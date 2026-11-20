@@ -60,6 +60,15 @@ AerieSidebarContextMenu::AerieSidebarContextMenu(Options options,
         l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_DELETE_FOLDER));
   } else if (options_.target == Target::kSelection) {
     BuildSelectionItems();
+  } else if (options_.target == Target::kClear) {
+    if (options_.clear_can_archive) {
+      root_->AppendMenuItem(
+          Id(Command::kClearArchive),
+          l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_CLEAR_MENU_ARCHIVE));
+    }
+    root_->AppendMenuItem(
+        Id(Command::kClearClose),
+        l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_CLEAR_MENU_CLOSE));
   } else {
     BuildTabItems();
   }
@@ -304,7 +313,8 @@ bool AerieSidebarContextMenu::HasCommand(Command command) const {
     case Command::kNewFolder:
       return options_.target == Target::kTab
                  ? options_.new_folder.shown
-                 : options_.target != Target::kSelection;
+                 : options_.target != Target::kSelection &&
+                       options_.target != Target::kClear;
     case Command::kRenameFolder:
     case Command::kEditFolder:
     case Command::kDeleteFolder:
@@ -342,6 +352,10 @@ bool AerieSidebarContextMenu::HasCommand(Command command) const {
       return options_.section != Section::kFavorite;
     case Command::kRemoveFromFavorites:
       return options_.section == Section::kFavorite;
+    case Command::kClearArchive:
+      return options_.target == Target::kClear && options_.clear_can_archive;
+    case Command::kClearClose:
+      return options_.target == Target::kClear;
     case Command::kBackToPinned:
       return options_.away_from_pinned && options_.section == Section::kPinned;
     case Command::kMoveToFolderBase:

@@ -189,6 +189,9 @@ base::DictValue ArchiveToValue(const ArchiveData& archive) {
   dict.Set("title", archive.title);
   dict.Set("favicon_key", archive.favicon_key);
   dict.Set("folder", archive.folder);
+  if (!archive.reason.empty()) {
+    dict.Set("reason", archive.reason);
+  }
   base::ListValue entries;
   for (const ArchivedNavigation& entry : archive.entries) {
     base::DictValue item;
@@ -282,6 +285,12 @@ std::optional<ArchiveData> ArchiveFromValue(const base::DictValue& dict) {
       !ReadString(dict, "folder", archive.folder) || !entries ||
       entries->size() > kMaxArchivedNavigationEntries) {
     return std::nullopt;
+  }
+  // Added by issue #266 without a schema bump: absent in older files, and a
+  // value that is not a known reason reads as none.
+  if (const std::string* reason = dict.FindString("reason");
+      reason && *reason == kArchiveReasonCleared) {
+    archive.reason = *reason;
   }
   for (const base::Value& value : *entries) {
     const base::DictValue* item = value.GetIfDict();

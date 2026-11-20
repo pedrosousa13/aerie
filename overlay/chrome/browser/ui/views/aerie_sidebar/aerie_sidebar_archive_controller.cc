@@ -76,10 +76,26 @@ void AerieSidebarArchiveController::Detach() {
   }
 }
 
-bool AerieSidebarArchiveController::ArchiveTab(tabs::TabInterface* tab) {
+bool AerieSidebarArchiveController::ArchiveTab(tabs::TabInterface* tab,
+                                               const std::string& reason) {
   // The archiver is built lazily, a few seconds after the window opens.
   Attach();
-  return archiver_ && tab && archiver_->Archive(tab);
+  return archiver_ && tab && archiver_->Archive(tab, reason);
+}
+
+bool AerieSidebarArchiveController::CanArchive() {
+  Attach();
+  return archiver_ != nullptr;
+}
+
+bool AerieSidebarArchiveController::RestoreRecord(const std::string& id) {
+  Attach();
+  aerie_tab_model::TabModel* model = host_->Model();
+  const aerie_tab_model::TabRecord* record = model ? model->GetTab(id) : nullptr;
+  if (!archiver_ || !record || !record->archived_at) {
+    return false;
+  }
+  return archiver_->Restore(id, host_->Browser()) != nullptr;
 }
 
 void AerieSidebarArchiveController::TogglePanel() {
