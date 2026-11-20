@@ -177,6 +177,19 @@ source_set("today_list") {
   ]
 }
 
+# The set of selected rows of the sidebar (issue #265): Ctrl and Shift click,
+# range, select all, extend. No views.
+source_set("selection") {
+  sources = [
+    "aerie_sidebar_selection.cc",
+    "aerie_sidebar_selection.h",
+  ]
+  public_deps = [
+    "//base",
+    "//components/aerie_tab_model",
+  ]
+}
+
 source_set("unit_tests") {
   testonly = true
   sources = [
@@ -189,6 +202,7 @@ source_set("unit_tests") {
     "aerie_sidebar_move_unittest.cc",
     "aerie_sidebar_palette_unittest.cc",
     "aerie_sidebar_peek_unittest.cc",
+    "aerie_sidebar_selection_unittest.cc",
     "aerie_sidebar_today_list_unittest.cc",
     "aerie_sidebar_tree_unittest.cc",
     "aerie_sidebar_unittest.cc",
@@ -205,6 +219,7 @@ source_set("unit_tests") {
     ":palette",
     ":peek",
     ":prefs",
+    ":selection",
     ":today_list",
     ":tree",
     "//base",
