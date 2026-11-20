@@ -38,6 +38,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 
+from .. import crash_step
 from .. import denylist as denylist_mod
 from .. import netlog
 from ..cdp import CdpError
@@ -173,7 +174,7 @@ class ZeroTraffic:
     seeds_helium_services = False
 
     def __init__(self, idle_seconds: float = 300.0, settle_seconds: float = 60.0, strict: bool = False,
-                 denylist_path: str | None = None):
+                 denylist_path: str | None = None, crash: bool = True):
         self.idle_seconds = float(idle_seconds)
         self.settle_seconds = float(settle_seconds)
         self.strict = strict
@@ -182,6 +183,10 @@ class ZeroTraffic:
         self.probe_error: str | None = None
         self.refusal_count: int | None = None
         self.counter_error: str | None = None
+        # The crash step (issue #262): crash a browser on purpose and start it again. It runs two more
+        # browsers; ``crash=False`` (``--zero-traffic-no-crash``) leaves it out.
+        self.crash = crash
+        self.crash_verdict: tuple[str, str, dict] | None = None
 
     def profile_prefs(self, server) -> dict:
         return worst_case_prefs()
@@ -202,6 +207,9 @@ class ZeroTraffic:
         self._poke_extension_updater(session)
         self.phase_ends["browse"] = self._count(session)
         self.refusal_count = self.read_refusal_counter(session)
+        if self.crash:
+            self.crash_verdict = crash_step.judge(
+                crash_step.observe(session, settle_seconds=min(self.settle_seconds, 5.0)), self.denylist)
         return CheckResult(self.name, "pending")
 
     def read_refusal_counter(self, session: Session) -> int | None:
@@ -258,6 +266,11 @@ class ZeroTraffic:
             status = "fail"
             reason = ("INCONCLUSIVE: " + " and ".join(problems) + "; a pass would prove nothing"
                       + (f". Seen so far: {verdict.reason}" if verdict.hits else ""))
+        if self.crash_verdict is not None:
+            crash_status, crash_reason, _ = self.crash_verdict
+            reason = f"{reason}; crash step: {crash_reason}" if reason else f"crash step: {crash_reason}"
+            if crash_status != "pass":
+                status = "fail"
         data = {
             "phases": {name: ends.get(name) for name in PHASES} if ends else {},
             "idle_seconds": self.idle_seconds, "settle_seconds": self.settle_seconds,
@@ -266,5 +279,7 @@ class ZeroTraffic:
             "refusal_counter": verdict.refusal_count, "refusal_counter_error": self.counter_error, "other_hosts": verdict.other_hosts,
             "fixture_requests": verdict.fixture_requests, "extension_update_probe_error": self.probe_error,
             "inconclusive": inconclusive, "netlog_complete": bool(getattr(session, "netlog_complete", False)),
+            "crash_step": ({"status": self.crash_verdict[0], "detail": self.crash_verdict[1], **self.crash_verdict[2]}
+                           if self.crash_verdict is not None else {"status": "skipped"}),
         }
         return CheckResult(self.name, status, reason, data=data)

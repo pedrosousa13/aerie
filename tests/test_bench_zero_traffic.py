@@ -297,7 +297,8 @@ class RunWithFakeBrowserTest(unittest.TestCase):
 
     def test_seeds_the_worst_case_services_profile_without_an_origin_override(self):
         dump = self.root / "prefs.json"
-        self.run_bench(env={"FAKE_BROWSER_DUMP_PREFS": str(dump)})
+        # The crash step starts more browsers on other profiles, and each would overwrite the dump.
+        self.run_bench(env={"FAKE_BROWSER_DUMP_PREFS": str(dump)}, crash=False)
         helium = json.loads(dump.read_text())["helium"]["services"]
         self.assertIs(helium["enabled"], True)
         self.assertIs(helium["user_consented"], True)
