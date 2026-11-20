@@ -138,6 +138,77 @@ class HistoryTest(unittest.TestCase):
         self.assertIn("REGRESSED", out.getvalue())
 
 
+class PresetTest(unittest.TestCase):
+    """The release and the developer build have their own baselines; a comparison across them is refused (#261)."""
+
+    def setUp(self):
+        self.dir = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: __import__("shutil").rmtree(self.dir, ignore_errors=True))
+
+    def test_the_preset_comes_from_the_binarys_output_directory(self):
+        self.assertEqual(perf.preset_of("/b/src/helium-1/out/Release/aerie"), "release")
+        self.assertEqual(perf.preset_of("/b/src/helium-1/out/Default/aerie"), "default")
+        self.assertEqual(perf.preset_of("/usr/bin/chromium"), "default")
+
+    def test_a_document_without_a_preset_is_a_default_build(self):
+        self.assertEqual(perf.doc_preset(doc()), "default")
+        self.assertEqual(perf.doc_preset({**doc(), "preset": "release"}), "release")
+
+    def test_each_preset_has_its_own_baseline_file_and_the_default_one_is_main_json(self):
+        perf.record(self.dir, doc())
+        perf.record(self.dir, {**doc(memory=700), "preset": "release"})
+        self.assertEqual(json.loads((self.dir / "main.json").read_text())["metrics"]["memory_after_ad_pages_mb"], 800.0)
+        self.assertEqual(json.loads((self.dir / "main-release.json").read_text())["preset"], "release")
+        self.assertEqual(perf.baseline_name("release"), "main-release.json")
+        self.assertEqual(perf.baseline_name("default"), "main.json")
+
+    def test_history_is_read_per_preset(self):
+        perf.record(self.dir, doc())
+        perf.record(self.dir, {**doc(memory=700), "preset": "release"})
+        self.assertEqual(len(perf.read_history(self.dir)), 1)
+        self.assertEqual(len(perf.read_history(self.dir, "release")), 1)
+
+    def test_comparing_across_presets_is_refused_and_names_both(self):
+        with self.assertRaisesRegex(perf.PresetMismatch, "release.*default|default.*release"):
+            perf.check_same_preset({**doc(), "preset": "release"}, doc())
+        perf.check_same_preset(doc(), doc())  # a legacy baseline is a default one
+
+    def test_the_module_command_refuses_a_cross_preset_compare(self):
+        a, b = self.dir / "a.json", self.dir / "b.json"
+        a.write_text(json.dumps({**doc(), "preset": "release"}))
+        b.write_text(json.dumps(doc()))
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(perf.main(["compare", str(a), str(b)]), 2)
+        self.assertIn("release", out.getvalue())
+
+    def run_perf(self, binary_dir, baseline=None, **opts):
+        browser = self.dir / "out" / binary_dir / "aerie"
+        browser.parent.mkdir(parents=True, exist_ok=True)
+        browser.write_text(FAKE.read_text())
+        browser.chmod(0o755)
+        options = {"perf": {"settle_seconds": 0, "startup_runs": 1, "benchmarks": False, "baseline": baseline, **opts}}
+        with mock.patch("aerie_bench.procmem.tree_rss_kb", return_value={"total_kb": 512 * 1024, "processes": []}):
+            return runner.run_bench(browser, scenario.Scenario(checks=("perf",)), self.dir, timeout=10, check_options=options)
+
+    def test_the_run_records_its_preset_and_whether_the_sandbox_was_off(self):
+        res = self.run_perf("Release", no_sandbox=True)
+        out = perf.load(res.out_dir / "perf.json")
+        self.assertEqual(out["preset"], "release")
+        self.assertTrue(out["no_sandbox"])
+        res = self.run_perf("Default")
+        out = perf.load(res.out_dir / "perf.json")
+        self.assertEqual((out["preset"], out["no_sandbox"]), ("default", False))
+
+    def test_a_default_run_against_a_release_baseline_fails_and_says_why(self):
+        base = self.dir / "main-release.json"
+        base.write_text(json.dumps({**doc(memory=500, cold=60000, warm=60000, scores=False), "preset": "release"}))
+        res = self.run_perf("Default", baseline=str(base))
+        check = res.data["checks"][0]
+        self.assertEqual(check["status"], "fail")
+        self.assertRegex(check["detail"], "release")
+        self.assertRegex(check["detail"], "default")
+
+
 class CheckTest(unittest.TestCase):
     def setUp(self):
         self.root = Path(tempfile.mkdtemp())

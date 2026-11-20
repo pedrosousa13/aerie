@@ -49,3 +49,23 @@ new name and the output of `sha256sum` on the file, in the same change.
 GN refuses an explicit `concurrent_links` with ThinLTO. Chromium's `get_concurrent_links.py` computes it from
 RAM (30 GB per ThinLTO link on Linux, 10 GB reserved) and gives 1 link at a time on a 30 GB machine. The link
 itself runs `--thinlto-jobs=all`; there is no GN argument for a lower number.
+
+## Build time and disk
+
+Measured on the build machine (12 cores, 30 GB RAM, ccache warm from the developer build) on 2026-11-20, a first
+`./aerie build --release` in a tree that already had the source and `out/Default`:
+
+- Build time: 2h23m (compile 2h22m, 78,446 steps).
+- Memory: peak 16.8 GB used system-wide, sampled every 10 s. One ThinLTO link at a time, no out-of-memory.
+- Disk: `out/Release` is 21 GB (`out/Default` is 35 GB); the volume grew by 20.7 GB, ThinLTO cache included.
+  The ThinLTO cache is capped by Chromium at 40 GB.
+
+A build from an empty tree needs the 150 GB the developer build needs, plus this. ccache helps only the
+non-LTO objects, so a second release build after a small change is much faster than the first (the ThinLTO link
+runs again every time).
+
+## The sandbox on Ubuntu
+
+The AppArmor profile in the README must name `out/Release` as well as `out/Default`, or the release browser stops
+with "No usable sandbox!". The Bench then needs `--no-sandbox` (bench.md, "Sandbox"). Do not record a baseline from
+such a run.

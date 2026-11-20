@@ -72,7 +72,7 @@ def add_arguments(p: argparse.ArgumentParser, *, binary_required: bool) -> None:
                    help="download the pinned Speedometer and JetStream copies into the build root, check their "
                         "sha256 and unpack them (helium.lock, docs/bench.md); needs the network, once")
     p.add_argument("--perf-record", metavar="DIR",
-                   help="perf: after a passing run, append perf.json to DIR/history.jsonl and make it DIR/main.json "
+                   help="perf: after a passing run, append perf.json to DIR/history.jsonl and make it DIR/main.json (a --release build: history-release.jsonl and main-release.json) "
                         "(use it on main builds only)")
     p.add_argument("--perf-commit", metavar="SHA",
                    help="perf: with --perf-record, the source commit the browser was built from, stored as "
@@ -181,7 +181,8 @@ def run(args: argparse.Namespace, build_root: Path, default_binary: Path | None)
                                       "first_run": args.sidebar_frames_first_run,
                                       "repeats": args.sidebar_frames_repeats},
                    "perf": {"baseline": args.perf_baseline, "settle_seconds": args.perf_settle,
-                            "first_run": args.perf_first_run, "benchmarks": not args.perf_skip_benchmarks}}
+                            "first_run": args.perf_first_run, "benchmarks": not args.perf_skip_benchmarks,
+                            "no_sandbox": args.no_sandbox}}
         common = dict(headless=not args.headed, no_sandbox=args.no_sandbox, timeout=args.timeout,
                       extra_flags=tuple(args.flag), check_options=options)
         result = run_bench(binary, sc, build_root, out_dir=Path(args.out) if args.out else None, **common)

@@ -8,7 +8,9 @@ A metrics document (``perf.json``) is::
      "metrics": {"memory_after_ad_pages_mb": 812.4, ...},
      "skipped": {"jetstream_score": "reason it was switched off"},
      "failed": {"speedometer_score": "reason it could not be measured"},
-     "commit": "abc1234"}   # only in recorded baselines (--perf-record)
+     "commit": "abc1234",   # only in recorded baselines (--perf-record)
+     "preset": "default",   # or "release": the build the binary comes from (preset_of); absent = "default"
+     "no_sandbox": false}   # the browser ran without its sandbox (--no-sandbox)
 
 A run with anything in ``failed`` fails the perf check and is never recorded as a baseline.
 
@@ -25,6 +27,37 @@ from pathlib import Path
 SCHEMA = 1
 HISTORY_FILE = "history.jsonl"
 MAIN_FILE = "main.json"
+PRESETS = ("default", "release")
+
+
+class PresetMismatch(ValueError):
+    """A run was compared with a baseline from the other build preset."""
+
+
+def preset_of(binary: str | Path) -> str:
+    """"release" for a browser in an out/Release directory (./aerie build --release), else "default"."""
+    return "release" if Path(binary).parent.name == "Release" else "default"
+
+
+def doc_preset(doc: dict) -> str:
+    """The preset a document was measured on; documents recorded before presets existed are default builds."""
+    return doc.get("preset") or "default"
+
+
+def baseline_name(preset: str) -> str:
+    """main.json for the developer build (the PR gate's baseline), main-<preset>.json for the others."""
+    return MAIN_FILE if preset == "default" else f"main-{preset}.json"
+
+
+def history_name(preset: str) -> str:
+    return HISTORY_FILE if preset == "default" else f"history-{preset}.jsonl"
+
+
+def check_same_preset(current: dict, baseline: dict) -> None:
+    cur, base = doc_preset(current), doc_preset(baseline)
+    if cur != base:
+        raise PresetMismatch(f"this run is a {cur} build but the baseline is a {base} build; "
+                             f"compare with the {cur} baseline ({baseline_name(cur)}) instead")
 
 
 @dataclass(frozen=True)
@@ -138,7 +171,10 @@ def load(path: Path) -> dict:
 
 
 def record(directory: Path, doc: dict, commit: str | None = None) -> Path:
-    """Append ``doc`` to the series and make it the baseline (main.json) for the next comparison.
+    """Append ``doc`` to the series and make it the baseline for the next comparison.
+
+    Each preset has its own files (baseline_name, history_name): main.json and history.jsonl for the developer
+    build, main-release.json and history-release.jsonl for ./aerie build --release.
 
     ``commit`` is the source commit the measured build came from; it is stored as ``doc["commit"]`` so a
     baseline can be traced back to the code it measured (issue #243)."""
@@ -146,16 +182,18 @@ def record(directory: Path, doc: dict, commit: str | None = None) -> Path:
         doc = {**doc, "commit": commit}
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
-    with open(directory / HISTORY_FILE, "a") as f:
+    preset = doc_preset(doc)
+    with open(directory / history_name(preset), "a") as f:
         f.write(json.dumps(doc, sort_keys=True) + "\n")
-    tmp = directory / (MAIN_FILE + ".tmp")
+    main = directory / baseline_name(preset)
+    tmp = main.with_name(main.name + ".tmp")
     tmp.write_text(json.dumps(doc, indent=1, sort_keys=True) + "\n")
-    os.replace(tmp, directory / MAIN_FILE)
-    return directory / MAIN_FILE
+    os.replace(tmp, main)
+    return main
 
 
-def read_history(directory: Path) -> list[dict]:
-    path = Path(directory) / HISTORY_FILE
+def read_history(directory: Path, preset: str = "default") -> list[dict]:
+    path = Path(directory) / history_name(preset)
     try:
         lines = path.read_text().splitlines()
     except OSError:
@@ -233,16 +271,19 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("current"), c.add_argument("baseline")
     s = sub.add_parser("series", help="Markdown table of every recorded build in DIR")
     s.add_argument("dir")
+    s.add_argument("--preset", choices=PRESETS, default="default", help="the series to show (default: default)")
     b = sub.add_parser("side-by-side", help="Markdown table of an Aerie and another browser's perf.json")
     b.add_argument("aerie"), b.add_argument("other"), b.add_argument("--other-name", default="Helium")
     args = p.parse_args(argv)
     try:
         if args.cmd == "compare":
-            v = compare(load(Path(args.current)), load(Path(args.baseline)))
+            current, baseline = load(Path(args.current)), load(Path(args.baseline))
+            check_same_preset(current, baseline)
+            v = compare(current, baseline)
             print("\n".join(verdict_lines(v)))
             return 1 if failures(v) else 0
         if args.cmd == "series":
-            print(series_report(read_history(Path(args.dir))), end="")
+            print(series_report(read_history(Path(args.dir), args.preset)), end="")
         else:
             print(side_by_side(load(Path(args.aerie)), load(Path(args.other)), args.other_name), end="")
     except (OSError, ValueError) as exc:
