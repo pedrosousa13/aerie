@@ -135,8 +135,8 @@ class BuildPaths:
     def tree(self, name: str) -> Path:
         return self.src / name
 
-    def out_dir(self, name: str) -> Path:
-        return self.tree(name) / "out" / "Default"
+    def out_dir(self, name: str, release: bool = False) -> Path:
+        return self.tree(name) / "out" / ("Release" if release else "Default")
 
     def scratch_dirs(self) -> list[Path]:
         """Directories that must exist before any build step runs."""

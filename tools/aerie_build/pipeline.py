@@ -25,6 +25,7 @@ from . import (
     layers, lock, overlay, patch_check, patches, protection_lists, rust_crates, substitution, test_fonts,
     test_webui_data,
 )
+from . import release as release_build
 from .config import BuildPaths, isolated_env
 
 ARCH = "x64"
@@ -106,6 +107,8 @@ class Context:
     # Set by test_cpp(): build these instead of TARGETS, and fetch the test fonts they need.
     test_targets: tuple[str, ...] = ()
     opener: fallback.Opener = fallback.default_opener
+    # ./aerie build --release: the official, PGO and ThinLTO preset in out/Release (docs/release-build.md).
+    release: bool = False
 
     @property
     def core(self) -> Path:
@@ -129,7 +132,7 @@ class Context:
 
     @property
     def out_dir(self) -> Path:
-        return self.paths.out_dir(self.tree_name)
+        return self.paths.out_dir(self.tree_name, self.release)
 
     @property
     def binary(self) -> Path:
@@ -611,11 +614,17 @@ def configure(ctx: Context, log: Logger, env: dict) -> None:
             ARCH,
             str(ctx.ccache_bin),
         )
+        if ctx.release:
+            pin = ctx.pins.pgo.get("linux", {})
+            release_build.verify_profile(ctx.tree, pin)
+            args += release_build.gn_args(ctx.tree, pin)
     except helium.SafeBrowsingEnabled as exc:
         raise BuildError(f"Google Safe Browsing must stay off (the local list is the only check): {exc}") from exc
+    except release_build.ProfileError as exc:
+        raise BuildError(f"release build: {exc}") from exc
     (ctx.out_dir / "args.gn").write_text(args)
     log("args.gn:\n" + args)
-    run(log, [ctx.tree / "buildtools" / "linux64" / "gn", "gen", "out/Default",
+    run(log, [ctx.tree / "buildtools" / "linux64" / "gn", "gen", f"out/{ctx.out_dir.name}",
               "--fail-on-unused-args"], env, cwd=ctx.tree)
 
 

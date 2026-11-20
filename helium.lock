@@ -47,6 +47,14 @@ version = "4.14.2"
 url = "https://github.com/ccache/ccache/releases/download/v4.14.2/ccache-4.14.2-linux-x86_64-musl-static.tar.xz"
 minisign_key_file = "tools/keys/ccache-minisign.pub"
 
+# PGO profile of the release build (`./aerie build --release`, docs/release-build.md). It is the file that
+# chrome/build/linux.pgo.txt names; the prepared Chromium tarball above already holds it in
+# chrome/build/pgo_profiles/, so nothing is downloaded for it. The release build refuses any other file.
+# sha256 is of the profile as unpacked from that tarball (sha256sum, 2026-11-20).
+[pgo.linux]
+name = "chrome-linux-8103-1793123259-670ec859443610235126df5c8123ca32d78c501b-0b7bd4353a132693ddabcc68d29f1517e29ca6d1.profdata"
+sha256 = "caa20d5aa052b5d117ac11bf361ee5392bac74647cff33b0af59f077eb7df481"
+
 # Benchmark sources for the Bench's perf check (docs/bench.md, "Pinned benchmark copies").
 # Not Chromium inputs: the build never reads these. `./aerie bench --download-benchmarks` downloads
 # each archive once into <build root>/downloads, refuses it unless its sha256 matches, and unpacks it

@@ -41,6 +41,8 @@ class Lock:
     bench: dict[str, dict] = field(default_factory=dict)
     # Test-only data the UI test binaries need ([test_data.<name>] tables; aerie_build.test_webui_data).
     test_data: dict[str, dict] = field(default_factory=dict)
+    # Pinned PGO profile per platform ([pgo.<name>] tables; aerie_build.release).
+    pgo: dict[str, dict] = field(default_factory=dict)
 
 
 def _check_digest(name: str, digest: str) -> str:
@@ -84,6 +86,11 @@ def load_lock(path: Path) -> Lock:
             raise VerificationError(f"test_data.{name}.url must be an https URL")
         if not isinstance(table.get("chromium_version"), str) or not table["chromium_version"]:
             raise VerificationError(f"test_data.{name}.chromium_version is missing")
+    pgo = {name: dict(table) for name, table in data.get("pgo", {}).items()}
+    for name, table in pgo.items():
+        table["sha256"] = _check_digest(f"pgo.{name}", table.get("sha256"))
+        if not isinstance(table.get("name"), str) or table["name"] != Path(table["name"]).name or not table["name"].endswith(".profdata"):
+            raise VerificationError(f"pgo.{name}.name must be a plain .profdata file name")
     return Lock(
         helium_version=helium["version"],
         chromium_version=helium["chromium_version"],
@@ -96,6 +103,7 @@ def load_lock(path: Path) -> Lock:
         fallback=fallback,
         bench=bench,
         test_data=test_data,
+        pgo=pgo,
     )
 
 

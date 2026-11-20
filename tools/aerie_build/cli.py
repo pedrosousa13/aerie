@@ -76,6 +76,7 @@ def _context(args: argparse.Namespace) -> pipeline.Context:
         jobs=getattr(args, "jobs", None),
         source_mode=fallback.resolve_mode(getattr(args, "source", None), os.environ),
         log_path=paths.logs / f"build-{stamp}.log",
+        release=getattr(args, "release", False),
     )
 
 
@@ -309,6 +310,11 @@ def main(argv: list[str] | None = None) -> int:
         help="list the source-tree files the Aerie layers (patches, substitution) would change, then stop; "
         "writes nothing to the tree",
     )
+    p_build.add_argument(
+        "--release",
+        action="store_true",
+        help="official build with PGO, ThinLTO and V8 builtins PGO, in out/Release (docs/release-build.md)",
+    )
     _add_lock_timeout(p_build)
     p_build.set_defaults(func=cmd_build)
 
@@ -418,6 +424,7 @@ def main(argv: list[str] | None = None) -> int:
     from aerie_bench import cli as bench_cli
 
     bench_cli.add_arguments(p_bench, binary_required=False)
+    p_bench.add_argument("--release", action="store_true", help="test the browser of ./aerie build --release (out/Release)")
     _add_lock_timeout(p_bench)
     p_bench.set_defaults(func=cmd_bench)
 
