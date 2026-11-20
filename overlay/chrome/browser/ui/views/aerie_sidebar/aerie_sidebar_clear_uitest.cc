@@ -137,8 +137,10 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarClearUiTest,
   ASSERT_EQ(focused(), sidebar()->toast_undo_button());
   Press(ui::VKEY_RETURN);
   ASSERT_TRUE(base::test::RunUntil([&] { return sidebar()->row_count() == 4u; }));
-  EXPECT_FALSE(sidebar()->toast_visible() &&
-               sidebar()->toast()->GetText() == u"3 tabs archived");
+  // The toast fades out after Undo (it is gone when the fade ends) and there is
+  // nothing left to undo.
+  EXPECT_TRUE(sidebar()->cleared_ids_for_testing().empty());
+  ASSERT_TRUE(base::test::RunUntil([&] { return !sidebar()->toast_visible(); }));
 }
 
 IN_PROC_BROWSER_TEST_F(AerieSidebarClearUiTest, TheToastGoesAwayOnItsOwn) {
