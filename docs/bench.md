@@ -597,7 +597,9 @@ histogram, read over DevTools at the end of the browse phase. The detail line sa
 `N attempt(s) refused by the request policy: host, ...`, and, when the counter is higher than the names the NetLog
 gave, `N refusal(s) counted, M named`. A refused attempt that the browser needs (a component update the
 project keeps, a filter list, the update check) is a bug: fix the allowlist in `docs/network-endpoints.md`.
-The hops of a redirect chain before the refused one still count as traffic.
+The hops of a redirect chain before the refused one still count as traffic. The counter is recorded in the network
+service process; if the browser has not merged that process's histograms, the reading is 0 even after a refusal, so
+the NetLog names are the evidence and the counter is a cross-check (`refusal_counter_error` says why it could not be read).
 
 `checks[].data` has `hits` (url, host, group, pattern, phase, net_error),
 `blocked`, `refused` (host, group, phase, net_error), `refusal_counter` (int, or null when unreadable), `other_hosts` (external hosts that are not on the list, for review),

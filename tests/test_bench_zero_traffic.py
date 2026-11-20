@@ -202,6 +202,24 @@ class RefusalCounterTest(unittest.TestCase):
     def test_a_histogram_that_was_never_recorded_is_zero(self):
         self.assertEqual(self.check().read_refusal_counter(self.session({})), 0)
 
+    def test_the_real_browsers_wording_for_a_missing_histogram_is_zero(self):
+        from aerie_bench.cdp import CdpError
+
+        class Real:
+            def send(self, *a, **k):
+                raise CdpError("Browser.getHistogram: Cannot find histogram: x (code -32602)")
+        self.assertEqual(self.check().read_refusal_counter(mock.Mock(client=Real(), timeout=5)), 0)
+
+    def test_a_failed_reading_is_none_not_zero(self):
+        from aerie_bench.cdp import CdpError
+
+        class Broken:
+            def send(self, *a, **k):
+                raise CdpError("Browser.getHistogram: timeout")
+        c = self.check()
+        self.assertIsNone(c.read_refusal_counter(mock.Mock(client=Broken(), timeout=5)))
+        self.assertIn("timeout", c.counter_error)
+
     def test_finalize_puts_the_reading_and_the_names_in_the_result(self):
         c = self.check()
         c.refusal_count = 2

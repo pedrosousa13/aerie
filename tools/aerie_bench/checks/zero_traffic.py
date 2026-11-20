@@ -181,6 +181,7 @@ class ZeroTraffic:
         self.phase_ends: dict[str, int] = {}
         self.probe_error: str | None = None
         self.refusal_count: int | None = None
+        self.counter_error: str | None = None
 
     def profile_prefs(self, server) -> dict:
         return worst_case_prefs()
@@ -211,8 +212,11 @@ class ZeroTraffic:
                                        timeout=session.timeout)["histogram"]
             return int(hist["count"])
         except CdpError as exc:
-            return 0 if "not found" in str(exc).lower() else None
-        except (OSError, KeyError, TypeError, ValueError):
+            self.counter_error = str(exc)
+            msg = str(exc).lower()
+            return 0 if ("not found" in msg or "cannot find" in msg) else None
+        except (OSError, KeyError, TypeError, ValueError) as exc:
+            self.counter_error = f"{type(exc).__name__}: {exc}"
             return None
 
     def _poke_extension_updater(self, session: Session) -> None:
@@ -259,7 +263,7 @@ class ZeroTraffic:
             "idle_seconds": self.idle_seconds, "settle_seconds": self.settle_seconds,
             "strict": self.strict, "denylist_entries": len(self.denylist.entries),
             "hits": verdict.hits, "blocked": verdict.blocked, "refused": verdict.refused,
-            "refusal_counter": verdict.refusal_count, "other_hosts": verdict.other_hosts,
+            "refusal_counter": verdict.refusal_count, "refusal_counter_error": self.counter_error, "other_hosts": verdict.other_hosts,
             "fixture_requests": verdict.fixture_requests, "extension_update_probe_error": self.probe_error,
             "inconclusive": inconclusive, "netlog_complete": bool(getattr(session, "netlog_complete", False)),
         }
