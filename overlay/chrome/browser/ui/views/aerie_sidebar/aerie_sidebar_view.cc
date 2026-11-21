@@ -3189,6 +3189,9 @@ void AerieSidebarView::ShowToast(const std::u16string& text,
                                  const std::u16string& announcement) {
   toast_motion_.Abort();
   toast_timer_.Stop();
+  // Any toast replaces the one before it, and with it the chance to undo a
+  // Clear (ClearToday sets the list again after its own toast).
+  clear_undo_tabs_.clear();
   toast_->SetText(text);
   toast_actions_->SetVisible(has_actions);
   toast_card_->SetVisible(true);
@@ -3250,7 +3253,7 @@ void AerieSidebarView::FinishToastHide() {
   toast_card_->SetVisible(false);
   toast_actions_->SetVisible(false);
   toast_->SetText(std::u16string());
-  cleared_.clear();
+  clear_undo_tabs_.clear();
   last_filed_ = aerie_tab_model::AutoFileController::Filed();
   if (toast_card_->layer()) {
     toast_card_->DestroyLayer();
@@ -3279,7 +3282,6 @@ void AerieSidebarView::OnTabFiled(
     row->PlayFilingPulse(prefs);
   }
   last_filed_ = filed;
-  cleared_.clear();
   toast_dont_file_->SetVisible(true);
   ShowToast(l10n_util::GetStringFUTF16(IDS_AERIE_SIDEBAR_FILED_INTO,
                                        base::UTF8ToUTF16(folder->name)),
@@ -3288,7 +3290,7 @@ void AerieSidebarView::OnTabFiled(
 
 std::vector<std::string> AerieSidebarView::cleared_ids_for_testing() const {
   std::vector<std::string> ids;
-  for (const ClearedTab& tab : cleared_) {
+  for (const ClearedTab& tab : clear_undo_tabs_) {
     ids.push_back(tab.id);
   }
   return ids;
@@ -3349,6 +3351,17 @@ void AerieSidebarView::ClearToday(bool close_only) {
   if (tabs.empty()) {
     return;
   }
+  // A private window keeps no Archive (issue #183): there Clear closes.
+  const bool archive_them = !close_only && archive_->CanArchive();
+  if (archive_them) {
+    // Only the tabs that the Archive takes: the others stay open as they are.
+    std::erase_if(tabs, [this](const ClearedTab& tab) {
+      return !archive_->CanArchiveTab(FindTab(tab.id));
+    });
+    if (tabs.empty()) {
+      return;
+    }
+  }
   ResetSelection();
   // A window with nothing left after Clear would close: keep it with a new tab.
   if (browser_->GetTabStripModel()->count() <=
@@ -3356,9 +3369,7 @@ void AerieSidebarView::ClearToday(bool close_only) {
     browser_->OpenGURL(GURL(chrome::kChromeUINewTabURL),
                        WindowOpenDisposition::NEW_FOREGROUND_TAB);
   }
-  // A private window keeps no Archive (issue #183): there Clear closes.
-  if (close_only || !archive_->CanArchive()) {
-    cleared_.clear();
+  if (!archive_them) {
     for (const ClearedTab& tab : tabs) {
       CloseTab(tab.id);
     }
@@ -3375,7 +3386,6 @@ void AerieSidebarView::ClearToday(bool close_only) {
     return;
   }
   const int count = static_cast<int>(archived.size());
-  cleared_ = std::move(archived);
   toast_dont_file_->SetVisible(false);
   last_filed_ = aerie_tab_model::AutoFileController::Filed();
   // The label says the count; a screen reader also hears that Undo is there.
@@ -3384,10 +3394,12 @@ void AerieSidebarView::ClearToday(bool close_only) {
             /*has_actions=*/true,
             l10n_util::GetPluralStringFUTF16(
                 IDS_AERIE_SIDEBAR_CLEARED_TOAST_READ, count));
+  // After the toast: showing it dropped the list of any earlier Clear.
+  clear_undo_tabs_ = std::move(archived);
 }
 
 void AerieSidebarView::OnToastUndo() {
-  if (!cleared_.empty()) {
+  if (!clear_undo_tabs_.empty()) {
     UndoClear();
   } else {
     UndoFiling();
@@ -3395,8 +3407,7 @@ void AerieSidebarView::OnToastUndo() {
 }
 
 void AerieSidebarView::UndoClear() {
-  std::vector<ClearedTab> tabs = std::move(cleared_);
-  cleared_.clear();
+  std::vector<ClearedTab> tabs = std::move(clear_undo_tabs_);
   HideToast();
   if (!model_ || !archive_) {
     return;

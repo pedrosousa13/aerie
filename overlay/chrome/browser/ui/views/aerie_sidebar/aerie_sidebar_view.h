@@ -787,7 +787,9 @@ class AerieSidebarView : public views::View,
     std::string parent;
     int position = 0;
   };
-  std::vector<ClearedTab> cleared_;
+  // What Undo on the Clear toast brings back; empty when that toast is not
+  // the one on screen.
+  std::vector<ClearedTab> clear_undo_tabs_;
   // What the last toast told a screen reader beyond its text, for tests.
   std::u16string last_toast_announcement_;
   // What the toast on screen can undo.

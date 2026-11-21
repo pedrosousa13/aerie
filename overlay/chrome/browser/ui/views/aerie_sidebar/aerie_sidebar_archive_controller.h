@@ -105,6 +105,8 @@ class AerieSidebarArchiveController
   bool RestoreRecord(const std::string& id);
   // True when this window keeps an Archive (false in a private window).
   bool CanArchive();
+  // True when ArchiveTab would take `tab` now (no change is made).
+  bool CanArchiveTab(tabs::TabInterface* tab);
 
   // Opens the panel, or closes it when it is open.
   void TogglePanel();

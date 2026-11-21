@@ -152,3 +152,23 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarClearUiTest, TheToastGoesAwayOnItsOwn) {
   // The tabs stay archived: the toast leaving is not an Undo.
   EXPECT_EQ(sidebar()->row_count(), 1u);
 }
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarClearUiTest, EnterOnTheClearButtonArchives) {
+  FocusView(sidebar()->clear_button());
+  Press(ui::VKEY_RETURN);
+  ASSERT_TRUE(base::test::RunUntil([&] { return sidebar()->toast_visible(); }));
+  EXPECT_EQ(sidebar()->cleared_ids_for_testing().size(), 3u);
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarClearUiTest,
+                       AltEnterOnTheClearButtonClosesAndKeepsNoRecord) {
+  FocusView(sidebar()->clear_button());
+  ASSERT_TRUE(ui_test_utils::SendKeyPressSync(
+      browser(), ui::VKEY_RETURN, /*control=*/false, /*shift=*/false,
+      /*alt=*/true, /*command=*/false));
+  // The three tabs are closed and the window keeps a new tab.
+  ASSERT_TRUE(base::test::RunUntil([&] { return sidebar()->row_count() == 1u; }));
+  EXPECT_FALSE(sidebar()->toast_visible());
+  EXPECT_TRUE(sidebar()->cleared_ids_for_testing().empty());
+  EXPECT_EQ(browser()->tab_strip_model()->count(), 1);
+}

@@ -83,6 +83,11 @@ bool AerieSidebarArchiveController::ArchiveTab(tabs::TabInterface* tab,
   return archiver_ && tab && archiver_->Archive(tab, reason);
 }
 
+bool AerieSidebarArchiveController::CanArchiveTab(tabs::TabInterface* tab) {
+  Attach();
+  return archiver_ && tab && archiver_->CanArchive(tab);
+}
+
 bool AerieSidebarArchiveController::CanArchive() {
   Attach();
   return archiver_ != nullptr;

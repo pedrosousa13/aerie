@@ -94,6 +94,10 @@ class TabArchiver : public KeyedService,
   // `reason` is stored with the record (kArchiveReasonCleared for Today's
   // Clear, issue #266); empty is the timer's.
   bool Archive(tabs::TabInterface* tab, const std::string& reason = std::string());
+  // True when Archive() would take `tab` now: it has an unarchived Today
+  // record, its page does not ask to confirm leaving and its address can be
+  // kept. Changes nothing (issue #266: Clear counts what it will close).
+  bool CanArchive(tabs::TabInterface* tab);
 
   // Reopens the archived record `record_id` as a tab in `browser`, selected, at
   // the top of Today (or of its old folder, see RestoreArchivedTab). The tab

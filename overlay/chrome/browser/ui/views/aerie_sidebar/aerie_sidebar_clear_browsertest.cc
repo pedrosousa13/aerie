@@ -40,6 +40,8 @@
 #include "components/aerie_tab_model/folder_tree.h"
 #include "components/aerie_tab_model/tab_model.h"
 #include "content/public/test/browser_test.h"
+#include "content/public/test/browser_test_utils.h"
+#include "url/gurl.h"
 #include "net/dns/mock_host_resolver.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "ui/accessibility/ax_node_data.h"
@@ -114,8 +116,14 @@ class AerieSidebarClearBrowserTest : public InProcessBrowserTest {
 
   // A loaded tab behind the selected one; returns its record id.
   std::string OpenBackgroundTab() {
+    return OpenBackgroundTabAt(embedded_test_server()->GetURL("/title1.html"));
+  }
+
+  // The same for any address. A data: page is one that the Archive cannot
+  // keep, so Clear leaves its tab open.
+  std::string OpenBackgroundTabAt(const GURL& url) {
     EXPECT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
-        browser(), embedded_test_server()->GetURL("/title1.html"),
+        browser(), url,
         WindowOpenDisposition::NEW_BACKGROUND_TAB,
         ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
     const std::string id = IdAt(strip()->count() - 1);
@@ -188,6 +196,14 @@ class AerieSidebarClearBrowserTest : public InProcessBrowserTest {
       }
     }
     return nullptr;
+  }
+
+  // Makes the tab of `id` show a page that the Archive cannot keep.
+  void MakeUnarchivable(const std::string& id) {
+    tabs::TabInterface* tab = TabFor(id);
+    ASSERT_TRUE(tab);
+    content::NavigateToURLBlockUntilNavigationsComplete(
+        tab->GetContents(), GURL("data:text/html,stay"), 1);
   }
 
   void PressClear(AerieSidebarView* view, int flags = ui::EF_NONE) {
@@ -386,4 +402,140 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarClearBrowserTest,
   EXPECT_FALSE(view->toast_visible());
   EXPECT_TRUE(view->cleared_ids_for_testing().empty());
   EXPECT_TRUE(aerie_tab_model::ArchivedRows(*model()).empty());
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarClearBrowserTest,
+                       ClearWhenEveryTabIsRefusedChangesNothing) {
+  const Setup setup = MakeTabs();
+  for (const std::string& id : setup.today) {
+    MakeUnarchivable(id);
+  }
+  const int count = strip()->count();
+  PressClear();
+
+  // Nothing was archived, so the window would not have closed: no new tab,
+  // no toast, nothing to undo.
+  EXPECT_EQ(strip()->count(), count);
+  EXPECT_FALSE(sidebar()->toast_visible());
+  EXPECT_TRUE(sidebar()->cleared_ids_for_testing().empty());
+  EXPECT_TRUE(aerie_tab_model::ArchivedRows(*model()).empty());
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarClearBrowserTest,
+                       ClearWhenSomeTabsAreRefusedOpensNoExtraTab) {
+  // Only Today tabs: three, one of which the Archive refuses.
+  const std::string first = IdAt(0);
+  const std::string a = OpenBackgroundTab();
+  const std::string b = OpenBackgroundTab();
+  MakeUnarchivable(first);
+  ASSERT_EQ(strip()->count(), 3);
+  PressClear();
+
+  ASSERT_TRUE(sidebar()->toast_visible());
+  EXPECT_EQ(sidebar()->cleared_ids_for_testing(),
+            (std::vector<std::string>{a, b}));
+  // The refused tab keeps the window open on its own.
+  EXPECT_EQ(strip()->count(), 1);
+  EXPECT_EQ(IdAt(0), first);
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarClearBrowserTest,
+                       UndoKeepsAFolderInOrderWhenOneSiblingStays) {
+  const Setup setup = MakeTabs();
+  const std::string folder = aerie_tab_model::CreateFolder(
+      *model(), Section::kToday, std::string(), "Trips");
+  for (int i = 0; i < 3; ++i) {
+    ASSERT_TRUE(
+        aerie_tab_model::MoveTabToFolder(*model(), setup.today[i], folder));
+  }
+  // The middle one of the folder stays open.
+  MakeUnarchivable(setup.today[1]);
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    for (const std::string& id : setup.today) {
+      if (!sidebar()->RowForId(id)) {
+        return false;
+      }
+    }
+    return true;
+  }));
+  const std::vector<std::string> before = TodayOrder();
+  const std::map<std::string, std::string> parents = ParentsOf(before);
+  ASSERT_EQ(before.size(), 4u);
+
+  PressClear();
+  ASSERT_EQ(TodayOrder(), (std::vector<std::string>{setup.today[1]}));
+  PressUndo();
+  ASSERT_TRUE(base::test::RunUntil(
+      [&] { return TodayOrder().size() == before.size(); }));
+  EXPECT_EQ(TodayOrder(), before);
+  EXPECT_EQ(ParentsOf(TodayOrder()), parents);
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarClearBrowserTest,
+                       UndoAfterOneTabWasRestoredFromTheArchiveKeepsTheRestInOrder) {
+  const Setup setup = MakeTabs();
+  const std::string folder = aerie_tab_model::CreateFolder(
+      *model(), Section::kToday, std::string(), "Trips");
+  for (int i = 0; i < 3; ++i) {
+    ASSERT_TRUE(
+        aerie_tab_model::MoveTabToFolder(*model(), setup.today[i], folder));
+  }
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    for (const std::string& id : setup.today) {
+      if (!sidebar()->RowForId(id)) {
+        return false;
+      }
+    }
+    return true;
+  }));
+  const std::vector<std::string> before = TodayOrder();
+  ASSERT_EQ(before.size(), 4u);
+  PressClear();
+  ASSERT_TRUE(TodayOrder().empty());
+
+  // The user opens the middle one of the folder from the Archive panel.
+  const std::string middle = setup.today[1];
+  ASSERT_TRUE(sidebar()->archive()->RestoreRecord(middle));
+  ASSERT_TRUE(base::test::RunUntil([&] { return TodayOrder().size() == 1u; }));
+  PressUndo();
+  ASSERT_TRUE(base::test::RunUntil(
+      [&] { return TodayOrder().size() == before.size(); }));
+
+  // The others come back to the folder, and in the order they had.
+  const std::vector<std::string> after = TodayOrder();
+  std::vector<std::string> rest;
+  for (const std::string& id : after) {
+    EXPECT_EQ(model()->GetTab(id)->parent,
+              id == setup.today[3] ? std::string() : folder)
+        << id;
+    if (id != middle) {
+      rest.push_back(id);
+    }
+  }
+  std::vector<std::string> rest_before;
+  for (const std::string& id : before) {
+    if (id != middle) {
+      rest_before.push_back(id);
+    }
+  }
+  EXPECT_EQ(rest, rest_before);
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarClearBrowserTest,
+                       UndoOnALaterToastDoesNotBringTheClearedTabsBack) {
+  const Setup setup = MakeTabs();
+  PressClear();
+  ASSERT_TRUE(TodayOrder().empty());
+  sidebar()->ShowToastForTesting(u"Something else");
+  EXPECT_TRUE(sidebar()->cleared_ids_for_testing().empty());
+
+  // Whatever the Undo button of that toast does, it is not Clear's Undo.
+  views::test::ButtonTestApi(sidebar()->toast_undo_button())
+      .NotifyClick(ui::MouseEvent(
+          ui::EventType::kMousePressed, gfx::Point(), gfx::Point(),
+          base::TimeTicks::Now(), ui::EF_LEFT_MOUSE_BUTTON,
+          ui::EF_LEFT_MOUSE_BUTTON));
+  EXPECT_TRUE(TodayOrder().empty());
+  EXPECT_EQ(aerie_tab_model::ArchivedRows(*model()).size(),
+            setup.today.size());
 }
