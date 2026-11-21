@@ -107,6 +107,51 @@ class GateTest(unittest.TestCase):
         self.assertFalse(build(run)["gate"]["passed"])
 
 
+class GateHolesTest(unittest.TestCase):
+    def test_unknown_commit_or_version_fails(self):
+        rep = pr.build(clean_run(), {**META, "commit": None}, pr.load_allowlist(DOC), required=REQUIRED)
+        self.assertFalse(rep["gate"]["passed"])
+        self.assertTrue(any("commit" in f for f in rep["gate"]["failures"]))
+        run = clean_run()
+        run["binary"]["version"] = None
+        rep = build(run)
+        self.assertTrue(any("version" in f for f in rep["gate"]["failures"]))
+
+    def test_unreadable_refusal_counter_fails(self):
+        run = clean_run()
+        run["checks"][0]["data"]["refusal_counter"] = None
+        rep = build(run)
+        self.assertFalse(rep["gate"]["passed"])
+        self.assertTrue(any("counter" in f for f in rep["gate"]["failures"]))
+
+    def test_lookalike_host_is_not_allowed(self):
+        run = clean_run()
+        run["network"]["requests"].append(req("https://evileasylist.to/x"))
+        self.assertFalse(build(run)["gate"]["passed"])
+
+
+class RerunCommandTest(unittest.TestCase):
+    def args(self, **over):
+        a = cli.argparse.ArgumentParser()
+        cli.add_arguments(a, binary_required=False)
+        ns = a.parse_args([])
+        for k, v in over.items():
+            setattr(ns, k, v)
+        return ns
+
+    def test_default_build_binary(self):
+        cmd = cli.rerun_command(self.args(report="/home/alice/out"), "aerie", explicit_binary=False)
+        self.assertEqual(cmd, "./aerie bench --report <dir>")
+
+    def test_flags_that_change_the_result_are_kept_and_paths_removed(self):
+        cmd = cli.rerun_command(self.args(report="/home/alice/out", binary="/home/alice/b/aerie",
+                                          no_sandbox=True, zero_traffic_settle=5.0, flag=["--foo=a b"],
+                                          adblock_baseline="/home/alice/base.json"), "aerie", explicit_binary=True)
+        self.assertEqual(cmd, "./aerie bench --report <dir> --binary ./aerie --no-sandbox "
+                              "--zero-traffic-settle 5.0 --adblock-baseline <file> --flag '--foo=a b'")
+        self.assertNotIn("alice", cmd)
+
+
 class ContentTest(unittest.TestCase):
     def test_content(self):
         rep = build(clean_run())
@@ -121,6 +166,7 @@ class ContentTest(unittest.TestCase):
         self.assertEqual(rep["rerun"]["binary_sha256"], "cd" * 32)
         html = pr.render_html(rep)
         self.assertIn("./aerie bench --report", html)
+        self.assertIn("&lt;dir&gt;", html)
         self.assertIn("cd" * 32, html)
 
 

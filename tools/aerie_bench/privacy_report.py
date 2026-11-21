@@ -67,26 +67,18 @@ def check_clean(text: str, forbidden: tuple[str, ...]) -> None:
             raise ReportError("the report would hold a local path or profile string; not written")
 
 
-def load_allowlist(doc_text: str) -> list[dict]:
-    """Hosts a browser request may reach, with the reason, from the request policy tables."""
-    table = policy_model.parse_doc(doc_text)
-    reasons: dict[tuple[str, str], str] = {}
-    for line in policy_model._block(doc_text, "hosts"):
-        cells = policy_model._cells(line)
-        if cells and cells[0] != "Annotation" and len(cells) == 3:
-            reasons[(cells[0].strip("`"), cells[1].strip("`"))] = cells[2]
-    return [{"host": host, "annotation": ann, "reason": reasons.get((ann, host), "")} for ann, host in table.hosts]
+def load_allowlist(doc_text: str) -> policy_model.PolicyTable:
+    """The request policy tables: the hosts a browser request may reach, each with its reason."""
+    return policy_model.parse_doc(doc_text)
 
 
-def load_default_allowlist() -> list[dict]:
+def load_default_allowlist() -> policy_model.PolicyTable:
     return load_allowlist((REPO / policy_model.DOC_PATH).read_text(encoding="utf-8"))
 
 
-def _explain(host: str, allowlist: list[dict]) -> str | None:
-    for entry in allowlist:
-        if host == entry["host"] or host.endswith("." + entry["host"]):
-            return f"{entry['reason']} (request policy, annotation {entry['annotation']})"
-    return None
+def _explain(host: str, table: policy_model.PolicyTable) -> str | None:
+    found = table.explain(host)
+    return None if found is None else f"{found[1]} (request policy, annotation {found[0]})"
 
 
 def _safe_path(url: str) -> str:
@@ -104,7 +96,7 @@ def _phase_bounds(zt: dict, total: int) -> list[tuple[str, int, int]]:
     return out
 
 
-def _is_check_group(name: str) -> str | None:
+def _check_group(name: str) -> str | None:
     if name.startswith("hardening_fingerprinting") or name == "hardening_device_memory":
         return "fingerprinting"
     if name.startswith("hardening_"):
@@ -112,14 +104,8 @@ def _is_check_group(name: str) -> str | None:
     return None
 
 
-def build(run: dict, meta: dict, allowlist: list[dict], *, required: tuple[str, ...] = (),
-          forbidden: tuple[str, ...] = ()) -> dict:
-    """The report document for one recorded run. ``meta``: commit, binary_sha256, binary_name, command."""
-    failures: list[str] = []
-    checks = {c["name"]: c for c in run.get("checks", [])}
-    zt = checks.get("zero_traffic") or {}
-    ztd = zt.get("data") or {}
-    records = (run.get("network") or {}).get("requests", [])
+def _classify_requests(records: list[dict], zt: dict, table: policy_model.PolicyTable) -> tuple[list[dict], list[dict]]:
+    """(requests that left loopback, per-phase counts). A request the policy refused is counted, not listed."""
     bounds = _phase_bounds(zt, len(records))
 
     def phase_of(i: int) -> str:
@@ -128,14 +114,13 @@ def build(run: dict, meta: dict, allowlist: list[dict], *, required: tuple[str, 
                 return name
         return bounds[-1][0]
 
-    requests, phases = [], {n: {"name": n, "title": PHASE_TITLES[n], "requests": 0, "non_loopback": 0, "refused": 0}
-                            for n in PHASES}
+    requests = []
+    phases = {n: {"name": n, "title": PHASE_TITLES[n], "requests": 0, "non_loopback": 0, "refused": 0} for n in PHASES}
     for i, r in enumerate(records):
         ph = phase_of(i)
         phases[ph]["requests"] += 1
         hops = list(r.get("urls") or [r.get("url", "")])
-        refused = r.get("net_error") == POLICY_NET_ERROR
-        if refused and r.get("external"):
+        if r.get("net_error") == POLICY_NET_ERROR and r.get("external"):
             phases[ph]["refused"] += 1
             hops = hops[:-1]
         made = False
@@ -145,16 +130,41 @@ def build(run: dict, meta: dict, allowlist: list[dict], *, required: tuple[str, 
             if parts.scheme not in ("http", "https", "ws", "wss", "ftp") or not host or netlog.is_loopback(host):
                 continue
             made = True
-            reason = _explain(host, allowlist)
+            reason = _explain(host, table)
             requests.append({"host": host, "path": _safe_path(url), "method": str(r.get("method") or ""),
                              "phase": ph, "allowed": reason is not None,
                              "reason": reason or "NOT EXPLAINED by docs/network-endpoints.md"})
         if made:
             phases[ph]["non_loopback"] += 1
-    for q in requests:
-        if not q["allowed"]:
-            failures.append(f"unexplained request to {q['host']} ({PHASE_TITLES[q['phase']]})")
+    return requests, list(phases.values())
 
+
+def _blocking(check: dict) -> dict:
+    data = check.get("data") or {}
+    score = data.get("score") or {}
+    ov = score.get("overall") or {}
+    total = int(ov.get("total") or 0)
+    blocked = int(ov.get("blocked") or 0)
+    hostlist = data.get("hostlist") or {}
+    return {"blocked": blocked, "total": total, "percent": round(100 * blocked / total, 1) if total else 0.0,
+            "categories": {scrub_text(k): {"blocked": int(v.get("blocked", 0)), "total": int(v.get("total", 0))}
+                           for k, v in (score.get("categories") or {}).items()},
+            "hostlist_sha256": scrub_text(hostlist.get("sha256") or ""),
+            "hostlist_date": scrub_text(hostlist.get("date") or "")}
+
+
+def _unknown(value: object) -> bool:
+    return not value or str(value).strip().lower() == "unknown"
+
+
+def _gate(run: dict, checks: dict, requests: list[dict], version: object, commit: object,
+          required: tuple[str, ...]) -> list[str]:
+    failures = [f"unexplained request to {q['host']} ({PHASE_TITLES[q['phase']]})"
+                for q in requests if not q["allowed"]]
+    if _unknown(commit):
+        failures.append("the commit is unknown; a release report must name its commit")
+    if _unknown(version):
+        failures.append("the browser version is unknown; a release report must name its version")
     for name in required:
         c = checks.get(name)
         if c is None:
@@ -163,47 +173,51 @@ def build(run: dict, meta: dict, allowlist: list[dict], *, required: tuple[str, 
             failures.append(f"check {name}: {c.get('status')}")
     if run.get("status") != "pass":
         failures.append(f"the Bench run did not pass ({run.get('status')})")
-    if zt:
+    ztd = (checks.get("zero_traffic") or {}).get("data") or {}
+    if "zero_traffic" in checks:
         if float(ztd.get("idle_seconds") or 0) < MIN_IDLE_SECONDS:
             failures.append(f"the idle phase lasted {ztd.get('idle_seconds')} s; a release needs {MIN_IDLE_SECONDS:g} s")
         if (ztd.get("crash_step") or {}).get("status") != "pass":
             failures.append("the crash step of zero_traffic did not pass or did not run")
+        if ztd.get("refusal_counter") is None:
+            failures.append("the request policy's refusal counter could not be read, so refusals are not proven")
     if (run.get("exit") or {}).get("code") != 0:
         failures.append("the browser did not exit cleanly")
+    return failures
 
-    score = ((checks.get("adblock_score") or {}).get("data") or {}).get("score") or {}
-    ov = score.get("overall") or {}
-    total = int(ov.get("total") or 0)
-    hostlist = ((checks.get("adblock_score") or {}).get("data") or {}).get("hostlist") or {}
-    blocking = {"blocked": int(ov.get("blocked") or 0), "total": total,
-                "percent": round(100 * int(ov.get("blocked") or 0) / total, 1) if total else 0.0,
-                "categories": {scrub_text(k): {"blocked": int(v.get("blocked", 0)), "total": int(v.get("total", 0))}
-                               for k, v in (score.get("categories") or {}).items()},
-                "hostlist_sha256": scrub_text(hostlist.get("sha256") or ""),
-                "hostlist_date": scrub_text(hostlist.get("date") or "")}
+
+def build(run: dict, meta: dict, allowlist: policy_model.PolicyTable, *, required: tuple[str, ...] = (),
+          forbidden: tuple[str, ...] = ()) -> dict:
+    """The report document for one recorded run. ``meta``: commit, binary_sha256, binary_name, command."""
+    checks = {c["name"]: c for c in run.get("checks", [])}
+    ztd = (checks.get("zero_traffic") or {}).get("data") or {}
+    requests, phases = _classify_requests((run.get("network") or {}).get("requests", []),
+                                          checks.get("zero_traffic") or {}, allowlist)
+    version = (run.get("binary") or {}).get("version")
+    commit = meta.get("commit")
+    failures = _gate(run, checks, requests, version, commit, required)
 
     def summary(group: str) -> list[dict]:
         return [{"name": scrub_text(n), "status": scrub_text(c.get("status")),
                  "detail": scrub_text(c.get("detail") or "")}
-                for n, c in checks.items() if _is_check_group(n) == group]
+                for n, c in checks.items() if _check_group(n) == group]
 
-    refused_named = [{"host": scrub_text(str(x.get("host", "")).lower()), "phase": x.get("phase")}
-                     for x in ztd.get("refused") or []]
     report = {
         "schema": SCHEMA,
         "title": "Aerie privacy report",
-        "version": scrub_text((run.get("binary") or {}).get("version") or "unknown"),
-        "commit": scrub_text(meta.get("commit") or "unknown"),
+        "version": scrub_text(version or "unknown"),
+        "commit": scrub_text(commit or "unknown"),
         "gate": {"passed": not failures, "failures": [scrub_text(f) for f in failures]},
         "requests": requests,
-        "phases": list(phases.values()),
+        "phases": phases,
         "idle_seconds": ztd.get("idle_seconds"),
-        "blocking": blocking,
+        "blocking": _blocking(checks.get("adblock_score") or {}),
         "fingerprinting": summary("fingerprinting"),
         "hardening": summary("hardening"),
         "netpolicy": {"counter": ztd.get("refusal_counter"),
                       "counter_error": scrub_text(ztd.get("refusal_counter_error") or "") or None,
-                      "refused": refused_named},
+                      "refused": [{"host": scrub_text(str(x.get("host", "")).lower()), "phase": x.get("phase")}
+                                  for x in ztd.get("refused") or []]},
         "rerun": {"command": scrub_text(meta.get("command") or "./aerie bench --report <dir>"),
                   "binary_name": scrub_text(meta.get("binary_name") or ""),
                   "binary_sha256": scrub_text(meta.get("binary_sha256") or "")},
@@ -279,7 +293,10 @@ docs/network-endpoints.md). Only the host and URL path are kept: no query string
 <p>The network service refuses any browser request that is not on the reviewed list. Refusals counted: <strong>{_e(counter)}</strong>.</p>
 {refused}
 <h2>Rerun it yourself</h2>
-<p>Run <code>{_e(rr['command'])}</code> on the same binary.</p>
+<p>Run <code>{_e(rr['command'])}</code></p>
+<p class="mut">Replace <code>&lt;dir&gt;</code> with an empty output directory. <code>--binary ./{_e(rr['binary_name'])}</code>
+stands for the release binary of that name, wherever you unpacked it; with no <code>--binary</code>, the command tests
+the binary that <code>./aerie build</code> makes from this commit. <code>&lt;file&gt;</code> stands for a file you supply.</p>
 <p>Binary <code>{_e(rr['binary_name'])}</code> sha256 <code>{_e(rr['binary_sha256'])}</code></p>
 </body></html>
 """
@@ -287,5 +304,5 @@ docs/network-endpoints.md). Only the host and URL path are kept: no query string
 
 def write(out_dir: Path, report: dict) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / "report.json").write_text(render_json(report))
-    (out_dir / "report.html").write_text(render_html(report))
+    (out_dir / "report.json").write_text(render_json(report), encoding="utf-8")
+    (out_dir / "report.html").write_text(render_html(report), encoding="utf-8")

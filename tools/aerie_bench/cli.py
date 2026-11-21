@@ -224,29 +224,56 @@ def report_checks() -> tuple[str, ...]:
             *sorted(n for n in checks.REGISTRY if n.startswith("hardening_")))
 
 
-def _sha256(path: Path) -> str:
-    import hashlib
-    h = hashlib.sha256()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(1 << 20), b""):
-            h.update(chunk)
-    return h.hexdigest()
+# Flags that change what a run measures, so a re-runner needs them. Path-valued ones become a placeholder.
+_RERUN_FLAGS = (("no_sandbox", "--no-sandbox", "flag"), ("headed", "--headed", "flag"),
+                ("services", "--services", "value"), ("services_wait", "--services-wait", "value"),
+                ("timeout", "--timeout", "value"), ("zero_traffic_idle", "--zero-traffic-idle", "value"),
+                ("zero_traffic_settle", "--zero-traffic-settle", "value"),
+                ("zero_traffic_strict", "--zero-traffic-strict", "flag"),
+                ("zero_traffic_no_crash", "--zero-traffic-no-crash", "flag"),
+                ("widevine_online", "--widevine-online", "value"), ("adblock_online", "--adblock-online", "value"),
+                ("adblock_baseline", "--adblock-baseline", "path"), ("workspaces_enforce", "--workspaces-enforce", "flag"),
+                ("baseline", "--baseline", "path"))
+
+
+def rerun_command(args: argparse.Namespace, binary_name: str, explicit_binary: bool) -> str:
+    """The command that repeats this run, free of local paths: ``<dir>`` for the output directory,
+    ``./<name>`` for an explicit binary (the release binary, wherever it was unpacked), ``<file>`` for a path."""
+    import shlex
+    defaults = argparse.ArgumentParser()
+    add_arguments(defaults, binary_required=False)
+    parts = ["./aerie", "bench", "--report", "<dir>"]
+    if explicit_binary:
+        parts += ["--binary", f"./{binary_name}"]
+    for dest, flag, kind in _RERUN_FLAGS:
+        value = getattr(args, dest, None)
+        if value == defaults.get_default(dest) or value in (None, False):
+            continue
+        parts += [flag] if kind == "flag" else [flag, "<file>" if kind == "path" else str(value)]
+    for extra in args.flag or []:
+        parts += ["--flag", extra]
+    from .privacy_report import scrub_text
+    return scrub_text(" ".join(shlex.quote(p) if p not in ("<dir>", "<file>") else p for p in parts))
 
 
 def _write_privacy_report(args, result, binary: Path, build_root: Path, required: tuple[str, ...]) -> int:
     """Build report.html and report.json from the run; EXIT_FAIL when the release gate fails."""
     import os
 
+    from aerie_build import lock
+    from aerie_netpolicy import model as policy_model
+
     from . import privacy_report
-    repo = Path(__file__).resolve().parents[2]
-    meta = {"commit": _head_commit(repo), "binary_sha256": _sha256(Path(binary)),
-            "binary_name": Path(binary).name, "command": "./aerie bench --report <dir>"}
+    repo = privacy_report.REPO
+    meta = {"commit": _head_commit(repo), "binary_sha256": lock.sha256_file(Path(binary)),
+            "binary_name": Path(binary).name,
+            "command": rerun_command(args, Path(binary).name, explicit_binary=bool(args.binary))}
     forbidden = tuple(x for x in (os.environ.get("HOME"), str(build_root), str(repo), str(Path(binary).parent),
                                   str(result.out_dir)) if x and len(x) > 1)
     try:
         report = privacy_report.build(result.data, meta, privacy_report.load_default_allowlist(),
                                       required=required, forbidden=forbidden)
-    except (privacy_report.ReportError, policy_model_error()) as exc:
+    except (privacy_report.ReportError, policy_model.PolicyDocError) as exc:
         print(f"aerie bench: error: privacy report: {exc}", file=sys.stderr)
         return EXIT_HARNESS
     privacy_report.write(Path(args.report), report)
@@ -259,11 +286,6 @@ def _write_privacy_report(args, result, binary: Path, build_root: Path, required
     for f in gate["failures"]:
         print(f"  {f}")
     return EXIT_FAIL
-
-
-def policy_model_error():
-    from aerie_netpolicy import model
-    return model.PolicyDocError
 
 
 def _record_sidebar_frames(args, result) -> None:

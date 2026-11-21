@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import os
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 GENERATED_PATH = "overlay/services/network/aerie/request_allowlist.inc"
@@ -39,6 +39,25 @@ class PolicyTable:
     hosts: list[tuple[str, str]]
     user: list[str]
     site: list[str]
+    # Why each (annotation, host) row is allowed, as written in the doc.
+    reasons: dict[tuple[str, str], str] = field(default_factory=dict)
+
+    def explain(self, host: str) -> tuple[str, str] | None:
+        """(annotation, reason) of the first host row that allows ``host``, or None."""
+        for annotation, allowed in self.hosts:
+            if host_matches(host, allowed):
+                return annotation, self.reasons.get((annotation, allowed), "")
+        return None
+
+
+def host_matches(host: str, allowed: str) -> bool:
+    """``host`` is ``allowed`` or a subdomain of it, on label boundaries; a trailing dot is ignored.
+
+    The same rule as ``HostMatches`` in services/network/aerie/request_policy.cc."""
+    host = host.lower()
+    if host.endswith("."):
+        host = host[:-1]
+    return host == allowed or host.endswith("." + allowed)
 
 
 def _block(text: str, name: str) -> list[str]:
@@ -92,6 +111,7 @@ def _directed(text: str, name: str) -> list[str]:
 
 def parse_doc(text: str) -> PolicyTable:
     hosts: list[tuple[str, str]] = []
+    reasons: dict[tuple[str, str], str] = {}
     for line in _block(text, "hosts"):
         cells = _cells(line)
         if cells is None or cells[0] == "Annotation":
@@ -106,6 +126,7 @@ def parse_doc(text: str) -> PolicyTable:
         if (annotation, host) in hosts:
             raise PolicyDocError(f"duplicate row {annotation} / {host}")
         hosts.append((annotation, host))
+        reasons[(annotation, host)] = cells[2]
     if not hosts:
         raise PolicyDocError("the hosts table is empty")
     user, site = _directed(text, "user"), _directed(text, "site")
@@ -115,7 +136,7 @@ def parse_doc(text: str) -> PolicyTable:
             if name in seen:
                 raise PolicyDocError(f"annotation {name!r} is in both the {seen[name]} and the {group} table")
             seen[name] = group
-    return PolicyTable(hosts, user, site)
+    return PolicyTable(hosts, user, site, reasons)
 
 
 def render(table: PolicyTable) -> str:
