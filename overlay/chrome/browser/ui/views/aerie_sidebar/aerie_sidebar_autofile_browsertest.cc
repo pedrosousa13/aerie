@@ -33,6 +33,7 @@
 #include "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
+#include "components/aerie_tab_model/folder_behaviour.h"
 #include "components/aerie_tab_model/folder_rules.h"
 #include "components/aerie_tab_model/folder_tree.h"
 #include "components/aerie_tab_model/tab_model.h"
@@ -49,10 +50,12 @@
 #include "ui/views/controls/button/button.h"
 #include "ui/views/controls/button/label_button.h"
 #include "ui/views/controls/combobox/combobox.h"
+#include "ui/views/controls/label.h"
 #include "ui/views/controls/button/image_button.h"
 #include "ui/views/controls/textfield/textfield.h"
 #include "ui/views/focus/focus_manager.h"
 #include "ui/views/test/button_test_api.h"
+#include "ui/views/test/combobox_test_api.h"
 #include "ui/views/view_utils.h"
 #include "ui/views/widget/widget.h"
 
@@ -613,18 +616,18 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarFolderSheetBrowserTest,
 }
 
 IN_PROC_BROWSER_TEST_F(AerieSidebarFolderSheetBrowserTest,
-                       TheSheetKeepsTheSmartBodyHiddenForAnAutoFolderAndTheBehaviourSlotEmpty) {
+                       TheSheetKeepsTheSmartBodyHiddenForAnAutoFolderAndShowsTheBehaviourSection) {
   const std::string folder =
       MakeAutoFolder("Trips", RuleType::kDomain, "trips.localhost");
   AerieSidebarFolderSheet* sheet = OpenSheet(folder);
   ASSERT_TRUE(sheet->smart_body_slot());
   ASSERT_TRUE(sheet->behaviour_slot());
   // The Smart body (issue #140) is one line, shown for a Smart folder only; the
-  // Behaviour slot (#141) is still empty.
+  // Behaviour section (#141) is shown for every other kind.
   EXPECT_EQ(sheet->smart_body_slot()->children().size(), 1u);
-  EXPECT_TRUE(sheet->behaviour_slot()->children().empty());
+  EXPECT_FALSE(sheet->behaviour_slot()->children().empty());
   EXPECT_FALSE(sheet->smart_body_slot()->GetVisible());
-  EXPECT_FALSE(sheet->behaviour_slot()->GetVisible());
+  EXPECT_TRUE(sheet->behaviour_slot()->GetVisible());
   sheet->Dismiss(false);
   CloseSheetAndWait();
 }
@@ -649,4 +652,192 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarFolderSheetBrowserTest,
   EXPECT_EQ(again.rules.size(), 1u);
   EXPECT_EQ(again.rules[0].value, "Café");
   EXPECT_EQ(again.excluded_hosts.size(), 1u);
+}
+
+// --- Behaviour (issue #141) ---
+
+using Behaviour = AerieSidebarFolderSheet::Behaviour;
+
+std::string NameOf(views::View* view) {
+  return DataOf(view).GetStringAttribute(ax::mojom::StringAttribute::kName);
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarFolderSheetBrowserTest,
+                       TheBehaviourSectionNamesEachRowAndItsStateForAssistiveTools) {
+  const std::string folder = aerie_tab_model::CreateFolder(
+      *model(), Section::kToday, std::string(), "Reading");
+  ASSERT_FALSE(folder.empty());
+  AerieSidebarFolderSheet* sheet = OpenSheet(folder);
+  ASSERT_TRUE(sheet->behaviour_slot()->GetVisible());
+  EXPECT_EQ(DataOf(sheet->behaviour_slot()).role, ax::mojom::Role::kGroup);
+  EXPECT_EQ(NameOf(sheet->behaviour_slot()), "Behaviour");
+  for (Behaviour b : {Behaviour::kArchive, Behaviour::kSleep, Behaviour::kLinks}) {
+    EXPECT_EQ(DataOf(sheet->behaviour_switch(b)).role, ax::mojom::Role::kSwitch);
+    EXPECT_FALSE(NameOf(sheet->behaviour_switch(b)).empty());
+    // Off: the value is disabled and the row says where it comes from.
+    EXPECT_EQ(DataOf(sheet->behaviour_switch(b)).GetCheckedState(),
+              ax::mojom::CheckedState::kFalse);
+    EXPECT_FALSE(sheet->behaviour_value(b)->GetEnabled());
+    EXPECT_EQ(sheet->behaviour_source(b)->GetText(), u"Inherits global");
+  }
+  // The full names: "<behaviour>, <where from>, <value>" for a row that
+  // inherits, and "<behaviour>, <value>" for one that sets its own.
+  EXPECT_EQ(NameOf(sheet->behaviour_switch(Behaviour::kArchive)),
+            "Set Auto-archive for this folder");
+  EXPECT_EQ(NameOf(sheet->behaviour_value(Behaviour::kArchive)),
+            "Auto-archive, Inherits global, 12 hours");
+  EXPECT_EQ(NameOf(sheet->behaviour_value(Behaviour::kSleep)),
+            "Sleep tabs after, Inherits global, 1 hour");
+  EXPECT_EQ(NameOf(sheet->behaviour_value(Behaviour::kLinks)),
+            "Links open, Inherits global, In a new tab");
+  ASSERT_TRUE(aerie_tab_model::SetFolderArchiveAfter(
+      *model(), folder, aerie_tab_model::ArchiveChoice::k24Hours));
+  ASSERT_TRUE(aerie_tab_model::SetFolderSleepAfter(*model(), folder, 30));
+  ASSERT_TRUE(aerie_tab_model::SetFolderLinksOpen(
+      *model(), folder, aerie_tab_model::LinksOpen::kInPlace));
+  sheet->FlushForTesting();
+  EXPECT_EQ(NameOf(sheet->behaviour_value(Behaviour::kArchive)),
+            "Auto-archive, 24 hours");
+  EXPECT_EQ(NameOf(sheet->behaviour_value(Behaviour::kSleep)),
+            "Sleep tabs after, 30 minutes");
+  EXPECT_EQ(NameOf(sheet->behaviour_value(Behaviour::kLinks)),
+            "Links open, In place");
+  EXPECT_EQ(DataOf(sheet->behaviour_switch(Behaviour::kSleep)).GetCheckedState(),
+            ax::mojom::CheckedState::kTrue);
+  sheet->Dismiss(false);
+  CloseSheetAndWait();
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarFolderSheetBrowserTest,
+                       ASwitchAppliesAtOnceAndTheValuesSurviveARestartOfTheModel) {
+  const std::string folder = aerie_tab_model::CreateFolder(
+      *model(), Section::kToday, std::string(), "Reading");
+  AerieSidebarFolderSheet* sheet = OpenSheet(folder);
+  // Switching a row on starts at the value it inherits.
+  ui::MouseEvent press(ui::EventType::kMousePressed, gfx::Point(2, 2),
+                       gfx::Point(2, 2), base::TimeTicks::Now(),
+                       ui::EF_LEFT_MOUSE_BUTTON, ui::EF_LEFT_MOUSE_BUTTON);
+  ui::MouseEvent release(ui::EventType::kMouseReleased, gfx::Point(2, 2),
+                         gfx::Point(2, 2), base::TimeTicks::Now(),
+                         ui::EF_LEFT_MOUSE_BUTTON, ui::EF_LEFT_MOUSE_BUTTON);
+  for (Behaviour b : {Behaviour::kArchive, Behaviour::kSleep, Behaviour::kLinks}) {
+    sheet->behaviour_switch(b)->OnMousePressed(press);
+    sheet->behaviour_switch(b)->OnMouseReleased(release);
+  }
+  const aerie_tab_model::FolderBehaviour on =
+      aerie_tab_model::ReadFolderBehaviour(*model()->GetFolder(folder));
+  EXPECT_EQ(on.archive_after, aerie_tab_model::ArchiveChoice::k12Hours);
+  EXPECT_EQ(on.sleep_after_minutes, 60);
+  EXPECT_EQ(on.links, aerie_tab_model::LinksOpen::kNewTab);
+
+  // Pick values in the drop-downs.
+  sheet->FlushForTesting();
+  views::test::ComboboxTestApi(sheet->behaviour_value(Behaviour::kArchive))
+      .PerformActionAt(3);
+  views::test::ComboboxTestApi(sheet->behaviour_value(Behaviour::kSleep))
+      .PerformActionAt(0);
+  views::test::ComboboxTestApi(sheet->behaviour_value(Behaviour::kLinks))
+      .PerformActionAt(1);
+  const aerie_tab_model::FolderBehaviour own =
+      aerie_tab_model::ReadFolderBehaviour(*model()->GetFolder(folder));
+  EXPECT_EQ(own.archive_after, aerie_tab_model::ArchiveChoice::k7Days);
+  EXPECT_EQ(own.sleep_after_minutes, 15);
+  EXPECT_EQ(own.links, aerie_tab_model::LinksOpen::kInPlace);
+
+  // What a restart reads back is the same record.
+  aerie_tab_model::FolderRecord copy;
+  copy.behaviour = model()->GetFolder(folder)->behaviour->Clone();
+  const aerie_tab_model::FolderBehaviour again =
+      aerie_tab_model::ReadFolderBehaviour(copy);
+  EXPECT_EQ(again.archive_after, aerie_tab_model::ArchiveChoice::k7Days);
+  EXPECT_EQ(again.sleep_after_minutes, 15);
+  EXPECT_EQ(again.links, aerie_tab_model::LinksOpen::kInPlace);
+
+  // Switching a row off goes back to inheriting.
+  sheet->FlushForTesting();
+  sheet->behaviour_switch(Behaviour::kSleep)->OnMousePressed(press);
+  sheet->behaviour_switch(Behaviour::kSleep)->OnMouseReleased(release);
+  EXPECT_FALSE(aerie_tab_model::ReadFolderBehaviour(*model()->GetFolder(folder))
+                   .sleep_after_minutes);
+  sheet->Dismiss(false);
+  CloseSheetAndWait();
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarFolderSheetBrowserTest,
+                       ARowSaysWhichFolderAboveItSetsTheValueItInherits) {
+  const std::string outer = aerie_tab_model::CreateFolder(
+      *model(), Section::kToday, std::string(), "Outer");
+  const std::string inner = aerie_tab_model::CreateFolder(
+      *model(), Section::kToday, outer, "Inner");
+  ASSERT_TRUE(aerie_tab_model::SetFolderLinksOpen(
+      *model(), outer, aerie_tab_model::LinksOpen::kInPlace));
+  AerieSidebarFolderSheet* sheet = OpenSheet(inner);
+  EXPECT_EQ(sheet->behaviour_source(Behaviour::kLinks)->GetText(),
+            u"Inherits from Outer");
+  EXPECT_EQ(sheet->behaviour_value(Behaviour::kLinks)->GetModel()->GetItemAt(0),
+            u"In place");
+  EXPECT_EQ(sheet->behaviour_source(Behaviour::kSleep)->GetText(),
+            u"Inherits global");
+  sheet->Dismiss(false);
+  CloseSheetAndWait();
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarFolderSheetBrowserTest,
+                       InAPinnedFolderArchiveIsOffAndDisabledWithANote) {
+  const std::string folder = aerie_tab_model::CreateFolder(
+      *model(), Section::kPinned, std::string(), "Work");
+  AerieSidebarFolderSheet* sheet = OpenSheet(folder);
+  EXPECT_FALSE(sheet->behaviour_switch(Behaviour::kArchive)->GetEnabled());
+  EXPECT_FALSE(sheet->behaviour_switch(Behaviour::kArchive)->on());
+  EXPECT_TRUE(sheet->behaviour_pinned_note()->GetVisible());
+  EXPECT_EQ(sheet->behaviour_pinned_note()->GetText(),
+            u"Pinned tabs never archive");
+  // The other two behaviours work in a Pinned folder.
+  EXPECT_TRUE(sheet->behaviour_switch(Behaviour::kSleep)->GetEnabled());
+  EXPECT_TRUE(sheet->behaviour_switch(Behaviour::kLinks)->GetEnabled());
+  sheet->Dismiss(false);
+  CloseSheetAndWait();
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarFolderSheetBrowserTest,
+                       ASettingsChangeShowsInARowThatInheritsAtOnce) {
+  const std::string folder = aerie_tab_model::CreateFolder(
+      *model(), Section::kToday, std::string(), "Reading");
+  AerieSidebarFolderSheet* sheet = OpenSheet(folder);
+  prefs()->SetString(aerie_tab_model::kLinksOpen,
+                     aerie_tab_model::kLinksOpenInPlace);
+  sheet->FlushForTesting();
+  EXPECT_EQ(sheet->behaviour_value(Behaviour::kLinks)->GetModel()->GetItemAt(0),
+            u"In place");
+  sheet->Dismiss(false);
+  CloseSheetAndWait();
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarFolderSheetBrowserTest,
+                       ASmartFolderEditorHasNoBehaviourSection) {
+  const std::string folder = aerie_tab_model::CreateFolder(
+      *model(), Section::kToday, std::string(), "Open docs");
+  int moved = 0;
+  ASSERT_TRUE(aerie_tab_model::SetFolderRuleKind(*model(), folder,
+                                                 FolderKind::kSmart, &moved));
+  ASSERT_FALSE(aerie_tab_model::AddRule(*model(), folder, RuleType::kDomain,
+                                        "docs.localhost")
+                   .empty());
+  AerieSidebarFolderSheet* sheet = OpenSheet(folder);
+  sheet->FlushForTesting();
+  // The Smart body shows; the Behaviour section does not, and none of its
+  // controls can be reached.
+  EXPECT_TRUE(sheet->smart_body_slot()->GetVisible());
+  EXPECT_FALSE(sheet->behaviour_slot()->GetVisible());
+  for (Behaviour b : {Behaviour::kArchive, Behaviour::kSleep, Behaviour::kLinks}) {
+    EXPECT_FALSE(sheet->behaviour_switch(b)->IsDrawn());
+    EXPECT_FALSE(sheet->behaviour_value(b)->IsDrawn());
+  }
+  // Switching the folder to Manual brings the section back.
+  ASSERT_TRUE(aerie_tab_model::SetFolderRuleKind(*model(), folder,
+                                                 FolderKind::kManual, &moved));
+  sheet->FlushForTesting();
+  EXPECT_TRUE(sheet->behaviour_slot()->GetVisible());
+  sheet->Dismiss(false);
+  CloseSheetAndWait();
 }

@@ -24,6 +24,7 @@
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/grit/generated_resources.h"
+#include "components/aerie_tab_model/folder_behaviour.h"
 #include "components/aerie_tab_model/tab_model.h"
 #include "components/aerie_tab_model/tab_model_prefs.h"
 #include "components/performance_manager/public/graph/page_node.h"
@@ -138,6 +139,9 @@ SleepController::SleepController(Profile* profile,
                 base::BindRepeating(&SleepController::OnDue,
                                     base::Unretained(this))) {
   schedule_.SetDelay(service_->sleep_after());
+  schedule_.SetDelayOverride(base::BindRepeating(
+      &SleepController::DelayForTab, base::Unretained(this)));
+  model_observation_.Observe(service_->model());
   pref_registrar_.Init(profile_->GetPrefs());
   pref_registrar_.Add(kSleepAfterMinutes,
                       base::BindRepeating(&SleepController::OnSleepAfterChanged,
@@ -154,6 +158,7 @@ SleepController::SleepController(Profile* profile,
 SleepController::~SleepController() = default;
 
 void SleepController::Shutdown() {
+  model_observation_.Reset();
   browser_collection_observation_.Reset();
   pref_registrar_.RemoveAll();
 }
@@ -296,6 +301,31 @@ bool SleepController::OnDue(SleepSchedule::Key key) {
     return true;
   }
   return Sleep(tab, Request::kIdleTimer);
+}
+
+std::optional<base::TimeDelta> SleepController::DelayForTab(
+    SleepSchedule::Key key,
+    std::optional<base::TimeDelta> global) const {
+  TabStripAdapter* adapter = service_->adapter();
+  tabs::TabInterface* tab = tabs::TabHandle(key).Get();
+  if (!adapter || !tab) {
+    return global;
+  }
+  const std::string id = adapter->RecordIdForTab(tab);
+  const TabRecord* record = id.empty() ? nullptr : service_->model()->GetTab(id);
+  if (!record) {
+    return global;
+  }
+  GlobalBehaviour values;
+  values.sleep_after = global;
+  return EffectiveSleepAfter(*service_->model(), *record, values);
+}
+
+void SleepController::OnTabMoved(const TabRecord& tab, const Placement& from) {
+  // Only a change of folder can change the time.
+  if (tab.parent != from.parent) {
+    schedule_.Rearm();
+  }
 }
 
 void SleepController::OnSleepAfterChanged() {

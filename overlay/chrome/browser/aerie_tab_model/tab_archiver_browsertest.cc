@@ -37,6 +37,7 @@
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/aerie_tab_model/archive.h"
+#include "components/aerie_tab_model/folder_behaviour.h"
 #include "components/aerie_tab_model/folder_tree.h"
 #include "components/aerie_tab_model/tab_model.h"
 #include "components/aerie_tab_model/tab_model_prefs.h"
@@ -256,6 +257,83 @@ IN_PROC_BROWSER_TEST_F(AerieTabArchiverBrowserTest,
   prefs()->SetString(kArchiveAfter, "24h");
   AdvanceClock(base::Seconds(1));
   EXPECT_TRUE(IsArchived(id));
+}
+
+IN_PROC_BROWSER_TEST_F(AerieTabArchiverBrowserTest,
+                       ANeverFolderKeepsItsTabsWhileSiblingsArchiveAtTheGlobalTimeout) {
+  const std::string kept = OpenBackgroundTab("/title1.html");
+  const std::string sibling = OpenBackgroundTab("/title2.html");
+  const std::string folder =
+      CreateFolder(*model(), Section::kToday, std::string(), "Keep");
+  ASSERT_TRUE(MoveTabToFolder(*model(), kept, folder));
+  ASSERT_TRUE(SetFolderArchiveAfter(*model(), folder, ArchiveChoice::kNever));
+  UseNow(kept);
+  UseNow(sibling);
+  AdvanceClock(base::Hours(12));
+  EXPECT_TRUE(IsArchived(sibling));
+  EXPECT_FALSE(IsArchived(kept));
+  AdvanceClock(base::Days(30));
+  EXPECT_FALSE(IsArchived(kept));
+  // The folder's switch goes off: the tab follows the global timeout again.
+  ASSERT_TRUE(SetFolderArchiveAfter(*model(), folder, std::nullopt));
+  AdvanceClock(base::Seconds(1));
+  EXPECT_TRUE(IsArchived(kept));
+}
+
+IN_PROC_BROWSER_TEST_F(AerieTabArchiverBrowserTest,
+                       AFolderOwnTimeoutArchivesItsTabsAtThatTimeout) {
+  const std::string inside = OpenBackgroundTab("/title1.html");
+  const std::string folder =
+      CreateFolder(*model(), Section::kToday, std::string(), "Day");
+  ASSERT_TRUE(MoveTabToFolder(*model(), inside, folder));
+  ASSERT_TRUE(SetFolderArchiveAfter(*model(), folder, ArchiveChoice::k24Hours));
+  UseNow(inside);
+  AdvanceClock(base::Hours(23) + base::Minutes(59));
+  EXPECT_FALSE(IsArchived(inside));
+  AdvanceClock(base::Minutes(1));
+  EXPECT_TRUE(IsArchived(inside));
+}
+
+IN_PROC_BROWSER_TEST_F(AerieTabArchiverBrowserTest,
+                       TheSelectedAndTheAudibleTabStayExemptInAFolderWithItsOwnTimeout) {
+  const std::string folder =
+      CreateFolder(*model(), Section::kToday, std::string(), "Day");
+  const std::string selected = IdAt(0);
+  ASSERT_TRUE(MoveTabToFolder(*model(), selected, folder));
+  const std::string audible = OpenBackgroundTab("/title1.html");
+  ASSERT_TRUE(MoveTabToFolder(*model(), audible, folder));
+  const std::string quiet = OpenBackgroundTab("/title2.html");
+  ASSERT_TRUE(MoveTabToFolder(*model(), quiet, folder));
+  ASSERT_TRUE(SetFolderArchiveAfter(*model(), folder, ArchiveChoice::k24Hours));
+  for (const std::string& id : {selected, audible, quiet}) {
+    UseNow(id);
+  }
+  content::WebContents* contents = strip()->GetWebContentsAt(IndexOf(audible));
+  ASSERT_TRUE(content::ExecJs(contents, R"(
+      globalThis.ctx = new AudioContext();
+      const osc = ctx.createOscillator();
+      osc.connect(ctx.destination);
+      osc.start();
+      ctx.resume();)"));
+  ASSERT_TRUE(WaitFor([&] { return contents->IsCurrentlyAudible(); }));
+  AdvanceClock(base::Days(2));
+  EXPECT_TRUE(IsArchived(quiet));
+  EXPECT_FALSE(IsArchived(selected));
+  EXPECT_FALSE(IsArchived(audible));
+}
+
+IN_PROC_BROWSER_TEST_F(AerieTabArchiverBrowserTest,
+                       AFolderSettingAppliesAtOnceAndAtMostOneTimerIsPending) {
+  const std::string tab = OpenBackgroundTab();
+  const std::string folder =
+      CreateFolder(*model(), Section::kToday, std::string(), "F");
+  ASSERT_TRUE(MoveTabToFolder(*model(), tab, folder));
+  UseNow(tab);
+  EXPECT_EQ(archiver_->schedule()->next_fire_in(), base::Hours(12));
+  ASSERT_TRUE(SetFolderArchiveAfter(*model(), folder, ArchiveChoice::k7Days));
+  EXPECT_EQ(archiver_->schedule()->next_fire_in(), base::Days(7));
+  ASSERT_TRUE(SetFolderArchiveAfter(*model(), folder, ArchiveChoice::kNever));
+  EXPECT_FALSE(archiver_->schedule()->timer_pending());
 }
 
 IN_PROC_BROWSER_TEST_F(AerieTabArchiverBrowserTest,

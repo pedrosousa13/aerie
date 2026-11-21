@@ -37,6 +37,8 @@ class RepoOverlayTest(unittest.TestCase):
                                             "chrome/browser/ui/webui/aerie_appearance_settings/", "chrome/browser/ui/webui/aerie_title_rules/", "chrome/browser/ui/webui/aerie_arc_import/", "chrome/browser/resources/settings/people_page/aerie_arc_import_", "components/aerie_design_tokens/",
                                             "chrome/browser/resources/settings/appearance_page/aerie_archive_after_row.",
                                             "chrome/browser/resources/settings/appearance_page/aerie_archive_keep_row.",
+                                            "chrome/browser/resources/settings/appearance_page/aerie_links_open_row.",
+                                            "content/public/browser/aerie_created_window_info.h",
                                             "components/aerie_tab_model/", "chrome/browser/aerie_tab_model/", "chrome/browser/aerie_network/", "services/network/aerie/", "components/aerie_alpha_notice/",
                                             "components/aerie_sidebar/", "chrome/browser/ui/views/aerie_sidebar/",
                                             "components/aerie_frame/", "chrome/browser/ui/views/aerie_frame/",

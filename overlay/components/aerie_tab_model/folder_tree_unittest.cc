@@ -467,6 +467,42 @@ TEST_F(FolderTreeTest, MoveTabToFolderPutsTheTabLastAndRespectsTheLimit) {
   EXPECT_FALSE(MoveTabToFolder(model_, "nope", folder));
 }
 
+TEST_F(FolderTreeTest, MoveTabAfterPutsTheTabRightAfterItsSiblingInTheFolder) {
+  const std::string folder = Folder("F");
+  const std::string a = Tab(folder, 0);
+  const std::string b = Tab(folder, 1);
+  const std::string c = Tab(folder, 2);
+  const std::string outside = Tab(std::string(), 5);
+  ASSERT_TRUE(MoveTabAfter(model_, outside, a));
+  EXPECT_EQ(model_.GetTab(outside)->parent, folder);
+  EXPECT_EQ(Ids(BuildVisibleRows(model_, Section::kToday, All)),
+            (std::vector<std::string>{folder, a, outside, b, c}));
+  // The positions are all different afterwards.
+  EXPECT_EQ(model_.GetTab(a)->position, 0);
+  EXPECT_EQ(model_.GetTab(outside)->position, 1);
+  EXPECT_EQ(model_.GetTab(b)->position, 2);
+  EXPECT_EQ(model_.GetTab(c)->position, 3);
+}
+
+TEST_F(FolderTreeTest, MoveTabAfterTheLastSiblingPutsTheTabLast) {
+  const std::string folder = Folder("F");
+  const std::string a = Tab(folder, 0);
+  const std::string b = Tab(folder, 7);
+  const std::string outside = Tab(std::string(), 5);
+  ASSERT_TRUE(MoveTabAfter(model_, outside, b));
+  EXPECT_EQ(Ids(BuildVisibleRows(model_, Section::kToday, All)),
+            (std::vector<std::string>{folder, a, b, outside}));
+}
+
+TEST_F(FolderTreeTest, MoveTabAfterRefusesWhatItCannotDo) {
+  const std::string a = Tab(std::string(), 0);
+  const std::string favorite = Tab(std::string(), 1, Section::kFavorite);
+  EXPECT_FALSE(MoveTabAfter(model_, a, a));
+  EXPECT_FALSE(MoveTabAfter(model_, a, "nope"));
+  EXPECT_FALSE(MoveTabAfter(model_, "nope", a));
+  EXPECT_FALSE(MoveTabAfter(model_, a, favorite));
+}
+
 TEST_F(FolderTreeTest, MoveTabOutPutsItNextToTheFolderItLeaves) {
   const std::string folder = Folder("F", std::string(), 3);
   const std::string inside = Tab(folder, 0);

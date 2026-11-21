@@ -16,6 +16,7 @@ void RegisterProfilePrefs(PrefRegistrySimple* registry) {
   registry->RegisterStringPref(kArchiveKeep, kDefaultArchiveKeep);
   registry->RegisterIntegerPref(kSleepAfterMinutes, kDefaultSleepAfterMinutes);
   registry->RegisterStringPref(kPinnedClose, kDefaultPinnedClose);
+  registry->RegisterStringPref(kLinksOpen, kLinksOpenNewTab);
   registry->RegisterBooleanPref(kFolderRulesEnabled, true);
   registry->RegisterBooleanPref(kTidyTitles, true);
   registry->RegisterListPref(kTidyOffSites);
@@ -71,6 +72,19 @@ std::optional<base::TimeDelta> GetArchiveKeep(const PrefService& prefs) {
 
 std::optional<base::TimeDelta> GetSleepAfter(const PrefService& prefs) {
   return SleepAfterFromMinutes(prefs.GetInteger(kSleepAfterMinutes));
+}
+
+LinksOpen GetLinksOpen(const PrefService& prefs) {
+  return LinksOpenFromString(prefs.GetString(kLinksOpen))
+      .value_or(LinksOpen::kNewTab);
+}
+
+GlobalBehaviour GetGlobalBehaviour(const PrefService& prefs) {
+  GlobalBehaviour global;
+  global.archive_after = GetArchiveAfter(prefs);
+  global.sleep_after = GetSleepAfter(prefs);
+  global.links = GetLinksOpen(prefs);
+  return global;
 }
 
 bool AreFolderRulesEnabled(const PrefService& prefs) {

@@ -183,3 +183,8 @@ sidebar/0052-add-the-import-from-arc-row-to-settings.patch
 
 # Crash reports page (#262): the Crash reports section of Settings, its menu entry, strings and message handler.
 crash/0003-add-the-crash-reports-settings-page.patch
+
+# Folder behaviour (#141): the "Links open" row in the Sidebar section of Settings, and the one call chrome::Navigate makes to open a link in place.
+sidebar/0053-add-the-links-open-row-to-the-sidebar-section-of-settings.patch
+sidebar/0054-let-a-folder-open-links-in-place-from-chrome-navigate.patch
+sidebar/0055-leave-the-referrer-and-the-form-flag-of-a-new-window-on-its-contents.patch

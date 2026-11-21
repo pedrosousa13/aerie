@@ -148,6 +148,51 @@ TEST_F(SleepScheduleTest, APerTabHookCanOverrideTheDelay) {
   EXPECT_FALSE(schedule_.timer_pending());
 }
 
+TEST_F(SleepScheduleTest, RearmReadsTheOverrideAgain) {
+  std::optional<base::TimeDelta> for_two = base::Minutes(5);
+  schedule_.SetDelayOverride(base::BindRepeating(
+      [](std::optional<base::TimeDelta>* answer, SleepSchedule::Key key,
+         std::optional<base::TimeDelta> global) {
+        return key == 2 ? *answer : global;
+      },
+      base::Unretained(&for_two)));
+  schedule_.Touch(2);
+  EXPECT_EQ(schedule_.next_fire_in(), base::Minutes(5));
+  // The folder of tab 2 now says 15 minutes; nothing else told the schedule.
+  for_two = base::Minutes(15);
+  schedule_.Rearm();
+  EXPECT_EQ(schedule_.next_fire_in(), base::Minutes(15));
+  // And "never".
+  for_two = std::nullopt;
+  schedule_.Rearm();
+  EXPECT_FALSE(schedule_.timer_pending());
+}
+
+TEST_F(SleepScheduleTest, OneTimerIsPendingWhateverTheOverridesSay) {
+  schedule_.SetDelayOverride(base::BindRepeating(
+      [](SleepSchedule::Key key, std::optional<base::TimeDelta> global)
+          -> std::optional<base::TimeDelta> {
+        switch (key % 4) {
+          case 0:
+            return base::Minutes(15);
+          case 1:
+            return base::Hours(8);
+          case 2:
+            return std::nullopt;
+          default:
+            return global;
+        }
+      }));
+  for (int key = 0; key < 40; ++key) {
+    schedule_.Touch(key);
+  }
+  schedule_.Rearm();
+  EXPECT_TRUE(schedule_.timer_pending());
+  EXPECT_EQ(task_environment_.GetPendingMainThreadTaskCount(), 1u);
+  task_environment_.FastForwardBy(base::Minutes(16));
+  EXPECT_EQ(task_environment_.GetPendingMainThreadTaskCount(), 1u);
+}
+
 TEST_F(SleepScheduleTest, RunDueNowReadsTheClockForTestsThatMoveIt) {
   schedule_.Touch(1);
   schedule_.RunDueNow();

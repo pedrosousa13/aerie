@@ -23,9 +23,10 @@
 
 namespace aerie_tab_model {
 
-// The timeout that applies to `tab` (issue #183): the global archive delay now.
-// Folder behaviour (issue #141, slice L) will override it per folder here, and
-// the archiver needs no other change. nullopt means never.
+// The timeout that applies to `tab` (issues #183 and #141): the nearest folder
+// above the tab that sets its own auto-archive wins, else `global` (see
+// EffectiveArchiveAfter in folder_behaviour.h). A tab in Pinned never archives.
+// nullopt means never.
 std::optional<base::TimeDelta> EffectiveArchiveTimeout(
     const TabModel& model,
     const TabRecord& tab,
@@ -99,6 +100,14 @@ class ArchiveSchedule : public TabModelObserver {
   void OnTabMoved(const TabRecord&, const Placement&) override { Rearm(); }
   void OnTabRemoved(const TabRecord&) override { Rearm(); }
   void OnModelLoaded() override { Rearm(); }
+  // A folder's own timeout is in its record (issue #141): a change of it, or a
+  // move of the folder to another place, can change when a tab is due.
+  void OnFolderAdded(const FolderRecord&) override { Rearm(); }
+  void OnFolderChanged(const FolderRecord&) override { Rearm(); }
+  void OnFolderMoved(const FolderRecord&, const Placement&) override {
+    Rearm();
+  }
+  void OnFolderRemoved(const FolderRecord&) override { Rearm(); }
 
  private:
   // The moment `tab` is due if nothing exempts it, or nullopt when it is not a

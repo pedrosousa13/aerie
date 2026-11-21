@@ -16,6 +16,14 @@ source_set("pinned_close_hook") {
   sources = [ "pinned_close_hook.h" ]
 }
 
+# The one call that chrome::Navigate makes to apply "Links open" (issue #141,
+# patches/sidebar/0054). A header with no dependencies, for the same reason as
+# pinned_close_hook; its definition is in links_open_hook.cc.
+source_set("links_open_hook") {
+  visibility = [ "//chrome/*" ]
+  sources = [ "links_open_hook.h" ]
+}
+
 # The two calls that session restore and the session service make to save and
 # read back a Today tab's record id (issue #223, patches/sidebar/0039 and 0040).
 # A header with no dependencies, for the same reason as pinned_close_hook; its
@@ -43,6 +51,7 @@ source_set("aerie_tab_model") {
     "tab_strip_adapter.h",
   ]
   sources = [
+    "links_open_hook.cc",
     "pinned_tabs_controller.cc",
     "pinned_tabs_controller.h",
     "restore_pass.cc",
@@ -69,6 +78,7 @@ source_set("aerie_tab_model") {
     "//components/tabs:public",
   ]
   deps = [
+    ":links_open_hook",
     ":pinned_close_hook",
     ":session_record_id_hook",
     "//chrome/app:generated_resources",
@@ -79,6 +89,7 @@ source_set("aerie_tab_model") {
     "//chrome/browser/resource_coordinator:mojo_bindings",
     "//chrome/browser/sessions",
     "//chrome/browser/tab_list",
+    "//chrome/browser/ui/navigator",
     "//chrome/browser/ui/tabs:tab_strip",
     "//chrome/common",
     "//components/aerie_design_tokens:motion",
@@ -86,6 +97,7 @@ source_set("aerie_tab_model") {
     "//components/performance_manager",
     "//components/sessions",
     "//content/public/browser",
+    "//services/network/public/mojom:mojom_web_sandbox_flags",
     "//ui/base",
     "//url",
   ]
@@ -98,6 +110,7 @@ source_set("browser_tests") {
   # content/public/test/browser_test.h refuses to compile without it.
   defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
   sources = [
+    "links_open_browsertest.cc",
     "restore_join_browsertest.cc",
     "sleep_controller_browsertest.cc",
     "tab_archiver_browsertest.cc",
@@ -115,7 +128,10 @@ source_set("browser_tests") {
     "//components/aerie_tab_model:prefs",
     "//components/performance_manager",
     "//components/prefs",
+    "//content/public/browser",
     "//content/test:test_support",
     "//net:test_support",
+    "//third_party/blink/public/common",
+    "//url",
   ]
 }

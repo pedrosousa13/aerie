@@ -9,6 +9,7 @@
 #include <string_view>
 
 #include "base/time/time.h"
+#include "components/aerie_tab_model/folder_behaviour.h"
 #include "components/aerie_tab_model/title_settings.h"
 
 class PrefRegistrySimple;
@@ -27,6 +28,13 @@ inline constexpr char kArchiveKeep[] = "aerie.tabs.archive_keep";
 // Minutes of idle time before a tab sleeps: 15 to 480, or 0 for never. Default
 // 60.
 inline constexpr char kSleepAfterMinutes[] = "aerie.tabs.sleep_after_minutes";
+
+// How a link that would open a new tab opens (issue #141): "new-tab" (default)
+// or "in-place". The global value that a folder's "Links open" inherits. Also a
+// settings_private allowlist literal (patches/sidebar/0053).
+inline constexpr char kLinksOpen[] = "aerie.tabs.links_open";
+inline constexpr char kLinksOpenNewTab[] = "new-tab";
+inline constexpr char kLinksOpenInPlace[] = "in-place";
 
 // What Ctrl+W and the close button do on a Pinned tab (issue #180):
 // "reset-sleep-switch" (default), "sleep" or "close". Parsed by
@@ -90,6 +98,14 @@ std::optional<base::TimeDelta> SleepAfterFromMinutes(int minutes);
 std::optional<base::TimeDelta> GetArchiveAfter(const PrefService& prefs);
 std::optional<base::TimeDelta> GetArchiveKeep(const PrefService& prefs);
 std::optional<base::TimeDelta> GetSleepAfter(const PrefService& prefs);
+
+// The global "Links open" value. A value that is not one of the two is
+// "new-tab".
+LinksOpen GetLinksOpen(const PrefService& prefs);
+
+// The three global values that a folder's behaviour inherits (folder_behaviour.h),
+// read from the prefs.
+GlobalBehaviour GetGlobalBehaviour(const PrefService& prefs);
 
 // The global folder-rules switch.
 bool AreFolderRulesEnabled(const PrefService& prefs);

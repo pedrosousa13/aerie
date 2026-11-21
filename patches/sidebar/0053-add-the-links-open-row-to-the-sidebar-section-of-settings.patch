@@ -1,0 +1,68 @@
+Aerie-Purpose: Put the "Links open" row in the Sidebar section of Settings, let the settings page write its pref, and give the page its strings.
+Aerie-Upstream-Area: chrome/browser/resources/settings (appearance_page/appearance_layout_page.ts, appearance_page/appearance_layout_page.html.ts, BUILD.gn), chrome/browser/ui/webui/settings (settings_localized_strings_provider.cc), chrome/browser/extensions/api/settings_private (prefs_util.cc)
+Aerie-Kind: hook
+
+Issue #141. The row, settings-aerie-links-open-row, is a Lit element in the overlay
+(chrome/browser/resources/settings/appearance_page/aerie_links_open_row.*): a settings-dropdown-menu on the
+profile pref aerie.tabs.links_open ("new-tab", the default, or "in-place"), added to the settings_private
+allowlist here as a string literal; a test compares it with aerie_tab_model::kLinksOpen. It is the global value
+that a folder's "Links open" inherits, and it takes effect without a restart. Its strings are in the overlay's
+aerie_sidebar_strings.grdp, which patches/sidebar/0022 includes in generated_resources.grd; this patch hands
+them to the page. The element sits in the "Sidebar" section, under the archive rows of patches/sidebar/0049.
+
+--- a/chrome/browser/resources/settings/BUILD.gn
++++ b/chrome/browser/resources/settings/BUILD.gn
+@@ -215,6 +215,8 @@
+     "appearance_page/aerie_density_row.ts",
+     "appearance_page/aerie_folder_rules_row.html.ts",
+     "appearance_page/aerie_folder_rules_row.ts",
++    "appearance_page/aerie_links_open_row.html.ts",
++    "appearance_page/aerie_links_open_row.ts",
+     "appearance_page/aerie_motion_row.html.ts",
+     "appearance_page/aerie_motion_row.ts",
+     "appearance_page/aerie_pinned_close_row.html.ts",
+--- a/chrome/browser/resources/settings/appearance_page/appearance_layout_page.ts
++++ b/chrome/browser/resources/settings/appearance_page/appearance_layout_page.ts
+@@ -8,6 +8,7 @@
+ import './aerie_archive_keep_row.js';
+ import './aerie_density_row.js';
+ import './aerie_folder_rules_row.js';
++import './aerie_links_open_row.js';
+ import './aerie_pinned_close_row.js';
+ import './aerie_side_row.js';
+ import './aerie_sleep_row.js';
+--- a/chrome/browser/resources/settings/appearance_page/appearance_layout_page.html.ts
++++ b/chrome/browser/resources/settings/appearance_page/appearance_layout_page.html.ts
+@@ -16,6 +16,7 @@
+   <settings-aerie-folder-rules-row></settings-aerie-folder-rules-row>
+   <settings-aerie-archive-after-row></settings-aerie-archive-after-row>
+   <settings-aerie-archive-keep-row></settings-aerie-archive-keep-row>
++  <settings-aerie-links-open-row></settings-aerie-links-open-row>
+   <settings-aerie-density-row></settings-aerie-density-row>
+   <settings-aerie-side-row></settings-aerie-side-row>
+   <settings-aerie-title-rules-row></settings-aerie-title-rules-row>
+--- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
++++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
+@@ -652,6 +652,10 @@
+       {"aerieArchiveKeep30Days", IDS_SETTINGS_AERIE_ARCHIVE_KEEP_30D},
+       {"aerieArchiveKeep90Days", IDS_SETTINGS_AERIE_ARCHIVE_KEEP_90D},
+       {"aerieArchiveKeepForever", IDS_SETTINGS_AERIE_ARCHIVE_KEEP_FOREVER},
++      {"aerieLinksOpen", IDS_SETTINGS_AERIE_LINKS_OPEN},
++      {"aerieLinksOpenDesc", IDS_SETTINGS_AERIE_LINKS_OPEN_DESC},
++      {"aerieLinksOpenNewTab", IDS_AERIE_SIDEBAR_LINKS_NEW_TAB},
++      {"aerieLinksOpenInPlace", IDS_AERIE_SIDEBAR_LINKS_IN_PLACE},
+       {"aerieTidyTitles", IDS_SETTINGS_AERIE_TITLE_TIDY},
+       {"aerieTidyTitlesDesc", IDS_SETTINGS_AERIE_TITLE_TIDY_DESC},
+       {"aerieTidyOffSites", IDS_SETTINGS_AERIE_TITLE_TIDY_OFF_SITES},
+--- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
++++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
+@@ -498,6 +498,9 @@
+   // Aerie: how long the Archive keeps an archived tab (issue #183). The name
+   // is aerie_tab_model::kArchiveKeep; a test compares the two.
+   (*s_allowlist)["aerie.tabs.archive_keep"] = settings_api::PrefType::kString;
++  // Aerie: how a link that would open a new tab opens (issue #141). The name is
++  // aerie_tab_model::kLinksOpen; a test compares the two.
++  (*s_allowlist)["aerie.tabs.links_open"] = settings_api::PrefType::kString;
+   // Aerie: the global switch of the rules of auto-filing folders (issue #139).
+   // The name is aerie_tab_model::kFolderRulesEnabled; a test compares the two.
+   (*s_allowlist)["aerie.folders.rules_enabled"] =

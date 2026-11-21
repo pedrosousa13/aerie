@@ -480,6 +480,51 @@ bool MoveTabToFolder(TabModel& model,
                        EndPosition(model, section, folder_id));
 }
 
+bool MoveTabAfter(TabModel& model,
+                  const std::string& tab_id,
+                  const std::string& sibling_id) {
+  const TabRecord* tab = model.GetTab(tab_id);
+  const TabRecord* sibling = model.GetTab(sibling_id);
+  if (!tab || !sibling || tab_id == sibling_id ||
+      sibling->section == Section::kFavorite) {
+    return false;
+  }
+  const Section section = sibling->section;
+  const std::string parent = sibling->parent;
+  if (!parent.empty() && !CanNest(model, ItemKind::kTab, tab_id, parent)) {
+    return false;
+  }
+  // Every child counts, listed or not: archived tabs keep their places too.
+  std::vector<ChildRef> order;
+  for (const ChildRef& child : OrderedChildren(
+           model, section, parent, /*listed_only=*/false,
+           [](const std::string&) { return true; })) {
+    if (child.id == tab_id && !child.is_folder) {
+      continue;
+    }
+    order.push_back(child);
+    if (child.id == sibling_id && !child.is_folder) {
+      order.push_back({false, tab_id});
+    }
+  }
+  for (size_t i = 0; i < order.size(); ++i) {
+    const int position = static_cast<int>(i);
+    if (order[i].is_folder) {
+      const FolderRecord* folder = model.GetFolder(order[i].id);
+      if (folder && folder->position != position) {
+        model.MoveFolder(order[i].id, section, parent, position);
+      }
+    } else {
+      const TabRecord* record = model.GetTab(order[i].id);
+      if (record && (record->position != position ||
+                     record->parent != parent || record->section != section)) {
+        model.MoveTab(order[i].id, section, parent, position);
+      }
+    }
+  }
+  return true;
+}
+
 std::string MoveTabToNewFolder(TabModel& model,
                                const std::string& tab_id,
                                const std::string& name) {
