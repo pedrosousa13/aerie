@@ -48,6 +48,8 @@
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_group.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_row_view.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_sheet.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_media_card.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_media_controller.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_peek_driver.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_peek_surface.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_regions.h"
@@ -614,6 +616,34 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
   card->SetVisible(false);
   toast_card_ = AddChildView(std::move(card));
 
+  // The media card (issue #263): the tab of this window that plays audio or
+  // video, with Play or Pause, Next track and Go to tab. It sits above the
+  // bottom bar and is hidden while nothing plays.
+  media_card_ = AddChildView(std::make_unique<AerieSidebarMediaCard>(
+      base::BindRepeating(
+          [](AerieSidebarView* self) {
+            if (self->media_) {
+              self->media_->PlayPause();
+            }
+          },
+          base::Unretained(this)),
+      base::BindRepeating(
+          [](AerieSidebarView* self) {
+            if (self->media_) {
+              self->media_->NextTrack();
+            }
+          },
+          base::Unretained(this)),
+      base::BindRepeating(
+          [](AerieSidebarView* self) {
+            if (self->media_) {
+              self->media_->GoToTab();
+            }
+          },
+          base::Unretained(this))));
+  media_card_->SetPalette(palette_);
+  media_ = std::make_unique<AerieSidebarMediaController>(browser_, media_card_);
+
   // Bottom bar: a placeholder until the Archive button and the Workspace
   // switcher come. The toolbar's remaining buttons (extensions, profile, menu)
   // sit in it so that they stay reachable.
@@ -727,6 +757,7 @@ AerieSidebarView::~AerieSidebarView() {
   if (views::View* card = surface_tracker_.view(); card && parent()) {
     parent()->RemoveChildViewT(card);
   }
+  media_.reset();
   archive_.reset();
   // A drag that is still running ends with the window: the controller goes
   // first, so that a capture loss that follows finds none.
@@ -1045,6 +1076,9 @@ void AerieSidebarView::UpdateRail(bool rail) {
     SetRailMargins(false);
   }
   top_row_->SetVertical(rail);
+  if (media_card_) {
+    media_card_->SetRail(rail);
+  }
   today_header_->SetVisible(!rail);
   // The New Tab row keeps its name for a screen reader and its tooltip.
   new_tab_row_->SetText(rail ? std::u16string() : new_tab_label_);
@@ -1183,6 +1217,9 @@ void AerieSidebarView::ApplyPalette() {
   }
   for (const Tile& tile : tiles_) {
     tile.view->SetPalette(palette_);
+  }
+  if (media_card_) {
+    media_card_->SetPalette(palette_);
   }
   toast_->SetEnabledColor(palette_.text);
   toast_card_->SetBackground(views::CreateRoundedRectBackground(

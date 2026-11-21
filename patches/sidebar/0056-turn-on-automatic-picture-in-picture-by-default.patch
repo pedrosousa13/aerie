@@ -1,0 +1,45 @@
+Aerie-Purpose: Turn automatic picture-in-picture on by default: a playing video enters picture-in-picture when the user switches to another tab, on any site that the user has not blocked (issue #263).
+Aerie-Upstream-Area: components/content_settings/core/browser/content_settings_registry.cc (AUTO_PICTURE_IN_PICTURE default), third_party/blink/renderer/platform/runtime_enabled_features.json5 (BrowserInitiatedAutomaticPictureInPicture)
+Aerie-Kind: hook
+
+Chromium already has the whole machinery: AutoPictureInPictureTabHelper watches the tab strip and, when
+the tab stops being the active tab while its media plays, asks the media session to enter
+picture-in-picture. Two defaults kept it from reaching most videos:
+
+- The content setting AUTO_PICTURE_IN_PICTURE starts at "ask", which also needs high media engagement
+  and then shows an allow or block prompt in the picture-in-picture window. It starts at "allow" now,
+  so the opt-out rule holds (every protection and convenience on, switchable off). The setting is the
+  one that Settings > Privacy > Site settings > Automatic picture-in-picture already shows, with its
+  default switch and its list of sites that are blocked or allowed, so a per-site exception is a row in
+  that list and the page info of a site has the same toggle.
+- A page enters picture-in-picture on its own only when it handles the "enterpictureinpicture" media
+  session action. The feature BrowserInitiatedAutomaticPictureInPicture lets the browser do it for a
+  page with one playing video and no handler. It is on by default now (the Blink feature follows it).
+
+Neither change lets a page start picture-in-picture. The trigger is still the tab helper's: the tab
+stops being active (the user switches tab or Workspace; today the sidebar and Ctrl+Tab do it through
+the tab strip), the page is https or file, the media is audible and plays on a top-level frame, and a
+site on "block", or a tab that captures the camera or microphone, is left alone. A page cannot move the
+active tab by itself.
+
+--- a/components/content_settings/core/browser/content_settings_registry.cc
++++ b/components/content_settings/core/browser/content_settings_registry.cc
+@@ -640,7 +640,7 @@
+            PermissionSettingsInfo::EXCEPTIONS_ON_SECURE_ORIGINS_ONLY);
+ 
+   Register(ContentSettingsType::AUTO_PICTURE_IN_PICTURE,
+-           "auto-picture-in-picture", CONTENT_SETTING_ASK,
++           "auto-picture-in-picture", CONTENT_SETTING_ALLOW,
+            WebsiteSettingsInfo::UNSYNCABLE, /*allowlisted_primary_schemes=*/{},
+            /*valid_settings=*/
+            {CONTENT_SETTING_ALLOW, CONTENT_SETTING_BLOCK, CONTENT_SETTING_ASK},
+--- a/third_party/blink/renderer/platform/runtime_enabled_features.json5
++++ b/third_party/blink/renderer/platform/runtime_enabled_features.json5
+@@ -1020,6 +1020,7 @@
+       name: "BrowserInitiatedAutomaticPictureInPicture",
+       public: true,
+       status: "experimental",
++      base_feature_status: "enabled",
+     },
+     {
+       name: "BufferedBytesConsumerLimitSize",

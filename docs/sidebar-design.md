@@ -55,6 +55,7 @@ The window is a frame with the page in a rounded card on top of it.
 | Pinned | A tree of pinned tabs and folders. Persists across restarts (story 53). |
 | Divider and "New Tab" row | A row that opens the command bar (Ctrl+T). |
 | Today | A tree of unpinned tabs and folders. Auto-archive applies here. The header shows the sleeping count and an estimate of memory freed on hover. A "Clear" button at the end of the header archives every unpinned tab of Today (see "Clear, as built (#266)"); Alt+click or "Close all" in its menu closes them instead. |
+| Media card | Above the bottom bar, only while a tab of the Workspace plays audio or video (see "Media card, as built (#263)"). |
 | Bottom bar | The Archive button, the Workspace switcher (one icon per Workspace), and "New workspace". |
 
 The tab area scrolls. The top row, address pill and bottom bar stay fixed.
@@ -570,6 +571,7 @@ Aerie wants motion with the feel of Arc, without copying its assets (maintainer 
 | Command bar | Scrim and bar fade. Bar scales from 0.98. | `fast` in, `xfast` (90) out | `decelerate`, `accelerate` | Opacity only, 90 ms. |
 | Popover and menu | Popover drops 4 px. Menu scales from 0.97. Both fade in. No closing animation. | `fast`, `xfast` | `decelerate` | Opacity only, 90 ms. |
 | Toast | Rises 6 px and fades in and out. | `fast` | `decelerate` in, `accelerate` out | Opacity only. |
+| Media card | The same as the toast: rises 6 px and fades in, fades out. It stays while the media plays. | `fast` | `decelerate` in, `accelerate` out | Opacity only. |
 | Tooltip | Opacity fade after a rest delay of `tooltip-delay` (400 ms). It disappears at once. | `xfast` | `decelerate` | Same. |
 | Sleeping tab | Favicon opacity to 0.55, then a static desaturate. | `fast` | `standard` | Instant. |
 | Archive moment | A copy of the row shrinks to 0.25 and flies to the Archive button. The button pulses to 1.25 and back. | `archive-collapse` (320), `archive-pulse` (360) | `accelerate`, `standard` | Copy fades 120 ms. Button flashes colour 140 ms with no scale. |
@@ -878,3 +880,26 @@ Each manual or auto-filing folder can set three behaviours. A smart folder has n
 - A tab that is in no folder is never changed, whatever Settings say. The global "Links open" value is the default for the tabs of folders that set nothing (their own value, or that of a folder above them, comes first). Pinned and Favorites tabs are in no folder, so they are not changed.
 
 **Motion.** The sheet and the switches use the tokens of #139. Under reduced motion (the operating system's flag or the in-app setting) the sheet is opacity-only at 90 ms, and a switch moves with no transform animation.
+
+## Media card, as built (#263)
+
+A compact card above the bottom bar shows the tab that plays audio or video, so the user can pause it, skip a track or find the tab without leaving the page in front.
+
+- **What it shows.** The title and the site (the host of the page, without `www.`), then three buttons: Play or Pause (the name and the icon follow the state), Next track and Go to tab. The card is a `group` named "Now playing". The title is the track title that the page set in the Media Session API when it set one, and the tab's title otherwise. Both are page text, drawn as plain text and elided at the end. The card uses `row-selected` for its surface, `text` and `text-muted` for text and icons, and the Workspace accent for the focus rings, as the toast does.
+- **Where the data comes from.** `AerieSidebarMediaController` watches the `content::MediaSession` of every tab in the window, the same session the OS media keys and Global Media Controls read, through its mojo observer: the playback state, whether the user may control it, the metadata title and the list of actions. The web-facing API is the one that already exists (`navigator.mediaSession`); nothing was added. Only one Workspace exists today, so every tab of the window is in the current Workspace; when Workspaces switch, only the tabs of the open Workspace belong here.
+- **Which tab.** The tab that started playing last. When no tab plays, the card keeps the tab it showed while that tab's page still holds a controllable session (it is paused), so Play can resume it. It goes when the media ends or its player goes away, when the page navigates away, or when the tab closes.
+- **The buttons.** Play and Pause call `Resume` and `Suspend` on the session as a user action, the way the OS media keys do. Next track calls `NextTrack`, and it is enabled only while the page handles the `nexttrack` action. Go to tab activates the tab in the window's tab strip. All three are buttons in the sidebar's focus order, with the sidebar focus ring; Enter and Space press them.
+- **Motion.** The toast motion, with no hold: the card stays while it is wanted. It fades in on `fast` and `decelerate` while it rises `motion-distance-toast-rise`, and fades out on `fast` and `accelerate`. Under reduced motion (the OS flag or the in-app setting) it is opacity only and never moves.
+- **Rail.** The collapsed rail has no room for a card, so it hides it, with no animation, and brings it back when the sidebar leaves the rail. Keyboard use of the rail's media is not in this slice.
+- **Private windows.** The card works in a private window too: it is local, and it writes nothing.
+- **Tests.** `aerie_sidebar_media_uitest.cc`: no card while nothing plays, title and site, the page's track title wins, Play and Pause, Next enabled only when the page handles it and wired to its handler, Go to tab, the card goes when the playback ends and when the tab closes, the last tab to play wins, and the card's reduced-motion and full-motion fades.
+
+### Automatic picture-in-picture (#263)
+
+Chromium's `AutoPictureInPictureTabHelper` already enters picture-in-picture for a tab that stops being the active tab of its window while its video plays. Aerie turns it on:
+
+- **The Settings switch.** It is Chromium's own: Settings, Privacy, Site settings, Automatic picture-in-picture. Its default switch is on, because `patches/sidebar/0056` starts the content setting `AUTO_PICTURE_IN_PICTURE` at "allow" (it started at "ask", which also asks for high media engagement and shows an allow or block prompt in the picture-in-picture window). The same page has the list of sites that are blocked or allowed, so a per-site exception sits with the other site settings, and the page info of a site has the same toggle.
+- **Pages that set no handler.** Chromium enters on its own only for a page that handles the `enterpictureinpicture` media session action. The same patch turns on `BrowserInitiatedAutomaticPictureInPicture`, which lets the browser do it for a page that has one playing video and no handler.
+- **Tab and Workspace switches.** The trigger is the tab helper's observer of the tab strip: the tab stops being active. A click on a sidebar row, Ctrl+Tab all end there, and so will the Workspace switch of M5 (it must activate a tab of the other Workspace through the tab strip). No Aerie code starts picture-in-picture.
+- **What it does not do.** A page cannot move the active tab, so it cannot start this by itself; a page that asks for picture-in-picture without a click is refused as usual. A site on "block", a tab that uses the camera or the microphone, a page that is not https or file, and media that is muted or not audible are left alone. The pages see only the standard picture-in-picture events.
+- **Tests.** `aerie_auto_pip_browsertest.cc`: the switch and the browser's entry are on by default, a playing video enters when the user switches away, it does not enter with the switch off or for a blocked site (each test then turns it on again and sees the entry, so the wait is long enough), it does not enter while the tab stays in front, and a page that asks for it without a click is refused.

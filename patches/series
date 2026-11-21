@@ -188,3 +188,6 @@ crash/0003-add-the-crash-reports-settings-page.patch
 sidebar/0053-add-the-links-open-row-to-the-sidebar-section-of-settings.patch
 sidebar/0054-let-a-folder-open-links-in-place-from-chrome-navigate.patch
 sidebar/0055-leave-the-referrer-and-the-form-flag-of-a-new-window-on-its-contents.patch
+
+# Media card and automatic picture-in-picture (#263): the content setting starts at allow, and the browser enters picture-in-picture for a page that has no handler.
+sidebar/0056-turn-on-automatic-picture-in-picture-by-default.patch
