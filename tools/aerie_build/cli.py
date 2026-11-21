@@ -202,7 +202,13 @@ def cmd_bump(args: argparse.Namespace) -> int:
     if args.check:
         print("a newer Helium release exists; run ./aerie bump")
         return bump.UPDATE_AVAILABLE
-    old, new = bump.apply(REPO, release, log=lambda m: print(f"aerie: {m}", file=sys.stderr, flush=True))
+    try:
+        old, new = bump.apply(REPO, release, log=lambda m: print(f"aerie: {m}", file=sys.stderr, flush=True),
+                              allow_major=args.allow_major)
+    except bump.MajorBumpRefused as exc:
+        print(f"aerie bump: Chromium major {exc.old} -> {exc.new} refused without --allow-major.\n{exc}\n"
+              "Nothing was changed.", file=sys.stderr)
+        return bump.MAJOR_REFUSED
     text = bump.summary(old.helium_version, old.chromium_version, new.helium_version, new.chromium_version)
     print(text)
     print("helium.lock and both submodules are moved; nothing is committed")
@@ -430,11 +436,13 @@ def main(argv: list[str] | None = None) -> int:
     p_bump = sub.add_parser(
         "bump",
         help="move the Helium submodules and helium.lock to the newest Helium release, then run the patch check "
-        "(exit 20 with --check when a newer release exists, 3 when patches no longer apply)",
+        "(exit 20 with --check when a newer release exists, 3 when patches no longer apply, 4 on a new Chromium major without --allow-major)",
     )
     _add_common(p_bump)
     p_bump.add_argument("--check", action="store_true", help="only look: print the current and latest release")
     p_bump.add_argument("--to", metavar="TAG", help="bump to this helium-linux release tag instead of the latest")
+    p_bump.add_argument("--allow-major", action="store_true",
+                        help="allow a release on a new Chromium major (without it: exit 4, nothing changed)")
     p_bump.add_argument("--no-check", action="store_true", help="skip the patch check (it downloads the new Chromium tarballs)")
     p_bump.add_argument("--report", metavar="FILE", help="also write the result as Markdown (for a pull request body)")
     p_bump.add_argument("--old-tree", metavar="DIR", help="prepared source tree of the old release, for the traffic diff "
