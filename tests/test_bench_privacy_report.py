@@ -3,6 +3,7 @@ import copy
 import io
 import json
 import tempfile
+import re
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -69,7 +70,7 @@ class GateTest(unittest.TestCase):
         run["network"]["requests"].insert(3, req("https://tracker.example.net/ping?id=1"))
         rep = build(run)
         self.assertFalse(rep["gate"]["passed"])
-        self.assertTrue(any("tracker.example.net" in f for f in rep["gate"]["failures"]))
+        self.assertTrue(any(re.search(r"(?<![\w.-])tracker\.example\.net(?![\w.-])", f) for f in rep["gate"]["failures"]))
         self.assertEqual(rep["requests"][0]["host"], "tracker.example.net")
         self.assertEqual(rep["requests"][0]["phase"], "idle")
         self.assertFalse(rep["requests"][0]["allowed"])
