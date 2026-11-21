@@ -58,7 +58,7 @@ bool OpenInPlace(NavigateParams* params, content::WebContents* source) {
   if (!initiator->IsInPrimaryMainFrame()) {
     return false;
   }
-  // What the renderer asked for is on the new contents (patches/sidebar/0053).
+  // What the renderer asked for is on the new contents (patches/sidebar/0055).
   // A form sent with POST is not a link: it carries a body that a plain load
   // would drop. Without the information nothing is changed.
   const auto* info = static_cast<const content::AerieCreatedWindowInfo*>(

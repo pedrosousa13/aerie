@@ -31,7 +31,7 @@ inline constexpr char kSleepAfterMinutes[] = "aerie.tabs.sleep_after_minutes";
 
 // How a link that would open a new tab opens (issue #141): "new-tab" (default)
 // or "in-place". The global value that a folder's "Links open" inherits. Also a
-// settings_private allowlist literal (patches/sidebar/0051).
+// settings_private allowlist literal (patches/sidebar/0053).
 inline constexpr char kLinksOpen[] = "aerie.tabs.links_open";
 inline constexpr char kLinksOpenNewTab[] = "new-tab";
 inline constexpr char kLinksOpenInPlace[] = "in-place";

@@ -16,7 +16,7 @@ namespace content {
 // with target=_blank, a form with target=_blank): the referrer it chose for the
 // first navigation, and whether that navigation is a form sent with POST.
 // WebContentsImpl::CreateNewWindow puts it on the new contents as user data
-// before the delegate sees the contents (patches/sidebar/0053), because the
+// before the delegate sees the contents (patches/sidebar/0055), because the
 // load itself starts only after the delegate has added the contents to a tab
 // strip. "Links open" (issue #141) reads it to leave forms alone and to pass
 // the referrer on.

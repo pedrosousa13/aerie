@@ -17,7 +17,7 @@ source_set("pinned_close_hook") {
 }
 
 # The one call that chrome::Navigate makes to apply "Links open" (issue #141,
-# patches/sidebar/0052). A header with no dependencies, for the same reason as
+# patches/sidebar/0054). A header with no dependencies, for the same reason as
 # pinned_close_hook; its definition is in links_open_hook.cc.
 source_set("links_open_hook") {
   visibility = [ "//chrome/*" ]

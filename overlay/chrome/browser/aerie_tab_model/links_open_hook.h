@@ -10,7 +10,7 @@ struct NavigateParams;
 namespace aerie_tab_model {
 
 // The one call that chrome::Navigate makes before it does anything else
-// (patches/sidebar/0052). It applies "Links open" (issue #141) to a link that
+// (patches/sidebar/0054). It applies "Links open" (issue #141) to a link that
 // the page asked to open in a new tab. Returns true when it opened the link in
 // the tab of the page itself and the caller must do nothing more (the new
 // contents that the page asked for is dropped). This header has no
