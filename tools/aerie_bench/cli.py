@@ -20,6 +20,10 @@ def add_arguments(p: argparse.ArgumentParser, *, binary_required: bool) -> None:
     p.add_argument("--check", metavar="NAME", action="append",
                    help="run this check (repeatable); available: " + ", ".join(
                        sorted(n for n in checks.REGISTRY if n != "scenario")) + "; default: smoke")
+    p.add_argument("--report", metavar="DIR",
+                   help="run the privacy report scenario (zero_traffic, adblock_score, fingerprinting and "
+                        "hardening checks), write report.html and report.json into DIR, and exit 1 when the "
+                        "release gate fails (docs/bench.md, Privacy report)")
     p.add_argument("--scenario", metavar="FILE", help="JSON scenario file (checks and page steps)")
     p.add_argument("--headed", action="store_true", help="show the browser window (default: headless)")
     p.add_argument("--no-sandbox", action="store_true",
@@ -134,7 +138,11 @@ def run(args: argparse.Namespace, build_root: Path, default_binary: Path | None)
         print("aerie bench: --binary is required", file=sys.stderr)
         return EXIT_HARNESS
     try:
-        if args.scenario:
+        if args.report:
+            if args.check or args.scenario:
+                raise BenchError("--report picks its own checks; do not combine it with --check or --scenario")
+            sc = scenario.Scenario("privacy-report", report_checks())
+        elif args.scenario:
             sc = scenario.load(Path(args.scenario))
         else:
             sc = scenario.Scenario()
@@ -193,6 +201,8 @@ def run(args: argparse.Namespace, build_root: Path, default_binary: Path | None)
         print((result.out_dir / "summary.txt").read_text(), end="")
         print(f"results: {result.out_dir / 'results.json'}")
         code = EXIT_PASS if result.status == "pass" else EXIT_FAIL
+        if args.report:
+            code = max(code, _write_privacy_report(args, result, binary, build_root, sc.checks))
         if "perf" in sc.checks:
             code = max(code, _perf_followup(args, result, build_root, common))
         if "sidebar_frames" in sc.checks and args.sidebar_frames_record:
@@ -206,6 +216,54 @@ def run(args: argparse.Namespace, build_root: Path, default_binary: Path | None)
     except (BenchError, scenario.ScenarioError) as exc:
         print(f"aerie bench: error: {exc}", file=sys.stderr)
         return EXIT_HARNESS
+
+
+def report_checks() -> tuple[str, ...]:
+    """The checks of the privacy report: traffic, blocking score, fingerprinting and hardening."""
+    return ("zero_traffic", "adblock_score",
+            *sorted(n for n in checks.REGISTRY if n.startswith("hardening_")))
+
+
+def _sha256(path: Path) -> str:
+    import hashlib
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _write_privacy_report(args, result, binary: Path, build_root: Path, required: tuple[str, ...]) -> int:
+    """Build report.html and report.json from the run; EXIT_FAIL when the release gate fails."""
+    import os
+
+    from . import privacy_report
+    repo = Path(__file__).resolve().parents[2]
+    meta = {"commit": _head_commit(repo), "binary_sha256": _sha256(Path(binary)),
+            "binary_name": Path(binary).name, "command": "./aerie bench --report <dir>"}
+    forbidden = tuple(x for x in (os.environ.get("HOME"), str(build_root), str(repo), str(Path(binary).parent),
+                                  str(result.out_dir)) if x and len(x) > 1)
+    try:
+        report = privacy_report.build(result.data, meta, privacy_report.load_default_allowlist(),
+                                      required=required, forbidden=forbidden)
+    except (privacy_report.ReportError, policy_model_error()) as exc:
+        print(f"aerie bench: error: privacy report: {exc}", file=sys.stderr)
+        return EXIT_HARNESS
+    privacy_report.write(Path(args.report), report)
+    gate = report["gate"]
+    print(f"\nprivacy report: {Path(args.report) / 'report.html'}")
+    if gate["passed"]:
+        print("release gate: PASS")
+        return EXIT_PASS
+    print("release gate: FAIL (do not publish)")
+    for f in gate["failures"]:
+        print(f"  {f}")
+    return EXIT_FAIL
+
+
+def policy_model_error():
+    from aerie_netpolicy import model
+    return model.PolicyDocError
 
 
 def _record_sidebar_frames(args, result) -> None:
