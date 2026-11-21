@@ -201,6 +201,30 @@ IN_PROC_BROWSER_TEST_F(
   EXPECT_TRUE(WaitFor([&] { return Asleep(outside); }));
 }
 
+IN_PROC_BROWSER_TEST_F(
+    AerieSleepControllerBrowserTest,
+    ATabCreatedInsideAFolderSleepsAtTheFolderTimeNotTheGlobalOne) {
+  // Global: 1 hour. The folder says 15 minutes (issue #141). The new tab is
+  // filed in the folder as the strip inserts it, so the idle time starts before
+  // its record can be read.
+  prefs()->SetInteger(kSleepAfterMinutes, 60);
+  const int sibling = OpenBackgroundTab();
+  const std::string folder = CreateFolder(*service_->model(), Section::kToday,
+                                          std::string(), "Quick");
+  ASSERT_TRUE(
+      MoveTabToFolder(*service_->model(), RecordOf(sibling)->id, folder));
+  ASSERT_TRUE(SetFolderSleepAfter(*service_->model(), folder, 15));
+
+  service_->adapter()->PlaceNextTabAfter(RecordOf(sibling)->id);
+  const int created = OpenBackgroundTab();
+  ASSERT_EQ(RecordOf(created)->parent, folder);
+
+  AdvanceClock(base::Minutes(14));
+  EXPECT_FALSE(RecordOf(created)->sleeping);
+  AdvanceClock(base::Minutes(1));
+  EXPECT_TRUE(WaitFor([&] { return Asleep(created); }));
+}
+
 IN_PROC_BROWSER_TEST_F(AerieSleepControllerBrowserTest,
                        EditingAFolderSleepTimeArmsTheTimerAgainAtOnce) {
   prefs()->SetInteger(kSleepAfterMinutes, 60);
