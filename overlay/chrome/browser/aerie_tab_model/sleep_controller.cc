@@ -10,6 +10,7 @@
 
 #include "base/functional/bind.h"
 #include "base/no_destructor.h"
+#include "base/task/single_thread_task_runner.h"
 #include "chrome/browser/aerie_tab_model/tab_model_service.h"
 #include "chrome/browser/aerie_tab_model/tab_strip_adapter.h"
 #include "chrome/browser/performance_manager/policies/cannot_discard_reason.h"
@@ -176,6 +177,16 @@ bool SleepController::RecordIsAsleep(tabs::TabInterface* tab) const {
   return record && record->sleeping;
 }
 
+bool SleepController::RecordIsKept(tabs::TabInterface* tab) const {
+  TabStripAdapter* adapter = service_->adapter();
+  if (!adapter) {
+    return false;
+  }
+  const std::string id = adapter->RecordIdForTab(tab);
+  const TabRecord* record = id.empty() ? nullptr : service_->model()->GetTab(id);
+  return record && record->keep_loaded;
+}
+
 bool SleepController::Watches(BrowserWindowInterface* browser) const {
   return browser->GetProfile() == profile_ &&
          browser->GetType() == BrowserWindowInterface::TYPE_NORMAL;
@@ -200,6 +211,9 @@ void SleepController::OnBrowserClosed(BrowserWindowInterface* browser) {
 }
 
 void SleepController::Track(tabs::TabInterface* tab) {
+  // A tab that comes back with a kept record (a restore, another window) gets
+  // its Chromium flag here.
+  SyncKeepLoaded(tab, /*wake_on_switch=*/false);
   const SleepSchedule::Key key = tab->GetHandle().raw_value();
   content::WebContents* contents = tab->GetContents();
   if (!contents || tab->IsActivated()) {
@@ -237,6 +251,7 @@ void SleepController::OnTabStripModelChanged(
         // A tab that goes to another window is tracked again by that window.
         schedule_.Untrack(handle.raw_value());
         if (TabRemoveReasonUtils::WillDeleteTab(removed.remove_reason)) {
+          locked_tabs_.erase(handle.raw_value());
           pending_estimates_.erase(handle);
           estimates_.erase(handle);
         }
@@ -284,6 +299,11 @@ void SleepController::OnTabChangedAt(tabs::TabInterface* tab,
   // event costs one more delay and no wrong sleep.
   const SleepSchedule::Key key = tab->GetHandle().raw_value();
   content::WebContents* contents = tab->GetContents();
+  // A kept tab that Aerie has not locked yet (its lifecycle unit was missing)
+  // is tried again.
+  if (!locked_tabs_.contains(key)) {
+    SyncKeepLoaded(tab, /*wake_on_switch=*/false);
+  }
   if (schedule_.IsTracked(key) && contents && contents->IsCurrentlyAudible()) {
     schedule_.Touch(key);
   }
@@ -321,6 +341,111 @@ std::optional<base::TimeDelta> SleepController::DelayForTab(
   return EffectiveSleepAfter(*service_->model(), *record, values);
 }
 
+void SleepController::OnTabAdded(const TabRecord& record) {
+  schedule_.Rearm();
+  SyncKeepLoaded(record, /*wake_on_switch=*/false);
+}
+
+void SleepController::OnTabChanged(const TabRecord& record) {
+  schedule_.Rearm();
+  SyncKeepLoaded(record, /*wake_on_switch=*/true);
+}
+
+void SleepController::SyncKeepLoaded(const TabRecord& record,
+                                     bool wake_on_switch) {
+  TabStripAdapter* adapter = service_->adapter();
+  tabs::TabInterface* tab = adapter ? adapter->TabForRecord(record.id) : nullptr;
+  if (tab) {
+    SyncKeepLoaded(tab, wake_on_switch);
+  }
+}
+
+void SleepController::SyncKeepLoaded(tabs::TabInterface* tab,
+                                     bool wake_on_switch,
+                                     bool allow_retry) {
+  content::WebContents* contents = tab->GetContents();
+  TabStripAdapter* adapter = service_->adapter();
+  if (!contents || !adapter) {
+    return;
+  }
+  const std::string id = adapter->RecordIdForTab(tab);
+  const TabRecord* record = id.empty() ? nullptr : service_->model()->GetTab(id);
+  if (!record) {
+    return;
+  }
+  const bool kept = record->keep_loaded;
+  auto* lifecycle =
+      resource_coordinator::TabLifecycleUnitExternal::FromWebContents(contents);
+  if (!lifecycle) {
+    // Chromium has not made the tab's lifecycle unit yet (its own strip
+    // observer may run after ours). Nothing is recorded: the tab is tried once
+    // more when the current event is done, and again at every change of the tab
+    // (OnTabChangedAt) until the unit is there.
+    if (kept && allow_retry) {
+      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+          FROM_HERE, base::BindOnce(&SleepController::RetryKeepLoaded,
+                                    weak_factory_.GetWeakPtr(),
+                                    tab->GetHandle()));
+    }
+    return;
+  }
+  const SleepSchedule::Key handle_key = tab->GetHandle().raw_value();
+  if (kept) {
+    // Only a tab that Aerie made non-discardable is Aerie's to give back: one
+    // that something else (an extension) already set stays that tab's business.
+    if (!locked_tabs_.contains(handle_key) && lifecycle->IsAutoDiscardable()) {
+      lifecycle->SetAutoDiscardable(false);
+      locked_tabs_.insert(handle_key);
+    }
+  } else if (locked_tabs_.erase(handle_key)) {
+    lifecycle->SetAutoDiscardable(true);
+  }
+  const bool switched_on = kept && kept_ids_.insert(id).second;
+  if (!kept) {
+    kept_ids_.erase(id);
+  }
+  // The mark never sits on a sleeping row: switching it on loads the tab again,
+  // without selecting it. A kept tab that is already known (a restored one, or
+  // one the user put to sleep) is left as it is.
+  if (switched_on && wake_on_switch && (IsAsleep(contents) || record->sleeping)) {
+    // Not now: the Tab Model is still telling its observers about this change,
+    // and the record is written again below.
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE, base::BindOnce(&SleepController::LoadKeptTab,
+                                  weak_factory_.GetWeakPtr(),
+                                  tab->GetHandle()));
+  }
+}
+
+void SleepController::RetryKeepLoaded(tabs::TabHandle handle) {
+  tabs::TabInterface* tab = handle.Get();
+  if (tab) {
+    SyncKeepLoaded(tab, /*wake_on_switch=*/false, /*allow_retry=*/false);
+  }
+}
+
+void SleepController::LoadKeptTab(tabs::TabHandle handle) {
+  tabs::TabInterface* tab = handle.Get();
+  if (!tab || !tab->GetContents()) {
+    return;
+  }
+  // The task ran after the change: the tab may have been unkept, or woken, in
+  // the meantime.
+  TabStripAdapter* adapter = service_->adapter();
+  const std::string id = adapter ? adapter->RecordIdForTab(tab) : std::string();
+  const TabRecord* record = id.empty() ? nullptr : service_->model()->GetTab(id);
+  if (!record || !record->keep_loaded ||
+      !(IsAsleep(tab->GetContents()) || record->sleeping)) {
+    return;
+  }
+  schedule_.Untrack(handle.raw_value());
+  // As Chromium's own TabLifecycleUnit::Load does it: a discarded page has no
+  // "needs reload" flag until it is set again.
+  tab->GetContents()->GetController().SetNeedsReload();
+  tab->GetContents()->GetController().LoadIfNecessary();
+  SetSleeping(tab, false);
+}
+
 void SleepController::OnTabMoved(const TabRecord& tab, const Placement& from) {
   // Only a change of folder can change the time.
   if (tab.parent != from.parent) {
@@ -348,6 +473,11 @@ SleepController::Eligibility SleepController::GetEligibility(
   }
   if (tab->IsActivated()) {
     result.tooltip_message_id = IDS_AERIE_SIDEBAR_SLEEP_TAB_SELECTED;
+    return result;
+  }
+  // Keep loaded (issue #267): the idle timer never takes such a tab, even if the
+  // delay said otherwise. Only the user's own "Sleep now" can.
+  if (request == Request::kIdleTimer && RecordIsKept(tab)) {
     return result;
   }
   DiscardEligibilityPolicy* policy = GetPolicy();

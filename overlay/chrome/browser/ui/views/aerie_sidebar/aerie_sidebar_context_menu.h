@@ -78,6 +78,9 @@ class AerieSidebarContextMenu : public views::MenuDelegate {
     // all" (what a click does) and "Close all" (what Alt+click does).
     kClearArchive = 22,
     kClearClose = 23,
+    // "Keep loaded" (issue #267): a check item in a tab's menu. A kept tab never
+    // sleeps on the idle timer and never auto-archives.
+    kKeepLoaded = 24,
     kMoveToFolderBase = 100,
   };
 
@@ -140,6 +143,9 @@ class AerieSidebarContextMenu : public views::MenuDelegate {
     bool can_rename = true;
     bool has_manual_name = false;
     SleepItem sleep;
+    // Whether the tab is kept loaded: the state of the "Keep loaded" check item
+    // (issue #267).
+    bool keep_loaded = false;
 
     Target target = Target::kTab;
     // "New folder" (issue #181): in a tab's menu it makes the folder next to
@@ -201,6 +207,7 @@ class AerieSidebarContextMenu : public views::MenuDelegate {
 
   // The same three, by command.
   bool IsCommandEnabled(Command command) const;
+  bool IsItemChecked(Command command) const;
   void ExecuteCommand(Command command);
   std::u16string GetTooltipText(Command command,
                                 const gfx::Point& screen_loc) const;
@@ -208,6 +215,7 @@ class AerieSidebarContextMenu : public views::MenuDelegate {
   // views::MenuDelegate (the menu's own int ids are the Command values):
   using views::MenuDelegate::ExecuteCommand;
   bool IsCommandEnabled(int id) const override;
+  bool IsItemChecked(int id) const override;
   void ExecuteCommand(int id) override;
   std::u16string GetTooltipText(int id,
                                 const gfx::Point& screen_loc) const override;

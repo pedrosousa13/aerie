@@ -390,6 +390,9 @@ base::DictValue TabToValue(const TabRecord& tab) {
   if (tab.last_title) {
     dict.Set("last_title", *tab.last_title);
   }
+  if (tab.keep_loaded) {
+    dict.Set("keep_loaded", true);
+  }
   if (tab.filed_by) {
     base::DictValue filed;
     filed.Set("folder_id", tab.filed_by->folder_id);
@@ -458,6 +461,13 @@ std::optional<TabRecord> TabFromValue(const base::DictValue& dict,
       return std::nullopt;
     }
     tab.filed_by = FiledBy{*folder_id, *rule_id};
+  }
+  // Added by issue #267 without a schema bump: absent in older files.
+  if (const base::Value* keep = dict.Find("keep_loaded")) {
+    if (!keep->is_bool()) {
+      return std::nullopt;
+    }
+    tab.keep_loaded = keep->GetBool();
   }
   return tab;
 }

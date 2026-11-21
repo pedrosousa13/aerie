@@ -152,6 +152,10 @@ struct TabRecord : Record {
   std::optional<std::string> last_title;
   // Set while the tab sits in the folder that auto-filed it (issue #139).
   std::optional<FiledBy> filed_by;
+  // The user asked for this tab to stay loaded (issue #267, "Keep loaded"): the
+  // idle sleep timer and auto-archive skip it, whatever a folder says. Written
+  // only when true, so older files read as false.
+  bool keep_loaded = false;
 };
 
 struct FolderRecord : Record {

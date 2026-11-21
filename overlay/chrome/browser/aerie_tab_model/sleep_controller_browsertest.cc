@@ -429,4 +429,144 @@ IN_PROC_BROWSER_TEST_F(AerieSleepControllerBrowserTest,
       SleepController::Eligibility::State::kCanSleep);
 }
 
+// Keep loaded (issue #267): the flag on the record stops the idle timer.
+IN_PROC_BROWSER_TEST_F(AerieSleepControllerBrowserTest,
+                       AKeptTabStaysLoadedWhileItsNeighbourSleeps) {
+  prefs()->SetInteger(kSleepAfterMinutes, 15);
+  const int kept = OpenBackgroundTab();
+  const int neighbour = OpenBackgroundTab();
+  ASSERT_TRUE(RecordOf(kept));
+  ASSERT_TRUE(SetTabKeepLoaded(*service_->model(), RecordOf(kept)->id, true));
+
+  AdvanceClock(base::Minutes(15));
+  EXPECT_TRUE(WaitFor([&] { return Asleep(neighbour); }));
+  AdvanceClock(base::Hours(3));
+  base::RunLoop().RunUntilIdle();
+  EXPECT_FALSE(RecordOf(kept)->sleeping);
+  EXPECT_FALSE(strip()->GetWebContentsAt(kept)->WasDiscarded());
+  // Even asked as the idle timer, with the delay ignored, the tab refuses.
+  EXPECT_EQ(controller_
+                ->GetEligibility(strip()->GetTabAtIndex(kept),
+                                 SleepController::Request::kIdleTimer)
+                .state,
+            SleepController::Eligibility::State::kCannotSleep);
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSleepControllerBrowserTest,
+                       AKeptTabInAFolderThatSleepsIsStillSkipped) {
+  prefs()->SetInteger(kSleepAfterMinutes, 60);
+  const std::string folder = CreateFolder(
+      *service_->model(), Section::kToday, std::string(), "Soon");
+  ASSERT_TRUE(SetFolderSleepAfter(*service_->model(), folder, 15));
+  const int kept = OpenBackgroundTab();
+  const int plain = OpenBackgroundTab();
+  ASSERT_TRUE(MoveTabToFolder(*service_->model(), RecordOf(kept)->id, folder));
+  ASSERT_TRUE(MoveTabToFolder(*service_->model(), RecordOf(plain)->id, folder));
+  ASSERT_TRUE(SetTabKeepLoaded(*service_->model(), RecordOf(kept)->id, true));
+
+  AdvanceClock(base::Minutes(15));
+  EXPECT_TRUE(WaitFor([&] { return Asleep(plain); }));
+  EXPECT_FALSE(RecordOf(kept)->sleeping);
+  EXPECT_FALSE(strip()->GetWebContentsAt(kept)->WasDiscarded());
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSleepControllerBrowserTest,
+                       ClearingKeepLoadedLetsTheIdleTabSleepAgain) {
+  prefs()->SetInteger(kSleepAfterMinutes, 15);
+  const int index = OpenBackgroundTab();
+  const std::string id = RecordOf(index)->id;
+  ASSERT_TRUE(SetTabKeepLoaded(*service_->model(), id, true));
+  AdvanceClock(base::Hours(2));
+  base::RunLoop().RunUntilIdle();
+  EXPECT_FALSE(strip()->GetWebContentsAt(index)->WasDiscarded());
+  ASSERT_TRUE(SetTabKeepLoaded(*service_->model(), id, false));
+  EXPECT_TRUE(controller_->schedule()->timer_pending());
+  AdvanceClock(base::Minutes(1));
+  EXPECT_TRUE(WaitFor([&] { return Asleep(index); }));
+}
+
+// Keep loaded also stops Chromium's own discarding (memory pressure, Memory
+// Saver): the tab is not auto-discardable, in step with the flag.
+IN_PROC_BROWSER_TEST_F(AerieSleepControllerBrowserTest,
+                       AKeptTabIsNotAutoDiscardableAndAnUnkeptTabIs) {
+  const int kept = OpenBackgroundTab();
+  const int plain = OpenBackgroundTab();
+  auto auto_discardable = [&](int index) {
+    return resource_coordinator::TabLifecycleUnitExternal::FromWebContents(
+               strip()->GetWebContentsAt(index))
+        ->IsAutoDiscardable();
+  };
+  EXPECT_TRUE(auto_discardable(kept));
+  EXPECT_TRUE(auto_discardable(plain));
+  const std::string id = RecordOf(kept)->id;
+  ASSERT_TRUE(SetTabKeepLoaded(*service_->model(), id, true));
+  EXPECT_FALSE(auto_discardable(kept));
+  EXPECT_TRUE(auto_discardable(plain));
+  // Chromium's proactive policy (what Memory Saver asks) refuses it too.
+  EXPECT_EQ(controller_
+                ->GetEligibility(strip()->GetTabAtIndex(kept),
+                                 SleepController::Request::kIdleTimer)
+                .state,
+            SleepController::Eligibility::State::kCannotSleep);
+  ASSERT_TRUE(SetTabKeepLoaded(*service_->model(), id, false));
+  EXPECT_TRUE(auto_discardable(kept));
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSleepControllerBrowserTest,
+                       TheUsersSleepNowStillWorksOnAKeptTab) {
+  const int index = OpenBackgroundTab();
+  ASSERT_TRUE(SetTabKeepLoaded(*service_->model(), RecordOf(index)->id, true));
+  tabs::TabInterface* tab = strip()->GetTabAtIndex(index);
+  EXPECT_EQ(controller_->GetEligibility(tab).state,
+            SleepController::Eligibility::State::kCanSleep);
+  EXPECT_TRUE(controller_->Sleep(tab));
+  EXPECT_TRUE(WaitFor([&] { return Asleep(index); }));
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSleepControllerBrowserTest,
+                       KeepingASleepingTabLoadsItAgain) {
+  const int index = OpenBackgroundTab();
+  ASSERT_TRUE(controller_->Sleep(strip()->GetTabAtIndex(index)));
+  ASSERT_TRUE(WaitFor([&] { return Asleep(index); }));
+  ASSERT_TRUE(SetTabKeepLoaded(*service_->model(), RecordOf(index)->id, true));
+  // The mark never sits on a sleeping row: the record is awake and the page
+  // loads again, without the tab being selected.
+  EXPECT_TRUE(WaitFor([&] {
+    return !RecordOf(index)->sleeping &&
+           resource_coordinator::TabLifecycleUnitExternal::FromWebContents(
+               strip()->GetWebContentsAt(index))
+                   ->GetTabState() != ::mojom::LifecycleUnitState::DISCARDED;
+  }));
+  EXPECT_NE(strip()->active_index(), index);
+  EXPECT_FALSE(resource_coordinator::TabLifecycleUnitExternal::FromWebContents(
+                   strip()->GetWebContentsAt(index))
+                   ->IsAutoDiscardable());
+}
+
+// A tab that something else made non-auto-discardable (an extension, through
+// chrome.tabs.update) is none of Keep loaded's business: Aerie only gives back
+// what it took.
+IN_PROC_BROWSER_TEST_F(AerieSleepControllerBrowserTest,
+                       ATabSomeoneElseMadeNonDiscardableIsLeftAlone) {
+  const int external = OpenBackgroundTab();
+  const int kept = OpenBackgroundTab();
+  auto* lifecycle = resource_coordinator::TabLifecycleUnitExternal::FromWebContents(
+      strip()->GetWebContentsAt(external));
+  lifecycle->SetAutoDiscardable(false);
+  // An unrelated change of its record, and of every other record.
+  ASSERT_TRUE(service_->model()->UpdateTab(
+      RecordOf(external)->id, [](TabRecord& t) { t.manual_name = "Mine"; }));
+  EXPECT_FALSE(lifecycle->IsAutoDiscardable());
+  // Another tab is kept, then unkept.
+  const std::string kept_id = RecordOf(kept)->id;
+  ASSERT_TRUE(SetTabKeepLoaded(*service_->model(), kept_id, true));
+  EXPECT_FALSE(lifecycle->IsAutoDiscardable());
+  ASSERT_TRUE(SetTabKeepLoaded(*service_->model(), kept_id, false));
+  EXPECT_FALSE(lifecycle->IsAutoDiscardable());
+  // Keeping and unkeeping the same tab does not give it back either.
+  ASSERT_TRUE(SetTabKeepLoaded(*service_->model(), RecordOf(external)->id, true));
+  ASSERT_TRUE(SetTabKeepLoaded(*service_->model(), RecordOf(external)->id, false));
+  EXPECT_FALSE(lifecycle->IsAutoDiscardable());
+}
+
 }  // namespace aerie_tab_model

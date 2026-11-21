@@ -71,6 +71,7 @@
 #include "components/aerie_sidebar/aerie_sidebar_motion.h"
 #include "components/aerie_sidebar/aerie_sidebar_prefs.h"
 #include "components/aerie_sidebar/aerie_sidebar_tree.h"
+#include "components/aerie_tab_model/folder_behaviour.h"
 #include "components/aerie_tab_model/folder_rules.h"
 #include "components/aerie_tab_model/folder_tree.h"
 #include "components/aerie_tab_model/pinned_tabs.h"
@@ -2325,6 +2326,7 @@ void AerieSidebarView::UpdateRow(const Row& row) {
   row.view->SetSelected(tab->IsActivated());
   row.view->SetSleeping(record && record->sleeping,
                         browser_->GetProfile()->GetPrefs());
+  row.view->SetKeptLoaded(record && record->keep_loaded);
   if (smart_member) {
     // The row only shows the tab: the hover hint says where it is, and the
     // close button says that it acts on the real tab.
@@ -2416,6 +2418,18 @@ void AerieSidebarView::OnTabMoved(const aerie_tab_model::TabRecord& tab,
   ScheduleSync();
 }
 
+void AerieSidebarView::UpdateKeptMarks(
+    const aerie_tab_model::TabRecord& record) {
+  // Every row of the tab: its own, and the rows it has inside smart folders.
+  for (const std::vector<Row>* rows : {&rows_, &pinned_rows_}) {
+    for (const Row& row : *rows) {
+      if (!row.is_folder && RealTabId(row.tab_id) == record.id) {
+        row.view->SetKeptLoaded(record.keep_loaded);
+      }
+    }
+  }
+}
+
 void AerieSidebarView::OnTabChanged(const aerie_tab_model::TabRecord& record) {
   // A tab that went to sleep or into the archive may enter or leave a smart
   // folder (issue #140): only this tab is matched again.
@@ -2431,6 +2445,7 @@ void AerieSidebarView::OnTabChanged(const aerie_tab_model::TabRecord& record) {
   // A manual name set or cleared is seen here (issue #145).
   // The rows of this tab inside smart folders follow its sleeping state too
   // (issue #140).
+  UpdateKeptMarks(record);
   for (const std::vector<Row>* rows : {&rows_, &pinned_rows_}) {
     for (const Row& row : *rows) {
       std::optional<aerie_tab_model::SmartRowRef> ref =
@@ -2943,6 +2958,7 @@ void AerieSidebarView::ShowRowContextMenu(
     options.sleep.tooltip =
         l10n_util::GetStringUTF16(eligibility.tooltip_message_id);
   }
+  options.keep_loaded = record->keep_loaded;
   // A row of a smart folder offers no folder items (issue #140): the real tab's
   // own row has them.
   if (record->section != aerie_tab_model::Section::kFavorite &&
@@ -3004,6 +3020,16 @@ void AerieSidebarView::OnContextCommand(
       if (auto* sleep = aerie_tab_model::SleepControllerFactory::GetForProfile(
               browser_->GetProfile())) {
         sleep->Sleep(tab);
+      }
+      break;
+    case AerieSidebarContextMenu::Command::kKeepLoaded:
+      // A toggle: the check item shows the state the menu opened with.
+      if (model_) {
+        if (const aerie_tab_model::TabRecord* record =
+                model_->GetTab(RealTabId(tab_id))) {
+          aerie_tab_model::SetTabKeepLoaded(*model_, record->id,
+                                            !record->keep_loaded);
+        }
       }
       break;
     case AerieSidebarContextMenu::Command::kBackToPinned:

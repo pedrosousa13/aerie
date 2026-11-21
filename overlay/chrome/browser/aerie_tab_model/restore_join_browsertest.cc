@@ -12,6 +12,9 @@
 #include "base/run_loop.h"
 #include "base/test/run_until.h"
 #include "chrome/browser/aerie_tab_model/restore_pass.h"
+#include "chrome/browser/aerie_tab_model/sleep_controller_factory.h"
+#include "chrome/browser/resource_coordinator/tab_lifecycle_unit_external.h"
+#include "components/aerie_tab_model/folder_behaviour.h"
 #include "chrome/browser/aerie_tab_model/tab_model_service.h"
 #include "chrome/browser/aerie_tab_model/tab_model_service_factory.h"
 #include "chrome/browser/aerie_tab_model/tab_strip_adapter.h"
@@ -388,6 +391,47 @@ IN_PROC_BROWSER_TEST_F(AerieRestoreJoinBrowserTest, ReopeningTheLastClosedWindow
   ASSERT_TRUE(model()->GetTab(named));
   EXPECT_EQ(model()->GetTab(named)->manual_name, "Reopened");
   EXPECT_EQ(model()->awaiting_restore_count(), 0u);
+}
+
+// Keep loaded (issue #267): a tab that comes back from a restart with a kept
+// record is non-auto-discardable again, and one that was not kept is not.
+IN_PROC_BROWSER_TEST_F(AerieRestoreJoinBrowserTest, PRE_AKeptTabIsNonDiscardableAfterARestart) {
+  SessionStartupPref::SetStartupPref(
+      browser()->GetProfile(), SessionStartupPref(SessionStartupPref::LAST));
+  const std::string kept = OpenTab(browser(), "/title1.html");
+  const std::string plain = OpenTab(browser(), "/title2.html");
+  ASSERT_FALSE(kept.empty());
+  ASSERT_FALSE(plain.empty());
+  ASSERT_TRUE(SetTabKeepLoaded(*model(), kept, true));
+  base::RunLoop().RunUntilIdle();
+}
+
+IN_PROC_BROWSER_TEST_F(AerieRestoreJoinBrowserTest, AKeptTabIsNonDiscardableAfterARestart) {
+  WaitForRestorePass();
+  const std::string kept = RecordInWindow(browser(), "/title1.html");
+  const std::string plain = RecordInWindow(browser(), "/title2.html");
+  ASSERT_FALSE(kept.empty());
+  ASSERT_FALSE(plain.empty());
+  ASSERT_TRUE(model()->GetTab(kept));
+  EXPECT_TRUE(model()->GetTab(kept)->keep_loaded);
+  EXPECT_FALSE(model()->GetTab(plain)->keep_loaded);
+  // The controller is made after the window is up, so it meets the restored
+  // tabs when it starts.
+  ASSERT_TRUE(SleepControllerFactory::GetForProfile(profile_));
+  auto auto_discardable = [&](const std::string& path) {
+    TabStripModel* strip = browser()->GetTabStripModel();
+    for (int i = 0; i < strip->count(); ++i) {
+      if (strip->GetWebContentsAt(i)->GetVisibleURL().path() == path) {
+        auto* lifecycle =
+            resource_coordinator::TabLifecycleUnitExternal::FromWebContents(
+                strip->GetWebContentsAt(i));
+        return lifecycle ? lifecycle->IsAutoDiscardable() : true;
+      }
+    }
+    return true;
+  };
+  EXPECT_TRUE(base::test::RunUntil([&] { return !auto_discardable("/title1.html"); }));
+  EXPECT_TRUE(auto_discardable("/title2.html"));
 }
 
 }  // namespace aerie_tab_model

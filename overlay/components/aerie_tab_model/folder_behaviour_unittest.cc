@@ -226,6 +226,44 @@ TEST_F(FolderBehaviourTest, TheValuesSurviveTheStateFile) {
   EXPECT_EQ(behaviour.links, LinksOpen::kInPlace);
 }
 
+// Issue #267: a kept tab never sleeps and never archives. The flag on the tab
+// beats every folder rule and the global setting.
+TEST_F(FolderBehaviourTest, AKeptTabNeverSleepsOrArchivesAndItsNeighbourDoes) {
+  const std::string kept = Tab(Section::kToday);
+  const std::string neighbour = Tab(Section::kToday);
+  ASSERT_TRUE(SetTabKeepLoaded(model_, kept, true));
+  EXPECT_EQ(EffectiveSleepAfter(model_, Rec(kept), global_), std::nullopt);
+  EXPECT_EQ(EffectiveArchiveAfter(model_, Rec(kept), global_), std::nullopt);
+  EXPECT_EQ(EffectiveSleepAfter(model_, Rec(neighbour), global_),
+            base::Hours(1));
+  EXPECT_EQ(EffectiveArchiveAfter(model_, Rec(neighbour), global_),
+            base::Hours(12));
+}
+
+TEST_F(FolderBehaviourTest, AKeptTabInAFolderWithRulesIsStillSkipped) {
+  const std::string folder = Folder(Section::kToday);
+  ASSERT_TRUE(SetFolderArchiveAfter(model_, folder, ArchiveChoice::k24Hours));
+  ASSERT_TRUE(SetFolderSleepAfter(model_, folder, 15));
+  const std::string kept = Tab(Section::kToday, folder);
+  const std::string plain = Tab(Section::kToday, folder);
+  ASSERT_TRUE(SetTabKeepLoaded(model_, kept, true));
+  EXPECT_EQ(EffectiveSleepAfter(model_, Rec(kept), global_), std::nullopt);
+  EXPECT_EQ(EffectiveArchiveAfter(model_, Rec(kept), global_), std::nullopt);
+  EXPECT_EQ(EffectiveSleepAfter(model_, Rec(plain), global_),
+            base::Minutes(15));
+  EXPECT_EQ(EffectiveArchiveAfter(model_, Rec(plain), global_), base::Days(1));
+}
+
+TEST_F(FolderBehaviourTest, ClearingKeepLoadedGivesTheRulesBack) {
+  const std::string tab = Tab(Section::kToday);
+  EXPECT_FALSE(SetTabKeepLoaded(model_, tab, false));  // Already off.
+  ASSERT_TRUE(SetTabKeepLoaded(model_, tab, true));
+  EXPECT_FALSE(SetTabKeepLoaded(model_, tab, true));  // Changes nothing.
+  ASSERT_TRUE(SetTabKeepLoaded(model_, tab, false));
+  EXPECT_EQ(EffectiveSleepAfter(model_, Rec(tab), global_), base::Hours(1));
+  EXPECT_FALSE(SetTabKeepLoaded(model_, "no-such-tab", true));
+}
+
 TEST_F(FolderBehaviourTest, AFolderShowsWhatItWouldInherit) {
   const std::string outer = Folder(Section::kToday);
   const std::string inner = Folder(Section::kToday, outer);

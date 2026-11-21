@@ -55,6 +55,15 @@
   <message name="IDS_AERIE_SIDEBAR_ROW_ASLEEP_NAME" desc="Accessible name of a tab row in the sidebar when the tab is asleep. A sleeping tab has freed its memory and loads again when the user selects it. The tab's title comes first, then the word asleep.">
     <ph name="TITLE">$1<ex>Example page</ex></ph>, asleep
   </message>
+  <message name="IDS_AERIE_SIDEBAR_KEEP_LOADED" desc="Check item of the context menu of a tab row in the sidebar. When it is checked, the tab is kept loaded: it never goes to sleep on the idle timer and is never archived automatically. It protects a call, music, a chat or an editor.">
+    Keep loaded
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_KEEP_LOADED_TOOLTIP" desc="Tooltip of the small mark on a tab row in the sidebar. The mark shows that the tab is kept loaded, so it never goes to sleep and is never archived automatically.">
+    Kept loaded: this tab never sleeps or archives
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_ROW_KEPT_NAME" desc="Accessible name of a tab row in the sidebar when the tab is kept loaded, so it never goes to sleep and is never archived automatically. The tab's title comes first, then the words kept loaded.">
+    <ph name="TITLE">$1<ex>Example page</ex></ph>, kept loaded
+  </message>
   <message name="IDS_AERIE_SIDEBAR_SLEEP_TAB" desc="Item of the context menu of a tab row in the sidebar. It puts the tab to sleep at once, which frees its memory. The tab loads again when the user selects it.">
     Sleep tab
   </message>

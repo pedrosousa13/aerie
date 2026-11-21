@@ -170,6 +170,16 @@ AerieSidebarRowView::AerieSidebarRowView(
   title_->GetViewAccessibility().SetIsIgnored(true);
   layout->SetFlexForView(title_, 1);
 
+  // The mark of a tab that is kept loaded (issue #267). Not a button and not a
+  // focus stop: the context menu is the way to the setting, and the row's
+  // accessible name says it.
+  keep_mark_ = content_->AddChildView(std::make_unique<views::ImageView>());
+  keep_mark_->SetImageSize(gfx::Size(kSleepBadgeSize, kSleepBadgeSize));
+  keep_mark_->GetViewAccessibility().SetIsIgnored(true);
+  keep_mark_->SetTooltipText(
+      l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_KEEP_LOADED_TOOLTIP));
+  keep_mark_->SetVisible(false);
+
   // The hint of a row inside a smart folder (issue #140): where the real tab
   // is. Quiet, and only while the pointer is on the row.
   origin_hint_ = content_->AddChildView(std::make_unique<views::Label>(
@@ -309,6 +319,9 @@ void AerieSidebarRowView::SetPalette(
   palette_ = palette;
   title_->SetEnabledColor(palette_.text);
   origin_hint_->SetEnabledColor(palette_.text_muted);
+  keep_mark_->SetImage(ui::ImageModel::FromVectorIcon(
+      aerie_sidebar::kAerieKeepLoadedIcon, palette_.text_muted,
+      kSleepBadgeSize));
   // The close icon is muted at rest and the text colour under the pointer
   // (the mockup's `.ibtn`).
   for (views::Button::ButtonState state :
@@ -370,6 +383,8 @@ void AerieSidebarRowView::UpdateTrailing() {
   back_to_pinned_->SetVisible(back_to_pinned_wanted_ && !closing_ &&
                               !renaming_ && !icons_only_);
   pencil_->SetVisible(renamed_ && !closing_ && !renaming_ && !icons_only_);
+  keep_mark_->SetVisible(kept_loaded_ && !closing_ && !renaming_ &&
+                         !icons_only_);
   origin_hint_->SetVisible(smart_member_ && hovered_ && !closing_ &&
                            !renaming_ && !icons_only_);
   close_button_->SetVisible(ShowsCloseButton() && !closing_ && !renaming_ &&
@@ -439,6 +454,9 @@ std::u16string AerieSidebarRowView::AccessibleName() const {
   std::u16string name = title_text_;
   if (sleeping_) {
     name = l10n_util::GetStringFUTF16(IDS_AERIE_SIDEBAR_ROW_ASLEEP_NAME, name);
+  }
+  if (kept_loaded_) {
+    name = l10n_util::GetStringFUTF16(IDS_AERIE_SIDEBAR_ROW_KEPT_NAME, name);
   }
   if (renamed_) {
     name = l10n_util::GetStringFUTF16(IDS_AERIE_SIDEBAR_ROW_RENAMED_NAME, name);
@@ -653,6 +671,16 @@ void AerieSidebarRowView::SetSleeping(bool sleeping,
   UpdateName();
   sleep_badge_->SetVisible(sleeping);
   ApplySleepLook(animate, reduced_motion_prefs);
+}
+
+void AerieSidebarRowView::SetKeptLoaded(bool kept) {
+  if (kept_loaded_ == kept) {
+    return;
+  }
+  kept_loaded_ = kept;
+  UpdateName();
+  UpdateTrailing();
+  InvalidateLayout();
 }
 
 void AerieSidebarRowView::ApplySleepLook(bool animate,

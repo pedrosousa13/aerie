@@ -159,6 +159,33 @@ TEST_F(TabModelPersistenceTest, FolderOrderExpandStateAndPinnedContentsSurviveAR
   });
 }
 
+// Issue #267: the kept flag is part of the record, so it survives a restart,
+// for a Pinned tab and for a Today tab that a restored tab claims.
+TEST_F(TabModelPersistenceTest, TheKeepLoadedFlagSurvivesARestart) {
+  std::string pinned;
+  std::string today;
+  std::string plain;
+  Session([&](TabModel& model) {
+    TabRecord first;
+    first.section = Section::kPinned;
+    first.pinned_url = "https://example.com/";
+    first.keep_loaded = true;
+    pinned = model.AddTab(std::move(first));
+    today = model.AddTab(TabRecord());
+    ASSERT_TRUE(model.UpdateTab(today, [](TabRecord& t) { t.keep_loaded = true; }));
+    plain = model.AddTab(TabRecord());
+  });
+  Session([&](TabModel& model) {
+    EXPECT_EQ(model.ClaimRestoredTab(today), today);
+    ASSERT_TRUE(model.GetTab(pinned));
+    EXPECT_TRUE(model.GetTab(pinned)->keep_loaded);
+    ASSERT_TRUE(model.GetTab(today));
+    EXPECT_TRUE(model.GetTab(today)->keep_loaded);
+    ASSERT_TRUE(model.GetTab(plain));
+    EXPECT_FALSE(model.GetTab(plain)->keep_loaded);
+  });
+}
+
 TEST_F(TabModelPersistenceTest, ALiveTodayTabIsNotKeptButASleepingOneIs) {
   std::string live;
   std::string asleep;

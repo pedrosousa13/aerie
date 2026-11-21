@@ -266,10 +266,21 @@ bool SetFolderLinksOpen(TabModel& model,
                        });
 }
 
+bool SetTabKeepLoaded(TabModel& model, const std::string& tab_id, bool keep) {
+  const TabRecord* tab = model.GetTab(tab_id);
+  if (!tab || tab->keep_loaded == keep) {
+    return false;
+  }
+  return model.UpdateTab(tab_id, [keep](TabRecord& t) { t.keep_loaded = keep; });
+}
+
 Resolved<std::optional<base::TimeDelta>> ResolveArchiveAfter(
     const TabModel& model,
     const TabRecord& tab,
     const GlobalBehaviour& global) {
+  if (tab.keep_loaded) {
+    return {std::nullopt, std::string()};
+  }
   return ArchiveFrom(model, tab.parent, tab.section, global);
 }
 
@@ -277,6 +288,9 @@ Resolved<std::optional<base::TimeDelta>> ResolveSleepAfter(
     const TabModel& model,
     const TabRecord& tab,
     const GlobalBehaviour& global) {
+  if (tab.keep_loaded) {
+    return {std::nullopt, std::string()};
+  }
   return SleepFrom(model, tab.parent, global);
 }
 
