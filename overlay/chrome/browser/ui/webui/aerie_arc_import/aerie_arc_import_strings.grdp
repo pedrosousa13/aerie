@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright 2026 The Aerie Authors
+     You can use, redistribute, and/or modify this source code under
+     the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+     Strings of "Import from Arc" in Settings (issue #171). patches/sidebar/0052 includes this file in generated_resources.grd and gives each
+     string to the settings page under the name tests/test_arc_import.py checks. -->
+<grit-part>
+  <message name="IDS_SETTINGS_AERIE_ARC_IMPORT" desc="Label of the row in Settings that imports pinned tabs, folders and Favorites from an Arc sidebar file.">
+    Import from Arc
+  </message>
+  <message name="IDS_SETTINGS_AERIE_ARC_IMPORT_DESC" desc="Line under the Import from Arc row in Settings. It says what the import takes.">
+    Pinned tabs, folders and Favorites of one Arc Space
+  </message>
+  <message name="IDS_SETTINGS_AERIE_ARC_IMPORT_CHOOSER_TITLE" desc="Title of the file chooser that opens for Import from Arc. StorableSidebar.json is the name of Arc's file and is not translated.">
+    Choose Arc's StorableSidebar.json
+  </message>
+  <message name="IDS_SETTINGS_AERIE_ARC_IMPORT_DIALOG_TITLE" desc="Title of the dialog of the Arc import.">
+    Import from Arc
+  </message>
+  <message name="IDS_SETTINGS_AERIE_ARC_IMPORT_READING" desc="Shown in the Arc import dialog while the file is read.">
+    Reading the file...
+  </message>
+  <message name="IDS_SETTINGS_AERIE_ARC_IMPORT_PICKER_HEADING" desc="Heading of the list of Arc Spaces in the Arc import dialog.">
+    Choose a Space to import
+  </message>
+  <message name="IDS_SETTINGS_AERIE_ARC_IMPORT_PICKER_DESC" desc="Line under the heading of the list of Arc Spaces. It says that the import adds to the current Workspace and replaces nothing.">
+    The Space is added to this Workspace, after what you already have. Nothing is replaced and nothing loads.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_ARC_IMPORT_PICKER_ARIA" desc="Accessible name of the list of Arc Spaces.">
+    Arc Spaces
+  </message>
+  <message name="IDS_SETTINGS_AERIE_ARC_IMPORT_SPACE_UNNAMED" desc="Name shown for an Arc Space that has no name in the file. The number is its place in the file.">
+    Space <ph name="NUMBER">$1<ex>3</ex></ph>
+  </message>
+  <message name="IDS_SETTINGS_AERIE_ARC_IMPORT_SPACE_COUNTS" desc="Counts under the name of an Arc Space in the list: pinned tabs, folders and Favorites that it holds.">
+    <ph name="PINNED">$1<ex>12</ex></ph> pinned, <ph name="FOLDERS">$2<ex>2</ex></ph> folders, <ph name="FAVORITES">$3<ex>4</ex></ph> Favorites
+  </message>
+  <message name="IDS_SETTINGS_AERIE_ARC_IMPORT_IMPORT" desc="Button that imports the chosen Arc Space.">
+    Import
+  </message>
+  <message name="IDS_SETTINGS_AERIE_ARC_IMPORT_CANCEL" desc="Button that closes the Arc import dialog without importing.">
+    Cancel
+  </message>
+  <message name="IDS_SETTINGS_AERIE_ARC_IMPORT_DONE" desc="Button that closes the Arc import dialog after an import.">
+    Done
+  </message>
+  <message name="IDS_SETTINGS_AERIE_ARC_IMPORT_RESULT_HEADING" desc="Heading of the result of the Arc import.">
+    Imported from Arc
+  </message>
+  <message name="IDS_SETTINGS_AERIE_ARC_IMPORT_RESULT_PINNED" desc="Line of the Arc import result: how many pinned tabs were added.">
+    Pinned tabs: <ph name="COUNT">$1<ex>12</ex></ph>
+  </message>
+  <message name="IDS_SETTINGS_AERIE_ARC_IMPORT_RESULT_FOLDERS" desc="Line of the Arc import result: how many folders were added.">
+    Folders: <ph name="COUNT">$1<ex>2</ex></ph>
+  </message>
+  <message name="IDS_SETTINGS_AERIE_ARC_IMPORT_RESULT_FAVORITES" desc="Line of the Arc import result: how many Favorites were added.">
+    Favorites: <ph name="COUNT">$1<ex>4</ex></ph>
+  </message>
+  <message name="IDS_SETTINGS_AERIE_ARC_IMPORT_RESULT_NAMES" desc="Line of the Arc import result: how many tabs kept the name the user gave them in Arc.">
+    Custom names kept: <ph name="COUNT">$1<ex>3</ex></ph>
+  </message>
+  <message name="IDS_SETTINGS_AERIE_ARC_IMPORT_SKIPPED_HEADING" desc="Heading of the list of what the Arc import left out.">
+    Not imported
+  </message>
+  <message name="IDS_SETTINGS_AERIE_ARC_IMPORT_SKIP_UNSUPPORTED_SCHEME" desc="Line of the Arc import result: how many tabs were left out because their address is not http or https, for example javascript:, file: or data: addresses.">
+    Addresses that are not http or https: <ph name="COUNT">$1<ex>3</ex></ph>
+  </message>
+  <message name="IDS_SETTINGS_AERIE_ARC_IMPORT_SKIP_NO_USABLE_ADDRESS" desc="Line of the Arc import result: how many tabs were left out because their address is missing or not valid.">
+    Tabs with no usable address: <ph name="COUNT">$1<ex>1</ex></ph>
+  </message>
+  <message name="IDS_SETTINGS_AERIE_ARC_IMPORT_SKIP_ARC_ONLY_ITEM" desc="Line of the Arc import result: how many items of a kind that only Arc has, such as Easels, were left out.">
+    Items that only Arc has: <ph name="COUNT">$1<ex>1</ex></ph>
+  </message>
+  <message name="IDS_SETTINGS_AERIE_ARC_IMPORT_SKIP_TOO_MANY" desc="Line of the Arc import result: how many items or Spaces were left out because the file has more than the import reads.">
+    Items over the limit: <ph name="COUNT">$1<ex>20</ex></ph>
+  </message>
+  <message name="IDS_SETTINGS_AERIE_ARC_IMPORT_SKIP_TOO_DEEP" desc="Line of the Arc import result: how many items were left out because they are nested deeper than the import reads.">
+    Items nested too deep: <ph name="COUNT">$1<ex>2</ex></ph>
+  </message>
+  <message name="IDS_SETTINGS_AERIE_ARC_IMPORT_SKIP_FOLDER_MERGED" desc="Line of the Arc import result: how many folders were merged into the folder above because folders nest only five levels. Their tabs are kept.">
+    Folders nested too deep, merged into their parent folder: <ph name="COUNT">$1<ex>2</ex></ph>
+  </message>
+  <message name="IDS_SETTINGS_AERIE_ARC_IMPORT_SKIP_FAVORITES_FULL" desc="Line of the Arc import result: how many Favorites were left out because a Workspace holds 12 Favorites.">
+    Favorites over the limit of 12: <ph name="COUNT">$1<ex>2</ex></ph>
+  </message>
+  <message name="IDS_SETTINGS_AERIE_ARC_IMPORT_SKIP_LITTLE_ARC" desc="Line of the Arc import result: how many Little Arc windows in the file were left out.">
+    Little Arc windows: <ph name="COUNT">$1<ex>1</ex></ph>
+  </message>
+  <message name="IDS_SETTINGS_AERIE_ARC_IMPORT_NOT_IMPORTED_FEATURES" desc="Line of the Arc import result that names the Arc features that Aerie does not import. Boosts, Easels, Little Arc and Peek are Arc feature names.">
+    Boosts, Easels, Little Arc, Peek and Space themes are not imported.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_ARC_IMPORT_NO_LOGINS" desc="Line of the Arc import result that says the import does not bring saved logins.">
+    Logins are not imported.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_ARC_IMPORT_ERROR_TOO_LARGE" desc="Error of the Arc import: the chosen file is too large.">
+    That file is over 32 MB. An Arc sidebar file is much smaller, so it is probably not the right file.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_ARC_IMPORT_ERROR_UNREADABLE" desc="Error of the Arc import: the chosen file could not be read.">
+    Aerie could not read that file.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_ARC_IMPORT_ERROR_NOT_A_FILE" desc="Error of the Arc import: the chosen item is not a regular file (a folder, a pipe or a device).">
+    That is not a file Aerie can read. Choose the StorableSidebar.json file.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_ARC_IMPORT_ERROR_INVALID_JSON" desc="Error of the Arc import: the chosen file is not JSON.">
+    That file is not valid JSON, so it is not an Arc sidebar.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_ARC_IMPORT_ERROR_NOT_ARC" desc="Error of the Arc import: the chosen file is JSON but not an Arc sidebar. StorableSidebar.json is the name of Arc's file and is not translated.">
+    That file does not look like an Arc sidebar (StorableSidebar.json).
+  </message>
+  <message name="IDS_SETTINGS_AERIE_ARC_IMPORT_ERROR_NO_SPACES" desc="Error of the Arc import: the Arc sidebar file holds no Space.">
+    That file has no Spaces to import.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_ARC_IMPORT_ERROR_NOT_READY" desc="Error of the Arc import: the browser has not finished reading the saved tabs.">
+    Your tabs are not ready yet. Try again in a moment.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_ARC_IMPORT_ERROR_APPLY_FAILED" desc="Error of the Arc import: a write failed and the import was undone.">
+    The import did not finish, so nothing was changed.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_ARC_IMPORT_ERROR_GENERIC" desc="Error of the Arc import for a problem that has no message of its own.">
+    The import did not work. Nothing was changed.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_ARC_IMPORT_UNTITLED_FOLDER" desc="Name of a folder that the Arc import brings from a folder that had no name in Arc.">
+    Untitled folder
+  </message>
+</grit-part>

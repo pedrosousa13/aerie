@@ -16,5 +16,5 @@ Single-context: `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents
 
 ## Checks
 
-- Tests: `python3 -m pytest -q tests && ./aerie patches check && ./aerie locked -- ./aerie test-cpp` (C++ issues also run the browser and interactive UI targets they touch, with `--target aerie_browser_tests` / `--target aerie_interactive_ui_tests`, and `./aerie bench`). Run test runs in the foreground. The `aerie_adblock_unittests` failures tracked in #82 fail on main too; any other failure blocks landing.
-- Typecheck: none separate — the compile inside `./aerie test-cpp` is the type check for C++.
+- Tests: `python3 -m pytest -q tests && ./aerie patches check && ./aerie test-cpp` (run builds and tests in the foreground; `aerie_adblock_unittests` has 6 known #82 failures). For sidebar or UI changes, also `./aerie test-cpp --target aerie_browser_tests` and `env -u WAYLAND_DISPLAY ./aerie test-cpp --target aerie_interactive_ui_tests`.
+- Typecheck: none (the C++ compile in `./aerie test-cpp` is the type check).

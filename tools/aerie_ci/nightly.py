@@ -14,7 +14,7 @@ from .gate import CiConfig
 
 PASS, FAIL, BUSY = "pass", "fail", "busy"
 
-# sidebar_frames fails until #237 lands, and a failing Bench run is not recorded as the perf baseline the PR gate
+# sidebar_frames fails until its p95 goal (#245) is met, and a failing Bench run is not recorded as the perf baseline the PR gate
 # compares against. It runs by hand until then; when it passes, remove it from here and the nightly records its baseline.
 NIGHTLY_BENCH_EXCLUDE = ("sidebar_frames",)
 

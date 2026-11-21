@@ -132,22 +132,47 @@ def check_secure_dns_default(root: Path, require: bool = False) -> list[Finding]
         "secure DNS must default to off (SecureDnsMode::kOff)", require)
 
 
+def _must_not_match(root: Path, rel: str, gate: str, pattern: str, message: str, require: bool) -> list[Finding]:
+    text, missing = _read(root, rel, gate, require)
+    if text is None:
+        return missing
+    return [Finding(gate, rel, message)] if re.search(pattern, text, re.S) else []
+
+
 def check_crash_reporting(root: Path, require: bool = False) -> list[Finding]:
     out = _must_match(
         root, "components/crash/core/app/crash_reporter_client.cc", "crash_reporting",
-        r"CrashReporterClient::GetUploadUrl\(\)\s*\{(?:\s*//[^\n]*)*\s*return std::string\(\);\s*\}",
+        r"CrashReporterClient::GetUploadUrl\(\)\s*\{(?:\s*//[^\n]*\n)*\s*return std::string\(\);\s*\}",
         "GetUploadUrl() must return an empty string and nothing else", require)
     out += _must_match(
         root, "chrome/browser/crash_upload_list/helium_crash_reporting.cc", "crash_reporting",
-        r"CrashReportingMode GetCrashReportingMode\(\)\s*\{(?:\s*//[^\n]*)*\s*return CrashReportingMode::kDisabled;\s*\}",
+        r"CrashReportingMode GetCrashReportingMode\(\)\s*\{(?:\s*//[^\n]*\n)*\s*return CrashReportingMode::kDisabled;\s*\}",
         "GetCrashReportingMode() must always return kDisabled", require)
+    # Crash reports stay on the device (issue #262): nothing can switch the database's uploads on or
+    # request one report's upload, and nothing deletes a pending report for being pending.
+    crashpad = "components/crash/core/app/crashpad.cc"
+    out += _must_match(
+        root, crashpad, "crash_reporting",
+        r"void ApplyUploadConsent\(bool[^)]*\)\s*\{[^}]*SetUploadsEnabled\(false\);\s*\}",
+        "ApplyUploadConsent() must only ever switch the database's uploads off", require)
+    out += _must_match(
+        root, crashpad, "crash_reporting",
+        r"void RequestSingleCrashUploadImpl\(const std::string& local_id\)\s*\{(?:\s*//[^\n]*\n)*\s*\}",
+        "RequestSingleCrashUploadImpl() must do nothing", require)
+    out += _must_not_match(
+        root, crashpad, "crash_reporting", r"SetUploadsEnabled\(\s*(?!false)[^)]",
+        "no code may switch the database's uploads on", require)
+    out += _must_not_match(
+        root, "chrome/browser/crash_upload_list/helium_crash_reporting.cc", "crash_reporting",
+        r"SetUploadConsentFromUser\(\s*true\s*\)|DeletePendingReports",
+        "the crash mode code must not switch uploads on, nor delete pending reports", require)
     return out
 
 
 def check_fedcm_resolver(root: Path, require: bool = False) -> list[Finding]:
     return _must_match(
         root, "chrome/browser/chrome_content_browser_client.cc", "fedcm_resolver",
-        r"ChromeContentBrowserClient::GetDnsTxtResolverUrlPrefix\(\)\s*\{(?:\s*//[^\n]*)*\s*return std::string\(\);\s*\}",
+        r"ChromeContentBrowserClient::GetDnsTxtResolverUrlPrefix\(\)\s*\{(?:\s*//[^\n]*\n)*\s*return std::string\(\);\s*\}",
         "GetDnsTxtResolverUrlPrefix() must return an empty string (no built-in dns.google)", require)
 
 
@@ -581,12 +606,49 @@ def check_text_metrics_noise(root: Path, require: bool = False) -> list[Finding]
     return out
 
 
+DELEGATE_PATH = "services/network/network_service_network_delegate.cc"
+NETWORK_CONTEXT_PATH = "services/network/network_context.cc"
+
+
+def check_request_policy(root: Path, require: bool = False) -> list[Finding]:
+    """The request policy (issue #257) is hooked into all three paths, and every annotation name in the
+    tables of docs/network-endpoints.md exists in the source (or in Aerie's overlay)."""
+    gate = "request_policy"
+    out: list[Finding] = []
+    text, missing = _read(root, DELEGATE_PATH, gate, require)
+    if text is None:
+        out += missing
+    else:
+        for needle, why in (("aerie_network::ClassifyFactory(", "the request origin must come from the factory facts"),
+                            ("aerie_network::Decide(", "URL requests must be judged"),
+                            ("ERR_BLOCKED_BY_ADMINISTRATOR", "a refusal must return the policy's net error")):
+            if needle not in text:
+                out.append(Finding(gate, DELEGATE_PATH, why))
+    text, missing = _read(root, NETWORK_CONTEXT_PATH, gate, require)
+    if text is None:
+        out += missing
+    elif text.count("aerie_network::DecideConnection(") != 2:
+        out.append(Finding(gate, NETWORK_CONTEXT_PATH, "both PreconnectSockets and ResolveHost must call DecideConnection"))
+    xml = Path(root) / "tools/traffic_annotation/summary/annotations.xml"
+    if xml.is_file():
+        from aerie_netpolicy import model  # tools/ is on the path whenever aerie_build is
+
+        repo = Path(__file__).resolve().parents[2]
+        try:
+            table = model.parse_doc((repo / model.DOC_PATH).read_text(encoding="utf-8"))
+        except (model.PolicyDocError, OSError) as exc:
+            return out + [Finding(gate, model.DOC_PATH, f"the request policy tables are invalid: {exc}")]
+        for name in model.unknown_annotations(table, xml.read_text(encoding="utf-8"), model.overlay_annotation_text(repo)):
+            out.append(Finding(gate, model.DOC_PATH, f"traffic annotation {name!r} does not exist in the pinned source"))
+    return out
+
+
 GATES: tuple[Callable[..., list[Finding]], ...] = (
     check_search_list, check_search_suggestions, check_secure_dns_default,
     check_crash_reporting, check_services_off, check_fedcm_resolver, check_widevine_opt_in,
     check_https_first_dialog_off, check_link_prefetch_off, check_js_optimizer, check_services_ui,
     check_audio_noise_stable, check_gpu_masking, check_webgl_readpixels, check_worker_noise_tokens, check_workspace_noise_partition, check_popup_noise_tokens,
-    check_text_metrics_noise,
+    check_text_metrics_noise, check_request_policy,
 )
 
 

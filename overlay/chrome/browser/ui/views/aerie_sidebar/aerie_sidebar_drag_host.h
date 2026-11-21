@@ -7,6 +7,7 @@
 
 #include <map>
 #include <string>
+#include <vector>
 
 #include "base/memory/raw_ptr.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_drag_controller.h"
@@ -43,6 +44,9 @@ class AerieSidebarDragHost : public AerieSidebarDragController::Host {
   void ResetRowShift(const std::string& id) override;
   bool ScrollList(aerie_tab_model::Section section, int dy) override;
   aerie_sidebar::MoveResult ApplyMove(
+      const aerie_sidebar::MoveRequest& request) override;
+  aerie_sidebar::MoveResult ApplyMoveMany(
+      const std::vector<std::string>& ids,
       const aerie_sidebar::MoveRequest& request) override;
   void ShowRefusal(aerie_sidebar::RefusalReason reason, bool on_drop) override;
   void HideRefusal() override;

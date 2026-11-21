@@ -67,6 +67,17 @@ class AerieSidebarContextMenu : public views::MenuDelegate {
     // "Make a rename rule from this tab...": opens Settings, Sidebar with the
     // rule editor filled in from the tab (issue #146).
     kMakeRule = 18,
+    // Several selected rows (issue #265). "Archive" is in the menu of a
+    // selection only; "Select range to here" and "Clear selection" are in a
+    // tab's menu while rows are selected (they are the screen reader's way to
+    // them) and "Clear selection" ends the menu of a selection.
+    kArchive = 19,
+    kSelectRange = 20,
+    kClearSelection = 21,
+    // The menu of the Clear button on the Today header (issue #266): "Archive
+    // all" (what a click does) and "Close all" (what Alt+click does).
+    kClearArchive = 22,
+    kClearClose = 23,
     kMoveToFolderBase = 100,
   };
 
@@ -88,6 +99,12 @@ class AerieSidebarContextMenu : public views::MenuDelegate {
     kFolder,
     // The heading of a section: New folder only.
     kSection,
+    // Two or more selected rows (issue #265): the batch menu. It has the items
+    // of a tab's menu that make sense for many tabs, and each acts on the whole
+    // selection.
+    kSelection,
+    // The Clear button of the Today header (issue #266).
+    kClear,
   };
 
   struct MoveTarget {
@@ -140,6 +157,16 @@ class AerieSidebarContextMenu : public views::MenuDelegate {
     // A tab that a folder rule filed (issue #139): "Stop this rule matching this
     // tab".
     ItemState stop_rule;
+    // The number of selected tabs behind a kSelection menu; its item names say
+    // it ("Close 3 tabs").
+    int selection_count = 0;
+    // A tab's menu while rows are selected: "Select range to here" (a row in the
+    // section of the selection, not in it) and "Clear selection".
+    ItemState select_range;
+    ItemState clear_selection;
+    // A kClear menu: whether "Archive all" is there. A private window keeps no
+    // Archive, so its menu has "Close all" only.
+    bool clear_can_archive = true;
   };
 
   // Runs with the command id when an enabled item is chosen.
@@ -189,6 +216,11 @@ class AerieSidebarContextMenu : public views::MenuDelegate {
  private:
   bool HasCommand(Command command) const;
   void BuildTabItems();
+  void BuildSelectionItems();
+  bool IsTabLike() const {
+    return options_.target == Target::kTab ||
+           options_.target == Target::kSelection;
+  }
 
   Options options_;
   CommandCallback on_command_;

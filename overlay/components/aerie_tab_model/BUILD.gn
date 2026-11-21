@@ -10,6 +10,12 @@ import("//testing/test.gni")
 # //chrome/browser/aerie_tab_model.
 source_set("aerie_tab_model") {
   sources = [
+    "arc_import.cc",
+    "arc_import.h",
+    "arc_import_apply.cc",
+    "arc_import_apply.h",
+    "arc_import_json.cc",
+    "arc_import_json.h",
     "archive.cc",
     "archive.h",
     "archive_schedule.cc",
@@ -75,6 +81,8 @@ source_set("prefs") {
 source_set("unit_tests") {
   testonly = true
   sources = [
+    "arc_import_apply_unittest.cc",
+    "arc_import_unittest.cc",
     "archive_schedule_unittest.cc",
     "archive_unittest.cc",
     "auto_file_controller_unittest.cc",

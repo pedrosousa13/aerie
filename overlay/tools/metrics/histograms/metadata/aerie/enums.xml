@@ -1,0 +1,23 @@
+<!--
+Copyright 2026 The Aerie Authors
+You can use, redistribute, and/or modify this source code under
+the terms of the GPL-3.0 license that can be found in the LICENSE file.
+-->
+
+<!--
+Enumerations used by histograms.xml in this directory.
+-->
+
+<histogram-configuration>
+
+<enums>
+
+<enum name="AerieRequestPolicyVerdict">
+  <int value="0" label="Allowed (not recorded)"/>
+  <int value="1" label="Refused: host not on the allowlist"/>
+  <int value="2" label="Refused: no traffic annotation"/>
+</enum>
+
+</enums>
+
+</histogram-configuration>

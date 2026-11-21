@@ -123,6 +123,15 @@ void AerieSidebarTileView::SetSelected(bool selected) {
   UpdateState();
 }
 
+void AerieSidebarTileView::SetMultiSelected(bool selected) {
+  if (multi_selected_ == selected) {
+    return;
+  }
+  multi_selected_ = selected;
+  GetViewAccessibility().SetIsSelected(multi_selected_);
+  UpdateState();
+}
+
 void AerieSidebarTileView::SetSleeping(
     bool sleeping,
     const PrefService* reduced_motion_prefs) {
@@ -369,7 +378,13 @@ void AerieSidebarTileView::OnMouseReleased(const ui::MouseEvent& event) {
     return;
   }
   if (event.IsOnlyLeftMouseButton()) {
-    callbacks_.select.Run();
+    if (callbacks_.modified_click && IsSelectionToggleClick(event)) {
+      callbacks_.modified_click.Run(/*range=*/false);
+    } else if (callbacks_.modified_click && IsSelectionRangeClick(event)) {
+      callbacks_.modified_click.Run(/*range=*/true);
+    } else {
+      callbacks_.select.Run();
+    }
   } else if (event.IsOnlyMiddleMouseButton()) {
     callbacks_.close.Run();
   }
@@ -389,6 +404,13 @@ bool AerieSidebarTileView::OnKeyPressed(const ui::KeyEvent& event) {
   if (IsCloseShortcut(event)) {
     callbacks_.key.Run(aerie_sidebar::GridKey::kDelete);
     return true;
+  }
+  // Selecting several tiles (issue #265).
+  if (callbacks_.selection_key) {
+    if (const std::optional<AerieSidebarSelectionKey> key =
+            SelectionKeyFor(event, /*grid=*/true)) {
+      return callbacks_.selection_key.Run(*key);
+    }
   }
   if (event.IsAltDown() || event.IsCommandDown()) {
     return false;
@@ -439,6 +461,14 @@ bool AerieSidebarTileView::OnKeyPressed(const ui::KeyEvent& event) {
 bool AerieSidebarTileView::SkipDefaultKeyEventProcessing(
     const ui::KeyEvent& event) {
   // As on a row: Ctrl+W on a focused tile is for the tile's own tab.
+  if (const std::optional<AerieSidebarSelectionKey> key =
+          SelectionKeyFor(event, /*grid=*/true);
+      key && callbacks_.selection_key &&
+      (*key == AerieSidebarSelectionKey::kSelectAll ||
+       (*key == AerieSidebarSelectionKey::kClear && callbacks_.selection_active &&
+        callbacks_.selection_active.Run()))) {
+    return true;
+  }
   return IsCloseShortcut(event) ||
          views::View::SkipDefaultKeyEventProcessing(event);
 }
@@ -473,7 +503,8 @@ void AerieSidebarTileView::ShowContextMenuForViewImpl(
 void AerieSidebarTileView::UpdateState() {
   // A tile is always a tile: the resting fill is the row hover colour, and the
   // selected tile and the hovered one take the selected fill.
-  const SkColor fill = (selected_ || hovered_) ? palette_.row_selected
+  const SkColor fill = (selected_ || multi_selected_ || hovered_)
+                           ? palette_.row_selected
                                                : palette_.row_hover;
   SetBackground(
       views::CreateRoundedRectBackground(fill, aerie::tokens::kRadiusMd));

@@ -4,8 +4,10 @@
 
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_drag_overlay.h"
 
+#include <algorithm>
 #include <vector>
 
+#include "base/strings/string_number_conversions.h"
 #include "cc/paint/paint_flags.h"
 #include "components/aerie_design_tokens/aerie_tokens.h"
 #include "third_party/skia/include/core/SkColor.h"
@@ -16,6 +18,7 @@
 #include "ui/gfx/geometry/rect_f.h"
 #include "ui/gfx/shadow_value.h"
 #include "ui/gfx/skia_paint_util.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/controls/image_view.h"
 #include "ui/views/controls/label.h"
 #include "ui/views/layout/layout_provider.h"
@@ -54,6 +57,17 @@ AerieSidebarDragGhost::AerieSidebarDragGhost(
     title_->SetElideBehavior(gfx::ELIDE_TAIL);
     title_->SetBackgroundColor(SkColorSetA(palette_.text, 0));
   }
+  if (content.count > 1) {
+    count_ = AddChildView(std::make_unique<views::Label>(
+        base::NumberToString16(content.count), views::style::CONTEXT_LABEL,
+        views::style::STYLE_BODY_4));
+    count_->SetHorizontalAlignment(gfx::ALIGN_CENTER);
+    count_->SetAutoColorReadabilityEnabled(false);
+    count_->SetEnabledColor(palette_.peek_surface);
+    count_->SetBackgroundColor(SkColorSetA(palette_.text, 0));
+    // The badge is a count for the eye; the sidebar announces the drag.
+    count_->GetViewAccessibility().SetIsIgnored(true);
+  }
 }
 
 AerieSidebarDragGhost::~AerieSidebarDragGhost() = default;
@@ -66,6 +80,9 @@ void AerieSidebarDragGhost::SetColours(
   if (title_) {
     title_->SetEnabledColor(palette_.text);
     title_->SetBackgroundColor(SkColorSetA(palette_.text, 0));
+  }
+  if (count_) {
+    count_->SetEnabledColor(palette_.peek_surface);
   }
   SchedulePaint();
 }
@@ -90,15 +107,41 @@ void AerieSidebarDragGhost::Layout(PassKey) {
     icon_->SetBoundsRect(gfx::Rect(
         inner.x() + (inner.width() - icon) / 2,
         inner.y() + (inner.height() - icon) / 2, icon, icon));
+    if (count_) {
+      count_->SetBoundsRect(CountBadgeBounds());
+    }
     return;
   }
   const int x = inner.x() + indent_ + aerie::tokens::kSpace8;
   icon_->SetBoundsRect(
       gfx::Rect(x, inner.y() + (inner.height() - icon) / 2, icon, icon));
   const int text_x = x + icon + aerie::tokens::kSpace8;
-  title_->SetBoundsRect(gfx::Rect(
-      text_x, inner.y(), std::max(0, inner.right() - text_x - aerie::tokens::kSpace8),
-      inner.height()));
+  int text_right = inner.right() - aerie::tokens::kSpace8;
+  if (count_) {
+    const gfx::Rect badge = CountBadgeBounds();
+    count_->SetBoundsRect(badge);
+    text_right = badge.x() - aerie::tokens::kSpace8;
+  }
+  title_->SetBoundsRect(gfx::Rect(text_x, inner.y(),
+                                  std::max(0, text_right - text_x),
+                                  inner.height()));
+}
+
+gfx::Rect AerieSidebarDragGhost::CountBadgeBounds() const {
+  // A round badge as high as an icon, wider for two or three digits, at the
+  // trailing edge of the row (on a tile it sits on the top corner).
+  gfx::Rect inner = GetLocalBounds();
+  inner.Inset(kShadowRoom);
+  const int height = aerie::tokens::kSizeIcon;
+  const int width = std::max(
+      height, count_->GetPreferredSize().width() +
+                  2 * static_cast<int>(aerie::tokens::kSpace4));
+  if (tile_) {
+    return gfx::Rect(inner.right() - width / 2, inner.y() - height / 2, width,
+                     height);
+  }
+  return gfx::Rect(inner.right() - aerie::tokens::kSpace8 - width,
+                   inner.y() + (inner.height() - height) / 2, width, height);
 }
 
 void AerieSidebarDragGhost::OnPaint(gfx::Canvas* canvas) {
@@ -124,6 +167,14 @@ void AerieSidebarDragGhost::OnPaint(gfx::Canvas* canvas) {
   fill.setAntiAlias(true);
   fill.setColor(palette_.row_selected);
   canvas->DrawRoundRect(gfx::RectF(inner), radius, fill);
+  if (count_) {
+    // The badge: a pill of the text colour; its number is in the frame colour.
+    cc::PaintFlags badge;
+    badge.setAntiAlias(true);
+    badge.setColor(palette_.text);
+    const gfx::Rect bounds = CountBadgeBounds();
+    canvas->DrawRoundRect(gfx::RectF(bounds), bounds.height() / 2.f, badge);
+  }
 }
 
 BEGIN_METADATA(AerieSidebarDragGhost)

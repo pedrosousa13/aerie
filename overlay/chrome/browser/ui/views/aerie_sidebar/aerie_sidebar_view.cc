@@ -13,8 +13,10 @@
 
 #include "base/auto_reset.h"
 #include "base/functional/bind.h"
-#include "base/memory/ptr_util.h"
 #include "base/functional/callback_helpers.h"
+#include "base/memory/ptr_util.h"
+#include "base/memory/scoped_refptr.h"
+#include "base/memory/weak_ptr.h"
 #include "base/no_destructor.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
@@ -53,7 +55,9 @@
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_row_view.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_tile_view.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_top_row.h"
+#include "chrome/common/webui_url_constants.h"
 #include "chrome/grit/generated_resources.h"
+#include "components/aerie_tab_model/archive.h"
 #include "components/aerie_design_tokens/aerie_appearance_prefs.h"
 #include "components/aerie_design_tokens/aerie_motion.h"
 #include "components/aerie_design_tokens/aerie_tokens.h"
@@ -88,7 +92,10 @@
 #include "ui/base/window_open_disposition.h"
 #include "ui/color/color_provider_key.h"
 #include "ui/compositor/layer.h"
+#include "ui/compositor/layer_animation_observer.h"
+#include "ui/compositor/layer_animator.h"
 #include "ui/gfx/geometry/insets.h"
+#include "ui/native_theme/native_theme.h"
 #include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/background.h"
 #include "ui/views/border.h"
@@ -110,6 +117,8 @@ namespace {
 // How long after the sidebar is built the sleep controller is created (issue
 // #179: nothing at startup).
 constexpr base::TimeDelta kSleepControllerDelay = base::Seconds(5);
+// How long the first Delete on a selection waits for the second (issue #265).
+constexpr base::TimeDelta kCloseSelectionConfirmWindow = base::Seconds(4);
 
 // How many pinned rows show before the Pinned list scrolls (`size-pinned-max-rows`).
 constexpr int kPinnedMaxVisibleRows = aerie::tokens::kSizePinnedMaxRows;
@@ -299,6 +308,89 @@ class AerieSidebarView::SectionNotifier
   const raw_ptr<AerieSidebarView> view_;
 };
 
+// Tells the view when the region's layer starts and stops animating. The slide
+// of a show, of a hide and of a peek is one animation of that layer, and the
+// opaque card and the rows are under it: they move and fade as one only if the
+// card is there for the whole of it (issue #248).
+class AerieSidebarView::SlideObserver : public ui::LayerAnimationObserver {
+ public:
+  explicit SlideObserver(AerieSidebarView* view) : view_(view) {}
+  ~SlideObserver() override { Reset(); }
+
+  // Observes the animator of `layer`; the same animator again is a no-op, and a
+  // layer that was recreated (a new animator) is picked up the next time this
+  // runs. Sequences already running are reported at once.
+  void Observe(ui::Layer* layer) {
+    if (!layer) {
+      Reset();
+      return;
+    }
+    if (animator_.get() == layer->GetAnimator()) {
+      return;
+    }
+    Reset();
+    // `animator_` is set before AddObserver on purpose: AddObserver reports the
+    // running sequences at once, that reaches UpdatePeekSurface, and
+    // UpdatePeekSurface calls Observe again. With the animator already held,
+    // that inner call finds the same animator and returns, which ends the cycle.
+    animator_ = layer->GetAnimator();
+    animator_->AddObserver(this);
+  }
+  void Reset() {
+    weak_factory_.InvalidateWeakPtrs();
+    sliding_ = false;
+    if (animator_) {
+      // Leaving the animator tells this observer about each sequence it drops;
+      // the view is on its way out or does not need to hear it.
+      quiet_ = true;
+      animator_->RemoveObserver(this);
+      animator_.reset();
+      quiet_ = false;
+    }
+  }
+  // True from the first sequence to the end of the last one. A show that
+  // interrupts a hide (or the reverse) aborts the old sequences before it
+  // schedules the new ones, so "none" is only believed once a task has run
+  // and no sequence came: the card stays up across the hand-over.
+  bool sliding() const { return sliding_; }
+
+ private:
+  void OnLayerAnimationEnded(ui::LayerAnimationSequence*) override {}
+  void OnLayerAnimationAborted(ui::LayerAnimationSequence*) override {}
+  void OnLayerAnimationScheduled(ui::LayerAnimationSequence*) override {}
+  void OnAttachedToSequence(ui::LayerAnimationSequence*) override {
+    if (quiet_) {
+      return;
+    }
+    sliding_ = true;
+    // Only the card's visibility and the sidebar's layer change here: the card
+    // is added once, in a task of its own, so that no view is added from
+    // inside a layout walk (this runs from AnimateLayer).
+    view_->UpdatePeekSurface();
+  }
+  void OnDetachedFromSequence(ui::LayerAnimationSequence*) override {
+    if (quiet_ || !attached_sequences().empty()) {
+      return;
+    }
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE, base::BindOnce(&SlideObserver::Settle,
+                                  weak_factory_.GetWeakPtr()));
+  }
+  void Settle() {
+    if (!attached_sequences().empty()) {
+      return;
+    }
+    sliding_ = false;
+    view_->UpdatePeekSurface();
+  }
+
+  raw_ptr<AerieSidebarView> view_;
+  bool quiet_ = false;
+  bool sliding_ = false;
+  scoped_refptr<ui::LayerAnimator> animator_;
+  base::WeakPtrFactory<SlideObserver> weak_factory_{this};
+};
+
 AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
                                    base::RepeatingClosure new_tab)
     : browser_(browser),
@@ -362,6 +454,7 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
   favorites_grid_->SetFocusHandler(base::BindRepeating(
       &AerieSidebarView::FocusTileStop, base::Unretained(this)));
   favorites_grid_->GetViewAccessibility().SetRole(ax::mojom::Role::kGrid);
+  favorites_grid_->GetViewAccessibility().SetIsMultiselectable(true);
   favorites_grid_->GetViewAccessibility().SetName(
       l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_FAVORITES));
   favorites_grid_->SetVisible(false);
@@ -393,6 +486,7 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
   pinned->SetFocusHandler(base::BindRepeating(
       &AerieSidebarView::FocusPinnedTabStop, base::Unretained(this)));
   pinned->GetViewAccessibility().SetRole(ax::mojom::Role::kTree);
+  pinned->GetViewAccessibility().SetIsMultiselectable(true);
   pinned->GetViewAccessibility().SetName(
       l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_PINNED));
   pinned_list_ = pinned_scroll_->SetContents(std::move(pinned));
@@ -440,6 +534,22 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
   sleeping_summary_->SetBorder(views::CreateEmptyBorder(
       gfx::Insets::TLBR(aerie::tokens::kSpace8, 0, 0, aerie::tokens::kSpace8)));
   sleeping_summary_->SetVisible(false);
+  // Clear (issue #266): archives the Today tabs; Alt+click or "Close all" in
+  // its menu closes them.
+  clear_button_ = today_header->AddChildView(std::make_unique<views::LabelButton>(
+      base::BindRepeating(&AerieSidebarView::OnClearPressed,
+                          base::Unretained(this)),
+      l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_CLEAR_BUTTON)));
+  clear_button_->SetTooltipText(
+      l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_CLEAR_TOOLTIP));
+  clear_button_->SetHorizontalAlignment(gfx::ALIGN_RIGHT);
+  clear_button_->SetBorder(views::CreateEmptyBorder(gfx::Insets::TLBR(
+      aerie::tokens::kSpace4, aerie::tokens::kSpace8, aerie::tokens::kSpace4,
+      aerie::tokens::kSpace8)));
+  clear_button_->SetInstallFocusRingOnFocus(false);
+  views::FocusRing::Remove(clear_button_);
+  AerieSidebarFocusRing::Install(clear_button_, aerie::tokens::kRadiusMd);
+  clear_button_->set_context_menu_controller(this);
 
   scroll_ = AddChildView(std::make_unique<views::ScrollView>(
       views::ScrollView::ScrollWithLayers::kDisabled));
@@ -461,6 +571,7 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
   list->SetFocusHandler(base::BindRepeating(&AerieSidebarView::FocusTabStop,
                                             base::Unretained(this)));
   list->GetViewAccessibility().SetRole(ax::mojom::Role::kTree);
+  list->GetViewAccessibility().SetIsMultiselectable(true);
   list->GetViewAccessibility().SetName(
       l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_TODAY));
   list_ = scroll_->SetContents(std::move(list));
@@ -491,7 +602,8 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
   actions->SetInsideBorderInsets(gfx::Insets::TLBR(
       0, aerie::tokens::kSpace8, aerie::tokens::kSpace8, aerie::tokens::kSpace8));
   toast_undo_ = actions->AddChildView(std::make_unique<views::LabelButton>(
-      base::BindRepeating(&AerieSidebarView::UndoFiling, base::Unretained(this)),
+      base::BindRepeating(&AerieSidebarView::OnToastUndo,
+                          base::Unretained(this)),
       l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_FILED_UNDO)));
   toast_dont_file_ = actions->AddChildView(std::make_unique<views::LabelButton>(
       base::BindRepeating(&AerieSidebarView::DontFileThisSite,
@@ -714,11 +826,31 @@ void AerieSidebarView::ShowPeekToast(bool kept_open) {
 
 void AerieSidebarView::AddedToWidget() {
   views::View::AddedToWidget();
+  // AerieSidebarView -> the content area of the region -> the region.
+  if (parent() && parent()->parent()) {
+    region_observation_.Observe(parent()->parent());
+    if (!slide_observer_) {
+      slide_observer_ = std::make_unique<SlideObserver>(this);
+    }
+    slide_observer_->Observe(parent()->parent()->layer());
+    // The card is added once, now and not at the first show, so that a show
+    // only has to make it visible (issue #248). The parent may be walking its
+    // children: a task of its own adds it.
+    if (!surface_tracker_.view()) {
+      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+          FROM_HERE, base::BindOnce(&AerieSidebarView::AddPeekSurface,
+                                    weak_factory_.GetWeakPtr()));
+    }
+  }
   UpdatePeekSurface();
   OnLayoutPrefsChanged();
 }
 
 void AerieSidebarView::RemovedFromWidget() {
+  region_observation_.Reset();
+  if (slide_observer_) {
+    slide_observer_->Reset();
+  }
   if (peek_) {
     peek_->SetActive(false);
   }
@@ -738,6 +870,31 @@ void AerieSidebarView::OnLayoutPrefsChanged() {
   UpdatePeekSurface();
 }
 
+bool AerieSidebarView::RegionSlides() const {
+  return slide_observer_ && slide_observer_->sliding();
+}
+
+bool AerieSidebarView::RegionFloats() const {
+  const views::View* region = region_observation_.GetSource();
+  return region && region->GetProperty(aerie_sidebar::kFloatingWidth) > 0;
+}
+
+void AerieSidebarView::OnViewPropertyChanged(
+    views::View* observed_view,
+    const void* key,
+    int64_t old_value) {
+  if (key == aerie_sidebar::kFloatingWidth) {
+    UpdatePeekSurface(/*immediate=*/true);
+  }
+}
+
+void AerieSidebarView::OnViewIsDeleting(views::View* observed_view) {
+  region_observation_.Reset();
+  if (slide_observer_) {
+    slide_observer_->Reset();
+  }
+}
+
 void AerieSidebarView::AddPeekSurface() {
   views::View* parent_view = parent();
   if (surface_tracker_.view() || !parent_view) {
@@ -749,15 +906,33 @@ void AerieSidebarView::AddPeekSurface() {
   UpdatePeekSurface();
 }
 
-void AerieSidebarView::UpdatePeekSurface() {
+void AerieSidebarView::UpdatePeekSurface(bool immediate) {
+  // The region's layer is there when the view is attached (the region makes it
+  // in its constructor), but follow it if it is ever recreated.
+  if (slide_observer_) {
+    if (views::View* region = region_observation_.GetSource()) {
+      slide_observer_->Observe(region->layer());
+    }
+  }
+  // A peek floats the column, and so does a hide while it slides out: both set
+  // the region's kFloatingWidth, and both need the opaque card under the rows.
+  // A show does not float (the layout gives the column its room at once), but
+  // the frame behind it is already at its final place: without the card the
+  // rows would slide over it on a clock of their own (issue #248). So the card
+  // is there whenever the region's layer is animating.
   const bool floating =
-      peek_ && peek_->active() && aerie_sidebar::IsAutoHidden(*profile_prefs());
+      (peek_ && peek_->active() && aerie_sidebar::IsAutoHidden(*profile_prefs())) ||
+      RegionFloats() || RegionSlides();
   // The card is a sibling under this view, in the column that holds it: a child
   // layer would paint over the rows that have no layer of their own, and the
   // shadow has to fall outside this view's bounds. This view paints to a layer
   // while it floats, so that it stays above the card.
   views::View* parent_view = parent();
   views::View* surface = surface_tracker_.view();
+  if (!surface && floating && parent_view && immediate) {
+    AddPeekSurface();
+    return;
+  }
   if (!surface && floating && parent_view) {
     // The parent may be walking its children (this runs from AddedToWidget):
     // the card is added in a task of its own.
@@ -958,8 +1133,14 @@ bool AerieSidebarView::IsPositionInWindowCaption(
 aerie_sidebar::SidebarPalette AerieSidebarView::ResolvePalette() const {
   const aerie_tab_model::Workspace* workspace =
       model_ ? &model_->workspace() : nullptr;
+  // The constructor asks before the view is in a window, and View::
+  // GetNativeTheme() then reports the fall-through to the global theme with
+  // DumpWithoutCrashing() (issue #247).
+  const ui::NativeTheme& native_theme =
+      GetWidget() ? *GetNativeTheme()
+                  : *ui::NativeTheme::GetInstanceForNativeUi();
   const aerie::tokens::EffectiveLook look = aerie_look::ComputeEffectiveLook(
-      *browser_->GetProfile()->GetPrefs(), workspace, *GetNativeTheme(),
+      *browser_->GetProfile()->GetPrefs(), workspace, native_theme,
       GetWidget());
   // Forced colours: the operating system's colours, and nothing of the tint.
   if (look.system_colours && GetWidget()) {
@@ -1008,6 +1189,7 @@ void AerieSidebarView::ApplyPalette() {
       palette_.row_selected, aerie::tokens::kRadiusMd));
   toast_undo_->SetEnabledTextColors(palette_.text);
   toast_dont_file_->SetEnabledTextColors(palette_.text);
+  clear_button_->SetEnabledTextColors(palette_.text_muted);
   // The favicon of a tab without one is drawn in the muted text colour.
   UpdateRows();
 }
@@ -1184,7 +1366,7 @@ AerieSidebarRowView* AerieSidebarView::MakeRow(
     // and closes that tab, and takes the same context menu. It cannot be
     // dragged and has no rename, no Alt+Arrow move and no way back to a pinned
     // page.
-    callbacks.select = base::BindRepeating(&AerieSidebarView::SelectTab,
+    callbacks.select = base::BindRepeating(&AerieSidebarView::ActivateTab,
                                            base::Unretained(this), id);
     callbacks.close = base::BindRepeating(&AerieSidebarView::CloseTab,
                                           base::Unretained(this), id);
@@ -1219,11 +1401,18 @@ AerieSidebarRowView* AerieSidebarView::MakeRow(
                                            base::Unretained(this), id);
     callbacks.close = base::DoNothing();
   } else {
-    callbacks.select = base::BindRepeating(&AerieSidebarView::SelectTab,
+    callbacks.select = base::BindRepeating(&AerieSidebarView::ActivateTab,
                                            base::Unretained(this), id);
     callbacks.close = base::BindRepeating(&AerieSidebarView::CloseTab,
                                           base::Unretained(this), id);
+    callbacks.modified_click = base::BindRepeating(
+        &AerieSidebarView::OnModifiedClick, base::Unretained(this), id);
   }
+  callbacks.selection_key = base::BindRepeating(
+      &AerieSidebarView::OnSelectionKey, base::Unretained(this), id);
+  callbacks.selection_active = base::BindRepeating(
+      [](AerieSidebarView* self) { return !self->selection_.empty(); },
+      base::Unretained(this));
   callbacks.key = base::BindRepeating(&AerieSidebarView::OnTreeRowKey,
                                       base::Unretained(this), today, id);
   callbacks.focused = today ? base::BindRepeating(
@@ -1444,6 +1633,7 @@ void AerieSidebarView::SyncAll(bool allow_flip) {
   SyncPinned(pinned);
   SyncRows(today);
   folders_.StartGroup();
+  ApplySelection();
   if (play_flip) {
     DeprecatedLayoutImmediately();
     PlayFlip(before, moved_id);
@@ -1531,8 +1721,15 @@ void AerieSidebarView::SyncFavorites() {
       continue;
     }
     AerieSidebarTileView::Callbacks callbacks;
-    callbacks.select = base::BindRepeating(&AerieSidebarView::SelectTab,
+    callbacks.select = base::BindRepeating(&AerieSidebarView::ActivateTab,
                                            base::Unretained(this), id);
+    callbacks.modified_click = base::BindRepeating(
+        &AerieSidebarView::OnModifiedClick, base::Unretained(this), id);
+    callbacks.selection_key = base::BindRepeating(
+        &AerieSidebarView::OnSelectionKey, base::Unretained(this), id);
+    callbacks.selection_active = base::BindRepeating(
+        [](AerieSidebarView* self) { return !self->selection_.empty(); },
+        base::Unretained(this));
     callbacks.close = base::BindRepeating(&AerieSidebarView::CloseTab,
                                           base::Unretained(this), id);
     callbacks.key = base::BindRepeating(&AerieSidebarView::OnTileKey,
@@ -1725,7 +1922,15 @@ bool AerieSidebarView::OnItemDragBegin(const std::string& id, bool is_folder) {
   if (aerie_tab_model::ParseSmartRowId(id)) {
     return false;
   }
-  const bool began = EnsureDragController()->Begin(id, is_folder);
+  // A drag of a selected row carries the whole selection (issue #265). A drag
+  // of a row outside it leaves the selection.
+  std::vector<std::string> carried;
+  if (!is_folder && IsInMultiSelection(id)) {
+    carried = selection_.Selected();
+  } else if (!selection_.empty() && !selection_.IsSelected(id)) {
+    ClearSelection();
+  }
+  const bool began = EnsureDragController()->Begin(id, is_folder, carried);
   SetHold(drag_hold_, aerie_sidebar::PeekBusy::kDrag, dragging());
   return began;
 }
@@ -1929,6 +2134,11 @@ void AerieSidebarView::OnTreeRowKey(bool today,
     // Focus moves when the row has gone (the sync), to the row that takes its
     // place.
     (today ? refocus_after_close_id_ : pinned_refocus_after_close_id_) = id;
+    if (IsInMultiSelection(id)) {
+      // Delete on a selection asks first (issue #265).
+      RequestCloseSelection();
+      return;
+    }
     CloseTab(id);
     return;
   }
@@ -2556,6 +2766,10 @@ void AerieSidebarView::ShowContextMenuForViewImpl(
     views::View* source,
     const gfx::Point& point,
     ui::mojom::MenuSourceType source_type) {
+  if (source == clear_button_) {
+    ShowClearMenu(point, source_type);
+    return;
+  }
   const bool pinned = source == pinned_list_ || source == pinned_scroll_;
   ShowSectionContextMenu(pinned ? aerie_tab_model::Section::kPinned
                                 : aerie_tab_model::Section::kToday,
@@ -2688,6 +2902,11 @@ void AerieSidebarView::ShowRowContextMenu(
     ShowFolderContextMenu(tab_id, screen_point, source_type);
     return;
   }
+  // The batch menu: right-click on one of several selected rows (issue #265).
+  if (IsInMultiSelection(tab_id)) {
+    ShowSelectionContextMenu(screen_point, source_type);
+    return;
+  }
   tabs::TabInterface* tab = FindTab(tab_id);
   auto* controller = aerie_tab_model::SleepControllerFactory::GetForProfile(
       browser_->GetProfile());
@@ -2743,6 +2962,15 @@ void AerieSidebarView::ShowRowContextMenu(
                      base::UTF8ToUTF16(choice.name);
       options.move_targets.push_back(std::move(target));
     }
+  }
+  // While rows are selected, the menu of another row can extend the selection
+  // to it or end it, which is also the way for a screen reader (issue #265).
+  if (!selection_.empty()) {
+    options.clear_selection.shown = true;
+    options.select_range.shown =
+        !selection_.IsSelected(tab_id) && !selection_.anchor().empty() &&
+        selection_.section() == record->section &&
+        !aerie_tab_model::ParseSmartRowId(tab_id);
   }
   context_menu_ = std::make_unique<AerieSidebarContextMenu>(
       std::move(options),
@@ -2811,6 +3039,12 @@ void AerieSidebarView::OnContextCommand(
       break;
     case AerieSidebarContextMenu::Command::kMakeRule:
       MakeRuleFromTab(tab_id);
+      break;
+    case AerieSidebarContextMenu::Command::kSelectRange:
+      SelectRangeTo(tab_id);
+      break;
+    case AerieSidebarContextMenu::Command::kClearSelection:
+      ClearSelection();
       break;
     case AerieSidebarContextMenu::Command::kNewFolder: {
       const aerie_tab_model::TabRecord* record =
@@ -2950,15 +3184,25 @@ bool AerieSidebarView::toast_visible() const {
   return toast_card_->GetVisible();
 }
 
-void AerieSidebarView::ShowToast(const std::u16string& text, bool has_actions) {
+void AerieSidebarView::ShowToast(const std::u16string& text,
+                                 bool has_actions,
+                                 const std::u16string& announcement) {
   toast_motion_.Abort();
   toast_timer_.Stop();
+  // Any toast replaces the one before it, and with it the chance to undo a
+  // Clear (ClearToday sets the list again after its own toast).
+  clear_undo_tabs_.clear();
   toast_->SetText(text);
   toast_actions_->SetVisible(has_actions);
   toast_card_->SetVisible(true);
   // A polite announcement: the label has the status role, and its text change
   // is what a screen reader reads.
-  toast_->NotifyAccessibilityEventDeprecated(ax::mojom::Event::kAlert, true);
+  if (announcement.empty()) {
+    toast_->NotifyAccessibilityEventDeprecated(ax::mojom::Event::kAlert, true);
+  } else {
+    toast_->GetViewAccessibility().AnnounceText(announcement);
+    last_toast_announcement_ = announcement;
+  }
   const PrefService* prefs = browser_->GetProfile()->GetPrefs();
   const aerie_sidebar::ToastMotion motion = aerie_sidebar::ToastShowMotion(
       aerie::motion::ShouldReduceMotion(prefs), has_actions);
@@ -3009,6 +3253,7 @@ void AerieSidebarView::FinishToastHide() {
   toast_card_->SetVisible(false);
   toast_actions_->SetVisible(false);
   toast_->SetText(std::u16string());
+  clear_undo_tabs_.clear();
   last_filed_ = aerie_tab_model::AutoFileController::Filed();
   if (toast_card_->layer()) {
     toast_card_->DestroyLayer();
@@ -3037,9 +3282,154 @@ void AerieSidebarView::OnTabFiled(
     row->PlayFilingPulse(prefs);
   }
   last_filed_ = filed;
+  toast_dont_file_->SetVisible(true);
   ShowToast(l10n_util::GetStringFUTF16(IDS_AERIE_SIDEBAR_FILED_INTO,
                                        base::UTF8ToUTF16(folder->name)),
             /*has_actions=*/true);
+}
+
+std::vector<std::string> AerieSidebarView::cleared_ids_for_testing() const {
+  std::vector<std::string> ids;
+  for (const ClearedTab& tab : clear_undo_tabs_) {
+    ids.push_back(tab.id);
+  }
+  return ids;
+}
+
+void AerieSidebarView::OnClearPressed(const ui::Event& event) {
+  // Alt closes the tabs and keeps nothing.
+  ClearToday(/*close_only=*/event.IsAltDown());
+}
+
+void AerieSidebarView::ShowClearMenuForTesting(const gfx::Point& screen_point) {
+  ShowClearMenu(screen_point, ui::mojom::MenuSourceType::kKeyboard);
+}
+
+void AerieSidebarView::ShowClearMenu(const gfx::Point& screen_point,
+                                     ui::mojom::MenuSourceType source_type) {
+  if (!model_ || !GetWidget()) {
+    return;
+  }
+  AerieSidebarContextMenu::Options options;
+  options.target = AerieSidebarContextMenu::Target::kClear;
+  options.section = aerie_tab_model::Section::kToday;
+  options.clear_can_archive = archive_ && archive_->CanArchive();
+  context_menu_ = std::make_unique<AerieSidebarContextMenu>(
+      std::move(options),
+      base::BindRepeating(&AerieSidebarView::OnClearMenuCommand,
+                          weak_factory_.GetWeakPtr()));
+  RunContextMenu(screen_point, source_type);
+}
+
+void AerieSidebarView::OnClearMenuCommand(
+    AerieSidebarContextMenu::Command command) {
+  if (command == AerieSidebarContextMenu::Command::kClearArchive) {
+    ClearToday(/*close_only=*/false);
+  } else if (command == AerieSidebarContextMenu::Command::kClearClose) {
+    ClearToday(/*close_only=*/true);
+  }
+}
+
+void AerieSidebarView::ClearToday(bool close_only) {
+  if (!model_ || !archive_) {
+    return;
+  }
+  // The unpinned Today tabs of this window, top to bottom, folders open or
+  // shut. Pinned and Favorites are other sections and are never listed.
+  auto listed = [this](const std::string& id) { return FindTab(id) != nullptr; };
+  std::vector<ClearedTab> tabs;
+  for (const aerie_tab_model::TreeRow& row : aerie_tab_model::BuildAllRows(
+           *model_, aerie_tab_model::Section::kToday, listed)) {
+    if (row.is_folder || row.smart_member) {
+      continue;
+    }
+    const aerie_tab_model::TabRecord* record = model_->GetTab(row.id);
+    if (record && !record->archived_at) {
+      tabs.push_back({row.id, record->parent, record->position});
+    }
+  }
+  if (tabs.empty()) {
+    return;
+  }
+  // A private window keeps no Archive (issue #183): there Clear closes.
+  const bool archive_them = !close_only && archive_->CanArchive();
+  if (archive_them) {
+    // Only the tabs that the Archive takes: the others stay open as they are.
+    std::erase_if(tabs, [this](const ClearedTab& tab) {
+      return !archive_->CanArchiveTab(FindTab(tab.id));
+    });
+    if (tabs.empty()) {
+      return;
+    }
+  }
+  ResetSelection();
+  // A window with nothing left after Clear would close: keep it with a new tab.
+  if (browser_->GetTabStripModel()->count() <=
+      static_cast<int>(tabs.size())) {
+    browser_->OpenGURL(GURL(chrome::kChromeUINewTabURL),
+                       WindowOpenDisposition::NEW_FOREGROUND_TAB);
+  }
+  if (!archive_them) {
+    for (const ClearedTab& tab : tabs) {
+      CloseTab(tab.id);
+    }
+    return;
+  }
+  std::vector<ClearedTab> archived;
+  for (const ClearedTab& tab : tabs) {
+    if (archive_->ArchiveTab(FindTab(tab.id),
+                             aerie_tab_model::kArchiveReasonCleared)) {
+      archived.push_back(tab);
+    }
+  }
+  if (archived.empty()) {
+    return;
+  }
+  const int count = static_cast<int>(archived.size());
+  toast_dont_file_->SetVisible(false);
+  last_filed_ = aerie_tab_model::AutoFileController::Filed();
+  // The label says the count; a screen reader also hears that Undo is there.
+  ShowToast(l10n_util::GetPluralStringFUTF16(IDS_AERIE_SIDEBAR_CLEARED_TOAST,
+                                             count),
+            /*has_actions=*/true,
+            l10n_util::GetPluralStringFUTF16(
+                IDS_AERIE_SIDEBAR_CLEARED_TOAST_READ, count));
+  // After the toast: showing it dropped the list of any earlier Clear.
+  clear_undo_tabs_ = std::move(archived);
+}
+
+void AerieSidebarView::OnToastUndo() {
+  if (!clear_undo_tabs_.empty()) {
+    UndoClear();
+  } else {
+    UndoFiling();
+  }
+}
+
+void AerieSidebarView::UndoClear() {
+  std::vector<ClearedTab> tabs = std::move(clear_undo_tabs_);
+  HideToast();
+  if (!model_ || !archive_) {
+    return;
+  }
+  for (const ClearedTab& tab : tabs) {
+    // Only what Clear archived and is still archived: a tab the user already
+    // restored from the Archive panel is not opened a second time.
+    const aerie_tab_model::TabRecord* record = model_->GetTab(tab.id);
+    if (!record || !record->archived_at || !record->archive ||
+        record->archive->reason != aerie_tab_model::kArchiveReasonCleared) {
+      continue;
+    }
+    if (!archive_->RestoreRecord(tab.id)) {
+      continue;
+    }
+    // Restore puts a tab at the top of its folder; put it back where it was.
+    record = model_->GetTab(tab.id);
+    if (record && record->parent == tab.parent) {
+      model_->MoveTab(tab.id, aerie_tab_model::Section::kToday, tab.parent,
+                      tab.position);
+    }
+  }
 }
 
 void AerieSidebarView::UndoFiling() {
@@ -3232,6 +3622,10 @@ void AerieSidebarView::OnTileKey(const std::string& tab_id,
       static_cast<int>(tiles_.size()), favorites_grid_->columns(), focused,
       key);
   if (result.close_focused) {
+    if (IsInMultiSelection(tab_id)) {
+      RequestCloseSelection();
+      return;
+    }
     CloseTab(tab_id);
     return;
   }
@@ -3286,6 +3680,350 @@ void AerieSidebarView::FocusTileStop() {
     if (tiles_[i].view->is_tab_stop()) {
       FocusTile(static_cast<int>(i));
       return;
+    }
+  }
+}
+
+// ---- Selecting several rows (issue #265) -----------------------------------
+
+aerie_tab_model::Section AerieSidebarView::SectionOfId(
+    const std::string& id) const {
+  for (const Tile& tile : tiles_) {
+    if (tile.tab_id == id) {
+      return aerie_tab_model::Section::kFavorite;
+    }
+  }
+  for (const Row& row : pinned_rows_) {
+    if (row.tab_id == id) {
+      return aerie_tab_model::Section::kPinned;
+    }
+  }
+  return aerie_tab_model::Section::kToday;
+}
+
+void AerieSidebarView::ApplySelection() {
+  // The rows the user can see, in the order of the sidebar. A folder row and a
+  // row of a smart folder (which stands for a tab that has a row of its own)
+  // are not selectable.
+  std::vector<aerie_sidebar::SelectionRow> rows;
+  for (const Tile& tile : tiles_) {
+    rows.push_back({tile.tab_id, aerie_tab_model::Section::kFavorite, true});
+  }
+  auto add = [&](const std::vector<Row>& list, aerie_tab_model::Section s) {
+    for (const Row& row : list) {
+      rows.push_back({row.tab_id, s,
+                      !row.is_folder &&
+                          !aerie_tab_model::ParseSmartRowId(row.tab_id)});
+    }
+  };
+  add(pinned_rows_, aerie_tab_model::Section::kPinned);
+  add(rows_, aerie_tab_model::Section::kToday);
+  selection_.SetRows(std::move(rows));
+  for (const Tile& tile : tiles_) {
+    tile.view->SetMultiSelected(selection_.IsSelected(tile.tab_id));
+  }
+  for (const std::vector<Row>* list : {&pinned_rows_, &rows_}) {
+    for (const Row& row : *list) {
+      row.view->SetMultiSelected(selection_.IsSelected(row.tab_id));
+    }
+  }
+  if (selection_.size() < 2) {
+    DisarmCloseSelection();
+  }
+}
+
+void AerieSidebarView::AnnounceSelection() {
+  last_announcement_ = l10n_util::GetPluralStringFUTF16(
+      IDS_AERIE_SIDEBAR_SELECTED_COUNT, static_cast<int>(selection_.size()));
+  GetViewAccessibility().AnnouncePolitely(last_announcement_);
+}
+
+void AerieSidebarView::FocusSelectableById(const std::string& id) {
+  const int tile = IndexOfTile(id);
+  if (tile >= 0) {
+    FocusTile(tile);
+    return;
+  }
+  FocusRowById(id);
+}
+
+void AerieSidebarView::ClearSelection() {
+  if (selection_.empty()) {
+    return;
+  }
+  ResetSelection();
+  AnnounceSelection();
+}
+
+void AerieSidebarView::ResetSelection() {
+  selection_.Clear();
+  DisarmCloseSelection();
+  ApplySelection();
+}
+
+bool AerieSidebarView::IsInMultiSelection(const std::string& id) const {
+  return selection_.size() >= 2 && selection_.IsSelected(id);
+}
+
+void AerieSidebarView::ActivateTab(const std::string& id) {
+  // A plain click or Enter on a row ends the selection and opens the tab.
+  if (!selection_.empty()) {
+    ResetSelection();
+  }
+  SelectTab(id);
+}
+
+void AerieSidebarView::SelectRangeTo(const std::string& id) {
+  OnModifiedClick(id, /*range=*/true);
+}
+
+void AerieSidebarView::OnModifiedClick(const std::string& id, bool range) {
+  DisarmCloseSelection();
+  if (range) {
+    // With nothing selected the range starts at the open tab, as in the tab
+    // strip, when that tab is in the same section.
+    if (selection_.empty()) {
+      const std::string active = ActiveRecordId();
+      if (!active.empty() && active != id &&
+          SectionOfId(active) == SectionOfId(id)) {
+        selection_.Toggle(active);
+      }
+    }
+    selection_.SelectRange(id);
+  } else {
+    selection_.Toggle(id);
+  }
+  ApplySelection();
+  FocusSelectableById(id);
+  AnnounceSelection();
+}
+
+bool AerieSidebarView::OnSelectionKey(const std::string& id,
+                                      AerieSidebarSelectionKey key) {
+  switch (key) {
+    case AerieSidebarSelectionKey::kClear:
+      if (selection_.empty()) {
+        return false;
+      }
+      ClearSelection();
+      return true;
+    case AerieSidebarSelectionKey::kSelectAll:
+      DisarmCloseSelection();
+      selection_.SelectAll(SectionOfId(id));
+      ApplySelection();
+      AnnounceSelection();
+      return true;
+    case AerieSidebarSelectionKey::kExtendBack:
+    case AerieSidebarSelectionKey::kExtendForward: {
+      DisarmCloseSelection();
+      const std::string next = selection_.Extend(
+          id, key == AerieSidebarSelectionKey::kExtendBack ? -1 : 1);
+      ApplySelection();
+      if (!next.empty()) {
+        FocusSelectableById(next);
+        AnnounceSelection();
+      }
+      return true;
+    }
+  }
+  return false;
+}
+
+void AerieSidebarView::DisarmCloseSelection() {
+  close_selection_armed_ = false;
+  close_selection_timer_.Stop();
+}
+
+void AerieSidebarView::RequestCloseSelection() {
+  if (!close_selection_armed_) {
+    // The first Delete only asks. Any change of the selection, or a few
+    // seconds, takes the question back.
+    close_selection_armed_ = true;
+    close_selection_timer_.Start(
+        FROM_HERE, kCloseSelectionConfirmWindow,
+        base::BindOnce(&AerieSidebarView::DisarmCloseSelection,
+                       base::Unretained(this)));
+    const std::u16string question = l10n_util::GetPluralStringFUTF16(
+        IDS_AERIE_SIDEBAR_CONFIRM_CLOSE_SELECTION,
+        static_cast<int>(selection_.size()));
+    ShowToast(question);
+    last_announcement_ = question;
+    GetViewAccessibility().AnnouncePolitely(question);
+    return;
+  }
+  DisarmCloseSelection();
+  CloseSelectionNow(selection_.Selected());
+}
+
+void AerieSidebarView::CloseSelectionNow(const std::vector<std::string>& ids) {
+  // Each tab closes as it would alone: a Pinned or Favorite tab follows the
+  // pinned-close setting.
+  selection_.Clear();
+  DisarmCloseSelection();
+  for (const std::string& id : ids) {
+    CloseTab(id);
+  }
+  ApplySelection();
+}
+
+void AerieSidebarView::ShowSelectionContextMenu(
+    const gfx::Point& screen_point,
+    ui::mojom::MenuSourceType source_type) {
+  const std::vector<std::string> ids = selection_.Selected();
+  batch_menu_ids_ = ids;
+  const std::optional<aerie_tab_model::Section> section = selection_.section();
+  auto* sleep = aerie_tab_model::SleepControllerFactory::GetForProfile(
+      browser_->GetProfile());
+  if (ids.size() < 2 || !section || !model_ || !sleep || !GetWidget()) {
+    return;
+  }
+  AerieSidebarContextMenu::Options options;
+  options.target = AerieSidebarContextMenu::Target::kSelection;
+  options.section = *section;
+  options.selection_count = static_cast<int>(ids.size());
+  // Sleep is on when at least one of the tabs can sleep; the others stay awake.
+  using Eligibility = aerie_tab_model::SleepController::Eligibility;
+  for (const std::string& id : ids) {
+    if (tabs::TabInterface* tab = FindTab(id)) {
+      if (sleep->GetEligibility(tab).state == Eligibility::State::kCanSleep) {
+        options.sleep.enabled = true;
+      }
+    }
+  }
+  if (!options.sleep.enabled) {
+    options.sleep.tooltip =
+        l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_SLEEP_TAB_UNAVAILABLE);
+  }
+  if (*section != aerie_tab_model::Section::kFavorite) {
+    const aerie_tab_model::TabRecord* first = model_->GetTab(ids.front());
+    const bool can_make_folder = aerie_tab_model::CanCreateFolderIn(
+        *model_, first ? first->parent : std::string());
+    options.move_to_new_folder.shown = true;
+    options.move_to_new_folder.enabled = can_make_folder;
+    if (!can_make_folder) {
+      options.move_to_new_folder.tooltip = TooDeepTooltip();
+    }
+    for (const aerie_tab_model::FolderChoice& choice :
+         aerie_tab_model::FolderChoices(*model_, *section)) {
+      AerieSidebarContextMenu::MoveTarget target;
+      target.folder_id = choice.id;
+      target.label = std::u16string(choice.level > 1 ? 2 * (choice.level - 1) : 0,
+                                    u' ') +
+                     base::UTF8ToUTF16(choice.name);
+      options.move_targets.push_back(std::move(target));
+    }
+  }
+  context_menu_ = std::make_unique<AerieSidebarContextMenu>(
+      std::move(options),
+      base::BindRepeating(&AerieSidebarView::OnSelectionCommand,
+                          weak_factory_.GetWeakPtr()));
+  RunContextMenu(screen_point, source_type);
+}
+
+void AerieSidebarView::OnSelectionCommand(
+    AerieSidebarContextMenu::Command command) {
+  using Command = AerieSidebarContextMenu::Command;
+  if (!model_) {
+    return;
+  }
+  // The tabs the menu was built for, as far as they are still there: a tab
+  // that closed while the menu was open is skipped, and nothing is left to do
+  // when all of them went.
+  std::vector<std::string> ids;
+  for (const std::string& id : batch_menu_ids_) {
+    if (FindTab(id)) {
+      ids.push_back(id);
+    }
+  }
+  if (command == Command::kClearSelection) {
+    ClearSelection();
+    return;
+  }
+  if (ids.empty()) {
+    return;
+  }
+  auto* pinned = PinnedController();
+  switch (command) {
+    case Command::kClose:
+      CloseSelectionNow(ids);
+      return;
+    case Command::kArchive:
+      for (const std::string& id : ids) {
+        if (archive_) {
+          archive_->ArchiveTab(FindTab(id));
+        }
+      }
+      ResetSelection();
+      return;
+    case Command::kSleepTab:
+      if (auto* sleep = aerie_tab_model::SleepControllerFactory::GetForProfile(
+              browser_->GetProfile())) {
+        using Eligibility = aerie_tab_model::SleepController::Eligibility;
+        for (const std::string& id : ids) {
+          tabs::TabInterface* tab = FindTab(id);
+          if (tab && sleep->GetEligibility(tab).state ==
+                         Eligibility::State::kCanSleep) {
+            sleep->Sleep(tab);
+          }
+        }
+      }
+      return;
+    case Command::kPin:
+    case Command::kUnpin:
+    case Command::kAddToFavorites:
+    case Command::kRemoveFromFavorites: {
+      if (!pinned) {
+        return;
+      }
+      int refused = 0;
+      for (const std::string& id : ids) {
+        tabs::TabInterface* tab = FindTab(id);
+        if (!tab) {
+          continue;
+        }
+        if (command == Command::kPin) {
+          pinned->Pin(tab);
+        } else if (command == Command::kUnpin) {
+          pinned->Unpin(tab);
+        } else if (command == Command::kAddToFavorites) {
+          if (pinned->AddToFavorites(tab) ==
+              aerie_tab_model::FavoriteResult::kFull) {
+            ++refused;
+          }
+        } else {
+          pinned->RemoveFromFavorites(tab);
+        }
+      }
+      if (refused > 0) {
+        ShowToast(l10n_util::GetPluralStringFUTF16(
+            IDS_AERIE_SIDEBAR_FAVORITES_PARTLY_FULL, refused));
+      }
+      return;
+    }
+    case Command::kMoveToNewFolder: {
+      // The folder is made where the first tab is; the others follow it in.
+      const std::string folder = aerie_tab_model::MoveTabToNewFolder(
+          *model_, ids.front(),
+          l10n_util::GetStringUTF8(IDS_AERIE_SIDEBAR_NEW_FOLDER));
+      if (folder.empty()) {
+        return;
+      }
+      for (size_t i = 1; i < ids.size(); ++i) {
+        aerie_tab_model::MoveTabToFolder(*model_, ids[i], folder);
+      }
+      RenameNewFolderSoon(folder);
+      return;
+    }
+    default: {
+      const std::string folder =
+          context_menu_ ? context_menu_->FolderIdForCommand(command)
+                        : std::string();
+      if (folder.empty()) {
+        return;
+      }
+      for (const std::string& id : ids) {
+        aerie_tab_model::MoveTabToFolder(*model_, id, folder);
+      }
     }
   }
 }

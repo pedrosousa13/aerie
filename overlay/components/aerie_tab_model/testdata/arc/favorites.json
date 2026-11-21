@@ -1,0 +1,19 @@
+{"version":1,"sidebar":{"containers":[{"global":{}},{"items":[
+  "top",{"id":"top","childrenIds":["g1","g2","g3","g4","g5","g6","g7","g8","g9","g10","g11","g12","g13","g14"],"data":{"itemContainer":{}}},
+  "g1",{"id":"g1","parentID":"top","data":{"tab":{"savedURL":"https://fav1.example/","savedTitle":"Fav 1"}}},
+  "g2",{"id":"g2","parentID":"top","data":{"tab":{"savedURL":"https://fav2.example/","savedTitle":"Fav 2"}}},
+  "g3",{"id":"g3","parentID":"top","data":{"tab":{"savedURL":"https://fav3.example/","savedTitle":"Fav 3"}}},
+  "g4",{"id":"g4","parentID":"top","data":{"tab":{"savedURL":"https://fav4.example/","savedTitle":"Fav 4"}}},
+  "g5",{"id":"g5","parentID":"top","data":{"tab":{"savedURL":"https://fav5.example/","savedTitle":"Fav 5"}}},
+  "g6",{"id":"g6","parentID":"top","data":{"tab":{"savedURL":"https://fav6.example/","savedTitle":"Fav 6"}}},
+  "g7",{"id":"g7","parentID":"top","data":{"tab":{"savedURL":"https://fav7.example/","savedTitle":"Fav 7"}}},
+  "g8",{"id":"g8","parentID":"top","data":{"tab":{"savedURL":"https://fav8.example/","savedTitle":"Fav 8"}}},
+  "g9",{"id":"g9","parentID":"top","data":{"tab":{"savedURL":"https://fav9.example/","savedTitle":"Fav 9"}}},
+  "g10",{"id":"g10","parentID":"top","data":{"tab":{"savedURL":"https://fav10.example/","savedTitle":"Fav 10"}}},
+  "g11",{"id":"g11","parentID":"top","data":{"tab":{"savedURL":"https://fav11.example/","savedTitle":"Fav 11"}}},
+  "g12",{"id":"g12","parentID":"top","data":{"tab":{"savedURL":"https://fav12.example/","savedTitle":"Fav 12"}}},
+  "g13",{"id":"g13","parentID":"top","data":{"tab":{"savedURL":"https://fav13.example/","savedTitle":"Fav 13"}}},
+  "g14",{"id":"g14","parentID":"top","data":{"tab":{"savedURL":"https://fav14.example/","savedTitle":"Fav 14"}}}
+ ],
+ "spaces":["s1",{"id":"s1","title":"Many favorites","profile":{"default":{}},"containerIDs":["pinned","none"]}],
+ "topAppsContainerIDs":[{"default":{}},"top"]}]}}

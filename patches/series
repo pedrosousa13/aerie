@@ -13,7 +13,11 @@ services/0003-extension-proxy-not-configured.patch
 services/0004-disable-spellcheck-downloads.patch
 services/0005-remove-fedcm-dns-resolver.patch
 crash/0001-remove-crash-reporting.patch
+# Crash reports stay on the device (#262): none is deleted at startup, the oldest beyond 20 are pruned, and no upload can be turned on or requested.
+crash/0002-keep-crash-reports-on-the-device.patch
 network/0001-secure-dns-off-by-default.patch
+network/0002-refuse-browser-requests-not-on-the-allowlist.patch
+network/0003-judge-preconnect-and-name-lookups.patch
 search/0001-trim-the-search-engine-list.patch
 
 # Hardening defaults (#12). 0004 is generated: ./aerie hardening generate
@@ -171,7 +175,16 @@ sidebar/0049-add-the-archive-rows-to-the-sidebar-section-of-settings.patch
 # Tidy tab titles and rename rules (#146): the tidy switches, the rule list and the Try a title box in the Sidebar section of Settings.
 sidebar/0050-add-the-title-tidy-and-rename-rules-to-the-sidebar-section-of-settings.patch
 
+# Window corners (#249): a restored Linux window is rounded by radius-xl when the OS frame provider reports no radius.
+sidebar/0051-round-a-restored-linux-window-by-the-token-when-the-os-has-no-radius.patch
+
+# Import from Arc (#171): the "Import from Arc" row of Settings, its dialog and its message handler.
+sidebar/0052-add-the-import-from-arc-row-to-settings.patch
+
+# Crash reports page (#262): the Crash reports section of Settings, its menu entry, strings and message handler.
+crash/0003-add-the-crash-reports-settings-page.patch
+
 # Folder behaviour (#141): the "Links open" row in the Sidebar section of Settings, and the one call chrome::Navigate makes to open a link in place.
-sidebar/0051-add-the-links-open-row-to-the-sidebar-section-of-settings.patch
-sidebar/0052-let-a-folder-open-links-in-place-from-chrome-navigate.patch
-sidebar/0053-leave-the-referrer-and-the-form-flag-of-a-new-window-on-its-contents.patch
+sidebar/0053-add-the-links-open-row-to-the-sidebar-section-of-settings.patch
+sidebar/0054-let-a-folder-open-links-in-place-from-chrome-navigate.patch
+sidebar/0055-leave-the-referrer-and-the-form-flag-of-a-new-window-on-its-contents.patch

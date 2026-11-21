@@ -864,3 +864,22 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarRenameBrowserTest,
     return sidebar()->closing_row_count() == 0 && sidebar()->row_count() == 2;
   }));
 }
+
+// A theme change reaches every bubble anchored in the window. A closed rename
+// popover must not be one of them (issue #247).
+IN_PROC_BROWSER_TEST_F(AerieSidebarRenameBrowserTest,
+                       AThemeChangeAfterThePopoverClosedDoesNotCrash) {
+  OpenTab("/title2.html");
+  // A Favorites tile is renamed in a popover.
+  Target target = MakeTarget(Section::kFavorite);
+  Start(target, Way::kF2);
+  ASSERT_TRUE(sidebar()->rename_popover());
+  base::WeakPtr<views::Widget> widget =
+      sidebar()->rename_popover()->GetWidget()->GetWeakPtr();
+  sidebar()->rename_popover()->CancelRename();
+  ASSERT_TRUE(base::test::RunUntil([&] { return !widget; }));
+  views::Widget* window =
+      BrowserView::GetBrowserViewForBrowser(browser())->GetWidget();
+  window->ResetLastColorProviderKey();
+  window->ThemeChanged();
+}

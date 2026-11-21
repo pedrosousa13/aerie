@@ -106,6 +106,8 @@ struct ArchivedNavigation {
 
 // What an archived tab keeps beside `archived_at` (issue #183). The record of an
 // archived tab stays in the model as a Today record that no row shows.
+inline constexpr char kArchiveReasonCleared[] = "cleared";
+
 struct ArchiveData {
   // The page the tab showed, its title and the key its favicon is looked up by
   // (the page address, for the favicon service).
@@ -116,6 +118,10 @@ struct ArchiveData {
   // folder still exists. The record's own `parent` follows a deleted folder up,
   // this one does not.
   std::string folder;
+  // Why the tab was archived: empty for the timer (and for a record written
+  // before there was a reason), or `kArchiveReasonCleared` for Today's Clear
+  // (issue #266). Read back only when it is one of those two.
+  std::string reason;
   // The last entries, oldest first; the last one is the page shown. At most
   // kMaxArchivedNavigationEntries.
   std::vector<ArchivedNavigation> entries;

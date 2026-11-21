@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import subprocess
 import sys
 from pathlib import Path
 
@@ -38,6 +39,10 @@ def add_arguments(p: argparse.ArgumentParser, *, binary_required: bool) -> None:
                    help="zero_traffic: quiet time after the first page, the first-launch phase (default 60)")
     p.add_argument("--zero-traffic-strict", action="store_true",
                    help="zero_traffic: also fail on blocked attempts to .qjz9zk dummy hosts and trk: URLs")
+    p.add_argument("--zero-traffic-no-crash", action="store_true",
+                   help="zero_traffic: leave out the crash step (crash a browser on purpose, start it again, "
+                        "and check that the crash report stays on the device and no crash upload is made; "
+                        "it starts two more browsers)")
     p.add_argument("--widevine-online", type=float, default=0.0, metavar="SEC",
                    help="widevine_opt_in: also wait up to SEC in an opted-in browser for Widevine to download "
                         "and become available (needs a network that reaches Google; default 0, off)")
@@ -73,6 +78,10 @@ def add_arguments(p: argparse.ArgumentParser, *, binary_required: bool) -> None:
     p.add_argument("--perf-record", metavar="DIR",
                    help="perf: after a passing run, append perf.json to DIR/history.jsonl and make it DIR/main.json "
                         "(use it on main builds only)")
+    p.add_argument("--perf-commit", metavar="SHA",
+                   help="perf: with --perf-record, the source commit the browser was built from, stored as "
+                        "\"commit\" in main.json and history.jsonl. Default: HEAD of the checkout this tool runs "
+                        "from (right when the binary was just built from it)")
     p.add_argument("--perf-compare-binary", metavar="PATH",
                    help="perf: run the same suite on this browser (Helium, stock Chromium) and write "
                         "perf-comparison.md with both side by side")
@@ -131,10 +140,12 @@ def run(args: argparse.Namespace, build_root: Path, default_binary: Path | None)
             sc = scenario.Scenario()
         if args.check:
             sc = scenario.Scenario(sc.name, tuple(args.check), sc.steps)
-        if (args.perf_baseline or args.perf_record or args.perf_compare_binary or args.perf_first_run) \
-                and "perf" not in sc.checks:
-            raise BenchError("--perf-baseline, --perf-first-run, --perf-record and --perf-compare-binary "
-                             "need --check perf")
+        if (args.perf_baseline or args.perf_record or args.perf_compare_binary or args.perf_first_run
+                or args.perf_commit) and "perf" not in sc.checks:
+            raise BenchError("--perf-baseline, --perf-first-run, --perf-record, --perf-commit and "
+                             "--perf-compare-binary need --check perf")
+        if args.perf_commit and not args.perf_record:
+            raise BenchError("--perf-commit needs --perf-record")
         if args.perf_first_run and not args.perf_baseline:
             raise BenchError("--perf-first-run needs --perf-baseline")
         if (args.sidebar_frames_baseline or args.sidebar_frames_record or args.sidebar_frames_first_run) \
@@ -165,7 +176,8 @@ def run(args: argparse.Namespace, build_root: Path, default_binary: Path | None)
                                         "skip_note": skip_note},
                    "zero_traffic": {"idle_seconds": args.zero_traffic_idle,
                                     "settle_seconds": args.zero_traffic_settle,
-                                    "strict": args.zero_traffic_strict},
+                                    "strict": args.zero_traffic_strict,
+                                    "crash": not args.zero_traffic_no_crash},
                    "widevine_opt_in": {"online_seconds": args.widevine_online},
                    "adblock_score": {"build_root": str(build_root), "baseline": args.adblock_baseline,
                                      "online_seconds": args.adblock_online},
@@ -208,6 +220,19 @@ def _record_sidebar_frames(args, result) -> None:
         print("sidebar_frames: run did not pass; not recorded")
 
 
+def _head_commit(cwd: Path | None = None) -> str | None:
+    """HEAD (12 characters) of the checkout this tool runs from, or None when it is not a git checkout."""
+    try:
+        out = subprocess.run(["git", "rev-parse", "--short=12", "HEAD"],
+                             cwd=cwd or Path(__file__).resolve().parent,
+                             capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if out.returncode != 0:
+        return None
+    return out.stdout.strip() or None
+
+
 def _perf_followup(args, result, build_root, common) -> int:
     """Record the run as the new baseline and run the comparison browser, as asked.
 
@@ -219,7 +244,12 @@ def _perf_followup(args, result, build_root, common) -> int:
     doc = perf.load(doc_path)
     if args.perf_record:
         if result.status == "pass":
-            print(f"perf: recorded in {perf.record(Path(args.perf_record), doc)}")
+            commit = args.perf_commit or _head_commit()
+            if args.binary and not args.perf_commit:
+                print(f"perf: recording commit {commit} (HEAD of this checkout); it may not match --binary. "
+                      "Pass --perf-commit SHA to name the commit the binary was built from.")
+            print(f"perf: recorded in {perf.record(Path(args.perf_record), doc, commit=commit)}"
+                  + (f" (commit {commit})" if commit else ""))
         else:
             print("perf: run did not pass; not recorded")
     if args.perf_compare_binary:

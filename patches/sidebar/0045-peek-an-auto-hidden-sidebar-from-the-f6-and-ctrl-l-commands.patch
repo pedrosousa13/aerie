@@ -52,7 +52,7 @@ auto-hidden). Listing the panes (GetAccessiblePanes) is a query again and change
    if (has_leading_exclusion_ == has_leading_exclusion) {
 --- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
 +++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
-@@ -163,6 +163,9 @@
+@@ -164,6 +164,9 @@
    // Aerie (issue #215): the regions of the sidebar that F6 visits, in order
    // (none while the sidebar is hidden).
    void GetAerieAccessiblePanes(std::vector<views::View*>* panes);

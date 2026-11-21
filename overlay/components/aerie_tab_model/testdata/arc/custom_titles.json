@@ -1,0 +1,9 @@
+{"version":1,"sidebar":{"containers":[{"global":{}},{"items":[
+  "p",{"id":"p","childrenIds":["named","plain","same","blank"],"data":{"itemContainer":{}}},
+  "named",{"id":"named","parentID":"p","title":"My Mail","data":{"tab":{"savedURL":"https://mail.example/","savedTitle":"Inbox (3) - Mail"}}},
+  "plain",{"id":"plain","parentID":"p","title":null,"data":{"tab":{"savedURL":"https://plain.example/","savedTitle":"Plain page"}}},
+  "same",{"id":"same","parentID":"p","title":"Same page","data":{"tab":{"savedURL":"https://same.example/","savedTitle":"Same page"}}},
+  "blank",{"id":"blank","parentID":"p","title":"   ","data":{"tab":{"savedURL":"https://blank.example/","savedTitle":"Blank name"}}}
+ ],
+ "spaces":["s1",{"id":"s1","title":"Names","profile":{"default":{}},"containerIDs":["pinned","p"]}],
+ "topAppsContainerIDs":[]}]}}

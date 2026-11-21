@@ -19,6 +19,7 @@
 #include "components/aerie_tab_model/tab_model.h"
 #include "components/aerie_tab_model/tab_model_prefs.h"
 #include "components/prefs/pref_service.h"
+#include "components/tabs/public/tab_interface.h"
 #include "components/vector_icons/vector_icons.h"
 #include "ui/base/models/image_model.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -73,6 +74,33 @@ void AerieSidebarArchiveController::Detach() {
   while (!flights_.empty()) {
     EndFlight(flights_.begin()->first);
   }
+}
+
+bool AerieSidebarArchiveController::ArchiveTab(tabs::TabInterface* tab,
+                                               const std::string& reason) {
+  // The archiver is built lazily, a few seconds after the window opens.
+  Attach();
+  return archiver_ && tab && archiver_->Archive(tab, reason);
+}
+
+bool AerieSidebarArchiveController::CanArchiveTab(tabs::TabInterface* tab) {
+  Attach();
+  return archiver_ && tab && archiver_->CanArchive(tab);
+}
+
+bool AerieSidebarArchiveController::CanArchive() {
+  Attach();
+  return archiver_ != nullptr;
+}
+
+bool AerieSidebarArchiveController::RestoreRecord(const std::string& id) {
+  Attach();
+  aerie_tab_model::TabModel* model = host_->Model();
+  const aerie_tab_model::TabRecord* record = model ? model->GetTab(id) : nullptr;
+  if (!archiver_ || !record || !record->archived_at) {
+    return false;
+  }
+  return archiver_->Restore(id, host_->Browser()) != nullptr;
 }
 
 void AerieSidebarArchiveController::TogglePanel() {

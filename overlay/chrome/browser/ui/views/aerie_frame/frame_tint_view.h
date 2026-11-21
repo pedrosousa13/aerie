@@ -6,7 +6,9 @@
 #define CHROME_BROWSER_UI_VIEWS_AERIE_FRAME_FRAME_TINT_VIEW_H_
 
 #include <memory>
+#include <optional>
 
+#include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "base/scoped_multi_source_observation.h"
 #include "base/scoped_observation.h"
@@ -16,8 +18,10 @@
 #include "components/aerie_tab_model/tab_model_observer.h"
 #include "components/prefs/pref_change_registrar.h"
 #include "ui/base/metadata/metadata_header_macros.h"
+#include "ui/gfx/geometry/rounded_corners_f.h"
 #include "ui/views/view.h"
 #include "ui/views/view_observer.h"
+#include "ui/views/widget/widget_observer.h"
 
 class Profile;
 class SkBitmap;
@@ -37,6 +41,7 @@ class SkBitmap;
 // on its layer.
 class FrameTintView : public views::View,
                       public views::ViewObserver,
+                      public views::WidgetObserver,
                       public aerie_tab_model::TabModelObserver,
                       public SidebarLookController::Client {
   METADATA_HEADER(FrameTintView, views::View)
@@ -57,6 +62,15 @@ class FrameTintView : public views::View,
     return state_.inputs();
   }
 
+  // Makes the tint see these window corners instead of the frame view's, or
+  // the frame view's again for nullopt. The headless test window has no
+  // compositing, so its frame has no radius; this stands in for the OS one.
+  void SetWindowCornersForTesting(std::optional<gfx::RoundedCornersF> corners);
+  // The same, from a source that is read on every refresh, so a test can change
+  // the corners the way a tiled change does and send the real signal.
+  void SetWindowCornersSourceForTesting(
+      base::RepeatingCallback<gfx::RoundedCornersF()> source);
+
   // Paints exactly what OnPaint paints into `bitmap`, which is made `size()`
   // big, without touching the paint counter. For tests.
   void PaintToBitmapForTesting(SkBitmap* bitmap) const;
@@ -71,6 +85,12 @@ class FrameTintView : public views::View,
   // views::ViewObserver:
   void OnViewBoundsChanged(views::View* observed_view) override;
   void OnViewIsDeleting(views::View* observed_view) override;
+  void OnViewLayoutInvalidated(views::View* observed_view) override;
+
+  // views::WidgetObserver: a maximise, restore or tile changes the corners.
+  void OnWidgetShowStateChanged(views::Widget* widget) override;
+  void OnWidgetBoundsChanged(views::Widget* widget,
+                             const gfx::Rect& new_bounds) override;
 
   // aerie_tab_model::TabModelObserver:
   void OnWorkspaceChanged(const aerie_tab_model::Workspace& workspace) override;
@@ -85,6 +105,8 @@ class FrameTintView : public views::View,
 
  private:
   aerie_frame::FrameTintInputs CurrentInputs() const;
+  // The radii of the window's own corners now (issue #249).
+  gfx::RoundedCornersF WindowCorners() const;
   // Compares what the paint depends on with the last paint and schedules one
   // paint if it differs.
   void Refresh();
@@ -92,9 +114,12 @@ class FrameTintView : public views::View,
   const raw_ptr<Profile> profile_;
   raw_ptr<aerie_tab_model::TabModel> model_ = nullptr;
   raw_ptr<views::View> card_ = nullptr;
+  base::RepeatingCallback<gfx::RoundedCornersF()> window_corners_for_testing_;
   aerie_frame::FrameTintState state_;
   PrefChangeRegistrar pref_registrar_;
   std::unique_ptr<SidebarLookController> look_controller_;
+  base::ScopedObservation<views::Widget, views::WidgetObserver>
+      widget_observation_{this};
   base::ScopedMultiSourceObservation<views::View, views::ViewObserver>
       view_observations_{this};
 };

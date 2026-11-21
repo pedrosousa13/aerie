@@ -90,6 +90,17 @@ directory under tools/metrics/histograms/metadata/.
   </summary>
 </histogram>
 
+<histogram name="Aerie.Network.RequestPolicy.Refused"
+    enum="AerieRequestPolicyVerdict" expires_after="never">
+  <owner>pedrodsousa@pm.me</owner>
+  <summary>
+    One sample for each request that the browser made on its own and the
+    network service's request policy refused, with the reason. Recorded in the
+    network service. Requests from pages, extensions and the user are never
+    counted. The Bench reads it to name any refused attempt.
+  </summary>
+</histogram>
+
 <histogram name="Aerie.Protection.ListLoadSuccess" enum="Boolean"
     expires_after="never">
   <owner>pedrodsousa@pm.me</owner>

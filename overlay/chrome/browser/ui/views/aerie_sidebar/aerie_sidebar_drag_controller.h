@@ -101,6 +101,12 @@ class AerieSidebarDragController {
     // date at once (sync and layout), without any FLIP motion.
     virtual aerie_sidebar::MoveResult ApplyMove(
         const aerie_sidebar::MoveRequest& request) = 0;
+    // A drop of a selection (issue #265): moves every tab of `ids` (in display
+    // order) to the place that `request` names for `request.id`, keeping their
+    // order. Moved if at least one tab moved; else the first refusal.
+    virtual aerie_sidebar::MoveResult ApplyMoveMany(
+        const std::vector<std::string>& ids,
+        const aerie_sidebar::MoveRequest& request) = 0;
     // A refused drop. `on_drop`: the user released over it; the hint of the
     // depth limit also shows while the pointer is over it, the Favorites
     // message only at the drop.
@@ -118,7 +124,12 @@ class AerieSidebarDragController {
 
   // The pointer crossed the threshold on the row or tile `id`. False: the drag
   // does not start. `is_folder` is a folder row.
-  bool Begin(const std::string& id, bool is_folder);
+  // `selection`: the selected tabs in display order when `id` is one of two or
+  // more selected rows (issue #265); the drag then carries all of them. Empty
+  // for a drag of one row.
+  bool Begin(const std::string& id,
+             bool is_folder,
+             const std::vector<std::string>& selection = {});
   // The pointer is at `widget_point` (the widget's coordinates).
   void Update(const gfx::Point& widget_point);
   // The release (or Esc / capture loss when `cancelled`). `outside`: the
@@ -187,6 +198,10 @@ class AerieSidebarDragController {
   gfx::Vector2d resume_shift_;
   // The item and the rows below it that are not drawn while it is dragged.
   std::vector<std::string> block_ids_;
+  // True while the drag carries a selection, whose tabs are `block_ids_` in
+  // display order (issue #265). Their rows do not shift for the drop (the
+  // selected rows may be far apart); the line shows the place.
+  bool carries_selection_ = false;
   // The height one row (or the folder with its rows) takes, spacing included.
   int block_height_ = 0;
   gfx::Point last_point_;

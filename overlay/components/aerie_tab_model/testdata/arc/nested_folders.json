@@ -1,0 +1,16 @@
+{"version":1,"sidebar":{"containers":[{"global":{}},{"items":[
+  "p",{"id":"p","childrenIds":["f1"],"data":{"itemContainer":{}}},
+  "f1",{"id":"f1","parentID":"p","title":"L1","childrenIds":["f2","t1"],"data":{"list":{}}},
+  "t1",{"id":"t1","parentID":"f1","data":{"tab":{"savedURL":"https://l1.example/","savedTitle":"in L1"}}},
+  "f2",{"id":"f2","parentID":"f1","title":"L2","childrenIds":["f3"],"data":{"list":{}}},
+  "f3",{"id":"f3","parentID":"f2","title":"L3","childrenIds":["f4"],"data":{"list":{}}},
+  "f4",{"id":"f4","parentID":"f3","title":"L4","childrenIds":["f5"],"data":{"list":{}}},
+  "f5",{"id":"f5","parentID":"f4","title":"L5","childrenIds":["t5","f6"],"data":{"list":{}}},
+  "t5",{"id":"t5","parentID":"f5","data":{"tab":{"savedURL":"https://l5.example/","savedTitle":"in L5"}}},
+  "f6",{"id":"f6","parentID":"f5","title":"L6","childrenIds":["t6","f7"],"data":{"list":{}}},
+  "t6",{"id":"t6","parentID":"f6","data":{"tab":{"savedURL":"https://l6.example/","savedTitle":"in L6"}}},
+  "f7",{"id":"f7","parentID":"f6","title":"L7","childrenIds":["t7"],"data":{"list":{}}},
+  "t7",{"id":"t7","parentID":"f7","data":{"tab":{"savedURL":"https://l7.example/","savedTitle":"in L7"}}}
+ ],
+ "spaces":["s1",{"id":"s1","title":"Nested","profile":{"default":{}},"containerIDs":["pinned","p"]}],
+ "topAppsContainerIDs":[]}]}}

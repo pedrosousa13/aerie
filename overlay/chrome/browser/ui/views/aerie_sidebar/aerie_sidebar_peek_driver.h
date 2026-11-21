@@ -121,7 +121,6 @@ class AerieSidebarPeekDriver
   void HandlePointer(const gfx::Point& screen_point);
   void HandlePointerExit();
   void UpdateCursorPoll();
-  void SetFloatingWidth(int width);
   void SlideTo(bool show);
   void FinishHidden();
   bool FocusInsideSidebar() const;

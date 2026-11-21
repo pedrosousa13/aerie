@@ -8,9 +8,11 @@
 #include <optional>
 #include <string>
 
+#include "components/aerie_frame/aerie_frame_corners.h"
 #include "components/aerie_frame/aerie_frame_look.h"
 #include "components/aerie_frame/aerie_frame_palette.h"
 #include "ui/gfx/geometry/rect.h"
+#include "ui/gfx/geometry/rounded_corners_f.h"
 #include "ui/gfx/geometry/size.h"
 
 namespace gfx {
@@ -23,11 +25,18 @@ namespace aerie_frame {
 // the glow, and the page card's shadow around `card` (the card's own pixels are
 // the page's). No image is decoded and no texture is uploaded: it is three
 // gradient fills and two blurred rounded rectangles.
+//
+// `window_corners` are the radii of the window's own corners (issue #249): the
+// OS draws the window with rounded top corners under client-side decorations,
+// and the frame view leaves them transparent, so nothing is painted outside
+// them. Square (the default) paints the whole box.
 void PaintFrame(gfx::Canvas* canvas,
                 const FramePalette& palette,
                 const gfx::Size& size,
                 bool sidebar_on_right,
-                const gfx::Rect& card);
+                const gfx::Rect& card,
+                const gfx::RoundedCornersF& window_corners =
+                    gfx::RoundedCornersF());
 
 // What the paint depends on. The tint view paints when this changes, and only
 // then (issue #178: "paint once and on state change only, never per frame").
@@ -38,6 +47,8 @@ struct FrameTintInputs {
   gfx::Size size;
   gfx::Rect card;
   bool sidebar_on_right = false;
+  // The radii of the window's own corners (issue #249). All zero: square.
+  gfx::RoundedCornersF window_corners;
   // Forced colours: the operating system's colours the frame is drawn in.
   // Empty: the theme's own.
   std::optional<SystemColours> system_colours;

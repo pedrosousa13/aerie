@@ -39,7 +39,7 @@ Options:
 | `--services-wait SEC` | `browser_requests`: longest wait for the first browser-level request (default 20). It stops early once the condition is met. |
 | `--zero-traffic-idle SEC` | `zero_traffic`: length of the idle phase (default 300, the issue's 5 minutes). |
 | `--zero-traffic-settle SEC` | `zero_traffic`: quiet time after the first page, the first-launch phase (default 60). |
-| `--zero-traffic-strict` | `zero_traffic`: also fail on blocked attempts to `.qjz9zk` dummy hosts and `trk:` URLs. |
+| `--zero-traffic-strict` | `zero_traffic`: also fail on blocked attempts to `.qjz9zk` dummy hosts and `trk:` URLs, and on attempts the request policy refused. |
 | `--widevine-online SEC` | `widevine_opt_in`: also wait up to SEC in an opted-in browser for Widevine to download and become available. It needs a network that reaches Google, so it is off (0) by default. |
 | `--adblock-baseline FILE` | `adblock_score`: compare with a stored score, the `adblock_score.json` that an earlier run wrote. Fails when the score dropped by more than 2 points or when a host that the baseline blocked now gets through. A file that cannot be read is an error. Without the flag the check passes and records the score. |
 | `--adblock-online SEC` | `adblock_score`: also load the live `https://adblock.turtlecute.org` in a second browser, wait up to SEC seconds for its test to finish and record its score. Informational: it never fails the run. It needs the network, so it is off (0) by default. |
@@ -54,6 +54,7 @@ Options:
 | `--sidebar-frames-repeats N` | `sidebar_frames`: how many times each animation runs (default 5, at least 2). |
 | `--download-benchmarks` | Download the pinned Speedometer and JetStream copies into the build root, check their sha256 and unpack them (see "Pinned benchmark copies"). Needs the network; a copy that is already there is not downloaded again. |
 | `--perf-record DIR` | `perf`: after a passing run, append `perf.json` to `DIR/history.jsonl` and make it `DIR/main.json`. Use it on builds of main only. |
+| `--perf-commit SHA` | `perf`: with `--perf-record`, the source commit the browser was built from; stored as `commit` in `main.json` and `history.jsonl`. Default: HEAD of the checkout the Bench runs from (12 characters), with a warning when `--binary` is given, because that browser may not come from HEAD. |
 | `--perf-compare-binary PATH` | `perf`: run the same suite on this browser (Helium, stock Chromium) and write `perf-comparison.md`, both side by side. |
 | `--perf-compare-name NAME` | `perf`: how that browser is named in the report (default `Helium`). |
 | `--perf-skip-benchmarks` | `perf`: do not run Speedometer and JetStream. Their metrics are listed under `skipped` in `perf.json`. Without this flag a benchmark that cannot be measured fails the check. |
@@ -238,6 +239,58 @@ That writes `main.json` and the first line of `history.jsonl`. To let one gate r
 example the PR that introduces the gate), set `AERIE_PERF_FIRST_RUN=1` in the gate's environment; the step then
 passes `--perf-first-run`. Unset it again afterwards: with it set, a missing baseline passes quietly.
 
+**Refreshing the baseline.** A baseline goes stale silently: the browser changes and so does the machine, and
+nothing fails until a gate run happens to cross the limit (issue #243: `memory_after_ad_pages_mb` read 970.6 MB
+in the baseline and 1100 to 1150 MB on every build, on every commit, since). Refresh it:
+
+- when `perf` fails on an unmodified main build (check first that the failure is not a real regression, see below);
+- after a Chromium or Helium bump (`./aerie bump`), a change of the benchmark pins or of the fixture pages in
+  `fixtures/perf/`, or a new machine or a big change to the machine (kernel, RAM, other load);
+- at least once a month, so a slow drift stays visible in `history.jsonl` and not in one failing gate.
+
+Steps, on the checkout of main with its browser built (`./aerie build` leaves the tree at the commit you record):
+
+```sh
+git checkout main && git pull --ff-only
+./aerie build
+# 1. Get a steady state: repeat until two memory readings in a row are within 3% of each other.
+#    Memory follows the machine state (a freshly booted machine reads about 100 MB low).
+./aerie bench --check perf --perf-skip-benchmarks
+./aerie bench --check perf --perf-skip-benchmarks
+# 2. Record once, in the steady state. --perf-record stores the commit (HEAD of the checkout, or
+#    --perf-commit SHA) as "commit" in main.json and in the line it appends to history.jsonl.
+./aerie bench --download-benchmarks --check perf --perf-record "${AERIE_PERF_DIR:-/mnt/linux2/aerie-perf}"
+# 3. Check the baseline against the same build: it must pass, and "commit" must be the commit you built.
+./aerie bench --check perf --perf-baseline "${AERIE_PERF_DIR:-/mnt/linux2/aerie-perf}/main.json"
+python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("commit"))' "${AERIE_PERF_DIR:-/mnt/linux2/aerie-perf}/main.json"
+```
+
+A baseline recorded while the machine is in its high-memory state is lenient by up to about 100 MB: the gate then
+accepts a build that reads low on a fresh machine. That trade-off is accepted for now; a stricter rule (the median
+of several full runs, or a fixed measurement environment) can replace the single steady-state run later.
+
+Recording appends to `history.jsonl`, so the refresh is visible in `perf.py series`; to start the series again,
+move the old directory aside first. A baseline without a `commit` key (recorded before #243) cannot be traced;
+refresh it. To bisect a failing `perf`, build each commit, run `--perf-skip-benchmarks` at least three times and
+compare medians: the same commit read 1044 MB on a freshly booted machine and 1140 MB an hour later (below).
+
+**What moved `memory_after_ad_pages_mb` (issue #243).** The recorded 970.6 MB was a single low reading that no
+build reproduces. Three runs each, on one machine, `--perf-skip-benchmarks`, median in MB:
+
+| Build | Runs | Median |
+| --- | --- | --- |
+| `95cbaa8` (before #183 and #146) | 1139.4, 1143.6, 1122.2 | 1139.4 |
+| `a4ef0ba` (#183, archive unused Today tabs) | 1155.7, 1134.7, 1154.6 | 1154.6 |
+| `45e813c` (#146, tab title rename rules) | 1136.0, 1150.0, 1129.3 | 1136.0 |
+| `f80fe43` (main, first, 54 minutes after boot) | 1023.9, 1044.5, 1047.0 | 1044.5 |
+| `f80fe43` (main, again an hour later) | 1135.6, 1143.9, 1146.8 | 1143.9 |
+
+No commit in the range adds memory: #183 is +15 MB, inside the run-to-run spread (about 30 MB), and #146 takes
+it back. Earlier Bench runs in the build root read 1030 to 1080 MB from 9 to 13 November and 1100 to 1150 MB from
+14 November on, with no change in the code that loads the pages; the machine state moves the number by 100 MB.
+The growth is therefore machine drift, not a leak, and the old baseline was a low outlier. The fix is the
+refresh above.
+
 A change is a regression when it is worse than the baseline by more than the percentage and by
 more than the absolute floor, so a large percentage of a tiny number is not one.
 
@@ -385,10 +438,10 @@ metric that the baseline has and the run does not is `missing` and fails. Record
 ./aerie bench --check sidebar_frames --sidebar-frames-baseline /mnt/linux2/aerie-perf/sidebar-frames-main.json
 ```
 
-`sidebar_frames` runs by hand (`./aerie bench --check sidebar_frames`) until #237 makes it pass. Neither the nightly nor the
+`sidebar_frames` runs by hand (`./aerie bench --check sidebar_frames`) until its p95 goal is met (#245). Neither the nightly nor the
 PR gate runs it, and nothing passes `--sidebar-frames-baseline` or `--sidebar-frames-record`: the comparison is manual until
 then. After that it joins the nightly (docs/ci.md), which records its baseline. It needs a private Xvfb and about two minutes,
-and today it fails because of the product defects in #237 (the hide that is a cut, the 15 to 20 ms first frame; see the numbers).
+and today it fails (the p95 of the first frames and the drag; see the numbers; the hide slides since #237).
 
 ### The negative control
 
@@ -419,45 +472,39 @@ fail) and whose control fails (the check passes).
 
 ### Measured on the train box
 
-AMD Ryzen 5 7600 (12 threads), Xvfb 1280x800 at 60 Hz, software compositing, Aerie 0.1.0 (Chromium 157), the build of
-2026-11-15 (main at c374316). This table is the fifth full run. It is the first with the window starting at the first input event, which for a click
-is the button release (a row acts on release; the earlier runs started it 50 to 100 ms early and lost the end of the folder and
-drag animations); the hide and reduced-hide drops
-were the same in all of them. `dropped` is summed over the 5 repeats (the drag: 6).
+AMD Ryzen 5 7600 (12 threads), Xvfb 1280x800 at 60 Hz, software compositing, Aerie 0.1.0 (Chromium 157), builds of
+2026-11-19: main at 45e813c, and the #237 branch (the hide fix, on that main). Both ran `./aerie bench --check
+sidebar_frames` on the same box, one after the other, 5 repeats each. `dropped` is summed over the 5 repeats.
 
-| animation | frames | p50 ms | p95 ms | p99 ms | dropped | layers only |
-| --- | ---: | ---: | ---: | ---: | ---: | --- |
-| `hide` | 5 | 13.5 | 17.4 | 17.4 | 50 | yes |
-| `show` | 90 | 1.8 | 18.4 | 19.0 | 0 | yes |
-| `folder_expand` | 65 | 3.0 | 4.8 | 10.7 | 0 | no, layout in 42 slots |
-| `folder_collapse` | 59 | 1.9 | 3.5 | 3.8 | 0 | no, layout in 15 slots |
-| `resize` | 150 | 9.9 | 17.0 | 17.4 | 0 | no, layout in 127 slots |
-| `reduced_hide` | 5 | 13.5 | 17.3 | 17.3 | 30 | yes |
-| `reduced_show` | 48 | 2.2 | 17.3 | 18.9 | 0 | yes |
-| `reduced_folder_expand` | 33 | 1.6 | 8.2 | 9.9 | 0 | yes |
-| `reduced_folder_collapse` | 31 | 1.9 | 18.1 | 18.1 | 0 | yes |
+| animation | main frames | main p95 ms | main dropped | branch frames | branch p50 ms | branch p95 ms | branch p99 ms | branch dropped | layers only (branch) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| `hide` | 5 | 17.2 | 50 | 65 | 1.6 | 17.1 | 17.6 | 0 | yes |
+| `show` | 89 | 16.8 | 0 | 90 | 1.7 | 16.9 | 18.7 | 0 | yes |
+| `folder_expand` | 65 | 18.0 | 0 | 65 | 2.9 | 4.4 | 8.4 | 0 | no, layout in 43 slots |
+| `folder_collapse` | 59 | 18.0 | 0 | 59 | 2.0 | 3.2 | 5.0 | 0 | no, layout in 16 slots |
+| `resize` | 144 | 19.3 | 0 | 144 | 18.8 | 19.2 | 19.4 | 0 | no, layout in 125 slots |
+| `reduced_hide` | 5 | 17.7 | 30 | 47 | 2.0 | 17.1 | 17.3 | 0 | yes |
+| `reduced_show` | 48 | 17.5 | 0 | 47 | 2.5 | 17.4 | 18.3 | 0 | yes |
+| `reduced_folder_expand` | 31 | 2.7 | 0 | 32 | 1.7 | 11.7 | 12.9 | 0 | yes |
+| `reduced_folder_collapse` | 30 | 2.1 | 0 | 31 | 1.6 | 2.1 | 4.3 | 0 | yes |
 
-**The acceptance criteria are not met on this build.** The product defects are filed as #237.
+The p95 of the folder animations moves a lot from run to run, in both directions, and not with the branch: an animation has
+about 6 frames per repeat, so 30 frames in all, and the p95 is the second slowest. One slow first frame in 5 repeats
+gives about 3 ms, two give 12 to 18 ms. Folder expand and collapse were 18.0 ms on main and 4.4 and 3.2 ms on the branch in
+these runs; reduced folder expand was 2.7 on main and 11.7 on the branch; an earlier pair of runs had reduced folder
+collapse at 2.9 on main and 18.3 on the branch, and it is 2.1 on both here. No diff of the branch touches the folder
+animation. Compare p95 of these animations only over more repeats.
 
-- **Hide drops every frame but one.** The 200 ms slide of the hide is a `LayerAnimator` transform (the animators keep
-  ticking for 200 ms), but one frame reaches the screen in each hide, at the start, and 10 vsyncs are missed. A recording at 60
-  fps (`ffmpeg -f x11grab`) shows the card at its full width and the column gone in the same frame: the hide is a cut, not
-  a slide. The same happens in reduced motion (the 140 ms fade: 6 of 8 vsyncs missed). Likely cause, not verified in a
-  debugger: patch `sidebar/0033` gives the page card its room at once and lets the column's content hang outside a
-  zero-width region, so the card (full width, in front of the column) or the region's own bounds hide the sliding column,
-  and the compositor sees no damage in the other 11 frames. The show slide, which runs the same layer from a region
-  that has its width, draws every frame (18 frames in 280 ms, no gap above 17.5 ms).
-  `HideAndShowAnimateOnlyTheColumnAndTheCardSnaps` asserts only that a transform animation exists on the layer, so it passes.
-- **The first frame of an animation takes 15 to 20 ms.** The p95 of the slides and the reduced forms (17.3 to 18.4 ms in the table, except the folder animations at 3.5 to 8.2 ms, against
-  the 16.7 ms limit) is its first frame, the layout at the toggle and the raster of the new layers, while the frames after
-  it take 1.5 to 3 ms. The frames still come every 16.7 ms, so nothing is missed in the show, the folder and the reduced
-  forms (0 dropped; the folder lays out in 42 and 15 slots, allowed there), but the p95 limit is not met. The limit is not changed.
-- **The drag drops no vsync in 6 drags in this run (1 in the one before) and its p95 is 17.0 ms**, with a p50 of 9.7 ms,
-  because the card and the page lay out for every pointer move (127 of the 150 frames' slots). That is by design: the width is not
-  animated, the user drives it. It is judged by the same limits and does not meet them.
+**The acceptance criteria are still not met on this build.** The check fails on the p95 of five animations (show,
+hide, resize, reduced show, reduced hide: 16.9 to 19.2 ms). No animation drops a frame. The p95 goal of 16.7 ms is not met
+and is not claimed: it is #245, which also holds the post-mortem of the `AerieFrameStart` try and the open questions.
+Main fails the same check (and also drops 50 and 30 vsyncs in the hides).
+
+- **The hide slides now (#237).** The hiding column floats over the room the page takes, so its region keeps real bounds
+  for the whole slide: the hide has 65 frames and no dropped frame (before: 5 frames, 50 dropped), on layers only.
+  Reduced hide: 48 frames, 0 dropped (before: 5 and 30).
 - **The control fails as it must**, for p95 and dropped frames (the judge's own two reasons; "not measured" would be a
-  separate harness failure): 12 of 12 vsyncs missed in every expand of the 300-tab folder, frames of about 660 ms, p95 672 ms.
-  The folder now has 11 to 13 frames per run (the window starts at the click), where earlier runs had 9.
+  separate harness failure): 12 of 12 vsyncs missed in every expand of the 300-tab folder (60 of 60 over the 5 repeats), 5 frames of about 674 ms, p95 677 ms (the run of 2026-11-19 on this branch; earlier runs had 11 to 13 frames of about 660 ms, p95 672 ms).
 
 ## Checks
 
@@ -537,10 +584,37 @@ The verdict comes from the NetLog after the browser exits. It fails when:
   A crash or kill loses the tail of the log, which may hold the traffic that matters;
 - with `--zero-traffic-strict`, any request goes to a `.qjz9zk` dummy host or a
   `trk:` URL. These are refused inside the network stack before any DNS query,
-  so the default run lists them as `blocked` and still passes.
+  so the default run lists them as `blocked` and still passes;
+- with `--zero-traffic-strict`, the request policy refused anything (next paragraph).
+
+**Crash step** (issue #262). After the three phases the check starts a browser on a new profile, crashes it
+on purpose (`Browser.crash` over DevTools, which raises SIGTRAP in the browser process), and starts a second
+browser on the same profile. It fails when: the first browser did not crash; the crash handler process
+(`aerie_crashpad_handler`) is not found, or was started with `--url`; the database's `settings.dat` has the
+upload switch on or cannot be read; the crash left no file in `Crash Reports/pending`, or the file was gone after
+the relaunch; a dump is not mode 0600 or a folder of the database is not 0700; anything is in `completed/`
+(a report handled as sent); the relaunched browser's NetLog is truncated or it did not exit with code 0; or the
+NetLog of either browser holds a denylisted request, or any host or path with "crash" in it. The result holds
+counts, modes and switch names, never a path or the contents of a dump. `--zero-traffic-no-crash` leaves the
+step out. `tools/aerie_bench/crash_step.py`; `tests/test_bench_crash_step.py` runs it against a fake browser
+that does each thing wrong in turn.
+
+**Refused attempts.** The network service's request policy (issue #257, `docs/network-endpoints.md`,
+"Request policy") refuses a request that the browser makes on its own unless it is on the reviewed
+allowlist. A refused request fails with net error -22 (`ERR_BLOCKED_BY_ADMINISTRATOR`, which nothing else
+returns for a network request) before any DNS query, so it left nothing and the default run still passes.
+The check reports it by name so that a new upstream request is visible even though it is refused: the host
+(never a path or query) from the NetLog, and the count in the `Aerie.Network.RequestPolicy.Refused`
+histogram, read over DevTools at the end of the browse phase. The detail line says
+`N attempt(s) refused by the request policy: host, ...`, and, when the counter is higher than the names the NetLog
+gave, `N refusal(s) counted, M named`. A refused attempt that the browser needs (a component update the
+project keeps, a filter list, the update check) is a bug: fix the allowlist in `docs/network-endpoints.md`.
+The hops of a redirect chain before the refused one still count as traffic. The counter is recorded in the network
+service process; if the browser has not merged that process's histograms, the reading is 0 even after a refusal, so
+the NetLog names are the evidence and the counter is a cross-check (`refusal_counter_error` says why it could not be read).
 
 `checks[].data` has `hits` (url, host, group, pattern, phase, net_error),
-`blocked`, `other_hosts` (external hosts that are not on the list, for review),
+`blocked`, `refused` (host, group, phase, net_error), `refusal_counter` (int, or null when unreadable), `other_hosts` (external hosts that are not on the list, for review),
 `phases` (cumulative request count at the end of each phase), `fixture_requests`
 and `extension_update_probe_error`.
 

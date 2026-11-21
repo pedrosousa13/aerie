@@ -41,6 +41,17 @@ bool CrashReporterClient::ShouldRateLimitUploads() {
   return true;
 }
 """
+CRASHPAD_OK = """void ApplyUploadConsent(bool /*consent*/) {
+  if (!g_database)
+    return;
+  // Aerie: never.
+  g_database->GetSettings()->SetUploadsEnabled(false);
+}
+
+void RequestSingleCrashUploadImpl(const std::string& local_id) {
+  // Aerie: never.
+}
+"""
 CRASH_MODE_OK = """CrashReportingMode GetCrashReportingMode() {
   return CrashReportingMode::kDisabled;
 }
@@ -98,6 +109,8 @@ JS_OPT_FEATURE_OK = """BASE_FEATURE(kOriginIsolationForJsOptExceptions,
 """
 
 JS_OPT_GOOD = {
+    treegate.DELEGATE_PATH: "aerie_network::ClassifyFactory(f); aerie_network::Decide(x); net::ERR_BLOCKED_BY_ADMINISTRATOR;",
+    treegate.NETWORK_CONTEXT_PATH: "aerie_network::DecideConnection(a); aerie_network::DecideConnection(b);",
     "components/content_settings/core/browser/content_settings_registry.cc": JS_OPT_REGISTRY_OK,
     "chrome/browser/resources/settings/route.ts": JS_OPT_ROUTE_OK,
     "content/browser/renderer_host/render_process_host_impl.cc": JS_OPT_HOST_OK,
@@ -392,6 +405,7 @@ GOOD = {
     "chrome/browser/profiles/profile.cc": PROFILE_OK,
     "chrome/browser/net/default_dns_over_https_config_source.cc": DOH_OK,
     "components/crash/core/app/crash_reporter_client.cc": CRASH_OK,
+    "components/crash/core/app/crashpad.cc": CRASHPAD_OK,
     "chrome/browser/crash_upload_list/helium_crash_reporting.cc": CRASH_MODE_OK,
     "components/helium_services/helium_services_helpers.cc": SERVICES_OK,
     "chrome/browser/chrome_content_browser_client.cc": FEDCM_OK + LINK_PREFETCH_CLIENT_OK,
@@ -508,6 +522,22 @@ class DefaultsGatesTest(TreeCase):
                     "chrome/browser/crash_upload_list/helium_crash_reporting.cc":
                     CRASH_MODE_OK.replace("kDisabled", "kAsk")})
         self.assertEqual(len(treegate.check_crash_reporting(self.root)), 1)
+
+    def test_crash_reports_must_stay_on_the_device(self):
+        # Issue #262: no way to switch uploads on, none to request one, no deletion of pending reports.
+        crashpad = "components/crash/core/app/crashpad.cc"
+        mode = "chrome/browser/crash_upload_list/helium_crash_reporting.cc"
+        self.write({crashpad: CRASHPAD_OK, mode: CRASH_MODE_OK, "components/crash/core/app/crash_reporter_client.cc": CRASH_OK})
+        self.assertEqual(treegate.check_crash_reporting(self.root), [])
+        for bad in (CRASHPAD_OK.replace("SetUploadsEnabled(false)", "SetUploadsEnabled(consent)"),
+                    CRASHPAD_OK.replace("// Aerie: never.\n}\n", "g_database->RequestUpload(uuid);\n}\n")):
+            self.write({crashpad: bad})
+            self.assertTrue(treegate.check_crash_reporting(self.root), bad)
+        self.write({crashpad: CRASHPAD_OK})
+        for bad in (CRASH_MODE_OK + "\nvoid F() { crash_reporter::SetUploadConsentFromUser(true); }\n",
+                    CRASH_MODE_OK + "\nvoid G() { DeletePendingReports(true); }\n"):
+            self.write({mode: bad})
+            self.assertTrue(treegate.check_crash_reporting(self.root), bad)
 
     def test_fedcm_dns_resolver_prefix_must_be_empty(self):
         path = "chrome/browser/chrome_content_browser_client.cc"
@@ -859,7 +889,7 @@ class RunTest(TreeCase):
 
     def test_empty_tree_passes_unless_required(self):
         self.assertEqual(self.run_gates(), [])
-        self.assertEqual(len(self.run_gates(require=True)), 54)
+        self.assertEqual(len(self.run_gates(require=True)), 60)
 
     def test_format_report(self):
         self.write({"a.cc": '"https://services.helium.imput.net"\n'})
@@ -873,3 +903,37 @@ class RunTest(TreeCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RequestPolicyGateTest(unittest.TestCase):
+    """The request policy (issue #257) stays hooked into URL requests, preconnect and name lookups."""
+
+    DELEGATE = "aerie_network::ClassifyFactory(f); aerie_network::Decide(x); net::ERR_BLOCKED_BY_ADMINISTRATOR;"
+    CONTEXT = "aerie_network::DecideConnection(a); aerie_network::DecideConnection(b);"
+
+    def tree(self, delegate, context):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        root = Path(tmp.name)
+        for rel, text in ((treegate.DELEGATE_PATH, delegate), (treegate.NETWORK_CONTEXT_PATH, context)):
+            (root / rel).parent.mkdir(parents=True, exist_ok=True)
+            (root / rel).write_text(text)
+        return root
+
+    def test_the_hooks_in_place_pass(self):
+        self.assertEqual(treegate.check_request_policy(self.tree(self.DELEGATE, self.CONTEXT), require=True), [])
+
+    def test_a_missing_judgement_of_urls_is_found(self):
+        found = treegate.check_request_policy(self.tree("nothing", self.CONTEXT), require=True)
+        self.assertEqual(len(found), 3)
+
+    def test_a_missing_hook_in_preconnect_or_resolve_is_found(self):
+        found = treegate.check_request_policy(
+            self.tree(self.DELEGATE, "aerie_network::DecideConnection(a);"), require=True)
+        self.assertEqual([f.path for f in found], [treegate.NETWORK_CONTEXT_PATH])
+
+    def test_a_tree_with_none_of_the_files_is_skipped_unless_required(self):
+        empty = tempfile.TemporaryDirectory()
+        self.addCleanup(empty.cleanup)
+        self.assertEqual(treegate.check_request_policy(Path(empty.name)), [])
+        self.assertTrue(treegate.check_request_policy(Path(empty.name), require=True))

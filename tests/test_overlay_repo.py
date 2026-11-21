@@ -19,6 +19,8 @@ class RepoOverlayTest(unittest.TestCase):
                                             "chrome/browser/ui/views/aerie_adblock/",
                                             "chrome/browser/ui/webui/aerie_guard_settings/", "chrome/browser/ui/webui/aerie_guard/",
                                             "chrome/browser/resources/settings/aerie_guard_page/",
+                                            "chrome/browser/resources/settings/aerie_crash_reports_page/",
+                                            "chrome/browser/ui/webui/aerie_crash_reports/", "components/aerie_crash_reports/",
                                             "chrome/browser/resources/aerie_guard/",
                                             "chrome/browser/ui/webui/aerie_onboarding/", "components/aerie_onboarding/",
                                             "components/aerie_widevine/", "chrome/browser/aerie_widevine/",
@@ -32,12 +34,12 @@ class RepoOverlayTest(unittest.TestCase):
                                             "chrome/browser/resources/settings/appearance_page/aerie_title_rules_",
                                             "chrome/browser/resources/settings/appearance_page/aerie_appearance_row.",
                                             "chrome/browser/ui/views/aerie_look/", "chrome/browser/ui/color/aerie/",
-                                            "chrome/browser/ui/webui/aerie_appearance_settings/", "chrome/browser/ui/webui/aerie_title_rules/", "components/aerie_design_tokens/",
+                                            "chrome/browser/ui/webui/aerie_appearance_settings/", "chrome/browser/ui/webui/aerie_title_rules/", "chrome/browser/ui/webui/aerie_arc_import/", "chrome/browser/resources/settings/people_page/aerie_arc_import_", "components/aerie_design_tokens/",
                                             "chrome/browser/resources/settings/appearance_page/aerie_archive_after_row.",
                                             "chrome/browser/resources/settings/appearance_page/aerie_archive_keep_row.",
                                             "chrome/browser/resources/settings/appearance_page/aerie_links_open_row.",
                                             "content/public/browser/aerie_created_window_info.h",
-                                            "components/aerie_tab_model/", "chrome/browser/aerie_tab_model/", "components/aerie_alpha_notice/",
+                                            "components/aerie_tab_model/", "chrome/browser/aerie_tab_model/", "chrome/browser/aerie_network/", "services/network/aerie/", "components/aerie_alpha_notice/",
                                             "components/aerie_sidebar/", "chrome/browser/ui/views/aerie_sidebar/",
                                             "components/aerie_frame/", "chrome/browser/ui/views/aerie_frame/",
                                             "tools/metrics/histograms/metadata/aerie/",
@@ -53,7 +55,8 @@ class RepoOverlayTest(unittest.TestCase):
                    "components/aerie_widevine/BUILD.gn", "chrome/browser/aerie_widevine/BUILD.gn",
                    "components/aerie_design_tokens/BUILD.gn",
                    "components/aerie_tab_model/BUILD.gn", "chrome/browser/aerie_tab_model/BUILD.gn",
-                   "components/aerie_sidebar/BUILD.gn"):
+                   "components/aerie_sidebar/BUILD.gn", "chrome/browser/aerie_network/BUILD.gn",
+                   "services/network/aerie/BUILD.gn"):
             base = gn.rsplit("/", 1)[0]
             text = (overlay.overlay_root(REPO) / gn).read_text()
             for name in re.findall(r'"([A-Za-z0-9_./-]+\.(?:cc|h|rs|py|json|grd))"', text):

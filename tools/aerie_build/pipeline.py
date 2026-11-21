@@ -45,6 +45,8 @@ TEST_BINARIES = (
     ("aerie_fingerprint_unittests", ()),
     # What WebGL and WebGPU report about the graphics card (issue #112): the vendor family and the masking decision.
     ("aerie_gpu_info_unittests", ()),
+    # The request policy in the network service: which browser requests are refused (issue #257).
+    ("aerie_network_unittests", ()),
     # The bucketed screen size and the decision to report it (issue #116).
     ("aerie_screen_unittests", ()),
     # The measureText noise factor and the decision to apply it (issue #118).
@@ -63,6 +65,8 @@ TEST_BINARIES = (
     ("aerie_frame_unittests", ()),
     # The Aerie ColorMixer: Chromium's own surfaces take the effective Theme's colours, and its cost (issue #185).
     ("aerie_color_unittests", ()),
+    # The crash reports that stay on the device: what is read from a dump, listing, deleting and pruning (issue #262).
+    ("aerie_crash_reports_unittests", ()),
 )
 # The Views UI test binaries (issue #175, seam B). They link Chromium's browser test support, so they are not
 # in a plain `./aerie test-cpp`; ask for them with --target. They are defined in overlay/chrome/test/aerie and

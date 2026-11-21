@@ -247,6 +247,9 @@ class NoNetworkNoStringsTest(unittest.TestCase):
                         # Auto-filing (#139), smart folders (#140) and title rules (#146) match a page's URL: same parse, no request.
                         if include == "url/gurl.h" and path.name.startswith(("rule_matcher", "folder_rules", "auto_file", "smart_folder", "title_resolver", "rename_rules")):
                             continue
+                        # Import from Arc (#171) sorts a file's addresses by scheme with a GURL parse: no request.
+                        if include in {"url/gurl.h", "url/url_util.h"} and path.name == "arc_import.cc":
+                            continue
                         # Archived addresses read from disk are checked with a GURL parse (#183): no request.
                         if include in {"url/gurl.h", "url/url_constants.h"} and path.name == "tab_model_types.cc":
                             continue
