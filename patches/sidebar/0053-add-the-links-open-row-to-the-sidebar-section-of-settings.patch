@@ -12,7 +12,7 @@ them to the page. The element sits in the "Sidebar" section, under the archive r
 
 --- a/chrome/browser/resources/settings/BUILD.gn
 +++ b/chrome/browser/resources/settings/BUILD.gn
-@@ -212,6 +212,8 @@
+@@ -215,6 +215,8 @@
      "appearance_page/aerie_density_row.ts",
      "appearance_page/aerie_folder_rules_row.html.ts",
      "appearance_page/aerie_folder_rules_row.ts",
