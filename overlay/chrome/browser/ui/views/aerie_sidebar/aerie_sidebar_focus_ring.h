@@ -9,6 +9,7 @@
 #include "base/scoped_observation.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "ui/base/metadata/metadata_header_macros.h"
+#include "ui/views/controls/button/button.h"
 #include "ui/views/view.h"
 #include "ui/views/view_observer.h"
 
@@ -28,6 +29,10 @@ class AerieSidebarFocusRing : public views::View,
   // negative for a circle (half of the shorter side). The ring is owned by the
   // host.
   static AerieSidebarFocusRing* Install(views::View* host, float corner_radius);
+  // The same for a button: Chromium's own ring is taken off first, since it
+  // takes only a colour role and the sidebar draws its own.
+  static AerieSidebarFocusRing* InstallOnButton(views::Button* button,
+                                                float corner_radius);
   static AerieSidebarFocusRing* Get(views::View* host);
 
   AerieSidebarFocusRing(const AerieSidebarFocusRing&) = delete;

@@ -10,8 +10,8 @@
 
 #include "base/memory/raw_ptr.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_media_card.h"
 
-class AerieSidebarMediaCard;
 class BrowserWindowInterface;
 class TabStripModel;
 
@@ -38,7 +38,8 @@ class WebContents;
 // Suspend, NextTrack), and Go to tab activates the tab in the window's tab
 // strip. Nothing here starts playback on its own, and nothing here enters
 // picture-in-picture.
-class AerieSidebarMediaController : public TabStripModelObserver {
+class AerieSidebarMediaController : public TabStripModelObserver,
+                                    public AerieSidebarMediaCard::Delegate {
  public:
   AerieSidebarMediaController(BrowserWindowInterface* browser,
                               AerieSidebarMediaCard* card);
@@ -47,10 +48,10 @@ class AerieSidebarMediaController : public TabStripModelObserver {
       delete;
   ~AerieSidebarMediaController() override;
 
-  // The button presses; the card's callbacks call them.
-  void PlayPause();
-  void NextTrack();
-  void GoToTab();
+  // AerieSidebarMediaCard::Delegate: the button presses.
+  void PlayPause() override;
+  void NextTrack() override;
+  void GoToTab() override;
 
   // The tab the card shows now, or null.
   content::WebContents* shown_contents() const;

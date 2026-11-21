@@ -15,6 +15,7 @@
 #include "ui/compositor/layer.h"
 #include "ui/gfx/geometry/rect_f.h"
 #include "ui/views/accessibility/view_accessibility.h"
+#include "ui/views/controls/focus_ring.h"
 #include "ui/views/view_utils.h"
 
 AerieSidebarFocusRing::AerieSidebarFocusRing(views::View* host,
@@ -46,6 +47,15 @@ AerieSidebarFocusRing* AerieSidebarFocusRing::Install(views::View* host,
       new AerieSidebarFocusRing(host, corner_radius)));
   ring->Refresh();
   return ring;
+}
+
+// static
+AerieSidebarFocusRing* AerieSidebarFocusRing::InstallOnButton(
+    views::Button* button,
+    float corner_radius) {
+  button->SetInstallFocusRingOnFocus(false);
+  views::FocusRing::Remove(button);
+  return Install(button, corner_radius);
 }
 
 // static

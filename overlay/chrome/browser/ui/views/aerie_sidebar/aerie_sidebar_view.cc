@@ -48,6 +48,7 @@
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_group.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_row_view.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_sheet.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_card_fade.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_media_card.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_media_controller.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_peek_driver.h"
@@ -510,10 +511,7 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
       gfx::Size(0, aerie::tokens::kSizeRowHeightComfortable));
   new_tab_row_->SetTooltipText(
       l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_NEW_TAB));
-  // Chromium's ring takes only a colour role; the sidebar draws its own.
-  new_tab_row_->SetInstallFocusRingOnFocus(false);
-  views::FocusRing::Remove(new_tab_row_);
-  AerieSidebarFocusRing::Install(new_tab_row_, aerie::tokens::kRadiusMd);
+  AerieSidebarFocusRing::InstallOnButton(new_tab_row_, aerie::tokens::kRadiusMd);
 
   // Today.
   // The heading, and at its end the number of sleeping tabs with an estimate of
@@ -548,9 +546,7 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
   clear_button_->SetBorder(views::CreateEmptyBorder(gfx::Insets::TLBR(
       aerie::tokens::kSpace4, aerie::tokens::kSpace8, aerie::tokens::kSpace4,
       aerie::tokens::kSpace8)));
-  clear_button_->SetInstallFocusRingOnFocus(false);
-  views::FocusRing::Remove(clear_button_);
-  AerieSidebarFocusRing::Install(clear_button_, aerie::tokens::kRadiusMd);
+  AerieSidebarFocusRing::InstallOnButton(clear_button_, aerie::tokens::kRadiusMd);
   clear_button_->set_context_menu_controller(this);
 
   scroll_ = AddChildView(std::make_unique<views::ScrollView>(
@@ -619,28 +615,7 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
   // The media card (issue #263): the tab of this window that plays audio or
   // video, with Play or Pause, Next track and Go to tab. It sits above the
   // bottom bar and is hidden while nothing plays.
-  media_card_ = AddChildView(std::make_unique<AerieSidebarMediaCard>(
-      base::BindRepeating(
-          [](AerieSidebarView* self) {
-            if (self->media_) {
-              self->media_->PlayPause();
-            }
-          },
-          base::Unretained(this)),
-      base::BindRepeating(
-          [](AerieSidebarView* self) {
-            if (self->media_) {
-              self->media_->NextTrack();
-            }
-          },
-          base::Unretained(this)),
-      base::BindRepeating(
-          [](AerieSidebarView* self) {
-            if (self->media_) {
-              self->media_->GoToTab();
-            }
-          },
-          base::Unretained(this))));
+  media_card_ = AddChildView(std::make_unique<AerieSidebarMediaCard>());
   media_card_->SetPalette(palette_);
   media_ = std::make_unique<AerieSidebarMediaController>(browser_, media_card_);
 
@@ -3243,22 +3218,7 @@ void AerieSidebarView::ShowToast(const std::u16string& text,
   const PrefService* prefs = browser_->GetProfile()->GetPrefs();
   const aerie_sidebar::ToastMotion motion = aerie_sidebar::ToastShowMotion(
       aerie::motion::ShouldReduceMotion(prefs), has_actions);
-  if (!toast_card_->layer()) {
-    toast_card_->SetPaintToLayer();
-    toast_card_->layer()->SetFillsBoundsOpaquely(false);
-  }
-  ui::Layer* layer = toast_card_->layer();
-  layer->SetOpacity(motion.from_opacity);
-  aerie::motion::LayerMotion target;
-  target.opacity = motion.to_opacity;
-  if (motion.animate_rise) {
-    layer->SetTransform(gfx::Transform::MakeTranslation(0, motion.rise_px));
-    target.transform = gfx::Transform();
-  } else {
-    layer->SetTransform(gfx::Transform());
-  }
-  toast_motion_ = aerie::motion::AnimateLayer(layer, target, motion.duration,
-                                              motion.easing, prefs);
+  toast_motion_ = aerie_sidebar::StartCardFadeIn(toast_card_, motion, prefs);
   toast_timer_.Start(FROM_HERE, base::Milliseconds(motion.hold_ms),
                      base::BindOnce(&AerieSidebarView::HideToast,
                                     base::Unretained(this)));
@@ -3273,11 +3233,7 @@ void AerieSidebarView::HideToast() {
   const PrefService* prefs = browser_->GetProfile()->GetPrefs();
   const aerie_sidebar::ToastMotion motion = aerie_sidebar::ToastHideMotion(
       aerie::motion::ShouldReduceMotion(prefs), toast_actions_->GetVisible());
-  aerie::motion::LayerMotion target;
-  target.opacity = motion.to_opacity;
-  toast_motion_ = aerie::motion::AnimateLayer(toast_card_->layer(), target,
-                                              motion.duration, motion.easing,
-                                              prefs);
+  toast_motion_ = aerie_sidebar::StartCardFadeOut(toast_card_, motion, prefs);
   // The card goes when the fade has ended.
   toast_timer_.Start(
       FROM_HERE, base::Milliseconds(motion.duration_ms),
@@ -3287,14 +3243,11 @@ void AerieSidebarView::HideToast() {
 
 void AerieSidebarView::FinishToastHide() {
   toast_motion_.Abort();
-  toast_card_->SetVisible(false);
+  aerie_sidebar::EndCardFade(toast_card_);
   toast_actions_->SetVisible(false);
   toast_->SetText(std::u16string());
   clear_undo_tabs_.clear();
   last_filed_ = aerie_tab_model::AutoFileController::Filed();
-  if (toast_card_->layer()) {
-    toast_card_->DestroyLayer();
-  }
 }
 
 void AerieSidebarView::OnAutoFileControllerDestroyed() {

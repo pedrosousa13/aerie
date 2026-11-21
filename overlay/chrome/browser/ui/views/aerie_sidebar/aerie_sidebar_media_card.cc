@@ -8,6 +8,7 @@
 
 #include "base/functional/bind.h"
 #include "base/time/time.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_card_fade.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_focus_ring.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/aerie_design_tokens/aerie_tokens.h"
@@ -25,10 +26,7 @@
 #include "ui/views/controls/focus_ring.h"
 #include "ui/views/style/typography.h"
 
-AerieSidebarMediaCard::AerieSidebarMediaCard(base::RepeatingClosure play_pause,
-                                             base::RepeatingClosure next,
-                                             base::RepeatingClosure go_to_tab)
-    : palette_{} {
+AerieSidebarMediaCard::AerieSidebarMediaCard() : palette_{} {
   SetOrientation(views::BoxLayout::Orientation::kVertical);
   SetCrossAxisAlignment(views::BoxLayout::CrossAxisAlignment::kStretch);
   SetInsideBorderInsets(gfx::Insets::VH(aerie::tokens::kSpace8,
@@ -53,10 +51,12 @@ AerieSidebarMediaCard::AerieSidebarMediaCard(base::RepeatingClosure play_pause,
   controls->SetCrossAxisAlignment(
       views::BoxLayout::CrossAxisAlignment::kCenter);
   play_pause_ = controls->AddChildView(
-      std::make_unique<views::ImageButton>(std::move(play_pause)));
+      std::make_unique<views::ImageButton>(base::BindRepeating(
+          &AerieSidebarMediaCard::OnPlayPause, base::Unretained(this))));
   PrepareIconButton(play_pause_);
   next_ = controls->AddChildView(
-      std::make_unique<views::ImageButton>(std::move(next)));
+      std::make_unique<views::ImageButton>(base::BindRepeating(
+          &AerieSidebarMediaCard::OnNext, base::Unretained(this))));
   PrepareIconButton(next_);
   next_->GetViewAccessibility().SetName(
       l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_MEDIA_NEXT));
@@ -64,12 +64,11 @@ AerieSidebarMediaCard::AerieSidebarMediaCard(base::RepeatingClosure play_pause,
   auto* spacer = controls->AddChildView(std::make_unique<views::View>());
   controls->SetFlexForView(spacer, 1);
   go_to_tab_ = controls->AddChildView(std::make_unique<views::LabelButton>(
-      std::move(go_to_tab),
+      base::BindRepeating(&AerieSidebarMediaCard::OnGoToTab,
+                          base::Unretained(this)),
       l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_MEDIA_GO_TO_TAB)));
   go_to_tab_->SetFocusBehavior(views::View::FocusBehavior::ALWAYS);
-  go_to_tab_->SetInstallFocusRingOnFocus(false);
-  views::FocusRing::Remove(go_to_tab_);
-  AerieSidebarFocusRing::Install(go_to_tab_, aerie::tokens::kRadiusMd);
+  AerieSidebarFocusRing::InstallOnButton(go_to_tab_, aerie::tokens::kRadiusMd);
 
   SetVisible(false);
 }
@@ -84,9 +83,25 @@ void AerieSidebarMediaCard::PrepareIconButton(views::ImageButton* button) {
                                      aerie::tokens::kSizeRowHeightComfortable));
   button->SetImageHorizontalAlignment(views::ImageButton::ALIGN_CENTER);
   button->SetImageVerticalAlignment(views::ImageButton::ALIGN_MIDDLE);
-  button->SetInstallFocusRingOnFocus(false);
-  views::FocusRing::Remove(button);
-  AerieSidebarFocusRing::Install(button, aerie::tokens::kRadiusMd);
+  AerieSidebarFocusRing::InstallOnButton(button, aerie::tokens::kRadiusMd);
+}
+
+void AerieSidebarMediaCard::OnPlayPause() {
+  if (delegate_) {
+    delegate_->PlayPause();
+  }
+}
+
+void AerieSidebarMediaCard::OnNext() {
+  if (delegate_) {
+    delegate_->NextTrack();
+  }
+}
+
+void AerieSidebarMediaCard::OnGoToTab() {
+  if (delegate_) {
+    delegate_->GoToTab();
+  }
 }
 
 void AerieSidebarMediaCard::SetPalette(
@@ -153,24 +168,10 @@ void AerieSidebarMediaCard::Appear(const PrefService* prefs) {
 void AerieSidebarMediaCard::StartShow(const PrefService* prefs) {
   motion_.Abort();
   hide_timer_.Stop();
-  SetVisible(true);
-  const aerie_sidebar::ToastMotion motion = aerie_sidebar::ToastShowMotion(
-      aerie::motion::ShouldReduceMotion(prefs));
-  if (!layer()) {
-    SetPaintToLayer();
-    layer()->SetFillsBoundsOpaquely(false);
-  }
-  layer()->SetOpacity(motion.from_opacity);
-  aerie::motion::LayerMotion target;
-  target.opacity = motion.to_opacity;
-  if (motion.animate_rise) {
-    layer()->SetTransform(gfx::Transform::MakeTranslation(0, motion.rise_px));
-    target.transform = gfx::Transform();
-  } else {
-    layer()->SetTransform(gfx::Transform());
-  }
-  motion_ = aerie::motion::AnimateLayer(layer(), target, motion.duration,
-                                        motion.easing, prefs);
+  motion_ = aerie_sidebar::StartCardFadeIn(
+      this,
+      aerie_sidebar::ToastShowMotion(aerie::motion::ShouldReduceMotion(prefs)),
+      prefs);
 }
 
 void AerieSidebarMediaCard::Dismiss(const PrefService* prefs) {
@@ -185,10 +186,7 @@ void AerieSidebarMediaCard::Dismiss(const PrefService* prefs) {
   motion_.Abort();
   const aerie_sidebar::ToastMotion motion = aerie_sidebar::ToastHideMotion(
       aerie::motion::ShouldReduceMotion(prefs));
-  aerie::motion::LayerMotion target;
-  target.opacity = motion.to_opacity;
-  motion_ = aerie::motion::AnimateLayer(layer(), target, motion.duration,
-                                        motion.easing, prefs);
+  motion_ = aerie_sidebar::StartCardFadeOut(this, motion, prefs);
   // The card goes when the fade has ended.
   hide_timer_.Start(FROM_HERE, base::Milliseconds(motion.duration_ms),
                     base::BindOnce(&AerieSidebarMediaCard::FinishHide,
@@ -201,10 +199,7 @@ void AerieSidebarMediaCard::FinishHide() {
   if (wanted_) {
     return;
   }
-  SetVisible(false);
-  if (layer()) {
-    DestroyLayer();
-  }
+  aerie_sidebar::EndCardFade(this);
 }
 
 void AerieSidebarMediaCard::SetRail(bool rail) {

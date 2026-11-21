@@ -49,13 +49,24 @@ class AerieSidebarMediaCard : public views::BoxLayoutView {
     bool next_enabled = false;
   };
 
-  AerieSidebarMediaCard(base::RepeatingClosure play_pause,
-                        base::RepeatingClosure next,
-                        base::RepeatingClosure go_to_tab);
+  // What the buttons do. The controller of the card implements it.
+  class Delegate {
+   public:
+    virtual void PlayPause() = 0;
+    virtual void NextTrack() = 0;
+    virtual void GoToTab() = 0;
+
+   protected:
+    ~Delegate() = default;
+  };
+
+  AerieSidebarMediaCard();
   AerieSidebarMediaCard(const AerieSidebarMediaCard&) = delete;
   AerieSidebarMediaCard& operator=(const AerieSidebarMediaCard&) = delete;
   ~AerieSidebarMediaCard() override;
 
+  // Null until the controller is there, and again when it goes.
+  void SetDelegate(Delegate* delegate) { delegate_ = delegate; }
   void SetPalette(const aerie_sidebar::SidebarPalette& palette);
   void SetContent(const Content& content);
 
@@ -82,9 +93,13 @@ class AerieSidebarMediaCard : public views::BoxLayoutView {
  private:
   void StartShow(const PrefService* prefs);
   void FinishHide();
+  void OnPlayPause();
+  void OnNext();
+  void OnGoToTab();
   void UpdateColours();
   void PrepareIconButton(views::ImageButton* button);
 
+  raw_ptr<Delegate> delegate_ = nullptr;
   raw_ptr<views::Label> title_ = nullptr;
   raw_ptr<views::Label> site_ = nullptr;
   raw_ptr<views::ImageButton> play_pause_ = nullptr;

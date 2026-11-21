@@ -1,5 +1,5 @@
 Aerie-Purpose: Turn automatic picture-in-picture on by default: a playing video enters picture-in-picture when the user switches to another tab, on any site that the user has not blocked (issue #263).
-Aerie-Upstream-Area: components/content_settings/core/browser/content_settings_registry.cc (AUTO_PICTURE_IN_PICTURE default), third_party/blink/renderer/platform/runtime_enabled_features.json5 (BrowserInitiatedAutomaticPictureInPicture)
+Aerie-Upstream-Area: components/content_settings/core/browser/content_settings_registry.cc (AUTO_PICTURE_IN_PICTURE default), chrome/browser/resources/settings/site_settings/auto_picture_in_picture_page.html (the "on" option), third_party/blink/renderer/platform/runtime_enabled_features.json5 (BrowserInitiatedAutomaticPictureInPicture)
 Aerie-Kind: hook
 
 Chromium already has the whole machinery: AutoPictureInPictureTabHelper watches the tab strip and, when
@@ -15,6 +15,18 @@ picture-in-picture. Two defaults kept it from reaching most videos:
 - A page enters picture-in-picture on its own only when it handles the "enterpictureinpicture" media
   session action. The feature BrowserInitiatedAutomaticPictureInPicture lets the browser do it for a
   page with one playing video and no handler. It is on by default now (the Blink feature follows it).
+
+The Settings page of the category (Settings > Privacy > Site settings > Automatic picture-in-picture) has
+a radio group whose first option is labelled "allowed" but sets "ask" upstream. With the default at "allow"
+no option was selected and turning the switch back on would have set "ask" again, so that option sets
+"allow" now.
+
+Widening, stated plainly: with "allow" by default the old gates are gone. Upstream asks for high media
+engagement and then a prompt before a site may use this. Now any https page that registers an
+"enterpictureinpicture" media session handler is called when the user switches away from its tab, and can
+open a document picture-in-picture window of its own then. A page with a playing video and no handler gets
+the browser's own video picture-in-picture window. The user can turn it off for all sites or for one site
+(Settings, or the page info of the site).
 
 Neither change lets a page start picture-in-picture. The trigger is still the tab helper's: the tab
 stops being active (the user switches tab or Workspace; today the sidebar and Ctrl+Tab do it through
@@ -43,3 +55,21 @@ active tab by itself.
      },
      {
        name: "BufferedBytesConsumerLimitSize",
+--- a/chrome/browser/resources/settings/site_settings/auto_picture_in_picture_page.html
++++ b/chrome/browser/resources/settings/site_settings/auto_picture_in_picture_page.html
+@@ -6,12 +6,12 @@
+    <div class="content-settings-header secondary">
+      $i18n{siteSettingsAutoPictureInPictureDescription}
+    </div>
+-   <!-- This options uses "allowed" language but is implemented as "ask". -->
++   <!-- Aerie: the option sets "allow" (it is the default); upstream sets "ask". -->
+    <settings-category-default-radio-group
+        category="[[contentSettingsTypesEnum_.AUTO_PICTURE_IN_PICTURE]]"
+-       ask-option-label=
++       allow-option-label=
+            "$i18n{siteSettingsAutoPictureInPictureAllowed}"
+-       ask-option-icon="settings:picture-in-picture"
++       allow-option-icon="settings:picture-in-picture"
+        block-option-label="$i18n{siteSettingsAutoPictureInPictureBlocked}"
+        block-option-icon="settings:picture-in-picture-off">
+    </settings-category-default-radio-group>

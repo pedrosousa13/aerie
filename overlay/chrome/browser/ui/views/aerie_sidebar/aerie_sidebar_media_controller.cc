@@ -82,8 +82,10 @@ class AerieSidebarMediaController::TabMedia
   void MediaSessionCreated(content::MediaSession* session) override {
     Attach(session);
   }
-  void TitleWasSet(content::NavigationEntry*) override { Changed(); }
-  void PrimaryPageChanged(content::Page&) override { Changed(); }
+  // A title or a page of a tab that is not on the card and does not play
+  // changes nothing the card shows.
+  void TitleWasSet(content::NavigationEntry*) override { ChangedIfShown(); }
+  void PrimaryPageChanged(content::Page&) override { ChangedIfShown(); }
   void WebContentsDestroyed() override {
     receiver_.reset();
     Observe(nullptr);
@@ -140,6 +142,11 @@ class AerieSidebarMediaController::TabMedia
     Changed();
   }
   void Changed() { owner_->OnTabMediaChanged(); }
+  void ChangedIfShown() {
+    if (playing() || owner_->shown_ == this) {
+      Changed();
+    }
+  }
 
   const raw_ptr<AerieSidebarMediaController> owner_;
   mojo::Receiver<media_session::mojom::MediaSessionObserver> receiver_{this};
@@ -156,10 +163,12 @@ AerieSidebarMediaController::AerieSidebarMediaController(
     AerieSidebarMediaCard* card)
     : browser_(browser), card_(card) {
   browser_->GetTabStripModel()->AddObserver(this);
+  card_->SetDelegate(this);
   SyncTabs();
 }
 
 AerieSidebarMediaController::~AerieSidebarMediaController() {
+  card_->SetDelegate(nullptr);
   browser_->GetTabStripModel()->RemoveObserver(this);
 }
 
