@@ -33,7 +33,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Sequence
 
-from . import helium, helium_deps, helium_inputs, helium_steps, layers as tree_layers, lock, patches, rebase, treegate
+from . import helium, helium_deps, helium_inputs, helium_steps, layers as tree_layers, lock, patches, treegate
 from .config import BuildPaths
 
 MANIFEST = ".aerie-sparse.json"
@@ -43,6 +43,12 @@ AERIE_PATCHES = "patches"
 # Besides the files the patches touch: name substitution wants OWNERS and the grit
 # package, the version step wants chrome/VERSION. A trailing / means a directory.
 STEP_INPUTS = ("OWNERS", "chrome/VERSION", "tools/grit/grit/")
+
+
+@dataclass(frozen=True)
+class CheckOutcome:
+    status: int  # the exit status
+    results: list
 
 
 def drop_file(repo: Path) -> Path:
@@ -179,11 +185,10 @@ def run_check(
     paths: BuildPaths,
     pins: lock.Lock,
     log: Callable[[str], None] = print,
-    results_out: list | None = None,
-) -> int:
-    """Lint Aerie's patches, then apply the series the way the build does. Returns the exit status.
+) -> CheckOutcome:
+    """Lint Aerie's patches, then apply the series the way the build does.
 
-    results_out, if given, receives every PatchResult (for the rebase report).
+    Returns the exit status and every PatchResult (the rebase report needs them).
     """
     status = 0
     series = layers(repo)
@@ -219,15 +224,13 @@ def run_check(
                 gate_lines = gate_report
         else:
             log("Aerie patches were not tried: Helium's own patches did not apply")
-    if results_out is not None:
-        results_out.extend(results)
     report, ok = patches.format_report(results)
     if gate_lines:
         log(gate_lines)
     log(report)
     if not _check_prepared_tree(repo, paths, pins, paths.root / "check", log):
         ok = False
-    return status if ok and gates_ok else 1
+    return CheckOutcome(status if ok and gates_ok else 1, results)
 
 
 @contextlib.contextmanager
@@ -274,7 +277,8 @@ def run_refresh(repo: Path, paths: BuildPaths, pins: lock.Lock, log: Callable[[s
     """Rewrite the Aerie patches that apply only at an offset or with fuzz. Returns the exit status.
 
     The patches are regenerated in place (headers untouched); commit the result. A patch that does
-    not apply at all is reported and left alone: it needs a real fix.
+    not apply at all, or that a refresh cannot rewrite safely, is reported and left alone. The
+    refreshed series is checked to apply exactly before this returns.
     """
     series = layers(repo)
     with _work_tree(repo, paths, pins, series, log) as work:
@@ -285,14 +289,19 @@ def run_refresh(repo: Path, paths: BuildPaths, pins: lock.Lock, log: Callable[[s
             log("Helium's own patches do not apply; nothing to refresh")
             return 1
         _helium_steps(repo, work, paths.root / "check")
-        outcome = rebase.refresh_layer(work, series[-1])
-    for name in outcome.refreshed:
-        log(f"REFRESHED  aerie/{name}")
-    if outcome.failed:
-        report, _ = patches.format_report(outcome.failed)
-        log(report)
-    log(f"{len(outcome.refreshed)} refreshed, {len(outcome.failed)} not applying")
-    return 1 if outcome.failed else 0
+        try:
+            results = patches.refresh_layer(work, series[-1])
+        except patches.PatchStateError as exc:
+            log(f"REFRESH FAILED  {exc}")
+            return 1
+    refreshed = [r for r in results if r.status == "refreshed"]
+    for r in refreshed:
+        log(f"REFRESHED  {r.patch} ({r.drift})")
+    bad = [r for r in results if r.status in ("failed", "skipped")]
+    if bad:
+        log(patches.format_report(bad)[0])
+    log(f"{len(refreshed)} refreshed, {len(bad)} not applying")
+    return 1 if bad else 0
 
 
 def _helium_steps(repo: Path, work: Path, check_root: Path) -> None:

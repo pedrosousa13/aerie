@@ -1,35 +1,51 @@
-"""The rebase report for a Helium bump, and `./aerie patches refresh`.
+"""The rebase report for a Helium bump.
 
-Three pieces:
 - rows_for / render_report: every patch with its apply status (clean, offset,
   fuzz, failed) and its Aerie-Purpose line, as docs/rebase/<helium-version>.md.
-- traffic_ids / diff_traffic: the unique IDs of Chromium's
-  net::NetworkTrafficAnnotationTag in two source trees, so a bump shows new
-  network traffic for review against docs/network-endpoints.md.
-- refresh_layer: regenerate the Aerie patches that only apply at an offset or
-  with fuzz, so the series applies exactly again. Headers are kept as they are.
+- traffic_ids / traffic_ids_in_archive / diff_traffic: the unique IDs of
+  Chromium's net::NetworkTrafficAnnotationTag in two sources (a source tree, or
+  a Chromium tarball read as a stream), so a bump shows new network traffic for
+  review against docs/network-endpoints.md. Test-only annotations are left out.
+- keep_traffic_section: a re-run must not wipe a traffic section filled in earlier.
+
+The patch refresh (`./aerie patches refresh`) lives in patches.py and patch_check.py.
 """
 
 from __future__ import annotations
 
+import fnmatch
 import os
 import re
 import subprocess
-import tempfile
-from dataclasses import dataclass, field
-from pathlib import Path
+import tarfile
+from dataclasses import dataclass
+from pathlib import Path, PurePosixPath
 from typing import Sequence
 
 from . import patches
 
 TRAFFIC_COMMAND = "./aerie traffic-diff --old-tree <old tree> --new-tree <new tree>"
 REBASE_DIR = "docs/rebase"
+TRAFFIC_HEADING = "## Network traffic annotations"
+PATCHES_HEADING = "## Patches"
+NOT_RUN = "The traffic diff was **not run**"
 
 # The unique ID is the first argument in every form.
 _ANNOTATION_RE = re.compile(
     r"\b(?:Define|DefinePartial|Complete|BranchedComplete)NetworkTrafficAnnotation\s*\(\s*\"([^\"\\]+)\"")
-_SOURCE_SUFFIXES = (".cc", ".h", ".mm", ".cpp", ".cxx", ".hpp")
+_SOURCE_SUFFIXES = (".cc", ".h", ".mm", ".cpp")
 _SKIP_DIRS = frozenset({".git", "out"})
+_TEST_DIRS = frozenset({"test", "tests", "testing", "test_support"})
+_TEST_FILES = ("*_test.*", "*_unittest.*", "*_browsertest.*", "*_test_util*", "fake_*", "mock_*")
+_MAX_MEMBER_BYTES = 32 * 1024 * 1024
+
+
+@dataclass(frozen=True)
+class Versions:
+    old_helium: str
+    new_helium: str
+    old_chromium: str
+    new_chromium: str
 
 
 @dataclass(frozen=True)
@@ -54,10 +70,10 @@ def rows_for(layers: Sequence[patches.Layer], results: Sequence[patches.PatchRes
             result = by_name.get(name)
             if result is None:
                 status = "not tried"
+            elif result.status in ("ok", "failed") and result.drift:
+                status = result.drift  # applies, but only shifted or loosened (a failure in the strict layer)
             elif result.status == "ok":
-                status = result.drift or "clean"
-            elif result.status == "failed" and result.drift and "context has drifted" in result.detail:
-                status = result.drift  # applies, but only shifted or loosened; the strict layer refuses it
+                status = "clean"
             else:
                 status = result.status
             purpose = ""
@@ -71,30 +87,46 @@ def _cell(text: str) -> str:
     return text.replace("|", "\\|").replace("\n", " ")
 
 
-def render_report(old_helium: str, new_helium: str, old_chromium: str, new_chromium: str,
-                  rows: Sequence[PatchRow], traffic: TrafficDiff | None) -> str:
+def render_report(versions: Versions, rows: Sequence[PatchRow], traffic: TrafficDiff | None) -> str:
     counts = {s: sum(r.status == s for r in rows) for s in ("clean", "offset", "fuzz", "failed")}
     other = len(rows) - sum(counts.values())
     summary = ", ".join(f"{n} {s}" for s, n in counts.items()) + (f", {other} other" if other else "")
     out = [
-        f"# Rebase report: Helium {new_helium}", "",
-        f"Helium {old_helium} -> {new_helium}", "",
-        f"Chromium {old_chromium} -> {new_chromium}", "",
+        f"# Rebase report: Helium {versions.new_helium}", "",
+        f"Helium {versions.old_helium} -> {versions.new_helium}", "",
+        f"Chromium {versions.old_chromium} -> {versions.new_chromium}", "",
         f"{len(rows)} patches: {summary}.", "",
         "Aerie's patches must apply with no offset and no fuzz. `./aerie patches refresh` regenerates "
         "the ones that drifted. Helium's patches apply with fuzz allowed, so their offset and fuzz rows "
         "are information.", "",
-        "## Network traffic annotations", "",
+        TRAFFIC_HEADING, "",
     ]
     if traffic is None:
-        out += ["The traffic diff was **not run**: the old and the new Chromium tree were not both "
-                "available. To run it:", "", "```", TRAFFIC_COMMAND, "```", ""]
+        out += [f"{NOT_RUN}: no Chromium source (a prepared tree or the downloaded tarball) was "
+                "available for both the old and the new release. To run it:", "", "```", TRAFFIC_COMMAND, "```", ""]
     else:
-        out += ["Review each added ID against [docs/network-endpoints.md](../network-endpoints.md).", ""]
+        out += ["Test-only annotations are left out. Review each added ID against "
+                "[docs/network-endpoints.md](../network-endpoints.md).", ""]
         out += _traffic_lines(traffic)
-    out += ["## Patches", "", "| Patch | Status | Purpose |", "| --- | --- | --- |"]
+    out += [PATCHES_HEADING, "", "| Patch | Status | Purpose |", "| --- | --- | --- |"]
     out += [f"| {_cell(r.patch)} | {r.status} | {_cell(r.purpose)} |" for r in rows]
     return "\n".join(out) + "\n"
+
+
+def _section(text: str) -> tuple[int, int] | None:
+    start = text.find(TRAFFIC_HEADING)
+    end = text.find(PATCHES_HEADING)
+    return (start, end) if 0 <= start < end else None
+
+
+def keep_traffic_section(new: str, existing: str | None) -> str:
+    """new, but with the traffic section of existing if new has none (not run) and existing has one."""
+    if not existing:
+        return new
+    mine, theirs = _section(new), _section(existing)
+    if mine is None or theirs is None or NOT_RUN not in new[mine[0]:mine[1]] or NOT_RUN in existing[theirs[0]:theirs[1]]:
+        return new
+    return new[:mine[0]] + existing[theirs[0]:theirs[1]] + new[mine[1]:]
 
 
 def _traffic_lines(traffic: TrafficDiff) -> list[str]:
@@ -112,101 +144,77 @@ def render_traffic(traffic: TrafficDiff) -> str:
     return "\n".join(_traffic_lines(traffic))
 
 
+def is_test_path(path: str) -> bool:
+    """A path (relative to the Chromium root) that only tests use: annotations there are not browser traffic."""
+    parts = PurePosixPath(path).parts
+    if any(p in _TEST_DIRS for p in parts[:-1]):
+        return True
+    return any(fnmatch.fnmatchcase(parts[-1], pat) for pat in _TEST_FILES) if parts else False
+
+
+def _wanted(path: str) -> bool:
+    return path.endswith(_SOURCE_SUFFIXES) and not is_test_path(path)
+
+
 def traffic_ids(tree: Path) -> set[str]:
-    """Unique IDs of every NetworkTrafficAnnotationTag defined in the C++ files under tree."""
+    """Unique IDs of every NetworkTrafficAnnotationTag defined in the non-test C++ files under tree."""
     ids: set[str] = set()
     for root, dirs, files in os.walk(tree):
         dirs[:] = [d for d in dirs if d not in _SKIP_DIRS]
         for name in files:
-            if name.endswith(_SOURCE_SUFFIXES):
+            rel = (Path(root) / name).relative_to(tree).as_posix()
+            if _wanted(rel):
                 try:
-                    text = Path(root, name).read_text(encoding="utf-8", errors="replace")
+                    ids.update(_ANNOTATION_RE.findall(Path(root, name).read_text(encoding="utf-8", errors="replace")))
                 except OSError:
                     continue
-                ids.update(_ANNOTATION_RE.findall(text))
     return ids
+
+
+def _scan_tar(stream) -> set[str]:
+    ids: set[str] = set()
+    with tarfile.open(fileobj=stream, mode="r|*") as tf:
+        for member in tf:
+            if member.isfile() and member.size <= _MAX_MEMBER_BYTES and _wanted(member.name):
+                data = tf.extractfile(member).read()
+                ids.update(_ANNOTATION_RE.findall(data.decode("utf-8", errors="replace")))
+    return ids
+
+
+def traffic_ids_in_archive(archive: Path) -> set[str]:
+    """Like traffic_ids, for a Chromium source tarball. It is read as a stream; nothing is written to disk."""
+    if not archive.name.endswith(".zst"):
+        with open(archive, "rb") as fh:
+            return _scan_tar(fh)
+    with open(archive, "rb") as fh:
+        zstd = subprocess.Popen(["zstd", "-dc"], stdin=fh, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        try:
+            ids = _scan_tar(zstd.stdout)
+            zstd.stdout.read()  # let zstd finish and report a damaged file
+        except BaseException:
+            zstd.kill()
+            raise
+        finally:
+            zstd.stdout.close()
+        error = zstd.stderr.read().decode(errors="replace")
+        zstd.stderr.close()
+        if zstd.wait() != 0:
+            raise RuntimeError(f"zstd could not decompress {archive.name}: {error.strip()}")
+    return ids
+
+
+def side_ids(*sources: Path | None) -> set[str] | None:
+    """The annotation IDs of one release, from the first source that exists: a tree (directory) or a tarball.
+
+    None when none exists.
+    """
+    for source in sources:
+        if source is not None and source.is_dir():
+            return traffic_ids(source)
+        if source is not None and source.is_file():
+            return traffic_ids_in_archive(source)
+    return None
 
 
 def diff_traffic(old: set[str], new: set[str]) -> TrafficDiff:
     return TrafficDiff(added=sorted(new - old), removed=sorted(old - new))
-
-
-# --- refresh -------------------------------------------------------------------
-
-@dataclass
-class RefreshOutcome:
-    refreshed: list[str] = field(default_factory=list)
-    failed: list[patches.PatchResult] = field(default_factory=list)
-
-
-def _split_header(text: str) -> tuple[str, str]:
-    """(text before the first diff line, the rest), byte for byte."""
-    pos = 0
-    for line in text.splitlines(keepends=True):
-        if patches._DIFF_START_RE.match(line):
-            break
-        pos += len(line)
-    return text[:pos], text[pos:]
-
-
-def _read(tree: Path, rel: str) -> bytes | None:
-    path = tree / rel
-    return path.read_bytes() if path.is_file() else None
-
-
-def _unified(rel: str, old: bytes | None, new: bytes | None) -> str:
-    with tempfile.TemporaryDirectory() as tmp:
-        sides = []
-        for tag, data in (("old", old), ("new", new)):
-            if data is None:
-                sides.append("/dev/null")
-            else:
-                path = Path(tmp) / tag
-                path.write_bytes(data)
-                sides.append(str(path))
-        proc = subprocess.run(
-            ["diff", "-u", "--label", "/dev/null" if old is None else f"a/{rel}",
-             "--label", "/dev/null" if new is None else f"b/{rel}", *sides],
-            capture_output=True, check=False)
-    if proc.returncode not in (0, 1):
-        raise RuntimeError(f"diff failed for {rel}: {proc.stderr.decode(errors='replace')}")
-    return proc.stdout.decode("utf-8", errors="surrogateescape")
-
-
-def refresh_layer(tree: Path, layer: patches.Layer) -> RefreshOutcome:
-    """Apply layer's series to tree in order. A patch that applies exactly is left alone.
-
-    A patch that applies only at an offset or with fuzz is applied with fuzz and rewritten from the
-    change it made, keeping its header. A patch that does not apply is reported, and later patches
-    that touch the same files are skipped, as in apply_layers.
-    """
-    outcome = RefreshOutcome()
-    blocked: dict[str, str] = {}
-    for name, path in patches.layer_entries(layer):
-        text = path.read_text(encoding="utf-8", errors="surrogateescape")
-        files = patches.touched_files(text)
-        blockers = sorted({blocked[f] for f in files if f in blocked})
-        if blockers:
-            outcome.failed.append(patches.PatchResult(name, "skipped", "depends on failed " + ", ".join(blockers)))
-            for f in files:
-                blocked.setdefault(f, blockers[0])
-            continue
-        before = {f: _read(tree, f) for f in files}
-        ok, output = patches._run_patch(tree, path, fuzz=False, dry_run=True)
-        if ok:
-            patches._run_patch(tree, path, fuzz=False, dry_run=False)
-            continue
-        ok, output = patches._run_patch(tree, path, fuzz=True, dry_run=True)
-        if ok:
-            ok, output = patches._run_patch(tree, path, fuzz=True, dry_run=False)
-        if not ok:
-            outcome.failed.append(patches.PatchResult(name, "failed", output))
-            for f in files:
-                blocked.setdefault(f, name)
-            continue
-        header, body = _split_header(text)
-        order = list(patches._hunks_by_file(body)) or files
-        diffs = [_unified(f, before[f], _read(tree, f)) for f in order if f in before]
-        path.write_text(header + "".join(diffs), encoding="utf-8", errors="surrogateescape", newline="")
-        outcome.refreshed.append(name.split("/", 1)[1])
-    return outcome

@@ -67,21 +67,35 @@ To fix drift, run `./aerie patches refresh`. It applies Aerie's series to the
 sparse tree and rewrites each patch that applied only with an offset or fuzz,
 from the change it made. The header is kept byte for byte, and patches that
 applied exactly are not touched. A patch that does not apply at all is listed
-and left alone. Review the diff and commit it.
+and left alone. So is a drifted patch with rename, copy, binary, mode or
+git-style (`diff --git`, `index`) headers, and one that would be left with no
+diff: refresh those by hand. After the rewrite the series is applied strictly
+to a copy of the tree, and the command fails if it is not exact. Review the
+diff and commit it.
 
 The report also lists the `net::NetworkTrafficAnnotationTag` IDs that the new
-Chromium added or removed. Review each added ID against
-[network-endpoints.md](network-endpoints.md). The diff needs a source tree for
-both versions. `./aerie bump` runs it when the build root has a tree for the old
-and for the new Helium version (or when `--old-tree` and `--new-tree` give
-them). Otherwise, as in the scheduled job, which does not download Chromium
-trees, the report says the diff was not run. Run it later with:
+Chromium added or removed (annotations in test code are left out: paths under
+`test/`, `tests/`, `testing/` or `test_support/`, and files named `*_test.*`,
+`*_unittest.*`, `*_browsertest.*`, `*_test_util*`, `fake_*` or `mock_*`).
+Review each added ID against [network-endpoints.md](network-endpoints.md).
+
+For each release, `./aerie bump` takes the first source it finds: the tree
+given with `--old-tree` or `--new-tree`; the Chromium base tarball
+(`chromium-<version>-base.tar.zst`) in the build root's `downloads`, which it
+reads as a stream and does not extract; the prepared source tree
+`src/helium-<version>` of that Helium version. A bump has just downloaded the
+new tarball for the patch check, so the new side is always there. The old side
+is there if the old tarball is still cached (an earlier check or build used it)
+or the old tree is prepared, which a developer machine that built the old
+release has. The scheduled job downloads nothing extra: its runner has only the
+new tarball, so its report says the diff was not run. Then run it later with:
 
 ```sh
 ./aerie traffic-diff --old-tree <old tree> --new-tree <new tree>
 ```
 
-and paste the output into the report.
+and paste the output into the report. A later `./aerie bump` run rewrites the
+patch table but keeps a traffic section that is filled in.
 
 ## The fix-up routine
 

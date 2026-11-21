@@ -485,7 +485,7 @@ class PatchLocaleTest(unittest.TestCase):
         done = subprocess.CompletedProcess([], 0, stdout="", stderr="")
         with mock.patch.dict(os.environ, {"LC_ALL": "de_DE.UTF-8", "LANG": "de_DE.UTF-8"}), \
              mock.patch.object(patches.subprocess, "run", return_value=done) as run:
-            patches._run_patch(Path("/t"), Path("/p.patch"), fuzz=False, dry_run=True)
+            patches.run_patch(Path("/t"), Path("/p.patch"), fuzz=False, dry_run=True)
         self.assertEqual(run.call_args.kwargs["env"]["LC_ALL"], "C")
 
 

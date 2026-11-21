@@ -1,7 +1,10 @@
+import io
 import subprocess
+import tarfile
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from aerie_build import patches, rebase
 
@@ -72,13 +75,15 @@ class DriftDetectionTest(Fixture):
 
 
 class RefreshTest(Fixture):
+    def refresh(self):
+        return patches.refresh_layer(self.tree, self.layer())
+
     def test_a_drifted_patch_is_regenerated_with_its_header_untouched(self):
         (self.tree / "f.txt").write_text("new1\nnew2\n" + lines())
         self.add_patch("a.patch", HEADER + BODY)
-        outcome = rebase.refresh_layer(self.tree, self.layer())
-        self.assertEqual(outcome.refreshed, ["a.patch"])
-        text = (self.pdir / "a.patch").read_text()
-        self.assertTrue(text.startswith(HEADER))
+        results = self.refresh()
+        self.assertEqual([(r.patch, r.status) for r in results], [("aerie/a.patch", "refreshed")])
+        self.assertTrue((self.pdir / "a.patch").read_text().startswith(HEADER))
         fresh = self.root / "fresh"
         fresh.mkdir()
         (fresh / "f.txt").write_text("new1\nnew2\n" + lines())
@@ -89,7 +94,7 @@ class RefreshTest(Fixture):
     def test_a_patch_that_needed_fuzz_is_refreshed_too(self):
         (self.tree / "f.txt").write_text(lines().replace("line9\n", "other9\n"))
         self.add_patch("a.patch", HEADER + BODY)
-        self.assertEqual(rebase.refresh_layer(self.tree, self.layer()).refreshed, ["a.patch"])
+        self.assertEqual(self.refresh()[0].status, "refreshed")
         fresh = self.root / "fresh"
         fresh.mkdir()
         (fresh / "f.txt").write_text(lines().replace("line9\n", "other9\n"))
@@ -101,19 +106,54 @@ class RefreshTest(Fixture):
         self.add_patch("a.patch", HEADER + BODY)
         self.add_patch("b.patch", "Aerie-Purpose: p\n\n--- a/g.txt\n+++ b/g.txt\n@@ -1 +1 @@\n-x\n+y\n")
         before = {p: (self.pdir / p).stat().st_mtime_ns for p in ("a.patch", "b.patch")}
-        outcome = rebase.refresh_layer(self.tree, self.layer())
-        self.assertEqual(outcome.refreshed, [])
+        self.assertEqual({r.status for r in self.refresh()}, {"ok"})
         for p, m in before.items():
             self.assertEqual((self.pdir / p).stat().st_mtime_ns, m)
         self.assertEqual((self.tree / "g.txt").read_text(), "y\n")
 
-    def test_a_patch_that_really_fails_is_reported_not_refreshed(self):
+    def test_a_patch_that_really_fails_is_reported_and_its_dependents_skipped(self):
         (self.tree / "f.txt").write_text("nothing like it\n")
         self.add_patch("a.patch", HEADER + BODY)
-        outcome = rebase.refresh_layer(self.tree, self.layer())
-        self.assertEqual(outcome.refreshed, [])
-        self.assertEqual([r.patch for r in outcome.failed], ["aerie/a.patch"])
+        self.add_patch("b.patch", "Aerie-Purpose: p\n\n" + BODY)
+        results = self.refresh()
+        self.assertEqual([r.status for r in results], ["failed", "skipped"])
         self.assertEqual((self.pdir / "a.patch").read_text(), HEADER + BODY)
+
+    def refuses(self, extra_header):
+        (self.tree / "f.txt").write_text("new1\nnew2\n" + lines())
+        text = HEADER + extra_header + BODY
+        self.add_patch("a.patch", text)
+        results = self.refresh()
+        self.assertEqual(results[0].status, "failed", results)
+        self.assertIn("not refreshed", results[0].detail)
+        self.assertEqual((self.pdir / "a.patch").read_text(), text)
+
+    def test_a_drifted_patch_with_a_mode_change_is_refused_and_left_alone(self):
+        self.refuses("diff --git a/f.txt b/f.txt\nold mode 100644\nnew mode 100755\n")
+
+    def test_a_drifted_patch_with_a_rename_is_refused_and_left_alone(self):
+        self.refuses("diff --git a/f.txt b/f.txt\nsimilarity index 90%\nrename from f.txt\nrename to g.txt\n")
+
+    def test_a_drifted_patch_with_a_binary_part_is_refused_and_left_alone(self):
+        self.refuses("Binary files a/x.png and b/x.png differ\n")
+
+    def test_a_patch_that_would_end_up_with_no_diff_is_refused_and_the_tree_kept(self):
+        (self.tree / "f.txt").write_text("new1\nnew2\n" + lines())
+        text = HEADER + "--- a/f.txt\n+++ b/f.txt\n@@ -9,3 +9,3 @@\n line9\n-line10\n+line10\n line11\n"
+        self.add_patch("a.patch", text)
+        results = self.refresh()
+        self.assertEqual(results[0].status, "failed")
+        self.assertIn("no diff", results[0].detail)
+        self.assertEqual((self.pdir / "a.patch").read_text(), text)
+        self.assertEqual((self.tree / "f.txt").read_text(), "new1\nnew2\n" + lines())
+
+    def test_a_refresh_that_does_not_apply_exactly_afterwards_fails_loudly(self):
+        (self.tree / "f.txt").write_text("new1\nnew2\n" + lines())
+        self.add_patch("a.patch", HEADER + BODY)
+        bad = "--- a/f.txt\n+++ b/f.txt\n@@ -1,3 +1,3 @@\n zzz\n-line10\n+LINE10\n zzz\n"
+        with mock.patch.object(patches, "_unified", return_value=bad):
+            with self.assertRaises(patches.PatchStateError):
+                self.refresh()
 
 
 class ReportTest(unittest.TestCase):
@@ -126,7 +166,8 @@ class ReportTest(unittest.TestCase):
         ]
 
     def render(self, traffic=None):
-        return rebase.render_report("0.21.1.1", "0.22.1.1", "157.0.1", "158.0.2", self.rows(), traffic)
+        versions = rebase.Versions("0.21.1.1", "0.22.1.1", "157.0.1", "158.0.2")
+        return rebase.render_report(versions, self.rows(), traffic)
 
     def test_lists_every_patch_with_status_and_purpose(self):
         text = self.render()
@@ -188,6 +229,110 @@ auto n = NO_TRAFFIC_ANNOTATION_YET;
             self.assertEqual(diff.removed, ["one"])
 
 
+class TestPathTest(unittest.TestCase):
+    def test_test_only_paths(self):
+        for path in ("chrome/test/a.cc", "x/tests/a.cc", "base/testing/a.cc", "x/test_support/a.cc",
+                     "x/foo_test.cc", "x/foo_unittest.cc", "x/foo_browsertest.cc", "x/foo_test_util.h",
+                     "x/fake_thing.cc", "x/mock_thing.h", "chromium-1/chrome/test/a.cc"):
+            self.assertTrue(rebase.is_test_path(path), path)
+
+    def test_production_paths(self):
+        for path in ("chrome/browser/a.cc", "x/latest.cc", "x/testimony.cc", "x/contest/a.cc", "x/fakery.cc",
+                     "x/test.cc"):
+            self.assertFalse(rebase.is_test_path(path), path)
+
+    def test_traffic_in_test_files_is_left_out(self):
+        src = 'x = net::DefineNetworkTrafficAnnotation("%s", "")'
+        with tempfile.TemporaryDirectory() as tmp:
+            for rel, name in (("a/real.cc", "real"), ("a/test/t.cc", "t1"), ("a/x_unittest.cc", "t2"),
+                              ("a/fake_x.cc", "t3")):
+                path = Path(tmp) / rel
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(src % name)
+            self.assertEqual(rebase.traffic_ids(Path(tmp)), {"real"})
+
+
+class ArchiveTest(unittest.TestCase):
+    FILES = {
+        "chromium-1/a/real.cc": 'net::DefineNetworkTrafficAnnotation("real", "")',
+        "chromium-1/a/real.h": 'net::DefineNetworkTrafficAnnotation("in_header", "")',
+        "chromium-1/a/test/skip.cc": 'net::DefineNetworkTrafficAnnotation("test_one", "")',
+        "chromium-1/a/notes.txt": 'net::DefineNetworkTrafficAnnotation("text_file", "")',
+    }
+
+    def make_tar(self, root: Path) -> Path:
+        plain = root / "c.tar"
+        with tarfile.open(plain, "w") as tf:
+            for name, text in self.FILES.items():
+                data = text.encode()
+                info = tarfile.TarInfo(name)
+                info.size = len(data)
+                tf.addfile(info, io.BytesIO(data))
+        return plain
+
+    def test_reads_ids_from_a_tar_zst_without_extracting_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            plain = self.make_tar(root)
+            subprocess.run(["zstd", "-q", str(plain), "-o", str(root / "c.tar.zst")], check=True)
+            before = set(root.iterdir())
+            self.assertEqual(rebase.traffic_ids_in_archive(root / "c.tar.zst"), {"real", "in_header"})
+            self.assertEqual(set(root.iterdir()), before)
+
+    def test_reads_ids_from_a_gzip_tar(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            plain = self.make_tar(root)
+            subprocess.run(["gzip", "-k", str(plain)], check=True)
+            self.assertEqual(rebase.traffic_ids_in_archive(root / "c.tar.gz"), {"real", "in_header"})
+
+    def test_a_damaged_zst_is_an_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            plain = self.make_tar(root)
+            subprocess.run(["zstd", "-q", str(plain), "-o", str(root / "c.tar.zst")], check=True)
+            data = (root / "c.tar.zst").read_bytes()
+            (root / "bad.tar.zst").write_bytes(data[:len(data) // 2])
+            with self.assertRaises(Exception):
+                rebase.traffic_ids_in_archive(root / "bad.tar.zst")
+
+    def test_side_ids_uses_the_first_source_that_exists_and_says_none_otherwise(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            tree = root / "tree"
+            tree.mkdir()
+            (tree / "a.cc").write_text('net::DefineNetworkTrafficAnnotation("from_tree", "")')
+            plain = self.make_tar(root)
+            self.assertEqual(rebase.side_ids(None, root / "missing.tar.zst", tree), {"from_tree"})
+            self.assertEqual(rebase.side_ids(None, plain), {"real", "in_header"})
+            self.assertIsNone(rebase.side_ids(None, root / "missing"))
+
+
+class KeepTrafficSectionTest(unittest.TestCase):
+    VERSIONS = rebase.Versions("1", "2", "3", "4")
+
+    def test_a_rerun_without_a_diff_keeps_the_section_filled_in_before(self):
+        filled = rebase.render_report(self.VERSIONS, [rebase.PatchRow("aerie/a", "clean", "A")],
+                                      rebase.TrafficDiff(["new_one"], []))
+        rerun = rebase.render_report(self.VERSIONS, [rebase.PatchRow("aerie/a", "offset", "A")], None)
+        merged = rebase.keep_traffic_section(rerun, filled)
+        self.assertIn("`new_one`", merged)
+        self.assertNotIn("not run", merged)
+        self.assertIn("| aerie/a | offset | A |", merged)  # the patch table is the new run's
+
+    def test_a_new_diff_replaces_the_old_section(self):
+        old = rebase.render_report(self.VERSIONS, [], rebase.TrafficDiff(["old_one"], []))
+        new = rebase.render_report(self.VERSIONS, [], rebase.TrafficDiff(["newer"], []))
+        merged = rebase.keep_traffic_section(new, old)
+        self.assertIn("`newer`", merged)
+        self.assertNotIn("old_one", merged)
+
+    def test_nothing_to_keep_returns_the_new_report(self):
+        rerun = rebase.render_report(self.VERSIONS, [], None)
+        self.assertEqual(rebase.keep_traffic_section(rerun, None), rerun)
+        self.assertEqual(rebase.keep_traffic_section(rerun, rerun), rerun)
+
+
 class RowsTest(Fixture):
     def test_status_and_purpose_come_from_results_and_headers(self):
         (self.tree / "f.txt").write_text("new1\nnew2\n" + lines())
@@ -197,6 +342,14 @@ class RowsTest(Fixture):
         rows = rebase.rows_for([layer], patches.apply_layers(self.tree, [layer]))
         self.assertEqual([(r.patch, r.status, r.purpose) for r in rows],
                          [("aerie/a.patch", "offset", "Upper-case line ten."), ("aerie/b.patch", "failed", "B.")])
+
+    def test_the_status_comes_from_the_drift_field_not_from_the_message(self):
+        layer = self.layer()
+        self.add_patch("a.patch", HEADER + BODY)
+        self.add_patch("b.patch", HEADER + BODY)
+        results = [patches.PatchResult("aerie/a.patch", "failed", "whatever", "fuzz"),
+                   patches.PatchResult("aerie/b.patch", "failed", "the context has drifted", "")]
+        self.assertEqual([r.status for r in rebase.rows_for([layer], results)], ["fuzz", "failed"])
 
     def test_a_patch_never_tried_is_marked_so(self):
         self.add_patch("a.patch", HEADER + BODY)
