@@ -120,6 +120,10 @@ class SleepController : public KeyedService,
   // TabModelObserver. A folder's own sleep time is in its record (issue #141):
   // when a folder is edited or moved, or a tab moves to another folder, the
   // time of some tab can change, so the one timer is armed again.
+  // A tab filed straight into a folder: the idle time may have started before
+  // its record existed (the tab strip observers run in no fixed order), so the
+  // timer is armed again to read the folder's time.
+  void OnTabAdded(const TabRecord&) override { schedule_.Rearm(); }
   void OnTabMoved(const TabRecord& tab, const Placement& from) override;
   void OnFolderAdded(const FolderRecord&) override { schedule_.Rearm(); }
   void OnFolderChanged(const FolderRecord&) override { schedule_.Rearm(); }
