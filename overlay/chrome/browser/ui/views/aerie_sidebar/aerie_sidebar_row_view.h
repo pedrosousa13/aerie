@@ -16,6 +16,7 @@
 #include "components/aerie_design_tokens/aerie_motion.h"
 #include "components/aerie_design_tokens/aerie_tokens.h"
 #include "components/aerie_sidebar/aerie_sidebar_density.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_audio_state.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_drag_overlay.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_selection_keys.h"
 #include "components/aerie_sidebar/aerie_sidebar_move.h"
@@ -191,9 +192,8 @@ class AerieSidebarRowView : public views::View,
   // and Enter press it) after the title. It appears and goes at once and has no
   // motion, so reduced motion changes nothing. The rail (icons only) shows no
   // mark.
-  enum class AudioState { kNone, kPlaying, kMuted };
-  void SetAudioState(AudioState state);
-  AudioState audio_state() const { return audio_state_; }
+  void SetAudioState(AerieSidebarAudioState state);
+  AerieSidebarAudioState audio_state() const { return audio_state_; }
   views::ImageButton* audio_button() const { return audio_button_; }
   // Smart folders (issue #140). A row inside a smart folder stands for a real
   // tab that has its own row elsewhere: the "smart-member" kind of row. It shows
@@ -466,7 +466,7 @@ class AerieSidebarRowView : public views::View,
   raw_ptr<views::ImageView> keep_mark_ = nullptr;
   bool kept_loaded_ = false;
   raw_ptr<views::ImageButton> audio_button_ = nullptr;
-  AudioState audio_state_ = AudioState::kNone;
+  AerieSidebarAudioState audio_state_ = AerieSidebarAudioState::kNone;
   std::u16string title_text_;
   std::u16string title_note_;
   bool sleeping_ = false;

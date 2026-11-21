@@ -2350,17 +2350,7 @@ void AerieSidebarView::UpdateRow(const Row& row) {
   row.view->SetSleeping(record && record->sleeping,
                         browser_->GetProfile()->GetPrefs());
   row.view->SetKeptLoaded(record && record->keep_loaded);
-  switch (AerieSidebarAudioWatcher::StateOf(tab)) {
-    case AerieSidebarAudioWatcher::State::kNone:
-      row.view->SetAudioState(AerieSidebarRowView::AudioState::kNone);
-      break;
-    case AerieSidebarAudioWatcher::State::kPlaying:
-      row.view->SetAudioState(AerieSidebarRowView::AudioState::kPlaying);
-      break;
-    case AerieSidebarAudioWatcher::State::kMuted:
-      row.view->SetAudioState(AerieSidebarRowView::AudioState::kMuted);
-      break;
-  }
+  row.view->SetAudioState(AerieSidebarAudioWatcher::StateOf(tab));
   if (smart_member) {
     // The row only shows the tab: the hover hint says where it is, and the
     // close button says that it acts on the real tab.

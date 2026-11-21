@@ -46,6 +46,7 @@
 #include "ui/views/controls/image_view.h"
 #include "ui/views/controls/label.h"
 #include "ui/views/controls/textfield/textfield.h"
+#include "ui/views/focus/focus_manager.h"
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/style/typography.h"
 #include "ui/views/view_class_properties.h"
@@ -394,7 +395,7 @@ void AerieSidebarRowView::SetPalette(
   UpdateState();
 }
 
-void AerieSidebarRowView::SetAudioState(AudioState state) {
+void AerieSidebarRowView::SetAudioState(AerieSidebarAudioState state) {
   if (audio_state_ == state) {
     return;
   }
@@ -406,7 +407,7 @@ void AerieSidebarRowView::SetAudioState(AudioState state) {
 void AerieSidebarRowView::ApplyAudioLook() {
   // Playing: the speaker in the text colour. Muted: the crossed speaker in the
   // muted text colour (a quiet row says that the sound is off).
-  const bool muted = audio_state_ == AudioState::kMuted;
+  const bool muted = audio_state_ == AerieSidebarAudioState::kMuted;
   const gfx::VectorIcon& icon =
       muted ? vector_icons::kVolumeOffIcon : vector_icons::kVolumeUpIcon;
   const SkColor rest = muted ? palette_.text_muted : palette_.text;
@@ -438,8 +439,15 @@ void AerieSidebarRowView::UpdateTrailing() {
   pencil_->SetVisible(renamed_ && !closing_ && !renaming_ && !icons_only_);
   keep_mark_->SetVisible(kept_loaded_ && !closing_ && !renaming_ &&
                          !icons_only_);
-  audio_button_->SetVisible(audio_state_ != AudioState::kNone && !closing_ &&
-                            !renaming_ && !icons_only_);
+  const bool audio_shown = audio_state_ != AerieSidebarAudioState::kNone &&
+                           !closing_ && !renaming_ && !icons_only_;
+  if (!audio_shown && audio_button_->HasFocus()) {
+    // A keyboard user must not lose focus when the mark goes: it moves to the
+    // row (the focus manager takes a row that is not a Tab stop too).
+    GetFocusManager()->SetFocusedViewWithReason(
+        this, views::FocusManager::FocusChangeReason::kFocusRestore);
+  }
+  audio_button_->SetVisible(audio_shown);
   origin_hint_->SetVisible(smart_member_ && hovered_ && !closing_ &&
                            !renaming_ && !icons_only_);
   close_button_->SetVisible(ShowsCloseButton() && !closing_ && !renaming_ &&

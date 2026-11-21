@@ -22,7 +22,10 @@
 #include "base/test/test_future.h"
 #include "chrome/browser/aerie_picture_in_picture/aerie_auto_pip_fixture.h"
 #include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/tabs/alert/tab_alert_controller.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "components/tabs/public/tab_alert.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_audio_state.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_row_view.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_view.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
@@ -97,7 +100,7 @@ std::u16string NameOf(views::View* view) {
 
 class AerieSidebarAudioUiTest : public InProcessBrowserTest {
  protected:
-  using AudioState = AerieSidebarRowView::AudioState;
+  using AudioState = AerieSidebarAudioState;
 
   void SetUpCommandLine(base::CommandLine* command_line) override {
     InProcessBrowserTest::SetUpCommandLine(command_line);
@@ -281,6 +284,40 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarAudioUiTest,
   EXPECT_EQ(strip()->active_index(), 0);
 }
 
+IN_PROC_BROWSER_TEST_F(AerieSidebarAudioUiTest,
+                       TheMutedMarkStaysWhileTheTabIsSilentAndUnmutingHidesIt) {
+  AerieSidebarRowView* row = OpenSoundTab();
+  views::ImageButton* mark = row->audio_button();
+  Click(mark);
+  ASSERT_TRUE(contents_->IsAudioMuted());
+  ASSERT_TRUE(base::test::RunUntil(
+      [&] { return row->audio_state() == AudioState::kMuted; }));
+
+  // The page stops; once the tab is no longer recently audible, Chromium's own
+  // alerts drop the muted indicator, but the sidebar's mark follows the mute
+  // state and stays, so the user can unmute.
+  ASSERT_TRUE(content::ExecJs(contents_, "audio.pause(); 0"));
+  tabs::TabAlertController* alerts =
+      tabs::TabAlertController::From(strip()->GetTabAtIndex(1));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return !alerts->IsAlertActive(tabs::TabAlert::kAudioPlaying);
+  }));
+  Wait(300);
+  EXPECT_EQ(row->audio_state(), AudioState::kMuted);
+  EXPECT_TRUE(mark->GetVisible());
+  EXPECT_EQ(mark->GetTooltipText(), u"Unmute tab");
+
+  // Unmuting a silent tab: the mark goes, and focus on it moves to the row.
+  mark->RequestFocus();
+  ASSERT_TRUE(base::test::RunUntil([&] { return focused() == mark; }));
+  Press(ui::VKEY_SPACE);
+  ASSERT_TRUE(base::test::RunUntil([&] { return !contents_->IsAudioMuted(); }));
+  ASSERT_TRUE(base::test::RunUntil(
+      [&] { return row->audio_state() == AudioState::kNone; }));
+  EXPECT_FALSE(mark->GetVisible());
+  EXPECT_EQ(focused(), row);
+}
+
 // Gallery shots (AERIE_MUTE_SHOT_DIR): the row with the speaker, with the muted
 // mark, and with the muted mark focused.
 IN_PROC_BROWSER_TEST_F(AerieSidebarAudioUiTest, GalleryShots) {
@@ -294,4 +331,12 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarAudioUiTest, GalleryShots) {
   ASSERT_TRUE(base::test::RunUntil(
       [&] { return focused() == row->audio_button(); }));
   Shoot("mute-muted-focused");
+  // The same mark once the tab is silent: the look is the same as muted.
+  ASSERT_TRUE(content::ExecJs(contents_, "audio.pause(); 0"));
+  tabs::TabAlertController* alerts =
+      tabs::TabAlertController::From(strip()->GetTabAtIndex(1));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return !alerts->IsAlertActive(tabs::TabAlert::kAudioPlaying);
+  }));
+  Shoot("mute-muted-silent");
 }
