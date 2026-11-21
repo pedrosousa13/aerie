@@ -20,7 +20,7 @@ import subprocess
 import tarfile
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Sequence
+from typing import Callable, Sequence
 
 from . import patches
 
@@ -87,7 +87,8 @@ def _cell(text: str) -> str:
     return text.replace("|", "\\|").replace("\n", " ")
 
 
-def render_report(versions: Versions, rows: Sequence[PatchRow], traffic: TrafficDiff | None) -> str:
+def render_report(versions: Versions, rows: Sequence[PatchRow], traffic: TrafficDiff | None,
+                  not_run_reason: str = "") -> str:
     counts = {s: sum(r.status == s for r in rows) for s in ("clean", "offset", "fuzz", "failed")}
     other = len(rows) - sum(counts.values())
     summary = ", ".join(f"{n} {s}" for s, n in counts.items()) + (f", {other} other" if other else "")
@@ -102,8 +103,8 @@ def render_report(versions: Versions, rows: Sequence[PatchRow], traffic: Traffic
         TRAFFIC_HEADING, "",
     ]
     if traffic is None:
-        out += [f"{NOT_RUN}: no Chromium source (a prepared tree or the downloaded tarball) was "
-                "available for both the old and the new release. To run it:", "", "```", TRAFFIC_COMMAND, "```", ""]
+        reason = not_run_reason or "the old and the new Chromium source were not both available"
+        out += [f"{NOT_RUN}: {reason}. To run it:", "", "```", TRAFFIC_COMMAND, "```", ""]
     else:
         out += ["Test-only annotations are left out. Review each added ID against "
                 "[docs/network-endpoints.md](../network-endpoints.md).", ""]
@@ -171,39 +172,49 @@ def traffic_ids(tree: Path) -> set[str]:
     return ids
 
 
-def _scan_tar(stream) -> set[str]:
+def _scan_tar(stream, log: Callable[[str], None]) -> set[str]:
     ids: set[str] = set()
     with tarfile.open(fileobj=stream, mode="r|*") as tf:
         for member in tf:
-            if member.isfile() and member.size <= _MAX_MEMBER_BYTES and _wanted(member.name):
-                data = tf.extractfile(member).read()
-                ids.update(_ANNOTATION_RE.findall(data.decode("utf-8", errors="replace")))
+            if not (member.isfile() and _wanted(member.name)):
+                continue
+            if member.size > _MAX_MEMBER_BYTES:
+                log(f"traffic diff: skipped {member.name}, {member.size} bytes is over the {_MAX_MEMBER_BYTES} byte limit")
+                continue
+            data = tf.extractfile(member).read()
+            ids.update(_ANNOTATION_RE.findall(data.decode("utf-8", errors="replace")))
     return ids
 
 
-def traffic_ids_in_archive(archive: Path) -> set[str]:
-    """Like traffic_ids, for a Chromium source tarball. It is read as a stream; nothing is written to disk."""
+def traffic_ids_in_archive(archive: Path, log: Callable[[str], None] = lambda _m: None) -> set[str]:
+    """Like traffic_ids, for a Chromium source tarball. It is read as a stream; nothing is written to disk.
+
+    A member over the size limit is skipped with a message to log. Raises RuntimeError (with zstd's own
+    message) for a .zst file that cannot be decompressed.
+    """
     if not archive.name.endswith(".zst"):
         with open(archive, "rb") as fh:
-            return _scan_tar(fh)
-    with open(archive, "rb") as fh:
-        zstd = subprocess.Popen(["zstd", "-dc"], stdin=fh, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            return _scan_tar(fh, log)
+    with open(archive, "rb") as fh, subprocess.Popen(
+            ["zstd", "-dc"], stdin=fh, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as zstd:
+        # The context manager closes both pipes and waits for zstd on every path.
         try:
-            ids = _scan_tar(zstd.stdout)
+            ids = _scan_tar(zstd.stdout, log)
             zstd.stdout.read()  # let zstd finish and report a damaged file
+        except (tarfile.TarError, EOFError) as exc:
+            zstd.kill()
+            error = zstd.stderr.read().decode(errors="replace").strip()
+            raise RuntimeError(f"zstd could not decompress {archive.name}: {error or exc}") from exc
         except BaseException:
             zstd.kill()
             raise
-        finally:
-            zstd.stdout.close()
-        error = zstd.stderr.read().decode(errors="replace")
-        zstd.stderr.close()
+        error = zstd.stderr.read().decode(errors="replace").strip()
         if zstd.wait() != 0:
-            raise RuntimeError(f"zstd could not decompress {archive.name}: {error.strip()}")
+            raise RuntimeError(f"zstd could not decompress {archive.name}: {error}")
     return ids
 
 
-def side_ids(*sources: Path | None) -> set[str] | None:
+def side_ids(*sources: Path | None, log: Callable[[str], None] = lambda _m: None) -> set[str] | None:
     """The annotation IDs of one release, from the first source that exists: a tree (directory) or a tarball.
 
     None when none exists.
@@ -212,8 +223,22 @@ def side_ids(*sources: Path | None) -> set[str] | None:
         if source is not None and source.is_dir():
             return traffic_ids(source)
         if source is not None and source.is_file():
-            return traffic_ids_in_archive(source)
+            return traffic_ids_in_archive(source, log)
     return None
+
+
+def compute_traffic(old_sources: Sequence[Path | None], new_sources: Sequence[Path | None],
+                    log: Callable[[str], None]) -> tuple[TrafficDiff | None, str]:
+    """(the diff, "") or (None, why it was not run). A source that cannot be read is a reason, not an error."""
+    try:
+        old_ids, new_ids = side_ids(*old_sources, log=log), side_ids(*new_sources, log=log)
+    except (OSError, RuntimeError, tarfile.TarError, EOFError) as exc:
+        return None, f"a Chromium source could not be read: {exc}"
+    missing = [name for name, found in (("old", old_ids), ("new", new_ids)) if found is None]
+    if missing:
+        return None, "no Chromium source (a prepared tree or the downloaded tarball) for the " \
+            + " or ".join(missing) + " release"
+    return diff_traffic(old_ids, new_ids), ""
 
 
 def diff_traffic(old: set[str], new: set[str]) -> TrafficDiff:

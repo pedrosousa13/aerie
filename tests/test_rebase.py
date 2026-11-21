@@ -135,7 +135,60 @@ class RefreshTest(Fixture):
         self.refuses("diff --git a/f.txt b/f.txt\nsimilarity index 90%\nrename from f.txt\nrename to g.txt\n")
 
     def test_a_drifted_patch_with_a_binary_part_is_refused_and_left_alone(self):
-        self.refuses("Binary files a/x.png and b/x.png differ\n")
+        (self.tree / "f.txt").write_text("new1\nnew2\n" + lines())
+        text = HEADER + BODY + "Binary files a/x.png and b/x.png differ\n"
+        self.add_patch("a.patch", text)
+        results = self.refresh()
+        self.assertEqual(results[0].status, "failed", results)
+        self.assertIn("not refreshed", results[0].detail)
+        self.assertEqual((self.pdir / "a.patch").read_text(), text)
+
+    def test_header_prose_that_looks_like_a_git_header_does_not_block_a_refresh(self):
+        (self.tree / "f.txt").write_text("new1\nnew2\n" + lines())
+        prose = "rename from the old name was considered\nindex abc..def is only prose\nBinary files are not touched\n"
+        self.add_patch("a.patch", HEADER + prose + BODY)
+        self.assertEqual(self.refresh()[0].status, "refreshed")
+        self.assertTrue((self.pdir / "a.patch").read_text().startswith(HEADER + prose))
+
+    def snapshot(self):
+        return {p.name: p.read_bytes() for p in sorted(self.pdir.iterdir())}
+
+    def two_drifted(self):
+        (self.tree / "f.txt").write_text("new1\nnew2\n" + lines())
+        (self.tree / "g.txt").write_text("n1\n" + lines())
+        self.add_patch("a.patch", HEADER + BODY)
+        self.add_patch("b.patch", HEADER + BODY.replace("f.txt", "g.txt"))
+        return self.snapshot()
+
+    def test_a_failure_after_the_first_refreshed_patch_leaves_every_patch_file_as_it_was(self):
+        before = self.two_drifted()
+        real = patches._unified
+        calls = []
+
+        def flaky(*args):
+            calls.append(args)
+            if len(calls) > 1:
+                raise RuntimeError("diff blew up")
+            return real(*args)
+
+        with mock.patch.object(patches, "_unified", side_effect=flaky):
+            with self.assertRaises(RuntimeError):
+                self.refresh()
+        self.assertEqual(self.snapshot(), before)
+
+    def test_a_failed_strict_check_leaves_every_patch_file_as_it_was(self):
+        before = self.two_drifted()
+        bad = "--- a/g.txt\n+++ b/g.txt\n@@ -1,3 +1,3 @@\n zzz\n-line10\n+LINE10\n zzz\n"
+        real = patches._unified
+        with mock.patch.object(patches, "_unified", side_effect=lambda rel, *a: bad if rel == "g.txt" else real(rel, *a)):
+            with self.assertRaises(patches.PatchStateError):
+                self.refresh()
+        self.assertEqual(self.snapshot(), before)
+
+    def test_a_good_refresh_leaves_no_temp_files_behind(self):
+        self.two_drifted()
+        self.refresh()
+        self.assertEqual(sorted(p.name for p in self.pdir.iterdir()), ["a.patch", "b.patch", "series"])
 
     def test_a_patch_that_would_end_up_with_no_diff_is_refused_and_the_tree_kept(self):
         (self.tree / "f.txt").write_text("new1\nnew2\n" + lines())
@@ -154,6 +207,7 @@ class RefreshTest(Fixture):
         with mock.patch.object(patches, "_unified", return_value=bad):
             with self.assertRaises(patches.PatchStateError):
                 self.refresh()
+        self.assertEqual((self.pdir / "a.patch").read_text(), HEADER + BODY)
 
 
 class ReportTest(unittest.TestCase):
@@ -293,8 +347,64 @@ class ArchiveTest(unittest.TestCase):
             subprocess.run(["zstd", "-q", str(plain), "-o", str(root / "c.tar.zst")], check=True)
             data = (root / "c.tar.zst").read_bytes()
             (root / "bad.tar.zst").write_bytes(data[:len(data) // 2])
-            with self.assertRaises(Exception):
+            with self.assertRaises(RuntimeError) as ctx:
                 rebase.traffic_ids_in_archive(root / "bad.tar.zst")
+            self.assertIn("zstd", str(ctx.exception))
+
+    def test_a_member_over_the_size_cap_is_named_in_a_warning(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            plain = self.make_tar(root)
+            warnings = []
+            with mock.patch.object(rebase, "_MAX_MEMBER_BYTES", 10):
+                ids = rebase.traffic_ids_in_archive(plain, log=warnings.append)
+            self.assertEqual(ids, set())
+            self.assertTrue(any("chromium-1/a/real.cc" in w for w in warnings), warnings)
+            self.assertFalse(any("skip.cc" in w or "notes.txt" in w for w in warnings), warnings)
+
+    def test_zstd_is_closed_and_reaped_when_the_stream_is_cut_short(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            plain = self.make_tar(root)
+            subprocess.run(["zstd", "-q", str(plain), "-o", str(root / "c.tar.zst")], check=True)
+            made = []
+            real = subprocess.Popen
+
+            def spy(*a, **k):
+                proc = real(*a, **k)
+                made.append(proc)
+                return proc
+
+            with mock.patch.object(rebase.subprocess, "Popen", side_effect=spy):
+                self.assertEqual(rebase.traffic_ids_in_archive(root / "c.tar.zst"), {"real", "in_header"})
+            self.assertIsNotNone(made[0].returncode)
+            self.assertTrue(made[0].stdout.closed and made[0].stderr.closed)
+
+    def test_computing_the_diff_reports_a_reason_instead_of_raising(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            plain = self.make_tar(root)
+            subprocess.run(["zstd", "-q", str(plain), "-o", str(root / "c.tar.zst")], check=True)
+            data = (root / "c.tar.zst").read_bytes()
+            (root / "bad.tar.zst").write_bytes(data[:len(data) // 2])
+            diff, reason = rebase.compute_traffic([root / "bad.tar.zst"], [plain], lambda m: None)
+            self.assertIsNone(diff)
+            self.assertIn("zstd", reason)
+            with mock.patch.object(rebase.subprocess, "Popen", side_effect=FileNotFoundError("zstd")):
+                diff, reason = rebase.compute_traffic([root / "c.tar.zst"], [plain], lambda m: None)
+            self.assertIsNone(diff)
+            self.assertIn("zstd", reason)
+            diff, reason = rebase.compute_traffic([root / "nope"], [plain], lambda m: None)
+            self.assertIsNone(diff)
+            self.assertIn("old release", reason)
+            diff, reason = rebase.compute_traffic([plain], [plain], lambda m: None)
+            self.assertEqual((diff, reason), (rebase.TrafficDiff([], []), ""))
+
+    def test_the_report_says_why_the_diff_was_not_run(self):
+        text = rebase.render_report(rebase.Versions("1", "2", "3", "4"), [], None, "zstd could not decompress x")
+        self.assertIn("not run", text)
+        self.assertIn("zstd could not decompress x", text)
+        self.assertIn(rebase.TRAFFIC_COMMAND, text)
 
     def test_side_ids_uses_the_first_source_that_exists_and_says_none_otherwise(self):
         with tempfile.TemporaryDirectory() as tmp:

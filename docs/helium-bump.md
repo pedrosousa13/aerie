@@ -38,7 +38,7 @@ exists.
 6. Downloads the new tarballs into the build root if they are not there (check
    them against the new lock), then runs `./aerie patches check` on the new pins.
    Every patch that no longer applies is listed by name with the hunk that
-   failed, and the command exits with status 3. `--no-check` skips this step.
+   failed, and the command exits with status 3. `--no-check` skips this step, and with it the rebase report.
    `--report FILE` also writes the result as Markdown.
 7. Writes the rebase report `docs/rebase/<new helium version>.md` (not with
    `--no-check`). See "The rebase report" below.
@@ -71,7 +71,7 @@ and left alone. So is a drifted patch with rename, copy, binary, mode or
 git-style (`diff --git`, `index`) headers, and one that would be left with no
 diff: refresh those by hand. After the rewrite the series is applied strictly
 to a copy of the tree, and the command fails if it is not exact. Review the
-diff and commit it.
+diff and commit it. The refresh is all or nothing: if anything fails, no patch file is changed.
 
 The report also lists the `net::NetworkTrafficAnnotationTag` IDs that the new
 Chromium added or removed (annotations in test code are left out: paths under
@@ -94,7 +94,7 @@ new tarball, so its report says the diff was not run. Then run it later with:
 ./aerie traffic-diff --old-tree <old tree> --new-tree <new tree>
 ```
 
-and paste the output into the report. A later `./aerie bump` run rewrites the
+and paste the output into the report. If a tarball cannot be read (a damaged file, no `zstd`), the bump goes on and the report says why the diff was not run. A later `./aerie bump` run rewrites the
 patch table but keeps a traffic section that is filled in.
 
 ## The fix-up routine
