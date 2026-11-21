@@ -22,6 +22,7 @@ from . import (
     pipeline,
     protection_lists,
     prune,
+    rebase,
     rust_crates,
     test_fonts,
     test_webui_data,
@@ -137,7 +138,42 @@ def _prune(ctx: pipeline.Context, args: argparse.Namespace) -> int:
 
 def cmd_patches_check(args: argparse.Namespace) -> int:
     ctx = _context(args)
-    return patch_check.run_check(REPO, ctx.paths, ctx.pins)
+    return patch_check.run_check(REPO, ctx.paths, ctx.pins).status
+
+
+def cmd_patches_refresh(args: argparse.Namespace) -> int:
+    ctx = _context(args)
+    return patch_check.run_refresh(REPO, ctx.paths, ctx.pins)
+
+
+def cmd_traffic_diff(args: argparse.Namespace) -> int:
+    old, new = Path(args.old_tree), Path(args.new_tree)
+    for tree in (old, new):
+        if not tree.is_dir():
+            print(f"aerie traffic-diff: no source tree at {tree}", file=sys.stderr)
+            return 2
+    print(rebase.render_traffic(rebase.diff_traffic(rebase.traffic_ids(old), rebase.traffic_ids(new))))
+    return 0
+
+
+def _bump_traffic(args: argparse.Namespace, paths: config.BuildPaths, old: lock.Lock, new: lock.Lock):
+    """(the traffic annotation diff, "") or (None, why not). It never raises: the bump goes on without it.
+
+    Per release: --old-tree / --new-tree, else the Chromium base tarball in the downloads cache (the
+    bump has just downloaded the new one; the old one is there if an earlier check or build used it,
+    read as a stream), else the prepared source tree of that Helium version.
+    """
+    def sources(explicit: str | None, pins: lock.Lock):
+        return [Path(explicit) if explicit else None,
+                paths.downloads / f"chromium-{pins.chromium_version}-base.tar.zst",
+                paths.tree(f"helium-{pins.helium_version}")]
+
+    diff, reason = rebase.compute_traffic(
+        sources(args.old_tree, old), sources(args.new_tree, new),
+        lambda m: print(f"aerie: {m}", file=sys.stderr, flush=True))
+    if diff is None:
+        print(f"aerie: traffic diff not run: {reason}", file=sys.stderr)
+    return diff, reason
 
 
 def cmd_patches_gates(args: argparse.Namespace) -> int:
@@ -181,7 +217,17 @@ def cmd_bump(args: argparse.Namespace) -> int:
             patch_lines.append(line)
             print(line, flush=True)
 
-        ok = patch_check.run_check(REPO, paths, new, log=log) == 0
+        outcome = patch_check.run_check(REPO, paths, new, log=log)
+        ok = outcome.status == 0
+        report_path = REPO / rebase.REBASE_DIR / f"{new.helium_version}.md"
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        versions = rebase.Versions(old.helium_version, new.helium_version, old.chromium_version, new.chromium_version)
+        traffic, why_not = _bump_traffic(args, paths, old, new)
+        text_md = rebase.render_report(versions, rebase.rows_for(patch_check.layers(REPO), outcome.results),
+                                       traffic, why_not)
+        previous = report_path.read_text(encoding="utf-8") if report_path.is_file() else None
+        report_path.write_text(rebase.keep_traffic_section(text_md, previous), encoding="utf-8")
+        print(f"rebase report written to {report_path.relative_to(REPO)}")
     if args.report:
         Path(args.report).write_text(bump.render_report(text, patch_lines, ok), encoding="utf-8")
     if ok is False:
@@ -367,6 +413,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     _add_common(p_check)
     p_check.set_defaults(func=cmd_patches_check)
+    p_refresh = patches_sub.add_parser(
+        "refresh",
+        help="regenerate the Aerie patches that apply only at an offset or with fuzz, so the series applies exactly again",
+    )
+    _add_common(p_refresh)
+    p_refresh.set_defaults(func=cmd_patches_refresh)
     p_gates = patches_sub.add_parser(
         "gates",
         help="run the source gates (Helium hostnames, search list, network defaults) on a patched source tree",
@@ -385,7 +437,18 @@ def main(argv: list[str] | None = None) -> int:
     p_bump.add_argument("--to", metavar="TAG", help="bump to this helium-linux release tag instead of the latest")
     p_bump.add_argument("--no-check", action="store_true", help="skip the patch check (it downloads the new Chromium tarballs)")
     p_bump.add_argument("--report", metavar="FILE", help="also write the result as Markdown (for a pull request body)")
+    p_bump.add_argument("--old-tree", metavar="DIR", help="prepared source tree of the old release, for the traffic diff "
+                        "(default: the build root's tree, if there is one)")
+    p_bump.add_argument("--new-tree", metavar="DIR", help="source tree of the new release, for the traffic diff")
     p_bump.set_defaults(func=cmd_bump)
+
+    p_traffic = sub.add_parser(
+        "traffic-diff",
+        help="list the network traffic annotation IDs added and removed between two Chromium source trees",
+    )
+    p_traffic.add_argument("--old-tree", metavar="DIR", required=True)
+    p_traffic.add_argument("--new-tree", metavar="DIR", required=True)
+    p_traffic.set_defaults(func=cmd_traffic_diff)
 
     p_lists = sub.add_parser("lists", help="work with the built-in filter lists (EasyList, EasyPrivacy)")
     lists_sub = p_lists.add_subparsers(dest="lists_command", required=True)

@@ -45,6 +45,12 @@ AERIE_PATCHES = "patches"
 STEP_INPUTS = ("OWNERS", "chrome/VERSION", "tools/grit/grit/")
 
 
+@dataclass(frozen=True)
+class CheckOutcome:
+    status: int  # the exit status
+    results: list
+
+
 def drop_file(repo: Path) -> Path:
     return repo / AERIE_PATCHES / patches.DROP_FILE
 
@@ -179,8 +185,11 @@ def run_check(
     paths: BuildPaths,
     pins: lock.Lock,
     log: Callable[[str], None] = print,
-) -> int:
-    """Lint Aerie's patches, then apply the series the way the build does. Returns the exit status."""
+) -> CheckOutcome:
+    """Lint Aerie's patches, then apply the series the way the build does.
+
+    Returns the exit status and every PatchResult (the rebase report needs them).
+    """
     status = 0
     series = layers(repo)
     core, platform = repo / "helium-chromium", repo / "helium-linux"
@@ -201,6 +210,34 @@ def run_check(
         log(f"GATE    safe_browsing: {message}")
         status = 1
 
+    results: list[patches.PatchResult] = []
+    gates_ok = True
+    gate_lines = ""
+    with _work_tree(repo, paths, pins, series, log) as work:
+        results = patches.apply_layers(work, series[:-1])
+        if all(r.status == "ok" for r in results):
+            _helium_steps(repo, work, paths.root / "check")
+            results += patches.apply_layers(work, series[-1:])
+            if all(r.status == "ok" for r in results):
+                # Only when everything applied: a half-patched tree would fail the gates for the wrong reason.
+                gate_report, gates_ok = treegate.format_report(treegate.run(work))
+                gate_lines = gate_report
+        else:
+            log("Aerie patches were not tried: Helium's own patches did not apply")
+    report, ok = patches.format_report(results)
+    if gate_lines:
+        log(gate_lines)
+    log(report)
+    if not _check_prepared_tree(repo, paths, pins, paths.root / "check", log):
+        ok = False
+    return CheckOutcome(status if ok and gates_ok else 1, results)
+
+
+@contextlib.contextmanager
+def _work_tree(repo: Path, paths: BuildPaths, pins: lock.Lock, series: Sequence[patches.Layer],
+               log: Callable[[str], None]):
+    """A scratch copy of the sparse Chromium tree for series, removed on exit."""
+    core, platform = repo / "helium-chromium", repo / "helium-linux"
     version = pins.chromium_version
     # The same deps.ini the build reads: without the assets Aerie does not download.
     # A problem with deps.ini itself (already linted above) is the only reason to read it unfiltered.
@@ -218,8 +255,6 @@ def run_check(
     check_root.mkdir(parents=True, exist_ok=True)
     _sweep_stale_work(check_root)
     work: Path | None = None
-    gates_ok = True
-    gate_lines = ""
     try:
         work = Path(tempfile.mkdtemp(prefix="work-", dir=check_root))
         # The sparse cache is updated in place, so only one check may use it at a
@@ -232,26 +267,41 @@ def run_check(
             patches.copy_tree(sparse, work)
         (work / MANIFEST).unlink()
         (work / BUILDING).unlink(missing_ok=True)
-        results = patches.apply_layers(work, series[:-1])
-        if all(r.status == "ok" for r in results):
-            _helium_steps(repo, work, check_root)
-            results += patches.apply_layers(work, series[-1:])
-            if all(r.status == "ok" for r in results):
-                # Only when everything applied: a half-patched tree would fail the gates for the wrong reason.
-                gate_report, gates_ok = treegate.format_report(treegate.run(work))
-                gate_lines = gate_report
-        else:
-            log("Aerie patches were not tried: Helium's own patches did not apply")
+        yield work
     finally:
         if work is not None:
             shutil.rmtree(work, ignore_errors=True)
-    report, ok = patches.format_report(results)
-    if gate_lines:
-        log(gate_lines)
-    log(report)
-    if not _check_prepared_tree(repo, paths, pins, check_root, log):
-        ok = False
-    return status if ok and gates_ok else 1
+
+
+def run_refresh(repo: Path, paths: BuildPaths, pins: lock.Lock, log: Callable[[str], None] = print) -> int:
+    """Rewrite the Aerie patches that apply only at an offset or with fuzz. Returns the exit status.
+
+    The patches are regenerated in place (headers untouched); commit the result. A patch that does
+    not apply at all, or that a refresh cannot rewrite safely, is reported and left alone. The
+    refreshed series is checked to apply exactly before this returns.
+    """
+    series = layers(repo)
+    with _work_tree(repo, paths, pins, series, log) as work:
+        results = patches.apply_layers(work, series[:-1])
+        if not all(r.status == "ok" for r in results):
+            report, _ = patches.format_report(results)
+            log(report)
+            log("Helium's own patches do not apply; nothing to refresh")
+            return 1
+        _helium_steps(repo, work, paths.root / "check")
+        try:
+            results = patches.refresh_layer(work, series[-1])
+        except patches.PatchStateError as exc:
+            log(f"REFRESH FAILED  {exc}")
+            return 1
+    refreshed = [r for r in results if r.status == "refreshed"]
+    for r in refreshed:
+        log(f"REFRESHED  {r.patch} ({r.drift})")
+    bad = [r for r in results if r.status in ("failed", "skipped")]
+    if bad:
+        log(patches.format_report(bad)[0])
+    log(f"{len(refreshed)} refreshed, {len(bad)} not applying")
+    return 1 if bad else 0
 
 
 def _helium_steps(repo: Path, work: Path, check_root: Path) -> None:

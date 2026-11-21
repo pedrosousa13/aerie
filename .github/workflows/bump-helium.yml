@@ -100,7 +100,7 @@ jobs:
           git config user.name "aerie-bump"
           git config user.email "aerie-bump@users.noreply.github.com"
           git checkout -b "$branch"
-          git add helium.lock helium-chromium helium-linux
+          git add helium.lock helium-chromium helium-linux docs/rebase
           git commit -m "Bump Helium to $TAG (Chromium $chromium)"
           git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$branch"
           {
