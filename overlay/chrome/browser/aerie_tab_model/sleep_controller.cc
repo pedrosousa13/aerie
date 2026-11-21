@@ -251,6 +251,7 @@ void SleepController::OnTabStripModelChanged(
         // A tab that goes to another window is tracked again by that window.
         schedule_.Untrack(handle.raw_value());
         if (TabRemoveReasonUtils::WillDeleteTab(removed.remove_reason)) {
+          locked_tabs_.erase(handle.raw_value());
           pending_estimates_.erase(handle);
           estimates_.erase(handle);
         }
@@ -363,14 +364,30 @@ void SleepController::SyncKeepLoaded(tabs::TabInterface* tab,
   }
   const std::string id = adapter->RecordIdForTab(tab);
   const TabRecord* record = id.empty() ? nullptr : service_->model()->GetTab(id);
-  auto* lifecycle =
-      resource_coordinator::TabLifecycleUnitExternal::FromWebContents(contents);
-  if (!record || !lifecycle) {
+  if (!record) {
     return;
   }
   const bool kept = record->keep_loaded;
-  if (lifecycle->IsAutoDiscardable() == kept) {
-    lifecycle->SetAutoDiscardable(!kept);
+  auto* lifecycle =
+      resource_coordinator::TabLifecycleUnitExternal::FromWebContents(contents);
+  if (!lifecycle) {
+    // Chromium has not made the tab's lifecycle unit yet. Nothing is recorded:
+    // the tab is tried again shortly, and at the next strip event.
+    if (kept) {
+      ScheduleKeepRetry(tab->GetHandle(), /*attempts_left=*/20);
+    }
+    return;
+  }
+  const SleepSchedule::Key handle_key = tab->GetHandle().raw_value();
+  if (kept) {
+    // Only a tab that Aerie made non-discardable is Aerie's to give back: one
+    // that something else (an extension) already set stays that tab's business.
+    if (!locked_tabs_.contains(handle_key) && lifecycle->IsAutoDiscardable()) {
+      lifecycle->SetAutoDiscardable(false);
+      locked_tabs_.insert(handle_key);
+    }
+  } else if (locked_tabs_.erase(handle_key)) {
+    lifecycle->SetAutoDiscardable(true);
   }
   const bool switched_on = kept && kept_ids_.insert(id).second;
   if (!kept) {
@@ -389,9 +406,45 @@ void SleepController::SyncKeepLoaded(tabs::TabInterface* tab,
   }
 }
 
+void SleepController::ScheduleKeepRetry(tabs::TabHandle handle,
+                                        int attempts_left) {
+  if (attempts_left <= 0) {
+    return;
+  }
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+      FROM_HERE,
+      base::BindOnce(
+          [](base::WeakPtr<SleepController> self, tabs::TabHandle handle,
+             int attempts_left) {
+            tabs::TabInterface* tab = handle.Get();
+            if (!self || !tab || !tab->GetContents()) {
+              return;
+            }
+            auto* lifecycle =
+                resource_coordinator::TabLifecycleUnitExternal::FromWebContents(
+                    tab->GetContents());
+            if (lifecycle) {
+              self->SyncKeepLoaded(tab, /*wake_on_switch=*/false);
+            } else {
+              self->ScheduleKeepRetry(handle, attempts_left - 1);
+            }
+          },
+          weak_factory_.GetWeakPtr(), handle, attempts_left),
+      base::Milliseconds(100));
+}
+
 void SleepController::LoadKeptTab(tabs::TabHandle handle) {
   tabs::TabInterface* tab = handle.Get();
   if (!tab || !tab->GetContents()) {
+    return;
+  }
+  // The task ran after the change: the tab may have been unkept, or woken, in
+  // the meantime.
+  TabStripAdapter* adapter = service_->adapter();
+  const std::string id = adapter ? adapter->RecordIdForTab(tab) : std::string();
+  const TabRecord* record = id.empty() ? nullptr : service_->model()->GetTab(id);
+  if (!record || !record->keep_loaded ||
+      !(IsAsleep(tab->GetContents()) || record->sleeping)) {
     return;
   }
   schedule_.Untrack(handle.raw_value());

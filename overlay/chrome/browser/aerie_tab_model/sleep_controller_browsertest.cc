@@ -543,4 +543,30 @@ IN_PROC_BROWSER_TEST_F(AerieSleepControllerBrowserTest,
                    ->IsAutoDiscardable());
 }
 
+// A tab that something else made non-auto-discardable (an extension, through
+// chrome.tabs.update) is none of Keep loaded's business: Aerie only gives back
+// what it took.
+IN_PROC_BROWSER_TEST_F(AerieSleepControllerBrowserTest,
+                       ATabSomeoneElseMadeNonDiscardableIsLeftAlone) {
+  const int external = OpenBackgroundTab();
+  const int kept = OpenBackgroundTab();
+  auto* lifecycle = resource_coordinator::TabLifecycleUnitExternal::FromWebContents(
+      strip()->GetWebContentsAt(external));
+  lifecycle->SetAutoDiscardable(false);
+  // An unrelated change of its record, and of every other record.
+  ASSERT_TRUE(service_->model()->UpdateTab(
+      RecordOf(external)->id, [](TabRecord& t) { t.manual_name = "Mine"; }));
+  EXPECT_FALSE(lifecycle->IsAutoDiscardable());
+  // Another tab is kept, then unkept.
+  const std::string kept_id = RecordOf(kept)->id;
+  ASSERT_TRUE(SetTabKeepLoaded(*service_->model(), kept_id, true));
+  EXPECT_FALSE(lifecycle->IsAutoDiscardable());
+  ASSERT_TRUE(SetTabKeepLoaded(*service_->model(), kept_id, false));
+  EXPECT_FALSE(lifecycle->IsAutoDiscardable());
+  // Keeping and unkeeping the same tab does not give it back either.
+  ASSERT_TRUE(SetTabKeepLoaded(*service_->model(), RecordOf(external)->id, true));
+  ASSERT_TRUE(SetTabKeepLoaded(*service_->model(), RecordOf(external)->id, false));
+  EXPECT_FALSE(lifecycle->IsAutoDiscardable());
+}
+
 }  // namespace aerie_tab_model
