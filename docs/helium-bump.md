@@ -43,6 +43,21 @@ exists.
 7. Writes the rebase report `docs/rebase/<new helium version>.md` (not with
    `--no-check`). See "The rebase report" below.
 
+## Chromium major jumps
+
+A new Chromium major brings new network traffic, new features and patch
+conflicts, so it is a deliberate decision. `./aerie bump` compares the major
+(the first number) of the Chromium version in `helium.lock` with the one in the
+target release's `chromium_version.txt`:
+
+- Same major: the bump goes ahead as usual.
+- Higher major: exit 4, unless you pass `--allow-major`.
+- Lower major, or a version that is not `A.B.C.D`: an error (exit 1).
+
+The check runs after the tags are fetched, because the Chromium version is read
+from the checkout. Because it runs before `helium.lock` is written, a refusal
+leaves the tree as it was. `--check` does not look at majors.
+
 The command commits nothing. It does not build, and it does not edit the
 [dependency ledger](helium-dependency-ledger.md), the dropped-patch lists or the
 vendored crate lock. Those are the fix-up routine below.
@@ -52,6 +67,7 @@ vendored crate lock. Those are the fix-up routine below.
 | 0 | Up to date, or bumped and every patch applies |
 | 1 | An error. Before the pins move (tag lookup, `.gitmodules`, a dirty tree, a tag that does not match) nothing changes, and a failure while the pins move puts them back. An error in the later download or patch-check step leaves the new pins in place |
 | 3 | Bumped, but a patch no longer applies. The pins are changed |
+| 4 | The release is on a new Chromium major and `--allow-major` was not given. The message names both majors. Nothing is changed (the submodules go back, `helium.lock` is not written, nothing is downloaded) |
 | 20 | `--check` only: a newer release exists |
 
 ## The rebase report
@@ -125,7 +141,12 @@ mirror sync) and on demand. It runs `./aerie bump --check`:
 - No newer release: the job ends. It opens nothing.
 - A newer release, and a branch `bump-helium-<tag>` already has a pull request
   (open or closed): the job ends. A closed pull request is not opened again.
-- Otherwise it runs `./aerie bump --to <tag>` on the runner, commits
+- Otherwise it runs `./aerie bump --to <tag>` on the runner. If that exits with 4
+  (a new Chromium major), it runs the command again with `--allow-major`, and the
+  pull request gets the label `major Chromium update` (created if it is missing),
+  a first paragraph that links the rebase report `docs/rebase/<version>.md`, and
+  is reviewed by hand. The job never enables auto-merge, for any pull request.
+  It commits
   `helium.lock`, the submodule pins and the rebase report on the branch `bump-helium-<tag>`, pushes
   it and opens a pull request with the report as its body. If the patch check
   failed, the pull request is a draft.

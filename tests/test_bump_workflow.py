@@ -47,6 +47,20 @@ class BumpWorkflowTest(unittest.TestCase):
     def test_pull_request_is_opened_with_the_maintainers_token(self):
         self.assertIn("secrets.BUMP_PR_TOKEN", WORKFLOW)
 
+    def test_a_major_is_bumped_with_the_flag_only_after_exit_4_and_is_labelled(self):
+        self.assertIn('"$rc" = "4"', WORKFLOW)
+        self.assertIn("--allow-major", WORKFLOW)
+        self.assertLess(WORKFLOW.index("./aerie bump --to"), WORKFLOW.index("bump --to \"$TAG\" --allow-major"))
+        self.assertIn('gh label create "major Chromium update"', WORKFLOW)
+        self.assertIn("|| true", WORKFLOW)
+        self.assertIn('--label "major Chromium update"', WORKFLOW)
+        self.assertIn("docs/rebase/", WORKFLOW)
+
+    def test_the_job_never_enables_auto_merge(self):
+        self.assertNotIn("--auto", WORKFLOW)
+        self.assertNotIn("gh pr merge", WORKFLOW)
+        self.assertNotIn("enablePullRequestAutoMerge", WORKFLOW)
+
 
 if __name__ == "__main__":
     unittest.main()
