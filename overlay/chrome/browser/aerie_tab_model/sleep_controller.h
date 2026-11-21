@@ -156,9 +156,8 @@ class SleepController : public KeyedService,
   // sleep by the user stays asleep).
   std::set<std::string> kept_ids_;
   void LoadKeptTab(tabs::TabHandle handle);
-  // Tries SyncKeepLoaded again later for a tab whose lifecycle unit is not
-  // there yet.
-  void ScheduleKeepRetry(tabs::TabHandle handle, int attempts_left);
+  // Tries SyncKeepLoaded again for a tab whose lifecycle unit was not there yet.
+  void RetryKeepLoaded(tabs::TabHandle handle);
   // The tabs (by handle) that Aerie made non-auto-discardable: the only ones it
   // makes auto-discardable again.
   std::set<int32_t> locked_tabs_;

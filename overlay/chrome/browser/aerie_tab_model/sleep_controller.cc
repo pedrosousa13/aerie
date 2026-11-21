@@ -299,6 +299,11 @@ void SleepController::OnTabChangedAt(tabs::TabInterface* tab,
   // event costs one more delay and no wrong sleep.
   const SleepSchedule::Key key = tab->GetHandle().raw_value();
   content::WebContents* contents = tab->GetContents();
+  // A kept tab that Aerie has not locked yet (its lifecycle unit was missing)
+  // is tried again.
+  if (!locked_tabs_.contains(key)) {
+    SyncKeepLoaded(tab, /*wake_on_switch=*/false);
+  }
   if (schedule_.IsTracked(key) && contents && contents->IsCurrentlyAudible()) {
     schedule_.Touch(key);
   }
@@ -371,10 +376,15 @@ void SleepController::SyncKeepLoaded(tabs::TabInterface* tab,
   auto* lifecycle =
       resource_coordinator::TabLifecycleUnitExternal::FromWebContents(contents);
   if (!lifecycle) {
-    // Chromium has not made the tab's lifecycle unit yet. Nothing is recorded:
-    // the tab is tried again shortly, and at the next strip event.
+    // Chromium has not made the tab's lifecycle unit yet (its own strip
+    // observer may run after ours). Nothing is recorded: the tab is tried once
+    // more when the current event is done, and again at every change of the tab
+    // (OnTabChangedAt) until the unit is there.
     if (kept) {
-      ScheduleKeepRetry(tab->GetHandle(), /*attempts_left=*/20);
+      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+          FROM_HERE, base::BindOnce(&SleepController::RetryKeepLoaded,
+                                    weak_factory_.GetWeakPtr(),
+                                    tab->GetHandle()));
     }
     return;
   }
@@ -406,31 +416,11 @@ void SleepController::SyncKeepLoaded(tabs::TabInterface* tab,
   }
 }
 
-void SleepController::ScheduleKeepRetry(tabs::TabHandle handle,
-                                        int attempts_left) {
-  if (attempts_left <= 0) {
-    return;
+void SleepController::RetryKeepLoaded(tabs::TabHandle handle) {
+  tabs::TabInterface* tab = handle.Get();
+  if (tab) {
+    SyncKeepLoaded(tab, /*wake_on_switch=*/false);
   }
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
-      FROM_HERE,
-      base::BindOnce(
-          [](base::WeakPtr<SleepController> self, tabs::TabHandle handle,
-             int attempts_left) {
-            tabs::TabInterface* tab = handle.Get();
-            if (!self || !tab || !tab->GetContents()) {
-              return;
-            }
-            auto* lifecycle =
-                resource_coordinator::TabLifecycleUnitExternal::FromWebContents(
-                    tab->GetContents());
-            if (lifecycle) {
-              self->SyncKeepLoaded(tab, /*wake_on_switch=*/false);
-            } else {
-              self->ScheduleKeepRetry(handle, attempts_left - 1);
-            }
-          },
-          weak_factory_.GetWeakPtr(), handle, attempts_left),
-      base::Milliseconds(100));
 }
 
 void SleepController::LoadKeptTab(tabs::TabHandle handle) {
