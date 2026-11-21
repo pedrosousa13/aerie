@@ -40,6 +40,8 @@ exists.
    Every patch that no longer applies is listed by name with the hunk that
    failed, and the command exits with status 3. `--no-check` skips this step.
    `--report FILE` also writes the result as Markdown.
+7. Writes the rebase report `docs/rebase/<new helium version>.md` (not with
+   `--no-check`). See "The rebase report" below.
 
 The command commits nothing. It does not build, and it does not edit the
 [dependency ledger](helium-dependency-ledger.md), the dropped-patch lists or the
@@ -52,6 +54,35 @@ vendored crate lock. Those are the fix-up routine below.
 | 3 | Bumped, but a patch no longer applies. The pins are changed |
 | 20 | `--check` only: a newer release exists |
 
+## The rebase report
+
+`docs/rebase/<helium version>.md` lists every patch (Helium's two series and
+Aerie's) with its apply status and its `Aerie-Purpose` line. The status is
+`clean`, `offset`, `fuzz` or `failed` (`not tried` when Helium's own patches
+failed first). Aerie's patches must apply with no offset and no fuzz, so
+`./aerie patches check` fails on an `offset` or `fuzz` Aerie patch and names
+it. Helium's patches apply with fuzz allowed; their rows are information.
+
+To fix drift, run `./aerie patches refresh`. It applies Aerie's series to the
+sparse tree and rewrites each patch that applied only with an offset or fuzz,
+from the change it made. The header is kept byte for byte, and patches that
+applied exactly are not touched. A patch that does not apply at all is listed
+and left alone. Review the diff and commit it.
+
+The report also lists the `net::NetworkTrafficAnnotationTag` IDs that the new
+Chromium added or removed. Review each added ID against
+[network-endpoints.md](network-endpoints.md). The diff needs a source tree for
+both versions. `./aerie bump` runs it when the build root has a tree for the old
+and for the new Helium version (or when `--old-tree` and `--new-tree` give
+them). Otherwise, as in the scheduled job, which does not download Chromium
+trees, the report says the diff was not run. Run it later with:
+
+```sh
+./aerie traffic-diff --old-tree <old tree> --new-tree <new tree>
+```
+
+and paste the output into the report.
+
 ## The fix-up routine
 
 After `./aerie bump` exits with 3, or when the bump PR is a draft:
@@ -59,7 +90,7 @@ After `./aerie bump` exits with 3, or when the bump PR is a draft:
 1. Read the failing patches. A line `FAILED  aerie/<patch>` is followed by the
    output of `patch` and by the hunk that did not apply (`failed hunk in <file>`).
    A patch that depends on a failed one is `SKIPPED`.
-2. Refresh the patch against the new text. For an Aerie patch, follow the rules
+2. Run `./aerie patches refresh` for Aerie patches that only drifted. Refresh the others against the new text. For an Aerie patch, follow the rules
    in [CONTRIBUTING.md](../CONTRIBUTING.md). For a Helium patch that Aerie drops or
    adapts, see "Dropping or adapting a Helium patch" there.
 3. Run `./aerie patches check` until it passes.
@@ -81,7 +112,7 @@ mirror sync) and on demand. It runs `./aerie bump --check`:
 - A newer release, and a branch `bump-helium-<tag>` already has a pull request
   (open or closed): the job ends. A closed pull request is not opened again.
 - Otherwise it runs `./aerie bump --to <tag>` on the runner, commits
-  `helium.lock` and the submodule pins on the branch `bump-helium-<tag>`, pushes
+  `helium.lock`, the submodule pins and the rebase report on the branch `bump-helium-<tag>`, pushes
   it and opens a pull request with the report as its body. If the patch check
   failed, the pull request is a draft.
 

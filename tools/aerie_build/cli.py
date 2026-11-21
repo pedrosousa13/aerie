@@ -22,6 +22,7 @@ from . import (
     pipeline,
     protection_lists,
     prune,
+    rebase,
     rust_crates,
     test_fonts,
     test_webui_data,
@@ -140,6 +141,32 @@ def cmd_patches_check(args: argparse.Namespace) -> int:
     return patch_check.run_check(REPO, ctx.paths, ctx.pins)
 
 
+def cmd_patches_refresh(args: argparse.Namespace) -> int:
+    ctx = _context(args)
+    return patch_check.run_refresh(REPO, ctx.paths, ctx.pins)
+
+
+def cmd_traffic_diff(args: argparse.Namespace) -> int:
+    old, new = Path(args.old_tree), Path(args.new_tree)
+    for tree in (old, new):
+        if not tree.is_dir():
+            print(f"aerie traffic-diff: no source tree at {tree}", file=sys.stderr)
+            return 2
+    print(rebase.render_traffic(rebase.diff_traffic(rebase.traffic_ids(old), rebase.traffic_ids(new))))
+    return 0
+
+
+def _bump_traffic(args: argparse.Namespace, paths: config.BuildPaths, old: lock.Lock, new: lock.Lock):
+    """The traffic annotation diff, or None when the old and new trees are not both there."""
+    old_tree = Path(args.old_tree) if args.old_tree else paths.tree(f"helium-{old.helium_version}")
+    new_tree = Path(args.new_tree) if args.new_tree else paths.tree(f"helium-{new.helium_version}")
+    if not (old_tree.is_dir() and new_tree.is_dir()):
+        print(f"aerie: traffic diff not run: need a source tree for both versions ({old_tree}, {new_tree})",
+              file=sys.stderr)
+        return None
+    return rebase.diff_traffic(rebase.traffic_ids(old_tree), rebase.traffic_ids(new_tree))
+
+
 def cmd_patches_gates(args: argparse.Namespace) -> int:
     from . import treegate
 
@@ -181,7 +208,15 @@ def cmd_bump(args: argparse.Namespace) -> int:
             patch_lines.append(line)
             print(line, flush=True)
 
-        ok = patch_check.run_check(REPO, paths, new, log=log) == 0
+        results: list = []
+        ok = patch_check.run_check(REPO, paths, new, log=log, results_out=results) == 0
+        report_path = REPO / rebase.REBASE_DIR / f"{new.helium_version}.md"
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        report_path.write_text(rebase.render_report(
+            old.helium_version, new.helium_version, old.chromium_version, new.chromium_version,
+            rebase.rows_for(patch_check.layers(REPO), results), _bump_traffic(args, paths, old, new)),
+            encoding="utf-8")
+        print(f"rebase report written to {report_path.relative_to(REPO)}")
     if args.report:
         Path(args.report).write_text(bump.render_report(text, patch_lines, ok), encoding="utf-8")
     if ok is False:
@@ -367,6 +402,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     _add_common(p_check)
     p_check.set_defaults(func=cmd_patches_check)
+    p_refresh = patches_sub.add_parser(
+        "refresh",
+        help="regenerate the Aerie patches that apply only at an offset or with fuzz, so the series applies exactly again",
+    )
+    _add_common(p_refresh)
+    p_refresh.set_defaults(func=cmd_patches_refresh)
     p_gates = patches_sub.add_parser(
         "gates",
         help="run the source gates (Helium hostnames, search list, network defaults) on a patched source tree",
@@ -385,7 +426,18 @@ def main(argv: list[str] | None = None) -> int:
     p_bump.add_argument("--to", metavar="TAG", help="bump to this helium-linux release tag instead of the latest")
     p_bump.add_argument("--no-check", action="store_true", help="skip the patch check (it downloads the new Chromium tarballs)")
     p_bump.add_argument("--report", metavar="FILE", help="also write the result as Markdown (for a pull request body)")
+    p_bump.add_argument("--old-tree", metavar="DIR", help="prepared source tree of the old release, for the traffic diff "
+                        "(default: the build root's tree, if there is one)")
+    p_bump.add_argument("--new-tree", metavar="DIR", help="source tree of the new release, for the traffic diff")
     p_bump.set_defaults(func=cmd_bump)
+
+    p_traffic = sub.add_parser(
+        "traffic-diff",
+        help="list the network traffic annotation IDs added and removed between two Chromium source trees",
+    )
+    p_traffic.add_argument("--old-tree", metavar="DIR", required=True)
+    p_traffic.add_argument("--new-tree", metavar="DIR", required=True)
+    p_traffic.set_defaults(func=cmd_traffic_diff)
 
     p_lists = sub.add_parser("lists", help="work with the built-in filter lists (EasyList, EasyPrivacy)")
     lists_sub = p_lists.add_subparsers(dest="lists_command", required=True)

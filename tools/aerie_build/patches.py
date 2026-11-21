@@ -97,6 +97,8 @@ class PatchResult:
     patch: str  # "<layer label>/<series entry>"
     status: str  # ok | failed | skipped
     detail: str
+    # "offset" or "fuzz" when GNU patch had to shift or loosen a hunk to apply it (or, with fuzz off, would have).
+    drift: str = ""
 
 
 def parse_series(series_path: Path) -> list[str]:
@@ -535,6 +537,13 @@ def wanted_files(layers: Sequence[Layer]) -> list[str]:
     return sorted(wanted)
 
 
+def drift_kind(output: str) -> str:
+    """"fuzz", "offset" or "" for GNU patch's output: how far the patch's context had drifted."""
+    if re.search(r"with fuzz \d+", output):
+        return "fuzz"
+    return "offset" if _DRIFT_RE.search(output) else ""
+
+
 def _patch_cmd(tree: Path, patch_file: Path, fuzz: bool, dry_run: bool) -> list[str]:
     cmd = ["patch", *_PATCH_FLAGS, "--forward", "-i", str(patch_file), "-d", str(tree)]
     if not fuzz:
@@ -638,10 +647,11 @@ def apply_layers(tree: Path, layers: Sequence[Layer]) -> list[PatchResult]:
             if ok:
                 ok, output = _run_patch(tree, path, layer.fuzz, dry_run=False)
             if ok:
-                results.append(PatchResult(name, "ok", ""))
+                results.append(PatchResult(name, "ok", "", drift_kind(output)))
             else:
                 hunks = failed_hunks(path.read_text(encoding="utf-8", errors="replace"), output)
-                results.append(PatchResult(name, "failed", output + ("\n" + hunks if hunks else "")))
+                results.append(PatchResult(name, "failed", output + ("\n" + hunks if hunks else ""),
+                                           drift_kind(output)))
                 for f in files:
                     failed_files.setdefault(f, name)
     return results
