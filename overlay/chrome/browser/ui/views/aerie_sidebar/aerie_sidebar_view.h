@@ -507,6 +507,8 @@ class AerieSidebarView : public views::View,
   // ("Make a rename rule from this tab...").
   void MakeRuleFromTab(const std::string& tab_id);
   void UpdateRow(const Row& row);
+  // Shows or hides the Keep loaded mark (issue #267) on every row of `record`.
+  void UpdateKeptMarks(const aerie_tab_model::TabRecord& record);
   void UpdateTile(const Tile& tile);
   // Only the title and the pencil of a row or tile (a manual name changed).
   void UpdateRowTitle(const Row& row,

@@ -2418,6 +2418,18 @@ void AerieSidebarView::OnTabMoved(const aerie_tab_model::TabRecord& tab,
   ScheduleSync();
 }
 
+void AerieSidebarView::UpdateKeptMarks(
+    const aerie_tab_model::TabRecord& record) {
+  // Every row of the tab: its own, and the rows it has inside smart folders.
+  for (const std::vector<Row>* rows : {&rows_, &pinned_rows_}) {
+    for (const Row& row : *rows) {
+      if (!row.is_folder && RealTabId(row.tab_id) == record.id) {
+        row.view->SetKeptLoaded(record.keep_loaded);
+      }
+    }
+  }
+}
+
 void AerieSidebarView::OnTabChanged(const aerie_tab_model::TabRecord& record) {
   // A tab that went to sleep or into the archive may enter or leave a smart
   // folder (issue #140): only this tab is matched again.
@@ -2433,12 +2445,12 @@ void AerieSidebarView::OnTabChanged(const aerie_tab_model::TabRecord& record) {
   // A manual name set or cleared is seen here (issue #145).
   // The rows of this tab inside smart folders follow its sleeping state too
   // (issue #140).
+  UpdateKeptMarks(record);
   for (const std::vector<Row>* rows : {&rows_, &pinned_rows_}) {
     for (const Row& row : *rows) {
       std::optional<aerie_tab_model::SmartRowRef> ref =
           aerie_tab_model::ParseSmartRowId(row.tab_id);
       if (ref && ref->tab_id == record.id) {
-        row.view->SetKeptLoaded(record.keep_loaded);
         row.view->SetSleeping(record.sleeping,
                               browser_->GetProfile()->GetPrefs());
       }
@@ -2462,7 +2474,6 @@ void AerieSidebarView::OnTabChanged(const aerie_tab_model::TabRecord& record) {
       if (tabs::TabInterface* tab = FindTab(record.id)) {
         UpdateRowTitle(row, tab, &record);
       }
-      row.view->SetKeptLoaded(record.keep_loaded);
       if (row.view->sleeping() != record.sleeping) {
         row.view->SetSleeping(record.sleeping,
                               browser_->GetProfile()->GetPrefs());
@@ -2478,7 +2489,6 @@ void AerieSidebarView::OnTabChanged(const aerie_tab_model::TabRecord& record) {
     if (tabs::TabInterface* tab = FindTab(record.id)) {
       UpdateRowTitle(row, tab, &record);
     }
-    row.view->SetKeptLoaded(record.keep_loaded);
     if (row.view->sleeping() != record.sleeping) {
       row.view->SetSleeping(record.sleeping,
                             browser_->GetProfile()->GetPrefs());

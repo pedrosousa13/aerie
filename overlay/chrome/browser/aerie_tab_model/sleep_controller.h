@@ -9,10 +9,12 @@
 
 #include <map>
 #include <optional>
+#include <set>
 #include <string>
 #include <vector>
 
 #include "base/memory/raw_ptr.h"
+#include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
 #include "base/time/tick_clock.h"
 #include "chrome/browser/ui/browser_window/public/browser_collection_observer.h"
@@ -123,11 +125,12 @@ class SleepController : public KeyedService,
   // A tab filed straight into a folder: the idle time may have started before
   // its record existed (the tab strip observers run in no fixed order), so the
   // timer is armed again to read the folder's time.
-  void OnTabAdded(const TabRecord&) override { schedule_.Rearm(); }
+  void OnTabAdded(const TabRecord& record) override;
+  void OnTabRemoved(const TabRecord& record) override { kept_ids_.erase(record.id); }
   void OnTabMoved(const TabRecord& tab, const Placement& from) override;
   // Keep loaded (issue #267) is a flag on the record: switching it changes the
   // time of that tab.
-  void OnTabChanged(const TabRecord&) override { schedule_.Rearm(); }
+  void OnTabChanged(const TabRecord& record) override;
   void OnFolderAdded(const FolderRecord&) override { schedule_.Rearm(); }
   void OnFolderChanged(const FolderRecord&) override { schedule_.Rearm(); }
   void OnFolderMoved(const FolderRecord&, const Placement&) override {
@@ -142,6 +145,17 @@ class SleepController : public KeyedService,
   bool RecordIsAsleep(tabs::TabInterface* tab) const;
   // The Tab Model record says the tab is kept loaded (issue #267).
   bool RecordIsKept(tabs::TabInterface* tab) const;
+  // Makes Chromium's own discarding (memory pressure, Memory Saver) follow the
+  // Tab Model flag of `record` (issue #267): a kept tab is not auto-discardable.
+  // A kept tab that is asleep is loaded again. Does nothing for a record whose
+  // tab is not in a window yet; the strip events call it again.
+  void SyncKeepLoaded(const TabRecord& record, bool wake_on_switch);
+  void SyncKeepLoaded(tabs::TabInterface* tab, bool wake_on_switch);
+  // The ids of the records last seen kept: switching the flag on is the one
+  // moment a sleeping tab is loaded again (a tab that is kept and then put to
+  // sleep by the user stays asleep).
+  std::set<std::string> kept_ids_;
+  void LoadKeptTab(tabs::TabHandle handle);
   // Starts or stops the idle time of `tab`, from its state now.
   void Track(tabs::TabInterface* tab);
   // Called by the schedule: the tab has idled long enough.
@@ -164,6 +178,7 @@ class SleepController : public KeyedService,
   base::ScopedObservation<GlobalBrowserCollection, BrowserCollectionObserver>
       browser_collection_observation_{this};
   base::ScopedObservation<TabModel, TabModelObserver> model_observation_{this};
+  base::WeakPtrFactory<SleepController> weak_factory_{this};
 };
 
 }  // namespace aerie_tab_model

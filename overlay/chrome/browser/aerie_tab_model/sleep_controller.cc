@@ -10,6 +10,7 @@
 
 #include "base/functional/bind.h"
 #include "base/no_destructor.h"
+#include "base/task/single_thread_task_runner.h"
 #include "chrome/browser/aerie_tab_model/tab_model_service.h"
 #include "chrome/browser/aerie_tab_model/tab_strip_adapter.h"
 #include "chrome/browser/performance_manager/policies/cannot_discard_reason.h"
@@ -210,6 +211,9 @@ void SleepController::OnBrowserClosed(BrowserWindowInterface* browser) {
 }
 
 void SleepController::Track(tabs::TabInterface* tab) {
+  // A tab that comes back with a kept record (a restore, another window) gets
+  // its Chromium flag here.
+  SyncKeepLoaded(tab, /*wake_on_switch=*/false);
   const SleepSchedule::Key key = tab->GetHandle().raw_value();
   content::WebContents* contents = tab->GetContents();
   if (!contents || tab->IsActivated()) {
@@ -329,6 +333,73 @@ std::optional<base::TimeDelta> SleepController::DelayForTab(
   GlobalBehaviour values;
   values.sleep_after = global;
   return EffectiveSleepAfter(*service_->model(), *record, values);
+}
+
+void SleepController::OnTabAdded(const TabRecord& record) {
+  schedule_.Rearm();
+  SyncKeepLoaded(record, /*wake_on_switch=*/false);
+}
+
+void SleepController::OnTabChanged(const TabRecord& record) {
+  schedule_.Rearm();
+  SyncKeepLoaded(record, /*wake_on_switch=*/true);
+}
+
+void SleepController::SyncKeepLoaded(const TabRecord& record,
+                                     bool wake_on_switch) {
+  TabStripAdapter* adapter = service_->adapter();
+  tabs::TabInterface* tab = adapter ? adapter->TabForRecord(record.id) : nullptr;
+  if (tab) {
+    SyncKeepLoaded(tab, wake_on_switch);
+  }
+}
+
+void SleepController::SyncKeepLoaded(tabs::TabInterface* tab,
+                                     bool wake_on_switch) {
+  content::WebContents* contents = tab->GetContents();
+  TabStripAdapter* adapter = service_->adapter();
+  if (!contents || !adapter) {
+    return;
+  }
+  const std::string id = adapter->RecordIdForTab(tab);
+  const TabRecord* record = id.empty() ? nullptr : service_->model()->GetTab(id);
+  auto* lifecycle =
+      resource_coordinator::TabLifecycleUnitExternal::FromWebContents(contents);
+  if (!record || !lifecycle) {
+    return;
+  }
+  const bool kept = record->keep_loaded;
+  if (lifecycle->IsAutoDiscardable() == kept) {
+    lifecycle->SetAutoDiscardable(!kept);
+  }
+  const bool switched_on = kept && kept_ids_.insert(id).second;
+  if (!kept) {
+    kept_ids_.erase(id);
+  }
+  // The mark never sits on a sleeping row: switching it on loads the tab again,
+  // without selecting it. A kept tab that is already known (a restored one, or
+  // one the user put to sleep) is left as it is.
+  if (switched_on && wake_on_switch && (IsAsleep(contents) || record->sleeping)) {
+    // Not now: the Tab Model is still telling its observers about this change,
+    // and the record is written again below.
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE, base::BindOnce(&SleepController::LoadKeptTab,
+                                  weak_factory_.GetWeakPtr(),
+                                  tab->GetHandle()));
+  }
+}
+
+void SleepController::LoadKeptTab(tabs::TabHandle handle) {
+  tabs::TabInterface* tab = handle.Get();
+  if (!tab || !tab->GetContents()) {
+    return;
+  }
+  schedule_.Untrack(handle.raw_value());
+  // As Chromium's own TabLifecycleUnit::Load does it: a discarded page has no
+  // "needs reload" flag until it is set again.
+  tab->GetContents()->GetController().SetNeedsReload();
+  tab->GetContents()->GetController().LoadIfNecessary();
+  SetSleeping(tab, false);
 }
 
 void SleepController::OnTabMoved(const TabRecord& tab, const Placement& from) {

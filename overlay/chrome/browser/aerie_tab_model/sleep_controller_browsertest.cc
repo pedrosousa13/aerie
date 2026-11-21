@@ -485,4 +485,62 @@ IN_PROC_BROWSER_TEST_F(AerieSleepControllerBrowserTest,
   EXPECT_TRUE(WaitFor([&] { return Asleep(index); }));
 }
 
+// Keep loaded also stops Chromium's own discarding (memory pressure, Memory
+// Saver): the tab is not auto-discardable, in step with the flag.
+IN_PROC_BROWSER_TEST_F(AerieSleepControllerBrowserTest,
+                       AKeptTabIsNotAutoDiscardableAndAnUnkeptTabIs) {
+  const int kept = OpenBackgroundTab();
+  const int plain = OpenBackgroundTab();
+  auto auto_discardable = [&](int index) {
+    return resource_coordinator::TabLifecycleUnitExternal::FromWebContents(
+               strip()->GetWebContentsAt(index))
+        ->IsAutoDiscardable();
+  };
+  EXPECT_TRUE(auto_discardable(kept));
+  EXPECT_TRUE(auto_discardable(plain));
+  const std::string id = RecordOf(kept)->id;
+  ASSERT_TRUE(SetTabKeepLoaded(*service_->model(), id, true));
+  EXPECT_FALSE(auto_discardable(kept));
+  EXPECT_TRUE(auto_discardable(plain));
+  // Chromium's proactive policy (what Memory Saver asks) refuses it too.
+  EXPECT_EQ(controller_
+                ->GetEligibility(strip()->GetTabAtIndex(kept),
+                                 SleepController::Request::kIdleTimer)
+                .state,
+            SleepController::Eligibility::State::kCannotSleep);
+  ASSERT_TRUE(SetTabKeepLoaded(*service_->model(), id, false));
+  EXPECT_TRUE(auto_discardable(kept));
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSleepControllerBrowserTest,
+                       TheUsersSleepNowStillWorksOnAKeptTab) {
+  const int index = OpenBackgroundTab();
+  ASSERT_TRUE(SetTabKeepLoaded(*service_->model(), RecordOf(index)->id, true));
+  tabs::TabInterface* tab = strip()->GetTabAtIndex(index);
+  EXPECT_EQ(controller_->GetEligibility(tab).state,
+            SleepController::Eligibility::State::kCanSleep);
+  EXPECT_TRUE(controller_->Sleep(tab));
+  EXPECT_TRUE(WaitFor([&] { return Asleep(index); }));
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSleepControllerBrowserTest,
+                       KeepingASleepingTabLoadsItAgain) {
+  const int index = OpenBackgroundTab();
+  ASSERT_TRUE(controller_->Sleep(strip()->GetTabAtIndex(index)));
+  ASSERT_TRUE(WaitFor([&] { return Asleep(index); }));
+  ASSERT_TRUE(SetTabKeepLoaded(*service_->model(), RecordOf(index)->id, true));
+  // The mark never sits on a sleeping row: the record is awake and the page
+  // loads again, without the tab being selected.
+  EXPECT_TRUE(WaitFor([&] {
+    return !RecordOf(index)->sleeping &&
+           resource_coordinator::TabLifecycleUnitExternal::FromWebContents(
+               strip()->GetWebContentsAt(index))
+                   ->GetTabState() != ::mojom::LifecycleUnitState::DISCARDED;
+  }));
+  EXPECT_NE(strip()->active_index(), index);
+  EXPECT_FALSE(resource_coordinator::TabLifecycleUnitExternal::FromWebContents(
+                   strip()->GetWebContentsAt(index))
+                   ->IsAutoDiscardable());
+}
+
 }  // namespace aerie_tab_model
