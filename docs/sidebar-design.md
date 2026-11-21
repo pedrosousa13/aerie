@@ -881,6 +881,15 @@ Each manual or auto-filing folder can set three behaviours. A smart folder has n
 
 **Motion.** The sheet and the switches use the tokens of #139. Under reduced motion (the operating system's flag or the in-app setting) the sheet is opacity-only at 90 ms, and a switch moves with no transform animation.
 
+## Keep loaded, as built (#267)
+
+A tab can be kept loaded so it never sleeps. It protects a call, music, a chat or an editor.
+
+- **Where it is set.** "Keep loaded" is a check item in the context menu of a tab row (Today, Pinned or Favorites; a row in a smart folder acts on the real tab). It sits above "Sleep tab". The Menu key and the arrow keys reach it like any item. The batch menu of a selection does not have it yet.
+- **What it does.** The idle sleep timer skips the tab, and so does auto-archive, whatever the folder rules or the global settings say: the flag on the tab beats every folder behaviour. The check is in the one Effective resolver (`ResolveSleepAfter`, `ResolveArchiveAfter`), so both timers and the folder sheet agree. The user's own "Sleep tab" still works on a kept tab. Chromium's own discard under memory pressure is not stopped.
+- **Where it is stored.** `keep_loaded` on the tab record in the Tab Model (`state.json`), written only when true, so older files read as false. It survives a restart with the record.
+- **The mark.** A small ring-and-dot icon (`aerie_keep_loaded.icon`, `size-sleep-badge`, colour `text-muted`) after the title, with the tooltip "Kept loaded: this tab never sleeps or archives". It appears and goes at once; there is no motion, so reduced motion changes nothing. The rail (icons only) shows no mark. The row's accessible name ends with ", kept loaded" (before ", renamed"). The mark is not a button or a focus stop. Favorites tiles show no mark yet.
+
 ## Media card, as built (#263)
 
 A compact card above the bottom bar shows the tab that plays audio or video, so the user can pause it, skip a track or find the tab without leaving the page in front.

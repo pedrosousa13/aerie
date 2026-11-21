@@ -203,6 +203,7 @@ source_set("interactive_tests") {
     "aerie_sidebar_clear_uitest.cc",
     "aerie_sidebar_drag_uitest.cc",
     "aerie_sidebar_guard_uitest.cc",
+    "aerie_sidebar_keep_loaded_uitest.cc",
     "aerie_sidebar_keyboard_uitest.cc",
     "aerie_sidebar_media_uitest.cc",
     "aerie_sidebar_motion_uitest.cc",

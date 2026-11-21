@@ -34,6 +34,9 @@ Auto-archive moves a Today tab to the Archive after the user's timeout (12 hours
 **Sleeping tab**
 A tab that is unloaded to free memory (story 61). The Sidebar shows a moon badge and a dimmed favicon. Selecting it wakes it. Chromium's discard does the unloading; Aerie adds the idle timer (`aerie.tabs.sleep_after_minutes`, 1 hour by default) and the display. Not the same as an archived tab, which is closed.
 
+**Kept tab** (Keep loaded)
+A tab the user marked "Keep loaded" (#267). The idle sleep timer and auto-archive skip it, whatever its folder says. The flag lives on the tab record, so it survives a restart. The row shows a small mark. Not the same as a Pinned tab, which can still sleep and never archives only because of its section.
+
 **Rename rule**
 A user-written rule (#146) that changes the title the Sidebar shows for a tab. It matches by Domain, URL starts with, URL contains or Title contains (the same grammar as folder rules) and rewrites the title with a template (`{title}`, `{host}`) or by removing text. Rules are ordered, the first that matches wins, and each can be switched off, or all at once. A rule beats the Tidy; a manual name beats a rule. Only the Sidebar changes: the page's `document.title` does not.
 

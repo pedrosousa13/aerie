@@ -175,6 +175,13 @@ class AerieSidebarRowView : public views::View,
   // at once.
   void SetSleeping(bool sleeping, const PrefService* reduced_motion_prefs);
   bool sleeping() const { return sleeping_; }
+  // A tab that is kept loaded (issue #267): a small mark after the title, from
+  // an Aerie vector icon and the muted text token, and ", kept loaded" at the
+  // end of the accessible name. The mark appears and goes at once: it is a
+  // state, not a motion. The rail (icons only) shows no mark; the name says it.
+  void SetKeptLoaded(bool kept);
+  bool kept_loaded() const { return kept_loaded_; }
+  views::ImageView* keep_mark() const { return keep_mark_; }
   // Smart folders (issue #140). A row inside a smart folder stands for a real
   // tab that has its own row elsewhere: the "smart-member" kind of row. It shows
   // a quiet hint of where the real tab is (`origin_name`, "Today" or "Pinned")
@@ -442,6 +449,8 @@ class AerieSidebarRowView : public views::View,
   base::OneShotTimer settle_timer_;
   raw_ptr<views::ImageView> favicon_ = nullptr;
   raw_ptr<views::ImageView> sleep_badge_ = nullptr;
+  raw_ptr<views::ImageView> keep_mark_ = nullptr;
+  bool kept_loaded_ = false;
   std::u16string title_text_;
   std::u16string title_note_;
   bool sleeping_ = false;
