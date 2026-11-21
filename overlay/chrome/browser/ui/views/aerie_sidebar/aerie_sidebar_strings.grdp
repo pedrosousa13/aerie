@@ -837,4 +837,19 @@
       =1 {Favorites are full. 1 tab was not added.}
       other {Favorites are full. # tabs were not added.}}
   </message>
+  <message name="IDS_AERIE_SIDEBAR_MEDIA_NAME" desc="Accessible name of the card at the bottom of the sidebar that shows the tab that is playing audio or video, with buttons to control it.">
+    Now playing
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_MEDIA_PLAY" desc="Name and tooltip of the button on the sidebar's now playing card that resumes the paused audio or video.">
+    Play
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_MEDIA_PAUSE" desc="Name and tooltip of the button on the sidebar's now playing card that pauses the audio or video.">
+    Pause
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_MEDIA_NEXT" desc="Name and tooltip of the button on the sidebar's now playing card that skips to the next track. The page decides whether there is one.">
+    Next track
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_MEDIA_GO_TO_TAB" desc="Label of the button on the sidebar's now playing card that switches to the tab that plays the audio or video.">
+    Go to tab
+  </message>
 </grit-part>

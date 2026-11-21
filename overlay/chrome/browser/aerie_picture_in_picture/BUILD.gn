@@ -1,0 +1,48 @@
+# Copyright 2026 The Aerie Authors
+# You can use, redistribute, and/or modify this source code under
+# the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+# Test-only: automatic picture-in-picture when the user switches tab (issue
+# #263), through Chromium's AutoPictureInPictureTabHelper. Joins
+# //chrome/test/aerie:aerie_browser_tests.
+# The video of the picture-in-picture tests and of the sidebar media card tests.
+source_set("test_support") {
+  testonly = true
+  sources = [ "aerie_auto_pip_fixture.h" ]
+}
+
+source_set("browser_tests") {
+  testonly = true
+  # content/public/test/browser_test.h refuses to compile without it.
+  defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
+  sources = [
+    "aerie_auto_pip_browsertest.cc",
+    "aerie_auto_pip_settings_browsertest.cc",
+  ]
+  deps = [
+    ":test_support",
+    "//base",
+    "//base/test:test_support",
+    "//chrome/browser:browser",
+    "//chrome/browser/profiles:profile",
+    "//chrome/browser/ui/tabs:tabs_public",
+    "//chrome/common",
+    "//chrome/test:test_support",
+    "//chrome/test:test_support_ui",
+    "//components/content_settings/core/browser",
+    "//components/content_settings/core/common",
+    "//content/public/browser",
+    "//content/test:test_support",
+    "//net",
+    "//net:test_support",
+    "//testing/gtest",
+    "//third_party/blink/public/common",
+    "//ui/aura",
+    "//ui/base",
+    "//ui/color",
+    "//ui/gfx/geometry",
+    "//ui/snapshot",
+    "//ui/views",
+    "//url",
+  ]
+}

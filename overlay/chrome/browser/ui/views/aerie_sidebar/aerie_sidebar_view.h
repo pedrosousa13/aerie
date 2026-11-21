@@ -60,6 +60,8 @@ class AerieSidebarDragController;
 class AerieSidebarDragHost;
 class AerieSidebarPeekDriver;
 class AerieSidebarPeekSurface;
+class AerieSidebarMediaCard;
+class AerieSidebarMediaController;
 
 namespace aerie_tab_model {
 class PinnedTabsController;
@@ -192,6 +194,9 @@ class AerieSidebarView : public views::View,
   // The toast of a tab that a folder rule filed (issue #139): the card that
   // holds the message and the Undo and "Don't file this site" buttons.
   views::View* toast_card() const { return toast_card_; }
+  // The media card above the bottom bar (issue #263), and what feeds it.
+  AerieSidebarMediaCard* media_card() const { return media_card_; }
+  AerieSidebarMediaController* media() const { return media_.get(); }
   views::LabelButton* toast_undo_button() const { return toast_undo_; }
   views::LabelButton* toast_dont_file_button() const { return toast_dont_file_; }
   // The folder editor (issue #139): null when it is not open.
@@ -776,6 +781,8 @@ class AerieSidebarView : public views::View,
   raw_ptr<const std::map<std::string, tabs::TabInterface*>> tab_lookup_ =
       nullptr;
   raw_ptr<views::BoxLayoutView> toast_card_ = nullptr;
+  raw_ptr<AerieSidebarMediaCard> media_card_ = nullptr;
+  std::unique_ptr<AerieSidebarMediaController> media_;
   raw_ptr<views::Label> toast_ = nullptr;
   raw_ptr<views::BoxLayoutView> toast_actions_ = nullptr;
   raw_ptr<views::LabelButton> toast_undo_ = nullptr;
