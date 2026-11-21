@@ -635,6 +635,45 @@ not cover a separate process that makes its own sockets, such as the crash
 handler. Crash upload is removed in the source and checked by the source gates
 (`docs/network-endpoints.md`).
 
+### Privacy report
+
+`./aerie bench --report <dir>` is the release proof that Aerie never phones home (issue #253). It runs
+`zero_traffic` (with its 5 minute idle phase and the crash step), `adblock_score`, and every fingerprinting and
+hardening check in one run, then writes `report.html` and `report.json` into `<dir>`. The page is static: no
+script, font or network load. `--report` picks its own checks, so it cannot be combined with `--check` or `--scenario`.
+
+The report holds: the version and commit; every request to a host other than loopback, with its host, URL path,
+phase and the reason it is allowed; the request count per phase (first launch, 5 minutes idle, browse script); the
+blocking score; the fingerprinting and hardening results; the request policy's refusal count and the hosts it
+refused; and a "rerun it yourself" section with the exact command and the sha256 of the binary. The command is built from the arguments of the run, with no local path: `<dir>` is the output directory, `--binary ./<name>` is the release binary wherever it was unpacked, and `<file>` stands for a file you supply.
+
+The reason a host is allowed comes from the host table of the request policy in `docs/network-endpoints.md`
+(`<!-- request-policy:hosts -->`): the same table the browser enforces, so adding an endpoint there is the only way to explain a request. Only that table counts: the "directed by the user" and "directed by a site" tables do not apply to an unattended Bench run, which has no user.
+
+**The report is a release gate.** The command exits 1, and the release must not be published, when any of
+these holds: a request to a non-loopback host is not in that table (the stray host is named); a request was
+made to a host the table allows but a check failed; any required check is missing or did not pass; the idle phase was
+shorter than 300 seconds (do not shorten it with `--zero-traffic-idle`); the crash step did not pass or was left
+out; the commit or the browser version is unknown; the request policy's refusal counter could not be read; or the browser did not exit cleanly. A request that the policy refused (net error -22) never left the machine:
+it is counted and named, and does not fail the gate. The report is written even when the gate fails, so the stray host can be read.
+
+**Redaction.** The report is built from an allowlist of fields, never copied from the NetLog. A request keeps its
+host and URL path only: no query string, fragment, user info, port, header or cookie. Check details go
+through a scrubber that removes local paths, URL queries and cookie or authorization headers. Before the files are
+written, a guard scans the finished text for local paths, query strings, cookies, the home directory, the build
+root and the checkout, and refuses to write on a match (exit 2). Do not attach `netlog.json` to a release: it is not redacted.
+
+**Manual release step** (until the release pipeline, #130, attaches it):
+
+```sh
+./aerie build
+./aerie bench --report /path/to/release-report   # exit 0 required; takes about 10 minutes
+# publish nothing if it exits non-zero. Otherwise attach report.html and report.json to the GitHub release
+```
+
+The generator is `tools/aerie_bench/privacy_report.py`; `tests/test_bench_privacy_report.py` tests it on
+recorded observations (a clean one, and one with a stray request that must fail the gate).
+
 ### Branding checks
 
 Three checks for the rebrand (issue #5). Run them with

@@ -180,3 +180,19 @@ class AnnotationNamesTest(unittest.TestCase):
             (src / model.ANNOTATIONS_XML).parent.mkdir(parents=True)
             (src / model.ANNOTATIONS_XML).write_text(self.XML, encoding="utf-8")
             self.assertEqual(cli.main(["check", "--repo", str(repo), "--tree", str(src)]), 1)
+
+
+class HostMatchesTest(unittest.TestCase):
+    def test_label_boundaries_and_trailing_dot(self):
+        from aerie_netpolicy import model
+        self.assertTrue(model.host_matches("easylist.to", "easylist.to"))
+        self.assertTrue(model.host_matches("cdn.easylist.to.", "easylist.to"))
+        self.assertFalse(model.host_matches("evileasylist.to", "easylist.to"))
+        self.assertFalse(model.host_matches("easylist.to.evil.com", "easylist.to"))
+
+    def test_table_explains_with_reason(self):
+        from aerie_netpolicy import model
+        doc = (Path(__file__).resolve().parent.parent / "docs" / "network-endpoints.md").read_text()
+        ann, why = model.parse_doc(doc).explain("easylist.to")
+        self.assertEqual(ann, "aerie_filter_list_download")
+        self.assertIn("filter lists", why)

@@ -20,6 +20,10 @@ def add_arguments(p: argparse.ArgumentParser, *, binary_required: bool) -> None:
     p.add_argument("--check", metavar="NAME", action="append",
                    help="run this check (repeatable); available: " + ", ".join(
                        sorted(n for n in checks.REGISTRY if n != "scenario")) + "; default: smoke")
+    p.add_argument("--report", metavar="DIR",
+                   help="run the privacy report scenario (zero_traffic, adblock_score, fingerprinting and "
+                        "hardening checks), write report.html and report.json into DIR, and exit 1 when the "
+                        "release gate fails (docs/bench.md, Privacy report)")
     p.add_argument("--scenario", metavar="FILE", help="JSON scenario file (checks and page steps)")
     p.add_argument("--headed", action="store_true", help="show the browser window (default: headless)")
     p.add_argument("--no-sandbox", action="store_true",
@@ -134,7 +138,11 @@ def run(args: argparse.Namespace, build_root: Path, default_binary: Path | None)
         print("aerie bench: --binary is required", file=sys.stderr)
         return EXIT_HARNESS
     try:
-        if args.scenario:
+        if args.report:
+            if args.check or args.scenario:
+                raise BenchError("--report picks its own checks; do not combine it with --check or --scenario")
+            sc = scenario.Scenario("privacy-report", report_checks())
+        elif args.scenario:
             sc = scenario.load(Path(args.scenario))
         else:
             sc = scenario.Scenario()
@@ -193,6 +201,8 @@ def run(args: argparse.Namespace, build_root: Path, default_binary: Path | None)
         print((result.out_dir / "summary.txt").read_text(), end="")
         print(f"results: {result.out_dir / 'results.json'}")
         code = EXIT_PASS if result.status == "pass" else EXIT_FAIL
+        if args.report:
+            code = max(code, _write_privacy_report(args, result, binary, build_root, sc.checks))
         if "perf" in sc.checks:
             code = max(code, _perf_followup(args, result, build_root, common))
         if "sidebar_frames" in sc.checks and args.sidebar_frames_record:
@@ -206,6 +216,80 @@ def run(args: argparse.Namespace, build_root: Path, default_binary: Path | None)
     except (BenchError, scenario.ScenarioError) as exc:
         print(f"aerie bench: error: {exc}", file=sys.stderr)
         return EXIT_HARNESS
+
+
+def report_checks() -> tuple[str, ...]:
+    """The checks of the privacy report: traffic, blocking score, fingerprinting and hardening."""
+    return ("zero_traffic", "adblock_score",
+            *sorted(n for n in checks.REGISTRY if n.startswith("hardening_")))
+
+
+# Flags that change what a run measures, so a re-runner needs them. Path-valued ones become a placeholder.
+_RERUN_FLAGS = (("no_sandbox", "--no-sandbox", "flag"), ("headed", "--headed", "flag"),
+                ("services", "--services", "value"), ("services_wait", "--services-wait", "value"),
+                ("timeout", "--timeout", "value"), ("zero_traffic_idle", "--zero-traffic-idle", "value"),
+                ("zero_traffic_settle", "--zero-traffic-settle", "value"),
+                ("zero_traffic_strict", "--zero-traffic-strict", "flag"),
+                ("zero_traffic_no_crash", "--zero-traffic-no-crash", "flag"),
+                ("widevine_online", "--widevine-online", "value"), ("adblock_online", "--adblock-online", "value"),
+                ("adblock_baseline", "--adblock-baseline", "path"), ("workspaces_enforce", "--workspaces-enforce", "flag"),
+                ("baseline", "--baseline", "path"))
+
+
+def rerun_command(args: argparse.Namespace, binary_name: str, explicit_binary: bool) -> str:
+    """The command that repeats this run, free of local paths: ``<dir>`` for the output directory,
+    ``./<name>`` for an explicit binary (the release binary, wherever it was unpacked), ``<file>`` for a path."""
+    import shlex
+    defaults = argparse.ArgumentParser()
+    add_arguments(defaults, binary_required=False)
+    parts = ["./aerie", "bench", "--report", "<dir>"]
+    if explicit_binary:
+        parts += ["--binary", f"./{binary_name}"]
+    for dest, flag, kind in _RERUN_FLAGS:
+        value = getattr(args, dest, None)
+        if value == defaults.get_default(dest) or value is None or value is False:
+            continue
+        parts += [flag] if kind == "flag" else [flag, "<file>" if kind == "path" else str(value)]
+    for extra in args.flag or []:
+        name, eq, val = extra.partition("=")
+        if "/" in (val if eq else name) or (val if eq else name).startswith("~"):
+            extra = f"{name}=<file>" if eq else "<file>"
+        # --flag=VALUE, not "--flag VALUE": argparse takes a value that starts with "--" only in this form.
+        parts.append(f"--flag={extra}")
+    from .privacy_report import scrub_text
+    return scrub_text(" ".join(p if p == "<dir>" or "<file>" in p else shlex.quote(p) for p in parts))
+
+
+def _write_privacy_report(args, result, binary: Path, build_root: Path, required: tuple[str, ...]) -> int:
+    """Build report.html and report.json from the run; EXIT_FAIL when the release gate fails."""
+    import os
+
+    from aerie_build import lock
+    from aerie_netpolicy import model as policy_model
+
+    from . import privacy_report
+    repo = privacy_report.REPO
+    meta = {"commit": _head_commit(repo), "binary_sha256": lock.sha256_file(Path(binary)),
+            "binary_name": Path(binary).name,
+            "command": rerun_command(args, Path(binary).name, explicit_binary=bool(args.binary))}
+    forbidden = tuple(x for x in (os.environ.get("HOME"), str(build_root), str(repo), str(Path(binary).parent),
+                                  str(result.out_dir)) if x and len(x) > 1)
+    try:
+        report = privacy_report.build(result.data, meta, privacy_report.load_default_allowlist(),
+                                      required=required, forbidden=forbidden)
+    except (privacy_report.ReportError, policy_model.PolicyDocError) as exc:
+        print(f"aerie bench: error: privacy report: {exc}", file=sys.stderr)
+        return EXIT_HARNESS
+    privacy_report.write(Path(args.report), report)
+    gate = report["gate"]
+    print(f"\nprivacy report: {Path(args.report) / 'report.html'}")
+    if gate["passed"]:
+        print("release gate: PASS")
+        return EXIT_PASS
+    print("release gate: FAIL (do not publish)")
+    for f in gate["failures"]:
+        print(f"  {f}")
+    return EXIT_FAIL
 
 
 def _record_sidebar_frames(args, result) -> None:
