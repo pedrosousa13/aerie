@@ -14,11 +14,17 @@
 #include <string>
 #include <utility>
 
+#include "base/command_line.h"
+#include "base/environment.h"
+#include "base/files/file_util.h"
+#include "base/run_loop.h"
 #include "base/strings/string_util.h"
+#include "base/task/single_thread_task_runner.h"
 #include "base/test/run_until.h"
+#include "base/test/test_future.h"
+#include "chrome/browser/aerie_picture_in_picture/aerie_auto_pip_fixture.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
-#include "chrome/browser/aerie_picture_in_picture/aerie_auto_pip_fixture.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_media_card.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_media_controller.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_view.h"
@@ -28,15 +34,27 @@
 #include "chrome/test/base/interactive_test_utils.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "base/command_line.h"
+#include "base/environment.h"
+#include "base/files/file_util.h"
+#include "base/run_loop.h"
+#include "base/task/single_thread_task_runner.h"
+#include "base/test/test_future.h"
+#include "ui/aura/window.h"
+#include "ui/snapshot/snapshot.h"
+#include "ui/color/color_provider_key.h"
 #include "media/base/media_switches.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
+#include "media/base/media_switches.h"
 #include "net/dns/mock_host_resolver.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "net/test/embedded_test_server/http_request.h"
 #include "net/test/embedded_test_server/http_response.h"
 #include "ui/accessibility/ax_node_data.h"
+#include "ui/color/color_provider_key.h"
+#include "ui/aura/window.h"
+#include "ui/snapshot/snapshot.h"
 #include "ui/compositor/layer.h"
 #include "ui/compositor/layer_animation_element.h"
 #include "ui/compositor/layer_animator.h"
@@ -177,6 +195,34 @@ class AerieSidebarMediaUiTest : public InProcessBrowserTest {
   bool Paused(content::WebContents* contents) {
     return content::EvalJs(contents, "audio.paused").ExtractBool();
   }
+  // With AERIE_MEDIA_SHOT_DIR set, saves a screenshot of the window as
+  // <name>.png, once in each colour mode (for the screenshot gallery).
+  void Shoot(const std::string& name) {
+    std::optional<std::string> dir =
+        base::Environment::Create()->GetVar("AERIE_MEDIA_SHOT_DIR");
+    if (!dir || dir->empty()) {
+      return;
+    }
+    for (const bool dark : {false, true}) {
+      browser_view()->GetWidget()->SetColorModeOverride(
+          dark ? ui::ColorProviderKey::ColorMode::kDark
+               : ui::ColorProviderKey::ColorMode::kLight);
+      // Let the sidebar repaint with the new palette.
+      base::RunLoop loop;
+      base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+          FROM_HERE, loop.QuitClosure(), base::Milliseconds(500));
+      loop.Run();
+      gfx::NativeWindow window = browser_view()->GetWidget()->GetNativeWindow();
+      base::test::TestFuture<scoped_refptr<base::RefCountedMemory>> png;
+      ui::GrabWindowSnapshotAsPNG(
+          window, gfx::Rect(window->bounds().size()), png.GetCallback());
+      ASSERT_TRUE(png.Get() && png.Get()->size() > 0);
+      ASSERT_TRUE(base::WriteFile(
+          base::FilePath::FromUTF8Unsafe(*dir).AppendASCII(
+              name + (dark ? "-dark.png" : "-light.png")),
+          *png.Get()));
+    }
+  }
   void ShowTheFirstTab() {
     TabStripModel* model = browser()->tab_strip_model();
     model->ActivateTabAt(0);
@@ -220,6 +266,7 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarMediaUiTest,
   // The card is the last thing above the bottom bar.
   EXPECT_LT(card()->y(), sidebar()->bottom_bar()->y());
   EXPECT_LE(card()->bounds().bottom(), sidebar()->bottom_bar()->y());
+  Shoot("media-card");
 }
 
 IN_PROC_BROWSER_TEST_F(AerieSidebarMediaUiTest, ThePagesTrackTitleWins) {
