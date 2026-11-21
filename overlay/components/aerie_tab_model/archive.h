@@ -74,6 +74,8 @@ struct ArchivedRow {
   std::string favicon_key;
   std::string workspace_id;
   base::Time archived_at;
+  // Why it was archived: empty (unused) or `kArchiveReasonCleared`.
+  std::string reason;
 };
 
 // Every archived record, newest first (ties by id).

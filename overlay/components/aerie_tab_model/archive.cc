@@ -136,6 +136,7 @@ std::vector<ArchivedRow> ArchivedRows(const TabModel& model) {
     row.workspace_id = tab.workspace_id;
     row.archived_at = *tab.archived_at;
     if (tab.archive) {
+      row.reason = tab.archive->reason;
       row.title = tab.archive->title;
       row.url = tab.archive->url;
       row.favicon_key = tab.archive->favicon_key;

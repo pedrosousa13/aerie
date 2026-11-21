@@ -74,6 +74,10 @@ class AerieSidebarContextMenu : public views::MenuDelegate {
     kArchive = 19,
     kSelectRange = 20,
     kClearSelection = 21,
+    // The menu of the Clear button on the Today header (issue #266): "Archive
+    // all" (what a click does) and "Close all" (what Alt+click does).
+    kClearArchive = 22,
+    kClearClose = 23,
     kMoveToFolderBase = 100,
   };
 
@@ -99,6 +103,8 @@ class AerieSidebarContextMenu : public views::MenuDelegate {
     // of a tab's menu that make sense for many tabs, and each acts on the whole
     // selection.
     kSelection,
+    // The Clear button of the Today header (issue #266).
+    kClear,
   };
 
   struct MoveTarget {
@@ -158,6 +164,9 @@ class AerieSidebarContextMenu : public views::MenuDelegate {
     // section of the selection, not in it) and "Clear selection".
     ItemState select_range;
     ItemState clear_selection;
+    // A kClear menu: whether "Archive all" is there. A private window keeps no
+    // Archive, so its menu has "Close all" only.
+    bool clear_can_archive = true;
   };
 
   // Runs with the command id when an enabled item is chosen.

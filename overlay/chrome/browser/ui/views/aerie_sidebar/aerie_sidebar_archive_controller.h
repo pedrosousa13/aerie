@@ -95,7 +95,18 @@ class AerieSidebarArchiveController
   // Archives the tab at the user's request (issue #265, the batch menu): the
   // same call the timer makes, so the tab flies to the Archive button as it
   // does then. False when the archiver refuses the tab or is not attached.
-  bool ArchiveTab(tabs::TabInterface* tab);
+  // `reason` is kept with the record (issue #266: Today's Clear passes
+  // aerie_tab_model::kArchiveReasonCleared).
+  bool ArchiveTab(tabs::TabInterface* tab,
+                  const std::string& reason = std::string());
+  // Reopens the archived record `id` in this window, with no flight or
+  // announcement: Undo of Clear (issue #266). False when the record is not
+  // archived any more (the user restored it from the panel first).
+  bool RestoreRecord(const std::string& id);
+  // True when this window keeps an Archive (false in a private window).
+  bool CanArchive();
+  // True when ArchiveTab would take `tab` now (no change is made).
+  bool CanArchiveTab(tabs::TabInterface* tab);
 
   // Opens the panel, or closes it when it is open.
   void TogglePanel();

@@ -118,6 +118,17 @@ AerieSidebarArchiveRow::AerieSidebarArchiveRow(
   title->SetElideBehavior(gfx::ELIDE_TAIL);
   title->GetViewAccessibility().SetIsIgnored(true);
   layout->SetFlexForView(title, 1);
+  // A tab archived by the Clear button says so (issue #266).
+  const bool cleared = row.reason == aerie_tab_model::kArchiveReasonCleared;
+  if (cleared) {
+    auto* cleared_label = AddChildView(std::make_unique<views::Label>(
+        l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_ARCHIVE_ROW_CLEARED)));
+    cleared_label->SetEnabledColor(palette_.text_muted);
+    cleared_label->SetFontList(cleared_label->font_list().DeriveWithSizeDelta(
+        aerie::tokens::kTypeSizeCaption -
+        cleared_label->font_list().GetFontSize()));
+    cleared_label->GetViewAccessibility().SetIsIgnored(true);
+  }
   auto* workspace =
       AddChildView(std::make_unique<views::Label>(workspace_text_));
   workspace->SetEnabledColor(palette_.text_muted);
@@ -133,7 +144,9 @@ AerieSidebarArchiveRow::AerieSidebarArchiveRow(
   SetTooltipText(base::UTF8ToUTF16(row.url));
   GetViewAccessibility().SetRole(ax::mojom::Role::kListBoxOption);
   GetViewAccessibility().SetName(l10n_util::GetStringFUTF16(
-      IDS_AERIE_SIDEBAR_ARCHIVE_ROW_NAME, title_text_, workspace_text_));
+      cleared ? IDS_AERIE_SIDEBAR_ARCHIVE_ROW_NAME_CLEARED
+              : IDS_AERIE_SIDEBAR_ARCHIVE_ROW_NAME,
+      title_text_, workspace_text_));
 }
 
 AerieSidebarArchiveRow::~AerieSidebarArchiveRow() = default;

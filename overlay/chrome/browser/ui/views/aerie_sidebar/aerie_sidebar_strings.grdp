@@ -525,6 +525,34 @@
   <message name="IDS_AERIE_SIDEBAR_ARCHIVE_ROW_NAME" desc="Accessible name of one archived tab in the Archive panel: its title, then the name of the Workspace it came from. A Workspace is a named group of tabs, for example Personal.">
     <ph name="TITLE">$1<ex>Example page</ex></ph>, <ph name="WORKSPACE">$2<ex>Personal</ex></ph>
   </message>
+  <message name="IDS_AERIE_SIDEBAR_CLEAR_BUTTON" desc="Label and accessible name of the button at the end of the Today heading in the sidebar. It moves every unpinned tab of Today to the Archive, where the user can restore them. Today is the name of the sidebar section of unpinned tabs.">
+    Clear
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_CLEAR_TOOLTIP" desc="Tooltip of the Clear button in the Today heading of the sidebar. It says what a click does and what a click with the Alt key held does. Today is the name of the sidebar section of unpinned tabs.">
+    Archive the tabs in Today. Hold Alt to close them instead.
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_CLEAR_MENU_ARCHIVE" desc="Item of the menu of the Clear button in the Today heading of the sidebar. It moves every unpinned tab of Today to the Archive, where the user can restore them. It does the same as a click on the button.">
+    Archive all
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_CLEAR_MENU_CLOSE" desc="Item of the menu of the Clear button in the Today heading of the sidebar. It closes every unpinned tab of Today at once and does not keep them in the Archive.">
+    Close all
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_CLEARED_TOAST" desc="Short message in the small notice at the bottom of the sidebar after the user pressed Clear. It says how many tabs went to the Archive. A button next to it undoes this. A screen reader reads it politely.">
+    {COUNT, plural,
+      =1 {1 tab archived}
+      other {# tabs archived}}
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_CLEARED_TOAST_READ" desc="What a screen reader says when the notice after the Clear button appears: how many tabs went to the Archive, then that the Undo button is there.">
+    {COUNT, plural,
+      =1 {1 tab archived. Undo is available.}
+      other {# tabs archived. Undo is available.}}
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_ARCHIVE_ROW_NAME_CLEARED" desc="Accessible name of one archived tab in the Archive panel that the user archived with the Clear button: its title, that it was cleared, then the name of the Workspace it came from. A Workspace is a named group of tabs, for example Personal.">
+    <ph name="TITLE">$1<ex>Example page</ex></ph>, cleared, <ph name="WORKSPACE">$2<ex>Personal</ex></ph>
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_ARCHIVE_ROW_CLEARED" desc="Small label on a row of the Archive panel for a tab that the user archived with the Clear button of the Today heading.">
+    Cleared
+  </message>
   <message name="IDS_AERIE_SIDEBAR_ARCHIVE_RESTORED" desc="Said by a screen reader after the user restored an archived tab from the Archive panel.">
     Restored <ph name="TITLE">$1<ex>Example page</ex></ph>
   </message>

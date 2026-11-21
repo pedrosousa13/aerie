@@ -91,7 +91,13 @@ class TabArchiver : public KeyedService,
   // after it moved to Today) and the timer's. False, and nothing changes, when
   // the tab has no Today record, is archived already, or its page asks to
   // confirm leaving (beforeunload): that one is closed by the normal path.
-  bool Archive(tabs::TabInterface* tab);
+  // `reason` is stored with the record (kArchiveReasonCleared for Today's
+  // Clear, issue #266); empty is the timer's.
+  bool Archive(tabs::TabInterface* tab, const std::string& reason = std::string());
+  // True when Archive() would take `tab` now: it has an unarchived Today
+  // record, its page does not ask to confirm leaving and its address can be
+  // kept. Changes nothing (issue #266: Clear counts what it will close).
+  bool CanArchive(tabs::TabInterface* tab);
 
   // Reopens the archived record `record_id` as a tab in `browser`, selected, at
   // the top of Today (or of its old folder, see RestoreArchivedTab). The tab
@@ -131,7 +137,9 @@ class TabArchiver : public KeyedService,
   bool Watches(BrowserWindowInterface* browser) const;
   // True when the schedule must leave the record alone now.
   bool IsExempt(const std::string& record_id) const;
-  bool ArchiveWithMotion(tabs::TabInterface* tab, bool animate);
+  bool ArchiveWithMotion(tabs::TabInterface* tab,
+                         bool animate,
+                         const std::string& reason);
   // The schedule's call.
   bool OnDue(const std::string& record_id);
   void OnSettingsChanged();

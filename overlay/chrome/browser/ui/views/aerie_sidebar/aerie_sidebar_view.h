@@ -210,6 +210,15 @@ class AerieSidebarView : public views::View,
   void OnTabFiled(const aerie_tab_model::AutoFileController::Filed& filed) override;
   void OnAutoFileControllerDestroyed() override;
   bool toast_visible() const;
+  // The Clear button at the end of the Today heading (issue #266), and the
+  // tabs that the last Clear archived and Undo would bring back, in Today order.
+  views::LabelButton* clear_button() const { return clear_button_; }
+  std::vector<std::string> cleared_ids_for_testing() const;
+  const std::u16string& last_toast_announcement_for_testing() const {
+    return last_toast_announcement_;
+  }
+  // The menu of the Clear button, opened from the keyboard or by right-click.
+  void ShowClearMenuForTesting(const gfx::Point& screen_point);
   // Starts the fade out at once instead of waiting for the hold.
   void HideToastForTesting() { HideToast(); }
   void ShowToastForTesting(const std::u16string& text) { ShowToast(text); }
@@ -591,10 +600,24 @@ class AerieSidebarView : public views::View,
                bool wanted);
   // Shows the toast for `kMotionTimingToast` ms and says it politely to a
   // screen reader.
-  void ShowToast(const std::u16string& text, bool has_actions = false);
+  // `announcement`, when set, is what the screen reader says instead of the
+  // text (the Clear toast also says that Undo is there).
+  void ShowToast(const std::u16string& text,
+                 bool has_actions = false,
+                 const std::u16string& announcement = std::u16string());
   void HideToast();
   void UndoFiling();
   void DontFileThisSite();
+  // Clear (issue #266): archives the unpinned Today tabs, or closes them
+  // (`close_only`: Alt+click, "Close all", and a private window).
+  void ClearToday(bool close_only);
+  void OnClearPressed(const ui::Event& event);
+  void ShowClearMenu(const gfx::Point& screen_point,
+                     ui::mojom::MenuSourceType source_type);
+  void OnClearMenuCommand(AerieSidebarContextMenu::Command command);
+  // The Undo button of the toast: undoes the filing or the Clear on screen.
+  void OnToastUndo();
+  void UndoClear();
   void FinishToastHide();
   aerie_tab_model::PinnedTabsController* PinnedController() const;
   void GoBackToPinnedPage(const std::string& tab_id);
@@ -757,6 +780,18 @@ class AerieSidebarView : public views::View,
   raw_ptr<views::BoxLayoutView> toast_actions_ = nullptr;
   raw_ptr<views::LabelButton> toast_undo_ = nullptr;
   raw_ptr<views::LabelButton> toast_dont_file_ = nullptr;
+  raw_ptr<views::LabelButton> clear_button_ = nullptr;
+  // A tab that Clear archived: where it was in Today, to put it back there.
+  struct ClearedTab {
+    std::string id;
+    std::string parent;
+    int position = 0;
+  };
+  // What Undo on the Clear toast brings back; empty when that toast is not
+  // the one on screen.
+  std::vector<ClearedTab> clear_undo_tabs_;
+  // What the last toast told a screen reader beyond its text, for tests.
+  std::u16string last_toast_announcement_;
   // What the toast on screen can undo.
   aerie_tab_model::AutoFileController::Filed last_filed_;
   base::WeakPtr<AerieSidebarFolderSheet> folder_sheet_;

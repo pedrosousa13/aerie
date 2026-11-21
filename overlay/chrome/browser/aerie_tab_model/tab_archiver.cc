@@ -289,18 +289,19 @@ bool TabArchiver::OnDue(const std::string& record_id) {
   // The tabs that were overdue when the browser started are archived without
   // motion.
   return ArchiveWithMotion(
-      tab, tick_clock_->NowTicks() - created_ > kArchiveCatchUpWindow);
+      tab, tick_clock_->NowTicks() - created_ > kArchiveCatchUpWindow,
+      std::string());
 }
 
-bool TabArchiver::Archive(tabs::TabInterface* tab) {
-  return ArchiveWithMotion(tab, /*animate=*/true);
+bool TabArchiver::Archive(tabs::TabInterface* tab, const std::string& reason) {
+  return ArchiveWithMotion(tab, /*animate=*/true, reason);
 }
 
-bool TabArchiver::ArchiveWithMotion(tabs::TabInterface* tab, bool animate) {
+bool TabArchiver::CanArchive(tabs::TabInterface* tab) {
   TabStripAdapter* adapter = service_->adapter();
   TabModel* model = service_->model();
-  content::WebContents* contents = tab->GetContents();
-  const std::string id = adapter ? adapter->RecordIdForTab(tab) : std::string();
+  content::WebContents* contents = tab ? tab->GetContents() : nullptr;
+  const std::string id = adapter && tab ? adapter->RecordIdForTab(tab) : std::string();
   const TabRecord* record = id.empty() ? nullptr : model->GetTab(id);
   if (!contents || !record || record->section != Section::kToday ||
       record->archived_at) {
@@ -313,14 +314,24 @@ bool TabArchiver::ArchiveWithMotion(tabs::TabInterface* tab, bool animate) {
     return false;
   }
   // A page that cannot be restored is not archived: the tab stays open.
-  if (!IsArchivable(tab)) {
+  return IsArchivable(tab);
+}
+
+bool TabArchiver::ArchiveWithMotion(tabs::TabInterface* tab,
+                                    bool animate,
+                                    const std::string& reason) {
+  if (!CanArchive(tab)) {
     return false;
   }
+  TabModel* model = service_->model();
+  const std::string id = service_->adapter()->RecordIdForTab(tab);
   for (Observer& observer : observers_) {
     observer.OnTabArchiving(id);
   }
   const tabs::TabHandle handle = tab->GetHandle();
-  if (!ArchiveTab(*model, id, Capture(tab), clock_->Now())) {
+  ArchiveData captured = Capture(tab);
+  captured.reason = reason;
+  if (!ArchiveTab(*model, id, std::move(captured), clock_->Now())) {
     for (Observer& observer : observers_) {
       observer.OnTabArchiveFailed(id);
     }
