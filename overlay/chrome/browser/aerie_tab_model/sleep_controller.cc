@@ -361,7 +361,8 @@ void SleepController::SyncKeepLoaded(const TabRecord& record,
 }
 
 void SleepController::SyncKeepLoaded(tabs::TabInterface* tab,
-                                     bool wake_on_switch) {
+                                     bool wake_on_switch,
+                                     bool allow_retry) {
   content::WebContents* contents = tab->GetContents();
   TabStripAdapter* adapter = service_->adapter();
   if (!contents || !adapter) {
@@ -380,7 +381,7 @@ void SleepController::SyncKeepLoaded(tabs::TabInterface* tab,
     // observer may run after ours). Nothing is recorded: the tab is tried once
     // more when the current event is done, and again at every change of the tab
     // (OnTabChangedAt) until the unit is there.
-    if (kept) {
+    if (kept && allow_retry) {
       base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
           FROM_HERE, base::BindOnce(&SleepController::RetryKeepLoaded,
                                     weak_factory_.GetWeakPtr(),
@@ -419,7 +420,7 @@ void SleepController::SyncKeepLoaded(tabs::TabInterface* tab,
 void SleepController::RetryKeepLoaded(tabs::TabHandle handle) {
   tabs::TabInterface* tab = handle.Get();
   if (tab) {
-    SyncKeepLoaded(tab, /*wake_on_switch=*/false);
+    SyncKeepLoaded(tab, /*wake_on_switch=*/false, /*allow_retry=*/false);
   }
 }
 

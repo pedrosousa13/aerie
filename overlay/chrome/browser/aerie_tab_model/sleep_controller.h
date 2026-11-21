@@ -150,7 +150,11 @@ class SleepController : public KeyedService,
   // A kept tab that is asleep is loaded again. Does nothing for a record whose
   // tab is not in a window yet; the strip events call it again.
   void SyncKeepLoaded(const TabRecord& record, bool wake_on_switch);
-  void SyncKeepLoaded(tabs::TabInterface* tab, bool wake_on_switch);
+  // `allow_retry` is false for the retry itself, so a tab that never gets a
+  // lifecycle unit is tried once per event and never in a loop.
+  void SyncKeepLoaded(tabs::TabInterface* tab,
+                      bool wake_on_switch,
+                      bool allow_retry = true);
   // The ids of the records last seen kept: switching the flag on is the one
   // moment a sleeping tab is loaded again (a tab that is kept and then put to
   // sleep by the user stays asleep).
