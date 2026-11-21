@@ -42,6 +42,9 @@ REPO = Path(__file__).resolve().parents[2]
 
 _PATH_RE = re.compile(r"(?<![\w.])/(?:home|Users|root|tmp|mnt|var|run|media|opt|private|proc)(?:/[^\s\"'<>,;)]*)?")
 _URL_QUERY_RE = re.compile(r"([a-z][a-z0-9+.-]*://[^\s\"'<>?#]*)[?#][^\s\"'<>]*", re.I)
+# Any absolute path in free text: "/" then a segment then "/" and more. Not after a word character, ".", ":",
+# "/" or "<", so "text/html", "./aerie" and "https://host/a/b" are left alone.
+_ANY_PATH_RE = re.compile(r"(?<![\w.:/<])/[\w.~%+@-]+(?:/[\w.~%+@-]*)+")
 _LEAK_RE = re.compile(r"/(?:home|Users|root|tmp|mnt|var|run|media|private)/|[?&][\w.%-]+=|[Cc]ookie:|Set-Cookie")
 _HEADER_RE = re.compile(r"\b(?:set-cookie|cookie|authorization)\s*[:=]\s*[^\n;]*", re.I)
 
@@ -55,7 +58,20 @@ def scrub_text(text: object) -> str:
     s = str(text)
     s = _HEADER_RE.sub("<redacted header>", s)
     s = _URL_QUERY_RE.sub(r"\1", s)
-    return _PATH_RE.sub("<path>", s)
+    return _ANY_PATH_RE.sub("<path>", _PATH_RE.sub("<path>", s))
+
+
+def check_local_path(text: str) -> None:
+    """Refuse text that still holds an absolute path (checked on fields where a local path could appear)."""
+    m = _ANY_PATH_RE.search(text)
+    if m:
+        raise ReportError(f"the report would hold a local path ({m.group(0)!r}); not written")
+
+
+def _safe_field(value: object) -> str:
+    out = scrub_text(value)
+    check_local_path(out)
+    return out
 
 
 def check_clean(text: str, forbidden: tuple[str, ...]) -> None:
@@ -82,7 +98,8 @@ def _explain(host: str, table: policy_model.PolicyTable) -> str | None:
 
 
 def _safe_path(url: str) -> str:
-    return scrub_text(urlsplit(url).path or "/")
+    # A URL path is expected in the report; only the known local roots are hidden from it.
+    return _PATH_RE.sub("<path>", urlsplit(url).path or "/")
 
 
 def _phase_bounds(zt: dict, total: int) -> list[tuple[str, int, int]]:
@@ -198,16 +215,16 @@ def build(run: dict, meta: dict, allowlist: policy_model.PolicyTable, *, require
     failures = _gate(run, checks, requests, version, commit, required)
 
     def summary(group: str) -> list[dict]:
-        return [{"name": scrub_text(n), "status": scrub_text(c.get("status")),
-                 "detail": scrub_text(c.get("detail") or "")}
+        return [{"name": _safe_field(n), "status": _safe_field(c.get("status")),
+                 "detail": _safe_field(c.get("detail") or "")}
                 for n, c in checks.items() if _check_group(n) == group]
 
     report = {
         "schema": SCHEMA,
         "title": "Aerie privacy report",
-        "version": scrub_text(version or "unknown"),
-        "commit": scrub_text(commit or "unknown"),
-        "gate": {"passed": not failures, "failures": [scrub_text(f) for f in failures]},
+        "version": _safe_field(version or "unknown"),
+        "commit": _safe_field(commit or "unknown"),
+        "gate": {"passed": not failures, "failures": [_safe_field(f) for f in failures]},
         "requests": requests,
         "phases": phases,
         "idle_seconds": ztd.get("idle_seconds"),
@@ -215,12 +232,12 @@ def build(run: dict, meta: dict, allowlist: policy_model.PolicyTable, *, require
         "fingerprinting": summary("fingerprinting"),
         "hardening": summary("hardening"),
         "netpolicy": {"counter": ztd.get("refusal_counter"),
-                      "counter_error": scrub_text(ztd.get("refusal_counter_error") or "") or None,
+                      "counter_error": _safe_field(ztd.get("refusal_counter_error") or "") or None,
                       "refused": [{"host": scrub_text(str(x.get("host", "")).lower()), "phase": x.get("phase")}
                                   for x in ztd.get("refused") or []]},
-        "rerun": {"command": scrub_text(meta.get("command") or "./aerie bench --report <dir>"),
-                  "binary_name": scrub_text(meta.get("binary_name") or ""),
-                  "binary_sha256": scrub_text(meta.get("binary_sha256") or "")},
+        "rerun": {"command": _safe_field(meta.get("command") or "./aerie bench --report <dir>"),
+                  "binary_name": _safe_field(meta.get("binary_name") or ""),
+                  "binary_sha256": _safe_field(meta.get("binary_sha256") or "")},
     }
     check_clean(render_json(report), forbidden)
     check_clean(render_html(report), forbidden)

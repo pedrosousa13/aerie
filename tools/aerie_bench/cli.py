@@ -247,13 +247,17 @@ def rerun_command(args: argparse.Namespace, binary_name: str, explicit_binary: b
         parts += ["--binary", f"./{binary_name}"]
     for dest, flag, kind in _RERUN_FLAGS:
         value = getattr(args, dest, None)
-        if value == defaults.get_default(dest) or value in (None, False):
+        if value == defaults.get_default(dest) or value is None or value is False:
             continue
         parts += [flag] if kind == "flag" else [flag, "<file>" if kind == "path" else str(value)]
     for extra in args.flag or []:
-        parts += ["--flag", extra]
+        name, eq, val = extra.partition("=")
+        if "/" in (val if eq else name) or (val if eq else name).startswith("~"):
+            extra = f"{name}=<file>" if eq else "<file>"
+        # --flag=VALUE, not "--flag VALUE": argparse takes a value that starts with "--" only in this form.
+        parts.append(f"--flag={extra}")
     from .privacy_report import scrub_text
-    return scrub_text(" ".join(shlex.quote(p) if p not in ("<dir>", "<file>") else p for p in parts))
+    return scrub_text(" ".join(p if p == "<dir>" or "<file>" in p else shlex.quote(p) for p in parts))
 
 
 def _write_privacy_report(args, result, binary: Path, build_root: Path, required: tuple[str, ...]) -> int:

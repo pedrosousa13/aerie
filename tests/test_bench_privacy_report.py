@@ -148,8 +148,42 @@ class RerunCommandTest(unittest.TestCase):
                                           no_sandbox=True, zero_traffic_settle=5.0, flag=["--foo=a b"],
                                           adblock_baseline="/home/alice/base.json"), "aerie", explicit_binary=True)
         self.assertEqual(cmd, "./aerie bench --report <dir> --binary ./aerie --no-sandbox "
-                              "--zero-traffic-settle 5.0 --adblock-baseline <file> --flag '--foo=a b'")
+                              "--zero-traffic-settle 5.0 --adblock-baseline <file> '--flag=--foo=a b'")
         self.assertNotIn("alice", cmd)
+
+
+    def test_zero_valued_flags_are_kept(self):
+        cmd = cli.rerun_command(self.args(report="out", zero_traffic_settle=0.0, adblock_online=0), "aerie", True)
+        self.assertIn("--zero-traffic-settle 0.0", cmd)
+
+    def test_path_like_flag_values_become_placeholders(self):
+        cmd = cli.rerun_command(self.args(report="out", flag=["--user-data-dir=/data/p", "--x=/srv/x/y",
+                                                              "--y=~/q", "--plain=1"]), "aerie", False)
+        self.assertEqual(cmd, "./aerie bench --report <dir> --flag=--user-data-dir=<file> --flag=--x=<file> "
+                              "--flag=--y=<file> --flag=--plain=1")
+
+
+class GenericPathTest(unittest.TestCase):
+    def test_unlisted_roots_are_scrubbed_from_text_but_url_paths_stay(self):
+        run = clean_run()
+        run["checks"][2]["detail"] = "profile at /data/p and /srv/x/y/z failed"
+        run["network"]["requests"].append(req("https://easylist.to/ads/x/y.js"))
+        meta = {**META, "command": "./aerie bench --report <dir> --flag=--a=/work/q/r"}
+        rep = pr.build(run, meta, pr.load_allowlist(DOC), required=REQUIRED)
+        for text in (pr.render_json(rep), pr.render_html(rep)):
+            for bad in ("/data/p", "/srv/x", "/work/q"):
+                self.assertNotIn(bad, text)
+        self.assertEqual(rep["requests"][0]["path"], "/ads/x/y.js")
+
+    def test_guard_names_any_absolute_path_and_spares_ordinary_text(self):
+        with self.assertRaises(pr.ReportError):
+            pr.check_local_path("/srv/x/y")
+        pr.check_local_path("text/html and/or ./aerie <dir> https://a.b/c/d")
+
+    def test_binary_name_goes_through_the_guard(self):
+        meta = {**META, "binary_name": "/srv/x/aerie"}
+        rep = pr.build(clean_run(), meta, pr.load_allowlist(DOC), required=REQUIRED)
+        self.assertNotIn("/srv/x", pr.render_html(rep))
 
 
 class ContentTest(unittest.TestCase):
