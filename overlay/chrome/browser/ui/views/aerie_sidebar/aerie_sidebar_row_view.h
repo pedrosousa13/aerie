@@ -16,6 +16,7 @@
 #include "components/aerie_design_tokens/aerie_motion.h"
 #include "components/aerie_design_tokens/aerie_tokens.h"
 #include "components/aerie_sidebar/aerie_sidebar_density.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_audio_state.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_drag_overlay.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_selection_keys.h"
 #include "components/aerie_sidebar/aerie_sidebar_move.h"
@@ -117,6 +118,9 @@ class AerieSidebarRowView : public views::View,
     // The "Back to pinned page" button of a pinned row was pressed (issue
     // #180).
     base::RepeatingClosure back_to_pinned;
+    // The audio mark of a tab that makes sound was pressed (issue #268): mute
+    // the tab, or unmute it.
+    base::RepeatingClosure toggle_audio;
     // The rename field opened or closed (issue #184: a rename keeps an
     // auto-hidden sidebar open).
     base::RepeatingClosure rename_state_changed;
@@ -182,6 +186,15 @@ class AerieSidebarRowView : public views::View,
   void SetKeptLoaded(bool kept);
   bool kept_loaded() const { return kept_loaded_; }
   views::ImageView* keep_mark() const { return keep_mark_; }
+  // The audio mark (issue #268): a speaker while the tab plays sound, a crossed
+  // speaker while the tab is muted, nothing otherwise. It is a real button
+  // (tooltip and accessible name "Mute tab" or "Unmute tab", a focus stop, Space
+  // and Enter press it) after the title. It appears and goes at once and has no
+  // motion, so reduced motion changes nothing. The rail (icons only) shows no
+  // mark.
+  void SetAudioState(AerieSidebarAudioState state);
+  AerieSidebarAudioState audio_state() const { return audio_state_; }
+  views::ImageButton* audio_button() const { return audio_button_; }
   // Smart folders (issue #140). A row inside a smart folder stands for a real
   // tab that has its own row elsewhere: the "smart-member" kind of row. It shows
   // a quiet hint of where the real tab is (`origin_name`, "Today" or "Pinned")
@@ -397,6 +410,7 @@ class AerieSidebarRowView : public views::View,
   // Shows or hides the pencil, the back button and the close button for the
   // row's state (renaming hides them all).
   void UpdateTrailing();
+  void ApplyAudioLook();
   void EnsureRenameField();
   void StyleRenameField();
   // Closes the field. `commit`: hand its text to `commit_rename`. `refocus`:
@@ -451,6 +465,8 @@ class AerieSidebarRowView : public views::View,
   raw_ptr<views::ImageView> sleep_badge_ = nullptr;
   raw_ptr<views::ImageView> keep_mark_ = nullptr;
   bool kept_loaded_ = false;
+  raw_ptr<views::ImageButton> audio_button_ = nullptr;
+  AerieSidebarAudioState audio_state_ = AerieSidebarAudioState::kNone;
   std::u16string title_text_;
   std::u16string title_note_;
   bool sleeping_ = false;

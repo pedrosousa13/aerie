@@ -33,6 +33,7 @@
 #include "chrome/browser/sessions/session_restore.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/public/tab_features.h"
+#include "chrome/browser/ui/tabs/tab_muted_utils.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_delegate.h"
 #include "chrome/browser/ui/views/aerie_adblock/aerie_guard_image.h"
@@ -50,6 +51,7 @@
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_sheet.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_card_fade.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_media_card.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_audio_watcher.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_media_controller.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_peek_driver.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_peek_surface.h"
@@ -619,6 +621,10 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
   media_card_ = AddChildView(std::make_unique<AerieSidebarMediaCard>());
   media_card_->SetPalette(palette_);
   media_ = std::make_unique<AerieSidebarMediaController>(browser_, media_card_);
+  audio_ = std::make_unique<AerieSidebarAudioWatcher>(
+      browser_->GetTabStripModel(),
+      base::BindRepeating(&AerieSidebarView::UpdateRows,
+                          base::Unretained(this)));
 
   // Bottom bar: a placeholder until the Archive button and the Workspace
   // switcher come. The toolbar's remaining buttons (extensions, profile, menu)
@@ -733,6 +739,7 @@ AerieSidebarView::~AerieSidebarView() {
   if (views::View* card = surface_tracker_.view(); card && parent()) {
     parent()->RemoveChildViewT(card);
   }
+  audio_.reset();
   media_.reset();
   archive_.reset();
   // A drag that is still running ends with the window: the controller goes
@@ -1383,6 +1390,8 @@ AerieSidebarRowView* AerieSidebarView::MakeRow(
                                            base::Unretained(this), id);
     callbacks.close = base::BindRepeating(&AerieSidebarView::CloseTab,
                                           base::Unretained(this), id);
+    callbacks.toggle_audio = base::BindRepeating(
+        &AerieSidebarView::ToggleTabAudio, base::Unretained(this), id);
     callbacks.key = base::BindRepeating(&AerieSidebarView::OnTreeRowKey,
                                         base::Unretained(this), today, id);
     callbacks.focused = today ? base::BindRepeating(
@@ -1420,6 +1429,8 @@ AerieSidebarRowView* AerieSidebarView::MakeRow(
                                           base::Unretained(this), id);
     callbacks.modified_click = base::BindRepeating(
         &AerieSidebarView::OnModifiedClick, base::Unretained(this), id);
+    callbacks.toggle_audio = base::BindRepeating(
+        &AerieSidebarView::ToggleTabAudio, base::Unretained(this), id);
   }
   callbacks.selection_key = base::BindRepeating(
       &AerieSidebarView::OnSelectionKey, base::Unretained(this), id);
@@ -2242,6 +2253,18 @@ void AerieSidebarView::GetAccessiblePanes(std::vector<views::View*>* panes) {
   }
 }
 
+void AerieSidebarView::ToggleTabAudio(const std::string& tab_id) {
+  tabs::TabInterface* tab = FindTab(tab_id);
+  content::WebContents* contents = tab ? tab->GetContents() : nullptr;
+  if (!contents) {
+    return;
+  }
+  // The call and the reason of the stock tab strip's audio indicator
+  // (BrowserTabStripController::ToggleTabAudioMute).
+  SetTabAudioMuted(contents, !contents->IsAudioMuted(),
+                   TabMutedReason::kAudioIndicator, std::string());
+}
+
 void AerieSidebarView::UpdateRows() {
   const std::map<std::string, tabs::TabInterface*> lookup = BuildTabLookup();
   base::AutoReset<raw_ptr<const std::map<std::string, tabs::TabInterface*>>>
@@ -2327,6 +2350,7 @@ void AerieSidebarView::UpdateRow(const Row& row) {
   row.view->SetSleeping(record && record->sleeping,
                         browser_->GetProfile()->GetPrefs());
   row.view->SetKeptLoaded(record && record->keep_loaded);
+  row.view->SetAudioState(AerieSidebarAudioWatcher::StateOf(tab));
   if (smart_member) {
     // The row only shows the tab: the hover hint says where it is, and the
     // close button says that it acts on the real tab.

@@ -890,6 +890,17 @@ A tab can be kept loaded so it never sleeps. It protects a call, music, a chat o
 - **Where it is stored.** `keep_loaded` on the tab record in the Tab Model (`state.json`), written only when true, so older files read as false. It survives a restart with the record.
 - **The mark.** A small ring-and-dot icon (`aerie_keep_loaded.icon`, `size-sleep-badge`, colour `text-muted`) after the title, with the tooltip "Kept loaded: this tab never sleeps or archives". It appears and goes at once; there is no motion, so reduced motion changes nothing. The rail (icons only) shows no mark. The row's accessible name ends with ", kept loaded" (before ", renamed"). The mark is not a button or a focus stop. Favorites tiles show no mark yet.
 
+## Mute from the row, as built (#268)
+
+The audio mark of a tab row is a button that mutes the tab.
+
+- **What it shows.** After the title, a speaker while the tab plays sound (`text` colour) and a crossed speaker while the tab is muted (`text-muted` colour), from Chromium's `volume_up` and `volume_off` vector icons, `size-pencil-button` (20 px) hit area. It is hidden for a tab with no sound and in the rail (icons only). Favorites tiles show no mark yet.
+- **Which state.** "Muted" follows the tab's own mute state (`WebContents::IsAudioMuted()`), so the mark stays for as long as the tab is muted, even after it goes silent: the user can always unmute from the sidebar (Arc does the same). "Playing" is the `kAudioPlaying` tab alert of Chromium (`TabAlertController`, the state of the stock tab strip's audio indicator: the tab was recently audible). `AerieSidebarAudioWatcher` watches the alert and `DidUpdateAudioMutingState` of every tab and refreshes the rows when either changes. When the mark goes while it has focus (unmuting a silent tab), focus moves to the row.
+- **What it does.** A click or Space or Enter calls `SetTabAudioMuted(contents, !contents->IsAudioMuted(), TabMutedReason::kAudioIndicator, "")`, the call of `BrowserTabStripController::ToggleTabAudioMute`. The click goes to the button and does not select the tab. A row in a smart folder acts on the real tab.
+- **Name and tooltip.** "Mute tab" while the tab plays, "Unmute tab" while it is muted (both as the tooltip and as the accessible name). The row's own accessible name does not change.
+- **Keyboard.** The button is a focus stop while it shows: Tab from the row reaches it, Space and Enter press it. It has the shared sidebar focus ring.
+- **Motion.** None. The mark appears, changes and goes at once, so reduced motion changes nothing.
+
 ## Media card, as built (#263)
 
 A compact card above the bottom bar shows the tab that plays audio or video, so the user can pause it, skip a track or find the tab without leaving the page in front.

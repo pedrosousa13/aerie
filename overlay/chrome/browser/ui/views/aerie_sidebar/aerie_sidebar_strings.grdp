@@ -64,6 +64,12 @@
   <message name="IDS_AERIE_SIDEBAR_ROW_KEPT_NAME" desc="Accessible name of a tab row in the sidebar when the tab is kept loaded, so it never goes to sleep and is never archived automatically. The tab's title comes first, then the words kept loaded.">
     <ph name="TITLE">$1<ex>Example page</ex></ph>, kept loaded
   </message>
+  <message name="IDS_AERIE_SIDEBAR_MUTE_TAB" desc="Tooltip and accessible name of the speaker button on a tab row in the sidebar while the tab plays sound. Pressing it mutes the tab.">
+    Mute tab
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_UNMUTE_TAB" desc="Tooltip and accessible name of the crossed speaker button on a tab row in the sidebar while the tab is muted. Pressing it lets the tab make sound again.">
+    Unmute tab
+  </message>
   <message name="IDS_AERIE_SIDEBAR_SLEEP_TAB" desc="Item of the context menu of a tab row in the sidebar. It puts the tab to sleep at once, which frees its memory. The tab loads again when the user selects it.">
     Sleep tab
   </message>
