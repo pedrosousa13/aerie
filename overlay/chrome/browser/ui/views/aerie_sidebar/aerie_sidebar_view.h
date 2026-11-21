@@ -61,6 +61,7 @@ class AerieSidebarDragHost;
 class AerieSidebarPeekDriver;
 class AerieSidebarPeekSurface;
 class AerieSidebarMediaCard;
+class AerieSidebarAudioWatcher;
 class AerieSidebarMediaController;
 
 namespace aerie_tab_model {
@@ -632,6 +633,9 @@ class AerieSidebarView : public views::View,
   // header, or hides them when no tab sleeps.
   void UpdateSleepingSummary();
   void CloseTab(const std::string& tab_id);
+  // The audio mark of a row was pressed (issue #268): mutes the tab, or unmutes
+  // it, with the call the stock tab strip makes.
+  void ToggleTabAudio(const std::string& tab_id);
   // Keyboard focus is on a row: it is the Tab stop from now on.
   void OnRowFocused();
   // The same for the Pinned tree and the Favorites grid (issue #180).
@@ -785,6 +789,8 @@ class AerieSidebarView : public views::View,
   raw_ptr<views::BoxLayoutView> toast_card_ = nullptr;
   raw_ptr<AerieSidebarMediaCard> media_card_ = nullptr;
   std::unique_ptr<AerieSidebarMediaController> media_;
+  // Tells when the audio mark of a tab changes (issue #268).
+  std::unique_ptr<AerieSidebarAudioWatcher> audio_;
   raw_ptr<views::Label> toast_ = nullptr;
   raw_ptr<views::BoxLayoutView> toast_actions_ = nullptr;
   raw_ptr<views::LabelButton> toast_undo_ = nullptr;

@@ -180,6 +180,23 @@ AerieSidebarRowView::AerieSidebarRowView(
       l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_KEEP_LOADED_TOOLTIP));
   keep_mark_->SetVisible(false);
 
+  // The audio mark (issue #268). A real button, and a focus stop while it shows
+  // (a hidden view takes no focus): Tab from the row reaches it, Space and Enter
+  // press it. Its ring is the shared sidebar ring.
+  audio_button_ =
+      content_->AddChildView(views::CreateVectorImageButton(base::BindRepeating(
+          [](AerieSidebarRowView* row) {
+            if (row->callbacks_.toggle_audio) {
+              row->callbacks_.toggle_audio.Run();
+            }
+          },
+          base::Unretained(this))));
+  audio_button_->SetPreferredSize(gfx::Size(aerie::tokens::kSizePencilButton,
+                                            aerie::tokens::kSizePencilButton));
+  audio_button_->SetVisible(false);
+  audio_button_->SetFocusBehavior(views::View::FocusBehavior::ALWAYS);
+  AerieSidebarFocusRing::InstallOnButton(audio_button_, aerie::tokens::kRadiusMd);
+
   // The hint of a row inside a smart folder (issue #140): where the real tab
   // is. Quiet, and only while the pointer is on the row.
   origin_hint_ = content_->AddChildView(std::make_unique<views::Label>(
@@ -350,6 +367,10 @@ void AerieSidebarRowView::SetPalette(
                                               palette_.text, icon_size_));
   }
   views::InkDrop::Get(back_to_pinned_)->SetBaseColor(palette_.text);
+  views::InkDrop::Get(audio_button_)->SetBaseColor(palette_.text);
+  AerieSidebarFocusRing::Get(audio_button_)
+      ->SetStyle(palette_.accent, palette_.focus_ring_width);
+  ApplyAudioLook();
   for (views::Button::ButtonState state :
        {views::Button::STATE_NORMAL, views::Button::STATE_DISABLED}) {
     pencil_->SetImageModel(
@@ -373,6 +394,38 @@ void AerieSidebarRowView::SetPalette(
   UpdateState();
 }
 
+void AerieSidebarRowView::SetAudioState(AudioState state) {
+  if (audio_state_ == state) {
+    return;
+  }
+  audio_state_ = state;
+  ApplyAudioLook();
+  UpdateTrailing();
+}
+
+void AerieSidebarRowView::ApplyAudioLook() {
+  // Playing: the speaker in the text colour. Muted: the crossed speaker in the
+  // muted text colour (a quiet row says that the sound is off).
+  const bool muted = audio_state_ == AudioState::kMuted;
+  const gfx::VectorIcon& icon =
+      muted ? vector_icons::kVolumeOffIcon : vector_icons::kVolumeUpIcon;
+  const SkColor rest = muted ? palette_.text_muted : palette_.text;
+  for (views::Button::ButtonState state :
+       {views::Button::STATE_NORMAL, views::Button::STATE_DISABLED}) {
+    audio_button_->SetImageModel(
+        state, ui::ImageModel::FromVectorIcon(icon, rest, icon_size_));
+  }
+  for (views::Button::ButtonState state :
+       {views::Button::STATE_HOVERED, views::Button::STATE_PRESSED}) {
+    audio_button_->SetImageModel(
+        state, ui::ImageModel::FromVectorIcon(icon, palette_.text, icon_size_));
+  }
+  const std::u16string text = l10n_util::GetStringUTF16(
+      muted ? IDS_AERIE_SIDEBAR_UNMUTE_TAB : IDS_AERIE_SIDEBAR_MUTE_TAB);
+  audio_button_->SetTooltipText(text);
+  audio_button_->GetViewAccessibility().SetName(text);
+}
+
 void AerieSidebarRowView::SetBackToPinnedVisible(bool visible) {
   back_to_pinned_wanted_ = visible;
   UpdateTrailing();
@@ -385,6 +438,8 @@ void AerieSidebarRowView::UpdateTrailing() {
   pencil_->SetVisible(renamed_ && !closing_ && !renaming_ && !icons_only_);
   keep_mark_->SetVisible(kept_loaded_ && !closing_ && !renaming_ &&
                          !icons_only_);
+  audio_button_->SetVisible(audio_state_ != AudioState::kNone && !closing_ &&
+                            !renaming_ && !icons_only_);
   origin_hint_->SetVisible(smart_member_ && hovered_ && !closing_ &&
                            !renaming_ && !icons_only_);
   close_button_->SetVisible(ShowsCloseButton() && !closing_ && !renaming_ &&
