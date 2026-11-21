@@ -125,6 +125,9 @@ class SleepController : public KeyedService,
   // timer is armed again to read the folder's time.
   void OnTabAdded(const TabRecord&) override { schedule_.Rearm(); }
   void OnTabMoved(const TabRecord& tab, const Placement& from) override;
+  // Keep loaded (issue #267) is a flag on the record: switching it changes the
+  // time of that tab.
+  void OnTabChanged(const TabRecord&) override { schedule_.Rearm(); }
   void OnFolderAdded(const FolderRecord&) override { schedule_.Rearm(); }
   void OnFolderChanged(const FolderRecord&) override { schedule_.Rearm(); }
   void OnFolderMoved(const FolderRecord&, const Placement&) override {
@@ -137,6 +140,8 @@ class SleepController : public KeyedService,
   // The Tab Model record says the tab is asleep (a restored tab that has not
   // been loaded, issue #180).
   bool RecordIsAsleep(tabs::TabInterface* tab) const;
+  // The Tab Model record says the tab is kept loaded (issue #267).
+  bool RecordIsKept(tabs::TabInterface* tab) const;
   // Starts or stops the idle time of `tab`, from its state now.
   void Track(tabs::TabInterface* tab);
   // Called by the schedule: the tab has idled long enough.

@@ -429,4 +429,60 @@ IN_PROC_BROWSER_TEST_F(AerieSleepControllerBrowserTest,
       SleepController::Eligibility::State::kCanSleep);
 }
 
+// Keep loaded (issue #267): the flag on the record stops the idle timer.
+IN_PROC_BROWSER_TEST_F(AerieSleepControllerBrowserTest,
+                       AKeptTabStaysLoadedWhileItsNeighbourSleeps) {
+  prefs()->SetInteger(kSleepAfterMinutes, 15);
+  const int kept = OpenBackgroundTab();
+  const int neighbour = OpenBackgroundTab();
+  ASSERT_TRUE(RecordOf(kept));
+  ASSERT_TRUE(SetTabKeepLoaded(*service_->model(), RecordOf(kept)->id, true));
+
+  AdvanceClock(base::Minutes(15));
+  EXPECT_TRUE(WaitFor([&] { return Asleep(neighbour); }));
+  AdvanceClock(base::Hours(3));
+  base::RunLoop().RunUntilIdle();
+  EXPECT_FALSE(RecordOf(kept)->sleeping);
+  EXPECT_FALSE(strip()->GetWebContentsAt(kept)->WasDiscarded());
+  // Even asked as the idle timer, with the delay ignored, the tab refuses.
+  EXPECT_EQ(controller_
+                ->GetEligibility(strip()->GetTabAtIndex(kept),
+                                 SleepController::Request::kIdleTimer)
+                .state,
+            SleepController::Eligibility::State::kCannotSleep);
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSleepControllerBrowserTest,
+                       AKeptTabInAFolderThatSleepsIsStillSkipped) {
+  prefs()->SetInteger(kSleepAfterMinutes, 60);
+  const std::string folder = CreateFolder(
+      *service_->model(), Section::kToday, std::string(), "Soon");
+  ASSERT_TRUE(SetFolderSleepAfter(*service_->model(), folder, 15));
+  const int kept = OpenBackgroundTab();
+  const int plain = OpenBackgroundTab();
+  ASSERT_TRUE(MoveTabToFolder(*service_->model(), RecordOf(kept)->id, folder));
+  ASSERT_TRUE(MoveTabToFolder(*service_->model(), RecordOf(plain)->id, folder));
+  ASSERT_TRUE(SetTabKeepLoaded(*service_->model(), RecordOf(kept)->id, true));
+
+  AdvanceClock(base::Minutes(15));
+  EXPECT_TRUE(WaitFor([&] { return Asleep(plain); }));
+  EXPECT_FALSE(RecordOf(kept)->sleeping);
+  EXPECT_FALSE(strip()->GetWebContentsAt(kept)->WasDiscarded());
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSleepControllerBrowserTest,
+                       ClearingKeepLoadedLetsTheIdleTabSleepAgain) {
+  prefs()->SetInteger(kSleepAfterMinutes, 15);
+  const int index = OpenBackgroundTab();
+  const std::string id = RecordOf(index)->id;
+  ASSERT_TRUE(SetTabKeepLoaded(*service_->model(), id, true));
+  AdvanceClock(base::Hours(2));
+  base::RunLoop().RunUntilIdle();
+  EXPECT_FALSE(strip()->GetWebContentsAt(index)->WasDiscarded());
+  ASSERT_TRUE(SetTabKeepLoaded(*service_->model(), id, false));
+  EXPECT_TRUE(controller_->schedule()->timer_pending());
+  AdvanceClock(base::Minutes(1));
+  EXPECT_TRUE(WaitFor([&] { return Asleep(index); }));
+}
+
 }  // namespace aerie_tab_model

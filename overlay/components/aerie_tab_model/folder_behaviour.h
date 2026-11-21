@@ -29,7 +29,8 @@
 // The rule (Effective): from the tab's own folder up through its parents, the
 // nearest folder that sets the behaviour wins; if none does, the global value.
 // Auto-archive has one more rule: a tab in Pinned, or in a Pinned folder, never
-// archives, whatever any folder or the global setting says.
+// archives, whatever any folder or the global setting says. A tab with
+// `keep_loaded` (issue #267) neither sleeps nor archives, whatever else is set.
 namespace aerie_tab_model {
 
 class TabModel;
@@ -95,6 +96,12 @@ bool SetFolderSleepAfter(TabModel& model,
 bool SetFolderLinksOpen(TabModel& model,
                         const std::string& folder_id,
                         std::optional<LinksOpen> links);
+
+// Keep loaded (issue #267): sets or clears the tab's own flag. A kept tab never
+// sleeps on the idle timer and never auto-archives; this beats every folder rule
+// and the global setting. False for an unknown tab or a value that changes
+// nothing.
+bool SetTabKeepLoaded(TabModel& model, const std::string& tab_id, bool keep);
 
 // --- Effective(tab, behaviour) ---
 

@@ -176,6 +176,16 @@ bool SleepController::RecordIsAsleep(tabs::TabInterface* tab) const {
   return record && record->sleeping;
 }
 
+bool SleepController::RecordIsKept(tabs::TabInterface* tab) const {
+  TabStripAdapter* adapter = service_->adapter();
+  if (!adapter) {
+    return false;
+  }
+  const std::string id = adapter->RecordIdForTab(tab);
+  const TabRecord* record = id.empty() ? nullptr : service_->model()->GetTab(id);
+  return record && record->keep_loaded;
+}
+
 bool SleepController::Watches(BrowserWindowInterface* browser) const {
   return browser->GetProfile() == profile_ &&
          browser->GetType() == BrowserWindowInterface::TYPE_NORMAL;
@@ -348,6 +358,11 @@ SleepController::Eligibility SleepController::GetEligibility(
   }
   if (tab->IsActivated()) {
     result.tooltip_message_id = IDS_AERIE_SIDEBAR_SLEEP_TAB_SELECTED;
+    return result;
+  }
+  // Keep loaded (issue #267): the idle timer never takes such a tab, even if the
+  // delay said otherwise. Only the user's own "Sleep now" can.
+  if (request == Request::kIdleTimer && RecordIsKept(tab)) {
     return result;
   }
   DiscardEligibilityPolicy* policy = GetPolicy();

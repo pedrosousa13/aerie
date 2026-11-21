@@ -230,6 +230,40 @@ TEST_F(ArchiveScheduleTest, OneTimerIsPendingWhateverTheFoldersSay) {
   EXPECT_EQ(task_environment_.GetPendingMainThreadTaskCount(), 1u);
 }
 
+TEST_F(ArchiveScheduleTest, AKeptTabIsNotArchivedWhileItsNeighbourIs) {
+  schedule_.SetArchiveAfter(base::Hours(12));
+  const std::string kept = Add(Section::kToday);
+  const std::string neighbour = Add(Section::kToday);
+  ASSERT_TRUE(SetTabKeepLoaded(model_, kept, true));
+  task_environment_.FastForwardBy(base::Days(3));
+  EXPECT_FALSE(IsArchived(kept));
+  EXPECT_TRUE(IsArchived(neighbour));
+}
+
+TEST_F(ArchiveScheduleTest, AKeptTabInAFolderThatArchivesIsStillSkipped) {
+  schedule_.SetArchiveAfter(base::Hours(12));
+  const std::string folder =
+      CreateFolder(model_, Section::kToday, std::string(), "Soon");
+  ASSERT_TRUE(SetFolderArchiveAfter(model_, folder, ArchiveChoice::k12Hours));
+  const std::string kept = Add(Section::kToday, folder);
+  const std::string plain = Add(Section::kToday, folder);
+  ASSERT_TRUE(SetTabKeepLoaded(model_, kept, true));
+  task_environment_.FastForwardBy(base::Days(3));
+  EXPECT_FALSE(IsArchived(kept));
+  EXPECT_TRUE(IsArchived(plain));
+}
+
+TEST_F(ArchiveScheduleTest, KeepingATabStopsTheTimerAndClearingItArmsItAgain) {
+  schedule_.SetArchiveAfter(base::Hours(12));
+  const std::string tab = Add(Section::kToday);
+  EXPECT_EQ(schedule_.next_fire_in(), base::Hours(12));
+  ASSERT_TRUE(SetTabKeepLoaded(model_, tab, true));
+  EXPECT_FALSE(schedule_.timer_pending());
+  task_environment_.FastForwardBy(base::Hours(5));
+  ASSERT_TRUE(SetTabKeepLoaded(model_, tab, false));
+  EXPECT_EQ(schedule_.next_fire_in(), base::Hours(7));
+}
+
 TEST_F(ArchiveScheduleTest, TheSelectedOrAudibleTabIsLeftAloneUntilItIsFree) {
   schedule_.SetArchiveAfter(base::Hours(12));
   const std::string id = Add(Section::kToday);
