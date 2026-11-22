@@ -101,8 +101,7 @@ void AerieSidebarHoverCard::OnTrigger(views::View* anchor,
       }
       return;
     case Trigger::kKeyPressed:
-      // Until the end of this event a focus change is the keyboard's. A key
-      // also ends the pointer's wait, which is not the user's attention now.
+      // Until the end of this event a focus change is the keyboard's.
       key_in_flight_ = true;
       base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
           FROM_HERE, base::BindOnce(
