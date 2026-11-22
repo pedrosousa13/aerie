@@ -12,9 +12,9 @@ The plumbing stays, so Helium bumps conflict as little as possible.
 
 --- a/chrome/app/settings_strings.grdp
 +++ b/chrome/app/settings_strings.grdp
-@@ -1742,13 +1742,13 @@
-       </message>
-     </if>
+@@ -1828,13 +1828,13 @@
+       Invalid push server URL
+     </message>
      <message name="IDS_SETTINGS_HELIUM_SERVICES_OVERRIDE" desc="Text input for overriding the Helium services server">
 -      Use your own instance of Helium services
 +      Extension proxy
@@ -31,13 +31,13 @@ The plumbing stays, so Helium bumps conflict as little as possible.
        Custom origin URL for Helium services
 --- a/chrome/browser/resources/settings/privacy_page/services_page.html
 +++ b/chrome/browser/resources/settings/privacy_page/services_page.html
-@@ -137,7 +137,7 @@
+@@ -177,7 +177,7 @@
      </div>
      <cr-input
          id="heliumOriginOverride"
 -        placeholder="https://services.helium.imput.net"
 +        placeholder="https://proxy.example.org"
-         value="[[prefs.helium.services.origin_override.value]]"
+         value="[[originOverridePref_.value]]"
          pattern="https://.*"
          on-keydown="onOriginOverrideKeydown_"
 --- a/components/helium_services/BUILD.gn
@@ -151,7 +151,7 @@ The plumbing stays, so Helium bumps conflict as little as possible.
  }
  
  bool ShouldAccessDictionaryService(const PrefService& prefs) {
-@@ -133,22 +109,9 @@
+@@ -138,22 +114,9 @@
      return GetServicesBaseURL(prefs).Resolve("/dict/");
  }
  

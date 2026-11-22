@@ -5,13 +5,14 @@ Aerie-Kind: hook
 Issue #177. While the layout is the sidebar, the controller reads and writes the width through
 aerie.sidebar.width (clamped to 200..400) instead of what a window restored from its session, is
 never collapsed (the sidebar hides, it does not shrink to a strip of icons), and reports no expand
-on hover. The default and minimum width constants of Helium's strip change to 260 and 200. They are
+on hover. The default width (Helium's GetVerticalTabStripDefaultUncollapsedWidth(), which is 200 or 220
+by UI density) becomes 260, and the minimum width constant becomes 200. They are
 global to the strip code, so issue #186 (horizontal tabs, which keeps Helium's strip for no layout)
 has to look at them again.
 
 --- a/chrome/browser/ui/tabs/BUILD.gn
 +++ b/chrome/browser/ui/tabs/BUILD.gn
-@@ -546,6 +546,8 @@
+@@ -571,6 +571,8 @@
        "//chrome/browser/actor",
        "//chrome/browser/actor/ui",
        "//chrome/browser/aerie_adblock:tab_helper",
@@ -22,12 +23,8 @@ has to look at them again.
        "//chrome/browser/breadcrumbs",
 --- a/chrome/browser/ui/tabs/vertical_tab_strip_state.h
 +++ b/chrome/browser/ui/tabs/vertical_tab_strip_state.h
-@@ -7,10 +7,10 @@
+@@ -11,7 +11,7 @@
  
- namespace tabs {
- 
--inline constexpr int kVerticalTabStripDefaultUncollapsedWidth = 200;
-+inline constexpr int kVerticalTabStripDefaultUncollapsedWidth = 260;
  // TODO(crbug.com/465833741): Replace constant with derived value based on
  // caption buttons.
 -inline constexpr int kVerticalTabStripUncollapsedMinWidth = 160;
@@ -121,3 +118,12 @@ has to look at them again.
  
    // Updates the SessionService with the current state (collapsed status and
    // uncollapsed width) for the associated session ID.
+--- a/chrome/browser/ui/layout_constants.cc
++++ b/chrome/browser/ui/layout_constants.cc
+@@ -321,5 +321,5 @@
+ }
+ 
+ int GetVerticalTabStripDefaultUncollapsedWidth() {
+-  return IsSpaciousUiDensity() ? 220 : 200;
++  return 260;
+ }

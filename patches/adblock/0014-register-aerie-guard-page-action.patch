@@ -5,7 +5,7 @@ Aerie-Kind: hook
 Issue #99. kActionAerieGuard sits in kActionIds after the JS optimizations action, so
 the bookmark star stays last (the static_assert is untouched). Its properties are not
 ephemeral (the icon shows on every http and https page) and its type is
-PageActionIconType::kAerieGuard = 50, with the pair in enums.xml and the AerieGuard
+PageActionIconType::kAerieGuard = 51, with the pair in enums.xml and the AerieGuard
 variant of the PageActionType histograms. Helium's kHiddenPageActionIds is not touched,
 so Helium's hide-page-actions flag hides the whole container, Guard included.
 The mojom enum and the two switches in toolbar_button_utils.cc must list every action id
@@ -13,33 +13,40 @@ The mojom enum and the two switches in toolbar_button_utils.cc must list every a
 
 --- a/chrome/browser/ui/actions/chrome_action_id.h
 +++ b/chrome/browser/ui/actions/chrome_action_id.h
-@@ -88,4 +88,5 @@
+@@ -87,6 +87,7 @@
+   E(kActionAutofillMandatoryReauth, IDC_AUTOFILL_MANDATORY_REAUTH) \
    E(kActionShowMemorySaverChip) \
    E(kActionShowJsOptimizationsIcon) \
 +  E(kActionAerieGuard) \
    E(kActionShowCookieControls) \
    E(kActionShowZoomBubble) \
+   E(kActionAddNewTabToGroup, IDC_ADD_NEW_TAB_TO_GROUP) \
 --- a/chrome/browser/ui/page_action/action_ids.h
 +++ b/chrome/browser/ui/page_action/action_ids.h
-@@ -29,4 +29,5 @@
+@@ -28,6 +28,7 @@
+     kActionIndigo,
      kActionShowMemorySaverChip,
      kActionShowJsOptimizationsIcon,
 +    kActionAerieGuard,
      kActionRecordReplay,
      kActionShowIntentPicker,
+     kActionSidePanelShowReadAnything,
 --- a/chrome/browser/ui/page_action/page_action_icon_type.h
 +++ b/chrome/browser/ui/page_action/page_action_icon_type.h
-@@ -63,5 +63,6 @@
+@@ -63,7 +63,8 @@
    kFakePageActionForDebug = 48,
    kWalletReminderNotice = 49,
--  kMaxValue = kWalletReminderNotice,
-+  kAerieGuard = 50,
+   kGmailOtpOptIn = 50,
+-  kMaxValue = kGmailOtpOptIn,
++  kAerieGuard = 51,
 +  kMaxValue = kAerieGuard,
  };
  // LINT.ThenChange(//tools/metrics/histograms/metadata/page/enums.xml:PageActionIconType)
+ 
 --- a/chrome/browser/ui/page_action/page_action_properties_provider.cc
 +++ b/chrome/browser/ui/page_action/page_action_properties_provider.cc
-@@ -98,4 +98,14 @@
+@@ -97,6 +97,16 @@
+         },
      },
      {
 +        kActionAerieGuard,
@@ -54,43 +61,54 @@ The mojom enum and the two switches in toolbar_button_utils.cc must list every a
 +    {
          kActionRecordReplay,
          {
+             .histogram_name = "RecordReplay",
 --- a/tools/metrics/histograms/metadata/page/enums.xml
 +++ b/tools/metrics/histograms/metadata/page/enums.xml
-@@ -293,4 +293,5 @@
+@@ -293,6 +293,7 @@
    <int value="48" label="Fake Page Action For Debug"/>
    <int value="49" label="Wallet Reminder Notice"/>
-+  <int value="50" label="Aerie Guard"/>
+   <int value="50" label="Gmail OTP Opt-In"/>
++  <int value="51" label="Aerie Guard"/>
  </enum>
  
+ <!-- LINT.ThenChange(//chrome/browser/ui/page_action/page_action_icon_type.h:PageActionIconType) -->
 --- a/tools/metrics/histograms/metadata/page/histograms.xml
 +++ b/tools/metrics/histograms/metadata/page/histograms.xml
-@@ -417,4 +417,5 @@
+@@ -418,6 +418,7 @@
+ </variants>
  
  <variants name="PageActionType">
 +  <variant name="AerieGuard"/>
    <variant name="AiMode"/>
    <variant name="BookmarksStar"/>
+   <variant name="ClickToCall"/>
 --- a/components/browser_apis/ui_controllers/toolbar/toolbar_ui_api_data_model.mojom
 +++ b/components/browser_apis/ui_controllers/toolbar/toolbar_ui_api_data_model.mojom
-@@ -472,4 +472,5 @@
+@@ -499,6 +499,7 @@
+   kActionShowTranslate,
    kActionShowMemorySaverChip,
    kActionShowJsOptimizationsIcon,
 +  kActionAerieGuard,
    kActionRecordReplay,
    kActionShowIntentPicker,
+   kActionShowZoomBubble,
 --- a/chrome/browser/ui/webui/webui_toolbar/utils/toolbar_button_utils.cc
 +++ b/chrome/browser/ui/webui/webui_toolbar/utils/toolbar_button_utils.cc
-@@ -449,4 +449,6 @@
+@@ -505,6 +505,8 @@
+       return kActionShowMemorySaverChip;
      case MojomPageActionId::kActionShowJsOptimizationsIcon:
        return kActionShowJsOptimizationsIcon;
 +    case MojomPageActionId::kActionAerieGuard:
 +      return kActionAerieGuard;
      case MojomPageActionId::kActionRecordReplay:
        return kActionRecordReplay;
-@@ -525,4 +527,6 @@
+     case MojomPageActionId::kActionShowIntentPicker:
+@@ -583,6 +585,8 @@
+       return MojomPageActionId::kActionShowMemorySaverChip;
      case kActionShowJsOptimizationsIcon:
        return MojomPageActionId::kActionShowJsOptimizationsIcon;
 +    case kActionAerieGuard:
 +      return MojomPageActionId::kActionAerieGuard;
      case kActionRecordReplay:
        return MojomPageActionId::kActionRecordReplay;
+     case kActionShowIntentPicker:
