@@ -28,9 +28,20 @@ TEST(FilterListUrlTest, OnlyHttpsIsAcceptable) {
        {"http://lists.example/a.txt", "ftp://lists.example/a.txt",
         "file:///etc/passwd", "data:text/plain,x", "javascript:alert(1)",
         "https://user:pw@lists.example/a.txt", "https://lists.example/a#frag",
-        "https:///a.txt", "", "not a url"}) {
+        "https://", "https://:8443/a.txt", "", "not a url"}) {
     EXPECT_FALSE(IsAcceptableListUrl(GURL(bad), false)) << bad;
   }
+}
+
+// GURL turns the raw "https:///a.txt" into https://a.txt/, the way every
+// browser address bar does. By the time IsAcceptableListUrl() sees it, it is an
+// ordinary https URL for the public host "a.txt", and fetching that host is
+// right: the list is added and shown under that address. (A real empty host
+// stays invalid, see above.)
+TEST(FilterListUrlTest, ExtraSlashesAreCanonicalisedToTheHostThatFollows) {
+  GURL url("https:///a.txt");
+  EXPECT_EQ("a.txt", url.host());
+  EXPECT_TRUE(IsAcceptableListUrl(url, false));
 }
 
 TEST(FilterListUrlTest, LoopbackHttpNeedsTheTestSwitch) {
