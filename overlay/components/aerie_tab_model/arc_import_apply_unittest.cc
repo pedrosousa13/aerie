@@ -330,4 +330,56 @@ TEST_F(ArcImportApplyTest, AFailedWriteChangesNothing) {
   EXPECT_EQ(model_.tabs().size(), tabs_before + 4);
 }
 
+TEST_F(ArcImportApplyTest, ImportingTheSameSpaceTwiceAddsNothing) {
+  ArcSpacePlan plan;
+  plan.pinned.push_back(Tab("a"));
+  plan.pinned.push_back(Folder("Work", {Tab("b"), Tab("c")}));
+  plan.favorites.push_back(Tab("fav").tab);
+  ASSERT_TRUE(ApplyArcSpacePlan(model_, plan).has_value());
+  const size_t tabs = model_.tabs().size();
+  const size_t folders = model_.folders().size();
+
+  std::optional<ArcImportCounts> again = ApplyArcSpacePlan(model_, plan);
+  ASSERT_TRUE(again.has_value());
+  EXPECT_EQ(again->pinned_tabs, 0);
+  EXPECT_EQ(again->folders, 0);
+  EXPECT_EQ(again->favorites, 0);
+  EXPECT_EQ(again->skipped[ArcSkipReason::kAlreadyThere], 4);
+  EXPECT_EQ(model_.tabs().size(), tabs);
+  EXPECT_EQ(model_.folders().size(), folders);
+  EXPECT_EQ(Children(""), (std::vector<std::string>{"t:a", "f:Work"}));
+  EXPECT_EQ(Children(FolderId("Work")), (std::vector<std::string>{"t:b", "t:c"}));
+}
+
+TEST_F(ArcImportApplyTest, TheSameAddressInAnotherPlaceIsNotADuplicate) {
+  ArcSpacePlan first;
+  first.pinned.push_back(Tab("a"));
+  ASSERT_TRUE(ApplyArcSpacePlan(model_, first).has_value());
+
+  ArcSpacePlan second;
+  second.pinned.push_back(Folder("Work", {Tab("a"), Tab("b")}));
+  std::optional<ArcImportCounts> counts = ApplyArcSpacePlan(model_, second);
+  ASSERT_TRUE(counts.has_value());
+  EXPECT_EQ(counts->pinned_tabs, 2);
+  EXPECT_EQ(counts->skipped[ArcSkipReason::kAlreadyThere], 0);
+  EXPECT_EQ(Children(FolderId("Work")), (std::vector<std::string>{"t:a", "t:b"}));
+}
+
+TEST_F(ArcImportApplyTest, AnAlreadyThereTabUsesUpNoRoom) {
+  for (int i = 0; i < 11; ++i) {
+    ASSERT_FALSE(AddExistingTab(Section::kFavorite, i).empty());
+  }
+  ArcSpacePlan plan;
+  TabRecord existing = *model_.GetTab(SectionTabIds(model_, Section::kFavorite)[0]);
+  ArcPlanTab dup;
+  dup.url = *existing.pinned_url;
+  plan.favorites.push_back(dup);
+  plan.favorites.push_back(Tab("new").tab);
+  std::optional<ArcImportCounts> counts = ApplyArcSpacePlan(model_, plan);
+  ASSERT_TRUE(counts.has_value());
+  EXPECT_EQ(counts->favorites, 1);
+  EXPECT_EQ(counts->skipped[ArcSkipReason::kAlreadyThere], 1);
+  EXPECT_EQ(counts->skipped[ArcSkipReason::kFavoritesFull], 0);
+}
+
 }  // namespace aerie_tab_model

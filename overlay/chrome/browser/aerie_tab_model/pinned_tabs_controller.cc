@@ -186,49 +186,108 @@ std::vector<std::string> PinnedTabsController::RecordsWithoutTab() const {
   return ids;
 }
 
-void PinnedTabsController::RestoreMissingTabs() {
+void PinnedTabsController::RestoreMissingTabs(base::OnceClosure done) {
+  if (done) {
+    restore_done_.push_back(std::move(done));
+  }
+  if (restoring_) {
+    // The batch that is queued is the old list: look again at the end.
+    rescan_ = true;
+    return;
+  }
   if (!loaded_) {
+    FinishRestore();
     return;
   }
-  const std::vector<std::string> ids = RecordsWithoutTab();
-  if (ids.empty()) {
+  std::vector<std::string> ids = RecordsWithoutTab();
+  if (ids.empty() || !RestoreTarget()) {
+    FinishRestore();
     return;
   }
+  restore_queue_.assign(ids.begin(), ids.end());
+  restoring_ = true;
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE, base::BindOnce(&PinnedTabsController::RestoreBatch,
+                                weak_factory_.GetWeakPtr()));
+}
+
+void PinnedTabsController::RestoreBatch() {
   BrowserWindowInterface* browser = RestoreTarget();
   if (!browser) {
+    // The window went away: stop. The next window restarts the restore
+    // (OnBrowserCreated).
+    restore_queue_.clear();
+    restoring_ = false;
+    rescan_ = false;
+    FinishRestore();
     return;
   }
-  for (const std::string& id : ids) {
+  for (size_t made = 0; made < kRestoreBatchSize && !restore_queue_.empty();) {
+    const std::string id = std::move(restore_queue_.front());
+    restore_queue_.pop_front();
     const TabRecord* record = model_->GetTab(id);
-    const GURL url(*record->pinned_url);
-    if (!url.is_valid()) {
+    // The record may have gone, or got its tab, since the list was made.
+    if (!record || !record->pinned_url || adapter_->TabForRecord(id)) {
       continue;
     }
-    sessions::SerializedNavigationEntry navigation;
-    navigation.set_index(0);
-    navigation.set_virtual_url(url);
-    navigation.set_original_request_url(url);
-    if (record->last_title) {
-      navigation.set_title(base::UTF8ToUTF16(*record->last_title));
-    }
-    // The adapter joins the tab that this call inserts to the record, instead
-    // of making it a new Today tab.
-    adapter_->SetPendingRestoreRecord(id);
-    chrome::AddRestoredTab(
-        browser, base::span_from_ref(navigation),
-        browser->GetTabStripModel()->count(), /*selected_navigation=*/0,
-        /*extension_app_id=*/std::string(), /*group=*/std::nullopt,
-        /*select=*/false, /*pin=*/false,
-        /*last_active_time_ticks=*/base::TimeTicks(),
-        /*last_active_time=*/base::Time(), /*storage_namespace=*/nullptr,
-        sessions::SerializedUserAgentOverride(), /*extra_data=*/{},
-        /*from_session_restore=*/false, /*is_active_browser=*/std::nullopt,
-        chrome::RestoredTabLoadPolicy::kDeferUntilActivation);
-    adapter_->SetPendingRestoreRecord(std::string());
-    // Not loaded: the sidebar shows it as asleep until it is selected (the
-    // decision of issue #180: one look for "not loaded", the moon badge).
-    model_->UpdateTab(id, [](TabRecord& tab) { tab.sleeping = true; });
+    RestoreOne(browser, id);
+    ++made;
   }
+  if (restore_queue_.empty() && rescan_) {
+    rescan_ = false;
+    for (std::string& id : RecordsWithoutTab()) {
+      restore_queue_.push_back(std::move(id));
+    }
+  }
+  if (restore_queue_.empty()) {
+    restoring_ = false;
+    FinishRestore();
+    return;
+  }
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE, base::BindOnce(&PinnedTabsController::RestoreBatch,
+                                weak_factory_.GetWeakPtr()));
+}
+
+void PinnedTabsController::FinishRestore() {
+  std::vector<base::OnceClosure> done;
+  done.swap(restore_done_);
+  for (base::OnceClosure& callback : done) {
+    std::move(callback).Run();
+  }
+}
+
+void PinnedTabsController::RestoreOne(BrowserWindowInterface* browser,
+                                      const std::string& id) {
+  const TabRecord* record = model_->GetTab(id);
+  const GURL url(*record->pinned_url);
+  if (!url.is_valid()) {
+    return;
+  }
+  sessions::SerializedNavigationEntry navigation;
+  navigation.set_index(0);
+  navigation.set_virtual_url(url);
+  navigation.set_original_request_url(url);
+  if (record->last_title) {
+    navigation.set_title(base::UTF8ToUTF16(*record->last_title));
+  }
+  // The adapter joins the tab that this call inserts to the record, instead of
+  // making it a new Today tab.
+  adapter_->SetPendingRestoreRecord(id);
+  chrome::AddRestoredTab(
+      browser, base::span_from_ref(navigation),
+      browser->GetTabStripModel()->count(), /*selected_navigation=*/0,
+      /*extension_app_id=*/std::string(), /*group=*/std::nullopt,
+      /*select=*/false, /*pin=*/false,
+      /*last_active_time_ticks=*/base::TimeTicks(),
+      /*last_active_time=*/base::Time(), /*storage_namespace=*/nullptr,
+      sessions::SerializedUserAgentOverride(), /*extra_data=*/{},
+      /*from_session_restore=*/false, /*is_active_browser=*/std::nullopt,
+      chrome::RestoredTabLoadPolicy::kDeferUntilActivation);
+  adapter_->SetPendingRestoreRecord(std::string());
+  // Not loaded: the sidebar shows it as asleep until it is selected (the
+  // decision of issue #180: one look for "not loaded", the moon badge).
+  model_->UpdateTab(id, [](TabRecord& tab) { tab.sleeping = true; });
 }
 
 PinnedCloseAction PinnedTabsController::ActionFor(tabs::TabInterface* tab) const {

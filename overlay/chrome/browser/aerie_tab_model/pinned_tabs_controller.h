@@ -5,10 +5,12 @@
 #ifndef CHROME_BROWSER_AERIE_TAB_MODEL_PINNED_TABS_CONTROLLER_H_
 #define CHROME_BROWSER_AERIE_TAB_MODEL_PINNED_TABS_CONTROLLER_H_
 
+#include <deque>
 #include <memory>
 #include <string>
 #include <vector>
 
+#include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
@@ -58,8 +60,20 @@ class PinnedTabsController : public TabModelObserver,
 
   // Creates the unloaded tabs of the records that have none, in the most
   // recently active normal window of the profile. Does nothing before the Tab
-  // Model has been read or while there is no such window. Safe to call again.
-  void RestoreMissingTabs();
+  // Model has been read or while there is no such window.
+  //
+  // The tabs are made in batches of kRestoreBatchSize, each batch in its own
+  // task on the UI thread, so that a long list (an Arc import, issue #276) does
+  // not block the browser: input and painting run between the batches. Safe to
+  // call again while a restore runs: the call makes sure that the records that
+  // are missing a tab by now get one, and no record gets two tabs. `done` runs
+  // once, after the restore has finished (at once when there is nothing to do).
+  // It also runs when the controller's window goes away and the restore
+  // stops early; it does not run if the controller is destroyed first.
+  void RestoreMissingTabs(base::OnceClosure done = base::OnceClosure());
+  // How many tabs one batch makes. A tab restored unloaded takes a few
+  // milliseconds; this keeps a batch far below 100 ms.
+  static constexpr size_t kRestoreBatchSize = 5;
   // The records that wait for a tab, for tests.
   std::vector<std::string> RecordsWithoutTab() const;
 
@@ -99,6 +113,9 @@ class PinnedTabsController : public TabModelObserver,
   GURL CommittedUrl(tabs::TabInterface* tab) const;
   PinnedCloseMode Mode() const;
   void ScheduleRestore();
+  void RestoreBatch();
+  void FinishRestore();
+  void RestoreOne(BrowserWindowInterface* browser, const std::string& id);
   BrowserWindowInterface* RestoreTarget() const;
   // Selects the tab that follows `tab` in the sidebar, else the one above it,
   // else opens a new tab; only for the selected tab.
@@ -111,6 +128,12 @@ class PinnedTabsController : public TabModelObserver,
   const raw_ptr<TabStripAdapter> adapter_;
   bool loaded_ = false;
   bool restore_scheduled_ = false;
+  // A batched restore is under way: the ids that wait, and who to tell at the
+  // end. `rescan_` is set by a call that comes in meanwhile.
+  bool restoring_ = false;
+  bool rescan_ = false;
+  std::deque<std::string> restore_queue_;
+  std::vector<base::OnceClosure> restore_done_;
   std::vector<std::unique_ptr<ResetThenSleep>> resets_;
   base::ScopedObservation<TabModel, TabModelObserver> model_observation_{this};
   base::ScopedObservation<GlobalBrowserCollection, BrowserCollectionObserver>

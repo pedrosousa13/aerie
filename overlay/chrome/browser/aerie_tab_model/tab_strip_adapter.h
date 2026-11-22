@@ -133,6 +133,11 @@ class TabStripAdapter : public BrowserCollectionObserver,
   void OnModelLoaded() override;
   void OnTabMoved(const TabRecord& tab, const Placement& from) override;
 
+  // The only writers of `ids_` and `handle_for_record_`: they keep the two in
+  // step, so that TabForRecord is a lookup and not a scan.
+  void AssignId(tabs::TabHandle handle, std::string record_id);
+  void EraseId(std::map<tabs::TabHandle, std::string>::iterator it);
+
   bool Watches(BrowserWindowInterface* browser) const;
   // True when the record of a tab that goes away with its closing window should
   // stay, because session restore will bring the tab back.
@@ -158,6 +163,8 @@ class TabStripAdapter : public BrowserCollectionObserver,
   const raw_ptr<const base::Clock> clock_;
   // Live tab handle to record id.
   std::map<tabs::TabHandle, std::string> ids_;
+  // The same pairs, the other way round (record id to live tab handle).
+  std::map<std::string, tabs::TabHandle> handle_for_record_;
   std::string pending_restore_record_;
   // See PlaceNextTabAfter.
   std::string next_tab_after_;
