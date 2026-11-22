@@ -15,7 +15,9 @@
 #include "base/time/time.h"
 #include "chrome/browser/history/history_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
@@ -89,6 +91,36 @@ class AerieClearBrowsingDataBrowserTest : public InProcessBrowserTest {
                          "'#deleteBrowsingDataDialog'))))()"))
         << url;
   }
+  // The Privacy and security page's own "Delete browsing data" row, found in
+  // the shadow DOM and clicked.
+  void ClickTheRow() {
+    ASSERT_TRUE(ui_test_utils::NavigateToURL(
+        browser(), GURL("chrome://settings/privacy")));
+    ASSERT_EQ(true, Eval("(async () => { const row = await until(() => deep("
+                         "document, '#clearBrowsingData')); if (!row) return "
+                         "false; row.click(); return true; })()"));
+    WaitForDialog();
+  }
+  // Ctrl+Shift+Delete, or the menu item: the command, with Settings open on
+  // another route.
+  void RunTheCommandFrom(const std::string& url) {
+    ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL(url)));
+    if (url.rfind("chrome://settings", 0) == 0) {
+      ASSERT_EQ(true, Eval("(async () => !!(await until(() => deep(document, "
+                           "'settings-ui'))))()"));
+    }
+    chrome::ExecuteCommand(browser(), IDC_CLEAR_BROWSING_DATA);
+    WaitForDialog();
+  }
+  void WaitForDialog() {
+    // The command navigates a tab (this one, or a new one); wait for the page.
+    ASSERT_TRUE(base::test::RunUntil([&] {
+      return active()->GetLastCommittedURL().path() == "/clearBrowserData" &&
+             !active()->IsLoading();
+    }));
+    ASSERT_EQ(true, Eval("(async () => !!(await until(() => deep(document, "
+                         "'#deleteBrowsingDataDialog'))))()"));
+  }
   void Press(const std::string& id) {
     ASSERT_EQ(true, Eval("(async () => { const b = await until(() => deep("
                          "document, '#" + id + "')); if (!b) return false; "
@@ -135,3 +167,30 @@ IN_PROC_BROWSER_TEST_F(AerieClearBrowsingDataBrowserTest,
     EXPECT_EQ(2, content::EvalJs(active(), "1 + 1"));
   }
 }
+
+// Each way in, with the same two outcomes. `open` opens the dialog.
+#define ENTRY_POINT_TESTS(name, open)                                       \
+  IN_PROC_BROWSER_TEST_F(AerieClearBrowsingDataBrowserTest, name##Clears) { \
+    AddVisit();                                                             \
+    open;                                                                   \
+    Press("deleteButton");                                                  \
+    EXPECT_TRUE(base::test::RunUntil([&] { return !Visited(); }));          \
+    EXPECT_TRUE(base::test::RunUntil([&] { return DialogGone(); }));        \
+    EXPECT_EQ(2, content::EvalJs(active(), "1 + 1"));                       \
+  }                                                                         \
+  IN_PROC_BROWSER_TEST_F(AerieClearBrowsingDataBrowserTest, name##Cancels) { \
+    AddVisit();                                                             \
+    open;                                                                   \
+    Press("cancelButton");                                                  \
+    EXPECT_TRUE(base::test::RunUntil([&] { return DialogGone(); }));        \
+    EXPECT_TRUE(Visited());                                                 \
+    EXPECT_EQ(2, content::EvalJs(active(), "1 + 1"));                       \
+  }
+
+ENTRY_POINT_TESTS(TheDeleteBrowsingDataRow, ClickTheRow())
+ENTRY_POINT_TESTS(TheCommandFromTheGuardPage,
+                  RunTheCommandFrom("chrome://settings/aerieGuard"))
+ENTRY_POINT_TESTS(TheCommandFromTheSearchPage,
+                  RunTheCommandFrom("chrome://settings/search"))
+ENTRY_POINT_TESTS(TheCommandFromAnOrdinaryPage,
+                  RunTheCommandFrom("chrome://version"))
