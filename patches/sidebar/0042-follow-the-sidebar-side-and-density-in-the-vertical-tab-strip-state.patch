@@ -8,7 +8,7 @@ without touching the saved width.
 
 --- a/chrome/browser/ui/tabs/BUILD.gn
 +++ b/chrome/browser/ui/tabs/BUILD.gn
-@@ -546,6 +546,7 @@
+@@ -571,6 +571,7 @@
        "//chrome/browser/actor",
        "//chrome/browser/actor/ui",
        "//chrome/browser/aerie_adblock:tab_helper",

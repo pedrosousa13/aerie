@@ -11,14 +11,14 @@ gives a fresh record. The header has no dependencies, so the new dep cannot make
 
 --- a/chrome/browser/ui/BUILD.gn
 +++ b/chrome/browser/ui/BUILD.gn
-@@ -564,6 +564,7 @@
+@@ -566,6 +566,7 @@
        ":browser_window_header",
        ":ui_features",
        "//base",
 +      "//chrome/browser/aerie_tab_model:session_record_id_hook",
        "//chrome/browser/apps/app_service",
+       "//chrome/browser/contextual_tasks",
        "//chrome/browser/glic",
-       "//chrome/browser/performance_manager",
 --- a/chrome/browser/ui/browser_live_tab_context.cc
 +++ b/chrome/browser/ui/browser_live_tab_context.cc
 @@ -14,6 +14,7 @@
@@ -27,11 +27,11 @@ gives a fresh record. The header has no dependencies, so the new dep cannot make
  #include "base/values.h"
 +#include "chrome/browser/aerie_tab_model/session_record_id_hook.h"
  #include "chrome/browser/apps/app_service/web_contents_app_id_utils.h"
+ #include "chrome/browser/contextual_tasks/contextual_tasks_panel_controller.h"
  #include "chrome/browser/glic/glic_tab_restore_helper.h"
- #include "chrome/browser/performance_manager/public/background_tab_loading_policy.h"
-@@ -207,6 +208,15 @@
-   glic::PopulateGlicExtraData(tab_strip_model_->GetTabAtIndex(index),
-                               &extra_data);
+@@ -217,6 +218,15 @@
+   extra_data.merge(helium_pins::HeliumPinsTabController::GetSessionExtraData(
+       tab->GetContents()));
  
 +  // Aerie: a closed tab or window keeps the Tab Model record id of its tab, so
 +  // that "Reopen closed tab or window" can give the tab its record back (issue

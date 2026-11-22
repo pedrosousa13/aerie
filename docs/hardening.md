@@ -205,7 +205,7 @@ Fonts are not farbled. The separate, opt-in Restrict fonts setting (off by defau
   - `patches/hardening/0011-key-fingerprinting-noise-on-the-site.patch`
   - `patches/hardening/0012-cap-device-memory-at-8gb.patch`
   - `patches/hardening/0013-give-dedicated-workers-the-pages-noise-tokens.patch`
-  - `patches/hardening/0014-give-shared-and-service-workers-noise-tokens.patch`
+  - `patches/hardening/0014-let-workers-follow-the-gpu-masking-switches.patch`
   - `patches/hardening/0015-report-a-common-screen-size.patch`
   - `patches/hardening/0017-give-popups-the-openers-noise-tokens.patch`
   - `patches/hardening/0018-seed-measuretext-noise-per-site.patch`
