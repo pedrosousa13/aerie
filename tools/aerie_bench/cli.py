@@ -24,6 +24,14 @@ def add_arguments(p: argparse.ArgumentParser, *, binary_required: bool) -> None:
                    help="run the privacy report scenario (zero_traffic, adblock_score, fingerprinting and "
                         "hardening checks), write report.html and report.json into DIR, and exit 1 when the "
                         "release gate fails (docs/bench.md, Privacy report)")
+    p.add_argument("--measure", action="store_true",
+                   help="measure another browser (needs --binary, any Chromium-family browser): run zero_traffic and "
+                        "adblock_score on a fresh profile with default settings, count each request as the maker's, "
+                        "Google's, a tracker's or other, and write measurement.json into the results directory. "
+                        "Never judges the browser (docs/browser-comparison.md)")
+    p.add_argument("--compare", metavar="FILE", action="append", default=[],
+                   help="with --report: add the measurement.json of another browser to the report's comparison "
+                        "table (repeatable)")
     p.add_argument("--scenario", metavar="FILE", help="JSON scenario file (checks and page steps)")
     p.add_argument("--headed", action="store_true", help="show the browser window (default: headless)")
     p.add_argument("--no-sandbox", action="store_true",
@@ -138,7 +146,15 @@ def run(args: argparse.Namespace, build_root: Path, default_binary: Path | None)
         print("aerie bench: --binary is required", file=sys.stderr)
         return EXIT_HARNESS
     try:
-        if args.report:
+        if args.compare and not args.report:
+            raise BenchError("--compare adds to the privacy report; it needs --report")
+        if args.measure:
+            if not args.binary:
+                raise BenchError("--measure needs --binary: the browser to measure")
+            if args.report or args.check or args.scenario:
+                raise BenchError("--measure picks its own checks; do not combine it with --report, --check or --scenario")
+            sc = scenario.Scenario("measure-browser", ("zero_traffic", "adblock_score"))
+        elif args.report:
             if args.check or args.scenario:
                 raise BenchError("--report picks its own checks; do not combine it with --check or --scenario")
             sc = scenario.Scenario("privacy-report", report_checks())
@@ -185,7 +201,7 @@ def run(args: argparse.Namespace, build_root: Path, default_binary: Path | None)
                    "zero_traffic": {"idle_seconds": args.zero_traffic_idle,
                                     "settle_seconds": args.zero_traffic_settle,
                                     "strict": args.zero_traffic_strict,
-                                    "crash": not args.zero_traffic_no_crash},
+                                    "crash": not args.zero_traffic_no_crash, "measure": args.measure},
                    "widevine_opt_in": {"online_seconds": args.widevine_online},
                    "adblock_score": {"build_root": str(build_root), "baseline": args.adblock_baseline,
                                      "online_seconds": args.adblock_online},
@@ -201,6 +217,8 @@ def run(args: argparse.Namespace, build_root: Path, default_binary: Path | None)
         print((result.out_dir / "summary.txt").read_text(), end="")
         print(f"results: {result.out_dir / 'results.json'}")
         code = EXIT_PASS if result.status == "pass" else EXIT_FAIL
+        if args.measure:
+            code = max(code, _write_measurement(args, result))
         if args.report:
             code = max(code, _write_privacy_report(args, result, binary, build_root, sc.checks))
         if "perf" in sc.checks:
@@ -260,6 +278,22 @@ def rerun_command(args: argparse.Namespace, binary_name: str, explicit_binary: b
     return scrub_text(" ".join(p if p == "<dir>" or "<file>" in p else shlex.quote(p) for p in parts))
 
 
+def _write_measurement(args, result) -> int:
+    """measurement.json of a passing run. A run that failed (a truncated log, an unclean exit) measured nothing."""
+    import json
+
+    from . import comparison
+    if result.status != "pass":
+        print("aerie bench: the run failed, so nothing was measured; see the results above", file=sys.stderr)
+        return EXIT_FAIL
+    command = rerun_command(args, Path(args.binary).name, explicit_binary=True).replace("--report <dir>", "--measure")
+    m = comparison.measure(result.data, command)
+    (result.out_dir / "measurement.json").write_text(json.dumps(m, indent=2) + "\n", encoding="utf-8")
+    print(f"\n{comparison.headline(m)}. {m['total']} request attempt(s) to outside hosts in all; "
+          f"measurement: {result.out_dir / 'measurement.json'}")
+    return EXIT_PASS
+
+
 def _write_privacy_report(args, result, binary: Path, build_root: Path, required: tuple[str, ...]) -> int:
     """Build report.html and report.json from the run; EXIT_FAIL when the release gate fails."""
     import os
@@ -275,9 +309,11 @@ def _write_privacy_report(args, result, binary: Path, build_root: Path, required
     forbidden = tuple(x for x in (os.environ.get("HOME"), str(build_root), str(repo), str(Path(binary).parent),
                                   str(result.out_dir)) if x and len(x) > 1)
     try:
+        from . import comparison
+        others = [comparison.load_measurement(f) for f in args.compare]
         report = privacy_report.build(result.data, meta, privacy_report.load_default_allowlist(),
-                                      required=required, forbidden=forbidden)
-    except (privacy_report.ReportError, policy_model.PolicyDocError) as exc:
+                                      required=required, forbidden=forbidden, comparison=others)
+    except (privacy_report.ReportError, policy_model.PolicyDocError, comparison.MeasurementError) as exc:
         print(f"aerie bench: error: privacy report: {exc}", file=sys.stderr)
         return EXIT_HARNESS
     privacy_report.write(Path(args.report), report)

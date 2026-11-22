@@ -1,0 +1,156 @@
+{
+ "_note": "SYNTHETIC. Hand-made requests of a fresh Brave-like profile: loopback fixture, maker, Google, tracker and other hosts. Not a measurement.",
+ "constants": {
+  "logEventTypes": {
+   "URL_REQUEST_START_JOB": 7
+  },
+  "logSourceType": {
+   "URL_REQUEST": 1
+  }
+ },
+ "events": [
+  {
+   "phase": 1,
+   "source": {
+    "id": 1,
+    "type": 1
+   },
+   "time": "1",
+   "type": 7,
+   "params": {
+    "url": "http://127.0.0.1:41000/index.html",
+    "method": "GET"
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 2,
+    "type": 1
+   },
+   "time": "2",
+   "type": 7,
+   "params": {
+    "url": "https://go-updater.brave.com/extensions/check",
+    "method": "GET"
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 3,
+    "type": 1
+   },
+   "time": "3",
+   "type": 7,
+   "params": {
+    "url": "https://variations.brave.com/seed",
+    "method": "GET"
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 4,
+    "type": 1
+   },
+   "time": "4",
+   "type": 7,
+   "params": {
+    "url": "https://safebrowsing.googleapis.com/v4/threatListUpdates",
+    "method": "GET"
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 5,
+    "type": 1
+   },
+   "time": "5",
+   "type": 7,
+   "params": {
+    "url": "https://www.google.com/complete/search",
+    "method": "GET"
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 6,
+    "type": 1
+   },
+   "time": "6",
+   "type": 7,
+   "params": {
+    "url": "https://laptop-updates.brave.com/1/usage",
+    "method": "GET"
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 7,
+    "type": 1
+   },
+   "time": "7",
+   "type": 7,
+   "params": {
+    "url": "https://ads.doubleclick.net/pixel",
+    "method": "GET"
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 8,
+    "type": 1
+   },
+   "time": "8",
+   "type": 7,
+   "params": {
+    "url": "https://tracker.adtech.example/x",
+    "method": "GET"
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 9,
+    "type": 1
+   },
+   "time": "9",
+   "type": 7,
+   "params": {
+    "url": "https://example.org/page",
+    "method": "GET"
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 10,
+    "type": 1
+   },
+   "time": "10",
+   "type": 7,
+   "params": {
+    "url": "http://app.localhost:41000/x",
+    "method": "GET"
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 11,
+    "type": 1
+   },
+   "time": "11",
+   "type": 7,
+   "params": {
+    "url": "https://www.google.com.evil.example/x",
+    "method": "GET"
+   }
+  }
+ ]
+}

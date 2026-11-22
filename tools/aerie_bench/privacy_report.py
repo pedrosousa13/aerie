@@ -31,6 +31,7 @@ from urllib.parse import urlsplit
 
 from aerie_netpolicy import model as policy_model
 
+from . import comparison as comparison_mod
 from . import netlog
 
 SCHEMA = 1
@@ -204,8 +205,9 @@ def _gate(run: dict, checks: dict, requests: list[dict], version: object, commit
 
 
 def build(run: dict, meta: dict, allowlist: policy_model.PolicyTable, *, required: tuple[str, ...] = (),
-          forbidden: tuple[str, ...] = ()) -> dict:
-    """The report document for one recorded run. ``meta``: commit, binary_sha256, binary_name, command."""
+          forbidden: tuple[str, ...] = (), comparison: list[dict] | None = None) -> dict:
+    """The report document for one recorded run. ``meta``: commit, binary_sha256, binary_name, command.
+    ``comparison``: measurements of other browsers (``comparison.load_measurement``); the table never changes the gate."""
     checks = {c["name"]: c for c in run.get("checks", [])}
     ztd = (checks.get("zero_traffic") or {}).get("data") or {}
     requests, phases = _classify_requests((run.get("network") or {}).get("requests", []),
@@ -235,6 +237,8 @@ def build(run: dict, meta: dict, allowlist: policy_model.PolicyTable, *, require
                       "counter_error": _safe_field(ztd.get("refusal_counter_error") or "") or None,
                       "refused": [{"host": scrub_text(str(x.get("host", "")).lower()), "phase": x.get("phase")}
                                   for x in ztd.get("refused") or []]},
+        "comparison": {"aerie": comparison_mod.measure(run, meta.get("command") or ""),
+                       "others": list(comparison or [])},
         "rerun": {"command": _safe_field(meta.get("command") or "./aerie bench --report <dir>"),
                   "binary_name": _safe_field(meta.get("binary_name") or ""),
                   "binary_sha256": _safe_field(meta.get("binary_sha256") or "")},
@@ -302,6 +306,7 @@ docs/network-endpoints.md). Only the host and URL path are kept: no query string
 <p>{_e(b['blocked'])} of {_e(b['total'])} test hosts blocked ({_e(b['percent'])}%). Host list sha256
 <code>{_e(b['hostlist_sha256'])}</code>, {_e(b['hostlist_date'])}.</p>
 {cats}
+{comparison_mod.render_html(report['comparison']['aerie'], report['comparison']['others'])}
 <h2>Fingerprinting protection</h2>
 {_table(("Check", "Result", "Detail"), [(c["name"], c["status"], c["detail"]) for c in report["fingerprinting"]])}
 <h2>Hardening</h2>

@@ -251,7 +251,8 @@ class CliTest(unittest.TestCase):
                          perf_baseline=None, perf_record=None, perf_compare_binary=None, perf_first_run=False,
                          perf_commit=None, sidebar_frames_baseline=None, sidebar_frames_record=None,
                          sidebar_frames_first_run=False, sidebar_frames_repeats=5,
-                         download_benchmarks=False).items():
+                         download_benchmarks=False, measure=False,
+                         compare=getattr(self, "compare", [])).items():
             setattr(args, k, v)
         binary = Path(tempfile.mkdtemp()) / "aerie"
         binary.write_bytes(b"binary")

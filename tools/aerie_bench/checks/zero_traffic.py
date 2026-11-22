@@ -29,6 +29,11 @@ and a count in the ``Aerie.Network.RequestPolicy.Refused`` histogram. The check 
 machine, so it does not fail the run, but it shows that the browser or a later upstream version tried: it
 fails in strict mode, and the report lists it. If the policy refuses something the browser needs, that is a bug.
 
+With ``measure=True`` (``./aerie bench --measure``, issue #254, ``docs/browser-comparison.md``) the check measures
+another browser instead of judging it: the profile stays at its defaults (no Helium services prefs), the crash step
+is left out, and traffic to denylisted hosts is recorded in ``hits`` without failing the run. The run still fails
+when the NetLog is truncated, the browser did not exit cleanly, or the capture saw no fixture page.
+
 Requests to the ``.qjz9zk`` dummy TLD (and ``trk:`` URLs) are refused inside the network stack
 before any DNS query. They are listed as ``blocked`` and fail the run only in strict mode.
 """
@@ -174,7 +179,7 @@ class ZeroTraffic:
     seeds_helium_services = False
 
     def __init__(self, idle_seconds: float = 300.0, settle_seconds: float = 60.0, strict: bool = False,
-                 denylist_path: str | None = None, crash: bool = True):
+                 denylist_path: str | None = None, crash: bool = True, measure: bool = False):
         self.idle_seconds = float(idle_seconds)
         self.settle_seconds = float(settle_seconds)
         self.strict = strict
@@ -185,11 +190,12 @@ class ZeroTraffic:
         self.counter_error: str | None = None
         # The crash step (issue #262): crash a browser on purpose and start it again. It runs two more
         # browsers; ``crash=False`` (``--zero-traffic-no-crash``) leaves it out.
-        self.crash = crash
+        self.measure = measure
+        self.crash = crash and not measure
         self.crash_verdict: tuple[str, str, dict] | None = None
 
     def profile_prefs(self, server) -> dict:
-        return worst_case_prefs()
+        return {} if self.measure else worst_case_prefs()
 
     def _count(self, session: Session) -> int:
         return len(netlog.parse_file(session.netlog_path)) if session.netlog_path else 0
@@ -266,6 +272,9 @@ class ZeroTraffic:
             status = "fail"
             reason = ("INCONCLUSIVE: " + " and ".join(problems) + "; a pass would prove nothing"
                       + (f". Seen so far: {verdict.reason}" if verdict.hits else ""))
+        if self.measure and status == "fail" and not inconclusive and verdict.hits and verdict.fixture_requests > 0:
+            status = "pass"
+            reason = f"measured only, not judged: {reason}"
         if self.crash_verdict is not None:
             crash_status, crash_reason, _ = self.crash_verdict
             reason = f"{reason}; crash step: {crash_reason}" if reason else f"crash step: {crash_reason}"
@@ -274,7 +283,7 @@ class ZeroTraffic:
         data = {
             "phases": {name: ends.get(name) for name in PHASES} if ends else {},
             "idle_seconds": self.idle_seconds, "settle_seconds": self.settle_seconds,
-            "strict": self.strict, "denylist_entries": len(self.denylist.entries),
+            "strict": self.strict, "measure": self.measure, "denylist_entries": len(self.denylist.entries),
             "hits": verdict.hits, "blocked": verdict.blocked, "refused": verdict.refused,
             "refusal_counter": verdict.refusal_count, "refusal_counter_error": self.counter_error, "other_hosts": verdict.other_hosts,
             "fixture_requests": verdict.fixture_requests, "extension_update_probe_error": self.probe_error,

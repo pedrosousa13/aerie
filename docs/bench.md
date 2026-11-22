@@ -674,6 +674,20 @@ root and the checkout, and refuses to write on a match (exit 2). Do not attach `
 The generator is `tools/aerie_bench/privacy_report.py`; `tests/test_bench_privacy_report.py` tests it on
 recorded observations (a clean one, and one with a stray request that must fail the gate).
 
+### Measuring other browsers
+
+`./aerie bench --measure --binary <browser>` runs `zero_traffic` and `adblock_score` on another Chromium-family
+browser (issue #254). The profile is fresh and the settings are the browser's defaults: the Helium services prefs are
+not seeded and the crash step is left out. It does not judge the browser. Traffic to Google, to the maker or to
+tracker hosts is counted, and the run passes if the capture is whole (whole NetLog, clean exit, a fixture page seen).
+`--measure` needs `--binary` and picks its own checks (no `--report`, `--check` or `--scenario`). The `browser_requests`
+services probe does not run, so `--services` does not matter. It writes `measurement.json` into the results directory.
+`--zero-traffic-idle` and `--zero-traffic-settle` still apply, and a shortened run is marked as such in the table.
+
+`./aerie bench --report <dir> --compare <measurement.json>` (repeatable) adds those measurements to the "Other
+browsers" table in `report.html` and to `report.json`. The table never changes the release gate. Method, classes and
+what is not measured: `docs/browser-comparison.md`. Code: `tools/aerie_bench/comparison.py`.
+
 ### Branding checks
 
 Three checks for the rebrand (issue #5). Run them with

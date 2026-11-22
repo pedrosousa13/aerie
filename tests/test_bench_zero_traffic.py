@@ -406,3 +406,41 @@ class BaselineDemoTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class MeasureModeTest(unittest.TestCase):
+    """Another browser measured with the same check (issue #254): counts, never a verdict on the browser."""
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: __import__("shutil").rmtree(self.root, ignore_errors=True))
+
+    def run_bench(self, env=None, **opts):
+        options = {"idle_seconds": 0, "settle_seconds": 0, **opts}
+        return runner.run_bench(FAKE, scenario.Scenario(checks=("zero_traffic",)), self.root, timeout=10,
+                                extra_env=env or {}, check_options={"zero_traffic": options})
+
+    def run_measure(self, env=None, **opts):
+        return self.run_bench(env=env, measure=True, **opts)
+
+    def test_traffic_to_google_is_recorded_and_the_run_still_passes(self):
+        res = self.run_measure(env={"FAKE_BROWSER_EXTERNAL_URL": "https://update.googleapis.com/service/update2/json"})
+        check = res.data["checks"][0]
+        self.assertEqual((res.status, check["status"]), ("pass", "pass"), check)
+        self.assertEqual([h["host"] for h in check["data"]["hits"]], ["update.googleapis.com"])
+        self.assertTrue(check["data"]["measure"])
+        self.assertIn("measured only", check["detail"])
+
+    def test_the_profile_stays_at_defaults(self):
+        dump = self.root / "prefs.json"
+        self.run_measure(env={"FAKE_BROWSER_DUMP_PREFS": str(dump)})
+        seeded = dump.read_text() if dump.exists() else ""   # empty: the browser found no Preferences file
+        self.assertNotIn("helium", seeded)
+
+    def test_no_crash_step_runs(self):
+        check = self.run_measure().data["checks"][0]
+        self.assertEqual(check["data"]["crash_step"], {"status": "skipped"})
+
+    def test_a_truncated_log_is_still_inconclusive(self):
+        res = self.run_measure(env={"FAKE_BROWSER_TRUNCATE_NETLOG": "1"})
+        self.assertEqual(res.data["checks"][0]["status"], "fail")
