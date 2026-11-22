@@ -103,25 +103,31 @@ def scrub(text: str, url: str) -> str:
     return text
 
 
-def read_page(session: Session, url: str) -> dict:
+def read_page(session: Session, url: str, label: str | None = None, before_read=None) -> dict:
+    """Load `url`, let it settle and read its text. `label` names the page in the result (default: the
+    url); `before_read(session)` runs once the page has loaded, for a case that must act on it first."""
+    shown = label or url
     nav = session.navigate_url(url, wait=20)
     if nav["error"]:
-        return {"url": url, "title": "", "text": "", "error": nav["error"]}
+        return {"url": shown, "title": "", "text": "", "error": nav["error"]}
     session.wait_for("document.readyState === 'complete'", timeout=10)
     time.sleep(1.0)  # WebUI pages fill in after load
     try:
+        if before_read:
+            before_read(session)
         got = session.evaluate(TEXT_JS) or {}
     except Exception as exc:  # noqa: BLE001  (a page that cannot be read is data, not a crash)
-        return {"url": url, "title": "", "text": "", "error": f"could not read: {exc}"}
-    return {"url": url, "title": got.get("title", ""), "text": scrub(got.get("text", ""), url), "error": None}
+        return {"url": shown, "title": "", "text": "", "error": f"could not read: {exc}"}
+    return {"url": shown, "title": got.get("title", ""), "text": scrub(got.get("text", ""), url), "error": None}
 
 
 # chrome://components shows one row per component, each with a "Check for update" button (class
 # button-check-update, id = the component id) and a status span (id = "status-<id>"). The click is
-# what a user does; with component updates off it ends in a failed update, and the page then shows the
-# message for that failure (issue #131: it used to be Helium's, naming Helium services).
-FAILED_UPDATE_URL_LABEL = "chrome://components/ (after a failed update)"
-FAILED_STATUS_RE = re.compile(r"Component updates are disabled|Update error")
+# what a user does; with component updates off it ends in the "disabled" status, the one that used
+# to carry Helium's wording (issue #131). A plain "Update error" is a different status and does not count.
+FAILED_UPDATE_PAGE_LABEL = "chrome://components/ (after a failed update)"
+DISABLED_STATUS = "Component updates are disabled"
+AERIE_DISABLED_TEXT = "Component updates are disabled in Aerie."
 FORCE_UPDATE_JS = """
 (() => {
   const buttons = document.querySelectorAll('.button-check-update');
@@ -130,47 +136,41 @@ FORCE_UPDATE_JS = """
 })()"""
 STATUSES_JS = """
 Array.from(document.querySelectorAll('[id^="status-"]')).map((e) => e.textContent.trim())"""
+DISABLED_SHOWN_JS = (
+    "Array.from(document.querySelectorAll('[id^=\"status-\"]'))"
+    f".some((e) => e.textContent.includes({DISABLED_STATUS!r}))")
 
 
-def read_failed_update(session: Session, wait: float = 60.0) -> dict:
-    """Open chrome://components, press Check for update on every component and read the page once a
-    status shows a failed update (or `wait` seconds passed). The result is a read_page() dict plus the
-    statuses the page showed."""
-    url = "chrome://components/"
-    nav = session.navigate_url(url, wait=20)
-    if nav["error"]:
-        return {"url": FAILED_UPDATE_URL_LABEL, "title": "", "text": "", "error": nav["error"], "statuses": []}
+def force_failed_update(session: Session, wait: float = 60.0) -> None:
+    """Press Check for update on every component and wait (at most `wait` seconds) for the disabled status."""
     session.wait_for("document.querySelectorAll('.button-check-update').length > 0", timeout=15)
     session.evaluate(FORCE_UPDATE_JS)
-    statuses: list[str] = []
-    deadline = time.monotonic() + wait
-    while True:
-        statuses = session.evaluate(STATUSES_JS) or []
-        if any(FAILED_STATUS_RE.search(t) for t in statuses) or time.monotonic() >= deadline:
-            break
-        time.sleep(0.5)
-    try:
-        got = session.evaluate(TEXT_JS) or {}
-    except Exception as exc:  # noqa: BLE001
-        return {"url": FAILED_UPDATE_URL_LABEL, "title": "", "text": "", "error": f"could not read: {exc}",
-                "statuses": statuses}
-    return {"url": FAILED_UPDATE_URL_LABEL, "title": got.get("title", ""), "text": got.get("text", ""),
-            "error": None, "statuses": statuses}
+    session.wait_for(DISABLED_SHOWN_JS, timeout=wait, interval=0.5)
+
+
+def read_failed_update(session: Session) -> dict:
+    """chrome://components after every component's update was forced to fail: a read_page() dict plus
+    the statuses the page showed."""
+    got = read_page(session, "chrome://components/", label=FAILED_UPDATE_PAGE_LABEL, before_read=force_failed_update)
+    got["statuses"] = [] if got["error"] else (session.evaluate(STATUSES_JS) or [])
+    return got
 
 
 def judge_failed_update(forced: dict | None) -> list[str]:
-    """Problems with the page read after a forced failed update: it must have loaded, the update must have
-    failed (else the case proves nothing) and the text must not say Helium."""
+    """Problems with the page read after a forced failed update: it must have loaded, shown the disabled
+    status (else the case proves nothing), say it in Aerie's words and not say Helium."""
     if not forced:
         return ["no case read chrome://components after a failed component update"]
     if forced.get("error"):
         return [f"chrome://components after a failed update did not load ({forced['error']})"]
-    if not any(FAILED_STATUS_RE.search(t) for t in forced.get("statuses", [])):
-        return ["the forced component update did not fail (statuses: "
+    if not any(DISABLED_STATUS in t for t in forced.get("statuses", [])):
+        return ["the forced component update did not fail with the disabled-updates status (statuses: "
                 f"{forced.get('statuses') or 'none'}), so the case proves nothing"]
     hits = find_helium(forced.get("text", "")) + find_helium(forced.get("title", ""))
     if hits:
         return [f"chrome://components says Helium after a failed update: ...{hits[0]}... ({len(hits)} hit(s))"]
+    if AERIE_DISABLED_TEXT not in forced.get("text", ""):
+        return [f"chrome://components after a failed update does not say {AERIE_DISABLED_TEXT!r}"]
     return []
 
 

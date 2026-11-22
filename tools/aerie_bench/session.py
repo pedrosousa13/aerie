@@ -171,8 +171,9 @@ class Session:
         session's own page hidden, which never paints, so Page.captureScreenshot on it gets no reply
         (issue #131)."""
         sid = self._page()
+        keep = before | {self._target_id}
         for target in self.targets():
-            if target.get("type") == "page" and target["targetId"] not in before and target["targetId"] != self._target_id:
+            if target.get("type") == "page" and target["targetId"] not in keep:
                 try:
                     self.client.send("Target.closeTarget", {"targetId": target["targetId"]}, timeout=self.timeout)
                 except CdpError:
