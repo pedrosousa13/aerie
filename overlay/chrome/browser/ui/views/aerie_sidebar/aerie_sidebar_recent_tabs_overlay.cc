@@ -29,8 +29,25 @@ namespace {
 // Width of the card, and the height of the area above its footer.
 constexpr int kCardWidth = aerie::tokens::kSizeSwitcherCardWidth;
 constexpr int kSnapshotHeight = aerie::tokens::kSizeSwitcherSnapshotHeight;
-// Room in a card around its parts.
+// Room in a card between its edge and its parts.
 constexpr int kCardPadding = aerie::tokens::kSpace8;
+// The gap in a card under the snapshot, and between the favicon and the text.
+constexpr int kFooterGap = aerie::tokens::kSpace8;
+// The gap between two cards in the overlay.
+constexpr int kCardGap = aerie::tokens::kSpace8;
+
+// The overlay is a popover, not the sidebar: its colours are the theme's
+// popover surface and text, which hold their contrast whatever frame is under
+// the window (the sidebar's own colours are measured on the frame).
+aerie_sidebar::SidebarPalette PopoverPalette(
+    const aerie_sidebar::SidebarPalette& palette) {
+  aerie_sidebar::SidebarPalette popover = palette;
+  popover.peek_surface = palette.popover_surface;
+  popover.text = palette.popover_text;
+  popover.text_muted = palette.popover_text_muted;
+  popover.accent = palette.popover_accent;
+  return popover;
+}
 // The icon in the snapshot area when there is no snapshot.
 constexpr int kPlaceholderIcon = aerie::tokens::kSpace32;
 
@@ -92,7 +109,7 @@ gfx::Size AerieRecentTabCard::CalculatePreferredSize(
     const views::SizeBounds&) const {
   const int footer = title_->GetPreferredSize().height() +
                      site_->GetPreferredSize().height();
-  return gfx::Size(kCardWidth, kCardPadding + kSnapshotHeight + kCardPadding +
+  return gfx::Size(kCardWidth, kCardPadding + kSnapshotHeight + kFooterGap +
                                    footer + kCardPadding);
 }
 
@@ -108,8 +125,8 @@ void AerieRecentTabCard::Layout(PassKey) {
                 area.CenterPoint().y() - kPlaceholderIcon / 2, kPlaceholderIcon,
                 kPlaceholderIcon));
   const int icon = aerie::tokens::kSizeIcon;
-  const int footer_y = area.bottom() + kCardPadding;
-  const int text_x = kCardPadding + icon + aerie::tokens::kSpace8;
+  const int footer_y = area.bottom() + kFooterGap;
+  const int text_x = kCardPadding + icon + kFooterGap;
   const int title_h = title_->GetPreferredSize().height();
   favicon_->SetBoundsRect(gfx::Rect(
       kCardPadding, footer_y + (title_h - icon) / 2, icon, icon));
@@ -169,7 +186,7 @@ END_METADATA
 
 AerieSidebarRecentTabsOverlay::AerieSidebarRecentTabsOverlay(
     const aerie_sidebar::SidebarPalette& palette)
-    : palette_(palette) {
+    : palette_(PopoverPalette(palette)) {
   surface_ = AddChildView(std::make_unique<AerieSidebarPeekSurface>());
   surface_->SetColours(palette_);
   GetViewAccessibility().SetRole(ax::mojom::Role::kListBox);
@@ -178,6 +195,16 @@ AerieSidebarRecentTabsOverlay::AerieSidebarRecentTabsOverlay(
 }
 
 AerieSidebarRecentTabsOverlay::~AerieSidebarRecentTabsOverlay() = default;
+
+// static
+int AerieSidebarRecentTabsOverlay::Inset() {
+  return AerieSidebarPeekSurface::ShadowRoom() + aerie::tokens::kSpace16;
+}
+
+// static
+int AerieSidebarRecentTabsOverlay::CardGap() {
+  return kCardGap;
+}
 
 void AerieSidebarRecentTabsOverlay::SetCards(
     const std::vector<AerieRecentTabCard::Content>& cards) {
@@ -210,7 +237,7 @@ void AerieSidebarRecentTabsOverlay::SetSelectedIndex(size_t index) {
 
 gfx::Size AerieSidebarRecentTabsOverlay::CalculatePreferredSize(
     const views::SizeBounds&) const {
-  const int room = AerieSidebarPeekSurface::ShadowRoom() + aerie::tokens::kSpace16;
+  const int room = Inset();
   int width = 0;
   int height = 0;
   for (const AerieRecentTabCard* card : cards_) {
@@ -218,19 +245,19 @@ gfx::Size AerieSidebarRecentTabsOverlay::CalculatePreferredSize(
     height = std::max(height, card->GetPreferredSize().height());
   }
   if (!cards_.empty()) {
-    width += static_cast<int>(cards_.size() - 1) * aerie::tokens::kSpace8;
+    width += static_cast<int>(cards_.size() - 1) * kCardGap;
   }
   return gfx::Size(width + 2 * room, height + 2 * room);
 }
 
 void AerieSidebarRecentTabsOverlay::Layout(PassKey) {
   surface_->SetBoundsRect(GetLocalBounds());
-  const int room = AerieSidebarPeekSurface::ShadowRoom() + aerie::tokens::kSpace16;
+  const int room = Inset();
   int x = room;
   for (AerieRecentTabCard* card : cards_) {
     const gfx::Size size = card->GetPreferredSize();
     card->SetBoundsRect(gfx::Rect(x, room, size.width(), size.height()));
-    x += size.width() + aerie::tokens::kSpace8;
+    x += size.width() + kCardGap;
   }
 }
 

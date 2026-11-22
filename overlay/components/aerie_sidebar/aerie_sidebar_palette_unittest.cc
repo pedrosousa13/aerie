@@ -6,6 +6,8 @@
 // tables, follows the colour mode and the Workspace colour, and the text stays
 // readable on the row colours.
 
+#include <string>
+
 #include "components/aerie_sidebar/aerie_sidebar_palette.h"
 
 #include "components/aerie_design_tokens/aerie_tokens.h"
@@ -175,6 +177,54 @@ TEST(AerieSidebarPaletteTest, ForcedColoursUseTheSystemColoursOnly) {
   EXPECT_NE(p.row_selected, p.row_hover);
   EXPECT_GE(aerie_frame::ContrastRatio(p.text, p.row_selected), 3.0);
   EXPECT_GE(aerie_frame::ContrastRatio(p.text, p.row_hover), 3.0);
+}
+
+// The switcher overlay (issue #269) is a popover, like the command bar: it sits
+// on the popover surface and takes the popover text colours. Its text must be
+// readable there (4.5:1), and the fallback globe and the selection ring, which
+// are graphics, must stand out (3:1), in every theme, colour mode and
+// Workspace preset.
+TEST(AerieSidebarPaletteTest, ThePopoverColoursAreReadableOnThePopoverSurface) {
+  for (int t = 0; t < aerie::tokens::kThemeCount; ++t) {
+    const ThemeId theme = static_cast<ThemeId>(t);
+    const double text_floor = theme == ThemeId::kHighContrast ? 7.0 : 4.5;
+    for (ColorMode mode : {ColorMode::kLight, ColorMode::kDark}) {
+      for (int i = 0; i < aerie::tokens::kWorkspacePresetCount; ++i) {
+        const char* colour = aerie::tokens::kWorkspacePresetIds[i];
+        const SidebarPalette p = ResolveSidebarPalette(theme, mode, colour);
+        const std::string where = std::to_string(t) + " " + colour + " mode " +
+                                  std::to_string(static_cast<int>(mode));
+        EXPECT_EQ(SkColorGetA(p.popover_surface), 255u) << where;
+        EXPECT_GE(aerie_frame::ContrastRatio(p.popover_text, p.popover_surface),
+                  text_floor)
+            << where;
+        EXPECT_GE(
+            aerie_frame::ContrastRatio(p.popover_text_muted, p.popover_surface),
+            text_floor)
+            << where;
+        // The selected card's fill, over the surface.
+        EXPECT_GE(aerie_frame::ContrastRatio(
+                      p.popover_text,
+                      aerie_frame::Over(p.row_selected, p.popover_surface)),
+                  text_floor)
+            << where;
+        EXPECT_GE(aerie_frame::ContrastRatio(p.popover_accent, p.popover_surface),
+                                         3.0)
+            << where;
+      }
+    }
+  }
+}
+
+TEST(AerieSidebarPaletteTest, ThePopoverSurfaceChangesWithTheColourMode) {
+  const SidebarPalette light =
+      ResolveSidebarPalette(ThemeId::kVivid, ColorMode::kLight, "dusk");
+  const SidebarPalette dark =
+      ResolveSidebarPalette(ThemeId::kVivid, ColorMode::kDark, "dusk");
+  EXPECT_NE(light.popover_surface, dark.popover_surface);
+  EXPECT_EQ(dark.popover_surface,
+            aerie::tokens::GetThemeTokens(ThemeId::kVivid, ColorMode::kDark)
+                .color_surface_popover);
 }
 
 }  // namespace

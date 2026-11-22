@@ -4,6 +4,7 @@
 
 #include "components/aerie_sidebar/aerie_sidebar_recent_tabs.h"
 
+#include <algorithm>
 #include <vector>
 
 #include "testing/gtest/include/gtest/gtest.h"
@@ -167,6 +168,91 @@ TEST(RecentTabSessionTest, EndingTheSessionClearsIt) {
   session.End();
   EXPECT_FALSE(session.active());
   EXPECT_TRUE(session.cards().empty());
+}
+
+// ---- More tabs than the overlay has room for -----------------------------
+
+Ids Eight() { return Ids{1, 2, 3, 4, 5, 6, 7, 8}; }
+
+TEST(RecentTabSessionTest, TheVisibleCardsAreTheFirstOnesAtTheStart) {
+  RecentTabSession session;
+  ASSERT_TRUE(session.Begin(Eight(), /*backwards=*/false, /*max_visible=*/5));
+  EXPECT_EQ(session.VisibleCards(), (Ids{1, 2, 3, 4, 5}));
+  EXPECT_EQ(session.first_visible(), 0u);
+  EXPECT_EQ(session.visible_selected_index(), 1u);
+  // Every tab is still in the session.
+  EXPECT_EQ(session.cards().size(), 8u);
+}
+
+TEST(RecentTabSessionTest, SteppingPastTheLastVisibleCardSlidesTheWindow) {
+  RecentTabSession session;
+  ASSERT_TRUE(session.Begin(Eight(), false, 5));
+  for (int i = 0; i < 5; ++i) {
+    session.StepForward();
+  }
+  // From the second card, five steps reach the seventh tab.
+  EXPECT_EQ(session.selected(), 7);
+  EXPECT_EQ(session.VisibleCards(), (Ids{3, 4, 5, 6, 7}));
+  EXPECT_EQ(session.visible_selected_index(), 4u);
+}
+
+TEST(RecentTabSessionTest, SteppingBackSlidesTheWindowBack) {
+  RecentTabSession session;
+  ASSERT_TRUE(session.Begin(Eight(), false, 5));
+  for (int i = 0; i < 6; ++i) {
+    session.StepForward();  // the last tab, 8
+  }
+  EXPECT_EQ(session.VisibleCards(), (Ids{4, 5, 6, 7, 8}));
+  for (int i = 0; i < 4; ++i) {
+    session.StepBackward();  // 4, the first visible card
+  }
+  EXPECT_EQ(session.selected(), 4);
+  EXPECT_EQ(session.VisibleCards(), (Ids{4, 5, 6, 7, 8}));
+  session.StepBackward();  // 3: slides
+  EXPECT_EQ(session.VisibleCards(), (Ids{3, 4, 5, 6, 7}));
+  EXPECT_EQ(session.visible_selected_index(), 0u);
+}
+
+TEST(RecentTabSessionTest, WrappingMovesTheWindowToTheOtherEnd) {
+  RecentTabSession session;
+  ASSERT_TRUE(session.Begin(Eight(), false, 5));
+  for (int i = 0; i < 7; ++i) {
+    session.StepForward();  // 8, then back to 1
+  }
+  EXPECT_EQ(session.selected(), 1);
+  EXPECT_EQ(session.VisibleCards(), (Ids{1, 2, 3, 4, 5}));
+  session.StepBackward();  // wraps to 8
+  EXPECT_EQ(session.selected(), 8);
+  EXPECT_EQ(session.VisibleCards(), (Ids{4, 5, 6, 7, 8}));
+}
+
+TEST(RecentTabSessionTest, CtrlShiftTabAtTheStartShowsTheLeastRecentTabs) {
+  RecentTabSession session;
+  ASSERT_TRUE(session.Begin(Eight(), /*backwards=*/true, 5));
+  EXPECT_EQ(session.selected(), 8);
+  EXPECT_EQ(session.VisibleCards(), (Ids{4, 5, 6, 7, 8}));
+}
+
+TEST(RecentTabSessionTest, AClosedTabKeepsTheSelectionInTheWindow) {
+  RecentTabSession session;
+  ASSERT_TRUE(session.Begin(Eight(), false, 5));
+  for (int i = 0; i < 6; ++i) {
+    session.StepForward();  // 8, the window is 4..8
+  }
+  session.TabRemoved(8);  // the selection moves to the new last card, 7
+  EXPECT_EQ(session.selected(), 7);
+  EXPECT_EQ(session.VisibleCards().size(), 5u);
+  const Ids visible = session.VisibleCards();
+  EXPECT_NE(std::find(visible.begin(), visible.end(), 7), visible.end());
+}
+
+TEST(RecentTabSessionTest, FewerTabsThanRoomShowThemAll) {
+  RecentTabSession session;
+  ASSERT_TRUE(session.Begin(Ids{1, 2, 3}, false, 5));
+  EXPECT_EQ(session.VisibleCards(), (Ids{1, 2, 3}));
+  session.StepForward();
+  session.StepForward();
+  EXPECT_EQ(session.first_visible(), 0u);
 }
 
 }  // namespace aerie_sidebar

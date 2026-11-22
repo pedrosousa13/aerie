@@ -106,10 +106,15 @@ class AerieSidebarRecentTabs : public TabStripModelObserver,
       const TabStripSelectionChange& selection) override;
 
  private:
+  // Takes Esc before the page and the address bar, so that it only closes the
+  // overlay (aura only; elsewhere Esc is observed, and the page sees it too).
+  class EscapeFilter;
+
   bool Start(bool backwards);
   void Commit();
   void Cancel();
   void EndSession();
+  void RemoveEscapeFilter();
   void Step(bool backwards);
   void ShowOverlay();
   void RefreshCards();
@@ -127,6 +132,9 @@ class AerieSidebarRecentTabs : public TabStripModelObserver,
   aerie_sidebar::RecentTabSession session_;
   raw_ptr<views::FocusManager> focus_manager_ = nullptr;
   std::unique_ptr<views::EventMonitor> monitor_;
+  std::unique_ptr<EscapeFilter> escape_filter_;
+  // The first card on screen, in the session's cards.
+  size_t shown_first_ = 0;
   base::ScopedObservation<views::Widget, views::WidgetObserver>
       host_widget_observation_{this};
   std::unique_ptr<views::Widget> overlay_widget_;

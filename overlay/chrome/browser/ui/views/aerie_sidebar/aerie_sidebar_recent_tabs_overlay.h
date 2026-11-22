@@ -92,6 +92,11 @@ class AerieSidebarRecentTabsOverlay : public views::View {
   ~AerieSidebarRecentTabsOverlay() override;
 
   void SetCards(const std::vector<AerieRecentTabCard::Content>& cards);
+
+  // The room between the overlay's edge and its cards (the surface's shadow
+  // and its padding), and the gap between two cards.
+  static int Inset();
+  static int CardGap();
   void SetSelectedIndex(size_t index);
 
   size_t card_count() const { return cards_.size(); }

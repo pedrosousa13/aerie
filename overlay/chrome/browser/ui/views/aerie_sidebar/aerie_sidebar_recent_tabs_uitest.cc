@@ -22,6 +22,8 @@
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
 #include "base/run_loop.h"
+#include "base/strings/string_number_conversions.h"
+#include "base/strings/stringprintf.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/single_thread_task_runner.h"
@@ -32,6 +34,9 @@
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/thumbnails/thumbnail_tab_helper.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_peek_surface.h"
+#include "components/tabs/public/tab_interface.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_recent_tabs.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_recent_tabs_overlay.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_view.h"
@@ -44,6 +49,7 @@
 #include "components/prefs/pref_service.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/browser_test.h"
+#include "content/public/test/browser_test_utils.h"
 #include "net/dns/mock_host_resolver.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "net/test/embedded_test_server/http_request.h"
@@ -69,14 +75,32 @@ namespace {
 std::unique_ptr<net::test_server::HttpResponse> ServePage(
     const net::test_server::HttpRequest& request) {
   constexpr char kPrefix[] = "/page/";
+  if (request.relative_url == "/keys") {
+    // A page that records the keys it is sent.
+    auto response = std::make_unique<net::test_server::BasicHttpResponse>();
+    response->set_content_type("text/html");
+    response->set_content(
+        "<!doctype html><title>Keys</title><script>window.keys = [];"
+        "addEventListener('keydown', e => window.keys.push(e.key));</script>"
+        "<body>keys");
+    return response;
+  }
   if (!base::StartsWith(request.relative_url, kPrefix)) {
     return nullptr;
   }
   auto response = std::make_unique<net::test_server::BasicHttpResponse>();
   response->set_content_type("text/html");
-  response->set_content("<!doctype html><title>" +
-                        request.relative_url.substr(sizeof(kPrefix) - 1) +
-                        "</title><body>page");
+  // A tint and a big heading of its own for each title, so that a thumbnail
+  // of the page tells the tabs apart.
+  const std::string title = request.relative_url.substr(sizeof(kPrefix) - 1);
+  int hue = 0;
+  for (char c : title) {
+    hue = (hue * 37 + c) % 360;
+  }
+  response->set_content(
+      "<!doctype html><title>" + title + "</title><body style=\"margin:0;"
+      "background:hsl(" + base::NumberToString(hue) + ",55%,72%);"
+      "font:700 64px sans-serif;padding:48px\">" + title);
   return response;
 }
 
@@ -219,6 +243,32 @@ class AerieSidebarRecentTabsUiTest : public InProcessBrowserTest {
     }
     views::Widget* browser_widget =
         BrowserView::GetBrowserViewForBrowser(browser())->GetWidget();
+    // Chromium takes the picture of a tab when it is put in the background, but
+    // only while something watches its thumbnail (a hover card does). So each
+    // tab is watched, every tab is brought to the front in turn, and the tab
+    // that was in front at the start goes last.
+    std::vector<std::unique_ptr<ThumbnailImage::Subscription>> watchers;
+    for (int i = 0; i < tabs()->count(); ++i) {
+      ThumbnailTabHelper* helper =
+          ThumbnailTabHelper::From(tabs()->GetTabAtIndex(i));
+      ASSERT_TRUE(helper && helper->thumbnail());
+      watchers.push_back(helper->thumbnail()->Subscribe());
+    }
+    const int last = tabs()->active_index();
+    for (int i = 0; i < tabs()->count(); ++i) {
+      const int index = (last + 1 + i) % tabs()->count();
+      tabs()->ActivateTabAt(index);
+      Pause(700);
+    }
+    for (int i = 0; i < tabs()->count(); ++i) {
+      if (i == tabs()->active_index()) {
+        continue;
+      }
+      tabs::TabInterface* tab = tabs()->GetTabAtIndex(i);
+      ASSERT_TRUE(base::test::RunUntil([&] {
+        return ThumbnailTabHelper::From(tab)->thumbnail()->has_data();
+      })) << "no thumbnail for tab " << i;
+    }
     for (const bool dark : {false, true}) {
       browser_widget->SetColorModeOverride(
           dark ? ui::ColorProviderKey::ColorMode::kDark
@@ -228,6 +278,18 @@ class AerieSidebarRecentTabsUiTest : public InProcessBrowserTest {
       HoldCtrlAndPressTab();
       WaitForOverlay();
       Pause(500);
+      {
+        // Where the overlay lies in the window's picture, for the composite:
+        // "x y shadow_room".
+        const gfx::Point origin =
+            recent()->overlay()->GetWidget()->GetWindowBoundsInScreen().origin() -
+            browser_widget->GetNativeWindow()->GetBoundsInScreen().origin().OffsetFromOrigin();
+        ASSERT_TRUE(base::WriteFile(
+            base::FilePath::FromUTF8Unsafe(*dir).AppendASCII(
+                name + (dark ? "-dark.pos" : "-light.pos")),
+            base::StringPrintf("%d %d %d", origin.x(), origin.y(),
+                               AerieSidebarPeekSurface::ShadowRoom())));
+      }
       for (views::Widget* widget :
            {browser_widget, recent()->overlay()->GetWidget()}) {
         gfx::NativeWindow window = widget->GetNativeWindow();
@@ -369,6 +431,55 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarRecentTabsUiTest,
 }
 
 IN_PROC_BROWSER_TEST_F(AerieSidebarRecentTabsUiTest,
+                       EscapeClosesTheOverlayAndTheTabNeverSeesIt) {
+  OpenFourTabs();
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(
+      browser(), embedded_test_server()->GetURL("localhost", "/keys")));
+  content::WebContents* page = tabs()->GetActiveWebContents();
+  page->Focus();
+  // Control: with no overlay open, the page does get Escape.
+  PressEscape();
+  EXPECT_EQ(true, content::EvalJs(page, "window.keys.includes('Escape')"));
+  ASSERT_TRUE(content::ExecJs(page, "window.keys = []"));
+
+  HoldCtrlAndPressTab();
+  WaitForOverlay();
+  PressEscape();
+  WaitForNoOverlay();
+  ReleaseCtrl();
+  // The keys the page was sent are in its list by now: this call is queued
+  // behind them.
+  EXPECT_EQ(false, content::EvalJs(page, "window.keys.includes('Escape')"));
+  EXPECT_EQ(page, tabs()->GetActiveWebContents());
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarRecentTabsUiTest,
+                       EveryTabCanBeReachedWhenThereAreMoreThanTheOverlayShows) {
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(
+      browser(), embedded_test_server()->GetURL("localhost", "/page/T1")));
+  for (int i = 2; i <= 8; ++i) {
+    OpenTab(browser(), "localhost", "T" + base::NumberToString(i));
+  }
+  ASSERT_EQ(tabs()->count(), 8);
+  // The recent order is T8 (on screen), T7, T6 ... T1.
+  HoldCtrlAndPressTab();
+  WaitForOverlay();
+  EXPECT_EQ(SelectedTitle(), u"T7");
+  const size_t shown = recent()->overlay()->card_count();
+  EXPECT_LT(shown, 8u);  // the overlay has a cap
+  for (int i = 0; i < 5; ++i) {
+    HoldCtrlAndPressTab();
+  }
+  // The seventh most recent tab: the selection is on a card that is shown.
+  EXPECT_EQ(SelectedTitle(), u"T2");
+  EXPECT_LT(recent()->overlay()->selected_index(), recent()->overlay()->card_count());
+  EXPECT_EQ(recent()->overlay()->card_count(), shown);
+  ReleaseCtrl();
+  WaitForNoOverlay();
+  ExpectActive(u"T2");
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarRecentTabsUiTest,
                        AWindowWithOneTabShowsNoOverlay) {
   ASSERT_EQ(tabs()->count(), 1);
   HoldCtrlAndPressTab();
@@ -500,15 +611,6 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarRecentTabsUiTest,
 // Saves the screenshots for the gallery when AERIE_RECENT_SHOT_DIR is set.
 IN_PROC_BROWSER_TEST_F(AerieSidebarRecentTabsUiTest, OverlayScreenshots) {
   OpenFourTabs();
-  recent()->SetSnapshotSourceForTesting(
-      base::BindRepeating([](tabs::TabInterface* tab) {
-        // A different tint for each tab, so the cards are told apart.
-        SkBitmap bitmap;
-        bitmap.allocN32Pixels(160, 100);
-        const int seed = static_cast<int>(tab->GetHandle().raw_value()) * 53;
-        bitmap.eraseARGB(255, 60 + seed % 120, 90 + (seed * 3) % 100,
-                         150 + (seed * 7) % 90);
-        return gfx::ImageSkia::CreateFromBitmap(bitmap, 1.0f);
-      }));
+  // The pictures on the cards are Chromium's own thumbnails of the pages.
   Shoot("recent-tabs");
 }

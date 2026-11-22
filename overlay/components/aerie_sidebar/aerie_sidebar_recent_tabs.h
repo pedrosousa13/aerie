@@ -57,7 +57,12 @@ class RecentTabSession {
 
   // Starts a session over `order` (most recent first). Returns false and stays
   // inactive when there are fewer than two tabs: there is nothing to switch to.
-  bool Begin(const std::vector<int>& order, bool backwards);
+  // The overlay shows at most `max_visible` cards at a time: every tab is in
+  // the session, and the visible window slides along the selection, so that
+  // the selected card is always one of those shown.
+  bool Begin(const std::vector<int>& order,
+             bool backwards,
+             size_t max_visible = static_cast<size_t>(-1));
   void End();
   bool active() const { return active_; }
 
@@ -69,8 +74,15 @@ class RecentTabSession {
   // after it (or the new last one) is selected.
   void TabRemoved(int id);
 
+  // Every tab of the session, most recent first.
   const std::vector<int>& cards() const { return cards_; }
   size_t selected_index() const { return selected_; }
+  // The cards in view: a run of at most `max_visible` tabs that holds the
+  // selected one.
+  std::vector<int> VisibleCards() const;
+  // Where the run starts in cards(), and the selection's place within it.
+  size_t first_visible() const { return first_; }
+  size_t visible_selected_index() const { return selected_ - first_; }
   // The selected tab, or -1 when the session is not active.
   int selected() const;
 
@@ -78,6 +90,10 @@ class RecentTabSession {
   bool active_ = false;
   std::vector<int> cards_;
   size_t selected_ = 0;
+  size_t max_visible_ = static_cast<size_t>(-1);
+  size_t first_ = 0;
+
+  void KeepSelectionVisible();
 };
 
 }  // namespace aerie_sidebar

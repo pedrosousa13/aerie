@@ -34,7 +34,11 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/compositor/layer.h"
 #include "ui/events/event.h"
+#include "ui/events/event_handler.h"
 #include "ui/events/keycodes/keyboard_codes.h"
+#if defined(USE_AURA)
+#include "ui/aura/window.h"
+#endif
 #include "ui/gfx/geometry/transform.h"
 #include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/focus/focus_manager.h"
@@ -63,10 +67,13 @@ std::u16string SiteOf(content::WebContents* contents) {
   return base::UTF8ToUTF16(host);
 }
 
+// The page's own icon; for a page that has none (the driver then hands out a
+// dull grey default), the globe in the popover text colour, which holds its
+// contrast on the overlay's surface in light and dark.
 ui::ImageModel FaviconOf(content::WebContents* contents, SkColor icon_color) {
   if (auto* driver = favicon::ContentFaviconDriver::FromWebContents(contents)) {
     gfx::Image image = driver->GetFavicon();
-    if (!image.IsEmpty()) {
+    if (driver->FaviconIsValid() && !image.IsEmpty()) {
       return ui::ImageModel::FromImage(image);
     }
   }
@@ -79,6 +86,36 @@ tabs::TabInterface* TabOf(int id) {
 }
 
 }  // namespace
+
+// Sees every key of the window before its target, whether that is the page or
+// the address field, and keeps Esc (and its release) from them while the
+// overlay is open.
+class AerieSidebarRecentTabs::EscapeFilter : public ui::EventHandler {
+ public:
+  explicit EscapeFilter(AerieSidebarRecentTabs* owner) : owner_(owner) {}
+
+  void OnKeyEvent(ui::KeyEvent* event) override {
+    if (event->key_code() != ui::VKEY_ESCAPE || event->handled()) {
+      return;
+    }
+    if (event->type() == ui::EventType::kKeyPressed && owner_->session_.active()) {
+      owner_->Cancel();
+      swallow_release_ = true;
+    } else if (!(event->type() == ui::EventType::kKeyReleased &&
+                 swallow_release_)) {
+      return;
+    }
+    if (event->type() == ui::EventType::kKeyReleased) {
+      swallow_release_ = false;
+    }
+    event->SetHandled();
+    event->StopPropagation();
+  }
+
+ private:
+  const raw_ptr<AerieSidebarRecentTabs> owner_;
+  bool swallow_release_ = false;
+};
 
 AerieSidebarRecentTabs::AerieSidebarRecentTabs(AerieSidebarView* host,
                                                BrowserWindowInterface* browser)
@@ -102,6 +139,7 @@ AerieSidebarRecentTabs::~AerieSidebarRecentTabs() {
   // The window is going: no motion, no announcement.
   session_.End();
   monitor_.reset();
+  RemoveEscapeFilter();
   if (focus_manager_) {
     focus_manager_->UnregisterAccelerator(CtrlTab(), this);
     focus_manager_->UnregisterAccelerator(CtrlShiftTab(), this);
@@ -116,6 +154,10 @@ void AerieSidebarRecentTabs::Attach() {
   }
   focus_manager_ = widget->GetFocusManager();
   host_widget_observation_.Observe(widget);
+#if defined(USE_AURA)
+  escape_filter_ = std::make_unique<EscapeFilter>(this);
+  widget->GetNativeWindow()->AddPreTargetHandler(escape_filter_.get());
+#endif
   if (focus_manager_) {
     // Before the browser's own Ctrl+Tab and Ctrl+Shift+Tab commands.
     focus_manager_->RegisterAccelerator(
@@ -125,8 +167,21 @@ void AerieSidebarRecentTabs::Attach() {
   }
 }
 
+void AerieSidebarRecentTabs::RemoveEscapeFilter() {
+#if defined(USE_AURA)
+  if (escape_filter_) {
+    views::Widget* widget = host_->GetWidget();
+    if (widget && widget->GetNativeWindow()) {
+      widget->GetNativeWindow()->RemovePreTargetHandler(escape_filter_.get());
+    }
+  }
+#endif
+  escape_filter_.reset();
+}
+
 void AerieSidebarRecentTabs::Detach() {
   Cancel();
+  RemoveEscapeFilter();
   if (focus_manager_) {
     focus_manager_->UnregisterAccelerator(CtrlTab(), this);
     focus_manager_->UnregisterAccelerator(CtrlShiftTab(), this);
@@ -169,11 +224,11 @@ size_t AerieSidebarRecentTabs::MaxCards() const {
     return most;
   }
   // The overlay keeps room of its own on each side; the cards must fit between.
-  const int room = 2 * (AerieSidebarPeekSurface::ShadowRoom() +
-                        aerie::tokens::kSpace16);
-  const int step = aerie::tokens::kSizeSwitcherCardWidth + aerie::tokens::kSpace8;
-  const int fit = (widget->GetClientAreaBoundsInScreen().width() - room +
-                   aerie::tokens::kSpace8) / step;
+  const int gap = AerieSidebarRecentTabsOverlay::CardGap();
+  const int room = 2 * AerieSidebarRecentTabsOverlay::Inset();
+  const int step = aerie::tokens::kSizeSwitcherCardWidth + gap;
+  const int fit =
+      (widget->GetClientAreaBoundsInScreen().width() - room + gap) / step;
   return std::clamp<size_t>(static_cast<size_t>(std::max(fit, 0)), 2u, most);
 }
 
@@ -185,11 +240,10 @@ bool AerieSidebarRecentTabs::Start(bool backwards) {
     if (tab && model->GetIndexOfTab(tab) != TabStripModel::kNoTab) {
       ids.push_back(id);
     }
-    if (ids.size() == MaxCards()) {
-      break;
-    }
   }
-  if (!session_.Begin(ids, backwards)) {
+  // Every tab is in the session; the overlay shows MaxCards() of them at a
+  // time and slides along the selection.
+  if (!session_.Begin(ids, backwards, MaxCards())) {
     return false;
   }
   DestroyOverlay();
@@ -217,8 +271,11 @@ void AerieSidebarRecentTabs::SelectionChanged() {
   if (!session_.active() || !overlay_) {
     return;
   }
-  overlay_->SetSelectedIndex(session_.selected_index());
-  AerieRecentTabCard* card = overlay_->card_at(session_.selected_index());
+  if (session_.first_visible() != shown_first_) {
+    FillCards();
+  }
+  overlay_->SetSelectedIndex(session_.visible_selected_index());
+  AerieRecentTabCard* card = overlay_->card_at(session_.visible_selected_index());
   const std::u16string text = l10n_util::GetStringFUTF16(
       IDS_AERIE_RECENT_TABS_ANNOUNCE,
       l10n_util::GetStringFUTF16(IDS_AERIE_RECENT_TABS_CARD_NAME,
@@ -268,10 +325,13 @@ void AerieSidebarRecentTabs::OnEvent(const ui::Event& event) {
        key.key_code() == ui::VKEY_LCONTROL ||
        key.key_code() == ui::VKEY_RCONTROL)) {
     Commit();
-  } else if (key.type() == ui::EventType::kKeyPressed &&
-             key.key_code() == ui::VKEY_ESCAPE) {
+  }
+#if !defined(USE_AURA)
+  else if (key.type() == ui::EventType::kKeyPressed &&
+           key.key_code() == ui::VKEY_ESCAPE) {
     Cancel();
   }
+#endif
 }
 
 void AerieSidebarRecentTabs::OnWidgetActivationChanged(views::Widget* widget,
@@ -285,6 +345,7 @@ void AerieSidebarRecentTabs::OnWidgetActivationChanged(views::Widget* widget,
 
 void AerieSidebarRecentTabs::OnWidgetDestroying(views::Widget* widget) {
   Cancel();
+  RemoveEscapeFilter();
   DestroyOverlay();
   host_widget_observation_.Reset();
   focus_manager_ = nullptr;
@@ -331,13 +392,15 @@ void AerieSidebarRecentTabs::FillCards() {
   const aerie_sidebar::SidebarPalette& palette = host_->palette();
   std::vector<AerieRecentTabCard::Content> contents;
   std::vector<tabs::TabInterface*> shown;
-  for (int id : session_.cards()) {
+  const std::vector<int> visible = session_.VisibleCards();
+  shown_first_ = session_.first_visible();
+  for (int id : visible) {
     tabs::TabInterface* tab = TabOf(id);
     AerieRecentTabCard::Content content;
     if (tab && tab->GetContents()) {
       content.title = host_->ShownTitleOfTab(tab);
       content.site = SiteOf(tab->GetContents());
-      content.favicon = FaviconOf(tab->GetContents(), palette.text_muted);
+      content.favicon = FaviconOf(tab->GetContents(), palette.popover_text);
       content.snapshot = SnapshotOf(tab);
     }
     if (content.title.empty()) {
@@ -376,14 +439,14 @@ void AerieSidebarRecentTabs::FillCards() {
             if (!self || !self->overlay_) {
               return;
             }
-            const std::vector<int>& cards = self->session_.cards();
+            const std::vector<int> cards = self->session_.VisibleCards();
             auto it = std::find(cards.begin(), cards.end(), id);
             if (it != cards.end()) {
               self->overlay_->card_at(static_cast<size_t>(it - cards.begin()))
                   ->SetSnapshot(image);
             }
           },
-          weak_factory_.GetWeakPtr(), session_.cards()[i]));
+          weak_factory_.GetWeakPtr(), visible[i]));
       thumbnail->RequestThumbnailImage();
       subscriptions_.push_back(std::move(subscription));
     }
