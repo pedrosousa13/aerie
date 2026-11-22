@@ -186,6 +186,19 @@ TEST_F(FilterListManagerTest, AnInsecureOrDuplicateAddressIsRefusedWithoutAnyReq
   EXPECT_EQ(0u, network_.total_requests());
 }
 
+TEST_F(FilterListManagerTest, AnAddressOnTheUsersNetworkIsRefusedWithItsOwnReasonAndNoRequest) {
+  auto manager = MakeManager();
+  std::string error;
+  for (const char* url : {"https://192.168.1.5/x.txt", "https://nas/list.txt",
+                          "https://localhost/x.txt"}) {
+    error.clear();
+    EXPECT_FALSE(manager->AddList(GURL(url), &error)) << url;
+    EXPECT_EQ(error, ListFailureMessage(ListFailure::kNonPublicUrl)) << url;
+  }
+  EXPECT_EQ(2u, manager->state().lists().size());
+  EXPECT_EQ(0u, network_.total_requests());
+}
+
 TEST_F(FilterListManagerTest, ABadDownloadIsShownAndChangesNothing) {
   network_.AddResponse("https://lists.example/page.txt", "<html>Not a list</html>");
   network_.AddResponse("https://lists.example/gone.txt", "nope", net::HTTP_NOT_FOUND);

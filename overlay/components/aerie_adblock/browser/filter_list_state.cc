@@ -11,6 +11,8 @@
 #include "base/strings/string_number_conversions.h"
 #include "components/aerie_adblock/browser/list_failure.h"
 #include "crypto/hash.h"
+#include "net/base/ip_address.h"
+#include "net/base/url_util.h"
 
 namespace aerie_adblock {
 
@@ -25,12 +27,39 @@ bool IsLoopbackHost(const GURL& url) {
   return host == "127.0.0.1" || host == "localhost" || host == "[::1]";
 }
 
+// True when the host is a public name or a publicly routable IP literal. GURL
+// has already turned decimal, octal and hex forms into dotted IPv4. Not
+// public: a non-routable IP literal (loopback, RFC 1918, link-local, CGNAT,
+// unspecified, multicast, broadcast, unique-local, IPv4-mapped forms of
+// those), "localhost" and "*.localhost", and a name with no dot.
+bool IsPublicHost(const GURL& url) {
+  if (url.HostIsIPAddress()) {
+    net::IPAddress ip;
+    if (!ip.AssignFromIPLiteral(url.HostNoBracketsPiece())) {
+      return false;
+    }
+    // IsPubliclyRoutable() treats IPv6 multicast (ff00::/8) as public.
+    if (!ip.IsPubliclyRoutable() || ip.IsMulticast()) {
+      return false;
+    }
+    // 6to4 (2002::/16) embeds an IPv4 address, and IsPubliclyRoutable()
+    // accepts it whatever that address is.
+    return !(ip.IsIPv6() && ip.bytes()[0] == 0x20 && ip.bytes()[1] == 0x02);
+  }
+  std::string_view host = url.host();
+  if (!host.empty() && host.back() == '.') {
+    host.remove_suffix(1);
+  }
+  return host.find('.') != std::string_view::npos &&
+         !net::IsLocalHostname(host);
+}
+
 bool IsKnownErrorMessage(const std::string& text) {
   if (text.empty()) {
     return true;
   }
   for (int i = static_cast<int>(ListFailure::kTooLarge);
-       i <= static_cast<int>(ListFailure::kInsecureUrl); ++i) {
+       i <= static_cast<int>(ListFailure::kNonPublicUrl); ++i) {
     if (text == ListFailureMessage(static_cast<ListFailure>(i))) {
       return true;
     }
@@ -75,7 +104,7 @@ bool CanBeDisabled(const FilterListEntry& entry) {
   return entry.id != kEasyListId;
 }
 
-bool IsAcceptableListUrl(const GURL& url, bool allow_loopback) {
+bool HasAcceptableListUrlShape(const GURL& url, bool allow_loopback) {
   if (!url.is_valid() || url.spec().size() > kMaxUrlLength || url.has_ref() ||
       url.has_username() || url.has_password() || !url.has_host()) {
     return false;
@@ -84,6 +113,20 @@ bool IsAcceptableListUrl(const GURL& url, bool allow_loopback) {
     return true;
   }
   return allow_loopback && url.SchemeIs("http") && IsLoopbackHost(url);
+}
+
+ListFailure CheckListUrl(const GURL& url, bool allow_loopback) {
+  if (!HasAcceptableListUrlShape(url, allow_loopback)) {
+    return ListFailure::kInsecureUrl;
+  }
+  if (allow_loopback && IsLoopbackHost(url)) {
+    return ListFailure::kNone;
+  }
+  return IsPublicHost(url) ? ListFailure::kNone : ListFailure::kNonPublicUrl;
+}
+
+bool IsAcceptableListUrl(const GURL& url, bool allow_loopback) {
+  return CheckListUrl(url, allow_loopback) == ListFailure::kNone;
 }
 
 std::string NormalizeExceptionHost(std::string_view host) {
@@ -168,8 +211,13 @@ const FilterListEntry* FilterListState::Find(std::string_view id) const {
 FilterListState::AddResult FilterListState::AddCustomList(const GURL& url,
                                                           bool allow_loopback,
                                                           std::string* id) {
-  if (!IsAcceptableListUrl(url, allow_loopback)) {
-    return AddResult::kInvalidUrl;
+  switch (CheckListUrl(url, allow_loopback)) {
+    case ListFailure::kNone:
+      break;
+    case ListFailure::kNonPublicUrl:
+      return AddResult::kNonPublicUrl;
+    default:
+      return AddResult::kInvalidUrl;
   }
   for (const FilterListEntry& entry : lists_) {
     if (entry.url == url.spec()) {
@@ -402,12 +450,16 @@ FilterListState FilterListState::FromValue(const base::DictValue& dict) {
       entry = state.Find(kCustomRulesId);
     }
     if (!entry) {
-      // A custom list: its address must be acceptable, and its id the one
-      // this build would give that address (so a file name cannot be chosen).
-      // Loopback http is not re-checked here: the manager refuses to fetch it
-      // without the switch.
+      // A custom list: its address must have an acceptable shape, and its id
+      // be the one this build would give that address (so a file name cannot
+      // be chosen). The host is not re-checked here, on purpose: a saved list
+      // at a host that is refused today (a name on the user's network, say)
+      // stays in the state, and the fetch refuses it with a reason the user
+      // sees and can remove. Dropping it here would lose it on the next save.
+      // Loopback http is not re-checked either: the manager refuses to fetch
+      // it without the switch.
       GURL gurl(*url);
-      if (!IsAcceptableListUrl(gurl, /*allow_loopback=*/true) ||
+      if (!HasAcceptableListUrlShape(gurl, /*allow_loopback=*/true) ||
           CustomListId(gurl) != *id ||
           CountCustomLists(state.lists_) >= kMaxCustomLists) {
         continue;
