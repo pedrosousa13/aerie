@@ -39,6 +39,11 @@ HoverCardBox PlaceHoverCard(const HoverCardBox& row,
   return HoverCardBox{x, y, card.width, card.height};
 }
 
+bool HoverCardPrefersRight(const HoverCardBox& row,
+                           const HoverCardBox& window) {
+  return row.x + row.width / 2 <= window.x + window.width / 2;
+}
+
 std::string HoverCardHost(const std::string& url_spec) {
   const GURL url(url_spec);
   if (!url.is_valid()) {

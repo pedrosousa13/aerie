@@ -73,6 +73,8 @@ class AerieSidebarTileView : public views::View,
     base::RepeatingCallback<void(views::View*,
                                  aerie_sidebar::HoverCardTrigger)>
         hover_card;
+    // Whether the card is up for this view: Esc then dismisses it.
+    base::RepeatingCallback<bool(views::View*)> hover_card_shown;
   };
 
   AerieSidebarTileView(Callbacks callbacks,

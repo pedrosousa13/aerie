@@ -60,9 +60,7 @@ std::u16string SiteOf(content::WebContents* contents) {
       aerie_sidebar::HoverCardHost(contents->GetLastCommittedURL().spec()));
 }
 
-tabs::TabInterface* TabOf(int id) {
-  return tabs::TabHandle(id).Get();
-}
+using aerie_sidebar::TabOf;
 
 }  // namespace
 
@@ -167,12 +165,6 @@ void AerieSidebarRecentTabs::Detach() {
     focus_manager_ = nullptr;
   }
   host_widget_observation_.Reset();
-}
-
-// static
-bool AerieSidebarRecentTabs::IsPrivateTab(tabs::TabInterface* tab) {
-  // The one gate is shared with the tab preview card (issue #270).
-  return aerie_sidebar::IsPrivateTab(tab);
 }
 
 bool AerieSidebarRecentTabs::CanHandleAccelerators() const {
@@ -355,12 +347,8 @@ void AerieSidebarRecentTabs::OnTabStripModelChanged(
 }
 
 gfx::ImageSkia AerieSidebarRecentTabs::SnapshotOf(tabs::TabInterface* tab) {
-  // The one gate: a private tab is never asked for a snapshot, and a
-  // snapshot of one is never shown.
-  if (IsPrivateTab(tab) || !snapshot_source_) {
-    return gfx::ImageSkia();
-  }
-  return snapshot_source_.Run(tab);
+  // The gate is aerie_sidebar::GatedSnapshot's, shared with the tab preview card.
+  return aerie_sidebar::GatedSnapshot(tab, snapshot_source_);
 }
 
 void AerieSidebarRecentTabs::FillCards() {
@@ -391,8 +379,8 @@ void AerieSidebarRecentTabs::FillCards() {
   // so that opening this overlay never makes a tab take a picture it did not
   // have, and never for a private tab (aerie_sidebar::WatchTabSnapshot).
   if (!snapshot_source_) {
-    const gfx::Size hint(
-        aerie::tokens::kSizeSwitcherCardWidth - 2 * aerie::tokens::kSpace8,
+    const gfx::Size hint = aerie_sidebar::SnapshotSizeHint(
+        aerie::tokens::kSizeSwitcherCardWidth, aerie::tokens::kSpace8,
         aerie::tokens::kSizeSwitcherSnapshotHeight);
     for (size_t i = 0; i < shown.size(); ++i) {
       std::unique_ptr<ThumbnailImage::Subscription> subscription =

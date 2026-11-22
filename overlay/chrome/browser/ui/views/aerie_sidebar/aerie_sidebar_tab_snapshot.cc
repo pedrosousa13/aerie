@@ -29,6 +29,22 @@ bool IsPrivateTab(tabs::TabInterface* tab) {
   return !contents || contents->GetBrowserContext()->IsOffTheRecord();
 }
 
+tabs::TabInterface* TabOf(int id) {
+  return id >= 0 ? tabs::TabHandle(id).Get() : nullptr;
+}
+
+gfx::ImageSkia GatedSnapshot(tabs::TabInterface* tab,
+                             const SnapshotSource& source) {
+  if (!tab || !source || IsPrivateTab(tab)) {
+    return gfx::ImageSkia();
+  }
+  return source.Run(tab);
+}
+
+gfx::Size SnapshotSizeHint(int card_width, int padding, int area_height) {
+  return gfx::Size(card_width - 2 * padding, area_height);
+}
+
 std::unique_ptr<ThumbnailImage::Subscription> WatchTabSnapshot(
     tabs::TabInterface* tab,
     const gfx::Size& size_hint,

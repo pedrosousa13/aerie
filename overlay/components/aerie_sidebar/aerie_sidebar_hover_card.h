@@ -46,6 +46,12 @@ enum class HoverCardTrigger {
   // The row was pressed: the card goes, and stays away until the pointer comes
   // back.
   kPressed,
+  // A key reached the row: the focus that follows in the same event is the
+  // keyboard's (arrow keys move it), not a program's (issue #270).
+  kKeyPressed,
+  // Esc on a row that has the card: the card goes (WCAG 1.4.13: content on
+  // hover or focus can be dismissed with no move of pointer or focus).
+  kDismissed,
 };
 
 // Where the card goes, in screen coordinates. `row` is the row it describes,
@@ -60,6 +66,12 @@ HoverCardBox PlaceHoverCard(const HoverCardBox& row,
                             const HoverCardBox& screen,
                             bool prefer_right,
                             int gap);
+
+// Whether the card goes on the right of `row`: true when the row is in the
+// left half of `window`, so the page lies to its right. It reads the geometry
+// on screen, so a mirrored (right-to-left) UI, which puts the sidebar at the
+// right of the window, gets the card on the left whatever the side setting is.
+bool HoverCardPrefersRight(const HoverCardBox& row, const HoverCardBox& window);
 
 // The host of a page, without a leading "www."; a page without a host (a
 // file, an internal page) gives its scheme. Empty for an empty or invalid URL.

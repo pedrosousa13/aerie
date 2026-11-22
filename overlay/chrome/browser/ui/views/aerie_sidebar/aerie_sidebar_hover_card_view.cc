@@ -36,17 +36,17 @@ AerieHoverCardBody::AerieHoverCardBody(
   favicon_->SetCanProcessEventsWithinSubtree(false);
   title_ = AddChildView(std::make_unique<views::Label>(
       std::u16string(), views::style::CONTEXT_LABEL, views::style::STYLE_BODY_4));
-  title_->SetHorizontalAlignment(gfx::ALIGN_LEFT);
+  title_->SetHorizontalAlignment(gfx::ALIGN_TO_HEAD);
   title_->SetElideBehavior(gfx::ELIDE_TAIL);
   title_->SetEnabledColor(palette_.text);
   host_ = AddChildView(std::make_unique<views::Label>(
       std::u16string(), views::style::CONTEXT_LABEL, views::style::STYLE_BODY_5));
-  host_->SetHorizontalAlignment(gfx::ALIGN_LEFT);
+  host_->SetHorizontalAlignment(gfx::ALIGN_TO_HEAD);
   host_->SetElideBehavior(gfx::ELIDE_TAIL);
   host_->SetEnabledColor(palette_.text_muted);
   url_ = AddChildView(std::make_unique<views::Label>(
       std::u16string(), views::style::CONTEXT_LABEL, views::style::STYLE_BODY_5));
-  url_->SetHorizontalAlignment(gfx::ALIGN_LEFT);
+  url_->SetHorizontalAlignment(gfx::ALIGN_TO_HEAD);
   url_->SetMultiLine(true);
   url_->SetMaxLines(kUrlMaxLines);
   url_->SetElideBehavior(gfx::ELIDE_TAIL);
@@ -106,6 +106,8 @@ gfx::Size AerieHoverCardBody::CalculatePreferredSize(
 }
 
 void AerieHoverCardBody::Layout(PassKey) {
+  // Every part is placed as for left-to-right and then mirrored, so that a
+  // right-to-left UI (which also mirrors the sidebar) reads from the right.
   int y = kPadding;
   if (!snapshot_.isNull()) {
     y += kSnapshotHeight + kGap;
@@ -113,20 +115,21 @@ void AerieHoverCardBody::Layout(PassKey) {
   const int icon = aerie::tokens::kSizeIcon;
   const int title_h = title_->GetPreferredSize().height();
   const int text_x = kPadding + icon + kGap;
-  favicon_->SetBoundsRect(
-      gfx::Rect(kPadding, y + (title_h - icon) / 2, icon, icon));
-  title_->SetBoundsRect(
-      gfx::Rect(text_x, y, width() - text_x - kPadding, title_h));
+  favicon_->SetBoundsRect(GetMirroredRect(
+      gfx::Rect(kPadding, y + (title_h - icon) / 2, icon, icon)));
+  title_->SetBoundsRect(GetMirroredRect(
+      gfx::Rect(text_x, y, width() - text_x - kPadding, title_h)));
   y += title_h;
   const int host_h = host_->GetPreferredSize().height();
-  host_->SetBoundsRect(
-      gfx::Rect(text_x, y, width() - text_x - kPadding, host_h));
+  host_->SetBoundsRect(GetMirroredRect(
+      gfx::Rect(text_x, y, width() - text_x - kPadding, host_h)));
   y += host_h;
   // The URL starts under the favicon, with the whole width, so that a long
   // address has room.
   if (url_->GetVisible()) {
-    url_->SetBoundsRect(gfx::Rect(kPadding, y, ContentWidth(),
-                                  url_->GetHeightForWidth(ContentWidth())));
+    url_->SetBoundsRect(GetMirroredRect(
+        gfx::Rect(kPadding, y, ContentWidth(),
+                  url_->GetHeightForWidth(ContentWidth()))));
   }
 }
 

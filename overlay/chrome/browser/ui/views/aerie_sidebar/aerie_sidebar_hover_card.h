@@ -17,10 +17,13 @@
 #include "base/time/time.h"
 #include "base/timer/timer.h"
 #include "chrome/browser/ui/thumbnails/thumbnail_image.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_tab_snapshot.h"
 #include "components/aerie_design_tokens/aerie_motion.h"
 #include "components/aerie_sidebar/aerie_sidebar_hover_card.h"
+#include "ui/events/event_observer.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/image/image_skia.h"
+#include "ui/views/event_monitor.h"
 #include "ui/views/view_observer.h"
 #include "ui/views/widget/widget.h"
 #include "ui/views/widget/widget_observer.h"
@@ -58,11 +61,11 @@ class TabInterface;
 // (aerie.sidebar.hover_card_snapshots) turns the snapshot off and keeps the
 // text; it is read each time a card opens.
 class AerieSidebarHoverCard : public views::ViewObserver,
-                              public views::WidgetObserver {
+                              public views::WidgetObserver,
+                              public ui::EventObserver {
  public:
   // For tests: the picture of a tab, in place of Chromium's thumbnail.
-  using SnapshotSource =
-      base::RepeatingCallback<gfx::ImageSkia(tabs::TabInterface*)>;
+  using SnapshotSource = aerie_sidebar::SnapshotSource;
 
   explicit AerieSidebarHoverCard(AerieSidebarView* host);
   AerieSidebarHoverCard(const AerieSidebarHoverCard&) = delete;
@@ -77,6 +80,8 @@ class AerieSidebarHoverCard : public views::ViewObserver,
   // Closes the card at once, and drops a card that is still waiting for its
   // delay.
   void Hide();
+  // Whether the card is up for `anchor` (Esc on that row dismisses it).
+  bool ShowsFor(const views::View* anchor) const;
 
   // The pointer or the focus waits for the delay to pass.
   bool pending() const { return timer_.IsRunning(); }
@@ -108,6 +113,10 @@ class AerieSidebarHoverCard : public views::ViewObserver,
   // views::WidgetObserver:
   void OnWidgetActivationChanged(views::Widget* widget, bool active) override;
   void OnWidgetDestroying(views::Widget* widget) override;
+  // ui::EventObserver: a press anywhere in the window, including on a child of
+  // the row (its mute mark, its close button), closes the card before the press
+  // is handled.
+  void OnEvent(const ui::Event& event) override;
 
  private:
   void Arm(views::View* anchor, tabs::TabInterface* tab);
@@ -118,8 +127,17 @@ class AerieSidebarHoverCard : public views::ViewObserver,
   void WatchSnapshot(tabs::TabInterface* tab);
   gfx::ImageSkia SnapshotOf(tabs::TabInterface* tab);
   gfx::Rect ScreenBounds() const;
-  bool SidebarOnTheLeft() const;
   void Close();
+  // The text of the card, and the row's description, from the tab as it is now.
+  void RefreshText();
+  // Hands the widget to a task that destroys it, so that no window is destroyed
+  // in the middle of the input event that closed the card.
+  void RetireWidget();
+  bool KeyboardDriven(views::View* anchor) const;
+
+  // Watches the tab that the card describes, so that a new title or address
+  // reaches the card while it is open.
+  class TabWatcher;
 
   const raw_ptr<AerieSidebarView> host_;
   raw_ptr<views::View> anchor_ = nullptr;
@@ -130,6 +148,11 @@ class AerieSidebarHoverCard : public views::ViewObserver,
   // The tab the card describes: a handle, so that a closed tab cannot dangle.
   int tab_id_ = -1;
   base::OneShotTimer timer_;
+  std::unique_ptr<TabWatcher> tab_watcher_;
+  std::unique_ptr<views::EventMonitor> press_monitor_;
+  // True during the handling of a key event that reached a row: a focus that
+  // comes then is the keyboard's.
+  bool key_in_flight_ = false;
   // When the last card went: a card within `ShowDelay()` of it shows the next
   // row's at once.
   base::TimeTicks last_hidden_;

@@ -1420,6 +1420,8 @@ AerieSidebarRowView* AerieSidebarView::MakeRow(
                                     base::Unretained(this));
     callbacks.hover_card = base::BindRepeating(
         &AerieSidebarView::OnHoverCardTrigger, base::Unretained(this), id);
+    callbacks.hover_card_shown = base::BindRepeating(
+        &AerieSidebarView::HoverCardShownFor, base::Unretained(this));
     callbacks.drag_begin = base::BindRepeating([] { return false; });
     callbacks.drag_update = base::DoNothing();
     callbacks.drag_end = base::DoNothing();
@@ -1468,6 +1470,8 @@ AerieSidebarRowView* AerieSidebarView::MakeRow(
   if (!entry.is_folder) {
     callbacks.hover_card = base::BindRepeating(
         &AerieSidebarView::OnHoverCardTrigger, base::Unretained(this), id);
+    callbacks.hover_card_shown = base::BindRepeating(
+        &AerieSidebarView::HoverCardShownFor, base::Unretained(this));
   }
   callbacks.drag_begin = base::BindRepeating(
       &AerieSidebarView::OnItemDragBegin, base::Unretained(this), id,
@@ -1786,6 +1790,8 @@ void AerieSidebarView::SyncFavorites() {
                                             base::Unretained(this));
     callbacks.hover_card = base::BindRepeating(
         &AerieSidebarView::OnHoverCardTrigger, base::Unretained(this), id);
+    callbacks.hover_card_shown = base::BindRepeating(
+        &AerieSidebarView::HoverCardShownFor, base::Unretained(this));
     callbacks.begin_rename =
         base::BindRepeating(base::IgnoreResult(&AerieSidebarView::StartRename),
                             base::Unretained(this), id);
@@ -2277,6 +2283,10 @@ void AerieSidebarView::GetAccessiblePanes(std::vector<views::View*>* panes) {
   if (adopted_toolbar_) {
     panes->push_back(adopted_toolbar_);
   }
+}
+
+bool AerieSidebarView::HoverCardShownFor(views::View* anchor) {
+  return hover_card_->ShowsFor(anchor);
 }
 
 void AerieSidebarView::OnHoverCardTrigger(

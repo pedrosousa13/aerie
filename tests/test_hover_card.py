@@ -71,7 +71,36 @@ class PrivacyTest(unittest.TestCase):
 
     def test_the_card_checks_the_gate_before_asking_and_before_showing(self):
         source = (VIEWS / "aerie_sidebar_hover_card.cc").read_text()
-        self.assertGreaterEqual(len(re.findall(r"IsPrivateTab\(tab\)", source)), 2)
+        # The gate is in the helper only: the card has no check of its own.
+        self.assertNotIn("IsPrivateTab", source)
+        self.assertIn("GatedSnapshot(tab", source)
+        helper = (VIEWS / "aerie_sidebar_tab_snapshot.cc").read_text()
+        self.assertEqual(len(re.findall(r"IsPrivateTab\(tab\)", helper)), 2)  # GatedSnapshot and WatchTabSnapshot
+
+
+class RtlTest(unittest.TestCase):
+    def test_the_card_aligns_to_the_head_and_mirrors_its_layout(self):
+        view = (VIEWS / "aerie_sidebar_hover_card_view.cc").read_text()
+        self.assertNotIn("ALIGN_LEFT", view)
+        self.assertIn("ALIGN_TO_HEAD", view)
+        self.assertGreaterEqual(view.count("GetMirroredRect("), 4)
+
+    def test_the_side_is_read_from_the_geometry_not_the_side_pref(self):
+        source = (VIEWS / "aerie_sidebar_hover_card.cc").read_text()
+        self.assertIn("HoverCardPrefersRight", source)
+        self.assertNotIn("kSidePref", source)
+
+
+class SharedHelpersTest(unittest.TestCase):
+    def test_tab_of_and_the_size_hint_are_shared(self):
+        helper = (VIEWS / "aerie_sidebar_tab_snapshot.h").read_text()
+        self.assertIn("TabOf(int id)", helper)
+        self.assertIn("SnapshotSizeHint(", helper)
+        for name in ("aerie_sidebar_hover_card.cc", "aerie_sidebar_recent_tabs.cc"):
+            text = (VIEWS / name).read_text()
+            self.assertNotIn("tabs::TabHandle(", text)
+        self.assertIn("SnapshotSizeHint(", (VIEWS / "aerie_sidebar_hover_card.cc").read_text())
+        self.assertIn("SnapshotSizeHint(", (VIEWS / "aerie_sidebar_recent_tabs.cc").read_text())
 
 
 class DocsTest(unittest.TestCase):

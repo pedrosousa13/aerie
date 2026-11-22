@@ -1081,6 +1081,14 @@ bool AerieSidebarRowView::OnKeyPressed(const ui::KeyEvent& event) {
   if (closing_ || renaming_) {
     return false;
   }
+  RunHoverCard(aerie_sidebar::HoverCardTrigger::kKeyPressed);
+  // Esc dismisses the tab preview card with no move of pointer or focus (issue
+  // #270); with no card up, Esc is whatever it was.
+  if (event.key_code() == ui::VKEY_ESCAPE && callbacks_.hover_card_shown &&
+      callbacks_.hover_card_shown.Run(this)) {
+    RunHoverCard(aerie_sidebar::HoverCardTrigger::kDismissed);
+    return true;
+  }
   if (IsCloseShortcut(event)) {
     callbacks_.key.Run(aerie_sidebar::ListKey::kDelete);
     return true;
@@ -1179,6 +1187,12 @@ bool AerieSidebarRowView::SkipDefaultKeyEventProcessing(
       (*key == AerieSidebarSelectionKey::kSelectAll ||
        (*key == AerieSidebarSelectionKey::kClear && callbacks_.selection_active &&
         callbacks_.selection_active.Run()))) {
+    return true;
+  }
+  // Esc on a view that has the preview card dismisses it, so the browser must
+  // not take the key first (Esc stops loading).
+  if (event.key_code() == ui::VKEY_ESCAPE && callbacks_.hover_card_shown &&
+      callbacks_.hover_card_shown.Run(this)) {
     return true;
   }
   return IsCloseShortcut(event) ||

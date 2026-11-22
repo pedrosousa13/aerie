@@ -7,6 +7,11 @@
 #include <utility>
 
 #include "base/functional/bind.h"
+#include "base/task/single_thread_task_runner.h"
+#include "content/public/browser/navigation_entry.h"
+#include "content/public/browser/web_contents_observer.h"
+#include "ui/events/event.h"
+#include "ui/views/focus/focus_manager.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_hover_card_view.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_tab_snapshot.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_view.h"
@@ -32,11 +37,20 @@ aerie_sidebar::HoverCardBox ToBox(const gfx::Rect& rect) {
                                      rect.height()};
 }
 
-tabs::TabInterface* TabOf(int id) {
-  return id >= 0 ? tabs::TabHandle(id).Get() : nullptr;
-}
-
 }  // namespace
+
+// Calls back when the page's title or address changes.
+class AerieSidebarHoverCard::TabWatcher : public content::WebContentsObserver {
+ public:
+  TabWatcher(AerieSidebarHoverCard* owner, content::WebContents* contents)
+      : content::WebContentsObserver(contents), owner_(owner) {}
+
+  void TitleWasSet(content::NavigationEntry*) override { owner_->RefreshText(); }
+  void PrimaryPageChanged(content::Page&) override { owner_->RefreshText(); }
+
+ private:
+  const raw_ptr<AerieSidebarHoverCard> owner_;
+};
 
 AerieSidebarHoverCard::AerieSidebarHoverCard(AerieSidebarView* host)
     : host_(host) {}
@@ -86,8 +100,28 @@ void AerieSidebarHoverCard::OnTrigger(views::View* anchor,
         Arm(anchor, tab);
       }
       return;
+    case Trigger::kKeyPressed:
+      // Until the end of this event a focus change is the keyboard's. A key
+      // also ends the pointer's wait, which is not the user's attention now.
+      key_in_flight_ = true;
+      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+          FROM_HERE, base::BindOnce(
+                         [](base::WeakPtr<AerieSidebarHoverCard> self) {
+                           if (self) {
+                             self->key_in_flight_ = false;
+                           }
+                         },
+                         weak_factory_.GetWeakPtr()));
+      return;
+    case Trigger::kDismissed:
+      if (anchor == anchor_) {
+        Hide();
+      }
+      return;
     case Trigger::kFocused:
-      if (!tab) {
+      // Only the keyboard's focus shows a card: not a program's (focus that is
+      // restored, or set by code), which the user did not ask for.
+      if (!tab || !KeyboardDriven(anchor)) {
         return;
       }
       SetAnchor(anchor);
@@ -102,6 +136,20 @@ void AerieSidebarHoverCard::OnTrigger(views::View* anchor,
       }
       return;
   }
+}
+
+bool AerieSidebarHoverCard::KeyboardDriven(views::View* anchor) const {
+  if (key_in_flight_) {
+    return true;
+  }
+  // Tab and Shift+Tab move focus through the focus manager.
+  const views::FocusManager* manager = anchor->GetFocusManager();
+  return manager && manager->focus_change_reason() ==
+                        views::FocusManager::FocusChangeReason::kFocusTraversal;
+}
+
+bool AerieSidebarHoverCard::ShowsFor(const views::View* anchor) const {
+  return widget_ && anchor_ == anchor;
 }
 
 void AerieSidebarHoverCard::Arm(views::View* anchor, tabs::TabInterface* tab) {
@@ -131,7 +179,7 @@ void AerieSidebarHoverCard::SetAnchor(views::View* anchor) {
 
 void AerieSidebarHoverCard::ShowNow() {
   timer_.Stop();
-  tabs::TabInterface* tab = TabOf(tab_id_);
+  tabs::TabInterface* tab = aerie_sidebar::TabOf(tab_id_);
   content::WebContents* contents = tab ? tab->GetContents() : nullptr;
   if (!anchor_ || !anchor_->GetWidget() || !anchor_->GetVisible() || !contents) {
     Hide();
@@ -143,9 +191,7 @@ void AerieSidebarHoverCard::ShowNow() {
     fade_.Abort();
     drop_.Abort();
     subscription_.reset();
-    widget_->CloseNow();
-    widget_.reset();
-    card_ = nullptr;
+    RetireWidget();
   }
   const aerie_sidebar::SidebarPalette palette =
       aerie_sidebar::PopoverPaletteOf(host_->palette());
@@ -157,6 +203,12 @@ void AerieSidebarHoverCard::ShowNow() {
   // What a screen reader says: the host and the URL, as the row's description.
   description_ = aerie_sidebar::HoverCardDescription(text);
   anchor_->GetViewAccessibility().SetDescription(description_);
+  tab_watcher_ = std::make_unique<TabWatcher>(this, contents);
+  // A press anywhere in the window closes the card, before the press is
+  // handled by the row or by a child of it.
+  views::Widget* window = anchor_->GetWidget();
+  press_monitor_ = views::EventMonitor::CreateWindowMonitor(
+      this, window->GetNativeWindow(), {ui::EventType::kMousePressed});
 
   views::Widget::InitParams params(views::Widget::InitParams::CLIENT_OWNS_WIDGET,
                                    views::Widget::InitParams::TYPE_POPUP);
@@ -185,10 +237,15 @@ void AerieSidebarHoverCard::Place() {
   }
   card_->InvalidateLayout();
   const gfx::Size card_size = card_->CardSize();
+  // The page side is read from where the row is in the window, not from the
+  // side setting, so that a mirrored UI places the card on the right side.
+  const aerie_sidebar::HoverCardBox row = ToBox(anchor_->GetBoundsInScreen());
+  const bool right = aerie_sidebar::HoverCardPrefersRight(
+      row, ToBox(anchor_->GetWidget()->GetWindowBoundsInScreen()));
   const aerie_sidebar::HoverCardBox placed = aerie_sidebar::PlaceHoverCard(
-      ToBox(anchor_->GetBoundsInScreen()),
+      row,
       aerie_sidebar::HoverCardBox{0, 0, card_size.width(), card_size.height()},
-      ToBox(ScreenBounds()), SidebarOnTheLeft(), kRowGap);
+      ToBox(ScreenBounds()), right, kRowGap);
   gfx::Rect bounds(placed.x, placed.y, placed.width, placed.height);
   bounds.Outset(AerieHoverCardView::Inset());
   widget_->SetBounds(bounds);
@@ -221,20 +278,16 @@ void AerieSidebarHoverCard::Open(bool animate) {
 }
 
 gfx::ImageSkia AerieSidebarHoverCard::SnapshotOf(tabs::TabInterface* tab) {
-  // The one gate: a private tab is never asked for a snapshot, and a snapshot
-  // of one is never shown.
-  if (aerie_sidebar::IsPrivateTab(tab) || !snapshot_source_) {
-    return gfx::ImageSkia();
-  }
-  return snapshot_source_.Run(tab);
+  // The gate is aerie_sidebar::GatedSnapshot's, shared with the recent tabs
+  // overlay.
+  return aerie_sidebar::GatedSnapshot(tab, snapshot_source_);
 }
 
 void AerieSidebarHoverCard::WatchSnapshot(tabs::TabInterface* tab) {
   subscription_.reset();
   // The Settings switch: off keeps the text and shows no picture.
   const PrefService* prefs = host_->profile_prefs();
-  if (!prefs || !prefs->GetBoolean(aerie_sidebar::kHoverCardSnapshotsPref) ||
-      aerie_sidebar::IsPrivateTab(tab)) {
+  if (!prefs || !prefs->GetBoolean(aerie_sidebar::kHoverCardSnapshotsPref)) {
     return;
   }
   if (snapshot_source_) {
@@ -244,9 +297,9 @@ void AerieSidebarHoverCard::WatchSnapshot(tabs::TabInterface* tab) {
   }
   subscription_ = aerie_sidebar::WatchTabSnapshot(
       tab,
-      gfx::Size(aerie::tokens::kSizeHoverCardWidth -
-                    2 * aerie::tokens::kSpace12,
-                aerie::tokens::kSizeHoverCardSnapshotHeight),
+      aerie_sidebar::SnapshotSizeHint(
+          aerie::tokens::kSizeHoverCardWidth, aerie::tokens::kSpace12,
+          aerie::tokens::kSizeHoverCardSnapshotHeight),
       base::BindRepeating(
           [](base::WeakPtr<AerieSidebarHoverCard> self, gfx::ImageSkia image) {
             if (!self || !self->card_) {
@@ -267,13 +320,6 @@ gfx::Rect AerieSidebarHoverCard::ScreenBounds() const {
       .work_area();
 }
 
-bool AerieSidebarHoverCard::SidebarOnTheLeft() const {
-  const PrefService* prefs = host_->profile_prefs();
-  return !prefs ||
-         prefs->GetString(aerie_sidebar::kSidePref) !=
-             aerie_sidebar::kSideRight;
-}
-
 void AerieSidebarHoverCard::Hide() {
   timer_.Stop();
   const bool was_showing = widget_ != nullptr;
@@ -289,16 +335,53 @@ void AerieSidebarHoverCard::Close() {
   fade_.Abort();
   drop_.Abort();
   subscription_.reset();
-  card_ = nullptr;
+  tab_watcher_.reset();
+  press_monitor_.reset();
   host_widget_observation_.Reset();
   if (anchor_ && !description_.empty()) {
     anchor_->GetViewAccessibility().SetDescription(std::u16string());
     description_.clear();
   }
   if (widget_) {
-    widget_->CloseNow();
-    widget_.reset();
+    RetireWidget();
   }
+}
+
+void AerieSidebarHoverCard::RetireWidget() {
+  card_ = nullptr;
+  widget_->Hide();
+  // The window is destroyed by a task of its own: closing it inside the key or
+  // mouse event that asked for it upsets the native event handling (under X11
+  // the test key senders wait for an event that never comes).
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE, base::BindOnce(
+                     [](std::unique_ptr<views::Widget> widget) {
+                       widget->CloseNow();
+                     },
+                     std::move(widget_)));
+}
+
+void AerieSidebarHoverCard::OnEvent(const ui::Event& event) {
+  if (event.type() == ui::EventType::kMousePressed) {
+    Hide();
+  }
+}
+
+void AerieSidebarHoverCard::RefreshText() {
+  tabs::TabInterface* tab = aerie_sidebar::TabOf(tab_id_);
+  content::WebContents* contents = tab ? tab->GetContents() : nullptr;
+  if (!widget_ || !anchor_ || !contents) {
+    return;
+  }
+  const aerie_sidebar::SidebarPalette palette =
+      aerie_sidebar::PopoverPaletteOf(host_->palette());
+  const aerie_sidebar::HoverCardText text = aerie_sidebar::FormatHoverCardText(
+      host_->ShownTitleOfTab(tab), contents->GetLastCommittedURL().spec());
+  card_->body()->SetText(text,
+                         aerie_sidebar::TabCardFavicon(contents, palette.text));
+  description_ = aerie_sidebar::HoverCardDescription(text);
+  anchor_->GetViewAccessibility().SetDescription(description_);
+  Place();
 }
 
 void AerieSidebarHoverCard::OnViewIsDeleting(views::View* observed_view) {

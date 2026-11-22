@@ -78,6 +78,38 @@ TEST(HoverCardPlacementTest, ACardWiderThanTheRoomOnEitherSideStaysOnScreenAnywa
   EXPECT_LE(card.right(), screen.right());
 }
 
+TEST(HoverCardPlacementTest, AWorkAreaThatIsNotAtTheOriginKeepsTheCardInsideIt) {
+  // A second monitor to the right of the primary one, and a taskbar at the
+  // top: the work area starts at (1920, 40).
+  const HoverCardBox screen{1920, 40, 1920, 1000};
+  const HoverCardBox row{1920, 980, 240, 36};
+  const HoverCardBox card = PlaceHoverCard(row, kCard, screen, true, kGap);
+  EXPECT_TRUE(screen.Contains(card));
+  EXPECT_FALSE(card.Intersects(row));
+  EXPECT_EQ(card.x, row.right() + kGap);
+  EXPECT_EQ(card.bottom(), screen.bottom());
+  const HoverCardBox top{1920, 40, 240, 36};
+  EXPECT_EQ(PlaceHoverCard(top, kCard, screen, true, kGap).y, 40);
+}
+
+TEST(HoverCardPlacementTest, AMirroredWindowGetsTheCardOnTheLeftOfARightSidebar) {
+  // A right-to-left UI puts the sidebar at the right of the window, whatever
+  // the side setting says: the card goes to the page side, on its left.
+  const HoverCardBox window{100, 100, 800, 600};
+  const HoverCardBox row{660, 200, 240, 36};
+  ASSERT_FALSE(HoverCardPrefersRight(row, window));
+  const HoverCardBox card = PlaceHoverCard(
+      row, kCard, kScreen, HoverCardPrefersRight(row, window), kGap);
+  EXPECT_EQ(card.right(), row.x - kGap);
+  EXPECT_FALSE(card.Intersects(row));
+}
+
+TEST(HoverCardPlacementTest, TheCardGoesOnThePageSideOfTheRow) {
+  const HoverCardBox window{100, 100, 800, 600};
+  EXPECT_TRUE(HoverCardPrefersRight(HoverCardBox{100, 200, 240, 36}, window));
+  EXPECT_FALSE(HoverCardPrefersRight(HoverCardBox{660, 200, 240, 36}, window));
+}
+
 TEST(HoverCardTextTest, TheHostLosesALeadingWww) {
   EXPECT_EQ(HoverCardHost("https://www.example.com/a/b?q=1"), "example.com");
   EXPECT_EQ(HoverCardHost("https://docs.example.com/"), "docs.example.com");

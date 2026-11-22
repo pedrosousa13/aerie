@@ -42,6 +42,21 @@ namespace aerie_sidebar {
 // check goes in this one function.
 bool IsPrivateTab(tabs::TabInterface* tab);
 
+// The tab with this handle id (`TabHandle::raw_value()`), or null when it is
+// gone. A card keeps the id, not the pointer, so that a closed tab cannot dangle.
+tabs::TabInterface* TabOf(int id);
+
+// For tests: the picture of a tab, in place of Chromium's thumbnail.
+using SnapshotSource = base::RepeatingCallback<gfx::ImageSkia(tabs::TabInterface*)>;
+// `source` run for `tab`, behind the same gate as WatchTabSnapshot: an empty
+// image for a private tab, which `source` is never asked about.
+gfx::ImageSkia GatedSnapshot(tabs::TabInterface* tab,
+                             const SnapshotSource& source);
+
+// The size to decode a snapshot to for a card that is `card_width` wide with
+// `padding` on each side of the snapshot area, which is `area_height` high.
+gfx::Size SnapshotSizeHint(int card_width, int padding, int area_height);
+
 using SnapshotCallback = base::RepeatingCallback<void(gfx::ImageSkia)>;
 
 // Watches the snapshot that Chromium already has for `tab`, decoded to about

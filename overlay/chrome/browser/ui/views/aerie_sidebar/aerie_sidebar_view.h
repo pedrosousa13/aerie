@@ -647,6 +647,7 @@ class AerieSidebarView : public views::View,
   // The audio mark of a row was pressed (issue #268): mutes the tab, or unmutes
   // it, with the call the stock tab strip makes.
   // What a row or a tile of `tab_id` tells the tab preview card (issue #270).
+  bool HoverCardShownFor(views::View* anchor);
   void OnHoverCardTrigger(const std::string& tab_id,
                           views::View* anchor,
                           aerie_sidebar::HoverCardTrigger trigger);

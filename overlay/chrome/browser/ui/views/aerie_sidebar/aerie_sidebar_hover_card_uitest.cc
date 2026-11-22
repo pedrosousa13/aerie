@@ -52,6 +52,7 @@
 #include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/browser_test.h"
+#include "content/public/test/browser_test_utils.h"
 #include "net/dns/mock_host_resolver.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "net/test/embedded_test_server/http_request.h"
@@ -336,46 +337,122 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarHoverCardUiTest,
   EXPECT_FALSE(hover()->card_bounds_in_screen().Intersects(row));
 }
 
+// The key that moves focus along the list from `row`: down, or up when `row` is
+// the last one (the tab stop is the open tab's row, which may be the last).
+ui::KeyboardCode AlongTheList(AerieSidebarView* sidebar, views::View* row) {
+  for (size_t i = 0; i < sidebar->row_count(); ++i) {
+    if (sidebar->row_at(i)->GetBoundsInScreen().y() >
+        row->GetBoundsInScreen().y()) {
+      return ui::VKEY_DOWN;
+    }
+  }
+  return ui::VKEY_UP;
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarHoverCardUiTest,
+                       ProgrammaticFocusOnARowShowsNoCard) {
+  OpenThreeTabs();
+  // Focus set by code (as focus restoration does) is not the user's attention.
+  sidebar()->today_tree()->RequestFocus();
+  ASSERT_TRUE(sidebar()->today_tree()->GetFocusManager()->GetFocusedView());
+  EXPECT_FALSE(hover()->showing());
+  EXPECT_FALSE(hover()->pending());
+}
+
 IN_PROC_BROWSER_TEST_F(AerieSidebarHoverCardUiTest,
                        KeyboardFocusOnARowShowsTheCardAndDescribesTheRow) {
   OpenThreeTabs();
-  // Focus enters the list at its tab stop; no delay for the keyboard.
   sidebar()->today_tree()->RequestFocus();
-  ASSERT_TRUE(hover()->showing());
-  views::View* first = hover()->anchor();
+  views::View* first =
+      sidebar()->today_tree()->GetFocusManager()->GetFocusedView();
   ASSERT_TRUE(first);
-  EXPECT_TRUE(first->HasFocus());
+  ASSERT_FALSE(hover()->showing());
+
+  // A real arrow key moves focus to the next row, with the card up at once.
+  ASSERT_TRUE(ui_test_utils::SendKeyPressSync(
+      browser(), AlongTheList(sidebar(), first), false, false, false, false));
+  ASSERT_TRUE(base::test::RunUntil([&] { return hover()->showing(); }));
+  views::View* second = hover()->anchor();
+  ASSERT_TRUE(second);
+  EXPECT_NE(second, first);
+  EXPECT_TRUE(second->HasFocus());
   const std::u16string host(hover()->card()->body()->host_label()->GetText());
   const std::u16string url(hover()->card()->body()->url_label()->GetText());
   EXPECT_EQ(host, u"localhost");
   // The content of the card is the row's accessible description.
-  EXPECT_EQ(DescriptionOf(first), host + u", " + url);
-
-  // The arrow keys move focus to the next row: the card follows, and the row
-  // that lost focus loses its description.
-  // The key goes through the root view to the focused row.
-  {
-    // The tab stop is the open tab's row, which may be the last one: then
-    // the way along the list is up.
-    bool last = true;
-    for (size_t i = 0; i < sidebar()->row_count(); ++i) {
-      last = last && Row(i)->GetBoundsInScreen().y() <=
-                         first->GetBoundsInScreen().y();
-    }
-    ui::KeyEvent along(ui::EventType::kKeyPressed,
-                       last ? ui::VKEY_UP : ui::VKEY_DOWN, ui::EF_NONE);
-    first->OnKeyPressed(along);
-  }
-  ASSERT_TRUE(base::test::RunUntil(
-      [&] { return hover()->showing() && hover()->anchor() != first; }));
+  EXPECT_EQ(DescriptionOf(second), host + u", " + url);
   EXPECT_TRUE(DescriptionOf(first).empty());
-  EXPECT_FALSE(DescriptionOf(hover()->anchor()).empty());
 
-  // Focus leaves the sidebar: the card and the description go.
-  views::View* second = hover()->anchor();
+  // Focus leaves: the card and the description go.
   second->GetFocusManager()->ClearFocus();
   ASSERT_TRUE(base::test::RunUntil([&] { return !hover()->showing(); }));
   EXPECT_TRUE(DescriptionOf(second).empty());
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarHoverCardUiTest,
+                       EscDismissesTheCardAndNothingElseWhileItIsUp) {
+  OpenThreeTabs();
+  sidebar()->today_tree()->RequestFocus();
+  views::View* first =
+      sidebar()->today_tree()->GetFocusManager()->GetFocusedView();
+  ASSERT_TRUE(first);
+  ASSERT_TRUE(ui_test_utils::SendKeyPressSync(
+      browser(), AlongTheList(sidebar(), first), false, false, false, false));
+  ASSERT_TRUE(base::test::RunUntil([&] { return hover()->showing(); }));
+  views::View* row = hover()->anchor();
+  ASSERT_TRUE(row);
+
+  // Esc closes the card, and moves neither the focus nor the pointer.
+  ASSERT_TRUE(ui_test_utils::SendKeyPressSync(
+      browser(), ui::VKEY_ESCAPE, false, false, false, false));
+  EXPECT_FALSE(hover()->showing());
+  EXPECT_TRUE(DescriptionOf(row).empty());
+  EXPECT_TRUE(row->HasFocus());
+
+  // With no card up, Esc is as before: it does not bring one back.
+  ASSERT_TRUE(ui_test_utils::SendKeyPressSync(
+      browser(), ui::VKEY_ESCAPE, false, false, false, false));
+  EXPECT_FALSE(hover()->showing());
+  EXPECT_TRUE(row->HasFocus());
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarHoverCardUiTest,
+                       APressOnAChildOfTheRowAlsoClosesTheCard) {
+  OpenThreeTabs();
+  HoverAndWaitForCard(Row(0));
+  // The close button shows while the row is hovered. The pointer moves onto it
+  // (still inside the row), and the card stays.
+  views::View* close = Row(0)->close_button();
+  ASSERT_TRUE(close->GetVisible());
+  MoveTo(close->GetBoundsInScreen().CenterPoint());
+  ASSERT_TRUE(hover()->showing());
+  ASSERT_TRUE(ui_test_utils::SendMouseEventsSync(ui_controls::LEFT,
+                                                 ui_controls::DOWN));
+  EXPECT_FALSE(hover()->showing());
+  ASSERT_TRUE(
+      ui_test_utils::SendMouseEventsSync(ui_controls::LEFT, ui_controls::UP));
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSidebarHoverCardUiTest,
+                       ANewTitleReachesTheCardAndTheDescriptionWhileItIsOpen) {
+  OpenThreeTabs();
+  HoverAndWaitForCard(Row(0));
+  const std::u16string title(hover()->card()->body()->title_label()->GetText());
+  content::WebContents* contents = nullptr;
+  for (int i = 0; i < tabs()->count(); ++i) {
+    if (tabs()->GetWebContentsAt(i)->GetTitle() == title) {
+      contents = tabs()->GetWebContentsAt(i);
+    }
+  }
+  ASSERT_TRUE(contents);
+  ASSERT_TRUE(content::ExecJs(contents, "document.title = 'Renamed'"));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return hover()->showing() &&
+           hover()->card()->body()->title_label()->GetText() == u"Renamed";
+  }));
+  // The card still describes the row: host and address.
+  EXPECT_EQ(DescriptionOf(hover()->anchor()),
+            u"localhost, " + std::u16string(hover()->card()->body()->url_label()->GetText()));
 }
 
 IN_PROC_BROWSER_TEST_F(AerieSidebarHoverCardUiTest, APressClosesTheCard) {
@@ -447,8 +524,16 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarHoverCardUiTest,
         return SolidSnapshot();
       },
       &asked));
+  // Focus by code shows no card; focus by Tab traversal (the focus manager's
+  // reason for it) does. The real keys are tested in the window above.
   side->today_tree()->RequestFocus();
-  ASSERT_TRUE(side->hover_card()->showing());
+  views::View* focused = side->today_tree()->GetFocusManager()->GetFocusedView();
+  ASSERT_TRUE(focused);
+  focused->GetFocusManager()->ClearFocus();
+  focused->GetFocusManager()->SetFocusedViewWithReason(
+      focused, views::FocusManager::FocusChangeReason::kFocusTraversal);
+  ASSERT_TRUE(base::test::RunUntil(
+      [&] { return side->hover_card()->showing(); }));
   EXPECT_FALSE(side->hover_card()->card()->body()->snapshot_shown());
   EXPECT_EQ(asked, 0);
   // The text is there all the same.
