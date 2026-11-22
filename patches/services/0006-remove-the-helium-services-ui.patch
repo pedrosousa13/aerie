@@ -49,14 +49,14 @@ strings this patch removes or replaces) and on hardening/0003 and onboarding/000
  chrome/app/certificate_manager.grdp
 --- a/chrome/browser/download/download_ui_model.cc
 +++ b/chrome/browser/download/download_ui_model.cc
-@@ -766,7 +766,7 @@
+@@ -774,7 +774,7 @@
        break;
      case DownloadCommands::OPEN_HELIUM_SERVICES:
        download_commands->GetBrowser()->OpenURL(
 -          content::OpenURLParams(GURL("chrome://settings/privacy/services"),
 +          content::OpenURLParams(GURL("chrome://settings/privacy"),
                                   content::Referrer(),
-                                  WindowOpenDisposition::NEW_FOREGROUND_TAB,
+                                  WindowOpenDisposition::kNewForegroundTab,
                                   ui::PAGE_TRANSITION_LINK, false),
 --- a/chrome/browser/resources/settings/BUILD.gn
 +++ b/chrome/browser/resources/settings/BUILD.gn
@@ -68,7 +68,7 @@ strings this patch removes or replaces) and on hardening/0003 and onboarding/000
      "settings_main/settings_main.ts",
      "settings_menu/settings_menu.ts",
      "settings_ui/settings_ui.ts",
-@@ -366,7 +365,6 @@
+@@ -365,7 +364,6 @@
      "people_page/sync_encryption_options.ts",
      "people_page/sync_page.html.ts",
      "people_page/sync_page.ts",
@@ -94,49 +94,6 @@ strings this patch removes or replaces) and on hardening/0003 and onboarding/000
  export {SettingsResetPageElement} from './reset_page/reset_page.js';
  export {SettingsResetProfileDialogElement} from './reset_page/reset_profile_dialog.js';
  export {SettingsSafetyHubExtensionsModuleElement} from './safety_hub/extensions_module.js';
---- a/chrome/browser/resources/settings/privacy_page/changelog_proxy.ts
-+++ /dev/null
-@@ -1,40 +0,0 @@
--// Copyright 2025 The Helium Authors
--// You can use, redistribute, and/or modify this source code under
--// the terms of the GPL-3.0 license that can be found in the LICENSE file.
--
--/**
-- * @fileoverview A helper object used from the "Helium services" section
-- * to request a changelog (if one exists).
-- */
--
--// clang-format off
--import {sendWithPromise} from 'chrome://resources/js/cr.js';
--// clang-format on
--
--export interface HeliumServicesChangeHandler {
--  // Get the pending changes to Helium services to announce
--  // to the user.
--  requestChangelog(): Promise<string[]>;
--  acknowledgeChanges(ignoreAllChangelogs: boolean): void;
--}
--
--export class HeliumServicesChangeHandlerImpl implements
--    HeliumServicesChangeHandler {
--  requestChangelog() {
--    return sendWithPromise<string[]>('getServicesSchemaChangelog');
--  }
--
--  acknowledgeChanges(ignoreAllChangelogs: boolean) {
--    chrome.send('updateServicesSchemaVersion', [ignoreAllChangelogs]);
--  }
--
--  static getInstance(): HeliumServicesChangeHandler {
--    return instance || (instance = new HeliumServicesChangeHandlerImpl());
--  }
--
--  static setInstance(obj: HeliumServicesChangeHandler) {
--    instance = obj;
--  }
--}
--
--let instance: HeliumServicesChangeHandler|null = null;
 --- a/chrome/browser/resources/settings/privacy_page/privacy_page.html
 +++ b/chrome/browser/resources/settings/privacy_page/privacy_page.html
 @@ -53,11 +53,27 @@
@@ -278,14 +235,14 @@ strings this patch removes or replaces) and on hardening/0003 and onboarding/000
          triggerId = 'securityLinkRow';
 --- a/chrome/browser/resources/settings/privacy_page/privacy_page_index.html
 +++ b/chrome/browser/resources/settings/privacy_page/privacy_page_index.html
-@@ -22,14 +22,6 @@
+@@ -21,14 +21,6 @@
      </settings-privacy-page>
    </template>
  
 -  <template is="dom-if" if="[[renderView_(
 -      routes_.HELIUM_SERVICES, currentRoute, inSearchMode)]]">
 -    <settings-helium-services-page slot="view" id="heliumServices"
--        data-parent-view-id="privacy" prefs="{{prefs}}"
+-        data-parent-view-id="privacy"
 -        route-path$="[[routes_.HELIUM_SERVICES.path]]">
 -    </settings-helium-services-page>
 -  </template>
@@ -293,9 +250,109 @@ strings this patch removes or replaces) and on hardening/0003 and onboarding/000
    <!-- Keep entries below sorted based on the route name. -->
  
    <template is="dom-if" if="[[renderView_(
+--- a/chrome/browser/resources/settings/route.ts
++++ b/chrome/browser/resources/settings/route.ts
+@@ -24,8 +24,6 @@
+ 
+   r.AERIE_HARDENING = r.PRIVACY.createChild('hardening');
+ 
+-  r.HELIUM_SERVICES = r.PRIVACY.createChild('services');
+-
+   const visibility = pageVisibility || {};
+ 
+   if (visibility.safetyHub = false) {
+--- a/chrome/browser/resources/settings/router.ts
++++ b/chrome/browser/resources/settings/router.ts
+@@ -40,7 +40,6 @@
+   GEMINI_LOGIN: Route;
+   GEMINI_ENTERPRISE: Route;
+   GLIC_SECTION: Route;
+-  HELIUM_SERVICES: Route;
+   HISTORY_SEARCH: Route;
+   IDENTITY_DOCS: Route;
+   INLINE_CUE_MENU: Route;
+--- a/chrome/browser/ui/chrome_pages.cc
++++ b/chrome/browser/ui/chrome_pages.cc
+@@ -621,7 +621,7 @@
+ 
+ void ShowHeliumServices(BrowserWindowInterface* browser) {
+   ShowSingletonTabIgnorePathOverwriteNTP(
+-      browser, GURL("chrome://settings/privacy/services"));
++      browser, GURL("chrome://settings/privacy"));
+ }
+ 
+ void ShowSearchEngineSettings(BrowserWindowInterface* browser) {
+--- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
++++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
+@@ -1581,7 +1581,7 @@
+       {"languagesDictionaryDownloadError",
+        IDS_SETTINGS_LANGUAGES_DICTIONARY_DOWNLOAD_FAILED},
+       {"languagesDictionaryDownloadErrorHelp",
+-       IDS_SETTINGS_LANGUAGES_DICTIONARY_DOWNLOAD_FAILED_HELP_HELIUM},
++       IDS_SETTINGS_LANGUAGES_DICTIONARY_DOWNLOAD_FAILED_HELP_AERIE},
+ #endif
+ #endif  // !BUILDFLAG(IS_CHROMEOS)
+ #if BUILDFLAG(IS_CHROMEOS)
+@@ -2749,6 +2749,13 @@
+         IDS_SETTINGS_HELIUM_SERVICES_OVERRIDE_ARIA_LABEL},
+       {"heliumOriginOverrideInvalidOrigin",
+         IDS_SETTINGS_HELIUM_SERVICES_OVERRIDE_INVALID_ORIGIN},
++      {"aerieExtensionProxyLabel", IDS_SETTINGS_AERIE_EXTENSION_PROXY_LABEL},
++      {"aerieExtensionProxyDescription",
++       IDS_SETTINGS_AERIE_EXTENSION_PROXY_DESCRIPTION},
++      {"aerieExtensionProxyAriaLabel",
++       IDS_SETTINGS_AERIE_EXTENSION_PROXY_ARIA_LABEL},
++      {"aerieExtensionProxyInvalid",
++       IDS_SETTINGS_AERIE_EXTENSION_PROXY_INVALID},
+       {"advancedProtectionProgramTitle",
+        IDS_SETTINGS_ADVANCED_PROTECTION_PROGRAM},
+       {"advancedProtectionProgramDesc",
+--- a/chrome/browser/resources/settings/privacy_page/changelog_proxy.ts
++++ /dev/null
+@@ -1,40 +0,0 @@
+-// Copyright 2025 The Helium Authors
+-// You can use, redistribute, and/or modify this source code under
+-// the terms of the GPL-3.0 license that can be found in the LICENSE file.
+-
+-/**
+- * @fileoverview A helper object used from the "Helium services" section
+- * to request a changelog (if one exists).
+- */
+-
+-// clang-format off
+-import {sendWithPromise} from 'chrome://resources/js/cr.js';
+-// clang-format on
+-
+-export interface HeliumServicesChangeHandler {
+-  // Get the pending changes to Helium services to announce
+-  // to the user.
+-  requestChangelog(): Promise<string[]>;
+-  acknowledgeChanges(ignoreAllChangelogs: boolean): void;
+-}
+-
+-export class HeliumServicesChangeHandlerImpl implements
+-    HeliumServicesChangeHandler {
+-  requestChangelog() {
+-    return sendWithPromise<string[]>('getServicesSchemaChangelog');
+-  }
+-
+-  acknowledgeChanges(ignoreAllChangelogs: boolean) {
+-    chrome.send('updateServicesSchemaVersion', [ignoreAllChangelogs]);
+-  }
+-
+-  static getInstance(): HeliumServicesChangeHandler {
+-    return instance || (instance = new HeliumServicesChangeHandlerImpl());
+-  }
+-
+-  static setInstance(obj: HeliumServicesChangeHandler) {
+-    instance = obj;
+-  }
+-}
+-
+-let instance: HeliumServicesChangeHandler|null = null;
 --- a/chrome/browser/resources/settings/privacy_page/services_page.html
 +++ /dev/null
-@@ -1,154 +0,0 @@
+@@ -1,194 +0,0 @@
 -<style include="cr-shared-style settings-shared">
 -    .label-wrapper {
 -        padding: var(--cr-section-vertical-padding) 0;
@@ -335,11 +392,17 @@ strings this patch removes or replaces) and on hardening/0003 and onboarding/000
 -        padding: calc(var(--cr-section-padding) / 2) var(--cr-section-padding);
 -        justify-content: space-between;
 -    }
+-
+-    #pushServer {
+-        padding-inline-start: var(--cr-section-indent-padding);
+-        padding-inline-end: var(--cr-section-padding);
+-        padding-bottom: var(--cr-section-vertical-padding);
+-    }
 -</style>
 -
 -<settings-subpage page-title="$i18n{heliumServicesTitle}" route-path$="[[routePath]]">
 -<div class="cr-col first">
--    <template is="dom-if" if="[[!prefs.helium.services.user_consented.value]]">
+-    <template is="dom-if" if="[[!userConsentedPref_.value]]">
 -        <div class="cr-row" id="onboarding-notice">
 -            <div id="onboarding-text">
 -                  <cr-icon icon="cr:security" aria-hidden="true"></cr-icon>
@@ -353,7 +416,7 @@ strings this patch removes or replaces) and on hardening/0003 and onboarding/000
 -        </div>
 -    </template>
 -
--    <template is="dom-if" if="[[prefs.helium.services.user_consented.value]]">
+-    <template is="dom-if" if="[[userConsentedPref_.value]]">
 -        <template is="dom-if" if="[[changes_.length]]">
 -          <div id="changelog-notice">
 -            <div id="changelog-title">$i18n{heliumSchemaUpdatedTitle}</div>
@@ -374,34 +437,68 @@ strings this patch removes or replaces) and on hardening/0003 and onboarding/000
 -          </div>
 -        </template>
 -    <settings-toggle-button id="servicesToggleButton"
--        pref="{{prefs.helium.services.enabled}}"
+-        pref-key="helium.services.enabled"
 -        label="$i18n{heliumServicesToggle}"
 -        sub-label="$i18n{heliumServicesToggleDescription}">
 -    </settings-toggle-button>
 -    <div class="cr-col">
--        <cr-collapse id="servicesCollapse" opened="[[prefs.helium.services.enabled.value]]">
+-        <cr-collapse id="servicesCollapse" opened="[[servicesEnabledPref_.value]]">
 -            <settings-toggle-button id="extProxyToggleButton"
--                pref="{{prefs.helium.services.ext_proxy}}"
+-                pref-key="helium.services.ext_proxy"
 -                label="$i18n{heliumExtProxyToggle}"
 -                sub-label="$i18n{heliumExtProxyToggleDescription}">
 -            </settings-toggle-button>
 -            <settings-toggle-button id="bangToggleButton"
--                pref="{{prefs.helium.services.bangs}}"
+-                pref-key="helium.services.bangs"
 -                label="$i18n{heliumBangsToggle}"
 -                sub-label="$i18n{heliumBangsToggleDescription}">
 -            </settings-toggle-button>
 -            <if expr="use_renderer_spellchecker">
 -                <settings-toggle-button id="spellcheckToggleButton"
--                    pref="{{prefs.helium.services.spellcheck_files}}"
+-                    pref-key="helium.services.spellcheck_files"
 -                    label="$i18n{heliumSpellcheckToggle}"
 -                    sub-label="$i18n{heliumSpellcheckToggleDescription}">
 -                </settings-toggle-button>
 -            </if>
 -            <settings-toggle-button id="updatesToggleButton"
--                pref="{{prefs.helium.services.browser_updates}}"
+-                pref-key="helium.services.browser_updates"
 -                label="$i18n{heliumUpdatesToggle}"
 -                sub-label="$i18n{heliumUpdatesToggleDescription}">
 -            </settings-toggle-button>
+-            <template is="dom-if" if="[[webPushAvailable_]]">
+-            <settings-toggle-button id="webPushToggleButton"
+-                pref-key="helium.services.web_push"
+-                label="$i18n{heliumWebPushToggle}"
+-                sub-label="$i18n{heliumWebPushToggleDescription}">
+-            </settings-toggle-button>
+-            <cr-collapse opened="[[webPushPref_.value]]">
+-                <div id="pushServer">
+-                    <cr-radio-group selected="[[pushServerMode_]]"
+-                        on-selected-changed="onPushServerModeChange_">
+-                        <cr-radio-button name="helium"
+-                            label="$i18n{heliumPushServerHelium}">
+-                        </cr-radio-button>
+-                        <cr-radio-button name="custom"
+-                            label="$i18n{heliumPushServerCustom}">
+-                        </cr-radio-button>
+-                    </cr-radio-group>
+-                    <cr-input
+-                        hidden="[[!isCustomPushServer_(pushServerMode_)]]"
+-                        placeholder="wss://"
+-                        value="[[pushServerPref_.value]]"
+-                        pattern="wss://.+|ws://(localhost|127[.]0[.]0[.]1)((:|/).*)?"
+-                        on-keydown="onOriginOverrideKeydown_"
+-                        on-change="onPushServerChange_"
+-                        type="url"
+-                        maxlength="256"
+-                        aria-label="$i18n{heliumPushServerLabel}"
+-                        auto-validate
+-                        error-message="$i18n{heliumPushServerInvalid}"
+-                        spellcheck="false">
+-                    </cr-input>
+-                </div>
+-            </cr-collapse>
+-            </template>
 -        </cr-collapse>
 -    </div>
 -    </template>
@@ -414,7 +511,7 @@ strings this patch removes or replaces) and on hardening/0003 and onboarding/000
 -      </div>
 -      <settings-dropdown-menu id="crashReportingControl"
 -        label="$i18n{heliumCrashReportingTitle}"
--        pref="[[crashReportingPref_]]"
+-        pref-key="synthetic.settings.helium.crash_reporting_mode"
 -        menu-options="[[crashReportingOptions_]]"
 -        no-set-pref
 -        on-settings-control-change="onCrashReportingChange_">
@@ -436,7 +533,7 @@ strings this patch removes or replaces) and on hardening/0003 and onboarding/000
 -    <cr-input
 -        id="heliumOriginOverride"
 -        placeholder="https://proxy.example.org"
--        value="[[prefs.helium.services.origin_override.value]]"
+-        value="[[originOverridePref_.value]]"
 -        pattern="https://.*"
 -        on-keydown="onOriginOverrideKeydown_"
 -        on-change="onOriginOverrideChange_"
@@ -452,7 +549,7 @@ strings this patch removes or replaces) and on hardening/0003 and onboarding/000
 -</settings-subpage>
 --- a/chrome/browser/resources/settings/privacy_page/services_page.ts
 +++ /dev/null
-@@ -1,182 +0,0 @@
+@@ -1,246 +0,0 @@
 -// Copyright 2025 The Helium Authors
 -// You can use, redistribute, and/or modify this source code under
 -// the terms of the GPL-3.0 license that can be found in the LICENSE file.
@@ -465,12 +562,15 @@ strings this patch removes or replaces) and on hardening/0003 and onboarding/000
 -import 'chrome://resources/cr_elements/cr_collapse/cr_collapse.js';
 -import 'chrome://resources/cr_elements/cr_icon/cr_icon.js';
 -import 'chrome://resources/cr_elements/cr_input/cr_input.js';
+-import 'chrome://resources/cr_elements/cr_radio_button/cr_radio_button.js';
+-import 'chrome://resources/cr_elements/cr_radio_group/cr_radio_group.js';
 -
--import {PrefsMixin} from '/shared/settings/prefs/prefs_mixin.js';
+-import {PrefService} from '/shared/settings/prefs2/pref_service.js';
+-import {PrefServiceObserverMixin} from '/shared/settings/prefs2/pref_service_observer_mixin.js';
+-import {WebUiListenerMixin} from '/shared/settings/web_ui_listener_mixin.js';
 -import {HelpBubbleMixin} from 'chrome://resources/cr_components/help_bubble/help_bubble_mixin.js';
 -import type {CrInputElement} from 'chrome://resources/cr_elements/cr_input/cr_input.js';
 -import {I18nMixin} from 'chrome://resources/cr_elements/i18n_mixin.js';
--import {WebUiListenerMixin} from 'chrome://resources/cr_elements/web_ui_listener_mixin.js';
 -import {sendWithPromise} from 'chrome://resources/js/cr.js';
 -import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
 -import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
@@ -485,7 +585,11 @@ strings this patch removes or replaces) and on hardening/0003 and onboarding/000
 -
 -const SettingsHeliumServicesPageElementBase =
 -    HelpBubbleMixin(WebUiListenerMixin(
--        I18nMixin(PrefsMixin(PolymerElement))));
+-        I18nMixin(PrefServiceObserverMixin(PolymerElement))));
+-
+-// Frontend-only pref that mirrors the local state crash reporting mode.
+-const CRASH_REPORTING_PREF_KEY =
+-    'synthetic.settings.helium.crash_reporting_mode';
 -
 -enum CrashReportingMode {
 -  DISABLED = -1,
@@ -533,22 +637,53 @@ strings this patch removes or replaces) and on hardening/0003 and onboarding/000
 -          },
 -        ],
 -      },
--      crashReportingPref_: {
--        type: Object,
--        value: () => ({
--          key: '',
--          type: chrome.settingsPrivate.PrefType.NUMBER,
--          value: CrashReportingMode.ASK,
--        }),
+-      originOverridePref_: Object,
+-      pushServerMode_: {
+-        type: String,
+-        value: 'helium',
 -      },
+-      pushServerPref_: Object,
+-      servicesEnabledPref_: Object,
+-      userConsentedPref_: Object,
+-      webPushAvailable_: {
+-        type: Boolean,
+-        value: () => loadTimeData.getBoolean('heliumWebPushAvailable'),
+-      },
+-      webPushPref_: Object,
 -    };
 -  }
 -
 -  declare private changes_: string[];
 -  declare private crashReportingOptions_: DropdownMenuOptionList;
--  declare private crashReportingPref_:
--      chrome.settingsPrivate.PrefObject<number>;
 -  declare private ignoreChecked_: boolean;
+-  declare private originOverridePref_:
+-      chrome.settingsPrivate.PrefObject<string>|undefined;
+-  declare private pushServerMode_: string;
+-  declare private pushServerPref_:
+-      chrome.settingsPrivate.PrefObject<string>|undefined;
+-  declare private servicesEnabledPref_:
+-      chrome.settingsPrivate.PrefObject<boolean>|undefined;
+-  declare private userConsentedPref_:
+-      chrome.settingsPrivate.PrefObject<boolean>|undefined;
+-  declare private webPushAvailable_: boolean;
+-  declare private webPushPref_:
+-      chrome.settingsPrivate.PrefObject<boolean>|undefined;
+-
+-  static get observers() {
+-    return ['onPushServerPrefChanged_(pushServerPref_.value)'];
+-  }
+-
+-  override connectedCallback() {
+-    super.connectedCallback();
+-
+-    this.mirrorPrefs({
+-      'helium.services.enabled': 'servicesEnabledPref_',
+-      'helium.services.origin_override': 'originOverridePref_',
+-      'helium.services.push_server': 'pushServerPref_',
+-      'helium.services.user_consented': 'userConsentedPref_',
+-      'helium.services.web_push': 'webPushPref_',
+-    });
+-  }
 -
 -  private toOrigin(thing: string) {
 -    try {
@@ -582,9 +717,9 @@ strings this patch removes or replaces) and on hardening/0003 and onboarding/000
 -        .then(update);
 -  }
 -
--  private setCrashReportingState_(state: HeliumCrashReportingState) {
+-  private async setCrashReportingState_(state: HeliumCrashReportingState) {
 -    const pref: chrome.settingsPrivate.PrefObject<number> = {
--      key: '',
+-      key: CRASH_REPORTING_PREF_KEY,
 -      type: chrome.settingsPrivate.PrefType.NUMBER,
 -      value: state.mode,
 -    };
@@ -592,7 +727,8 @@ strings this patch removes or replaces) and on hardening/0003 and onboarding/000
 -      pref.enforcement = chrome.settingsPrivate.Enforcement.ENFORCED;
 -      pref.controlledBy = chrome.settingsPrivate.ControlledBy.USER_POLICY;
 -    }
--    this.crashReportingPref_ = pref;
+-    await PrefService.getInstance().whenInitialized();
+-    PrefService.getInstance().setSyntheticPref(pref);
 -  }
 -
 -  private onCrashReportingChange_(event: Event) {
@@ -620,7 +756,32 @@ strings this patch removes or replaces) and on hardening/0003 and onboarding/000
 -      target.value = origin;
 -    }
 -
--    this.setPrefValue('helium.services.origin_override', target.value);
+-    PrefService.getInstance().setPrefValue(
+-        'helium.services.origin_override', target.value);
+-  }
+-
+-  private onPushServerPrefChanged_(server: string) {
+-    // An empty server means the Helium one, so show the choice that's used.
+-    this.pushServerMode_ = server ? 'custom' : 'helium';
+-  }
+-
+-  private isCustomPushServer_(mode: string) {
+-    return mode === 'custom';
+-  }
+-
+-  private onPushServerModeChange_(event: CustomEvent<{value: string}>) {
+-    this.pushServerMode_ = event.detail.value;
+-    if (!this.isCustomPushServer_(this.pushServerMode_)) {
+-      PrefService.getInstance().setPrefValue('helium.services.push_server', '');
+-    }
+-  }
+-
+-  private onPushServerChange_(event: Event) {
+-    const target = event.target as CrInputElement;
+-    if (!target.invalid) {
+-      PrefService.getInstance().setPrefValue(
+-          'helium.services.push_server', target.value);
+-    }
 -  }
 -
 -  private onServicesPendingButtonClick_() {
@@ -635,60 +796,3 @@ strings this patch removes or replaces) and on hardening/0003 and onboarding/000
 -}
 -
 -customElements.define(SettingsHeliumServicesPageElement.is, SettingsHeliumServicesPageElement);
---- a/chrome/browser/resources/settings/route.ts
-+++ b/chrome/browser/resources/settings/route.ts
-@@ -24,8 +24,6 @@
- 
-   r.AERIE_HARDENING = r.PRIVACY.createChild('hardening');
- 
--  r.HELIUM_SERVICES = r.PRIVACY.createChild('services');
--
-   const visibility = pageVisibility || {};
- 
-   if (visibility.safetyHub = false) {
---- a/chrome/browser/resources/settings/router.ts
-+++ b/chrome/browser/resources/settings/router.ts
-@@ -40,7 +40,6 @@
-   GEMINI_LOGIN: Route;
-   GEMINI_ENTERPRISE: Route;
-   GLIC_SECTION: Route;
--  HELIUM_SERVICES: Route;
-   HISTORY_SEARCH: Route;
-   IDENTITY_DOCS: Route;
-   INLINE_CUE_MENU: Route;
---- a/chrome/browser/ui/chrome_pages.cc
-+++ b/chrome/browser/ui/chrome_pages.cc
-@@ -621,7 +621,7 @@
- 
- void ShowHeliumServices(BrowserWindowInterface* browser) {
-   ShowSingletonTabIgnorePathOverwriteNTP(
--      browser, GURL("chrome://settings/privacy/services"));
-+      browser, GURL("chrome://settings/privacy"));
- }
- 
- void ShowSearchEngineSettings(BrowserWindowInterface* browser) {
---- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
-+++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
-@@ -1552,7 +1552,7 @@
-       {"languagesDictionaryDownloadError",
-        IDS_SETTINGS_LANGUAGES_DICTIONARY_DOWNLOAD_FAILED},
-       {"languagesDictionaryDownloadErrorHelp",
--       IDS_SETTINGS_LANGUAGES_DICTIONARY_DOWNLOAD_FAILED_HELP_HELIUM},
-+       IDS_SETTINGS_LANGUAGES_DICTIONARY_DOWNLOAD_FAILED_HELP_AERIE},
- #endif
- #endif  // !BUILDFLAG(IS_CHROMEOS)
- #if BUILDFLAG(IS_CHROMEOS)
-@@ -2703,6 +2703,13 @@
-         IDS_SETTINGS_HELIUM_SERVICES_OVERRIDE_ARIA_LABEL},
-       {"heliumOriginOverrideInvalidOrigin",
-         IDS_SETTINGS_HELIUM_SERVICES_OVERRIDE_INVALID_ORIGIN},
-+      {"aerieExtensionProxyLabel", IDS_SETTINGS_AERIE_EXTENSION_PROXY_LABEL},
-+      {"aerieExtensionProxyDescription",
-+       IDS_SETTINGS_AERIE_EXTENSION_PROXY_DESCRIPTION},
-+      {"aerieExtensionProxyAriaLabel",
-+       IDS_SETTINGS_AERIE_EXTENSION_PROXY_ARIA_LABEL},
-+      {"aerieExtensionProxyInvalid",
-+       IDS_SETTINGS_AERIE_EXTENSION_PROXY_INVALID},
-       {"advancedProtectionProgramTitle",
-        IDS_SETTINGS_ADVANCED_PROTECTION_PROGRAM},
-       {"advancedProtectionProgramDesc",
