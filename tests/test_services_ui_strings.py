@@ -10,11 +10,12 @@ GRDP = REPO / "overlay" / "chrome" / "app" / "aerie_services_strings.grdp"
 PATCHES = REPO / "patches" / "services"
 UI_PATCH = PATCHES / "0006-remove-the-helium-services-ui.patch"
 DIALOG_PATCH = PATCHES / "0003-extension-proxy-not-configured.patch"
+COMPONENTS_PATCH = PATCHES / "0007-components-page-says-aerie.patch"
 
 
 def patch_text() -> str:
-    """The two patches that use the messages."""
-    return UI_PATCH.read_text(encoding="utf-8") + DIALOG_PATCH.read_text(encoding="utf-8")
+    """The patches that use the messages."""
+    return "".join(p.read_text(encoding="utf-8") for p in (UI_PATCH, DIALOG_PATCH, COMPONENTS_PATCH))
 
 
 def messages():
@@ -41,7 +42,8 @@ class StringsTest(unittest.TestCase):
 
     def test_every_message_a_patch_asks_for_exists(self):
         used = set(re.findall(r"\bIDS_(?:SETTINGS_)?AERIE_EXTENSION_PROXY_\w+|"
-                              r"\bIDS_SETTINGS_LANGUAGES_DICTIONARY_DOWNLOAD_FAILED_HELP_AERIE\b",
+                              r"\bIDS_SETTINGS_LANGUAGES_DICTIONARY_DOWNLOAD_FAILED_HELP_AERIE\b|"
+                              r"\bIDS_AERIE_COMPONENTS_SVC_STATUS_\w+",
                               patch_text()))
         self.assertEqual(used, set(messages()))
 
@@ -59,6 +61,28 @@ class DialogTest(unittest.TestCase):
     def test_the_dialog_does_not_point_at_the_removed_page(self):
         body = messages()["IDS_AERIE_EXTENSION_PROXY_UNSET_BODY"]
         self.assertNotIn("Services", "".join(body.itertext()))
+
+
+class ComponentsPageTest(unittest.TestCase):
+    """chrome://components after a failed component update (issue #131): Helium's status string
+    names Helium services, which Aerie removed (#23), so the page shows an Aerie message instead."""
+
+    def test_the_status_message_does_not_name_helium(self):
+        msg = messages()["IDS_AERIE_COMPONENTS_SVC_STATUS_UPDATES_DISABLED"]
+        self.assertNotRegex("".join(msg.itertext()), r"(?i)helium")
+
+    def test_the_handler_shows_the_aerie_message_and_not_helium_s(self):
+        text = COMPONENTS_PATCH.read_text(encoding="utf-8")
+        self.assertIn("--- a/chrome/browser/ui/webui/components/components_handler.cc", text)
+        self.assertRegex(text, r"(?m)^-\s+IDS_COMPONENTS_SVC_STATUS_ERROR_HELIUM_SERVICES\);")
+        self.assertRegex(text, r"(?m)^\+\s+IDS_AERIE_COMPONENTS_SVC_STATUS_UPDATES_DISABLED\);")
+
+    def test_the_patch_follows_the_helium_patch_it_edits(self):
+        series = (REPO / "patches" / "series").read_text().splitlines()
+        self.assertIn("services/0007-components-page-says-aerie.patch", [l.strip() for l in series])
+        # The Helium patch comes from helium-adapt.txt and is applied before every series entry.
+        self.assertIn("helium/core/component-updates.patch",
+                      (REPO / "patches" / "helium-adapt.txt").read_text())
 
 
 class PatchTest(unittest.TestCase):

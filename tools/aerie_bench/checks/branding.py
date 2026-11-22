@@ -116,16 +116,77 @@ def read_page(session: Session, url: str) -> dict:
     return {"url": url, "title": got.get("title", ""), "text": scrub(got.get("text", ""), url), "error": None}
 
 
+# chrome://components shows one row per component, each with a "Check for update" button (class
+# button-check-update, id = the component id) and a status span (id = "status-<id>"). The click is
+# what a user does; with component updates off it ends in a failed update, and the page then shows the
+# message for that failure (issue #131: it used to be Helium's, naming Helium services).
+FAILED_UPDATE_URL_LABEL = "chrome://components/ (after a failed update)"
+FAILED_STATUS_RE = re.compile(r"Component updates are disabled|Update error")
+FORCE_UPDATE_JS = """
+(() => {
+  const buttons = document.querySelectorAll('.button-check-update');
+  buttons.forEach((b) => b.click());
+  return buttons.length;
+})()"""
+STATUSES_JS = """
+Array.from(document.querySelectorAll('[id^="status-"]')).map((e) => e.textContent.trim())"""
+
+
+def read_failed_update(session: Session, wait: float = 60.0) -> dict:
+    """Open chrome://components, press Check for update on every component and read the page once a
+    status shows a failed update (or `wait` seconds passed). The result is a read_page() dict plus the
+    statuses the page showed."""
+    url = "chrome://components/"
+    nav = session.navigate_url(url, wait=20)
+    if nav["error"]:
+        return {"url": FAILED_UPDATE_URL_LABEL, "title": "", "text": "", "error": nav["error"], "statuses": []}
+    session.wait_for("document.querySelectorAll('.button-check-update').length > 0", timeout=15)
+    session.evaluate(FORCE_UPDATE_JS)
+    statuses: list[str] = []
+    deadline = time.monotonic() + wait
+    while True:
+        statuses = session.evaluate(STATUSES_JS) or []
+        if any(FAILED_STATUS_RE.search(t) for t in statuses) or time.monotonic() >= deadline:
+            break
+        time.sleep(0.5)
+    try:
+        got = session.evaluate(TEXT_JS) or {}
+    except Exception as exc:  # noqa: BLE001
+        return {"url": FAILED_UPDATE_URL_LABEL, "title": "", "text": "", "error": f"could not read: {exc}",
+                "statuses": statuses}
+    return {"url": FAILED_UPDATE_URL_LABEL, "title": got.get("title", ""), "text": got.get("text", ""),
+            "error": None, "statuses": statuses}
+
+
+def judge_failed_update(forced: dict | None) -> list[str]:
+    """Problems with the page read after a forced failed update: it must have loaded, the update must have
+    failed (else the case proves nothing) and the text must not say Helium."""
+    if not forced:
+        return ["no case read chrome://components after a failed component update"]
+    if forced.get("error"):
+        return [f"chrome://components after a failed update did not load ({forced['error']})"]
+    if not any(FAILED_STATUS_RE.search(t) for t in forced.get("statuses", [])):
+        return ["the forced component update did not fail (statuses: "
+                f"{forced.get('statuses') or 'none'}), so the case proves nothing"]
+    hits = find_helium(forced.get("text", "")) + find_helium(forced.get("title", ""))
+    if hits:
+        return [f"chrome://components says Helium after a failed update: ...{hits[0]}... ({len(hits)} hit(s))"]
+    return []
+
+
 @register
 class NoHelium(HardeningCheck):
     name = "branding_no_helium"
     control = "all"
     negative_control = ("A fixture page with the word Helium inside a shadow root is read by the same "
-                        "scanner and must be reported, so the scan can see a hit.")
+                        "scanner and must be reported, so the scan can see a hit. The failed-update case "
+                        "also fails when no component update failed, so it cannot pass without reaching "
+                        "the error path.")
 
     def observe(self, session: Session) -> dict:
         control = read_page(session, session.fixtures.base_url + CONTROL_PATH)
-        return {"control": control, "pages": [read_page(session, url) for url in PAGES]}
+        return {"control": control, "pages": [read_page(session, url) for url in PAGES],
+                "failed_update": read_failed_update(session)}
 
     @staticmethod
     def judge(obs: dict) -> Verdict:
@@ -146,9 +207,11 @@ class NoHelium(HardeningCheck):
             if not hits:
                 continue
             problems.append(f"{p['url']} says Helium: ...{hits[0]}... ({len(hits)} hit(s))")
+        problems += judge_failed_update(obs.get("failed_update"))
         if problems:
             return "fail", "; ".join(problems)
-        return "pass", f"no Helium in the titles and text of {len(obs['pages'])} pages"
+        return "pass", (f"no Helium in the titles and text of {len(obs['pages'])} pages, nor on "
+                        "chrome://components after a failed component update")
 
 
 def open_target(session: Session, url: str, settle: float) -> dict:

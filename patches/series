@@ -79,6 +79,9 @@ tests/0008-drop-webui-test-libraries-helium-breaks.patch
 # The Helium services settings are gone; the extension proxy address stays as a privacy row (#23).
 services/0006-remove-the-helium-services-ui.patch
 
+# chrome://components says "Component updates are disabled" without pointing at Helium services (#131).
+services/0007-components-page-says-aerie.patch
+
 # The Aerie Guard strings join the grd after the other Aerie string parts (#99).
 adblock/0017-add-aerie-guard-strings.patch
 

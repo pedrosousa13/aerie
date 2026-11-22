@@ -1,0 +1,27 @@
+Aerie-Purpose: Make the chrome://components status after a failed component update say that updates are disabled in Aerie, without naming Helium or pointing at the removed Helium services settings.
+Aerie-Upstream-Area: chrome/browser/ui/webui/components/components_handler.cc (ServiceStatusToString)
+Aerie-Kind: hook
+
+Issue #131. Helium's component-updates.patch shows "Component updates are disabled. See Helium
+services in settings." for a component whose update failed while Helium services are off. In Aerie
+they are always off and the services page is gone (services/0006), so the text named Helium and
+sent the user to a page that does not exist. The message is kept as Helium's (substitution
+KEEP_MESSAGES), so this patch uses an Aerie message instead
+(IDS_AERIE_COMPONENTS_SVC_STATUS_UPDATES_DISABLED, chrome/app/aerie_services_strings.grdp). Helium's
+message stays in the grd, unused, to keep Helium bumps cheap. The Bench check branding_no_helium
+forces a failed update before it reads chrome://components.
+
+Depends on the Helium patch component-updates.patch (adds the lines this patch changes) and on
+services/0006 (includes aerie_services_strings.grdp in the grd).
+
+--- a/chrome/browser/ui/webui/components/components_handler.cc
++++ b/chrome/browser/ui/webui/components/components_handler.cc
+@@ -113,7 +113,7 @@
+       PrefService* prefs = profile->GetPrefs();
+       if (prefs && !helium::ShouldAccessComponentUpdateService(*prefs)) {
+         return l10n_util::GetStringUTF16(
+-          IDS_COMPONENTS_SVC_STATUS_ERROR_HELIUM_SERVICES);
++          IDS_AERIE_COMPONENTS_SVC_STATUS_UPDATES_DISABLED);
+       }
+     }
+   }
