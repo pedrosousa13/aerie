@@ -31,7 +31,10 @@
 #include "base/functional/callback_helpers.h"
 #include "base/memory/raw_ptr.h"
 #include "base/test/bind.h"
+#include "base/task/current_thread.h"
 #include "base/test/run_until.h"
+#include "base/test/test_future.h"
+#include "base/time/time.h"
 #include "base/values.h"
 #include "chrome/browser/aerie_tab_model/pinned_tabs_controller.h"
 #include "chrome/browser/aerie_tab_model/tab_model_service.h"
@@ -110,6 +113,59 @@ int SkippedCount(const base::DictValue& answer, std::string_view reason) {
   }
   return 0;
 }
+
+// A file with one Space whose Pinned tabs are "https://example.test/<n>" for n
+// in [0, count). The titles are "T<n>".
+std::string SpaceWithTabs(int count) {
+  std::string ids;
+  std::string items;
+  for (int i = 0; i < count; ++i) {
+    const std::string n = base::NumberToString(i);
+    ids += (i ? ",\"t" : "\"t") + n + "\"";
+    items += "\"t" + n + "\",{\"id\":\"t" + n +
+             "\",\"parentID\":\"p\",\"data\":{\"tab\":{\"savedURL\":"
+             "\"https://example.test/" + n + "\",\"savedTitle\":\"T" + n +
+             "\"}}},";
+  }
+  return base::StrCat(
+      {R"({"sidebar":{"containers":[{"global":{}},{"items":[)", items,
+       R"("p",{"id":"p","childrenIds":[)", ids,
+       R"(],"data":{"itemContainer":{}}}],
+        "spaces":["s",{"id":"s","title":"S","containerIDs":["pinned","p"]}],
+        "topAppsContainerIDs":[]}]}})"});
+}
+
+// Records how long each task that runs on this thread takes, from the moment
+// the observer is added. The restore of Pinned tabs is a chain of
+// posted tasks (PinnedTabsController::RestoreBatch), so the longest of them is
+// the longest time the UI thread was blocked by it. A task that was already
+// running when the observer was added is not counted (its start is unseen).
+class LongestTaskObserver : public base::TaskObserver {
+ public:
+  LongestTaskObserver() { base::CurrentThread::Get()->AddTaskObserver(this); }
+  ~LongestTaskObserver() override {
+    base::CurrentThread::Get()->RemoveTaskObserver(this);
+  }
+  void WillProcessTask(const base::PendingTask&, bool) override {
+    starts_.push_back(base::TimeTicks::Now());
+  }
+  void DidProcessTask(const base::PendingTask&) override {
+    if (starts_.empty()) {
+      return;
+    }
+    const base::TimeDelta took = base::TimeTicks::Now() - starts_.back();
+    starts_.pop_back();
+    ++tasks_;
+    longest_ = std::max(longest_, took);
+  }
+  base::TimeDelta longest() const { return longest_; }
+  int tasks() const { return tasks_; }
+
+ private:
+  std::vector<base::TimeTicks> starts_;
+  base::TimeDelta longest_;
+  int tasks_ = 0;
+};
 
 }  // namespace
 
@@ -227,10 +283,26 @@ class AerieArcImportBrowserTest : public InProcessBrowserTest {
     return Await(id);
   }
 
-  base::DictValue ImportSpace(int index) {
+  // The import message alone. The handler answers when the records are in the
+  // Tab Model; the Chromium tabs follow in batches (issue #276).
+  base::DictValue ImportSpaceNoWait(int index) {
     std::vector<base::Value> args;
     args.emplace_back(index);
     return Send("aerieArcImport.import", std::move(args));
+  }
+
+  // Waits until every record has its tab. Runs at once if none is missing.
+  void WaitForRestore() {
+    base::test::TestFuture<void> done;
+    service_->pinned_tabs()->RestoreMissingTabs(done.GetCallback());
+    EXPECT_TRUE(done.Wait());
+  }
+
+  // The import, and the wait for its tabs.
+  base::DictValue ImportSpace(int index) {
+    base::DictValue answer = ImportSpaceNoWait(index);
+    WaitForRestore();
+    return answer;
   }
 
   // What the Tab Model holds, to see that a failed import left it alone.
@@ -366,11 +438,13 @@ IN_PROC_BROWSER_TEST_F(AerieArcImportBrowserTest, FavoritesStopAtTheCap) {
             aerie_tab_model::kFavoritesCap);
 
   // The Workspace is full now: a second import adds no Favorite and says so.
+  // The 12 that came in are already there; the 2 that did not fit still do not.
   ASSERT_EQ(*Choose(Fixture("favorites.json")).FindString("status"), "ok");
   base::DictValue again = ImportSpace(0);
   ASSERT_EQ(*again.FindString("status"), "ok");
   EXPECT_EQ(IntOf(again, "favorites"), 0);
-  EXPECT_EQ(SkippedCount(again, "favorites_full"), 14);
+  EXPECT_EQ(SkippedCount(again, "already_there"), 12);
+  EXPECT_EQ(SkippedCount(again, "favorites_full"), 2);
   EXPECT_EQ(aerie_tab_model::SectionTabIds(model(), Section::kFavorite).size(),
             aerie_tab_model::kFavoritesCap);
 }
@@ -415,22 +489,7 @@ IN_PROC_BROWSER_TEST_F(AerieArcImportBrowserTest, TitlesWithMarkupStayText) {
 IN_PROC_BROWSER_TEST_F(AerieArcImportBrowserTest,
                        TabsOverTheCapOfOneImportAreNamedInTheResult) {
   // 260 pinned tabs: 250 come in, and the page is told that 10 did not.
-  std::string ids;
-  std::string items;
-  for (int i = 0; i < 260; ++i) {
-    const std::string n = base::NumberToString(i);
-    ids += (i ? ",\"t" : "\"t") + n + "\"";
-    items += "\"t" + n + "\",{\"id\":\"t" + n +
-             "\",\"parentID\":\"p\",\"data\":{\"tab\":{\"savedURL\":"
-             "\"https://example.test/" + n + "\",\"savedTitle\":\"T" + n +
-             "\"}}},";
-  }
-  const std::string json = base::StrCat(
-      {R"({"sidebar":{"containers":[{"global":{}},{"items":[)", items,
-       R"("p",{"id":"p","childrenIds":[)", ids,
-       R"(],"data":{"itemContainer":{}}}],
-        "spaces":["s",{"id":"s","title":"S","containerIDs":["pinned","p"]}],
-        "topAppsContainerIDs":[]}]}})"});
+  const std::string json = SpaceWithTabs(260);
   const base::FilePath path = temp_dir_.GetPath().AppendASCII("many.json");
   ASSERT_TRUE(base::WriteFile(path, json));
 
@@ -439,6 +498,94 @@ IN_PROC_BROWSER_TEST_F(AerieArcImportBrowserTest,
   ASSERT_EQ(*done.FindString("status"), "ok");
   EXPECT_EQ(IntOf(done, "pinnedTabs"), 250);
   EXPECT_EQ(SkippedCount(done, "over_cap"), 10);
+}
+
+IN_PROC_BROWSER_TEST_F(AerieArcImportBrowserTest,
+                       RestoringAFullImportNeverBlocksTheUiThreadFor100Ms) {
+  const base::FilePath path = temp_dir_.GetPath().AppendASCII("full.json");
+  ASSERT_TRUE(base::WriteFile(path, SpaceWithTabs(250)));
+  ASSERT_EQ(*Choose(path).FindString("status"), "ok");
+  const int tabs_before = browser()->tab_strip_model()->count();
+
+  base::DictValue done;
+  base::TimeDelta longest;
+  int tasks = 0;
+  {
+    // Measures every task of the UI thread from the answer of the import to the
+    // last tab: the answer comes first, and the tabs follow in batches.
+    LongestTaskObserver observer;
+    done = ImportSpaceNoWait(0);
+    WaitForRestore();
+    longest = observer.longest();
+    tasks = observer.tasks();
+  }
+  ASSERT_EQ(*done.FindString("status"), "ok");
+  EXPECT_EQ(IntOf(done, "pinnedTabs"), 250);
+  EXPECT_EQ(browser()->tab_strip_model()->count(), tabs_before + 250);
+  // More than a few tasks: the restore was in batches and not in one.
+  EXPECT_GT(tasks, 10);
+  EXPECT_LT(longest, base::Milliseconds(100)) << longest;
+}
+
+IN_PROC_BROWSER_TEST_F(AerieArcImportBrowserTest,
+                       A300TabSpaceBringsIn250AndReportsTheRest) {
+  const base::FilePath path = temp_dir_.GetPath().AppendASCII("three.json");
+  ASSERT_TRUE(base::WriteFile(path, SpaceWithTabs(300)));
+  ASSERT_EQ(*Choose(path).FindString("status"), "ok");
+  const int tabs_before = browser()->tab_strip_model()->count();
+  base::DictValue done = ImportSpace(0);
+  ASSERT_EQ(*done.FindString("status"), "ok");
+  EXPECT_EQ(IntOf(done, "pinnedTabs"), 250);
+  EXPECT_EQ(SkippedCount(done, "over_cap"), 50);
+  EXPECT_EQ(browser()->tab_strip_model()->count(), tabs_before + 250);
+}
+
+IN_PROC_BROWSER_TEST_F(AerieArcImportBrowserTest,
+                       AWorkspaceWith1000PinnedTabsTakesNoMoreFromAnImport) {
+  // Records only: an address that does not parse gets no Chromium tab, so the
+  // test does not make 1000 of them.
+  for (int i = 0; i < 1000; ++i) {
+    TabRecord existing;
+    existing.section = Section::kPinned;
+    existing.position = i;
+    existing.pinned_url = "not an address " + base::NumberToString(i);
+    ASSERT_FALSE(model().AddTab(std::move(existing)).empty());
+  }
+  const base::FilePath path = temp_dir_.GetPath().AppendASCII("some.json");
+  ASSERT_TRUE(base::WriteFile(path, SpaceWithTabs(20)));
+  ASSERT_EQ(*Choose(path).FindString("status"), "ok");
+  const size_t records_before = model().tabs().size();
+  const int tabs_before = browser()->tab_strip_model()->count();
+
+  base::DictValue done = ImportSpace(0);
+  ASSERT_EQ(*done.FindString("status"), "ok");
+  EXPECT_EQ(IntOf(done, "pinnedTabs"), 0);
+  EXPECT_EQ(SkippedCount(done, "over_cap"), 20);
+  EXPECT_EQ(model().tabs().size(), records_before);
+  EXPECT_EQ(browser()->tab_strip_model()->count(), tabs_before);
+}
+
+IN_PROC_BROWSER_TEST_F(AerieArcImportBrowserTest,
+                       ASecondImportOfTheSameSpaceAddsNoDuplicates) {
+  ASSERT_EQ(*Choose(Fixture("one_space.json")).FindString("status"), "ok");
+  base::DictValue first = ImportSpace(0);
+  ASSERT_EQ(*first.FindString("status"), "ok");
+  const Snapshot after_first = Take();
+  const std::vector<std::string> pinned_before =
+      Children(model(), Section::kPinned, "");
+
+  // The file is read again: a repeat of the same press.
+  ASSERT_EQ(*Choose(Fixture("one_space.json")).FindString("status"), "ok");
+  base::DictValue second = ImportSpace(0);
+  ASSERT_EQ(*second.FindString("status"), "ok");
+  EXPECT_EQ(IntOf(second, "pinnedTabs"), 0);
+  EXPECT_EQ(IntOf(second, "folders"), 0);
+  EXPECT_EQ(IntOf(second, "favorites"), 0);
+  EXPECT_EQ(SkippedCount(second, "already_there"), 6);
+  EXPECT_EQ(Children(model(), Section::kPinned, ""), pinned_before);
+  EXPECT_EQ(Take().tabs, after_first.tabs);
+  EXPECT_EQ(Take().folders, after_first.folders);
+  EXPECT_EQ(Take().chromium_tabs, after_first.chromium_tabs);
 }
 
 IN_PROC_BROWSER_TEST_F(AerieArcImportBrowserTest,
@@ -614,7 +761,7 @@ IN_PROC_BROWSER_TEST_F(AerieArcImportBrowserTest, AFailedWriteIsAllOrNothing) {
   existing.section = Section::kPinned;
   existing.pinned_url = "https://existing.example/";
   const std::string existing_id = model().AddTab(std::move(existing));
-  service_->pinned_tabs()->RestoreMissingTabs();
+  WaitForRestore();
   const Snapshot before = Take();
 
   ASSERT_EQ(*Choose(Fixture("one_space.json")).FindString("status"), "ok");

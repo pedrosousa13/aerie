@@ -62,6 +62,10 @@ enum class ArcSkipReason {
   // tabs per import, 1000 Pinned tabs per Workspace, or the byte budget of
   // what one import may add (arc_import_apply.h). Counts tabs.
   kOverCap,
+  // A tab whose address is already in the same place (the Workspace's Pinned
+  // section or Favorites, the same parent folder): importing the same Space
+  // twice adds nothing (issue #276). Counts tabs.
+  kAlreadyThere,
 };
 
 // How many of each reason. Reasons with a count of 0 are absent.

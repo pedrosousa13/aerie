@@ -59,12 +59,31 @@ std::string TabStripAdapter::SessionRecordIdForTab(
 
 tabs::TabInterface* TabStripAdapter::TabForRecord(
     const std::string& record_id) const {
-  for (const auto& [handle, id] : ids_) {
-    if (id == record_id) {
-      return handle.Get();
-    }
+  auto it = handle_for_record_.find(record_id);
+  return it == handle_for_record_.end() ? nullptr : it->second.Get();
+}
+
+void TabStripAdapter::AssignId(tabs::TabHandle handle, std::string record_id) {
+  auto it = ids_.find(handle);
+  if (it != ids_.end()) {
+    handle_for_record_.erase(it->second);
+    it->second = record_id;
+  } else {
+    ids_.emplace(handle, record_id);
   }
-  return nullptr;
+  handle_for_record_[std::move(record_id)] = handle;
+}
+
+void TabStripAdapter::EraseId(tabs::TabHandle handle) {
+  auto it = ids_.find(handle);
+  if (it == ids_.end()) {
+    return;
+  }
+  auto reverse = handle_for_record_.find(it->second);
+  if (reverse != handle_for_record_.end() && reverse->second == handle) {
+    handle_for_record_.erase(reverse);
+  }
+  ids_.erase(it);
 }
 
 void TabStripAdapter::SetPendingRestoreRecord(std::string record_id) {
@@ -137,13 +156,13 @@ void TabStripAdapter::OnTabStripModelChanged(
           // The archiver closed this tab on purpose (issue #183). The archived
           // record is the tab now: it stays, and no session keeps the tab, so
           // nothing will claim it.
-          ids_.erase(it);
+          EraseId(removed.tab->GetHandle());
           continue;
         }
         if (record && record->section != Section::kToday) {
           // Pinned and Favorites outlive their tab (issue #180). When the
           // window is not closing, the tab comes back.
-          ids_.erase(it);
+          EraseId(removed.tab->GetHandle());
           if (!tab_strip_model->closing_all() && pinned_tab_gone_) {
             pinned_tab_gone_.Run();
           }
@@ -156,14 +175,14 @@ void TabStripAdapter::OnTabStripModelChanged(
           // If the process lives on and a window opens that is not a restore,
           // the next restore pass removes it.
           model_->MarkAwaitingRestore(record->id);
-          ids_.erase(it);
+          EraseId(removed.tab->GetHandle());
           if (record_kept_) {
             record_kept_.Run();
           }
           continue;
         }
         model_->RemoveTab(it->second);
-        ids_.erase(it);
+        EraseId(removed.tab->GetHandle());
       }
       break;
     case TabStripModelChange::kMoved: {
@@ -271,7 +290,7 @@ void TabStripAdapter::TabInserted(tabs::TabInterface* tab, int index) {
     pending_restore_record_.clear();
     if (const TabRecord* record = model_->GetTab(id)) {
       const bool today = record->section == Section::kToday;
-      ids_.emplace(tab->GetHandle(), std::move(id));
+      AssignId(tab->GetHandle(), std::move(id));
       if (today) {
         // A tab restored from the Archive (issue #183): the session keeps its
         // record id like that of any other Today tab.
@@ -288,7 +307,7 @@ void TabStripAdapter::TabInserted(tabs::TabInterface* tab, int index) {
     std::string claimed = model_->ClaimRestoredTab(restored_id);
     if (!claimed.empty()) {
       // Section, folder, position and name are in the record already.
-      ids_.emplace(tab->GetHandle(), std::move(claimed));
+      AssignId(tab->GetHandle(), std::move(claimed));
       SaveRecordIdSoon(tab);
       return;
     }
@@ -303,7 +322,7 @@ void TabStripAdapter::TabInserted(tabs::TabInterface* tab, int index) {
       // A link opened in a new tab by a folder that says so (issue #141).
       MoveTabAfter(*model_, id, std::exchange(next_tab_after_, std::string()));
     }
-    ids_.emplace(tab->GetHandle(), id);
+    AssignId(tab->GetHandle(), id);
     if (!restored_id.empty() && !model_->loaded()) {
       // The stored records are not here yet: try again when they are.
       deferred_claims_.emplace(tab->GetHandle(), restored_id);
@@ -329,7 +348,7 @@ void TabStripAdapter::OnModelLoaded() {
     std::string claimed =
         model_->ClaimRestoredTabInPlaceOf(it->second, restored_id);
     if (!claimed.empty()) {
-      it->second = std::move(claimed);
+      AssignId(handle, std::move(claimed));
       SaveRecordIdSoon(tab);
     }
   }

@@ -61,6 +61,8 @@ const char* ArcSkipReasonToString(ArcSkipReason reason) {
       return "little_arc";
     case ArcSkipReason::kOverCap:
       return "over_cap";
+    case ArcSkipReason::kAlreadyThere:
+      return "already_there";
   }
   return "unknown";
 }

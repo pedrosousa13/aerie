@@ -87,6 +87,9 @@
   <message name="IDS_SETTINGS_AERIE_ARC_IMPORT_SKIP_OVER_CAP" desc="Line of the Arc import result: how many tabs were left out because one import brings in at most 250 tabs, a Workspace holds at most 1000 Pinned tabs, and the text of an import is limited. The tabs come in plan order: the ones after the cut are left out.">
     Tabs over the limit of one import (250 tabs, 1000 Pinned tabs per Workspace), left out: <ph name="COUNT">$1<ex>50</ex></ph>
   </message>
+  <message name="IDS_SETTINGS_AERIE_ARC_IMPORT_SKIP_ALREADY_THERE" desc="Line of the Arc import result: how many tabs were left out because the same address is already in the same place (importing the same Space twice does not add its tabs again).">
+    Tabs already there, left out: <ph name="COUNT">$1<ex>6</ex></ph>
+  </message>
   <message name="IDS_SETTINGS_AERIE_ARC_IMPORT_SKIP_LITTLE_ARC" desc="Line of the Arc import result: how many Little Arc windows in the file were left out.">
     Little Arc windows: <ph name="COUNT">$1<ex>1</ex></ph>
   </message>

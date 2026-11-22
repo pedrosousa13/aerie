@@ -133,7 +133,7 @@ generated_resources.grd and hands to the page. docs/crash-reports.md has the who
      "//chrome/browser/ui/webui/batch_upload_promo",
 --- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
 +++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
-@@ -744,6 +744,25 @@
+@@ -745,6 +745,25 @@
        {"aerieArcImportErrorApplyFailed", IDS_SETTINGS_AERIE_ARC_IMPORT_ERROR_APPLY_FAILED},
        {"aerieArcImportErrorGeneric", IDS_SETTINGS_AERIE_ARC_IMPORT_ERROR_GENERIC},
        {"aerieArcImportUntitledFolder", IDS_SETTINGS_AERIE_ARC_IMPORT_UNTITLED_FOLDER},

@@ -5,6 +5,9 @@
 #include "components/aerie_tab_model/arc_import_apply.h"
 
 #include <algorithm>
+#include <map>
+#include <set>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -63,6 +66,35 @@ class Applier {
       }
     }
     pinned_room_ = std::max(0, kArcMaxPinnedTabsPerWorkspace - pinned);
+    // What is there already, to tell a second import of the same Space.
+    for (const auto& [id, tab] : model.tabs()) {
+      if (tab.workspace_id == model.workspace().id && tab.pinned_url &&
+          (tab.section == Section::kPinned ||
+           tab.section == Section::kFavorite)) {
+        existing_tabs_.emplace(tab.section, tab.parent, *tab.pinned_url);
+      }
+    }
+    for (const auto& [id, folder] : model.folders()) {
+      if (folder.workspace_id == model.workspace().id &&
+          folder.section == Section::kPinned) {
+        existing_folders_.emplace(std::make_pair(folder.parent, folder.name),
+                                  id);
+      }
+    }
+  }
+
+  // True, and counted, when a tab with this address was in the same place
+  // before the import started (issue #276). Such a tab is not added, and it
+  // uses up no room under any cap.
+  bool SkipIfAlreadyThere(const ArcPlanTab& tab,
+                          Section section,
+                          const std::string& parent,
+                          ArcImportCounts& counts) const {
+    if (!existing_tabs_.contains(std::make_tuple(section, parent, tab.url))) {
+      return false;
+    }
+    ++counts.skipped[ArcSkipReason::kAlreadyThere];
+    return true;
   }
 
   bool AddNodes(const std::vector<ArcPlanNode>& nodes,
@@ -77,13 +109,28 @@ class Applier {
           counts.skipped[ArcSkipReason::kOverCap] += CountPlanTabs(node.children);
           continue;
         }
+        std::optional<std::string> name =
+            NormalizeFolderName(node.folder_name, std::string());
+        const std::string folder_name =
+            name ? *name : options_.untitled_folder_name;
+        // The folder of an earlier import of the same Space: its tabs go in
+        // there, and no second folder is made.
+        auto same = existing_folders_.find(std::make_pair(parent, folder_name));
+        if (same != existing_folders_.end()) {
+          const std::string existing_id = same->second;
+          if (!AddNodes(node.children, existing_id,
+                        NextPosition(model_, Section::kPinned, existing_id),
+                        counts)) {
+            return false;
+          }
+          ++position;
+          continue;
+        }
         FolderRecord folder;
         folder.section = Section::kPinned;
         folder.parent = parent;
         folder.position = position++;
-        std::optional<std::string> name =
-            NormalizeFolderName(node.folder_name, std::string());
-        folder.name = name ? *name : options_.untitled_folder_name;
+        folder.name = folder_name;
         if (!Allowed()) {
           return false;
         }
@@ -114,6 +161,9 @@ class Applier {
                         const std::string& parent,
                         int position,
                         ArcImportCounts& counts) {
+    if (SkipIfAlreadyThere(tab, section, parent, counts)) {
+      return true;
+    }
     if (!Fits(tab, section)) {
       ++counts.skipped[ArcSkipReason::kOverCap];
       return true;
@@ -233,6 +283,10 @@ class Applier {
   size_t text_bytes_ = 0;
   bool import_closed_ = false;
   bool pinned_closed_ = false;
+  // (section, parent folder id, address) of the tabs, and (parent, name) to the
+  // id of the Pinned folders, as they were before the import.
+  std::set<std::tuple<Section, std::string, std::string>> existing_tabs_;
+  std::map<std::pair<std::string, std::string>, std::string> existing_folders_;
   // (is_folder, id), in the order they were added.
   std::vector<std::pair<bool, std::string>> added_;
 };
@@ -265,6 +319,10 @@ std::optional<ArcImportCounts> ApplyArcSpacePlan(TabModel& model,
   int position = NextPosition(model, Section::kFavorite, std::string());
   size_t taken = 0;
   for (const ArcPlanTab& tab : plan.favorites) {
+    if (applier.SkipIfAlreadyThere(tab, Section::kFavorite, std::string(),
+                                   counts)) {
+      continue;
+    }
     if (taken >= room) {
       ++counts.skipped[ArcSkipReason::kFavoritesFull];
       continue;
