@@ -207,8 +207,10 @@ class AerieSidebarRecentTabsUiTest : public InProcessBrowserTest {
     ASSERT_TRUE(base::test::RunUntil([&] { return !recent()->showing(); }));
   }
 
-  // With AERIE_RECENT_SHOT_DIR set, saves a screenshot of the overlay as
-  // <name>-light.png and <name>-dark.png (for the screenshot gallery).
+  // With AERIE_RECENT_SHOT_DIR set, saves screenshots of the overlay (and of the
+  // window under it) as <name>-light.png and <name>-dark.png (for the
+  // screenshot gallery). The overlay takes its colours when it opens, so it is
+  // opened again in each colour mode.
   void Shoot(const std::string& name) {
     std::optional<std::string> dir =
         base::Environment::Create()->GetVar("AERIE_RECENT_SHOT_DIR");
@@ -218,14 +220,14 @@ class AerieSidebarRecentTabsUiTest : public InProcessBrowserTest {
     views::Widget* browser_widget =
         BrowserView::GetBrowserViewForBrowser(browser())->GetWidget();
     for (const bool dark : {false, true}) {
-      const auto mode = dark ? ui::ColorProviderKey::ColorMode::kDark
-                             : ui::ColorProviderKey::ColorMode::kLight;
-      browser_widget->SetColorModeOverride(mode);
-      recent()->overlay()->GetWidget()->SetColorModeOverride(mode);
-      base::RunLoop loop;
-      base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
-          FROM_HERE, loop.QuitClosure(), base::Milliseconds(500));
-      loop.Run();
+      browser_widget->SetColorModeOverride(
+          dark ? ui::ColorProviderKey::ColorMode::kDark
+               : ui::ColorProviderKey::ColorMode::kLight);
+      Pause(500);  // The sidebar repaints with the new palette.
+      HoldCtrlAndPressTab();
+      HoldCtrlAndPressTab();
+      WaitForOverlay();
+      Pause(500);
       for (views::Widget* widget :
            {browser_widget, recent()->overlay()->GetWidget()}) {
         gfx::NativeWindow window = widget->GetNativeWindow();
@@ -239,7 +241,16 @@ class AerieSidebarRecentTabsUiTest : public InProcessBrowserTest {
                 (dark ? "-dark.png" : "-light.png")),
             *png.Get()));
       }
+      PressEscape();
+      WaitForNoOverlay();
+      ReleaseCtrl();
     }
+  }
+  void Pause(int ms) {
+    base::RunLoop loop;
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+        FROM_HERE, loop.QuitClosure(), base::Milliseconds(ms));
+    loop.Run();
   }
 
  private:
@@ -499,9 +510,5 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarRecentTabsUiTest, OverlayScreenshots) {
                          150 + (seed * 7) % 90);
         return gfx::ImageSkia::CreateFromBitmap(bitmap, 1.0f);
       }));
-  HoldCtrlAndPressTab();
-  HoldCtrlAndPressTab();
-  WaitForOverlay();
   Shoot("recent-tabs");
-  ReleaseCtrl();
 }

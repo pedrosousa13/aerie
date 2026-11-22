@@ -15,6 +15,7 @@
 #include "ui/accessibility/ax_enums.mojom.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
+#include "ui/compositor/layer.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/geometry/insets.h"
 #include "ui/gfx/geometry/rect_conversions.h"
@@ -187,6 +188,10 @@ void AerieSidebarRecentTabsOverlay::SetCards(
   for (const AerieRecentTabCard::Content& content : cards) {
     auto* card = AddChildView(std::make_unique<AerieRecentTabCard>(palette_));
     card->SetContent(content);
+    // The surface under the cards has a layer (for its shadow), and a layer
+    // draws over everything its parent paints itself: so each card has one too.
+    card->SetPaintToLayer();
+    card->layer()->SetFillsBoundsOpaquely(false);
     cards_.push_back(card);
   }
   selected_ = 0;
