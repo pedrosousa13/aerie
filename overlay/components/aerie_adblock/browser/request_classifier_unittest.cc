@@ -13,11 +13,30 @@
 #include "testing/gtest/include/gtest/gtest.h"
 #include "url/gurl.h"
 #include "url/origin.h"
+#include "url/url_util.h"
 
 namespace aerie_adblock {
 namespace {
 
 using network::mojom::RequestDestination;
+
+// Production registers chrome://, chrome-untrusted:// and chrome-extension://
+// as standard schemes at startup (ChromeContentClient::AddAdditionalSchemes),
+// before any Origin is made. url::Origin::Create() of an unregistered scheme is
+// opaque, which the classifier cannot tell from a sandboxed frame, so a bare
+// unit-test process needs the same registration.
+class RequestClassifierBrowserSchemeTest : public testing::Test {
+ protected:
+  RequestClassifierBrowserSchemeTest() {
+    for (const char* scheme :
+         {"chrome", "chrome-untrusted", "chrome-extension"}) {
+      url::AddStandardScheme(scheme, url::SCHEME_WITH_HOST);
+    }
+  }
+
+ private:
+  url::ScopedSchemeRegistryForTests scheme_registry_;
+};
 
 network::ResourceRequest MakeRequest(
     const char* url,
@@ -123,7 +142,8 @@ TEST(RequestClassifierTest, OnlyHttpAndHttpsAreJudged) {
   }
 }
 
-TEST(RequestClassifierTest, BrowserPagesAndExtensionsAreNotJudged) {
+TEST_F(RequestClassifierBrowserSchemeTest,
+       BrowserPagesAndExtensionsAreNotJudged) {
   for (const char* initiator :
        {"chrome://settings", "chrome-untrusted://x", "chrome-extension://abc",
         "file:///tmp/x.html"}) {
@@ -253,7 +273,7 @@ TEST(RequestClassifierTest, TrustedRequestIsolationInfoWinsOverTheFactorys) {
   EXPECT_EQ("news.test", result->source_hostname);
 }
 
-TEST(RequestClassifierTest, BrowserPageAsTopFrameIsNotJudged) {
+TEST_F(RequestClassifierBrowserSchemeTest, BrowserPageAsTopFrameIsNotJudged) {
   // chrome://newtab embedding something over https.
   auto request = MakeRequest("https://ads.example/a.js", RequestDestination::kScript,
                              "https://ads.example");
