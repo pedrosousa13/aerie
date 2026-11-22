@@ -54,6 +54,7 @@ class Session:
         self.browser_pid: int | None = None  # set by the runner; the root of the browser's process tree
         self.profile_path: Path | None = None  # set by the runner; the throwaway profile's directory
         self._sid: str | None = None
+        self._target_id: str | None = None
         # Set on the session that incognito() hands out: its page lives in this browser context.
         self._context_id: str | None = None
 
@@ -65,6 +66,7 @@ class Session:
             target = self.client.send("Target.createTarget", params, timeout=self.timeout)
             att = self.client.send("Target.attachToTarget",
                                    {"targetId": target["targetId"], "flatten": True}, timeout=self.timeout)
+            self._target_id = target["targetId"]
             self._sid = att["sessionId"]
             self.client.send("Page.enable", session_id=self._sid, timeout=self.timeout)
         return self._sid
@@ -158,6 +160,24 @@ class Session:
             if now - last_change >= stall:
                 return "stalled"
             time.sleep(interval)
+
+    def page_target_ids(self) -> set[str]:
+        """The ids of the browser's open page targets (tabs and popups)."""
+        return {t["targetId"] for t in self.targets() if t.get("type") == "page"}
+
+    def close_pages_opened_since(self, before: set[str]) -> None:
+        """Close the pages that were not in `before` (from page_target_ids) and bring the session's page
+        back to the front. A popup that a page opens becomes the foreground tab; left open, it keeps the
+        session's own page hidden, which never paints, so Page.captureScreenshot on it gets no reply
+        (issue #131)."""
+        sid = self._page()
+        for target in self.targets():
+            if target.get("type") == "page" and target["targetId"] not in before and target["targetId"] != self._target_id:
+                try:
+                    self.client.send("Target.closeTarget", {"targetId": target["targetId"]}, timeout=self.timeout)
+                except CdpError:
+                    pass  # already gone
+        self.client.send("Page.bringToFront", session_id=sid, timeout=self.timeout)
 
     def targets(self) -> list[dict]:
         """Every DevTools target the browser knows (pages, OOPIFs, workers)."""

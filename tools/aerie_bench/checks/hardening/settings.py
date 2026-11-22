@@ -209,10 +209,14 @@ class Tamper(HardeningCheck):
     def observe(self, session: Session) -> dict:
         tbl = table()
         session.navigate_url(f"{site(session, 'a')}/index.html")
+        pages_before = session.page_target_ids()
         # A user gesture makes this the strongest attack a page can mount.
         attacks = session.evaluate(ATTACK_JS, user_gesture=True)
         time.sleep(1.5)
         page_urls = [t["url"] for t in session.targets() if t.get("type") == "page"]
+        # The control popup is now the foreground tab and would keep the session's page hidden for every
+        # check after this one (cosmetic_filtering's screenshot timed out, issue #131).
+        session.close_pages_opened_since(pages_before)
         session.navigate_url(f"{site(session, 'a')}/hardening/embed.html?site=b.localhost"
                              "&frame=/hardening/storage_access_frame.html")
         access = (page_value(session, "window.__result") or {}).get("result", "no answer")
