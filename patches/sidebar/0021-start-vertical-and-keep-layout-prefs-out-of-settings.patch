@@ -15,7 +15,7 @@ the pref service. This patch used to write them back from HeliumLayoutStateContr
 
 --- a/chrome/browser/ui/tabs/tab_strip_prefs.cc
 +++ b/chrome/browser/ui/tabs/tab_strip_prefs.cc
-@@ -34,8 +34,10 @@
+@@ -35,8 +35,10 @@
    registry->RegisterTimePref(prefs::kVerticalTabsEverythingMenuLastPressed,
                               base::Time());
  
@@ -29,7 +29,7 @@ the pref service. This patch used to write them back from HeliumLayoutStateContr
    registry->RegisterBooleanPref(prefs::kHeliumZenModeSidebarPinned, false);
 --- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
 +++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
-@@ -221,8 +221,8 @@
+@@ -222,8 +222,8 @@
    }
    s_allowlist = new PrefsUtil::TypedPrefMap();
  
@@ -40,7 +40,7 @@ the pref service. This patch used to write them back from HeliumLayoutStateContr
    (*s_allowlist)[::prefs::kHeliumVerticalRightAligned] =
        settings_api::PrefType::kBoolean;
    (*s_allowlist)[::prefs::kHeliumCenteredLocationBar] =
-@@ -231,11 +231,6 @@
+@@ -232,11 +232,6 @@
        settings_api::PrefType::kBoolean;
    (*s_allowlist)[::prefs::kHeliumShowProgressBar] =
        settings_api::PrefType::kBoolean;

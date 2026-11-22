@@ -43,7 +43,7 @@ element sits in the "Sidebar" section that patches/sidebar/0022 made.
    // clang-format on
 --- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
 +++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
-@@ -622,6 +622,15 @@
+@@ -652,6 +652,15 @@
         IDS_SETTINGS_NATIVE_FRAME_MATERIALS_DESCRIPTION},
        {"layoutPageTitle", IDS_SETTINGS_LAYOUT},
        {"aerieSidebarPageTitle", IDS_SETTINGS_AERIE_SIDEBAR},

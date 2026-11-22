@@ -34,7 +34,7 @@ service only reads registered prefs.
  ChromeCommandLinePrefStore::~ChromeCommandLinePrefStore() = default;
 --- a/chrome/browser/prefs/BUILD.gn
 +++ b/chrome/browser/prefs/BUILD.gn
-@@ -134,6 +134,7 @@
+@@ -136,6 +136,7 @@
      "//chrome/browser/webauthn",
      "//components/aerie_adblock/browser:guard_prefs",
      "//components/aerie_design_tokens:prefs",

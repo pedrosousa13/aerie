@@ -10,7 +10,7 @@ Aerie prefs, and a test compares them with the constants. Their strings are in t
 
 --- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
 +++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
-@@ -495,6 +495,10 @@
+@@ -496,6 +496,10 @@
    // The name is aerie_tab_model::kFolderRulesEnabled; a test compares the two.
    (*s_allowlist)["aerie.folders.rules_enabled"] =
        settings_api::PrefType::kBoolean;
@@ -21,10 +21,10 @@ Aerie prefs, and a test compares them with the constants. Their strings are in t
    // Aerie: the sidebar's width and shown state (issue #177). The names are
    // aerie_sidebar::kWidthPref and kVisiblePref; a test compares them. The
    // layout pref is not here until issue #186 builds the second layout.
-@@ -1739,7 +1743,24 @@
+@@ -1753,7 +1757,24 @@
          }
        }
-
+ 
 +      // Aerie (issue #184): choosing auto-hide in Settings undocks the sidebar
 +      // and leaving it docks it again. The write is made here, once, where the
 +      // density is set, and not by every window from its pref observer. Docking
@@ -91,7 +91,7 @@ Aerie prefs, and a test compares them with the constants. Their strings are in t
      "appearance_page/appearance_browser_proxy.ts",
 --- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
 +++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
-@@ -639,6 +639,18 @@
+@@ -669,6 +669,18 @@
        {"aeriePinnedCloseClose", IDS_SETTINGS_AERIE_PINNED_CLOSE_CLOSE},
        {"aerieFolderRules", IDS_SETTINGS_AERIE_FOLDER_RULES},
        {"aerieFolderRulesDesc", IDS_SETTINGS_AERIE_FOLDER_RULES_DESC},

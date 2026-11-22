@@ -13,7 +13,7 @@ sits in the "Sidebar" section, under the sleep row of patches/sidebar/0035.
 
 --- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
 +++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
-@@ -488,6 +488,9 @@
+@@ -489,6 +489,9 @@
    (*s_allowlist)["aerie.tabs.archive_after"] = settings_api::PrefType::kString;
    (*s_allowlist)["aerie.tabs.sleep_after_minutes"] =
        settings_api::PrefType::kNumber;
@@ -56,7 +56,7 @@ sits in the "Sidebar" section, under the sleep row of patches/sidebar/0035.
      "appearance_page/appearance_browser_proxy.ts",
 --- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
 +++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
-@@ -631,6 +631,12 @@
+@@ -661,6 +661,12 @@
        {"aerieSleepAfter4Hours", IDS_SETTINGS_AERIE_SLEEP_4_HOURS},
        {"aerieSleepAfter8Hours", IDS_SETTINGS_AERIE_SLEEP_8_HOURS},
        {"aerieSleepAfterNever", IDS_SETTINGS_AERIE_SLEEP_NEVER},

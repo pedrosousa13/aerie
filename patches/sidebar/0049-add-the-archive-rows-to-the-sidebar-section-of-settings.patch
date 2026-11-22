@@ -50,7 +50,7 @@ folder-rules row of patches/sidebar/0038.
  </settings-section>
 --- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
 +++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
-@@ -495,6 +495,9 @@
+@@ -496,6 +496,9 @@
    // Aerie: what Ctrl+W does on a pinned tab (issue #180). The name is
    // aerie_tab_model::kPinnedClose; a test compares the two.
    (*s_allowlist)["aerie.tabs.pinned_close"] = settings_api::PrefType::kString;
@@ -62,7 +62,7 @@ folder-rules row of patches/sidebar/0038.
    (*s_allowlist)["aerie.folders.rules_enabled"] =
 --- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
 +++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
-@@ -640,6 +640,18 @@
+@@ -670,6 +670,18 @@
        {"aeriePinnedCloseClose", IDS_SETTINGS_AERIE_PINNED_CLOSE_CLOSE},
        {"aerieFolderRules", IDS_SETTINGS_AERIE_FOLDER_RULES},
        {"aerieFolderRulesDesc", IDS_SETTINGS_AERIE_FOLDER_RULES_DESC},

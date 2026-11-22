@@ -39,7 +39,7 @@ target.
  #include "content/public/common/content_client.h"
  #include "crypto/hash.h"
  #include "net/base/schemeful_site.h"
-@@ -90,12 +92,23 @@
+@@ -92,12 +94,23 @@
  // static
  blink::HeliumNoiseTokenMap HeliumNoiseTokenData::GetTokens(
      BrowserContext* context,
@@ -65,9 +65,9 @@ target.
 +    site = base::UnguessableToken::Create().ToString();
 +  }
  
-   blink::HeliumNoiseTokenMap result;
-   for (const auto& [feature, session_token] : data->session_tokens_) {
-@@ -108,7 +121,8 @@
+   // Aerie (#117): the kFonts token says "restrict fonts to the allowlist
+   // here". Only a profile with the "Restrict fonts" pref on gets one; this
+@@ -120,7 +133,8 @@
  // static
  blink::HeliumNoiseTokenMap HeliumNoiseTokenData::GetTokensForMainFrame(
      BrowserContext* context,
@@ -77,7 +77,7 @@ target.
    // An origin without a precursor results in an opaque origin, which falls
    // back to a random token in GetTokens().
    const url::Origin site_origin =
-@@ -118,13 +132,14 @@
+@@ -130,13 +144,14 @@
      return blink::HeliumNoiseTokenMap();
    }
  
@@ -94,7 +94,7 @@ target.
    // Use the StorageKey that third-party storage partitioning would produce, so
    // that third-party workers stay keyed by the embedding site even when
    // partitioning is disabled.
-@@ -144,7 +159,7 @@
+@@ -156,7 +171,7 @@
      return blink::HeliumNoiseTokenMap();
    }
  
