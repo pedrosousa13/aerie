@@ -98,10 +98,10 @@ What one import may add (issue #275). These are limits of what Aerie writes, not
 | Limit | Value | When it is passed |
 | --- | --- | --- |
 | Tabs per import | 250 (Pinned and Favorites together) | The import brings in a whole prefix of the plan, in plan order: the Pinned tree first, then the Favorites. Every tab after the cut is left out and counted as "over the limit" |
-| Pinned tabs per Workspace | 1000, counting the Pinned tabs the Workspace has already | Same: a prefix, the rest counted as "over the limit" |
+| Pinned tabs per Workspace | 1000, counting the Pinned tabs the Workspace has already | Pinned only: the Pinned tabs after the cut are counted as "over the limit", and the Favorites still come in (within the other limits). Only the importer enforces this limit: the Tab Model itself has no cap on Pinned tabs |
 | Text of one import | 1 MiB of addresses, titles and custom names together | Same: a prefix, the rest counted as "over the limit" |
 
-The text limit keeps the saved Tab Model far below the 16 MiB that the reader accepts (`kMaxStateBytes`), with room for the rest of the model. The writer holds to the same limit: if the state would be larger than the reader accepts, it does not write, and the last good `state.json` stays. Folders after the cut are not made. Restoring imported tabs in batches is #276.
+The text limit keeps the saved Tab Model far below the 16 MiB that the reader accepts (`kMaxStateBytes`), with room for the rest of the model. The writer holds to the same limit: if the state would be larger than the reader accepts, it drops the oldest archived tabs from what it writes until the state fits (and logs how many). If it still does not fit with no archive left, it does not write, and the last good `state.json` stays. Folders after the cut are not made. Restoring imported tabs in batches is #276.
 
 A title loses control characters and bidirectional override characters. Markup in a title stays as it is: it is text, and every surface shows it as text.
 

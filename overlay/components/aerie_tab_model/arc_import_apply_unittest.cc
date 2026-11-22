@@ -270,6 +270,38 @@ TEST_F(ArcImportApplyTest, TheSweepPlanAppliesAndTheStateReadsBackOk) {
   EXPECT_EQ(ReadStateFile(path).status, LoadStatus::kOk);
 }
 
+TEST_F(ArcImportApplyTest, ANoFolderIsMadeForATabThatIsOverTheCap) {
+  ArcSpacePlan plan;
+  for (int i = 0; i < 250; ++i) {
+    plan.pinned.push_back(Tab("t" + base::NumberToString(i)));
+  }
+  plan.pinned.push_back(Folder("X", {Tab("inside")}));
+  std::optional<ArcImportCounts> counts = ApplyArcSpacePlan(model_, plan);
+  ASSERT_TRUE(counts.has_value());
+  EXPECT_EQ(counts->pinned_tabs, 250);
+  EXPECT_EQ(counts->folders, 0);
+  EXPECT_EQ(FolderId("X"), "");
+  EXPECT_EQ(counts->skipped[ArcSkipReason::kOverCap], 1);
+}
+
+TEST_F(ArcImportApplyTest, ThePinnedCapEndsOnlyPinnedAndFavoritesStillCome) {
+  for (int i = 0; i < 999; ++i) {
+    AddExistingTab(Section::kPinned, i);
+  }
+  ArcSpacePlan plan;
+  for (int i = 0; i < 5; ++i) {
+    plan.pinned.push_back(Tab("t" + base::NumberToString(i)));
+  }
+  for (int i = 0; i < 3; ++i) {
+    plan.favorites.push_back(Tab("f" + base::NumberToString(i)).tab);
+  }
+  std::optional<ArcImportCounts> counts = ApplyArcSpacePlan(model_, plan);
+  ASSERT_TRUE(counts.has_value());
+  EXPECT_EQ(counts->pinned_tabs, 1);
+  EXPECT_EQ(counts->skipped[ArcSkipReason::kOverCap], 4);
+  EXPECT_EQ(counts->favorites, 3);
+}
+
 TEST_F(ArcImportApplyTest, AFailedWriteChangesNothing) {
   const std::string existing = AddExistingTab(Section::kPinned, 0);
   const std::string favorite = AddExistingTab(Section::kFavorite, 0);

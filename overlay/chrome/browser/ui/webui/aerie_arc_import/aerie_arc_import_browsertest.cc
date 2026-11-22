@@ -27,6 +27,7 @@
 #include "base/files/scoped_temp_dir.h"
 #include "base/path_service.h"
 #include "base/strings/strcat.h"
+#include "base/strings/string_number_conversions.h"
 #include "base/functional/callback_helpers.h"
 #include "base/memory/raw_ptr.h"
 #include "base/test/bind.h"
@@ -409,6 +410,35 @@ IN_PROC_BROWSER_TEST_F(AerieArcImportBrowserTest, TitlesWithMarkupStayText) {
     found = true;
   }
   EXPECT_TRUE(found);
+}
+
+IN_PROC_BROWSER_TEST_F(AerieArcImportBrowserTest,
+                       TabsOverTheCapOfOneImportAreNamedInTheResult) {
+  // 260 pinned tabs: 250 come in, and the page is told that 10 did not.
+  std::string ids;
+  std::string items;
+  for (int i = 0; i < 260; ++i) {
+    const std::string n = base::NumberToString(i);
+    ids += (i ? ",\"t" : "\"t") + n + "\"";
+    items += "\"t" + n + "\",{\"id\":\"t" + n +
+             "\",\"parentID\":\"p\",\"data\":{\"tab\":{\"savedURL\":"
+             "\"https://example.test/" + n + "\",\"savedTitle\":\"T" + n +
+             "\"}}},";
+  }
+  const std::string json = base::StrCat(
+      {R"({"sidebar":{"containers":[{"global":{}},{"items":[)", items,
+       R"("p",{"id":"p","childrenIds":[)", ids,
+       R"(],"data":{"itemContainer":{}}}],
+        "spaces":["s",{"id":"s","title":"S","containerIDs":["pinned","p"]}],
+        "topAppsContainerIDs":[]}]}})"});
+  const base::FilePath path = temp_dir_.GetPath().AppendASCII("many.json");
+  ASSERT_TRUE(base::WriteFile(path, json));
+
+  ASSERT_EQ(*Choose(path).FindString("status"), "ok");
+  base::DictValue done = ImportSpace(0);
+  ASSERT_EQ(*done.FindString("status"), "ok");
+  EXPECT_EQ(IntOf(done, "pinnedTabs"), 250);
+  EXPECT_EQ(SkippedCount(done, "over_cap"), 10);
 }
 
 IN_PROC_BROWSER_TEST_F(AerieArcImportBrowserTest,

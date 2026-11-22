@@ -14,12 +14,13 @@ namespace aerie_tab_model {
 
 class TabModel;
 
-// What one import may add (issue #275). The maintainer fixed the first two on
+// What one import may add (issue #275). Only the importer enforces these:
+// the Tab Model itself has no cap on Pinned tabs. The maintainer fixed the first two on
 // 2026-11-20. Over a cap, the import brings in a whole prefix of the plan, in
 // plan order (Pinned tree first, then Favorites), and the rest is counted as
 // ArcSkipReason::kOverCap.
 inline constexpr int kArcMaxTabsPerImport = 250;
-inline constexpr int kMaxPinnedTabsPerWorkspace = 1000;
+inline constexpr int kArcMaxPinnedTabsPerWorkspace = 1000;
 // URL, last title and custom name bytes of all the tabs of one import. Even if
 // every character grew six-fold when the state is written as JSON, this stays
 // far under kMaxStateBytes (tab_model_persistence.h).

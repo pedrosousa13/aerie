@@ -4,7 +4,11 @@
 
 #include "components/aerie_tab_model/tab_model_persistence.h"
 
+#include <algorithm>
+#include <functional>
+#include <string>
 #include <utility>
+#include <vector>
 
 #include "base/check.h"
 #include "base/files/file_util.h"
@@ -12,8 +16,11 @@
 #include "base/logging.h"
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
+#include "base/json/values_util.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/task/task_traits.h"
+#include "base/time/time.h"
+#include "base/values.h"
 
 namespace aerie_tab_model {
 
@@ -29,6 +36,52 @@ void KeepAsBad(const base::FilePath& path) {
   // Replaces an older .bad: the newest bad file is the one worth keeping. If
   // the move fails the file stays, and the next save replaces it.
   base::ReplaceFile(path, bad, nullptr);
+}
+
+// Removes archived tabs from the "tabs" list of `state`, oldest `archived_at`
+// first, until the estimated size (`size`, then less what each removed record
+// took) is at most kMaxStateBytes, or no archived tab is left. Returns how many
+// were removed.
+size_t DropOldestArchivedTabs(base::DictValue& state, size_t size) {
+  base::ListValue* tabs = state.FindList("tabs");
+  if (!tabs) {
+    return 0;
+  }
+  struct Candidate {
+    base::Time archived_at;
+    size_t index;
+    size_t bytes;
+  };
+  std::vector<Candidate> archived;
+  for (size_t i = 0; i < tabs->size(); ++i) {
+    const base::DictValue* tab = (*tabs)[i].GetIfDict();
+    const base::Value* when = tab ? tab->Find("archived_at") : nullptr;
+    if (!when) {
+      continue;
+    }
+    std::optional<base::Time> time = base::ValueToTime(when);
+    std::optional<std::string> json = base::WriteJson(*tab);
+    if (time && json) {
+      archived.push_back({*time, i, json->size() + 1});
+    }
+  }
+  std::stable_sort(archived.begin(), archived.end(),
+                   [](const Candidate& a, const Candidate& b) {
+                     return a.archived_at < b.archived_at;
+                   });
+  std::vector<size_t> drop;
+  for (const Candidate& candidate : archived) {
+    if (size <= kMaxStateBytes) {
+      break;
+    }
+    size -= std::min(size, candidate.bytes);
+    drop.push_back(candidate.index);
+  }
+  std::sort(drop.begin(), drop.end(), std::greater<size_t>());
+  for (size_t index : drop) {
+    tabs->erase(tabs->begin() + index);
+  }
+  return drop.size();
 }
 
 }  // namespace
@@ -125,16 +178,28 @@ void TabModelPersistence::OnModelChanged() {
 }
 
 std::optional<std::string> TabModelPersistence::SerializeData() {
-  std::optional<std::string> text = base::WriteJson(model_->ToValue());
-  if (text && text->size() > kMaxStateBytes) {
-    // ReadStateFile would refuse this file and start the next session empty.
-    // Returning nothing makes the writer skip the write, so the last good
-    // file stays on disk.
-    LOG(ERROR) << "Tab Model state is " << text->size()
-               << " bytes, over the read limit of " << kMaxStateBytes
-               << ": not written";
+  base::DictValue state = model_->ToValue();
+  std::optional<std::string> text = base::WriteJson(state);
+  if (!text || text->size() <= kMaxStateBytes) {
+    return text;
+  }
+  // ReadStateFile would refuse this file and start the next session empty.
+  // Degrade without losing what matters: leave the oldest archived tabs out of
+  // the file (the model in memory is not changed) until it fits.
+  const size_t dropped = DropOldestArchivedTabs(state, text->size());
+  if (dropped > 0) {
+    text = base::WriteJson(state);
+  }
+  if (!text || text->size() > kMaxStateBytes) {
+    // Still too large with no archive left. Returning nothing makes the writer
+    // skip the write, so the last good file stays on disk.
+    LOG(ERROR) << "Tab Model state is over the read limit of " << kMaxStateBytes
+               << " bytes even without the archive: not written";
     return std::nullopt;
   }
+  LOG(WARNING) << "Tab Model state was over the read limit of "
+               << kMaxStateBytes << " bytes: " << dropped
+               << " oldest archived tabs left out of the file";
   return text;
 }
 

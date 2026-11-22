@@ -5,6 +5,7 @@
 #include "components/aerie_tab_model/tab_model_persistence.h"
 
 #include <optional>
+#include <set>
 #include <string>
 
 #include "base/files/file_path.h"
@@ -365,6 +366,74 @@ TEST_F(TabModelPersistenceTest, AStateOverTheReadLimitIsNotWrittenAndTheLastGood
             }),
             LoadStatus::kOk);
   EXPECT_TRUE(kept);
+}
+
+TEST_F(TabModelPersistenceTest, AnArchiveHeavyStateIsWrittenWithoutItsOldestArchivedTabs) {
+  const std::string big(1024 * 1024, 'a');
+  Session([&](TabModel& model) {
+    for (int i = 0; i < 10; ++i) {
+      TabRecord tab;
+      tab.archived_at = base::Time::FromMillisecondsSinceUnixEpoch(
+          1'600'000'000'000 + i * 60'000);
+      ArchiveData archive;
+      archive.url = "https://archived.example/" + base::NumberToString(i) + big;
+      archive.title = "n" + base::NumberToString(i);
+      archive.entries.push_back({archive.url, archive.title});
+      tab.archive = std::move(archive);
+      model.AddTab(std::move(tab));
+    }
+  });
+  std::set<std::string> kept;
+  EXPECT_EQ(Session([&](TabModel& model) {
+              for (const auto& [id, tab] : model.tabs()) {
+                if (tab.archive) {
+                  kept.insert(tab.archive->title);
+                }
+              }
+            }),
+            LoadStatus::kOk);
+  EXPECT_FALSE(kept.empty());
+  EXPECT_LT(kept.size(), 10u);
+  EXPECT_FALSE(kept.contains("n0"));
+  EXPECT_TRUE(kept.contains("n9"));
+  // The newest ones stay: what is gone is a prefix of the oldest.
+  for (size_t i = 10 - kept.size(); i < 10; ++i) {
+    EXPECT_TRUE(kept.contains("n" + base::NumberToString(i))) << i;
+  }
+  EXPECT_FALSE(base::PathExists(BadPath()));
+}
+
+TEST_F(TabModelPersistenceTest, AfterARefusedWriteTheNextWriteSucceedsOnceTheModelShrinks) {
+  TabModel model(&clock_);
+  TabModelPersistence persistence(&model, path_, io_runner());
+  base::test::TestFuture<LoadStatus> loaded;
+  persistence.Load(loaded.GetCallback());
+  loaded.Get();
+  persistence.FlushPendingWrite();
+  task_environment_.RunUntilIdle();
+  std::string good;
+  ASSERT_TRUE(base::ReadFileToString(path_, &good));
+
+  TabRecord tab;
+  tab.pinned_url = "https://huge.example/" + std::string(kMaxStateBytes + 1, 'a');
+  const std::string huge = model.AddTab(std::move(tab));
+  persistence.FlushPendingWrite();
+  task_environment_.RunUntilIdle();
+  std::string after;
+  ASSERT_TRUE(base::ReadFileToString(path_, &after));
+  EXPECT_TRUE(after == good) << "the file changed: " << after.size() << " bytes";
+
+  // The model shrinks again, and a small tab comes: the next write goes through.
+  model.RemoveTab(huge);
+  TabRecord small;
+  small.pinned_url = "https://small.example/";
+  model.AddTab(std::move(small));
+  persistence.FlushPendingWrite();
+  task_environment_.RunUntilIdle();
+  LoadOutcome read = ReadStateFile(path_);
+  EXPECT_EQ(read.status, LoadStatus::kOk);
+  ASSERT_TRUE(read.state.has_value());
+  EXPECT_EQ(read.state->tabs.size(), 1u);
 }
 
 TEST_F(TabModelPersistenceTest, DestroyingTheServiceFlushesTheLastChange) {
