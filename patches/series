@@ -194,3 +194,6 @@ sidebar/0056-turn-on-automatic-picture-in-picture-by-default.patch
 
 # Ctrl+Tab recent tabs (#269): the switch in Settings.
 sidebar/0057-add-the-recent-tabs-row-to-the-sidebar-section-of-settings.patch
+
+# Tab preview card (#270): the snapshots switch in Settings.
+sidebar/0058-add-the-tab-preview-card-row-to-the-sidebar-section-of-settings.patch

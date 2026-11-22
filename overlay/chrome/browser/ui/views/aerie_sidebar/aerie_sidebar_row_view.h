@@ -19,6 +19,7 @@
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_audio_state.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_drag_overlay.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_selection_keys.h"
+#include "components/aerie_sidebar/aerie_sidebar_hover_card.h"
 #include "components/aerie_sidebar/aerie_sidebar_move.h"
 #include "components/aerie_sidebar/aerie_sidebar_palette.h"
 #include "components/aerie_sidebar/aerie_sidebar_today_list.h"
@@ -142,6 +143,12 @@ class AerieSidebarRowView : public views::View,
     base::RepeatingCallback<void(bool range)> modified_click;
     base::RepeatingCallback<bool(AerieSidebarSelectionKey)> selection_key;
     base::RepeatingCallback<bool()> selection_active;
+    // What the tab preview card needs to know (issue #270): the pointer entered
+    // or left the row, it was pressed, and the row took keyboard focus (not by
+    // a press) or lost it. The view is the row itself.
+    base::RepeatingCallback<void(views::View*,
+                                 aerie_sidebar::HoverCardTrigger)>
+        hover_card;
   };
 
   AerieSidebarRowView(Callbacks callbacks,
@@ -407,6 +414,8 @@ class AerieSidebarRowView : public views::View,
 
  private:
   void UpdateState();
+  void RunHoverCard(aerie_sidebar::HoverCardTrigger trigger);
+  void EndPointerDown();
   // Shows or hides the pencil, the back button and the close button for the
   // row's state (renaming hides them all).
   void UpdateTrailing();
@@ -449,6 +458,9 @@ class AerieSidebarRowView : public views::View,
   int close_height_ms_ = 0;
   // Dragging.
   bool pressed_ = false;
+  // From the press until the end of the release's handling: a focus that comes
+  // with a click is not the keyboard's, and shows no preview card (issue #270).
+  bool pointer_down_ = false;
   bool dragging_ = false;
   // Esc ended the drag; the release that follows is not a click.
   bool drag_cancelled_ = false;

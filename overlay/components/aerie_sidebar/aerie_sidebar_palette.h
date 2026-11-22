@@ -76,6 +76,14 @@ SidebarPalette ResolveSidebarPalette(aerie::tokens::ThemeId theme,
 SidebarPalette ResolveSystemSidebarPalette(
     const aerie_frame::SystemColours& system);
 
+// The palette of a floating card that is a popover and not the sidebar itself:
+// the recent tabs overlay (issue #269) and the tab preview card (issue #270).
+// Its surface and text are the theme's popover colours, which hold their
+// contrast whatever frame is under the window (the sidebar's own colours are
+// measured on the frame); the Workspace accent is the one that holds 3:1 on the
+// popover surface.
+SidebarPalette PopoverPaletteOf(const SidebarPalette& palette);
+
 }  // namespace aerie_sidebar
 
 #endif  // COMPONENTS_AERIE_SIDEBAR_AERIE_SIDEBAR_PALETTE_H_

@@ -20,15 +20,15 @@
 #include "chrome/browser/ui/thumbnails/thumbnail_tab_helper.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_peek_surface.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_recent_tabs_overlay.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_tab_snapshot.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_view.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/aerie_design_tokens/aerie_tokens.h"
+#include "components/aerie_sidebar/aerie_sidebar_hover_card.h"
 #include "components/aerie_sidebar/aerie_sidebar_motion.h"
 #include "components/aerie_sidebar/aerie_sidebar_prefs.h"
-#include "components/favicon/content/content_favicon_driver.h"
 #include "components/prefs/pref_service.h"
 #include "components/tabs/public/tab_interface.h"
-#include "components/vector_icons/vector_icons.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -56,29 +56,8 @@ ui::Accelerator CtrlShiftTab() {
 // The host of the page without a leading "www.", for the line under the title.
 // A page without a host (a file, an internal page) shows its scheme.
 std::u16string SiteOf(content::WebContents* contents) {
-  const GURL& url = contents->GetLastCommittedURL();
-  std::string host(url.host());
-  if (base::StartsWith(host, "www.")) {
-    host.erase(0, 4);
-  }
-  if (host.empty()) {
-    host = std::string(url.scheme());
-  }
-  return base::UTF8ToUTF16(host);
-}
-
-// The page's own icon; for a page that has none (the driver then hands out a
-// dull grey default), the globe in the popover text colour, which holds its
-// contrast on the overlay's surface in light and dark.
-ui::ImageModel FaviconOf(content::WebContents* contents, SkColor icon_color) {
-  if (auto* driver = favicon::ContentFaviconDriver::FromWebContents(contents)) {
-    gfx::Image image = driver->GetFavicon();
-    if (driver->FaviconIsValid() && !image.IsEmpty()) {
-      return ui::ImageModel::FromImage(image);
-    }
-  }
-  return ui::ImageModel::FromVectorIcon(vector_icons::kGlobeIcon, icon_color,
-                                        aerie::tokens::kSizeIcon);
+  return base::UTF8ToUTF16(
+      aerie_sidebar::HoverCardHost(contents->GetLastCommittedURL().spec()));
 }
 
 tabs::TabInterface* TabOf(int id) {
@@ -192,12 +171,8 @@ void AerieSidebarRecentTabs::Detach() {
 
 // static
 bool AerieSidebarRecentTabs::IsPrivateTab(tabs::TabInterface* tab) {
-  content::WebContents* contents = tab->GetContents();
-  // An incognito window. A Private Workspace (issue #259) is a tab of a
-  // private storage partition, and must answer true here as well: when it is
-  // built, its check goes on this line, the only gate before a snapshot is
-  // taken or shown.
-  return !contents || contents->GetBrowserContext()->IsOffTheRecord();
+  // The one gate is shared with the tab preview card (issue #270).
+  return aerie_sidebar::IsPrivateTab(tab);
 }
 
 bool AerieSidebarRecentTabs::CanHandleAccelerators() const {
@@ -400,7 +375,7 @@ void AerieSidebarRecentTabs::FillCards() {
     if (tab && tab->GetContents()) {
       content.title = host_->ShownTitleOfTab(tab);
       content.site = SiteOf(tab->GetContents());
-      content.favicon = FaviconOf(tab->GetContents(), palette.popover_text);
+      content.favicon = aerie_sidebar::TabCardFavicon(tab->GetContents(), palette.popover_text);
       content.snapshot = SnapshotOf(tab);
     }
     if (content.title.empty()) {
@@ -414,41 +389,33 @@ void AerieSidebarRecentTabs::FillCards() {
   // Chromium's own snapshot of a tab (the one its hover cards show) is in
   // memory only and arrives decoded. Only tabs that already have one are asked,
   // so that opening this overlay never makes a tab take a picture it did not
-  // have, and never for a private tab.
+  // have, and never for a private tab (aerie_sidebar::WatchTabSnapshot).
   if (!snapshot_source_) {
+    const gfx::Size hint(
+        aerie::tokens::kSizeSwitcherCardWidth - 2 * aerie::tokens::kSpace8,
+        aerie::tokens::kSizeSwitcherSnapshotHeight);
     for (size_t i = 0; i < shown.size(); ++i) {
-      tabs::TabInterface* tab = shown[i];
-      if (!tab || IsPrivateTab(tab)) {
-        continue;
-      }
-      ThumbnailTabHelper* helper = ThumbnailTabHelper::From(tab);
-      scoped_refptr<ThumbnailImage> thumbnail =
-          helper ? helper->thumbnail() : nullptr;
-      if (!thumbnail || !thumbnail->has_data()) {
-        continue;
-      }
       std::unique_ptr<ThumbnailImage::Subscription> subscription =
-          thumbnail->Subscribe();
-      subscription->SetSizeHint(
-          gfx::Size(aerie::tokens::kSizeSwitcherCardWidth -
-                        2 * aerie::tokens::kSpace8,
-                    aerie::tokens::kSizeSwitcherSnapshotHeight));
-      subscription->SetUncompressedImageCallback(base::BindRepeating(
-          [](base::WeakPtr<AerieSidebarRecentTabs> self, int id,
-             gfx::ImageSkia image) {
-            if (!self || !self->overlay_) {
-              return;
-            }
-            const std::vector<int> cards = self->session_.VisibleCards();
-            auto it = std::find(cards.begin(), cards.end(), id);
-            if (it != cards.end()) {
-              self->overlay_->card_at(static_cast<size_t>(it - cards.begin()))
-                  ->SetSnapshot(image);
-            }
-          },
-          weak_factory_.GetWeakPtr(), visible[i]));
-      thumbnail->RequestThumbnailImage();
-      subscriptions_.push_back(std::move(subscription));
+          aerie_sidebar::WatchTabSnapshot(
+              shown[i], hint,
+              base::BindRepeating(
+                  [](base::WeakPtr<AerieSidebarRecentTabs> self, int id,
+                     gfx::ImageSkia image) {
+                    if (!self || !self->overlay_) {
+                      return;
+                    }
+                    const std::vector<int> cards = self->session_.VisibleCards();
+                    auto it = std::find(cards.begin(), cards.end(), id);
+                    if (it != cards.end()) {
+                      self->overlay_
+                          ->card_at(static_cast<size_t>(it - cards.begin()))
+                          ->SetSnapshot(image);
+                    }
+                  },
+                  weak_factory_.GetWeakPtr(), visible[i]));
+      if (subscription) {
+        subscriptions_.push_back(std::move(subscription));
+      }
     }
   }
 }

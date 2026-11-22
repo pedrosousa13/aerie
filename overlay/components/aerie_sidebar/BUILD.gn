@@ -200,6 +200,19 @@ source_set("recent_tabs") {
   public_deps = [ "//base" ]
 }
 
+# Where the tab preview card goes and what it says (issue #270). No views.
+source_set("hover_card") {
+  sources = [
+    "aerie_sidebar_hover_card.cc",
+    "aerie_sidebar_hover_card.h",
+  ]
+  public_deps = [
+    "//base",
+    "//ui/gfx/geometry",
+    "//url",
+  ]
+}
+
 source_set("unit_tests") {
   testonly = true
   sources = [
@@ -207,6 +220,7 @@ source_set("unit_tests") {
     "aerie_sidebar_drag_unittest.cc",
     "aerie_sidebar_drop_target_unittest.cc",
     "aerie_sidebar_folder_toggle_unittest.cc",
+    "aerie_sidebar_hover_card_unittest.cc",
     "aerie_sidebar_layout_lock_unittest.cc",
     "aerie_sidebar_motion_unittest.cc",
     "aerie_sidebar_move_unittest.cc",
@@ -223,6 +237,7 @@ source_set("unit_tests") {
     ":drag",
     ":drop_target",
     ":folder_toggle",
+    ":hover_card",
     ":layout",
     ":layout_lock",
     ":motion",

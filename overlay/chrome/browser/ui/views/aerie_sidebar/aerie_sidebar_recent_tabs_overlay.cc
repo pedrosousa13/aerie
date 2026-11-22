@@ -9,6 +9,7 @@
 
 #include "cc/paint/paint_flags.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_peek_surface.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_tab_snapshot.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/aerie_design_tokens/aerie_tokens.h"
 #include "third_party/skia/include/core/SkRRect.h"
@@ -36,18 +37,6 @@ constexpr int kFooterGap = aerie::tokens::kSpace8;
 // The gap between two cards in the overlay.
 constexpr int kCardGap = aerie::tokens::kSpace8;
 
-// The overlay is a popover, not the sidebar: its colours are the theme's
-// popover surface and text, which hold their contrast whatever frame is under
-// the window (the sidebar's own colours are measured on the frame).
-aerie_sidebar::SidebarPalette PopoverPalette(
-    const aerie_sidebar::SidebarPalette& palette) {
-  aerie_sidebar::SidebarPalette popover = palette;
-  popover.peek_surface = palette.popover_surface;
-  popover.text = palette.popover_text;
-  popover.text_muted = palette.popover_text_muted;
-  popover.accent = palette.popover_accent;
-  return popover;
-}
 // The icon in the snapshot area when there is no snapshot.
 constexpr int kPlaceholderIcon = aerie::tokens::kSpace32;
 
@@ -164,21 +153,8 @@ void AerieRecentTabCard::OnPaint(gfx::Canvas* canvas) {
   }
   // The picture fills the area, cropped at the bottom and the sides to keep
   // its proportions, with rounded corners.
-  canvas->Save();
-  canvas->sk_canvas()->clipRRect(
-      SkRRect::MakeRectXY(gfx::RectToSkRect(area), aerie::tokens::kRadiusSm,
-                          aerie::tokens::kRadiusSm),
-      /*doAntiAlias=*/true);
-  const float scale =
-      std::max(static_cast<float>(area.width()) / snapshot_.width(),
-               static_cast<float>(area.height()) / snapshot_.height());
-  const int source_w = std::min<int>(snapshot_.width(), area.width() / scale);
-  const int source_h = std::min<int>(snapshot_.height(), area.height() / scale);
-  const int source_x = (snapshot_.width() - source_w) / 2;
-  canvas->DrawImageInt(snapshot_, source_x, 0, source_w, source_h, area.x(),
-                       area.y(), area.width(), area.height(),
-                       /*filter=*/true);
-  canvas->Restore();
+  aerie_sidebar::PaintSnapshot(canvas, snapshot_, area,
+                               aerie::tokens::kRadiusSm);
 }
 
 BEGIN_METADATA(AerieRecentTabCard)
@@ -186,7 +162,7 @@ END_METADATA
 
 AerieSidebarRecentTabsOverlay::AerieSidebarRecentTabsOverlay(
     const aerie_sidebar::SidebarPalette& palette)
-    : palette_(PopoverPalette(palette)) {
+    : palette_(aerie_sidebar::PopoverPaletteOf(palette)) {
   surface_ = AddChildView(std::make_unique<AerieSidebarPeekSurface>());
   surface_->SetColours(palette_);
   GetViewAccessibility().SetRole(ax::mojom::Role::kListBox);

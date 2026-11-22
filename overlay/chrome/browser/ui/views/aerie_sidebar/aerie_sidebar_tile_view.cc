@@ -7,6 +7,7 @@
 #include <utility>
 
 #include "base/functional/bind.h"
+#include "base/task/single_thread_task_runner.h"
 #include "build/build_config.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_focus_ring.h"
 #include "chrome/browser/ui/views/aerie_sidebar/vector_icons/vector_icons.h"
@@ -260,6 +261,8 @@ std::u16string AerieSidebarTileView::GetRenderedTooltipText(
 bool AerieSidebarTileView::OnMousePressed(const ui::MouseEvent& event) {
   suppress_release_ = false;
   pressed_ = event.IsOnlyLeftMouseButton();
+  pointer_down_ = true;
+  RunHoverCard(aerie_sidebar::HoverCardTrigger::kPressed);
   drag_cancelled_ = false;
   press_point_ = event.root_location();
   if (event.IsOnlyLeftMouseButton() && event.GetClickCount() == 2 &&
@@ -303,6 +306,7 @@ void AerieSidebarTileView::FinishDrag(const gfx::Point& point,
 }
 
 void AerieSidebarTileView::OnMouseCaptureLost() {
+  pointer_down_ = false;
   pressed_ = false;
   if (dragging_) {
     FinishDrag(last_point_, /*cancelled=*/true, /*outside=*/false);
@@ -357,6 +361,9 @@ void AerieSidebarTileView::SetDragHidden(bool hidden) {
 
 void AerieSidebarTileView::OnMouseReleased(const ui::MouseEvent& event) {
   pressed_ = false;
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE, base::BindOnce(&AerieSidebarTileView::EndPointerDown,
+                                weak_factory_.GetWeakPtr()));
   if (dragging_) {
     const views::Widget* widget = GetWidget();
     const bool outside =
@@ -393,11 +400,24 @@ void AerieSidebarTileView::OnMouseReleased(const ui::MouseEvent& event) {
 void AerieSidebarTileView::OnMouseEntered(const ui::MouseEvent& event) {
   hovered_ = true;
   UpdateState();
+  RunHoverCard(aerie_sidebar::HoverCardTrigger::kPointerEntered);
 }
 
 void AerieSidebarTileView::OnMouseExited(const ui::MouseEvent& event) {
   hovered_ = false;
   UpdateState();
+  RunHoverCard(aerie_sidebar::HoverCardTrigger::kPointerExited);
+}
+
+void AerieSidebarTileView::RunHoverCard(
+    aerie_sidebar::HoverCardTrigger trigger) {
+  if (callbacks_.hover_card) {
+    callbacks_.hover_card.Run(this, trigger);
+  }
+}
+
+void AerieSidebarTileView::EndPointerDown() {
+  pointer_down_ = false;
 }
 
 bool AerieSidebarTileView::OnKeyPressed(const ui::KeyEvent& event) {
@@ -476,6 +496,9 @@ bool AerieSidebarTileView::SkipDefaultKeyEventProcessing(
 void AerieSidebarTileView::OnFocus() {
   views::View::OnFocus();
   UpdateState();
+  if (!pointer_down_) {
+    RunHoverCard(aerie_sidebar::HoverCardTrigger::kFocused);
+  }
   if (callbacks_.focused) {
     callbacks_.focused.Run();
   }
@@ -484,6 +507,7 @@ void AerieSidebarTileView::OnFocus() {
 void AerieSidebarTileView::OnBlur() {
   views::View::OnBlur();
   UpdateState();
+  RunHoverCard(aerie_sidebar::HoverCardTrigger::kBlurred);
 }
 
 void AerieSidebarTileView::OnThemeChanged() {

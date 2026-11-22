@@ -80,4 +80,13 @@ SidebarPalette ResolveSystemSidebarPalette(
   return palette;
 }
 
+SidebarPalette PopoverPaletteOf(const SidebarPalette& palette) {
+  SidebarPalette popover = palette;
+  popover.peek_surface = palette.popover_surface;
+  popover.text = palette.popover_text;
+  popover.text_muted = palette.popover_text_muted;
+  popover.accent = palette.popover_accent;
+  return popover;
+}
+
 }  // namespace aerie_sidebar

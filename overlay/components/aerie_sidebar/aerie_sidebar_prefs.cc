@@ -17,6 +17,7 @@ void RegisterProfilePrefs(PrefRegistrySimple* registry) {
   registry->RegisterStringPref(kDensityPref, kDensityComfortable);
   registry->RegisterStringPref(kSidePref, kSideLeft);
   registry->RegisterBooleanPref(kRecentTabSwitcherPref, true);
+  registry->RegisterBooleanPref(kHoverCardSnapshotsPref, true);
 }
 
 }  // namespace aerie_sidebar

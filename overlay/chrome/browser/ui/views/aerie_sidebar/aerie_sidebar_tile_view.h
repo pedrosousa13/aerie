@@ -10,12 +10,14 @@
 
 #include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
+#include "base/memory/weak_ptr.h"
 #include "base/timer/timer.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_drag_overlay.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_selection_keys.h"
 #include "components/aerie_design_tokens/aerie_motion.h"
 #include "components/aerie_design_tokens/aerie_tokens.h"
 #include "components/aerie_sidebar/aerie_sidebar_density.h"
+#include "components/aerie_sidebar/aerie_sidebar_hover_card.h"
 #include "components/aerie_sidebar/aerie_sidebar_palette.h"
 #include "components/aerie_sidebar/aerie_sidebar_today_list.h"
 #include "ui/base/cursor/cursor.h"
@@ -67,6 +69,10 @@ class AerieSidebarTileView : public views::View,
     base::RepeatingCallback<void(bool range)> modified_click;
     base::RepeatingCallback<bool(AerieSidebarSelectionKey)> selection_key;
     base::RepeatingCallback<bool()> selection_active;
+    // What the tab preview card needs to know (issue #270); as on a row.
+    base::RepeatingCallback<void(views::View*,
+                                 aerie_sidebar::HoverCardTrigger)>
+        hover_card;
   };
 
   AerieSidebarTileView(Callbacks callbacks,
@@ -144,6 +150,8 @@ class AerieSidebarTileView : public views::View,
  private:
   int favicon_size_ = aerie::tokens::kSizeFaviconComfortable;
   void UpdateState();
+  void RunHoverCard(aerie_sidebar::HoverCardTrigger trigger);
+  void EndPointerDown();
   void UpdateName();
   void ApplySleepLook(bool animate, const PrefService* prefs);
   void FinishDrag(const gfx::Point& point, bool cancelled, bool outside);
@@ -154,6 +162,8 @@ class AerieSidebarTileView : public views::View,
   bool multi_selected_ = false;
   bool hovered_ = false;
   bool pressed_ = false;
+  // As on a row: a focus that comes with a click shows no card (issue #270).
+  bool pointer_down_ = false;
   bool sleeping_ = false;
   bool sleep_look_applied_ = false;
   bool renamed_ = false;
@@ -172,6 +182,7 @@ class AerieSidebarTileView : public views::View,
   aerie::motion::MotionHandle flip_motion_;
   base::OneShotTimer desaturate_timer_;
   base::OneShotTimer flip_timer_;
+  base::WeakPtrFactory<AerieSidebarTileView> weak_factory_{this};
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_AERIE_SIDEBAR_AERIE_SIDEBAR_TILE_VIEW_H_
