@@ -44,6 +44,13 @@ inline constexpr char kSidePref[] = "aerie.sidebar.side";
 inline constexpr char kSideLeft[] = "left";
 inline constexpr char kSideRight[] = "right";
 
+// Whether Ctrl+Tab walks the tabs in the order they were last used and shows
+// the card overlay (issue #269). True by default; the Settings switch "Ctrl+Tab
+// cycles recent tabs" writes it. False gives Chromium's own Ctrl+Tab back, which
+// goes along the tab order.
+inline constexpr char kRecentTabSwitcherPref[] =
+    "aerie.sidebar.recent_tab_switcher";
+
 // Called from chrome::RegisterProfilePrefs (patches/sidebar/0020).
 void RegisterProfilePrefs(PrefRegistrySimple* registry);
 

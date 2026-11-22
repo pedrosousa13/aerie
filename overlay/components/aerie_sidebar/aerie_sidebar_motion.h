@@ -273,6 +273,25 @@ struct SheetMotion {
 SheetMotion SheetEnterMotion(bool reduced);
 SheetMotion SheetExitMotion(bool reduced);
 
+// The Ctrl+Tab recent tabs overlay shows and goes (issue #269). It moves like
+// the command bar (docs/sidebar-design.md, "Motion"): in, it fades from
+// `motion-opacity-cmdbar-start` (so it is visible in the first frame) to 1 while
+// it scales from `motion-scale-cmdbar-enter` (0.98) to 1, on `fast` and
+// `decelerate`; out, it fades to 0 on `xfast` and `accelerate`. Reduced motion:
+// opacity only, no scale, on the reduced durations (90 ms).
+struct SwitcherMotion {
+  bool animate_scale;
+  float from_scale;
+  float from_opacity;
+  float to_opacity;
+  aerie::tokens::MotionDuration duration;
+  aerie::tokens::MotionEasing easing;
+  int duration_ms;
+};
+
+SwitcherMotion SwitcherOpenMotion(bool reduced);
+SwitcherMotion SwitcherCloseMotion(bool reduced);
+
 // A folder row pulses after a tab was filed into it (issue #139): a wash of the
 // accent colour over the row rises to `peak_opacity` on `rise_duration` and
 // `rise_easing`, then falls back to 0 for the rest of `motion-duration-autofile-

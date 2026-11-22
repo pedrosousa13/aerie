@@ -63,6 +63,7 @@ class AerieSidebarPeekSurface;
 class AerieSidebarMediaCard;
 class AerieSidebarAudioWatcher;
 class AerieSidebarMediaController;
+class AerieSidebarRecentTabs;
 
 namespace aerie_tab_model {
 class PinnedTabsController;
@@ -198,6 +199,11 @@ class AerieSidebarView : public views::View,
   // The media card above the bottom bar (issue #263), and what feeds it.
   AerieSidebarMediaCard* media_card() const { return media_card_; }
   AerieSidebarMediaController* media() const { return media_.get(); }
+  // Ctrl+Tab and the recent tabs overlay (issue #269).
+  AerieSidebarRecentTabs* recent_tabs() const { return recent_tabs_.get(); }
+  // The title that the sidebar shows for `tab` (a name the user gave it, or the
+  // tidied page title), for the cards of the recent tabs overlay.
+  std::u16string ShownTitleOfTab(tabs::TabInterface* tab) const;
   views::LabelButton* toast_undo_button() const { return toast_undo_; }
   views::LabelButton* toast_dont_file_button() const { return toast_dont_file_; }
   // The folder editor (issue #139): null when it is not open.
@@ -789,6 +795,7 @@ class AerieSidebarView : public views::View,
   raw_ptr<views::BoxLayoutView> toast_card_ = nullptr;
   raw_ptr<AerieSidebarMediaCard> media_card_ = nullptr;
   std::unique_ptr<AerieSidebarMediaController> media_;
+  std::unique_ptr<AerieSidebarRecentTabs> recent_tabs_;
   // Tells when the audio mark of a tab changes (issue #268).
   std::unique_ptr<AerieSidebarAudioWatcher> audio_;
   raw_ptr<views::Label> toast_ = nullptr;
