@@ -404,10 +404,6 @@ class BaselineDemoTest(unittest.TestCase):
         self.assertIn("result    FAIL", out)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class MeasureModeTest(unittest.TestCase):
     """Another browser measured with the same check (issue #254): counts, never a verdict on the browser."""
 
@@ -444,3 +440,7 @@ class MeasureModeTest(unittest.TestCase):
     def test_a_truncated_log_is_still_inconclusive(self):
         res = self.run_measure(env={"FAKE_BROWSER_TRUNCATE_NETLOG": "1"})
         self.assertEqual(res.data["checks"][0]["status"], "fail")
+
+
+if __name__ == "__main__":
+    unittest.main()

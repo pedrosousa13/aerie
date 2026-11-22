@@ -35,6 +35,8 @@ Options:
 | `--no-sandbox` | Pass `--no-sandbox`. Containers only; recorded in the results. See "Sandbox" below. |
 | `--out DIR` | Results directory. Default `<build root>/bench/<UTC timestamp>/`. |
 | `--timeout SEC` | Timeout for each CDP command (default 30). |
+| `--measure` | Measure another Chromium-family browser (needs `--binary`; no `--report`, `--check` or `--scenario`): `zero_traffic` and `adblock_score` on a fresh profile with default settings, no seeded prefs and no crash step. Counts the requests by class and writes `measurement.json` into the results directory. Never judges the browser. See "Measuring other browsers" and `docs/browser-comparison.md`. |
+| `--compare FILE` | With `--report`: add a `measurement.json` to the "Other browsers" table of the report (repeatable). Aerie's own row comes from a `--measure` run of the Aerie binary passed this way. The table never changes the gate. |
 | `--services MODE` | `browser_requests`: `require`, `optional`, `skip` or `auto` (default). `skip` does not run the probe (use it for Aerie builds). `auto` skips the probe when no `--binary` is given (the default build is Aerie, which makes no requests of its own; decided by the absence of `--binary`, never by name or version), and for an explicit `--binary` requires the seeded services call if it identifies as Helium/Aerie by file name or `--version`, and is optional for other binaries. `--services require` forces it everywhere. |
 | `--services-wait SEC` | `browser_requests`: longest wait for the first browser-level request (default 20). It stops early once the condition is met. |
 | `--zero-traffic-idle SEC` | `zero_traffic`: length of the idle phase (default 300, the issue's 5 minutes). |
@@ -684,7 +686,7 @@ tracker hosts is counted, and the run passes if the capture is whole (whole NetL
 services probe does not run, so `--services` does not matter. It writes `measurement.json` into the results directory.
 `--zero-traffic-idle` and `--zero-traffic-settle` still apply, and a shortened run is marked as such in the table.
 
-`./aerie bench --report <dir> --compare <measurement.json>` (repeatable) adds those measurements to the "Other
+`./aerie bench --report <dir> --compare <measurement.json>` (repeatable) adds those measurements, Aerie's own included, to the "Other
 browsers" table in `report.html` and to `report.json`. The table never changes the release gate. Method, classes and
 what is not measured: `docs/browser-comparison.md`. Code: `tools/aerie_bench/comparison.py`.
 

@@ -25,7 +25,6 @@ from __future__ import annotations
 
 import html
 import json
-import re
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -33,6 +32,7 @@ from aerie_netpolicy import model as policy_model
 
 from . import comparison as comparison_mod
 from . import netlog
+from .scrub import _ANY_PATH_RE, _LEAK_RE, _PATH_RE, scrub_text  # noqa: F401  (scrub_text is re-exported)
 
 SCHEMA = 1
 PHASES = ("first_launch", "idle", "browse")
@@ -41,25 +41,9 @@ POLICY_NET_ERROR = -22
 MIN_IDLE_SECONDS = 300.0
 REPO = Path(__file__).resolve().parents[2]
 
-_PATH_RE = re.compile(r"(?<![\w.])/(?:home|Users|root|tmp|mnt|var|run|media|opt|private|proc)(?:/[^\s\"'<>,;)]*)?")
-_URL_QUERY_RE = re.compile(r"([a-z][a-z0-9+.-]*://[^\s\"'<>?#]*)[?#][^\s\"'<>]*", re.I)
-# Any absolute path in free text: "/" then a segment then "/" and more. Not after a word character, ".", ":",
-# "/" or "<", so "text/html", "./aerie" and "https://host/a/b" are left alone.
-_ANY_PATH_RE = re.compile(r"(?<![\w.:/<])/[\w.~%+@-]+(?:/[\w.~%+@-]*)+")
-_LEAK_RE = re.compile(r"/(?:home|Users|root|tmp|mnt|var|run|media|private)/|[?&][\w.%-]+=|[Cc]ookie:|Set-Cookie")
-_HEADER_RE = re.compile(r"\b(?:set-cookie|cookie|authorization)\s*[:=]\s*[^\n;]*", re.I)
-
 
 class ReportError(Exception):
     """The report would hold something it must not, or cannot be built."""
-
-
-def scrub_text(text: object) -> str:
-    """Free text from a check, made safe: no URL query or fragment, no cookie or auth header, no local path."""
-    s = str(text)
-    s = _HEADER_RE.sub("<redacted header>", s)
-    s = _URL_QUERY_RE.sub(r"\1", s)
-    return _ANY_PATH_RE.sub("<path>", _PATH_RE.sub("<path>", s))
 
 
 def check_local_path(text: str) -> None:
@@ -204,6 +188,14 @@ def _gate(run: dict, checks: dict, requests: list[dict], version: object, commit
     return failures
 
 
+def _comparison(measurements: list[dict] | None) -> dict:
+    """Aerie's own measurement (``./aerie bench --measure`` on the Aerie binary) and the other browsers'. The
+    report run is not used: it seeds prefs and runs the crash step, so it is not the same configuration."""
+    ms = list(measurements or [])
+    aerie = next((m for m in ms if m["browser"]["id"] == "aerie"), None)
+    return {"aerie": aerie, "others": [m for m in ms if m is not aerie and m["browser"]["id"] != "aerie"]}
+
+
 def build(run: dict, meta: dict, allowlist: policy_model.PolicyTable, *, required: tuple[str, ...] = (),
           forbidden: tuple[str, ...] = (), comparison: list[dict] | None = None) -> dict:
     """The report document for one recorded run. ``meta``: commit, binary_sha256, binary_name, command.
@@ -237,8 +229,7 @@ def build(run: dict, meta: dict, allowlist: policy_model.PolicyTable, *, require
                       "counter_error": _safe_field(ztd.get("refusal_counter_error") or "") or None,
                       "refused": [{"host": scrub_text(str(x.get("host", "")).lower()), "phase": x.get("phase")}
                                   for x in ztd.get("refused") or []]},
-        "comparison": {"aerie": comparison_mod.measure(run, meta.get("command") or ""),
-                       "others": list(comparison or [])},
+        "comparison": _comparison(comparison),
         "rerun": {"command": _safe_field(meta.get("command") or "./aerie bench --report <dir>"),
                   "binary_name": _safe_field(meta.get("binary_name") or ""),
                   "binary_sha256": _safe_field(meta.get("binary_sha256") or "")},

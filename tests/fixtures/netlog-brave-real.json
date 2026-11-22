@@ -1,0 +1,710 @@
+{
+ "_note": "RECORDED, trimmed. Brave 155.1.97.59 on Linux, 2026-11-22, fresh profile, default settings, Bench launch flags, shortened run (10 s settle, 30 s idle). Only the events the request classifier reads are kept (URL request start, redirect, net error); URL queries, headers, cookies, load flags and the profile path are removed.",
+ "constants": {
+  "logEventTypes": {
+   "REQUEST_ALIVE": 2,
+   "URL_REQUEST_START_JOB": 136
+  },
+  "logSourceType": {
+   "URL_REQUEST": 1
+  }
+ },
+ "events": [
+  {
+   "phase": 1,
+   "source": {
+    "id": 9,
+    "type": 1
+   },
+   "time": "1323466",
+   "type": 136,
+   "params": {
+    "url": "https://variations.brave.com/seed",
+    "method": "GET",
+    "initiator": "not an origin"
+   }
+  },
+  {
+   "phase": 2,
+   "source": {
+    "id": 9,
+    "type": 1
+   },
+   "time": "1323472",
+   "type": 136,
+   "params": {
+    "net_error": -105
+   }
+  },
+  {
+   "phase": 2,
+   "source": {
+    "id": 9,
+    "type": 1
+   },
+   "time": "1323472",
+   "type": 2,
+   "params": {
+    "net_error": -105
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 23,
+    "type": 1
+   },
+   "time": "1323473",
+   "type": 136,
+   "params": {
+    "url": "https://dict.brave.com/edgedl/chrome/dict/en-us-10-2.bdic",
+    "method": "GET",
+    "initiator": "not an origin"
+   }
+  },
+  {
+   "phase": 2,
+   "source": {
+    "id": 23,
+    "type": 1
+   },
+   "time": "1323475",
+   "type": 136,
+   "params": {
+    "net_error": -105
+   }
+  },
+  {
+   "phase": 2,
+   "source": {
+    "id": 23,
+    "type": 1
+   },
+   "time": "1323476",
+   "type": 2,
+   "params": {
+    "net_error": -105
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 31,
+    "type": 1
+   },
+   "time": "1323643",
+   "type": 136,
+   "params": {
+    "url": "https://go-updater.brave.com/extensions",
+    "method": "POST",
+    "initiator": "not an origin"
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 37,
+    "type": 1
+   },
+   "time": "1323644",
+   "type": 136,
+   "params": {
+    "url": "https://go-updater.brave.com/extensions",
+    "method": "POST",
+    "initiator": "not an origin"
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 43,
+    "type": 1
+   },
+   "time": "1323644",
+   "type": 136,
+   "params": {
+    "url": "https://go-updater.brave.com/extensions",
+    "method": "POST",
+    "initiator": "not an origin"
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 49,
+    "type": 1
+   },
+   "time": "1323644",
+   "type": 136,
+   "params": {
+    "url": "https://go-updater.brave.com/extensions",
+    "method": "POST",
+    "initiator": "not an origin"
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 55,
+    "type": 1
+   },
+   "time": "1323644",
+   "type": 136,
+   "params": {
+    "url": "https://go-updater.brave.com/extensions",
+    "method": "POST",
+    "initiator": "not an origin"
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 61,
+    "type": 1
+   },
+   "time": "1323644",
+   "type": 136,
+   "params": {
+    "url": "https://go-updater.brave.com/extensions",
+    "method": "POST",
+    "initiator": "not an origin"
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 67,
+    "type": 1
+   },
+   "time": "1323645",
+   "type": 136,
+   "params": {
+    "url": "https://go-updater.brave.com/extensions",
+    "method": "POST",
+    "initiator": "not an origin"
+   }
+  },
+  {
+   "phase": 2,
+   "source": {
+    "id": 31,
+    "type": 1
+   },
+   "time": "1323645",
+   "type": 136,
+   "params": {
+    "net_error": -105
+   }
+  },
+  {
+   "phase": 2,
+   "source": {
+    "id": 31,
+    "type": 1
+   },
+   "time": "1323645",
+   "type": 2,
+   "params": {
+    "net_error": -105
+   }
+  },
+  {
+   "phase": 2,
+   "source": {
+    "id": 37,
+    "type": 1
+   },
+   "time": "1323645",
+   "type": 136,
+   "params": {
+    "net_error": -105
+   }
+  },
+  {
+   "phase": 2,
+   "source": {
+    "id": 37,
+    "type": 1
+   },
+   "time": "1323645",
+   "type": 2,
+   "params": {
+    "net_error": -105
+   }
+  },
+  {
+   "phase": 2,
+   "source": {
+    "id": 43,
+    "type": 1
+   },
+   "time": "1323645",
+   "type": 136,
+   "params": {
+    "net_error": -105
+   }
+  },
+  {
+   "phase": 2,
+   "source": {
+    "id": 43,
+    "type": 1
+   },
+   "time": "1323645",
+   "type": 2,
+   "params": {
+    "net_error": -105
+   }
+  },
+  {
+   "phase": 2,
+   "source": {
+    "id": 49,
+    "type": 1
+   },
+   "time": "1323645",
+   "type": 136,
+   "params": {
+    "net_error": -105
+   }
+  },
+  {
+   "phase": 2,
+   "source": {
+    "id": 49,
+    "type": 1
+   },
+   "time": "1323645",
+   "type": 2,
+   "params": {
+    "net_error": -105
+   }
+  },
+  {
+   "phase": 2,
+   "source": {
+    "id": 55,
+    "type": 1
+   },
+   "time": "1323645",
+   "type": 136,
+   "params": {
+    "net_error": -105
+   }
+  },
+  {
+   "phase": 2,
+   "source": {
+    "id": 55,
+    "type": 1
+   },
+   "time": "1323645",
+   "type": 2,
+   "params": {
+    "net_error": -105
+   }
+  },
+  {
+   "phase": 2,
+   "source": {
+    "id": 61,
+    "type": 1
+   },
+   "time": "1323645",
+   "type": 136,
+   "params": {
+    "net_error": -105
+   }
+  },
+  {
+   "phase": 2,
+   "source": {
+    "id": 61,
+    "type": 1
+   },
+   "time": "1323645",
+   "type": 2,
+   "params": {
+    "net_error": -105
+   }
+  },
+  {
+   "phase": 2,
+   "source": {
+    "id": 67,
+    "type": 1
+   },
+   "time": "1323645",
+   "type": 136,
+   "params": {
+    "net_error": -105
+   }
+  },
+  {
+   "phase": 2,
+   "source": {
+    "id": 67,
+    "type": 1
+   },
+   "time": "1323645",
+   "type": 2,
+   "params": {
+    "net_error": -105
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 73,
+    "type": 1
+   },
+   "time": "1323647",
+   "type": 136,
+   "params": {
+    "url": "https://go-updater.brave.com/extensions",
+    "method": "POST",
+    "initiator": "not an origin"
+   }
+  },
+  {
+   "phase": 2,
+   "source": {
+    "id": 73,
+    "type": 1
+   },
+   "time": "1323647",
+   "type": 136,
+   "params": {
+    "net_error": -105
+   }
+  },
+  {
+   "phase": 2,
+   "source": {
+    "id": 73,
+    "type": 1
+   },
+   "time": "1323647",
+   "type": 2,
+   "params": {
+    "net_error": -105
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 79,
+    "type": 1
+   },
+   "time": "1323649",
+   "type": 136,
+   "params": {
+    "url": "http://127.0.0.1:36715/index.html",
+    "method": "GET",
+    "initiator": "not an origin"
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 85,
+    "type": 1
+   },
+   "time": "1323655",
+   "type": 136,
+   "params": {
+    "url": "https://go-updater.brave.com/extensions",
+    "method": "POST",
+    "initiator": "not an origin"
+   }
+  },
+  {
+   "phase": 2,
+   "source": {
+    "id": 85,
+    "type": 1
+   },
+   "time": "1323655",
+   "type": 136,
+   "params": {
+    "net_error": -105
+   }
+  },
+  {
+   "phase": 2,
+   "source": {
+    "id": 85,
+    "type": 1
+   },
+   "time": "1323655",
+   "type": 2,
+   "params": {
+    "net_error": -105
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 91,
+    "type": 1
+   },
+   "time": "1323658",
+   "type": 136,
+   "params": {
+    "url": "https://go-updater.brave.com/extensions",
+    "method": "POST",
+    "initiator": "not an origin"
+   }
+  },
+  {
+   "phase": 2,
+   "source": {
+    "id": 91,
+    "type": 1
+   },
+   "time": "1323658",
+   "type": 136,
+   "params": {
+    "net_error": -105
+   }
+  },
+  {
+   "phase": 2,
+   "source": {
+    "id": 91,
+    "type": 1
+   },
+   "time": "1323658",
+   "type": 2,
+   "params": {
+    "net_error": -105
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 97,
+    "type": 1
+   },
+   "time": "1323676",
+   "type": 136,
+   "params": {
+    "url": "http://127.0.0.1:36715/style.css",
+    "method": "GET",
+    "initiator": "http://127.0.0.1:36715"
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 103,
+    "type": 1
+   },
+   "time": "1323688",
+   "type": 136,
+   "params": {
+    "url": "http://127.0.0.1:36715/favicon.ico",
+    "method": "GET",
+    "initiator": "http://127.0.0.1:36715"
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 109,
+    "type": 1
+   },
+   "time": "1326470",
+   "type": 136,
+   "params": {
+    "url": "https://usage-ping.brave.com/1/usage/brave-core",
+    "method": "GET",
+    "initiator": "not an origin"
+   }
+  },
+  {
+   "phase": 2,
+   "source": {
+    "id": 109,
+    "type": 1
+   },
+   "time": "1326470",
+   "type": 136,
+   "params": {
+    "net_error": -105
+   }
+  },
+  {
+   "phase": 2,
+   "source": {
+    "id": 109,
+    "type": 1
+   },
+   "time": "1326470",
+   "type": 2,
+   "params": {
+    "net_error": -105
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 117,
+    "type": 1
+   },
+   "time": "1326639",
+   "type": 136,
+   "params": {
+    "url": "https://go-updater.brave.com/extensions",
+    "method": "POST",
+    "initiator": "not an origin"
+   }
+  },
+  {
+   "phase": 2,
+   "source": {
+    "id": 117,
+    "type": 1
+   },
+   "time": "1326639",
+   "type": 136,
+   "params": {
+    "net_error": -105
+   }
+  },
+  {
+   "phase": 2,
+   "source": {
+    "id": 117,
+    "type": 1
+   },
+   "time": "1326639",
+   "type": 2,
+   "params": {
+    "net_error": -105
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 123,
+    "type": 1
+   },
+   "time": "1326639",
+   "type": 136,
+   "params": {
+    "url": "https://go-updater.brave.com/extensions",
+    "method": "POST",
+    "initiator": "not an origin"
+   }
+  },
+  {
+   "phase": 2,
+   "source": {
+    "id": 123,
+    "type": 1
+   },
+   "time": "1326639",
+   "type": 136,
+   "params": {
+    "net_error": -105
+   }
+  },
+  {
+   "phase": 2,
+   "source": {
+    "id": 123,
+    "type": 1
+   },
+   "time": "1326639",
+   "type": 2,
+   "params": {
+    "net_error": -105
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 129,
+    "type": 1
+   },
+   "time": "1363699",
+   "type": 136,
+   "params": {
+    "url": "http://127.0.0.1:36715/index.html",
+    "method": "GET",
+    "initiator": "not an origin"
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 137,
+    "type": 1
+   },
+   "time": "1363707",
+   "type": 136,
+   "params": {
+    "url": "http://127.0.0.1:36715/style.css",
+    "method": "GET",
+    "initiator": "http://127.0.0.1:36715"
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 143,
+    "type": 1
+   },
+   "time": "1363715",
+   "type": 136,
+   "params": {
+    "url": "http://127.0.0.1:36715/browse-a.html",
+    "method": "GET",
+    "initiator": "not an origin"
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 149,
+    "type": 1
+   },
+   "time": "1363722",
+   "type": 136,
+   "params": {
+    "url": "http://127.0.0.1:36715/style.css",
+    "method": "GET",
+    "initiator": "http://127.0.0.1:36715"
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 155,
+    "type": 1
+   },
+   "time": "1363726",
+   "type": 136,
+   "params": {
+    "url": "http://127.0.0.1:36715/browse-b.html",
+    "method": "GET",
+    "initiator": "not an origin"
+   }
+  },
+  {
+   "phase": 1,
+   "source": {
+    "id": 161,
+    "type": 1
+   },
+   "time": "1363735",
+   "type": 136,
+   "params": {
+    "url": "http://127.0.0.1:36715/style.css",
+    "method": "GET",
+    "initiator": "http://127.0.0.1:36715"
+   }
+  }
+ ]
+}

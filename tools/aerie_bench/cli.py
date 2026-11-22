@@ -254,13 +254,14 @@ _RERUN_FLAGS = (("no_sandbox", "--no-sandbox", "flag"), ("headed", "--headed", "
                 ("baseline", "--baseline", "path"))
 
 
-def rerun_command(args: argparse.Namespace, binary_name: str, explicit_binary: bool) -> str:
+def rerun_command(args: argparse.Namespace, binary_name: str, explicit_binary: bool, *, measure: bool = False) -> str:
     """The command that repeats this run, free of local paths: ``<dir>`` for the output directory,
-    ``./<name>`` for an explicit binary (the release binary, wherever it was unpacked), ``<file>`` for a path."""
+    ``./<name>`` for an explicit binary (the release binary, wherever it was unpacked), ``<file>`` for a path.
+    ``measure``: the command of a ``--measure`` run (no report directory)."""
     import shlex
     defaults = argparse.ArgumentParser()
     add_arguments(defaults, binary_required=False)
-    parts = ["./aerie", "bench", "--report", "<dir>"]
+    parts = ["./aerie", "bench", "--measure"] if measure else ["./aerie", "bench", "--report", "<dir>"]
     if explicit_binary:
         parts += ["--binary", f"./{binary_name}"]
     for dest, flag, kind in _RERUN_FLAGS:
@@ -286,7 +287,7 @@ def _write_measurement(args, result) -> int:
     if result.status != "pass":
         print("aerie bench: the run failed, so nothing was measured; see the results above", file=sys.stderr)
         return EXIT_FAIL
-    command = rerun_command(args, Path(args.binary).name, explicit_binary=True).replace("--report <dir>", "--measure")
+    command = rerun_command(args, Path(args.binary).name, explicit_binary=True, measure=True)
     m = comparison.measure(result.data, command)
     (result.out_dir / "measurement.json").write_text(json.dumps(m, indent=2) + "\n", encoding="utf-8")
     print(f"\n{comparison.headline(m)}. {m['total']} request attempt(s) to outside hosts in all; "
