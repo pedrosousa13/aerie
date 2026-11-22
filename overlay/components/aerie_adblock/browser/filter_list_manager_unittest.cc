@@ -69,6 +69,11 @@ class FilterListManagerTest : public testing::Test {
 
   void SetUp() override { ASSERT_TRUE(dir_.CreateUniqueTempDir()); }
 
+  // A setter posts its Save() to the file sequence and returns. A test that
+  // ends right after one leaves the write in flight, and dir_ is deleted under
+  // it ("cannot save the filter list settings"). Run the pool dry first.
+  void TearDown() override { task_environment_.RunUntilIdle(); }
+
   std::unique_ptr<FilterListManager> MakeManager() {
     auto manager = std::make_unique<FilterListManager>(
         dir_.GetPath(), service_.GetWeakPtr(),
@@ -105,7 +110,12 @@ class FilterListManagerTest : public testing::Test {
     return answer;
   }
 
-  base::test::TaskEnvironment task_environment_;
+  // Mock time: a test moves the clock with AdvanceClock(). UpdateAll() stamps
+  // the check with base::Time::Now(), so a test that passes a made-up "now" to
+  // MaybeRunScheduledUpdate() disagrees with the stamp and the schedule fires
+  // again on the next call.
+  base::test::TaskEnvironment task_environment_{
+      base::test::TaskEnvironment::TimeSource::MOCK_TIME};
   base::ScopedTempDir dir_;
   FilterEngineService service_;
   network::TestURLLoaderFactory network_;
@@ -651,13 +661,14 @@ TEST_F(FilterListManagerTest, TheScheduledUpdateWaitsADayThenAsksOnlyThePublishe
   WaitUntilIdle(*manager);
   ASSERT_EQ(1u, network_.total_requests());
 
-  base::Time now = base::Time::Now();
-  manager->MaybeRunScheduledUpdate(now);  // Install day: starts the clock.
-  manager->MaybeRunScheduledUpdate(now + base::Hours(23));
+  manager->MaybeRunScheduledUpdate(base::Time::Now());  // Install day: starts the clock.
+  task_environment_.AdvanceClock(base::Hours(23));
+  manager->MaybeRunScheduledUpdate(base::Time::Now());
   WaitUntilIdle(*manager);
   EXPECT_EQ(1u, network_.total_requests());
 
-  manager->MaybeRunScheduledUpdate(now + base::Hours(25));
+  task_environment_.AdvanceClock(base::Hours(2));
+  manager->MaybeRunScheduledUpdate(base::Time::Now());
   WaitUntilIdle(*manager);
   EXPECT_EQ(4u, network_.total_requests());
   EXPECT_TRUE(Blocks("new-one.example"));
@@ -665,9 +676,15 @@ TEST_F(FilterListManagerTest, TheScheduledUpdateWaitsADayThenAsksOnlyThePublishe
   EXPECT_FALSE(Blocks("builtin-one.example"));  // Replaced by the new copy.
 
   // Not again until another day has passed.
-  manager->MaybeRunScheduledUpdate(now + base::Hours(26));
+  task_environment_.AdvanceClock(base::Hours(1));
+  manager->MaybeRunScheduledUpdate(base::Time::Now());
   WaitUntilIdle(*manager);
   EXPECT_EQ(4u, network_.total_requests());
+
+  task_environment_.AdvanceClock(base::Hours(24));
+  manager->MaybeRunScheduledUpdate(base::Time::Now());
+  WaitUntilIdle(*manager);
+  EXPECT_EQ(7u, network_.total_requests());
 }
 
 TEST_F(FilterListManagerTest, TurningAutomaticUpdatesOffStopsTheSchedule) {
