@@ -27,7 +27,7 @@ generated_resources.grd and hands to the page. docs/crash-reports.md has the who
  
 --- a/chrome/app/generated_resources.grd.gritdeps
 +++ b/chrome/app/generated_resources.grd.gritdeps
-@@ -113,6 +113,7 @@
+@@ -114,6 +114,7 @@
  chrome/browser/ui/views/aerie_adblock/aerie_guard_strings.grdp
  chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_strings.grdp
  chrome/browser/ui/webui/aerie_arc_import/aerie_arc_import_strings.grdp
@@ -91,21 +91,19 @@ generated_resources.grd and hands to the page. docs/crash-reports.md has the who
    if (visibility.people !== false) {
 --- a/chrome/browser/resources/settings/settings_main/settings_main.html
 +++ b/chrome/browser/resources/settings/settings_main/settings_main.html
-@@ -76,6 +76,14 @@
-     </template>
+@@ -78,6 +78,12 @@
+     ` : ''}
    </div>
  
 +  <div slot="view" id="aerieCrashReports">
-+    <template is="dom-if" if="[[renderPlugin_(
-+        routes_.AERIE_CRASH_REPORTS, lastRoute_, inSearchMode_)]]"
-+        update-when-false>
++    ${this.renderPlugin_(this.routes_.AERIE_CRASH_REPORTS) ? html`
 +      <settings-aerie-crash-reports-page></settings-aerie-crash-reports-page>
-+    </template>
++    ` : ''}
 +  </div>
 +
-   <template is="dom-if" if="[[false]]">
-     <div slot="view" id="yourSavedInfo">
-       <template is="dom-if" if="[[renderPlugin_(
+ <if expr="not is_chromeos">
+   ${this.showPage_(this.pageVisibility_?.defaultBrowser) ? html`
+     <div slot="view" id="defaultBrowser">
 --- a/chrome/browser/resources/settings/settings_menu/settings_menu.html
 +++ b/chrome/browser/resources/settings/settings_menu/settings_menu.html
 @@ -35,6 +35,12 @@
@@ -123,7 +121,7 @@ generated_resources.grd and hands to the page. docs/crash-reports.md has the who
              ?hidden="${this.shouldHideMenuItem_(this.pageVisibility_?.performance)}">
 --- a/chrome/browser/ui/webui/settings/BUILD.gn
 +++ b/chrome/browser/ui/webui/settings/BUILD.gn
-@@ -321,6 +321,7 @@
+@@ -324,6 +324,7 @@
      "//chrome/browser/ui/webui:webui_util",
      "//chrome/browser/ui/webui/aerie_appearance_settings:swatches",
      "//chrome/browser/ui/webui/aerie_arc_import:handler",
@@ -133,7 +131,7 @@ generated_resources.grd and hands to the page. docs/crash-reports.md has the who
      "//chrome/browser/ui/webui/batch_upload_promo",
 --- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
 +++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
-@@ -745,6 +745,25 @@
+@@ -775,6 +775,25 @@
        {"aerieArcImportErrorApplyFailed", IDS_SETTINGS_AERIE_ARC_IMPORT_ERROR_APPLY_FAILED},
        {"aerieArcImportErrorGeneric", IDS_SETTINGS_AERIE_ARC_IMPORT_ERROR_GENERIC},
        {"aerieArcImportUntitledFolder", IDS_SETTINGS_AERIE_ARC_IMPORT_UNTITLED_FOLDER},
@@ -161,7 +159,7 @@ generated_resources.grd and hands to the page. docs/crash-reports.md has the who
        {"aerieSidebarDensityComfortable",
 --- a/chrome/browser/ui/webui/settings/settings_ui.cc
 +++ b/chrome/browser/ui/webui/settings/settings_ui.cc
-@@ -63,6 +63,7 @@
+@@ -64,6 +64,7 @@
  #include "chrome/browser/ui/webui/plural_string_handler.h"
  #include "chrome/browser/ui/webui/sanitized_image/sanitized_image_source.h"
  #include "chrome/browser/ui/webui/aerie_arc_import/aerie_arc_import_handler.h"
@@ -169,7 +167,7 @@ generated_resources.grd and hands to the page. docs/crash-reports.md has the who
  #include "chrome/browser/ui/webui/aerie_guard_settings/aerie_guard_settings_handler.h"
  #include "chrome/browser/ui/webui/aerie_title_rules/aerie_title_rules_handler.h"
  #include "chrome/browser/ui/webui/settings/about_handler.h"
-@@ -291,6 +292,10 @@
+@@ -313,6 +314,10 @@
    // this WebUI only. It opens the file chooser itself; the page names no path.
    web_ui->AddMessageHandler(
        std::make_unique<aerie_arc_import::AerieArcImportHandler>(profile));
