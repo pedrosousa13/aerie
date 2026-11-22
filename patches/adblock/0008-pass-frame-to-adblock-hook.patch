@@ -9,11 +9,13 @@ per-site exceptions in memory.
 
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
-@@ -6960,4 +6960,5 @@
+@@ -7019,7 +7019,8 @@
+   // Aerie: judge requests with the Filter Engine. After the extensions' proxy
    // above, before the network.
--  aerie_adblock::MaybeProxyURLLoaderFactory(type, request_initiator,
+   aerie_adblock::MaybeProxyURLLoaderFactory(type, request_initiator,
 -                                            isolation_info, factory_builder);
-+  aerie_adblock::MaybeProxyURLLoaderFactory(type, request_initiator,
 +                                            isolation_info, factory_builder,
 +                                            frame, browser_context);
  
+   MaybeSetTargetNetwork(GetBoundNetworkFromRenderFrameHost(frame),
+                         factory_builder, is_for_network_service);

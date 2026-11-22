@@ -8,18 +8,30 @@ aerie_cosmetic_tab_helper.cc (the overlay): the report is untrusted, bounded and
 
 --- a/chrome/browser/BUILD.gn
 +++ b/chrome/browser/BUILD.gn
-@@ -1109,2 +1109,3 @@
+@@ -1109,6 +1109,7 @@
+     "//chrome/browser/actor:impl",
+     "//chrome/browser/ai",
      "//chrome/browser/aerie_adblock",
 +    "//chrome/browser/aerie_adblock:tab_helper",
      "//chrome/browser/app_mode",
+     "//chrome/browser/autocomplete:aim_eligibility_service",
+     "//chrome/browser/back_forward_cache",
 --- a/chrome/browser/chrome_content_browser_client_receiver_bindings.cc
 +++ b/chrome/browser/chrome_content_browser_client_receiver_bindings.cc
-@@ -11,2 +11,3 @@
+@@ -9,6 +9,7 @@
+ #include "base/metrics/histogram_functions.h"
+ #include "base/task/single_thread_task_runner.h"
  #include "build/build_config.h"
 +#include "chrome/browser/aerie_adblock/aerie_cosmetic_tab_helper.h"
  #include "chrome/browser/browser_process.h"
-@@ -462,2 +463,4 @@
+ #include "chrome/browser/chrome_browser_interface_binders.h"
+ #include "chrome/browser/chrome_browser_interface_binders_webui.h"
+@@ -461,6 +462,8 @@
+             &render_frame_host));
+   }
  #endif
 +  AerieCosmeticTabHelper::RegisterBinder(associated_registry,
 +                                         render_frame_host);
    associated_registry.AddInterface<autofill::mojom::PasswordGenerationDriver>(
+       base::BindRepeating(
+           [](content::RenderFrameHost* render_frame_host,
