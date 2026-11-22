@@ -94,7 +94,7 @@ Re-cut after a Helium bump with the method in CONTRIBUTING.md ("Re-cutting an ad
    },
 --- a/chrome/chrome_paks.gni
 +++ b/chrome/chrome_paks.gni
-@@ -135,6 +135,7 @@
+@@ -151,6 +151,7 @@
        "$root_gen_dir/components/chrome_urls_resources.pak",
        "$root_gen_dir/components/components_resources.pak",
        "$root_gen_dir/components/crashes_resources.pak",
@@ -102,7 +102,7 @@ Re-cut after a Helium bump with the method in CONTRIBUTING.md ("Re-cutting an ad
        "$root_gen_dir/components/flags_ui_resources.pak",
        "$root_gen_dir/components/internal_debug_pages_disabled_resources.pak",
        "$root_gen_dir/components/metrics/metrics_server_urls.pak",
-@@ -177,6 +178,7 @@
+@@ -193,6 +194,7 @@
        "//chrome/browser/resources",
        "//chrome/common:resources",
        "//components/resources",
@@ -112,7 +112,7 @@ Re-cut after a Helium bump with the method in CONTRIBUTING.md ("Re-cutting an ad
        "//mojo/public/js:resources",
 --- a/chrome/browser/extensions/BUILD.gn
 +++ b/chrome/browser/extensions/BUILD.gn
-@@ -627,6 +627,7 @@
+@@ -626,6 +626,7 @@
      "//components/update_client:common_impl",
      "//components/user_prefs",
      "//components/vector_icons",
@@ -130,7 +130,7 @@ Re-cut after a Helium bump with the method in CONTRIBUTING.md ("Re-cutting an ad
  #include "components/omnibox/common/omnibox_features.h"
  #include "content/public/browser/browser_thread.h"
  #include "extensions/browser/extension_config_map.h"
-@@ -127,6 +128,7 @@
+@@ -138,6 +139,7 @@
            extensions_features::kApiContextualTasksPrivate)) {
      AddComponentResourceEntries(kContextualTasksExtensionResources);
    }
@@ -140,7 +140,7 @@ Re-cut after a Helium bump with the method in CONTRIBUTING.md ("Re-cutting an ad
    if (base::FeatureList::IsEnabled(features::kIndigo)) {
 --- a/chrome/browser/extensions/component_loader.h
 +++ b/chrome/browser/extensions/component_loader.h
-@@ -244,6 +244,7 @@
+@@ -248,6 +248,7 @@
                                   const std::string& name_string,
                                   const std::string& description_string);
    void AddWebStoreApp();
@@ -158,7 +158,7 @@ Re-cut after a Helium bump with the method in CONTRIBUTING.md ("Re-cutting an ad
  #include "content/public/browser/browser_thread.h"
  #include "content/public/common/content_switches.h"
  #include "extensions/browser/extension_file_task_runner.h"
-@@ -614,6 +615,11 @@
+@@ -641,6 +642,11 @@
    }
  }
  
@@ -170,7 +170,7 @@ Re-cut after a Helium bump with the method in CONTRIBUTING.md ("Re-cutting an ad
  #if BUILDFLAG(IS_CHROMEOS)
  void ComponentLoader::AddChromeApp() {
    AddWithNameAndDescription(
-@@ -691,6 +697,7 @@
+@@ -718,6 +724,7 @@
  
    if (!skip_session_components) {
      AddWebStoreApp();
@@ -189,15 +189,15 @@ Re-cut after a Helium bump with the method in CONTRIBUTING.md ("Re-cutting an ad
  #include "extensions/buildflags/buildflags.h"
  #include "extensions/common/constants.h"
  #include "printing/buildflags/buildflags.h"
-@@ -40,6 +42,7 @@
-       extension_misc::kGlicExtensionId,
-       extension_misc::kInAppPaymentsSupportAppId,
+@@ -48,6 +50,7 @@
+       extension_misc::kNewTabPageExtensionId,
+ #endif  // BUILDFLAG(ENABLE_WEBUI_NTP)
        extension_misc::kPdfExtensionId,
 +      helium::kExtstoreFixupsExtensionId,
  #if BUILDFLAG(IS_CHROMEOS)
        extension_misc::kAssessmentAssistantExtensionId,
        extension_misc::kAccessibilityCommonExtensionId,
-@@ -98,6 +101,7 @@
+@@ -109,6 +112,7 @@
      case IDR_NETWORK_SPEECH_SYNTHESIS_MANIFEST:
      case IDR_NETWORK_SPEECH_SYNTHESIS_MANIFEST_MV3:
      case IDR_WEBSTORE_MANIFEST:

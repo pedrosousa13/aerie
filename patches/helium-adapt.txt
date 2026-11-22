@@ -6,5 +6,7 @@
 # Needed when a patch only applies on top of one listed in helium-drop.txt: the replacement
 # is Helium's patch with the hunks that need the dropped code re-cut. Every entry needs a
 # row in docs/helium-dependency-ledger.md. Checked like helium-drop.txt.
-helium/core/component-updates.patch  sha256:90cbe369b1fc7bf5740a6497fc0169ff362406564b6b746f4438ab62bcf98c05  # its hunks sit next to the uBlock Origin asset helpers that are dropped
-helium/core/fixups-component-setup.patch  sha256:852fb83263f2f6a6488b07bd64c5b45194edb53999e21c1830f98ae208e64a65  # its hunks sit next to the uBlock Origin component lines that are dropped
+helium/core/component-updates.patch  sha256:7917cf6ef6f0c96c497ccd2c91b2150d2f324d6514c85f54caac295f00bf5d46  # its hunks sit next to the uBlock Origin asset helpers that are dropped
+helium/core/fixups-component-setup.patch  sha256:d53d2dc2b8c759826820712a1d040e554c09cccbf15f76273587779963edb5e6  # its hunks sit next to the uBlock Origin component lines that are dropped
+helium/core/web-push-service.patch  sha256:513eeea6c10e9c4a7544868523d8b2d59373f7c2650414a02a0ba3e5fa7ace75  # its hunks sit next to the uBlock Origin asset helpers and prefs that are dropped
+helium/settings/web-push-settings.patch  sha256:8f3fe0f6501c7b23009e975cbd91758fe8fe1738ab13a9d4dd298168b45319e0  # its hunks sit next to uBlock Origin code that is dropped
