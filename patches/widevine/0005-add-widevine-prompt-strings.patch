@@ -20,7 +20,8 @@ lines that patch adds, so the series lists it right after adblock/0017.
  
 --- a/chrome/app/generated_resources.grd.gritdeps
 +++ b/chrome/app/generated_resources.grd.gritdeps
-@@ -110,4 +110,5 @@
+@@ -110,5 +110,6 @@
+ chrome/app/support_tool_strings.grdp
  chrome/app/vr_strings.grdp
  chrome/app/whats_new_strings.grdp
 +chrome/browser/aerie_widevine/aerie_widevine_strings.grdp

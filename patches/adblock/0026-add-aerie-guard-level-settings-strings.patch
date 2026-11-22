@@ -9,7 +9,7 @@ list strings that adblock/0025 adds, so it comes after adblock/0025 in the serie
 
 --- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
 +++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
-@@ -1639,6 +1639,11 @@
+@@ -1670,6 +1670,11 @@
         IDS_SETTINGS_AERIE_GUARD_LIST_ERROR_NON_PUBLIC_URL},
        {"aerieGuardListErrorRequired",
         IDS_SETTINGS_AERIE_GUARD_LIST_ERROR_REQUIRED},

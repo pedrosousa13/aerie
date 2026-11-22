@@ -8,24 +8,34 @@ the names with the grdp.
 
 --- a/chrome/app/generated_resources.grd
 +++ b/chrome/app/generated_resources.grd
-@@ -298,2 +298,5 @@
+@@ -296,6 +296,9 @@
+       <part file="../browser/ui/views/aerie_adblock/aerie_guard_strings.grdp" />
+       <part file="../browser/ui/webui/aerie_guard_settings/aerie_guard_settings_strings.grdp" />
  
 +      <!-- Aerie reduced-motion strings -->
 +      <part file="../../components/aerie_design_tokens/aerie_motion_strings.grdp" />
 +
        <!-- Aerie Widevine prompt strings -->
+       <part file="../browser/aerie_widevine/aerie_widevine_strings.grdp" />
+ 
 --- a/chrome/app/generated_resources.grd.gritdeps
 +++ b/chrome/app/generated_resources.grd.gritdeps
-@@ -114,2 +114,3 @@
+@@ -113,4 +113,5 @@
+ chrome/browser/aerie_widevine/aerie_widevine_strings.grdp
+ chrome/browser/ui/views/aerie_adblock/aerie_guard_strings.grdp
  chrome/browser/ui/webui/aerie_guard_settings/aerie_guard_settings_strings.grdp
 +components/aerie_design_tokens/aerie_motion_strings.grdp
  components/aerie_onboarding/aerie_onboarding_strings.grdp
 --- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
 +++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
-@@ -589,2 +589,6 @@
+@@ -617,6 +617,10 @@
+                           Profile* profile) {
+   static constexpr webui::LocalizedString kLocalizedStrings[] = {
        {"appearancePageTitle", IDS_SETTINGS_APPEARANCE},
 +      {"aerieMotionReduce", IDS_SETTINGS_AERIE_MOTION_REDUCE},
 +      {"aerieMotionReduceDesc", IDS_SETTINGS_AERIE_MOTION_REDUCE_DESC},
 +      {"aerieMotionReduceSystem", IDS_SETTINGS_AERIE_MOTION_REDUCE_SYSTEM},
 +      {"aerieMotionReduceOn", IDS_SETTINGS_AERIE_MOTION_REDUCE_ON},
        {"appearanceBehaviorPageTitle", IDS_SETTINGS_APPEARANCE_AND_BEHAVIOR},
+       {"behaviorPageTitle", IDS_SETTINGS_BEHAVIOR},
+       {"ctrlTabMru", IDS_SETTINGS_CTRL_TAB_MRU},
