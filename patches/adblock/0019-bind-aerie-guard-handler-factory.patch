@@ -8,20 +8,32 @@ stays Mojo-only (no chrome.send, no WebUIMessageHandler).
 
 --- a/chrome/browser/chrome_browser_interface_binders_webui_parts_desktop.cc
 +++ b/chrome/browser/chrome_browser_interface_binders_webui_parts_desktop.cc
-@@ -30,2 +30,4 @@
+@@ -29,6 +29,8 @@
+ #include "chrome/browser/ui/webui/access_code_cast/access_code_cast.mojom.h"
+ #include "chrome/browser/ui/webui/access_code_cast/access_code_cast_ui.h"
  #include "chrome/browser/ui/webui/app_service_internals/app_service_internals.mojom.h"
 +#include "chrome/browser/ui/webui/aerie_guard/aerie_guard.mojom.h"
 +#include "chrome/browser/ui/webui/aerie_guard/aerie_guard_ui.h"
  #include "chrome/browser/ui/webui/app_service_internals/app_service_internals_ui.h"
-@@ -587,2 +589,4 @@
+ #include "chrome/browser/ui/webui/autofill_ml_internals/autofill_ml_internals_ui.h"
+ #include "chrome/browser/ui/webui/bookmarks/bookmarks_ui.h"
+@@ -601,6 +603,8 @@
+   registry.ForWebUI<TabSearchUI>()
+       .Add<tab_search::mojom::PageHandlerFactory>()
        .Add<tab_search::mojom::SearchHandler>();
 +  registry.ForWebUI<aerie_guard::AerieGuardUI>()
 +      .Add<aerie_guard::mojom::PageHandlerFactory>();
    registry.ForWebUI<OrganizerPanelUI>()
+       .Add<organizer_panel::mojom::ForeignTabsPageHandlerFactory>()
+       .Add<organizer_panel::mojom::PageHandlerFactory>()
 --- a/chrome/browser/BUILD.gn
 +++ b/chrome/browser/BUILD.gn
-@@ -531,2 +531,4 @@
+@@ -528,6 +528,8 @@
+       "//chrome/browser/actor/ui:actor_overlay",
+       "//chrome/browser/contextual_cueing/internals",
        "//chrome/browser/contextual_cueing/internals:mojo_bindings",
 +      "//chrome/browser/ui/webui/aerie_guard",
 +      "//chrome/browser/ui/webui/aerie_guard:mojo_bindings",
        "//chrome/browser/contextual_tasks:mojo_bindings",
+       "//chrome/browser/contextual_tasks:ui",
+       "//chrome/browser/glic/selection",

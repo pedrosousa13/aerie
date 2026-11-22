@@ -9,8 +9,8 @@ pill, Today list, then what is left of the toolbar. A hidden sidebar adds none. 
 
 --- a/chrome/browser/ui/views/frame/browser_view.cc
 +++ b/chrome/browser/ui/views/frame/browser_view.cc
-@@ -5219,12 +5219,21 @@
-     }
+@@ -5260,12 +5260,21 @@
+         toolbar_->location_bar_view()->permission_dashboard_view());
    }
  
 -  panes->push_back(
@@ -36,7 +36,7 @@ pill, Today list, then what is left of the toolbar. A hidden sidebar adds none. 
    if (toolbar_ && toolbar_->custom_tab_bar()) {
 --- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
 +++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
-@@ -405,6 +405,13 @@
+@@ -423,6 +423,13 @@
                                           draw_window_controls);
  }
  
