@@ -11,6 +11,8 @@
 #include "base/strings/string_number_conversions.h"
 #include "components/aerie_adblock/browser/list_failure.h"
 #include "crypto/hash.h"
+#include "net/base/ip_address.h"
+#include "net/base/url_util.h"
 
 namespace aerie_adblock {
 
@@ -23,6 +25,28 @@ constexpr int kMaxRules = 50'000'000;
 bool IsLoopbackHost(const GURL& url) {
   std::string host(url.host());
   return host == "127.0.0.1" || host == "localhost" || host == "[::1]";
+}
+
+// True when the host is a public name or a publicly routable IP literal. GURL
+// has already turned decimal, octal and hex forms into dotted IPv4. Not
+// public: a non-routable IP literal (loopback, RFC 1918, link-local, CGNAT,
+// unspecified, multicast, broadcast, unique-local, IPv4-mapped forms of
+// those), "localhost" and "*.localhost", and a name with no dot.
+bool IsPublicHost(const GURL& url) {
+  if (url.HostIsIPAddress()) {
+    net::IPAddress ip;
+    if (!ip.AssignFromIPLiteral(url.HostNoBracketsPiece())) {
+      return false;
+    }
+    // IsPubliclyRoutable() treats IPv6 multicast (ff00::/8) as public.
+    return ip.IsPubliclyRoutable() && !ip.IsMulticast();
+  }
+  std::string_view host = url.host();
+  if (!host.empty() && host.back() == '.') {
+    host.remove_suffix(1);
+  }
+  return host.find('.') != std::string_view::npos &&
+         !net::IsLocalHostname(host);
 }
 
 bool IsKnownErrorMessage(const std::string& text) {
@@ -80,10 +104,10 @@ bool IsAcceptableListUrl(const GURL& url, bool allow_loopback) {
       url.has_username() || url.has_password() || !url.has_host()) {
     return false;
   }
-  if (url.SchemeIs("https")) {
-    return true;
+  if (allow_loopback && IsLoopbackHost(url)) {
+    return url.SchemeIs("https") || url.SchemeIs("http");
   }
-  return allow_loopback && url.SchemeIs("http") && IsLoopbackHost(url);
+  return url.SchemeIs("https") && IsPublicHost(url);
 }
 
 std::string NormalizeExceptionHost(std::string_view host) {

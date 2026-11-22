@@ -74,7 +74,11 @@ bool CanBeDisabled(const FilterListEntry& entry);
 // Whether the browser may download a list from |url|: https, a host, no user
 // info, no fragment, at most 2048 characters. With |allow_loopback| (only the
 // Bench's switch sets it) http is also accepted for 127.0.0.1, ::1 and
-// localhost, and for nothing else.
+// localhost, and for nothing else. The host must be public: loopback,
+// private, link-local, CGNAT, unspecified, multicast and unique-local IP
+// literals (and IPv4-mapped forms), "localhost", "*.localhost" and names with
+// no dot are refused, also with |allow_loopback| (which only lets loopback
+// through). A name that resolves to a private address is not checked (#70).
 bool IsAcceptableListUrl(const GURL& url, bool allow_loopback);
 
 // Lowercase ASCII host with no trailing dot, or "" if |host| is not a plain

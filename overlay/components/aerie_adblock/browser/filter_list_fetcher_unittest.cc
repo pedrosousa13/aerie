@@ -141,6 +141,63 @@ TEST_F(FilterListFetcherTest, ARedirectToHttpIsStoppedBeforeAnyRequestToIt) {
   EXPECT_EQ(factory_.NumPending(), 0);
 }
 
+TEST_F(FilterListFetcherTest, ARedirectToANonPublicHostIsStoppedBeforeAnyRequestToIt) {
+  std::vector<GURL> requested;
+  factory_.SetInterceptor(base::BindLambdaForTesting(
+      [&](const network::ResourceRequest& request) {
+        requested.push_back(request.url);
+      }));
+  const char* targets[] = {"https://127.0.0.1:8443/probe", "https://192.168.0.1/",
+                           "https://10.0.0.1/", "https://169.254.169.254/",
+                           "https://100.64.0.1/", "https://[::1]/",
+                           "https://[fe80::1]/", "https://[fc00::1]/",
+                           "https://[::ffff:10.0.0.1]/", "https://localhost/",
+                           "https://printer.localhost/", "https://intranet/",
+                           "https://2130706433/"};
+  auto fetcher = MakeFetcher();
+  for (const char* target : targets) {
+    requested.clear();
+    factory_.ClearResponses();
+    factory_.AddResponse(GURL("https://lists.example/a.txt"),
+                         network::mojom::URLResponseHead::New(), "",
+                         network::URLLoaderCompletionStatus(net::OK),
+                         OneRedirect(target),
+                         network::TestURLLoaderFactory::
+                             kResponseOnlyRedirectsNoDestination);
+    factory_.AddResponse(target, "||ads.test^\n");
+    FilterListFetcher::Result result =
+        Fetch(*fetcher, "https://lists.example/a.txt");
+    EXPECT_EQ(result.failure, ListFailure::kInsecureUrl) << target;
+    EXPECT_TRUE(result.body.empty()) << target;
+    EXPECT_EQ(requested, std::vector<GURL>{GURL("https://lists.example/a.txt")})
+        << target;
+    EXPECT_EQ(factory_.NumPending(), 0) << target;
+  }
+}
+
+TEST_F(FilterListFetcherTest, ANonPublicStartAddressIsNeverRequested) {
+  auto fetcher = MakeFetcher();
+  for (const char* url :
+       {"https://127.0.0.1/a.txt", "https://192.168.0.1/a.txt", "https://[::1]/a.txt",
+        "https://localhost/a.txt", "https://intranet/a.txt"}) {
+    EXPECT_EQ(Fetch(*fetcher, url).failure, ListFailure::kInsecureUrl) << url;
+  }
+  EXPECT_EQ(factory_.NumPending(), 0);
+}
+
+TEST_F(FilterListFetcherTest, ARedirectToAPrivateAddressIsStoppedWithTheLoopbackSwitch) {
+  factory_.AddResponse(GURL("https://lists.example/a.txt"),
+                       network::mojom::URLResponseHead::New(), "",
+                       network::URLLoaderCompletionStatus(net::OK),
+                       OneRedirect("https://192.168.0.1/b.txt"),
+                       network::TestURLLoaderFactory::
+                           kResponseOnlyRedirectsNoDestination);
+  factory_.AddResponse("https://192.168.0.1/b.txt", "||ads.test^\n");
+  auto fetcher = MakeFetcher(/*allow_loopback=*/true);
+  EXPECT_EQ(Fetch(*fetcher, "https://lists.example/a.txt").failure,
+            ListFailure::kInsecureUrl);
+}
+
 TEST_F(FilterListFetcherTest, ARedirectToHttpsIsFollowed) {
   factory_.AddResponse(GURL("https://lists.example/a.txt"),
                        network::mojom::URLResponseHead::New(), "",

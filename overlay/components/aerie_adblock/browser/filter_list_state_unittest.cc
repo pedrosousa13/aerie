@@ -43,6 +43,72 @@ TEST(FilterListUrlTest, LoopbackHttpNeedsTheTestSwitch) {
   }
 }
 
+TEST(FilterListUrlTest, PublicHostsAreAcceptable) {
+  for (const char* good :
+       {"https://lists.example/a.txt", "https://8.8.8.8/a.txt",
+        "https://[2001:4860:4860::8888]/a.txt", "https://sub.lists.example./a.txt",
+        "https://[::ffff:8.8.8.8]/a.txt"}) {
+    EXPECT_TRUE(IsAcceptableListUrl(GURL(good), false)) << good;
+    EXPECT_TRUE(IsAcceptableListUrl(GURL(good), true)) << good;
+  }
+}
+
+TEST(FilterListUrlTest, NonPublicAddressesAreRefused) {
+  for (const char* bad : {
+           // IPv4 literals.
+           "https://127.0.0.1/a.txt", "https://127.8.9.10/a.txt",
+           "https://10.0.0.1/a.txt", "https://172.16.0.1/a.txt",
+           "https://172.31.255.255/a.txt", "https://192.168.1.1/a.txt",
+           "https://169.254.169.254/a.txt", "https://100.64.0.1/a.txt",
+           "https://100.127.255.254/a.txt", "https://0.0.0.0/a.txt",
+           "https://224.0.0.1/a.txt", "https://239.255.255.250/a.txt",
+           "https://255.255.255.255/a.txt",
+           // IPv6 literals.
+           "https://[::1]/a.txt", "https://[::]/a.txt",
+           "https://[fc00::1]/a.txt", "https://[fd12:3456::1]/a.txt",
+           "https://[fe80::1]/a.txt", "https://[ff02::1]/a.txt",
+           "https://[ff05::2]/a.txt",
+           // IPv4-mapped IPv6.
+           "https://[::ffff:127.0.0.1]/a.txt", "https://[::ffff:10.0.0.1]/a.txt",
+           "https://[::ffff:192.168.1.1]/a.txt",
+           "https://[::ffff:169.254.1.1]/a.txt",
+           "https://[::ffff:100.64.0.1]/a.txt", "https://[::ffff:0.0.0.0]/a.txt",
+           "https://[::ffff:224.0.0.1]/a.txt",
+           "https://[::ffff:255.255.255.255]/a.txt",
+           // Names.
+           "https://localhost/a.txt", "https://LOCALHOST/a.txt",
+           "https://localhost./a.txt", "https://foo.localhost/a.txt",
+           "https://a.b.localhost./a.txt", "https://intranet/a.txt",
+           "https://intranet./a.txt", "https://printer/a.txt",
+           // Forms that GURL canonicalises to an address above.
+           "https://2130706433/a.txt", "https://0x7f000001/a.txt",
+           "https://017700000001/a.txt", "https://127.1/a.txt",
+           "https://0x7f.0.0.1/a.txt", "https://3232235777/a.txt",
+           "https://0xa9fea9fe/a.txt", "https://[0:0:0:0:0:0:0:1]/a.txt",
+           "https://[::ffff:7f00:1]/a.txt"}) {
+    EXPECT_FALSE(IsAcceptableListUrl(GURL(bad), false)) << bad;
+  }
+}
+
+TEST(FilterListUrlTest, TheLoopbackSwitchNeverOpensPrivateRanges) {
+  for (const char* bad :
+       {"https://10.0.0.1/a.txt", "https://192.168.1.1/a.txt",
+        "https://172.16.0.1/a.txt", "https://169.254.169.254/a.txt",
+        "https://100.64.0.1/a.txt", "https://[fc00::1]/a.txt",
+        "https://[fe80::1]/a.txt", "https://[::ffff:10.0.0.1]/a.txt",
+        "https://intranet/a.txt", "http://intranet/a.txt",
+        "http://[::ffff:127.0.0.1]/a.txt", "http://0.0.0.0/a.txt",
+        "http://169.254.1.1/a.txt"}) {
+    EXPECT_FALSE(IsAcceptableListUrl(GURL(bad), true)) << bad;
+  }
+  // Loopback itself stays open for the Bench and tests, with https and http.
+  for (const char* ok : {"https://127.0.0.1:8443/a.txt", "http://127.0.0.1:8000/a.txt",
+                         "http://localhost:8000/a.txt", "http://[::1]/a.txt",
+                         "https://localhost/a.txt", "https://[::1]/a.txt"}) {
+    EXPECT_TRUE(IsAcceptableListUrl(GURL(ok), true)) << ok;
+  }
+}
+
 TEST(FilterListUrlTest, TooLongIsRefused) {
   EXPECT_FALSE(IsAcceptableListUrl(
       GURL("https://lists.example/" + std::string(2100, 'a')), false));

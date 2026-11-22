@@ -153,12 +153,21 @@ The one silent case, a list that turns off all blocking and still shows as "upda
 ### A10 Server-Side Request Forgery: finding #70
 
 Aerie runs no server. The one fetch whose address the user chooses is a custom filter list. It is https
-only, and it goes through the system network context with no credentials. The address the user types is
-one they could open in a tab. A redirect is different: the list publisher chooses it, not the user.
-`FilterListFetcher::OnRedirect` (`filter_list_fetcher.cc:122`) only calls `IsAcceptableListUrl`, which
-accepts any https host, including loopback, private-network and link-local IP literals. A list server can
-send the daily background fetch to an internal https address, and Private Network Access does not check
-it. The impact is a blind GET with no credentials and no response to the publisher (#70).
+only, and it goes through the system network context with no credentials. A redirect is different from
+the address the user types: the list publisher chooses it, not the user. The sweep found that
+`FilterListFetcher::OnRedirect` accepted any https target, including loopback, private-network and
+link-local IP literals, so a list server could send the daily background fetch to an internal address
+that Private Network Access does not check (#70).
+
+Fixed in #70. The first request, the add path (`AddCustomList`) and every redirect target now go through
+`IsAcceptableListUrl`, which refuses a non-public host: loopback, private (RFC 1918), link-local, CGNAT,
+unspecified, multicast, broadcast and unique-local IP literals, IPv4-mapped forms of those, `localhost`,
+`*.localhost` and single-label names. GURL turns decimal, octal and hex forms into dotted IPv4 first, so
+those are covered too. A refused redirect ends the fetch as an ordinary failure before any request goes
+to the target. The Bench's `allow_loopback` switch lets only loopback through, and never a private range.
+
+Known residual: a public-looking name that resolves (DNS) to a private address is not checked. A check
+at connection time is out of scope for #70.
 
 ## Browser-specific checks
 

@@ -101,7 +101,10 @@ source_set("list_types") {
     "//base",
     "//url",
   ]
-  deps = [ "//crypto" ]
+  deps = [
+    "//crypto",
+    "//net",
+  ]
 }
 
 # The C++ face of the Rust engine.
