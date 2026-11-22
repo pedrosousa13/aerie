@@ -5,13 +5,27 @@
 #include "components/aerie_adblock/browser/filter_list_fetcher.h"
 
 #include <functional>
+#include <map>
 #include <string>
 #include <vector>
 
+#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "base/test/bind.h"
 #include "base/test/task_environment.h"
+#include "mojo/public/cpp/bindings/pending_receiver.h"
+#include "mojo/public/cpp/bindings/pending_remote.h"
+#include "mojo/public/cpp/bindings/receiver_set.h"
+#include "mojo/public/cpp/bindings/remote.h"
+#include "mojo/public/cpp/bindings/self_owned_receiver.h"
+#include "mojo/public/cpp/system/data_pipe.h"
+#include "services/network/public/cpp/url_loader_completion_status.h"
+#include "services/network/public/mojom/url_loader.mojom.h"
+#include "services/network/public/mojom/url_loader_factory.mojom.h"
+#include "services/network/public/mojom/url_response_head.mojom.h"
+#include "services/network/test/test_utils.h"
 #include "net/base/load_flags.h"
+#include "net/base/net_errors.h"
 #include "net/http/http_response_headers.h"
 #include "net/http/http_status_code.h"
 #include "net/url_request/redirect_info.h"
@@ -22,6 +36,99 @@
 
 namespace aerie_adblock {
 namespace {
+
+// A URLLoaderFactory that follows redirects the way the network service does:
+// a redirect is announced to the client, and only when the client answers
+// FollowRedirect() does a request go to the new address. network::
+// TestURLLoaderFactory cannot do this. It drops the loader's receiver when it
+// has a canned response, so a redirect that is announced can never be followed
+// and the client sees the pipe close (the fetch ended with kDownload).
+// |requested| lists every URL a request was actually made to, in order.
+class RedirectFollowingFactory : public network::mojom::URLLoaderFactory {
+ public:
+  void AddBody(const char* url, std::string body) { bodies_[GURL(url)] = std::move(body); }
+  void AddRedirect(const char* from, const char* to) { redirects_[GURL(from)] = GURL(to); }
+
+  const std::vector<GURL>& requested() const { return requested_; }
+
+  // network::mojom::URLLoaderFactory:
+  void CreateLoaderAndStart(
+      mojo::PendingReceiver<network::mojom::URLLoader> receiver,
+      int32_t request_id,
+      uint32_t options,
+      const network::ResourceRequest& request,
+      mojo::PendingRemote<network::mojom::URLLoaderClient> client,
+      const net::MutableNetworkTrafficAnnotationTag& traffic_annotation) override {
+    auto loader = std::make_unique<Loader>(this, request.url, std::move(client));
+    Loader* raw = loader.get();
+    mojo::MakeSelfOwnedReceiver(std::move(loader), std::move(receiver));
+    raw->Start();
+  }
+
+  void Clone(mojo::PendingReceiver<network::mojom::URLLoaderFactory> receiver) override {
+    receivers_.Add(this, std::move(receiver));
+  }
+
+ private:
+  class Loader : public network::mojom::URLLoader {
+   public:
+    Loader(RedirectFollowingFactory* factory,
+           const GURL& url,
+           mojo::PendingRemote<network::mojom::URLLoaderClient> client)
+        : factory_(factory), url_(url), client_(std::move(client)) {}
+
+    void Start() {
+      factory_->requested_.push_back(url_);
+      auto redirect = factory_->redirects_.find(url_);
+      if (redirect != factory_->redirects_.end()) {
+        net::RedirectInfo info;
+        info.new_url = redirect->second;
+        info.new_method = "GET";
+        info.status_code = net::HTTP_FOUND;
+        auto head = network::CreateURLResponseHead(net::HTTP_FOUND);
+        client_->OnReceiveRedirect(info, std::move(head));
+        return;
+      }
+      auto body = factory_->bodies_.find(url_);
+      if (body == factory_->bodies_.end()) {
+        client_->OnComplete(
+            network::URLLoaderCompletionStatus(net::ERR_FILE_NOT_FOUND));
+        return;
+      }
+      mojo::ScopedDataPipeProducerHandle producer;
+      mojo::ScopedDataPipeConsumerHandle consumer;
+      ASSERT_EQ(MOJO_RESULT_OK,
+                mojo::CreateDataPipe(body->second.size(), producer, consumer));
+      ASSERT_EQ(MOJO_RESULT_OK,
+                producer->WriteAllData(base::as_byte_span(body->second)));
+      auto head = network::CreateURLResponseHead(net::HTTP_OK);
+      head->mime_type = "text/plain";
+      client_->OnReceiveResponse(std::move(head), std::move(consumer), std::nullopt);
+      network::URLLoaderCompletionStatus status(net::OK);
+      status.decoded_body_length = base::ByteSize(body->second.size());
+      client_->OnComplete(status);
+    }
+
+    // network::mojom::URLLoader:
+    void FollowRedirect(
+        network::HttpRequestHeadersUpdateParams headers_update_params,
+        const std::optional<GURL>& new_url) override {
+      url_ = factory_->redirects_.at(url_);
+      Start();
+    }
+    void SetPriority(net::RequestPriority priority, int32_t intra_priority_value) override {}
+
+   private:
+    raw_ptr<RedirectFollowingFactory> factory_;
+    GURL url_;
+    mojo::Remote<network::mojom::URLLoaderClient> client_;
+  };
+
+  std::map<GURL, std::string> bodies_;
+  std::map<GURL, GURL> redirects_;
+  std::vector<GURL> requested_;
+  mojo::ReceiverSet<network::mojom::URLLoaderFactory> receivers_;
+};
 
 class FilterListFetcherTest : public testing::Test {
  protected:
@@ -43,8 +150,16 @@ class FilterListFetcherTest : public testing::Test {
         allow_loopback);
   }
 
+  // A fetcher over |following_|, which follows redirects (see its comment).
+  std::unique_ptr<FilterListFetcher> MakeFollowingFetcher(bool allow_loopback = false) {
+    return std::make_unique<FilterListFetcher>(
+        base::MakeRefCounted<network::WeakWrapperSharedURLLoaderFactory>(&following_),
+        allow_loopback);
+  }
+
   base::test::TaskEnvironment task_environment_;
   network::TestURLLoaderFactory factory_;
+  RedirectFollowingFactory following_;
 };
 
 TEST_F(FilterListFetcherTest, DownloadsAnHttpsList) {
@@ -211,33 +326,48 @@ TEST_F(FilterListFetcherTest, TheLoopbackSwitchStillStopsRedirectsToPrivateRange
 }
 
 TEST_F(FilterListFetcherTest, TheLoopbackSwitchDoesNotStopARedirectToLoopback) {
-  // The test factory does not follow a redirect (#82), so only the reason can
-  // be checked: the host check must not be what ended the fetch.
-  factory_.AddResponse(GURL("https://lists.example/a.txt"),
-                       network::mojom::URLResponseHead::New(), "",
-                       network::URLLoaderCompletionStatus(net::OK),
-                       OneRedirect("https://127.0.0.1:8443/b.txt"),
-                       network::TestURLLoaderFactory::
-                           kResponseOnlyRedirectsNoDestination);
-  factory_.AddResponse("https://127.0.0.1:8443/b.txt", "||ads.test^\n");
-  auto fetcher = MakeFetcher(/*allow_loopback=*/true);
-  ListFailure failure = Fetch(*fetcher, "https://lists.example/a.txt").failure;
-  EXPECT_NE(failure, ListFailure::kNonPublicUrl);
-  EXPECT_NE(failure, ListFailure::kInsecureUrl);
-}
-
-TEST_F(FilterListFetcherTest, ARedirectToHttpsIsFollowed) {
-  factory_.AddResponse(GURL("https://lists.example/a.txt"),
-                       network::mojom::URLResponseHead::New(), "",
-                       network::URLLoaderCompletionStatus(net::OK),
-                       OneRedirect("https://mirror.example/b.txt"),
-                       network::TestURLLoaderFactory::
-                           kResponseOnlyRedirectsNoDestination);
-  factory_.AddResponse("https://mirror.example/b.txt", "||ads.test^\n");
-  auto fetcher = MakeFetcher();
+  following_.AddRedirect("https://lists.example/a.txt", "https://127.0.0.1:8443/b.txt");
+  following_.AddBody("https://127.0.0.1:8443/b.txt", "||ads.test^\n");
+  auto fetcher = MakeFollowingFetcher(/*allow_loopback=*/true);
   FilterListFetcher::Result result = Fetch(*fetcher, "https://lists.example/a.txt");
   EXPECT_EQ(result.failure, ListFailure::kNone);
   EXPECT_EQ(result.body, "||ads.test^\n");
+  EXPECT_EQ(following_.requested(),
+            (std::vector<GURL>{GURL("https://lists.example/a.txt"),
+                               GURL("https://127.0.0.1:8443/b.txt")}));
+}
+
+TEST_F(FilterListFetcherTest, ARedirectToHttpsIsFollowed) {
+  following_.AddRedirect("https://lists.example/a.txt", "https://mirror.example/b.txt");
+  following_.AddBody("https://mirror.example/b.txt", "||ads.test^\n");
+  auto fetcher = MakeFollowingFetcher();
+  FilterListFetcher::Result result = Fetch(*fetcher, "https://lists.example/a.txt");
+  EXPECT_EQ(result.failure, ListFailure::kNone);
+  EXPECT_EQ(result.body, "||ads.test^\n");
+  EXPECT_EQ(following_.requested(),
+            (std::vector<GURL>{GURL("https://lists.example/a.txt"),
+                               GURL("https://mirror.example/b.txt")}));
+}
+
+TEST_F(FilterListFetcherTest, ARedirectChainOfPublicAddressesIsFollowedToTheEnd) {
+  following_.AddRedirect("https://lists.example/a.txt", "https://mirror.example/b.txt");
+  following_.AddRedirect("https://mirror.example/b.txt", "https://cdn.example/c.txt");
+  following_.AddBody("https://cdn.example/c.txt", "||ads.test^\n");
+  auto fetcher = MakeFollowingFetcher();
+  EXPECT_EQ(Fetch(*fetcher, "https://lists.example/a.txt").body, "||ads.test^\n");
+  EXPECT_EQ(following_.requested().size(), 3u);
+}
+
+TEST_F(FilterListFetcherTest, ARedirectToANonPublicHostIsNotFollowedByTheRealRedirectPath) {
+  following_.AddRedirect("https://lists.example/a.txt", "https://192.168.0.1/b.txt");
+  following_.AddBody("https://192.168.0.1/b.txt", "||ads.test^\n");
+  auto fetcher = MakeFollowingFetcher();
+  FilterListFetcher::Result result = Fetch(*fetcher, "https://lists.example/a.txt");
+  EXPECT_EQ(result.failure, ListFailure::kNonPublicUrl);
+  EXPECT_TRUE(result.body.empty());
+  task_environment_.RunUntilIdle();
+  EXPECT_EQ(following_.requested(),
+            std::vector<GURL>{GURL("https://lists.example/a.txt")});
 }
 
 }  // namespace
