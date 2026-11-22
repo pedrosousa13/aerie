@@ -14,7 +14,7 @@ sits in the "Sidebar" section, under the "Links open" row of patches/sidebar/005
 
 --- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
 +++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
-@@ -501,6 +501,11 @@
+@@ -502,6 +502,11 @@
    // Aerie: how a link that would open a new tab opens (issue #141). The name is
    // aerie_tab_model::kLinksOpen; a test compares the two.
    (*s_allowlist)["aerie.tabs.links_open"] = settings_api::PrefType::kString;
@@ -59,7 +59,7 @@ sits in the "Sidebar" section, under the "Links open" row of patches/sidebar/005
  import './aerie_title_rules_row.js';
 --- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
 +++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
-@@ -656,6 +656,8 @@
+@@ -686,6 +686,8 @@
        {"aerieLinksOpenDesc", IDS_SETTINGS_AERIE_LINKS_OPEN_DESC},
        {"aerieLinksOpenNewTab", IDS_AERIE_SIDEBAR_LINKS_NEW_TAB},
        {"aerieLinksOpenInPlace", IDS_AERIE_SIDEBAR_LINKS_IN_PLACE},

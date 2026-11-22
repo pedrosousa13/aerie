@@ -2,10 +2,11 @@ Aerie-Purpose: Turn Helium's services off and remove its hostnames, keeping only
 Aerie-Upstream-Area: components/helium_services (helpers, BUILD.gn); settings services page placeholder and strings
 Aerie-Kind: hook
 
-Helium's services proxy (services.helium.imput.net) and its update host
-(updates.helium.computer) are gone from the source. ShouldAccessServices() is
+Helium's services proxy (services.helium.imput.net), its update host
+(updates.helium.computer) and its web push server (push.helium.computer, added by
+Helium 0.22's core/web-push-service.patch) are gone from the source. ShouldAccessServices() is
 false, so component updates, bangs, spellcheck files, uBlock Origin assets and
-browser updates have no origin and use the dummy one, which the network stack
+browser updates and web push have no origin and use the dummy one, which the network stack
 refuses. The only origin left is the user's extension proxy, read from the
 existing origin override pref and validated by components/aerie_services.
 The plumbing stays, so Helium bumps conflict as little as possible.
@@ -175,9 +176,20 @@ The plumbing stays, so Helium bumps conflict as little as possible.
  }
  
  GURL GetComponentUpdateURL(const PrefService* prefs) {
+@@ -176,7 +139,9 @@
+     return user_url;
+   }
+ 
+-  return GURL(kHeliumDefaultPushServer);
++  // Aerie: there is no default push server (push.helium.computer is gone), and
++  // ShouldAccessPushService() is false anyway while services are off.
++  return GetDummyURL();
+ }
+ 
+ void ConfigurePrefChangeRegistrarFor(std::string_view pref_name,
 --- a/components/helium_services/helium_services_helpers.h
 +++ b/components/helium_services/helium_services_helpers.h
-@@ -12,9 +12,8 @@
+@@ -12,14 +12,11 @@
  
  namespace helium {
  
@@ -189,3 +201,8 @@ The plumbing stays, so Helium bumps conflict as little as possible.
  const char kHeliumDummyOrigin[] =
      "https://helium-services-are-disabled.qjz9zk";
  
+-const char kHeliumDefaultPushServer[] = "wss://push.helium.computer/";
+-
+ bool ShouldAccessServices(const PrefService& prefs);
+ 
+ COMPONENT_EXPORT(HELIUM) bool ShouldFetchBangs(const PrefService& prefs);
