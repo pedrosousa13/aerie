@@ -16,8 +16,10 @@
 #include "components/aerie_design_tokens/aerie_motion.h"
 #include "components/aerie_design_tokens/aerie_tokens.h"
 #include "components/aerie_sidebar/aerie_sidebar_density.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_audio_state.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_drag_overlay.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_selection_keys.h"
+#include "components/aerie_sidebar/aerie_sidebar_hover_card.h"
 #include "components/aerie_sidebar/aerie_sidebar_move.h"
 #include "components/aerie_sidebar/aerie_sidebar_palette.h"
 #include "components/aerie_sidebar/aerie_sidebar_today_list.h"
@@ -117,6 +119,9 @@ class AerieSidebarRowView : public views::View,
     // The "Back to pinned page" button of a pinned row was pressed (issue
     // #180).
     base::RepeatingClosure back_to_pinned;
+    // The audio mark of a tab that makes sound was pressed (issue #268): mute
+    // the tab, or unmute it.
+    base::RepeatingClosure toggle_audio;
     // The rename field opened or closed (issue #184: a rename keeps an
     // auto-hidden sidebar open).
     base::RepeatingClosure rename_state_changed;
@@ -138,6 +143,14 @@ class AerieSidebarRowView : public views::View,
     base::RepeatingCallback<void(bool range)> modified_click;
     base::RepeatingCallback<bool(AerieSidebarSelectionKey)> selection_key;
     base::RepeatingCallback<bool()> selection_active;
+    // What the tab preview card needs to know (issue #270): the pointer entered
+    // or left the row, it was pressed, and the row took keyboard focus (not by
+    // a press) or lost it. The view is the row itself.
+    base::RepeatingCallback<void(views::View*,
+                                 aerie_sidebar::HoverCardTrigger)>
+        hover_card;
+    // Whether the card is up for this view: Esc then dismisses it.
+    base::RepeatingCallback<bool(views::View*)> hover_card_shown;
   };
 
   AerieSidebarRowView(Callbacks callbacks,
@@ -175,6 +188,22 @@ class AerieSidebarRowView : public views::View,
   // at once.
   void SetSleeping(bool sleeping, const PrefService* reduced_motion_prefs);
   bool sleeping() const { return sleeping_; }
+  // A tab that is kept loaded (issue #267): a small mark after the title, from
+  // an Aerie vector icon and the muted text token, and ", kept loaded" at the
+  // end of the accessible name. The mark appears and goes at once: it is a
+  // state, not a motion. The rail (icons only) shows no mark; the name says it.
+  void SetKeptLoaded(bool kept);
+  bool kept_loaded() const { return kept_loaded_; }
+  views::ImageView* keep_mark() const { return keep_mark_; }
+  // The audio mark (issue #268): a speaker while the tab plays sound, a crossed
+  // speaker while the tab is muted, nothing otherwise. It is a real button
+  // (tooltip and accessible name "Mute tab" or "Unmute tab", a focus stop, Space
+  // and Enter press it) after the title. It appears and goes at once and has no
+  // motion, so reduced motion changes nothing. The rail (icons only) shows no
+  // mark.
+  void SetAudioState(AerieSidebarAudioState state);
+  AerieSidebarAudioState audio_state() const { return audio_state_; }
+  views::ImageButton* audio_button() const { return audio_button_; }
   // Smart folders (issue #140). A row inside a smart folder stands for a real
   // tab that has its own row elsewhere: the "smart-member" kind of row. It shows
   // a quiet hint of where the real tab is (`origin_name`, "Today" or "Pinned")
@@ -387,9 +416,12 @@ class AerieSidebarRowView : public views::View,
 
  private:
   void UpdateState();
+  void RunHoverCard(aerie_sidebar::HoverCardTrigger trigger);
+  void EndPointerDown();
   // Shows or hides the pencil, the back button and the close button for the
   // row's state (renaming hides them all).
   void UpdateTrailing();
+  void ApplyAudioLook();
   void EnsureRenameField();
   void StyleRenameField();
   // Closes the field. `commit`: hand its text to `commit_rename`. `refocus`:
@@ -428,6 +460,9 @@ class AerieSidebarRowView : public views::View,
   int close_height_ms_ = 0;
   // Dragging.
   bool pressed_ = false;
+  // From the press until the end of the release's handling: a focus that comes
+  // with a click is not the keyboard's, and shows no preview card (issue #270).
+  bool pointer_down_ = false;
   bool dragging_ = false;
   // Esc ended the drag; the release that follows is not a click.
   bool drag_cancelled_ = false;
@@ -442,6 +477,10 @@ class AerieSidebarRowView : public views::View,
   base::OneShotTimer settle_timer_;
   raw_ptr<views::ImageView> favicon_ = nullptr;
   raw_ptr<views::ImageView> sleep_badge_ = nullptr;
+  raw_ptr<views::ImageView> keep_mark_ = nullptr;
+  bool kept_loaded_ = false;
+  raw_ptr<views::ImageButton> audio_button_ = nullptr;
+  AerieSidebarAudioState audio_state_ = AerieSidebarAudioState::kNone;
   std::u16string title_text_;
   std::u16string title_note_;
   bool sleeping_ = false;

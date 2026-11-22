@@ -13,7 +13,7 @@ Sources, all in branding/source/:
 The build does not run this. The exported files are committed. You only need it
 after changing a source. It needs Pillow 11.3.0 and skia-pathops 0.9.2:
 
-    uv run --no-project --with pillow==11.3.0 --with skia-pathops==0.9.2 \\
+    uv run --no-project --with pillow==13.0.0 --with skia-pathops==0.9.2 \\
         python3 tools/aerie_branding/export.py [--out DIR]
 """
 

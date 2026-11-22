@@ -64,11 +64,15 @@ source_set("browser_tests") {
   testonly = true
   # content/public/test/browser_test.h refuses to compile without it.
   defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
-  sources = [ "aerie_guard_browsertest.cc" ]
+  sources = [
+    "aerie_clear_browsing_data_browsertest.cc",
+    "aerie_guard_browsertest.cc",
+  ]
   deps = [
     ":aerie_guard",
     ":mojo_bindings",
     "//chrome/browser:browser",
+    "//chrome/browser/history:history",
     "//chrome/browser/profiles:profile",
     "//chrome/browser/ui/tabs:tabs_public",
     "//chrome/browser/ui/views/aerie_adblock:guard",
@@ -77,6 +81,7 @@ source_set("browser_tests") {
     "//chrome/test/base:chrome_test_utils",
     "//components/aerie_adblock/browser:guard_target",
     "//components/aerie_adblock/browser:page_counter",
+    "//components/history/core/browser",
     "//content/test:test_support",
     "//mojo/public/cpp/bindings",
     "//net:test_support",

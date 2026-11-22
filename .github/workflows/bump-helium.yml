@@ -8,7 +8,9 @@ name: Bump Helium
 # Releases come only from the pinned upstream repositories, tag by tag
 # (tools/aerie_build/bump.py). The pull request is opened with BUMP_PR_TOKEN so
 # that it is authored by the maintainer and the local CI gate picks it up
-# (docs/ci.md); the workflow cannot merge it.
+# (docs/ci.md); the workflow cannot merge it and never enables auto-merge. A release
+# on a new Chromium major is bumped with --allow-major and labelled
+# "major Chromium update" (docs/helium-bump.md).
 on:
   schedule:
     - cron: "47 3 * * *" # daily, 03:47 UTC, after the mirror sync at 03:17
@@ -26,7 +28,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           submodules: recursive
@@ -78,9 +80,19 @@ jobs:
         env:
           TAG: ${{ steps.look.outputs.tag }}
         run: |
+          # A release on a new Chromium major is refused (exit 4, nothing changed)
+          # unless --allow-major is given. The job then runs it again with the
+          # flag, and the pull request is labelled and never auto-merged.
           set +e
           ./aerie bump --to "$TAG" --build-root "$RUNNER_TEMP/aerie-build" --report "$RUNNER_TEMP/report.md"
           rc=$?
+          if [ "$rc" = "4" ]; then
+            echo "major=true" >> "$GITHUB_OUTPUT"
+            ./aerie bump --to "$TAG" --allow-major --build-root "$RUNNER_TEMP/aerie-build" --report "$RUNNER_TEMP/report.md"
+            rc=$?
+          else
+            echo "major=false" >> "$GITHUB_OUTPUT"
+          fi
           set -e
           case "$rc" in
             0) echo "draft=false" >> "$GITHUB_OUTPUT" ;;
@@ -94,21 +106,31 @@ jobs:
           GH_TOKEN: ${{ secrets.BUMP_PR_TOKEN }}
           TAG: ${{ steps.look.outputs.tag }}
           DRAFT: ${{ steps.bump.outputs.draft }}
+          MAJOR: ${{ steps.bump.outputs.major }}
         run: |
           chromium=$(sed -n 's/^chromium_version = "\(.*\)"$/\1/p' helium.lock)
           branch="bump-helium-$TAG"
           git config user.name "aerie-bump"
           git config user.email "aerie-bump@users.noreply.github.com"
           git checkout -b "$branch"
-          git add helium.lock helium-chromium helium-linux
+          git add helium.lock helium-chromium helium-linux docs/rebase
           git commit -m "Bump Helium to $TAG (Chromium $chromium)"
           git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$branch"
+          args=()
           {
+            if [ "$MAJOR" = "true" ]; then
+              helium=$(sed -n 's/^version = "\(.*\)"$/\1/p' helium.lock | head -n 1)
+              printf '**Major Chromium update.** This release moves Chromium to a new major version, so it needs an explicit review. It is never merged automatically. Read the [rebase report](https://github.com/%s/blob/%s/docs/rebase/%s.md) (patches, new network traffic) first.\n\n' "$GITHUB_REPOSITORY" "$branch" "$helium"
+            fi
             cat "$RUNNER_TEMP/report.md"
             printf '\nOpened by .github/workflows/bump-helium.yml. The gate runs the full build and Bench on this pull request. See docs/helium-bump.md for what to fix.\n'
           } > "$RUNNER_TEMP/body.md"
-          args=()
           if [ "$DRAFT" = "true" ]; then args+=(--draft); fi
+          if [ "$MAJOR" = "true" ]; then
+            gh label create "major Chromium update" --repo "$GITHUB_REPOSITORY" --color B60205 \
+              --description "Moves to a new Chromium major; review by hand, never auto-merge" || true
+            args+=(--label "major Chromium update")
+          fi
           gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" \
             --title "Bump Helium to $TAG (Chromium $chromium)" \
             --body-file "$RUNNER_TEMP/body.md" "${args[@]}"

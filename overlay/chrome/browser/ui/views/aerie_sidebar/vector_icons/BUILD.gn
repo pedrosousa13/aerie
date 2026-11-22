@@ -13,6 +13,7 @@ aggregate_vector_icons("aerie_sidebar_vector_icons") {
   sources = [
     "aerie_archive.icon",
     "aerie_folder_rules.icon",
+    "aerie_keep_loaded.icon",
     "aerie_sleep_badge.icon",
     "aerie_smart_folder.icon",
   ]

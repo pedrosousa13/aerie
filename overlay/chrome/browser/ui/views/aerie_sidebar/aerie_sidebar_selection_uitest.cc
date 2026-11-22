@@ -23,6 +23,7 @@
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_context_menu.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_drag_controller.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_drag_overlay.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_hover_card.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_row_view.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_tile_view.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_view.h"
@@ -518,6 +519,11 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarSelectionUiTest, ShiftArrowsExtendAndCtrlASel
   EXPECT_EQ(sidebar()->selected_ids(), (Ids{ids[0], ids[1]}));
   EXPECT_EQ(sidebar()->last_announcement_for_testing(), u"2 selected");
 
+  // The arrow keys put the tab preview card up (issue #270), and Esc closes it
+  // first, as WCAG 1.4.13 asks; the next Esc clears the selection.
+  Press(ui::VKEY_ESCAPE);
+  EXPECT_FALSE(sidebar()->hover_card()->showing());
+  EXPECT_EQ(sidebar()->selected_ids().size(), 2u);
   Press(ui::VKEY_ESCAPE);
   EXPECT_TRUE(sidebar()->selected_ids().empty());
   // Esc with nothing selected is not the sidebar's.

@@ -312,7 +312,8 @@ class ApplyTest(unittest.TestCase):
         return bump.resolve_release(bump.remote_tags(str(self.plat_up)), bump.remote_tags(str(self.core_up)))
 
     def apply(self):
-        return bump.apply(self.repo, self.release(), self.opener, log=lambda _m: None, upstreams=self.upstreams)
+        return bump.apply(self.repo, self.release(), self.opener, log=lambda _m: None, upstreams=self.upstreams,
+                          allow_major=True)
 
     def test_moves_submodules_and_lock_and_reports_versions(self):
         old, new = self.apply()
@@ -342,6 +343,59 @@ class ApplyTest(unittest.TestCase):
             bump.apply(self.repo, self.release(), self.opener, log=lambda _m: None, upstreams={
                 "helium-chromium": git(self.repo, "config", "-f", ".gitmodules", "--get", "submodule.helium-chromium.url"),
                 "helium-linux": git(self.repo, "config", "-f", ".gitmodules", "--get", "submodule.helium-linux.url")})
+
+
+class ChromiumMajorTest(unittest.TestCase):
+    def test_same_major_is_allowed(self):
+        self.assertEqual(bump.chromium_jump("157.0.8103.38", "157.0.8200.1"), "same")
+        self.assertEqual(bump.chromium_jump("157.0.8103.38", "157.0.8103.38"), "same")
+
+    def test_a_higher_major_is_a_major_jump(self):
+        self.assertEqual(bump.chromium_jump("157.0.8103.38", "158.0.1.2"), "major")
+        self.assertEqual(bump.chromium_jump("99.0.1.1", "100.0.1.1"), "major")
+
+    def test_a_lower_major_is_an_error(self):
+        with self.assertRaisesRegex(bump.BumpError, "157.*158|158.*157"):
+            bump.chromium_jump("158.0.1.2", "157.0.8103.38")
+
+    def test_a_garbled_version_is_an_error(self):
+        for bad in ("", "abc", "x.0.1.2", "157"):
+            with self.assertRaises(bump.BumpError):
+                bump.chromium_jump("157.0.8103.38", bad)
+            with self.assertRaises(bump.BumpError):
+                bump.chromium_jump(bad, "157.0.8103.38")
+
+
+class MajorApplyTest(ApplyTest):
+    def test_a_major_jump_is_refused_and_nothing_changes(self):
+        before = (self.repo / "helium.lock").read_text()
+        with self.assertRaises(bump.MajorBumpRefused) as ctx:
+            bump.apply(self.repo, self.release(), self.opener, log=lambda _m: None, upstreams=self.upstreams)
+        self.assertEqual((ctx.exception.old, ctx.exception.new), (157, 158))
+        self.assertEqual((self.repo / "helium.lock").read_text(), before)
+        self.assertEqual(git(self.repo, "-C", "helium-chromium", "rev-parse", "HEAD"), self.pins["helium-chromium"])
+        self.assertEqual(self.urls, [])
+
+    def test_allow_major_goes_ahead(self):
+        old, new = bump.apply(self.repo, self.release(), self.opener, log=lambda _m: None,
+                              upstreams=self.upstreams, allow_major=True)
+        self.assertEqual(new.chromium_version, "158.0.1.2")
+
+    def test_a_same_major_bump_needs_no_flag(self):
+        git(self.core_up, "checkout", "-q", "-b", "minor", "0.21.1")
+        (self.core_up / "chromium_version.txt").write_text("157.0.9999.1\n")
+        (self.core_up / "revision.txt").write_text("2\n")
+        git(self.core_up, "commit", "-q", "-am", "0.21.2")
+        git(self.core_up, "tag", "-a", "-m", "0.21.2", "0.21.2")
+        git(self.plat_up, "commit", "-q", "--allow-empty", "-m", "0.21.2.1")
+        git(self.plat_up, "tag", "-a", "-m", "0.21.2.1", "0.21.2.1")
+        self.opener = lambda r: FakeResponse(
+            (f"{'7' * 64}  chromium-157.0.9999.1-base.tar.zst\n" if r.full_url.endswith("SHA256SUMS")
+             else f"sha256  {'8' * 64}  chromium-157.0.9999.1.tar.xz\n").encode())
+        release = bump.resolve_release(bump.remote_tags(str(self.plat_up)), bump.remote_tags(str(self.core_up)),
+                                       to="0.21.2.1")
+        old, new = bump.apply(self.repo, release, self.opener, log=lambda _m: None, upstreams=self.upstreams)
+        self.assertEqual(new.chromium_version, "157.0.9999.1")
 
 
 class CommandTest(unittest.TestCase):
@@ -376,3 +430,45 @@ class CommandTest(unittest.TestCase):
     def test_an_older_upstream_release_is_not_an_update(self):
         rc, _ = self.run_check({"0.20.1.1": "a" * 40})
         self.assertEqual(rc, bump.OK)
+
+
+class MajorCommandTest(unittest.TestCase):
+    """./aerie bump: exit 4 on a Chromium major jump without --allow-major; the flag is passed on."""
+
+    def run_bump(self, extra=(), refuse=True):
+        import contextlib
+        import io
+        from unittest import mock
+
+        from aerie_build import cli
+
+        remote = {bump.PLATFORM_UPSTREAM: {"0.21.1.1": "a" * 40, "0.22.1.1": "d" * 40},
+                  bump.CORE_UPSTREAM: {"0.21.1": "b" * 40, "0.22.1": "c" * 40}}
+        out, err = io.StringIO(), io.StringIO()
+        refused = bump.MajorBumpRefused(157, 158)
+        with mock.patch.object(bump, "remote_tags", side_effect=lambda url: remote[url]), \
+                mock.patch.object(bump, "check_gitmodules"), \
+                mock.patch.object(bump, "apply", side_effect=refused if refuse else RuntimeError("stop")) as apply, \
+                contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            try:
+                rc = cli.main(["bump", *extra])
+            except RuntimeError:
+                rc = "reached apply"
+        return rc, err.getvalue() + out.getvalue(), apply
+
+    def test_exit_code_is_distinct(self):
+        self.assertNotIn(bump.MAJOR_REFUSED, (bump.OK, bump.ERROR, bump.PATCHES_FAIL, bump.UPDATE_AVAILABLE))
+        self.assertEqual(bump.MAJOR_REFUSED, 4)
+
+    def test_refused_without_the_flag_names_both_majors_and_the_flag(self):
+        rc, text, apply = self.run_bump()
+        self.assertEqual(rc, bump.MAJOR_REFUSED)
+        self.assertIn("157", text)
+        self.assertIn("158", text)
+        self.assertIn("--allow-major", text)
+        self.assertFalse(apply.call_args.kwargs.get("allow_major"))
+
+    def test_the_flag_is_passed_to_apply(self):
+        rc, _, apply = self.run_bump(["--allow-major"], refuse=False)
+        self.assertEqual(rc, "reached apply")
+        self.assertTrue(apply.call_args.kwargs["allow_major"])

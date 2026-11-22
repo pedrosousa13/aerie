@@ -30,7 +30,8 @@ SUBMODULES = {"helium-chromium": CORE_UPSTREAM, "helium-linux": PLATFORM_UPSTREA
 TARBALL_SUMS_URL = "https://github.com/imputnet/chromium-tarballs/releases/download/chromium-{version}/SHA256SUMS"
 
 # Exit statuses of ./aerie bump.
-OK, ERROR, PATCHES_FAIL, UPDATE_AVAILABLE = 0, 1, 3, 20
+# MAJOR_REFUSED: the release is on a new Chromium major and --allow-major was not given. Nothing was changed.
+OK, ERROR, PATCHES_FAIL, MAJOR_REFUSED, UPDATE_AVAILABLE = 0, 1, 3, 4, 20
 
 _PLATFORM_TAG_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$")
 _CORE_TAG_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
@@ -40,6 +41,30 @@ _COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 
 class BumpError(RuntimeError):
     """The bump cannot go on; nothing is half done (the submodules are put back)."""
+
+
+class MajorBumpRefused(BumpError):
+    """The release is on a new Chromium major and --allow-major was not given."""
+
+    def __init__(self, old: int, new: int):
+        self.old, self.new = old, new
+        super().__init__(f"this release moves Chromium from major {old} to major {new}; "
+                         f"a new major brings new network traffic and patch conflicts, so it needs "
+                         f"a deliberate decision: run again with --allow-major to bump anyway")
+
+
+def chromium_major(version: str) -> int:
+    if not _CHROMIUM_RE.match(version):
+        raise BumpError(f"{version!r} is not a Chromium version (expected A.B.C.D)")
+    return int(version.split(".")[0])
+
+
+def chromium_jump(current: str, target: str) -> str:
+    """"same" if target is on the major of current, "major" if on a higher one; a lower major or a garbled version is an error."""
+    old, new = chromium_major(current), chromium_major(target)
+    if new < old:
+        raise BumpError(f"the release is on Chromium major {new}, older than the current major {old}")
+    return "major" if new > old else "same"
 
 
 @dataclass(frozen=True)
@@ -213,9 +238,11 @@ def _text(url: str, opener) -> str:
 
 
 def apply(repo: Path, release: Release, opener=fallback.default_opener,
-          log: Callable[[str], None] = print, upstreams: Mapping[str, str] = SUBMODULES) -> tuple[lock.Lock, lock.Lock]:
+          log: Callable[[str], None] = print, upstreams: Mapping[str, str] = SUBMODULES,
+          allow_major: bool = False) -> tuple[lock.Lock, lock.Lock]:
     """Move both submodules and helium.lock to release. Returns (old pins, new pins).
 
+    A Chromium major jump needs allow_major (MajorBumpRefused otherwise).
     If anything fails before helium.lock is written, the submodules go back where they were.
     """
     lock_path = repo / "helium.lock"
@@ -232,6 +259,8 @@ def apply(repo: Path, release: Release, opener=fallback.default_opener,
         chromium = (core / "chromium_version.txt").read_text(encoding="utf-8").strip()
         if not _CHROMIUM_RE.match(chromium):
             raise BumpError(f"helium-chromium/chromium_version.txt holds {chromium!r}, not a Chromium version")
+        if chromium_jump(old.chromium_version, chromium) == "major" and not allow_major:
+            raise MajorBumpRefused(chromium_major(old.chromium_version), chromium_major(chromium))
         built = helium.helium_version(core, platform)
         if built != release.platform_tag:
             raise BumpError(f"the checkouts build Helium {built}, not {release.platform_tag}; the tags do not match")

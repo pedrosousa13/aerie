@@ -93,6 +93,22 @@ The files that are too big to keep in a repository are made by the tests: more t
 | Title length | 1024 UTF-16 units | Cut. A custom name or folder name is cut again at the Tab Model's 200 |
 | Favorites | 12 per Workspace | The rest are skipped |
 
+What one import may add (issue #275). These are limits of what Aerie writes, not of the file, and they apply to the plan after parsing:
+
+| Limit | Value | When it is passed |
+| --- | --- | --- |
+| Tabs per import | 250 (Pinned and Favorites together) | The import brings in a whole prefix of the plan, in plan order: the Pinned tree first, then the Favorites. Every tab after the cut is left out and counted as "over the limit" |
+| Pinned tabs per Workspace | 1000, counting the Pinned tabs the Workspace has already | Pinned only: the Pinned tabs after the cut are counted as "over the limit", and the Favorites still come in (within the other limits). Only the importer enforces this limit: the Tab Model itself has no cap on Pinned tabs |
+| Text of one import | 1 MiB of addresses, titles and custom names together | Same: a prefix, the rest counted as "over the limit" |
+
+The text limit keeps the saved Tab Model far below the 16 MiB that the reader accepts (`kMaxStateBytes`), with room for the rest of the model. The writer holds to the same limit: if the state would be larger than the reader accepts, it drops the oldest archived tabs from what it writes until the state fits (and logs how many). If it still does not fit with no archive left, it does not write, and the last good `state.json` stays. Folders after the cut are not made.
+
+The Chromium tabs of the imported records are made in batches of 5, each batch in its own task on the UI thread (issue #276, `PinnedTabsController::RestoreMissingTabs`), so the browser stays responsive. The result appears when the records are in the Tab Model; the tabs follow within moments, unloaded, as before. A browser test holds the longest task of a 250-tab restore under 100 ms.
+
+## Importing the same Space again (issue #276)
+
+A second import of the same Space adds nothing. A tab whose address is already in the same place is skipped and counted as "already there": the same Workspace and Section (Pinned or Favorites) and the same parent folder. A folder with the same name in the same place as an earlier one is reused, so its tabs go into that folder and no second folder is made. The same address in another folder, or in Pinned and in Favorites, is not a duplicate. Only what was there before the import counts: a Space that lists one address twice in one folder still brings in both. A tab that is already there uses up no room under the Favorites cap or under the limits above, and a changed title or custom name in the file does not change the tab that exists.
+
 A title loses control characters and bidirectional override characters. Markup in a title stays as it is: it is text, and every surface shows it as text.
 
 Every item is visited once, so a loop in `childrenIds` ends.
@@ -101,7 +117,7 @@ A file that is not JSON, that has no `sidebar.containers`, or that has no Space 
 
 ## Result
 
-A summary: how many tabs, folders and Favorites came in and how many custom names, then what was skipped with its reason: an address that is not `http` or `https` (counted as "unsupported address"), no usable address, too many items, nesting too deep, Favorites over the cap, and Arc-only items. One fixed line names Boosts, Easels, Little Arc and Peek as not imported, and one says that logins are not imported.
+A summary: how many tabs, folders and Favorites came in and how many custom names, then what was skipped with its reason: an address that is not `http` or `https` (counted as "unsupported address"), no usable address, too many items, nesting too deep, Favorites over the cap, tabs already there, tabs over the limits of one import (250 tabs, 1000 Pinned tabs per Workspace, 1 MiB of text; see Limits), and Arc-only items. One fixed line names Boosts, Easels, Little Arc and Peek as not imported, and one says that logins are not imported.
 
 ## Security notes
 

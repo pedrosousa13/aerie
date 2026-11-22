@@ -30,7 +30,10 @@ inline constexpr char kStateFile[] = "state.json";
 inline constexpr char kBadSuffix[] = ".bad";
 
 // A state file is some hundred kilobytes at most (the log is bounded). Anything
-// this large is not ours.
+// this large is not ours. The writer holds to the same limit: it never writes a
+// file the reader would refuse. Over it, it leaves the oldest archived tabs out
+// of the file until it fits; if it does not fit without the archive, it writes
+// nothing and the last good file stays.
 inline constexpr size_t kMaxStateBytes = 16 * 1024 * 1024;
 
 struct LoadOutcome {

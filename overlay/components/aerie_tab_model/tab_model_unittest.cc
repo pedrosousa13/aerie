@@ -313,6 +313,7 @@ TEST_F(TabModelTest, ValueRoundTripKeepsEveryField) {
   tab.manual_name = "Example";
   tab.last_active = clock_.Now();
   tab.sleeping = true;
+  tab.keep_loaded = true;
   tab.archived_at = clock_.Now();
   std::string id = model_->AddTab(std::move(tab));
 
@@ -333,6 +334,7 @@ TEST_F(TabModelTest, ValueRoundTripKeepsEveryField) {
   EXPECT_EQ(read.manual_name, "Example");
   EXPECT_EQ(read.last_active, written.last_active);
   EXPECT_TRUE(read.sleeping);
+  EXPECT_TRUE(read.keep_loaded);
   EXPECT_EQ(read.archived_at, written.archived_at);
   EXPECT_EQ(read.created, written.created);
   EXPECT_EQ(read.modified, written.modified);

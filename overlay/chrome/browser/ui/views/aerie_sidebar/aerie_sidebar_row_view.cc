@@ -46,6 +46,7 @@
 #include "ui/views/controls/image_view.h"
 #include "ui/views/controls/label.h"
 #include "ui/views/controls/textfield/textfield.h"
+#include "ui/views/focus/focus_manager.h"
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/style/typography.h"
 #include "ui/views/view_class_properties.h"
@@ -169,6 +170,33 @@ AerieSidebarRowView::AerieSidebarRowView(
   title_->SetEnabledColor(palette_.text);
   title_->GetViewAccessibility().SetIsIgnored(true);
   layout->SetFlexForView(title_, 1);
+
+  // The mark of a tab that is kept loaded (issue #267). Not a button and not a
+  // focus stop: the context menu is the way to the setting, and the row's
+  // accessible name says it.
+  keep_mark_ = content_->AddChildView(std::make_unique<views::ImageView>());
+  keep_mark_->SetImageSize(gfx::Size(kSleepBadgeSize, kSleepBadgeSize));
+  keep_mark_->GetViewAccessibility().SetIsIgnored(true);
+  keep_mark_->SetTooltipText(
+      l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_KEEP_LOADED_TOOLTIP));
+  keep_mark_->SetVisible(false);
+
+  // The audio mark (issue #268). A real button, and a focus stop while it shows
+  // (a hidden view takes no focus): Tab from the row reaches it, Space and Enter
+  // press it. Its ring is the shared sidebar ring.
+  audio_button_ =
+      content_->AddChildView(views::CreateVectorImageButton(base::BindRepeating(
+          [](AerieSidebarRowView* row) {
+            if (row->callbacks_.toggle_audio) {
+              row->callbacks_.toggle_audio.Run();
+            }
+          },
+          base::Unretained(this))));
+  audio_button_->SetPreferredSize(gfx::Size(aerie::tokens::kSizePencilButton,
+                                            aerie::tokens::kSizePencilButton));
+  audio_button_->SetVisible(false);
+  audio_button_->SetFocusBehavior(views::View::FocusBehavior::ALWAYS);
+  AerieSidebarFocusRing::InstallOnButton(audio_button_, aerie::tokens::kRadiusMd);
 
   // The hint of a row inside a smart folder (issue #140): where the real tab
   // is. Quiet, and only while the pointer is on the row.
@@ -309,6 +337,9 @@ void AerieSidebarRowView::SetPalette(
   palette_ = palette;
   title_->SetEnabledColor(palette_.text);
   origin_hint_->SetEnabledColor(palette_.text_muted);
+  keep_mark_->SetImage(ui::ImageModel::FromVectorIcon(
+      aerie_sidebar::kAerieKeepLoadedIcon, palette_.text_muted,
+      kSleepBadgeSize));
   // The close icon is muted at rest and the text colour under the pointer
   // (the mockup's `.ibtn`).
   for (views::Button::ButtonState state :
@@ -337,6 +368,10 @@ void AerieSidebarRowView::SetPalette(
                                               palette_.text, icon_size_));
   }
   views::InkDrop::Get(back_to_pinned_)->SetBaseColor(palette_.text);
+  views::InkDrop::Get(audio_button_)->SetBaseColor(palette_.text);
+  AerieSidebarFocusRing::Get(audio_button_)
+      ->SetStyle(palette_.accent, palette_.focus_ring_width);
+  ApplyAudioLook();
   for (views::Button::ButtonState state :
        {views::Button::STATE_NORMAL, views::Button::STATE_DISABLED}) {
     pencil_->SetImageModel(
@@ -360,6 +395,38 @@ void AerieSidebarRowView::SetPalette(
   UpdateState();
 }
 
+void AerieSidebarRowView::SetAudioState(AerieSidebarAudioState state) {
+  if (audio_state_ == state) {
+    return;
+  }
+  audio_state_ = state;
+  ApplyAudioLook();
+  UpdateTrailing();
+}
+
+void AerieSidebarRowView::ApplyAudioLook() {
+  // Playing: the speaker in the text colour. Muted: the crossed speaker in the
+  // muted text colour (a quiet row says that the sound is off).
+  const bool muted = audio_state_ == AerieSidebarAudioState::kMuted;
+  const gfx::VectorIcon& icon =
+      muted ? vector_icons::kVolumeOffIcon : vector_icons::kVolumeUpIcon;
+  const SkColor rest = muted ? palette_.text_muted : palette_.text;
+  for (views::Button::ButtonState state :
+       {views::Button::STATE_NORMAL, views::Button::STATE_DISABLED}) {
+    audio_button_->SetImageModel(
+        state, ui::ImageModel::FromVectorIcon(icon, rest, icon_size_));
+  }
+  for (views::Button::ButtonState state :
+       {views::Button::STATE_HOVERED, views::Button::STATE_PRESSED}) {
+    audio_button_->SetImageModel(
+        state, ui::ImageModel::FromVectorIcon(icon, palette_.text, icon_size_));
+  }
+  const std::u16string text = l10n_util::GetStringUTF16(
+      muted ? IDS_AERIE_SIDEBAR_UNMUTE_TAB : IDS_AERIE_SIDEBAR_MUTE_TAB);
+  audio_button_->SetTooltipText(text);
+  audio_button_->GetViewAccessibility().SetName(text);
+}
+
 void AerieSidebarRowView::SetBackToPinnedVisible(bool visible) {
   back_to_pinned_wanted_ = visible;
   UpdateTrailing();
@@ -370,6 +437,17 @@ void AerieSidebarRowView::UpdateTrailing() {
   back_to_pinned_->SetVisible(back_to_pinned_wanted_ && !closing_ &&
                               !renaming_ && !icons_only_);
   pencil_->SetVisible(renamed_ && !closing_ && !renaming_ && !icons_only_);
+  keep_mark_->SetVisible(kept_loaded_ && !closing_ && !renaming_ &&
+                         !icons_only_);
+  const bool audio_shown = audio_state_ != AerieSidebarAudioState::kNone &&
+                           !closing_ && !renaming_ && !icons_only_;
+  if (!audio_shown && audio_button_->HasFocus()) {
+    // A keyboard user must not lose focus when the mark goes: it moves to the
+    // row (the focus manager takes a row that is not a Tab stop too).
+    GetFocusManager()->SetFocusedViewWithReason(
+        this, views::FocusManager::FocusChangeReason::kFocusRestore);
+  }
+  audio_button_->SetVisible(audio_shown);
   origin_hint_->SetVisible(smart_member_ && hovered_ && !closing_ &&
                            !renaming_ && !icons_only_);
   close_button_->SetVisible(ShowsCloseButton() && !closing_ && !renaming_ &&
@@ -439,6 +517,9 @@ std::u16string AerieSidebarRowView::AccessibleName() const {
   std::u16string name = title_text_;
   if (sleeping_) {
     name = l10n_util::GetStringFUTF16(IDS_AERIE_SIDEBAR_ROW_ASLEEP_NAME, name);
+  }
+  if (kept_loaded_) {
+    name = l10n_util::GetStringFUTF16(IDS_AERIE_SIDEBAR_ROW_KEPT_NAME, name);
   }
   if (renamed_) {
     name = l10n_util::GetStringFUTF16(IDS_AERIE_SIDEBAR_ROW_RENAMED_NAME, name);
@@ -655,6 +736,16 @@ void AerieSidebarRowView::SetSleeping(bool sleeping,
   ApplySleepLook(animate, reduced_motion_prefs);
 }
 
+void AerieSidebarRowView::SetKeptLoaded(bool kept) {
+  if (kept_loaded_ == kept) {
+    return;
+  }
+  kept_loaded_ = kept;
+  UpdateName();
+  UpdateTrailing();
+  InvalidateLayout();
+}
+
 void AerieSidebarRowView::ApplySleepLook(bool animate,
                                          const PrefService* prefs) {
   sleep_motion_.Abort();
@@ -771,6 +862,11 @@ std::u16string AerieSidebarRowView::GetRenderedTooltipText(
     return title_note_;
   }
   // The tooltip tells what the row cuts off: it shows only for an elided title.
+  // The tab preview card (issue #270) shows the whole title, so a row that has
+  // one needs no second popup for it.
+  if (callbacks_.hover_card) {
+    return std::u16string();
+  }
   return title_->IsDisplayTextTruncated() ? std::u16string(title_->GetText())
                                           : std::u16string();
 }
@@ -793,6 +889,8 @@ bool AerieSidebarRowView::OnMousePressed(const ui::MouseEvent& event) {
   }
   suppress_release_ = false;
   pressed_ = event.IsOnlyLeftMouseButton();
+  pointer_down_ = true;
+  RunHoverCard(aerie_sidebar::HoverCardTrigger::kPressed);
   drag_cancelled_ = false;
   press_point_ = event.root_location();
   // A double-click on a folder's icon opens the folder editor (issue #139).
@@ -845,6 +943,10 @@ bool AerieSidebarRowView::OnMouseDragged(const ui::MouseEvent& event) {
 
 void AerieSidebarRowView::OnMouseReleased(const ui::MouseEvent& event) {
   pressed_ = false;
+  // The release may move focus (it selects the tab); the flag goes after that.
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE, base::BindOnce(&AerieSidebarRowView::EndPointerDown,
+                                weak_factory_.GetWeakPtr()));
   if (suppress_release_) {
     // The release of the double-click that opened the field: selecting the tab
     // now would take focus from it.
@@ -879,8 +981,13 @@ void AerieSidebarRowView::OnMouseReleased(const ui::MouseEvent& event) {
   }
 }
 
+void AerieSidebarRowView::EndPointerDown() {
+  pointer_down_ = false;
+}
+
 void AerieSidebarRowView::OnMouseCaptureLost() {
   pressed_ = false;
+  pointer_down_ = false;
   if (dragging_) {
     FinishDrag(last_point_, /*cancelled=*/true, /*outside=*/false);
   }
@@ -951,11 +1058,21 @@ void AerieSidebarRowView::SetDragHidden(bool hidden) {
 void AerieSidebarRowView::OnMouseEntered(const ui::MouseEvent& event) {
   hovered_ = true;
   UpdateState();
+  RunHoverCard(aerie_sidebar::HoverCardTrigger::kPointerEntered);
 }
 
 void AerieSidebarRowView::OnMouseExited(const ui::MouseEvent& event) {
   hovered_ = false;
   UpdateState();
+  RunHoverCard(aerie_sidebar::HoverCardTrigger::kPointerExited);
+}
+
+void AerieSidebarRowView::RunHoverCard(
+    aerie_sidebar::HoverCardTrigger trigger) {
+  // A row that is closing, or is in the middle of a rename, has no card.
+  if (callbacks_.hover_card && !closing_ && !renaming_) {
+    callbacks_.hover_card.Run(this, trigger);
+  }
 }
 
 bool AerieSidebarRowView::OnKeyPressed(const ui::KeyEvent& event) {
@@ -963,6 +1080,14 @@ bool AerieSidebarRowView::OnKeyPressed(const ui::KeyEvent& event) {
   // never reach "back to pinned page" (issue #180), nor Delete close the tab.
   if (closing_ || renaming_) {
     return false;
+  }
+  RunHoverCard(aerie_sidebar::HoverCardTrigger::kKeyPressed);
+  // Esc dismisses the tab preview card with no move of pointer or focus (issue
+  // #270); with no card up, Esc is whatever it was.
+  if (event.key_code() == ui::VKEY_ESCAPE && callbacks_.hover_card_shown &&
+      callbacks_.hover_card_shown.Run(this)) {
+    RunHoverCard(aerie_sidebar::HoverCardTrigger::kDismissed);
+    return true;
   }
   if (IsCloseShortcut(event)) {
     callbacks_.key.Run(aerie_sidebar::ListKey::kDelete);
@@ -1064,6 +1189,12 @@ bool AerieSidebarRowView::SkipDefaultKeyEventProcessing(
         callbacks_.selection_active.Run()))) {
     return true;
   }
+  // Esc on a view that has the preview card dismisses it, so the browser must
+  // not take the key first (Esc stops loading).
+  if (event.key_code() == ui::VKEY_ESCAPE && callbacks_.hover_card_shown &&
+      callbacks_.hover_card_shown.Run(this)) {
+    return true;
+  }
   return IsCloseShortcut(event) ||
          (IsMoveShortcut(event) && callbacks_.move) ||
          views::View::SkipDefaultKeyEventProcessing(event);
@@ -1072,6 +1203,9 @@ bool AerieSidebarRowView::SkipDefaultKeyEventProcessing(
 void AerieSidebarRowView::OnFocus() {
   views::View::OnFocus();
   UpdateState();
+  if (!pointer_down_) {
+    RunHoverCard(aerie_sidebar::HoverCardTrigger::kFocused);
+  }
   if (callbacks_.focused) {
     callbacks_.focused.Run();
   }
@@ -1080,6 +1214,7 @@ void AerieSidebarRowView::OnFocus() {
 void AerieSidebarRowView::OnBlur() {
   views::View::OnBlur();
   UpdateState();
+  RunHoverCard(aerie_sidebar::HoverCardTrigger::kBlurred);
 }
 
 void AerieSidebarRowView::OnThemeChanged() {

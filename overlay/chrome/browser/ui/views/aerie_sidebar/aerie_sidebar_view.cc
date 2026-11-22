@@ -33,6 +33,7 @@
 #include "chrome/browser/sessions/session_restore.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/public/tab_features.h"
+#include "chrome/browser/ui/tabs/tab_muted_utils.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_delegate.h"
 #include "chrome/browser/ui/views/aerie_adblock/aerie_guard_image.h"
@@ -48,6 +49,12 @@
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_group.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_row_view.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_folder_sheet.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_card_fade.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_media_card.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_audio_watcher.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_media_controller.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_hover_card.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_recent_tabs.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_peek_driver.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_peek_surface.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_regions.h"
@@ -68,6 +75,7 @@
 #include "components/aerie_sidebar/aerie_sidebar_motion.h"
 #include "components/aerie_sidebar/aerie_sidebar_prefs.h"
 #include "components/aerie_sidebar/aerie_sidebar_tree.h"
+#include "components/aerie_tab_model/folder_behaviour.h"
 #include "components/aerie_tab_model/folder_rules.h"
 #include "components/aerie_tab_model/folder_tree.h"
 #include "components/aerie_tab_model/pinned_tabs.h"
@@ -508,10 +516,7 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
       gfx::Size(0, aerie::tokens::kSizeRowHeightComfortable));
   new_tab_row_->SetTooltipText(
       l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_NEW_TAB));
-  // Chromium's ring takes only a colour role; the sidebar draws its own.
-  new_tab_row_->SetInstallFocusRingOnFocus(false);
-  views::FocusRing::Remove(new_tab_row_);
-  AerieSidebarFocusRing::Install(new_tab_row_, aerie::tokens::kRadiusMd);
+  AerieSidebarFocusRing::InstallOnButton(new_tab_row_, aerie::tokens::kRadiusMd);
 
   // Today.
   // The heading, and at its end the number of sleeping tabs with an estimate of
@@ -546,9 +551,7 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
   clear_button_->SetBorder(views::CreateEmptyBorder(gfx::Insets::TLBR(
       aerie::tokens::kSpace4, aerie::tokens::kSpace8, aerie::tokens::kSpace4,
       aerie::tokens::kSpace8)));
-  clear_button_->SetInstallFocusRingOnFocus(false);
-  views::FocusRing::Remove(clear_button_);
-  AerieSidebarFocusRing::Install(clear_button_, aerie::tokens::kRadiusMd);
+  AerieSidebarFocusRing::InstallOnButton(clear_button_, aerie::tokens::kRadiusMd);
   clear_button_->set_context_menu_controller(this);
 
   scroll_ = AddChildView(std::make_unique<views::ScrollView>(
@@ -613,6 +616,19 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
   toast_actions_ = card->AddChildView(std::move(actions));
   card->SetVisible(false);
   toast_card_ = AddChildView(std::move(card));
+
+  // The media card (issue #263): the tab of this window that plays audio or
+  // video, with Play or Pause, Next track and Go to tab. It sits above the
+  // bottom bar and is hidden while nothing plays.
+  media_card_ = AddChildView(std::make_unique<AerieSidebarMediaCard>());
+  media_card_->SetPalette(palette_);
+  media_ = std::make_unique<AerieSidebarMediaController>(browser_, media_card_);
+  recent_tabs_ = std::make_unique<AerieSidebarRecentTabs>(this, browser_);
+  hover_card_ = std::make_unique<AerieSidebarHoverCard>(this);
+  audio_ = std::make_unique<AerieSidebarAudioWatcher>(
+      browser_->GetTabStripModel(),
+      base::BindRepeating(&AerieSidebarView::UpdateRows,
+                          base::Unretained(this)));
 
   // Bottom bar: a placeholder until the Archive button and the Workspace
   // switcher come. The toolbar's remaining buttons (extensions, profile, menu)
@@ -727,6 +743,8 @@ AerieSidebarView::~AerieSidebarView() {
   if (views::View* card = surface_tracker_.view(); card && parent()) {
     parent()->RemoveChildViewT(card);
   }
+  audio_.reset();
+  media_.reset();
   archive_.reset();
   // A drag that is still running ends with the window: the controller goes
   // first, so that a capture loss that follows finds none.
@@ -826,6 +844,7 @@ void AerieSidebarView::ShowPeekToast(bool kept_open) {
 
 void AerieSidebarView::AddedToWidget() {
   views::View::AddedToWidget();
+  recent_tabs_->Attach();
   // AerieSidebarView -> the content area of the region -> the region.
   if (parent() && parent()->parent()) {
     region_observation_.Observe(parent()->parent());
@@ -847,6 +866,8 @@ void AerieSidebarView::AddedToWidget() {
 }
 
 void AerieSidebarView::RemovedFromWidget() {
+  recent_tabs_->Detach();
+  hover_card_->Hide();
   region_observation_.Reset();
   if (slide_observer_) {
     slide_observer_->Reset();
@@ -1045,6 +1066,9 @@ void AerieSidebarView::UpdateRail(bool rail) {
     SetRailMargins(false);
   }
   top_row_->SetVertical(rail);
+  if (media_card_) {
+    media_card_->SetRail(rail);
+  }
   today_header_->SetVisible(!rail);
   // The New Tab row keeps its name for a screen reader and its tooltip.
   new_tab_row_->SetText(rail ? std::u16string() : new_tab_label_);
@@ -1184,6 +1208,9 @@ void AerieSidebarView::ApplyPalette() {
   for (const Tile& tile : tiles_) {
     tile.view->SetPalette(palette_);
   }
+  if (media_card_) {
+    media_card_->SetPalette(palette_);
+  }
   toast_->SetEnabledColor(palette_.text);
   toast_card_->SetBackground(views::CreateRoundedRectBackground(
       palette_.row_selected, aerie::tokens::kRadiusMd));
@@ -1231,6 +1258,17 @@ std::map<std::string, tabs::TabInterface*> AerieSidebarView::BuildTabLookup()
     }
   }
   return lookup;
+}
+
+std::u16string AerieSidebarView::ShownTitleOfTab(
+    tabs::TabInterface* tab) const {
+  const aerie_tab_model::TabRecord* record = nullptr;
+  auto* service = aerie_tab_model::TabModelServiceFactory::GetForProfile(
+      browser_->GetProfile());
+  if (model_ && service && service->adapter()) {
+    record = model_->GetTab(service->adapter()->RecordIdForTab(tab));
+  }
+  return ShownTitleFor(tab, record).text;
 }
 
 tabs::TabInterface* AerieSidebarView::FindTab(
@@ -1370,6 +1408,8 @@ AerieSidebarRowView* AerieSidebarView::MakeRow(
                                            base::Unretained(this), id);
     callbacks.close = base::BindRepeating(&AerieSidebarView::CloseTab,
                                           base::Unretained(this), id);
+    callbacks.toggle_audio = base::BindRepeating(
+        &AerieSidebarView::ToggleTabAudio, base::Unretained(this), id);
     callbacks.key = base::BindRepeating(&AerieSidebarView::OnTreeRowKey,
                                         base::Unretained(this), today, id);
     callbacks.focused = today ? base::BindRepeating(
@@ -1378,6 +1418,10 @@ AerieSidebarRowView* AerieSidebarView::MakeRow(
                               : base::BindRepeating(
                                     &AerieSidebarView::OnPinnedRowFocused,
                                     base::Unretained(this));
+    callbacks.hover_card = base::BindRepeating(
+        &AerieSidebarView::OnHoverCardTrigger, base::Unretained(this), id);
+    callbacks.hover_card_shown = base::BindRepeating(
+        &AerieSidebarView::HoverCardShownFor, base::Unretained(this));
     callbacks.drag_begin = base::BindRepeating([] { return false; });
     callbacks.drag_update = base::DoNothing();
     callbacks.drag_end = base::DoNothing();
@@ -1407,6 +1451,8 @@ AerieSidebarRowView* AerieSidebarView::MakeRow(
                                           base::Unretained(this), id);
     callbacks.modified_click = base::BindRepeating(
         &AerieSidebarView::OnModifiedClick, base::Unretained(this), id);
+    callbacks.toggle_audio = base::BindRepeating(
+        &AerieSidebarView::ToggleTabAudio, base::Unretained(this), id);
   }
   callbacks.selection_key = base::BindRepeating(
       &AerieSidebarView::OnSelectionKey, base::Unretained(this), id);
@@ -1421,6 +1467,12 @@ AerieSidebarRowView* AerieSidebarView::MakeRow(
                             : base::BindRepeating(
                                   &AerieSidebarView::OnPinnedRowFocused,
                                   base::Unretained(this));
+  if (!entry.is_folder) {
+    callbacks.hover_card = base::BindRepeating(
+        &AerieSidebarView::OnHoverCardTrigger, base::Unretained(this), id);
+    callbacks.hover_card_shown = base::BindRepeating(
+        &AerieSidebarView::HoverCardShownFor, base::Unretained(this));
+  }
   callbacks.drag_begin = base::BindRepeating(
       &AerieSidebarView::OnItemDragBegin, base::Unretained(this), id,
       entry.is_folder);
@@ -1736,6 +1788,10 @@ void AerieSidebarView::SyncFavorites() {
                                         base::Unretained(this), id);
     callbacks.focused = base::BindRepeating(&AerieSidebarView::OnTileFocused,
                                             base::Unretained(this));
+    callbacks.hover_card = base::BindRepeating(
+        &AerieSidebarView::OnHoverCardTrigger, base::Unretained(this), id);
+    callbacks.hover_card_shown = base::BindRepeating(
+        &AerieSidebarView::HoverCardShownFor, base::Unretained(this));
     callbacks.begin_rename =
         base::BindRepeating(base::IgnoreResult(&AerieSidebarView::StartRename),
                             base::Unretained(this), id);
@@ -2229,6 +2285,29 @@ void AerieSidebarView::GetAccessiblePanes(std::vector<views::View*>* panes) {
   }
 }
 
+bool AerieSidebarView::HoverCardShownFor(views::View* anchor) {
+  return hover_card_->ShowsFor(anchor);
+}
+
+void AerieSidebarView::OnHoverCardTrigger(
+    const std::string& tab_id,
+    views::View* anchor,
+    aerie_sidebar::HoverCardTrigger trigger) {
+  hover_card_->OnTrigger(anchor, FindTab(tab_id), trigger);
+}
+
+void AerieSidebarView::ToggleTabAudio(const std::string& tab_id) {
+  tabs::TabInterface* tab = FindTab(tab_id);
+  content::WebContents* contents = tab ? tab->GetContents() : nullptr;
+  if (!contents) {
+    return;
+  }
+  // The call and the reason of the stock tab strip's audio indicator
+  // (BrowserTabStripController::ToggleTabAudioMute).
+  SetTabAudioMuted(contents, !contents->IsAudioMuted(),
+                   TabMutedReason::kAudioIndicator, std::string());
+}
+
 void AerieSidebarView::UpdateRows() {
   const std::map<std::string, tabs::TabInterface*> lookup = BuildTabLookup();
   base::AutoReset<raw_ptr<const std::map<std::string, tabs::TabInterface*>>>
@@ -2313,6 +2392,8 @@ void AerieSidebarView::UpdateRow(const Row& row) {
   row.view->SetSelected(tab->IsActivated());
   row.view->SetSleeping(record && record->sleeping,
                         browser_->GetProfile()->GetPrefs());
+  row.view->SetKeptLoaded(record && record->keep_loaded);
+  row.view->SetAudioState(AerieSidebarAudioWatcher::StateOf(tab));
   if (smart_member) {
     // The row only shows the tab: the hover hint says where it is, and the
     // close button says that it acts on the real tab.
@@ -2404,6 +2485,18 @@ void AerieSidebarView::OnTabMoved(const aerie_tab_model::TabRecord& tab,
   ScheduleSync();
 }
 
+void AerieSidebarView::UpdateKeptMarks(
+    const aerie_tab_model::TabRecord& record) {
+  // Every row of the tab: its own, and the rows it has inside smart folders.
+  for (const std::vector<Row>* rows : {&rows_, &pinned_rows_}) {
+    for (const Row& row : *rows) {
+      if (!row.is_folder && RealTabId(row.tab_id) == record.id) {
+        row.view->SetKeptLoaded(record.keep_loaded);
+      }
+    }
+  }
+}
+
 void AerieSidebarView::OnTabChanged(const aerie_tab_model::TabRecord& record) {
   // A tab that went to sleep or into the archive may enter or leave a smart
   // folder (issue #140): only this tab is matched again.
@@ -2419,6 +2512,7 @@ void AerieSidebarView::OnTabChanged(const aerie_tab_model::TabRecord& record) {
   // A manual name set or cleared is seen here (issue #145).
   // The rows of this tab inside smart folders follow its sleeping state too
   // (issue #140).
+  UpdateKeptMarks(record);
   for (const std::vector<Row>* rows : {&rows_, &pinned_rows_}) {
     for (const Row& row : *rows) {
       std::optional<aerie_tab_model::SmartRowRef> ref =
@@ -2931,6 +3025,7 @@ void AerieSidebarView::ShowRowContextMenu(
     options.sleep.tooltip =
         l10n_util::GetStringUTF16(eligibility.tooltip_message_id);
   }
+  options.keep_loaded = record->keep_loaded;
   // A row of a smart folder offers no folder items (issue #140): the real tab's
   // own row has them.
   if (record->section != aerie_tab_model::Section::kFavorite &&
@@ -2992,6 +3087,16 @@ void AerieSidebarView::OnContextCommand(
       if (auto* sleep = aerie_tab_model::SleepControllerFactory::GetForProfile(
               browser_->GetProfile())) {
         sleep->Sleep(tab);
+      }
+      break;
+    case AerieSidebarContextMenu::Command::kKeepLoaded:
+      // A toggle: the check item shows the state the menu opened with.
+      if (model_) {
+        if (const aerie_tab_model::TabRecord* record =
+                model_->GetTab(RealTabId(tab_id))) {
+          aerie_tab_model::SetTabKeepLoaded(*model_, record->id,
+                                            !record->keep_loaded);
+        }
       }
       break;
     case AerieSidebarContextMenu::Command::kBackToPinned:
@@ -3206,22 +3311,7 @@ void AerieSidebarView::ShowToast(const std::u16string& text,
   const PrefService* prefs = browser_->GetProfile()->GetPrefs();
   const aerie_sidebar::ToastMotion motion = aerie_sidebar::ToastShowMotion(
       aerie::motion::ShouldReduceMotion(prefs), has_actions);
-  if (!toast_card_->layer()) {
-    toast_card_->SetPaintToLayer();
-    toast_card_->layer()->SetFillsBoundsOpaquely(false);
-  }
-  ui::Layer* layer = toast_card_->layer();
-  layer->SetOpacity(motion.from_opacity);
-  aerie::motion::LayerMotion target;
-  target.opacity = motion.to_opacity;
-  if (motion.animate_rise) {
-    layer->SetTransform(gfx::Transform::MakeTranslation(0, motion.rise_px));
-    target.transform = gfx::Transform();
-  } else {
-    layer->SetTransform(gfx::Transform());
-  }
-  toast_motion_ = aerie::motion::AnimateLayer(layer, target, motion.duration,
-                                              motion.easing, prefs);
+  toast_motion_ = aerie_sidebar::StartCardFadeIn(toast_card_, motion, prefs);
   toast_timer_.Start(FROM_HERE, base::Milliseconds(motion.hold_ms),
                      base::BindOnce(&AerieSidebarView::HideToast,
                                     base::Unretained(this)));
@@ -3236,11 +3326,7 @@ void AerieSidebarView::HideToast() {
   const PrefService* prefs = browser_->GetProfile()->GetPrefs();
   const aerie_sidebar::ToastMotion motion = aerie_sidebar::ToastHideMotion(
       aerie::motion::ShouldReduceMotion(prefs), toast_actions_->GetVisible());
-  aerie::motion::LayerMotion target;
-  target.opacity = motion.to_opacity;
-  toast_motion_ = aerie::motion::AnimateLayer(toast_card_->layer(), target,
-                                              motion.duration, motion.easing,
-                                              prefs);
+  toast_motion_ = aerie_sidebar::StartCardFadeOut(toast_card_, motion, prefs);
   // The card goes when the fade has ended.
   toast_timer_.Start(
       FROM_HERE, base::Milliseconds(motion.duration_ms),
@@ -3250,14 +3336,11 @@ void AerieSidebarView::HideToast() {
 
 void AerieSidebarView::FinishToastHide() {
   toast_motion_.Abort();
-  toast_card_->SetVisible(false);
+  aerie_sidebar::EndCardFade(toast_card_);
   toast_actions_->SetVisible(false);
   toast_->SetText(std::u16string());
   clear_undo_tabs_.clear();
   last_filed_ = aerie_tab_model::AutoFileController::Filed();
-  if (toast_card_->layer()) {
-    toast_card_->DestroyLayer();
-  }
 }
 
 void AerieSidebarView::OnAutoFileControllerDestroyed() {

@@ -1,0 +1,21 @@
+// Copyright 2026 The Aerie Authors
+// You can use, redistribute, and/or modify this source code under
+// the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+// The mark of a tab that is kept loaded (issue #267): a ring with a dot at its
+// centre, like a live indicator. Outer circle radius 5, inner circle radius 3.5
+// (drawn the other way round, so it is a hole), dot radius 1.8; centre 6,6.
+CANVAS_DIMENSIONS, 12,
+FILL_RULE_NONZERO,
+MOVE_TO, 6, 1,
+ARC_TO, 5, 5, 0, 1, 1, 6, 11,
+ARC_TO, 5, 5, 0, 1, 1, 6, 1,
+CLOSE,
+MOVE_TO, 6, 2.5f,
+ARC_TO, 3.5f, 3.5f, 0, 1, 0, 6, 9.5f,
+ARC_TO, 3.5f, 3.5f, 0, 1, 0, 6, 2.5f,
+CLOSE,
+MOVE_TO, 6, 4.2f,
+ARC_TO, 1.8f, 1.8f, 0, 1, 1, 6, 7.8f,
+ARC_TO, 1.8f, 1.8f, 0, 1, 1, 6, 4.2f,
+CLOSE

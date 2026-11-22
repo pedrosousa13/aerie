@@ -55,6 +55,21 @@
   <message name="IDS_AERIE_SIDEBAR_ROW_ASLEEP_NAME" desc="Accessible name of a tab row in the sidebar when the tab is asleep. A sleeping tab has freed its memory and loads again when the user selects it. The tab's title comes first, then the word asleep.">
     <ph name="TITLE">$1<ex>Example page</ex></ph>, asleep
   </message>
+  <message name="IDS_AERIE_SIDEBAR_KEEP_LOADED" desc="Check item of the context menu of a tab row in the sidebar. When it is checked, the tab is kept loaded: it never goes to sleep on the idle timer and is never archived automatically. It protects a call, music, a chat or an editor.">
+    Keep loaded
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_KEEP_LOADED_TOOLTIP" desc="Tooltip of the small mark on a tab row in the sidebar. The mark shows that the tab is kept loaded, so it never goes to sleep and is never archived automatically.">
+    Kept loaded: this tab never sleeps or archives
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_ROW_KEPT_NAME" desc="Accessible name of a tab row in the sidebar when the tab is kept loaded, so it never goes to sleep and is never archived automatically. The tab's title comes first, then the words kept loaded.">
+    <ph name="TITLE">$1<ex>Example page</ex></ph>, kept loaded
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_MUTE_TAB" desc="Tooltip and accessible name of the speaker button on a tab row in the sidebar while the tab plays sound. Pressing it mutes the tab.">
+    Mute tab
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_UNMUTE_TAB" desc="Tooltip and accessible name of the crossed speaker button on a tab row in the sidebar while the tab is muted. Pressing it lets the tab make sound again.">
+    Unmute tab
+  </message>
   <message name="IDS_AERIE_SIDEBAR_SLEEP_TAB" desc="Item of the context menu of a tab row in the sidebar. It puts the tab to sleep at once, which frees its memory. The tab loads again when the user selects it.">
     Sleep tab
   </message>
@@ -210,6 +225,30 @@
   </message>
   <message name="IDS_SETTINGS_AERIE_FOLDER_RULES_DESC" desc="Line under the folder-rules switch in Settings. When the switch is off, no folder moves a new tab into itself.">
     Let folders with rules file new tabs by themselves. Turn this off to stop every folder at once.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_RECENT_TABS" desc="Label of the switch in the Sidebar section of Settings that makes the Ctrl+Tab keyboard shortcut go to the tab used before, with a row of cards to choose from. Ctrl is the Control key.">
+    Ctrl+Tab cycles recent tabs
+  </message>
+  <message name="IDS_SETTINGS_AERIE_RECENT_TABS_DESC" desc="Line under the recent-tabs switch in Settings. When the switch is off, Ctrl+Tab goes along the tab order, as in other browsers.">
+    Ctrl+Tab goes to the tab you used before and shows cards of the recent tabs. Hold Ctrl and press Tab again to go further back. Turn this off to make Ctrl+Tab follow the tab order.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_PREVIEW_CARD" desc="Label of the switch in the Sidebar section of Settings that makes the card shown when the pointer rests on a tab in the sidebar include a picture of the page.">
+    Show page previews on tab cards
+  </message>
+  <message name="IDS_SETTINGS_AERIE_PREVIEW_CARD_DESC" desc="Line under the page-preview switch in Settings. When the switch is off, the card that shows when the pointer rests on a tab keeps the title and the address and shows no picture of the page. The pictures are kept in memory only and are never saved.">
+    When you rest the pointer on a tab in the sidebar, a card shows its title, its address and a picture of the page. The pictures stay in memory and are never saved, and none is taken for private tabs. Turn this off to keep only the text.
+  </message>
+  <message name="IDS_AERIE_RECENT_TABS_NAME" desc="Accessible name of the row of cards that shows the recently used tabs while the user holds Ctrl and presses Tab. It is a list of tabs; the user releases Ctrl to switch to the chosen one.">
+    Recent tabs
+  </message>
+  <message name="IDS_AERIE_RECENT_TABS_CARD_NAME" desc="Accessible name of one card in the recent tabs list: the title of the tab, then its site.">
+    <ph name="TITLE">$1<ex>Example page</ex></ph>, <ph name="SITE">$2<ex>example.com</ex></ph>
+  </message>
+  <message name="IDS_AERIE_RECENT_TABS_ANNOUNCE" desc="What a screen reader says when the chosen card of the recent tabs list changes: the card's title and site, then its place in the list. For example, Example page, example.com, 2 of 4.">
+    <ph name="CARD">$1<ex>Example page, example.com</ex></ph>, <ph name="POSITION">$2<ex>2</ex></ph> of <ph name="COUNT">$3<ex>4</ex></ph>
+  </message>
+  <message name="IDS_AERIE_RECENT_TABS_UNTITLED" desc="Title shown on a card of the recent tabs list for a tab that has no title yet.">
+    New Tab
   </message>
   <message name="IDS_AERIE_SIDEBAR_NEW_FOLDER" desc="Item of the context menu in the sidebar that makes a new, empty folder for tabs. It is also the name that a new folder starts with, until the user renames it.">
     New folder
@@ -836,5 +875,20 @@
     {COUNT, plural,
       =1 {Favorites are full. 1 tab was not added.}
       other {Favorites are full. # tabs were not added.}}
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_MEDIA_NAME" desc="Accessible name of the card at the bottom of the sidebar that shows the tab that is playing audio or video, with buttons to control it.">
+    Now playing
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_MEDIA_PLAY" desc="Name and tooltip of the button on the sidebar's now playing card that resumes the paused audio or video.">
+    Play
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_MEDIA_PAUSE" desc="Name and tooltip of the button on the sidebar's now playing card that pauses the audio or video.">
+    Pause
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_MEDIA_NEXT" desc="Name and tooltip of the button on the sidebar's now playing card that skips to the next track. The page decides whether there is one.">
+    Next track
+  </message>
+  <message name="IDS_AERIE_SIDEBAR_MEDIA_GO_TO_TAB" desc="Label of the button on the sidebar's now playing card that switches to the tab that plays the audio or video.">
+    Go to tab
   </message>
 </grit-part>

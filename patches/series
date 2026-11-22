@@ -79,6 +79,9 @@ tests/0008-drop-webui-test-libraries-helium-breaks.patch
 # The Helium services settings are gone; the extension proxy address stays as a privacy row (#23).
 services/0006-remove-the-helium-services-ui.patch
 
+# chrome://components says "Component updates are disabled" without pointing at Helium services (#131).
+services/0007-components-page-says-aerie.patch
+
 # The Aerie Guard strings join the grd after the other Aerie string parts (#99).
 adblock/0017-add-aerie-guard-strings.patch
 
@@ -188,3 +191,12 @@ crash/0003-add-the-crash-reports-settings-page.patch
 sidebar/0053-add-the-links-open-row-to-the-sidebar-section-of-settings.patch
 sidebar/0054-let-a-folder-open-links-in-place-from-chrome-navigate.patch
 sidebar/0055-leave-the-referrer-and-the-form-flag-of-a-new-window-on-its-contents.patch
+
+# Media card and automatic picture-in-picture (#263): the content setting starts at allow, and the browser enters picture-in-picture for a page that has no handler.
+sidebar/0056-turn-on-automatic-picture-in-picture-by-default.patch
+
+# Ctrl+Tab recent tabs (#269): the switch in Settings.
+sidebar/0057-add-the-recent-tabs-row-to-the-sidebar-section-of-settings.patch
+
+# Tab preview card (#270): the snapshots switch in Settings.
+sidebar/0058-add-the-tab-preview-card-row-to-the-sidebar-section-of-settings.patch

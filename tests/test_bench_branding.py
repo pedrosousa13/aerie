@@ -17,8 +17,14 @@ def page(url, title="Page", text="Nothing to see", error=None):
 CONTROL_HIT = page(branding.CONTROL_PATH, title="Control", text="Powered by Helium inside a shadow root")
 
 
-def scan_obs(pages, control=CONTROL_HIT):
-    return {"pages": pages, "control": control}
+def failed_update(text="CRLSet\nStatus - Component updates are disabled in Aerie.", statuses=None, error=None):
+    """chrome://components read after the Bench forced a component update that failed (issue #131)."""
+    return {**page("chrome://components/ (after a failed update)", text=text, error=error),
+            "statuses": ["Component updates are disabled in Aerie."] if statuses is None else statuses}
+
+
+def scan_obs(pages, control=CONTROL_HIT, forced=None):
+    return {"pages": pages, "control": control, "failed_update": forced or failed_update()}
 
 
 class ScannerTest(unittest.TestCase):
@@ -97,6 +103,43 @@ class NoHeliumJudgeTest(unittest.TestCase):
 
     def test_an_empty_scan_fails(self):
         self.assertEqual(self.judge(scan_obs([]))[0], "fail")
+
+    def test_helium_wording_after_a_failed_update_fails(self):
+        # Helium's string for a failed component update (issue #131).
+        text = "CRLSet\nComponent updates are disabled. See Helium services in settings."
+        status, detail = self.judge(scan_obs([page("chrome://version/")], forced=failed_update(
+            text=text, statuses=["Component updates are disabled. See Helium services in settings."])))
+        self.assertEqual(status, "fail")
+        self.assertIn("failed", detail)
+        self.assertIn("Helium", detail)
+
+    def test_a_forced_update_that_never_reached_the_disabled_status_proves_nothing(self):
+        # A plain "Update error" is another status: the gate must not pass on it.
+        for statuses in ([], ["Up-to-date"], ["Checking for update..."], ["Update error"]):
+            with self.subTest(statuses=statuses):
+                status, detail = self.judge(scan_obs([page("chrome://version/")],
+                                                     forced=failed_update(statuses=statuses)))
+                self.assertEqual(status, "fail")
+                self.assertIn("did not fail", detail)
+
+    def test_a_missing_failed_update_case_fails(self):
+        obs = scan_obs([page("chrome://version/")])
+        del obs["failed_update"]
+        self.assertEqual(self.judge(obs)[0], "fail")
+
+    def test_a_failed_update_page_that_did_not_load_fails(self):
+        status, detail = self.judge(scan_obs([page("chrome://version/")], forced=failed_update(error="load timeout")))
+        self.assertEqual(status, "fail")
+        self.assertIn("did not load", detail)
+
+    def test_the_aerie_wording_must_be_on_the_page(self):
+        status, detail = self.judge(scan_obs([page("chrome://version/")], forced=failed_update(
+            text="CRLSet\nStatus - Component updates are disabled.")))
+        self.assertEqual(status, "fail")
+        self.assertIn("Component updates are disabled in Aerie.", detail)
+
+    def test_the_aerie_wording_after_a_failed_update_passes(self):
+        self.assertEqual(self.judge(scan_obs([page("chrome://version/")]))[0], "pass")
 
 
 class PageListTest(unittest.TestCase):

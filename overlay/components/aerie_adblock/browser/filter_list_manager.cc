@@ -153,6 +153,9 @@ bool FilterListManager::AddList(const GURL& url, std::string* error) {
     case FilterListState::AddResult::kInvalidUrl:
       *error = ListFailureMessage(ListFailure::kInsecureUrl);
       return false;
+    case FilterListState::AddResult::kNonPublicUrl:
+      *error = ListFailureMessage(ListFailure::kNonPublicUrl);
+      return false;
     case FilterListState::AddResult::kDuplicate:
       *error = "This list is already added.";
       return false;

@@ -41,6 +41,16 @@ struct SidebarPalette {
   // sidebar is then over the page and not over the frame.
   SkColor peek_surface;
   aerie::tokens::Shadow peek_shadow;
+  // The popover surface and its text (`surface-popover`, `text`, `text-muted`
+  // of the theme): the colours of a floating card that is not the sidebar
+  // itself, such as the recent tabs switcher (issue #269), which has to stay
+  // readable whatever frame is under it.
+  SkColor popover_surface;
+  SkColor popover_text;
+  SkColor popover_text_muted;
+  // The Workspace accent when it holds 3:1 on the popover surface (it is
+  // measured on the frame, which is another colour), else the popover text.
+  SkColor popover_accent;
   // The stroke of the focus ring (`size-focus-ring-width`: the base 2 px, wider
   // in High contrast).
   int focus_ring_width;
@@ -65,6 +75,14 @@ SidebarPalette ResolveSidebarPalette(aerie::tokens::ThemeId theme,
 // translucent fills.
 SidebarPalette ResolveSystemSidebarPalette(
     const aerie_frame::SystemColours& system);
+
+// The palette of a floating card that is a popover and not the sidebar itself:
+// the recent tabs overlay (issue #269) and the tab preview card (issue #270).
+// Its surface and text are the theme's popover colours, which hold their
+// contrast whatever frame is under the window (the sidebar's own colours are
+// measured on the frame); the Workspace accent is the one that holds 3:1 on the
+// popover surface.
+SidebarPalette PopoverPaletteOf(const SidebarPalette& palette);
 
 }  // namespace aerie_sidebar
 

@@ -19,6 +19,7 @@ import re
 import shutil
 import subprocess
 import tarfile
+import tempfile
 import zipfile
 import zlib
 from dataclasses import dataclass
@@ -95,8 +96,11 @@ class PatchLayer:
 @dataclass(frozen=True)
 class PatchResult:
     patch: str  # "<layer label>/<series entry>"
-    status: str  # ok | failed | skipped
+    status: str  # ok | failed | skipped | refreshed
     detail: str
+    # "offset" or "fuzz" when the patch applies, but only with a shifted or loosened hunk. With fuzz off that
+    # is a failure; a failure for any other reason (a hunk that does not apply) leaves this empty.
+    drift: str = ""
 
 
 def parse_series(series_path: Path) -> list[str]:
@@ -129,6 +133,16 @@ def parse_header(text: str) -> dict[str, str]:
         else:
             current = None
     return fields
+
+
+def split_header(text: str) -> tuple[str, str]:
+    """(the text before the first diff line, the rest), so the two join back to text byte for byte."""
+    pos = 0
+    for line in text.splitlines(keepends=True):
+        if _DIFF_START_RE.match(line):
+            break
+        pos += len(line)
+    return text[:pos], text[pos:]
 
 
 def touched_files(patch_text: str) -> list[str]:
@@ -535,6 +549,13 @@ def wanted_files(layers: Sequence[Layer]) -> list[str]:
     return sorted(wanted)
 
 
+def drift_kind(output: str) -> str:
+    """"fuzz", "offset" or "" for GNU patch's output: how far the patch's context had drifted."""
+    if re.search(r"with fuzz \d+", output):
+        return "fuzz"
+    return "offset" if _DRIFT_RE.search(output) else ""
+
+
 def _patch_cmd(tree: Path, patch_file: Path, fuzz: bool, dry_run: bool) -> list[str]:
     cmd = ["patch", *_PATCH_FLAGS, "--forward", "-i", str(patch_file), "-d", str(tree)]
     if not fuzz:
@@ -549,7 +570,7 @@ _HUNK_FAILED_RE = re.compile(r"^Hunk #(\d+) FAILED at (\d+)\.?$")
 _MAX_HUNK_LINES = 40
 
 
-def _hunks_by_file(patch_text: str) -> dict[str, list[list[str]]]:
+def hunks_by_file(patch_text: str) -> dict[str, list[list[str]]]:
     """Each file's hunks, in order, as lists of lines (from "@@" on), keyed by the path after -p1."""
     files: dict[str, list[list[str]]] = {}
     current: list[list[str]] | None = None
@@ -574,7 +595,7 @@ def failed_hunks(patch_text: str, output: str) -> str:
 
     output is patch's output; hunk numbers restart in each file. Empty if no hunk failed.
     """
-    hunks = _hunks_by_file(patch_text)
+    hunks = hunks_by_file(patch_text)
     shown: list[str] = []
     current_file = ""
     for line in output.splitlines():
@@ -599,7 +620,17 @@ def failed_hunks(patch_text: str, output: str) -> str:
     return "\n".join(shown)
 
 
-def _run_patch(tree: Path, patch_file: Path, fuzz: bool, dry_run: bool) -> tuple[bool, str]:
+@dataclass(frozen=True)
+class PatchRun:
+    """One GNU patch run. ok is False for a patch that did not apply, and, with fuzz off, for one that drifted."""
+
+    ok: bool
+    output: str
+    drift: str  # "offset", "fuzz" or "": how far the context had drifted
+    applies: bool  # patch itself exited 0 (with fuzz off, a drift failure still applies)
+
+
+def run_patch(tree: Path, patch_file: Path, fuzz: bool, dry_run: bool) -> PatchRun:
     """Run GNU patch. With fuzz off, a hunk applied at an offset also counts as a failure."""
     proc = subprocess.run(
         _patch_cmd(tree, patch_file, fuzz, dry_run),
@@ -608,17 +639,95 @@ def _run_patch(tree: Path, patch_file: Path, fuzz: bool, dry_run: bool) -> tuple
         env={**os.environ, "LC_ALL": "C"},
     )
     output = (proc.stdout + proc.stderr).strip()
-    if proc.returncode == 0 and not fuzz and _DRIFT_RE.search(output):
-        return False, output + "\nthe context has drifted (hunk applied at an offset); refresh the patch"
-    return proc.returncode == 0, output
+    applies = proc.returncode == 0
+    drift = drift_kind(output) if applies else ""
+    if applies and not fuzz and drift:
+        return PatchRun(False, output + "\nthe context has drifted (hunk applied at an offset); refresh the patch",
+                        drift, True)
+    return PatchRun(applies, output, drift, applies)
 
 
-def apply_layers(tree: Path, layers: Sequence[Layer]) -> list[PatchResult]:
+# Headers the refresh cannot write back: it rewrites a patch as plain unified diffs of the changed files.
+_REFRESH_REFUSED_RE = re.compile(
+    r"^(rename|copy) (from|to) |^similarity index |^(old|new) mode |^(new|deleted) file mode |"
+    r"^GIT binary patch|^Binary files |^diff --git |^index [0-9a-f]+\.\.", re.MULTILINE)
+
+
+def _read_bytes(tree: Path, rel: str) -> bytes | None:
+    path = tree / rel
+    return path.read_bytes() if path.is_file() else None
+
+
+def _write_bytes(tree: Path, rel: str, data: bytes | None) -> None:
+    path = tree / rel
+    if data is None:
+        path.unlink(missing_ok=True)
+    else:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+
+
+def _unified(rel: str, old: bytes | None, new: bytes | None) -> str:
+    """`diff -u` of one file's old and new content, labelled a/<rel> and b/<rel> (/dev/null if absent)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        sides = []
+        for tag, data in (("old", old), ("new", new)):
+            if data is None:
+                sides.append("/dev/null")
+            else:
+                path = Path(tmp) / tag
+                path.write_bytes(data)
+                sides.append(str(path))
+        proc = subprocess.run(
+            ["diff", "-u", "--label", "/dev/null" if old is None else f"a/{rel}",
+             "--label", "/dev/null" if new is None else f"b/{rel}", *sides],
+            capture_output=True, check=False)
+    if proc.returncode not in (0, 1):
+        raise RuntimeError(f"diff failed for {rel}: {proc.stderr.decode(errors='replace')}")
+    return proc.stdout.decode("utf-8", errors="surrogateescape")
+
+
+def _refresh_patch(tree: Path, name: str, path: Path, files: list[str], strict: PatchRun,
+                   rewrites: dict[Path, str]) -> PatchResult:
+    """Apply a patch that failed strictly, if it applies with fuzz, and work out its rewritten text.
+
+    The tree changes; the patch file does not: the new text goes into rewrites[path]. The header stays as it
+    is. A patch that does not apply even with fuzz fails with the strict output.
+    """
+    loose = run_patch(tree, path, fuzz=True, dry_run=True)
+    if not loose.ok:
+        hunks = failed_hunks(path.read_text(encoding="utf-8", errors="replace"), strict.output)
+        return PatchResult(name, "failed", strict.output + ("\n" + hunks if hunks else ""), "")
+    text = path.read_text(encoding="utf-8", errors="surrogateescape")
+    header, body = split_header(text)
+    if _REFRESH_REFUSED_RE.search(body):
+        return PatchResult(name, "failed", "not refreshed: it has rename, copy, binary, mode or git-style "
+                           "headers that a refresh cannot write back; refresh it by hand", loose.drift)
+    before = {f: _read_bytes(tree, f) for f in files}
+    loose = run_patch(tree, path, fuzz=True, dry_run=False)
+    if not loose.ok:
+        return PatchResult(name, "failed", loose.output, loose.drift)
+    order = list(hunks_by_file(body)) or files
+    diff = "".join(_unified(f, before[f], _read_bytes(tree, f)) for f in order if f in before)
+    if not diff.strip():
+        for f, data in before.items():
+            _write_bytes(tree, f, data)
+        return PatchResult(name, "failed", "not refreshed: it no longer changes anything, so a refresh would "
+                           "leave a patch with a header and no diff; drop or rework the patch", loose.drift)
+    rewrites[path] = header + diff
+    return PatchResult(name, "refreshed", "", loose.drift)
+
+
+def apply_layers(tree: Path, layers: Sequence[Layer], rewrites: dict[Path, str] | None = None) -> list[PatchResult]:
     """Apply every layer's series to tree in order and report each patch.
 
     A patch is dry-run first, so a failure never leaves a half-applied tree.
     A later patch that touches a file a failed patch touches is skipped
     (it cannot be judged), other patches are still applied and checked.
+
+    With rewrites (a dict to fill), a patch of a strict (fuzz off) layer that fails but applies with fuzz is
+    applied that way to the tree and reported as "refreshed", and its rewritten text is put in rewrites[path].
+    No patch file is written here; refresh_layer verifies the texts and writes them.
     """
     results: list[PatchResult] = []
     failed_files: dict[str, str] = {}  # file -> name of the patch that failed on it
@@ -634,17 +743,77 @@ def apply_layers(tree: Path, layers: Sequence[Layer]) -> list[PatchResult]:
                 for f in files:  # what this patch would have changed is missing too
                     failed_files.setdefault(f, blockers[0])
                 continue
-            ok, output = _run_patch(tree, path, layer.fuzz, dry_run=True)
-            if ok:
-                ok, output = _run_patch(tree, path, layer.fuzz, dry_run=False)
-            if ok:
-                results.append(PatchResult(name, "ok", ""))
+            run = run_patch(tree, path, layer.fuzz, dry_run=True)
+            if run.ok:
+                run = run_patch(tree, path, layer.fuzz, dry_run=False)
+            if run.ok:
+                results.append(PatchResult(name, "ok", "", run.drift))
+                continue
+            if rewrites is not None and not layer.fuzz:
+                result = _refresh_patch(tree, name, path, files, run, rewrites)
             else:
-                hunks = failed_hunks(path.read_text(encoding="utf-8", errors="replace"), output)
-                results.append(PatchResult(name, "failed", output + ("\n" + hunks if hunks else "")))
+                hunks = failed_hunks(path.read_text(encoding="utf-8", errors="replace"), run.output)
+                result = PatchResult(name, "failed", run.output + ("\n" + hunks if hunks else ""),
+                                     run.drift if run.applies else "")
+            results.append(result)
+            if result.status == "failed":
                 for f in files:
                     failed_files.setdefault(f, name)
     return results
+
+
+def refresh_layer(tree: Path, layer: Layer) -> list[PatchResult]:
+    """Regenerate the patches of layer that apply only at an offset or with fuzz, so it applies exactly.
+
+    Patches that apply exactly are not rewritten. A drifted patch the refresh cannot rewrite safely
+    (see _REFRESH_REFUSED_RE, or one that would end up empty) is reported "failed" and left alone.
+
+    All-or-nothing: the new texts are made in memory, the whole refreshed series is applied strictly
+    to a copy of the tree from before the refresh, and only if every patch that was ok or refreshed
+    applies exactly are the files written (each through a temp file and os.replace). Otherwise this
+    raises (PatchStateError for a series that is not exact) and no patch file has changed.
+    """
+    rewrites: dict[Path, str] = {}
+    with tempfile.TemporaryDirectory() as tmp:
+        untouched = Path(tmp) / "tree"
+        copy_tree(tree, untouched)
+        results = apply_layers(tree, [layer], rewrites)
+        if not rewrites:
+            return results
+        candidate = Path(tmp) / "series"
+        entries = layer_entries(layer)
+        for name, path in entries:
+            target = candidate / name.split("/", 1)[1]
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if path in rewrites:
+                target.write_bytes(rewrites[path].encode("utf-8", errors="surrogateescape"))
+            else:
+                target.write_bytes(path.read_bytes())
+        (candidate / "series").write_text("".join(f"{name.split('/', 1)[1]}\n" for name, _ in entries))
+        good = {r.patch for r in results if r.status in ("ok", "refreshed")}
+        bad = [r for r in apply_layers(untouched, [Layer(layer.label, candidate, fuzz=False)])
+               if r.patch in good and (r.status != "ok" or r.drift)]
+        if bad:
+            raise PatchStateError("the refreshed patches do not apply exactly: "
+                                  + ", ".join(r.patch for r in bad) + "\n" + format_report(bad)[0])
+    _write_all(rewrites)
+    return results
+
+
+def _write_all(rewrites: dict[Path, str]) -> None:
+    """Write every file through a temp file next to it, then rename them all into place."""
+    temps: dict[Path, Path] = {}
+    try:
+        for path, text in rewrites.items():
+            temp = path.with_name(path.name + ".refresh-tmp")
+            temps[path] = temp
+            temp.write_bytes(text.encode("utf-8", errors="surrogateescape"))
+            shutil.copymode(path, temp)
+        for path, temp in temps.items():
+            os.replace(temp, path)
+    finally:
+        for temp in temps.values():
+            temp.unlink(missing_ok=True)
 
 
 def format_report(results: Iterable[PatchResult]) -> tuple[str, bool]:

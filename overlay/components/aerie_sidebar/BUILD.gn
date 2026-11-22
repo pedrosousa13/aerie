@@ -190,6 +190,29 @@ source_set("selection") {
   ]
 }
 
+# Which tab was used when, and the open Ctrl+Tab switcher over that order
+# (issue #269). No views.
+source_set("recent_tabs") {
+  sources = [
+    "aerie_sidebar_recent_tabs.cc",
+    "aerie_sidebar_recent_tabs.h",
+  ]
+  public_deps = [ "//base" ]
+}
+
+# Where the tab preview card goes and what it says (issue #270). No views.
+source_set("hover_card") {
+  sources = [
+    "aerie_sidebar_hover_card.cc",
+    "aerie_sidebar_hover_card.h",
+  ]
+  public_deps = [
+    "//base",
+    "//ui/gfx/geometry",
+    "//url",
+  ]
+}
+
 source_set("unit_tests") {
   testonly = true
   sources = [
@@ -197,11 +220,13 @@ source_set("unit_tests") {
     "aerie_sidebar_drag_unittest.cc",
     "aerie_sidebar_drop_target_unittest.cc",
     "aerie_sidebar_folder_toggle_unittest.cc",
+    "aerie_sidebar_hover_card_unittest.cc",
     "aerie_sidebar_layout_lock_unittest.cc",
     "aerie_sidebar_motion_unittest.cc",
     "aerie_sidebar_move_unittest.cc",
     "aerie_sidebar_palette_unittest.cc",
     "aerie_sidebar_peek_unittest.cc",
+    "aerie_sidebar_recent_tabs_unittest.cc",
     "aerie_sidebar_selection_unittest.cc",
     "aerie_sidebar_today_list_unittest.cc",
     "aerie_sidebar_tree_unittest.cc",
@@ -212,6 +237,7 @@ source_set("unit_tests") {
     ":drag",
     ":drop_target",
     ":folder_toggle",
+    ":hover_card",
     ":layout",
     ":layout_lock",
     ":motion",
@@ -219,6 +245,7 @@ source_set("unit_tests") {
     ":palette",
     ":peek",
     ":prefs",
+    ":recent_tabs",
     ":selection",
     ":today_list",
     ":tree",

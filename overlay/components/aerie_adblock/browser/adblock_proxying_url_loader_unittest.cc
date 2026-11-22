@@ -100,7 +100,12 @@ class FakeLoader : public network::mojom::URLLoader {
 
   // Every URLLoaderClient call, in the order the network service makes them.
   void SendEverything() {
-    client_->OnReceiveEarlyHints(network::mojom::EarlyHints::New());
+    // ParsedHeaders is not nullable in EarlyHints, so New() with no arguments
+    // would fail serialisation ("null field").
+    client_->OnReceiveEarlyHints(network::mojom::EarlyHints::New(
+        network::mojom::ParsedHeaders::New(),
+        network::mojom::ReferrerPolicy::kDefault,
+        network::mojom::IPAddressSpace::kUnknown));
     client_->OnUploadProgress(10, 100,
                               base::BindOnce([](NetworkLog* log) { ++log->upload_acks; }, log_.get()));
     mojo::ScopedDataPipeProducerHandle producer;

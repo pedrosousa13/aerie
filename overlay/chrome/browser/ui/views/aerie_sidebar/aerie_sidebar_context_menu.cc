@@ -10,6 +10,7 @@
 #include "components/aerie_design_tokens/aerie_motion.h"
 #include "components/aerie_sidebar/aerie_sidebar_motion.h"
 #include "ui/base/l10n/l10n_util.h"
+#include "ui/base/models/image_model.h"
 #include "ui/compositor/layer.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/transform.h"
@@ -150,6 +151,10 @@ void AerieSidebarContextMenu::BuildTabItems() {
         l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_STOP_RULE_MATCHING));
   }
   root_->AppendSeparator();
+  root_->AppendMenuItemImpl(
+      Id(Command::kKeepLoaded),
+      l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_KEEP_LOADED),
+      ui::ImageModel(), views::MenuItemView::Type::kCheckbox);
   views::MenuItemView* sleep = root_->AppendMenuItem(
       Id(Command::kSleepTab), l10n_util::GetStringUTF16(IDS_AERIE_SIDEBAR_SLEEP_TAB));
   sleep->SetEnabled(options_.sleep.enabled);
@@ -331,6 +336,8 @@ bool AerieSidebarContextMenu::HasCommand(Command command) const {
     case Command::kSleepTab:
     case Command::kClose:
       return IsTabLike();
+    case Command::kKeepLoaded:
+      return options_.target == Target::kTab;
     case Command::kArchive:
       return options_.target == Target::kSelection && options_.section == Section::kToday;
     case Command::kSelectRange:
@@ -384,6 +391,10 @@ bool AerieSidebarContextMenu::IsCommandEnabled(Command command) const {
   return command != Command::kSleepTab || options_.sleep.enabled;
 }
 
+bool AerieSidebarContextMenu::IsItemChecked(Command command) const {
+  return command == Command::kKeepLoaded && options_.keep_loaded;
+}
+
 void AerieSidebarContextMenu::ExecuteCommand(Command command) {
   if (IsCommandEnabled(command) && on_command_) {
     on_command_.Run(command);
@@ -418,6 +429,10 @@ std::u16string AerieSidebarContextMenu::GetTooltipText(
 
 bool AerieSidebarContextMenu::IsCommandEnabled(int id) const {
   return IsCommandEnabled(static_cast<Command>(id));
+}
+
+bool AerieSidebarContextMenu::IsItemChecked(int id) const {
+  return IsItemChecked(static_cast<Command>(id));
 }
 
 void AerieSidebarContextMenu::ExecuteCommand(int id) {

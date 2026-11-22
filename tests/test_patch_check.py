@@ -207,7 +207,7 @@ class RunCheckTest(unittest.TestCase):
 
     def run_check(self, log=None):
         logs: list[str] = []
-        status = patch_check.run_check(self.repo, self.build, self.pins, log=log or logs.append)
+        status = patch_check.run_check(self.repo, self.build, self.pins, log=log or logs.append).status
         return status, logs
 
     def test_check_passes_and_leaves_no_work_dir(self):
@@ -362,7 +362,7 @@ class RealStepsTest(unittest.TestCase):
 
     def check(self):
         logs: list[str] = []
-        return patch_check.run_check(self.repo, self.build, self.pins, log=logs.append), logs
+        return patch_check.run_check(self.repo, self.build, self.pins, log=logs.append).status, logs
 
     def test_a_patch_written_against_the_substituted_text_applies(self):
         self.aerie(_patch("url www.9oo91e.qjz9zk", "url www.example.test"))
