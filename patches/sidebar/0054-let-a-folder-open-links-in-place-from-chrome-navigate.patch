@@ -17,7 +17,7 @@ has no dependencies, so the new dep of :impl cannot make a cycle; the definition
 
 --- a/chrome/browser/ui/navigator/BUILD.gn
 +++ b/chrome/browser/ui/navigator/BUILD.gn
-@@ -86,6 +86,7 @@
+@@ -87,6 +87,7 @@
      ]
  
      deps += [
@@ -35,7 +35,7 @@ has no dependencies, so the new dep of :impl cannot make a cycle; the definition
  #include "chrome/browser/apps/app_service/web_contents_app_id_utils.h"
  #include "chrome/browser/apps/link_capturing/link_capturing_tab_data.h"
  #include "chrome/browser/browser_about_handler.h"
-@@ -726,6 +727,13 @@
+@@ -798,6 +799,13 @@
      return nullptr;
    }
  

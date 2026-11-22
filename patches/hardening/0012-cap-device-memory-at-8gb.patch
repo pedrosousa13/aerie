@@ -63,7 +63,7 @@ profile is never written to disk), see hardening/0011.
    CHECK_LT(0.0, device_memory, base::NotFatalUntil::M160);
    SetHeaderToDouble(headers,
                      use_deprecated_version
-@@ -879,11 +896,14 @@
+@@ -880,11 +897,14 @@
    GURL url = origin.GetURL();
  
    // Add Headers

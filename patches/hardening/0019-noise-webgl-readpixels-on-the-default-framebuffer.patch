@@ -40,7 +40,7 @@ passed in, which is at most one level on a channel.
  #include "third_party/blink/renderer/core/core_export.h"
  #include "third_party/blink/renderer/core/execution_context/execution_context.h"
  #include "third_party/blink/renderer/platform/graphics/static_bitmap_image.h"
-@@ -31,6 +35,21 @@
+@@ -32,6 +36,21 @@
                                    int source_x,
                                    int source_y);
  
@@ -72,8 +72,8 @@ passed in, which is at most one level on a channel.
  #include "base/memory/scoped_refptr.h"
  #include "base/numerics/byte_conversions.h"
  #include "base/numerics/safe_conversions.h"
-@@ -632,4 +633,64 @@
-                                 source_x, source_y);
+@@ -612,4 +613,64 @@
+   return true;
  }
  
 +// static
@@ -163,7 +163,7 @@ passed in, which is at most one level on a channel.
  #include "third_party/blink/renderer/core/html/canvas/canvas_rendering_context_host.h"
  #include "third_party/blink/renderer/core/html/canvas/html_canvas_element.h"
  #include "third_party/blink/renderer/core/html/canvas/image_data.h"
-@@ -5408,6 +5411,24 @@
+@@ -5485,6 +5488,24 @@
      }
      ContextGL()->ReadPixels(x, y, width, height, format, type, data);
    }

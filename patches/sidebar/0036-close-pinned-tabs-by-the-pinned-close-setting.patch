@@ -13,7 +13,7 @@ in pinned_tabs_controller.cc.
 
 --- a/chrome/browser/ui/BUILD.gn
 +++ b/chrome/browser/ui/BUILD.gn
-@@ -850,6 +850,7 @@
+@@ -857,6 +857,7 @@
        "//chrome/browser:chained_back_navigation_tracker",
        "//chrome/browser:font_pref",
        "//chrome/browser/actor/ui:actor_overlay",
@@ -31,7 +31,7 @@ in pinned_tabs_controller.cc.
  #include "chrome/browser/autocomplete/autocomplete_classifier_factory.h"
  #include "chrome/browser/bookmarks/bookmark_model_factory.h"
  #include "chrome/browser/browser_process.h"
-@@ -1490,6 +1491,12 @@
+@@ -1495,6 +1496,12 @@
      return;
    }
  

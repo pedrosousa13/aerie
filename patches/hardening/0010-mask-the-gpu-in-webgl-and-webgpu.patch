@@ -24,7 +24,7 @@ off therefore still sees masked values.
 
 --- a/content/browser/helium_noise/noise_token_data.cc
 +++ b/content/browser/helium_noise/noise_token_data.cc
-@@ -61,6 +61,8 @@
+@@ -66,6 +66,8 @@
        blink::HeliumNoiseToken(base::RandUint64());
    session_tokens_[blink::HeliumNoiseFeature::kHardware] =
        blink::HeliumNoiseToken(base::RandUint64());
@@ -35,7 +35,7 @@ off therefore still sees masked values.
  // static
 --- a/third_party/blink/common/features.cc
 +++ b/third_party/blink/common/features.cc
-@@ -63,6 +63,9 @@
+@@ -67,6 +67,9 @@
  // navigator.hardwareConcurrency noising for fingerprint protection.
  BASE_FEATURE(kHeliumNoiseCpuCores, base::FEATURE_ENABLED_BY_DEFAULT);
  
@@ -47,7 +47,7 @@ off therefore still sees masked values.
  BASE_FEATURE(kAIPageContentIncludePopupWindows,
 --- a/third_party/blink/public/common/features.h
 +++ b/third_party/blink/public/common/features.h
-@@ -46,6 +46,7 @@
+@@ -50,6 +50,7 @@
  BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kHeliumNoiseCanvas);
  BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kHeliumNoiseAudio);
  BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kHeliumNoiseCpuCores);
@@ -182,7 +182,7 @@ off therefore still sees masked values.
  #include "third_party/blink/renderer/core/frame/local_dom_window.h"
  #include "third_party/blink/renderer/core/frame/local_frame.h"
  #include "third_party/blink/renderer/core/frame/local_frame_client.h"
-@@ -206,6 +208,28 @@
+@@ -207,6 +209,28 @@
  
  namespace {
  
@@ -211,7 +211,7 @@ off therefore still sees masked values.
  enum class WebGLANGLEImplementation {
    // These values are persisted to logs. Entries should not be renumbered and
    // numeric values should never be reused.
-@@ -4219,10 +4243,12 @@
+@@ -4295,10 +4319,12 @@
        return ScriptValue::CreateNull(script_state->GetIsolate());
      case WebGLDebugRendererInfo::kUnmaskedRendererWebgl:
        if (ExtensionEnabled(kWebGLDebugRendererInfoName)) {
@@ -228,7 +228,7 @@ off therefore still sees masked values.
        }
        SynthesizeGLError(
            GL_INVALID_ENUM, "getParameter",
-@@ -4230,10 +4256,12 @@
+@@ -4306,10 +4332,12 @@
        return ScriptValue::CreateNull(script_state->GetIsolate());
      case WebGLDebugRendererInfo::kUnmaskedVendorWebgl:
        if (ExtensionEnabled(kWebGLDebugRendererInfoName)) {

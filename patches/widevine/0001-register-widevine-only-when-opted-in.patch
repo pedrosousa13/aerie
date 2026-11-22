@@ -14,13 +14,16 @@ The component update URL for an opted-in browser is the next patch.
 
 --- a/chrome/browser/component_updater/registration.cc
 +++ b/chrome/browser/component_updater/registration.cc
-@@ -88,4 +88,5 @@
+@@ -88,6 +88,7 @@
+ 
  #if BUILDFLAG(ENABLE_WIDEVINE_CDM_COMPONENT)
  #include "chrome/browser/component_updater/widevine_cdm_component_installer.h"
 +#include "components/aerie_widevine/widevine_opt_in.h"
  #endif  // BUILDFLAG(ENABLE_WIDEVINE_CDM_COMPONENT)
  
-@@ -148,5 +149,9 @@
+ #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || \
+@@ -148,7 +149,11 @@
+ #endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
  
  #if BUILDFLAG(ENABLE_WIDEVINE_CDM_COMPONENT)
 -  RegisterWidevineCdmComponent(cus);
@@ -31,9 +34,10 @@ The component update URL for an opted-in browser is the next patch.
 +      base::BindRepeating(&RegisterWidevineCdmComponent, cus));
  #endif  // BUILDFLAG(ENABLE_WIDEVINE_CDM_COMPONENT)
  
+   RegisterSubresourceFilterComponent(cus);
 --- a/chrome/browser/component_updater/BUILD.gn
 +++ b/chrome/browser/component_updater/BUILD.gn
-@@ -162,6 +162,7 @@
+@@ -165,6 +165,7 @@
      "//chrome/browser/update_client",
      "//chrome/common",
      "//chrome/common/request_header_integrity:buildflags",
@@ -43,31 +47,39 @@ The component update URL for an opted-in browser is the next patch.
      "//components/commerce/core:commerce_heuristics_data",
 --- a/chrome/browser/prefs/browser_prefs.cc
 +++ b/chrome/browser/prefs/browser_prefs.cc
-@@ -110,4 +110,5 @@
+@@ -111,6 +111,7 @@
+ #include "chrome/common/buildflags.h"
  #include "chrome/common/pref_names.h"
  #include "chrome/common/secure_origin_allowlist.h"
 +#include "components/aerie_widevine/widevine_opt_in.h"
  #include "components/autofill/core/common/autofill_prefs.h"
  #include "components/blocked_content/safe_browsing_triggered_popup_blocker.h"
-@@ -1674,4 +1675,5 @@
+ #include "components/breadcrumbs/core/breadcrumbs_status.h"
+@@ -1732,6 +1733,7 @@
+       prefs::kHeliumCrashReportingMode,
        static_cast<int>(helium::CrashReportingMode::kAsk));
    ChromeContentBrowserClient::RegisterLocalStatePrefs(registry);
 +  aerie_widevine::RegisterLocalStatePrefs(registry);
  #if BUILDFLAG(CHROME_FOR_TESTING)
    chrome_for_testing::RegisterPrefs(registry);
+ #endif
 --- a/chrome/browser/prefs/BUILD.gn
 +++ b/chrome/browser/prefs/BUILD.gn
-@@ -133,4 +133,5 @@
+@@ -134,6 +134,7 @@
+     "//chrome/browser/ui/webui/policy",
      "//chrome/browser/updates/announcement_notification",
      "//chrome/browser/webauthn",
 +    "//components/aerie_widevine",
      "//components/blocked_content",
      "//components/bookmarks/common",
+     "//components/breadcrumbs/core:status",
 --- a/components/BUILD.gn
 +++ b/components/BUILD.gn
-@@ -189,4 +189,5 @@
+@@ -187,6 +187,7 @@
+     "//components/actor/core:unit_tests",
      "//components/actor/transport:unit_tests",
      "//components/aerie_services:unit_tests",
 +    "//components/aerie_widevine:unit_tests",
      "//components/affiliations/core/browser:unit_tests",
      "//components/affiliations/core/browser/domain_matching:unit_tests",
+     "//components/apdu:unit_tests",

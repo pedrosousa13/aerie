@@ -8,17 +8,27 @@ the "everything else" section.
 
 --- a/chrome/chrome_paks.gni
 +++ b/chrome/chrome_paks.gni
-@@ -129,2 +129,3 @@
+@@ -142,6 +142,7 @@
+       "$root_gen_dir/chrome/chrome_unscaled_resources.pak",
+       "$root_gen_dir/chrome/common_resources.pak",
        "$root_gen_dir/chrome/saved_tab_groups_unsupported_resources.pak",
 +      "$root_gen_dir/components/aerie_adblock/resources/aerie_adblock_resources.pak",
        "$root_gen_dir/components/autofill/core/browser/geo/autofill_address_rewriter_resources.pak",
-@@ -176,2 +177,3 @@
+       "$root_gen_dir/components/autofill/core/browser/geo/autofill_alternative_state_name_map_resources.pak",
+       "$root_gen_dir/components/chrome_urls_resources.pak",
+@@ -189,6 +190,7 @@
+       "//chrome/browser/glic/resources:browser_resources",
+       "//chrome/browser/resources",
        "//chrome/common:resources",
 +      "//components/aerie_adblock:resources",
        "//components/resources",
+       "//components/extstore_fixups",
+       "//content:content_resources",
 --- a/tools/gritsettings/resource_ids.spec
 +++ b/tools/gritsettings/resource_ids.spec
-@@ -1797,2 +1797,7 @@
+@@ -1807,6 +1807,11 @@
+     "includes": [10140],
+   },
  
 +  "components/aerie_adblock/resources/aerie_adblock_resources.grd": {
 +    "META": {"sizes": {"includes": [10]}},
@@ -26,3 +36,5 @@ the "everything else" section.
 +  },
 +
    "<(SHARED_INTERMEDIATE_DIR)/THIS_IS_A_PLACEHOLDER.grd": {
+     "META": {"sizes": {"includes": [800]}},
+     "includes": [12000],

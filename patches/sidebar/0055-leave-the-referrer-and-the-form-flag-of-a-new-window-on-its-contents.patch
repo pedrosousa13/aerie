@@ -22,7 +22,7 @@ header is a new source of //content/public/browser.
      "anchor_element_preconnect_delegate.h",
 --- a/content/browser/web_contents/web_contents_impl.cc
 +++ b/content/browser/web_contents/web_contents_impl.cc
-@@ -142,6 +142,7 @@
+@@ -139,6 +139,7 @@
  #include "content/browser/webui/web_ui_impl.h"
  #include "content/common/content_switches_internal.h"
  #include "content/common/features.h"
@@ -30,7 +30,7 @@ header is a new source of //content/public/browser.
  #include "content/public/browser/ax_inspect_factory.h"
  #include "content/public/browser/browser_context.h"
  #include "content/public/browser/browser_plugin_guest_manager.h"
-@@ -5947,6 +5948,17 @@
+@@ -5929,6 +5930,17 @@
      AddWebContentsDestructionObserver(new_contents_impl);
    }
  

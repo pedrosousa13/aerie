@@ -9,7 +9,7 @@ is no longer an override. Test-only: nothing in the shipped browser links it. Is
 
 --- a/chrome/test/base/testing_browser_process.h
 +++ b/chrome/test/base/testing_browser_process.h
-@@ -147,7 +147,9 @@
+@@ -152,7 +152,9 @@
        std::unique_ptr<BackgroundModeManager> manager) override;
  #endif
    StatusTray* status_tray() override;
@@ -19,7 +19,7 @@ is no longer an override. Test-only: nothing in the shipped browser links it. Is
    subresource_filter::RulesetService* subresource_filter_ruleset_service()
        override;
    BrowserProcessPlatformPart* platform_part() override;
-@@ -203,7 +205,7 @@
+@@ -210,7 +212,7 @@
    void set_usb_system_tray_icon_for_test(
        std::unique_ptr<UsbSystemTrayIcon> icon) override;
    speech::SpeechRecognitionSmallExpertModelInstaller*
@@ -28,7 +28,7 @@ is no longer an override. Test-only: nothing in the shipped browser links it. Is
  #endif
    os_crypt_async::OSCryptAsync* os_crypt_async() override;
    void set_additional_os_crypt_async_provider_for_test(
-@@ -218,7 +220,9 @@
+@@ -225,7 +227,9 @@
  
    void SetMetricsService(metrics::MetricsService* metrics_service);
    void SetProfileManager(std::unique_ptr<ProfileManager> profile_manager);
@@ -38,7 +38,7 @@ is no longer an override. Test-only: nothing in the shipped browser links it. Is
    void SetVariationsService(variations::VariationsService* variations_service);
    void SetWebRtcLogUploader(std::unique_ptr<WebRtcLogUploader> uploader);
    void SetRulesetService(
-@@ -336,7 +340,9 @@
+@@ -343,7 +347,9 @@
        device_parental_controls_;
  #endif
  
@@ -50,7 +50,7 @@ is no longer an override. Test-only: nothing in the shipped browser links it. Is
    std::unique_ptr<WebRtcLogUploader> webrtc_log_uploader_;
 --- a/chrome/test/base/testing_browser_process.cc
 +++ b/chrome/test/base/testing_browser_process.cc
-@@ -476,10 +476,12 @@
+@@ -479,10 +479,12 @@
    return status_tray_.get();
  }
  
@@ -63,7 +63,7 @@ is no longer an override. Test-only: nothing in the shipped browser links it. Is
  
  WebRtcLogUploader* TestingBrowserProcess::webrtc_log_uploader() {
    return webrtc_log_uploader_.get();
-@@ -792,10 +794,12 @@
+@@ -797,10 +799,12 @@
    return platform_part_.get();
  }
  

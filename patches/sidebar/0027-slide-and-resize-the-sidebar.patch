@@ -15,7 +15,7 @@ Issue #177. Builds on 0024. While the layout is the sidebar the region view:
 
 --- a/chrome/browser/ui/views/frame/BUILD.gn
 +++ b/chrome/browser/ui/views/frame/BUILD.gn
-@@ -551,6 +551,8 @@
+@@ -540,6 +540,8 @@
      "//chrome/browser/ui/views/tabs/organizer:organizer_panel_host",
      "//chrome/browser/ui/views/tabs/shared",
      "//chrome/browser/ui/views/tabs/vertical",
@@ -24,7 +24,7 @@ Issue #177. Builds on 0024. While the layout is the sidebar the region view:
      "//components/tabs:public",
      "//ui/base",
      "//ui/base/metadata",
-@@ -583,7 +585,8 @@
+@@ -572,7 +574,8 @@
      "//chrome/browser/ui/web_applications",
      "//chrome/browser/ui:view_ids",
      "//components/aerie_sidebar:layout",
@@ -36,7 +36,7 @@ Issue #177. Builds on 0024. While the layout is the sidebar the region view:
      "//ui/display",
 --- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
 +++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
-@@ -59,7 +59,10 @@
+@@ -60,7 +60,10 @@
  #include "chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_focus_swipe_controller.h"
  #include "chrome/browser/ui/web_applications/app_browser_controller.h"
  #include "chrome/grit/generated_resources.h"
@@ -47,7 +47,7 @@ Issue #177. Builds on 0024. While the layout is the sidebar the region view:
  #include "components/prefs/pref_service.h"
  #include "components/tabs/public/tab_group.h"
  #include "components/tabs/public/tab_interface.h"
-@@ -69,6 +72,7 @@
+@@ -70,6 +73,7 @@
  #include "ui/base/l10n/l10n_util.h"
  #include "ui/base/metadata/metadata_impl_macros.h"
  #include "ui/compositor/layer.h"
@@ -55,7 +55,7 @@ Issue #177. Builds on 0024. While the layout is the sidebar the region view:
  #include "ui/display/screen.h"
  #include "ui/events/event.h"
  #include "ui/gfx/geometry/point.h"
-@@ -204,6 +208,17 @@
+@@ -205,6 +209,17 @@
          views::kFlexBehaviorKey,
          views::FlexSpecification(views::MinimumFlexSizeRule::kScaleToZero,
                                   views::MaximumFlexSizeRule::kUnbounded));
@@ -73,7 +73,7 @@ Issue #177. Builds on 0024. While the layout is the sidebar the region view:
    }
  
    // Views that go into the content area above
-@@ -216,6 +231,12 @@
+@@ -217,6 +232,12 @@
    resize_area_->GetViewAccessibility().SetName(
        l10n_util::GetStringUTF16(IDS_VERTICAL_RESIZE_AREA));
    resize_area_->GetViewAccessibility().SetRole(ax::mojom::Role::kSlider);
@@ -86,7 +86,7 @@ Issue #177. Builds on 0024. While the layout is the sidebar the region view:
  
    state_controller_->SetDelegate(this);
    target_collapse_state_ = state_controller_->GetState();
-@@ -249,6 +270,9 @@
+@@ -250,6 +271,9 @@
  
    SetNotifyEnterExitOnChild(true);
    UpdateInteriorMargin();
@@ -96,7 +96,7 @@ Issue #177. Builds on 0024. While the layout is the sidebar the region view:
  }
  
  VerticalTabStripRegionView::~VerticalTabStripRegionView() {
-@@ -527,6 +551,11 @@
+@@ -545,6 +569,11 @@
  
  gfx::Size VerticalTabStripRegionView::GetMinimumSize() const {
    auto min_size = BaseTabStripRegionView::GetMinimumSize();
@@ -106,9 +106,9 @@ Issue #177. Builds on 0024. While the layout is the sidebar the region view:
 +    return min_size;
 +  }
    min_size.set_width((state_controller_->IsCollapsed() || IsAnimatingSize())
-                          ? tabs::kVerticalTabStripCollapsedWidth
+                          ? GetVerticalTabStripCollapsedWidth()
                           : tabs::kVerticalTabStripUncollapsedMinWidth);
-@@ -536,6 +565,10 @@
+@@ -554,6 +583,10 @@
  gfx::Size VerticalTabStripRegionView::CalculatePreferredSize(
      const views::SizeBounds& available_size) const {
    auto size = BaseTabStripRegionView::CalculatePreferredSize(available_size);
@@ -119,7 +119,7 @@ Issue #177. Builds on 0024. While the layout is the sidebar the region view:
    const auto* controller =
        BrowserAnimationController::From(browser_view()->browser());
    const auto motion =
-@@ -556,18 +589,27 @@
+@@ -574,18 +607,27 @@
  bool VerticalTabStripRegionView::OnKeyPressed(const ui::KeyEvent& event) {
    if (resize_area_->HasFocus()) {
      int resize_amount = 0;
@@ -151,7 +151,7 @@ Issue #177. Builds on 0024. While the layout is the sidebar the region view:
        float tab_strip_width = width();
        float total_width = GetWidget()->GetRootView()->width();
  
-@@ -733,6 +775,10 @@
+@@ -754,6 +796,10 @@
  
  void VerticalTabStripRegionView::OnResize(int resize_amount,
                                            bool done_resizing) {
@@ -162,7 +162,7 @@ Issue #177. Builds on 0024. While the layout is the sidebar the region view:
    CHECK(tab_strip_view());
    tab_strip_view()->SetIsAnimatingSize(!done_resizing);
    if (!starting_width_on_resize_.has_value()) {
-@@ -812,6 +858,101 @@
+@@ -831,6 +877,101 @@
    }
  }
  

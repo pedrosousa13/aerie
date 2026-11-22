@@ -289,8 +289,8 @@ Helium services helpers.
 +}  // namespace aerie
 --- a/components/BUILD.gn
 +++ b/components/BUILD.gn
-@@ -187,6 +187,7 @@
-     "//components/activity_reporter:unit_tests",
+@@ -186,6 +186,7 @@
+     "//components/account_settings:unit_tests",
      "//components/actor/core:unit_tests",
      "//components/actor/transport:unit_tests",
 +    "//components/aerie_services:unit_tests",

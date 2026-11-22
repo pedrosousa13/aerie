@@ -10,7 +10,7 @@ environment variables keep their names: they are not shown to users.
 
 --- a/chrome/browser/shell_integration_linux.cc
 +++ b/chrome/browser/shell_integration_linux.cc
-@@ -485,7 +485,7 @@
+@@ -595,7 +595,7 @@
  }
  
  std::string GetIconName() {
@@ -87,7 +87,7 @@ environment variables keep their names: they are not shown to users.
 +RDN="me.pedrosousa.Aerie"
 --- a/media/audio/pulse/pulse_util.cc
 +++ b/media/audio/pulse/pulse_util.cc
-@@ -39,8 +39,8 @@
+@@ -37,8 +37,8 @@
  constexpr char kBrowserDisplayName[] = "google-chrome";
  #define PRODUCT_STRING "Google Chrome"
  #else

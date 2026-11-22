@@ -16,7 +16,7 @@ docs/network-endpoints.md, "Limits".
 
 --- a/services/network/network_context.cc
 +++ b/services/network/network_context.cc
-@@ -116,6 +116,7 @@
+@@ -118,6 +118,7 @@
  #include "net/url_request/url_request.h"
  #include "net/url_request/url_request_context.h"
  #include "net/url_request/url_request_context_builder.h"
@@ -24,7 +24,7 @@ docs/network-endpoints.md, "Limits".
  #include "services/network/brokered_client_socket_factory.h"
  #include "services/network/connection_change_observer.h"
  #include "services/network/cookie_manager.h"
-@@ -2226,6 +2227,26 @@
+@@ -2280,6 +2281,26 @@
                                         host->get_host_port_pair().port())
                         .GetURL()
                   : host->get_scheme_host_port().GetURL();
@@ -51,7 +51,7 @@ docs/network-endpoints.md, "Limits".
    bool is_network_disallowed_for_restrictions_id =
        (optional_parameters &&
         optional_parameters->network_restrictions_id.has_value() &&
-@@ -2550,6 +2571,21 @@
+@@ -2603,6 +2624,21 @@
      const std::optional<net::ConnectionKeepAliveConfig>& keepalive_config,
      mojo::PendingRemote<mojom::ConnectionChangeObserverClient>
          connection_change_observer_client) {

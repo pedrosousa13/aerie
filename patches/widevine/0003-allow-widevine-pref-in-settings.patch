@@ -9,10 +9,12 @@ keep the settings code free of a new dependency. A test in tests/ compares the t
 
 --- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
 +++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
-@@ -476,4 +476,6 @@
+@@ -476,6 +476,8 @@
+       settings_api::PrefType::kNumber;
    (*s_allowlist)[::prefs::kWebRTCIPHandlingPolicy] =
        settings_api::PrefType::kString;
 +  // Aerie: the Widevine opt-in (Local State).
 +  (*s_allowlist)["aerie.widevine.enabled"] = settings_api::PrefType::kBoolean;
  
    // Privacy page
+   (*s_allowlist)[::prefs::kDnsOverHttpsMode] = settings_api::PrefType::kString;

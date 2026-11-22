@@ -28,7 +28,7 @@ for out/Default/aerie (tools/aerie_build/pipeline.py).
    }
  
    executable("chrome_initial") {
-@@ -1883,20 +1883,20 @@
+@@ -1898,20 +1898,20 @@
      }
  
      extract_symbols("chrome_symbols") {

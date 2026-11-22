@@ -18,4 +18,4 @@ open point of docs/sidebar-design.md). The same block also covers ChromeOS.
 +     IDC_SAVE_PAGE},
      {ui::VKEY_9, ui::EF_PLATFORM_ACCELERATOR, IDC_SELECT_LAST_TAB},
      {ui::VKEY_NUMPAD9, ui::EF_PLATFORM_ACCELERATOR, IDC_SELECT_LAST_TAB},
- #if BUILDFLAG(IS_LINUX)
+     // Control modifier is rarely used on Mac, so we allow it only in several

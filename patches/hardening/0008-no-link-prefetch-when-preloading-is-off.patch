@@ -17,7 +17,7 @@ those are next recomputed (reload or restart).
 
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
-@@ -4728,6 +4728,12 @@
+@@ -4779,6 +4779,12 @@
  
    web_prefs->default_encoding = prefs->GetString(prefs::kDefaultCharset);
  
@@ -32,7 +32,7 @@ those are next recomputed (reload or restart).
    web_prefs->javascript_can_access_clipboard =
 --- a/third_party/blink/renderer/core/loader/preload_helper.cc
 +++ b/third_party/blink/renderer/core/loader/preload_helper.cc
-@@ -802,6 +802,10 @@
+@@ -803,6 +803,10 @@
    if (!params.rel.IsLinkPrefetch() || !params.href.IsValid() ||
        !document.GetFrame())
      return;

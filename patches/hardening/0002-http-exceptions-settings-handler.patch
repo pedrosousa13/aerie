@@ -178,29 +178,37 @@ setting). Nothing in settings listed them. This handler reads and clears that se
 +}  // namespace settings
 --- a/chrome/browser/ui/webui/settings/settings_ui.cc
 +++ b/chrome/browser/ui/webui/settings/settings_ui.cc
-@@ -64,4 +64,5 @@
+@@ -64,6 +64,7 @@
+ #include "chrome/browser/ui/webui/plural_string_handler.h"
  #include "chrome/browser/ui/webui/sanitized_image/sanitized_image_source.h"
  #include "chrome/browser/ui/webui/settings/about_handler.h"
 +#include "chrome/browser/ui/webui/settings/aerie_hardening_handler.h"
  #include "chrome/browser/ui/webui/settings/accessibility_main_handler.h"
  #include "chrome/browser/ui/webui/settings/appearance_handler.h"
-@@ -275,4 +276,5 @@
+ #include "chrome/browser/ui/webui/settings/brave_import_data_handler.h"
+@@ -296,6 +297,7 @@
+   AddSettingsPageUIHandler(std::make_unique<DownloadsHandler>(profile));
    AddSettingsPageUIHandler(std::make_unique<ExtensionControlHandler>());
    AddSettingsPageUIHandler(std::make_unique<FontHandler>(profile));
 +  AddSettingsPageUIHandler(std::make_unique<AerieHardeningHandler>(profile));
    AddSettingsPageUIHandler(std::make_unique<BraveImportDataHandler>());
    AddSettingsPageUIHandler(std::make_unique<HatsHandler>());
+ 
 --- a/chrome/browser/ui/webui/settings/BUILD.gn
 +++ b/chrome/browser/ui/webui/settings/BUILD.gn
-@@ -22,4 +22,5 @@
+@@ -21,6 +21,7 @@
+   sources = [
      "about_handler.h",
      "accessibility_main_handler.h",
 +    "aerie_hardening_handler.h",
      "appearance_handler.h",
      "brave_import_data_handler.h",
-@@ -161,4 +162,5 @@
+     "brave_importer_observer.h",
+@@ -161,6 +162,7 @@
+   sources = [
      "about_handler.cc",
      "accessibility_main_handler.cc",
 +    "aerie_hardening_handler.cc",
      "appearance_handler.cc",
      "brave_import_data_handler.cc",
+     "brave_importer_observer.cc",
