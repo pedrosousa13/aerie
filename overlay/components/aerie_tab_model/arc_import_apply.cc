@@ -43,10 +43,27 @@ int NextPosition(const TabModel& model,
   return next;
 }
 
+int CountPlanTabs(const std::vector<ArcPlanNode>& nodes) {
+  int count = 0;
+  for (const ArcPlanNode& node : nodes) {
+    count += node.is_folder ? CountPlanTabs(node.children) : 1;
+  }
+  return count;
+}
+
 class Applier {
  public:
   Applier(TabModel& model, const ArcApplyOptions& options)
-      : model_(model), options_(options) {}
+      : model_(model), options_(options) {
+    int pinned = 0;
+    for (const auto& [id, tab] : model.tabs()) {
+      if (tab.workspace_id == model.workspace().id &&
+          tab.section == Section::kPinned) {
+        ++pinned;
+      }
+    }
+    pinned_room_ = std::max(0, kArcMaxPinnedTabsPerWorkspace - pinned);
+  }
 
   bool AddNodes(const std::vector<ArcPlanNode>& nodes,
                 const std::string& parent,
@@ -55,6 +72,11 @@ class Applier {
     int position = first_position;
     for (const ArcPlanNode& node : nodes) {
       if (node.is_folder) {
+        // No folder after the cut, and none whose first tab does not fit.
+        if (!FolderMayBeMade(node)) {
+          counts.skipped[ArcSkipReason::kOverCap] += CountPlanTabs(node.children);
+          continue;
+        }
         FolderRecord folder;
         folder.section = Section::kPinned;
         folder.parent = parent;
@@ -74,12 +96,86 @@ class Applier {
         if (!AddNodes(node.children, id, 0, counts)) {
           return false;
         }
-      } else if (!AddTab(node.tab, Section::kPinned, parent, position++,
-                         counts)) {
+      } else if (!AddTabWithinCaps(node.tab, Section::kPinned, parent, position++,
+                                  counts)) {
         return false;
       }
     }
     return true;
+  }
+
+  // Adds the tab when the import is still under its caps. The first tab that
+  // does not fit ends the room of its section: it and every tab after it, in
+  // plan order, is counted as over the cap, so the import is a whole prefix.
+  // The Pinned cap of the Workspace ends only Pinned; the cap of the import and
+  // the text budget end everything.
+  bool AddTabWithinCaps(const ArcPlanTab& tab,
+                        Section section,
+                        const std::string& parent,
+                        int position,
+                        ArcImportCounts& counts) {
+    if (!Fits(tab, section)) {
+      ++counts.skipped[ArcSkipReason::kOverCap];
+      return true;
+    }
+    if (!AddTab(tab, section, parent, position, counts)) {
+      return false;
+    }
+    ++imported_tabs_;
+    text_bytes_ += TextBytes(tab);
+    if (section == Section::kPinned) {
+      --pinned_room_;
+    }
+    return true;
+  }
+
+  // Removes what was added, newest first, so a folder goes after its children.
+  void Rollback() {
+    for (auto it = added_.rbegin(); it != added_.rend(); ++it) {
+      if (it->first) {
+        model_.RemoveFolder(it->second);
+      } else {
+        model_.RemoveTab(it->second);
+      }
+    }
+    added_.clear();
+  }
+
+ private:
+  // Whether `tab` is still inside the caps. A tab that is not ends the room
+  // of its section for good.
+  bool Fits(const ArcPlanTab& tab, Section section) {
+    if (import_closed_ || (section == Section::kPinned && pinned_closed_)) {
+      return false;
+    }
+    if (imported_tabs_ >= kArcMaxTabsPerImport ||
+        text_bytes_ + TextBytes(tab) > kArcMaxImportTextBytes) {
+      import_closed_ = true;
+    } else if (section == Section::kPinned && pinned_room_ <= 0) {
+      pinned_closed_ = true;
+    }
+    return !import_closed_ && !(section == Section::kPinned && pinned_closed_);
+  }
+
+  // A folder is made unless the first tab in it is over the caps.
+  bool FolderMayBeMade(const ArcPlanNode& folder) {
+    const ArcPlanTab* first = FirstTab(folder.children);
+    if (first) {
+      return Fits(*first, Section::kPinned);
+    }
+    return !import_closed_ && !pinned_closed_;
+  }
+
+  static const ArcPlanTab* FirstTab(const std::vector<ArcPlanNode>& nodes) {
+    for (const ArcPlanNode& node : nodes) {
+      if (!node.is_folder) {
+        return &node.tab;
+      }
+      if (const ArcPlanTab* tab = FirstTab(node.children)) {
+        return tab;
+      }
+    }
+    return nullptr;
   }
 
   bool AddTab(const ArcPlanTab& tab,
@@ -118,28 +214,25 @@ class Applier {
     return true;
   }
 
-  // Removes what was added, newest first, so a folder goes after its children.
-  void Rollback() {
-    for (auto it = added_.rbegin(); it != added_.rend(); ++it) {
-      if (it->first) {
-        model_.RemoveFolder(it->second);
-      } else {
-        model_.RemoveTab(it->second);
-      }
-    }
-    added_.clear();
-  }
-
- private:
   bool Allowed() {
     const int index = attempts_++;
     return options_.fail_at_record_for_testing < 0 ||
            index != options_.fail_at_record_for_testing;
   }
 
+  static size_t TextBytes(const ArcPlanTab& tab) {
+    return tab.url.size() + tab.last_title.size() +
+           (tab.custom_name ? tab.custom_name->size() : 0);
+  }
+
   TabModel& model_;
   const ArcApplyOptions& options_;
   int attempts_ = 0;
+  int pinned_room_ = 0;
+  int imported_tabs_ = 0;
+  size_t text_bytes_ = 0;
+  bool import_closed_ = false;
+  bool pinned_closed_ = false;
   // (is_folder, id), in the order they were added.
   std::vector<std::pair<bool, std::string>> added_;
 };
@@ -176,8 +269,8 @@ std::optional<ArcImportCounts> ApplyArcSpacePlan(TabModel& model,
       ++counts.skipped[ArcSkipReason::kFavoritesFull];
       continue;
     }
-    if (!applier.AddTab(tab, Section::kFavorite, std::string(), position++,
-                        counts)) {
+    if (!applier.AddTabWithinCaps(tab, Section::kFavorite, std::string(), position++,
+                                 counts)) {
       applier.Rollback();
       return std::nullopt;
     }

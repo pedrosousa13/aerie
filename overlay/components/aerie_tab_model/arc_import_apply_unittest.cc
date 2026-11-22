@@ -8,13 +8,18 @@
 #include <utility>
 #include <vector>
 
+#include "base/files/file_path.h"
+#include "base/files/file_util.h"
+#include "base/files/scoped_temp_dir.h"
 #include "base/functional/bind.h"
+#include "base/json/json_writer.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/test/simple_test_clock.h"
 #include "base/time/time.h"
 #include "components/aerie_tab_model/folder_tree.h"
 #include "components/aerie_tab_model/pinned_tabs.h"
 #include "components/aerie_tab_model/tab_model.h"
+#include "components/aerie_tab_model/tab_model_persistence.h"
 #include "components/aerie_tab_model/tab_model_types.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -184,6 +189,117 @@ TEST_F(ArcImportApplyTest, ASkipOfThePlanIsCarriedToTheResult) {
   std::optional<ArcImportCounts> counts = ApplyArcSpacePlan(model_, plan);
   ASSERT_TRUE(counts.has_value());
   EXPECT_EQ(counts->skipped[ArcSkipReason::kUnsupportedScheme], 4);
+}
+
+TEST_F(ArcImportApplyTest, AnImportOver250TabsBringsInTheFirst250AndNamesTheRest) {
+  ArcSpacePlan plan;
+  for (int i = 0; i < 300; ++i) {
+    plan.pinned.push_back(Tab("t" + base::NumberToString(i)));
+  }
+  std::optional<ArcImportCounts> counts = ApplyArcSpacePlan(model_, plan);
+  ASSERT_TRUE(counts.has_value());
+  EXPECT_EQ(counts->pinned_tabs, 250);
+  EXPECT_EQ(counts->skipped[ArcSkipReason::kOverCap], 50);
+  const std::vector<std::string> children = Children("");
+  ASSERT_EQ(children.size(), 250u);
+  EXPECT_EQ(children.front(), "t:t0");
+  EXPECT_EQ(children.back(), "t:t249");
+}
+
+TEST_F(ArcImportApplyTest, ThePinnedCapCountsTheTabsTheWorkspaceHasAlready) {
+  for (int i = 0; i < 900; ++i) {
+    AddExistingTab(Section::kPinned, i);
+  }
+  ArcSpacePlan plan;
+  for (int i = 0; i < 150; ++i) {
+    plan.pinned.push_back(Tab("t" + base::NumberToString(i)));
+  }
+  std::optional<ArcImportCounts> counts = ApplyArcSpacePlan(model_, plan);
+  ASSERT_TRUE(counts.has_value());
+  EXPECT_EQ(counts->pinned_tabs, 100);
+  EXPECT_EQ(counts->skipped[ArcSkipReason::kOverCap], 50);
+}
+
+TEST_F(ArcImportApplyTest, TheCapCutsInsideAFolderAndLaterItemsAreSkippedToo) {
+  ArcSpacePlan plan;
+  std::vector<ArcPlanNode> inside;
+  for (int i = 0; i < 248; ++i) {
+    inside.push_back(Tab("a" + base::NumberToString(i)));
+  }
+  plan.pinned.push_back(Folder("Work", std::move(inside)));
+  for (int i = 0; i < 5; ++i) {
+    plan.pinned.push_back(Tab("b" + base::NumberToString(i)));
+  }
+  plan.favorites.push_back(Tab("fav").tab);
+  std::optional<ArcImportCounts> counts = ApplyArcSpacePlan(model_, plan);
+  ASSERT_TRUE(counts.has_value());
+  // 248 in the folder, b0 and b1 fit; b2..b4 and the Favorite do not.
+  EXPECT_EQ(counts->pinned_tabs, 250);
+  EXPECT_EQ(counts->favorites, 0);
+  EXPECT_EQ(counts->skipped[ArcSkipReason::kOverCap], 4);
+}
+
+// The M2 security sweep's plan (#275): 2200 tabs, 8000-byte addresses and
+// 1024-character titles, about 17 MB of Arc file. It wrote a 20 MB state that
+// the reader refused.
+TEST_F(ArcImportApplyTest, TheSweepPlanAppliesAndTheStateReadsBackOk) {
+  ArcSpacePlan plan;
+  for (int i = 0; i < 2200; ++i) {
+    ArcPlanNode node;
+    const std::string number = base::NumberToString(i);
+    node.tab.url = "https://example.com/" + number + "/" +
+                   std::string(8000 - 21 - number.size(), 'a');
+    node.tab.last_title = std::string(1024, 'T');
+    plan.pinned.push_back(std::move(node));
+  }
+  std::optional<ArcImportCounts> counts = ApplyArcSpacePlan(model_, plan);
+  ASSERT_TRUE(counts.has_value());
+  EXPECT_GT(counts->pinned_tabs, 0);
+  EXPECT_EQ(counts->pinned_tabs + counts->skipped[ArcSkipReason::kOverCap],
+            2200);
+
+  std::optional<std::string> json = base::WriteJson(model_.ToValue());
+  ASSERT_TRUE(json.has_value());
+  // Well under the limit of the reader: room for the rest of the Tab Model.
+  EXPECT_LT(json->size(), kMaxStateBytes / 4);
+
+  base::ScopedTempDir dir;
+  ASSERT_TRUE(dir.CreateUniqueTempDir());
+  const base::FilePath path = dir.GetPath().AppendASCII(kStateFile);
+  ASSERT_TRUE(base::WriteFile(path, *json));
+  EXPECT_EQ(ReadStateFile(path).status, LoadStatus::kOk);
+}
+
+TEST_F(ArcImportApplyTest, ANoFolderIsMadeForATabThatIsOverTheCap) {
+  ArcSpacePlan plan;
+  for (int i = 0; i < 250; ++i) {
+    plan.pinned.push_back(Tab("t" + base::NumberToString(i)));
+  }
+  plan.pinned.push_back(Folder("X", {Tab("inside")}));
+  std::optional<ArcImportCounts> counts = ApplyArcSpacePlan(model_, plan);
+  ASSERT_TRUE(counts.has_value());
+  EXPECT_EQ(counts->pinned_tabs, 250);
+  EXPECT_EQ(counts->folders, 0);
+  EXPECT_EQ(FolderId("X"), "");
+  EXPECT_EQ(counts->skipped[ArcSkipReason::kOverCap], 1);
+}
+
+TEST_F(ArcImportApplyTest, ThePinnedCapEndsOnlyPinnedAndFavoritesStillCome) {
+  for (int i = 0; i < 999; ++i) {
+    AddExistingTab(Section::kPinned, i);
+  }
+  ArcSpacePlan plan;
+  for (int i = 0; i < 5; ++i) {
+    plan.pinned.push_back(Tab("t" + base::NumberToString(i)));
+  }
+  for (int i = 0; i < 3; ++i) {
+    plan.favorites.push_back(Tab("f" + base::NumberToString(i)).tab);
+  }
+  std::optional<ArcImportCounts> counts = ApplyArcSpacePlan(model_, plan);
+  ASSERT_TRUE(counts.has_value());
+  EXPECT_EQ(counts->pinned_tabs, 1);
+  EXPECT_EQ(counts->skipped[ArcSkipReason::kOverCap], 4);
+  EXPECT_EQ(counts->favorites, 3);
 }
 
 TEST_F(ArcImportApplyTest, AFailedWriteChangesNothing) {
