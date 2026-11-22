@@ -34,6 +34,9 @@ Auto-archive moves a Today tab to the Archive after the user's timeout (12 hours
 **Sleeping tab**
 A tab that is unloaded to free memory (story 61). The Sidebar shows a moon badge and a dimmed favicon. Selecting it wakes it. Chromium's discard does the unloading; Aerie adds the idle timer (`aerie.tabs.sleep_after_minutes`, 1 hour by default) and the display. Not the same as an archived tab, which is closed.
 
+**Recent tabs switcher**
+Ctrl+Tab (#269). It goes to the tab used before and shows a card overlay of the most recently used tabs of the window; holding Ctrl and pressing Tab again steps along, Ctrl+Shift+Tab steps back, releasing Ctrl switches and Esc cancels. The window stands in for the current Workspace until Workspaces exist. The Settings switch `aerie.sidebar.recent_tab_switcher` ("Ctrl+Tab cycles recent tabs", on by default) turns it off, and Ctrl+Tab then goes along the tab order again.
+
 **Kept tab** (Keep loaded)
 A tab the user marked "Keep loaded" (#267). The idle sleep timer and auto-archive skip it, whatever its folder says. The flag lives on the tab record, so it survives a restart. The row shows a small mark. Not the same as a Pinned tab, which can still sleep and never archives only because of its section.
 

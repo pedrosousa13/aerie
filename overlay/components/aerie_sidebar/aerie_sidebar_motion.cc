@@ -296,6 +296,30 @@ SheetMotion SheetExitMotion(bool reduced) {
   return motion;
 }
 
+SwitcherMotion SwitcherOpenMotion(bool reduced) {
+  SwitcherMotion motion;
+  motion.animate_scale = !reduced;
+  motion.from_scale = aerie::tokens::kMotionScaleCmdbarEnter;
+  motion.from_opacity = aerie::tokens::kMotionOpacityCmdbarStart;
+  motion.to_opacity = 1.f;
+  motion.duration = MotionDuration::kFast;
+  motion.easing = MotionEasing::kDecelerate;
+  motion.duration_ms = GetDurationMs(motion.duration, reduced);
+  return motion;
+}
+
+SwitcherMotion SwitcherCloseMotion(bool reduced) {
+  SwitcherMotion motion;
+  motion.animate_scale = false;
+  motion.from_scale = 1.f;
+  motion.from_opacity = 1.f;
+  motion.to_opacity = 0.f;
+  motion.duration = MotionDuration::kXfast;
+  motion.easing = MotionEasing::kAccelerate;
+  motion.duration_ms = GetDurationMs(motion.duration, reduced);
+  return motion;
+}
+
 PulseMotion AutoFilePulseMotion(bool reduced) {
   PulseMotion motion;
   motion.peak_opacity = aerie::tokens::kMotionOpacityAutofilePulse;

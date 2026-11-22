@@ -190,6 +190,16 @@ source_set("selection") {
   ]
 }
 
+# Which tab was used when, and the open Ctrl+Tab switcher over that order
+# (issue #269). No views.
+source_set("recent_tabs") {
+  sources = [
+    "aerie_sidebar_recent_tabs.cc",
+    "aerie_sidebar_recent_tabs.h",
+  ]
+  public_deps = [ "//base" ]
+}
+
 source_set("unit_tests") {
   testonly = true
   sources = [
@@ -202,6 +212,7 @@ source_set("unit_tests") {
     "aerie_sidebar_move_unittest.cc",
     "aerie_sidebar_palette_unittest.cc",
     "aerie_sidebar_peek_unittest.cc",
+    "aerie_sidebar_recent_tabs_unittest.cc",
     "aerie_sidebar_selection_unittest.cc",
     "aerie_sidebar_today_list_unittest.cc",
     "aerie_sidebar_tree_unittest.cc",
@@ -219,6 +230,7 @@ source_set("unit_tests") {
     ":palette",
     ":peek",
     ":prefs",
+    ":recent_tabs",
     ":selection",
     ":today_list",
     ":tree",

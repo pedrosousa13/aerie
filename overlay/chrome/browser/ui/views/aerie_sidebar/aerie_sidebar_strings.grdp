@@ -226,6 +226,24 @@
   <message name="IDS_SETTINGS_AERIE_FOLDER_RULES_DESC" desc="Line under the folder-rules switch in Settings. When the switch is off, no folder moves a new tab into itself.">
     Let folders with rules file new tabs by themselves. Turn this off to stop every folder at once.
   </message>
+  <message name="IDS_SETTINGS_AERIE_RECENT_TABS" desc="Label of the switch in the Sidebar section of Settings that makes the Ctrl+Tab keyboard shortcut go to the tab used before, with a row of cards to choose from. Ctrl is the Control key.">
+    Ctrl+Tab cycles recent tabs
+  </message>
+  <message name="IDS_SETTINGS_AERIE_RECENT_TABS_DESC" desc="Line under the recent-tabs switch in Settings. When the switch is off, Ctrl+Tab goes along the tab order, as in other browsers.">
+    Ctrl+Tab goes to the tab you used before and shows cards of the recent tabs. Hold Ctrl and press Tab again to go further back. Turn this off to make Ctrl+Tab follow the tab order.
+  </message>
+  <message name="IDS_AERIE_RECENT_TABS_NAME" desc="Accessible name of the row of cards that shows the recently used tabs while the user holds Ctrl and presses Tab. It is a list of tabs; the user releases Ctrl to switch to the chosen one.">
+    Recent tabs
+  </message>
+  <message name="IDS_AERIE_RECENT_TABS_CARD_NAME" desc="Accessible name of one card in the recent tabs list: the title of the tab, then its site.">
+    <ph name="TITLE">$1<ex>Example page</ex></ph>, <ph name="SITE">$2<ex>example.com</ex></ph>
+  </message>
+  <message name="IDS_AERIE_RECENT_TABS_ANNOUNCE" desc="What a screen reader says when the chosen card of the recent tabs list changes: the card's title and site, then its place in the list. For example, Example page, example.com, 2 of 4.">
+    <ph name="CARD">$1<ex>Example page, example.com</ex></ph>, <ph name="POSITION">$2<ex>2</ex></ph> of <ph name="COUNT">$3<ex>4</ex></ph>
+  </message>
+  <message name="IDS_AERIE_RECENT_TABS_UNTITLED" desc="Title shown on a card of the recent tabs list for a tab that has no title yet.">
+    New Tab
+  </message>
   <message name="IDS_AERIE_SIDEBAR_NEW_FOLDER" desc="Item of the context menu in the sidebar that makes a new, empty folder for tabs. It is also the name that a new folder starts with, until the user renames it.">
     New folder
   </message>

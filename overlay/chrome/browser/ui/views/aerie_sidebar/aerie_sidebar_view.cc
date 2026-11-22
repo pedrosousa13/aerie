@@ -53,6 +53,7 @@
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_media_card.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_audio_watcher.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_media_controller.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_recent_tabs.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_peek_driver.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_peek_surface.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_regions.h"
@@ -621,6 +622,7 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
   media_card_ = AddChildView(std::make_unique<AerieSidebarMediaCard>());
   media_card_->SetPalette(palette_);
   media_ = std::make_unique<AerieSidebarMediaController>(browser_, media_card_);
+  recent_tabs_ = std::make_unique<AerieSidebarRecentTabs>(this, browser_);
   audio_ = std::make_unique<AerieSidebarAudioWatcher>(
       browser_->GetTabStripModel(),
       base::BindRepeating(&AerieSidebarView::UpdateRows,
@@ -840,6 +842,7 @@ void AerieSidebarView::ShowPeekToast(bool kept_open) {
 
 void AerieSidebarView::AddedToWidget() {
   views::View::AddedToWidget();
+  recent_tabs_->Attach();
   // AerieSidebarView -> the content area of the region -> the region.
   if (parent() && parent()->parent()) {
     region_observation_.Observe(parent()->parent());
@@ -861,6 +864,7 @@ void AerieSidebarView::AddedToWidget() {
 }
 
 void AerieSidebarView::RemovedFromWidget() {
+  recent_tabs_->Detach();
   region_observation_.Reset();
   if (slide_observer_) {
     slide_observer_->Reset();
@@ -1251,6 +1255,17 @@ std::map<std::string, tabs::TabInterface*> AerieSidebarView::BuildTabLookup()
     }
   }
   return lookup;
+}
+
+std::u16string AerieSidebarView::ShownTitleOfTab(
+    tabs::TabInterface* tab) const {
+  const aerie_tab_model::TabRecord* record = nullptr;
+  auto* service = aerie_tab_model::TabModelServiceFactory::GetForProfile(
+      browser_->GetProfile());
+  if (model_ && service && service->adapter()) {
+    record = model_->GetTab(service->adapter()->RecordIdForTab(tab));
+  }
+  return ShownTitleFor(tab, record).text;
 }
 
 tabs::TabInterface* AerieSidebarView::FindTab(

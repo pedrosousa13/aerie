@@ -67,6 +67,9 @@
   --aerie-size-focus-ring-offset: 2px;
   --aerie-size-indent: 14px;
   --aerie-size-sheet-width: 372px;
+  --aerie-size-switcher-card-width: 176px;
+  --aerie-size-switcher-snapshot-height: 104px;
+  --aerie-size-switcher-max-cards: 5;
   --aerie-size-editor-preview-width: 280px;
   --aerie-size-editor-preview-height: 180px;
   --aerie-size-hz-strip-height: 46px;
