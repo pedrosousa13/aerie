@@ -1,0 +1,70 @@
+Aerie-Purpose: Put the "Show page previews on tab cards" switch in the Sidebar section of Settings, let the settings page write its pref, and give the page its strings.
+Aerie-Upstream-Area: chrome/browser/resources/settings (appearance_page/appearance_layout_page.ts, appearance_page/appearance_layout_page.html.ts, BUILD.gn), chrome/browser/ui/webui/settings (settings_localized_strings_provider.cc), chrome/browser/extensions/api/settings_private (prefs_util.cc)
+Aerie-Kind: hook
+
+Issue #270. The row, settings-aerie-preview-card-row, is a Lit element in the overlay
+(chrome/browser/resources/settings/appearance_page/aerie_preview_card_row.*). It is a
+settings-toggle-button on the pref aerie.sidebar.hover_card_snapshots (a boolean, registered by
+components/aerie_sidebar/aerie_sidebar_prefs.cc, on by default). When the switch is off, the card that
+shows when the user hovers a tab in the sidebar keeps its text (title, host, URL) and shows no snapshot of
+the page. The pref name is a string literal in the settings_private allowlist, as for the other Aerie
+prefs, and a test compares it with aerie_sidebar::kHoverCardSnapshotsPref. Its strings are in the
+overlay's aerie_sidebar_strings.grdp, which patches/sidebar/0022 includes in generated_resources.grd; this
+patch hands them to the page. The element sits in the "Sidebar" section, under the "Ctrl+Tab cycles recent
+tabs" row of patches/sidebar/0057.
+
+--- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
++++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
+@@ -506,6 +506,10 @@
+   // the two.
+   (*s_allowlist)["aerie.sidebar.recent_tab_switcher"] =
+       settings_api::PrefType::kBoolean;
++  // Aerie: whether the tab preview card shows a page snapshot (issue #270). The
++  // name is aerie_sidebar::kHoverCardSnapshotsPref; a test compares the two.
++  (*s_allowlist)["aerie.sidebar.hover_card_snapshots"] =
++      settings_api::PrefType::kBoolean;
+   // Aerie: the global switch of the rules of auto-filing folders (issue #139).
+   // The name is aerie_tab_model::kFolderRulesEnabled; a test compares the two.
+   (*s_allowlist)["aerie.folders.rules_enabled"] =
+--- a/chrome/browser/resources/settings/appearance_page/appearance_layout_page.html.ts
++++ b/chrome/browser/resources/settings/appearance_page/appearance_layout_page.html.ts
+@@ -18,6 +18,7 @@
+   <settings-aerie-archive-keep-row></settings-aerie-archive-keep-row>
+   <settings-aerie-links-open-row></settings-aerie-links-open-row>
+   <settings-aerie-recent-tabs-row></settings-aerie-recent-tabs-row>
++  <settings-aerie-preview-card-row></settings-aerie-preview-card-row>
+   <settings-aerie-density-row></settings-aerie-density-row>
+   <settings-aerie-side-row></settings-aerie-side-row>
+   <settings-aerie-title-rules-row></settings-aerie-title-rules-row>
+--- a/chrome/browser/resources/settings/appearance_page/appearance_layout_page.ts
++++ b/chrome/browser/resources/settings/appearance_page/appearance_layout_page.ts
+@@ -10,6 +10,7 @@
+ import './aerie_folder_rules_row.js';
+ import './aerie_links_open_row.js';
+ import './aerie_pinned_close_row.js';
++import './aerie_preview_card_row.js';
+ import './aerie_recent_tabs_row.js';
+ import './aerie_side_row.js';
+ import './aerie_sleep_row.js';
+--- a/chrome/browser/resources/settings/BUILD.gn
++++ b/chrome/browser/resources/settings/BUILD.gn
+@@ -221,6 +221,8 @@
+     "appearance_page/aerie_motion_row.ts",
+     "appearance_page/aerie_pinned_close_row.html.ts",
+     "appearance_page/aerie_pinned_close_row.ts",
++    "appearance_page/aerie_preview_card_row.html.ts",
++    "appearance_page/aerie_preview_card_row.ts",
+     "appearance_page/aerie_recent_tabs_row.html.ts",
+     "appearance_page/aerie_recent_tabs_row.ts",
+     "appearance_page/aerie_side_row.html.ts",
+--- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
++++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
+@@ -658,6 +658,8 @@
+       {"aerieLinksOpenInPlace", IDS_AERIE_SIDEBAR_LINKS_IN_PLACE},
+       {"aerieRecentTabs", IDS_SETTINGS_AERIE_RECENT_TABS},
+       {"aerieRecentTabsDesc", IDS_SETTINGS_AERIE_RECENT_TABS_DESC},
++      {"aeriePreviewCard", IDS_SETTINGS_AERIE_PREVIEW_CARD},
++      {"aeriePreviewCardDesc", IDS_SETTINGS_AERIE_PREVIEW_CARD_DESC},
+       {"aerieTidyTitles", IDS_SETTINGS_AERIE_TITLE_TIDY},
+       {"aerieTidyTitlesDesc", IDS_SETTINGS_AERIE_TITLE_TIDY_DESC},
+       {"aerieTidyOffSites", IDS_SETTINGS_AERIE_TITLE_TIDY_OFF_SITES},

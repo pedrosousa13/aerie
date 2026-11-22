@@ -37,6 +37,9 @@ A tab that is unloaded to free memory (story 61). The Sidebar shows a moon badge
 **Recent tabs switcher**
 Ctrl+Tab (#269). It goes to the tab used before and shows a card overlay of the most recently used tabs of the window; holding Ctrl and pressing Tab again steps along, Ctrl+Shift+Tab steps back, releasing Ctrl switches and Esc cancels. The window stands in for the current Workspace until Workspaces exist. The Settings switch `aerie.sidebar.recent_tab_switcher` ("Ctrl+Tab cycles recent tabs", on by default) turns it off, and Ctrl+Tab then goes along the tab order again.
 
+**Tab preview card** (code: HoverCard)
+The card beside a Sidebar row that shows after the pointer rests on it for the tooltip delay, or at once when the row takes keyboard focus (#270): title, host, the full URL on its own line and a snapshot of the page when the tab has one. The snapshot is in memory only and never exists for an incognito tab (or, later, a Private Workspace). The Settings switch `aerie.sidebar.hover_card_snapshots` ("Show page previews on tab cards", on by default) turns it off and keeps the text. Not the same as the Recent tabs switcher, which is the Ctrl+Tab overlay of cards, nor the Media card at the bottom of the Sidebar.
+
 **Kept tab** (Keep loaded)
 A tab the user marked "Keep loaded" (#267). The idle sleep timer and auto-archive skip it, whatever its folder says. The flag lives on the tab record, so it survives a restart. The row shows a small mark. Not the same as a Pinned tab, which can still sleep and never archives only because of its section.
 

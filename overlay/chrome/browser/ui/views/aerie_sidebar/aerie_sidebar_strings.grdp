@@ -232,6 +232,12 @@
   <message name="IDS_SETTINGS_AERIE_RECENT_TABS_DESC" desc="Line under the recent-tabs switch in Settings. When the switch is off, Ctrl+Tab goes along the tab order, as in other browsers.">
     Ctrl+Tab goes to the tab you used before and shows cards of the recent tabs. Hold Ctrl and press Tab again to go further back. Turn this off to make Ctrl+Tab follow the tab order.
   </message>
+  <message name="IDS_SETTINGS_AERIE_PREVIEW_CARD" desc="Label of the switch in the Sidebar section of Settings that makes the card shown when the pointer rests on a tab in the sidebar include a picture of the page.">
+    Show page previews on tab cards
+  </message>
+  <message name="IDS_SETTINGS_AERIE_PREVIEW_CARD_DESC" desc="Line under the page-preview switch in Settings. When the switch is off, the card that shows when the pointer rests on a tab keeps the title and the address and shows no picture of the page. The pictures are kept in memory only and are never saved.">
+    When you rest the pointer on a tab in the sidebar, a card shows its title, its address and a picture of the page. The pictures stay in memory and are never saved, and none is taken for private tabs. Turn this off to keep only the text.
+  </message>
   <message name="IDS_AERIE_RECENT_TABS_NAME" desc="Accessible name of the row of cards that shows the recently used tabs while the user holds Ctrl and presses Tab. It is a list of tabs; the user releases Ctrl to switch to the chosen one.">
     Recent tabs
   </message>

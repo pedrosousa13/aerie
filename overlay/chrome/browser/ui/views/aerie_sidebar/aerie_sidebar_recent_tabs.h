@@ -15,6 +15,7 @@
 #include "base/timer/timer.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "chrome/browser/ui/thumbnails/thumbnail_image.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_tab_snapshot.h"
 #include "components/aerie_design_tokens/aerie_motion.h"
 #include "components/aerie_sidebar/aerie_sidebar_recent_tabs.h"
 #include "ui/base/accelerators/accelerator.h"
@@ -57,16 +58,15 @@ class TabInterface;
 // from the thumbnail that the tab hover cards use (ThumbnailTabHelper): it
 // lives in memory only and this class never writes one. A tab that is private
 // (an incognito window, and later a Private Workspace, #259) never gets a
-// snapshot: it is neither asked for nor shown. IsPrivateTab() is the one place
-// to extend for Private Workspaces.
+// snapshot: it is neither asked for nor shown. aerie_sidebar::IsPrivateTab (aerie_sidebar_tab_snapshot.h)
+// is the one place to extend for Private Workspaces.
 class AerieSidebarRecentTabs : public TabStripModelObserver,
                                public ui::AcceleratorTarget,
                                public ui::EventObserver,
                                public views::WidgetObserver {
  public:
   // For tests: the picture of a tab, in place of Chromium's thumbnail.
-  using SnapshotSource =
-      base::RepeatingCallback<gfx::ImageSkia(tabs::TabInterface*)>;
+  using SnapshotSource = aerie_sidebar::SnapshotSource;
 
   AerieSidebarRecentTabs(AerieSidebarView* host, BrowserWindowInterface* browser);
   AerieSidebarRecentTabs(const AerieSidebarRecentTabs&) = delete;
@@ -87,9 +87,6 @@ class AerieSidebarRecentTabs : public TabStripModelObserver,
   void SetSnapshotSourceForTesting(SnapshotSource source) {
     snapshot_source_ = std::move(source);
   }
-
-  // True for a tab that must never have a snapshot taken or shown.
-  static bool IsPrivateTab(tabs::TabInterface* tab);
 
   // ui::AcceleratorTarget:
   bool AcceleratorPressed(const ui::Accelerator& accelerator) override;

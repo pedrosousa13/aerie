@@ -862,6 +862,11 @@ std::u16string AerieSidebarRowView::GetRenderedTooltipText(
     return title_note_;
   }
   // The tooltip tells what the row cuts off: it shows only for an elided title.
+  // The tab preview card (issue #270) shows the whole title, so a row that has
+  // one needs no second popup for it.
+  if (callbacks_.hover_card) {
+    return std::u16string();
+  }
   return title_->IsDisplayTextTruncated() ? std::u16string(title_->GetText())
                                           : std::u16string();
 }
@@ -884,6 +889,8 @@ bool AerieSidebarRowView::OnMousePressed(const ui::MouseEvent& event) {
   }
   suppress_release_ = false;
   pressed_ = event.IsOnlyLeftMouseButton();
+  pointer_down_ = true;
+  RunHoverCard(aerie_sidebar::HoverCardTrigger::kPressed);
   drag_cancelled_ = false;
   press_point_ = event.root_location();
   // A double-click on a folder's icon opens the folder editor (issue #139).
@@ -936,6 +943,10 @@ bool AerieSidebarRowView::OnMouseDragged(const ui::MouseEvent& event) {
 
 void AerieSidebarRowView::OnMouseReleased(const ui::MouseEvent& event) {
   pressed_ = false;
+  // The release may move focus (it selects the tab); the flag goes after that.
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE, base::BindOnce(&AerieSidebarRowView::EndPointerDown,
+                                weak_factory_.GetWeakPtr()));
   if (suppress_release_) {
     // The release of the double-click that opened the field: selecting the tab
     // now would take focus from it.
@@ -970,8 +981,13 @@ void AerieSidebarRowView::OnMouseReleased(const ui::MouseEvent& event) {
   }
 }
 
+void AerieSidebarRowView::EndPointerDown() {
+  pointer_down_ = false;
+}
+
 void AerieSidebarRowView::OnMouseCaptureLost() {
   pressed_ = false;
+  pointer_down_ = false;
   if (dragging_) {
     FinishDrag(last_point_, /*cancelled=*/true, /*outside=*/false);
   }
@@ -1042,11 +1058,21 @@ void AerieSidebarRowView::SetDragHidden(bool hidden) {
 void AerieSidebarRowView::OnMouseEntered(const ui::MouseEvent& event) {
   hovered_ = true;
   UpdateState();
+  RunHoverCard(aerie_sidebar::HoverCardTrigger::kPointerEntered);
 }
 
 void AerieSidebarRowView::OnMouseExited(const ui::MouseEvent& event) {
   hovered_ = false;
   UpdateState();
+  RunHoverCard(aerie_sidebar::HoverCardTrigger::kPointerExited);
+}
+
+void AerieSidebarRowView::RunHoverCard(
+    aerie_sidebar::HoverCardTrigger trigger) {
+  // A row that is closing, or is in the middle of a rename, has no card.
+  if (callbacks_.hover_card && !closing_ && !renaming_) {
+    callbacks_.hover_card.Run(this, trigger);
+  }
 }
 
 bool AerieSidebarRowView::OnKeyPressed(const ui::KeyEvent& event) {
@@ -1054,6 +1080,14 @@ bool AerieSidebarRowView::OnKeyPressed(const ui::KeyEvent& event) {
   // never reach "back to pinned page" (issue #180), nor Delete close the tab.
   if (closing_ || renaming_) {
     return false;
+  }
+  RunHoverCard(aerie_sidebar::HoverCardTrigger::kKeyPressed);
+  // Esc dismisses the tab preview card with no move of pointer or focus (issue
+  // #270); with no card up, Esc is whatever it was.
+  if (event.key_code() == ui::VKEY_ESCAPE && callbacks_.hover_card_shown &&
+      callbacks_.hover_card_shown.Run(this)) {
+    RunHoverCard(aerie_sidebar::HoverCardTrigger::kDismissed);
+    return true;
   }
   if (IsCloseShortcut(event)) {
     callbacks_.key.Run(aerie_sidebar::ListKey::kDelete);
@@ -1155,6 +1189,12 @@ bool AerieSidebarRowView::SkipDefaultKeyEventProcessing(
         callbacks_.selection_active.Run()))) {
     return true;
   }
+  // Esc on a view that has the preview card dismisses it, so the browser must
+  // not take the key first (Esc stops loading).
+  if (event.key_code() == ui::VKEY_ESCAPE && callbacks_.hover_card_shown &&
+      callbacks_.hover_card_shown.Run(this)) {
+    return true;
+  }
   return IsCloseShortcut(event) ||
          (IsMoveShortcut(event) && callbacks_.move) ||
          views::View::SkipDefaultKeyEventProcessing(event);
@@ -1163,6 +1203,9 @@ bool AerieSidebarRowView::SkipDefaultKeyEventProcessing(
 void AerieSidebarRowView::OnFocus() {
   views::View::OnFocus();
   UpdateState();
+  if (!pointer_down_) {
+    RunHoverCard(aerie_sidebar::HoverCardTrigger::kFocused);
+  }
   if (callbacks_.focused) {
     callbacks_.focused.Run();
   }
@@ -1171,6 +1214,7 @@ void AerieSidebarRowView::OnFocus() {
 void AerieSidebarRowView::OnBlur() {
   views::View::OnBlur();
   UpdateState();
+  RunHoverCard(aerie_sidebar::HoverCardTrigger::kBlurred);
 }
 
 void AerieSidebarRowView::OnThemeChanged() {

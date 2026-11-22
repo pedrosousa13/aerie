@@ -53,6 +53,7 @@
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_media_card.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_audio_watcher.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_media_controller.h"
+#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_hover_card.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_recent_tabs.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_peek_driver.h"
 #include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_peek_surface.h"
@@ -623,6 +624,7 @@ AerieSidebarView::AerieSidebarView(BrowserWindowInterface* browser,
   media_card_->SetPalette(palette_);
   media_ = std::make_unique<AerieSidebarMediaController>(browser_, media_card_);
   recent_tabs_ = std::make_unique<AerieSidebarRecentTabs>(this, browser_);
+  hover_card_ = std::make_unique<AerieSidebarHoverCard>(this);
   audio_ = std::make_unique<AerieSidebarAudioWatcher>(
       browser_->GetTabStripModel(),
       base::BindRepeating(&AerieSidebarView::UpdateRows,
@@ -865,6 +867,7 @@ void AerieSidebarView::AddedToWidget() {
 
 void AerieSidebarView::RemovedFromWidget() {
   recent_tabs_->Detach();
+  hover_card_->Hide();
   region_observation_.Reset();
   if (slide_observer_) {
     slide_observer_->Reset();
@@ -1415,6 +1418,10 @@ AerieSidebarRowView* AerieSidebarView::MakeRow(
                               : base::BindRepeating(
                                     &AerieSidebarView::OnPinnedRowFocused,
                                     base::Unretained(this));
+    callbacks.hover_card = base::BindRepeating(
+        &AerieSidebarView::OnHoverCardTrigger, base::Unretained(this), id);
+    callbacks.hover_card_shown = base::BindRepeating(
+        &AerieSidebarView::HoverCardShownFor, base::Unretained(this));
     callbacks.drag_begin = base::BindRepeating([] { return false; });
     callbacks.drag_update = base::DoNothing();
     callbacks.drag_end = base::DoNothing();
@@ -1460,6 +1467,12 @@ AerieSidebarRowView* AerieSidebarView::MakeRow(
                             : base::BindRepeating(
                                   &AerieSidebarView::OnPinnedRowFocused,
                                   base::Unretained(this));
+  if (!entry.is_folder) {
+    callbacks.hover_card = base::BindRepeating(
+        &AerieSidebarView::OnHoverCardTrigger, base::Unretained(this), id);
+    callbacks.hover_card_shown = base::BindRepeating(
+        &AerieSidebarView::HoverCardShownFor, base::Unretained(this));
+  }
   callbacks.drag_begin = base::BindRepeating(
       &AerieSidebarView::OnItemDragBegin, base::Unretained(this), id,
       entry.is_folder);
@@ -1775,6 +1788,10 @@ void AerieSidebarView::SyncFavorites() {
                                         base::Unretained(this), id);
     callbacks.focused = base::BindRepeating(&AerieSidebarView::OnTileFocused,
                                             base::Unretained(this));
+    callbacks.hover_card = base::BindRepeating(
+        &AerieSidebarView::OnHoverCardTrigger, base::Unretained(this), id);
+    callbacks.hover_card_shown = base::BindRepeating(
+        &AerieSidebarView::HoverCardShownFor, base::Unretained(this));
     callbacks.begin_rename =
         base::BindRepeating(base::IgnoreResult(&AerieSidebarView::StartRename),
                             base::Unretained(this), id);
@@ -2266,6 +2283,17 @@ void AerieSidebarView::GetAccessiblePanes(std::vector<views::View*>* panes) {
   if (adopted_toolbar_) {
     panes->push_back(adopted_toolbar_);
   }
+}
+
+bool AerieSidebarView::HoverCardShownFor(views::View* anchor) {
+  return hover_card_->ShowsFor(anchor);
+}
+
+void AerieSidebarView::OnHoverCardTrigger(
+    const std::string& tab_id,
+    views::View* anchor,
+    aerie_sidebar::HoverCardTrigger trigger) {
+  hover_card_->OnTrigger(anchor, FindTab(tab_id), trigger);
 }
 
 void AerieSidebarView::ToggleTabAudio(const std::string& tab_id) {

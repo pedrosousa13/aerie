@@ -50,12 +50,14 @@ class TokensTest(unittest.TestCase):
 class PrivacyTest(unittest.TestCase):
     def test_a_snapshot_is_only_asked_for_behind_the_private_tab_gate(self):
         source = (VIEWS / "aerie_sidebar_recent_tabs.cc").read_text()
-        self.assertIn("IsPrivateTab(tab)", source)
+        self.assertIn("GatedSnapshot(tab", source)
+        self.assertNotIn("static bool IsPrivateTab", (VIEWS / "aerie_sidebar_recent_tabs.h").read_text())
         # Nothing writes a snapshot: no file API in the controller or the overlay.
         for name in ("aerie_sidebar_recent_tabs.cc", "aerie_sidebar_recent_tabs_overlay.cc"):
             text = (VIEWS / name).read_text()
             self.assertNotRegex(text, r"WriteFile|base::File\b|ImportantFileWriter|SavePNG|EncodePNG")
-        self.assertIn("#259", source)
+        self.assertIn("#259", (VIEWS / "aerie_sidebar_tab_snapshot.cc").read_text())
+        self.assertIn("aerie_sidebar::WatchTabSnapshot", source)
 
 
 class DocsTest(unittest.TestCase):
