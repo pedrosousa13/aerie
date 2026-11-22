@@ -5,7 +5,8 @@
 
      Strings for the extension proxy (issue #23): its row in Settings > Privacy and security, the
      dialog that tells the user none is set, and the Languages page note about spell check
-     dictionaries. tests/test_services_ui_strings.py checks that every message is used. -->
+     dictionaries. Also the chrome://components status after a failed component update (#131).
+     tests/test_services_ui_strings.py checks that every message is used. -->
 <grit-part>
   <message name="IDS_AERIE_EXTENSION_PROXY_UNSET_TITLE" desc="Title of the dialog shown when someone starts an extension install and no extension proxy address is set.">
     Extension proxy not configured
@@ -27,5 +28,8 @@
   </message>
   <message name="IDS_SETTINGS_LANGUAGES_DICTIONARY_DOWNLOAD_FAILED_HELP_AERIE" desc="Note on the Languages page when a spell check dictionary could not be downloaded. The browser never downloads dictionaries.">
     Aerie does not download spell check dictionaries, so this language cannot be used for spell check.
+  </message>
+  <message name="IDS_AERIE_COMPONENTS_SVC_STATUS_UPDATES_DISABLED" desc="Status of a component on chrome://components after its update failed because component updates are turned off. Aerie has no settings page for them.">
+    Component updates are disabled in Aerie.
   </message>
 </grit-part>
