@@ -42,6 +42,7 @@ const SKIP_STRINGS: {[reason: string]: string} = {
   folder_merged: 'aerieArcImportSkipFolderMerged',
   favorites_full: 'aerieArcImportSkipFavoritesFull',
   little_arc: 'aerieArcImportSkipLittleArc',
+  over_cap: 'aerieArcImportSkipOverCap',
 };
 
 // The error names the handler sends, and the grd string of each.

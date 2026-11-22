@@ -9,6 +9,7 @@
 #include "base/check.h"
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
+#include "base/logging.h"
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
 #include "base/task/sequenced_task_runner.h"
@@ -124,7 +125,17 @@ void TabModelPersistence::OnModelChanged() {
 }
 
 std::optional<std::string> TabModelPersistence::SerializeData() {
-  return base::WriteJson(model_->ToValue());
+  std::optional<std::string> text = base::WriteJson(model_->ToValue());
+  if (text && text->size() > kMaxStateBytes) {
+    // ReadStateFile would refuse this file and start the next session empty.
+    // Returning nothing makes the writer skip the write, so the last good
+    // file stays on disk.
+    LOG(ERROR) << "Tab Model state is " << text->size()
+               << " bytes, over the read limit of " << kMaxStateBytes
+               << ": not written";
+    return std::nullopt;
+  }
+  return text;
 }
 
 }  // namespace aerie_tab_model

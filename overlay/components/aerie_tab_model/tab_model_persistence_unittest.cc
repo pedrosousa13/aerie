@@ -335,6 +335,38 @@ TEST_F(TabModelPersistenceTest, WithoutAPathNothingTouchesTheDisk) {
   EXPECT_TRUE(base::IsDirectoryEmpty(dir_.GetPath()));
 }
 
+TEST_F(TabModelPersistenceTest, AStateOverTheReadLimitIsNotWrittenAndTheLastGoodFileStays) {
+  EXPECT_EQ(Session([](TabModel& model) {
+              TabRecord tab;
+              tab.pinned_url = "https://kept.example/";
+              model.AddTab(std::move(tab));
+            }),
+            LoadStatus::kMissing);
+  std::string good;
+  ASSERT_TRUE(base::ReadFileToString(path_, &good));
+
+  // A change that takes the serialised state past what the reader accepts.
+  EXPECT_EQ(Session([](TabModel& model) {
+              TabRecord tab;
+              tab.pinned_url = "https://huge.example/" +
+                               std::string(kMaxStateBytes + 1, 'a');
+              model.AddTab(std::move(tab));
+            }),
+            LoadStatus::kOk);
+  std::string after;
+  ASSERT_TRUE(base::ReadFileToString(path_, &after));
+  EXPECT_TRUE(after == good) << "the file changed: " << after.size() << " bytes";
+  EXPECT_FALSE(base::PathExists(BadPath()));
+
+  // The next start reads the last good file.
+  bool kept = false;
+  EXPECT_EQ(Session([&](TabModel& model) {
+              kept = model.tabs().size() == 1;
+            }),
+            LoadStatus::kOk);
+  EXPECT_TRUE(kept);
+}
+
 TEST_F(TabModelPersistenceTest, DestroyingTheServiceFlushesTheLastChange) {
   TabModel model(&clock_);
   {

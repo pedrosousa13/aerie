@@ -37,7 +37,7 @@ has the format and the limits.
  components/aerie_design_tokens/aerie_motion_strings.grdp
 --- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
 +++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
-@@ -704,6 +704,45 @@
+@@ -704,6 +704,46 @@
        {"aerieTryResultRule", IDS_SETTINGS_AERIE_TITLE_TRY_RESULT_RULE},
        {"aerieTryResultTidy", IDS_SETTINGS_AERIE_TITLE_TRY_RESULT_TIDY},
        {"aerieTryResultPage", IDS_SETTINGS_AERIE_TITLE_TRY_RESULT_PAGE},
@@ -68,6 +68,7 @@ has the format and the limits.
 +      {"aerieArcImportSkipFolderMerged", IDS_SETTINGS_AERIE_ARC_IMPORT_SKIP_FOLDER_MERGED},
 +      {"aerieArcImportSkipFavoritesFull", IDS_SETTINGS_AERIE_ARC_IMPORT_SKIP_FAVORITES_FULL},
 +      {"aerieArcImportSkipLittleArc", IDS_SETTINGS_AERIE_ARC_IMPORT_SKIP_LITTLE_ARC},
++      {"aerieArcImportSkipOverCap", IDS_SETTINGS_AERIE_ARC_IMPORT_SKIP_OVER_CAP},
 +      {"aerieArcImportNotImportedFeatures", IDS_SETTINGS_AERIE_ARC_IMPORT_NOT_IMPORTED_FEATURES},
 +      {"aerieArcImportNoLogins", IDS_SETTINGS_AERIE_ARC_IMPORT_NO_LOGINS},
 +      {"aerieArcImportErrorTooLarge", IDS_SETTINGS_AERIE_ARC_IMPORT_ERROR_TOO_LARGE},
