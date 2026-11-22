@@ -13,9 +13,9 @@
 #include "base/run_loop.h"
 #include "base/test/run_until.h"
 #include "base/time/time.h"
+#include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/history/history_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -53,6 +53,10 @@ async function until(check) {
 }
 )";
 
+// The dialog of Clear browsing data in the Settings page, or null.
+constexpr char kDialogLookup[] =
+    "deep(document, '#deleteBrowsingDataDialog')";
+
 constexpr char kVisited[] = "https://clear-me.example/visited";
 
 }  // namespace
@@ -87,9 +91,7 @@ class AerieClearBrowsingDataBrowserTest : public InProcessBrowserTest {
           "history.pushState({}, '', '/clearBrowserData');"
           "window.dispatchEvent(new PopStateEvent('popstate'));"));
     }
-    ASSERT_EQ(true, Eval("(async () => !!(await until(() => deep(document, "
-                         "'#deleteBrowsingDataDialog'))))()"))
-        << url;
+    ASSERT_EQ(true, DialogAppears()) << url;
   }
   // The Privacy and security page's own "Delete browsing data" row, found in
   // the shadow DOM and clicked.
@@ -118,18 +120,21 @@ class AerieClearBrowsingDataBrowserTest : public InProcessBrowserTest {
       return active()->GetLastCommittedURL().path() == "/clearBrowserData" &&
              !active()->IsLoading();
     }));
-    ASSERT_EQ(true, Eval("(async () => !!(await until(() => deep(document, "
-                         "'#deleteBrowsingDataDialog'))))()"));
+    ASSERT_EQ(true, DialogAppears());
   }
   void Press(const std::string& id) {
     ASSERT_EQ(true, Eval("(async () => { const b = await until(() => deep("
                          "document, '#" + id + "')); if (!b) return false; "
                          "b.click(); return true; })()"));
   }
+  // Waits for the dialog to appear in the page; true when it did.
+  content::EvalJsResult DialogAppears() {
+    return Eval(std::string("(async () => !!(await until(() => ") +
+                kDialogLookup + ")))()");
+  }
   bool DialogGone() {
-    return content::EvalJs(
-               active(), std::string(kDeepHelpers) +
-                             "!deep(document, '#deleteBrowsingDataDialog')")
+    return content::EvalJs(active(), std::string(kDeepHelpers) + "!" +
+                                         kDialogLookup)
         .ExtractBool();
   }
 };
