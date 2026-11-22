@@ -21,8 +21,9 @@ namespace {
 using network::mojom::RequestDestination;
 
 // Production registers chrome://, chrome-untrusted:// and chrome-extension://
-// as standard schemes at startup (ChromeContentClient::AddAdditionalSchemes),
-// before any Origin is made. url::Origin::Create() of an unregistered scheme is
+// as standard schemes at startup, before any Origin is made:
+// chrome-extension in ChromeContentClient::AddAdditionalSchemes, and chrome and
+// chrome-untrusted in Helium's override-chrome-protocol patch. url::Origin::Create() of an unregistered scheme is
 // opaque, which the classifier cannot tell from a sandboxed frame, so a bare
 // unit-test process needs the same registration.
 class RequestClassifierBrowserSchemeTest : public testing::Test {
