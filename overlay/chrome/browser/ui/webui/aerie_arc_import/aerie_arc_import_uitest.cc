@@ -15,6 +15,7 @@
 #include <optional>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
@@ -122,6 +123,30 @@ class AerieArcImportUiTest : public InProcessBrowserTest {
       }
     }
     return count;
+  }
+
+  // Empties the sidebar of the Pinned and Favorite tabs and the folders an
+  // import made. A second import of the same Space skips the tabs that are
+  // already there (issue #276), so a test that imports it twice resets between
+  // the passes.
+  void ResetArranged() {
+    std::vector<std::string> tabs;
+    for (const auto& [id, tab] : service_->model()->tabs()) {
+      if (tab.section != aerie_tab_model::Section::kToday) {
+        tabs.push_back(id);
+      }
+    }
+    for (const std::string& id : tabs) {
+      service_->model()->RemoveTab(id);
+    }
+    std::vector<std::string> folders;
+    for (const auto& [id, folder] : service_->model()->folders()) {
+      folders.push_back(id);
+    }
+    for (const std::string& id : folders) {
+      service_->model()->RemoveFolder(id);
+    }
+    ASSERT_EQ(Arranged(), 0u);
   }
 
   base::FilePath Fixture(const std::string& name) {
@@ -247,11 +272,11 @@ IN_PROC_BROWSER_TEST_F(AerieArcImportUiTest, TheResultSaysWhatCameInAndWhatDidNo
     ASSERT_EQ(true, Js("inRow('#aerieArcImportDone').click(); "
                        "return !!(await waitFor(() => "
                        "!inRow('#aerieArcImportDialog')));"));
+    // Each pass imports the Space into an empty sidebar.
+    EXPECT_EQ(Arranged(), 2u);
+    ResetArranged();
   }
   SetDark(false);
-  // The model got the Space twice, once for each pass: its pinned tab and its
-  // Favorite each time.
-  EXPECT_EQ(Arranged(), 4u);
 }
 
 IN_PROC_BROWSER_TEST_F(AerieArcImportUiTest, TitlesFromTheFileAreTextNotMarkup) {
