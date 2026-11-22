@@ -27,7 +27,7 @@ The title string is in the overlay's aerie_sidebar_strings.grdp.
  
 --- a/chrome/app/generated_resources.grd.gritdeps
 +++ b/chrome/app/generated_resources.grd.gritdeps
-@@ -111,6 +111,7 @@
+@@ -112,6 +112,7 @@
  chrome/app/whats_new_strings.grdp
  chrome/browser/aerie_widevine/aerie_widevine_strings.grdp
  chrome/browser/ui/views/aerie_adblock/aerie_guard_strings.grdp
@@ -37,7 +37,7 @@ The title string is in the overlay's aerie_sidebar_strings.grdp.
  components/aerie_design_tokens/aerie_motion_strings.grdp
 --- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
 +++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
-@@ -621,6 +621,7 @@
+@@ -651,6 +651,7 @@
        {"nativeFrameMaterialsDescription",
         IDS_SETTINGS_NATIVE_FRAME_MATERIALS_DESCRIPTION},
        {"layoutPageTitle", IDS_SETTINGS_LAYOUT},
@@ -93,7 +93,7 @@ The title string is in the overlay's aerie_sidebar_strings.grdp.
    static get is() {
      return 'settings-appearance-layout-page';
    }
-@@ -48,79 +24,6 @@
+@@ -48,73 +24,6 @@
    override render() {
      return getHtml.bind(this)();
    }
@@ -104,7 +104,6 @@ The title string is in the overlay's aerie_sidebar_strings.grdp.
 -      browserLayoutOptions_: {type: Array},
 -      zenModePref_: {type: Object},
 -      zenModeSidebarPinnedPref_: {type: Object},
--      forcedExpandOnHoverPref_: {type: Object},
 -    };
 -  }
 -
@@ -113,11 +112,6 @@ The title string is in the overlay's aerie_sidebar_strings.grdp.
 -  protected accessor zenModePref_: PrefObject<boolean>|undefined = undefined;
 -  protected accessor zenModeSidebarPinnedPref_: PrefObject<boolean>|undefined =
 -      undefined;
--  protected accessor forcedExpandOnHoverPref_: PrefObject<boolean> = {
--    key: 'vertical_tabs.expand_on_hover',
--    type: chrome.settingsPrivate.PrefType.BOOLEAN,
--    value: true,
--  };
 -
 -  protected accessor browserLayoutOptions_: BrowserLayoutOption[] = [
 -    {
@@ -205,7 +199,7 @@ The title string is in the overlay's aerie_sidebar_strings.grdp.
 -  <settings-toggle-button class="hr" disabled
 -      ?hidden="${!this.showVerticalTabsExpandOnHoverSetting_() ||
 -                 !this.isExpandOnHoverForcedByZenMode_()}"
--      .pref="${this.forcedExpandOnHoverPref_}"
+-      pref-key="synthetic.settings.helium.forced_expand_on_hover"
 -      label="$i18n{showVerticalTabsExpandOnHover}">
 -  </settings-toggle-button>
 -  <settings-toggle-button class="hr" id="showVerticalTabsExpandOnHover"
