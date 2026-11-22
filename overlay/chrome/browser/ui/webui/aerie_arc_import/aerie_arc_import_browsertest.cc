@@ -438,11 +438,13 @@ IN_PROC_BROWSER_TEST_F(AerieArcImportBrowserTest, FavoritesStopAtTheCap) {
             aerie_tab_model::kFavoritesCap);
 
   // The Workspace is full now: a second import adds no Favorite and says so.
+  // The 12 that came in are already there; the 2 that did not fit still do not.
   ASSERT_EQ(*Choose(Fixture("favorites.json")).FindString("status"), "ok");
   base::DictValue again = ImportSpace(0);
   ASSERT_EQ(*again.FindString("status"), "ok");
   EXPECT_EQ(IntOf(again, "favorites"), 0);
-  EXPECT_EQ(SkippedCount(again, "favorites_full"), 14);
+  EXPECT_EQ(SkippedCount(again, "already_there"), 12);
+  EXPECT_EQ(SkippedCount(again, "favorites_full"), 2);
   EXPECT_EQ(aerie_tab_model::SectionTabIds(model(), Section::kFavorite).size(),
             aerie_tab_model::kFavoritesCap);
 }
