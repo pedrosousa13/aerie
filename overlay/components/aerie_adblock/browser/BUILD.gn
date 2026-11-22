@@ -331,6 +331,7 @@ test("aerie_adblock_unittests") {
     "session_key_unittest.cc",
   ]
   deps = [
+    "//crypto",
     ":classifier",
     ":cosmetic_scripts",
     ":engine",

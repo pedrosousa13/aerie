@@ -161,13 +161,15 @@ that Private Network Access does not check (#70).
 
 Fixed in #70. The first request, the add path (`AddCustomList`) and every redirect target now go through
 `IsAcceptableListUrl`, which refuses a non-public host: loopback, private (RFC 1918), link-local, CGNAT,
-unspecified, multicast, broadcast and unique-local IP literals, IPv4-mapped forms of those, `localhost`,
+unspecified, multicast, broadcast and unique-local IP literals, IPv4-mapped forms of those, 6to4
+(`2002::/16`), `localhost`,
 `*.localhost` and single-label names. GURL turns decimal, octal and hex forms into dotted IPv4 first, so
 those are covered too. A refused redirect ends the fetch as an ordinary failure before any request goes
 to the target. The Bench's `allow_loopback` switch lets only loopback through, and never a private range.
 
-Known residual: a public-looking name that resolves (DNS) to a private address is not checked. A check
-at connection time is out of scope for #70.
+Known residual: a name that resolves (DNS) to a private address is not checked. That covers a public
+name with a private A record, mDNS `.local` names and `*.internal`-style names that resolve on the user's
+network. A check at connection time is out of scope for #70.
 
 ## Browser-specific checks
 

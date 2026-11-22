@@ -11,8 +11,11 @@
 
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
+#include "base/strings/string_number_conversions.h"
+#include "base/strings/string_util.h"
 #include "base/time/time.h"
 #include "base/values.h"
+#include "crypto/hash.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "url/gurl.h"
 
@@ -84,10 +87,69 @@ TEST(FilterListUrlTest, NonPublicAddressesAreRefused) {
            "https://2130706433/a.txt", "https://0x7f000001/a.txt",
            "https://017700000001/a.txt", "https://127.1/a.txt",
            "https://0x7f.0.0.1/a.txt", "https://3232235777/a.txt",
-           "https://0xa9fea9fe/a.txt", "https://[0:0:0:0:0:0:0:1]/a.txt",
+           "https://0xa9fea9fe/a.txt", "https://[2002:7f00:1::]/a.txt", "https://[2002:c0a8:101::1]/a.txt",
+           "https://[2002:808:808::]/a.txt", "https://[0:0:0:0:0:0:0:1]/a.txt",
            "https://[::ffff:7f00:1]/a.txt"}) {
     EXPECT_FALSE(IsAcceptableListUrl(GURL(bad), false)) << bad;
   }
+}
+
+TEST(FilterListUrlTest, TheRefusalSaysWhyAHostIsRefused) {
+  EXPECT_EQ(CheckListUrl(GURL("https://lists.example/a.txt"), false), ListFailure::kNone);
+  for (const char* url : {"https://10.0.0.1/a.txt", "https://nas/a.txt",
+                          "https://[::1]/a.txt", "https://[2002:c0a8:101::1]/a.txt"}) {
+    EXPECT_EQ(CheckListUrl(GURL(url), false), ListFailure::kNonPublicUrl) << url;
+  }
+  for (const char* url : {"http://lists.example/a.txt", "http://10.0.0.1/a.txt",
+                          "https://u:p@lists.example/a.txt", "ftp://lists.example/a"}) {
+    EXPECT_EQ(CheckListUrl(GURL(url), false), ListFailure::kInsecureUrl) << url;
+  }
+}
+
+TEST(FilterListStateTest, ANonPublicAddressIsRefusedWhenAddedAndSaysSo) {
+  FilterListState state;
+  std::string id;
+  for (const char* url : {"https://192.168.1.5/x.txt", "https://nas/list.txt",
+                          "https://localhost/x.txt", "https://[::1]/x.txt"}) {
+    EXPECT_EQ(state.AddCustomList(GURL(url), false, &id),
+              FilterListState::AddResult::kNonPublicUrl) << url;
+  }
+  EXPECT_EQ(state.AddCustomList(GURL("http://lists.example/x.txt"), false, &id),
+            FilterListState::AddResult::kInvalidUrl);
+  EXPECT_EQ(state.lists().size(), 2u);
+}
+
+// The id this build gives a custom list: "c" and 16 hex digits of the hash of
+// the address.
+std::string IdOf(const char* url) {
+  auto digest = crypto::hash::Sha256(GURL(url).spec());
+  return "c" + base::ToLowerASCII(base::HexEncode(base::span(digest).first<8u>()));
+}
+
+TEST(FilterListStateTest, ASavedListAtAHostThatIsNowRefusedIsKept) {
+  // Saved by a build that accepted any https host. Dropping it on load would
+  // lose it for good at the next save. The fetch refuses it instead, and the
+  // user sees the reason and can remove the list.
+  const char* urls[] = {"https://nas/list.txt", "https://192.168.1.5/x.txt"};
+  base::ListValue lists;
+  for (const char* url : urls) {
+    lists.Append(base::DictValue()
+                     .Set("id", IdOf(url))
+                     .Set("url", GURL(url).spec())
+                     .Set("title", GURL(url).host()));
+  }
+  base::DictValue dict;
+  dict.Set("lists", std::move(lists));
+  FilterListState state = FilterListState::FromValue(dict);
+  ASSERT_EQ(state.lists().size(), 4u);
+  for (const char* url : urls) {
+    const FilterListEntry* entry = state.Find(IdOf(url));
+    ASSERT_TRUE(entry) << url;
+    EXPECT_EQ(entry->url, GURL(url).spec());
+    EXPECT_FALSE(IsAcceptableListUrl(GURL(url), false)) << url;
+  }
+  // It survives a save and a load too.
+  EXPECT_EQ(FilterListState::FromValue(state.ToValue()).lists().size(), 4u);
 }
 
 TEST(FilterListUrlTest, TheLoopbackSwitchNeverOpensPrivateRanges) {

@@ -22,6 +22,7 @@ enum class ListFailure {
   kUnreadable,   // The cached copy could not be read from disk.
   kDownload,     // The download failed (network error, size cap, bad status).
   kInsecureUrl,  // Not https (or a redirect left https).
+  kNonPublicUrl,  // https, but the host is on the user's own network or computer.
 };
 
 // A short sentence for the settings page. Fixed text, never list content.
@@ -45,6 +46,8 @@ inline std::string ListFailureMessage(ListFailure failure) {
       return "The list could not be downloaded.";
     case ListFailure::kInsecureUrl:
       return "Only https addresses are allowed.";
+    case ListFailure::kNonPublicUrl:
+      return "This address is on your own network or computer, so Aerie does not fetch filter lists from it.";
   }
   return std::string();
 }
@@ -71,6 +74,8 @@ inline const char* ListFailureCode(ListFailure failure) {
       return "download";
     case ListFailure::kInsecureUrl:
       return "insecure_url";
+    case ListFailure::kNonPublicUrl:
+      return "non_public_url";
   }
   return "";
 }
@@ -79,7 +84,7 @@ inline const char* ListFailureCode(ListFailure failure) {
 // keeps in |error|), or "" if it is not one of them.
 inline std::string ListFailureCodeForMessage(const std::string& message) {
   for (int i = static_cast<int>(ListFailure::kTooLarge);
-       i <= static_cast<int>(ListFailure::kInsecureUrl); ++i) {
+       i <= static_cast<int>(ListFailure::kNonPublicUrl); ++i) {
     ListFailure failure = static_cast<ListFailure>(i);
     if (message == ListFailureMessage(failure)) {
       return ListFailureCode(failure);

@@ -141,6 +141,9 @@
   <message name="IDS_SETTINGS_AERIE_GUARD_LIST_ERROR_INSECURE_URL" desc="Error of a filter list: the address is not https.">
     Only https addresses are allowed.
   </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_LIST_ERROR_NON_PUBLIC_URL" desc="Error of a filter list: the https address points at the user's own network or computer.">
+    This address is on your own network or computer, so Aerie does not fetch filter lists from it.
+  </message>
   <message name="IDS_SETTINGS_AERIE_GUARD_LIST_ERROR_REQUIRED" desc="Error shown when a request to turn off the list that cannot be turned off was refused.">
     This list cannot be turned off.
   </message>

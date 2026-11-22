@@ -277,7 +277,7 @@ class ListRowsTest(unittest.TestCase):
         failure = code(BROWSER / "list_failure.h")
         codes = re.findall(r'return "([a-z_]+)";', failure.split("ListFailureCode(")[1].split("ListFailureCodeForMessage")[0])
         codes = [c for c in codes if c]
-        self.assertEqual(len(codes), 8)
+        self.assertEqual(len(codes), 9)
         given = added(LIST_STRINGS)
         for c in codes:
             key = "aerieGuardListError" + "".join(w.capitalize() for w in c.split("_"))

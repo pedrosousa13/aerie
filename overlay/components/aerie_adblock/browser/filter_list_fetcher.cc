@@ -92,13 +92,14 @@ void FilterListFetcher::Fetch(const GURL& url,
   auto download = std::make_unique<Download>();
   download->callback = std::move(callback);
 
-  if (!factory_ || !IsAcceptableListUrl(url, allow_loopback_)) {
+  const ListFailure url_failure = CheckListUrl(url, allow_loopback_);
+  if (!factory_ || url_failure != ListFailure::kNone) {
     downloads_[id] = std::move(download);
     base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE,
         base::BindOnce(&FilterListFetcher::Finish, weak_factory_.GetWeakPtr(),
                        id,
-                       factory_ ? ListFailure::kInsecureUrl : ListFailure::kDownload,
+                       factory_ ? url_failure : ListFailure::kDownload,
                        std::nullopt));
     return;
   }
@@ -149,13 +150,14 @@ void FilterListFetcher::Fetch(const GURL& url,
 }
 
 void FilterListFetcher::OnRedirect(int id, const GURL& new_url) {
-  if (IsAcceptableListUrl(new_url, allow_loopback_)) {
+  const ListFailure failure = CheckListUrl(new_url, allow_loopback_);
+  if (failure == ListFailure::kNone) {
     return;
   }
   // SimpleURLLoader allows deleting the loader inside its redirect callback
   // and does not follow the redirect if it was deleted. Finish() deletes the
   // loader now, so no request goes to the unacceptable address.
-  Finish(id, ListFailure::kInsecureUrl, std::nullopt);
+  Finish(id, failure, std::nullopt);
 }
 
 void FilterListFetcher::Finish(int id,
