@@ -67,20 +67,19 @@ already has; its text is the grd string aerieGuardPageTitle (patches/adblock/002
    GEMINI: Route;
 --- a/chrome/browser/resources/settings/settings_main/settings_main.html
 +++ b/chrome/browser/resources/settings/settings_main/settings_main.html
-@@ -69,6 +69,13 @@
-     ${this.renderPlugin_(this.routes_.SEARCH) ? html`
-       <settings-search-page-index ?in-search-mode="${this.inSearchMode_}">
-       </settings-search-page-index>
-+  <div slot="view" id="aerieGuard">
-+    <template is="dom-if" if="[[renderPlugin_(
-+        routes_.AERIE_GUARD, lastRoute_, inSearchMode_)]]" update-when-false>
-+      <settings-aerie-guard-page></settings-aerie-guard-page>
-+    </template>
-+  </div>
-+
+@@ -72,6 +72,12 @@
      ` : ''}
    </div>
  
++  <div slot="view" id="aerieGuard">
++    ${this.renderPlugin_(this.routes_.AERIE_GUARD) ? html`
++      <settings-aerie-guard-page></settings-aerie-guard-page>
++    ` : ''}
++  </div>
++
+ <if expr="not is_chromeos">
+   ${this.showPage_(this.pageVisibility_?.defaultBrowser) ? html`
+     <div slot="view" id="defaultBrowser">
 --- a/chrome/browser/resources/settings/settings_menu/settings_menu.html
 +++ b/chrome/browser/resources/settings/settings_menu/settings_menu.html
 @@ -29,6 +29,12 @@
