@@ -74,10 +74,13 @@ void TabStripAdapter::AssignId(tabs::TabHandle handle, std::string record_id) {
   handle_for_record_[std::move(record_id)] = handle;
 }
 
-void TabStripAdapter::EraseId(
-    std::map<tabs::TabHandle, std::string>::iterator it) {
+void TabStripAdapter::EraseId(tabs::TabHandle handle) {
+  auto it = ids_.find(handle);
+  if (it == ids_.end()) {
+    return;
+  }
   auto reverse = handle_for_record_.find(it->second);
-  if (reverse != handle_for_record_.end() && reverse->second == it->first) {
+  if (reverse != handle_for_record_.end() && reverse->second == handle) {
     handle_for_record_.erase(reverse);
   }
   ids_.erase(it);
@@ -153,13 +156,13 @@ void TabStripAdapter::OnTabStripModelChanged(
           // The archiver closed this tab on purpose (issue #183). The archived
           // record is the tab now: it stays, and no session keeps the tab, so
           // nothing will claim it.
-          EraseId(it);
+          EraseId(removed.tab->GetHandle());
           continue;
         }
         if (record && record->section != Section::kToday) {
           // Pinned and Favorites outlive their tab (issue #180). When the
           // window is not closing, the tab comes back.
-          EraseId(it);
+          EraseId(removed.tab->GetHandle());
           if (!tab_strip_model->closing_all() && pinned_tab_gone_) {
             pinned_tab_gone_.Run();
           }
@@ -172,14 +175,14 @@ void TabStripAdapter::OnTabStripModelChanged(
           // If the process lives on and a window opens that is not a restore,
           // the next restore pass removes it.
           model_->MarkAwaitingRestore(record->id);
-          EraseId(it);
+          EraseId(removed.tab->GetHandle());
           if (record_kept_) {
             record_kept_.Run();
           }
           continue;
         }
         model_->RemoveTab(it->second);
-        EraseId(it);
+        EraseId(removed.tab->GetHandle());
       }
       break;
     case TabStripModelChange::kMoved: {

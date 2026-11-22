@@ -136,7 +136,7 @@ class TabStripAdapter : public BrowserCollectionObserver,
   // The only writers of `ids_` and `handle_for_record_`: they keep the two in
   // step, so that TabForRecord is a lookup and not a scan.
   void AssignId(tabs::TabHandle handle, std::string record_id);
-  void EraseId(std::map<tabs::TabHandle, std::string>::iterator it);
+  void EraseId(tabs::TabHandle handle);
 
   bool Watches(BrowserWindowInterface* browser) const;
   // True when the record of a tab that goes away with its closing window should

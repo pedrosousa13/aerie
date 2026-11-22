@@ -68,12 +68,12 @@ class PinnedTabsController : public TabModelObserver,
   // call again while a restore runs: the call makes sure that the records that
   // are missing a tab by now get one, and no record gets two tabs. `done` runs
   // once, after the restore has finished (at once when there is nothing to do).
-  // It also runs when the controller's window goes away and the restore
-  // stops early; it does not run if the controller is destroyed first.
+  // It also runs when the restore stops early: the Tab Model is not read yet,
+  // or there is no window, or the window went away. Those cases are not
+  // errors: the restore starts again when the Tab Model is read (OnModelLoaded)
+  // or when a window appears (OnBrowserCreated), and `done` does not wait for
+  // that. It does not run if the controller is destroyed first.
   void RestoreMissingTabs(base::OnceClosure done = base::OnceClosure());
-  // How many tabs one batch makes. A tab restored unloaded takes a few
-  // milliseconds; this keeps a batch far below 100 ms.
-  static constexpr size_t kRestoreBatchSize = 5;
   // The records that wait for a tab, for tests.
   std::vector<std::string> RecordsWithoutTab() const;
 
@@ -115,7 +115,9 @@ class PinnedTabsController : public TabModelObserver,
   void ScheduleRestore();
   void RestoreBatch();
   void FinishRestore();
-  void RestoreOne(BrowserWindowInterface* browser, const std::string& id);
+  // Makes the tab of record `id`. False, and no tab, when its address does not
+  // parse.
+  bool RestoreOne(BrowserWindowInterface* browser, const std::string& id);
   BrowserWindowInterface* RestoreTarget() const;
   // Selects the tab that follows `tab` in the sidebar, else the one above it,
   // else opens a new tab; only for the selected tab.

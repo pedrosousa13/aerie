@@ -50,6 +50,9 @@ namespace {
 // How long a reset waits for the pinned page to finish loading before the tab
 // is put to sleep anyway.
 constexpr base::TimeDelta kResetTimeout = base::Seconds(20);
+// How many tabs one restore batch makes. A tab restored unloaded takes a few
+// milliseconds; this keeps a batch far below 100 ms (issue #276).
+constexpr size_t kRestoreBatchSize = 5;
 
 }  // namespace
 
@@ -222,7 +225,8 @@ void PinnedTabsController::RestoreBatch() {
     FinishRestore();
     return;
   }
-  for (size_t made = 0; made < kRestoreBatchSize && !restore_queue_.empty();) {
+  size_t made = 0;
+  while (made < kRestoreBatchSize && !restore_queue_.empty()) {
     const std::string id = std::move(restore_queue_.front());
     restore_queue_.pop_front();
     const TabRecord* record = model_->GetTab(id);
@@ -230,8 +234,10 @@ void PinnedTabsController::RestoreBatch() {
     if (!record || !record->pinned_url || adapter_->TabForRecord(id)) {
       continue;
     }
-    RestoreOne(browser, id);
-    ++made;
+    // Only a tab that was made counts against the batch.
+    if (RestoreOne(browser, id)) {
+      ++made;
+    }
   }
   if (restore_queue_.empty() && rescan_) {
     rescan_ = false;
@@ -257,12 +263,12 @@ void PinnedTabsController::FinishRestore() {
   }
 }
 
-void PinnedTabsController::RestoreOne(BrowserWindowInterface* browser,
+bool PinnedTabsController::RestoreOne(BrowserWindowInterface* browser,
                                       const std::string& id) {
   const TabRecord* record = model_->GetTab(id);
   const GURL url(*record->pinned_url);
   if (!url.is_valid()) {
-    return;
+    return false;
   }
   sessions::SerializedNavigationEntry navigation;
   navigation.set_index(0);
@@ -288,6 +294,7 @@ void PinnedTabsController::RestoreOne(BrowserWindowInterface* browser,
   // Not loaded: the sidebar shows it as asleep until it is selected (the
   // decision of issue #180: one look for "not loaded", the moon badge).
   model_->UpdateTab(id, [](TabRecord& tab) { tab.sleeping = true; });
+  return true;
 }
 
 PinnedCloseAction PinnedTabsController::ActionFor(tabs::TabInterface* tab) const {
