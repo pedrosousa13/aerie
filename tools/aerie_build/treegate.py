@@ -409,6 +409,40 @@ def check_audio_noise_stable(root: Path, require: bool = False) -> list[Finding]
     return out
 
 
+WORKLET_PROXY_PATH = "third_party/blink/renderer/core/workers/threaded_worklet_messaging_proxy.cc"
+WORKLET_SCOPE_PATH = "third_party/blink/renderer/core/workers/worklet_global_scope.cc"
+WORKLET_PROCESSOR_PATH = AUDIO_DIR + "/audio_worklet_processor.cc"
+SCRIPT_PROCESSOR_PATH = AUDIO_DIR + "/script_processor_node.cc"
+
+
+def check_audio_worklet_noise(root: Path, require: bool = False) -> list[Finding]:
+    """An audio worklet and a ScriptProcessorNode read the samples before they leave the graph, so they get
+    the same Helium audio noise as a rendered buffer (issue #157). The worklet carries its creating page's
+    tokens (empty when protection is off), AudioWorkletProcessor::Process noises each block of input after it
+    is copied and before process() runs, and a ScriptProcessorNode noises the input buffer of each event."""
+    gate = "audio_worklet_noise"
+    out: list[Finding] = []
+    for rel, pattern, message in (
+        (WORKLET_PROXY_PATH, r"helium_noise_tokens\s*=\s*window->GetHeliumNoiseTokens\(\)",
+         "an audio worklet must be given the noise tokens of the window that created it"),
+        (WORKLET_SCOPE_PATH, r"SetHeliumNoiseTokens\(\s*creation_params->helium_noise_tokens\s*\)",
+         "a worklet global scope must take its tokens from the creation params"),
+        (WORKLET_PROCESSOR_PATH,
+         r"CopyPortToArrayBuffers\(isolate, inputs, input_array_buffers_\);\s*"
+         r"JitterInputArrayBuffers\(isolate, global_scope_, input_array_buffers_\);",
+         "Process must noise the copied input arrays before process() runs"),
+        (WORKLET_PROCESSOR_PATH,
+         r"void JitterInputArrayBuffers\([^)]*\)\s*\{\s*AudioReadbackNoise noise\(context\);.*?"
+         r"noise\.AddSource\(.*?noise\.Jitter\(sample, index\+\+\)",
+         "the worklet input must be noised with AudioReadbackNoise: hash every channel, then jitter by position"),
+        (SCRIPT_PROCESSOR_PATH,
+         r"AudioReadbackNoise noise\(GetExecutionContext\(\)\);.*?noise\.AddSource\(.*?noise\.Jitter\(sample, index\+\+\)",
+         "a ScriptProcessorNode must noise its input buffer with AudioReadbackNoise"),
+    ):
+        out += _must_match(root, rel, gate, pattern, message, require)
+    return out
+
+
 WEBGL_CONTEXT_PATH = "third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc"
 GPU_ADAPTER_PATH = "third_party/blink/renderer/modules/webgpu/gpu_adapter.cc"
 
@@ -691,7 +725,7 @@ GATES: tuple[Callable[..., list[Finding]], ...] = (
     check_search_list, check_search_suggestions, check_secure_dns_default,
     check_crash_reporting, check_services_off, check_fedcm_resolver, check_widevine_opt_in,
     check_https_first_dialog_off, check_private_ai_off, check_link_prefetch_off, check_js_optimizer, check_services_ui,
-    check_audio_noise_stable, check_gpu_masking, check_webgl_readpixels, check_worker_noise_tokens, check_workspace_noise_partition, check_popup_noise_tokens,
+    check_audio_noise_stable, check_audio_worklet_noise, check_gpu_masking, check_webgl_readpixels, check_worker_noise_tokens, check_workspace_noise_partition, check_popup_noise_tokens,
     check_text_metrics_noise, check_request_policy,
 )
 
