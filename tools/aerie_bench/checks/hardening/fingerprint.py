@@ -23,7 +23,15 @@ from .common import HardeningCheck, Verdict, page_value, site
 from .fingerprint_site import BLOCK, SITE_PATTERN, seeded_exceptions
 
 KINDS = ("canvas", "audio")
-JITTER_BOUND = 1e-4  # Helium's largest audio jitter, as a fraction of the sample (kMaxAudioJitterSteps * kAudioJitterStep)
+# Helium's largest audio jitter as a fraction of the sample: kMaxAudioJitterSteps * kAudioJitterStep =
+# 10000 * (0.0001 / 10000) = 0.01%, in third_party/blink/renderer/modules/webaudio/base_audio_context.cc
+# (added by Helium's core/noise/audio.patch). A change of Helium's noise size must change this too.
+JITTER_BOUND = 1e-4
+# The sample is a float32 of value * (1 + jitter), so it can round a little past the exact bound. This much
+# relative slack covers that rounding; the absolute term covers a sample of exactly 0.
+BOUND_ROUNDING_SLACK = 1.001
+BOUND_ABSOLUTE_SLACK = 1e-12
+PAGE_RUNS = ("a1", "a2", "b1")  # the three loads that the page makes in the first browser session
 
 
 def fingerprint(session: Session, name: str) -> dict:
@@ -54,7 +62,7 @@ class Fingerprinting(HardeningCheck):
     @staticmethod
     def judge_worklet(obs: dict) -> Verdict | None:
         """The worklet tap. None when it all holds."""
-        for key in ("a1", "a2", "b1"):
+        for key in PAGE_RUNS:
             if "worklet" not in obs[key] or not obs[key].get("worklet_samples"):
                 return "fail", f"the page made no worklet read ({key} has no worklet samples)"
         control = obs["control"]
@@ -65,23 +73,27 @@ class Fingerprinting(HardeningCheck):
             return "fail", "worklet audio changed between two loads of one site in one session"
         if obs["a1"]["worklet"] == obs["b1"]["worklet"]:
             return "fail", f"worklet audio is the same on two different sites ({obs['a1']['worklet']})"
+        if obs["a1"]["worklet"] == obs["next_session"]["a"].get("worklet"):
+            return "fail", f"worklet audio is the same in a new browser session ({obs['a1']['worklet']})"
         if obs["a1"]["worklet"] == control["a"]["worklet"]:
             return "fail", "the worklet reads the same samples as the no-noise control, so the worklet is not noised"
         if obs["site_off"]["a"].get("worklet") != control["a"]["worklet"]:
             return "fail", "with protection off for a site the worklet still reads noised samples"
         real = control["a"]["worklet_samples"]
-        for key in ("a1", "b1"):
-            samples = obs[key]["worklet_samples"]
+        noised = {key: obs[key] for key in PAGE_RUNS}
+        noised["next_session"] = obs["next_session"]["a"]
+        for key, run in noised.items():
+            samples = run.get("worklet_samples", [])
             if len(samples) != len(real):
                 return "fail", f"the worklet read {len(samples)} samples in {key} and {len(real)} in the control"
             for i, (got, want) in enumerate(zip(samples, real)):
-                if abs(got - want) > abs(want) * JITTER_BOUND * 1.001 + 1e-12:
+                if abs(got - want) > abs(want) * JITTER_BOUND * BOUND_ROUNDING_SLACK + BOUND_ABSOLUTE_SLACK:
                     return "fail", f"worklet sample {i} in {key} is outside the 0.01% jitter bound ({got} vs {want})"
         return None
 
     @staticmethod
     def judge(obs: dict) -> Verdict:
-        for key in ("a1", "a2", "b1"):
+        for key in PAGE_RUNS:
             if "error" in obs[key]:
                 return "fail", f"the fingerprint page failed ({key}): {obs[key]['error']}"
         for kind in KINDS:
@@ -93,7 +105,7 @@ class Fingerprinting(HardeningCheck):
             if obs["a1"][kind] != obs["a2"][kind]:
                 return "fail", f"{kind} changed between two loads of one site in one session"
             if kind == "audio":  # the page renders the graph a second time
-                for key in ("a1", "a2", "b1"):
+                for key in PAGE_RUNS:
                     if "audio_again" not in obs[key]:
                         return "fail", f"the page made no second audio render ({key} has no audio_again)"
                     if obs[key]["audio_again"] != obs[key]["audio"]:

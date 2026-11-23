@@ -416,6 +416,20 @@ class FingerprintJudgeTest(unittest.TestCase):
         obs["a2"]["worklet_samples"][1] *= 1.001
         self.assertIn("outside the 0.01% jitter bound", fingerprint.Fingerprinting.judge(obs)[1])
 
+    def test_a_worklet_that_reads_the_same_in_a_new_session_fails(self):
+        obs = self.obs()
+        obs["next_session"]["a"]["worklet"] = obs["a1"]["worklet"]
+        self.assertIn("worklet audio is the same in a new browser session", fingerprint.Fingerprinting.judge(obs)[1])
+
+    def test_every_noised_worklet_run_is_held_to_the_jitter_bound(self):
+        for key in ("a2", "b1"):
+            obs = self.obs()
+            obs[key]["worklet_samples"][2] *= 1.001
+            self.assertIn(f"in {key} is outside the 0.01% jitter bound", fingerprint.Fingerprinting.judge(obs)[1])
+        obs = self.obs()
+        obs["next_session"]["a"]["worklet_samples"][0] *= 1.001
+        self.assertIn("in next_session is outside the 0.01% jitter bound", fingerprint.Fingerprinting.judge(obs)[1])
+
     def test_the_worklet_negative_control_must_agree_between_sites(self):
         obs = self.obs()
         obs["control"]["b"]["worklet"] = "w7"

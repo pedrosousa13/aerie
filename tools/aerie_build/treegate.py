@@ -411,6 +411,8 @@ def check_audio_noise_stable(root: Path, require: bool = False) -> list[Finding]
 
 WORKLET_PROXY_PATH = "third_party/blink/renderer/core/workers/threaded_worklet_messaging_proxy.cc"
 WORKLET_PROXY_HEADER_PATH = AUDIO_DIR + "/audio_worklet_messaging_proxy.h"
+WORKLET_PROXY_BASE_PATH = "third_party/blink/renderer/core/workers/threaded_worklet_messaging_proxy.h"
+WORKLET_HELPER_PATH = AUDIO_DIR + "/base_audio_context.h"
 WORKLET_SCOPE_PATH = "third_party/blink/renderer/core/workers/worklet_global_scope.cc"
 WORKLET_PROCESSOR_PATH = AUDIO_DIR + "/audio_worklet_processor.cc"
 SCRIPT_PROCESSOR_PATH = AUDIO_DIR + "/script_processor_node.cc"
@@ -420,12 +422,19 @@ def check_audio_worklet_noise(root: Path, require: bool = False) -> list[Finding
     """An audio worklet and a ScriptProcessorNode read the samples before they leave the graph, so they get
     the same Helium audio noise as a rendered buffer (issue #157). The worklet carries its creating page's
     tokens (empty when protection is off), AudioWorkletProcessor::Process noises each block of input after it
-    is copied and before process() runs, and a ScriptProcessorNode noises the input buffer of each event."""
+    is copied and before process() runs, and a ScriptProcessorNode noises the input buffer of each event. Both go
+    through the one helper JitterReadbackChannels. Only the audio proxy overrides CarriesNoiseTokens(); the base
+    default stays false, so paint, layout and animation worklets stay without tokens."""
     gate = "audio_worklet_noise"
     out: list[Finding] = []
     for rel, pattern, message in (
         (WORKLET_PROXY_PATH, r"helium_noise_tokens\s*=\s*window->GetHeliumNoiseTokens\(\)",
          "an audio worklet must be given the noise tokens of the window that created it"),
+        (WORKLET_PROXY_BASE_PATH, r"virtual bool CarriesNoiseTokens\(\) const \{ return false; \}",
+         "the base worklet proxy must carry no noise tokens, so paint, layout and animation worklets stay token-free"),
+        (WORKLET_HELPER_PATH,
+         r"void JitterReadbackChannels\(.*?noise\.AddSource\(.*?noise\.Jitter\(sample, index\+\+\)",
+         "JitterReadbackChannels must hash every channel into the noise, then jitter by position across the channels"),
         (WORKLET_PROXY_HEADER_PATH, r"bool CarriesNoiseTokens\(\) const override \{ return true; \}",
          "the audio worklet proxy must be the one that carries noise tokens"),
         (WORKLET_SCOPE_PATH, r"SetHeliumNoiseTokens\(\s*creation_params->helium_noise_tokens\s*\)",
@@ -436,11 +445,11 @@ def check_audio_worklet_noise(root: Path, require: bool = False) -> list[Finding
          "Process must noise the copied input arrays before process() runs"),
         (WORKLET_PROCESSOR_PATH,
          r"void JitterInputArrayBuffers\([^)]*\)\s*\{\s*AudioReadbackNoise noise\(context\);.*?"
-         r"noise\.AddSource\(.*?noise\.Jitter\(sample, index\+\+\)",
-         "the worklet input must be noised with AudioReadbackNoise: hash every channel, then jitter by position"),
+         r"JitterReadbackChannels\(noise,",
+         "the worklet input must be noised with AudioReadbackNoise through JitterReadbackChannels"),
         (SCRIPT_PROCESSOR_PATH,
-         r"AudioReadbackNoise noise\(GetExecutionContext\(\)\);.*?noise\.AddSource\(.*?noise\.Jitter\(sample, index\+\+\)",
-         "a ScriptProcessorNode must noise its input buffer with AudioReadbackNoise"),
+         r"AudioReadbackNoise noise\(GetExecutionContext\(\)\);.*?JitterReadbackChannels\(noise,",
+         "a ScriptProcessorNode must noise its input buffer with AudioReadbackNoise through JitterReadbackChannels"),
     ):
         out += _must_match(root, rel, gate, pattern, message, require)
     return out
