@@ -13,7 +13,7 @@ GetCanvasTokenHash, the same gate as getImageData: it does nothing without the t
 for the browser or for the site, or kHeliumNoiseCanvas disabled) and without kHeliumNoiseCanvas, so the
 real bytes come back. The token is derived per site and session in the browser and the renderer never
 sees the session token; a worker (OffscreenCanvas) uses its own tokens (issue #113). The noise is
-keyed on the pixel position in the framebuffer, so two reads of overlapping areas agree. Which reads
+keyed on the pixel position in the framebuffer, so two reads of overlapping areas agree away from the edges of the read (Helium 0.22 noise looks at the 3x3 neighbourhood, and a read only has its own pixels). Which reads
 count and where the pixels lie in the destination (PACK_ROW_LENGTH, PACK_SKIP_PIXELS, PACK_SKIP_ROWS,
 PACK_ALIGNMENT) are pure code with unit tests in overlay/components/aerie_webgl_readback. A read with
 padded rows is noised on a tightly packed copy and copied back, so the padding bytes are not touched.
@@ -72,7 +72,7 @@ passed in, which is at most one level on a channel.
  #include "base/memory/scoped_refptr.h"
  #include "base/numerics/byte_conversions.h"
  #include "base/numerics/safe_conversions.h"
-@@ -612,4 +613,64 @@
+@@ -612,4 +613,70 @@
    return true;
  }
  
@@ -106,11 +106,17 @@ passed in, which is at most one level on a channel.
 +    return false;
 +  }
 +
++  // The pixels lie at x, y on the framebuffer. Only what the read returned is
++  // known, so the noise of an edge pixel looks at that read alone.
++  const gfx::Rect rect(x, y, width, height);
 +  if (row_stride == row_bytes) {
-+    return HeliumNoisePixelBuffer(
-+        *token_hash, kRGBA_8888_SkColorType,
-+        buffer.subspan(first_pixel_offset, row_bytes * height), width, height,
-+        x, y);
++    base::span<uint8_t> pixels =
++        buffer.subspan(first_pixel_offset, row_bytes * height);
++    const NoiseSource source{
++        rect, rect, QuantizePixels(kRGBA_8888_SkColorType, pixels)};
++    HeliumNoisePixelBuffer(*token_hash, source, kRGBA_8888_SkColorType, pixels,
++                           rect);
++    return true;
 +  }
 +
 +  // Rows with padding or a wider PACK_ROW_LENGTH: noise a tightly packed copy,
@@ -122,10 +128,10 @@ passed in, which is at most one level on a channel.
 +                                 row_bytes);
 +    std::ranges::copy(source, packed.begin() + row * row_bytes);
 +  }
-+  if (!HeliumNoisePixelBuffer(*token_hash, kRGBA_8888_SkColorType, packed,
-+                              width, height, x, y)) {
-+    return false;
-+  }
++  const NoiseSource source{
++      rect, rect, QuantizePixels(kRGBA_8888_SkColorType, packed)};
++  HeliumNoisePixelBuffer(*token_hash, source, kRGBA_8888_SkColorType, packed,
++                         rect);
 +  for (int row = 0; row < height; ++row) {
 +    auto destination = buffer.subspan(first_pixel_offset + row * row_stride,
 +                                      row_bytes);
