@@ -74,6 +74,11 @@ HTTPS_DIALOG_OK = """// Enables a dialog-based UI for HTTPS-First Mode.
 BASE_FEATURE(kHttpsFirstDialogUi, base::FEATURE_DISABLED_BY_DEFAULT);
 """
 
+PRIVATE_AI_OK = """BASE_FEATURE(kPrivateAi, base::FEATURE_DISABLED_BY_DEFAULT);
+
+BASE_FEATURE(kPrivateAiServerAttestation, base::FEATURE_ENABLED_BY_DEFAULT);
+"""
+
 LINK_PREFETCH_CLIENT_OK = """  web_prefs->dns_prefetching_enabled =
       prefetch::IsSomePreloadingEnabled(*prefs) ==
       content::PreloadingEligibility::kEligible;
@@ -330,7 +335,7 @@ WORKER_GOOD = {
     treegate.WORKER_SHARED_IMPL_PATH: WORKER_SHARED_IMPL_OK,
     treegate.WORKER_SERVICE_IMPL_PATH: WORKER_SERVICE_IMPL_OK,
     treegate.WORKER_TOKENS_PATH: WORKER_TOKENS_OK,
-    treegate.WORKER_SHARED_SERVICE_PATH: WORKER_SHARED_SERVICE_OK,
+    treegate.SHARED_WORKER_SERVICE_IMPL_PATH: WORKER_SHARED_SERVICE_OK,
     treegate.WORKER_SERVICE_HOST_PATH: WORKER_SERVICE_HOST_OK,
     treegate.WORKER_GPU_PATH: WORKER_GPU_OK,
 }
@@ -410,7 +415,13 @@ PARTITION_NAV_OK = """    noise_tokens_ = HeliumNoiseTokenData::GetTokensForMain
           browser_context, origin_to_commit.value(),
           site_info_.GetStoragePartitionConfig());
 """
+PARTITION_STORAGE_OK = """  shared_worker_service_ =
+      std::make_unique<SharedWorkerServiceImpl>(this, service_worker_context_);
+"""
+PARTITION_SERVICE_HEADER_OK = "  const raw_ptr<StoragePartitionImpl> storage_partition_;\n"
 PARTITION_GOOD = {
+    treegate.STORAGE_PARTITION_IMPL_PATH: PARTITION_STORAGE_OK,
+    treegate.SHARED_WORKER_SERVICE_HEADER_PATH: PARTITION_SERVICE_HEADER_OK,
     treegate.WORKER_TOKENS_PATH: PARTITION_TOKENS_OK + WORKER_TOKENS_OK,
     treegate.PARTITION_NAV_PATH: PARTITION_NAV_OK,
 }
@@ -424,6 +435,7 @@ GOOD = {
     **PARTITION_GOOD,
     **POPUP_GOOD,
     **TEXT_METRICS_GOOD,
+    "components/private_ai/features.cc": PRIVATE_AI_OK,
     treegate.CANVAS_HELPER_PATH: READPIXELS_HELPER_OK,
     "chrome/browser/component_updater/widevine_cdm_component_installer.cc": WIDEVINE_INSTALLER_OK,
     "chrome/browser/component_updater/registration.cc": WIDEVINE_REG_OK,
@@ -584,6 +596,17 @@ class DefaultsGatesTest(TreeCase):
         findings = treegate.check_https_first_dialog_off(self.root)
         self.assertEqual([f.gate for f in findings], ["https_first_dialog_off"])
 
+    def test_the_private_ai_client_must_stay_off(self):
+        path = "components/private_ai/features.cc"
+        self.write({path: PRIVATE_AI_OK})
+        self.assertEqual(treegate.check_private_ai_off(self.root, require=True), [])
+        self.write({path: PRIVATE_AI_OK.replace("kPrivateAi, base::FEATURE_DISABLED", "kPrivateAi, base::FEATURE_ENABLED")})
+        self.assertEqual([f.gate for f in treegate.check_private_ai_off(self.root)], ["private_ai_off"])
+        (self.root / path).unlink()
+        self.assertEqual(treegate.check_private_ai_off(self.root), [])
+        self.assertEqual(len(treegate.check_private_ai_off(self.root, require=True)), 1)
+        self.assertIn(treegate.check_private_ai_off, treegate.GATES)
+
     def test_link_prefetch_must_follow_the_preloading_pref(self):
         client = "chrome/browser/chrome_content_browser_client.cc"
         blink = "third_party/blink/renderer/core/loader/preload_helper.cc"
@@ -676,7 +699,7 @@ class WorkerNoiseTokensGateTest(TreeCase):
             treegate.WORKER_DEDICATED_PATH: "",
             treegate.WORKER_SHARED_IMPL_PATH: "",
             treegate.WORKER_SERVICE_IMPL_PATH: "",
-            treegate.WORKER_SHARED_SERVICE_PATH: "",
+            treegate.SHARED_WORKER_SERVICE_IMPL_PATH: "",
             treegate.WORKER_SERVICE_HOST_PATH: "",
         }
         for path, text in bad.items():
@@ -745,6 +768,14 @@ class WorkspaceNoisePartitionGateTest(TreeCase):
                 self.good()
                 self.write({path: text})
                 self.assertIn(path, {f.path for f in self.findings()})
+
+    def test_a_shared_worker_service_must_belong_to_one_storage_partition(self):
+        for path, text in ((treegate.STORAGE_PARTITION_IMPL_PATH,
+                            PARTITION_STORAGE_OK.replace("make_unique<SharedWorkerServiceImpl>(this,", "make_unique<SharedWorkerServiceImpl>(nullptr,")),
+                           (treegate.SHARED_WORKER_SERVICE_HEADER_PATH, "")):
+            self.good()
+            self.write({path: text})
+            self.assertEqual({f.path for f in self.findings()}, {path})
 
     def test_the_gate_runs_with_the_others(self):
         self.assertIn(treegate.check_workspace_noise_partition, treegate.GATES)
@@ -935,7 +966,7 @@ class RunTest(TreeCase):
 
     def test_empty_tree_passes_unless_required(self):
         self.assertEqual(self.run_gates(), [])
-        self.assertEqual(len(self.run_gates(require=True)), 62)
+        self.assertEqual(len(self.run_gates(require=True)), 65)
 
     def test_format_report(self):
         self.write({"a.cc": '"https://services.helium.imput.net"\n'})

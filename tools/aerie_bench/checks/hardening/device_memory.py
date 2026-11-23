@@ -4,8 +4,8 @@ Aerie patch hardening/0012 lowers the desktop maximum from 32 to 8 for a context
 protection: the global pref is on and the site has no per-site off. The window decides it from its Helium
 noise tokens, the headers decide it browser-side from the pref and the helium_noise content setting.
 The check runs with protection on (capped), with the pref off and with a per-site HELIUM_NOISE exception for
-the fixture origin (both report the real value in the window and in both headers). A worker has no noise tokens
-yet (issue #113), so it fails closed and may stay capped when protection is off; it must still report a number.
+the fixture origin (both report the real value in the window and in both headers). The worker cap does not read the worker's
+noise token, so a worker stays capped when protection is off; it must still report a number.
 A machine with 8 GB or less reports its real bucket either way, so the check cannot tell the cap from the
 machine: it is inconclusive there, never a pass.
 """
@@ -95,7 +95,7 @@ class DeviceMemory(HardeningCheck):
     @staticmethod
     def _real_problem(label: str, side: dict, real: float) -> str | None:
         """Protection is off here: the window and both headers report the machine's own bucket. The worker is
-        not held to it (it has no noise tokens until issue #113 and stays capped), but it must report a number."""
+        not held to it (its cap does not read its noise token, so it stays capped), but it must report a number."""
         window, worker = side.get("window"), side.get("worker")
         header, legacy = parse_hint(side.get("header")), parse_hint(side.get("legacy_header"))
         if window is None:

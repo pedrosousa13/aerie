@@ -80,6 +80,9 @@ services/0006-remove-the-helium-services-ui.patch
 # chrome://components says "Component updates are disabled" without pointing at Helium services (#131).
 services/0007-components-page-says-aerie.patch
 
+# Chromium 158's Private AI client is off by default, not by luck (#304).
+services/0008-turn-the-private-ai-client-off.patch
+
 # The Aerie Guard strings join the grd after the other Aerie string parts (#99).
 adblock/0017-add-aerie-guard-strings.patch
 

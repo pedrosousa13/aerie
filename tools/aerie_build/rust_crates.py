@@ -32,6 +32,7 @@ network and no Chromium tree. Only `resolve` and `run_gnrt` run programs.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import io
 import re
@@ -548,30 +549,47 @@ def drop_patched_crates(tree: Path, added: Iterable[Package], log) -> None:
             log(f"crates: {name} has crate patches; removed it so gnrt vendor downloads and patches it again")
 
 
-def run_gnrt(tree: Path, python: Path | str, env: dict, log, runner) -> None:
-    """`gnrt vendor` then `gnrt gen`, through Chromium's own wrapper (builds gnrt with the in-tree cargo)."""
-    script = Path(tree) / "tools" / "crates" / "run_gnrt.py"
-    if not script.is_file():
-        raise CratesError(f"{script} is missing; this Chromium tree has no gnrt")
-    tree = Path(tree)
-    # The first step of `gnrt vendor` resolves against crates.io, whose copy of a crate that Chromium
-    # patched may not fit Chromium's lock (harfrust 0.14 pins icu_properties =2.2.0). Point those crates
-    # at Chromium's own patched copies for that step only, then put the manifest and the lock entries back.
+def _keep_chromium_entries_of_patched_crates(before_text: str, after_text: str) -> str:
+    """after_text with the lock entry of each patched crate as it was in before_text.
+
+    A crate that cargo took from Chromium's vendor directory has no `source` in the new lock, but Chromium's
+    own lock names crates.io for it."""
+    before = parse_lock(before_text)
+    local = [before[key] for key, pkg in parse_lock(after_text).items()
+             if pkg.source is None and key in before and key[0] != ROOT_PACKAGE]
+    return merge_lock(after_text, local)
+
+
+@contextlib.contextmanager
+def _with_chromium_patched_crates(tree: Path):
+    """For the first step of `gnrt vendor`, which resolves against crates.io: point the crates that Chromium
+    patched at its own vendored copies (harfrust 0.14 pins icu_properties =2.2.0 on crates.io, and Chromium's
+    lock holds 2.4.0). The manifest is put back afterwards, also after a failure, and the lock entries of those
+    crates are put back after a success."""
     section = _patch_section(tree)
+    if not section:
+        yield
+        return
     manifest, lock_file = tree / CARGO_TOML, tree / CARGO_LOCK
     original_toml, original_lock = manifest.read_text(encoding="utf-8"), lock_file.read_text(encoding="utf-8")
-    if section:
-        manifest.write_text(original_toml + section, encoding="utf-8")
+    manifest.write_text(original_toml + section, encoding="utf-8")
     try:
-        runner(log, [python, script, "vendor"], env, cwd=tree)
+        yield
     finally:
         manifest.write_text(original_toml, encoding="utf-8")
-    if section:
-        before = parse_lock(original_lock)
-        after_text = lock_file.read_text(encoding="utf-8")
-        local = [before[k] for k, pkg in parse_lock(after_text).items()
-                 if pkg.source is None and k in before and k[0] != ROOT_PACKAGE]
-        lock_file.write_text(merge_lock(after_text, local), encoding="utf-8")
+    lock_file.write_text(
+        _keep_chromium_entries_of_patched_crates(original_lock, lock_file.read_text(encoding="utf-8")),
+        encoding="utf-8")
+
+
+def run_gnrt(tree: Path, python: Path | str, env: dict, log, runner) -> None:
+    """`gnrt vendor` then `gnrt gen`, through Chromium's own wrapper (builds gnrt with the in-tree cargo)."""
+    tree = Path(tree)
+    script = tree / "tools" / "crates" / "run_gnrt.py"
+    if not script.is_file():
+        raise CratesError(f"{script} is missing; this Chromium tree has no gnrt")
+    with _with_chromium_patched_crates(tree):
+        runner(log, [python, script, "vendor"], env, cwd=tree)
     runner(log, [python, script, "gen"], env, cwd=tree)
 
 

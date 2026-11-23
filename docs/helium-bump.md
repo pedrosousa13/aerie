@@ -113,6 +113,19 @@ new tarball, so its report says the diff was not run. Then run it later with:
 and paste the output into the report. If a tarball cannot be read (a damaged file, no `zstd`), the bump goes on and the report says why the diff was not run. A later `./aerie bump` run rewrites the
 patch table but keeps a traffic section that is filled in.
 
+## Things a bump needed before
+
+- Helium's `pruning.list` can name files of an asset that Aerie does not download (the 0.22 list names
+  `components/helium_onboarding/node_modules/...`). `prune_binaries.py` fails on an absent file, so the build
+  prunes with a copy of the list without the lines under a dropped section's `output_path`
+  (`helium_deps.write_filtered_pruning`).
+- Chromium patches some vendored crates (`third_party/rust/chromium_crates_io/patches/`), and crates.io's copy
+  may not fit Chromium's lock (harfrust 0.14 and icu_properties in 158). `./aerie crates resolve` and the
+  first step of `gnrt vendor` point those crates at Chromium's own copies through a temporary
+  `[patch.crates-io]` table (`rust_crates._with_chromium_patched_crates`). Re-run `./aerie crates resolve` and commit
+  `rust/crates.lock.toml` on every Chromium bump.
+- The test data pins in `helium.lock` (`[test_data.*]`) need new digests for the new Chromium version.
+
 ## The fix-up routine
 
 After `./aerie bump` exits with 3, or when the bump PR is a draft:

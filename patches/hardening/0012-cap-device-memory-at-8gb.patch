@@ -13,8 +13,9 @@ Every reader decides per context:
   HeliumNoise feature is on and the window has a Helium noise token (kHardware). The browser
   sends noise tokens only when the helium.noise.enabled pref is on and the site has no per-site
   off, so a token means "protected here", the same rule as ShouldMaskGpuInfoForContext
-  (#112). A worker has no tokens yet, so it fails closed and is capped while the feature is
-  on, even when protection is off, until issue #113 gives workers tokens. The decision reads
+  (#112). A worker has tokens under Helium 0.22 but this helper does not read them: a worker is
+  always capped while the feature is on, also when protection is off for its site. The decision
+  reads
   nothing the page can set.
 - Device-Memory and Sec-CH-Device-Memory on requests that the renderer builds
   (FrameFetchContext): the same helper, on the requesting window.
@@ -148,8 +149,8 @@ profile is never written to disk), see hardening/0011.
 +// browser sends noise tokens only when fingerprinting protection is on for the
 +// page (the pref is on and the site has no per-site off), so a token means
 +// "protected here", as for the GPU (ShouldMaskGpuInfoForContext). A worker has
-+// no tokens yet (issue #113) and fails closed: it is capped while the feature
-+// is on. Nothing here reads a value the page can set.
++// tokens too, but is not asked: it is capped while the feature is on, also
++// when protection is off. Nothing here reads a value the page can set.
 +// static
 +bool NavigatorDeviceMemory::ShouldCapDeviceMemory(
 +    const ExecutionContext* context) {

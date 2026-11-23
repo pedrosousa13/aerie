@@ -80,6 +80,7 @@ that. What Aerie adds, because it is still reachable on the pinned build:
 | `dns.google` and other DoH providers | Chromium's default secure DNS mode is Automatic, which upgrades to a provider that matches the system resolver | Default is Off (patch `network/0001`). Every provider stays selectable. |
 | `google.com`, `google.*` search | `break_stuff_google` in the built-in engine list | Not in the list (patch `search/0001`). |
 | `dns.google/resolve` (FedCM) | `ChromeContentBrowserClient::GetDnsTxtResolverUrlPrefix()` returned it; a page using FedCM delegation could make the browser query Google DNS | Returns an empty string, and `dns_request.cc` answers with no result without a request (patch `services/0005`). A source gate checks it. |
+| Chromium Private AI (`private_ai_cert_fetch`, `private_ai_tls_client`) | New in Chromium 158: `PrivateAiServiceFactory` builds a client that fetches a TLS certificate and opens a TLS websocket when `kPrivateAi` is on, and it is on by default | `kPrivateAi` is off by default, so no service is built (patch `services/0008`; the `private_ai_off` source gate checks it). |
 | Search suggestions | Sent each keystroke to the engine | Off by default in Helium (`inox-patchset/modify-default-prefs.patch`); a source gate checks it. |
 
 ### Started by the user or a page, not patched

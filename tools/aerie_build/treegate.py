@@ -183,6 +183,16 @@ def check_services_off(root: Path, require: bool = False) -> list[Finding]:
         "ShouldAccessServices() must return false", require)
 
 
+def check_private_ai_off(root: Path, require: bool = False) -> list[Finding]:
+    """Chromium 158's Private AI client (private_ai_cert_fetch, private_ai_tls_client) is off by switch, not by
+    luck (issue #304): with kPrivateAi off PrivateAiServiceFactory builds no service, so nothing contacts
+    Google's Private AI servers."""
+    return _must_match(
+        root, "components/private_ai/features.cc", "private_ai_off",
+        r"BASE_FEATURE\(\s*kPrivateAi,\s*base::FEATURE_DISABLED_BY_DEFAULT\s*\)",
+        "kPrivateAi must be FEATURE_DISABLED_BY_DEFAULT (the Private AI client stays off)", require)
+
+
 def check_https_first_dialog_off(root: Path, require: bool = False) -> list[Finding]:
     return _must_match(
         root, "components/security_interstitials/core/features.cc", "https_first_dialog_off",
@@ -472,7 +482,7 @@ WORKER_DEDICATED_PATH = "third_party/blink/renderer/core/workers/dedicated_worke
 WORKER_SHARED_IMPL_PATH = "third_party/blink/renderer/core/exported/web_shared_worker_impl.cc"
 WORKER_SERVICE_IMPL_PATH = "third_party/blink/renderer/modules/exported/web_embedded_worker_impl.cc"
 WORKER_TOKENS_PATH = "content/browser/helium_noise/noise_token_data.cc"
-WORKER_SHARED_SERVICE_PATH = "content/browser/worker_host/shared_worker_service_impl.cc"
+SHARED_WORKER_SERVICE_IMPL_PATH = "content/browser/worker_host/shared_worker_service_impl.cc"
 WORKER_SERVICE_HOST_PATH = "content/browser/service_worker/service_worker_version.cc"
 WORKER_GPU_PATH = "third_party/blink/renderer/core/execution_context/gpu_info_masking.h"
 
@@ -497,7 +507,7 @@ def check_worker_noise_tokens(root: Path, require: bool = False) -> list[Finding
         (WORKER_SERVICE_IMPL_PATH,
          r"global_scope_creation_params->helium_noise_tokens\s*=\s*worker_start_data->noise_tokens",
          "a service worker must pass the browser's noise tokens to its creation params"),
-        (WORKER_SHARED_SERVICE_PATH,
+        (SHARED_WORKER_SERVICE_IMPL_PATH,
          r"host->set_noise_tokens\(creator\.GetPage\(\)\.noise_tokens\(\)\)",
          "a shared worker must take the noise tokens of the page that created it"),
         (WORKER_SERVICE_HOST_PATH,
@@ -532,13 +542,17 @@ def check_worker_noise_tokens(root: Path, require: bool = False) -> list[Finding
 
 
 PARTITION_NAV_PATH = "content/browser/renderer_host/navigation_request.cc"
+STORAGE_PARTITION_IMPL_PATH = "content/browser/storage_partition_impl.cc"
+SHARED_WORKER_SERVICE_HEADER_PATH = "content/browser/worker_host/shared_worker_service_impl.h"
 
 
 def check_workspace_noise_partition(root: Path, require: bool = False) -> list[Finding]:
     """The noise tokens are keyed on the storage partition (the Workspace) as well as the site (issue #121), so
     two Workspaces show two browsers. Every caller hands over the partition of what it serves: a navigation
     its site_info_, a popup's first document its site instance's, a service worker its context's. A shared
-    worker takes its creator page's tokens (Helium 0.22), so it follows that page's partition. The partition
+    worker takes its creator page's tokens (Helium 0.22), so it follows that page's partition, and it can
+    only be joined from the same partition: each StoragePartitionImpl owns one SharedWorkerServiceImpl and
+    looks workers up only in that service, so a second Workspace never reaches the first one's worker. The partition
     is only mixed into an in-memory hash; nothing stores or sends it."""
     gate = "workspace_noise_partition"
     out: list[Finding] = []
@@ -552,6 +566,12 @@ def check_workspace_noise_partition(root: Path, require: bool = False) -> list[F
         (WORKER_SERVICE_HOST_PATH,
          r"GetTokensForWorker\([^;]*wrapper\(\)->storage_partition\(\)->GetConfig\(\)",
          "a service worker must key its noise tokens on its storage partition"),
+        (STORAGE_PARTITION_IMPL_PATH,
+         r"shared_worker_service_\s*=\s*std::make_unique<SharedWorkerServiceImpl>\(\s*this,",
+         "each storage partition must own its own SharedWorkerServiceImpl, so two Workspaces never share a shared worker"),
+        (SHARED_WORKER_SERVICE_HEADER_PATH,
+         r"const raw_ptr<StoragePartitionImpl>\s+storage_partition_;",
+         "a SharedWorkerServiceImpl must belong to one StoragePartitionImpl"),
         (WORKER_TOKENS_PATH,
          r"NoiseSiteKey\(\s*url::Origin::Create\(top_level_site\.GetURL\(\)\),\s*aerie_fingerprint::NoisePartitionKey\(",
          "GetTokens must put the storage partition in the site key (NoiseSiteKey(origin, NoisePartitionKey(...)))"),
@@ -571,9 +591,11 @@ POPUP_RENDERER_PATH = "content/renderer/render_frame_impl.cc"
 def check_popup_noise_tokens(root: Path, require: bool = False) -> list[Finding]:
     """A window opened with window.open() gets its opener's noise tokens when it is created (issue #156).
     Its initial empty document is same-origin with the opener and never goes through a navigation commit,
-    so without the tokens the opener reads the real canvas, GPU, memory and screen values through it. The
-    browser sends the opener page's tokens in CreateNewWindowReply and sets them on the new content::Page;
-    the renderer puts them in the CreateViewParams of the new view."""
+    so without the tokens the opener reads the real canvas, GPU, memory and screen values through it. Helium
+    0.22 does this: CreateNewWindow derives the tokens for the new window's origin
+    (GetTokensForMainFrame), sets them on the new content::Page, and sends them in CreateNewWindowReply;
+    the renderer puts them in the CreateViewParams of the new view. The partition argument is Aerie's
+    (hardening/0024, see workspace_noise_partition)."""
     gate = "popup_noise_tokens"
     out: list[Finding] = []
     for rel, pattern, message in (
@@ -668,7 +690,7 @@ def check_request_policy(root: Path, require: bool = False) -> list[Finding]:
 GATES: tuple[Callable[..., list[Finding]], ...] = (
     check_search_list, check_search_suggestions, check_secure_dns_default,
     check_crash_reporting, check_services_off, check_fedcm_resolver, check_widevine_opt_in,
-    check_https_first_dialog_off, check_link_prefetch_off, check_js_optimizer, check_services_ui,
+    check_https_first_dialog_off, check_private_ai_off, check_link_prefetch_off, check_js_optimizer, check_services_ui,
     check_audio_noise_stable, check_gpu_masking, check_webgl_readpixels, check_worker_noise_tokens, check_workspace_noise_partition, check_popup_noise_tokens,
     check_text_metrics_noise, check_request_policy,
 )

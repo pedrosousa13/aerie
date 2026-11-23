@@ -3,7 +3,8 @@
 The rule (issue #38): each hash must be stable for one site in one session, so a tracker cannot
 average the noise away by reading again, and must differ across sites and across sessions and from
 a no-noise control. The page renders the audio graph twice (`audio`, `audio_again`); a result with
-no second render fails. Aerie patch hardening/0009 seeds audio noise from the site and session alone.
+no second render fails. Helium 0.22's AudioReadbackNoise seeds audio noise from the site and session token and the samples read
+(no per-render counter); the `audio_noise_stable` source gate guards that.
 """
 
 
