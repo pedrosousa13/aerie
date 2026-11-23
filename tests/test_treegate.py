@@ -225,6 +225,7 @@ AUDIO_GOOD = {treegate.AUDIO_BUFFER_PATH: AUDIO_NOISE_OK, treegate.REALTIME_ANAL
 WORKLET_PROXY_OK = """  global_scope_creation_params->helium_noise_tokens =
       window->GetHeliumNoiseTokens();
 """
+WORKLET_PROXY_HEADER_OK = "  bool CarriesNoiseTokens() const override { return true; }\n"
 WORKLET_SCOPE_OK = """  SetReferrerPolicy(creation_params->referrer_policy);
   SetHeliumNoiseTokens(creation_params->helium_noise_tokens);
 """
@@ -251,7 +252,7 @@ SCRIPT_PROCESSOR_OK = """  AudioReadbackNoise noise(GetExecutionContext());
   }
 """
 WORKLET_GOOD = {
-    treegate.WORKLET_PROXY_PATH: WORKLET_PROXY_OK, treegate.WORKLET_SCOPE_PATH: WORKLET_SCOPE_OK,
+    treegate.WORKLET_PROXY_PATH: WORKLET_PROXY_OK, treegate.WORKLET_PROXY_HEADER_PATH: WORKLET_PROXY_HEADER_OK, treegate.WORKLET_SCOPE_PATH: WORKLET_SCOPE_OK,
     treegate.WORKLET_PROCESSOR_PATH: WORKLET_PROCESSOR_OK + WORKLET_JITTER_OK,
     treegate.SCRIPT_PROCESSOR_PATH: SCRIPT_PROCESSOR_OK,
 }
@@ -687,6 +688,7 @@ class DefaultsGatesTest(TreeCase):
         self.assertIn(treegate.check_audio_worklet_noise, treegate.GATES)
         for path, text in (
                 (treegate.WORKLET_PROXY_PATH, ""),
+                (treegate.WORKLET_PROXY_HEADER_PATH, WORKLET_PROXY_HEADER_OK.replace("true", "false")),
                 (treegate.WORKLET_SCOPE_PATH, WORKLET_SCOPE_OK.replace("SetHeliumNoiseTokens", "Nothing")),
                 (treegate.WORKLET_PROCESSOR_PATH, WORKLET_PROCESSOR_OK.replace("JitterInputArrayBuffers(isolate, global_scope_, input_array_buffers_);", "")
                  + WORKLET_JITTER_OK),
@@ -699,7 +701,7 @@ class DefaultsGatesTest(TreeCase):
 
     def test_the_worklet_gate_follows_require(self):
         self.assertEqual(treegate.check_audio_worklet_noise(self.root), [])
-        self.assertEqual(len(treegate.check_audio_worklet_noise(self.root, require=True)), 5)
+        self.assertEqual(len(treegate.check_audio_worklet_noise(self.root, require=True)), 6)
 
     def test_webgl_gpu_strings_must_go_through_the_masking_helper(self):
         self.write(GPU_GOOD)
@@ -1022,7 +1024,7 @@ class RunTest(TreeCase):
 
     def test_empty_tree_passes_unless_required(self):
         self.assertEqual(self.run_gates(), [])
-        self.assertEqual(len(self.run_gates(require=True)), 70)
+        self.assertEqual(len(self.run_gates(require=True)), 71)
 
     def test_format_report(self):
         self.write({"a.cc": '"https://services.helium.imput.net"\n'})

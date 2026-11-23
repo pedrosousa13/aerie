@@ -410,6 +410,7 @@ def check_audio_noise_stable(root: Path, require: bool = False) -> list[Finding]
 
 
 WORKLET_PROXY_PATH = "third_party/blink/renderer/core/workers/threaded_worklet_messaging_proxy.cc"
+WORKLET_PROXY_HEADER_PATH = AUDIO_DIR + "/audio_worklet_messaging_proxy.h"
 WORKLET_SCOPE_PATH = "third_party/blink/renderer/core/workers/worklet_global_scope.cc"
 WORKLET_PROCESSOR_PATH = AUDIO_DIR + "/audio_worklet_processor.cc"
 SCRIPT_PROCESSOR_PATH = AUDIO_DIR + "/script_processor_node.cc"
@@ -425,6 +426,8 @@ def check_audio_worklet_noise(root: Path, require: bool = False) -> list[Finding
     for rel, pattern, message in (
         (WORKLET_PROXY_PATH, r"helium_noise_tokens\s*=\s*window->GetHeliumNoiseTokens\(\)",
          "an audio worklet must be given the noise tokens of the window that created it"),
+        (WORKLET_PROXY_HEADER_PATH, r"bool CarriesNoiseTokens\(\) const override \{ return true; \}",
+         "the audio worklet proxy must be the one that carries noise tokens"),
         (WORKLET_SCOPE_PATH, r"SetHeliumNoiseTokens\(\s*creation_params->helium_noise_tokens\s*\)",
          "a worklet global scope must take its tokens from the creation params"),
         (WORKLET_PROCESSOR_PATH,
