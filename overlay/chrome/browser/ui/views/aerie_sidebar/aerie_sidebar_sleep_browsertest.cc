@@ -104,7 +104,7 @@ class AerieSidebarSleepBrowserTest : public InProcessBrowserTest {
   int OpenBackgroundTab() {
     EXPECT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
         browser(), embedded_test_server()->GetURL("/title1.html"),
-        WindowOpenDisposition::NEW_BACKGROUND_TAB,
+        WindowOpenDisposition::kNewBackgroundTab,
         ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
     const int index = strip()->count() - 1;
     EXPECT_TRUE(base::test::RunUntil(

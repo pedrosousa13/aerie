@@ -10,7 +10,7 @@ only a theme the user set counts as explicit when prefers-contrast: more decides
 
 --- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
 +++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
-@@ -482,6 +482,10 @@
+@@ -483,6 +483,10 @@
    // Aerie: the in-app reduced-motion setting, "system" or "on" (issue #174).
    // The name is aerie::motion::kReduceMotionPref; a test compares the two.
    (*s_allowlist)["aerie.motion.reduce"] = settings_api::PrefType::kString;
@@ -23,7 +23,7 @@ only a theme the user set counts as explicit when prefers-contrast: more decides
    // compares them.
 --- a/chrome/browser/prefs/BUILD.gn
 +++ b/chrome/browser/prefs/BUILD.gn
-@@ -133,6 +133,7 @@
+@@ -135,6 +135,7 @@
      "//chrome/browser/updates/announcement_notification",
      "//chrome/browser/webauthn",
      "//components/aerie_adblock/browser:guard_prefs",
@@ -33,7 +33,7 @@ only a theme the user set counts as explicit when prefers-contrast: more decides
      "//components/aerie_sidebar:prefs",
 --- a/chrome/browser/prefs/browser_prefs.cc
 +++ b/chrome/browser/prefs/browser_prefs.cc
-@@ -110,6 +110,7 @@
+@@ -112,6 +112,7 @@
  #include "chrome/common/pref_names.h"
  #include "chrome/common/secure_origin_allowlist.h"
  #include "components/aerie_adblock/browser/aerie_guard_prefs.h"
@@ -41,7 +41,7 @@ only a theme the user set counts as explicit when prefers-contrast: more decides
  #include "components/aerie_design_tokens/aerie_motion_prefs.h"
  #include "components/aerie_sidebar/aerie_sidebar_prefs.h"
  #include "components/aerie_tab_model/tab_model_prefs.h"
-@@ -2004,6 +2005,7 @@
+@@ -2060,6 +2061,7 @@
    AccessibilityLabelsService::RegisterProfilePrefs(registry);
    aerie_guard::RegisterProfilePrefs(registry);
    aerie::motion::RegisterProfilePrefs(registry);

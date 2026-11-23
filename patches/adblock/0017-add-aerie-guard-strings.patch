@@ -9,7 +9,8 @@ series lists it after them.
 
 --- a/chrome/app/generated_resources.grd
 +++ b/chrome/app/generated_resources.grd
-@@ -293,4 +293,7 @@
+@@ -292,6 +292,9 @@
+       <!-- Aerie extension proxy strings -->
        <part file="aerie_services_strings.grdp" />
  
 +      <!-- Aerie Guard strings -->
@@ -17,9 +18,11 @@ series lists it after them.
 +
        <!-- Media live preview specific strings -->
        <part file="media_live_preview_strings.grdp" />
+ 
 --- a/chrome/app/generated_resources.grd.gritdeps
 +++ b/chrome/app/generated_resources.grd.gritdeps
-@@ -110,3 +110,4 @@
+@@ -110,4 +110,5 @@
+ chrome/app/support_tool_strings.grdp
  chrome/app/vr_strings.grdp
  chrome/app/whats_new_strings.grdp
 +chrome/browser/ui/views/aerie_adblock/aerie_guard_strings.grdp

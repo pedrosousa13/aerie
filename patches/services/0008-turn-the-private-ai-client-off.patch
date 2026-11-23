@@ -1,0 +1,23 @@
+Aerie-Purpose: Switch Chromium's Private AI client off, so the browser never builds PrivateAiService and never fetches a TLS certificate or opens a TLS websocket to Google's Private AI servers.
+Aerie-Upstream-Area: components/private_ai/features.cc (kPrivateAi)
+Aerie-Kind: hook
+
+Chromium 158 added components/private_ai (network annotations private_ai_cert_fetch and
+private_ai_tls_client). The feature kPrivateAi is on by default, and
+PrivateAiServiceFactory builds the service when PrivateAiService::CanPrivateAiBeEnabled() is
+true, which asks kPrivateAi first. With the feature off the factory returns no service and no
+client is created. The Bench zero_traffic check saw no request on the 158 build, but that was
+luck, not a switch: a bump that sets a key, or a page that starts it, would phone home. The
+source gate private_ai_off checks the default.
+
+--- a/components/private_ai/features.cc
++++ b/components/private_ai/features.cc
+@@ -11,7 +11,7 @@
+ 
+ namespace private_ai {
+ 
+-BASE_FEATURE(kPrivateAi, base::FEATURE_ENABLED_BY_DEFAULT);
++BASE_FEATURE(kPrivateAi, base::FEATURE_DISABLED_BY_DEFAULT);
+ 
+ BASE_FEATURE(kPrivateAiServerAttestation, base::FEATURE_ENABLED_BY_DEFAULT);
+ 

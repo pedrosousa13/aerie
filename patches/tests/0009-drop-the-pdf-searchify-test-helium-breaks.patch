@@ -1,0 +1,20 @@
+Aerie-Purpose: Leave the PDF viewer's searchify (OCR) test out of the pdf test bundle, because Helium's PDF viewer has no searchify progress element for it to use.
+Aerie-Upstream-Area: chrome/test/data/pdf/BUILD.gn (test-only code)
+Aerie-Kind: hook
+
+Chromium 158's viewer_searchify_test.ts reads viewer.$.searchifyProgress, which Helium's PDF viewer
+does not have, so the build_ts target of chrome/test/data/pdf fails and aerie_browser_tests cannot
+build (chrome/test/data/webui:resources bundles the pdf files). Fixing it means patching the .ts
+file, which the build fetches after the patches apply, so the test-only fix is to leave it out of
+the list. Test-only: nothing in the shipped browser links it. Issue #304.
+
+--- a/chrome/test/data/pdf/BUILD.gn
++++ b/chrome/test/data/pdf/BUILD.gn
+@@ -50,7 +50,6 @@
+     "viewer_password_dialog_test.ts",
+     "viewer_pdf_sidenav_test.ts",
+     "viewer_properties_dialog_test.ts",
+-    "viewer_searchify_test.ts",
+     "viewer_thumbnail_bar_test.ts",
+     "viewer_thumbnail_test.ts",
+     "viewer_toolbar_test.ts",

@@ -8,11 +8,17 @@ overlay), see docs/adblock.md.
 
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
-@@ -250,2 +250,3 @@
- #include "chrome/installer/util/google_update_settings.h"
+@@ -248,6 +248,7 @@
+ #include "chrome/common/secure_origin_allowlist.h"
+ #include "chrome/common/url_constants.h"
+ #include "chrome/common/webui_url_constants.h"
 +#include "components/aerie_adblock/browser/aerie_adblock_hook.h"
- #include "components/autofill/core/common/autofill_features.h"
-@@ -6957,2 +6958,7 @@
+ #include "chrome/common/webui_url_utils.h"
+ #include "chrome/installer/util/google_update_settings.h"
+ #include "components/actor/core/actor_features.h"
+@@ -7015,6 +7016,11 @@
+       MaybeProxyRequest(frame, type, factory_builder);
+ #endif  // BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
  
 +  // Aerie: judge requests with the Filter Engine. After the extensions' proxy
 +  // above, before the network.
@@ -20,9 +26,15 @@ overlay), see docs/adblock.md.
 +                                            isolation_info, factory_builder);
 +
    MaybeSetTargetNetwork(GetBoundNetworkFromRenderFrameHost(frame),
+                         factory_builder, is_for_network_service);
+ 
 --- a/chrome/browser/BUILD.gn
 +++ b/chrome/browser/BUILD.gn
-@@ -1293,2 +1293,3 @@
+@@ -1303,6 +1303,7 @@
+     "//chrome/services/speech/buildflags",
+     "//components/actor/core",
      "//components/actor/public/mojom:mojo_bindings",
 +    "//components/aerie_adblock/browser",
      "//components/application_locale_storage",
+     "//components/autofill/content/browser",
+     "//components/blocked_content",

@@ -140,7 +140,7 @@ class AerieSidebarTitleBrowserTest : public InProcessBrowserTest {
                                std::string* id = nullptr) {
     EXPECT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
         browser(), embedded_test_server()->GetURL(host, path),
-        WindowOpenDisposition::NEW_FOREGROUND_TAB,
+        WindowOpenDisposition::kNewForegroundTab,
         ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
     tabs::TabInterface* tab = strip()->GetTabAtIndex(strip()->active_index());
     const std::string record_id = service()->adapter()->RecordIdForTab(tab);

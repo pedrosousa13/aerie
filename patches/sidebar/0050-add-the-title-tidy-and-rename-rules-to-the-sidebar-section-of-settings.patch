@@ -18,7 +18,7 @@ the "Sidebar" section.
 
 --- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
 +++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
-@@ -502,6 +502,15 @@
+@@ -503,6 +503,15 @@
    // The name is aerie_tab_model::kFolderRulesEnabled; a test compares the two.
    (*s_allowlist)["aerie.folders.rules_enabled"] =
        settings_api::PrefType::kBoolean;
@@ -69,7 +69,7 @@ the "Sidebar" section.
    // clang-format on
 --- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
 +++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
-@@ -652,6 +652,58 @@
+@@ -682,6 +682,58 @@
        {"aerieArchiveKeep30Days", IDS_SETTINGS_AERIE_ARCHIVE_KEEP_30D},
        {"aerieArchiveKeep90Days", IDS_SETTINGS_AERIE_ARCHIVE_KEEP_90D},
        {"aerieArchiveKeepForever", IDS_SETTINGS_AERIE_ARCHIVE_KEEP_FOREVER},
@@ -130,7 +130,7 @@ the "Sidebar" section.
        {"aerieSidebarDensityComfortable",
 --- a/chrome/browser/ui/webui/settings/settings_ui.cc
 +++ b/chrome/browser/ui/webui/settings/settings_ui.cc
-@@ -63,6 +63,7 @@
+@@ -64,6 +64,7 @@
  #include "chrome/browser/ui/webui/plural_string_handler.h"
  #include "chrome/browser/ui/webui/sanitized_image/sanitized_image_source.h"
  #include "chrome/browser/ui/webui/aerie_guard_settings/aerie_guard_settings_handler.h"
@@ -138,7 +138,7 @@ the "Sidebar" section.
  #include "chrome/browser/ui/webui/settings/about_handler.h"
  #include "chrome/browser/ui/webui/settings/aerie_hardening_handler.h"
  #include "chrome/browser/ui/webui/settings/accessibility_main_handler.h"
-@@ -281,6 +282,10 @@
+@@ -303,6 +304,10 @@
    // in the settings page handlers' lifetime rules, and exists on this WebUI only.
    web_ui->AddMessageHandler(
        std::make_unique<aerie_guard::AerieGuardSettingsHandler>(profile));
@@ -151,7 +151,7 @@ the "Sidebar" section.
  
 --- a/chrome/browser/ui/webui/settings/BUILD.gn
 +++ b/chrome/browser/ui/webui/settings/BUILD.gn
-@@ -321,6 +321,7 @@
+@@ -324,6 +324,7 @@
      "//chrome/browser/ui/webui:webui_util",
      "//chrome/browser/ui/webui/aerie_appearance_settings:swatches",
      "//chrome/browser/ui/webui/aerie_guard_settings:handler",

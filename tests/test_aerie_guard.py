@@ -78,9 +78,9 @@ class ActionIdPatchTest(unittest.TestCase):
         self.text = added(ACTION_PATCH)
 
     def test_the_id_is_registered_in_every_table(self):
-        for needle in ("E(kActionAerieGuard)", "    kActionAerieGuard,", "kAerieGuard = 50,",
+        for needle in ("E(kActionAerieGuard)", "    kActionAerieGuard,", "kAerieGuard = 51,",
                        "kMaxValue = kAerieGuard,", ".type = PageActionIconType::kAerieGuard",
-                       '<int value="50" label="Aerie Guard"/>', '<variant name="AerieGuard"/>',
+                       '<int value="51" label="Aerie Guard"/>', '<variant name="AerieGuard"/>',
                        "case MojomPageActionId::kActionAerieGuard:", "case kActionAerieGuard:"):
             with self.subTest(needle=needle):
                 self.assertIn(needle, self.text)

@@ -8,7 +8,7 @@ density change re-reads the width. A resize tells the sidebar view, so that the 
 
 --- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
 +++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
-@@ -60,6 +60,7 @@
+@@ -61,6 +61,7 @@
  #include "chrome/browser/ui/web_applications/app_browser_controller.h"
  #include "chrome/grit/generated_resources.h"
  #include "components/aerie_design_tokens/aerie_motion.h"
@@ -16,7 +16,7 @@ density change re-reads the width. A resize tells the sidebar view, so that the 
  #include "components/aerie_sidebar/aerie_sidebar_layout.h"
  #include "components/aerie_sidebar/aerie_sidebar_motion.h"
  #include "components/aerie_sidebar/aerie_sidebar_prefs.h"
-@@ -219,6 +220,12 @@
+@@ -220,6 +221,12 @@
          base::BindRepeating(
              &VerticalTabStripRegionView::OnAerieVisibleChanged,
              base::Unretained(this)));
@@ -29,7 +29,7 @@ density change re-reads the width. A resize tells the sidebar view, so that the 
    }
  
    // Views that go into the content area above
-@@ -270,7 +277,9 @@
+@@ -271,7 +278,9 @@
  
    SetNotifyEnterExitOnChild(true);
    UpdateInteriorMargin();
@@ -40,7 +40,7 @@ density change re-reads the width. A resize tells the sidebar view, so that the 
      SetVisible(false);
    }
  }
-@@ -407,7 +416,7 @@
+@@ -425,7 +434,7 @@
  
  void VerticalTabStripRegionView::GetAerieAccessiblePanes(
      std::vector<views::View*>* panes) {
@@ -49,9 +49,9 @@ density change re-reads the width. A resize tells the sidebar view, so that the 
      aerie_sidebar_view_->GetAccessiblePanes(panes);
    }
  }
-@@ -589,6 +598,10 @@
+@@ -607,6 +616,10 @@
    min_size.set_width((state_controller_->IsCollapsed() || IsAnimatingSize())
-                          ? tabs::kVerticalTabStripCollapsedWidth
+                          ? GetVerticalTabStripCollapsedWidth()
                           : tabs::kVerticalTabStripUncollapsedMinWidth);
 +  if (aerie_sidebar_view_ && aerie_sidebar_view_->density_sizes().fixed_width) {
 +    // The rail has one width (issue #184).
@@ -60,7 +60,7 @@ density change re-reads the width. A resize tells the sidebar view, so that the 
    return min_size;
  }
  
-@@ -814,6 +827,7 @@
+@@ -835,6 +848,7 @@
    if (!starting_width_on_resize_.has_value()) {
      starting_width_on_resize_ = width();
      state_controller_->SetIsResizing(true);
@@ -68,7 +68,7 @@ density change re-reads the width. A resize tells the sidebar view, so that the 
    }
    bool previously_collapsed = target_collapse_state_.collapsed;
    const int resize_delta = state_controller_->IsTabStripRightAligned()
-@@ -903,6 +917,7 @@
+@@ -922,6 +936,7 @@
    if (done_resizing) {
      starting_width_on_resize_ = std::nullopt;
      state_controller_->SetIsResizing(false);
@@ -76,7 +76,7 @@ density change re-reads the width. A resize tells the sidebar view, so that the 
      state_controller_->SetUncollapsedWidth(new_width);
    }
    target_collapse_state_.uncollapsed_width = new_width;
-@@ -924,6 +939,19 @@
+@@ -943,6 +958,19 @@
    aerie_target_visible_ = visible;
    aerie_hide_timer_.Stop();
    aerie_motion_.Abort();
@@ -96,7 +96,7 @@ density change re-reads the width. A resize tells the sidebar view, so that the 
    const bool reduced = aerie::motion::ShouldReduceMotion(prefs);
    const bool on_right =
        state_controller_->IsTabStripRightAligned() != base::i18n::IsRTL();
-@@ -988,6 +1016,29 @@
+@@ -1007,6 +1035,29 @@
            base::Unretained(this)));
  }
  
@@ -126,7 +126,7 @@ density change re-reads the width. A resize tells the sidebar view, so that the 
  void VerticalTabStripRegionView::SetCollapsedStateUpdatedCallback(
      base::RepeatingCallback<void(bool)> callback) {
    update_state_controller_collapsed_callback_ = std::move(callback);
-@@ -1146,6 +1197,12 @@
+@@ -1166,6 +1217,12 @@
  }
  
  void VerticalTabStripRegionView::UpdateResizeAreaVisibility() {
@@ -136,9 +136,9 @@ density change re-reads the width. A resize tells the sidebar view, so that the 
 +    resize_area_->SetVisible(false);
 +    return;
 +  }
-   if (floating_style_ != FloatingStyle::kNone) {
+   if (floating_style_ != FloatingStyle::kNone ||
+       organizer_panel_show_percent_ != 0.0) {
      resize_area_->SetVisible(false);
-     return;
 --- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
 +++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
 @@ -212,6 +212,8 @@
@@ -158,9 +158,9 @@ density change re-reads the width. A resize tells the sidebar view, so that the 
  #include "chrome/browser/ui/tabs/vertical_tab_strip_state.h"
 +#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_floating.h"
  #include "chrome/browser/ui/ui_features.h"
+ #include "chrome/browser/ui/views/animations/common_animation_values.h"
  #include "chrome/browser/ui/views/animations/organizer_panel_animations.h"
- #include "chrome/browser/ui/views/animations/side_panel_animations.h"
-@@ -1017,11 +1018,22 @@
+@@ -1030,11 +1031,22 @@
    if (IsParentedTo(views().vertical_tab_strip_region_view,
                     views().browser_view)) {
      if (layout_data_->tab_strip_type == TabStripType::kVertical) {
@@ -186,7 +186,7 @@ density change re-reads the width. A resize tells the sidebar view, so that the 
            horizontal_layout.vertical_tab_strip_width +
 --- a/chrome/browser/ui/views/frame/BUILD.gn
 +++ b/chrome/browser/ui/views/frame/BUILD.gn
-@@ -584,6 +584,7 @@
+@@ -573,6 +573,7 @@
      "//chrome/browser/ui/views/tabs/organizer",
      "//chrome/browser/ui/web_applications",
      "//chrome/browser/ui:view_ids",
@@ -194,7 +194,7 @@ density change re-reads the width. A resize tells the sidebar view, so that the 
      "//components/aerie_sidebar:layout",
      "//components/aerie_sidebar:motion",
      "//components/aerie_sidebar:prefs",
-@@ -3152,6 +3153,7 @@
+@@ -3059,6 +3060,7 @@
      "//base",
      "//build:buildflag_header_h",
      "//chrome/browser/ui:layout_constants",

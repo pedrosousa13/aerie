@@ -285,7 +285,8 @@ class RepoDropsTest(unittest.TestCase):
         adapts, problems = patches.parse_adapts(REPO / "patches")
         self.assertEqual(problems, [])
         self.assertEqual(sorted(a.entry for a in adapts),
-                         ["helium/core/component-updates.patch", "helium/core/fixups-component-setup.patch"])
+                         ["helium/core/component-updates.patch", "helium/core/fixups-component-setup.patch",
+                          "helium/core/web-push-service.patch", "helium/settings/web-push-settings.patch"])
         ledger = (REPO / "docs" / "helium-dependency-ledger.md").read_text()
         for adapt in adapts:
             self.assertIn(f"`helium-chromium/patches/{adapt.entry}`", ledger)

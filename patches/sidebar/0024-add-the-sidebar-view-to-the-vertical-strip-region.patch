@@ -28,7 +28,7 @@ screen reader, because the sidebar view is the navigation landmark and holds the
  #include "chrome/browser/ui/views/animations/tab_strip_animations.h"
  #include "chrome/browser/ui/views/frame/base_tab_strip_region_view.h"
  #include "chrome/browser/ui/views/frame/browser_view.h"
-@@ -57,8 +59,11 @@
+@@ -58,8 +60,11 @@
  #include "chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_focus_swipe_controller.h"
  #include "chrome/browser/ui/web_applications/app_browser_controller.h"
  #include "chrome/grit/generated_resources.h"
@@ -40,7 +40,7 @@ screen reader, because the sidebar view is the navigation landmark and holds the
  #include "ui/base/dragdrop/os_exchange_data.h"
  #include "ui/base/interaction/element_tracker.h"
  #include "ui/base/l10n/l10n_util.h"
-@@ -177,6 +182,30 @@
+@@ -178,6 +183,30 @@
    gemini_button_ =
        content_area_view_->AddChildView(std::make_unique<views::View>());
  
@@ -71,7 +71,7 @@ screen reader, because the sidebar view is the navigation landmark and holds the
    // Views that go into the content area above
    // --------------
  
-@@ -198,7 +227,11 @@
+@@ -199,7 +228,11 @@
  
    SetProperty(views::kElementIdentifierKey, kTabStripRegionElementId);
  
@@ -84,7 +84,7 @@ screen reader, because the sidebar view is the navigation landmark and holds the
  
    SetBackground(std::make_unique<CustomCornersBackground>(
        *this, *browser_view,
-@@ -849,6 +882,11 @@
+@@ -869,6 +902,11 @@
                                 views::MaximumFlexSizeRule::kPreferred));
    view->SetProperty(views::kMarginsKey,
                      gfx::Insets::TLBR(0, 0, kBottomContainerGap, 0));
@@ -117,7 +117,7 @@ screen reader, because the sidebar view is the navigation landmark and holds the
    int resize_area_width_;
 --- a/chrome/browser/ui/views/frame/BUILD.gn
 +++ b/chrome/browser/ui/views/frame/BUILD.gn
-@@ -566,6 +566,7 @@
+@@ -555,6 +555,7 @@
      ":safe_invoke",
      ":shadow",
      "//chrome/app:generated_resources",
@@ -125,7 +125,7 @@ screen reader, because the sidebar view is the navigation landmark and holds the
      "//chrome/browser/ui:browser_actions",
      "//chrome/browser/ui:browser_element_identifiers",
      "//chrome/browser/ui:layout_constants",
-@@ -575,11 +576,14 @@
+@@ -564,11 +565,14 @@
      "//chrome/browser/ui/color:color_headers",
      "//chrome/browser/ui/tabs:features",
      "//chrome/browser/ui/tabs:tab_strip",

@@ -9,18 +9,30 @@ See docs/adr/0005-renderer-side-cosmetic-piece.md and docs/adblock.md.
 
 --- a/chrome/renderer/BUILD.gn
 +++ b/chrome/renderer/BUILD.gn
-@@ -143,2 +143,3 @@
+@@ -141,6 +141,7 @@
+     "//chrome/services/speech/buildflags",
+     "//components/actor/core:features",
      "//components/actor/core:task_id",
 +    "//components/aerie_adblock/renderer",
      "//components/autofill/content/renderer",
+     "//components/autofill/core/common:features",
+     "//components/base32",
 --- a/chrome/renderer/chrome_content_renderer_client.cc
 +++ b/chrome/renderer/chrome_content_renderer_client.cc
-@@ -77,2 +77,3 @@
+@@ -75,6 +75,7 @@
+ #include "chrome/renderer/webui_browser/webui_browser_renderer_extension.h"
+ #include "chrome/renderer/worker_content_settings_client.h"
  #include "chrome/services/speech/buildflags/buildflags.h"
 +#include "components/aerie_adblock/renderer/aerie_cosmetic_agent.h"
  #include "components/autofill/content/renderer/autofill_agent.h"
-@@ -658,2 +659,4 @@
+ #include "components/autofill/content/renderer/password_autofill_agent.h"
+ #include "components/autofill/content/renderer/password_generation_agent.h"
+@@ -657,6 +658,8 @@
+ 
+   new prerender::NoStatePrefetchRenderFrameObserver(render_frame);
  
 +  aerie_adblock::AerieCosmeticAgent::Create(render_frame);
 +
    auto content_settings_delegate =
+       std::make_unique<ChromeContentSettingsAgentDelegate>(render_frame);
+ #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)

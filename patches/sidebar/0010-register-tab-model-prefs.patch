@@ -12,7 +12,7 @@ slices that own the archive and sleep behaviour.
 
 --- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
 +++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
-@@ -487,6 +487,12 @@
+@@ -488,6 +488,12 @@
    // Aerie: the in-app reduced-motion setting, "system" or "on" (issue #174).
    // The name is aerie::motion::kReduceMotionPref; a test compares the two.
    (*s_allowlist)["aerie.motion.reduce"] = settings_api::PrefType::kString;
@@ -27,7 +27,7 @@ slices that own the archive and sleep behaviour.
    (*s_allowlist)[::prefs::kDnsOverHttpsMode] = settings_api::PrefType::kString;
 --- a/chrome/browser/prefs/BUILD.gn
 +++ b/chrome/browser/prefs/BUILD.gn
-@@ -134,6 +134,7 @@
+@@ -136,6 +136,7 @@
      "//chrome/browser/webauthn",
      "//components/aerie_adblock/browser:guard_prefs",
      "//components/aerie_design_tokens:prefs",
@@ -37,7 +37,7 @@ slices that own the archive and sleep behaviour.
      "//components/bookmarks/common",
 --- a/chrome/browser/prefs/browser_prefs.cc
 +++ b/chrome/browser/prefs/browser_prefs.cc
-@@ -111,6 +111,7 @@
+@@ -113,6 +113,7 @@
  #include "chrome/common/secure_origin_allowlist.h"
  #include "components/aerie_adblock/browser/aerie_guard_prefs.h"
  #include "components/aerie_design_tokens/aerie_motion_prefs.h"
@@ -45,7 +45,7 @@ slices that own the archive and sleep behaviour.
  #include "components/aerie_widevine/widevine_opt_in.h"
  #include "components/autofill/core/common/autofill_prefs.h"
  #include "components/blocked_content/safe_browsing_triggered_popup_blocker.h"
-@@ -2002,6 +2003,7 @@
+@@ -2058,6 +2059,7 @@
    AccessibilityLabelsService::RegisterProfilePrefs(registry);
    aerie_guard::RegisterProfilePrefs(registry);
    aerie::motion::RegisterProfilePrefs(registry);

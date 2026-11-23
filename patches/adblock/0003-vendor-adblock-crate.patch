@@ -15,7 +15,9 @@ gen, and fails if the result differs from the lock or from the crates.io hashes
 
 --- a/third_party/rust/chromium_crates_io/Cargo.toml
 +++ b/third_party/rust/chromium_crates_io/Cargo.toml
-@@ -220 +220,10 @@
+@@ -219,3 +219,12 @@
+ [dependencies.zune-jpeg]
+ version = "=0.5.16-rc2"
  features = ["arith"]
 +
 +# Aerie: the filter engine. Keep in step with ADBLOCK_VERSION and
@@ -28,7 +30,9 @@ gen, and fails if the result differs from the lock or from the crates.io hashes
 +features = ["full-regex-handling", "single-thread"]
 --- a/third_party/rust/chromium_crates_io/gnrt_config.toml
 +++ b/third_party/rust/chromium_crates_io/gnrt_config.toml
-@@ -116,2 +116,11 @@
+@@ -121,6 +121,15 @@
+ remove_crates = []
+ root = "chromium"
  
 +# Aerie: the filter engine (patches/adblock/0003-vendor-adblock-crate.patch).
 +# It runs in the browser process, so it must be in the 'safe' group. It has
@@ -40,7 +44,11 @@ gen, and fails if the result differs from the lock or from the crates.io hashes
 +extra_kv = { allow_unsafe = true }
 +
  [crate.addr2line]
-@@ -131,3 +140,6 @@
+ allow_first_party_usage = false
+ extra_kv = { allow_unsafe = true }
+@@ -136,7 +145,10 @@
+ [crate.aho-corasick]
+ group = 'safe'
  allow_first_party_usage = false
 -extra_kv = { allow_unsafe = false }
 +# Aerie: regex's default `perf-literal` feature (which adblock uses) builds this
@@ -48,7 +56,11 @@ gen, and fails if the result differs from the lock or from the crates.io hashes
 +# libafl, so `false` was never compiled. Same as regex-automata and memchr.
 +extra_kv = { allow_unsafe = true }
  
-@@ -369,2 +381,8 @@
+ [crate.android_system_properties]
+ extra_kv = { allow_unsafe = true }
+@@ -374,6 +386,12 @@
+ [crate.fixed_decimal.extra_kv]
+ allow_unsafe = true
  
 +# Aerie: flatbuffers' build.rs turns on `cfg(nightly)` under Chromium's rustc,
 +# and that enables unstable features, which Chromium forbids.
@@ -57,12 +69,20 @@ gen, and fails if the result differs from the lock or from the crates.io hashes
 +extra_kv = { allow_unsafe = true }
 +
  [crate.flate2]
-@@ -840,3 +858,3 @@
+ ban_features = [
+     # `any_zlib` feature is banned because Chromium does not use the `zlib`
+@@ -853,7 +871,7 @@
+ extra_kv = { allow_unsafe = false }
+ 
  [crate.regex]
 -group = 'test'
 +group = 'safe'  # Aerie: adblock needs it in the browser process. Linear-time matching.
  allow_first_party_usage = false
-@@ -1034,3 +1052,7 @@
+ extra_kv = { allow_unsafe = true }
+ 
+@@ -1047,7 +1065,11 @@
+ [crate.termcolor.extra_kv]
+ allow_unsafe = false
  
 -[crate.thiserror]
 +# Aerie: two epochs of thiserror now exist. Only v2's build script writes private.rs.
@@ -71,3 +91,5 @@ gen, and fails if the result differs from the lock or from the crates.io hashes
 +
 +[crate."thiserror@v2"]
  build_script_outputs = [ "private.rs" ]
+ extra_kv = { allow_unsafe = false }
+ 

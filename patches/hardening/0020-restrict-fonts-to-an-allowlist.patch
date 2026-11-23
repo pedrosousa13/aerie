@@ -34,25 +34,25 @@ literal there, the same as aerie_fonts::kRestrictFonts, and a test compares the 
 
 --- a/chrome/browser/BUILD.gn
 +++ b/chrome/browser/BUILD.gn
-@@ -1299,6 +1299,7 @@
-     "//components/aerie_adblock/browser",
-     "//components/application_locale_storage",
+@@ -1298,6 +1298,7 @@
+     "//chrome/browser/usb",
+     "//chrome/browser/vr",
      "//components/aerie_fingerprint",
 +    "//components/aerie_fonts:prefs",
-     "//components/blocked_content",
-     "//components/breadcrumbs/core",
-     "//components/breadcrumbs/core:status",
+     "//chrome/browser/vr:chrome_xr_integration_client",
+     "//chrome/browser/webapps",
+     "//chrome/browser/webauthn",
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
 @@ -251,6 +251,7 @@
- #include "chrome/common/webui_url_utils.h"
- #include "chrome/installer/util/google_update_settings.h"
+ #include "chrome/common/url_constants.h"
+ #include "chrome/common/webui_url_constants.h"
  #include "components/aerie_adblock/browser/aerie_adblock_hook.h"
 +#include "components/aerie_fonts/fonts_prefs.h"
- #include "components/autofill/core/common/autofill_features.h"
- #include "components/autofill/core/common/autofill_switches.h"
- #include "components/blocked_content/popup_blocker.h"
-@@ -1661,6 +1662,7 @@
+ #include "chrome/common/webui_url_utils.h"
+ #include "chrome/installer/util/google_update_settings.h"
+ #include "components/actor/core/actor_features.h"
+@@ -1652,6 +1653,7 @@
    registry->RegisterBooleanPref(prefs::kDisable3DAPIs, false);
    registry->RegisterBooleanPref(prefs::kEnableHyperlinkAuditing, false);
    registry->RegisterBooleanPref(prefs::kHeliumNoiseEnabled, true);
@@ -60,7 +60,7 @@ literal there, the same as aerie_fonts::kRestrictFonts, and a test compares the 
    // Register user prefs for mapping SitePerProcess and IsolateOrigins in
    // user policy in addition to the same named ones in Local State (which are
    // used for mapping the command-line flags).
-@@ -9856,6 +9858,13 @@
+@@ -9900,6 +9902,13 @@
    return helium_noise::IsHeliumNoiseEnabled(browser_context, origin);
  }
  
@@ -76,7 +76,7 @@ literal there, the same as aerie_fonts::kRestrictFonts, and a test compares the 
           base::FeatureList::IsEnabled(
 --- a/chrome/browser/chrome_content_browser_client.h
 +++ b/chrome/browser/chrome_content_browser_client.h
-@@ -1232,6 +1232,9 @@
+@@ -1246,6 +1246,9 @@
    bool HeliumNoiseEnabled(content::BrowserContext* browser_context,
                            const GURL& origin) override;
  
@@ -88,7 +88,7 @@ literal there, the same as aerie_fonts::kRestrictFonts, and a test compares the 
  #if !BUILDFLAG(IS_ANDROID)
 --- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
 +++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
-@@ -481,6 +481,9 @@
+@@ -482,6 +482,9 @@
    // is aerie_guard::kShowBlockedCount; a test compares the two.
    (*s_allowlist)["aerie.guard.show_blocked_count"] =
        settings_api::PrefType::kBoolean;
@@ -123,7 +123,7 @@ literal there, the same as aerie_fonts::kRestrictFonts, and a test compares the 
  #include "services/network/public/mojom/permissions_policy/permissions_policy_feature.mojom.h"
  
  LocalFontsPermissionContext::LocalFontsPermissionContext(
-@@ -15,3 +19,20 @@
+@@ -15,3 +20,20 @@
            network::mojom::PermissionsPolicyFeature::kLocalFonts) {}
  
  LocalFontsPermissionContext::~LocalFontsPermissionContext() = default;
@@ -164,7 +164,7 @@ literal there, the same as aerie_fonts::kRestrictFonts, and a test compares the 
  #endif  // COMPONENTS_PERMISSIONS_CONTEXTS_LOCAL_FONTS_PERMISSION_CONTEXT_H_
 --- a/content/browser/helium_noise/noise_token_data.cc
 +++ b/content/browser/helium_noise/noise_token_data.cc
-@@ -73,6 +73,8 @@
+@@ -72,6 +72,8 @@
        blink::HeliumNoiseToken(base::RandUint64());
    session_tokens_[blink::HeliumNoiseFeature::kTextMetrics] =
        blink::HeliumNoiseToken(base::RandUint64());
@@ -173,9 +173,9 @@ literal there, the same as aerie_fonts::kRestrictFonts, and a test compares the 
  }
  
  // static
-@@ -103,8 +105,18 @@
-     domain = base::UnguessableToken::Create().ToString();
-   }
+@@ -97,8 +99,18 @@
+                          ? top_level_site.Serialize()
+                          : base::UnguessableToken::Create().ToString();
  
 +  // Aerie (#117): the kFonts token says "restrict fonts to the allowlist
 +  // here". Only a profile with the "Restrict fonts" pref on gets one; this
@@ -189,12 +189,12 @@ literal there, the same as aerie_fonts::kRestrictFonts, and a test compares the 
 +    if (feature == blink::HeliumNoiseFeature::kFonts && !restrict_fonts) {
 +      continue;
 +    }
-     result.insert({feature, DeriveTokenFromOrigin(session_token, domain)});
+     result.insert({feature, DeriveTokenFromSite(session_token, site)});
    }
  
 --- a/content/public/browser/content_browser_client.cc
 +++ b/content/public/browser/content_browser_client.cc
-@@ -2033,6 +2033,11 @@
+@@ -2056,6 +2056,11 @@
    return base::FeatureList::IsEnabled(blink::features::kHeliumNoise);
  }
  
@@ -208,7 +208,7 @@ literal there, the same as aerie_fonts::kRestrictFonts, and a test compares the 
  }
 --- a/content/public/browser/content_browser_client.h
 +++ b/content/public/browser/content_browser_client.h
-@@ -3327,6 +3327,11 @@
+@@ -3359,6 +3359,11 @@
    virtual bool HeliumNoiseEnabled(BrowserContext* browser_context,
                                    const GURL& origin);
  
@@ -222,7 +222,7 @@ literal there, the same as aerie_fonts::kRestrictFonts, and a test compares the 
    virtual bool UsePrefetchPrerenderIntegration();
 --- a/third_party/blink/common/features.cc
 +++ b/third_party/blink/common/features.cc
-@@ -74,6 +74,11 @@
+@@ -78,6 +78,11 @@
  // noise that is stable per site and session (Aerie, issue #118).
  BASE_FEATURE(kHeliumNoiseTextMetrics, base::FEATURE_ENABLED_BY_DEFAULT);
  
@@ -236,7 +236,7 @@ literal there, the same as aerie_fonts::kRestrictFonts, and a test compares the 
  BASE_FEATURE(kAIPageContentIncludePopupWindows,
 --- a/third_party/blink/public/common/features.h
 +++ b/third_party/blink/public/common/features.h
-@@ -49,6 +49,7 @@
+@@ -53,6 +53,7 @@
  BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kHeliumNoiseWebGL);
  BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kHeliumNoiseScreen);
  BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kHeliumNoiseTextMetrics);
@@ -296,7 +296,7 @@ literal there, the same as aerie_fonts::kRestrictFonts, and a test compares the 
      "//components/aerie_text_metrics",
 --- a/third_party/blink/renderer/core/css/build.gni
 +++ b/third_party/blink/renderer/core/css/build.gni
-@@ -526,6 +526,7 @@
+@@ -523,6 +523,7 @@
    "font_face_set_load_event.h",
    "font_face_set_worker.cc",
    "font_face_set_worker.h",
@@ -314,7 +314,7 @@ literal there, the same as aerie_fonts::kRestrictFonts, and a test compares the 
  #include "third_party/blink/renderer/core/frame/web_feature.h"
  #include "third_party/blink/renderer/platform/fonts/font_cache.h"
  #include "third_party/blink/renderer/platform/instrumentation/use_counter.h"
-@@ -23,9 +24,18 @@
+@@ -22,9 +23,18 @@
        GetUseCounter());
  }
  

@@ -8,33 +8,55 @@ next to the engine pak in chrome_extra_paks.
 
 --- a/chrome/browser/ui/webui/chrome_web_ui_configs.cc
 +++ b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
-@@ -17,2 +17,3 @@
+@@ -15,6 +15,7 @@
+ #include "chrome/browser/ui/webui/about/about_ui.h"
+ #include "chrome/browser/ui/webui/accessibility/accessibility_ui.h"
  #include "chrome/browser/ui/webui/actor_internals/actor_internals_ui.h"
 +#include "chrome/browser/ui/webui/aerie_filters/aerie_filters_ui.h"
  #include "chrome/browser/ui/webui/autofill_and_password_manager_internals/autofill_internals_ui.h"
-@@ -273,2 +274,3 @@
+ #include "chrome/browser/ui/webui/autofill_and_password_manager_internals/password_manager_internals_ui.h"
+ #include "chrome/browser/ui/webui/bluetooth_internals/bluetooth_internals_ui.h"
+@@ -272,6 +273,7 @@
+ 
+   auto& map = content::WebUIConfigMap::GetInstance();
    map.AddWebUIConfig(std::make_unique<AccessibilityUIConfig>());
 +  map.AddWebUIConfig(std::make_unique<aerie_adblock::AerieFiltersUIConfig>());
    map.AddWebUIConfig(std::make_unique<AutofillInternalsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<BluetoothInternalsUIConfig>());
+   map.AddWebUIConfig(
 --- a/chrome/browser/ui/webui/BUILD.gn
 +++ b/chrome/browser/ui/webui/BUILD.gn
-@@ -56,2 +56,3 @@
+@@ -54,6 +54,7 @@
+     "//chrome/browser/ui/webui/about",
+     "//chrome/browser/ui/webui/accessibility",
      "//chrome/browser/ui/webui/actor_internals",
 +    "//chrome/browser/ui/webui/aerie_filters",
      "//chrome/browser/ui/webui/autofill_and_password_manager_internals",
+     "//chrome/browser/ui/webui/bluetooth_internals",
+     "//chrome/browser/ui/webui/chrome_urls",
 --- a/chrome/chrome_paks.gni
 +++ b/chrome/chrome_paks.gni
-@@ -129,2 +129,3 @@
+@@ -142,6 +142,7 @@
+       "$root_gen_dir/chrome/chrome_unscaled_resources.pak",
+       "$root_gen_dir/chrome/common_resources.pak",
        "$root_gen_dir/chrome/saved_tab_groups_unsupported_resources.pak",
 +      "$root_gen_dir/chrome/browser/ui/webui/aerie_filters/aerie_filters_resources.pak",
        "$root_gen_dir/components/aerie_adblock/resources/aerie_adblock_resources.pak",
-@@ -176,2 +177,3 @@
+       "$root_gen_dir/components/autofill/core/browser/geo/autofill_address_rewriter_resources.pak",
+       "$root_gen_dir/components/autofill/core/browser/geo/autofill_alternative_state_name_map_resources.pak",
+@@ -189,6 +190,7 @@
+       "//chrome/browser:resources",
+       "//chrome/browser/glic/resources:browser_resources",
        "//chrome/browser/resources",
 +      "//chrome/browser/ui/webui/aerie_filters:resources",
        "//chrome/common:resources",
+       "//components/aerie_adblock:resources",
+       "//components/resources",
 --- a/tools/gritsettings/resource_ids.spec
 +++ b/tools/gritsettings/resource_ids.spec
-@@ -1802,2 +1802,7 @@
+@@ -1812,6 +1812,11 @@
+     "includes": [10260],
+   },
  
 +  "chrome/browser/ui/webui/aerie_filters/aerie_filters_resources.grd": {
 +    "META": {"sizes": {"includes": [10]}},
@@ -42,3 +64,5 @@ next to the engine pak in chrome_extra_paks.
 +  },
 +
    "<(SHARED_INTERMEDIATE_DIR)/THIS_IS_A_PLACEHOLDER.grd": {
+     "META": {"sizes": {"includes": [800]}},
+     "includes": [12000],

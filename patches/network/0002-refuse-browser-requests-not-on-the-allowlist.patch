@@ -24,7 +24,7 @@ Design borrowed from Crest (pauljoda/Crest, MPL-2.0); no code is copied.
 
 --- a/services/network/BUILD.gn
 +++ b/services/network/BUILD.gn
-@@ -386,6 +386,7 @@
+@@ -391,6 +391,7 @@
      "//mojo/public/cpp/system",
      "//net",
      "//net:extras",

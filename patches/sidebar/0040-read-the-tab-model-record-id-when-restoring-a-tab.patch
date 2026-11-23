@@ -13,14 +13,14 @@ the new dep of browser_tabrestore_impl cannot make a cycle.
 
 --- a/chrome/browser/ui/BUILD.gn
 +++ b/chrome/browser/ui/BUILD.gn
-@@ -501,6 +501,7 @@
+@@ -502,6 +502,7 @@
        ":browser_window_header",
        ":tab_ui_helper",
        "//base",
 +      "//chrome/browser/aerie_tab_model:session_record_id_hook",
        "//chrome/browser/apps/app_service",
+       "//chrome/browser/contextual_tasks:tab_restore",
        "//chrome/browser/glic",
-       "//chrome/browser/profiles:profile",
 --- a/chrome/browser/ui/browser_tabrestore.cc
 +++ b/chrome/browser/ui/browser_tabrestore.cc
 @@ -10,6 +10,7 @@
@@ -29,15 +29,15 @@ the new dep of browser_tabrestore_impl cannot make a cycle.
  #include "build/build_config.h"
 +#include "chrome/browser/aerie_tab_model/session_record_id_hook.h"
  #include "chrome/browser/apps/app_service/web_contents_app_id_utils.h"
+ #include "chrome/browser/contextual_tasks/contextual_tasks_tab_restore_data.h"
  #include "chrome/browser/glic/glic_tab_restore_helper.h"
- #include "chrome/browser/profiles/profile.h"
-@@ -86,6 +87,9 @@
-   glic::RestoreGlicStateFromExtraData(web_contents.get(), extra_data);
+@@ -93,6 +94,9 @@
+       web_contents.get(), extra_data);
    send_tab_to_self::SendTabToSelfActivationTracker::RestoreFromExtraData(
        web_contents.get(), extra_data);
 +  // Aerie: a Today tab comes back with the id of its Tab Model record (issue
 +  // #223). The tab strip adapter reads it when the tab is inserted.
 +  aerie_tab_model::StashRestoredRecordId(web_contents.get(), extra_data);
+   helium_pins::HeliumPinsTabController::StashRestoredState(web_contents.get(),
+                                                            extra_data);
  
-   std::vector<std::unique_ptr<NavigationEntry>> entries =
-       ContentSerializedNavigationBuilder::ToNavigationEntries(

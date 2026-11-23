@@ -11,7 +11,8 @@ is replaced by the one of adblock/0022.
 
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
-@@ -6599,4 +6599,9 @@
+@@ -6652,6 +6652,11 @@
+ // TODO(crbug.com/566702581): Remove once the new host is well-known.
  constexpr char kLegacyOmniboxInternalsHost[] = "omnibox";
  
 +// The former host of the filter lists page, chrome://filters. HandleWebUI()
@@ -21,7 +22,9 @@ is replaced by the one of adblock/0022.
 +
  bool IsDisabledInternalWebUI(const GURL& url) {
    if (!content::IsInternalWebUI(url)) {
-@@ -7658,4 +7663,12 @@
+     return false;
+@@ -7717,6 +7722,14 @@
+                                  chrome::kChromeUIHelpHost);
    }
  
 +  // Rewrite chrome://filters to chrome://settings/aerieGuard. The old page is
@@ -34,45 +37,57 @@ is replaced by the one of adblock/0022.
 +
  #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || \
      BUILDFLAG(IS_CHROMEOS)
+ 
 --- a/chrome/browser/ui/webui/BUILD.gn
 +++ b/chrome/browser/ui/webui/BUILD.gn
-@@ -55,5 +55,4 @@
+@@ -54,7 +54,6 @@
+     "//chrome/browser/ui/webui/about",
      "//chrome/browser/ui/webui/accessibility",
      "//chrome/browser/ui/webui/actor_internals",
 -    "//chrome/browser/ui/webui/aerie_filters",
      "//chrome/browser/ui/webui/aerie_guard",
      "//chrome/browser/ui/webui/autofill_and_password_manager_internals",
+     "//chrome/browser/ui/webui/bluetooth_internals",
 --- a/chrome/browser/ui/webui/chrome_web_ui_configs.cc
 +++ b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
-@@ -16,5 +16,4 @@
+@@ -15,7 +15,6 @@
+ #include "chrome/browser/ui/webui/about/about_ui.h"
  #include "chrome/browser/ui/webui/accessibility/accessibility_ui.h"
  #include "chrome/browser/ui/webui/actor_internals/actor_internals_ui.h"
 -#include "chrome/browser/ui/webui/aerie_filters/aerie_filters_ui.h"
  #include "chrome/browser/ui/webui/autofill_and_password_manager_internals/autofill_internals_ui.h"
  #include "chrome/browser/ui/webui/autofill_and_password_manager_internals/password_manager_internals_ui.h"
-@@ -274,5 +273,4 @@
+ #include "chrome/browser/ui/webui/bluetooth_internals/bluetooth_internals_ui.h"
+@@ -274,7 +273,6 @@
+ 
    auto& map = content::WebUIConfigMap::GetInstance();
    map.AddWebUIConfig(std::make_unique<AccessibilityUIConfig>());
 -  map.AddWebUIConfig(std::make_unique<aerie_adblock::AerieFiltersUIConfig>());
    map.AddWebUIConfig(std::make_unique<AutofillInternalsUIConfig>());
    map.AddWebUIConfig(std::make_unique<BluetoothInternalsUIConfig>());
+   map.AddWebUIConfig(
 --- a/chrome/chrome_paks.gni
 +++ b/chrome/chrome_paks.gni
-@@ -128,5 +128,4 @@
+@@ -142,7 +142,6 @@
+       "$root_gen_dir/chrome/chrome_unscaled_resources.pak",
        "$root_gen_dir/chrome/common_resources.pak",
        "$root_gen_dir/chrome/saved_tab_groups_unsupported_resources.pak",
 -      "$root_gen_dir/chrome/browser/ui/webui/aerie_filters/aerie_filters_resources.pak",
        "$root_gen_dir/components/aerie_adblock/resources/aerie_adblock_resources.pak",
        "$root_gen_dir/components/autofill/core/browser/geo/autofill_address_rewriter_resources.pak",
-@@ -176,5 +175,4 @@
+       "$root_gen_dir/components/autofill/core/browser/geo/autofill_alternative_state_name_map_resources.pak",
+@@ -190,7 +189,6 @@
+       "//chrome/browser:resources",
        "//chrome/browser/glic/resources:browser_resources",
        "//chrome/browser/resources",
 -      "//chrome/browser/ui/webui/aerie_filters:resources",
        "//chrome/common:resources",
        "//components/aerie_adblock:resources",
+       "//components/resources",
 --- a/tools/gritsettings/resource_ids.spec
 +++ b/tools/gritsettings/resource_ids.spec
-@@ -1801,9 +1801,4 @@
+@@ -1812,11 +1812,6 @@
+     "includes": [10260],
    },
  
 -  "chrome/browser/ui/webui/aerie_filters/aerie_filters_resources.grd": {
@@ -82,3 +97,4 @@ is replaced by the one of adblock/0022.
 -
    "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/aerie_guard/resources.grd": {
      "META": {"sizes": {"includes": [20]}},
+     "includes": [10280],

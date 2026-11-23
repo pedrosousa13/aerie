@@ -10,19 +10,22 @@ the user has not declined the site. The infobar has a new identifier.
 
 --- a/content/browser/media/key_system_support_impl.cc
 +++ b/content/browser/media/key_system_support_impl.cc
-@@ -73,4 +73,9 @@
+@@ -74,6 +74,11 @@
  
    observer_remote_.Bind(std::move(observer));
-+
+ 
 +  // Aerie: tell the embedder that this frame uses encrypted media. Chrome
 +  // asks the user once whether to turn on Widevine.
 +  GetContentClient()->browser()->OnEncryptedMediaRequested(
 +      &render_frame_host());
- 
++
    // If `key_system_support_` is already available, notify the new observer
+   // immediately. All observers will be notified if there are updates later.
+   if (key_system_capabilities_.has_value()) {
 --- a/content/public/browser/content_browser_client.h
 +++ b/content/public/browser/content_browser_client.h
-@@ -3380,4 +3380,8 @@
+@@ -3411,6 +3411,10 @@
+   // https://developers.9oo91e.qjz9zk/speed/public-dns/docs/doh/json
    virtual std::string GetDnsTxtResolverUrlPrefix();
  
 +  // Aerie: called on the UI thread when a frame first uses encrypted media
@@ -31,9 +34,11 @@ the user has not declined the site. The infobar has a new identifier.
 +
    // Returns true if the given redirected destination url `url` of the given
    // `browser_context` should be allowed for prefetch redirect.
+   // `embedder_histogram_suffix` is used to determine whether this is a trigger
 --- a/content/public/browser/content_browser_client.cc
 +++ b/content/public/browser/content_browser_client.cc
-@@ -2068,4 +2068,7 @@
+@@ -2090,6 +2090,9 @@
+   return std::string();
  }
  
 +void ContentBrowserClient::OnEncryptedMediaRequested(
@@ -41,9 +46,11 @@ the user has not declined the site. The infobar has a new identifier.
 +
  bool ContentBrowserClient::ShouldAllowPrefetchRedirection(
      content::BrowserContext& browser_context,
+     const GURL& url,
 --- a/chrome/browser/chrome_content_browser_client.h
 +++ b/chrome/browser/chrome_content_browser_client.h
-@@ -1263,4 +1263,7 @@
+@@ -1276,6 +1276,9 @@
+ 
    std::string GetDnsTxtResolverUrlPrefix() override;
  
 +  void OnEncryptedMediaRequested(
@@ -51,15 +58,19 @@ the user has not declined the site. The infobar has a new identifier.
 +
    bool ShouldAllowPrefetchRedirection(
        content::BrowserContext& browser_context,
+       const GURL& url,
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
-@@ -61,4 +61,5 @@
+@@ -61,6 +61,7 @@
+ #include "chrome/browser/accessibility/page_colors_controller.h"
  #include "chrome/browser/actor/actor_commit_deferring_condition.h"
  #include "chrome/browser/aerie_adblock/aerie_protection_throttle.h"
 +#include "chrome/browser/aerie_widevine/aerie_widevine_prompt.h"
  #include "chrome/browser/after_startup_task_utils.h"
  #include "chrome/browser/ai/ai_manager.h"
-@@ -9957,4 +9958,9 @@
+ #include "chrome/browser/app_mode/app_mode_utils.h"
+@@ -10000,6 +10001,11 @@
+   return std::string();
  }
  
 +void ChromeContentBrowserClient::OnEncryptedMediaRequested(
@@ -69,27 +80,34 @@ the user has not declined the site. The infobar has a new identifier.
 +
  bool ChromeContentBrowserClient::ShouldAllowPrefetchRedirection(
      content::BrowserContext& browser_context,
+     const GURL& url,
 --- a/chrome/browser/BUILD.gn
 +++ b/chrome/browser/BUILD.gn
-@@ -1106,4 +1106,5 @@
+@@ -1107,6 +1107,7 @@
+     "//chrome/browser/accessibility",
      "//chrome/browser/actor",
      "//chrome/browser/actor:impl",
 +    "//chrome/browser/aerie_widevine",
      "//chrome/browser/ai",
      "//chrome/browser/aerie_adblock",
+     "//chrome/browser/aerie_adblock:tab_helper",
 --- a/components/infobars/core/infobar_delegate.h
 +++ b/components/infobars/core/infobar_delegate.h
-@@ -214,4 +214,5 @@
+@@ -213,6 +213,7 @@
+     FORMS_AI_PRIVATE_INFERENCE_INFOBAR_DELEGATE_IOS = 138,
      PASSWORD_SAVED_INFOBAR_DELEGATE_IOS = 139,
      CONTEXTUAL_CUE_INFOBAR_DELEGATE_IOS = 140,
 +    AERIE_WIDEVINE_PROMPT_INFOBAR_DELEGATE = 141,
    };
    // LINT.ThenChange(//tools/metrics/histograms/metadata/browser/enums.xml:InfoBarIdentifier)
+ 
 --- a/tools/metrics/histograms/metadata/browser/enums.xml
 +++ b/tools/metrics/histograms/metadata/browser/enums.xml
-@@ -374,4 +374,5 @@
+@@ -373,6 +373,7 @@
+   <int value="138" label="FORMS_AI_PRIVATE_INFERENCE_INFOBAR_DELEGATE_IOS"/>
    <int value="139" label="PASSWORD_SAVED_INFOBAR_DELEGATE_IOS"/>
    <int value="140" label="CONTEXTUAL_CUE_INFOBAR_DELEGATE_IOS"/>
 +  <int value="141" label="AERIE_WIDEVINE_PROMPT_INFOBAR_DELEGATE"/>
  </enum>
  
+ <!-- LINT.ThenChange(//components/infobars/core/infobar_delegate.h:InfoBarIdentifier) -->

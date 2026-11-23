@@ -618,6 +618,49 @@ class ResolveTest(unittest.TestCase):
             # The tree was only read.
             self.assertEqual((tree / rc.CARGO_LOCK).read_text(), PRISTINE)
 
+    def test_resolve_uses_the_trees_patched_vendor_copies(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            tree = tmp / "tree"
+            (tree / rc.CARGO_TOML).parent.mkdir(parents=True)
+            (tree / rc.CARGO_TOML).write_text(TOML)
+            (tree / rc.CARGO_LOCK).write_text(PRISTINE)
+            base = (tree / rc.CARGO_TOML).parent
+            (base / "patches" / "serde-v1").mkdir(parents=True)
+            (base / "vendor" / "serde-v1").mkdir(parents=True)
+            (base / "vendor" / "serde-v1" / "Cargo.toml").write_text('[package]\nname = "serde"\nversion = "1.0.0"\n')
+            seen = {}
+
+            def fake_cargo(cmd, env, cwd):
+                seen["toml"] = (Path(cwd) / "Cargo.toml").read_text()
+                (Path(cwd) / "Cargo.lock").write_text(PRISTINE)
+
+            rc.resolve(tree, "158.0.8127.36", tmp / "work", fake_cargo)
+            self.assertIn("[patch.crates-io]", seen["toml"])
+            self.assertIn(f'serde-v1 = {{ package = "serde", path = "{base / "vendor" / "serde-v1"}" }}', seen["toml"])
+
+    def test_gnrt_vendor_sees_the_patched_crates_and_gen_sees_the_original_manifest(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tree = Path(tmp) / "tree"
+            (tree / rc.CARGO_TOML).parent.mkdir(parents=True)
+            (tree / "tools" / "crates").mkdir(parents=True)
+            (tree / "tools" / "crates" / "run_gnrt.py").write_text("")
+            (tree / rc.CARGO_TOML).write_text(TOML)
+            (tree / rc.CARGO_LOCK).write_text(PRISTINE)
+            base = (tree / rc.CARGO_TOML).parent
+            (base / "patches" / "serde-v1").mkdir(parents=True)
+            (base / "vendor" / "serde-v1").mkdir(parents=True)
+            (base / "vendor" / "serde-v1" / "Cargo.toml").write_text('[package]\nname = "serde"\nversion = "1.0.0"\n')
+            seen = {}
+
+            def runner(log, cmd, env, cwd=None):
+                seen[cmd[-1]] = (tree / rc.CARGO_TOML).read_text()
+
+            rc.run_gnrt(tree, "py", {}, lambda m: None, runner)
+            self.assertIn("[patch.crates-io]", seen["vendor"])
+            self.assertEqual(seen["gen"], TOML)
+            self.assertEqual((tree / rc.CARGO_TOML).read_text(), TOML)
+
     def test_resolve_refuses_an_unpatched_cargo_toml(self):
         with tempfile.TemporaryDirectory() as tmp:
             tree = Path(tmp) / "tree"

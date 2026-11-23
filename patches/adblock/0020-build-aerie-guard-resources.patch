@@ -8,19 +8,29 @@ its build_ts target, so the page's build_ts is added to that list.
 
 --- a/chrome/browser/resources/BUILD.gn
 +++ b/chrome/browser/resources/BUILD.gn
-@@ -63,2 +63,3 @@
+@@ -64,6 +64,7 @@
+       "about_sys:resources",
+       "access_code_cast:resources",
        "actor_overlay:resources",
 +      "aerie_guard:resources",
        "app_service_internals:resources",
+       "autofill_ml_internals:resources",
+       "bookmarks:resources",
 --- a/chrome/chrome_paks.gni
 +++ b/chrome/chrome_paks.gni
-@@ -226,2 +226,3 @@
+@@ -239,6 +239,7 @@
+       sources += [
+         "$root_gen_dir/chrome/about_sys_resources.pak",
          "$root_gen_dir/chrome/access_code_cast_resources.pak",
 +        "$root_gen_dir/chrome/aerie_guard_resources.pak",
          "$root_gen_dir/chrome/app_service_internals_resources.pak",
+         "$root_gen_dir/chrome/autofill_ml_internals_resources.pak",
+         "$root_gen_dir/chrome/bookmarks_resources.pak",
 --- a/tools/gritsettings/resource_ids.spec
 +++ b/tools/gritsettings/resource_ids.spec
-@@ -1807,2 +1807,7 @@
+@@ -1817,6 +1817,11 @@
+     "includes": [10270],
+   },
  
 +  "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/aerie_guard/resources.grd": {
 +    "META": {"sizes": {"includes": [20]}},
@@ -28,9 +38,15 @@ its build_ts target, so the page's build_ts is added to that list.
 +  },
 +
    "<(SHARED_INTERMEDIATE_DIR)/THIS_IS_A_PLACEHOLDER.grd": {
+     "META": {"sizes": {"includes": [800]}},
+     "includes": [12000],
 --- a/third_party/lit/v3_0/BUILD.gn
 +++ b/third_party/lit/v3_0/BUILD.gn
-@@ -29,2 +29,3 @@
+@@ -27,6 +27,7 @@
+     "//chrome/browser/resources/about_sys:build_ts",
+     "//chrome/browser/resources/access_code_cast:build_ts",
      "//chrome/browser/resources/actor_overlay:build_ts",
 +    "//chrome/browser/resources/aerie_guard:build_ts",
      "//chrome/browser/resources/app_home:build_ts",
+     "//chrome/browser/resources/app_service_internals:build_ts",
+     "//chrome/browser/resources/app_settings:build_ts",

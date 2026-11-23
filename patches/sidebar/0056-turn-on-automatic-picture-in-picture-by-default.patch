@@ -36,7 +36,7 @@ active tab by itself.
 
 --- a/components/content_settings/core/browser/content_settings_registry.cc
 +++ b/components/content_settings/core/browser/content_settings_registry.cc
-@@ -640,7 +640,7 @@
+@@ -641,7 +641,7 @@
             PermissionSettingsInfo::EXCEPTIONS_ON_SECURE_ORIGINS_ONLY);
  
    Register(ContentSettingsType::AUTO_PICTURE_IN_PICTURE,

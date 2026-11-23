@@ -11,7 +11,7 @@ no double tint. The predicate is headless and unit tested in //components/aerie_
 
 --- a/chrome/browser/ui/views/helium/BUILD.gn
 +++ b/chrome/browser/ui/views/helium/BUILD.gn
-@@ -33,6 +33,7 @@
+@@ -32,6 +32,7 @@
      "//chrome/browser/ui/browser_window",
      "//chrome/browser/ui/views/frame:browser_view_header",
      "//chrome/common:constants",
@@ -21,7 +21,7 @@ no double tint. The predicate is headless and unit tested in //components/aerie_
    ]
 --- a/chrome/browser/ui/views/helium/native_frame_materials.cc
 +++ b/chrome/browser/ui/views/helium/native_frame_materials.cc
-@@ -10,6 +10,7 @@
+@@ -9,6 +9,7 @@
  #include "chrome/browser/ui/ui_features.h"
  #include "chrome/browser/ui/views/frame/browser_view.h"
  #include "chrome/common/pref_names.h"
@@ -29,7 +29,7 @@ no double tint. The predicate is headless and unit tested in //components/aerie_
  #include "components/prefs/pref_service.h"
  #include "ui/views/view.h"
  #include "ui/views/widget/widget.h"
-@@ -28,6 +29,12 @@
+@@ -27,6 +28,12 @@
    }
  
    const Profile* profile = browser_view->GetProfile();
@@ -41,4 +41,4 @@ no double tint. The predicate is headless and unit tested in //components/aerie_
 +  }
    return profile &&
           profile->GetPrefs()->GetBoolean(prefs::kHeliumNativeFrameMaterials);
- #else
+ }

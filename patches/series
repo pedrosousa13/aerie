@@ -29,15 +29,12 @@ hardening/0005-allow-webrtc-policy-in-settings.patch
 hardening/0006-lock-hardened-prefs-from-extensions.patch
 hardening/0007-full-https-only-warning-page.patch
 hardening/0008-no-link-prefetch-when-preloading-is-off.patch
-hardening/0009-stable-audio-noise-per-site-and-session.patch
 hardening/0010-mask-the-gpu-in-webgl-and-webgpu.patch
 hardening/0011-key-fingerprinting-noise-on-the-site.patch
 hardening/0012-cap-device-memory-at-8gb.patch
-hardening/0013-give-dedicated-workers-the-pages-noise-tokens.patch
-hardening/0014-give-shared-and-service-workers-noise-tokens.patch
+hardening/0014-let-workers-follow-the-gpu-masking-switches.patch
 hardening/0015-report-a-common-screen-size.patch
 hardening/0016-refuse-extension-cookie-allow-settings.patch
-hardening/0017-give-popups-the-openers-noise-tokens.patch
 hardening/0018-seed-measuretext-noise-per-site.patch
 # WebGL readPixels noise on the default framebuffer (#119).
 hardening/0019-noise-webgl-readpixels-on-the-default-framebuffer.patch
@@ -75,12 +72,16 @@ tests/0005-fix-testing-browser-process-for-helium.patch
 tests/0006-fix-omnibox-test-support-for-helium.patch
 tests/0007-fix-extensions-test-support-for-helium.patch
 tests/0008-drop-webui-test-libraries-helium-breaks.patch
+tests/0009-drop-the-pdf-searchify-test-helium-breaks.patch
 
 # The Helium services settings are gone; the extension proxy address stays as a privacy row (#23).
 services/0006-remove-the-helium-services-ui.patch
 
 # chrome://components says "Component updates are disabled" without pointing at Helium services (#131).
 services/0007-components-page-says-aerie.patch
+
+# Chromium 158's Private AI client is off by default, not by luck (#304).
+services/0008-turn-the-private-ai-client-off.patch
 
 # The Aerie Guard strings join the grd after the other Aerie string parts (#99).
 adblock/0017-add-aerie-guard-strings.patch

@@ -47,7 +47,7 @@ members and the base/rand_util.h include, because nothing draws a random factor 
       flag_descriptions::kMaxConnectionsPerHostName,
 --- a/content/browser/helium_noise/noise_token_data.cc
 +++ b/content/browser/helium_noise/noise_token_data.cc
-@@ -71,6 +71,8 @@
+@@ -70,6 +70,8 @@
        blink::HeliumNoiseToken(base::RandUint64());
    session_tokens_[blink::HeliumNoiseFeature::kScreen] =
        blink::HeliumNoiseToken(base::RandUint64());
@@ -58,7 +58,7 @@ members and the base/rand_util.h include, because nothing draws a random factor 
  // static
 --- a/third_party/blink/common/features.cc
 +++ b/third_party/blink/common/features.cc
-@@ -70,6 +70,10 @@
+@@ -74,6 +74,10 @@
  // window.screenX/screenY report a common screen size (Aerie, issue #116).
  BASE_FEATURE(kHeliumNoiseScreen, base::FEATURE_ENABLED_BY_DEFAULT);
  
@@ -71,7 +71,7 @@ members and the base/rand_util.h include, because nothing draws a random factor 
  BASE_FEATURE(kAIPageContentIncludePopupWindows,
 --- a/third_party/blink/public/common/features.h
 +++ b/third_party/blink/public/common/features.h
-@@ -48,6 +48,7 @@
+@@ -52,6 +52,7 @@
  BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kHeliumNoiseCpuCores);
  BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kHeliumNoiseWebGL);
  BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kHeliumNoiseScreen);
@@ -139,7 +139,7 @@ members and the base/rand_util.h include, because nothing draws a random factor 
  #include "base/strings/stringprintf.h"
  #include "base/task/single_thread_task_runner.h"
  #include "base/time/time.h"
-@@ -241,6 +240,7 @@
+@@ -240,6 +239,7 @@
  #include "third_party/blink/renderer/core/geometry/dom_point.h"
  #include "third_party/blink/renderer/core/geometry/dom_quad.h"
  #include "third_party/blink/renderer/core/html/anchor_element_metrics_sender.h"
@@ -147,7 +147,7 @@ members and the base/rand_util.h include, because nothing draws a random factor 
  #include "third_party/blink/renderer/core/html/canvas/canvas_font_cache.h"
  #include "third_party/blink/renderer/core/html/collection_type.h"
  #include "third_party/blink/renderer/core/html/custom/custom_element.h"
-@@ -1059,11 +1059,6 @@
+@@ -1057,11 +1057,6 @@
        data_(MakeGarbageCollected<DocumentData>(GetExecutionContext())) {
    TRACE_EVENT("blink", "Document::Document", perfetto::Flow::FromPointer(this));
    DCHECK(agent_);
@@ -159,7 +159,7 @@ members and the base/rand_util.h include, because nothing draws a random factor 
    if (base::FeatureList::IsEnabled(features::kDelayAsyncScriptExecution) &&
        features::kDelayAsyncScriptExecutionDelayByDefaultParam.Get()) {
      script_runner_delayer_->Activate();
-@@ -1193,12 +1188,17 @@
+@@ -1191,12 +1186,17 @@
    return Position::BeforeNode(*shadow_host);
  }
  
@@ -181,7 +181,7 @@ members and the base/rand_util.h include, because nothing draws a random factor 
  SelectorQueryCache& Document::GetSelectorQueryCache() {
 --- a/third_party/blink/renderer/core/dom/document.h
 +++ b/third_party/blink/renderer/core/dom/document.h
-@@ -601,7 +601,8 @@
+@@ -600,7 +600,8 @@
      has_xml_declaration_ = has_xml_declaration ? 1 : 0;
    }
  
@@ -191,7 +191,7 @@ members and the base/rand_util.h include, because nothing draws a random factor 
    double GetNoiseFactorX();
    double GetNoiseFactorY();
  
-@@ -2965,9 +2966,6 @@
+@@ -2952,9 +2953,6 @@
  
    base::ElapsedTimer start_time_;
  
@@ -300,7 +300,7 @@ members and the base/rand_util.h include, because nothing draws a random factor 
  #include "third_party/blink/renderer/core/html/canvas/canvas_font_cache.h"
  #include "third_party/blink/renderer/core/html/canvas/canvas_performance_monitor.h"
  #include "third_party/blink/renderer/core/html/canvas/canvas_rendering_context.h"
-@@ -1590,16 +1591,13 @@
+@@ -1646,16 +1647,13 @@
        font, direction, state.GetTextBaseline(), state.GetTextAlign(), text,
        host->GetPlainTextPainter());
  

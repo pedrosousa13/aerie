@@ -289,7 +289,7 @@ IN_PROC_BROWSER_TEST_P(AerieSidebarAutoFileReducedUiTest,
   ASSERT_TRUE(row);
   ASSERT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
       browser(), embedded_test_server()->GetURL("trips.localhost", "/title1.html"),
-      WindowOpenDisposition::NEW_FOREGROUND_TAB,
+      WindowOpenDisposition::kNewForegroundTab,
       ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
   const std::string tab = service()->adapter()->RecordIdForTab(
       browser()->tab_strip_model()->GetActiveTab());

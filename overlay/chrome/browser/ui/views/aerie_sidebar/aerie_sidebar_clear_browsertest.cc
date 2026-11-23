@@ -124,7 +124,7 @@ class AerieSidebarClearBrowserTest : public InProcessBrowserTest {
   std::string OpenBackgroundTabAt(const GURL& url) {
     EXPECT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
         browser(), url,
-        WindowOpenDisposition::NEW_BACKGROUND_TAB,
+        WindowOpenDisposition::kNewBackgroundTab,
         ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
     const std::string id = IdAt(strip()->count() - 1);
     EXPECT_FALSE(id.empty());
@@ -389,7 +389,7 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarClearBrowserTest,
   BrowserWindowInterface* incognito = CreateIncognitoBrowser();
   ASSERT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
       incognito, embedded_test_server()->GetURL("/title1.html"),
-      WindowOpenDisposition::NEW_BACKGROUND_TAB,
+      WindowOpenDisposition::kNewBackgroundTab,
       ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
   AerieSidebarView* view = SidebarOf(incognito);
   ASSERT_TRUE(view);

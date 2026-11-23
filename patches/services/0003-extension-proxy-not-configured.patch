@@ -107,7 +107,7 @@ Depends on the Helium patch that adds helium::ShouldAccessExtensionService
  #include "components/keyed_service/content/browser_context_keyed_service_shutdown_notifier_factory.h"
  #include "components/keyed_service/core/keyed_service_shutdown_notifier.h"
  #include "components/policy/core/common/cloud/cloud_policy_manager.h"
-@@ -542,6 +543,11 @@
+@@ -541,6 +542,11 @@
    return blocked_by_policy_error_message_;
  }
  
@@ -119,7 +119,7 @@ Depends on the Helium patch that adds helium::ShouldAccessExtensionService
  ExtensionFunction::ResponseAction
  WebstorePrivateBeginInstallWithManifest3Function::Run() {
    params_ = Params::Create(args());
-@@ -553,6 +559,21 @@
+@@ -552,6 +558,21 @@
                                      kWebstoreInvalidIdError));
    }
  

@@ -159,7 +159,7 @@ class AerieSidebarHoverCardUiTest : public InProcessBrowserTest {
                const std::string& title) {
     ASSERT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
         in, embedded_test_server()->GetURL("localhost", "/page/" + title),
-        WindowOpenDisposition::NEW_FOREGROUND_TAB,
+        WindowOpenDisposition::kNewForegroundTab,
         ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
   }
   // Alpha, Bravo and Charlie, and a row for each, grown to its height.

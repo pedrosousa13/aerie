@@ -180,7 +180,7 @@ class AerieSidebarArchiveBrowserTest : public InProcessBrowserTest {
   std::string OpenBackgroundTab(const char* path = "/title1.html") {
     EXPECT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
         browser(), embedded_test_server()->GetURL(path),
-        WindowOpenDisposition::NEW_BACKGROUND_TAB,
+        WindowOpenDisposition::kNewBackgroundTab,
         ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
     const std::string id = IdAt(strip()->count() - 1);
     EXPECT_FALSE(id.empty());

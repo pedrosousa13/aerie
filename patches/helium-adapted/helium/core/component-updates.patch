@@ -150,12 +150,12 @@ Re-cut after a Helium bump with the method in CONTRIBUTING.md ("Re-cutting an ad
    CHECK(cus);
  
 +  static constexpr auto kAllowedComponents =
-+      base::MakeFixedFlatSet<std::string_view>(
-+          base::sorted_unique,
-+          {
-+              "hfnkpimlhhgieaddgfemjhofmfblmnib",  // CRLSet
-+              "oimompecagnajdejgnnjijobebaeigek",  // WidevineCdm
-+          });
++      base::MakeFixedFlatSet<std::string_view>({
++          "hfnkpimlhhgieaddgfemjhofmfblmnib",  // CRLSet
++          "efniojlnjndmcbiieegkicadnoecjjef",  // PKI Metadata
++          "giekcmmlnklenlaomppkphknjmnnpneh",  // SSL Error Assistant
++          "oimompecagnajdejgnnjijobebaeigek",  // WidevineCdm
++      });
    auto registration_info = base::MakeRefCounted<RegistrationInfo>();
    installer_policy_->GetHash(&registration_info->public_key_hash);
    registration_info->crx_id = update_client::GetCrxIdFromPublicKeyHash(
@@ -170,7 +170,7 @@ Re-cut after a Helium bump with the method in CONTRIBUTING.md ("Re-cutting an ad
        base::BindOnce(&ComponentUpdateService::RegisterComponent,
 --- a/chrome/app/generated_resources.grd
 +++ b/chrome/app/generated_resources.grd
-@@ -6889,6 +6889,9 @@
+@@ -6898,6 +6898,9 @@
        <message name="IDS_COMPONENTS_SVC_STATUS_UPDATE_ERROR" desc="Service Status">
          Update error
        </message>

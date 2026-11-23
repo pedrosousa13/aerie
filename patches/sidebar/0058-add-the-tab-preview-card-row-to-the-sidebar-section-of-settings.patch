@@ -15,7 +15,7 @@ tabs" row of patches/sidebar/0057.
 
 --- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
 +++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
-@@ -506,6 +506,10 @@
+@@ -507,6 +507,10 @@
    // the two.
    (*s_allowlist)["aerie.sidebar.recent_tab_switcher"] =
        settings_api::PrefType::kBoolean;
@@ -59,7 +59,7 @@ tabs" row of patches/sidebar/0057.
      "appearance_page/aerie_side_row.html.ts",
 --- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
 +++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
-@@ -658,6 +658,8 @@
+@@ -688,6 +688,8 @@
        {"aerieLinksOpenInPlace", IDS_AERIE_SIDEBAR_LINKS_IN_PLACE},
        {"aerieRecentTabs", IDS_SETTINGS_AERIE_RECENT_TABS},
        {"aerieRecentTabsDesc", IDS_SETTINGS_AERIE_RECENT_TABS_DESC},

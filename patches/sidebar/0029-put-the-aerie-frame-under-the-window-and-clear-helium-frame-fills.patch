@@ -21,16 +21,16 @@ palette and the paint are in components/aerie_frame.
 
 --- a/chrome/browser/ui/views/frame/browser_view.cc
 +++ b/chrome/browser/ui/views/frame/browser_view.cc
-@@ -152,6 +152,8 @@
+@@ -153,6 +153,8 @@
  #include "chrome/browser/ui/view_ids.h"
  #include "chrome/browser/ui/views/accessibility/accessibility_focus_highlight.h"
  #include "chrome/browser/ui/views/accessibility/caret_browsing_dialog_delegate.h"
 +#include "chrome/browser/ui/views/aerie_frame/frame_tint_enabled.h"
 +#include "chrome/browser/ui/views/aerie_frame/frame_tint_view.h"
+ #include "chrome/browser/ui/views/animations/tab_strip_animations.h"
  #include "chrome/browser/ui/views/autofill/autofill_bubble_handler_impl.h"
  #include "chrome/browser/ui/views/bookmarks/bookmark_bar_view.h"
- #include "chrome/browser/ui/views/bookmarks/bookmark_bubble_view.h"
-@@ -1050,6 +1052,13 @@
+@@ -1058,6 +1060,13 @@
  
    browser_->GetTabStripModel()->AddObserver(this);
  
@@ -44,7 +44,7 @@ palette and the paint are in components/aerie_frame.
    main_background_region_ =
        AddChildView(std::make_unique<MainBackgroundRegionView>(*this));
    main_background_region_->SetProperty(
-@@ -1070,6 +1079,10 @@
+@@ -1078,6 +1087,10 @@
    auto multi_contents_view = std::make_unique<MultiContentsView>(
        this, std::make_unique<MultiContentsViewDelegateImpl>(*browser_));
    multi_contents_view_ = AddChildView(std::move(multi_contents_view));
@@ -60,12 +60,12 @@ palette and the paint are in components/aerie_frame.
 @@ -91,6 +91,7 @@
  class ExclusiveAccessBubbleViews;
  class ExclusiveAccessBubbleViewsContext;
- class ExpandOnHoverLock;
-+class FrameTintView;
  class GlobalErrorService;
++class FrameTintView;
  class HeliumLayoutStateController;
  class InfoBarContainerView;
-@@ -301,6 +302,12 @@
+ class LocationBarView;
+@@ -300,6 +301,12 @@
      return vertical_tab_strip_region_view_.get();
    }
  
@@ -78,7 +78,7 @@ palette and the paint are in components/aerie_frame.
    // Accessor for the TabStrip.
    TabStrip* horizontal_tab_strip_for_testing();
  
-@@ -1296,6 +1303,9 @@
+@@ -1302,6 +1309,9 @@
    // The InfoBarContainerView that contains InfoBars for the current tab.
    raw_ptr<InfoBarContainerView> infobar_container_ = nullptr;
  
@@ -90,16 +90,16 @@ palette and the paint are in components/aerie_frame.
  
 --- a/chrome/browser/ui/views/frame/BUILD.gn
 +++ b/chrome/browser/ui/views/frame/BUILD.gn
-@@ -904,6 +904,8 @@
+@@ -890,6 +890,8 @@
      "//chrome/browser/ui/views:theme_copying_widget",
      "//chrome/browser/ui/views:update_recommended_message_box",
      "//chrome/browser/ui/views/accessibility",
 +    "//chrome/browser/ui/views/aerie_frame",
 +    "//chrome/browser/ui/views/aerie_frame:enabled",
+     "//chrome/browser/ui/views/animations",
      "//chrome/browser/ui/views/autofill:autofill_bubble_handler_impl",
      "//chrome/browser/ui/views/bookmarks",
-     "//chrome/browser/ui/views/download",
-@@ -1281,6 +1283,7 @@
+@@ -1252,6 +1254,7 @@
      "//chrome/app/theme:theme_resources",
      "//chrome/browser/themes",
      "//chrome/browser/ui/color:color_headers",
@@ -107,8 +107,8 @@ palette and the paint are in components/aerie_frame.
      "//chrome/browser/ui/views/frame:browser_view_header",
      "//chrome/browser/ui/views/helium:native_frame_materials",
      "//chrome/browser/ui/views/tabs:tab_strip",
-@@ -1707,6 +1710,7 @@
-   ]
+@@ -1655,6 +1658,7 @@
+   public_deps = [ ":multi_contents_background_view" ]
    deps = [
      ":themed_background",
 +    "//chrome/browser/ui/views/aerie_frame:enabled",

@@ -13,15 +13,18 @@ DependencyManager::AddComponent() call DumpWithoutCrashing() on every start.
 
 --- a/chrome/browser/profiles/BUILD.gn
 +++ b/chrome/browser/profiles/BUILD.gn
-@@ -733,4 +733,5 @@
+@@ -755,6 +755,7 @@
+     "//chrome/browser:font_pref",
      "//chrome/browser/accessibility",
      "//chrome/browser/account_settings",
 +    "//chrome/browser/aerie_tab_model",
      "//chrome/browser/affiliations",
      "//chrome/browser/ai",
+     "//chrome/browser/autocomplete",
 --- a/chrome/browser/profiles/chrome_browser_main_extra_parts_profiles.cc
 +++ b/chrome/browser/profiles/chrome_browser_main_extra_parts_profiles.cc
-@@ -16,4 +16,7 @@
+@@ -15,6 +15,9 @@
+ #include "chrome/browser/accessibility/page_colors_controller_factory.h"
  #include "chrome/browser/account_settings/account_setting_service_factory.h"
  #include "chrome/browser/actor/actor_keyed_service_factory.h"
 +#include "chrome/browser/aerie_tab_model/sleep_controller_factory.h"
@@ -29,7 +32,9 @@ DependencyManager::AddComponent() call DumpWithoutCrashing() on every start.
 +#include "chrome/browser/aerie_tab_model/tab_model_service_factory.h"
  #include "chrome/browser/affiliations/affiliation_service_factory.h"
  #include "chrome/browser/ai/ai_data_keyed_service_factory.h"
-@@ -1293,4 +1296,7 @@
+ #include "chrome/browser/autocomplete/aim_eligibility_service_factory.h"
+@@ -1290,6 +1293,9 @@
+   PersonalContextFirstRunServiceFactory::GetInstance();
    PersonalContextServiceFactory::GetInstance();
  #if !BUILDFLAG(IS_ANDROID)
 +  aerie_tab_model::SleepControllerFactory::GetInstance();
@@ -37,3 +42,4 @@ DependencyManager::AddComponent() call DumpWithoutCrashing() on every start.
 +  aerie_tab_model::TabModelServiceFactory::GetInstance();
    PinnedTabServiceFactory::GetInstance();
    PinnedToolbarActionsModelFactory::GetInstance();
+ #endif

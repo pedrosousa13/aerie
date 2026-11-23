@@ -27,7 +27,7 @@ Workers have no screen. A frame of another site in the same window reads its own
 
 --- a/content/browser/helium_noise/noise_token_data.cc
 +++ b/content/browser/helium_noise/noise_token_data.cc
-@@ -69,6 +69,8 @@
+@@ -68,6 +68,8 @@
        blink::HeliumNoiseToken(base::RandUint64());
    session_tokens_[blink::HeliumNoiseFeature::kWebGL] =
        blink::HeliumNoiseToken(base::RandUint64());
@@ -38,7 +38,7 @@ Workers have no screen. A frame of another site in the same window reads its own
  // static
 --- a/third_party/blink/common/features.cc
 +++ b/third_party/blink/common/features.cc
-@@ -66,6 +66,10 @@
+@@ -70,6 +70,10 @@
  // WebGL and WebGPU report masked graphics card details (Aerie, issue #112).
  BASE_FEATURE(kHeliumNoiseWebGL, base::FEATURE_ENABLED_BY_DEFAULT);
  
@@ -51,7 +51,7 @@ Workers have no screen. A frame of another site in the same window reads its own
  BASE_FEATURE(kAIPageContentIncludePopupWindows,
 --- a/third_party/blink/public/common/features.h
 +++ b/third_party/blink/public/common/features.h
-@@ -47,6 +47,7 @@
+@@ -51,6 +51,7 @@
  BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kHeliumNoiseAudio);
  BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kHeliumNoiseCpuCores);
  BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kHeliumNoiseWebGL);
@@ -111,7 +111,7 @@ Workers have no screen. A frame of another site in the same window reads its own
      "//components/shared_highlighting/core/common",
 --- a/third_party/blink/renderer/core/frame/build.gni
 +++ b/third_party/blink/renderer/core/frame/build.gni
-@@ -195,6 +195,7 @@
+@@ -197,6 +197,7 @@
    "scheduling.cc",
    "scheduling.h",
    "screen.cc",
@@ -173,7 +173,7 @@ Workers have no screen. A frame of another site in the same window reads its own
  #include "third_party/blink/renderer/core/frame/settings.h"
  #include "third_party/blink/renderer/core/frame/viewport_data.h"
  #include "third_party/blink/renderer/core/frame/visual_viewport.h"
-@@ -1812,6 +1813,12 @@
+@@ -1813,6 +1814,12 @@
      return 0;
    }
  
@@ -186,7 +186,7 @@ Workers have no screen. A frame of another site in the same window reads its own
    Page* page = frame->GetPage();
    if (!page) {
      return 0;
-@@ -1837,6 +1844,12 @@
+@@ -1838,6 +1845,12 @@
      return 0;
    }
  

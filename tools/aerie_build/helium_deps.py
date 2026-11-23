@@ -28,11 +28,15 @@ class DepsError(RuntimeError):
     pass
 
 
-def sections(ini: Path) -> list[str]:
+def _read_ini(ini: Path) -> configparser.ConfigParser:
     parser = configparser.ConfigParser(defaults={"_chromium_version": "0"}, interpolation=None)
     with open(ini, encoding="utf-8") as fh:
         parser.read_file(fh, source=str(ini))
-    return parser.sections()
+    return parser
+
+
+def sections(ini: Path) -> list[str]:
+    return _read_ini(ini).sections()
 
 
 def check(ini: Path, dropped=DROPPED_SECTIONS) -> list[str]:
@@ -58,4 +62,21 @@ def write_filtered(ini: Path, dest: Path, dropped=DROPPED_SECTIONS) -> Path:
             out.append(line)
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text("".join(out), encoding="utf-8")
+    return dest
+
+
+def write_filtered_pruning(ini: Path, pruning: Path, dest: Path, dropped=DROPPED_SECTIONS) -> Path:
+    """Copy Helium's pruning list to dest without the lines under the output path of a dropped section.
+
+    Helium prunes after it has unpacked every asset, so its list names files of the onboarding page.
+    Aerie never unpacks that page, and prune_binaries.py fails on a file that is not there."""
+    parser = _read_ini(ini)
+    roots = []
+    for name in dropped:
+        if parser.has_option(name, "output_path"):
+            roots.append(parser.get(name, "output_path").strip().removeprefix("./").rstrip("/") + "/")
+    kept = [line for line in Path(pruning).read_text(encoding="utf-8").splitlines(keepends=True)
+            if not any(line.startswith(root) for root in roots)]
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text("".join(kept), encoding="utf-8")
     return dest

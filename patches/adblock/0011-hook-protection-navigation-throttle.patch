@@ -10,13 +10,21 @@ docs/phishing-protection.md.
 
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
-@@ -61,2 +61,3 @@
+@@ -60,6 +60,7 @@
+ #include "chrome/browser/accessibility/caption_settings_dialog.h"
+ #include "chrome/browser/accessibility/page_colors_controller.h"
  #include "chrome/browser/actor/actor_commit_deferring_condition.h"
 +#include "chrome/browser/aerie_adblock/aerie_protection_throttle.h"
  #include "chrome/browser/after_startup_task_utils.h"
-@@ -5746,2 +5747,5 @@
+ #include "chrome/browser/ai/ai_manager.h"
+ #include "chrome/browser/app_mode/app_mode_utils.h"
+@@ -5798,6 +5799,9 @@
+ 
+ void ChromeContentBrowserClient::CreateThrottlesForNavigation(
      content::NavigationThrottleRegistry& registry) {
 +  // Aerie: judge navigations against the phishing and malware list. First, so
 +  // it runs before the throttles that may start a request.
 +  AerieProtectionThrottle::MaybeCreateAndAdd(registry);
    CreateAndAddChromeThrottlesForNavigation(registry);
+ }
+ 

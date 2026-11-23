@@ -43,7 +43,7 @@ them to the page. The element sits in the "Sidebar" section, under the archive r
    <settings-aerie-title-rules-row></settings-aerie-title-rules-row>
 --- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
 +++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
-@@ -652,6 +652,10 @@
+@@ -682,6 +682,10 @@
        {"aerieArchiveKeep30Days", IDS_SETTINGS_AERIE_ARCHIVE_KEEP_30D},
        {"aerieArchiveKeep90Days", IDS_SETTINGS_AERIE_ARCHIVE_KEEP_90D},
        {"aerieArchiveKeepForever", IDS_SETTINGS_AERIE_ARCHIVE_KEEP_FOREVER},
@@ -56,7 +56,7 @@ them to the page. The element sits in the "Sidebar" section, under the archive r
        {"aerieTidyOffSites", IDS_SETTINGS_AERIE_TITLE_TIDY_OFF_SITES},
 --- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
 +++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
-@@ -498,6 +498,9 @@
+@@ -499,6 +499,9 @@
    // Aerie: how long the Archive keeps an archived tab (issue #183). The name
    // is aerie_tab_model::kArchiveKeep; a test compares the two.
    (*s_allowlist)["aerie.tabs.archive_keep"] = settings_api::PrefType::kString;

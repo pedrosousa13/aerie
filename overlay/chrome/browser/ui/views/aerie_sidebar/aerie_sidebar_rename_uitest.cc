@@ -147,7 +147,7 @@ class AerieSidebarRenameUiTest : public InProcessBrowserTest {
   tabs::TabInterface* OpenTab(const std::string& path = "/title1.html") {
     EXPECT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
         browser(), embedded_test_server()->GetURL(path),
-        WindowOpenDisposition::NEW_BACKGROUND_TAB,
+        WindowOpenDisposition::kNewBackgroundTab,
         ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
     EXPECT_TRUE(base::test::RunUntil([&] {
       return sidebar()->row_count() ==

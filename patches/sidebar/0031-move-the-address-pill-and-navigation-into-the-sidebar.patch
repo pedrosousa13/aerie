@@ -24,24 +24,24 @@ Issue #215 (items 1 and 2 of the rest of #177). All the work is in the overlay, 
 --- a/chrome/browser/ui/views/frame/BUILD.gn
 +++ b/chrome/browser/ui/views/frame/BUILD.gn
 @@ -906,6 +906,7 @@
-     "//chrome/browser/ui/views/accessibility",
-     "//chrome/browser/ui/views/aerie_frame",
-     "//chrome/browser/ui/views/aerie_frame:enabled",
+     "//chrome/browser/ui/views/global_media_controls",
+     "//chrome/browser/ui/views/hats",
+     "//chrome/browser/ui/views/infobars",
 +    "//chrome/browser/ui/views/aerie_sidebar",
-     "//chrome/browser/ui/views/autofill:autofill_bubble_handler_impl",
-     "//chrome/browser/ui/views/bookmarks",
-     "//chrome/browser/ui/views/download",
+     "//chrome/browser/ui/views/interaction",
+     "//chrome/browser/ui/views/interaction:impl",
+     "//chrome/browser/ui/views/location_bar",
 --- a/chrome/browser/ui/views/frame/browser_view.cc
 +++ b/chrome/browser/ui/views/frame/browser_view.cc
-@@ -154,6 +154,7 @@
+@@ -155,6 +155,7 @@
  #include "chrome/browser/ui/views/accessibility/caret_browsing_dialog_delegate.h"
  #include "chrome/browser/ui/views/aerie_frame/frame_tint_enabled.h"
  #include "chrome/browser/ui/views/aerie_frame/frame_tint_view.h"
 +#include "chrome/browser/ui/views/aerie_sidebar/aerie_sidebar_toolbar_hook.h"
+ #include "chrome/browser/ui/views/animations/tab_strip_animations.h"
  #include "chrome/browser/ui/views/autofill/autofill_bubble_handler_impl.h"
  #include "chrome/browser/ui/views/bookmarks/bookmark_bar_view.h"
- #include "chrome/browser/ui/views/bookmarks/bookmark_bubble_view.h"
-@@ -5769,6 +5770,11 @@
+@@ -5836,6 +5837,11 @@
  
    toolbar_->Init();
  
@@ -55,7 +55,7 @@ Issue #215 (items 1 and 2 of the rest of #177). All the work is in the overlay, 
      // of being a separate popup widget), the popup view needs a reference to
 --- a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
 +++ b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
-@@ -856,6 +856,12 @@
+@@ -869,6 +869,12 @@
      return 0;
    }
  
@@ -70,7 +70,7 @@ Issue #215 (items 1 and 2 of the rest of #177). All the work is in the overlay, 
    if (delegate().IsToolbarVisible()) {
 --- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
 +++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
-@@ -358,6 +358,17 @@
+@@ -359,6 +359,17 @@
      return false;
    }
  
@@ -85,10 +85,10 @@ Issue #215 (items 1 and 2 of the rest of #177). All the work is in the overlay, 
 +    return aerie_sidebar_view_->IsPositionInWindowCaption(point_in_sidebar);
 +  }
 +
-   if (IsHitInView(bottom_button_container_, point)) {
+   if (content_area_view_->GetVisible() &&
+       IsHitInView(bottom_button_container_, point)) {
      gfx::Point point_in_child = point;
-     views::View::ConvertPointToTarget(this, bottom_button_container_,
-@@ -382,6 +393,18 @@
+@@ -400,6 +411,18 @@
    return true;
  }
  
@@ -133,17 +133,17 @@ Issue #215 (items 1 and 2 of the rest of #177). All the work is in the overlay, 
      return target_collapse_state_;
 --- a/chrome/browser/ui/views/toolbar/BUILD.gn
 +++ b/chrome/browser/ui/views/toolbar/BUILD.gn
-@@ -344,6 +344,7 @@
+@@ -345,6 +345,7 @@
      "//chrome/common:buildflags",
      "//chrome/common:chrome_features",
      "//chrome/common:constants",
 +    "//components/aerie_sidebar:layout",
      "//components/autofill/core/common:features",
+     "//components/contextual_tasks/public",
      "//components/feature_engagement/public",
-     "//components/omnibox/browser",
 --- a/chrome/browser/ui/views/toolbar/toolbar_view.cc
 +++ b/chrome/browser/ui/views/toolbar/toolbar_view.cc
-@@ -134,6 +134,7 @@
+@@ -135,6 +135,7 @@
  #include "chrome/grit/generated_resources.h"
  #include "chrome/grit/theme_resources.h"
  #include "components/autofill/core/common/autofill_payments_features.h"
@@ -151,7 +151,7 @@ Issue #215 (items 1 and 2 of the rest of #177). All the work is in the overlay, 
  #include "components/contextual_tasks/public/features.h"
  #include "components/feature_engagement/public/feature_constants.h"
  #include "components/omnibox/browser/location_bar_model.h"
-@@ -2340,9 +2341,12 @@
+@@ -2343,9 +2344,12 @@
        tabs::VerticalTabStripStateController::From(browser_view_->browser());
    const bool zen_hide = browser_view_->IsZenModeEnabledForLayout() &&
                          !browser_view_->IsZenModeSideChromePinned();

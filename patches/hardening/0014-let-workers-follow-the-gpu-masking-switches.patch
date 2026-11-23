@@ -1,0 +1,64 @@
+Aerie-Purpose: Make WebGL and WebGPU in workers follow the per-site and global switches instead of always masking, now that Helium gives every worker its page's or site's noise tokens.
+Aerie-Upstream-Area: third_party/blink/renderer/core/execution_context/gpu_info_masking.h, content/browser/worker_host/mock_shared_worker.*
+Aerie-Kind: hook
+
+Follows hardening/0010 (issue #113, part of #87). Helium 0.22 (core/noise/core.patch) derives the tokens of a
+dedicated worker (from its creator), a shared worker and a service worker (from the top-level site of their
+storage key, with the same ContentBrowserClient::HeliumNoiseEnabled decision as a navigation) and sends them in
+the worker start parameters. Earlier Aerie patches (hardening/0013 and the transport half of this one) did the
+same and are gone. What stays is the GPU masking helper: ShouldMaskGpuInfoForContext (hardening/0010) no longer
+treats a worker as always masked. A window or a worker follows its kWebGL token, so protection turned off for
+the browser or the site reaches the worker, and only a null context stays fail closed.
+
+The test mock of the shared worker factory takes the new last argument that Helium's mojom method has.
+
+--- a/third_party/blink/renderer/core/execution_context/gpu_info_masking.h
++++ b/third_party/blink/renderer/core/execution_context/gpu_info_masking.h
+@@ -14,17 +14,17 @@
+ namespace blink {
+ 
+ // Whether WebGL and WebGPU report masked graphics card details to this context
+-// (Aerie, issue #112). A null context counts as a worker. A worker has no noise
+-// tokens yet, so it is always protected while the features are on (fail
+-// closed, until issue #113).
++// (Aerie, issue #112). A window and a worker both follow their kWebGL token: a
++// worker has the tokens of its page or site (issue #113), so protection turned
++// off for the site or the browser reaches it. A null context has no token to
++// read, so it is protected while the features are on (fail closed).
+ inline bool ShouldMaskGpuInfoForContext(const ExecutionContext* context) {
+-  const bool is_worker = !context || context->IsWorkerOrWorkletGlobalScope();
+   const bool has_token =
+       context &&
+       context->GetHeliumNoiseTokens().contains(HeliumNoiseFeature::kWebGL);
+   return aerie_gpu_info::ShouldMaskGpuInfo(
+-      is_worker ? aerie_gpu_info::ContextKind::kWorker
+-                : aerie_gpu_info::ContextKind::kWindow,
++      context ? aerie_gpu_info::ContextKind::kExecutionContext
++              : aerie_gpu_info::ContextKind::kNoContext,
+       {.master_enabled = base::FeatureList::IsEnabled(features::kHeliumNoise),
+        .surface_enabled =
+            base::FeatureList::IsEnabled(features::kHeliumNoiseWebGL),
+--- a/content/browser/worker_host/mock_shared_worker.h
++++ b/content/browser/worker_host/mock_shared_worker.h
+@@ -128,7 +128,8 @@
+           coep_reporting_observer,
+       mojo::PendingReceiver<blink::mojom::ReportingObserver>
+           dip_reporting_observer,
+-      bool cross_origin_isolated) override;
++      bool cross_origin_isolated,
++      const blink::HeliumNoiseTokenMap& helium_noise_tokens) override;
+ 
+   struct CreateParams {
+     CreateParams();
+--- a/content/browser/worker_host/mock_shared_worker.cc
++++ b/content/browser/worker_host/mock_shared_worker.cc
+@@ -162,7 +162,8 @@
+         coep_reporting_observer,
+     mojo::PendingReceiver<blink::mojom::ReportingObserver>
+         dip_reporting_observer,
+-    bool cross_origin_isolated) {
++    bool cross_origin_isolated,
++    const blink::HeliumNoiseTokenMap& helium_noise_tokens) {
+   CHECK(!create_params_, base::NotFatalUntil::M160);
+   create_params_ = std::make_unique<CreateParams>();
+   create_params_->info = std::move(info);

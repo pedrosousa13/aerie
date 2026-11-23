@@ -14,7 +14,7 @@ Test-only: nothing in the shipped browser links it. Issue #175.
 
 --- a/chrome/test/data/webui/BUILD.gn
 +++ b/chrome/test/data/webui/BUILD.gn
-@@ -686,7 +686,6 @@
+@@ -699,7 +699,6 @@
      "chrome_urls:build_grdp",
      "commerce_internals:build_grdp",
      "contextual_tasks:build_grdp",
@@ -22,7 +22,7 @@ Test-only: nothing in the shipped browser links it. Issue #175.
      "flags:build_grdp",
      "js:build_grdp",
      "location_internals:build_grdp",
-@@ -703,7 +702,6 @@
+@@ -716,7 +715,6 @@
      "$target_gen_dir/commerce_internals/resources.grdp",
      "$target_gen_dir/contextual_tasks/resources.grdp",
      "$target_gen_dir/notebooks_internals/resources.grdp",
@@ -30,7 +30,7 @@ Test-only: nothing in the shipped browser links it. Issue #175.
      "$target_gen_dir/flags/resources.grdp",
      "$target_gen_dir/js/resources.grdp",
      "$target_gen_dir/location_internals/resources.grdp",
-@@ -713,14 +711,8 @@
+@@ -726,14 +724,8 @@
    ]
  
    if (enable_webui_ntp) {
@@ -47,7 +47,7 @@ Test-only: nothing in the shipped browser links it. Issue #175.
    }
  
    if (!is_android) {
-@@ -777,9 +769,7 @@
+@@ -790,9 +782,7 @@
        "password_manager:build_grdp",
        "password_manager_internals:build_grdp",
        "sandbox:build_grdp",
@@ -57,7 +57,7 @@ Test-only: nothing in the shipped browser links it. Issue #175.
        "side_panel/read_anything:build_grdp",
        "subresource_filter:build_grdp",
        "support_tool:build_grdp",
-@@ -842,8 +832,6 @@
+@@ -855,8 +845,6 @@
        "$target_gen_dir/password_manager/resources.grdp",
        "$target_gen_dir/password_manager_internals/resources.grdp",
        "$target_gen_dir/sandbox/resources.grdp",
@@ -66,7 +66,7 @@ Test-only: nothing in the shipped browser links it. Issue #175.
        "$target_gen_dir/side_panel/read_anything/resources.grdp",
        "$target_gen_dir/side_panel/resources.grdp",
        "$target_gen_dir/subresource_filter/resources.grdp",
-@@ -866,20 +854,13 @@
+@@ -879,20 +867,13 @@
      deps += [
        "cr_components:build_grdp",
        "cr_components/composebox:build_grdp",
@@ -87,7 +87,7 @@ Test-only: nothing in the shipped browser links it. Issue #175.
    if (enable_extensions) {
      deps += [ "extensions_zero_state:build_grdp" ]
      grdp_files += [ "$target_gen_dir/extensions_zero_state/resources.grdp" ]
-@@ -1041,9 +1022,6 @@
+@@ -1054,9 +1035,6 @@
        "$root_gen_dir/ui/file_manager/tests_gen_resources.grdp",
      ]
    } else if (!is_android) {

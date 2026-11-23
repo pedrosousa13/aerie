@@ -32,6 +32,7 @@ network and no Chromium tree. Only `resolve` and `run_gnrt` run programs.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import io
 import re
@@ -244,6 +245,26 @@ def render_crate_lock(chromium_version: str, cargo_toml: str, cargo_lock: str,
 # --- Resolving (maintainer command) ----------------------------------------
 
 
+def _patch_section(tree: Path) -> str:
+    """A [patch.crates-io] table for the crates Chromium patches in its vendor directory.
+
+    Chromium edits a few crates after vendoring them (chromium_crates_io/patches/<dir>), for example
+    to relax a version pin, so crates.io's own copy may not resolve with the rest of its lock."""
+    base = (tree / CARGO_TOML).parent
+    patches_dir = base / "patches"
+    lines = []
+    for patch_dir in sorted(patches_dir.iterdir()) if patches_dir.is_dir() else []:
+        manifest = base / "vendor" / patch_dir.name / "Cargo.toml"
+        if not manifest.is_file():
+            continue
+        try:
+            name = tomllib.loads(manifest.read_text(encoding="utf-8"))["package"]["name"]
+        except (OSError, KeyError, tomllib.TOMLDecodeError):
+            continue
+        lines.append(f'{patch_dir.name} = {{ package = "{name}", path = "{manifest.parent}" }}\n')
+    return "\n[patch.crates-io]\n" + "".join(lines) if lines else ""
+
+
 def resolve(tree: Path, chromium_version: str, work: Path,
             runner: Callable[[Sequence[str], dict, Path], None] | None = None) -> str:
     """Resolve adblock against the tree's Cargo.toml / Cargo.lock; return the new lock text.
@@ -258,7 +279,7 @@ def resolve(tree: Path, chromium_version: str, work: Path,
     work = Path(work)
     (work / "src").mkdir(parents=True, exist_ok=True)
     (work / "src" / "lib.rs").write_text("")
-    (work / "Cargo.toml").write_text(toml_text, encoding="utf-8")
+    (work / "Cargo.toml").write_text(toml_text + _patch_section(Path(tree)), encoding="utf-8")
     (work / "Cargo.lock").write_text(strip_checksums(pristine_text), encoding="utf-8")
     env = {"PATH": "/usr/bin:/bin", "HOME": str(work / "home"), "CARGO_HOME": str(work / "cargo-home"),
            "RUSTC_BOOTSTRAP": "1"}
@@ -272,6 +293,8 @@ def resolve(tree: Path, chromium_version: str, work: Path,
         if pkg.name == ROOT_PACKAGE:
             continue
         old = pristine.get(key)
+        if pkg.source is None and old is not None:
+            continue  # a crate that Chromium patches in its vendor directory: Chromium's own entry stays
         if old is None or not old.same_entry(pkg):
             entries.append(pkg)
     for pkg in entries:
@@ -526,13 +549,48 @@ def drop_patched_crates(tree: Path, added: Iterable[Package], log) -> None:
             log(f"crates: {name} has crate patches; removed it so gnrt vendor downloads and patches it again")
 
 
+def _keep_chromium_entries_of_patched_crates(before_text: str, after_text: str) -> str:
+    """after_text with the lock entry of each patched crate as it was in before_text.
+
+    A crate that cargo took from Chromium's vendor directory has no `source` in the new lock, but Chromium's
+    own lock names crates.io for it."""
+    before = parse_lock(before_text)
+    local = [before[key] for key, pkg in parse_lock(after_text).items()
+             if pkg.source is None and key in before and key[0] != ROOT_PACKAGE]
+    return merge_lock(after_text, local)
+
+
+@contextlib.contextmanager
+def _with_chromium_patched_crates(tree: Path):
+    """For the first step of `gnrt vendor`, which resolves against crates.io: point the crates that Chromium
+    patched at its own vendored copies (harfrust 0.14 pins icu_properties =2.2.0 on crates.io, and Chromium's
+    lock holds 2.4.0). The manifest is put back afterwards, also after a failure, and the lock entries of those
+    crates are put back after a success."""
+    section = _patch_section(tree)
+    if not section:
+        yield
+        return
+    manifest, lock_file = tree / CARGO_TOML, tree / CARGO_LOCK
+    original_toml, original_lock = manifest.read_text(encoding="utf-8"), lock_file.read_text(encoding="utf-8")
+    manifest.write_text(original_toml + section, encoding="utf-8")
+    try:
+        yield
+    finally:
+        manifest.write_text(original_toml, encoding="utf-8")
+    lock_file.write_text(
+        _keep_chromium_entries_of_patched_crates(original_lock, lock_file.read_text(encoding="utf-8")),
+        encoding="utf-8")
+
+
 def run_gnrt(tree: Path, python: Path | str, env: dict, log, runner) -> None:
     """`gnrt vendor` then `gnrt gen`, through Chromium's own wrapper (builds gnrt with the in-tree cargo)."""
-    script = Path(tree) / "tools" / "crates" / "run_gnrt.py"
+    tree = Path(tree)
+    script = tree / "tools" / "crates" / "run_gnrt.py"
     if not script.is_file():
         raise CratesError(f"{script} is missing; this Chromium tree has no gnrt")
-    for sub in ("vendor", "gen"):
-        runner(log, [python, script, sub], env, cwd=Path(tree))
+    with _with_chromium_patched_crates(tree):
+        runner(log, [python, script, "vendor"], env, cwd=tree)
+    runner(log, [python, script, "gen"], env, cwd=tree)
 
 
 def vendor_adblock(tree: Path, repo: Path, chromium_version: str, cache: Path, python: Path | str, env: dict,

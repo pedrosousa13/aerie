@@ -16,7 +16,7 @@ slide ends the column leaves the layout as before.
 
 --- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
 +++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
-@@ -581,7 +590,7 @@
+@@ -599,7 +599,7 @@
  
  gfx::Size VerticalTabStripRegionView::GetMinimumSize() const {
    auto min_size = BaseTabStripRegionView::GetMinimumSize();
@@ -25,7 +25,7 @@ slide ends the column leaves the layout as before.
      // Aerie: a hidden sidebar takes no room (issue #177).
      min_size.set_width(0);
      return min_size;
-@@ -595,7 +604,7 @@
+@@ -613,7 +613,7 @@
  gfx::Size VerticalTabStripRegionView::CalculatePreferredSize(
      const views::SizeBounds& available_size) const {
    auto size = BaseTabStripRegionView::CalculatePreferredSize(available_size);
@@ -34,7 +34,7 @@ slide ends the column leaves the layout as before.
      size.set_width(0);
      return size;
    }
-@@ -936,6 +945,7 @@
+@@ -955,6 +955,7 @@
      // layout yet: the show then starts from where the column is.
      const bool was_hidden = aerie_hidden_;
      aerie_hidden_ = false;
@@ -42,7 +42,7 @@ slide ends the column leaves the layout as before.
      SetVisible(true);
      InvalidateLayout();
      const aerie_sidebar::SlideMotion slide =
-@@ -970,11 +980,15 @@
+@@ -989,11 +990,15 @@
    }
    aerie_motion_ = aerie::motion::AnimateLayer(column, target, slide.duration,
                                                slide.easing, prefs);
@@ -69,7 +69,7 @@ slide ends the column leaves the layout as before.
  #include "components/prefs/pref_change_registrar.h"
  #include "chrome/browser/ui/animation/browser_animation_types.h"
  #include "chrome/browser/ui/omnibox/omnibox_tab_helper.h"
-@@ -266,6 +270,9 @@
+@@ -266,6 +268,9 @@
    bool aerie_target_visible_ = true;
    PrefChangeRegistrar aerie_pref_registrar_;
    base::OneShotTimer aerie_hide_timer_;

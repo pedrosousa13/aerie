@@ -105,7 +105,7 @@ class AerieAutoPipBrowserTest : public InProcessBrowserTest {
   // Opens the video page in a new tab, shows it, and starts the video.
   content::WebContents* PlayVideoInANewTab() {
     EXPECT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
-        browser(), VideoUrl(), WindowOpenDisposition::NEW_FOREGROUND_TAB,
+        browser(), VideoUrl(), WindowOpenDisposition::kNewForegroundTab,
         ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
     content::WebContents* tab = active();
     EXPECT_TRUE(content::ExecJs(tab, "startVideo()"));
@@ -223,7 +223,7 @@ IN_PROC_BROWSER_TEST_F(AerieAutoPipBrowserTest,
 IN_PROC_BROWSER_TEST_F(AerieAutoPipBrowserTest,
                        APageCannotStartItWithoutTheUsersSwitch) {
   ASSERT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
-      browser(), VideoUrl(), WindowOpenDisposition::NEW_FOREGROUND_TAB,
+      browser(), VideoUrl(), WindowOpenDisposition::kNewForegroundTab,
       ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
   content::WebContents* tab = active();
   // The page asks for picture-in-picture itself, with no click: refused.

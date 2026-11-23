@@ -2,26 +2,26 @@
 # when moving to a new Helium release (see README "Updating Helium").
 
 [helium]
-# Helium release this tree builds: helium-linux tag 0.21.1.1.
-version = "0.21.1.1"
-chromium_version = "157.0.8103.38"
+# Helium release this tree builds: helium-linux tag 0.22.2.1.
+version = "0.22.2.1"
+chromium_version = "158.0.8127.36"
 # helium-chromium submodule -> github.com/imputnet/helium
-core_tag = "0.21.1"
-core_commit = "ecb36f09c4a4140e4cf4e67e77a3150bf3f3e7eb"
+core_tag = "0.22.2"
+core_commit = "f32f2c066787492b9ba112dc1be1ad230b53658a"
 # helium-linux submodule -> github.com/imputnet/helium-linux
-platform_tag = "0.21.1.1"
-platform_commit = "4da5fdc8f90175592f62b6a3f62e90a65e171789"
+platform_tag = "0.22.2.1"
+platform_commit = "d77f716db31b6009e88c75ce94d5a2bf21794286"
 
 # sha256 of every file Helium's downloads INI files fetch. Values are copied
 # from the publisher: the prepared Chromium tarballs from the SHA256SUMS of
-# github.com/imputnet/chromium-tarballs release chromium-157.0.8103.38, the
+# github.com/imputnet/chromium-tarballs release chromium-158.0.8127.36, the
 # rest from helium-chromium/deps.ini, except the sections Aerie does not download
 # (tools/aerie_build/helium_deps.py: the uBlock Origin build is not pinned because it is
 # not fetched). The build refuses any download that is
 # not listed here or does not match.
 [downloads]
-"chromium-157.0.8103.38-base.tar.zst" = "a1f8fba6dd1657dc7e7e639b80f9d8419c5523df1f37f7d8d44a3fdeb6f859f3"
-"chromium-157.0.8103.38-linux-x64.tar.zst" = "da5817db6880ee37aa8148517711e461923ad0b749abc71df270c02bf0afcdb2"
+"chromium-158.0.8127.36-base.tar.zst" = "0790d05b2ec7be328c373357f2410d21d8f9ca4ab2abd4c3d057dc470fb2497f"
+"chromium-158.0.8127.36-linux-x64.tar.zst" = "e3b64a9847b91176b5158ec3a217b11b9d91253dc3d4282551c956d601e8d22f"
 "nonfree-search-engines-data-202609082320.tar.gz" = "2a8d63af41454446d64bb5f19786d908419265f152adaff087132d8e0cda51a7"
 
 # Official Chromium release tarball for the same Chromium version. Used only
@@ -29,9 +29,9 @@ platform_commit = "4da5fdc8f90175592f62b6a3f62e90a65e171789"
 # sha256 is copied from the published .hashes file next to the tarball. The
 # build refuses the tarball if the published value and this one differ.
 [fallback.chromium]
-url = "https://commondatastorage.googleapis.com/chromium-browser-official/chromium-157.0.8103.38.tar.xz"
-hashes_url = "https://commondatastorage.googleapis.com/chromium-browser-official/chromium-157.0.8103.38.tar.xz.hashes"
-sha256 = "01dbaa7a2ccdbe2092e190147a5fc28760ba3158816fb9eb2f92ecef64bda30a"
+url = "https://commondatastorage.googleapis.com/chromium-browser-official/chromium-158.0.8127.36.tar.xz"
+hashes_url = "https://commondatastorage.googleapis.com/chromium-browser-official/chromium-158.0.8127.36.tar.xz.hashes"
+sha256 = "000e7ce96ca59f48e278a652189e816c9c9686b80479d13693c2957e349b0cec"
 
 # Build tools Aerie installs into the build root. Each is checked against its
 # publisher's signature before use.
@@ -80,20 +80,20 @@ license = "BSD-2-Clause style (Apple); bundled workloads carry their own licence
 # sha256 is the digest of the sorted list of per-file sha256 values, not of the
 # archive bytes. Re-pin it with a Chromium bump; the build refuses a stale pin.
 [test_data.webui]
-chromium_version = "157.0.8103.38"
-url = "https://chromium.googlesource.com/chromium/src/+archive/refs/tags/157.0.8103.38/chrome/test/data/webui.tar.gz"
-sha256 = "18eee87f35b39dc53addb0546c7bb15aa7e713d755a9f88cc5dd409cd6d99533"
+chromium_version = "158.0.8127.36"
+url = "https://chromium.googlesource.com/chromium/src/+archive/refs/tags/158.0.8127.36/chrome/test/data/webui.tar.gz"
+sha256 = "ed8d5d5f00cdd9309f1d49e26f503ef3f979810cbbfb5157dd7a6e309ef65496"
 
 # chrome/test/data/pdf, same rules. chrome/test/data/webui:resources builds these files into its
 # resources.grd, so the webui directory alone leaves aerie_browser_tests unschedulable.
 [test_data.pdf]
-chromium_version = "157.0.8103.38"
-url = "https://chromium.googlesource.com/chromium/src/+archive/refs/tags/157.0.8103.38/chrome/test/data/pdf.tar.gz"
-sha256 = "9a5d2ab64d75ffc29eafec82808c06a2de7eb1ab4beec915bef5d23b8fc142bf"
+chromium_version = "158.0.8127.36"
+url = "https://chromium.googlesource.com/chromium/src/+archive/refs/tags/158.0.8127.36/chrome/test/data/pdf.tar.gz"
+sha256 = "936011b5a1f9499522c5a750120bfe635e4396d01b27bdc9ec2297f1c10c4272"
 
 # chrome/test/data/extensions/extension_api_unittest (three small JSON files), same rules: the test
 # support generates extension_features_unittest.cc from api_features.json.
 [test_data.extension_api_unittest]
-chromium_version = "157.0.8103.38"
-url = "https://chromium.googlesource.com/chromium/src/+archive/refs/tags/157.0.8103.38/chrome/test/data/extensions/extension_api_unittest.tar.gz"
+chromium_version = "158.0.8127.36"
+url = "https://chromium.googlesource.com/chromium/src/+archive/refs/tags/158.0.8127.36/chrome/test/data/extensions/extension_api_unittest.tar.gz"
 sha256 = "ac2c222b508e7d9093837955d985d37ce79fb8bddbeac974122ac1cde7814db1"

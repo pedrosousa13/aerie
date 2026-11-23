@@ -9,13 +9,16 @@ accessible name. Modelled on JsOptimizationsPageActionController. Needs patches/
 
 --- a/chrome/browser/ui/tabs/public/tab_features.h
 +++ b/chrome/browser/ui/tabs/public/tab_features.h
-@@ -43,4 +43,5 @@
+@@ -43,6 +43,7 @@
+ #include "ui/base/unowned_user_data/user_data_factory.h"
  
  class AboutThisSiteTabHelper;
 +class AerieGuardPageActionController;
  class AskBeforeHttpDialogController;
  class AutoPictureInPictureTabHelper;
-@@ -454,4 +455,10 @@
+ class BookmarkBarPreloadPipelineManager;
+@@ -463,6 +464,12 @@
+     return js_optimizations_page_action_controller_.get();
    }
  
 +  // Aerie: the Aerie Guard icon of this tab (null where the action is not
@@ -26,7 +29,9 @@ accessible name. Modelled on JsOptimizationsPageActionController. Needs patches/
 +
    FileSystemAccessPageActionController*
    file_system_access_page_action_controller() {
-@@ -671,4 +678,8 @@
+     return file_system_access_page_action_controller_.get();
+@@ -648,6 +655,10 @@
+   std::unique_ptr<JsOptimizationsPageActionController>
        js_optimizations_page_action_controller_;
  
 +  // Responsible for the Aerie Guard page action (Aerie).
@@ -35,31 +40,38 @@ accessible name. Modelled on JsOptimizationsPageActionController. Needs patches/
 +
    // Responsible for managing the commerce "Price insights" page action.
    std::unique_ptr<commerce::PriceInsightsPageActionViewController>
+       commerce_price_insights_page_action_view_controller_;
 --- a/chrome/browser/ui/tabs/tab_features.cc
 +++ b/chrome/browser/ui/tabs/tab_features.cc
-@@ -180,4 +180,5 @@
+@@ -183,6 +183,7 @@
+ #include "chrome/browser/ui/toolbar/pinned_toolbar/pinned_translate_action_listener.h"
  #include "chrome/browser/ui/ui_features.h"
  #include "chrome/browser/ui/uma_browsing_activity_observer.h"
 +#include "chrome/browser/ui/views/aerie_adblock/aerie_guard_page_action_controller.h"
  #include "chrome/browser/ui/views/bookmarks/bookmark_page_action_controller.h"
  #include "chrome/browser/ui/views/commerce/discounts_page_action_view_controller.h"
-@@ -595,4 +596,11 @@
+ #include "chrome/browser/ui/views/commerce/price_insights_page_action_view_controller.h"
+@@ -611,6 +612,13 @@
              tab, *page_action_controller_);
    }
-+
+ 
 +  // Aerie: the Aerie Guard icon.
 +  if (page_action_controller_->ActionExists(kActionAerieGuard)) {
 +    aerie_guard_page_action_controller_ =
 +        std::make_unique<AerieGuardPageActionController>(
 +            tab, *page_action_controller_);
 +  }
- 
++
    page_context_eligibility_helper_ =
+       GetUserDataFactory().CreateInstance<tabs::PageContextEligibilityHelper>(
+           tab, tab);
 --- a/chrome/browser/ui/tabs/BUILD.gn
 +++ b/chrome/browser/ui/tabs/BUILD.gn
-@@ -757,4 +757,5 @@
+@@ -791,6 +791,7 @@
+         "//chrome/browser/lens:lens_suggestion_tool",
          "//chrome/browser/record_replay:impl",
          "//chrome/browser/selection",
 +        "//chrome/browser/ui/views/aerie_adblock:guard",
          "//chrome/browser/ui/views/frame:browser_view_header",
          "//chrome/browser/ui/views/js_optimization:impl",
+         "//chrome/browser/ui/views/tab_sharing",

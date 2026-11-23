@@ -13,7 +13,7 @@ generated_resources.grd; this patch hands them to the page. The element sits in 
 section, under the pinned-close row of patches/sidebar/0037.
 --- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
 +++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
-@@ -491,6 +491,10 @@
+@@ -492,6 +492,10 @@
    // Aerie: what Ctrl+W does on a pinned tab (issue #180). The name is
    // aerie_tab_model::kPinnedClose; a test compares the two.
    (*s_allowlist)["aerie.tabs.pinned_close"] = settings_api::PrefType::kString;
@@ -57,7 +57,7 @@ section, under the pinned-close row of patches/sidebar/0037.
      "appearance_page/aerie_pinned_close_row.html.ts",
 --- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
 +++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
-@@ -637,6 +637,8 @@
+@@ -667,6 +667,8 @@
         IDS_SETTINGS_AERIE_PINNED_CLOSE_RESET_SLEEP_SWITCH},
        {"aeriePinnedCloseSleep", IDS_SETTINGS_AERIE_PINNED_CLOSE_SLEEP},
        {"aeriePinnedCloseClose", IDS_SETTINGS_AERIE_PINNED_CLOSE_CLOSE},

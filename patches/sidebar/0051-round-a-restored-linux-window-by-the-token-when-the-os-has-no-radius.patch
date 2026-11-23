@@ -14,7 +14,7 @@ the provider has no radius to paint with.
 
 --- a/chrome/browser/ui/views/frame/BUILD.gn
 +++ b/chrome/browser/ui/views/frame/BUILD.gn
-@@ -2811,6 +2811,7 @@
+@@ -2733,6 +2733,7 @@
      ]
      deps = [
        ":browser_frame_view_layout_linux_native",
