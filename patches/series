@@ -112,6 +112,8 @@ adblock/0027-add-aerie-guard-custom-rules-strings.patch
 hardening/0020-restrict-fonts-to-an-allowlist.patch
 # Key the fingerprinting seeds on the Workspace (storage partition) too (#121).
 hardening/0024-key-fingerprinting-seeds-on-the-workspace.patch
+# Audio worklets and script processors read the audio before the noise (#157).
+hardening/0025-noise-the-audio-an-audio-worklet-and-a-script-processor-read.patch
 
 # Design Tokens (#174): the reduced-motion pref, its strings and its row on the Appearance page.
 sidebar/0001-add-the-reduced-motion-pref.patch

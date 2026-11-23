@@ -1,0 +1,195 @@
+Aerie-Purpose: Give an audio worklet its page's noise tokens and noise the samples that an AudioWorkletProcessor or a ScriptProcessorNode reads, with the same per-site audio noise as a rendered buffer, so the standard audio fingerprint cannot be read raw through a worklet.
+Aerie-Upstream-Area: third_party/blink/renderer/modules/webaudio/audio_worklet_processor.cc, script_processor_node.cc and audio_worklet_messaging_proxy.h, base_audio_context.h; third_party/blink/renderer/core/workers/threaded_worklet_messaging_proxy.cc and .h, worklet_global_scope.cc
+Aerie-Kind: hook
+
+Issue #157, found by the M1 security sweep. Helium 0.22 noises audio where it leaves the graph: the
+rendered buffer of an OfflineAudioContext (AudioBuffer::JitterAudioData) and AnalyserNode reads, both through
+AudioReadbackNoise. An AudioWorkletNode at the end of the same graph got the raw samples, and could post them
+to the page, so the audio fingerprint came out the same on every site.
+
+The messaging proxy of an audio worklet copies the noise tokens of the creating window into the creation
+params (the map is empty while protection is off for the site or globally), and WorkletGlobalScope puts them
+on the global scope. Other threaded worklets read nothing that is noised and keep an empty map.
+AudioWorkletProcessor::Process then runs AudioReadbackNoise on the copied input arrays, after the copy and
+before process(): the seed is the kAudio token plus every sample of that block over all channels, and each
+sample is jittered by its position in the block. The algorithm is Helium's, unchanged. A worklet sees only
+one 128-frame block at a time, so its values cannot equal those of the whole rendered buffer (that hash covers
+samples that are not rendered yet); they follow the same rules: stable for one site and signal, different
+per site, within the same +/-0.01% bound, and no counter.
+
+ScriptProcessorNode noises the copy of the input buffer that it hands to onaudioprocess, the same way, and
+leaves the backing buffer that the graph writes alone.
+One helper in base_audio_context.h, JitterReadbackChannels, does the hashing and the jittering for both readers,
+so they cannot drift apart.
+
+A side effect: a worklet that passes its noised input on to its output changes what the rendered buffer of an
+OfflineAudioContext shows, because the buffer then gets the input noise and its own noise on top. MediaStreamAudioDestinationNode is not changed: its
+samples leave as a MediaStream track that many consumers read, which is a known gap (controls.json).
+
+The source gate audio_worklet_noise (tools/aerie_build/treegate.py) fails if any part goes missing.
+
+--- a/third_party/blink/renderer/core/workers/threaded_worklet_messaging_proxy.cc
++++ b/third_party/blink/renderer/core/workers/threaded_worklet_messaging_proxy.cc
+@@ -150,6 +150,14 @@
+           window->GetAgentClusterID(), ukm::kInvalidSourceId,
+           window->GetExecutionContextToken(),
+           window->CrossOriginIsolatedCapability(), window->IsIsolatedContext());
++  // Aerie: an audio worklet reads audio samples, so it takes the noise tokens
++  // of the page that created it. The other threaded worklets read nothing that
++  // is noised and stay without tokens. The map is empty while protection is
++  // off for the site or globally.
++  if (CarriesNoiseTokens()) {
++    global_scope_creation_params->helium_noise_tokens =
++        window->GetHeliumNoiseTokens();
++  }
+ 
+   // Worklets share the pre-initialized backing thread so that we don't have to
+   // specify the backing thread startup data.
+--- a/third_party/blink/renderer/core/workers/threaded_worklet_messaging_proxy.h
++++ b/third_party/blink/renderer/core/workers/threaded_worklet_messaging_proxy.h
+@@ -64,6 +64,10 @@
+       scoped_refptr<base::SingleThreadTaskRunner>
+           parent_agent_group_task_runner);
+ 
++  // Aerie: whether the worklet global scope is given the noise tokens of the
++  // page that created it. Only an audio worklet needs them.
++  virtual bool CarriesNoiseTokens() const { return false; }
++
+   std::unique_ptr<ThreadedWorkletObjectProxy> worklet_object_proxy_;
+ };
+ 
+--- a/third_party/blink/renderer/core/workers/worklet_global_scope.cc
++++ b/third_party/blink/renderer/core/workers/worklet_global_scope.cc
+@@ -131,6 +131,9 @@
+   // Step 5: "Let inheritedReferrerPolicy be outsideSettings's referrer policy."
+   SetReferrerPolicy(creation_params->referrer_policy);
+ 
++  // Aerie: empty unless the worklet's proxy passes the creator's tokens.
++  SetHeliumNoiseTokens(creation_params->helium_noise_tokens);
++
+   SetOutsideContentSecurityPolicies(
+       mojo::Clone(creation_params->outside_content_security_policies));
+ 
+--- a/third_party/blink/renderer/modules/webaudio/audio_worklet_messaging_proxy.h
++++ b/third_party/blink/renderer/modules/webaudio/audio_worklet_messaging_proxy.h
+@@ -109,6 +109,9 @@
+ 
+   std::unique_ptr<WorkerThread> CreateWorkerThread() override;
+ 
++  // Aerie: the processors read audio samples, which are noised per site.
++  bool CarriesNoiseTokens() const override { return true; }
++
+   // Each entry consists of processor name and associated AudioParam list.
+   HashMap<String, Vector<CrossThreadAudioParamInfo>> processor_info_map_;
+ 
+--- a/third_party/blink/renderer/modules/webaudio/audio_worklet_processor.cc
++++ b/third_party/blink/renderer/modules/webaudio/audio_worklet_processor.cc
+@@ -18,6 +18,7 @@
+ #include "third_party/blink/renderer/modules/webaudio/audio_buffer.h"
+ #include "third_party/blink/renderer/modules/webaudio/audio_worklet_global_scope.h"
+ #include "third_party/blink/renderer/modules/webaudio/audio_worklet_processor_definition.h"
++#include "third_party/blink/renderer/modules/webaudio/base_audio_context.h"
+ #include "third_party/blink/renderer/platform/audio/audio_bus.h"
+ #include "third_party/blink/renderer/platform/audio/denormal_disabler.h"
+ #include "third_party/blink/renderer/platform/instrumentation/instance_counters.h"
+@@ -228,6 +229,40 @@
+   }
+ }
+ 
++// Aerie: calls |visit| with the samples of every channel of |array_buffers|.
++template <typename Visit>
++void ForEachChannelSamples(v8::Isolate* isolate,
++                           const BackingArrayBuffers& array_buffers,
++                           Visit visit) {
++  for (const auto& bus : array_buffers) {
++    for (const auto& channel : bus) {
++      auto backing_store = channel.Get(isolate)->GetBackingStore();
++      visit(base::subtle::reinterpret_span<float>(
++          ArrayBufferContents(std::move(backing_store)).ByteSpan()));
++    }
++  }
++}
++
++// Aerie: noises the samples that an author script is about to read, the way
++// the rendered buffer of an OfflineAudioContext is noised, so a worklet at the
++// end of a graph cannot read the audio without the per-site noise. The seed is
++// the audio noise token and the samples of this block, and each sample moves
++// by its position in the block. Nothing here depends on a counter or on time.
++// There is nothing to do when there is no token, so the real samples show with
++// protection off.
++void JitterInputArrayBuffers(v8::Isolate* isolate,
++                             ExecutionContext* context,
++                             const BackingArrayBuffers& array_buffers) {
++  AudioReadbackNoise noise(context);
++  if (!noise.enabled()) {
++    return;
++  }
++
++  JitterReadbackChannels(noise, [&](auto visit) {
++    ForEachChannelSamples(isolate, array_buffers, visit);
++  });
++}
++
+ // Copies a BackingArrayBuffers to an AudioPort. The size of two args must
+ // be identical.
+ void CopyArrayBuffersToPort(v8::Isolate* isolate,
+@@ -482,6 +517,7 @@
+ 
+   // Copies `inputs` to the internal `input_array_buffers_`.
+   CopyPortToArrayBuffers(isolate, inputs, input_array_buffers_);
++  JitterInputArrayBuffers(isolate, global_scope_, input_array_buffers_);
+ 
+   // 2nd JS arg `outputs_`. Compare `outputs` and `outputs_`. Then allocates the
+   // data container if necessary.
+--- a/third_party/blink/renderer/modules/webaudio/script_processor_node.cc
++++ b/third_party/blink/renderer/modules/webaudio/script_processor_node.cc
+@@ -309,6 +309,20 @@
+         external_input_buffer_->getChannelData(channel)->AsSpan().copy_from(
+             backing_input_buffer->getChannelData(channel)->AsSpan());
+       }
++
++      // Aerie: the author script reads this copy, so it gets the same
++      // per-site audio noise as a rendered buffer. The backing buffer, which
++      // the graph writes, keeps the real samples.
++      AudioReadbackNoise noise(GetExecutionContext());
++      if (noise.enabled()) {
++        JitterReadbackChannels(noise, [&](auto visit) {
++          for (unsigned channel = 0;
++               channel < external_input_buffer_->numberOfChannels();
++               ++channel) {
++            visit(external_input_buffer_->getChannelData(channel)->AsSpan());
++          }
++        });
++      }
+     }
+   }
+ 
+--- a/third_party/blink/renderer/modules/webaudio/base_audio_context.h
++++ b/third_party/blink/renderer/modules/webaudio/base_audio_context.h
+@@ -115,6 +115,26 @@
+   std::optional<HeliumNoiseHash> hash_;
+ };
+ 
++// Aerie (#157): noises the samples that an author script reads out of the
++// graph, so every such reader keys the noise the same way. |for_each_channel|
++// is called twice with a visitor and must call it with the samples of every
++// channel, in the same order both times. The first pass hashes every channel
++// into |noise|, which must be enabled; the second jitters each sample by its
++// position across all the channels, as AudioBuffer::JitterAudioData does. It
++// allocates nothing and takes no lock, because the audio thread runs it.
++template <typename ForEachChannel>
++void JitterReadbackChannels(AudioReadbackNoise& noise,
++                            ForEachChannel for_each_channel) {
++  for_each_channel(
++      [&noise](base::span<float> samples) { noise.AddSource(samples); });
++  uint64_t index = 0;
++  for_each_channel([&noise, &index](base::span<float> samples) {
++    for (float& sample : samples) {
++      sample = noise.Jitter(sample, index++);
++    }
++  });
++}
++
+ // BaseAudioContext is the cornerstone of the web audio API and all AudioNodes
+ // are created from it.  For thread safety between the audio thread and the main
+ // thread, it has a rendering graph locking mechanism.

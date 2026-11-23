@@ -222,6 +222,58 @@ float AudioReadbackNoise::Jitter(float value, uint64_t index) const {
 AUDIO_GOOD = {treegate.AUDIO_BUFFER_PATH: AUDIO_NOISE_OK, treegate.REALTIME_ANALYSER_PATH: ANALYSER_NOISE_OK,
               treegate.AUDIO_CONTEXT_PATH: AUDIO_CONTEXT_OK}
 
+WORKLET_PROXY_OK = """  if (CarriesNoiseTokens()) {
+    global_scope_creation_params->helium_noise_tokens =
+        window->GetHeliumNoiseTokens();
+  }
+"""
+WORKLET_PROXY_HEADER_OK = "  bool CarriesNoiseTokens() const override { return true; }\n"
+WORKLET_PROXY_BASE_OK = "  virtual bool CarriesNoiseTokens() const { return false; }\n"
+WORKLET_SCOPE_OK = """  SetReferrerPolicy(creation_params->referrer_policy);
+  SetHeliumNoiseTokens(creation_params->helium_noise_tokens);
+"""
+WORKLET_PROCESSOR_OK = """  CopyPortToArrayBuffers(isolate, inputs, input_array_buffers_);
+  JitterInputArrayBuffers(isolate, global_scope_, input_array_buffers_);
+"""
+WORKLET_JITTER_OK = """void JitterInputArrayBuffers(v8::Isolate* isolate,
+                             ExecutionContext* context,
+                             const BackingArrayBuffers& array_buffers) {
+  AudioReadbackNoise noise(context);
+  if (!noise.enabled()) {
+    return;
+  }
+  JitterReadbackChannels(noise, [&](auto visit) {
+    ForEachChannelSamples(isolate, array_buffers, visit);
+  });
+}
+"""
+SCRIPT_PROCESSOR_OK = """      AudioReadbackNoise noise(GetExecutionContext());
+      if (noise.enabled()) {
+        JitterReadbackChannels(noise, [&](auto visit) {
+          visit(external_input_buffer_->getChannelData(0)->AsSpan());
+        });
+      }
+"""
+WORKLET_HELPER_OK = """template <typename ForEachChannel>
+void JitterReadbackChannels(AudioReadbackNoise& noise,
+                            ForEachChannel for_each_channel) {
+  for_each_channel(
+      [&noise](base::span<float> samples) { noise.AddSource(samples); });
+  uint64_t index = 0;
+  for_each_channel([&noise, &index](base::span<float> samples) {
+    for (float& sample : samples) {
+      sample = noise.Jitter(sample, index++);
+    }
+  });
+}
+"""
+WORKLET_GOOD = {
+    treegate.WORKLET_PROXY_PATH: WORKLET_PROXY_OK, treegate.WORKLET_PROXY_HEADER_PATH: WORKLET_PROXY_HEADER_OK,
+    treegate.WORKLET_PROXY_BASE_PATH: WORKLET_PROXY_BASE_OK, treegate.WORKLET_HELPER_PATH: WORKLET_HELPER_OK, treegate.WORKLET_SCOPE_PATH: WORKLET_SCOPE_OK,
+    treegate.WORKLET_PROCESSOR_PATH: WORKLET_PROCESSOR_OK + WORKLET_JITTER_OK,
+    treegate.SCRIPT_PROCESSOR_PATH: SCRIPT_PROCESSOR_OK,
+}
+
 GPU_WEBGL_OK = """String UnmaskedGpuString() {
   if (base::FeatureList::IsEnabled(blink::features::kSpoofWebGLInfo)) return {};
   if (!ShouldMaskGpuInfoForContext(ExecutionContext::From(script_state))) return real;
@@ -430,6 +482,7 @@ GOOD = {
     **JS_OPT_GOOD,
     **SERVICES_UI_GOOD,
     **AUDIO_GOOD,
+    **WORKLET_GOOD,
     **GPU_GOOD,
     **WORKER_GOOD,
     **PARTITION_GOOD,
@@ -644,6 +697,34 @@ class DefaultsGatesTest(TreeCase):
         other = "third_party/blink/renderer/modules/webaudio/analyser_handler.cc"
         self.write({other: "uint64_t g_helium_audio_analyzer_read_sequence = 0;\n"})
         self.assertEqual([f.path for f in treegate.check_audio_noise_stable(self.root)], [other])
+
+    def test_audio_worklet_input_must_be_noised_with_the_creators_tokens(self):
+        # Issue #157: an AudioWorkletProcessor and a ScriptProcessorNode read the audio before it leaves the graph.
+        self.write(WORKLET_GOOD)
+        self.assertEqual(treegate.check_audio_worklet_noise(self.root, require=True), [])
+        self.assertIn(treegate.check_audio_worklet_noise, treegate.GATES)
+        for path, text in (
+                (treegate.WORKLET_PROXY_PATH, ""),
+                (treegate.WORKLET_PROXY_HEADER_PATH, WORKLET_PROXY_HEADER_OK.replace("true", "false")),
+                # Paint, layout and animation worklets stay token-free: the base default must be false.
+                (treegate.WORKLET_PROXY_BASE_PATH, WORKLET_PROXY_BASE_OK.replace("false", "true")),
+                (treegate.WORKLET_PROXY_BASE_PATH, ""),
+                (treegate.WORKLET_HELPER_PATH, WORKLET_HELPER_OK.replace("noise.AddSource(samples);", "")),
+                (treegate.WORKLET_HELPER_PATH, WORKLET_HELPER_OK.replace("noise.Jitter(sample, index++)", "sample")),
+                (treegate.WORKLET_SCOPE_PATH, WORKLET_SCOPE_OK.replace("SetHeliumNoiseTokens", "Nothing")),
+                (treegate.WORKLET_PROCESSOR_PATH, WORKLET_PROCESSOR_OK.replace("JitterInputArrayBuffers(isolate, global_scope_, input_array_buffers_);", "")
+                 + WORKLET_JITTER_OK),
+                (treegate.WORKLET_PROCESSOR_PATH, WORKLET_PROCESSOR_OK + WORKLET_JITTER_OK.replace("JitterReadbackChannels(noise,", "Skip(noise,")),
+                (treegate.WORKLET_PROCESSOR_PATH, WORKLET_PROCESSOR_OK + WORKLET_JITTER_OK.replace("AudioReadbackNoise noise(context);", "")),
+                (treegate.SCRIPT_PROCESSOR_PATH, SCRIPT_PROCESSOR_OK.replace("AudioReadbackNoise noise(GetExecutionContext());", "")),
+                (treegate.SCRIPT_PROCESSOR_PATH, SCRIPT_PROCESSOR_OK.replace("JitterReadbackChannels(noise,", "Skip(noise,"))):
+            self.write(WORKLET_GOOD)
+            self.write({path: text})
+            self.assertEqual({f.path for f in treegate.check_audio_worklet_noise(self.root)}, {path}, text)
+
+    def test_the_worklet_gate_follows_require(self):
+        self.assertEqual(treegate.check_audio_worklet_noise(self.root), [])
+        self.assertEqual(len(treegate.check_audio_worklet_noise(self.root, require=True)), 8)
 
     def test_webgl_gpu_strings_must_go_through_the_masking_helper(self):
         self.write(GPU_GOOD)
@@ -966,7 +1047,7 @@ class RunTest(TreeCase):
 
     def test_empty_tree_passes_unless_required(self):
         self.assertEqual(self.run_gates(), [])
-        self.assertEqual(len(self.run_gates(require=True)), 65)
+        self.assertEqual(len(self.run_gates(require=True)), 73)
 
     def test_format_report(self):
         self.write({"a.cc": '"https://services.helium.imput.net"\n'})
