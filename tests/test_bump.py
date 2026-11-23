@@ -442,8 +442,8 @@ class MajorCommandTest(unittest.TestCase):
 
         from aerie_build import cli
 
-        remote = {bump.PLATFORM_UPSTREAM: {"0.21.1.1": "a" * 40, "0.22.1.1": "d" * 40},
-                  bump.CORE_UPSTREAM: {"0.21.1": "b" * 40, "0.22.1": "c" * 40}}
+        remote = {bump.PLATFORM_UPSTREAM: {"0.22.2.1": "a" * 40, "0.23.1.1": "d" * 40},
+                  bump.CORE_UPSTREAM: {"0.22.2": "b" * 40, "0.23.1": "c" * 40}}
         out, err = io.StringIO(), io.StringIO()
         refused = bump.MajorBumpRefused(157, 158)
         with mock.patch.object(bump, "remote_tags", side_effect=lambda url: remote[url]), \

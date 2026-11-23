@@ -545,8 +545,9 @@ def prepare_tree(ctx: Context, log: Logger, env: dict) -> None:
     helium_layers = patch_check.layers(ctx.repo)[:2]
 
     def patch():
-        run(log, [py, utils / "prune_binaries.py", "--keep-build-dependencies", tree,
-                  core / "pruning.list"], env)
+        pruning = helium_deps.write_filtered_pruning(
+            core / "deps.ini", core / "pruning.list", ctx.paths.tmp / "helium-deps" / "pruning.list")
+        run(log, [py, utils / "prune_binaries.py", "--keep-build-dependencies", tree, pruning], env)
         # Helium's own applier, on its series minus the entries in patches/helium-drop.txt.
         scratch = ctx.paths.tmp / "helium-patches"
         dirs = [patches.filtered_series_dir(layer, scratch / layer.label) for layer in helium_layers]

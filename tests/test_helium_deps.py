@@ -51,6 +51,18 @@ class DepsTest(unittest.TestCase):
         out = helium_deps.write_filtered(ini, self.dir / "deps.ini")
         self.assertNotIn("ublock", [s.lower() for s in helium_deps.sections(out)])
 
+    def test_pruning_lines_under_a_dropped_output_path_are_removed(self):
+        pruning = self.dir / "pruning.list"
+        pruning.write_text("a/keep.bin\nx/onboarding/node_modules/e.wasm\nx/onboarding2/keep\n"
+                           "third_party/ublock/u.bin\nx/search/keep\n")
+        out = helium_deps.write_filtered_pruning(self.ini, pruning, self.dir / "out" / "pruning.list")
+        self.assertEqual(out.read_text().splitlines(), ["a/keep.bin", "x/onboarding2/keep", "x/search/keep"])
+
+    def test_the_pinned_pruning_list_has_nothing_under_the_onboarding_page(self):
+        out = helium_deps.write_filtered_pruning(
+            REPO / "helium-chromium" / "deps.ini", REPO / "helium-chromium" / "pruning.list", self.dir / "p.list")
+        self.assertNotIn("components/helium_onboarding/", out.read_text())
+
     def test_every_dropped_section_has_a_ledger_row(self):
         ledger = (REPO / "docs" / "helium-dependency-ledger.md").read_text()
         for name in helium_deps.DROPPED_SECTIONS:

@@ -51,6 +51,7 @@ class PrepareTreeOrderTest(unittest.TestCase):
             filtered = contextlib.nullcontext()
         with mock.patch.object(pipeline, "run", fake_run), filtered, \
              mock.patch.object(pipeline, "prepare_adblock", fake_adblock), \
+             mock.patch.object(pipeline.helium_deps, "write_filtered_pruning", lambda _ini, _src, dest: dest), \
              mock.patch.object(pipeline, "apply_aerie_layers", fake_layers):
             pipeline.prepare_tree(self.ctx, lambda _m: None, {})
 
