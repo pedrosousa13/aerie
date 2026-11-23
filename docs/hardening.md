@@ -145,7 +145,7 @@ Process rule: the optimizer mode is part of the SiteInfo and of the renderer pro
 
 Canvas and audio output, WebGL readPixels on the default framebuffer, the widths that canvas text measurement reports and the reported number of CPU cores carry small random noise. The noise differs for each site and for each browser session, and is the same on every address of one site (www.example.com and shop.example.com share it). A private window starts with its own noise. Dedicated workers, shared workers and service workers get the same noise as their site, so a script cannot get clean values by moving into a worker. You can turn it off for a single site, and that covers every address of the site and its workers. WebGL reports only the vendor family of the graphics card (for example Google Inc. (AMD)), and WebGPU reports no adapter details. The screen size is reported as the smallest of seven common sizes that fits the window, and the window position as 0,0. While this is on, the reported device memory is capped at 8 GB. Turning it off, globally or for one site, reports the real value (web workers stay capped for now).
 
-Audio noise is seeded from the site and session only, so one site gets the same audio output on every render and every AnalyserNode read of the same signal in one session. A tracker cannot average the noise away by reading again.
+Audio noise is seeded from the site and session token and the samples being read, so one site gets the same audio output on every render and every AnalyserNode read of the same signal in one session (Helium 0.22's own audio noise; the audio_noise_stable source gate fails if a per-render or per-read counter comes back). A tracker cannot average the noise away by reading again.
 
 The noise is keyed on the site: the scheme plus the registrable domain (the public suffix list decides which part that is). Every address of one site gets the same canvas, audio and core count, so a tracker cannot tell the addresses apart by their noise, and the per-site switch is one pattern, https://[*.]example.com, for the same addresses. The scheme is part of the site, so http://example.com and https://example.com have separate noise and separate switches. Older per-address off settings are widened to the site the first time the setting is read or changed. The storage partition is part of the key too (issue #121): once Workspaces exist, the same site in two Workspaces gets two different seeds, so the two Workspaces look like two browsers. The default partition adds nothing to the key, so a profile without Workspaces behaves as before. The partition is only mixed into the in-memory seed, never stored or sent, and the switches still apply in every Workspace.
 
@@ -157,7 +157,7 @@ WebGL vendor and renderer (WEBGL_debug_renderer_info) report the vendor family i
 
 WebGPU adapter info has an empty vendor, architecture, device and description. Aerie's own code does the family mapping and the masked strings (components/aerie_gpu_info), with unit tests.
 
-Workers get the noise of their site (issue #113). A dedicated worker takes the tokens of the page that created it, and a worker started by a worker takes its parent's. A shared worker and a service worker get theirs from the browser, derived from the top-level site of the worker's storage key, which is the same site that keys a window, so a worker shows the same canvas and core count as its page on one site and different ones on another site. A worker in a frame of another site gets the tokens of the page that embeds it. The browser sends a worker the derived per-site tokens only, never the seeds, and sends none when protection is off for the browser or for the site, so the worker sees the real values. A change of the setting applies to workers started after it; a running worker keeps the tokens it started with, and a service worker takes new ones when it next starts. Worklets (audio, paint, layout and animation) get no tokens and are not noised; none of them can read a canvas or the core count.
+Workers get the noise of their site (issue #113). A dedicated worker takes the tokens of the page that created it, and a worker started by a worker takes its parent's. A shared worker takes the tokens of the page that created it, and a service worker gets its own from the browser, derived from the top-level site of the worker's storage key, which is the same site that keys a window (Helium 0.22 does this; Aerie only adds the Workspace to the key), so a worker shows the same canvas and core count as its page on one site and different ones on another site. A worker in a frame of another site gets the tokens of the page that embeds it. The browser sends a worker the derived per-site tokens only, never the seeds, and sends none when protection is off for the browser or for the site, so the worker sees the real values. A change of the setting applies to workers started after it; a running worker keeps the tokens it started with, and a service worker takes new ones when it next starts. Worklets (audio, paint, layout and animation) get no tokens and are not noised; none of them can read a canvas or the core count.
 
 A window that a page opens with window.open() gets the noise of its opener from the moment it is created (issue #156). Its first, empty document belongs to the same origin as the opener, so the opener can script it before anything loads in it; without the opener's noise it would read the real canvas, graphics card, device memory and screen size. The popup shows the same values as its opener. When the popup goes to a page, that page gets the noise of its own site, so a popup that goes to another site does not keep the opener's. With protection off for the browser or for the opener's site, the popup shows the real values, like the opener. A window opened with noopener or noreferrer cannot be scripted by its opener, but it is created in the same call, so it also starts with the opener's noise until its first commit replaces it with the noise of the site it loads.
 
@@ -192,7 +192,7 @@ Fonts are not farbled. The separate, opt-in Restrict fonts setting (off by defau
   - `third_party/blink/renderer/core/frame/navigator_device_memory.cc`
   - content/browser/client_hints/client_hints.cc (AddDeviceMemoryHeader)
   - third_party/blink/renderer/core/workers/worker_global_scope.cc and dedicated_worker.cc (the tokens of a dedicated worker)
-  - content/browser/worker_host/shared_worker_host.cc and content/browser/service_worker/service_worker_version.cc (the tokens of a shared and a service worker)
+  - content/browser/worker_host/shared_worker_service_impl.cc and content/browser/service_worker/service_worker_version.cc (the tokens of a shared and a service worker)
   - third_party/blink/renderer/core/frame/screen.cc (Screen::GetRect, colorDepth, isExtended)
   - third_party/blink/renderer/core/frame/local_dom_window.cc (screenX, screenY)
   - third_party/blink/renderer/core/css/media_values.cc (device-width, device-height)
@@ -200,14 +200,11 @@ Fonts are not farbled. The separate, opt-in Restrict fonts setting (off by defau
   - third_party/blink/renderer/core/dom/document.cc (GetNoiseFactorX, GetNoiseFactorY)
 - Preference: `helium.noise.enabled` (default `true`)
 - Aerie patches:
-  - `patches/hardening/0009-stable-audio-noise-per-site-and-session.patch`
   - `patches/hardening/0010-mask-the-gpu-in-webgl-and-webgpu.patch`
   - `patches/hardening/0011-key-fingerprinting-noise-on-the-site.patch`
   - `patches/hardening/0012-cap-device-memory-at-8gb.patch`
-  - `patches/hardening/0013-give-dedicated-workers-the-pages-noise-tokens.patch`
   - `patches/hardening/0014-let-workers-follow-the-gpu-masking-switches.patch`
   - `patches/hardening/0015-report-a-common-screen-size.patch`
-  - `patches/hardening/0017-give-popups-the-openers-noise-tokens.patch`
   - `patches/hardening/0018-seed-measuretext-noise-per-site.patch`
   - `patches/hardening/0019-noise-webgl-readpixels-on-the-default-framebuffer.patch`
   - `patches/hardening/0020-restrict-fonts-to-an-allowlist.patch`

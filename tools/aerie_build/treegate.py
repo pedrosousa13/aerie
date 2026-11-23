@@ -356,25 +356,46 @@ def check_services_ui(root: Path, require: bool = False) -> list[Finding]:
     return out
 
 
+AUDIO_CONTEXT_PATH = "third_party/blink/renderer/modules/webaudio/base_audio_context.cc"
 AUDIO_BUFFER_PATH = "third_party/blink/renderer/modules/webaudio/audio_buffer.cc"
 REALTIME_ANALYSER_PATH = "third_party/blink/renderer/modules/webaudio/realtime_analyser.cc"
+AUDIO_DIR = "third_party/blink/renderer/modules/webaudio"
 
 
 def check_audio_noise_stable(root: Path, require: bool = False) -> list[Finding]:
-    """Helium's audio jitter is seeded from the site/session token and the sample coordinates only
-    (issue #38): channel and frame for rendered buffers, domain constant and index for analyser
-    reads. A per-render or per-read counter would let a tracker average the noise away."""
+    """Audio jitter is seeded from the site/session token, the data being read and the sample position only
+    (issue #38; Helium 0.22 core/noise/audio.patch). AudioReadbackNoise hashes the kAudio token, then every
+    source sample, and Jitter adds only the index. A per-render or per-read counter, or a random seed, would
+    let a tracker average the noise away."""
     gate = "audio_noise_stable"
     out = _must_match(
+        root, AUDIO_CONTEXT_PATH, gate,
+        r"AudioReadbackNoise::AudioReadbackNoise\([^{]*\{.*?tokens\.find\(HeliumNoiseFeature::kAudio\).*?"
+        r"hash_\.emplace\(it->second\)",
+        "AudioReadbackNoise must seed its hash from the kAudio token only", require)
+    out += _must_match(
+        root, AUDIO_CONTEXT_PATH, gate,
+        r"float AudioReadbackNoise::Jitter\(float value, uint64_t index\) const \{[^}]*?"
+        r"HeliumNoiseHash hash = \*hash_;\s*hash\.Update\(index\);\s*const int steps = hash\.GetValueBelow\(",
+        "Jitter must seed from the token and data hash plus the index alone: no counter and no random value", require)
+    out += _must_match(
         root, AUDIO_BUFFER_PATH, gate,
-        r"const uint64_t coordinate_seed =\s*\(static_cast<uint64_t>\(i\) << 48\) \^ frame;\s*"
-        r"samples\[frame\] = BaseAudioContext::JitterAudioData\(\s*samples\[frame\],\s*context,\s*coordinate_seed\)",
-        "the AudioBuffer jitter seed must be exactly (static_cast<uint64_t>(i) << 48) ^ frame, with no "
-        "per-render counter", require)
+        r"AudioBuffer::JitterAudioData\(ExecutionContext\* context\) \{\s*AudioReadbackNoise noise\(context\);"
+        r".*?noise\.AddSource\(channel->AsSpan\(\)\);.*?noise\.Jitter\(sample, index\+\+\)",
+        "an AudioBuffer must hash every channel into the noise, then jitter by sample index alone", require)
     out += _must_match(
         root, REALTIME_ANALYSER_PATH, gate,
-        r"uint64_t CoordinateSeed\(uint64_t domain, uint64_t index\) const \{[^}]*?return domain \^ index;\s*\}",
-        "the analyser jitter seed must be exactly domain ^ index, with no per-read counter", require)
+        r"AudioReadbackNoise noise\(context\);",
+        "analyser reads must use AudioReadbackNoise", require)
+    base = root / AUDIO_DIR
+    if base.is_dir():
+        for path in sorted(base.rglob("*")):
+            if path.suffix not in (".cc", ".h") or not path.is_file():
+                continue
+            if re.search(r"g_helium_audio\w*(?:sequence|counter)|helium_audio\w*_sequence",
+                         path.read_text(encoding="utf-8", errors="replace")):
+                out.append(Finding(gate, str(path.relative_to(root)),
+                                   "no per-render or per-read counter may feed the audio noise"))
     return out
 
 
@@ -451,7 +472,7 @@ WORKER_DEDICATED_PATH = "third_party/blink/renderer/core/workers/dedicated_worke
 WORKER_SHARED_IMPL_PATH = "third_party/blink/renderer/core/exported/web_shared_worker_impl.cc"
 WORKER_SERVICE_IMPL_PATH = "third_party/blink/renderer/modules/exported/web_embedded_worker_impl.cc"
 WORKER_TOKENS_PATH = "content/browser/helium_noise/noise_token_data.cc"
-WORKER_SHARED_HOST_PATH = "content/browser/worker_host/shared_worker_host.cc"
+WORKER_SHARED_SERVICE_PATH = "content/browser/worker_host/shared_worker_service_impl.cc"
 WORKER_SERVICE_HOST_PATH = "content/browser/service_worker/service_worker_version.cc"
 WORKER_GPU_PATH = "third_party/blink/renderer/core/execution_context/gpu_info_masking.h"
 
@@ -471,18 +492,17 @@ def check_worker_noise_tokens(root: Path, require: bool = False) -> list[Finding
         (WORKER_DEDICATED_PATH,
          r"params->helium_noise_tokens\s*=\s*execution_context->GetHeliumNoiseTokens\(\)",
          "a dedicated worker must get its creator's noise tokens"),
-        (WORKER_SHARED_IMPL_PATH, r"creation_params->helium_noise_tokens\s*=\s*helium_noise_tokens",
+        (WORKER_SHARED_IMPL_PATH, r"creation_params->helium_noise_tokens\s*=\s*noise_tokens",
          "a shared worker must pass the browser's noise tokens to its creation params"),
         (WORKER_SERVICE_IMPL_PATH,
-         r"global_scope_creation_params->helium_noise_tokens\s*=\s*worker_start_data->helium_noise_tokens",
+         r"global_scope_creation_params->helium_noise_tokens\s*=\s*worker_start_data->noise_tokens",
          "a service worker must pass the browser's noise tokens to its creation params"),
-        (WORKER_SHARED_HOST_PATH,
-         r"HeliumNoiseTokenData::GetTokensForWorker\(\s*GetProcessHost\(\)->GetBrowserContext\(\),"
-         r"\s*instance_\.worker_storage_key\(\)\s*,",
-         "the browser must send a shared worker GetTokensForWorker(browser context, worker storage key, partition)"),
+        (WORKER_SHARED_SERVICE_PATH,
+         r"host->set_noise_tokens\(creator\.GetPage\(\)\.noise_tokens\(\)\)",
+         "a shared worker must take the noise tokens of the page that created it"),
         (WORKER_SERVICE_HOST_PATH,
-         r"params->helium_noise_tokens\s*=\s*HeliumNoiseTokenData::GetTokensForWorker\(\s*"
-         r"context_->wrapper\(\)->browser_context\(\),\s*key_\s*,",
+         r"params->noise_tokens\s*=\s*HeliumNoiseTokenData::GetTokensForWorker\(\s*"
+         r"browser_context,\s*key_\s*,",
          "the browser must send a service worker GetTokensForWorker(browser context, storage key, partition)"),
     ):
         out += _must_match(root, rel, gate, pattern, message, require)
@@ -494,7 +514,7 @@ def check_worker_noise_tokens(root: Path, require: bool = False) -> list[Finding
             out.append(Finding(gate, WORKER_TOKENS_PATH, "GetTokensForWorker is missing"))
         else:
             code = body.group(0)
-            if "key.top_level_site()" not in code:
+            if not re.search(r"return GetTokens\(context,\s*\w+\.top_level_site\(\)", code):
                 out.append(Finding(gate, WORKER_TOKENS_PATH,
                                    "worker tokens must be derived from the top-level site of the storage key"))
             if "HeliumNoiseEnabled(" not in code:
@@ -517,22 +537,23 @@ PARTITION_NAV_PATH = "content/browser/renderer_host/navigation_request.cc"
 def check_workspace_noise_partition(root: Path, require: bool = False) -> list[Finding]:
     """The noise tokens are keyed on the storage partition (the Workspace) as well as the site (issue #121), so
     two Workspaces show two browsers. Every caller hands over the partition of what it serves: a navigation
-    its site_info_, a shared worker the process's partition, a service worker its context's. The partition
+    its site_info_, a popup's first document its site instance's, a service worker its context's. A shared
+    worker takes its creator page's tokens (Helium 0.22), so it follows that page's partition. The partition
     is only mixed into an in-memory hash; nothing stores or sends it."""
     gate = "workspace_noise_partition"
     out: list[Finding] = []
     for rel, pattern, message in (
         (PARTITION_NAV_PATH,
-         r"HeliumNoiseTokenData::GetTokens\([^;]*site_info_\.GetStoragePartitionConfig\(\)",
+         r"HeliumNoiseTokenData::GetTokensForMainFrame\([^;]*site_info_\.GetStoragePartitionConfig\(\)",
          "a navigation must key its noise tokens on the storage partition of its site_info_"),
-        (WORKER_SHARED_HOST_PATH,
-         r"GetTokensForWorker\([^;]*GetProcessHost\(\)->GetStoragePartition\(\)->GetConfig\(\)",
-         "a shared worker must key its noise tokens on its process's storage partition"),
+        (POPUP_BROWSER_PATH,
+         r"GetTokensForMainFrame\([^;]*GetStoragePartitionConfig\(\)",
+         "a popup's initial document must key its noise tokens on the storage partition of its site instance"),
         (WORKER_SERVICE_HOST_PATH,
          r"GetTokensForWorker\([^;]*wrapper\(\)->storage_partition\(\)->GetConfig\(\)",
          "a service worker must key its noise tokens on its storage partition"),
         (WORKER_TOKENS_PATH,
-         r"NoiseSiteKey\(\s*origin,\s*aerie_fingerprint::NoisePartitionKey\(",
+         r"NoiseSiteKey\(\s*url::Origin::Create\(top_level_site\.GetURL\(\)\),\s*aerie_fingerprint::NoisePartitionKey\(",
          "GetTokens must put the storage partition in the site key (NoiseSiteKey(origin, NoisePartitionKey(...)))"),
         (WORKER_TOKENS_PATH,
          r"return GetTokens\(context,[^;]*,\s*partition\);",
@@ -561,10 +582,11 @@ def check_popup_noise_tokens(root: Path, require: bool = False) -> list[Finding]
          r"\s+noise_tokens;",
          "CreateNewWindowReply must carry the noise tokens"),
         (POPUP_BROWSER_PATH,
-         r"new_main_rfh->GetPage\(\)\.set_noise_tokens\(\s*GetPage\(\)\.noise_tokens\(\)\s*\)",
-         "the browser must give the popup's page its opener's noise tokens"),
+         r"noise_tokens =\s*HeliumNoiseTokenData::GetTokensForMainFrame\([^;]*;\s*"
+         r"new_main_rfh->GetPage\(\)\.set_noise_tokens\(noise_tokens\)",
+         "the browser must give the popup's page the noise tokens it derives for the new window"),
         (POPUP_BROWSER_PATH,
-         r"mojom::CreateNewWindowReply::New\([^;]*?new_main_rfh->GetPage\(\)\.noise_tokens\(\)\s*\)",
+         r"mojom::CreateNewWindowReply::New\([^;]*?,\s*noise_tokens\);",
          "the browser must send the noise tokens in CreateNewWindowReply"),
         (POPUP_RENDERER_PATH, r"view_params->noise_tokens\s*=\s*reply->noise_tokens",
          "the renderer must create the popup's view with the tokens from the reply"),

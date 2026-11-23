@@ -181,7 +181,7 @@ The plumbing stays, so Helium bumps conflict as little as possible.
    }
  
 -  return GURL(kHeliumDefaultPushServer);
-+  // Aerie: there is no default push server (push.helium.computer is gone), and
++  // Aerie: there is no default push server (Helium's own one is gone), and
 +  // ShouldAccessPushService() is false anyway while services are off.
 +  return GetDummyURL();
  }

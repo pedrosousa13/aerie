@@ -244,6 +244,26 @@ def render_crate_lock(chromium_version: str, cargo_toml: str, cargo_lock: str,
 # --- Resolving (maintainer command) ----------------------------------------
 
 
+def _patch_section(tree: Path) -> str:
+    """A [patch.crates-io] table for the crates Chromium patches in its vendor directory.
+
+    Chromium edits a few crates after vendoring them (chromium_crates_io/patches/<dir>), for example
+    to relax a version pin, so crates.io's own copy may not resolve with the rest of its lock."""
+    base = (tree / CARGO_TOML).parent
+    patches_dir = base / "patches"
+    lines = []
+    for patch_dir in sorted(patches_dir.iterdir()) if patches_dir.is_dir() else []:
+        manifest = base / "vendor" / patch_dir.name / "Cargo.toml"
+        if not manifest.is_file():
+            continue
+        try:
+            name = tomllib.loads(manifest.read_text(encoding="utf-8"))["package"]["name"]
+        except (OSError, KeyError, tomllib.TOMLDecodeError):
+            continue
+        lines.append(f'{patch_dir.name} = {{ package = "{name}", path = "{manifest.parent}" }}\n')
+    return "\n[patch.crates-io]\n" + "".join(lines) if lines else ""
+
+
 def resolve(tree: Path, chromium_version: str, work: Path,
             runner: Callable[[Sequence[str], dict, Path], None] | None = None) -> str:
     """Resolve adblock against the tree's Cargo.toml / Cargo.lock; return the new lock text.
@@ -258,7 +278,7 @@ def resolve(tree: Path, chromium_version: str, work: Path,
     work = Path(work)
     (work / "src").mkdir(parents=True, exist_ok=True)
     (work / "src" / "lib.rs").write_text("")
-    (work / "Cargo.toml").write_text(toml_text, encoding="utf-8")
+    (work / "Cargo.toml").write_text(toml_text + _patch_section(Path(tree)), encoding="utf-8")
     (work / "Cargo.lock").write_text(strip_checksums(pristine_text), encoding="utf-8")
     env = {"PATH": "/usr/bin:/bin", "HOME": str(work / "home"), "CARGO_HOME": str(work / "cargo-home"),
            "RUSTC_BOOTSTRAP": "1"}
@@ -272,6 +292,8 @@ def resolve(tree: Path, chromium_version: str, work: Path,
         if pkg.name == ROOT_PACKAGE:
             continue
         old = pristine.get(key)
+        if pkg.source is None and old is not None:
+            continue  # a crate that Chromium patches in its vendor directory: Chromium's own entry stays
         if old is None or not old.same_entry(pkg):
             entries.append(pkg)
     for pkg in entries:

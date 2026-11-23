@@ -4,12 +4,12 @@
 # Cargo.lock, or whose entry there changes. Added crates carry the sha256 of their
 # .crate file on crates.io. See tools/aerie_build/rust_crates.py.
 schema = 1
-chromium_version = "157.0.8103.38"
+chromium_version = "158.0.8127.36"
 adblock = "0.13.4"
 # Hashes of the files this was resolved against: Cargo.toml as the Aerie patch leaves it,
 # Cargo.lock as Chromium ships it (without checksum lines).
-cargo_toml_sha256 = "dfc9d33c94abbadfe932a82c4acbbb69c22aca1e39b6f06df95cfee87249b55f"
-cargo_lock_sha256 = "f7ee721045551f392256415149d4ae3a0d4a3c97f33c8b5ccdedc7a16a304f4d"
+cargo_toml_sha256 = "2f4d526a58cf42e3e940690d0b00bfd0bb4c64f16f4a50fedd5fcff70b2d028b"
+cargo_lock_sha256 = "0f78b8ef445420ae905483904365e9b0350117459735d14b6cec02866a070c7d"
 
 [[package]]
 name = "adblock"
@@ -90,9 +90,9 @@ dependencies = [
 
 [[package]]
 name = "jxl"
-version = "0.7.4"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "43b041e4bd5bb931cf73b271bc3304eb135bb473914877d64bf77fdf5b4d4687"
+checksum = "b8379fc83d79477900c9aed78cb8370a556d834081bebcb771c6010381c4e230"
 dependencies = [
  "array-init",
  "byteorder",

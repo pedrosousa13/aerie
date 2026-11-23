@@ -175,25 +175,47 @@ SERVICES_UI_GOOD = {
 }
 
 AUDIO_NOISE_OK = """void AudioBuffer::JitterAudioData(ExecutionContext* context) {
-  for (unsigned i = 0; i < channels_.size(); ++i) {
-    for (size_t frame = 0; frame < samples.size(); ++frame) {
-      const uint64_t coordinate_seed =
-          (static_cast<uint64_t>(i) << 48) ^ frame;
-      samples[frame] = BaseAudioContext::JitterAudioData(
-          samples[frame], context, coordinate_seed);
+  AudioReadbackNoise noise(context);
+  if (!noise.enabled()) {
+    return;
+  }
+  for (const auto& channel : channels_) {
+    noise.AddSource(channel->AsSpan());
+  }
+  uint64_t index = 0;
+  for (const auto& channel : channels_) {
+    for (float& sample : channel->AsSpan()) {
+      sample = noise.Jitter(sample, index++);
     }
   }
 }
 """
 
-ANALYSER_NOISE_OK = """struct AudioAnalyzerNoiseState {
-  uint64_t CoordinateSeed(uint64_t domain, uint64_t index) const {
-    DCHECK(enabled);
-    return domain ^ index;
-  }
-};
+ANALYSER_NOISE_OK = """void RealtimeAnalyser::GetFloatTimeDomainData(ExecutionContext* context) {
+    AudioReadbackNoise noise(context);
+    if (noise.enabled()) {
+      noise.JitterInPlace(destination.first(len));
+    }
+}
 """
-AUDIO_GOOD = {treegate.AUDIO_BUFFER_PATH: AUDIO_NOISE_OK, treegate.REALTIME_ANALYSER_PATH: ANALYSER_NOISE_OK}
+
+AUDIO_CONTEXT_OK = """AudioReadbackNoise::AudioReadbackNoise(ExecutionContext* context) {
+  const HeliumNoiseTokenMap& tokens = context->GetHeliumNoiseTokens();
+  if (auto it = tokens.find(HeliumNoiseFeature::kAudio); it != tokens.end()) {
+    hash_.emplace(it->second);
+  }
+}
+
+float AudioReadbackNoise::Jitter(float value, uint64_t index) const {
+  DCHECK(enabled());
+  HeliumNoiseHash hash = *hash_;
+  hash.Update(index);
+  const int steps = hash.GetValueBelow(kMaxAudioJitterSteps + 1);
+  return value;
+}
+"""
+AUDIO_GOOD = {treegate.AUDIO_BUFFER_PATH: AUDIO_NOISE_OK, treegate.REALTIME_ANALYSER_PATH: ANALYSER_NOISE_OK,
+              treegate.AUDIO_CONTEXT_PATH: AUDIO_CONTEXT_OK}
 
 GPU_WEBGL_OK = """String UnmaskedGpuString() {
   if (base::FeatureList::IsEnabled(blink::features::kSpoofWebGLInfo)) return {};
@@ -270,32 +292,29 @@ GPU_GOOD = {treegate.WEBGL_CONTEXT_PATH: GPU_WEBGL_OK, treegate.GPU_ADAPTER_PATH
 WORKER_PARAMS_OK = "  HeliumNoiseTokenMap helium_noise_tokens;\n"
 WORKER_SCOPE_OK = "  SetHeliumNoiseTokens(creation_params->helium_noise_tokens);\n"
 WORKER_DEDICATED_OK = "  params->helium_noise_tokens = execution_context->GetHeliumNoiseTokens();\n"
-WORKER_SHARED_IMPL_OK = "  creation_params->helium_noise_tokens = helium_noise_tokens;\n"
+WORKER_SHARED_IMPL_OK = "  creation_params->helium_noise_tokens = noise_tokens;\n"
 WORKER_SERVICE_IMPL_OK = (
     "  global_scope_creation_params->helium_noise_tokens =\n"
-    "      worker_start_data->helium_noise_tokens;\n")
+    "      worker_start_data->noise_tokens;\n")
 WORKER_TOKENS_OK = """blink::HeliumNoiseTokenMap HeliumNoiseTokenData::GetTokensForWorker(
     BrowserContext* context,
-    const blink::StorageKey& key,
+    const blink::StorageKey& storage_key,
     const StoragePartitionConfig& partition) {
-  if (!context) {
-    return {};
+  const blink::StorageKey partitioned_key =
+      storage_key.CopyWithForceEnabledThirdPartyStoragePartitioning();
+  const GURL top_level_url = partitioned_key.top_level_site().GetURL();
+  if (!GetContentClient()->browser()->HeliumNoiseEnabled(context,
+                                                         top_level_url)) {
+    return blink::HeliumNoiseTokenMap();
   }
-  const GURL site_url = key.top_level_site().GetURL();
-  if (!GetContentClient()->browser()->HeliumNoiseEnabled(context, site_url)) {
-    return {};
-  }
-  return GetTokens(context, url::Origin::Create(site_url), partition);
+  return GetTokens(context, partitioned_key.top_level_site(), partition);
 }
 """
-WORKER_SHARED_HOST_OK = """      HeliumNoiseTokenData::GetTokensForWorker(
-          GetProcessHost()->GetBrowserContext(),
-          instance_.worker_storage_key(),
-          GetProcessHost()->GetStoragePartition()->GetConfig()));
+WORKER_SHARED_SERVICE_OK = """  host->set_noise_tokens(creator.GetPage().noise_tokens());
 """
-WORKER_SERVICE_HOST_OK = """  params->helium_noise_tokens = HeliumNoiseTokenData::GetTokensForWorker(
-      context_->wrapper()->browser_context(), key_,
-      context_->wrapper()->storage_partition()->GetConfig());
+WORKER_SERVICE_HOST_OK = """    params->noise_tokens = HeliumNoiseTokenData::GetTokensForWorker(
+        browser_context, key_,
+        context_->wrapper()->storage_partition()->GetConfig());
 """
 WORKER_GPU_OK = """inline bool ShouldMaskGpuInfoForContext(const ExecutionContext* context) {
   const bool has_token =
@@ -311,20 +330,26 @@ WORKER_GOOD = {
     treegate.WORKER_SHARED_IMPL_PATH: WORKER_SHARED_IMPL_OK,
     treegate.WORKER_SERVICE_IMPL_PATH: WORKER_SERVICE_IMPL_OK,
     treegate.WORKER_TOKENS_PATH: WORKER_TOKENS_OK,
-    treegate.WORKER_SHARED_HOST_PATH: WORKER_SHARED_HOST_OK,
+    treegate.WORKER_SHARED_SERVICE_PATH: WORKER_SHARED_SERVICE_OK,
     treegate.WORKER_SERVICE_HOST_PATH: WORKER_SERVICE_HOST_OK,
     treegate.WORKER_GPU_PATH: WORKER_GPU_OK,
 }
 
 POPUP_MOJOM_OK = """struct CreateNewWindowReply {
   gfx.mojom.Rect? window_screen_rect;
-  map<blink.mojom.HeliumNoiseFeature, blink.mojom.HeliumNoiseToken> noise_tokens;
+  map<blink.mojom.HeliumNoiseFeature, blink.mojom.HeliumNoiseToken>
+      noise_tokens;
 };
 """
-POPUP_BROWSER_OK = """  new_main_rfh->GetPage().set_noise_tokens(GetPage().noise_tokens());
+POPUP_BROWSER_OK = """  const blink::HeliumNoiseTokenMap noise_tokens =
+      HeliumNoiseTokenData::GetTokensForMainFrame(
+          GetBrowserContext(), new_main_rfh->GetLastCommittedOrigin(),
+          new_main_rfh->GetSiteInstance()
+              ->GetSecurityPrincipal()
+              .GetStoragePartitionConfig());
+  new_main_rfh->GetPage().set_noise_tokens(noise_tokens);
   mojom::CreateNewWindowReplyPtr reply = mojom::CreateNewWindowReply::New(
-      /*window_screen_rect=*/std::nullopt,
-      new_main_rfh->GetPage().noise_tokens());
+      /*window_screen_rect=*/std::nullopt, noise_tokens);
 """
 POPUP_RENDERER_OK = """  view_params->noise_tokens = reply->noise_tokens;
 """
@@ -369,15 +394,19 @@ TEXT_METRICS_GOOD = {
 
 PARTITION_TOKENS_OK = """blink::HeliumNoiseTokenMap HeliumNoiseTokenData::GetTokens(
     BrowserContext* context,
-    const url::Origin& origin,
+    const net::SchemefulSite& top_level_site,
     const StoragePartitionConfig& partition) {
-  std::string domain = aerie_fingerprint::NoiseSiteKey(
-      origin, aerie_fingerprint::NoisePartitionKey(
-                  partition.partition_domain(), partition.partition_name()));
+  std::string site;
+  if (!top_level_site.opaque()) {
+    site = aerie_fingerprint::NoiseSiteKey(
+        url::Origin::Create(top_level_site.GetURL()),
+        aerie_fingerprint::NoisePartitionKey(partition.partition_domain(),
+                                             partition.partition_name()));
+  }
   return {};
 }
 """
-PARTITION_NAV_OK = """      noise_tokens_ = HeliumNoiseTokenData::GetTokens(
+PARTITION_NAV_OK = """    noise_tokens_ = HeliumNoiseTokenData::GetTokensForMainFrame(
           browser_context, origin_to_commit.value(),
           site_info_.GetStoragePartitionConfig());
 """
@@ -565,19 +594,33 @@ class DefaultsGatesTest(TreeCase):
         self.write({blink: LINK_PREFETCH_BLINK_OK, client: LINK_PREFETCH_CLIENT_OK.replace("kEligible", "kUnspecified")})
         self.assertEqual([f.gate for f in treegate.check_link_prefetch_off(self.root)], ["link_prefetch_off"])
 
-    def test_audio_noise_seed_must_be_the_exact_coordinate_expression(self):
+    def test_audio_noise_must_come_from_the_token_and_the_data_with_no_counter(self):
         self.write(AUDIO_GOOD)
         self.assertEqual(treegate.check_audio_noise_stable(self.root, require=True), [])
-        buf = treegate.AUDIO_BUFFER_PATH
-        counter = AUDIO_NOISE_OK.replace("(static_cast<uint64_t>(i) << 48)", "render_seed ^ (static_cast<uint64_t>(i) << 48)")
-        for text in (counter, "void AudioBuffer::JitterAudioData(ExecutionContext*) {}\n"):
-            self.write({buf: text})
-            self.assertEqual([f.path for f in treegate.check_audio_noise_stable(self.root)], [buf])
+        ctx = treegate.AUDIO_CONTEXT_PATH
+        for text in (AUDIO_CONTEXT_OK.replace("hash.Update(index);", "hash.Update(index ^ g_render_count++);"),
+                     AUDIO_CONTEXT_OK.replace("HeliumNoiseFeature::kAudio", "HeliumNoiseFeature::kCanvas"),
+                     AUDIO_CONTEXT_OK.replace("HeliumNoiseHash hash = *hash_;", "HeliumNoiseHash hash(base::RandUint64());"),
+                     ""):
+            self.write(AUDIO_GOOD)
+            self.write({ctx: text})
+            self.assertEqual({f.path for f in treegate.check_audio_noise_stable(self.root)}, {ctx}, text)
+
+    def test_audio_buffer_and_analyser_must_use_the_readback_noise(self):
+        for path, text in ((treegate.AUDIO_BUFFER_PATH, AUDIO_NOISE_OK.replace("noise.AddSource(channel->AsSpan());", "")),
+                           (treegate.AUDIO_BUFFER_PATH, AUDIO_NOISE_OK.replace("index++", "g_helium_audio_render_sequence++")),
+                           (treegate.AUDIO_BUFFER_PATH, ""),
+                           (treegate.REALTIME_ANALYSER_PATH, ANALYSER_NOISE_OK.replace("AudioReadbackNoise noise(context);", "")),
+                           (treegate.REALTIME_ANALYSER_PATH, "")):
+            self.write(AUDIO_GOOD)
+            self.write({path: text})
+            self.assertEqual({f.path for f in treegate.check_audio_noise_stable(self.root)}, {path}, text)
+
+    def test_a_per_render_counter_anywhere_in_webaudio_is_flagged(self):
         self.write(AUDIO_GOOD)
-        ana = treegate.REALTIME_ANALYSER_PATH
-        for text in (ANALYSER_NOISE_OK.replace("domain ^ index", "domain ^ (read_seed << 32) ^ index"), ""):
-            self.write({ana: text})
-            self.assertEqual([f.path for f in treegate.check_audio_noise_stable(self.root)], [ana])
+        other = "third_party/blink/renderer/modules/webaudio/analyser_handler.cc"
+        self.write({other: "uint64_t g_helium_audio_analyzer_read_sequence = 0;\n"})
+        self.assertEqual([f.path for f in treegate.check_audio_noise_stable(self.root)], [other])
 
     def test_webgl_gpu_strings_must_go_through_the_masking_helper(self):
         self.write(GPU_GOOD)
@@ -633,7 +676,7 @@ class WorkerNoiseTokensGateTest(TreeCase):
             treegate.WORKER_DEDICATED_PATH: "",
             treegate.WORKER_SHARED_IMPL_PATH: "",
             treegate.WORKER_SERVICE_IMPL_PATH: "",
-            treegate.WORKER_SHARED_HOST_PATH: WORKER_SHARED_HOST_OK.replace("GetTokensForWorker", "GetTokens"),
+            treegate.WORKER_SHARED_SERVICE_PATH: "",
             treegate.WORKER_SERVICE_HOST_PATH: "",
         }
         for path, text in bad.items():
@@ -643,8 +686,9 @@ class WorkerNoiseTokensGateTest(TreeCase):
                 self.assertEqual({f.path for f in self.findings()}, {path})
 
     def test_worker_tokens_must_come_from_the_top_level_site_and_the_switch(self):
-        for text in (WORKER_TOKENS_OK.replace("key.top_level_site().GetURL()", "key.origin().GetURL()"),
-                     WORKER_TOKENS_OK.replace("HeliumNoiseEnabled(context, site_url)", "true"),
+        for text in (WORKER_TOKENS_OK.replace("partitioned_key.top_level_site().GetURL()", "storage_key.origin().GetURL()")
+                     .replace("return GetTokens(context, partitioned_key.top_level_site()", "return GetTokens(context, storage_key.origin()"),
+                     WORKER_TOKENS_OK.replace("HeliumNoiseEnabled(context,", "(void)(context,"),
                      WORKER_TOKENS_OK.replace("return GetTokens(", "return data->session_tokens_; (")):
             self.write(WORKER_GOOD)
             self.write({treegate.WORKER_TOKENS_PATH: text})
@@ -665,6 +709,7 @@ class WorkspaceNoisePartitionGateTest(TreeCase):
 
     def good(self):
         self.write(WORKER_GOOD)
+        self.write(POPUP_GOOD)
         self.write(PARTITION_GOOD)
 
     def findings(self):
@@ -677,8 +722,8 @@ class WorkspaceNoisePartitionGateTest(TreeCase):
     def test_the_key_must_include_the_partition(self):
         self.good()
         self.write({treegate.WORKER_TOKENS_PATH: (PARTITION_TOKENS_OK + WORKER_TOKENS_OK).replace(
-            "origin, aerie_fingerprint::NoisePartitionKey(\n                  partition.partition_domain(), partition.partition_name())",
-            "origin")})
+            "url::Origin::Create(top_level_site.GetURL()),\n        aerie_fingerprint::NoisePartitionKey(partition.partition_domain(),\n                                             partition.partition_name())",
+            "url::Origin::Create(top_level_site.GetURL())")})
         self.assertEqual({f.path for f in self.findings()}, {treegate.WORKER_TOKENS_PATH})
 
     def test_a_worker_must_pass_its_partition_on(self):
@@ -690,7 +735,8 @@ class WorkspaceNoisePartitionGateTest(TreeCase):
     def test_each_caller_is_reported_on_its_file(self):
         bad = {
             treegate.PARTITION_NAV_PATH: PARTITION_NAV_OK.replace("site_info_.GetStoragePartitionConfig()", "{}"),
-            treegate.WORKER_SHARED_HOST_PATH: WORKER_SHARED_HOST_OK.replace("GetStoragePartition()->GetConfig()", "{}"),
+            treegate.POPUP_BROWSER_PATH: POPUP_BROWSER_OK.replace(
+                "GetSecurityPrincipal()\n              .GetStoragePartitionConfig()", "GetSecurityPrincipal()\n              .GetSomethingElse()"),
             treegate.WORKER_SERVICE_HOST_PATH: WORKER_SERVICE_HOST_OK.replace(
                 "context_->wrapper()->storage_partition()->GetConfig()", "{}"),
         }
@@ -715,7 +761,7 @@ class PopupNoiseTokensGateTest(TreeCase):
         bad = {
             treegate.POPUP_MOJOM_PATH: POPUP_MOJOM_OK.replace("noise_tokens", "tokens"),
             treegate.POPUP_BROWSER_PATH: POPUP_BROWSER_OK.replace(
-                "new_main_rfh->GetPage().set_noise_tokens(GetPage().noise_tokens());\n", ""),
+                "new_main_rfh->GetPage().set_noise_tokens(noise_tokens);\n", ""),
             treegate.POPUP_RENDERER_PATH: "",
         }
         for path, text in bad.items():
@@ -727,7 +773,7 @@ class PopupNoiseTokensGateTest(TreeCase):
     def test_the_browser_must_send_the_tokens_in_the_reply(self):
         self.write(POPUP_GOOD)
         self.write({treegate.POPUP_BROWSER_PATH: POPUP_BROWSER_OK.replace(
-            "      new_main_rfh->GetPage().noise_tokens());", "      {});")})
+            "std::nullopt, noise_tokens);", "std::nullopt, {});")})
         self.assertEqual({f.path for f in treegate.check_popup_noise_tokens(self.root)}, {treegate.POPUP_BROWSER_PATH})
 
     def test_the_gate_runs_with_the_others(self):
@@ -889,7 +935,7 @@ class RunTest(TreeCase):
 
     def test_empty_tree_passes_unless_required(self):
         self.assertEqual(self.run_gates(), [])
-        self.assertEqual(len(self.run_gates(require=True)), 60)
+        self.assertEqual(len(self.run_gates(require=True)), 62)
 
     def test_format_report(self):
         self.write({"a.cc": '"https://services.helium.imput.net"\n'})
