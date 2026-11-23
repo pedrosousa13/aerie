@@ -72,6 +72,7 @@ tests/0005-fix-testing-browser-process-for-helium.patch
 tests/0006-fix-omnibox-test-support-for-helium.patch
 tests/0007-fix-extensions-test-support-for-helium.patch
 tests/0008-drop-webui-test-libraries-helium-breaks.patch
+tests/0009-drop-the-pdf-searchify-test-helium-breaks.patch
 
 # The Helium services settings are gone; the extension proxy address stays as a privacy row (#23).
 services/0006-remove-the-helium-services-ui.patch
