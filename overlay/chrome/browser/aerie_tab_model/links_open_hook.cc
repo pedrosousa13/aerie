@@ -72,7 +72,7 @@ bool OpenInPlace(NavigateParams* params, content::WebContents* source) {
   // The referrer is the one the page chose for this link (its policy, and
   // rel=noreferrer, are already applied); Navigate sanitises it again.
   in_place.referrer = info->referrer;
-  in_place.disposition = WindowOpenDisposition::CURRENT_TAB;
+  in_place.disposition = WindowOpenDisposition::kCurrentTab;
   in_place.source_contents = source;
   in_place.is_renderer_initiated = true;
   in_place.initiator_origin = initiator->GetLastCommittedOrigin();
@@ -89,7 +89,7 @@ bool OpenInPlace(NavigateParams* params, content::WebContents* source) {
 }  // namespace
 
 bool HandleLinkOpen(NavigateParams* params) {
-  if (params->disposition != WindowOpenDisposition::NEW_FOREGROUND_TAB ||
+  if (params->disposition != WindowOpenDisposition::kNewForegroundTab ||
       !params->contents_to_insert || !params->source_contents ||
       !params->original_user_gesture || params->contents_to_insert->HasOpener()) {
     return false;

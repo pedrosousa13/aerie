@@ -299,7 +299,7 @@ void AerieSidebarView::MakeRuleFromTab(const std::string& tab_id) {
       has_host ? std::string(page_url.host()) : std::string());
   settings = net::AppendQueryParameter(settings, "aerieRuleTitle",
                                        base::UTF16ToUTF8(title));
-  browser_->OpenGURL(settings, WindowOpenDisposition::NEW_FOREGROUND_TAB);
+  browser_->OpenGURL(settings, WindowOpenDisposition::kNewForegroundTab);
 }
 
 // The Favorites and Pinned lists tell the view that they changed; the view
@@ -3450,7 +3450,7 @@ void AerieSidebarView::ClearToday(bool close_only) {
   if (browser_->GetTabStripModel()->count() <=
       static_cast<int>(tabs.size())) {
     browser_->OpenGURL(GURL(chrome::kChromeUINewTabURL),
-                       WindowOpenDisposition::NEW_FOREGROUND_TAB);
+                       WindowOpenDisposition::kNewForegroundTab);
   }
   if (!archive_them) {
     for (const ClearedTab& tab : tabs) {

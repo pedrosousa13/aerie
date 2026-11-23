@@ -419,7 +419,7 @@ void PinnedTabsController::SwitchAwayFrom(tabs::TabInterface* tab) {
   }
   // The only tab of the window: a new tab to switch to.
   browser->OpenGURL(GURL(chrome::kChromeUINewTabURL),
-                    WindowOpenDisposition::NEW_FOREGROUND_TAB);
+                    WindowOpenDisposition::kNewForegroundTab);
 }
 
 bool PinnedTabsController::IsAwayFromPinnedPage(tabs::TabInterface* tab) const {

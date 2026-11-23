@@ -663,7 +663,7 @@ class AerieSidebarSmartMotionUiTest : public AerieSidebarReducedMotionUiTest {
   std::string OpenMatchingTabAndMakeFolder(std::string* folder) {
     EXPECT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
         browser(), embedded_test_server()->GetURL("docs.localhost", "/title1.html"),
-        WindowOpenDisposition::NEW_FOREGROUND_TAB,
+        WindowOpenDisposition::kNewForegroundTab,
         ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
     auto* service = aerie_tab_model::TabModelServiceFactory::GetForProfile(
         browser()->GetProfile());
@@ -749,7 +749,7 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarMotionUiTest, SmartRowsFadeOnFastWithoutReduc
   ForceReducedMotion(false);
   EXPECT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
       browser(), embedded_test_server()->GetURL("docs.localhost", "/title1.html"),
-      WindowOpenDisposition::NEW_FOREGROUND_TAB,
+      WindowOpenDisposition::kNewForegroundTab,
       ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
   auto* service = aerie_tab_model::TabModelServiceFactory::GetForProfile(
       browser()->GetProfile());
@@ -821,7 +821,7 @@ class AerieSidebarSmartFolderMotionUiTest : public AerieSidebarReducedMotionUiTe
     for (const char* path : {"/title1.html", "/title2.html"}) {
       EXPECT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
           browser(), embedded_test_server()->GetURL("docs.localhost", path),
-          WindowOpenDisposition::NEW_FOREGROUND_TAB,
+          WindowOpenDisposition::kNewForegroundTab,
           ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
       tabs.push_back(service->adapter()->RecordIdForTab(
           browser()->tab_strip_model()->GetActiveTab()));
@@ -874,7 +874,7 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarMotionUiTest,
   for (const char* path : {"/title1.html", "/title2.html"}) {
     ASSERT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
         browser(), embedded_test_server()->GetURL("docs.localhost", path),
-        WindowOpenDisposition::NEW_FOREGROUND_TAB,
+        WindowOpenDisposition::kNewForegroundTab,
         ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
     tabs.push_back(service->adapter()->RecordIdForTab(
         browser()->tab_strip_model()->GetActiveTab()));

@@ -152,7 +152,7 @@ class AerieSidebarPinnedBrowserTest : public InProcessBrowserTest {
   // Opens a page in a new foreground tab and waits for its row.
   tabs::TabInterface* OpenTab(const std::string& path) {
     EXPECT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
-        browser(), Url(path), WindowOpenDisposition::NEW_FOREGROUND_TAB,
+        browser(), Url(path), WindowOpenDisposition::kNewForegroundTab,
         ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
     WaitForRowsSynced();
     return strip()->GetTabAtIndex(strip()->active_index());
@@ -160,7 +160,7 @@ class AerieSidebarPinnedBrowserTest : public InProcessBrowserTest {
   // A blank page that has a committed URL, which loads at once: for the tests that need many tabs.
   tabs::TabInterface* OpenBlankTab() {
     EXPECT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
-        browser(), GURL("about:blank"), WindowOpenDisposition::NEW_FOREGROUND_TAB,
+        browser(), GURL("about:blank"), WindowOpenDisposition::kNewForegroundTab,
         ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
     WaitForRowsSynced();
     return strip()->GetTabAtIndex(strip()->active_index());

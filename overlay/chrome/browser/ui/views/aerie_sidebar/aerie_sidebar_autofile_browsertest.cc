@@ -148,7 +148,7 @@ class AerieSidebarAutoFileBrowserTest : public InProcessBrowserTest {
 
   std::string OpenTabAt(const GURL& url) {
     EXPECT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
-        browser(), url, WindowOpenDisposition::NEW_FOREGROUND_TAB,
+        browser(), url, WindowOpenDisposition::kNewForegroundTab,
         ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
     const std::string id = service()->adapter()->RecordIdForTab(
         browser()->tab_strip_model()->GetActiveTab());
@@ -204,7 +204,7 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarAutoFileBrowserTest,
       MakeAutoFolder("Trips", RuleType::kDomain, "trips.localhost");
   ASSERT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
       browser(), GURL("chrome://newtab/"),
-      WindowOpenDisposition::NEW_FOREGROUND_TAB,
+      WindowOpenDisposition::kNewForegroundTab,
       ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
   const std::string tab = service()->adapter()->RecordIdForTab(
       browser()->tab_strip_model()->GetActiveTab());
@@ -220,7 +220,7 @@ IN_PROC_BROWSER_TEST_F(AerieSidebarAutoFileBrowserTest,
   MakeAutoFolder("Trips", RuleType::kDomain, "trips.localhost");
   ASSERT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
       browser(), GURL("chrome://newtab/"),
-      WindowOpenDisposition::NEW_FOREGROUND_TAB,
+      WindowOpenDisposition::kNewForegroundTab,
       ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
   const std::string tab = service()->adapter()->RecordIdForTab(
       browser()->tab_strip_model()->GetActiveTab());

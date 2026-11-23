@@ -99,7 +99,7 @@ class AerieSidebarFoldersBrowserTest : public InProcessBrowserTest {
   std::string OpenBlankTab() {
     EXPECT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
         browser(), GURL("about:blank"),
-        WindowOpenDisposition::NEW_FOREGROUND_TAB,
+        WindowOpenDisposition::kNewForegroundTab,
         ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
     const std::string id = service()->adapter()->RecordIdForTab(
         strip()->GetTabAtIndex(strip()->active_index()));

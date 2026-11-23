@@ -135,7 +135,7 @@ class AerieSidebarAudioUiTest : public InProcessBrowserTest {
   AerieSidebarRowView* OpenSoundTab() {
     EXPECT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
         browser(), embedded_test_server()->GetURL("localhost", "/sound.html"),
-        WindowOpenDisposition::NEW_FOREGROUND_TAB,
+        WindowOpenDisposition::kNewForegroundTab,
         ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
     contents_ = strip()->GetWebContentsAt(strip()->count() - 1);
     EXPECT_TRUE(content::ExecJs(contents_, "audio.play(); 0",

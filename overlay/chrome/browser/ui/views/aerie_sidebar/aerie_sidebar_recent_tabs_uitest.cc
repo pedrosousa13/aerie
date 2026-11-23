@@ -168,7 +168,7 @@ class AerieSidebarRecentTabsUiTest : public InProcessBrowserTest {
   void OpenTab(BrowserWindowInterface* in, const std::string& host, const std::string& title) {
     ASSERT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
         in, embedded_test_server()->GetURL(host, "/page/" + title),
-        WindowOpenDisposition::NEW_FOREGROUND_TAB,
+        WindowOpenDisposition::kNewForegroundTab,
         ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
   }
   // The pages are on localhost: Aerie's HTTPS-only default lets it through and

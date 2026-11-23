@@ -131,7 +131,7 @@ class AerieSidebarPinnedUiTest : public InProcessBrowserTest {
   tabs::TabInterface* OpenTab() {
     EXPECT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
         browser(), embedded_test_server()->GetURL("/title1.html"),
-        WindowOpenDisposition::NEW_BACKGROUND_TAB,
+        WindowOpenDisposition::kNewBackgroundTab,
         ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
     // The rows follow the Tab Model one task later; a tab that was just pinned
     // leaves the Today list.

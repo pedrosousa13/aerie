@@ -413,7 +413,7 @@ IN_PROC_BROWSER_TEST_F(AerieLinksOpenBrowserTest,
                        ABackgroundTabRequestIsTheSameWithAndWithoutAFolder) {
   const auto run = [&]() {
     NavigateParams params(browser(), Target(), ui::PAGE_TRANSITION_LINK);
-    params.disposition = WindowOpenDisposition::NEW_BACKGROUND_TAB;
+    params.disposition = WindowOpenDisposition::kNewBackgroundTab;
     params.source_contents = contents();
     params.user_gesture = true;
     params.original_user_gesture = true;

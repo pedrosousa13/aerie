@@ -83,7 +83,7 @@ class AerieRestoreJoinBrowserTest : public InProcessBrowserTest {
   std::string OpenTab(BrowserWindowInterface* target, const std::string& path) {
     EXPECT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
         target, embedded_test_server()->GetURL(path),
-        WindowOpenDisposition::NEW_FOREGROUND_TAB,
+        WindowOpenDisposition::kNewForegroundTab,
         ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
     TabStripModel* strip = target->GetTabStripModel();
     return service_->adapter()->RecordIdForTab(
