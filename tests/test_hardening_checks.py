@@ -319,6 +319,14 @@ class FingerprintJudgeTest(unittest.TestCase):
         obs["a2"]["audio"] = obs["a1"]["audio"]  # what a build with stable audio noise gives
         for key in ("a1", "a2", "b1"):
             obs[key]["audio_again"] = obs[key]["audio"]
+        raw = [0.5, -0.25, 0.125, 0.0625]  # the worklet reads each block: the real samples, or the noised ones
+        for key, (hash_, k) in {"a1": ("w1", 1), "a2": ("w1", 1), "b1": ("w2", -1)}.items():
+            obs[key].update(worklet=hash_, worklet_samples=[x * (1 + k * 0.00005) for x in raw])
+        obs["next_session"]["a"].update(worklet="w3", worklet_samples=[x * 1.00002 for x in raw])
+        for key in ("a", "b"):
+            obs["control"][key].update(worklet="wx", worklet_samples=list(raw))
+        obs["site_off"] = {"a": {"canvas": obs["control"]["a"]["canvas"], "audio": obs["control"]["a"]["audio"],
+                                 "worklet": "wx", "worklet_samples": list(raw)}}
         for path, value in changes.items():
             kind, key = path.split("__")
             obs[kind][key] = value
@@ -370,6 +378,48 @@ class FingerprintJudgeTest(unittest.TestCase):
             obs[key]["audio"] = obs[key]["audio_again"] = obs["control"]["a"]["audio"]
         self.assertIn("equals the no-noise control", fingerprint.Fingerprinting.judge(obs)[1])
 
+
+    def test_a_missing_worklet_read_fails(self):
+        obs = self.obs()
+        del obs["a1"]["worklet_samples"]
+        status, detail = fingerprint.Fingerprinting.judge(obs)
+        self.assertEqual(status, "fail")
+        self.assertIn("no worklet read", detail)
+
+    def test_a_worklet_that_reads_the_same_on_two_sites_fails(self):
+        # Issue #157: the worklet at the end of the graph got the raw samples on every site.
+        obs = self.obs()
+        obs["b1"]["worklet"] = obs["a1"]["worklet"]
+        self.assertIn("worklet audio is the same on two different sites", fingerprint.Fingerprinting.judge(obs)[1])
+
+    def test_a_worklet_that_reads_raw_samples_fails(self):
+        obs = self.obs()
+        for key in ("a1", "a2", "b1"):
+            obs[key]["worklet"] = obs["control"]["a"]["worklet"]
+            obs[key]["worklet_samples"] = obs["control"]["a"]["worklet_samples"]
+        obs["b1"]["worklet"] = "w2"
+        self.assertIn("worklet reads the same samples as the no-noise control", fingerprint.Fingerprinting.judge(obs)[1])
+
+    def test_a_worklet_hash_must_be_stable_within_a_session(self):
+        obs = self.obs()
+        obs["a2"]["worklet"] = "w9"
+        self.assertIn("worklet audio changed between two loads", fingerprint.Fingerprinting.judge(obs)[1])
+
+    def test_a_worklet_must_show_the_real_samples_with_protection_off_for_the_site(self):
+        obs = self.obs()
+        obs["site_off"]["a"]["worklet"] = "w1"
+        self.assertIn("protection off for a site", fingerprint.Fingerprinting.judge(obs)[1])
+
+    def test_a_worklet_sample_outside_the_jitter_bound_fails(self):
+        obs = self.obs()
+        obs["a1"]["worklet_samples"][1] *= 1.001  # 0.1%, ten times the bound
+        obs["a2"]["worklet_samples"][1] *= 1.001
+        self.assertIn("outside the 0.01% jitter bound", fingerprint.Fingerprinting.judge(obs)[1])
+
+    def test_the_worklet_negative_control_must_agree_between_sites(self):
+        obs = self.obs()
+        obs["control"]["b"]["worklet"] = "w7"
+        self.assertIn("negative control failed", fingerprint.Fingerprinting.judge(obs)[1])
 
 class FingerprintSiteJudgeTest(unittest.TestCase):
     def case(self, name):

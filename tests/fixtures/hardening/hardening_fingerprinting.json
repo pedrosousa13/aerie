@@ -9,32 +9,85 @@
     "a1": {
      "canvas": "c1",
      "audio": "u1",
-     "audio_again": "u1"
+     "audio_again": "u1",
+     "worklet": "w1",
+     "worklet_samples": [
+      0.500025,
+      -0.2500125,
+      0.12500625,
+      0.062503125
+     ]
     },
     "a2": {
      "canvas": "c1",
      "audio": "u1",
-     "audio_again": "u1"
+     "audio_again": "u1",
+     "worklet": "w1",
+     "worklet_samples": [
+      0.500025,
+      -0.2500125,
+      0.12500625,
+      0.062503125
+     ]
     },
     "b1": {
      "canvas": "c2",
      "audio": "u2",
-     "audio_again": "u2"
+     "audio_again": "u2",
+     "worklet": "w2",
+     "worklet_samples": [
+      0.499975,
+      -0.2499875,
+      0.12499375,
+      0.062496875
+     ]
     },
     "next_session": {
      "a": {
       "canvas": "c3",
-      "audio": "u3"
+      "audio": "u3",
+      "worklet": "w3",
+      "worklet_samples": [
+       0.5000125,
+       -0.25000625,
+       0.125003125,
+       0.0625015625
+      ]
      }
     },
     "control": {
      "a": {
       "canvas": "cx",
-      "audio": "ux"
+      "audio": "ux",
+      "worklet": "wx",
+      "worklet_samples": [
+       0.5,
+       -0.25,
+       0.125,
+       0.0625
+      ]
      },
      "b": {
       "canvas": "cx",
-      "audio": "ux"
+      "audio": "ux",
+      "worklet": "wx",
+      "worklet_samples": [
+       0.5,
+       -0.25,
+       0.125,
+       0.0625
+      ]
+     }
+    },
+    "site_off": {
+     "a": {
+      "worklet": "wx",
+      "worklet_samples": [
+       0.5,
+       -0.25,
+       0.125,
+       0.0625
+      ]
      }
     }
    }
@@ -385,32 +438,85 @@
     "a1": {
      "canvas": "c1",
      "audio": "u1",
-     "audio_again": "u1"
+     "audio_again": "u1",
+     "worklet": "w1",
+     "worklet_samples": [
+      0.500025,
+      -0.2500125,
+      0.12500625,
+      0.062503125
+     ]
     },
     "a2": {
      "canvas": "c1",
      "audio": "u1",
-     "audio_again": "u1"
+     "audio_again": "u1",
+     "worklet": "w1",
+     "worklet_samples": [
+      0.500025,
+      -0.2500125,
+      0.12500625,
+      0.062503125
+     ]
     },
     "b1": {
      "canvas": "c2",
      "audio": "u2",
-     "audio_again": "u2"
+     "audio_again": "u2",
+     "worklet": "w2",
+     "worklet_samples": [
+      0.499975,
+      -0.2499875,
+      0.12499375,
+      0.062496875
+     ]
     },
     "next_session": {
      "a": {
       "canvas": "c3",
-      "audio": "u3"
+      "audio": "u3",
+      "worklet": "w3",
+      "worklet_samples": [
+       0.5000125,
+       -0.25000625,
+       0.125003125,
+       0.0625015625
+      ]
      }
     },
     "control": {
      "a": {
       "canvas": "cx",
-      "audio": "ux"
+      "audio": "ux",
+      "worklet": "wx",
+      "worklet_samples": [
+       0.5,
+       -0.25,
+       0.125,
+       0.0625
+      ]
      },
      "b": {
       "canvas": "cx",
-      "audio": "ux"
+      "audio": "ux",
+      "worklet": "wx",
+      "worklet_samples": [
+       0.5,
+       -0.25,
+       0.125,
+       0.0625
+      ]
+     }
+    },
+    "site_off": {
+     "a": {
+      "worklet": "wx",
+      "worklet_samples": [
+       0.5,
+       -0.25,
+       0.125,
+       0.0625
+      ]
      }
     }
    }

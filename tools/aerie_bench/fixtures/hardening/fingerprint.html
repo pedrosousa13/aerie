@@ -45,9 +45,47 @@
     for (let i = 4500; i < 5000; i++) { s += data[i].toString() + ','; }
     return fnv(s);
   }
+  // The same graph, read by an AudioWorklet at the end of it (issue #157). The processor posts every block it
+  // gets (the compressor's output) and writes silence. `worklet` hashes frames 4500..5000, as `audio` does, and
+  // `worklet_samples` keeps them, so the check can compare them with the no-noise control sample by sample.
+  const WORKLET_SOURCE = `class Tap extends AudioWorkletProcessor {
+    process(inputs) {
+      const ch = inputs[0] && inputs[0][0];
+      if (ch) { this.port.postMessage(ch.slice()); }
+      return true;
+    }
+  }
+  registerProcessor('aerie-tap', Tap);`;
+  async function workletRead() {
+    const Ctx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    const ctx = new Ctx(1, 5000, 44100);
+    const url = URL.createObjectURL(new Blob([WORKLET_SOURCE], {type: 'text/javascript'}));
+    await ctx.audioWorklet.addModule(url);
+    const osc = ctx.createOscillator();
+    osc.type = 'triangle';
+    osc.frequency.value = 10000;
+    const comp = ctx.createDynamicsCompressor();
+    comp.threshold.value = -50; comp.knee.value = 40; comp.ratio.value = 12;
+    comp.attack.value = 0; comp.release.value = 0.25;
+    const tap = new AudioWorkletNode(ctx, 'aerie-tap', {numberOfOutputs: 1, outputChannelCount: [1]});
+    const blocks = [];
+    tap.port.onmessage = (e) => { blocks.push(e.data); };
+    osc.connect(comp);
+    comp.connect(tap);
+    tap.connect(ctx.destination);
+    osc.start(0);
+    await ctx.startRendering();
+    await new Promise((r) => setTimeout(r, 200));  // let the last messages arrive
+    const all = [];
+    for (const b of blocks) { for (const v of b) { all.push(v); } }
+    const samples = all.slice(4500, 5000);
+    let s = '';
+    for (const v of samples) { s += v.toString() + ','; }
+    return {worklet: fnv(s), worklet_samples: samples};
+  }
   (async () => {
     try { window.__result = {canvas: canvasHash(), audio: await audioHash(), audio_again: await audioHash(),
-                         cores: navigator.hardwareConcurrency}; }
+                         cores: navigator.hardwareConcurrency, ...(await workletRead())}; }
     catch (e) { window.__result = {error: String(e)}; }
     window.__done = true;
   })();
