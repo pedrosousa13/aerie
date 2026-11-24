@@ -7,13 +7,11 @@ from pathlib import Path
 from ...session import Session
 from .. import register
 from .common import HardeningCheck, Verdict
-from .cookies import ALLOW_THIRD_PARTY_PREFS, cookie_verdict, probe_cookies
+from .cookies import ALLOW_MODE, ALLOW_THIRD_PARTY_PREFS, BLOCK_MODE, cookie_verdict, probe_cookies
 
 # Fixed by the "key" in fixtures/hardening/extension/manifest.json (sha256 of the public key).
 EXTENSION_ID = "knlpboobmlcbfihkhfbhepnojchckong"
 CONTROLLED = "controlled_by_this_extension"
-BLOCK_MODE = 1  # profile.cookie_controls_mode: block third-party cookies
-ALLOW_MODE = 2  # only blocked in Incognito
 MODE_PREF = "profile.cookie_controls_mode"
 # The user's own cookie allow, as the settings page stores it: site c, shown to any top-level site.
 USER_ALLOW_PREFS = {"profile": {**ALLOW_THIRD_PARTY_PREFS["profile"],

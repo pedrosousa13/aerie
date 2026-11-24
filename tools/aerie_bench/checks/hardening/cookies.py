@@ -6,7 +6,9 @@ from ...session import Session
 from .. import register
 from .common import HardeningCheck, Verdict, page_value, site
 
-ALLOW_THIRD_PARTY_PREFS = {"profile": {"cookie_controls_mode": 2}}  # 2: only blocked in Incognito
+BLOCK_MODE = 1  # profile.cookie_controls_mode: block third-party cookies
+ALLOW_MODE = 2  # profile.cookie_controls_mode: only blocked in Incognito
+ALLOW_THIRD_PARTY_PREFS = {"profile": {"cookie_controls_mode": ALLOW_MODE}}
 STORAGE_VALUE = "a-value"
 
 

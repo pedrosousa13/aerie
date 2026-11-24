@@ -15,12 +15,22 @@ host (it is not <all_urls> and has no domain wildcard); such a first-party allow
 accepted, so an extension that keeps a cookie whitelist for its own sites keeps working.
 Blocking cookies, reading, getting and clearing, and the other content setting types are
 not changed. When the user allows third-party cookies, nothing is refused. An exception that
-an extension sets while the user allows third-party cookies stays in force if the user later
-blocks them again.
+an extension sets while the user allows third-party cookies is not refused here; patch 0027
+(#166) hides it while third-party cookies are blocked, and the "could apply to a third-party
+context" test is one function, CustomExtensionProvider::IsCookieAllowForThirdPartyContext,
+that both patches call.
 
 --- a/chrome/browser/extensions/api/content_settings/content_settings_api.cc
 +++ b/chrome/browser/extensions/api/content_settings/content_settings_api.cc
-@@ -320,6 +320,31 @@
+@@ -28,6 +28,7 @@
+ #include "content/public/browser/browser_task_traits.h"
+ #include "content/public/browser/browser_thread.h"
+ #include "content/public/common/webplugininfo.h"
++#include "extensions/browser/api/content_settings/content_settings_custom_extension_provider.h"
+ #include "extensions/browser/api/content_settings/content_settings_helpers.h"
+ #include "extensions/browser/api/content_settings/content_settings_service.h"
+ #include "extensions/browser/api/content_settings/content_settings_store.h"
+@@ -320,6 +321,33 @@
      return RespondNow(Error(extension_misc::kIncognitoSessionOnlyErrorMessage));
    }
  
@@ -37,10 +47,12 @@ blocks them again.
 +      cookie_profile =
 +          cookie_profile->GetPrimaryOTRProfile(/*create_if_needed=*/true);
 +    }
-+    const bool first_party_only = secondary_pattern == primary_pattern &&
-+                                  !primary_pattern.MatchesAllHosts() &&
-+                                  !primary_pattern.HasDomainWildcard();
-+    if (!first_party_only &&
++    // The same test as the read side, patch 0027 (#166): a rule that passes
++    // it here is never hidden there, and one that fails it is hidden there
++    // while third-party cookies are blocked.
++    if (content_settings::CustomExtensionProvider::
++            IsCookieAllowForThirdPartyContext(primary_pattern,
++                                              secondary_pattern, setting) &&
 +        CookieSettingsFactory::GetForProfile(cookie_profile)
 +            ->ShouldBlockThirdPartyCookies()) {
 +      return RespondNow(Error(
