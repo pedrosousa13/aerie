@@ -1,0 +1,287 @@
+Aerie-Purpose: Hide an extension's cookie allow or session-only rule that could apply to a third-party context while third-party cookies are blocked, so a rule set while they were allowed stops winning over the block, and brings it back if the user allows them again.
+Aerie-Upstream-Area: extensions/browser/api/content_settings/content_settings_custom_extension_provider.cc and .h and BUILD.gn; chrome/browser/content_settings/host_content_settings_map_factory.cc
+Aerie-Kind: hook
+
+Issue #166, found by a Claude Security scan. Patch 0016 refuses a broad cookie ALLOW or SESSION_ONLY
+exception from chrome.contentSettings.cookies.set only while third-party cookies are blocked at that moment.
+A rule that an extension set while the user allowed third-party cookies stayed in the store, and an explicit
+allow wins over the third-party block (kAllowByExplicitSetting), so it let third-party cookies through again
+after the user switched back to blocking.
+
+This patch filters on read, so nothing is dropped. CustomExtensionProvider (the content settings provider for
+extension rules) now follows profile.cookie_controls_mode: it keeps the mode in an atomic (rules are read on
+other threads than the prefs), updated by a pref observer, and tells its observers when the mode changes.
+While third-party cookies are blocked (mode "block", or any incognito session, as in CookieSettings), the
+rule iterator and GetRule leave out a cookie ALLOW or SESSION_ONLY rule that is not first-party only (the
+primary pattern equals the secondary pattern and names one host, no domain wildcard; the same test as patch
+0016, now in CustomExtensionProvider::IsCookieAllowForThirdPartyContext). A first-party allow, every blocking
+rule and every rule of another type are read as before, and rules of other providers (the user's) are never
+touched. The rule stays in the extension store: if the user allows third-party cookies again it takes effect
+again. The factory passes the profile's prefs; the new constructor argument defaults to null, which filters
+nothing, so unit tests that build the provider keep working.
+
+--- a/extensions/browser/api/content_settings/content_settings_custom_extension_provider.cc
++++ b/extensions/browser/api/content_settings/content_settings_custom_extension_provider.cc
+@@ -6,18 +6,111 @@
+ 
+ #include <memory>
+ 
++#include "base/functional/bind.h"
+ #include "components/content_settings/core/browser/content_settings_rule.h"
+ #include "components/content_settings/core/browser/content_settings_utils.h"
++#include "components/content_settings/core/browser/cookie_settings.h"
++#include "components/content_settings/core/common/content_settings.h"
+ #include "components/content_settings/core/common/content_settings_pattern.h"
++#include "components/content_settings/core/common/pref_names.h"
++#include "components/prefs/pref_service.h"
+ #include "extensions/common/extension_id.h"
+ 
+ namespace content_settings {
+ 
++namespace {
++
++// Aerie: hides the rules that must not take effect from the iterator of the
++// extension store.
++class ThirdPartyCookieAllowFilter : public RuleIterator {
++ public:
++  ThirdPartyCookieAllowFilter(std::unique_ptr<RuleIterator> inner,
++                              ContentSettingsType content_type)
++      : inner_(std::move(inner)), content_type_(content_type) {
++    Advance();
++  }
++  ~ThirdPartyCookieAllowFilter() override = default;
++
++  bool HasNext() const override { return next_ != nullptr; }
++
++  std::unique_ptr<Rule> Next() override {
++    std::unique_ptr<Rule> out = std::move(next_);
++    Advance();
++    return out;
++  }
++
++ private:
++  void Advance() {
++    next_.reset();
++    while (inner_ && inner_->HasNext()) {
++      std::unique_ptr<Rule> rule = inner_->Next();
++      if (content_type_ == ContentSettingsType::COOKIES &&
++          CustomExtensionProvider::IsCookieAllowForThirdPartyContext(
++              rule->primary_pattern, rule->secondary_pattern, rule->value)) {
++        continue;
++      }
++      next_ = std::move(rule);
++      return;
++    }
++  }
++
++  std::unique_ptr<RuleIterator> inner_;
++  ContentSettingsType content_type_;
++  std::unique_ptr<Rule> next_;
++};
++
++}  // namespace
++
+ CustomExtensionProvider::CustomExtensionProvider(
+     const scoped_refptr<extensions::ContentSettingsStore>& extensions_settings,
+-    bool incognito)
+-    : incognito_(incognito), extensions_settings_(extensions_settings) {
++    bool incognito,
++    PrefService* prefs)
++    : incognito_(incognito),
++      extensions_settings_(extensions_settings),
++      prefs_(prefs) {
+   content_settings_store_observation_.Observe(extensions_settings_.get());
++  if (prefs_) {
++    cookie_controls_mode_.store(prefs_->GetInteger(prefs::kCookieControlsMode));
++    pref_change_registrar_.Init(prefs_);
++    pref_change_registrar_.Add(
++        prefs::kCookieControlsMode,
++        base::BindRepeating(&CustomExtensionProvider::OnCookieControlsModeChanged,
++                            base::Unretained(this)));
++  }
++}
++
++// static
++bool CustomExtensionProvider::IsCookieAllowForThirdPartyContext(
++    const ContentSettingsPattern& primary_pattern,
++    const ContentSettingsPattern& secondary_pattern,
++    const base::Value& value) {
++  const ContentSetting setting = ValueToContentSetting(value);
++  if (setting != CONTENT_SETTING_ALLOW &&
++      setting != CONTENT_SETTING_SESSION_ONLY) {
++    return false;
++  }
++  const bool first_party_only = secondary_pattern == primary_pattern &&
++                                !primary_pattern.MatchesAllHosts() &&
++                                !primary_pattern.HasDomainWildcard();
++  return !first_party_only;
++}
++
++bool CustomExtensionProvider::ThirdPartyCookiesBlocked(bool incognito) const {
++  if (!prefs_) {
++    return false;
++  }
++  // The same rule as CookieSettings::ShouldBlockThirdPartyCookiesInternal.
++  return cookie_controls_mode_.load() ==
++             static_cast<int>(CookieControlsMode::kBlockThirdParty) ||
++         incognito;
++}
++
++void CustomExtensionProvider::OnCookieControlsModeChanged() {
++  cookie_controls_mode_.store(prefs_->GetInteger(prefs::kCookieControlsMode));
++  // The rules that count have changed, although the store has not.
++  NotifyObservers(ContentSettingsPattern::Wildcard(),
++                  ContentSettingsPattern::Wildcard(),
++                  ContentSettingsType::COOKIES);
+ }
+ 
+ CustomExtensionProvider::~CustomExtensionProvider() = default;
+@@ -25,8 +118,17 @@
+ std::unique_ptr<RuleIterator> CustomExtensionProvider::GetRuleIterator(
+     ContentSettingsType content_type,
+     bool incognito) const {
+-  return extensions_settings_->GetRuleIterator(content_type,
+-                                               incognito);
++  std::unique_ptr<RuleIterator> rules =
++      extensions_settings_->GetRuleIterator(content_type, incognito);
++  // Aerie (#166): while third-party cookies are blocked, a cookie allow that
++  // could apply to a third-party context has no effect. The rule stays in the
++  // store, so it counts again if the user allows third-party cookies.
++  if (rules && content_type == ContentSettingsType::COOKIES &&
++      ThirdPartyCookiesBlocked(incognito)) {
++    return std::make_unique<ThirdPartyCookieAllowFilter>(std::move(rules),
++                                                         content_type);
++  }
++  return rules;
+ }
+ 
+ std::unique_ptr<content_settings::Rule> CustomExtensionProvider::GetRule(
+@@ -34,8 +136,27 @@
+     const GURL& secondary_url,
+     ContentSettingsType content_type,
+     bool off_the_record) const {
+-  return extensions_settings_->GetRule(primary_url, secondary_url, content_type,
+-                                       off_the_record);
++  std::unique_ptr<Rule> rule = extensions_settings_->GetRule(
++      primary_url, secondary_url, content_type, off_the_record);
++  if (!rule || content_type != ContentSettingsType::COOKIES ||
++      !ThirdPartyCookiesBlocked(off_the_record) ||
++      !IsCookieAllowForThirdPartyContext(rule->primary_pattern,
++                                         rule->secondary_pattern,
++                                         rule->value)) {
++    return rule;
++  }
++  // Aerie (#166): the first match is hidden, so look for the next one in the
++  // filtered rules, in the same order as GetRuleIterator.
++  std::unique_ptr<RuleIterator> rules =
++      GetRuleIterator(content_type, off_the_record);
++  while (rules && rules->HasNext()) {
++    std::unique_ptr<Rule> candidate = rules->Next();
++    if (candidate->primary_pattern.Matches(primary_url) &&
++        candidate->secondary_pattern.Matches(secondary_url)) {
++      return candidate;
++    }
++  }
++  return nullptr;
+ }
+ 
+ bool CustomExtensionProvider::SetWebsiteSetting(
+@@ -48,6 +169,7 @@
+ }
+ 
+ void CustomExtensionProvider::ShutdownOnUIThread() {
++  pref_change_registrar_.Reset();
+   RemoveAllObservers();
+   content_settings_store_observation_.Reset();
+ }
+--- a/extensions/browser/api/content_settings/content_settings_custom_extension_provider.h
++++ b/extensions/browser/api/content_settings/content_settings_custom_extension_provider.h
+@@ -5,11 +5,15 @@
+ #ifndef EXTENSIONS_BROWSER_API_CONTENT_SETTINGS_CONTENT_SETTINGS_CUSTOM_EXTENSION_PROVIDER_H_
+ #define EXTENSIONS_BROWSER_API_CONTENT_SETTINGS_CONTENT_SETTINGS_CUSTOM_EXTENSION_PROVIDER_H_
+ 
++#include <atomic>
++#include <memory>
+ #include <string>
+ 
++#include "base/memory/raw_ptr.h"
+ #include "base/memory/scoped_refptr.h"
+ #include "base/scoped_observation.h"
+ #include "components/content_settings/core/browser/content_settings_observable_provider.h"
++#include "components/prefs/pref_change_registrar.h"
+ #include "extensions/browser/api/content_settings/content_settings_store.h"
+ #include "extensions/common/extension_id.h"
+ 
+@@ -21,7 +25,8 @@
+  public:
+   CustomExtensionProvider(const scoped_refptr<extensions::ContentSettingsStore>&
+                               extensions_settings,
+-                          bool incognito);
++                          bool incognito,
++                          PrefService* prefs = nullptr);
+ 
+   CustomExtensionProvider(const CustomExtensionProvider&) = delete;
+   CustomExtensionProvider& operator=(const CustomExtensionProvider&) = delete;
+@@ -48,11 +53,26 @@
+ 
+   void ShutdownOnUIThread() override;
+ 
++  // Aerie: true for a cookie ALLOW or SESSION_ONLY rule that could apply to a
++  // third-party context, that is, anything but a primary pattern equal to the
++  // secondary pattern that names one host. While third-party cookies are
++  // blocked, such a rule must not take effect (#166), because an explicit
++  // allow wins over the third-party block.
++  static bool IsCookieAllowForThirdPartyContext(
++      const ContentSettingsPattern& primary_pattern,
++      const ContentSettingsPattern& secondary_pattern,
++      const base::Value& value);
++
+   // extensions::ContentSettingsStore::Observer methods:
+   void OnContentSettingChanged(const extensions::ExtensionId& extension_id,
+                                bool incognito) override;
+ 
+  private:
++  // Aerie: whether third-party cookies are blocked for a regular or an
++  // incognito session, from the cookie controls mode. Safe on any thread.
++  bool ThirdPartyCookiesBlocked(bool incognito) const;
++  void OnCookieControlsModeChanged();
++
+   // Specifies whether this provider manages settings for incognito or regular
+   // sessions.
+   bool incognito_;
+@@ -60,6 +80,13 @@
+   // The backend storing content setting rules defined by extensions.
+   scoped_refptr<extensions::ContentSettingsStore> extensions_settings_;
+ 
++  // Aerie: the cookie controls mode (profile.cookie_controls_mode), kept
++  // here because the prefs can only be read on the UI thread and rules are
++  // read on any thread. Null prefs (tests) means "not blocked".
++  raw_ptr<PrefService> prefs_ = nullptr;
++  PrefChangeRegistrar pref_change_registrar_;
++  std::atomic<int> cookie_controls_mode_{2};
++
+   base::ScopedObservation<extensions::ContentSettingsStore,
+                           extensions::ContentSettingsStore::Observer>
+       content_settings_store_observation_{this};
+--- a/chrome/browser/content_settings/host_content_settings_map_factory.cc
++++ b/chrome/browser/content_settings/host_content_settings_map_factory.cc
+@@ -154,7 +154,8 @@
+           // remove this constructor parameter, or should this actually reflect
+           // the case where profile->IsOffTheRecord() is true? And what is the
+           // interaction with profile->IsGuestSession()?
+-          false));
++          false,
++          original_profile->GetPrefs()));
+ 
+   settings_map->RegisterProvider(
+       ProviderType::kExtensionInstallTimePermissionProvider,
+--- a/extensions/browser/api/content_settings/BUILD.gn
++++ b/extensions/browser/api/content_settings/BUILD.gn
+@@ -22,6 +22,7 @@
+     "//base",
+     "//components/content_settings/core/browser",
+     "//components/content_settings/core/common",
++    "//components/prefs",
+     "//extensions/browser:browser_sources",
+     "//extensions/common",
+     "//extensions/common/api",

@@ -10,11 +10,11 @@ ALLOW_THIRD_PARTY_PREFS = {"profile": {"cookie_controls_mode": 2}}  # 2: only bl
 STORAGE_VALUE = "a-value"
 
 
-def probe_cookies(session: Session) -> dict:
-    """First party sets a cookie; then a frame from another site tries to read it."""
-    session.navigate_url(f"{site(session, 'b')}/hardening/cookie_top.html")
+def probe_cookies(session: Session, owner: str = "b") -> dict:
+    """First party ``owner`` sets a cookie; then a frame from that site, under site a, tries to read it."""
+    session.navigate_url(f"{site(session, owner)}/hardening/cookie_top.html")
     first = page_value(session, "window.__result")
-    session.navigate_url(f"{site(session, 'a')}/hardening/embed.html?site=b.localhost"
+    session.navigate_url(f"{site(session, 'a')}/hardening/embed.html?site={owner}.localhost"
                          "&frame=/hardening/cookie_frame.html")
     third = page_value(session, "window.__result")
     return {"first_party": first, "third_party": third}
