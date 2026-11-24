@@ -1,14 +1,15 @@
 Aerie-Purpose: Serve Aerie's own first-run setup page (components/aerie_onboarding) from Helium's
- onboarding page controller, and add the theme handler its colour step needs.
+ onboarding page controller, add the theme handler its colour step needs, and swap Helium's
+ OnboardingMessageHandler for Aerie's AerieSetupHandler, which only marks setup complete.
 Aerie-Upstream-Area: chrome/browser/ui/webui/onboarding (Helium's helium/core/onboarding-page.patch),
- chrome/chrome_paks.gni, chrome/browser/BUILD.gn, chrome/app/generated_resources.grd,
- tools/gritsettings/resource_ids.spec
+ chrome/chrome_paks.gni, chrome/browser/BUILD.gn, chrome/browser/ui/webui/BUILD.gn,
+ chrome/app/generated_resources.grd, tools/gritsettings/resource_ids.spec
 Aerie-Kind: hook
 
 Issue #46. Helium's page is a Svelte app downloaded from deps.ini [onboarding]; Aerie no longer
 downloads it (tools/aerie_build/helium_deps.py). Helium's native side stays: the aerie://setup
-WebUI config, the first-run redirect, OnboardingMessageHandler (prefs, completion) and the
-import, search engine and default browser handlers. This patch swaps every reference to
+WebUI config, the first-run redirect and the import, search engine and default browser handlers
+stay. This patch swaps every reference to
 components/helium_onboarding for components/aerie_onboarding (an overlay), drops the Svelte
 Trusted Types policy (the Aerie page never assigns HTML), and registers
 aerie_onboarding::AerieThemeHandler.

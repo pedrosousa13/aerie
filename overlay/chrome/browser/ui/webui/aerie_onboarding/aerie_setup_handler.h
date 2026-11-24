@@ -13,8 +13,6 @@ class PrefService;
 
 namespace aerie_onboarding {
 
-class AerieSetupHandlerBrowserTest;
-
 // What aerie://setup may ask the browser to do besides the import, search engine,
 // default browser and theme steps (issue #69). It replaces Helium's
 // OnboardingMessageHandler, whose setPref sets any helium.* pref (including
@@ -38,8 +36,6 @@ class AerieSetupHandler : public content::WebUIMessageHandler {
   void RegisterMessages() override;
 
  private:
-  friend class AerieSetupHandlerBrowserTest;
-
   void HandleSetPref(const base::ListValue& args);
   void HandleAcceptLatestSchema(const base::ListValue& args);
 

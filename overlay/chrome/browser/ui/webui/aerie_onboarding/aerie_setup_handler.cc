@@ -4,6 +4,8 @@
 
 #include "chrome/browser/ui/webui/aerie_onboarding/aerie_setup_handler.h"
 
+#include <string>
+
 #include "base/functional/bind.h"
 #include "base/logging.h"
 #include "components/helium_services/pref_names.h"
