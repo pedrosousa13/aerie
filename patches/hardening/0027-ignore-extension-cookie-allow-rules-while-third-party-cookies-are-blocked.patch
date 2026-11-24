@@ -22,7 +22,7 @@ nothing, so unit tests that build the provider keep working.
 
 --- a/extensions/browser/api/content_settings/content_settings_custom_extension_provider.cc
 +++ b/extensions/browser/api/content_settings/content_settings_custom_extension_provider.cc
-@@ -6,18 +6,111 @@
+@@ -6,18 +6,112 @@
  
  #include <memory>
  
@@ -32,6 +32,7 @@ nothing, so unit tests that build the provider keep working.
 +#include "components/content_settings/core/browser/cookie_settings.h"
 +#include "components/content_settings/core/common/content_settings.h"
  #include "components/content_settings/core/common/content_settings_pattern.h"
++#include "components/content_settings/core/common/content_settings_utils.h"
 +#include "components/content_settings/core/common/pref_names.h"
 +#include "components/prefs/pref_service.h"
  #include "extensions/common/extension_id.h"
@@ -136,7 +137,7 @@ nothing, so unit tests that build the provider keep working.
  }
  
  CustomExtensionProvider::~CustomExtensionProvider() = default;
-@@ -25,8 +118,17 @@
+@@ -25,8 +119,17 @@
  std::unique_ptr<RuleIterator> CustomExtensionProvider::GetRuleIterator(
      ContentSettingsType content_type,
      bool incognito) const {
@@ -156,7 +157,7 @@ nothing, so unit tests that build the provider keep working.
  }
  
  std::unique_ptr<content_settings::Rule> CustomExtensionProvider::GetRule(
-@@ -34,8 +136,27 @@
+@@ -34,8 +137,27 @@
      const GURL& secondary_url,
      ContentSettingsType content_type,
      bool off_the_record) const {
@@ -186,7 +187,7 @@ nothing, so unit tests that build the provider keep working.
  }
  
  bool CustomExtensionProvider::SetWebsiteSetting(
-@@ -48,6 +169,7 @@
+@@ -48,6 +170,7 @@
  }
  
  void CustomExtensionProvider::ShutdownOnUIThread() {
