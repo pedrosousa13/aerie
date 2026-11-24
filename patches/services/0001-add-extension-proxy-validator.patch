@@ -9,10 +9,12 @@ Helium services helpers.
 
 --- /dev/null
 +++ b/components/aerie_services/BUILD.gn
-@@ -0,0 +1,32 @@
+@@ -0,0 +1,44 @@
 +# Copyright 2026 The Aerie Authors
 +# You can use, redistribute, and/or modify this source code under
 +# the terms of the GPL-3.0 license that can be found in the LICENSE file.
++
++import("//testing/test.gni")
 +
 +component("aerie_services") {
 +  sources = [
@@ -40,6 +42,16 @@ Helium services helpers.
 +    "//base",
 +    "//testing/gtest",
 +    "//url",
++  ]
++}
++
++# The proxy cases on their own, for ./aerie test-cpp. components_unittests also
++# links them, but it cannot be built from Helium's tree: Helium prunes the
++# binary test data (models, images) that its other members bundle.
++test("aerie_services_unittests") {
++  deps = [
++    ":unit_tests",
++    "//base/test:run_all_unittests",
 +  ]
 +}
 --- /dev/null
