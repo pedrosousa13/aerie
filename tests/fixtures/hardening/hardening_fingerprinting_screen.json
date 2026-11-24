@@ -25,7 +25,15 @@
       "innerHeight": 800,
       "devicePixelRatio": 1,
       "mqWidth": true,
-      "mqHeight": true
+      "mqHeight": true,
+      "mouse": {
+       "dx": 0,
+       "dy": 100,
+       "pdx": 0,
+       "pdy": 100,
+       "tdx": 0,
+       "tdy": 100
+      }
      },
      "b": {
       "width": 1680,
@@ -45,7 +53,15 @@
       "innerHeight": 800,
       "devicePixelRatio": 1,
       "mqWidth": true,
-      "mqHeight": true
+      "mqHeight": true,
+      "mouse": {
+       "dx": 0,
+       "dy": 100,
+       "pdx": 0,
+       "pdy": 100,
+       "tdx": 0,
+       "tdy": 100
+      }
      }
     },
     "feature_off": {
@@ -67,7 +83,15 @@
       "innerHeight": 800,
       "devicePixelRatio": 1,
       "mqWidth": true,
-      "mqHeight": true
+      "mqHeight": true,
+      "mouse": {
+       "dx": 44,
+       "dy": 126,
+       "pdx": 44,
+       "pdy": 126,
+       "tdx": 44,
+       "tdy": 126
+      }
      }
     },
     "global_off": {
@@ -89,7 +113,15 @@
       "innerHeight": 800,
       "devicePixelRatio": 1,
       "mqWidth": true,
-      "mqHeight": true
+      "mqHeight": true,
+      "mouse": {
+       "dx": 44,
+       "dy": 126,
+       "pdx": 44,
+       "pdy": 126,
+       "tdx": 44,
+       "tdy": 126
+      }
      }
     },
     "site_off": {
@@ -111,7 +143,15 @@
       "innerHeight": 800,
       "devicePixelRatio": 1,
       "mqWidth": true,
-      "mqHeight": true
+      "mqHeight": true,
+      "mouse": {
+       "dx": 44,
+       "dy": 126,
+       "pdx": 44,
+       "pdy": 126,
+       "tdx": 44,
+       "tdy": 126
+      }
      },
      "b": {
       "width": 1680,
@@ -131,7 +171,105 @@
       "innerHeight": 800,
       "devicePixelRatio": 1,
       "mqWidth": true,
-      "mqHeight": true
+      "mqHeight": true,
+      "mouse": {
+       "dx": 0,
+       "dy": 100,
+       "pdx": 0,
+       "pdy": 100,
+       "tdx": 0,
+       "tdy": 100
+      }
+     }
+    },
+    "on_moved": {
+     "a": {
+      "width": 1680,
+      "height": 1050,
+      "availWidth": 1680,
+      "availHeight": 1050,
+      "availLeft": 0,
+      "availTop": 0,
+      "colorDepth": 24,
+      "pixelDepth": 24,
+      "isExtended": false,
+      "screenX": 0,
+      "screenY": 0,
+      "outerWidth": 1500,
+      "outerHeight": 900,
+      "innerWidth": 1500,
+      "innerHeight": 800,
+      "devicePixelRatio": 1,
+      "mqWidth": true,
+      "mqHeight": true,
+      "mouse": {
+       "dx": 0,
+       "dy": 100,
+       "pdx": 0,
+       "pdy": 100,
+       "tdx": 0,
+       "tdy": 100
+      }
+     }
+    },
+    "feature_off_moved": {
+     "a": {
+      "width": 1600,
+      "height": 900,
+      "availWidth": 1600,
+      "availHeight": 870,
+      "availLeft": 0,
+      "availTop": 30,
+      "colorDepth": 30,
+      "pixelDepth": 30,
+      "isExtended": false,
+      "screenX": 40,
+      "screenY": 60,
+      "outerWidth": 1500,
+      "outerHeight": 900,
+      "innerWidth": 1500,
+      "innerHeight": 800,
+      "devicePixelRatio": 1,
+      "mqWidth": true,
+      "mqHeight": true,
+      "mouse": {
+       "dx": 274,
+       "dy": 296,
+       "pdx": 274,
+       "pdy": 296,
+       "tdx": 274,
+       "tdy": 296
+      }
+     }
+    },
+    "on_zoom": {
+     "a": {
+      "width": 1680,
+      "height": 1050,
+      "availWidth": 1680,
+      "availHeight": 1050,
+      "availLeft": 0,
+      "availTop": 0,
+      "colorDepth": 24,
+      "pixelDepth": 24,
+      "isExtended": false,
+      "screenX": 0,
+      "screenY": 0,
+      "outerWidth": 1500,
+      "outerHeight": 900,
+      "innerWidth": 714,
+      "innerHeight": 518,
+      "devicePixelRatio": 1.728,
+      "mqWidth": true,
+      "mqHeight": true,
+      "mouse": {
+       "dx": 786,
+       "dy": 382,
+       "pdx": 786,
+       "pdy": 382,
+       "tdx": 786,
+       "tdy": 382
+      }
      }
     }
    }
@@ -160,7 +298,15 @@
       "innerHeight": 800,
       "devicePixelRatio": 1,
       "mqWidth": true,
-      "mqHeight": true
+      "mqHeight": true,
+      "mouse": {
+       "dx": 0,
+       "dy": 100,
+       "pdx": 0,
+       "pdy": 100,
+       "tdx": 0,
+       "tdy": 100
+      }
      },
      "b": {
       "width": 1680,
@@ -180,7 +326,15 @@
       "innerHeight": 800,
       "devicePixelRatio": 1,
       "mqWidth": true,
-      "mqHeight": true
+      "mqHeight": true,
+      "mouse": {
+       "dx": 0,
+       "dy": 100,
+       "pdx": 0,
+       "pdy": 100,
+       "tdx": 0,
+       "tdy": 100
+      }
      }
     },
     "feature_off": {
@@ -202,7 +356,15 @@
       "innerHeight": 800,
       "devicePixelRatio": 1,
       "mqWidth": true,
-      "mqHeight": true
+      "mqHeight": true,
+      "mouse": {
+       "dx": 44,
+       "dy": 126,
+       "pdx": 44,
+       "pdy": 126,
+       "tdx": 44,
+       "tdy": 126
+      }
      }
     },
     "global_off": {
@@ -224,7 +386,15 @@
       "innerHeight": 800,
       "devicePixelRatio": 1,
       "mqWidth": true,
-      "mqHeight": true
+      "mqHeight": true,
+      "mouse": {
+       "dx": 44,
+       "dy": 126,
+       "pdx": 44,
+       "pdy": 126,
+       "tdx": 44,
+       "tdy": 126
+      }
      }
     },
     "site_off": {
@@ -246,7 +416,15 @@
       "innerHeight": 800,
       "devicePixelRatio": 1,
       "mqWidth": true,
-      "mqHeight": true
+      "mqHeight": true,
+      "mouse": {
+       "dx": 44,
+       "dy": 126,
+       "pdx": 44,
+       "pdy": 126,
+       "tdx": 44,
+       "tdy": 126
+      }
      },
      "b": {
       "width": 1680,
@@ -266,7 +444,105 @@
       "innerHeight": 800,
       "devicePixelRatio": 1,
       "mqWidth": true,
-      "mqHeight": true
+      "mqHeight": true,
+      "mouse": {
+       "dx": 0,
+       "dy": 100,
+       "pdx": 0,
+       "pdy": 100,
+       "tdx": 0,
+       "tdy": 100
+      }
+     }
+    },
+    "on_moved": {
+     "a": {
+      "width": 1600,
+      "height": 900,
+      "availWidth": 1600,
+      "availHeight": 870,
+      "availLeft": 0,
+      "availTop": 30,
+      "colorDepth": 30,
+      "pixelDepth": 30,
+      "isExtended": false,
+      "screenX": 40,
+      "screenY": 60,
+      "outerWidth": 1500,
+      "outerHeight": 900,
+      "innerWidth": 1500,
+      "innerHeight": 800,
+      "devicePixelRatio": 1,
+      "mqWidth": true,
+      "mqHeight": true,
+      "mouse": {
+       "dx": 0,
+       "dy": 100,
+       "pdx": 0,
+       "pdy": 100,
+       "tdx": 0,
+       "tdy": 100
+      }
+     }
+    },
+    "feature_off_moved": {
+     "a": {
+      "width": 1600,
+      "height": 900,
+      "availWidth": 1600,
+      "availHeight": 870,
+      "availLeft": 0,
+      "availTop": 30,
+      "colorDepth": 30,
+      "pixelDepth": 30,
+      "isExtended": false,
+      "screenX": 40,
+      "screenY": 60,
+      "outerWidth": 1500,
+      "outerHeight": 900,
+      "innerWidth": 1500,
+      "innerHeight": 800,
+      "devicePixelRatio": 1,
+      "mqWidth": true,
+      "mqHeight": true,
+      "mouse": {
+       "dx": 274,
+       "dy": 296,
+       "pdx": 274,
+       "pdy": 296,
+       "tdx": 274,
+       "tdy": 296
+      }
+     }
+    },
+    "on_zoom": {
+     "a": {
+      "width": 1600,
+      "height": 900,
+      "availWidth": 1600,
+      "availHeight": 870,
+      "availLeft": 0,
+      "availTop": 30,
+      "colorDepth": 30,
+      "pixelDepth": 30,
+      "isExtended": false,
+      "screenX": 40,
+      "screenY": 60,
+      "outerWidth": 1500,
+      "outerHeight": 900,
+      "innerWidth": 714,
+      "innerHeight": 518,
+      "devicePixelRatio": 1.728,
+      "mqWidth": true,
+      "mqHeight": true,
+      "mouse": {
+       "dx": 786,
+       "dy": 382,
+       "pdx": 786,
+       "pdy": 382,
+       "tdx": 786,
+       "tdy": 382
+      }
      }
     }
    }
@@ -295,7 +571,15 @@
       "innerHeight": 800,
       "devicePixelRatio": 1,
       "mqWidth": true,
-      "mqHeight": true
+      "mqHeight": true,
+      "mouse": {
+       "dx": 0,
+       "dy": 100,
+       "pdx": 0,
+       "pdy": 100,
+       "tdx": 0,
+       "tdy": 100
+      }
      },
      "b": {
       "width": 1680,
@@ -315,7 +599,15 @@
       "innerHeight": 800,
       "devicePixelRatio": 1,
       "mqWidth": true,
-      "mqHeight": true
+      "mqHeight": true,
+      "mouse": {
+       "dx": 0,
+       "dy": 100,
+       "pdx": 0,
+       "pdy": 100,
+       "tdx": 0,
+       "tdy": 100
+      }
      }
     },
     "feature_off": {
@@ -337,7 +629,15 @@
       "innerHeight": 800,
       "devicePixelRatio": 1,
       "mqWidth": true,
-      "mqHeight": true
+      "mqHeight": true,
+      "mouse": {
+       "dx": 44,
+       "dy": 126,
+       "pdx": 44,
+       "pdy": 126,
+       "tdx": 44,
+       "tdy": 126
+      }
      }
     },
     "global_off": {
@@ -359,7 +659,15 @@
       "innerHeight": 800,
       "devicePixelRatio": 1,
       "mqWidth": true,
-      "mqHeight": true
+      "mqHeight": true,
+      "mouse": {
+       "dx": 44,
+       "dy": 126,
+       "pdx": 44,
+       "pdy": 126,
+       "tdx": 44,
+       "tdy": 126
+      }
      }
     },
     "site_off": {
@@ -381,7 +689,15 @@
       "innerHeight": 800,
       "devicePixelRatio": 1,
       "mqWidth": true,
-      "mqHeight": true
+      "mqHeight": true,
+      "mouse": {
+       "dx": 44,
+       "dy": 126,
+       "pdx": 44,
+       "pdy": 126,
+       "tdx": 44,
+       "tdy": 126
+      }
      },
      "b": {
       "width": 1600,
@@ -401,7 +717,105 @@
       "innerHeight": 800,
       "devicePixelRatio": 1,
       "mqWidth": true,
-      "mqHeight": true
+      "mqHeight": true,
+      "mouse": {
+       "dx": 0,
+       "dy": 100,
+       "pdx": 0,
+       "pdy": 100,
+       "tdx": 0,
+       "tdy": 100
+      }
+     }
+    },
+    "on_moved": {
+     "a": {
+      "width": 1680,
+      "height": 1050,
+      "availWidth": 1680,
+      "availHeight": 1050,
+      "availLeft": 0,
+      "availTop": 0,
+      "colorDepth": 24,
+      "pixelDepth": 24,
+      "isExtended": false,
+      "screenX": 0,
+      "screenY": 0,
+      "outerWidth": 1500,
+      "outerHeight": 900,
+      "innerWidth": 1500,
+      "innerHeight": 800,
+      "devicePixelRatio": 1,
+      "mqWidth": true,
+      "mqHeight": true,
+      "mouse": {
+       "dx": 0,
+       "dy": 100,
+       "pdx": 0,
+       "pdy": 100,
+       "tdx": 0,
+       "tdy": 100
+      }
+     }
+    },
+    "feature_off_moved": {
+     "a": {
+      "width": 1600,
+      "height": 900,
+      "availWidth": 1600,
+      "availHeight": 870,
+      "availLeft": 0,
+      "availTop": 30,
+      "colorDepth": 30,
+      "pixelDepth": 30,
+      "isExtended": false,
+      "screenX": 40,
+      "screenY": 60,
+      "outerWidth": 1500,
+      "outerHeight": 900,
+      "innerWidth": 1500,
+      "innerHeight": 800,
+      "devicePixelRatio": 1,
+      "mqWidth": true,
+      "mqHeight": true,
+      "mouse": {
+       "dx": 274,
+       "dy": 296,
+       "pdx": 274,
+       "pdy": 296,
+       "tdx": 274,
+       "tdy": 296
+      }
+     }
+    },
+    "on_zoom": {
+     "a": {
+      "width": 1680,
+      "height": 1050,
+      "availWidth": 1680,
+      "availHeight": 1050,
+      "availLeft": 0,
+      "availTop": 0,
+      "colorDepth": 24,
+      "pixelDepth": 24,
+      "isExtended": false,
+      "screenX": 0,
+      "screenY": 0,
+      "outerWidth": 1500,
+      "outerHeight": 900,
+      "innerWidth": 714,
+      "innerHeight": 518,
+      "devicePixelRatio": 1.728,
+      "mqWidth": true,
+      "mqHeight": true,
+      "mouse": {
+       "dx": 786,
+       "dy": 382,
+       "pdx": 786,
+       "pdy": 382,
+       "tdx": 786,
+       "tdy": 382
+      }
      }
     }
    }
@@ -430,7 +844,15 @@
       "innerHeight": 800,
       "devicePixelRatio": 1,
       "mqWidth": true,
-      "mqHeight": true
+      "mqHeight": true,
+      "mouse": {
+       "dx": 0,
+       "dy": 100,
+       "pdx": 0,
+       "pdy": 100,
+       "tdx": 0,
+       "tdy": 100
+      }
      },
      "b": {
       "width": 1680,
@@ -450,7 +872,15 @@
       "innerHeight": 800,
       "devicePixelRatio": 1,
       "mqWidth": true,
-      "mqHeight": true
+      "mqHeight": true,
+      "mouse": {
+       "dx": 0,
+       "dy": 100,
+       "pdx": 0,
+       "pdy": 100,
+       "tdx": 0,
+       "tdy": 100
+      }
      }
     },
     "feature_off": {
@@ -472,7 +902,15 @@
       "innerHeight": 800,
       "devicePixelRatio": 1,
       "mqWidth": true,
-      "mqHeight": true
+      "mqHeight": true,
+      "mouse": {
+       "dx": 44,
+       "dy": 126,
+       "pdx": 44,
+       "pdy": 126,
+       "tdx": 44,
+       "tdy": 126
+      }
      }
     },
     "global_off": {
@@ -494,7 +932,15 @@
       "innerHeight": 800,
       "devicePixelRatio": 1,
       "mqWidth": true,
-      "mqHeight": true
+      "mqHeight": true,
+      "mouse": {
+       "dx": 44,
+       "dy": 126,
+       "pdx": 44,
+       "pdy": 126,
+       "tdx": 44,
+       "tdy": 126
+      }
      }
     },
     "site_off": {
@@ -516,7 +962,15 @@
       "innerHeight": 800,
       "devicePixelRatio": 1,
       "mqWidth": true,
-      "mqHeight": true
+      "mqHeight": true,
+      "mouse": {
+       "dx": 4,
+       "dy": 66,
+       "pdx": 4,
+       "pdy": 66,
+       "tdx": 4,
+       "tdy": 66
+      }
      },
      "b": {
       "width": 1680,
@@ -536,7 +990,105 @@
       "innerHeight": 800,
       "devicePixelRatio": 1,
       "mqWidth": true,
-      "mqHeight": true
+      "mqHeight": true,
+      "mouse": {
+       "dx": 0,
+       "dy": 100,
+       "pdx": 0,
+       "pdy": 100,
+       "tdx": 0,
+       "tdy": 100
+      }
+     }
+    },
+    "on_moved": {
+     "a": {
+      "width": 1680,
+      "height": 1050,
+      "availWidth": 1680,
+      "availHeight": 1050,
+      "availLeft": 0,
+      "availTop": 0,
+      "colorDepth": 24,
+      "pixelDepth": 24,
+      "isExtended": false,
+      "screenX": 0,
+      "screenY": 0,
+      "outerWidth": 1500,
+      "outerHeight": 900,
+      "innerWidth": 1500,
+      "innerHeight": 800,
+      "devicePixelRatio": 1,
+      "mqWidth": true,
+      "mqHeight": true,
+      "mouse": {
+       "dx": 0,
+       "dy": 100,
+       "pdx": 0,
+       "pdy": 100,
+       "tdx": 0,
+       "tdy": 100
+      }
+     }
+    },
+    "feature_off_moved": {
+     "a": {
+      "width": 1600,
+      "height": 900,
+      "availWidth": 1600,
+      "availHeight": 870,
+      "availLeft": 0,
+      "availTop": 30,
+      "colorDepth": 30,
+      "pixelDepth": 30,
+      "isExtended": false,
+      "screenX": 40,
+      "screenY": 60,
+      "outerWidth": 1500,
+      "outerHeight": 900,
+      "innerWidth": 1500,
+      "innerHeight": 800,
+      "devicePixelRatio": 1,
+      "mqWidth": true,
+      "mqHeight": true,
+      "mouse": {
+       "dx": 274,
+       "dy": 296,
+       "pdx": 274,
+       "pdy": 296,
+       "tdx": 274,
+       "tdy": 296
+      }
+     }
+    },
+    "on_zoom": {
+     "a": {
+      "width": 1680,
+      "height": 1050,
+      "availWidth": 1680,
+      "availHeight": 1050,
+      "availLeft": 0,
+      "availTop": 0,
+      "colorDepth": 24,
+      "pixelDepth": 24,
+      "isExtended": false,
+      "screenX": 0,
+      "screenY": 0,
+      "outerWidth": 1500,
+      "outerHeight": 900,
+      "innerWidth": 714,
+      "innerHeight": 518,
+      "devicePixelRatio": 1.728,
+      "mqWidth": true,
+      "mqHeight": true,
+      "mouse": {
+       "dx": 786,
+       "dy": 382,
+       "pdx": 786,
+       "pdy": 382,
+       "tdx": 786,
+       "tdy": 382
+      }
      }
     }
    }
@@ -565,7 +1117,15 @@
       "innerHeight": 800,
       "devicePixelRatio": 1,
       "mqWidth": true,
-      "mqHeight": true
+      "mqHeight": true,
+      "mouse": {
+       "dx": 0,
+       "dy": 100,
+       "pdx": 0,
+       "pdy": 100,
+       "tdx": 0,
+       "tdy": 100
+      }
      },
      "b": {
       "width": 1680,
@@ -585,7 +1145,15 @@
       "innerHeight": 800,
       "devicePixelRatio": 1,
       "mqWidth": true,
-      "mqHeight": true
+      "mqHeight": true,
+      "mouse": {
+       "dx": 0,
+       "dy": 100,
+       "pdx": 0,
+       "pdy": 100,
+       "tdx": 0,
+       "tdy": 100
+      }
      }
     },
     "feature_off": {
@@ -607,7 +1175,15 @@
       "innerHeight": 800,
       "devicePixelRatio": 1,
       "mqWidth": true,
-      "mqHeight": true
+      "mqHeight": true,
+      "mouse": {
+       "dx": 4,
+       "dy": 66,
+       "pdx": 4,
+       "pdy": 66,
+       "tdx": 4,
+       "tdy": 66
+      }
      }
     },
     "global_off": {
@@ -629,7 +1205,15 @@
       "innerHeight": 800,
       "devicePixelRatio": 1,
       "mqWidth": true,
-      "mqHeight": true
+      "mqHeight": true,
+      "mouse": {
+       "dx": 44,
+       "dy": 126,
+       "pdx": 44,
+       "pdy": 126,
+       "tdx": 44,
+       "tdy": 126
+      }
      }
     },
     "site_off": {
@@ -651,7 +1235,15 @@
       "innerHeight": 800,
       "devicePixelRatio": 1,
       "mqWidth": true,
-      "mqHeight": true
+      "mqHeight": true,
+      "mouse": {
+       "dx": 44,
+       "dy": 126,
+       "pdx": 44,
+       "pdy": 126,
+       "tdx": 44,
+       "tdy": 126
+      }
      },
      "b": {
       "width": 1680,
@@ -671,7 +1263,105 @@
       "innerHeight": 800,
       "devicePixelRatio": 1,
       "mqWidth": true,
-      "mqHeight": true
+      "mqHeight": true,
+      "mouse": {
+       "dx": 0,
+       "dy": 100,
+       "pdx": 0,
+       "pdy": 100,
+       "tdx": 0,
+       "tdy": 100
+      }
+     }
+    },
+    "on_moved": {
+     "a": {
+      "width": 1680,
+      "height": 1050,
+      "availWidth": 1680,
+      "availHeight": 1050,
+      "availLeft": 0,
+      "availTop": 0,
+      "colorDepth": 24,
+      "pixelDepth": 24,
+      "isExtended": false,
+      "screenX": 0,
+      "screenY": 0,
+      "outerWidth": 1500,
+      "outerHeight": 900,
+      "innerWidth": 1500,
+      "innerHeight": 800,
+      "devicePixelRatio": 1,
+      "mqWidth": true,
+      "mqHeight": true,
+      "mouse": {
+       "dx": 0,
+       "dy": 100,
+       "pdx": 0,
+       "pdy": 100,
+       "tdx": 0,
+       "tdy": 100
+      }
+     }
+    },
+    "feature_off_moved": {
+     "a": {
+      "width": 1680,
+      "height": 1050,
+      "availWidth": 1680,
+      "availHeight": 1050,
+      "availLeft": 0,
+      "availTop": 0,
+      "colorDepth": 24,
+      "pixelDepth": 24,
+      "isExtended": false,
+      "screenX": 0,
+      "screenY": 0,
+      "outerWidth": 1500,
+      "outerHeight": 900,
+      "innerWidth": 1500,
+      "innerHeight": 800,
+      "devicePixelRatio": 1,
+      "mqWidth": true,
+      "mqHeight": true,
+      "mouse": {
+       "dx": 234,
+       "dy": 236,
+       "pdx": 234,
+       "pdy": 236,
+       "tdx": 234,
+       "tdy": 236
+      }
+     }
+    },
+    "on_zoom": {
+     "a": {
+      "width": 1680,
+      "height": 1050,
+      "availWidth": 1680,
+      "availHeight": 1050,
+      "availLeft": 0,
+      "availTop": 0,
+      "colorDepth": 24,
+      "pixelDepth": 24,
+      "isExtended": false,
+      "screenX": 0,
+      "screenY": 0,
+      "outerWidth": 1500,
+      "outerHeight": 900,
+      "innerWidth": 714,
+      "innerHeight": 518,
+      "devicePixelRatio": 1.728,
+      "mqWidth": true,
+      "mqHeight": true,
+      "mouse": {
+       "dx": 786,
+       "dy": 382,
+       "pdx": 786,
+       "pdy": 382,
+       "tdx": 786,
+       "tdy": 382
+      }
      }
     }
    }
@@ -700,7 +1390,15 @@
       "innerHeight": 800,
       "devicePixelRatio": 1,
       "mqWidth": false,
-      "mqHeight": true
+      "mqHeight": true,
+      "mouse": {
+       "dx": 0,
+       "dy": 100,
+       "pdx": 0,
+       "pdy": 100,
+       "tdx": 0,
+       "tdy": 100
+      }
      },
      "b": {
       "width": 1680,
@@ -720,7 +1418,15 @@
       "innerHeight": 800,
       "devicePixelRatio": 1,
       "mqWidth": true,
-      "mqHeight": true
+      "mqHeight": true,
+      "mouse": {
+       "dx": 0,
+       "dy": 100,
+       "pdx": 0,
+       "pdy": 100,
+       "tdx": 0,
+       "tdy": 100
+      }
      }
     },
     "feature_off": {
@@ -742,7 +1448,15 @@
       "innerHeight": 800,
       "devicePixelRatio": 1,
       "mqWidth": true,
-      "mqHeight": true
+      "mqHeight": true,
+      "mouse": {
+       "dx": 44,
+       "dy": 126,
+       "pdx": 44,
+       "pdy": 126,
+       "tdx": 44,
+       "tdy": 126
+      }
      }
     },
     "global_off": {
@@ -764,7 +1478,15 @@
       "innerHeight": 800,
       "devicePixelRatio": 1,
       "mqWidth": true,
-      "mqHeight": true
+      "mqHeight": true,
+      "mouse": {
+       "dx": 44,
+       "dy": 126,
+       "pdx": 44,
+       "pdy": 126,
+       "tdx": 44,
+       "tdy": 126
+      }
      }
     },
     "site_off": {
@@ -786,7 +1508,15 @@
       "innerHeight": 800,
       "devicePixelRatio": 1,
       "mqWidth": true,
-      "mqHeight": true
+      "mqHeight": true,
+      "mouse": {
+       "dx": 44,
+       "dy": 126,
+       "pdx": 44,
+       "pdy": 126,
+       "tdx": 44,
+       "tdy": 126
+      }
      },
      "b": {
       "width": 1680,
@@ -806,7 +1536,105 @@
       "innerHeight": 800,
       "devicePixelRatio": 1,
       "mqWidth": true,
-      "mqHeight": true
+      "mqHeight": true,
+      "mouse": {
+       "dx": 0,
+       "dy": 100,
+       "pdx": 0,
+       "pdy": 100,
+       "tdx": 0,
+       "tdy": 100
+      }
+     }
+    },
+    "on_moved": {
+     "a": {
+      "width": 1680,
+      "height": 1050,
+      "availWidth": 1680,
+      "availHeight": 1050,
+      "availLeft": 0,
+      "availTop": 0,
+      "colorDepth": 24,
+      "pixelDepth": 24,
+      "isExtended": false,
+      "screenX": 0,
+      "screenY": 0,
+      "outerWidth": 1500,
+      "outerHeight": 900,
+      "innerWidth": 1500,
+      "innerHeight": 800,
+      "devicePixelRatio": 1,
+      "mqWidth": false,
+      "mqHeight": true,
+      "mouse": {
+       "dx": 0,
+       "dy": 100,
+       "pdx": 0,
+       "pdy": 100,
+       "tdx": 0,
+       "tdy": 100
+      }
+     }
+    },
+    "feature_off_moved": {
+     "a": {
+      "width": 1600,
+      "height": 900,
+      "availWidth": 1600,
+      "availHeight": 870,
+      "availLeft": 0,
+      "availTop": 30,
+      "colorDepth": 30,
+      "pixelDepth": 30,
+      "isExtended": false,
+      "screenX": 40,
+      "screenY": 60,
+      "outerWidth": 1500,
+      "outerHeight": 900,
+      "innerWidth": 1500,
+      "innerHeight": 800,
+      "devicePixelRatio": 1,
+      "mqWidth": true,
+      "mqHeight": true,
+      "mouse": {
+       "dx": 274,
+       "dy": 296,
+       "pdx": 274,
+       "pdy": 296,
+       "tdx": 274,
+       "tdy": 296
+      }
+     }
+    },
+    "on_zoom": {
+     "a": {
+      "width": 1680,
+      "height": 1050,
+      "availWidth": 1680,
+      "availHeight": 1050,
+      "availLeft": 0,
+      "availTop": 0,
+      "colorDepth": 24,
+      "pixelDepth": 24,
+      "isExtended": false,
+      "screenX": 0,
+      "screenY": 0,
+      "outerWidth": 1500,
+      "outerHeight": 900,
+      "innerWidth": 714,
+      "innerHeight": 518,
+      "devicePixelRatio": 1.728,
+      "mqWidth": false,
+      "mqHeight": true,
+      "mouse": {
+       "dx": 786,
+       "dy": 382,
+       "pdx": 786,
+       "pdy": 382,
+       "tdx": 786,
+       "tdy": 382
+      }
      }
     }
    }
@@ -835,7 +1663,15 @@
       "innerHeight": 800,
       "devicePixelRatio": 1,
       "mqWidth": true,
-      "mqHeight": true
+      "mqHeight": true,
+      "mouse": {
+       "dx": 0,
+       "dy": 100,
+       "pdx": 0,
+       "pdy": 100,
+       "tdx": 0,
+       "tdy": 100
+      }
      },
      "b": {
       "width": 1680,
@@ -855,7 +1691,15 @@
       "innerHeight": 800,
       "devicePixelRatio": 1,
       "mqWidth": true,
-      "mqHeight": true
+      "mqHeight": true,
+      "mouse": {
+       "dx": 0,
+       "dy": 100,
+       "pdx": 0,
+       "pdy": 100,
+       "tdx": 0,
+       "tdy": 100
+      }
      }
     },
     "feature_off": {
@@ -877,7 +1721,15 @@
       "innerHeight": 800,
       "devicePixelRatio": 1,
       "mqWidth": false,
-      "mqHeight": true
+      "mqHeight": true,
+      "mouse": {
+       "dx": 44,
+       "dy": 126,
+       "pdx": 44,
+       "pdy": 126,
+       "tdx": 44,
+       "tdy": 126
+      }
      }
     },
     "global_off": {
@@ -899,7 +1751,15 @@
       "innerHeight": 800,
       "devicePixelRatio": 1,
       "mqWidth": true,
-      "mqHeight": true
+      "mqHeight": true,
+      "mouse": {
+       "dx": 44,
+       "dy": 126,
+       "pdx": 44,
+       "pdy": 126,
+       "tdx": 44,
+       "tdy": 126
+      }
      }
     },
     "site_off": {
@@ -921,7 +1781,15 @@
       "innerHeight": 800,
       "devicePixelRatio": 1,
       "mqWidth": true,
-      "mqHeight": true
+      "mqHeight": true,
+      "mouse": {
+       "dx": 44,
+       "dy": 126,
+       "pdx": 44,
+       "pdy": 126,
+       "tdx": 44,
+       "tdy": 126
+      }
      },
      "b": {
       "width": 1680,
@@ -941,7 +1809,105 @@
       "innerHeight": 800,
       "devicePixelRatio": 1,
       "mqWidth": true,
-      "mqHeight": true
+      "mqHeight": true,
+      "mouse": {
+       "dx": 0,
+       "dy": 100,
+       "pdx": 0,
+       "pdy": 100,
+       "tdx": 0,
+       "tdy": 100
+      }
+     }
+    },
+    "on_moved": {
+     "a": {
+      "width": 1680,
+      "height": 1050,
+      "availWidth": 1680,
+      "availHeight": 1050,
+      "availLeft": 0,
+      "availTop": 0,
+      "colorDepth": 24,
+      "pixelDepth": 24,
+      "isExtended": false,
+      "screenX": 0,
+      "screenY": 0,
+      "outerWidth": 1500,
+      "outerHeight": 900,
+      "innerWidth": 1500,
+      "innerHeight": 800,
+      "devicePixelRatio": 1,
+      "mqWidth": true,
+      "mqHeight": true,
+      "mouse": {
+       "dx": 0,
+       "dy": 100,
+       "pdx": 0,
+       "pdy": 100,
+       "tdx": 0,
+       "tdy": 100
+      }
+     }
+    },
+    "feature_off_moved": {
+     "a": {
+      "width": 1600,
+      "height": 900,
+      "availWidth": 1600,
+      "availHeight": 870,
+      "availLeft": 0,
+      "availTop": 30,
+      "colorDepth": 30,
+      "pixelDepth": 30,
+      "isExtended": false,
+      "screenX": 40,
+      "screenY": 60,
+      "outerWidth": 1500,
+      "outerHeight": 900,
+      "innerWidth": 1500,
+      "innerHeight": 800,
+      "devicePixelRatio": 1,
+      "mqWidth": false,
+      "mqHeight": true,
+      "mouse": {
+       "dx": 274,
+       "dy": 296,
+       "pdx": 274,
+       "pdy": 296,
+       "tdx": 274,
+       "tdy": 296
+      }
+     }
+    },
+    "on_zoom": {
+     "a": {
+      "width": 1680,
+      "height": 1050,
+      "availWidth": 1680,
+      "availHeight": 1050,
+      "availLeft": 0,
+      "availTop": 0,
+      "colorDepth": 24,
+      "pixelDepth": 24,
+      "isExtended": false,
+      "screenX": 0,
+      "screenY": 0,
+      "outerWidth": 1500,
+      "outerHeight": 900,
+      "innerWidth": 714,
+      "innerHeight": 518,
+      "devicePixelRatio": 1.728,
+      "mqWidth": true,
+      "mqHeight": true,
+      "mouse": {
+       "dx": 786,
+       "dy": 382,
+       "pdx": 786,
+       "pdy": 382,
+       "tdx": 786,
+       "tdy": 382
+      }
      }
     }
    }

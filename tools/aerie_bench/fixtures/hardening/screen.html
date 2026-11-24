@@ -2,9 +2,25 @@
 <html><head><meta charset="utf-8"><title>Aerie Bench Screen</title></head>
 <body>
 <p>Reads window.screen, the window size and position, devicePixelRatio and the device-width and
-device-height media features.</p>
+device-height media features, and the screen position of the first mouse, pointer and touch events.</p>
 <script>
   window.__done = false;
+  // The first mouse event and the first pointer event the page gets (issue #159): the Bench dispatches a
+  // mouse move and the check compares screenX - clientX with what the window reports.
+  window.__events = {mouse: null, pointer: null, touch: null};
+  for (const [name, key] of [['mousemove', 'mouse'], ['pointermove', 'pointer']]) {
+    addEventListener(name, e => {
+      if (!window.__events[key]) {
+        window.__events[key] = {screenX: e.screenX, screenY: e.screenY, clientX: e.clientX, clientY: e.clientY};
+      }
+    }, true);
+  }
+  addEventListener('touchstart', e => {
+    const t = e.touches[0];
+    if (t && !window.__events.touch) {
+      window.__events.touch = {screenX: t.screenX, screenY: t.screenY, clientX: t.clientX, clientY: t.clientY};
+    }
+  }, {capture: true, passive: true});
   function reading() {
     const s = screen;
     return {

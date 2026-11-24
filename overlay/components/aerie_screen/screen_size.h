@@ -25,6 +25,23 @@ struct Size {
 // window.
 Size ScreenSizeForWindow(int outer_width, int outer_height);
 
+struct PointF {
+  float x;
+  float y;
+  friend bool operator==(const PointF&, const PointF&) = default;
+};
+
+// The screen position a protected window reports for a mouse, pointer, touch or
+// drag event (issue #159). A protected window reports its position as 0,0, so
+// the event's screen point is its client point (in CSS pixels, as clientX reads
+// it, so the result is the same at every zoom) plus the reported difference between
+// the outer and the inner size. Then screenX - clientX equals what outerWidth
+// and innerWidth report, and no real window position or screen reaches the
+// page through an event.
+PointF EventScreenPoint(PointF point_in_page,
+                        Size reported_outer,
+                        Size reported_inner);
+
 // screen.colorDepth and screen.pixelDepth.
 inline constexpr int kColorDepth = 24;
 

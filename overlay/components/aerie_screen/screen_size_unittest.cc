@@ -58,6 +58,34 @@ TEST(ScreenSizeTest, TheScreenIsNeverSmallerThanTheWindow) {
   }
 }
 
+TEST(EventScreenPointTest, IsTheClientPointPlusTheReportedChrome) {
+  // A 1500x900 window with a 1500x800 page: events sit 100 below their client
+  // point, as the page can work out from outerHeight - innerHeight.
+  EXPECT_EQ(EventScreenPoint({50, 60}, {1500, 900}, {1500, 800}),
+            (PointF{50, 160}));
+}
+
+TEST(EventScreenPointTest, DoesNotDependOnWhereTheRealWindowIs) {
+  // The function has no window position to read, so it cannot leak one.
+  EXPECT_EQ(EventScreenPoint({0, 0}, {1500, 900}, {1496, 834}),
+            (PointF{4, 66}));
+}
+
+TEST(EventScreenPointTest, AddsTheChromeToAFractionalClientPoint) {
+  // At a page zoom the client point has a fraction. The chrome is a whole
+  // number of pixels, so screen - client is exactly outer - inner (4,66).
+  const PointF screen =
+      EventScreenPoint({10.25f, 20.75f}, {1500, 900}, {1496, 834});
+  EXPECT_EQ(screen, (PointF{14.25f, 86.75f}));
+  EXPECT_EQ(screen.x - 10.25f, 4.0f);
+  EXPECT_EQ(screen.y - 20.75f, 66.0f);
+}
+
+TEST(EventScreenPointTest, KeepsFractionalPoints) {
+  EXPECT_EQ(EventScreenPoint({10.5f, 20.25f}, {800, 600}, {800, 600}),
+            (PointF{10.5f, 20.25f}));
+}
+
 TEST(ScreenPolicyTest, ProtectsOnlyWithBothFeaturesAndAToken) {
   EXPECT_TRUE(ShouldProtectScreen({true, true, true}));
   EXPECT_FALSE(ShouldProtectScreen({false, true, true}));
