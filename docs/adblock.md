@@ -436,7 +436,7 @@ dependencies and fixes the gnrt settings they need: `adblock = "=0.13.4"` (no de
 `full-regex-handling`, `single-thread`), and `regex = "1"` (no default features; `std`, `unicode`),
 which `aerie_adblock_core` uses to bound the `/regex/` rules of a list (issue #165). gnrt makes a
 crate visible to first-party code only when it is declared there. `regex` resolves to the version
-adblock already needs, so it adds no crate. That brings in 12 new crates (arrayvec, flatbuffers, idna,
+adblock already needs, so it adds no crate. Together they bring in 12 new crates (arrayvec, flatbuffers, idna,
 idna_adapter, percent-encoding, rustc-hash, rustc_version, seahash, semver,
 thiserror 1.x and its macro) and changes 5 lock entries.
 
