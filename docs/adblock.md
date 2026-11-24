@@ -178,13 +178,17 @@ How it works:
 - **`/regex/` rules are bounded (issue #165).** A list can carry a hostile regex such as
   `/(?:a{1000}){500}/$script`, and `adblock` compiles each one lazily and runs it on every request.
   `sanitize_list` and `check_list` therefore compile each `/regex/` rule, `@@` ones too, with
-  `regex::RegexBuilder::size_limit` of 4 MiB (`MAX_REGEX_COMPILED_BYTES`) before anything else
-  does, and drop the rule when it does not compile. The limit is set from the bundled lists: the
-  biggest regex in them, `/(https?:\/\/)\w{30,}\.me\/\w{30,}\./$script,third-party` in EasyList,
-  compiles to 2.9 MB because of the Unicode `\w`, and a test checks that every bundled regex rule
-  passes. The hostile ones need far more (`(?:a{1000}){500}` 40 MB, `(?:(?:x{100}){100}){100}`
-  80 MB). They keep at most 1024 regex rules per list (`MAX_REGEX_RULES`; the bundled lists have 22
-  and 7) and drop the rest. This runs for every list, built-in ones too, because a built-in list
+  `regex::bytes::RegexBuilder::size_limit` of 1 MiB (`MAX_REGEX_COMPILED_BYTES`) before anything
+  else does, and drop the rule when it does not compile. The gate builds the regex the way
+  `adblock`'s `regex_manager.rs` does at match time (`unicode(false)`, default nest limit, no case
+  folding), because `adblock` compiles each regex on first use, caches it, and never discards a
+  regex without a token; the compiled size is what stays resident, plus up to 2 MiB of lazy-DFA
+  cache each. The limit is set from the bundled lists: the biggest regex in them compiles to 9 KB
+  (EasyList's `/(https?:\/\/)142\.91\.159\..{100,}/`; the `\w{30,}...\.me` rule needs 6.6 KB), and a
+  test checks that every bundled regex rule passes. The hostile ones need far more
+  (`(?:a{1000}){500}` 16 MB, `(?:(?:x{100}){100}){100}` 32 MB). They keep at most 128 regex rules
+  per list (`MAX_REGEX_RULES`; the bundled lists have 22 and 7), so one list holds a few hundred
+  MiB at most, not GiB, and drop the rest. This runs for every list, built-in ones too, because a built-in list
   can be replaced by a copy the publisher serves. The regex probe of the exception test below only
   sees rules that passed this bound. `check_list` reads the clock on every line. `sanitize_list`
   has its own 10 s deadline per list (`SANITIZE_BUDGET`); a list that needs more is an error

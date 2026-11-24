@@ -47,17 +47,21 @@ pub const MAX_LIST_BYTES: usize = 32 * 1024 * 1024;
 pub const MAX_LINE_BYTES: usize = 8 * 1024;
 
 /// Largest compiled size a `/regex/` rule may have, in bytes. A rule that
-/// does not compile within it is dropped. Measured: the biggest regex in the
-/// bundled lists, EasyList's `/(https?:\/\/)\w{30,}\.me\/\w{30,}\./`, needs
-/// 2.9 MB (Unicode `\w`), and a test keeps every bundled regex under this
-/// limit. `/(?:a{1000}){500}/` needs 40 MB and
-/// `/(?:(?:x{100}){100}){100}/` 80 MB.
-pub const MAX_REGEX_COMPILED_BYTES: usize = 4 * 1024 * 1024;
+/// does not compile within it is dropped. `adblock` compiles each regex the
+/// first time a request needs it, with the default 10 MiB limit, and keeps it:
+/// a regex with no token runs on every request, so it is never discarded.
+/// What the limit allows is therefore resident until the list is removed, plus
+/// up to 2 MiB of lazy-DFA cache each. The gate measures the same program
+/// (see `regex_is_bounded`). The biggest regex in the bundled lists,
+/// EasyList's `/(https?:\/\/)142\.91\.159\..{100,}/`, needs 9 KB in ASCII
+/// mode (the `\w{30,}` rule 6.6 KB), and a test keeps every bundled regex
+/// under this limit. `/(?:a{1000}){500}/` needs 16 MB.
+pub const MAX_REGEX_COMPILED_BYTES: usize = 1024 * 1024;
 
 /// Most `/regex/` rules kept from one list. The rest are dropped. The bundled
-/// lists carry 22 and 7. Together with the size limit this bounds what one
-/// list can ask the matcher to compile.
-pub const MAX_REGEX_RULES: usize = 1_024;
+/// lists carry 22 and 7. With the size limit above, one list holds at most
+/// 128 x (1 MiB + 2 MiB DFA cache), a few hundred MiB, not GiB.
+pub const MAX_REGEX_RULES: usize = 128;
 
 /// How long `sanitize_list` may run before it stops and drops the rest of the
 /// list.
@@ -146,10 +150,10 @@ pub enum LoadError {
     TooLarge,
     /// The bytes are not a serialized engine this build can read.
     BadEngine,
-    /// A protection list has fewer domains than the floor: an empty or
-    /// truncated list that would protect (almost) nothing.
     /// `sanitize_list` ran out of time (`SANITIZE_BUDGET`).
     Timeout,
+    /// A protection list has fewer domains than the floor: an empty or
+    /// truncated list that would protect (almost) nothing.
     TooFewEntries { found: usize, required: usize },
 }
 
@@ -250,14 +254,15 @@ fn regex_pattern(line: &str) -> Option<&str> {
     (!inner.is_empty()).then_some(inner)
 }
 
-/// Does the regex compile within `MAX_REGEX_COMPILED_BYTES`? Case folding is
-/// on because that is how a rule without `$match-case` is matched, and it is
-/// the larger program.
+/// Does the regex compile within `MAX_REGEX_COMPILED_BYTES`? It is built the
+/// way `adblock`'s `regex_manager.rs` builds it at match time (a bytes regex,
+/// `unicode(false)`, the default nest limit, no case folding), so the size
+/// measured here is the size of the program that stays resident. Keep the
+/// two in step when `adblock` is bumped.
 fn regex_is_bounded(pattern: &str) -> bool {
-    regex::RegexBuilder::new(pattern)
-        .case_insensitive(true)
+    regex::bytes::RegexBuilder::new(pattern)
+        .unicode(false)
         .size_limit(MAX_REGEX_COMPILED_BYTES)
-        .nest_limit(50)
         .build()
         .is_ok()
 }
@@ -321,7 +326,7 @@ impl ListFilter {
 /// A host-anchored rule (`@@||host...`) needs a literal first character
 /// and is not tested: it is scoped by its host.
 ///
-/// The caller passes a `/regex/` exception through `RegexGate` first, so the
+/// The caller passes a `/regex/` exception through `ListFilter` first, so the
 /// compile here is of a regex that is already known to be small.
 pub(crate) fn exception_matches_every_address(line: &str) -> bool {
     let Some(rest) = line.trim().strip_prefix("@@") else {

@@ -1023,7 +1023,7 @@ fn hostile_regex_list(lines: usize) -> String {
         "(?:a{1000}){500}",
         "(?:(?:(?:y{50}){50}){50}){50}",
         "(?:(?:x{100}){100}){100}",
-        "[a-z]{1000}[0-9]{1000}.{10000}",
+        "[a-z]{1000}[0-9]{1000}.{20000}",
     ];
     let options = ["", "$script", "$image,third-party", "$xmlhttprequest,~third-party"];
     let mut list = String::from("||ads.example^\n");
