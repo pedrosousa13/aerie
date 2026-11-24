@@ -1,17 +1,23 @@
 Aerie-Purpose: Serve Aerie's own first-run setup page (components/aerie_onboarding) from Helium's
- onboarding page controller, and add the theme handler its colour step needs.
+ onboarding page controller, add the theme handler its colour step needs, and swap Helium's
+ OnboardingMessageHandler for Aerie's AerieSetupHandler, which only marks setup complete.
 Aerie-Upstream-Area: chrome/browser/ui/webui/onboarding (Helium's helium/core/onboarding-page.patch),
- chrome/chrome_paks.gni, chrome/browser/BUILD.gn, chrome/app/generated_resources.grd,
- tools/gritsettings/resource_ids.spec
+ chrome/chrome_paks.gni, chrome/browser/BUILD.gn, chrome/browser/ui/webui/BUILD.gn,
+ chrome/app/generated_resources.grd, tools/gritsettings/resource_ids.spec
 Aerie-Kind: hook
 
 Issue #46. Helium's page is a Svelte app downloaded from deps.ini [onboarding]; Aerie no longer
 downloads it (tools/aerie_build/helium_deps.py). Helium's native side stays: the aerie://setup
-WebUI config, the first-run redirect, OnboardingMessageHandler (prefs, completion) and the
-import, search engine and default browser handlers. This patch swaps every reference to
+WebUI config, the first-run redirect and the import, search engine and default browser handlers
+stay. This patch swaps every reference to
 components/helium_onboarding for components/aerie_onboarding (an overlay), drops the Svelte
 Trusted Types policy (the Aerie page never assigns HTML), and registers
 aerie_onboarding::AerieThemeHandler.
+
+Issue #69: Helium's OnboardingMessageHandler is no longer registered for the page. Its setPref set any
+helium.* pref (user_consented included) and it also installed extensions. aerie_onboarding::
+AerieSetupHandler takes its place and answers only setPref("completed_onboarding", bool) and
+acceptLatestSchema, the two messages the page uses from it.
 
 --- a/chrome/chrome_paks.gni
 +++ b/chrome/chrome_paks.gni
@@ -44,10 +50,11 @@ aerie_onboarding::AerieThemeHandler.
      "//components/input",
 --- a/chrome/browser/ui/webui/BUILD.gn
 +++ b/chrome/browser/ui/webui/BUILD.gn
-@@ -729,9 +729,10 @@
+@@ -729,9 +729,11 @@
      "//chrome/browser:browser_process",
      "//chrome/browser/extensions",
      "//chrome/browser/profiles",
++    "//chrome/browser/ui/webui/aerie_onboarding:setup_handler",
 +    "//chrome/browser/ui/webui/aerie_onboarding:theme_handler",
      "//chrome/browser/ui/webui/settings",
 -    "//components/helium_onboarding:generated_resources",
@@ -66,8 +73,9 @@ aerie_onboarding::AerieThemeHandler.
 -#include "base/strings/strcat.h"
  #include "build/build_config.h"
  #include "chrome/browser/profiles/profile.h"
++#include "chrome/browser/ui/webui/aerie_onboarding/aerie_setup_handler.h"
 +#include "chrome/browser/ui/webui/aerie_onboarding/aerie_theme_handler.h"
- #include "chrome/browser/ui/webui/onboarding/onboarding_handler.h"
+-#include "chrome/browser/ui/webui/onboarding/onboarding_handler.h"
  #include "chrome/browser/ui/webui/settings/brave_import_data_handler.h"
  #include "chrome/browser/ui/webui/settings/search_engines_handler.h"
  #include "chrome/browser/ui/webui/settings/settings_default_browser_handler.h"
@@ -99,7 +107,7 @@ aerie_onboarding::AerieThemeHandler.
    source->UseStringsJs();
    source->AddBoolean("webPushAvailable",
                       base::FeatureList::IsEnabled(features::kHeliumWebPush));
-@@ -47,11 +46,6 @@
+@@ -47,13 +46,9 @@
                       base::mac::MacOSMajorVersion() >= 27);
  #endif
  
@@ -109,7 +117,11 @@ aerie_onboarding::AerieThemeHandler.
 -                    " svelte-trusted-html;"}));
 -
    web_ui->AddMessageHandler(
-       std::make_unique<OnboardingMessageHandler>(browser_context));
+-      std::make_unique<OnboardingMessageHandler>(browser_context));
++      std::make_unique<aerie_onboarding::AerieSetupHandler>(
++          profile->GetPrefs()));
+   web_ui->AddMessageHandler(
+       std::make_unique<settings::SearchEnginesHandler>(profile));
    web_ui->AddMessageHandler(
 @@ -60,6 +54,8 @@
        std::make_unique<settings::DefaultBrowserHandler>());

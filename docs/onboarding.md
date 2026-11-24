@@ -21,8 +21,11 @@ The page never sets `helium.services.user_consented`, so Helium services stay of
 ## How it is built
 
 - **Native side: Helium's.** `helium/core/onboarding-page.patch` adds the setup WebUI, the
-  first-run redirect, `OnboardingMessageHandler` (prefs, completion) and the import, search engine
-  and default browser handlers. Aerie keeps all of it.
+  first-run redirect and the import, search engine and default browser handlers. Aerie keeps
+  these. It does not keep `OnboardingMessageHandler` (issue #69): its `setPref` sets any
+  `helium.*` pref and it installs extensions. `AerieSetupHandler` replaces it and answers only
+  `setPref('completed_onboarding', <bool>)` (any other name is rejected and changes nothing) and
+  `acceptLatestSchema`. `getExtensions` and `installExtension` have no handler.
 - **Page: Aerie's.** Helium downloads its page, a Svelte app, from `deps.ini [onboarding]`. Aerie
   does not download it (`tools/aerie_build/helium_deps.py`). The page lives in the overlay at
   `overlay/components/aerie_onboarding/`: plain HTML, CSS and a script module, with no build step.

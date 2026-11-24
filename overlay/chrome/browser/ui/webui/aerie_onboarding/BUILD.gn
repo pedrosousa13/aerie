@@ -21,3 +21,46 @@ source_set("theme_handler") {
     "//ui/base/mojom",
   ]
 }
+
+# What aerie://setup may ask for: marking setup complete and accepting the schema,
+# nothing else (issue #69). Replaces Helium's OnboardingMessageHandler there.
+source_set("setup_handler") {
+  visibility = [
+    ":*",
+    "//chrome/browser/ui/webui:*",
+  ]
+  sources = [
+    "aerie_setup_handler.cc",
+    "aerie_setup_handler.h",
+  ]
+  deps = [
+    "//base",
+    "//components/helium_services",
+    "//components/prefs",
+    "//content/public/browser",
+  ]
+}
+
+# Browser tests (issue #69), listed in aerie_browser_tests
+# (overlay/chrome/test/aerie/BUILD.gn).
+source_set("browser_tests") {
+  testonly = true
+  # content/public/test/browser_test.h refuses to compile without it.
+  defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
+  sources = [ "aerie_setup_handler_browsertest.cc" ]
+  deps = [
+    ":setup_handler",
+    "//base",
+    "//base/test:test_support",
+    "//chrome/browser:browser",
+    "//chrome/browser/profiles:profile",
+    "//chrome/test:test_support",
+    "//chrome/test:test_support_ui",
+    "//components/helium_services",
+    "//components/prefs",
+    "//content/public/browser",
+    "//content/test:test_support",
+    "//testing/gtest",
+    "//url",
+  ]
+}
