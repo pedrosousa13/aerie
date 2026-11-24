@@ -189,6 +189,12 @@ pub(crate) fn parse_options() -> ParseOptions {
 /// matches every URL, so one such line would switch off all blocking.
 /// No real list needs one, and a malformed list must not get that power.
 ///
+/// One empty-pattern form is real: `@@$generichide,domain=a.example|...`
+/// (EasyList has these). A `$domain=` option with at least one positive
+/// domain scopes the rule to those sites and their subdomains, so it is
+/// kept. A `$domain=` that only negates (`~a.example`) applies everywhere
+/// else and counts as unscoped.
+///
 /// This only knows the empty forms. `is_ignored_exception` also catches
 /// the rules that match every URL by another pattern.
 pub(crate) fn is_match_all_exception(line: &str) -> bool {
@@ -196,7 +202,24 @@ pub(crate) fn is_match_all_exception(line: &str) -> bool {
         return false;
     };
     let pattern = rest.split('$').next().unwrap_or("").trim();
-    matches!(pattern, "" | "*" | "|" | "||" | "^")
+    matches!(pattern, "" | "*" | "|" | "||" | "^") && !has_positive_domain_option(rest)
+}
+
+/// True when the option list (after the last `$`) has a `domain=` option
+/// that names at least one domain without a leading `~`.
+fn has_positive_domain_option(rest: &str) -> bool {
+    let Some((_, options)) = rest.rsplit_once('$') else {
+        return false;
+    };
+    options
+        .split(',')
+        .filter_map(|option| option.trim().strip_prefix("domain="))
+        .any(|domains| {
+            domains
+                .split('|')
+                .map(str::trim)
+                .any(|d| !d.is_empty() && !d.starts_with('~'))
+        })
 }
 
 /// Addresses that no real exception rule should cover: the `.invalid` top

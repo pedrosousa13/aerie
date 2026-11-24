@@ -1134,3 +1134,57 @@ fn a_list_that_sanitize_cannot_finish_in_time_is_an_error_not_a_short_list() {
     assert_eq!(checked.err(), Some((0, ListError::Timeout)));
     assert!(FilterEngine::from_lists([list.as_bytes()]).is_ok());
 }
+
+// ---- Scoped exceptions with no URL pattern (issue #74) ----
+
+#[test]
+fn domain_scoped_empty_pattern_exceptions_are_kept_and_unscoped_ones_dropped() {
+    for kept in [
+        "@@$generichide,domain=a.example",
+        "@@$domain=a.example,generichide",
+        "@@$generichide,domain=~b.example|a.example",
+        "@@$script,domain=a.example",
+    ] {
+        let report = sanitize_list_report(format!("||ads.example^\n{kept}\n").as_bytes());
+        assert!(report.ignored_exceptions.is_empty(), "{kept} was dropped");
+    }
+    for dropped in [
+        "@@$generichide",
+        "@@$generichide,domain=~a.example",
+        "@@$generichide,domain=~a.example|~b.example",
+        "@@$generichide,domain=",
+        "@@*$image",
+        "@@*$image,domain=~a.example",
+    ] {
+        let report = sanitize_list_report(format!("||ads.example^\n{dropped}\n").as_bytes());
+        assert_eq!(report.ignored_exceptions, [dropped], "{dropped}");
+    }
+}
+
+#[test]
+fn scoped_generichide_exception_turns_generic_hiding_off_on_listed_sites_only() {
+    let list = "##.ad\n@@$generichide,domain=a.example\n";
+    let e = FilterEngine::from_lists([list.as_bytes()]).unwrap();
+    for off in ["https://a.example/", "https://x.a.example/p"] {
+        assert!(e.generic_stylesheet(off, "ad", "").is_empty(), "{off}");
+    }
+    let on = e.generic_stylesheet("https://b.example/", "ad", "");
+    assert!(on.contains(".ad{display:none!important}"), "{on}");
+}
+
+#[test]
+fn scoped_network_exception_applies_only_on_its_site_and_is_not_match_all() {
+    let list = "||ads.example^$script\n@@$script,domain=a.example\n";
+    let e = FilterEngine::from_lists([list.as_bytes()]).unwrap();
+    let script = |source| {
+        e.should_block(&req(
+            "https://ads.example/a.js",
+            "ads.example",
+            source,
+            RequestKind::Script,
+            true,
+        ))
+    };
+    assert!(!script("a.example"), "exception ignored on a.example");
+    assert!(script("b.example"), "exception leaked to b.example");
+}
