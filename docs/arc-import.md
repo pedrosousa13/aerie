@@ -87,6 +87,7 @@ The files that are too big to keep in a repository are made by the tests: more t
 | --- | --- | --- |
 | File size | 32 MiB | Refused before reading |
 | Spaces | 100 | The rest are not read; the result says "too many" |
+| Plan memory (all Spaces together) | 64 MiB | Spaces may name one container, and each plan holds its own copy. The first Space that would pass the budget is dropped whole, with every Space after it, and they are counted as "too many" (issue #277). The picker lists the Spaces that were kept |
 | Items (entries of every `items` list) | 10 000 | The rest are not read; counted as "too many" |
 | Depth of the item tree | 32 | Items below it are skipped, counted as "too deep" |
 | Folder levels | 5 (the Tab Model's own limit) | A folder below level 5 is merged into its level-5 parent; its tabs stay |

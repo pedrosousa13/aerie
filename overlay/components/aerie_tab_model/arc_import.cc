@@ -371,6 +371,21 @@ void FlattenTabs(const std::vector<ArcPlanNode>& nodes,
   }
 }
 
+size_t TabBytes(const ArcPlanTab& tab) {
+  return sizeof(ArcPlanTab) + tab.url.capacity() + tab.last_title.capacity() +
+         (tab.custom_name ? tab.custom_name->capacity() : 0);
+}
+
+size_t NodeBytes(const std::vector<ArcPlanNode>& nodes) {
+  size_t total = nodes.capacity() * sizeof(ArcPlanNode);
+  for (const ArcPlanNode& node : nodes) {
+    // The node's own struct (in the vector above) already holds its tab.
+    total += node.folder_name.capacity() + TabBytes(node.tab) -
+             sizeof(ArcPlanTab) + NodeBytes(node.children);
+  }
+  return total;
+}
+
 }  // namespace
 
 int ArcSpacePlan::PinnedTabCount() const {
@@ -385,6 +400,23 @@ int ArcSpacePlan::CustomNameCount() const {
     count += tab.custom_name ? 1 : 0;
   }
   return count;
+}
+
+size_t ArcSpacePlan::ApproxBytes() const {
+  size_t total = sizeof(ArcSpacePlan) + id.capacity() + name.capacity() +
+                 icon.capacity() + NodeBytes(pinned);
+  for (const ArcPlanTab& tab : favorites) {
+    total += TabBytes(tab);
+  }
+  return total;
+}
+
+size_t ArcParseResult::PlanBytes() const {
+  size_t total = 0;
+  for (const ArcSpacePlan& space : spaces) {
+    total += space.ApproxBytes();
+  }
+  return total;
 }
 
 std::string SanitizeArcTitle(std::string_view text) {
@@ -456,6 +488,8 @@ ArcParseResult ParseArcSidebar(const base::Value& root) {
   }
 
   size_t item_budget = kArcMaxItems;
+  size_t plan_bytes = 0;
+  bool plan_full = false;
   bool next_is_little_arc = false;
   for (const base::Value& entry : *containers) {
     const base::DictValue* dict = entry.GetIfDict();
@@ -511,6 +545,12 @@ ArcParseResult ParseArcSidebar(const base::Value& root) {
     const size_t unread_spaces = ForEachRecord(
         dict->Find("spaces"), kArcMaxSpaces - result.spaces.size(),
         [&](const std::string& id, const base::DictValue& record) {
+          if (plan_full) {
+            // Over the byte budget (issue #277): the rest of the Spaces are not
+            // read, as with the cap of Spaces.
+            ++result.file_skipped[ArcSkipReason::kTooMany];
+            return;
+          }
           ArcSpacePlan space;
           space.id = id;
           if (const std::string* title = record.FindString("title")) {
@@ -556,6 +596,17 @@ ArcParseResult ParseArcSidebar(const base::Value& root) {
               }
             }
           }
+          // The budget never empties the plan: the first Space is kept even
+          // when it is over the budget on its own, so the page does not say
+          // "no Spaces" for a file that has some.
+          const size_t space_bytes = space.ApproxBytes();
+          if (!result.spaces.empty() &&
+              plan_bytes + space_bytes > kArcMaxPlanBytes) {
+            plan_full = true;
+            ++result.file_skipped[ArcSkipReason::kTooMany];
+            return;
+          }
+          plan_bytes += space_bytes;
           result.spaces.push_back(std::move(space));
         });
     if (unread_spaces) {
