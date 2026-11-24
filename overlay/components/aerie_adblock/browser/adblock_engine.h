@@ -29,6 +29,9 @@ struct ListCheck {
   // Exception rules that match every address. The engine ignores them; the
   // caller should log a warning.
   int ignored_exceptions = 0;
+  // /regex/ rules left out because they compile too big, or the list has too
+  // many. The list works without them; the caller should log a warning.
+  int dropped_regex_rules = 0;
   std::string title;   // The list's own "! Title:", cut short; may be empty.
 };
 
@@ -58,6 +61,9 @@ struct BuildResult {
   // Exception rules, over all the lists, that match every address and were
   // ignored. Set when |failure| is kNone.
   size_t ignored_exceptions = 0;
+  // /regex/ rules, over all the lists, that were left out (too big, or too
+  // many in one list). Set when |failure| is kNone.
+  size_t dropped_regex_rules = 0;
 };
 
 // C++ face of the Rust engine (adblock-rust, used unmodified). Not

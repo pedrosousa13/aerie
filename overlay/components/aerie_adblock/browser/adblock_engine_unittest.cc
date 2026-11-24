@@ -233,6 +233,18 @@ TEST(AdblockEngineListsTest, CheckListAcceptsAListAndNamesTheFailures) {
             ListFailure::kTimeout);
 }
 
+TEST(AdblockEngineListsTest, CheckListCountsDroppedRegexRules) {
+  const std::string text =
+      "||ads.example^\n/(?:a{1000}){500}/$script\n/banner-[0-9]+/\n";
+  ListCheck check = CheckList(base::as_byte_span(text), base::Seconds(5));
+  EXPECT_EQ(check.failure, ListFailure::kNone);
+  EXPECT_EQ(check.dropped_regex_rules, 1);
+  AdblockEngine engine;
+  BuildResult result = engine.LoadLists({text}, base::Seconds(5), {false});
+  EXPECT_EQ(result.failure, ListFailure::kNone);
+  EXPECT_EQ(result.dropped_regex_rules, 1u);
+}
+
 TEST(AdblockEngineListsTest, LoadListsReplacesTheRulesOnlyWhenAllListsAreGood) {
   AdblockEngine engine;
   engine.LoadListForTesting("||old.example^\n");

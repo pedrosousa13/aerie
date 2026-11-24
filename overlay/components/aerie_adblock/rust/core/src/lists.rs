@@ -20,17 +20,14 @@
 
 use crate::custom::MAX_CUSTOM_LINE_BYTES;
 use crate::{
-    FilterEngine, MAX_LINE_BYTES, MAX_LIST_BYTES, is_ignored_exception, parse_options,
-    sanitize_list_with_line_limit,
+    FilterEngine, MAX_LINE_BYTES, MAX_LIST_BYTES, LineFate, ListFilter, parse_options,
+    sanitize_list_report_until, SANITIZE_BUDGET,
 };
 use adblock::lists::{FilterSet, ParsedLine, parse_filter, read_list_metadata};
 use std::time::{Duration, Instant};
 
 /// Longest list title kept, in bytes.
 const MAX_TITLE_BYTES: usize = 100;
-
-/// How many lines are parsed between two looks at the clock.
-const LINES_PER_TIME_CHECK: usize = 256;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum ListError {
@@ -68,6 +65,9 @@ pub struct ListCheck {
     /// Exception rules left out because they match every address. The list
     /// still works without them; the caller should warn about it.
     pub ignored_exceptions: usize,
+    /// `/regex/` rules left out because they compile too big, or because the
+    /// list has more than `MAX_REGEX_RULES`. The list still works without them.
+    pub dropped_regex_rules: usize,
     /// The list's own `! Title:` line, cut to a short length.
     pub title: Option<String>,
 }
@@ -88,8 +88,8 @@ fn cut_title(title: &str) -> String {
 }
 
 /// Decide whether `bytes` is a usable filter list. Never panics. The parse
-/// stops with `Timeout` once `budget` has passed; the clock is looked at every
-/// few hundred lines, so a list overruns by a few milliseconds at most.
+/// stops with `Timeout` once `budget` has passed; the clock is looked at on every
+/// line.
 pub fn check_list(bytes: &[u8], budget: Duration) -> Result<ListCheck, ListError> {
     check_list_until(bytes, Instant::now() + budget)
 }
@@ -121,16 +121,22 @@ pub(crate) fn check_list_with(
     }
     let mut network_rules = 0;
     let mut ignored_exceptions = 0;
-    for (i, line) in text.lines().enumerate() {
-        if i % LINES_PER_TIME_CHECK == 0 && Instant::now() >= deadline {
+    let mut filter = ListFilter::default();
+    for line in text.lines() {
+        // Every line: a regex line is compiled, so it is not cheap.
+        if Instant::now() >= deadline {
             return Err(ListError::Timeout);
         }
         if line.len() > max_line_bytes || line.contains('\0') {
             continue;
         }
-        if is_ignored_exception(line) {
-            ignored_exceptions += 1;
-            continue;
+        match filter.fate(line) {
+            LineFate::Keep => {}
+            LineFate::DroppedRegex => continue,
+            LineFate::IgnoredException => {
+                ignored_exceptions += 1;
+                continue;
+            }
         }
         if let Ok(ParsedLine::Network(_)) = parse_filter(line, false, parse_options()) {
             network_rules += 1;
@@ -146,6 +152,7 @@ pub(crate) fn check_list_with(
     Ok(ListCheck {
         network_rules,
         ignored_exceptions,
+        dropped_regex_rules: filter.dropped_regex_rules,
         title,
     })
 }
@@ -169,6 +176,17 @@ impl FilterEngine {
         lists: impl IntoIterator<Item = (&'a [u8], bool)>,
         budget: Duration,
     ) -> Result<(Self, Vec<ListCheck>), (usize, ListError)> {
+        Self::from_checked_lists_within(lists, budget, SANITIZE_BUDGET)
+    }
+
+    /// `from_checked_lists_with`, and `sanitize_budget` is the time each list
+    /// gets for `sanitize_list` after its check. Running out is
+    /// `ListError::Timeout`, so a list is never built from a truncated text.
+    pub(crate) fn from_checked_lists_within<'a>(
+        lists: impl IntoIterator<Item = (&'a [u8], bool)>,
+        budget: Duration,
+        sanitize_budget: Duration,
+    ) -> Result<(Self, Vec<ListCheck>), (usize, ListError)> {
         let deadline = Instant::now() + budget;
         let mut checks = Vec::new();
         let mut kept: Vec<(&[u8], usize)> = Vec::new();
@@ -182,12 +200,13 @@ impl FilterEngine {
             kept.push((list, max_line));
         }
         let mut set = FilterSet::new(false);
-        for (list, max_line) in kept {
+        for (index, (list, max_line)) in kept.into_iter().enumerate() {
             // Each list was checked above, so none is over `MAX_LIST_BYTES`.
-            set.add_filter_list(
-                sanitize_list_with_line_limit(list, max_line),
-                parse_options(),
-            );
+            let report = sanitize_list_report_until(list, max_line, Instant::now() + sanitize_budget);
+            if report.timed_out {
+                return Err((index, ListError::Timeout));
+            }
+            set.add_filter_list(report.text, parse_options());
         }
         Ok((Self::from_filter_set(set), checks))
     }

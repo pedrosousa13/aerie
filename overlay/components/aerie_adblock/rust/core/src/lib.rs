@@ -36,6 +36,7 @@ use adblock::request::Request;
 use std::collections::BTreeSet;
 use std::fmt;
 use std::sync::Once;
+use std::time::{Duration, Instant};
 
 /// Longest filter list text accepted, in bytes. EasyList and EasyPrivacy
 /// together are well under 10 MiB. A bigger input is refused whole.
@@ -44,6 +45,27 @@ pub const MAX_LIST_BYTES: usize = 32 * 1024 * 1024;
 /// Longest single line kept, in bytes. Longer lines are dropped before
 /// parsing, so one hostile line cannot make the parser or a regex big.
 pub const MAX_LINE_BYTES: usize = 8 * 1024;
+
+/// Largest compiled size a `/regex/` rule may have, in bytes. A rule that
+/// does not compile within it is dropped. `adblock` compiles each regex the
+/// first time a request needs it, with the default 10 MiB limit, and keeps it:
+/// a regex with no token runs on every request, so it is never discarded.
+/// What the limit allows is therefore resident until the list is removed, plus
+/// up to 2 MiB of lazy-DFA cache each. The gate measures the same program
+/// (see `regex_is_bounded`). The biggest regex in the bundled lists,
+/// EasyList's `/(https?:\/\/)142\.91\.159\..{100,}/`, needs 9 KB in ASCII
+/// mode (the `\w{30,}` rule 6.6 KB), and a test keeps every bundled regex
+/// under this limit. `/(?:a{1000}){500}/` needs 16 MB.
+pub const MAX_REGEX_COMPILED_BYTES: usize = 1024 * 1024;
+
+/// Most `/regex/` rules kept from one list. The rest are dropped. The bundled
+/// lists carry 22 and 7. With the size limit above, one list holds at most
+/// 128 x (1 MiB + 2 MiB DFA cache), a few hundred MiB, not GiB.
+pub const MAX_REGEX_RULES: usize = 128;
+
+/// How long `sanitize_list` may run before it stops and drops the rest of the
+/// list.
+pub const SANITIZE_BUDGET: Duration = Duration::from_secs(10);
 
 /// Longest selector kept, in bytes.
 pub const MAX_SELECTOR_BYTES: usize = 2 * 1024;
@@ -128,6 +150,8 @@ pub enum LoadError {
     TooLarge,
     /// The bytes are not a serialized engine this build can read.
     BadEngine,
+    /// `sanitize_list` ran out of time (`SANITIZE_BUDGET`).
+    Timeout,
     /// A protection list has fewer domains than the floor: an empty or
     /// truncated list that would protect (almost) nothing.
     TooFewEntries { found: usize, required: usize },
@@ -138,6 +162,7 @@ impl fmt::Display for LoadError {
         match self {
             LoadError::TooLarge => f.write_str("input is larger than the allowed limit"),
             LoadError::BadEngine => f.write_str("not a valid serialized engine"),
+            LoadError::Timeout => f.write_str("the list took too long to sanitize"),
             LoadError::TooFewEntries { found, required } => write!(
                 f,
                 "the protection list holds {found} domain(s), at least {required} are required (empty or truncated list?)"
@@ -215,6 +240,80 @@ const PROBE_KINDS: [RequestKind; 12] = [
     RequestKind::Object,
 ];
 
+/// The pattern of a `/regex/` network rule (the `@@` and the `$options` cut
+/// off, the slashes too), or `None` for any other line.
+fn regex_pattern(line: &str) -> Option<&str> {
+    let line = line.trim();
+    let line = line.strip_prefix("@@").unwrap_or(line);
+    // Options follow the last `$`, and never contain a `/`.
+    let body = match line.rfind('$') {
+        Some(i) if !line[i + 1..].contains('/') => &line[..i],
+        _ => line,
+    };
+    let inner = body.strip_prefix('/')?.strip_suffix('/')?;
+    (!inner.is_empty()).then_some(inner)
+}
+
+/// Does the regex compile within `MAX_REGEX_COMPILED_BYTES`? It is built the
+/// way `adblock`'s `regex_manager.rs` builds it at match time (a bytes regex,
+/// `unicode(false)`, the default nest limit, no case folding), so the size
+/// measured here is the size of the program that stays resident. Keep the
+/// two in step when `adblock` is bumped.
+fn regex_is_bounded(pattern: &str) -> bool {
+    regex::bytes::RegexBuilder::new(pattern)
+        .unicode(false)
+        .size_limit(MAX_REGEX_COMPILED_BYTES)
+        .build()
+        .is_ok()
+}
+
+/// What the list filter does with one line.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum LineFate {
+    /// Goes on to parsing.
+    Keep,
+    /// A `/regex/` rule that compiles too big, or past `MAX_REGEX_RULES`.
+    DroppedRegex,
+    /// An exception rule that matches every address.
+    IgnoredException,
+}
+
+/// The line filter that `sanitize_list_report_until` and `check_list` share,
+/// so the report and the engine cannot disagree: it keeps the `/regex/` rules
+/// of one list inside bounds (each compiles small, at most `MAX_REGEX_RULES`)
+/// and finds the exception rules that match every address. The regex check
+/// runs before any code compiles the line, the exception probe included.
+#[derive(Default)]
+pub(crate) struct ListFilter {
+    regex_rules: usize,
+    /// How many `/regex/` rules `fate` dropped.
+    pub(crate) dropped_regex_rules: usize,
+}
+
+impl ListFilter {
+    fn keeps_regex(&mut self, line: &str) -> bool {
+        let Some(pattern) = regex_pattern(line) else {
+            return true;
+        };
+        if self.regex_rules >= MAX_REGEX_RULES || !regex_is_bounded(pattern) {
+            return false;
+        }
+        self.regex_rules += 1;
+        true
+    }
+
+    pub(crate) fn fate(&mut self, line: &str) -> LineFate {
+        if !self.keeps_regex(line) {
+            self.dropped_regex_rules += 1;
+            return LineFate::DroppedRegex;
+        }
+        if is_ignored_exception(line) {
+            return LineFate::IgnoredException;
+        }
+        LineFate::Keep
+    }
+}
+
 /// Does this exception rule apply to arbitrary addresses?
 ///
 /// It tests the effect, not the pattern text: the rule is compiled alone,
@@ -226,6 +325,9 @@ const PROBE_KINDS: [RequestKind; 12] = [
 ///
 /// A host-anchored rule (`@@||host...`) needs a literal first character
 /// and is not tested: it is scoped by its host.
+///
+/// The caller passes a `/regex/` exception through `ListFilter` first, so the
+/// compile here is of a regex that is already known to be small.
 pub(crate) fn exception_matches_every_address(line: &str) -> bool {
     let Some(rest) = line.trim().strip_prefix("@@") else {
         return false;
@@ -498,6 +600,12 @@ pub struct SanitizedList {
     /// The exception rules that were left out because they match every
     /// address (at most `MAX_REPORTED_RULES`, each cut to `MAX_LINE_BYTES`).
     pub ignored_exceptions: Vec<String>,
+    /// How many `/regex/` rules were dropped: too big to compile within
+    /// `MAX_REGEX_COMPILED_BYTES`, or past `MAX_REGEX_RULES`.
+    pub dropped_regex_rules: usize,
+    /// True when the deadline ran out and the rest of the text was dropped.
+    /// A caller that builds an engine must treat this as `Timeout`.
+    pub timed_out: bool,
 }
 
 /// Most ignored rules kept in a report, so a hostile list cannot make the
@@ -528,19 +636,40 @@ pub fn sanitize_list_report(bytes: &[u8]) -> SanitizedList {
 
 /// `sanitize_list_report` with the line limit given by the caller.
 pub fn sanitize_list_report_with(bytes: &[u8], max_line_bytes: usize) -> SanitizedList {
+    sanitize_list_report_until(bytes, max_line_bytes, Instant::now() + SANITIZE_BUDGET)
+}
+
+/// `sanitize_list_report_with` that stops at `deadline`: the lines after it
+/// are dropped. The clock is read on every line, because one line can be a
+/// regex.
+pub(crate) fn sanitize_list_report_until(
+    bytes: &[u8],
+    max_line_bytes: usize,
+    deadline: Instant,
+) -> SanitizedList {
     let text = String::from_utf8_lossy(bytes);
     let mut out = String::with_capacity(text.len());
     let mut ignored_exceptions = Vec::new();
+    let mut filter = ListFilter::default();
+    let mut timed_out = false;
     for line in text.split('\n') {
+        if Instant::now() >= deadline {
+            timed_out = true;
+            break;
+        }
         let line = line.trim_end_matches('\r');
         if line.len() > max_line_bytes || line.contains('\0') {
             continue;
         }
-        if is_ignored_exception(line) {
-            if ignored_exceptions.len() < MAX_REPORTED_RULES {
-                ignored_exceptions.push(line.to_string());
+        match filter.fate(line) {
+            LineFate::Keep => {}
+            LineFate::DroppedRegex => continue,
+            LineFate::IgnoredException => {
+                if ignored_exceptions.len() < MAX_REPORTED_RULES {
+                    ignored_exceptions.push(line.to_string());
+                }
+                continue;
             }
-            continue;
         }
         match classify_line(line) {
             LineKind::Network => {}
@@ -553,6 +682,8 @@ pub fn sanitize_list_report_with(bytes: &[u8], max_line_bytes: usize) -> Sanitiz
     SanitizedList {
         text: out,
         ignored_exceptions,
+        dropped_regex_rules: filter.dropped_regex_rules,
+        timed_out,
     }
 }
 
@@ -573,12 +704,26 @@ impl FilterEngine {
     /// do not parse are skipped, as `adblock` does. A list over
     /// `MAX_LIST_BYTES` is an error and nothing is built.
     pub fn from_lists<'a>(lists: impl IntoIterator<Item = &'a [u8]>) -> Result<Self, LoadError> {
+        Self::from_lists_within(lists, SANITIZE_BUDGET)
+    }
+
+    /// `from_lists` with the time `sanitize_list` gets for each list. A list
+    /// that needs more is `LoadError::Timeout`, not a shortened list.
+    pub(crate) fn from_lists_within<'a>(
+        lists: impl IntoIterator<Item = &'a [u8]>,
+        sanitize_budget: Duration,
+    ) -> Result<Self, LoadError> {
         let mut set = FilterSet::new(false);
         for list in lists {
             if list.len() > MAX_LIST_BYTES {
                 return Err(LoadError::TooLarge);
             }
-            set.add_filter_list(sanitize_list(list), parse_options());
+            let report =
+                sanitize_list_report_until(list, MAX_LINE_BYTES, Instant::now() + sanitize_budget);
+            if report.timed_out {
+                return Err(LoadError::Timeout);
+            }
+            set.add_filter_list(report.text, parse_options());
         }
         Ok(Self::from_filter_set(set))
     }
