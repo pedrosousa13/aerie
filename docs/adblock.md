@@ -178,17 +178,21 @@ How it works:
 - **`/regex/` rules are bounded (issue #165).** A list can carry a hostile regex such as
   `/(?:a{1000}){500}/$script`, and `adblock` compiles each one lazily and runs it on every request.
   `sanitize_list` and `check_list` therefore compile each `/regex/` rule, `@@` ones too, with
-  `regex::RegexBuilder::size_limit` of 64 KiB (`MAX_REGEX_COMPILED_BYTES`) before anything else
-  does, and drop the rule when it does not compile. They keep at most 4096 regex rules per list
-  (`MAX_REGEX_RULES`; EasyList has a few hundred) and drop the rest. This runs for every list,
-  built-in ones too, because a built-in list can be replaced by a copy the publisher serves. The
-  regex probe of the exception test above only sees rules that passed this bound. `check_list`
-  reads the clock on every line, and `sanitize_list` has its own 10 s deadline
-  (`SANITIZE_BUDGET`); after it the rest of the text is dropped. `ListCheck::dropped_regex_rules`
-  counts the dropped rules and goes through the FFI (`ListReport` and `BuildReport`); the browser
-  logs a `LOG(WARNING)`. The filter page does not show it. One side effect to know: `adblock`
-  loses all regex rules of a list when one of them does not compile, so dropping the bad ones
-  also revives the good ones.
+  `regex::RegexBuilder::size_limit` of 4 MiB (`MAX_REGEX_COMPILED_BYTES`) before anything else
+  does, and drop the rule when it does not compile. The limit is set from the bundled lists: the
+  biggest regex in them, `/(https?:\/\/)\w{30,}\.me\/\w{30,}\./$script,third-party` in EasyList,
+  compiles to 2.9 MB because of the Unicode `\w`, and a test checks that every bundled regex rule
+  passes. The hostile ones need far more (`(?:a{1000}){500}` 40 MB, `(?:(?:x{100}){100}){100}`
+  80 MB). They keep at most 1024 regex rules per list (`MAX_REGEX_RULES`; the bundled lists have 22
+  and 7) and drop the rest. This runs for every list, built-in ones too, because a built-in list
+  can be replaced by a copy the publisher serves. The regex probe of the exception test below only
+  sees rules that passed this bound. `check_list` reads the clock on every line. `sanitize_list`
+  has its own 10 s deadline per list (`SANITIZE_BUDGET`); a list that needs more is an error
+  (`ListError::Timeout` when a list is checked and built, `LoadError::Timeout` in `from_lists`),
+  never a shortened list. `ListCheck::dropped_regex_rules` counts the dropped rules and goes
+  through the FFI (`ListReport` and `BuildReport`); the browser logs a `LOG(WARNING)`. The filter
+  page does not show it. One side effect to know: `adblock` loses all regex rules of a list when
+  one of them does not compile, so dropping the bad ones also revives the good ones.
 - **Exception rules that match every address are ignored.** One `@@` rule with no scope can switch
   off every block for a type of request, for every site, with no error. The core drops a rule when
   it applies to arbitrary addresses. It tests the effect, not the text: the rule is compiled alone
@@ -427,9 +431,12 @@ asks, or on the daily schedule (see "User controls").
 ### The crates
 
 Chromium keeps third-party crates in `third_party/rust`, made by `gnrt` from
-`chromium_crates_io/Cargo.toml` and `Cargo.lock`. Patch `0003` declares one
-dependency and fixes the gnrt settings it needs, `adblock = "=0.13.4"` (no default features; `full-regex-handling`,
-`single-thread`). That brings in 12 new crates (arrayvec, flatbuffers, idna,
+`chromium_crates_io/Cargo.toml` and `Cargo.lock`. Patch `0003` declares two
+dependencies and fixes the gnrt settings they need: `adblock = "=0.13.4"` (no default features;
+`full-regex-handling`, `single-thread`), and `regex = "1"` (no default features; `std`, `unicode`),
+which `aerie_adblock_core` uses to bound the `/regex/` rules of a list (issue #165). gnrt makes a
+crate visible to first-party code only when it is declared there. `regex` resolves to the version
+adblock already needs, so it adds no crate. That brings in 12 new crates (arrayvec, flatbuffers, idna,
 idna_adapter, percent-encoding, rustc-hash, rustc_version, seahash, semver,
 thiserror 1.x and its macro) and changes 5 lock entries.
 
@@ -439,7 +446,7 @@ build:
 
 1. stops if Chromium's two files differ from those hashes (stale lock);
 2. writes the locked entries into `Cargo.lock`, so `gnrt vendor` cannot choose other versions;
-3. checks the gnrt settings Aerie's patch sets (adblock and regex in group `safe`, flatbuffers without its `build.rs`, thiserror v1 and v2 apart, aho-corasick allowed `unsafe`) and runs `gnrt vendor` and `gnrt gen`;
+3. checks the gnrt settings Aerie's patch sets (adblock and regex in group `safe`, regex open to first-party code with `allow_first_party_usage = true`, flatbuffers without its `build.rs`, thiserror v1 and v2 apart, aho-corasick allowed `unsafe`) and runs `gnrt vendor` and `gnrt gen`;
 4. checks that the final `Cargo.lock` is the original plus the locked entries and nothing else;
 5. downloads each added `.crate` from crates.io, checks its sha256, and checks that
    every file in it is in `chromium_crates_io/vendor` byte for byte;
