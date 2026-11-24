@@ -213,6 +213,7 @@ extra_kv = { allow_unsafe = true }
 
 [crate.regex]
 group = 'safe'
+allow_first_party_usage = true
 
 [crate."thiserror@v1"]
 extra_kv = { allow_unsafe = false }
@@ -230,6 +231,7 @@ class GnrtConfigTest(unittest.TestCase):
         for bad, text in [
             (GNRT.replace("[crate.adblock]\ngroup = 'safe'", "[crate.adblock]\ngroup = 'test'"), "adblock"),
             (GNRT.replace("[crate.regex]\ngroup = 'safe'", "[crate.regex]\ngroup = 'test'"), "regex"),
+            (GNRT.replace("allow_first_party_usage = true", "allow_first_party_usage = false"), "allow_first_party_usage"),
             (GNRT.replace("remove_build_rs = true", ""), "flatbuffers"),
             (GNRT.replace("[crate.aho-corasick]\ngroup = 'safe'\nextra_kv = { allow_unsafe = true }",
                           "[crate.aho-corasick]\ngroup = 'safe'\nextra_kv = { allow_unsafe = false }"), "aho-corasick"),
