@@ -187,8 +187,8 @@ How it works:
   (EasyList's `/(https?:\/\/)142\.91\.159\..{100,}/`; the `\w{30,}...\.me` rule needs 6.6 KB), and a
   test checks that every bundled regex rule passes. The hostile ones need far more
   (`(?:a{1000}){500}` 16 MB, `(?:(?:x{100}){100}){100}` 32 MB). They keep at most 128 regex rules
-  per list (`MAX_REGEX_RULES`; the bundled lists have 22 and 7), so one list holds a few hundred
-  MiB at most, not GiB, and drop the rest. This runs for every list, built-in ones too, because a built-in list
+  per list (`MAX_REGEX_RULES`; the bundled lists have 22 and 7) and drop the rest, so one list
+  holds a few hundred MiB at most. This runs for every list, built-in ones too, because a built-in list
   can be replaced by a copy the publisher serves. The regex probe of the exception test below only
   sees rules that passed this bound. `check_list` reads the clock on every line. `sanitize_list`
   has its own 10 s deadline per list (`SANITIZE_BUDGET`); a list that needs more is an error
