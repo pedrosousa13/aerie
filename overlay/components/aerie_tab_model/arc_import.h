@@ -31,6 +31,11 @@ namespace aerie_tab_model {
 // it reads the file.
 inline constexpr size_t kArcMaxFileBytes = 32u * 1024 * 1024;
 inline constexpr size_t kArcMaxSpaces = 100;
+// The most memory the plans of all Spaces may hold together (ApproxBytes, summed
+// by ArcParseResult::PlanBytes). Spaces may name the same container, and each
+// plan holds its own copy (issue #277). A Space that would pass it is dropped
+// whole, with the rest, and counted as "too many".
+inline constexpr size_t kArcMaxPlanBytes = 2 * kArcMaxFileBytes;
 inline constexpr size_t kArcMaxItems = 10'000;
 inline constexpr int kArcMaxDepth = 32;
 inline constexpr size_t kArcMaxTitleLength = 1024;
@@ -130,6 +135,9 @@ struct ArcSpacePlan {
   int PinnedTabCount() const;
   int FolderCount() const;
   int CustomNameCount() const;
+  // The memory the plan holds: the text of every address, title, name and the
+  // icon, plus the size of every node, over the whole tree and the Favorites.
+  size_t ApproxBytes() const;
 };
 
 enum class ArcParseError {
@@ -150,6 +158,9 @@ struct ArcParseResult {
   std::vector<ArcSpacePlan> spaces;
   // What was skipped outside every Space: entries past the caps, Little Arc.
   ArcSkipCounts file_skipped;
+
+  // The sum of ApproxBytes over `spaces`.
+  size_t PlanBytes() const;
 };
 
 // Reads the parsed JSON. Never fails on a single bad item: it is skipped and

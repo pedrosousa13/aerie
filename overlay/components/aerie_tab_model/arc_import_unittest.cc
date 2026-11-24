@@ -10,6 +10,7 @@
 
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
+#include "base/json/json_writer.h"
 #include "base/path_service.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
@@ -322,6 +323,75 @@ TEST(ArcImportParserTest, ASpaceListPastTheCapIsCut) {
   EXPECT_EQ(result.spaces.size(), 100u);
   EXPECT_EQ(result.spaces.back().name, "S99");
   EXPECT_EQ(Count(result.file_skipped, ArcSkipReason::kTooMany), 1);
+}
+
+TEST(ArcImportParserTest, ManySpacesOverOneContainerDoNotCopyItManyTimes) {
+  // One container of 3000 tabs with long addresses, and 100 Spaces that all
+  // name it (issue #277).
+  const std::string padding(8100, 'a');
+  base::ListValue items;
+  std::vector<std::string> ids;
+  for (int i = 0; i < 3000; ++i) {
+    const std::string id = "t" + base::NumberToString(i);
+    ids.push_back(id);
+    items.Append(TabItem(id, "p",
+                         "https://example.com/" + base::NumberToString(i) +
+                             "/" + padding));
+  }
+  items.Append(FolderItem("p", "", ids));
+  base::ListValue spaces;
+  for (int i = 0; i < 100; ++i) {
+    base::ListValue container_ids;
+    container_ids.Append("pinned");
+    container_ids.Append("p");
+    base::DictValue space;
+    space.Set("id", "s" + base::NumberToString(i));
+    space.Set("title", "S" + base::NumberToString(i));
+    space.Set("containerIDs", std::move(container_ids));
+    spaces.Append("s" + base::NumberToString(i));
+    spaces.Append(std::move(space));
+  }
+  base::Value file = MakeFile(std::move(items), std::move(spaces));
+  std::optional<std::string> json = base::WriteJson(file);
+  ASSERT_TRUE(json.has_value());
+
+  ArcParseResult result = ParseArcSidebar(file);
+  ASSERT_FALSE(result.error.has_value());
+  EXPECT_LT(result.PlanBytes(), 3 * json->size());
+  EXPECT_LE(result.PlanBytes(), kArcMaxPlanBytes);
+  ASSERT_GE(result.spaces.size(), 1u);
+  EXPECT_LT(result.spaces.size(), 100u);
+  EXPECT_EQ(result.spaces[0].PinnedTabCount(), 3000);
+  // Every Space that is not kept is counted.
+  EXPECT_EQ(static_cast<size_t>(
+                Count(result.file_skipped, ArcSkipReason::kTooMany)),
+            100u - result.spaces.size());
+}
+
+TEST(ArcImportParserTest, ANormalFileKeepsEverySpaceWellUnderTheByteBudget) {
+  base::ListValue items;
+  items.Append(TabItem("a", "p", "https://example.com/a"));
+  items.Append(TabItem("b", "p", "https://example.com/b"));
+  items.Append(FolderItem("p", "", {"a", "b"}));
+  base::ListValue spaces;
+  for (int i = 0; i < 100; ++i) {
+    base::ListValue container_ids;
+    container_ids.Append("pinned");
+    container_ids.Append("p");
+    base::DictValue space;
+    space.Set("id", "s" + base::NumberToString(i));
+    space.Set("title", "S" + base::NumberToString(i));
+    space.Set("containerIDs", std::move(container_ids));
+    spaces.Append("s" + base::NumberToString(i));
+    spaces.Append(std::move(space));
+  }
+  ArcParseResult result =
+      ParseArcSidebar(MakeFile(std::move(items), std::move(spaces)));
+  ASSERT_FALSE(result.error.has_value());
+  EXPECT_EQ(result.spaces.size(), 100u);
+  EXPECT_EQ(Count(result.file_skipped, ArcSkipReason::kTooMany), 0);
+  EXPECT_GT(result.PlanBytes(), 0u);
+  EXPECT_LT(result.PlanBytes(), kArcMaxPlanBytes / 100);
 }
 
 TEST(ArcImportParserTest, ATreeDeeperThanTheCapIsCutAndTerminates) {
