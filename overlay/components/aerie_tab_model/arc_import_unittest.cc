@@ -137,6 +137,42 @@ base::ListValue OneSpaceList(const std::string& pinned_root) {
   return spaces;
 }
 
+// `n` Spaces s0..s(n-1) that all name `pinned_root`, as the list of a
+// container.
+base::ListValue NSpaceList(int n, const std::string& pinned_root) {
+  base::ListValue spaces;
+  for (int i = 0; i < n; ++i) {
+    const std::string id = "s" + base::NumberToString(i);
+    base::ListValue container_ids;
+    container_ids.Append("pinned");
+    container_ids.Append(pinned_root);
+    base::DictValue space;
+    space.Set("id", id);
+    space.Set("title", "S" + base::NumberToString(i));
+    space.Set("containerIDs", std::move(container_ids));
+    spaces.Append(id);
+    spaces.Append(std::move(space));
+  }
+  return spaces;
+}
+
+// A folder `root` of `count` tabs whose addresses are about 8 KB, appended to
+// `items`.
+void AppendBigContainer(base::ListValue* items,
+                        const std::string& root,
+                        int count) {
+  const std::string padding(8100, 'a');
+  std::vector<std::string> ids;
+  for (int i = 0; i < count; ++i) {
+    const std::string id = root + "t" + base::NumberToString(i);
+    ids.push_back(id);
+    items->Append(TabItem(id, root,
+                          "https://example.com/" + base::NumberToString(i) +
+                              "/" + padding));
+  }
+  items->Append(FolderItem(root, "", ids));
+}
+
 }  // namespace
 
 TEST(ArcImportParserTest, OneSpaceGivesPinnedTreeAndFavorites) {
@@ -328,30 +364,9 @@ TEST(ArcImportParserTest, ASpaceListPastTheCapIsCut) {
 TEST(ArcImportParserTest, ManySpacesOverOneContainerDoNotCopyItManyTimes) {
   // One container of 3000 tabs with long addresses, and 100 Spaces that all
   // name it (issue #277).
-  const std::string padding(8100, 'a');
   base::ListValue items;
-  std::vector<std::string> ids;
-  for (int i = 0; i < 3000; ++i) {
-    const std::string id = "t" + base::NumberToString(i);
-    ids.push_back(id);
-    items.Append(TabItem(id, "p",
-                         "https://example.com/" + base::NumberToString(i) +
-                             "/" + padding));
-  }
-  items.Append(FolderItem("p", "", ids));
-  base::ListValue spaces;
-  for (int i = 0; i < 100; ++i) {
-    base::ListValue container_ids;
-    container_ids.Append("pinned");
-    container_ids.Append("p");
-    base::DictValue space;
-    space.Set("id", "s" + base::NumberToString(i));
-    space.Set("title", "S" + base::NumberToString(i));
-    space.Set("containerIDs", std::move(container_ids));
-    spaces.Append("s" + base::NumberToString(i));
-    spaces.Append(std::move(space));
-  }
-  base::Value file = MakeFile(std::move(items), std::move(spaces));
+  AppendBigContainer(&items, "p", 3000);
+  base::Value file = MakeFile(std::move(items), NSpaceList(100, "p"));
   std::optional<std::string> json = base::WriteJson(file);
   ASSERT_TRUE(json.has_value());
 
@@ -368,25 +383,47 @@ TEST(ArcImportParserTest, ManySpacesOverOneContainerDoNotCopyItManyTimes) {
             100u - result.spaces.size());
 }
 
+TEST(ArcImportParserTest, ASpaceOverTheByteBudgetDropsEveryLaterSpaceToo) {
+  // Two Spaces fit (about 25 MB each); the third does not; the fourth names
+  // another, small container and would fit, but is dropped too.
+  base::ListValue items;
+  AppendBigContainer(&items, "p", 3000);
+  items.Append(TabItem("small", "q", "https://example.com/small"));
+  items.Append(FolderItem("q", "", {"small"}));
+  base::ListValue spaces = NSpaceList(3, "p");
+  base::ListValue small = NSpaceList(4, "q");
+  // The last of the four, "s3".
+  spaces.Append(small[6].Clone());
+  spaces.Append(small[7].Clone());
+  ArcParseResult result =
+      ParseArcSidebar(MakeFile(std::move(items), std::move(spaces)));
+  ASSERT_FALSE(result.error.has_value());
+  ASSERT_EQ(result.spaces.size(), 2u);
+  EXPECT_EQ(result.spaces[0].id, "s0");
+  EXPECT_EQ(result.spaces[1].id, "s1");
+  EXPECT_EQ(Count(result.file_skipped, ArcSkipReason::kTooMany), 2);
+}
+
+TEST(ArcImportParserTest, TheFirstSpaceIsKeptEvenWhenItIsOverTheByteBudget) {
+  // 9999 tabs of about 8 KB: one Space alone is over kArcMaxPlanBytes.
+  base::ListValue items;
+  AppendBigContainer(&items, "p", 9'999);
+  ArcParseResult result =
+      ParseArcSidebar(MakeFile(std::move(items), NSpaceList(2, "p")));
+  ASSERT_FALSE(result.error.has_value());
+  ASSERT_EQ(result.spaces.size(), 1u);
+  EXPECT_EQ(result.spaces[0].PinnedTabCount(), 9'999);
+  EXPECT_GT(result.PlanBytes(), kArcMaxPlanBytes);
+  EXPECT_EQ(Count(result.file_skipped, ArcSkipReason::kTooMany), 1);
+}
+
 TEST(ArcImportParserTest, ANormalFileKeepsEverySpaceWellUnderTheByteBudget) {
   base::ListValue items;
   items.Append(TabItem("a", "p", "https://example.com/a"));
   items.Append(TabItem("b", "p", "https://example.com/b"));
   items.Append(FolderItem("p", "", {"a", "b"}));
-  base::ListValue spaces;
-  for (int i = 0; i < 100; ++i) {
-    base::ListValue container_ids;
-    container_ids.Append("pinned");
-    container_ids.Append("p");
-    base::DictValue space;
-    space.Set("id", "s" + base::NumberToString(i));
-    space.Set("title", "S" + base::NumberToString(i));
-    space.Set("containerIDs", std::move(container_ids));
-    spaces.Append("s" + base::NumberToString(i));
-    spaces.Append(std::move(space));
-  }
   ArcParseResult result =
-      ParseArcSidebar(MakeFile(std::move(items), std::move(spaces)));
+      ParseArcSidebar(MakeFile(std::move(items), NSpaceList(100, "p")));
   ASSERT_FALSE(result.error.has_value());
   EXPECT_EQ(result.spaces.size(), 100u);
   EXPECT_EQ(Count(result.file_skipped, ArcSkipReason::kTooMany), 0);

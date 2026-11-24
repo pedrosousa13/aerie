@@ -388,6 +388,20 @@ size_t NodeBytes(const std::vector<ArcPlanNode>& nodes) {
 
 }  // namespace
 
+int ArcSpacePlan::PinnedTabCount() const {
+  return CountTabs(pinned);
+}
+int ArcSpacePlan::FolderCount() const {
+  return CountFolders(pinned);
+}
+int ArcSpacePlan::CustomNameCount() const {
+  int count = CountNames(pinned);
+  for (const ArcPlanTab& tab : favorites) {
+    count += tab.custom_name ? 1 : 0;
+  }
+  return count;
+}
+
 size_t ArcSpacePlan::ApproxBytes() const {
   size_t total = sizeof(ArcSpacePlan) + id.capacity() + name.capacity() +
                  icon.capacity() + NodeBytes(pinned);
@@ -403,20 +417,6 @@ size_t ArcParseResult::PlanBytes() const {
     total += space.ApproxBytes();
   }
   return total;
-}
-
-int ArcSpacePlan::PinnedTabCount() const {
-  return CountTabs(pinned);
-}
-int ArcSpacePlan::FolderCount() const {
-  return CountFolders(pinned);
-}
-int ArcSpacePlan::CustomNameCount() const {
-  int count = CountNames(pinned);
-  for (const ArcPlanTab& tab : favorites) {
-    count += tab.custom_name ? 1 : 0;
-  }
-  return count;
 }
 
 std::string SanitizeArcTitle(std::string_view text) {
@@ -596,8 +596,12 @@ ArcParseResult ParseArcSidebar(const base::Value& root) {
               }
             }
           }
+          // The budget never empties the plan: the first Space is kept even
+          // when it is over the budget on its own, so the page does not say
+          // "no Spaces" for a file that has some.
           const size_t space_bytes = space.ApproxBytes();
-          if (space_bytes > kArcMaxPlanBytes - plan_bytes) {
+          if (!result.spaces.empty() &&
+              plan_bytes + space_bytes > kArcMaxPlanBytes) {
             plan_full = true;
             ++result.file_skipped[ArcSkipReason::kTooMany];
             return;

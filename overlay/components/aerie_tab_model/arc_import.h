@@ -31,10 +31,14 @@ namespace aerie_tab_model {
 // it reads the file.
 inline constexpr size_t kArcMaxFileBytes = 32u * 1024 * 1024;
 inline constexpr size_t kArcMaxSpaces = 100;
+// 2x the file cap: room for the plan of one honest file (text of the file plus
+// the structs) with headroom, while capping the amplification of Spaces that
+// share a container.
 // The most memory the plans of all Spaces may hold together (ApproxBytes, summed
 // by ArcParseResult::PlanBytes). Spaces may name the same container, and each
 // plan holds its own copy (issue #277). A Space that would pass it is dropped
-// whole, with the rest, and counted as "too many".
+// whole, with the rest, and counted as "too many". The first Space is always
+// kept, so the budget never empties the plan.
 inline constexpr size_t kArcMaxPlanBytes = 2 * kArcMaxFileBytes;
 inline constexpr size_t kArcMaxItems = 10'000;
 inline constexpr int kArcMaxDepth = 32;
