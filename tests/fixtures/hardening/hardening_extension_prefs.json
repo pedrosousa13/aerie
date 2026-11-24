@@ -345,7 +345,7 @@
    "name": "real_train13b_build",
    "expect": "fail",
    "detail_contains": "switch step is missing",
-   "real": "Recorded on a real Aerie build with patch 0016 (train 13b, combined build e77b610), full Bench run train13b/bench/full/results.json, 2026-11-09; copied unchanged.",
+   "real": "Recorded on a real Aerie build with patch 0016 (train 13b, combined build e77b610), full Bench run train13b/bench/full/results.json, 2026-11-09; copied unchanged; it predates the allow-then-block step of #166 (patch 0027), so it has no switch observation and now judges as fail.",
    "obs": {
     "loaded": true,
     "results": [
