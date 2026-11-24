@@ -111,6 +111,24 @@ class PageTest(unittest.TestCase):
 
 
 class HookTest(unittest.TestCase):
+    def test_helium_message_handler_is_replaced_by_the_setup_handler(self):
+        # Issue #69: Helium's handler sets any helium.* pref and installs extensions.
+        text = PATCH.read_text(encoding="utf-8")
+        added = [l for l in text.splitlines() if l.startswith("+") and not l.startswith("+++")]
+        removed = [l for l in text.splitlines() if l.startswith("-") and not l.startswith("---")]
+        self.assertTrue(any("OnboardingMessageHandler" in l for l in removed))
+        self.assertTrue(any("AerieSetupHandler" in l for l in added))
+        self.assertFalse([l for l in added if "OnboardingMessageHandler" in l])
+
+    def test_setup_handler_registers_only_what_the_page_uses(self):
+        source = (REPO / "overlay/chrome/browser/ui/webui/aerie_onboarding/aerie_setup_handler.cc").read_text(encoding="utf-8")
+        registered = set(re.findall(r'RegisterMessageCallback\(\s*"(\w+)"', source))
+        self.assertEqual(registered, {"setPref", "acceptLatestSchema"})
+        used = set(re.findall(r"(?:chrome\.send|sendWithPromise)\('(\w+)'", SCRIPT))
+        self.assertTrue(registered <= used)
+        for banned in ("getExtensions", "installExtension"):
+            self.assertNotIn(banned, SCRIPT)
+
     def test_no_reference_to_the_helium_page_is_left(self):
         added = [l for l in PATCH.read_text(encoding="utf-8").splitlines() if l.startswith("+") and not l.startswith("+++")]
         self.assertFalse([l for l in added if "helium_onboarding" in l])
