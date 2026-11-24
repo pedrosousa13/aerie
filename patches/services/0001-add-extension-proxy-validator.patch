@@ -1,5 +1,5 @@
-Aerie-Purpose: Add Aerie's extension proxy validator (https only, no built-in host, loopback only behind a test switch) as an Aerie-owned component with unit tests.
-Aerie-Upstream-Area: components/aerie_services (new); components/BUILD.gn (components_unittests deps)
+Aerie-Purpose: Add Aerie's extension proxy validator (https only, no built-in host, loopback only behind a test switch) as an Aerie-owned component with unit tests, and a standalone test binary (aerie_services_unittests) that runs them.
+Aerie-Upstream-Area: components/aerie_services (new); components/BUILD.gn (components_unittests deps); the aerie_services_unittests test target
 Aerie-Kind: hook
 
 The Web Store install path needs a proxy to download from, and Aerie ships
