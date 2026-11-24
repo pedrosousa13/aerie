@@ -125,6 +125,17 @@ fn an_exception_that_matches_every_address_is_ignored_and_says_so() {
 }
 
 #[test]
+fn a_domain_scoped_empty_pattern_exception_is_kept_and_an_unscoped_one_is_ignored() {
+    let rules = analyze("||ads.test^\n@@$generichide,domain=a.example\n");
+    assert_eq!(rules.ignored_exceptions, 0);
+    assert!(reasons(&rules).is_empty());
+    assert!(rules.text.contains("@@$generichide,domain=a.example"));
+    let rules = analyze("||ads.test^\n@@$generichide\n");
+    assert_eq!(rules.ignored_exceptions, 1);
+    assert_eq!(reasons(&rules), [(2, RuleReason::MatchesEveryAddress)]);
+}
+
+#[test]
 fn a_line_over_four_kib_is_dropped_but_a_line_of_four_kib_is_kept() {
     let ok = format!("||{}.test^", "a".repeat(MAX_CUSTOM_LINE_BYTES - 8));
     assert_eq!(ok.len(), MAX_CUSTOM_LINE_BYTES);

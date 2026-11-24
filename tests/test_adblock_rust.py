@@ -158,13 +158,16 @@ cxx-build = "1"
         run = sh([str(tool), "--out", str(out), "--expect-block", block, str(only)])
         self.assertNotEqual(run.returncode, 0)
         self.assertFalse(out.exists())
-        # An empty pattern scoped by $domain= is dropped under its own reason, not as "matches every address".
+        # An empty pattern scoped by $domain= is kept and draws no warning. An unscoped one is ignored.
         generic = self.tmp / "generic.txt"
         generic.write_text("||ads.example^\n@@$generichide,domain=news.test\n")
         run = sh([str(tool), "--out", str(out), "--expect-block", block, str(generic)])
         self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertIn("no URL pattern", run.stderr)
-        self.assertNotIn("matches every address", run.stderr)
+        self.assertNotIn("warning", run.stderr)
+        generic.write_text("||ads.example^\n@@$generichide\n")
+        run = sh([str(tool), "--out", str(out), "--expect-block", block, str(generic)])
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertIn("matches every address", run.stderr)
         # A scoped exception is untouched and draws no warning.
         scoped = self.tmp / "scoped.txt"
         scoped.write_text("||ads.example^\n@@||ads.example/ok$script\n")

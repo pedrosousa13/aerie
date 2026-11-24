@@ -212,9 +212,13 @@ How it works:
   ignored rule (the first 20 per list). The count also goes through the FFI (`ListReport` and
   `BuildReport`), and the browser logs a `LOG(WARNING)` when it checks a downloaded list
   (`FilterListManager`) and when it compiles the lists (`FilterEngineService`). The filter page
-  does not show it yet. The old rule that drops `@@` rules with an empty pattern also drops
-  scoped ones with an empty pattern (`@@$generichide,domain=...`); that is unchanged, and the
-  compile tool reports those under their own reason ("with no URL pattern").
+  does not show it yet. An exception with an
+  empty pattern (`@@`, `@@$image`, `@@*`, `@@||`) is dropped, unless a `$domain=` option (or its
+  `from=` alias) names at least one positive domain. Then the rule applies only to those sites and
+  their subdomains, and it is kept: `@@$generichide,domain=a.example|...` (EasyList has these)
+  turns generic cosmetic hiding off there. `@@$generichide`, `@@$generichide,domain=~a.example`
+  (only negated, so it applies everywhere else) and `@@*$image` are dropped. Option names are
+  matched exactly and in lower case, as `adblock` does.
 
   Known limit: the probe set is fixed and public, so a rule written to dodge it gets through. A
   rule that matches every address except those five probes (for example `@@.com^`, `@@||com^`,
