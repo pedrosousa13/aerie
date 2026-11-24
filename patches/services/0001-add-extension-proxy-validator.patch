@@ -1,5 +1,5 @@
-Aerie-Purpose: Add Aerie's extension proxy validator (https only, no built-in host, loopback only behind a test switch) as an Aerie-owned component with unit tests.
-Aerie-Upstream-Area: components/aerie_services (new); components/BUILD.gn (components_unittests deps)
+Aerie-Purpose: Add Aerie's extension proxy validator (https only, no built-in host, loopback only behind a test switch) as an Aerie-owned component with unit tests, and a standalone test binary (aerie_services_unittests) that runs them.
+Aerie-Upstream-Area: components/aerie_services (new); components/BUILD.gn (components_unittests deps); the aerie_services_unittests test target
 Aerie-Kind: hook
 
 The Web Store install path needs a proxy to download from, and Aerie ships
@@ -9,10 +9,12 @@ Helium services helpers.
 
 --- /dev/null
 +++ b/components/aerie_services/BUILD.gn
-@@ -0,0 +1,32 @@
+@@ -0,0 +1,44 @@
 +# Copyright 2026 The Aerie Authors
 +# You can use, redistribute, and/or modify this source code under
 +# the terms of the GPL-3.0 license that can be found in the LICENSE file.
++
++import("//testing/test.gni")
 +
 +component("aerie_services") {
 +  sources = [
@@ -40,6 +42,16 @@ Helium services helpers.
 +    "//base",
 +    "//testing/gtest",
 +    "//url",
++  ]
++}
++
++# The proxy cases on their own, for ./aerie test-cpp. components_unittests also
++# links them, but it cannot be built from Helium's tree: Helium prunes the
++# binary test data (models, images) that its other members bundle.
++test("aerie_services_unittests") {
++  deps = [
++    ":unit_tests",
++    "//base/test:run_all_unittests",
 +  ]
 +}
 --- /dev/null

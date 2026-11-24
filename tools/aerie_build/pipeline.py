@@ -38,6 +38,8 @@ TEST_BINARIES = (
     # Content test support starts Aura; headless Ozone needs no X server (CI runs with none).
     ("aerie_adblock_content_unittests", ("--ozone-platform=headless",)),
     ("aerie_widevine_unittests", ()),
+    # The extension proxy validator (issue #301).
+    ("aerie_services_unittests", ()),
     # The cosmetic renderer piece (ADR 0005): the per-tab late-report gate and the sheet state.
     ("aerie_adblock_common_unittests", ()),
     ("aerie_adblock_renderer_unittests", ()),
