@@ -291,20 +291,23 @@ Widevine decodes protected video and audio (Netflix, Disney+ and similar). It is
 
 ### Extensions cannot loosen these settings
 
-An extension with the privacy permission cannot write the WebRTC policy, the preloading option or the third-party cookie setting. While third-party cookies are blocked, an extension with the contentSettings permission cannot allow cookies (or allow them for the session) for a pattern that could apply to a third-party context, because chrome.contentSettings.cookies.set would otherwise let third-party cookies through for the sites it names. An allow for one site's own cookies (the secondary pattern equal to the primary pattern, one host, no domain wildcard) and blocking cookies still work, and nothing is refused while the user allows third-party cookies. Only the user can change these, in settings. Reading them and being told about changes still works. Other content setting types are not changed.
+An extension with the privacy permission cannot write the WebRTC policy, the preloading option or the third-party cookie setting. While third-party cookies are blocked, an extension with the contentSettings permission cannot allow cookies (or allow them for the session) for a pattern that could apply to a third-party context, because chrome.contentSettings.cookies.set would otherwise let third-party cookies through for the sites it names. An allow for one site's own cookies (the secondary pattern equal to the primary pattern, one host, no domain wildcard) and blocking cookies still work, and nothing is refused while the user allows third-party cookies. A broad rule that an extension set while third-party cookies were allowed has no effect after the user blocks them again: the rule stays stored and takes effect again if the user allows third-party cookies. While they are blocked, a hidden session-only rule also loses its session-only effect on the first-party cookies of its pattern. Only the user can change these, in settings. Reading them and being told about changes still works. Other content setting types are not changed.
 
 - Default: Always on.
 - Default provided by: Aerie
 - Where the default is set:
   - patches/hardening/0006-lock-hardened-prefs-from-extensions.patch: the write permission of three chrome.privacy entries is removed in chrome/browser/extensions/pref_mapping.cc
   - patches/hardening/0016-refuse-extension-cookie-allow-settings.patch: ContentSettingsContentSettingSetFunction::Run in chrome/browser/extensions/api/content_settings/content_settings_api.cc refuses a cookie allow or session-only setting for a pattern that could apply to a third-party context while third-party cookies are blocked
+  - patches/hardening/0027-ignore-extension-cookie-allow-rules-while-third-party-cookies-are-blocked.patch: CustomExtensionProvider in extensions/browser/api/content_settings/content_settings_custom_extension_provider.cc leaves such a rule out of what it reads while third-party cookies are blocked (it asks the real CookieSettings), also when the extension set it while they were allowed
 - Upstream code:
   - `chrome/browser/extensions/pref_mapping.cc`
   - `chrome/browser/extensions/api/preference/preference_api.cc`
   - `chrome/browser/extensions/api/content_settings/content_settings_api.cc`
+  - `extensions/browser/api/content_settings/content_settings_custom_extension_provider.cc`
 - Aerie patches:
   - `patches/hardening/0006-lock-hardened-prefs-from-extensions.patch`
   - `patches/hardening/0016-refuse-extension-cookie-allow-settings.patch`
+  - `patches/hardening/0027-ignore-extension-cookie-allow-rules-while-third-party-cookies-are-blocked.patch`
 - Settings row: Read-only
 - Cost: Privacy extensions that set these options through chrome.privacy get a permission error. An extension that allows cookies through chrome.contentSettings for a pattern that is not one site's own cookies (for example a whole domain, or a site in any context) gets an error while third-party cookies are blocked. The user can still make the same changes in settings.
 - Bench checks: `hardening_extension_prefs`

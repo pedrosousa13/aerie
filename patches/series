@@ -116,6 +116,8 @@ hardening/0024-key-fingerprinting-seeds-on-the-workspace.patch
 hardening/0025-noise-the-audio-an-audio-worklet-and-a-script-processor-read.patch
 # The events of a protected window carry no real window position (#159).
 hardening/0026-report-the-masked-window-position-in-event-screen-coordinates.patch
+# An extension's broad cookie allow has no effect while third-party cookies are blocked, also when it was set while they were allowed (#166).
+hardening/0027-ignore-extension-cookie-allow-rules-while-third-party-cookies-are-blocked.patch
 
 # Design Tokens (#174): the reduced-motion pref, its strings and its row on the Appearance page.
 sidebar/0001-add-the-reduced-motion-pref.patch

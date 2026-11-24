@@ -343,9 +343,9 @@
   },
   {
    "name": "real_train13b_build",
-   "expect": "pass",
-   "detail_contains": "",
-   "real": "Recorded on a real Aerie build with patch 0016 (train 13b, combined build e77b610), full Bench run train13b/bench/full/results.json, 2026-11-09; copied unchanged.",
+   "expect": "fail",
+   "detail_contains": "switch step is missing",
+   "real": "Recorded on a real Aerie build with patch 0016 (train 13b, combined build e77b610), full Bench run train13b/bench/full/results.json, 2026-11-09; copied unchanged; it predates the allow-then-block step of #166 (patch 0027), so it has no switch observation and now judges as fail.",
    "obs": {
     "loaded": true,
     "results": [
@@ -413,7 +413,8 @@
       "value": null
      }
     ]
-   }
+   },
+   "note": "Verdict re-judged: the recording predates the allow-then-block step of #166 (patch 0027), so it has no switch observation and the current judge fails it on purpose."
   },
   {
    "name": "real_train13b_main_without_0016",
@@ -749,6 +750,1268 @@
     ]
    },
    "handwritten": "Hand-written from the probe's result shape and patch 0016's refusal text, for a failure a real build does not show. The real recordings with 0016 rows are real_train13b_build and real_train13b_main_without_0016."
+  },
+  {
+   "name": "switch_filter_passes",
+   "expect": "pass",
+   "detail_contains": "",
+   "handwritten": "Hand-written from the probe's result shape and patch 0027's behavior (#166), for a result a real build does not show until the patch is built; the first run of the Bench step on a real build is recorded in docs/bench.md and as real_train_issue166_build. The real recordings with 0016 rows are real_train13b_build and real_train13b_main_without_0016.",
+   "obs": {
+    "loaded": true,
+    "results": [
+     {
+      "name": "webRTCIPHandlingPolicy",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference 'webRTCIPHandlingPolicy'. Be sure to declare in your manifest what permissions you need.",
+      "level": "controllable_by_this_extension",
+      "value": "default_public_interface_only"
+     },
+     {
+      "name": "networkPredictionEnabled",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference 'networkPredictionEnabled'. Be sure to declare in your manifest what permissions you need.",
+      "level": "controllable_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "thirdPartyCookiesAllowed",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference 'thirdPartyCookiesAllowed'. Be sure to declare in your manifest what permissions you need.",
+      "level": "controllable_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "referrersEnabled",
+      "role": "control",
+      "set_error": null,
+      "level": "controlled_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "contentSettings.cookies.allow",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.session_only",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow_domain_wildcard",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow_first_party",
+      "role": "content_setting_first_party",
+      "set_error": null,
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.block",
+      "role": "content_setting_control",
+      "set_error": null,
+      "level": null,
+      "value": null
+     }
+    ],
+    "switch": {
+     "set": {
+      "broad_cookie": null,
+      "broad_session": null,
+      "first_party": null
+     },
+     "cookies": {
+      "allow_mode": {
+       "broad": "allowed",
+       "user": "allowed",
+       "none": "allowed"
+      },
+      "block_mode": {
+       "broad": "blocked",
+       "user": "allowed",
+       "none": "blocked"
+      }
+     },
+     "get": {
+      "allow_mode": {
+       "broad_session": "session_only",
+       "first_party": "session_only"
+      },
+      "block_mode": {
+       "broad_session": "allow",
+       "first_party": "session_only"
+      },
+      "allow_again": {
+       "broad_session": "session_only",
+       "first_party": "session_only"
+      }
+     },
+     "mode_changed": true
+    }
+   }
+  },
+  {
+   "name": "switch_broad_allow_still_wins_after_block",
+   "expect": "fail",
+   "detail_contains": "still let a third-party cookie through",
+   "handwritten": "Hand-written from the probe's result shape and patch 0027's behavior (#166), for a result a real build does not show until the patch is built; the first run of the Bench step on a real build is recorded in docs/bench.md and as real_train_issue166_build. The real recordings with 0016 rows are real_train13b_build and real_train13b_main_without_0016.",
+   "obs": {
+    "loaded": true,
+    "results": [
+     {
+      "name": "webRTCIPHandlingPolicy",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference 'webRTCIPHandlingPolicy'. Be sure to declare in your manifest what permissions you need.",
+      "level": "controllable_by_this_extension",
+      "value": "default_public_interface_only"
+     },
+     {
+      "name": "networkPredictionEnabled",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference 'networkPredictionEnabled'. Be sure to declare in your manifest what permissions you need.",
+      "level": "controllable_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "thirdPartyCookiesAllowed",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference 'thirdPartyCookiesAllowed'. Be sure to declare in your manifest what permissions you need.",
+      "level": "controllable_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "referrersEnabled",
+      "role": "control",
+      "set_error": null,
+      "level": "controlled_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "contentSettings.cookies.allow",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.session_only",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow_domain_wildcard",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow_first_party",
+      "role": "content_setting_first_party",
+      "set_error": null,
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.block",
+      "role": "content_setting_control",
+      "set_error": null,
+      "level": null,
+      "value": null
+     }
+    ],
+    "switch": {
+     "set": {
+      "broad_cookie": null,
+      "broad_session": null,
+      "first_party": null
+     },
+     "cookies": {
+      "allow_mode": {
+       "broad": "allowed",
+       "user": "allowed",
+       "none": "allowed"
+      },
+      "block_mode": {
+       "broad": "allowed",
+       "user": "allowed",
+       "none": "blocked"
+      }
+     },
+     "get": {
+      "allow_mode": {
+       "broad_session": "session_only",
+       "first_party": "session_only"
+      },
+      "block_mode": {
+       "broad_session": "allow",
+       "first_party": "session_only"
+      },
+      "allow_again": {
+       "broad_session": "session_only",
+       "first_party": "session_only"
+      }
+     },
+     "mode_changed": true
+    }
+   }
+  },
+  {
+   "name": "switch_broad_get_still_active_after_block",
+   "expect": "fail",
+   "detail_contains": "still in force after the switch to block",
+   "handwritten": "Hand-written from the probe's result shape and patch 0027's behavior (#166), for a result a real build does not show until the patch is built; the first run of the Bench step on a real build is recorded in docs/bench.md and as real_train_issue166_build. The real recordings with 0016 rows are real_train13b_build and real_train13b_main_without_0016.",
+   "obs": {
+    "loaded": true,
+    "results": [
+     {
+      "name": "webRTCIPHandlingPolicy",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference 'webRTCIPHandlingPolicy'. Be sure to declare in your manifest what permissions you need.",
+      "level": "controllable_by_this_extension",
+      "value": "default_public_interface_only"
+     },
+     {
+      "name": "networkPredictionEnabled",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference 'networkPredictionEnabled'. Be sure to declare in your manifest what permissions you need.",
+      "level": "controllable_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "thirdPartyCookiesAllowed",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference 'thirdPartyCookiesAllowed'. Be sure to declare in your manifest what permissions you need.",
+      "level": "controllable_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "referrersEnabled",
+      "role": "control",
+      "set_error": null,
+      "level": "controlled_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "contentSettings.cookies.allow",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.session_only",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow_domain_wildcard",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow_first_party",
+      "role": "content_setting_first_party",
+      "set_error": null,
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.block",
+      "role": "content_setting_control",
+      "set_error": null,
+      "level": null,
+      "value": null
+     }
+    ],
+    "switch": {
+     "set": {
+      "broad_cookie": null,
+      "broad_session": null,
+      "first_party": null
+     },
+     "cookies": {
+      "allow_mode": {
+       "broad": "allowed",
+       "user": "allowed",
+       "none": "allowed"
+      },
+      "block_mode": {
+       "broad": "blocked",
+       "user": "allowed",
+       "none": "blocked"
+      }
+     },
+     "get": {
+      "allow_mode": {
+       "broad_session": "session_only",
+       "first_party": "session_only"
+      },
+      "block_mode": {
+       "broad_session": "session_only",
+       "first_party": "session_only"
+      },
+      "allow_again": {
+       "broad_session": "session_only",
+       "first_party": "session_only"
+      }
+     },
+     "mode_changed": true
+    }
+   }
+  },
+  {
+   "name": "switch_user_allow_stops_working",
+   "expect": "fail",
+   "detail_contains": "user-created cookie allow",
+   "handwritten": "Hand-written from the probe's result shape and patch 0027's behavior (#166), for a result a real build does not show until the patch is built; the first run of the Bench step on a real build is recorded in docs/bench.md and as real_train_issue166_build. The real recordings with 0016 rows are real_train13b_build and real_train13b_main_without_0016.",
+   "obs": {
+    "loaded": true,
+    "results": [
+     {
+      "name": "webRTCIPHandlingPolicy",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference 'webRTCIPHandlingPolicy'. Be sure to declare in your manifest what permissions you need.",
+      "level": "controllable_by_this_extension",
+      "value": "default_public_interface_only"
+     },
+     {
+      "name": "networkPredictionEnabled",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference 'networkPredictionEnabled'. Be sure to declare in your manifest what permissions you need.",
+      "level": "controllable_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "thirdPartyCookiesAllowed",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference 'thirdPartyCookiesAllowed'. Be sure to declare in your manifest what permissions you need.",
+      "level": "controllable_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "referrersEnabled",
+      "role": "control",
+      "set_error": null,
+      "level": "controlled_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "contentSettings.cookies.allow",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.session_only",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow_domain_wildcard",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow_first_party",
+      "role": "content_setting_first_party",
+      "set_error": null,
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.block",
+      "role": "content_setting_control",
+      "set_error": null,
+      "level": null,
+      "value": null
+     }
+    ],
+    "switch": {
+     "set": {
+      "broad_cookie": null,
+      "broad_session": null,
+      "first_party": null
+     },
+     "cookies": {
+      "allow_mode": {
+       "broad": "allowed",
+       "user": "allowed",
+       "none": "allowed"
+      },
+      "block_mode": {
+       "broad": "blocked",
+       "user": "blocked",
+       "none": "blocked"
+      }
+     },
+     "get": {
+      "allow_mode": {
+       "broad_session": "session_only",
+       "first_party": "session_only"
+      },
+      "block_mode": {
+       "broad_session": "allow",
+       "first_party": "session_only"
+      },
+      "allow_again": {
+       "broad_session": "session_only",
+       "first_party": "session_only"
+      }
+     },
+     "mode_changed": true
+    }
+   }
+  },
+  {
+   "name": "switch_first_party_allow_stops_working",
+   "expect": "fail",
+   "detail_contains": "first-party allow set by the extension",
+   "handwritten": "Hand-written from the probe's result shape and patch 0027's behavior (#166), for a result a real build does not show until the patch is built; the first run of the Bench step on a real build is recorded in docs/bench.md and as real_train_issue166_build. The real recordings with 0016 rows are real_train13b_build and real_train13b_main_without_0016.",
+   "obs": {
+    "loaded": true,
+    "results": [
+     {
+      "name": "webRTCIPHandlingPolicy",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference 'webRTCIPHandlingPolicy'. Be sure to declare in your manifest what permissions you need.",
+      "level": "controllable_by_this_extension",
+      "value": "default_public_interface_only"
+     },
+     {
+      "name": "networkPredictionEnabled",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference 'networkPredictionEnabled'. Be sure to declare in your manifest what permissions you need.",
+      "level": "controllable_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "thirdPartyCookiesAllowed",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference 'thirdPartyCookiesAllowed'. Be sure to declare in your manifest what permissions you need.",
+      "level": "controllable_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "referrersEnabled",
+      "role": "control",
+      "set_error": null,
+      "level": "controlled_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "contentSettings.cookies.allow",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.session_only",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow_domain_wildcard",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow_first_party",
+      "role": "content_setting_first_party",
+      "set_error": null,
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.block",
+      "role": "content_setting_control",
+      "set_error": null,
+      "level": null,
+      "value": null
+     }
+    ],
+    "switch": {
+     "set": {
+      "broad_cookie": null,
+      "broad_session": null,
+      "first_party": null
+     },
+     "cookies": {
+      "allow_mode": {
+       "broad": "allowed",
+       "user": "allowed",
+       "none": "allowed"
+      },
+      "block_mode": {
+       "broad": "blocked",
+       "user": "allowed",
+       "none": "blocked"
+      }
+     },
+     "get": {
+      "allow_mode": {
+       "broad_session": "session_only",
+       "first_party": "session_only"
+      },
+      "block_mode": {
+       "broad_session": "allow",
+       "first_party": "allow"
+      },
+      "allow_again": {
+       "broad_session": "session_only",
+       "first_party": "session_only"
+      }
+     },
+     "mode_changed": true
+    }
+   }
+  },
+  {
+   "name": "switch_block_does_not_block",
+   "expect": "fail",
+   "detail_contains": "negative control failed: after the switch to block",
+   "handwritten": "Hand-written from the probe's result shape and patch 0027's behavior (#166), for a result a real build does not show until the patch is built; the first run of the Bench step on a real build is recorded in docs/bench.md and as real_train_issue166_build. The real recordings with 0016 rows are real_train13b_build and real_train13b_main_without_0016.",
+   "obs": {
+    "loaded": true,
+    "results": [
+     {
+      "name": "webRTCIPHandlingPolicy",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference 'webRTCIPHandlingPolicy'. Be sure to declare in your manifest what permissions you need.",
+      "level": "controllable_by_this_extension",
+      "value": "default_public_interface_only"
+     },
+     {
+      "name": "networkPredictionEnabled",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference 'networkPredictionEnabled'. Be sure to declare in your manifest what permissions you need.",
+      "level": "controllable_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "thirdPartyCookiesAllowed",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference 'thirdPartyCookiesAllowed'. Be sure to declare in your manifest what permissions you need.",
+      "level": "controllable_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "referrersEnabled",
+      "role": "control",
+      "set_error": null,
+      "level": "controlled_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "contentSettings.cookies.allow",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.session_only",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow_domain_wildcard",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow_first_party",
+      "role": "content_setting_first_party",
+      "set_error": null,
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.block",
+      "role": "content_setting_control",
+      "set_error": null,
+      "level": null,
+      "value": null
+     }
+    ],
+    "switch": {
+     "set": {
+      "broad_cookie": null,
+      "broad_session": null,
+      "first_party": null
+     },
+     "cookies": {
+      "allow_mode": {
+       "broad": "allowed",
+       "user": "allowed",
+       "none": "allowed"
+      },
+      "block_mode": {
+       "broad": "blocked",
+       "user": "allowed",
+       "none": "allowed"
+      }
+     },
+     "get": {
+      "allow_mode": {
+       "broad_session": "session_only",
+       "first_party": "session_only"
+      },
+      "block_mode": {
+       "broad_session": "allow",
+       "first_party": "session_only"
+      },
+      "allow_again": {
+       "broad_session": "session_only",
+       "first_party": "session_only"
+      }
+     },
+     "mode_changed": true
+    }
+   }
+  },
+  {
+   "name": "switch_broad_rule_has_no_effect_while_allowed",
+   "expect": "fail",
+   "detail_contains": "negative control failed: with third-party cookies allowed the broad",
+   "handwritten": "Hand-written from the probe's result shape and patch 0027's behavior (#166), for a result a real build does not show until the patch is built; the first run of the Bench step on a real build is recorded in docs/bench.md and as real_train_issue166_build. The real recordings with 0016 rows are real_train13b_build and real_train13b_main_without_0016.",
+   "obs": {
+    "loaded": true,
+    "results": [
+     {
+      "name": "webRTCIPHandlingPolicy",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference 'webRTCIPHandlingPolicy'. Be sure to declare in your manifest what permissions you need.",
+      "level": "controllable_by_this_extension",
+      "value": "default_public_interface_only"
+     },
+     {
+      "name": "networkPredictionEnabled",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference 'networkPredictionEnabled'. Be sure to declare in your manifest what permissions you need.",
+      "level": "controllable_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "thirdPartyCookiesAllowed",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference 'thirdPartyCookiesAllowed'. Be sure to declare in your manifest what permissions you need.",
+      "level": "controllable_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "referrersEnabled",
+      "role": "control",
+      "set_error": null,
+      "level": "controlled_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "contentSettings.cookies.allow",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.session_only",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow_domain_wildcard",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow_first_party",
+      "role": "content_setting_first_party",
+      "set_error": null,
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.block",
+      "role": "content_setting_control",
+      "set_error": null,
+      "level": null,
+      "value": null
+     }
+    ],
+    "switch": {
+     "set": {
+      "broad_cookie": null,
+      "broad_session": null,
+      "first_party": null
+     },
+     "cookies": {
+      "allow_mode": {
+       "broad": "blocked",
+       "user": "allowed",
+       "none": "allowed"
+      },
+      "block_mode": {
+       "broad": "blocked",
+       "user": "allowed",
+       "none": "blocked"
+      }
+     },
+     "get": {
+      "allow_mode": {
+       "broad_session": "session_only",
+       "first_party": "session_only"
+      },
+      "block_mode": {
+       "broad_session": "allow",
+       "first_party": "session_only"
+      },
+      "allow_again": {
+       "broad_session": "session_only",
+       "first_party": "session_only"
+      }
+     },
+     "mode_changed": true
+    }
+   }
+  },
+  {
+   "name": "switch_extension_rules_refused_while_allowed",
+   "expect": "fail",
+   "detail_contains": "negative control failed: the extension's rules were refused",
+   "handwritten": "Hand-written from the probe's result shape and patch 0027's behavior (#166), for a result a real build does not show until the patch is built; the first run of the Bench step on a real build is recorded in docs/bench.md and as real_train_issue166_build. The real recordings with 0016 rows are real_train13b_build and real_train13b_main_without_0016.",
+   "obs": {
+    "loaded": true,
+    "results": [
+     {
+      "name": "webRTCIPHandlingPolicy",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference 'webRTCIPHandlingPolicy'. Be sure to declare in your manifest what permissions you need.",
+      "level": "controllable_by_this_extension",
+      "value": "default_public_interface_only"
+     },
+     {
+      "name": "networkPredictionEnabled",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference 'networkPredictionEnabled'. Be sure to declare in your manifest what permissions you need.",
+      "level": "controllable_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "thirdPartyCookiesAllowed",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference 'thirdPartyCookiesAllowed'. Be sure to declare in your manifest what permissions you need.",
+      "level": "controllable_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "referrersEnabled",
+      "role": "control",
+      "set_error": null,
+      "level": "controlled_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "contentSettings.cookies.allow",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.session_only",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow_domain_wildcard",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow_first_party",
+      "role": "content_setting_first_party",
+      "set_error": null,
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.block",
+      "role": "content_setting_control",
+      "set_error": null,
+      "level": null,
+      "value": null
+     }
+    ],
+    "switch": {
+     "set": {
+      "broad_cookie": "An extension cannot allow cookies",
+      "broad_session": null,
+      "first_party": null
+     },
+     "cookies": {
+      "allow_mode": {
+       "broad": "allowed",
+       "user": "allowed",
+       "none": "allowed"
+      },
+      "block_mode": {
+       "broad": "blocked",
+       "user": "allowed",
+       "none": "blocked"
+      }
+     },
+     "get": {
+      "allow_mode": {
+       "broad_session": "session_only",
+       "first_party": "session_only"
+      },
+      "block_mode": {
+       "broad_session": "allow",
+       "first_party": "session_only"
+      },
+      "allow_again": {
+       "broad_session": "session_only",
+       "first_party": "session_only"
+      }
+     },
+     "mode_changed": true
+    }
+   }
+  },
+  {
+   "name": "switch_rule_not_restored_when_allowed_again",
+   "expect": "fail",
+   "detail_contains": "did not come back",
+   "handwritten": "Hand-written from the probe's result shape and patch 0027's behavior (#166), for a result a real build does not show until the patch is built; the first run of the Bench step on a real build is recorded in docs/bench.md and as real_train_issue166_build. The real recordings with 0016 rows are real_train13b_build and real_train13b_main_without_0016.",
+   "obs": {
+    "loaded": true,
+    "results": [
+     {
+      "name": "webRTCIPHandlingPolicy",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference 'webRTCIPHandlingPolicy'. Be sure to declare in your manifest what permissions you need.",
+      "level": "controllable_by_this_extension",
+      "value": "default_public_interface_only"
+     },
+     {
+      "name": "networkPredictionEnabled",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference 'networkPredictionEnabled'. Be sure to declare in your manifest what permissions you need.",
+      "level": "controllable_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "thirdPartyCookiesAllowed",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference 'thirdPartyCookiesAllowed'. Be sure to declare in your manifest what permissions you need.",
+      "level": "controllable_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "referrersEnabled",
+      "role": "control",
+      "set_error": null,
+      "level": "controlled_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "contentSettings.cookies.allow",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.session_only",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow_domain_wildcard",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow_first_party",
+      "role": "content_setting_first_party",
+      "set_error": null,
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.block",
+      "role": "content_setting_control",
+      "set_error": null,
+      "level": null,
+      "value": null
+     }
+    ],
+    "switch": {
+     "set": {
+      "broad_cookie": null,
+      "broad_session": null,
+      "first_party": null
+     },
+     "cookies": {
+      "allow_mode": {
+       "broad": "allowed",
+       "user": "allowed",
+       "none": "allowed"
+      },
+      "block_mode": {
+       "broad": "blocked",
+       "user": "allowed",
+       "none": "blocked"
+      }
+     },
+     "get": {
+      "allow_mode": {
+       "broad_session": "session_only",
+       "first_party": "session_only"
+      },
+      "block_mode": {
+       "broad_session": "allow",
+       "first_party": "session_only"
+      },
+      "allow_again": {
+       "broad_session": "allow",
+       "first_party": "session_only"
+      }
+     },
+     "mode_changed": true
+    }
+   }
+  },
+  {
+   "name": "switch_step_missing",
+   "expect": "fail",
+   "detail_contains": "switch step is missing",
+   "handwritten": "Hand-written from the probe's result shape and patch 0027's behavior (#166), for a result a real build does not show until the patch is built; the first run of the Bench step on a real build is recorded in docs/bench.md and as real_train_issue166_build. The real recordings with 0016 rows are real_train13b_build and real_train13b_main_without_0016.",
+   "obs": {
+    "loaded": true,
+    "results": [
+     {
+      "name": "webRTCIPHandlingPolicy",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference 'webRTCIPHandlingPolicy'. Be sure to declare in your manifest what permissions you need.",
+      "level": "controllable_by_this_extension",
+      "value": "default_public_interface_only"
+     },
+     {
+      "name": "networkPredictionEnabled",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference 'networkPredictionEnabled'. Be sure to declare in your manifest what permissions you need.",
+      "level": "controllable_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "thirdPartyCookiesAllowed",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference 'thirdPartyCookiesAllowed'. Be sure to declare in your manifest what permissions you need.",
+      "level": "controllable_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "referrersEnabled",
+      "role": "control",
+      "set_error": null,
+      "level": "controlled_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "contentSettings.cookies.allow",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.session_only",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow_domain_wildcard",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow_first_party",
+      "role": "content_setting_first_party",
+      "set_error": null,
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.block",
+      "role": "content_setting_control",
+      "set_error": null,
+      "level": null,
+      "value": null
+     }
+    ]
+   }
+  },
+  {
+   "name": "switch_settings_page_refused_the_mode",
+   "expect": "fail",
+   "detail_contains": "could not be switched",
+   "handwritten": "Hand-written from the probe's result shape and patch 0027's behavior (#166), for a result a real build does not show until the patch is built; the first run of the Bench step on a real build is recorded in docs/bench.md and as real_train_issue166_build. The real recordings with 0016 rows are real_train13b_build and real_train13b_main_without_0016.",
+   "obs": {
+    "loaded": true,
+    "results": [
+     {
+      "name": "webRTCIPHandlingPolicy",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference 'webRTCIPHandlingPolicy'. Be sure to declare in your manifest what permissions you need.",
+      "level": "controllable_by_this_extension",
+      "value": "default_public_interface_only"
+     },
+     {
+      "name": "networkPredictionEnabled",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference 'networkPredictionEnabled'. Be sure to declare in your manifest what permissions you need.",
+      "level": "controllable_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "thirdPartyCookiesAllowed",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference 'thirdPartyCookiesAllowed'. Be sure to declare in your manifest what permissions you need.",
+      "level": "controllable_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "referrersEnabled",
+      "role": "control",
+      "set_error": null,
+      "level": "controlled_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "contentSettings.cookies.allow",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.session_only",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow_domain_wildcard",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow_first_party",
+      "role": "content_setting_first_party",
+      "set_error": null,
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.block",
+      "role": "content_setting_control",
+      "set_error": null,
+      "level": null,
+      "value": null
+     }
+    ],
+    "switch": {
+     "set": {
+      "broad_cookie": null,
+      "broad_session": null,
+      "first_party": null
+     },
+     "cookies": {
+      "allow_mode": {
+       "broad": "allowed",
+       "user": "allowed",
+       "none": "allowed"
+      },
+      "block_mode": {
+       "broad": "blocked",
+       "user": "allowed",
+       "none": "blocked"
+      }
+     },
+     "get": {
+      "allow_mode": {
+       "broad_session": "session_only",
+       "first_party": "session_only"
+      },
+      "block_mode": {
+       "broad_session": "allow",
+       "first_party": "session_only"
+      },
+      "allow_again": {
+       "broad_session": "session_only",
+       "first_party": "session_only"
+      }
+     },
+     "mode_changed": false
+    }
+   }
+  },
+  {
+   "name": "real_train_issue166_build",
+   "expect": "pass",
+   "detail_contains": "let nothing through after the switch to block",
+   "real": "Recorded on a real Aerie build with patches 0016 and 0027 (branch for #166, 2026-11-24), Bench run 20261124T152745Z, ./aerie bench --check hardening_extension_prefs; copied unchanged.",
+   "obs": {
+    "loaded": true,
+    "results": [
+     {
+      "name": "webRTCIPHandlingPolicy",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference 'webRTCIPHandlingPolicy'. Be sure to declare in your manifest what permissions you need.",
+      "level": "controllable_by_this_extension",
+      "value": "default_public_interface_only"
+     },
+     {
+      "name": "networkPredictionEnabled",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference 'networkPredictionEnabled'. Be sure to declare in your manifest what permissions you need.",
+      "level": "controllable_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "thirdPartyCookiesAllowed",
+      "role": "hardened",
+      "set_error": "You do not have permission to access the preference 'thirdPartyCookiesAllowed'. Be sure to declare in your manifest what permissions you need.",
+      "level": "controllable_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "referrersEnabled",
+      "role": "control",
+      "set_error": null,
+      "level": "controlled_by_this_extension",
+      "value": false
+     },
+     {
+      "name": "contentSettings.cookies.allow",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.session_only",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow_domain_wildcard",
+      "role": "content_setting_refused",
+      "set_error": "An extension cannot allow cookies for this pattern while third-party cookies are blocked. Only the user can, in settings.",
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.allow_first_party",
+      "role": "content_setting_first_party",
+      "set_error": null,
+      "level": null,
+      "value": null
+     },
+     {
+      "name": "contentSettings.cookies.block",
+      "role": "content_setting_control",
+      "set_error": null,
+      "level": null,
+      "value": null
+     }
+    ],
+    "switch": {
+     "set": {
+      "broad_cookie": null,
+      "broad_session": null,
+      "first_party": null
+     },
+     "cookies": {
+      "allow_mode": {
+       "broad": "allowed",
+       "user": "allowed",
+       "none": "allowed"
+      },
+      "block_mode": {
+       "broad": "blocked",
+       "user": "allowed",
+       "none": "blocked"
+      }
+     },
+     "get": {
+      "allow_mode": {
+       "broad_session": "session_only",
+       "first_party": "session_only"
+      },
+      "block_mode": {
+       "broad_session": "allow",
+       "first_party": "session_only"
+      },
+      "allow_again": {
+       "broad_session": "session_only",
+       "first_party": "session_only"
+      }
+     },
+     "mode_changed": true
+    }
+   }
   }
  ]
 }

@@ -58,3 +58,35 @@ window.__probe = async function() {
   await new Promise((resolve) => chrome.contentSettings.cookies.clear({}, resolve));
   return out;
 };
+
+// The allow-then-block step (#166). Hosts are the fixture sites: b is covered by a broad cookie allow (secondary
+// pattern any site), f by a broad session-only rule, d by a one-host first-party session-only rule. Session-only
+// shows in get(); a plain allow would not, because allow is the default.
+const hostUrl = (name) => ['http:', '', name + '.localhost', ''].join('/');
+const hostPattern = (name) => hostUrl(name) + '*';
+
+window.__probeRules = async function() {
+  const setCookies = (details) => new Promise((resolve) => {
+    try {
+      chrome.contentSettings.cookies.set(
+          details, () => resolve(chrome.runtime.lastError ? chrome.runtime.lastError.message : null));
+    } catch (e) {
+      resolve('threw: ' + e);
+    }
+  });
+  return {
+    broad_cookie: await setCookies({primaryPattern: hostPattern('b'), setting: 'allow'}),
+    broad_session: await setCookies({primaryPattern: hostPattern('f'), setting: 'session_only'}),
+    first_party: await setCookies({primaryPattern: hostPattern('d'), secondaryPattern: hostPattern('d'),
+                                   setting: 'session_only'}),
+  };
+};
+
+window.__probeGet = async function() {
+  const get = (name) => new Promise((resolve) => {
+    chrome.contentSettings.cookies.get(
+        {primaryUrl: hostUrl(name), secondaryUrl: hostUrl(name)},
+        (details) => resolve(details ? details.setting : null));
+  });
+  return {broad_session: await get('f'), first_party: await get('d')};
+};

@@ -10,6 +10,7 @@ from pathlib import Path
 
 from aerie_bench import checks
 from aerie_bench.checks.hardening import common, cookies, extension, fingerprint, fingerprint_popup, fingerprint_site, fingerprint_worker, https, isolation, jit, prefetch, settings, webrtc
+from aerie_bench.checks.hardening.cookies import ALLOW_MODE, BLOCK_MODE
 from aerie_bench.session import CheckResult
 
 FIXTURES = Path(__file__).parent / "fixtures" / "hardening"
@@ -199,6 +200,10 @@ Promise.race([{prefetch.FETCH_CONTROLS_JS % (prefetch.CONTROL_PATH, 100, 1234)},
         self.assertEqual(set(rules), {"prefetch", "prerender"})
 
 
+# Recordings that may hold contentSettings rows: train 13b (the first build with 0016) and the #166 build (0027).
+REAL_WITH_COOKIE_ROWS = ("real_train13b_", "real_train_issue166_")
+
+
 def real_case(check):
     for _, case in load_cases():
         if _ == check and case["name"].startswith("real_train"):
@@ -227,7 +232,7 @@ class RealRecordingsTest(unittest.TestCase):
             if "real" in case:
                 with self.subTest(check=check, case=case["name"]):
                     self.assertTrue(case["name"].startswith("real_train"), "only a recording may carry a real note")
-                    if not case["name"].startswith("real_train13b_"):
+                    if not case["name"].startswith(REAL_WITH_COOKIE_ROWS):
                         self.assertFalse({r for r in roles if r.startswith("content_setting")},
                                          "contentSettings rows under a recording older than the probes")
 
@@ -237,7 +242,7 @@ class RealRecordingsTest(unittest.TestCase):
                 continue
             has_cs = any(r.get("role", "").startswith("content_setting") for r in case["obs"]["results"])
             with self.subTest(case=case["name"]):
-                if has_cs and case["name"].startswith("real_train13b_"):
+                if has_cs and case["name"].startswith(REAL_WITH_COOKIE_ROWS):
                     self.assertIn("0016", case["real"])
                 elif has_cs:
                     self.assertNotIn("real", case)
@@ -247,8 +252,9 @@ class RealRecordingsTest(unittest.TestCase):
     def test_the_train_13b_recordings_judge_the_cookie_probes(self):
         cases = {c["name"]: c for ch, c in load_cases() if ch == "hardening_extension_prefs"}
         judge = HARDENING["hardening_extension_prefs"].judge
-        with_0016 = cases["real_train13b_build"]["obs"]
+        with_0016 = cases["switch_filter_passes"]["obs"]
         self.assertEqual(judge(with_0016)[0], "pass")
+        self.assertIn("switch step is missing", judge(cases["real_train13b_build"]["obs"])[1])
         self.assertTrue(any(r["role"] == "content_setting_refused" and r["set_error"] for r in with_0016["results"]))
         status, detail = judge(cases["real_train13b_main_without_0016"]["obs"])[:2]
         self.assertEqual(status, "fail")
@@ -767,16 +773,73 @@ class DriverGlueTest(unittest.TestCase):
         self.assertIn("'allow'", script)
         self.assertIn("secondaryPattern: site", script)
 
+    def test_probe_extension_sets_rules_and_reads_them_back_for_the_switch_step(self):
+        script = (Path(extension.__file__).parents[2] / "fixtures" / "hardening" / "extension" / "probe.js").read_text()
+        for needle in ("window.__probeRules", "window.__probeGet", "chrome.contentSettings.cookies.get",
+                       "setting: 'session_only'", "secondaryPattern: hostPattern('d')"):
+            self.assertIn(needle, script)
+
     def test_extension_check_loads_the_probe_extension_in_a_variant(self):
         results = next(c for c in json.loads((FIXTURES / "hardening_extension_prefs.json").read_text())["cases"]
-                       if c["name"] == "real_train13b_build")["obs"]["results"]
+                       if c["name"] == "switch_filter_passes")["obs"]["results"]
         variant = FakeSession({"probe.html": {"eval": results}})
-        main = FakeSession({}, variants=[variant])
+        browser = FakeSwitchBrowser()
+        main = FakeSession({}, variants=[variant, browser])
         res = extension.ExtensionPrefs().run(main)
         self.assertEqual(res.status, "pass", res.detail)
         flags = main.variant_calls[0][0]
         self.assertTrue(flags[0].startswith("--load-extension=") and flags[0].endswith("/hardening/extension"))
         self.assertIn(extension.EXTENSION_ID, variant.log[0])
+        # the second browser starts with third-party cookies allowed and the user's own allow stored
+        flags2, prefs2 = main.variant_calls[1]
+        self.assertTrue(flags2[0].startswith("--load-extension="))
+        self.assertEqual(prefs2["profile"]["cookie_controls_mode"], ALLOW_MODE)
+        self.assertEqual(prefs2["profile"]["content_settings"]["exceptions"]["cookies"]["c.localhost,*"]["setting"], 1)
+        self.assertEqual(browser.modes_set, [BLOCK_MODE, ALLOW_MODE])
+
+    def test_extension_check_fails_when_the_broad_rule_survives_the_switch_to_block(self):
+        results = next(c for c in json.loads((FIXTURES / "hardening_extension_prefs.json").read_text())["cases"]
+                       if c["name"] == "switch_filter_passes")["obs"]["results"]
+        variant = FakeSession({"probe.html": {"eval": results}})
+        main = FakeSession({}, variants=[variant, FakeSwitchBrowser(filter_present=False)])
+        res = extension.ExtensionPrefs().run(main)
+        self.assertEqual(res.status, "fail")
+        self.assertIn("still let a third-party cookie through", res.detail)
+
+
+class FakeSwitchBrowser(FakeSession):
+    """The second browser of hardening_extension_prefs: cookie controls start in allow mode; setPref changes
+    them. With ``filter_present`` False the extension's broad rule keeps winning, as before patch 0027."""
+
+    def __init__(self, filter_present=True):
+        super().__init__({})
+        self.mode = ALLOW_MODE
+        self.modes_set = []
+        self.filter_present = filter_present
+        self.owner = "b"
+
+    def navigate_url(self, url, wait=None):
+        self.log.append(url)
+        self.url = url
+        return {"url": url, "error": None}
+
+    def evaluate(self, expression, await_promise=False, user_gesture=False):
+        if "__probeRules" in expression:
+            return {"broad_cookie": None, "broad_session": None, "first_party": None}
+        if "__probeGet" in expression:
+            rule_active = self.mode == ALLOW_MODE or not self.filter_present
+            return {"broad_session": "session_only" if rule_active else "allow", "first_party": "session_only"}
+        if "setPref" in expression:
+            self.mode = int(re.search(r"setPref\('[^']*',\s*(\d+)", expression).group(1))
+            self.modes_set.append(self.mode)
+            return True
+        if "window.__result" in expression:
+            if "cookie_top.html" in self.url:
+                return {"cookie": "tp=1; tps=1", "echo": "tp=1; tps=1"}
+            owner = self.url.split("site=")[1].split(".")[0]
+            seen = self.mode == ALLOW_MODE or owner == "c" or (owner == "b" and not self.filter_present)
+            return {"cookie": "tp=1" if seen else "", "echo": "tp=1" if seen else ""}
+        return None
 
 
 import unittest.mock  # noqa: E402  (used above through unittest.mock.patch)
