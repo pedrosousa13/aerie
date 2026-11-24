@@ -1144,6 +1144,10 @@ fn domain_scoped_empty_pattern_exceptions_are_kept_and_unscoped_ones_dropped() {
         "@@$domain=a.example,generichide",
         "@@$generichide,domain=~b.example|a.example",
         "@@$script,domain=a.example",
+        "@@*$image,domain=a.example",
+        "@@||$script,domain=a.example",
+        // `adblock` reads `from=` as `domain=`; it matches option names in lower case only.
+        "@@$generichide,from=a.example",
     ] {
         let report = sanitize_list_report(format!("||ads.example^\n{kept}\n").as_bytes());
         assert!(report.ignored_exceptions.is_empty(), "{kept} was dropped");
@@ -1155,6 +1159,8 @@ fn domain_scoped_empty_pattern_exceptions_are_kept_and_unscoped_ones_dropped() {
         "@@$generichide,domain=",
         "@@*$image",
         "@@*$image,domain=~a.example",
+        "@@$generichide,from=~a.example",
+        "@@$generichide,DOMAIN=a.example",
     ] {
         let report = sanitize_list_report(format!("||ads.example^\n{dropped}\n").as_bytes());
         assert_eq!(report.ignored_exceptions, [dropped], "{dropped}");
@@ -1186,5 +1192,6 @@ fn scoped_network_exception_applies_only_on_its_site_and_is_not_match_all() {
         ))
     };
     assert!(!script("a.example"), "exception ignored on a.example");
+    assert!(!script("x.a.example"), "exception ignored on x.a.example");
     assert!(script("b.example"), "exception leaked to b.example");
 }

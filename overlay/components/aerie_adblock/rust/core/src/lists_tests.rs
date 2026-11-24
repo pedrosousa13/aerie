@@ -171,3 +171,13 @@ fn a_list_of_only_broad_exceptions_fails_the_check() {
         );
     }
 }
+
+#[test]
+fn a_domain_scoped_empty_pattern_exception_is_kept_and_an_unscoped_one_is_counted() {
+    let scoped = "||real.test^\n@@$generichide,domain=a.example\n";
+    let check = check_list(scoped.as_bytes(), BUDGET).unwrap();
+    assert_eq!(check.ignored_exceptions, 0);
+    let unscoped = "||real.test^\n@@$generichide\n";
+    let check = check_list(unscoped.as_bytes(), BUDGET).unwrap();
+    assert_eq!(check.ignored_exceptions, 1);
+}

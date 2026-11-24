@@ -198,28 +198,42 @@ pub(crate) fn parse_options() -> ParseOptions {
 /// This only knows the empty forms. `is_ignored_exception` also catches
 /// the rules that match every URL by another pattern.
 pub(crate) fn is_match_all_exception(line: &str) -> bool {
-    let Some(rest) = line.strip_prefix("@@") else {
+    let Some(rule) = line.strip_prefix("@@") else {
         return false;
     };
-    let pattern = rest.split('$').next().unwrap_or("").trim();
-    matches!(pattern, "" | "*" | "|" | "||" | "^") && !has_positive_domain_option(rest)
+    let pattern = rule.split('$').next().unwrap_or("").trim();
+    matches!(pattern, "" | "*" | "|" | "||" | "^") && !has_positive_domain_option(rule)
 }
 
-/// True when the option list (after the last `$`) has a `domain=` option
-/// that names at least one domain without a leading `~`.
-fn has_positive_domain_option(rest: &str) -> bool {
-    let Some((_, options)) = rest.rsplit_once('$') else {
+/// True when the option list has a `domain=` option (or its `from=` alias)
+/// that names at least one domain without a leading `~`. `adblock` matches
+/// option names exactly and in lower case only, so this does too.
+fn has_positive_domain_option(line: &str) -> bool {
+    let (_, Some(options)) = split_options(line) else {
         return false;
     };
     options
         .split(',')
-        .filter_map(|option| option.trim().strip_prefix("domain="))
+        .filter_map(|option| {
+            option
+                .strip_prefix("domain=")
+                .or_else(|| option.strip_prefix("from="))
+        })
         .any(|domains| {
             domains
                 .split('|')
-                .map(str::trim)
                 .any(|d| !d.is_empty() && !d.starts_with('~'))
         })
+}
+
+/// Splits a network rule (the `@@` already cut off) into its pattern and its
+/// `$options`. Options follow the last `$` and never contain a `/`; without
+/// them the whole line is the pattern.
+fn split_options(line: &str) -> (&str, Option<&str>) {
+    match line.rfind('$') {
+        Some(i) if !line[i + 1..].contains('/') => (&line[..i], Some(&line[i + 1..])),
+        _ => (line, None),
+    }
 }
 
 /// Addresses that no real exception rule should cover: the `.invalid` top
@@ -268,11 +282,7 @@ const PROBE_KINDS: [RequestKind; 12] = [
 fn regex_pattern(line: &str) -> Option<&str> {
     let line = line.trim();
     let line = line.strip_prefix("@@").unwrap_or(line);
-    // Options follow the last `$`, and never contain a `/`.
-    let body = match line.rfind('$') {
-        Some(i) if !line[i + 1..].contains('/') => &line[..i],
-        _ => line,
-    };
+    let (body, _) = split_options(line);
     let inner = body.strip_prefix('/')?.strip_suffix('/')?;
     (!inner.is_empty()).then_some(inner)
 }
