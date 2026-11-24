@@ -81,6 +81,11 @@ class FilterEngineService::Host {
                    << " exception rule(s) that match every address were "
                       "ignored when the lists were compiled";
     }
+    if (result.failure == ListFailure::kNone && result.dropped_regex_rules > 0) {
+      LOG(WARNING) << "aerie_adblock: " << result.dropped_regex_rules
+                   << " regex rule(s) that are too big or too many were "
+                      "dropped when the lists were compiled";
+    }
     return result;
   }
 

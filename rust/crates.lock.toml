@@ -8,7 +8,7 @@ chromium_version = "158.0.8127.36"
 adblock = "0.13.4"
 # Hashes of the files this was resolved against: Cargo.toml as the Aerie patch leaves it,
 # Cargo.lock as Chromium ships it (without checksum lines).
-cargo_toml_sha256 = "2f4d526a58cf42e3e940690d0b00bfd0bb4c64f16f4a50fedd5fcff70b2d028b"
+cargo_toml_sha256 = "a5738b10ce94237d1016e1b0a135aa3a02db0021ed8249922c147d1ad32f3187"
 cargo_lock_sha256 = "0f78b8ef445420ae905483904365e9b0350117459735d14b6cec02866a070c7d"
 
 [[package]]

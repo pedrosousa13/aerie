@@ -22,3 +22,5 @@ publish = false
 [workspace.dependencies]
 adblock = { version = "=0.13.4", default-features = false, features = ["full-regex-handling", "single-thread"] }
 cxx = "1"
+# Same major as the regex that adblock uses; the core bounds regex rules with it.
+regex = { version = "1", default-features = false, features = ["std", "unicode"] }

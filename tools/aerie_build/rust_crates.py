@@ -338,6 +338,7 @@ def check_gnrt_config(text: str) -> None:
       which also leaves it off chrome://credits;
     * flatbuffers without build.rs: it turns on nightly features under Chromium's rustc, which
       Chromium forbids;
+    * regex open to first-party code: aerie_adblock_core compiles /regex/ rules with it to bound them;
     * thiserror v1 and v2 configured apart: only v2's build script writes private.rs;
     * aho-corasick allowed `unsafe`: regex's default features build it, its `Automaton`
       trait is `unsafe`, and upstream's `false` was never compiled.
@@ -350,6 +351,9 @@ def check_gnrt_config(text: str) -> None:
         if crates.get(name, {}).get("group") != "safe":
             raise CratesError(f"gnrt_config.toml: [crate.{name}] must have group = 'safe' "
                               "(patches/adblock/0003 not applied?)")
+    if crates.get("regex", {}).get("allow_first_party_usage") is not True:
+        raise CratesError("gnrt_config.toml: [crate.regex] must have allow_first_party_usage = true "
+                          "(aerie_adblock_core bounds /regex/ rules with it)")
     if crates.get("flatbuffers", {}).get("remove_build_rs") is not True:
         raise CratesError("gnrt_config.toml: [crate.flatbuffers] must have remove_build_rs = true")
     if crates.get("aho-corasick", {}).get("extra_kv", {}).get("allow_unsafe") is not True:

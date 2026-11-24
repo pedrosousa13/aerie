@@ -36,6 +36,7 @@ use adblock::request::Request;
 use std::collections::BTreeSet;
 use std::fmt;
 use std::sync::Once;
+use std::time::{Duration, Instant};
 
 /// Longest filter list text accepted, in bytes. EasyList and EasyPrivacy
 /// together are well under 10 MiB. A bigger input is refused whole.
@@ -44,6 +45,19 @@ pub const MAX_LIST_BYTES: usize = 32 * 1024 * 1024;
 /// Longest single line kept, in bytes. Longer lines are dropped before
 /// parsing, so one hostile line cannot make the parser or a regex big.
 pub const MAX_LINE_BYTES: usize = 8 * 1024;
+
+/// Largest compiled size a `/regex/` rule may have, in bytes. A rule that
+/// does not compile within it is dropped. Real list regexes compile to a few
+/// KiB at most; `/(?:a{1000}){500}/` needs hundreds of MiB.
+pub const MAX_REGEX_COMPILED_BYTES: usize = 64 * 1024;
+
+/// Most `/regex/` rules kept from one list. The rest are dropped. EasyList
+/// carries a few hundred.
+pub const MAX_REGEX_RULES: usize = 4_096;
+
+/// How long `sanitize_list` may run before it stops and drops the rest of the
+/// list.
+pub const SANITIZE_BUDGET: Duration = Duration::from_secs(10);
 
 /// Longest selector kept, in bytes.
 pub const MAX_SELECTOR_BYTES: usize = 2 * 1024;
@@ -215,6 +229,56 @@ const PROBE_KINDS: [RequestKind; 12] = [
     RequestKind::Object,
 ];
 
+/// The pattern of a `/regex/` network rule (the `@@` and the `$options` cut
+/// off, the slashes too), or `None` for any other line.
+fn regex_pattern(line: &str) -> Option<&str> {
+    let line = line.trim();
+    let line = line.strip_prefix("@@").unwrap_or(line);
+    // Options follow the last `$`, and never contain a `/`.
+    let body = match line.rfind('$') {
+        Some(i) if !line[i + 1..].contains('/') => &line[..i],
+        _ => line,
+    };
+    let inner = body.strip_prefix('/')?.strip_suffix('/')?;
+    (!inner.is_empty()).then_some(inner)
+}
+
+/// Does the regex compile within `MAX_REGEX_COMPILED_BYTES`? Case folding is
+/// on because that is how a rule without `$match-case` is matched, and it is
+/// the larger program.
+fn regex_is_bounded(pattern: &str) -> bool {
+    regex::RegexBuilder::new(pattern)
+        .case_insensitive(true)
+        .size_limit(MAX_REGEX_COMPILED_BYTES)
+        .dfa_size_limit(MAX_REGEX_COMPILED_BYTES * 16)
+        .nest_limit(50)
+        .build()
+        .is_ok()
+}
+
+/// Keeps `/regex/` rules of one list inside bounds: each must compile small,
+/// and there are at most `MAX_REGEX_RULES`. Both `sanitize_list_report_with`
+/// and `check_list` use it, so the report and the engine agree.
+#[derive(Default)]
+pub(crate) struct RegexGate {
+    admitted: usize,
+}
+
+impl RegexGate {
+    /// False when `line` is a regex rule that must be dropped. Any other
+    /// line is true. This runs before any code compiles the line.
+    pub(crate) fn admit(&mut self, line: &str) -> bool {
+        let Some(pattern) = regex_pattern(line) else {
+            return true;
+        };
+        if self.admitted >= MAX_REGEX_RULES || !regex_is_bounded(pattern) {
+            return false;
+        }
+        self.admitted += 1;
+        true
+    }
+}
+
 /// Does this exception rule apply to arbitrary addresses?
 ///
 /// It tests the effect, not the pattern text: the rule is compiled alone,
@@ -226,6 +290,9 @@ const PROBE_KINDS: [RequestKind; 12] = [
 ///
 /// A host-anchored rule (`@@||host...`) needs a literal first character
 /// and is not tested: it is scoped by its host.
+///
+/// The caller passes a `/regex/` exception through `RegexGate` first, so the
+/// compile here is of a regex that is already known to be small.
 pub(crate) fn exception_matches_every_address(line: &str) -> bool {
     let Some(rest) = line.trim().strip_prefix("@@") else {
         return false;
@@ -498,6 +565,12 @@ pub struct SanitizedList {
     /// The exception rules that were left out because they match every
     /// address (at most `MAX_REPORTED_RULES`, each cut to `MAX_LINE_BYTES`).
     pub ignored_exceptions: Vec<String>,
+    /// How many `/regex/` rules were dropped: too big to compile within
+    /// `MAX_REGEX_COMPILED_BYTES`, or past `MAX_REGEX_RULES`.
+    pub dropped_regex_rules: usize,
+    /// True when `SANITIZE_BUDGET` ran out and the rest of the text was
+    /// dropped.
+    pub timed_out: bool,
 }
 
 /// Most ignored rules kept in a report, so a hostile list cannot make the
@@ -528,12 +601,34 @@ pub fn sanitize_list_report(bytes: &[u8]) -> SanitizedList {
 
 /// `sanitize_list_report` with the line limit given by the caller.
 pub fn sanitize_list_report_with(bytes: &[u8], max_line_bytes: usize) -> SanitizedList {
+    sanitize_list_report_until(bytes, max_line_bytes, Instant::now() + SANITIZE_BUDGET)
+}
+
+/// `sanitize_list_report_with` that stops at `deadline`: the lines after it
+/// are dropped. The clock is read on every line, because one line can be a
+/// regex.
+pub(crate) fn sanitize_list_report_until(
+    bytes: &[u8],
+    max_line_bytes: usize,
+    deadline: Instant,
+) -> SanitizedList {
     let text = String::from_utf8_lossy(bytes);
     let mut out = String::with_capacity(text.len());
     let mut ignored_exceptions = Vec::new();
+    let mut gate = RegexGate::default();
+    let mut dropped_regex_rules = 0;
+    let mut timed_out = false;
     for line in text.split('\n') {
+        if Instant::now() >= deadline {
+            timed_out = true;
+            break;
+        }
         let line = line.trim_end_matches('\r');
         if line.len() > max_line_bytes || line.contains('\0') {
+            continue;
+        }
+        if !gate.admit(line) {
+            dropped_regex_rules += 1;
             continue;
         }
         if is_ignored_exception(line) {
@@ -553,6 +648,8 @@ pub fn sanitize_list_report_with(bytes: &[u8], max_line_bytes: usize) -> Sanitiz
     SanitizedList {
         text: out,
         ignored_exceptions,
+        dropped_regex_rules,
+        timed_out,
     }
 }
 

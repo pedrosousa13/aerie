@@ -189,6 +189,8 @@ ListCheck CheckList(base::span<const uint8_t> text, base::TimeDelta budget) {
         std::min<uint32_t>(report.network_rules, 100'000'000));
     check.ignored_exceptions = static_cast<int>(
         std::min<uint32_t>(report.ignored_exceptions, 100'000'000));
+    check.dropped_regex_rules = static_cast<int>(
+        std::min<uint32_t>(report.dropped_regex_rules, 100'000'000));
     check.title = std::string(report.title);
   }
   return check;
@@ -227,6 +229,7 @@ BuildResult AdblockEngine::LoadLists(const std::vector<std::string>& lists,
     return result;
   }
   result.ignored_exceptions = report.ignored_exceptions;
+  result.dropped_regex_rules = report.dropped_regex_rules;
   if (has_custom) {
     BuildReport custom_report =
         custom_builder->build_into(BudgetMs(budget), *custom_only);
@@ -235,6 +238,7 @@ BuildResult AdblockEngine::LoadLists(const std::vector<std::string>& lists,
       result.failure = FromRust(custom_report.status);
       result.failed_index = 0;
       result.ignored_exceptions = 0;
+      result.dropped_regex_rules = 0;
       return result;
     }
   }

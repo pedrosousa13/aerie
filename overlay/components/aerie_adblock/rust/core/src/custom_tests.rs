@@ -247,8 +247,11 @@ fn hostile_input_is_handled_in_the_time_budget() {
     .unwrap()
     .0;
     assert!(blocks(&engine, "real.test", RequestKind::Script));
+    // The nested regex is small, so it is kept and works. (Before regex rules
+    // were bounded, the one invalid regex above made `adblock` lose every
+    // regex rule in the list, and this host was not blocked by accident.)
     let long_host = format!("{}.test", "a".repeat(200));
-    assert!(!blocks(&engine, &long_host, RequestKind::Script));
+    assert!(blocks(&engine, &long_host, RequestKind::Script));
     assert!(
         started.elapsed() < Duration::from_secs(20),
         "{:?}",

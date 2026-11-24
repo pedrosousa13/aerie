@@ -65,6 +65,9 @@ mod ffi {
         network_rules: u32,
         /// Exception rules left out because they match every address.
         ignored_exceptions: u32,
+        /// `/regex/` rules left out because they compile too big or the list
+        /// has too many.
+        dropped_regex_rules: u32,
         /// The list's own title, or "".
         title: String,
     }
@@ -77,6 +80,8 @@ mod ffi {
         /// Exception rules left out of all the lists because they match
         /// every address.
         ignored_exceptions: u32,
+        /// `/regex/` rules left out of all the lists (too big, or too many).
+        dropped_regex_rules: u32,
     }
 
     /// Why the user's own rules were refused whole. Mirrors
@@ -218,12 +223,14 @@ fn check_list(list: &[u8], budget_ms: u32) -> ListReport {
             status: ListStatus::Ok,
             network_rules: u32::try_from(check.network_rules).unwrap_or(u32::MAX),
             ignored_exceptions: u32::try_from(check.ignored_exceptions).unwrap_or(u32::MAX),
+            dropped_regex_rules: count(check.dropped_regex_rules),
             title: check.title.unwrap_or_default(),
         },
         Err(e) => ListReport {
             status: status_from_error(e),
             network_rules: 0,
             ignored_exceptions: 0,
+            dropped_regex_rules: 0,
             title: String::new(),
         },
     }
@@ -306,16 +313,19 @@ impl EngineBuilder {
             Ok((built, checks)) => {
                 engine.0 = built;
                 let ignored: usize = checks.iter().map(|c| c.ignored_exceptions).sum();
+                let dropped_regex: usize = checks.iter().map(|c| c.dropped_regex_rules).sum();
                 BuildReport {
                     status: ListStatus::Ok,
                     failed_index: 0,
                     ignored_exceptions: u32::try_from(ignored).unwrap_or(u32::MAX),
+                    dropped_regex_rules: count(dropped_regex),
                 }
             }
             Err((index, e)) => BuildReport {
                 status: status_from_error(e),
                 failed_index: u32::try_from(index).unwrap_or(u32::MAX),
                 ignored_exceptions: 0,
+                dropped_regex_rules: 0,
             },
         }
     }
@@ -424,6 +434,19 @@ mod tests {
         assert_eq!(r.status, ListStatus::Ok);
         assert_eq!(r.ignored_exceptions, 2);
         assert_eq!(check_list(b"||ads.example^\n", 1000).ignored_exceptions, 0);
+    }
+
+    #[test]
+    fn check_list_and_build_report_dropped_regex_rules() {
+        let list = b"||ads.example^\n/(?:a{1000}){500}/$script\n@@/(x+){1000}{1000}/\n/ok-[0-9]+/\n";
+        let r = check_list(list, 5000);
+        assert_eq!((r.status, r.dropped_regex_rules), (ListStatus::Ok, 2));
+        let mut b = new_engine_builder();
+        b.add_list(list);
+        b.add_list(list);
+        let mut engine = new_empty_engine();
+        let r = b.build_into(5000, &mut engine);
+        assert_eq!((r.status, r.dropped_regex_rules), (ListStatus::Ok, 4));
     }
 
     #[test]

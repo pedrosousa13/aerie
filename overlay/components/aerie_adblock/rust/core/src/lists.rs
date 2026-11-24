@@ -20,7 +20,7 @@
 
 use crate::custom::MAX_CUSTOM_LINE_BYTES;
 use crate::{
-    FilterEngine, MAX_LINE_BYTES, MAX_LIST_BYTES, is_ignored_exception, parse_options,
+    FilterEngine, MAX_LINE_BYTES, MAX_LIST_BYTES, RegexGate, is_ignored_exception, parse_options,
     sanitize_list_with_line_limit,
 };
 use adblock::lists::{FilterSet, ParsedLine, parse_filter, read_list_metadata};
@@ -28,9 +28,6 @@ use std::time::{Duration, Instant};
 
 /// Longest list title kept, in bytes.
 const MAX_TITLE_BYTES: usize = 100;
-
-/// How many lines are parsed between two looks at the clock.
-const LINES_PER_TIME_CHECK: usize = 256;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum ListError {
@@ -68,6 +65,9 @@ pub struct ListCheck {
     /// Exception rules left out because they match every address. The list
     /// still works without them; the caller should warn about it.
     pub ignored_exceptions: usize,
+    /// `/regex/` rules left out because they compile too big, or because the
+    /// list has more than `MAX_REGEX_RULES`. The list still works without them.
+    pub dropped_regex_rules: usize,
     /// The list's own `! Title:` line, cut to a short length.
     pub title: Option<String>,
 }
@@ -88,8 +88,8 @@ fn cut_title(title: &str) -> String {
 }
 
 /// Decide whether `bytes` is a usable filter list. Never panics. The parse
-/// stops with `Timeout` once `budget` has passed; the clock is looked at every
-/// few hundred lines, so a list overruns by a few milliseconds at most.
+/// stops with `Timeout` once `budget` has passed; the clock is looked at on every
+/// line.
 pub fn check_list(bytes: &[u8], budget: Duration) -> Result<ListCheck, ListError> {
     check_list_until(bytes, Instant::now() + budget)
 }
@@ -121,11 +121,18 @@ pub(crate) fn check_list_with(
     }
     let mut network_rules = 0;
     let mut ignored_exceptions = 0;
-    for (i, line) in text.lines().enumerate() {
-        if i % LINES_PER_TIME_CHECK == 0 && Instant::now() >= deadline {
+    let mut dropped_regex_rules = 0;
+    let mut gate = RegexGate::default();
+    for line in text.lines() {
+        // Every line: a regex line is compiled, so it is not cheap.
+        if Instant::now() >= deadline {
             return Err(ListError::Timeout);
         }
         if line.len() > max_line_bytes || line.contains('\0') {
+            continue;
+        }
+        if !gate.admit(line) {
+            dropped_regex_rules += 1;
             continue;
         }
         if is_ignored_exception(line) {
@@ -146,6 +153,7 @@ pub(crate) fn check_list_with(
     Ok(ListCheck {
         network_rules,
         ignored_exceptions,
+        dropped_regex_rules,
         title,
     })
 }

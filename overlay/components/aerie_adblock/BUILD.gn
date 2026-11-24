@@ -39,7 +39,10 @@ rust_static_library("aerie_adblock_core") {
     "rust/core/src/protection_tests.rs",
     "rust/core/src/tests.rs",
   ]
-  deps = [ "//third_party/rust/adblock/v0_13:lib" ]
+  deps = [
+    "//third_party/rust/adblock/v0_13:lib",
+    "//third_party/rust/regex/v1:lib",
+  ]
   build_native_rust_unit_tests = true
 }
 

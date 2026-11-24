@@ -175,6 +175,20 @@ How it works:
   - While the engine loads from the serialized cache at startup, the custom-list engine is empty until the manager's
     rebuild finishes, so in Standard custom lists, `$important` rules included, do not judge first-party requests
     for that short time. A profile with custom lists always rebuilds.
+- **`/regex/` rules are bounded (issue #165).** A list can carry a hostile regex such as
+  `/(?:a{1000}){500}/$script`, and `adblock` compiles each one lazily and runs it on every request.
+  `sanitize_list` and `check_list` therefore compile each `/regex/` rule, `@@` ones too, with
+  `regex::RegexBuilder::size_limit` of 64 KiB (`MAX_REGEX_COMPILED_BYTES`) before anything else
+  does, and drop the rule when it does not compile. They keep at most 4096 regex rules per list
+  (`MAX_REGEX_RULES`; EasyList has a few hundred) and drop the rest. This runs for every list,
+  built-in ones too, because a built-in list can be replaced by a copy the publisher serves. The
+  regex probe of the exception test above only sees rules that passed this bound. `check_list`
+  reads the clock on every line, and `sanitize_list` has its own 10 s deadline
+  (`SANITIZE_BUDGET`); after it the rest of the text is dropped. `ListCheck::dropped_regex_rules`
+  counts the dropped rules and goes through the FFI (`ListReport` and `BuildReport`); the browser
+  logs a `LOG(WARNING)`. The filter page does not show it. One side effect to know: `adblock`
+  loses all regex rules of a list when one of them does not compile, so dropping the bad ones
+  also revives the good ones.
 - **Exception rules that match every address are ignored.** One `@@` rule with no scope can switch
   off every block for a type of request, for every site, with no error. The core drops a rule when
   it applies to arbitrary addresses. It tests the effect, not the text: the rule is compiled alone

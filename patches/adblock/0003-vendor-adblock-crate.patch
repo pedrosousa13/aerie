@@ -15,7 +15,7 @@ gen, and fails if the result differs from the lock or from the crates.io hashes
 
 --- a/third_party/rust/chromium_crates_io/Cargo.toml
 +++ b/third_party/rust/chromium_crates_io/Cargo.toml
-@@ -219,3 +219,12 @@
+@@ -219,3 +219,21 @@
  [dependencies.zune-jpeg]
  version = "=0.5.16-rc2"
  features = ["arith"]
@@ -28,6 +28,15 @@ gen, and fails if the result differs from the lock or from the crates.io hashes
 +version = "=0.13.4"
 +default-features = false
 +features = ["full-regex-handling", "single-thread"]
++
++# Aerie: aerie_adblock_core bounds the /regex/ rules of a filter list with
++# regex::RegexBuilder::size_limit (issue #165). gnrt makes a crate visible to
++# first-party code only when it is declared here. The resolver picks the same
++# regex as adblock, so this adds no crate.
++[dependencies.regex]
++version = "1"
++default-features = false
++features = ["std", "unicode"]
 --- a/third_party/rust/chromium_crates_io/gnrt_config.toml
 +++ b/third_party/rust/chromium_crates_io/gnrt_config.toml
 @@ -121,6 +121,15 @@
@@ -71,16 +80,19 @@ gen, and fails if the result differs from the lock or from the crates.io hashes
  [crate.flate2]
  ban_features = [
      # `any_zlib` feature is banned because Chromium does not use the `zlib`
-@@ -853,7 +871,7 @@
+@@ -853,8 +871,9 @@
  extra_kv = { allow_unsafe = false }
  
  [crate.regex]
 -group = 'test'
+-allow_first_party_usage = false
 +group = 'safe'  # Aerie: adblock needs it in the browser process. Linear-time matching.
- allow_first_party_usage = false
++# Aerie: aerie_adblock_core bounds the /regex/ rules of a filter list with it (issue #165).
++allow_first_party_usage = true
  extra_kv = { allow_unsafe = true }
  
-@@ -1047,7 +1065,11 @@
+ [crate.regex-automata.extra_kv]
+@@ -1047,7 +1066,11 @@
  [crate.termcolor.extra_kv]
  allow_unsafe = false
  
