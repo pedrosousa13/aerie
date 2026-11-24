@@ -31,6 +31,16 @@ Size ScreenSizeForWindow(int outer_width, int outer_height) {
   return {std::max(largest.width, width), std::max(largest.height, height)};
 }
 
+PointF EventScreenPoint(PointF point_in_page,
+                        Size reported_outer,
+                        Size reported_inner) {
+  const float chrome_width =
+      static_cast<float>(reported_outer.width - reported_inner.width);
+  const float chrome_height =
+      static_cast<float>(reported_outer.height - reported_inner.height);
+  return {point_in_page.x + chrome_width, point_in_page.y + chrome_height};
+}
+
 bool ShouldProtectScreen(const Policy& policy) {
   return policy.master_enabled && policy.surface_enabled && policy.has_token;
 }

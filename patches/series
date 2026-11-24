@@ -114,6 +114,8 @@ hardening/0020-restrict-fonts-to-an-allowlist.patch
 hardening/0024-key-fingerprinting-seeds-on-the-workspace.patch
 # Audio worklets and script processors read the audio before the noise (#157).
 hardening/0025-noise-the-audio-an-audio-worklet-and-a-script-processor-read.patch
+# The events of a protected window carry no real window position (#159).
+hardening/0026-report-the-masked-window-position-in-event-screen-coordinates.patch
 
 # Design Tokens (#174): the reduced-motion pref, its strings and its row on the Appearance page.
 sidebar/0001-add-the-reduced-motion-pref.patch

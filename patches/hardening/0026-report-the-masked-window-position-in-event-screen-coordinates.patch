@@ -1,0 +1,151 @@
+Aerie-Purpose: Give the mouse, pointer, wheel, drag, touch and simulated-click events of a protected window a screen point worked out from the reported window origin 0,0 (the client point plus outerWidth - innerWidth), so e.screenX - e.clientX cannot show the real window position or chrome offset (issue #159).
+Aerie-Upstream-Area: third_party/blink/renderer/core/events/mouse_event.cc (MouseEvent::SetCoordinatesFromWebPointerProperties, used by mouse, pointer, wheel and drag events), third_party/blink/renderer/core/input/touch_event_manager.cc (CreateDomTouch), third_party/blink/renderer/core/events/simulated_event_util.cc (PopulateMouseEventInitCoordinates), third_party/blink/renderer/core/frame/screen_masking.h
+Aerie-Kind: hook
+
+hardening/0015 reports the window position as 0,0 from screenX and screenY, but the events still
+carried the real screen point, so e.screenX - e.clientX on the first mousemove gave the window
+position plus the browser chrome, and the mismatch showed that protection was on. While
+IsScreenProtected is true for the event's window, the screen point is now
+aerie_screen::EventScreenPoint (components/aerie_screen, unit tested): the point in the page (the
+client point in CSS pixels, as clientX reads it, so the result is the same at every zoom) plus outerWidth - innerWidth and outerHeight - innerHeight, the
+values the page reads itself. Then e.screenX - e.clientX equals the page's own outer - inner offset
+whatever the window position. With protection off (site or global), no token reaches the window and
+the real values stay.
+
+MouseEvent::SetCoordinatesFromWebPointerProperties is the one place that builds the coordinates
+for MouseEvent, PointerEvent, WheelEvent and DragEvent (the mouse, pointer, wheel and drag
+dispatchers all call it), so those four change together. A Touch takes its screen point where the
+touch event manager makes it, from its client point the same way. An element's accessibility click takes its
+screen point from the element's place on the real screen; that path now takes it from the client point it
+has just set, after the zoom adjustment.
+Movement deltas (movementX, movementY) use differences of the real screen points and are not changed.
+
+--- a/third_party/blink/renderer/core/events/mouse_event.cc
++++ b/third_party/blink/renderer/core/events/mouse_event.cc
+@@ -33,6 +33,7 @@
+ #include "third_party/blink/renderer/core/frame/local_dom_window.h"
+ #include "third_party/blink/renderer/core/frame/local_frame.h"
+ #include "third_party/blink/renderer/core/frame/local_frame_view.h"
++#include "third_party/blink/renderer/core/frame/screen_masking.h"
+ #include "third_party/blink/renderer/core/html/canvas/html_canvas_element.h"
+ #include "third_party/blink/renderer/core/html/html_frame_element_base.h"
+ #include "third_party/blink/renderer/core/html/media/html_media_element.h"
+@@ -203,6 +204,7 @@
+   gfx::PointF client_point;
+   gfx::PointF screen_point = web_pointer_properties.PositionInScreen();
+   float inverse_zoom_factor = 1.0f;
++  const bool screen_protected = IsScreenProtected(dom_window);
+   if (dom_window && dom_window->GetFrame() && dom_window->GetFrame()->View()) {
+     LocalFrame* frame = dom_window->GetFrame();
+     gfx::PointF root_frame_point = web_pointer_properties.PositionInWidget();
+@@ -217,6 +219,15 @@
+         frame->View()->ConvertFromRootFrame(root_frame_point);
+     inverse_zoom_factor = 1.0f / frame->LayoutZoomFactor();
+     client_point = gfx::ScalePoint(frame_point, inverse_zoom_factor);
++    // Aerie (#159): a protected window reports its position as 0,0, so its
++    // events carry a screen point worked out from there, not the real one. It
++    // starts from the client point (CSS pixels, what clientX reads), so
++    // screenX - clientX is the same at every zoom.
++    if (screen_protected) {
++      screen_point = ProtectedEventScreenPoint(dom_window, client_point);
++    }
++  } else if (screen_protected) {
++    screen_point = gfx::PointF();
+   }
+ 
+   initializer->setScreenX(screen_point.x());
+--- a/third_party/blink/renderer/core/events/simulated_event_util.cc
++++ b/third_party/blink/renderer/core/events/simulated_event_util.cc
+@@ -20,6 +20,7 @@
+ #include "third_party/blink/renderer/core/frame/local_dom_window.h"
+ #include "third_party/blink/renderer/core/frame/local_frame.h"
+ #include "third_party/blink/renderer/core/frame/local_frame_view.h"
++#include "third_party/blink/renderer/core/frame/screen_masking.h"
+ #include "third_party/blink/renderer/core/input/input_device_capabilities.h"
+ #include "third_party/blink/renderer/core/layout/adjust_for_absolute_zoom.h"
+ #include "third_party/blink/renderer/core/layout/layout_box.h"
+@@ -73,6 +74,16 @@
+         frame_center_point.x(), layout_object));
+     initializer->setClientY(AdjustForAbsoluteZoom::AdjustInt(
+         frame_center_point.y(), layout_object));
++    // Aerie (#159): a protected window reports its position as 0,0, so the
++    // screen point is worked out from the client point just set (CSS pixels,
++    // already adjusted for the zoom), not from the real screen.
++    if (IsScreenProtected(dom_window)) {
++      const gfx::PointF screen_point = ProtectedEventScreenPoint(
++          dom_window,
++          gfx::PointF(initializer->clientX(), initializer->clientY()));
++      initializer->setScreenX(screen_point.x());
++      initializer->setScreenY(screen_point.y());
++    }
+   }
+ }
+ 
+--- a/third_party/blink/renderer/core/input/touch_event_manager.cc
++++ b/third_party/blink/renderer/core/input/touch_event_manager.cc
+@@ -17,6 +17,7 @@
+ #include "third_party/blink/renderer/core/frame/local_dom_window.h"
+ #include "third_party/blink/renderer/core/frame/local_frame.h"
+ #include "third_party/blink/renderer/core/frame/local_frame_view.h"
++#include "third_party/blink/renderer/core/frame/screen_masking.h"
+ #include "third_party/blink/renderer/core/html/canvas/html_canvas_element.h"
+ #include "third_party/blink/renderer/core/input/event_handling_util.h"
+ #include "third_party/blink/renderer/core/input/touch_action_util.h"
+@@ -213,9 +214,22 @@
+       gfx::SizeF(transformed_event.width / 2.f, transformed_event.height / 2.f),
+       scale_factor);
+ 
++  // Aerie (#159): a protected window reports its position as 0,0, so a touch
++  // carries a screen point worked out from there, not the real one.
++  gfx::PointF screen_point = transformed_event.PositionInScreen();
++  if (LocalDOMWindow* window = target_frame->DomWindow();
++      IsScreenProtected(window)) {
++    // Start from the client point in CSS pixels, as clientX reads it, so
++    // screenX - clientX is the same at every zoom.
++    screen_point = ProtectedEventScreenPoint(
++        window, gfx::ScalePoint(target_frame->View()->ConvertFromRootFrame(
++                                    transformed_event.PositionInWidget()),
++                                scale_factor));
++  }
++
+   return MakeGarbageCollected<Touch>(
+-      target_frame, touch_node, point_attr->event_.id,
+-      transformed_event.PositionInScreen(), document_point, adjusted_radius,
++      target_frame, touch_node, point_attr->event_.id, screen_point,
++      document_point, adjusted_radius,
+       transformed_event.rotation_angle, transformed_event.force);
+ }
+ 
+--- a/third_party/blink/renderer/core/frame/screen_masking.h
++++ b/third_party/blink/renderer/core/frame/screen_masking.h
+@@ -16,6 +16,7 @@
+ #include "third_party/blink/renderer/core/frame/local_frame.h"
+ #include "third_party/blink/renderer/core/page/chrome_client.h"
+ #include "third_party/blink/renderer/core/page/page.h"
++#include "ui/gfx/geometry/point_f.h"
+ 
+ namespace blink {
+ 
+@@ -52,6 +53,22 @@
+   return aerie_screen::ScreenSizeForWindow(window.width(), window.height());
+ }
+ 
++// The screen point that a mouse, pointer, touch or drag event of a protected
++// window carries (Aerie, issue #159). The window reports its position as 0,0,
++// so the event's point is `point_in_page` (the client point in CSS pixels, as
++// clientX reads it) plus the difference between the outerWidth and innerWidth
++// the page reads. Then screenX - clientX matches the page's own outer - inner
++// at every zoom, and the real window position and the real screen never reach
++// the page through an event.
++inline gfx::PointF ProtectedEventScreenPoint(const LocalDOMWindow* window,
++                                             const gfx::PointF& point_in_page) {
++  const aerie_screen::PointF point = aerie_screen::EventScreenPoint(
++      {point_in_page.x(), point_in_page.y()},
++      {window->outerWidth(), window->outerHeight()},
++      {window->innerWidth(), window->innerHeight()});
++  return gfx::PointF(point.x, point.y);
++}
++
+ }  // namespace blink
+ 
+ #endif  // THIRD_PARTY_BLINK_RENDERER_CORE_FRAME_SCREEN_MASKING_H_
