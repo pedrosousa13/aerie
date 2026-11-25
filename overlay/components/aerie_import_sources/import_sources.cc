@@ -6,6 +6,7 @@
 
 #include <set>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -40,19 +41,20 @@ std::vector<ExtraChromiumSource> ExtraChromiumSources(
     return sources;
   }
   for (const KnownBrowser& browser : KnownBrowsers()) {
-    if (browser.flatpak_app_id.empty() || browser.flatpak_data_folder.empty()) {
-      continue;
+    if (!browser.flatpak_app_id.empty() && !browser.flatpak_data_folder.empty()) {
+      sources.push_back({browser.names.front() + kFlatpakSuffix,
+                         home.Append(".var/app")
+                             .AppendASCII(browser.flatpak_app_id)
+                             .Append("config")
+                             .Append(browser.flatpak_data_folder),
+                         browser.flatpak_importer_type});
     }
-    sources.push_back({browser.names.front() + kFlatpakSuffix,
-                       home.Append(".var/app")
-                           .AppendASCII(browser.flatpak_app_id)
-                           .Append("config")
-                           .Append(browser.flatpak_data_folder),
-                       browser.flatpak_importer_type});
+    if (!browser.native_data_folder.empty()) {
+      sources.push_back({browser.names.front(),
+                         home.Append(browser.native_data_folder),
+                         browser.native_importer_type});
+    }
   }
-  // Helium keeps a Chromium profile in its own folder. Its importer type is Chrome's.
-  sources.push_back({"Helium", home.Append(".config/net.imput.helium"),
-                     user_data_importer::TYPE_CHROME});
   return sources;
 }
 
@@ -61,12 +63,14 @@ void NormalizeSources(
     std::vector<user_data_importer::SourceProfile>* profiles) {
   const base::FilePath flatpak_root = Canonical(home).Append(".var/app");
   const std::u16string suffix = base::UTF8ToUTF16(std::string(kFlatpakSuffix));
-  std::set<std::pair<int, base::FilePath>> seen;
+  // A profile is its importer type, its folder (symlinks resolved) and its name.
+  std::set<std::tuple<int, base::FilePath, std::u16string>> seen;
   std::vector<user_data_importer::SourceProfile> kept;
   for (auto& profile : *profiles) {
     if (!profile.source_path.empty()) {
       const base::FilePath folder = Canonical(profile.source_path);
-      if (!seen.insert({static_cast<int>(profile.importer_type), folder})
+      if (!seen.insert({static_cast<int>(profile.importer_type), folder,
+                        profile.profile})
                .second) {
         continue;
       }

@@ -4,6 +4,7 @@
 
 #include "components/aerie_import_sources/import_sources.h"
 
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -147,6 +148,38 @@ TEST_F(NormalizeSourcesTest, DifferentFoldersOrTypesAreKeptAndOrderIsKept) {
   EXPECT_EQ(profiles[2].profile, u"Two");
 }
 
+TEST_F(NormalizeSourcesTest, TwoProfilesInOneFolderAreTwoRows) {
+  // Upstream gives each profile its own folder (<user data>/Default, <user data>/Profile 1), so this
+  // does not happen today; the key still has to be the profile, not only the folder.
+  const auto folder = Dir(".config/chromium/Default");
+  std::vector<user_data_importer::SourceProfile> profiles = {
+      Source(u"Chromium", user_data_importer::TYPE_CHROME, folder, u"Work"),
+      Source(u"Chromium", user_data_importer::TYPE_CHROME, folder, u"Home"),
+  };
+  NormalizeSources(home_, &profiles);
+  ASSERT_EQ(profiles.size(), 2u);
+  EXPECT_EQ(profiles[0].profile, u"Work");
+  EXPECT_EQ(profiles[1].profile, u"Home");
+}
+
+TEST_F(NormalizeSourcesTest, ASymlinkedCopyOfAFolderKeepsOneRowPerProfile) {
+  const auto real = Dir(".config/chromium");
+  ASSERT_TRUE(base::CreateDirectory(real.AppendASCII("Default")));
+  ASSERT_TRUE(base::CreateDirectory(real.AppendASCII("Profile 1")));
+  ASSERT_TRUE(base::CreateSymbolicLink(real, home_.AppendASCII("chromium-link")));
+  const auto link = home_.AppendASCII("chromium-link");
+  std::vector<user_data_importer::SourceProfile> profiles = {
+      Source(u"Chromium", user_data_importer::TYPE_CHROME, real.AppendASCII("Default"), u"One"),
+      Source(u"Chromium", user_data_importer::TYPE_CHROME, real.AppendASCII("Profile 1"), u"Two"),
+      Source(u"Chromium", user_data_importer::TYPE_CHROME, link.AppendASCII("Default"), u"One"),
+      Source(u"Chromium", user_data_importer::TYPE_CHROME, link.AppendASCII("Profile 1"), u"Two"),
+  };
+  NormalizeSources(home_, &profiles);
+  ASSERT_EQ(profiles.size(), 2u);
+  EXPECT_EQ(profiles[0].profile, u"One");
+  EXPECT_EQ(profiles[1].profile, u"Two");
+}
+
 TEST_F(NormalizeSourcesTest, RowsWithoutAFolderAreKept) {
   std::vector<user_data_importer::SourceProfile> profiles = {
       Source(u"Bookmarks HTML file", user_data_importer::TYPE_BOOKMARKS_FILE,
@@ -199,6 +232,10 @@ TEST(ExtraChromiumSourcesTest, FlatpakChromiumFamilyAndHelium) {
 
   const auto* helium = find("Helium");
   ASSERT_TRUE(helium);
+  // Listed once: the Helium entry of the browser table is the only place that says where it lives.
+  EXPECT_EQ(std::count_if(sources.begin(), sources.end(),
+                          [](const auto& s) { return s.brand == "Helium"; }),
+            1);
   EXPECT_EQ(helium->user_data_folder,
             base::FilePath("/h/.config/net.imput.helium"));
   EXPECT_EQ(helium->importer_type, user_data_importer::TYPE_CHROME);

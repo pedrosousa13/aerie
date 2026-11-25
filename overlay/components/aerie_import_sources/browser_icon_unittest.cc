@@ -196,6 +196,84 @@ TEST_F(BrowserIconTest, FollowsFlatpakExportsIntoTheInstallationsAppDirectory) {
             FakePng("exported"));
 }
 
+TEST_F(BrowserIconTest, AnExportsShareDirectoryNamedByChanceDoesNotWidenTheRoots) {
+  // <tmp>/exports/share: the directory names look like a Flatpak export directory, but it is not
+  // <install>/flatpak/exports/share with an app directory, so <tmp> must not become a root.
+  const base::FilePath share = dir_.GetPath().AppendASCII("exports/share");
+  Write(dir_.GetPath().AppendASCII("secret.png"), FakePng("secret"));
+  WriteDesktop(share, "zen", "Icon=" + dir_.GetPath().AppendASCII("secret.png").value());
+  EXPECT_EQ(BrowserIconDataUrl({share}, {"zen"}), "");
+}
+
+TEST_F(BrowserIconTest, ADirectoryNamedFlatpakWithoutAnAppDirectoryDoesNotWidenTheRoots) {
+  const base::FilePath install = dir_.GetPath().AppendASCII("flatpak");
+  const base::FilePath share = install.AppendASCII("exports/share");
+  Write(install.AppendASCII("secret.png"), FakePng("secret"));
+  WriteDesktop(share, "zen", "Icon=" + install.AppendASCII("secret.png").value());
+  EXPECT_EQ(BrowserIconDataUrl({share}, {"zen"}), "");
+}
+
+TEST_F(BrowserIconTest, TheFlatpakAppDirectoryIsReachableButItsSiblingsAreNot) {
+  const base::FilePath install = dir_.GetPath().AppendASCII("flatpak");
+  const base::FilePath share = install.AppendASCII("exports/share");
+  ASSERT_TRUE(base::CreateDirectory(install.AppendASCII("app")));
+  Write(install.AppendASCII("repo/secret.png"), FakePng("secret"));
+  WriteDesktop(share, "zen", "Icon=" + install.AppendASCII("repo/secret.png").value());
+  EXPECT_EQ(BrowserIconDataUrl({share}, {"zen"}), "");
+  Write(install.AppendASCII("app/org.x/icon.png"), FakePng("app"));
+  WriteDesktop(share, "x", "Icon=" + install.AppendASCII("app/org.x/icon.png").value());
+  EXPECT_EQ(Decoded(BrowserIconDataUrl({share}, {"x"})), FakePng("app"));
+}
+
+// The same symlink rules hold when openat2() is not used (an older kernel, or a sandbox that blocks it).
+class BrowserIconWithoutOpenat2Test : public BrowserIconTest {
+ protected:
+  void SetUp() override {
+    BrowserIconTest::SetUp();
+    SetOpenat2DisabledForTesting(true);
+  }
+  void TearDown() override { SetOpenat2DisabledForTesting(false); }
+};
+
+TEST_F(BrowserIconWithoutOpenat2Test, SymlinksInsideAreFollowedAndOutsideRefused) {
+  WriteDesktop(share_, "chromium", "Icon=chromium");
+  Write(share_.AppendASCII("pixmaps/real.png"), FakePng("linked"));
+  ASSERT_TRUE(base::CreateDirectory(share_.AppendASCII("icons/hicolor/64x64/apps")));
+  ASSERT_TRUE(base::CreateSymbolicLink(
+      share_.AppendASCII("pixmaps/real.png"),
+      share_.AppendASCII("icons/hicolor/64x64/apps/chromium.png")));
+  EXPECT_EQ(Decoded(BrowserIconDataUrl({share_}, {"chromium"})), FakePng("linked"));
+
+  const base::FilePath secret = dir_.GetPath().AppendASCII("secret.png");
+  Write(secret, FakePng("secret"));
+  ASSERT_TRUE(base::DeleteFile(share_.AppendASCII("icons/hicolor/64x64/apps/chromium.png")));
+  ASSERT_TRUE(base::DeleteFile(share_.AppendASCII("pixmaps/real.png")));
+  ASSERT_TRUE(base::CreateSymbolicLink(
+      secret, share_.AppendASCII("icons/hicolor/64x64/apps/chromium.png")));
+  EXPECT_EQ(BrowserIconDataUrl({share_}, {"chromium"}), "");
+}
+
+TEST_F(BrowserIconTest, FilesAreOpenedWithOpenat2WhereTheKernelHasIt) {
+  // Linux 5.6 or later; skipped (not passed) where it is missing, so a fallback-only run shows.
+  if (!Openat2Usable()) {
+    GTEST_SKIP() << "openat2 is not available here; the O_NOFOLLOW fallback is in use";
+  }
+  WriteDesktop(share_, "chromium", "Icon=chromium");
+  WriteThemeIcon(share_, "hicolor", "64x64", "chromium", FakePng("o"));
+  EXPECT_EQ(Decoded(BrowserIconDataUrl({share_}, {"chromium"})), FakePng("o"));
+}
+
+TEST_F(BrowserIconTest, OneResolverAnswersForSeveralBrowsers) {
+  WriteDesktop(share_, "chromium", "Icon=chromium");
+  WriteThemeIcon(share_, "hicolor", "64x64", "chromium", FakePng("c"));
+  WriteDesktop(share_, "firefox", "Icon=firefox");
+  WriteThemeIcon(share_, "hicolor", "64x64", "firefox", FakePng("f"));
+  const IconResolver resolver({share_});
+  EXPECT_EQ(Decoded(resolver.DataUrlFor({"chromium"})), FakePng("c"));
+  EXPECT_EQ(Decoded(resolver.DataUrlFor({"firefox"})), FakePng("f"));
+  EXPECT_EQ(resolver.DataUrlFor({"zen"}), "");
+}
+
 TEST_F(BrowserIconTest, ADirectoryNamedLikeAnIconIsNotAnIcon) {
   WriteDesktop(share_, "chromium", "Icon=chromium");
   ASSERT_TRUE(base::CreateDirectory(

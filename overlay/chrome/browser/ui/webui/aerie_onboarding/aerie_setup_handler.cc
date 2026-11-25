@@ -31,9 +31,10 @@ constexpr size_t kMaxIconNameLength = 100;
 base::DictValue ResolveIcons(std::vector<base::FilePath> data_dirs,
                              std::vector<std::string> names) {
   base::DictValue icons;
+  const aerie_import_sources::IconResolver resolver(std::move(data_dirs));
   for (const std::string& name : names) {
-    std::string url = aerie_import_sources::BrowserIconDataUrl(
-        data_dirs, aerie_import_sources::DesktopIdsForBrowser(name));
+    std::string url = resolver.DataUrlFor(
+        aerie_import_sources::DesktopIdsForBrowser(name));
     if (!url.empty()) {
       icons.Set(name, std::move(url));
     }

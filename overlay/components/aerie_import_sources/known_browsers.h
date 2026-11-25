@@ -31,6 +31,11 @@ struct KnownBrowser {
   std::string flatpak_data_folder;
   user_data_importer::ImporterType flatpak_importer_type =
       user_data_importer::TYPE_UNKNOWN;
+  // A native install that Chromium's importer list does not know (Helium): its user data folder
+  // under <home>, and the importer type that reads it. Empty: the importer finds it already.
+  std::string native_data_folder;
+  user_data_importer::ImporterType native_importer_type =
+      user_data_importer::TYPE_UNKNOWN;
 };
 
 const std::vector<KnownBrowser>& KnownBrowsers();

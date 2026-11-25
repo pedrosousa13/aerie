@@ -31,6 +31,14 @@ KnownBrowser Make(std::vector<std::string> names,
   return browser;
 }
 
+// Helium has no importer type of its own: its profile has Chromium's format, so it imports as Chrome.
+KnownBrowser HeliumEntry() {
+  KnownBrowser helium = Make({"Helium"}, {"helium", "net.imput.helium"});
+  helium.native_data_folder = ".config/net.imput.helium";
+  helium.native_importer_type = user_data_importer::TYPE_CHROME;
+  return helium;
+}
+
 }  // namespace
 
 const std::vector<KnownBrowser>& KnownBrowsers() {
@@ -56,7 +64,7 @@ const std::vector<KnownBrowser>& KnownBrowsers() {
                user_data_importer::TYPE_OPERA),
           Make({"Yandex"}, {"yandex-browser", "yandex-browser-beta"}),
           Make({"NAVER Whale"}, {"naver-whale", "naver-whale-stable"}),
-          Make({"Helium"}, {"helium", "net.imput.helium"}),
+          HeliumEntry(),
           // The importer names Firefox "Mozilla Firefox" when it cannot read application.ini.
           Make({"Firefox", "Mozilla Firefox"},
                {"firefox", "firefox-esr", "org.mozilla.firefox"},
