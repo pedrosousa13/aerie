@@ -1,5 +1,5 @@
 Aerie-Purpose: Remove the Helium services app menu item, its menu icon nag, the download bubble link and summary for disabled extension downloads, and the status string that named Helium services on chrome://components.
-Aerie-Upstream-Area: chrome/browser/ui/toolbar (app_menu_model, app_menu_icon_controller), chrome/browser/ui/browser_command_controller.cc, chrome/browser/ui/chrome_pages, chrome/browser/download (download_commands and the models), chrome/browser/ui/download/download_bubble_security_view_info.cc, chrome/app (generated_resources.grd, chromium_strings.grd, chrome_command_ids.h)
+Aerie-Upstream-Area: chrome/browser/ui/toolbar (app_menu_model, app_menu_icon_controller), chrome/browser/ui/browser_command_controller.cc, chrome/browser/ui/chrome_pages, chrome/browser/ui/webui/settings/chrome/browser/download (download_commands and the models), chrome/browser/ui/download/download_bubble_security_view_info.cc, chrome/app (generated_resources.grd, chromium_strings.grd, chrome_command_ids.h)
 Aerie-Kind: hook
 
 Issue #94. Issue #23 (services/0006) removed the Helium services settings page, but Helium's
@@ -12,16 +12,35 @@ for it, and the grd messages IDS_HELIUM_SERVICES_SCHEMA_MENU_ITEM, IDS_APP_MENU_
 IDS_APPMENU_TOOLTIP_HELIUM_SERVICES_UPDATE, IDS_DOWNLOAD_BUBBLE_INTERRUPTED_SUBPAGE_SUMMARY_HELIUM_SERVICES_DISABLED
 and IDS_COMPONENTS_SVC_STATUS_ERROR_HELIUM_SERVICES (services/0007 already stopped using the last one).
 The bubble keeps a summary for an extension download that was blocked, now without a button and in
-Aerie words (IDS_AERIE_DOWNLOAD_BUBBLE_EXTENSION_DOWNLOADS_OFF, chrome/app/aerie_services_strings.grdp).
-The enum value 24 of DownloadCommands is left unused, so the numbers of the others do not change.
-The schema component (components/helium_services/schema.*) and its pref stay, as Helium's other
-plumbing does, to keep Helium bumps cheap. tests/test_helium_services_ui_removed.py checks that no
-marker is left. The Bench check branding_no_helium forces a failed download and a failed component
-update and reads the download bubble and chrome://components.
+Aerie words (IDS_AERIE_DOWNLOAD_BUBBLE_EXTENSION_DOWNLOADS_OFF, chrome/app/aerie_services_strings.grdp;
+chrome/browser/aerie_download/download_bubble_summary_browsertest.cc guards it). The enum value 24 of
+DownloadCommands is left unused, with a comment, so the numbers of the others do not change; Helium
+never added it to tools/metrics/histograms/metadata/download/enums.xml, so there is no entry to remove.
+
+Helium text that stays in the source and cannot reach a user (checked for #94):
+- The services changelog in components/helium_services/schema.cc ("you'll be notified about major changes
+  to Helium services ..."), which web-push-service.patch carries as context. Its only reader is
+  HeliumServicesSchemaHandler, which answers the settings page messages getServicesSchemaChangelog and
+  updateServicesSchemaVersion. The only page that sent them was the services page, which services/0006
+  removed together with changelog_proxy.ts (no remaining file under chrome/browser/resources names either
+  message). The handler stays registered in settings_ui.cc, because later Aerie settings patches use that
+  line as context, but nothing sends it a message. ShouldShowSchemaNotification now has no other caller
+  (the menu item and the icon nag were the others).
+- The settings strings for the schema notice and for web push (IDS_SETTINGS_HELIUM_SCHEMA_*,
+  IDS_SETTINGS_HELIUM_SERVICES_WEB_PUSH*, IDS_SETTINGS_HELIUM_SERVICES_PUSH_SERVER_*, ..._UPDATE) are
+  load-time data for the removed services page. No element of any remaining page reads them.
+- The web push service (kHeliumWebPush) is a feature that is off by default, and nothing in Aerie turns it on.
+  Its "Helium services." text in web-push-service.patch is the description field of a network traffic
+  annotation. It is read by Chromium's annotation audit, not shown by any page. Line 115 of that patch is
+  a TODO comment.
+The schema component (components/helium_services/schema.*) and its pref stay, as Helium's other plumbing
+does, to keep Helium bumps cheap. tests/test_helium_services_ui_removed.py checks that no marker is left.
+The Bench check branding_no_helium forces a failed download and a failed component update and reads the
+download bubble and chrome://components.
 
 Depends on the Helium patches services-schema-nag.patch, add-copy-download-link-context-menu.patch,
-add-specific-error-for-disabled-extension-downloads.patch and component-updates.patch, on
-services/0006 (it edits the same lines of chrome_pages.cc and download_ui_model.cc) and on
+add-specific-error-for-disabled-extension-downloads.patch, services-prefs.patch and component-updates.patch,
+on services/0006 (it edits the same lines of chrome_pages.cc and download_ui_model.cc) and on
 services/0007.
 
 --- a/chrome/app/chrome_command_ids.h
@@ -104,11 +123,12 @@ services/0007.
      default:
 --- a/chrome/browser/download/download_commands.h
 +++ b/chrome/browser/download/download_commands.h
-@@ -49,7 +49,6 @@
+@@ -49,7 +49,7 @@
      EDIT_WITH_MEDIA_APP = 22,  // Open file using the ChromeOS media app with
                                 // an editing hint.
      OPEN_WITH = 23,  // Open the system "Open with" dialog. Windows only.
 -    OPEN_HELIUM_SERVICES = 24,  // Open the Services page in settings.
++    // 24 was OPEN_HELIUM_SERVICES; do not reuse.
      COPY_DOWNLOAD_LINK = 25,  // Copy the download source URL to the clipboard.
  
      kMaxValue = COPY_DOWNLOAD_LINK,  // Keep last.

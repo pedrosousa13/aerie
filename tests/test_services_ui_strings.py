@@ -87,6 +87,24 @@ class ComponentsPageTest(unittest.TestCase):
                       (REPO / "patches" / "helium-adapt.txt").read_text())
 
 
+class DownloadSummaryTest(unittest.TestCase):
+    """The download bubble summary for a blocked extension download (issue #94) points at a control that exists."""
+
+    def test_it_points_at_the_extension_proxy_row_of_privacy_and_security(self):
+        text = " ".join("".join(messages()["IDS_AERIE_DOWNLOAD_BUBBLE_EXTENSION_DOWNLOADS_OFF"].itertext()).split())
+        self.assertIn("Privacy and security settings", text)
+        label = " ".join("".join(messages()["IDS_SETTINGS_AERIE_EXTENSION_PROXY_LABEL"].itertext()).split())
+        self.assertIn(label, text)
+        # The row is on the privacy page (services/0006), where Settings calls the section "Privacy and security".
+        ui = UI_PATCH.read_text(encoding="utf-8")
+        self.assertIn('+    <div id="extensionProxyRow"', ui)
+        self.assertIn("privacy_page/privacy_page.html", ui)
+
+    def test_it_has_no_link_to_a_page(self):
+        text = "".join(messages()["IDS_AERIE_DOWNLOAD_BUBBLE_EXTENSION_DOWNLOADS_OFF"].itertext())
+        self.assertNotRegex(text, r"https?://|chrome://|<a ")
+
+
 class PatchTest(unittest.TestCase):
     def test_the_patch_is_in_the_series_after_the_patches_it_edits(self):
         series = [l.strip() for l in (REPO / "patches" / "series").read_text().splitlines()

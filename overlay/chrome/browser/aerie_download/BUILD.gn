@@ -1,0 +1,31 @@
+# Copyright 2026 The Aerie Authors
+# You can use, redistribute, and/or modify this source code under
+# the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+# Test-only: the download bubble's summary for a download that Helium's
+# extension download block stopped (issue #94). Joins
+# //chrome/test/aerie:aerie_browser_tests.
+source_set("browser_tests") {
+  testonly = true
+  # content/public/test/browser_test.h refuses to compile without it.
+  defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
+  sources = [ "download_bubble_summary_browsertest.cc" ]
+  deps = [
+    "//base",
+    "//base/test:test_support",
+    "//chrome/browser:browser",
+    "//chrome/browser/profiles:profile",
+    "//chrome/common",
+    "//chrome/test:test_support",
+    "//chrome/test:test_support_ui",
+    "//components/download/public/common:public",
+    "//components/download/public/common:test_support",
+    "//components/helium_services",
+    "//content/public/browser",
+    "//content/test:test_support",
+    "//testing/gmock",
+    "//testing/gtest",
+    "//ui/base",
+    "//url",
+  ]
+}

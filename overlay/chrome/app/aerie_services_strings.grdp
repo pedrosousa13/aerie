@@ -34,6 +34,6 @@
     Component updates are disabled in Aerie.
   </message>
   <message name="IDS_AERIE_DOWNLOAD_BUBBLE_EXTENSION_DOWNLOADS_OFF" desc="Summary in the download bubble for an extension download that was blocked because no extension proxy is set. It has no button: Aerie has no Settings page for it to open.">
-    Extension downloads are disabled. Set an extension proxy in Privacy and security settings and try again.
+    Extension downloads are disabled. Set an address under Extension proxy in Privacy and security settings and try again.
   </message>
 </grit-part>

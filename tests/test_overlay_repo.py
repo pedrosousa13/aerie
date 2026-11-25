@@ -14,7 +14,7 @@ class RepoOverlayTest(unittest.TestCase):
         self.assertTrue(files, "the repo overlay is empty")
         for rel in files:
             self.assertTrue(rel.startswith(("components/aerie_adblock/", "third_party/filter_lists/",
-                                            "chrome/browser/aerie_adblock/",
+                                            "chrome/browser/aerie_adblock/", "chrome/browser/aerie_download/",
                                             "chrome/app/aerie_services_strings.grdp",
                                             "chrome/browser/ui/views/aerie_adblock/",
                                             "chrome/browser/ui/webui/aerie_guard_settings/", "chrome/browser/ui/webui/aerie_guard/",

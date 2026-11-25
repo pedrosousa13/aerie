@@ -103,22 +103,74 @@ def scrub(text: str, url: str) -> str:
     return text
 
 
-def read_page(session: Session, url: str, label: str | None = None, before_read=None) -> dict:
+class StepTimeout(Exception):
+    """A step of a case did not finish inside the case's overall time."""
+
+
+class Deadline:
+    """One overall time limit for a case that runs several steps. ``cap(n)`` is n seconds, or what is left
+    of the limit when that is less; ``check(step)`` raises StepTimeout once the limit has run out."""
+
+    def __init__(self, seconds: float, clock=time.monotonic) -> None:
+        self.seconds, self._clock = seconds, clock
+        self._end = clock() + seconds
+
+    def remaining(self) -> float:
+        return max(0.0, self._end - self._clock())
+
+    def cap(self, seconds: float) -> float:
+        return min(seconds, self.remaining())
+
+    def check(self, step: str) -> None:
+        if self.remaining() <= 0:
+            raise StepTimeout(f"{step}: the overall limit of {self.seconds:.0f}s ran out")
+
+
+def describe(exc: BaseException) -> str:
+    """The exception and its causes, innermost last, so the root cause is in the data and not only the
+    type of the outermost exception."""
+    parts: list[str] = []
+    seen: set[int] = set()
+    while exc is not None and id(exc) not in seen:
+        seen.add(id(exc))
+        parts.append(f"{type(exc).__name__}: {exc}")
+        exc = exc.__cause__ or exc.__context__
+    return " <- ".join(parts)
+
+
+def read_page(session: Session, url: str, label: str | None = None, before_read=None,
+              deadline: Deadline | None = None) -> dict:
     """Load `url`, let it settle and read its text. `label` names the page in the result (default: the
-    url); `before_read(session)` runs once the page has loaded, for a case that must act on it first."""
+    url); `before_read(session)` runs once the page has loaded, for a case that must act on it first.
+    With a `deadline` the waits stop when it runs out."""
     shown = label or url
-    nav = session.navigate_url(url, wait=20)
+    cap = deadline.cap if deadline else (lambda seconds: seconds)
+    nav = session.navigate_url(url, wait=cap(20))
     if nav["error"]:
         return {"url": shown, "title": "", "text": "", "error": nav["error"]}
-    session.wait_for("document.readyState === 'complete'", timeout=10)
-    time.sleep(1.0)  # WebUI pages fill in after load
+    session.wait_for("document.readyState === 'complete'", timeout=cap(10))
+    time.sleep(cap(1.0))  # WebUI pages fill in after load
     try:
         if before_read:
             before_read(session)
         got = session.evaluate(TEXT_JS) or {}
     except Exception as exc:  # noqa: BLE001  (a page that cannot be read is data, not a crash)
-        return {"url": shown, "title": "", "text": "", "error": f"could not read: {exc}"}
+        return {"url": shown, "title": "", "text": "", "error": f"could not read: {describe(exc)}"}
     return {"url": shown, "title": got.get("title", ""), "text": scrub(got.get("text", ""), url), "error": None}
+
+
+def force_failure(session: Session, action_js: str, *, ready_js: str | None = None, done_js: str | None = None,
+                  wait: float = 60.0, ready_wait: float = 15.0, user_gesture: bool = False) -> bool:
+    """What both failure cases do: wait (at most `ready_wait` s) until `ready_js` is true, run `action_js`
+    (the click a user makes), then wait (at most `wait` s) until `done_js` is true. True when `done_js` became
+    true (or there is none). A failure that never shows is data, not an error: the caller's judge says the case
+    proves nothing."""
+    if ready_js:
+        session.wait_for(ready_js, timeout=ready_wait)
+    session.evaluate(action_js, user_gesture=user_gesture)
+    if not done_js:
+        return True
+    return bool(session.wait_for(done_js, timeout=wait, interval=0.5))
 
 
 # chrome://components shows one row per component, each with a "Check for update" button (class
@@ -143,9 +195,8 @@ DISABLED_SHOWN_JS = (
 
 def force_failed_update(session: Session, wait: float = 60.0) -> None:
     """Press Check for update on every component and wait (at most `wait` seconds) for the disabled status."""
-    session.wait_for("document.querySelectorAll('.button-check-update').length > 0", timeout=15)
-    session.evaluate(FORCE_UPDATE_JS)
-    session.wait_for(DISABLED_SHOWN_JS, timeout=wait, interval=0.5)
+    force_failure(session, FORCE_UPDATE_JS, ready_js="document.querySelectorAll('.button-check-update').length > 0",
+                  done_js=DISABLED_SHOWN_JS, wait=wait)
 
 
 def read_failed_update(session: Session) -> dict:
@@ -176,11 +227,14 @@ def judge_failed_update(forced: dict | None) -> list[str]:
 
 # A download that fails (issue #94). The fixture server answers 404 for a file that is not there, and a
 # download of a 404 ends as an interrupted download, shown as "Failed". The browser that does it has UI
-# DevTools and a window (Xvfb), because the download bubble is a native view (CDP cannot see it): its text is every Text,
-# tooltip and accessible name of a view below a DownloadBubble* view.
+# DevTools and a window (Xvfb), because the download bubble is a native view (CDP cannot see it): its text is every
+# Text, tooltip and accessible name of a view below a DownloadBubble* view. A plain 404 never reaches the
+# branch for Helium's dummy extension host (FILE_BLOCKED); that one is guarded by the browser test
+# chrome/browser/aerie_download/download_bubble_summary_browsertest.cc.
 FAILED_DOWNLOAD_PAGE_LABEL = "chrome://downloads/ (after a failed download)"
 FAILED_DOWNLOAD_PATH = "/branding/no-such-file.bin"
 FAILED_DOWNLOAD_BUBBLE = "the download bubble"
+FAILED_DOWNLOAD_BUDGET = 150.0  # seconds for the whole case: Xvfb, the browser, the bubble and the page
 FORCE_DOWNLOAD_JS = f"""
 (() => {{
   const a = document.createElement('a');
@@ -196,19 +250,26 @@ DOWNLOAD_FAILED_JS = DEEP_JS + """
                                                   e.children.length === 0))()"""
 BUBBLE_TEXT_PROPERTIES = ("Text", "TooltipText", "AccessibleName")
 BUBBLE_WAIT = 20.0
+# The toolbar's download button holds a DownloadProgressRing, whatever language its tooltip is in.
+DOWNLOAD_BUTTON_MARKER = "DownloadProgressRing"
 
 
-def bubble_texts(ui: "ui_devtools.UiDevTools") -> list[str]:
+def _view_class(node: dict) -> str:
+    attrs = node.get("attributes") or []
+    return attrs[1] if len(attrs) > 1 and attrs[0] == "class" else node.get("nodeName", "")
+
+
+def bubble_texts(ui: "ui_devtools.UiDevTools", deadline: Deadline | None = None) -> list[str]:
     """The words on the download bubble: every text of every view below a view whose class starts with
-    DownloadBubble. Empty when the bubble is not on screen."""
+    DownloadBubble. Empty when the bubble is not on screen. Stops with StepTimeout when `deadline` runs out."""
     texts: list[str] = []
     root = ui.send("DOM.getDocument")["root"]
     stack = [(root, False)]
     while stack:
+        if deadline:
+            deadline.check("reading the download bubble")
         node, inside = stack.pop()
-        attrs = node.get("attributes") or []
-        cls = attrs[1] if len(attrs) > 1 and attrs[0] == "class" else node.get("nodeName", "")
-        inside = inside or cls.startswith("DownloadBubble")
+        inside = inside or _view_class(node).startswith("DownloadBubble")
         if inside and node["nodeId"] != root["nodeId"]:
             try:
                 props = ui.properties(node["nodeId"])
@@ -221,64 +282,87 @@ def bubble_texts(ui: "ui_devtools.UiDevTools") -> list[str]:
     return texts
 
 
+def download_button(ui: "ui_devtools.UiDevTools") -> int | None:
+    """The node id of the toolbar's download button: the button view that holds a DownloadProgressRing.
+    None while the browser has made no download button."""
+    root = ui.send("DOM.getDocument")["root"]
+    stack = [(root, [])]
+    while stack:
+        node, chain = stack.pop()
+        if _view_class(node) == DOWNLOAD_BUTTON_MARKER:
+            for ancestor in reversed(chain):
+                if _view_class(ancestor).endswith("Button"):
+                    return ancestor["nodeId"]
+            return None
+        stack.extend((c, chain + [node]) for c in reversed(node.get("children") or []))
+    return None
+
+
 def press_download_button(ui: "ui_devtools.UiDevTools") -> bool:
-    """Press the toolbar's Downloads button (a visible button whose tooltip says download: New download available) to open the bubble.
-    False when there is none."""
-    for node_id, cls in ui.nodes():
-        if "Button" not in cls and "Download" not in cls:
-            continue
-        try:
-            props = ui.properties(node_id)
-        except ui_devtools.UiDevToolsError:
-            continue
-        if props.get("Visible") == "true" and "download" in props.get("TooltipText", "").lower():
-            ui.press(node_id, props)
-            return True
-    return False
+    """Press the toolbar's download button to open the bubble. False when there is none."""
+    node_id = download_button(ui)
+    if node_id is None:
+        return False
+    ui.press(node_id, ui.properties(node_id))
+    return True
 
 
-def read_failed_download(session: Session) -> dict:
-    """Force a download that fails in a second browser (with UI DevTools), then read chrome://downloads
-    and the download bubble: a read_page() dict plus ``failed`` (the page shows a failed download) and
-    ``bubble`` ({"texts", "error"})."""
+def read_bubble(profile_dir, browser: Session, deadline: Deadline, into: dict) -> None:
+    """Fill `into` ({"texts", "classes", "error"}) with the words on the download bubble. The bubble opens by
+    itself on a window that is shown; when it has not by the middle of the wait, the download button is pressed."""
+    ui = None
+    try:
+        ui = ui_devtools.connect(profile_dir, timeout=deadline.cap(browser.timeout))
+        end = time.monotonic() + deadline.cap(BUBBLE_WAIT)
+        pressed = False
+        while True:
+            texts = bubble_texts(ui, deadline)
+            if any("Failed" in t for t in texts) or time.monotonic() >= end:
+                break
+            if not texts and not pressed and time.monotonic() > end - BUBBLE_WAIT / 2:
+                pressed = press_download_button(ui)  # it did not open by itself
+            time.sleep(deadline.cap(0.5))
+        into["texts"] = texts
+        into["classes"] = sorted({c for _, c in ui.nodes() if c.startswith("Download")})
+    except (ui_devtools.UiDevToolsError, OSError) as exc:
+        into["error"] = describe(exc)
+    finally:
+        if ui is not None:
+            ui.close()
+
+
+def read_downloads_page(browser: Session, deadline: Deadline) -> dict:
+    """chrome://downloads once the failed download shows in it: a read_page() dict plus ``failed``."""
+    deadline.check("reading chrome://downloads")
+    page = read_page(browser, "chrome://downloads/", label=FAILED_DOWNLOAD_PAGE_LABEL, deadline=deadline,
+                     before_read=lambda b: b.wait_for(DOWNLOAD_FAILED_JS, timeout=deadline.cap(BUBBLE_WAIT),
+                                                      interval=0.5))
+    page["failed"] = False if page["error"] else bool(browser.evaluate(DOWNLOAD_FAILED_JS))
+    return page
+
+
+def read_failed_download(session: Session, budget: float = FAILED_DOWNLOAD_BUDGET) -> dict:
+    """Force a download that fails in a second browser (with UI DevTools and a window), then read the download
+    bubble and chrome://downloads: a read_page() dict plus ``failed`` (the page shows a failed download) and
+    ``bubble`` ({"texts", "classes", "error"}). The whole case has `budget` seconds; when they run out the
+    result's ``error`` says which step was running. Starting the browser has its own limit (the session's)."""
+    deadline = Deadline(budget)
     got: dict = {"url": FAILED_DOWNLOAD_PAGE_LABEL, "title": "", "text": "", "error": None,
-                 "failed": False, "bubble": {"texts": [], "error": None}}
+                 "failed": False, "bubble": {"texts": [], "classes": [], "error": None}}
     try:
         # A headless browser never makes the download button, so the browser has a window on an Xvfb.
-        with xinput.xvfb() as display, session.new_profile() as profile, \
+        with xinput.xvfb(timeout=deadline.cap(15)) as display, session.new_profile() as profile, \
                 session.variant(extra_flags=ui_devtools.FLAGS, profile=profile, headed=True,
                                 env={**xinput.display_env(display), "WAYLAND_DISPLAY": ""}) as browser:
+            deadline.check("starting the browser")
             browser.navigate("/index.html")
-            browser.evaluate(FORCE_DOWNLOAD_JS, user_gesture=True)
-            deadline = time.monotonic() + BUBBLE_WAIT
-            ui = None
-            try:
-                ui = ui_devtools.connect(profile.path, timeout=browser.timeout)
-                pressed = False
-                while True:
-                    texts = bubble_texts(ui)
-                    if any("Failed" in t for t in texts) or time.monotonic() >= deadline:
-                        break
-                    if not texts and not pressed and time.monotonic() > deadline - BUBBLE_WAIT / 2:
-                        pressed = press_download_button(ui)  # it did not open by itself
-                    time.sleep(0.5)
-                got["bubble"]["texts"] = texts
-                got["bubble"]["classes"] = sorted({c for _, c in ui.nodes() if c.startswith("Download")})
-            except (ui_devtools.UiDevToolsError, OSError) as exc:
-                got["bubble"]["error"] = f"{type(exc).__name__}: {exc}"
-            finally:
-                if ui is not None:
-                    ui.close()
-
-            def wait_failed(b: Session) -> None:
-                b.wait_for(DOWNLOAD_FAILED_JS, timeout=BUBBLE_WAIT, interval=0.5)
-
-            page_read = read_page(browser, "chrome://downloads/", label=FAILED_DOWNLOAD_PAGE_LABEL,
-                                  before_read=wait_failed)
-            got.update(page_read)
-            got["failed"] = False if page_read["error"] else bool(browser.evaluate(DOWNLOAD_FAILED_JS))
+            force_failure(browser, FORCE_DOWNLOAD_JS, user_gesture=True)
+            read_bubble(profile.path, browser, deadline, got["bubble"])
+            got.update(read_downloads_page(browser, deadline))
+    except StepTimeout as exc:
+        got["error"] = f"the failed-download case timed out: {exc}"
     except Exception as exc:  # noqa: BLE001  (a browser that cannot be driven is data, not a crash)
-        got["error"] = f"could not force a failed download: {type(exc).__name__}: {exc}"
+        got["error"] = f"could not force a failed download: {describe(exc)}"
     return got
 
 
@@ -289,7 +373,7 @@ def judge_failed_download(forced: dict | None) -> list[str]:
     if not forced:
         return ["no case read the download bubble and chrome://downloads after a failed download"]
     if forced.get("error"):
-        return [f"chrome://downloads after a failed download did not load ({forced['error']})"]
+        return [f"the failed-download case did not complete ({forced['error']})"]
     problems: list[str] = []
     if not forced.get("failed"):
         problems.append("the forced download did not fail (chrome://downloads shows no failed download), "

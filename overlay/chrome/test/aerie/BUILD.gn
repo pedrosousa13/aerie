@@ -57,6 +57,7 @@ test("aerie_browser_tests") {
     "//chrome:packed_resources",
     "//chrome:resources",
     "//chrome:strings",
+    "//chrome/browser/aerie_download:browser_tests",
     "//chrome/browser/aerie_network:browser_tests",
     "//chrome/browser/aerie_picture_in_picture:browser_tests",
     "//chrome/browser/aerie_tab_model:browser_tests",

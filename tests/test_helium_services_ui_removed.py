@@ -41,6 +41,10 @@ MARKERS = {
         r"IDS_COMPONENTS_SVC_STATUS_ERROR_HELIUM_SERVICES",
         r"See Helium services in settings",
     ],
+    "services changelog (only a page can ask the handler for it)": [
+        r"sendWithPromise<string\[\]>\('getServicesSchemaChangelog'\)",
+        r"chrome\.send\('updateServicesSchemaVersion'",
+    ],
     "removed settings route": [
         r"chrome://settings/privacy/services",
     ],
@@ -75,7 +79,9 @@ def series_changes() -> dict[str, tuple[list[str], list[str]]]:
 
 
 def count(lines: list[str], marker: str) -> int:
-    return sum(1 for line in lines if re.search(marker, line))
+    """Lines with the marker, less the comment-only ones: a comment may say what was removed
+    ("24 was OPEN_HELIUM_SERVICES; do not reuse")."""
+    return sum(1 for line in lines if re.search(marker, line) and not line.lstrip().startswith("//"))
 
 
 class NothingLeftTest(unittest.TestCase):

@@ -189,7 +189,7 @@ class FailedDownloadJudgeTest(unittest.TestCase):
     def test_a_downloads_page_that_did_not_load_fails(self):
         status, detail = self.verdict(error="load timeout")
         self.assertEqual(status, "fail")
-        self.assertIn("did not load", detail)
+        self.assertIn("did not complete", detail)
 
     def test_a_missing_failed_download_case_fails(self):
         obs = scan_obs([page("chrome://version/")])
@@ -368,26 +368,106 @@ if __name__ == "__main__":
 
 
 class PressDownloadButtonTest(unittest.TestCase):
-    class Ui:
-        def __init__(self, tooltip, visible="true"):
-            self.tooltip, self.visible, self.pressed = tooltip, visible, []
-
-        def nodes(self):
-            yield 1, "RootView"
-            yield 2, "PinnedActionToolbarButton"
-
-        def properties(self, node_id):
-            return {"TooltipText": self.tooltip, "Visible": self.visible}
+    class Ui(FakeUi):
+        def __init__(self, tree):
+            super().__init__(tree)
+            self.pressed = []
 
         def press(self, node_id, props):
             self.pressed.append(node_id)
 
-    def test_presses_the_visible_button_that_says_download(self):
-        ui = self.Ui("New download available")
-        self.assertTrue(branding.press_download_button(ui))
-        self.assertEqual(ui.pressed, [2])
+    def tree(self, tooltip="New download available"):
+        return (1, "RootView", {}, [
+            (2, "PinnedActionToolbarButton", {"TooltipText": "Download notes"}, []),  # a decoy with the word
+            (3, "PinnedActionToolbarButton", {"TooltipText": tooltip}, [
+                (4, "DownloadProgressRing", {}, [])])])
 
-    def test_leaves_other_and_hidden_buttons_alone(self):
-        for ui in (self.Ui("Aerie Labs"), self.Ui("New download available", visible="false")):
-            self.assertFalse(branding.press_download_button(ui))
-            self.assertEqual(ui.pressed, [])
+    def test_presses_the_button_that_holds_the_progress_ring_in_any_language(self):
+        for tooltip in ("New download available", "Novo download disponivel", ""):
+            with self.subTest(tooltip=tooltip):
+                ui = self.Ui(self.tree(tooltip))
+                self.assertTrue(branding.press_download_button(ui))
+                self.assertEqual(ui.pressed, [3])
+
+    def test_no_download_button_is_pressed_when_the_browser_made_none(self):
+        ui = self.Ui((1, "RootView", {}, [(2, "PinnedActionToolbarButton", {"TooltipText": "Download"}, [])]))
+        self.assertFalse(branding.press_download_button(ui))
+        self.assertEqual(ui.pressed, [])
+
+
+class DeadlineTest(unittest.TestCase):
+    def test_cap_is_the_smaller_of_the_wish_and_what_is_left(self):
+        now = [100.0]
+        d = branding.Deadline(10, clock=lambda: now[0])
+        self.assertEqual(d.cap(3), 3)
+        now[0] = 108.0
+        self.assertEqual(d.cap(3), 2.0)
+        d.check("a step")
+        now[0] = 111.0
+        self.assertEqual(d.cap(3), 0.0)
+        with self.assertRaisesRegex(branding.StepTimeout, "a step.*10s"):
+            d.check("a step")
+
+    def test_a_tree_walk_stops_at_the_deadline(self):
+        tree = (1, "RootView", {}, [(2, "DownloadBubbleContentsView", {"Text": "x"}, [])])
+        with self.assertRaises(branding.StepTimeout):
+            branding.bubble_texts(FakeUi(tree), branding.Deadline(0))
+
+    def test_describe_keeps_the_root_cause(self):
+        try:
+            try:
+                raise OSError("port file missing")
+            except OSError as inner:
+                raise RuntimeError("cannot read the bubble") from inner
+        except RuntimeError as exc:
+            text = branding.describe(exc)
+        self.assertEqual(text, "RuntimeError: cannot read the bubble <- OSError: port file missing")
+
+
+class ForceFailureTest(unittest.TestCase):
+    class Session:
+        def __init__(self, done=True):
+            self.done, self.log = done, []
+
+        def wait_for(self, js, timeout=0, interval=0):
+            self.log.append(("wait", js, timeout))
+            return True if js == "ready" else self.done
+
+        def evaluate(self, js, user_gesture=False):
+            self.log.append(("run", js, user_gesture))
+
+    def test_waits_for_ready_runs_the_action_then_waits_for_done(self):
+        s = self.Session()
+        self.assertTrue(branding.force_failure(s, "act", ready_js="ready", done_js="done", wait=7, user_gesture=True))
+        self.assertEqual(s.log, [("wait", "ready", 15.0), ("run", "act", True), ("wait", "done", 7)])
+
+    def test_a_failure_that_never_shows_is_false_not_an_error(self):
+        self.assertFalse(branding.force_failure(self.Session(done=None), "act", done_js="done"))
+
+    def test_without_a_done_check_it_just_runs_the_action(self):
+        s = self.Session()
+        self.assertTrue(branding.force_failure(s, "act"))
+        self.assertEqual(s.log, [("run", "act", False)])
+
+    def test_the_failed_update_and_the_failed_download_share_it(self):
+        src = Path(branding.__file__).read_text()
+        self.assertEqual(src.count("force_failure("), 3)  # the definition and its two callers
+
+
+class ReadFailedDownloadTest(unittest.TestCase):
+    def test_a_browser_that_cannot_start_leaves_the_root_cause_in_the_error(self):
+        class Session:
+            def new_profile(self):
+                raise OSError("no space left")
+
+        with mock.patch.object(branding.xinput, "xvfb", lambda timeout=15: mock.MagicMock()):
+            got = branding.read_failed_download(Session())
+        self.assertIn("could not force a failed download", got["error"])
+        self.assertIn("OSError: no space left", got["error"])
+
+    def test_a_case_that_runs_over_its_budget_fails_with_the_step(self):
+        with mock.patch.object(branding.xinput, "xvfb", lambda timeout=15: mock.MagicMock()):
+            got = branding.read_failed_download(mock.MagicMock(), budget=0)
+        self.assertIn("timed out", got["error"])
+        self.assertIn("starting the browser", got["error"])
+        self.assertIn("did not complete", branding.judge_failed_download(got)[0])
