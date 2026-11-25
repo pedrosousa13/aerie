@@ -17,6 +17,7 @@
 
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/download/download_item_model.h"
+#include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/download/download_bubble_security_view_info.h"
 #include "chrome/grit/generated_resources.h"
 #include "chrome/test/base/in_process_browser_test.h"
