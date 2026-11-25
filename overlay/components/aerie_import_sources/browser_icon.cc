@@ -170,6 +170,7 @@ const std::vector<BrowserIds>& Table() {
       {"NAVER Whale", {"naver-whale", "naver-whale-stable"}, {}},
       {"Helium", {"helium", "net.imput.helium"}, {}},
       {"Firefox", {"firefox", "firefox-esr", "org.mozilla.firefox"}, {"org.mozilla.firefox"}},
+      {"Mozilla Firefox", {"firefox", "firefox-esr", "org.mozilla.firefox"}, {"org.mozilla.firefox"}},
       {"Firefox Developer Edition", {"firefox-developer-edition"}, {}},
       {"Firefox Nightly", {"firefox-nightly"}, {}},
       {"Zen", {"zen", "zen-browser", "app.zen_browser.zen"}, {"app.zen_browser.zen"}},

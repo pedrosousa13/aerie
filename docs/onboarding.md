@@ -43,9 +43,13 @@ lookup keys in a fixed table, never a path. No browser's trademark is bundled. m
 icon) comes with the macOS build (M4).
 
 **What comes over.** Passwords and autofill are never imported, from any browser:
-`importer_list.cc` removes both from every profile. The step says so and points to the other
-browser's CSV export (`importNoPasswords`). Extensions are a known importer flag; the page does not
-offer them. Re-enabling any of the three needs a security review and is out of scope.
+`importer_list.cc` removes both from every profile. The step says so (`importNoPasswords`). It does
+not point to a CSV export: Helium's `disable-password-manager.patch` forces
+`credentials_enable_service` off by policy, so `chrome://password-manager/settings` shows "Offer to
+save passwords" switched off and managed and has no "Import passwords" row (checked on the built
+browser, 2026-11-25). The note says that Aerie does not save passwords. Extensions are a known
+importer flag; the page does not offer them. Re-enabling any of the three needs a security review
+and is out of scope.
 
 **Helium is listed.** Helium has no importer type, but its profile has Chromium's format, so
 `~/.config/net.imput.helium` is offered as "Helium" and imports as Chrome. Reason: the people most

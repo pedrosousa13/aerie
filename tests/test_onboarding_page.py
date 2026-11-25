@@ -191,8 +191,11 @@ class BrowserIconTest(unittest.TestCase):
         grdp = (COMPONENT / "aerie_onboarding_strings.grdp").read_text(encoding="utf-8")
         match = re.search(r'name="IDS_AERIE_SETUP_IMPORT_NO_PASSWORDS"[^>]*>\s*(.*?)\s*</message>', grdp, re.S)
         self.assertTrue(match)
-        self.assertIn("CSV", match.group(1))
+        # No CSV route: Helium turns the password manager off by policy (credentials_enable_service is forced
+        # off), which hides its "Import passwords" row, so the note must not promise one.
+        self.assertNotIn("CSV", match.group(1))
         self.assertIn("not imported", match.group(1))
+        self.assertIn("does not save passwords", match.group(1))
 
     def test_the_icon_resolver_reads_files_only(self):
         for name in ("browser_icon.cc", "import_sources.cc"):

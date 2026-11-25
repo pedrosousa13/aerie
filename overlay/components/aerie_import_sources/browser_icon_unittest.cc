@@ -225,6 +225,14 @@ TEST(DesktopIdsForBrowserTest, NativeNamesGetNativeIds) {
   EXPECT_FALSE(DesktopIdsForBrowser("Helium").empty());
 }
 
+TEST(DesktopIdsForBrowserTest, FirefoxIsNamedMozillaFirefoxByTheImporter) {
+  // GetFirefoxImporterName() answers "Mozilla Firefox" when it cannot read application.ini.
+  EXPECT_EQ(DesktopIdsForBrowser("Mozilla Firefox"),
+            DesktopIdsForBrowser("Firefox"));
+  EXPECT_EQ(DesktopIdsForBrowser("Mozilla Firefox (Flatpak)"),
+            (std::vector<std::string>{"org.mozilla.firefox"}));
+}
+
 TEST(DesktopIdsForBrowserTest, FlatpakNamesGetFlatpakIdsOnly) {
   EXPECT_EQ(DesktopIdsForBrowser("Chromium (Flatpak)"),
             (std::vector<std::string>{"org.chromium.Chromium"}));
