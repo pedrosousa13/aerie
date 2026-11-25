@@ -13,7 +13,7 @@ from pathlib import Path
 
 from aerie_build import aerie_version, lock
 
-from .. import ui_devtools
+from .. import ui_devtools, xinput
 from ..session import Session
 from . import register
 from .hardening.common import DEEP_JS, HardeningCheck, Verdict
@@ -176,7 +176,7 @@ def judge_failed_update(forced: dict | None) -> list[str]:
 
 # A download that fails (issue #94). The fixture server answers 404 for a file that is not there, and a
 # download of a 404 ends as an interrupted download, shown as "Failed". The browser that does it has UI
-# DevTools, because the download bubble is a native view (CDP cannot see it): its text is every Text,
+# DevTools and a window (Xvfb), because the download bubble is a native view (CDP cannot see it): its text is every Text,
 # tooltip and accessible name of a view below a DownloadBubble* view.
 FAILED_DOWNLOAD_PAGE_LABEL = "chrome://downloads/ (after a failed download)"
 FAILED_DOWNLOAD_PATH = "/branding/no-such-file.bin"
@@ -221,6 +221,22 @@ def bubble_texts(ui: "ui_devtools.UiDevTools") -> list[str]:
     return texts
 
 
+def press_download_button(ui: "ui_devtools.UiDevTools") -> bool:
+    """Press the toolbar's Downloads button (a visible button whose tooltip says download: New download available) to open the bubble.
+    False when there is none."""
+    for node_id, cls in ui.nodes():
+        if "Button" not in cls and "Download" not in cls:
+            continue
+        try:
+            props = ui.properties(node_id)
+        except ui_devtools.UiDevToolsError:
+            continue
+        if props.get("Visible") == "true" and "download" in props.get("TooltipText", "").lower():
+            ui.press(node_id, props)
+            return True
+    return False
+
+
 def read_failed_download(session: Session) -> dict:
     """Force a download that fails in a second browser (with UI DevTools), then read chrome://downloads
     and the download bubble: a read_page() dict plus ``failed`` (the page shows a failed download) and
@@ -228,20 +244,26 @@ def read_failed_download(session: Session) -> dict:
     got: dict = {"url": FAILED_DOWNLOAD_PAGE_LABEL, "title": "", "text": "", "error": None,
                  "failed": False, "bubble": {"texts": [], "error": None}}
     try:
-        with session.new_profile() as profile, \
-                session.variant(extra_flags=ui_devtools.FLAGS, profile=profile) as browser:
+        # A headless browser never makes the download button, so the browser has a window on an Xvfb.
+        with xinput.xvfb() as display, session.new_profile() as profile, \
+                session.variant(extra_flags=ui_devtools.FLAGS, profile=profile, headed=True,
+                                env={**xinput.display_env(display), "WAYLAND_DISPLAY": ""}) as browser:
             browser.navigate("/index.html")
             browser.evaluate(FORCE_DOWNLOAD_JS, user_gesture=True)
             deadline = time.monotonic() + BUBBLE_WAIT
             ui = None
             try:
                 ui = ui_devtools.connect(profile.path, timeout=browser.timeout)
+                pressed = False
                 while True:
                     texts = bubble_texts(ui)
                     if any("Failed" in t for t in texts) or time.monotonic() >= deadline:
                         break
+                    if not texts and not pressed and time.monotonic() > deadline - BUBBLE_WAIT / 2:
+                        pressed = press_download_button(ui)  # it did not open by itself
                     time.sleep(0.5)
                 got["bubble"]["texts"] = texts
+                got["bubble"]["classes"] = sorted({c for _, c in ui.nodes() if c.startswith("Download")})
             except (ui_devtools.UiDevToolsError, OSError) as exc:
                 got["bubble"]["error"] = f"{type(exc).__name__}: {exc}"
             finally:
@@ -274,7 +296,8 @@ def judge_failed_download(forced: dict | None) -> list[str]:
                         "so the case proves nothing")
     bubble = forced.get("bubble") or {}
     if bubble.get("error") or not bubble.get("texts"):
-        problems.append(f"{FAILED_DOWNLOAD_BUBBLE} was not read ({bubble.get('error') or 'no text on it'}), "
+        problems.append(f"{FAILED_DOWNLOAD_BUBBLE} was not read ({bubble.get('error') or 'no text on it'}; download views seen: "
+                        f"{bubble.get('classes') or 'none'}), "
                         "so the case proves nothing")
     for where, text in (("chrome://downloads", forced.get("text", "") + "\n" + forced.get("title", "")),
                         (FAILED_DOWNLOAD_BUBBLE, "\n".join(bubble.get("texts") or []))):

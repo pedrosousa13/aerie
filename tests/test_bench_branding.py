@@ -365,3 +365,29 @@ class VersionJudgeTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PressDownloadButtonTest(unittest.TestCase):
+    class Ui:
+        def __init__(self, tooltip, visible="true"):
+            self.tooltip, self.visible, self.pressed = tooltip, visible, []
+
+        def nodes(self):
+            yield 1, "RootView"
+            yield 2, "PinnedActionToolbarButton"
+
+        def properties(self, node_id):
+            return {"TooltipText": self.tooltip, "Visible": self.visible}
+
+        def press(self, node_id, props):
+            self.pressed.append(node_id)
+
+    def test_presses_the_visible_button_that_says_download(self):
+        ui = self.Ui("New download available")
+        self.assertTrue(branding.press_download_button(ui))
+        self.assertEqual(ui.pressed, [2])
+
+    def test_leaves_other_and_hidden_buttons_alone(self):
+        for ui in (self.Ui("Aerie Labs"), self.Ui("New download available", visible="false")):
+            self.assertFalse(branding.press_download_button(ui))
+            self.assertEqual(ui.pressed, [])
