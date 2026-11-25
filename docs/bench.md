@@ -69,9 +69,11 @@ For an ad hoc script, use the Bench's launcher. Do not start the browser with yo
 `subprocess` call and `--remote-debugging-pipe`: the pipe needs the browser's fds 3 and 4 wired
 exactly, and `launcher.spawn` does that.
 
-One-liner, a screenshot of a local page (works under `./aerie locked`):
+One-liner, a screenshot of a local page (works under `./aerie locked`). It needs a local server; start one first
+in the directory you want to show:
 
 ```sh
+python3 -m http.server 8000 --bind 127.0.0.1 &
 ./aerie locked -- python3 tools/aerie_bench/shot.py --binary "$(./aerie info | awk '/^binary/{print $2}')" http://127.0.0.1:8000/ --out /tmp/page.png
 ```
 
@@ -82,10 +84,8 @@ For other CDP work, copy `tools/aerie_bench/shot.py`: `launcher.spawn(launcher.b
 returns a `BrowserProcess` whose `.client.send(method, params, session_id=...)` speaks CDP, and
 `.shutdown()` stops the browser.
 
-Background (issue #97): `spawn` used to `dup2` its pipes onto fds 3 and 4 without first moving them. In a
-short script with few fds open, `os.pipe()` returns 3, 4, 5, 6, so the read end already was fd 3
-(`dup2` onto itself keeps close-on-exec, so exec closed it) and the second `dup2` overwrote the other pipe.
-The browser then said "Remote debugging pipe fds not open". It had nothing to do with `./aerie locked`.
+Always start the browser through `launcher.spawn`. It wires the browser's fds 3 and 4; a hand-made
+`--remote-debugging-pipe` launch fails with "Remote debugging pipe fds not open" (issue #97).
 
 ## What a run does
 

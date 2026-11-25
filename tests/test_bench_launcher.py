@@ -1,9 +1,12 @@
+import http.server
+import subprocess
 import sys
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 
-from aerie_bench import launcher
+from aerie_bench import launcher, shot
 
 FAKE = Path(__file__).parent / "bench_fake_browser.py"
 
@@ -155,7 +158,6 @@ class LowFdTest(unittest.TestCase):
     reproduces that; the pytest process itself has many fds open and never would."""
 
     def test_spawn_works_in_a_process_with_no_other_fds_open(self):
-        import subprocess
         tools = Path(__file__).resolve().parents[1] / "tools"
         script = (
             f"import sys; sys.path.insert(0, {str(tools)!r})\n"
@@ -171,12 +173,10 @@ class LowFdTest(unittest.TestCase):
 
 class ShotTest(unittest.TestCase):
     def test_screenshot_writes_png_with_fake_browser(self):
-        import http.server, threading
-        from aerie_bench import shot
-
         class H(http.server.BaseHTTPRequestHandler):
             def do_GET(self):
-                self.send_response(200); self.end_headers()
+                self.send_response(200)
+                self.end_headers()
                 self.wfile.write(b"<title>t</title>hi")
             def log_message(self, *a): pass
         srv = http.server.HTTPServer(("127.0.0.1", 0), H)
@@ -187,6 +187,7 @@ class ShotTest(unittest.TestCase):
                 self.assertTrue(out.read_bytes().startswith(b"\x89PNG"))
         finally:
             srv.shutdown()
+            srv.server_close()
 
 
 if __name__ == "__main__":
