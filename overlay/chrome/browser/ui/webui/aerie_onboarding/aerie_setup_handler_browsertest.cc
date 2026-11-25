@@ -3,18 +3,31 @@
 // the terms of the GPL-3.0 license that can be found in the LICENSE file.
 
 // Browser tests of what aerie://setup may ask the browser to do (issue #69).
-// The page can mark setup complete and accept the schema, and nothing else: no
+// The page can mark setup complete and accept the schema, and ask for the icons
+// of the browsers its import step lists (issue #91), and nothing else: no
 // other pref, and no extension messages. The handler is driven directly, and
 // the real page is driven through its own chrome.send.
 
 #include "chrome/browser/ui/webui/aerie_onboarding/aerie_setup_handler.h"
 
+#include <algorithm>
 #include <memory>
 #include <set>
 #include <string>
 #include <string_view>
 #include <utility>
 
+#include "base/base_paths.h"
+#include "base/files/file_path.h"
+#include "base/files/file_util.h"
+#include "base/files/scoped_temp_dir.h"
+#include "base/path_service.h"
+#include "base/scoped_environment_variable_override.h"
+#include "base/synchronization/lock.h"
+#include "base/test/bind.h"
+#include "base/test/run_until.h"
+#include "base/test/scoped_path_override.h"
+#include "base/memory/raw_ptr.h"
 #include "base/values.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
@@ -25,6 +38,7 @@
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
 #include "content/public/test/test_web_ui.h"
+#include "content/public/test/url_loader_interceptor.h"
 #include "url/gurl.h"
 
 namespace aerie_onboarding {
@@ -62,6 +76,13 @@ constexpr char kPageSend[] = R"(((name, ...args) => new Promise(resolve => {
   chrome.send(name, [id, ...args]);
 })))";
 
+// The 16 bytes a PNG starts with (signature and IHDR chunk header), then a tag.
+std::string FakePng(const std::string& tag) {
+  return std::string("\x89PNG\r\n\x1a\n\0\0\0\rIHDR", 16) + tag;
+}
+
+constexpr char kGetBrowserIcons[] = "aerieSetup.getBrowserIcons";
+
 }  // namespace
 
 class AerieSetupHandlerBrowserTest : public InProcessBrowserTest {
@@ -72,7 +93,50 @@ class AerieSetupHandlerBrowserTest : public InProcessBrowserTest {
     web_ui_->set_web_contents(
         browser()->tab_strip_model()->GetActiveWebContents());
     // The TestWebUI sets the handler's WebUI and registers its messages.
-    web_ui_->AddMessageHandler(std::make_unique<AerieSetupHandler>(prefs()));
+    auto handler = std::make_unique<AerieSetupHandler>(prefs());
+    handler_ = handler.get();
+    // Icons come from a temp directory laid out like /usr/share, not from this machine.
+    ASSERT_TRUE(share_.CreateUniqueTempDir());
+    handler_->set_icon_data_dirs_for_testing({share_.GetPath()});
+    web_ui_->AddMessageHandler(std::move(handler));
+  }
+
+  void WriteFile(const std::string& relative, const std::string& bytes) {
+    const base::FilePath path = share_.GetPath().AppendASCII(relative);
+    ASSERT_TRUE(base::CreateDirectory(path.DirName()));
+    ASSERT_TRUE(base::WriteFile(path, bytes));
+  }
+
+  // Installs a browser the way a distribution or Flatpak does: a .desktop entry and an icon.
+  void InstallBrowser(const std::string& desktop_id,
+                      const std::string& icon_name,
+                      const std::string& png) {
+    WriteFile("applications/" + desktop_id + ".desktop",
+              "[Desktop Entry]\nName=B\nIcon=" + icon_name + "\n");
+    WriteFile("icons/hicolor/64x64/apps/" + icon_name + ".png", png);
+  }
+
+  // Sends aerieSetup.getBrowserIcons with `names` and returns the answer's dictionary.
+  // `names` is the page's argument as it arrives, so tests can send odd values.
+  base::DictValue AskForIcons(base::Value names) {
+    const size_t before = TotalAnswers();
+    base::ListValue args;
+    args.Append("icons" + std::to_string(++calls_));
+    args.Append(std::move(names));
+    web_ui_->HandleReceivedMessage(kGetBrowserIcons, args);
+    EXPECT_TRUE(base::test::RunUntil([&] { return TotalAnswers() > before; }));
+    EXPECT_FALSE(LastRejected());
+    const auto* answer = web_ui_->call_data().back()->arg3();
+    return answer && answer->is_dict() ? answer->GetDict().Clone()
+                                       : base::DictValue();
+  }
+
+  // Sends it and expects a rejection.
+  void AskForIconsExpectingRejection(base::ListValue args) {
+    const size_t before = TotalAnswers();
+    web_ui_->HandleReceivedMessage(kGetBrowserIcons, args);
+    ASSERT_TRUE(base::test::RunUntil([&] { return TotalAnswers() > before; }));
+    EXPECT_TRUE(LastRejected());
   }
 
   void TearDownOnMainThread() override {
@@ -102,6 +166,8 @@ class AerieSetupHandlerBrowserTest : public InProcessBrowserTest {
   }
 
   std::unique_ptr<RecordingTestWebUI> web_ui_;
+  raw_ptr<AerieSetupHandler> handler_ = nullptr;
+  base::ScopedTempDir share_;
   int calls_ = 0;
 };
 
@@ -162,9 +228,10 @@ IN_PROC_BROWSER_TEST_F(AerieSetupHandlerBrowserTest,
 }
 
 IN_PROC_BROWSER_TEST_F(AerieSetupHandlerBrowserTest,
-                       OnlySetPrefAndAcceptLatestSchemaAreRegistered) {
+                       OnlyTheThreeSetupMessagesAreRegistered) {
   EXPECT_EQ(web_ui_->registered(),
-            (std::set<std::string>{"setPref", "acceptLatestSchema"}));
+            (std::set<std::string>{"setPref", "acceptLatestSchema",
+                                   "aerieSetup.getBrowserIcons"}));
   EXPECT_FALSE(web_ui_->registered().contains("installExtension"));
   EXPECT_FALSE(web_ui_->registered().contains("getExtensions"));
 }
@@ -187,6 +254,176 @@ IN_PROC_BROWSER_TEST_F(AerieSetupHandlerBrowserTest,
   prefs()->SetInteger(::prefs::kHeliumSchemaVersion, 0);
   web_ui_->HandleReceivedMessage("acceptLatestSchema", base::ListValue());
   EXPECT_GT(prefs()->GetInteger(::prefs::kHeliumSchemaVersion), 0);
+}
+
+// Browser icons (issue #91).
+
+IN_PROC_BROWSER_TEST_F(AerieSetupHandlerBrowserTest,
+                       IconsComeBackAsPngDataUrlsByBrowserName) {
+  InstallBrowser("chromium", "chromium", FakePng("native"));
+  InstallBrowser("org.chromium.Chromium", "org.chromium.Chromium",
+                 FakePng("flatpak"));
+  base::ListValue names;
+  names.Append("Chromium");
+  names.Append("Chromium (Flatpak)");
+  const base::DictValue icons = AskForIcons(base::Value(std::move(names)));
+  ASSERT_EQ(icons.size(), 2u);
+  const std::string* native = icons.FindString("Chromium");
+  const std::string* flatpak = icons.FindString("Chromium (Flatpak)");
+  ASSERT_TRUE(native);
+  ASSERT_TRUE(flatpak);
+  EXPECT_TRUE(native->starts_with("data:image/png;base64,"));
+  EXPECT_TRUE(flatpak->starts_with("data:image/png;base64,"));
+  EXPECT_NE(*native, *flatpak);
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSetupHandlerBrowserTest,
+                       BrowsersWithoutAnIconAreLeftOutSoThePageKeepsItsTile) {
+  InstallBrowser("firefox", "firefox", FakePng("ff"));
+  base::ListValue names;
+  names.Append("Firefox");
+  names.Append("Zen");                  // Known, but no icon on disk.
+  names.Append("Bookmarks HTML file");  // Not a browser.
+  names.Append("../../etc/passwd");
+  const base::DictValue icons = AskForIcons(base::Value(std::move(names)));
+  EXPECT_EQ(icons.size(), 1u);
+  EXPECT_TRUE(icons.FindString("Firefox"));
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSetupHandlerBrowserTest, ASvgOrOversizedIconGivesNoIcon) {
+  WriteFile("applications/vivaldi-stable.desktop", "[Desktop Entry]\nIcon=vivaldi\n");
+  WriteFile("icons/hicolor/scalable/apps/vivaldi.svg", "<svg/>");
+  WriteFile("icons/hicolor/64x64/apps/vivaldi.png", "<svg/>");
+  InstallBrowser("brave-browser", "brave-browser",
+                 FakePng(std::string(300 * 1024, 'x')));
+  base::ListValue names;
+  names.Append("Vivaldi");
+  names.Append("Brave");
+  EXPECT_TRUE(AskForIcons(base::Value(std::move(names))).empty());
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSetupHandlerBrowserTest, NonStringNamesAreIgnored) {
+  InstallBrowser("firefox", "firefox", FakePng("ff"));
+  base::ListValue names;
+  names.Append(5);
+  names.Append(base::Value());
+  names.Append("Firefox");
+  const base::DictValue icons = AskForIcons(base::Value(std::move(names)));
+  EXPECT_EQ(icons.size(), 1u);
+}
+
+IN_PROC_BROWSER_TEST_F(AerieSetupHandlerBrowserTest, MalformedIconRequestsAreRejected) {
+  base::ListValue not_a_list;
+  not_a_list.Append("cb1");
+  not_a_list.Append("Chromium");
+  AskForIconsExpectingRejection(std::move(not_a_list));
+
+  base::ListValue missing;
+  missing.Append("cb2");
+  AskForIconsExpectingRejection(std::move(missing));
+
+  base::ListValue too_many;
+  too_many.Append("cb3");
+  base::ListValue names;
+  for (int i = 0; i < 65; ++i) {
+    names.Append("Chromium");
+  }
+  too_many.Append(std::move(names));
+  AskForIconsExpectingRejection(std::move(too_many));
+}
+
+// The import step on the real page, end to end (issue #91): a Flatpak Chromium in a throwaway home
+// is listed as "Chromium (Flatpak)" with its own icon from a throwaway icon theme, and nothing
+// on the page asks for anything outside the browser.
+IN_PROC_BROWSER_TEST_F(AerieSetupHandlerBrowserTest,
+                       TheImportStepShowsAnIconAndMakesNoOutsideRequest) {
+  base::ScopedTempDir home;
+  ASSERT_TRUE(home.CreateUniqueTempDir());
+  base::ScopedPathOverride home_override(base::DIR_HOME, home.GetPath());
+  const base::FilePath user_data = home.GetPath().AppendASCII(
+      ".var/app/org.chromium.Chromium/config/chromium");
+  ASSERT_TRUE(base::CreateDirectory(user_data.AppendASCII("Default")));
+  ASSERT_TRUE(base::WriteFile(
+      user_data.AppendASCII("Local State"),
+      R"({"profile":{"info_cache":{"Default":{"name":"Work"}}}})"));
+  ASSERT_TRUE(base::WriteFile(user_data.AppendASCII("Default/Bookmarks"),
+                              R"({"roots":{}})"));
+  InstallBrowser("org.chromium.Chromium", "org.chromium.Chromium",
+                 FakePng("page"));
+  base::ScopedEnvironmentVariableOverride data_home(
+      "XDG_DATA_HOME", share_.GetPath().AsUTF8Unsafe());
+  base::ScopedEnvironmentVariableOverride data_dirs(
+      "XDG_DATA_DIRS", share_.GetPath().AsUTF8Unsafe());
+
+  base::Lock lock;
+  std::vector<GURL> requested;
+  content::URLLoaderInterceptor interceptor(base::BindLambdaForTesting(
+      [&](content::URLLoaderInterceptor::RequestParams* params) {
+        base::AutoLock auto_lock(lock);
+        requested.push_back(params->url_request.url);
+        if (params->url_request.url.SchemeIsHTTPOrHTTPS()) {
+          // Only the control below asks for one; answer it without the network.
+          content::URLLoaderInterceptor::WriteResponse(
+              "HTTP/1.1 200 OK\nContent-Type: text/html\n\n", "control",
+              params->client.get());
+          return true;
+        }
+        return false;  // Let it through: the test only watches.
+      }));
+
+  content::WebContents* contents =
+      browser()->tab_strip_model()->GetActiveWebContents();
+  ASSERT_TRUE(content::NavigateToURL(contents, GURL("chrome://setup/")));
+  auto wait_for = [&](const std::string& expression) {
+    return base::test::RunUntil([&] {
+      return content::EvalJs(contents, "!!(" + expression + ")").ExtractBool();
+    });
+  };
+  ASSERT_TRUE(wait_for("window.aerieSetup"));
+  // Press Continue, as a person does, once the page has drawn it.
+  ASSERT_TRUE(wait_for("document.querySelector('#next')"));
+  ASSERT_TRUE(content::ExecJs(
+      contents, "document.querySelector('#next').click()"));
+  ASSERT_TRUE(wait_for(
+      "window.aerieSetup.state.steps[window.aerieSetup.state.step] === 'import'"));
+  ASSERT_TRUE(wait_for(
+      "document.querySelector('#stage .opt .logo img')"));
+
+  EXPECT_EQ("Chromium (Flatpak)",
+            content::EvalJs(contents,
+                            "window.aerieSetup.state.profiles[0].name"));
+  EXPECT_EQ(true, content::EvalJs(contents, R"(
+      (() => { const img = document.querySelector('#stage .opt .logo img');
+        return !!img && img.src.startsWith('data:image/png;base64,'); })())"));
+
+  // The page content security policy refuses an image or a connection to the network.
+  EXPECT_EQ("blocked", content::EvalJs(contents, R"(
+      new Promise(resolve => { const i = new Image();
+        i.onload = () => resolve('loaded'); i.onerror = () => resolve('blocked');
+        i.src = 'https://example.com/icon.png'; }))"));
+  EXPECT_EQ("blocked", content::EvalJs(contents, R"(
+      fetch('https://example.com/').then(() => 'fetched', () => 'blocked'))"));
+
+  std::vector<GURL> seen;
+  {
+    base::AutoLock auto_lock(lock);
+    seen = requested;
+  }
+  // The recording works: it holds the page's own load...
+  EXPECT_FALSE(seen.empty());
+  EXPECT_TRUE(std::count(seen.begin(), seen.end(), GURL("chrome://setup/")) > 0);
+  // ...and nothing but browser-internal requests.
+  for (const GURL& url : seen) {
+    EXPECT_TRUE(url.SchemeIs("chrome") || url.SchemeIs("aerie") ||
+                url.SchemeIs("data") || url.SchemeIs("about") ||
+                url.SchemeIs("blob"))
+        << url;
+  }
+
+  // Control: a request to the network is recorded, so the check above can fail.
+  ASSERT_TRUE(content::NavigateToURL(contents, GURL("https://control.test/")));
+  base::AutoLock auto_lock(lock);
+  EXPECT_TRUE(std::count(requested.begin(), requested.end(), GURL("https://control.test/")) > 0);
 }
 
 // The real aerie://setup page, with the handlers the patch registers.

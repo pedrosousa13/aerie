@@ -122,9 +122,10 @@ class HookTest(unittest.TestCase):
 
     def test_setup_handler_registers_only_what_the_page_uses(self):
         source = (REPO / "overlay/chrome/browser/ui/webui/aerie_onboarding/aerie_setup_handler.cc").read_text(encoding="utf-8")
-        registered = set(re.findall(r'RegisterMessageCallback\(\s*"(\w+)"', source))
-        self.assertEqual(registered, {"setPref", "acceptLatestSchema"})
-        used = set(re.findall(r"(?:chrome\.send|sendWithPromise)\('(\w+)'", SCRIPT))
+        registered = set(re.findall(r'RegisterMessageCallback\(\s*"([\w.]+)"', source))
+        # Issue #91 added the icon lookup; every addition to this set is a decision about what the page may ask.
+        self.assertEqual(registered, {"setPref", "acceptLatestSchema", "aerieSetup.getBrowserIcons"})
+        used = set(re.findall(r"(?:chrome\.send|sendWithPromise)\('([\w.]+)'", SCRIPT))
         self.assertTrue(registered <= used)
         for banned in ("getExtensions", "installExtension"):
             self.assertNotIn(banned, SCRIPT)
@@ -147,3 +148,59 @@ class HookTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BrowserIconTest(unittest.TestCase):
+    """Issue #91: real browser icons in the import step, as data URLs only, with the letter tile as the fallback."""
+
+    def test_the_page_asks_for_the_icons_of_the_listed_browsers(self):
+        self.assertIn("sendWithPromise('aerieSetup.getBrowserIcons', S.profiles.map(p => p.name))", SCRIPT)
+
+    def test_only_a_png_data_url_is_ever_used_as_an_icon(self):
+        match = re.search(r"const PNG_DATA_URL = (/.*/);", SCRIPT)
+        self.assertTrue(match, "the page must check the icon's form")
+        self.assertIn("^data:image\\/png;base64,", match.group(1))
+        self.assertIn("PNG_DATA_URL.test(url)", SCRIPT)
+        # The one <img> the page builds takes its source from fillLogo(), whose icon comes from browserIcon(),
+        # which applies that check.
+        sources = re.findall(r"\bsrc\b\s*[:=]\s*([^,}\n]+)", SCRIPT)
+        self.assertEqual([source.strip() for source in sources], ["it.icon"])
+        self.assertEqual(len(re.findall(r"icon: browserIcon\(p\.name\)", SCRIPT)), 2)  # the rows and the hand-off logo
+
+    def test_no_icon_means_the_letter_tile(self):
+        self.assertIn("BROWSER_TILES[n % BROWSER_TILES.length], letter:", SCRIPT)
+        self.assertIn("node.style.background = it.icon ? 'transparent' : it.tile;", SCRIPT)
+        self.assertIn("it.icon ? h('img', {src: it.icon, alt: '', draggable: 'false'}) : it.letter", SCRIPT)
+
+    def test_the_page_makes_no_network_request_for_icons(self):
+        # The icon arrives as bytes from the browser; nothing on the page fetches one.
+        for call in ("fetch(", "XMLHttpRequest", "WebSocket", "sendBeacon", "new Image", "EventSource", "importScripts"):
+            self.assertNotIn(call, SCRIPT, call)
+        html = (RESOURCES / "index.html").read_text(encoding="utf-8")
+        css = (RESOURCES / "setup.css").read_text(encoding="utf-8")
+        for text in (html, css):
+            self.assertNotRegex(text, r"(?i)(?:src|href)\s*=\s*[\"']?https?:")
+            self.assertNotRegex(text, r"(?i)url\(\s*[\"']?https?:")
+            self.assertNotRegex(text, r"(?i)@import")
+        # The page's content security policy lets images come from data: URLs and chrome:// only, and connect to itself.
+        self.assertNotRegex(SCRIPT, r"https?://[^'\"`\s]*\.(png|jpg|jpeg|gif|svg|ico|webp)")
+
+    def test_the_step_says_passwords_and_autofill_are_not_imported(self):
+        self.assertIn("t('importNoPasswords')", SCRIPT)
+        grdp = (COMPONENT / "aerie_onboarding_strings.grdp").read_text(encoding="utf-8")
+        match = re.search(r'name="IDS_AERIE_SETUP_IMPORT_NO_PASSWORDS"[^>]*>\s*(.*?)\s*</message>', grdp, re.S)
+        self.assertTrue(match)
+        # No CSV route: Helium turns the password manager off by policy (credentials_enable_service is forced
+        # off), which hides its "Import passwords" row, so the note must not promise one.
+        self.assertNotIn("CSV", match.group(1))
+        self.assertIn("not imported", match.group(1))
+        self.assertIn("does not save passwords", match.group(1))
+
+    def test_the_icon_resolver_reads_files_only(self):
+        for name in ("browser_icon.cc", "import_sources.cc"):
+            source = re.sub(r"//.*", "", (REPO / "overlay/components/aerie_import_sources" / name).read_text(encoding="utf-8"))
+            for word in ("network", "URLLoader", "GURL", "http://", "https://", "socket", "SimpleURLLoader"):
+                self.assertNotIn(word, source, f"{name}: {word}")
+        handler = re.sub(r"//.*", "", (REPO / "overlay/chrome/browser/ui/webui/aerie_onboarding/aerie_setup_handler.cc").read_text(encoding="utf-8"))
+        for word in ("network", "URLLoader", "SimpleURLLoader", "GURL"):
+            self.assertNotIn(word, handler, word)

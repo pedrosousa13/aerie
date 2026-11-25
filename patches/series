@@ -62,6 +62,8 @@ widevine/0004-ask-before-the-first-drm-request.patch
 
 # Aerie's own first-run setup page (#46), served by Helium's onboarding page controller.
 onboarding/0001-serve-aerie-setup-page.patch
+# One row per install of a browser in the setup import step; Flatpak and Helium sources (#91).
+onboarding/0002-list-each-browser-install-once.patch
 
 # C++ unit test support (#54). Test-only files; the shipped browser does not link them.
 tests/0001-fix-test-support-for-helium-noise.patch

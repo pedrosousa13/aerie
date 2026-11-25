@@ -38,6 +38,7 @@ inline constexpr webui::LocalizedString kLocalizedStrings[] = {
     {"importLocal", IDS_AERIE_SETUP_IMPORT_LOCAL},
     {"importPickOne", IDS_AERIE_SETUP_IMPORT_PICK_ONE},
     {"importRunning", IDS_AERIE_SETUP_IMPORT_RUNNING},
+    {"importNoPasswords", IDS_AERIE_SETUP_IMPORT_NO_PASSWORDS},
     {"importFailed", IDS_AERIE_SETUP_IMPORT_FAILED},
     {"lookTitle", IDS_AERIE_SETUP_LOOK_TITLE},
     {"lookBody", IDS_AERIE_SETUP_LOOK_BODY},

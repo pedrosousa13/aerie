@@ -1,0 +1,45 @@
+# Copyright 2026 The Aerie Authors
+# You can use, redistribute, and/or modify this source code under
+# the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+import("//testing/test.gni")
+
+# What the setup page's import step knows about the browsers installed on this
+# computer (issue #91): the browser's own icon from the system's icon theme, the
+# Flatpak and Helium data folders the importer would not otherwise look at, and one
+# row per install. Nothing here touches the network.
+source_set("aerie_import_sources") {
+  sources = [
+    "browser_icon.cc",
+    "browser_icon.h",
+    "import_sources.cc",
+    "import_sources.h",
+    "known_browsers.cc",
+    "known_browsers.h",
+  ]
+  public_deps = [
+    "//base",
+    "//components/user_data_importer/common",
+  ]
+}
+
+source_set("unit_tests") {
+  testonly = true
+  sources = [
+    "browser_icon_unittest.cc",
+    "import_sources_unittest.cc",
+  ]
+  deps = [
+    ":aerie_import_sources",
+    "//base",
+    "//base/test:test_support",
+    "//testing/gtest",
+  ]
+}
+
+test("aerie_import_sources_unittests") {
+  deps = [
+    ":unit_tests",
+    "//base/test:run_all_unittests",
+  ]
+}
