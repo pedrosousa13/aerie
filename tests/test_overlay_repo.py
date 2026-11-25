@@ -58,6 +58,7 @@ class RepoOverlayTest(unittest.TestCase):
                    "components/aerie_design_tokens/BUILD.gn",
                    "components/aerie_tab_model/BUILD.gn", "chrome/browser/aerie_tab_model/BUILD.gn",
                    "components/aerie_sidebar/BUILD.gn", "chrome/browser/aerie_network/BUILD.gn",
+                   "chrome/browser/aerie_download/BUILD.gn",
                    "services/network/aerie/BUILD.gn"):
             base = gn.rsplit("/", 1)[0]
             text = (overlay.overlay_root(REPO) / gn).read_text()
