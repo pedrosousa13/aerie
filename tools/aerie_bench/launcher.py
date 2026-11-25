@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import fcntl
 import os
 import re
 import signal
@@ -142,8 +143,16 @@ def spawn(argv: list[str], env: dict[str, str] | None = None, stderr_path: Path 
     from_browser_r, from_browser_w = os.pipe()  # browser writes on fd 4, we read
 
     def wire() -> None:
-        os.dup2(to_browser_r, 3)
-        os.dup2(from_browser_w, 4)
+        # In a process with few fds open (a short custom script) os.pipe() returns 3,4,5,6, so
+        # to_browser_r is already fd 3 (dup2 onto itself is a no-op that keeps close-on-exec)
+        # and dup2(from_browser_w, 4) would overwrite to_browser_w. Move both ends out of the
+        # 3/4 range first; dup2 onto a different number always gives an inheritable fd.
+        r = fcntl.fcntl(to_browser_r, fcntl.F_DUPFD, 5)
+        w = fcntl.fcntl(from_browser_w, fcntl.F_DUPFD, 5)
+        os.dup2(r, 3)
+        os.dup2(w, 4)
+        os.close(r)
+        os.close(w)
 
     err = open(stderr_path, "wb") if stderr_path else subprocess.DEVNULL
     try:

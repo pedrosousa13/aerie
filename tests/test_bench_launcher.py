@@ -149,5 +149,45 @@ class ProcessTest(unittest.TestCase):
         self.assertIsNone(launcher.version("/nonexistent/browser"))
 
 
+class LowFdTest(unittest.TestCase):
+    """Issue #97: in a fresh process with nothing else open, os.pipe() returns fds 3,4 and 5,6,
+    so the read end is already fd 3 and the other write end sits on 4. A fresh child process
+    reproduces that; the pytest process itself has many fds open and never would."""
+
+    def test_spawn_works_in_a_process_with_no_other_fds_open(self):
+        import subprocess
+        tools = Path(__file__).resolve().parents[1] / "tools"
+        script = (
+            f"import sys; sys.path.insert(0, {str(tools)!r})\n"
+            "from aerie_bench import launcher\n"
+            f"p = launcher.spawn([sys.executable, {str(FAKE)!r}])\n"
+            "print('OK', p.client.send('Browser.getVersion', timeout=10))\n"
+            "print(p.shutdown(timeout=10))\n")
+        out = subprocess.run([sys.executable, "-c", script], timeout=30, start_new_session=True,
+                             stdin=subprocess.DEVNULL, capture_output=True, text=True)
+        self.assertIn("OK", out.stdout, out.stdout + out.stderr)
+        self.assertIn("'clean': True", out.stdout, out.stdout + out.stderr)
+
+
+class ShotTest(unittest.TestCase):
+    def test_screenshot_writes_png_with_fake_browser(self):
+        import http.server, threading
+        from aerie_bench import shot
+
+        class H(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(200); self.end_headers()
+                self.wfile.write(b"<title>t</title>hi")
+            def log_message(self, *a): pass
+        srv = http.server.HTTPServer(("127.0.0.1", 0), H)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        try:
+            with tempfile.TemporaryDirectory() as d:
+                out = shot.screenshot(FAKE, f"http://127.0.0.1:{srv.server_port}/", Path(d) / "a.png", timeout=10)
+                self.assertTrue(out.read_bytes().startswith(b"\x89PNG"))
+        finally:
+            srv.shutdown()
+
+
 if __name__ == "__main__":
     unittest.main()

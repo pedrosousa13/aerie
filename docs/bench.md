@@ -63,6 +63,30 @@ Options:
 | `--build-root DIR` | Build root (env `AERIE_BUILD_ROOT`, default `/mnt/linux2/aerie-build`). `./aerie bench` only for the flag; `python3 -m aerie_bench` takes it too. |
 | `--lock-timeout SEC` | `./aerie bench` only. How long to wait for the build-tree lock (default: wait; `0` fails at once). See [ci.md](ci.md). |
 
+## Your own CDP script (or a screenshot)
+
+For an ad hoc script, use the Bench's launcher. Do not start the browser with your own
+`subprocess` call and `--remote-debugging-pipe`: the pipe needs the browser's fds 3 and 4 wired
+exactly, and `launcher.spawn` does that.
+
+One-liner, a screenshot of a local page (works under `./aerie locked`):
+
+```sh
+./aerie locked -- python3 tools/aerie_bench/shot.py --binary "$(./aerie info | awk '/^binary/{print $2}')" http://127.0.0.1:8000/ --out /tmp/page.png
+```
+
+It uses a throwaway profile, and prints the PNG path and size. `--headed` shows the window,
+`--no-sandbox` is for containers.
+
+For other CDP work, copy `tools/aerie_bench/shot.py`: `launcher.spawn(launcher.build_argv(...), env=browser_env(os.environ, profile))`
+returns a `BrowserProcess` whose `.client.send(method, params, session_id=...)` speaks CDP, and
+`.shutdown()` stops the browser.
+
+Background (issue #97): `spawn` used to `dup2` its pipes onto fds 3 and 4 without first moving them. In a
+short script with few fds open, `os.pipe()` returns 3, 4, 5, 6, so the read end already was fd 3
+(`dup2` onto itself keeps close-on-exec, so exec closed it) and the second `dup2` overwrote the other pipe.
+The browser then said "Remote debugging pipe fds not open". It had nothing to do with `./aerie locked`.
+
 ## What a run does
 
 1. Starts the fixture server on `127.0.0.1`, ephemeral port. It serves
