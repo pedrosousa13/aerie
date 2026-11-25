@@ -11,11 +11,12 @@ PATCHES = REPO / "patches" / "services"
 UI_PATCH = PATCHES / "0006-remove-the-helium-services-ui.patch"
 DIALOG_PATCH = PATCHES / "0003-extension-proxy-not-configured.patch"
 COMPONENTS_PATCH = PATCHES / "0007-components-page-says-aerie.patch"
+NAGS_PATCH = PATCHES / "0009-remove-the-helium-services-nags.patch"
 
 
 def patch_text() -> str:
     """The patches that use the messages."""
-    return "".join(p.read_text(encoding="utf-8") for p in (UI_PATCH, DIALOG_PATCH, COMPONENTS_PATCH))
+    return "".join(p.read_text(encoding="utf-8") for p in (UI_PATCH, DIALOG_PATCH, COMPONENTS_PATCH, NAGS_PATCH))
 
 
 def messages():
@@ -43,7 +44,8 @@ class StringsTest(unittest.TestCase):
     def test_every_message_a_patch_asks_for_exists(self):
         used = set(re.findall(r"\bIDS_(?:SETTINGS_)?AERIE_EXTENSION_PROXY_\w+|"
                               r"\bIDS_SETTINGS_LANGUAGES_DICTIONARY_DOWNLOAD_FAILED_HELP_AERIE\b|"
-                              r"\bIDS_AERIE_COMPONENTS_SVC_STATUS_\w+",
+                              r"\bIDS_AERIE_COMPONENTS_SVC_STATUS_\w+|"
+                              r"\bIDS_AERIE_DOWNLOAD_BUBBLE_EXTENSION_DOWNLOADS_OFF\b",
                               patch_text()))
         self.assertEqual(used, set(messages()))
 
