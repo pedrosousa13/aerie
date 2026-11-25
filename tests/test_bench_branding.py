@@ -3,6 +3,7 @@
 import re
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from aerie_bench import checks
 from aerie_bench.checks import branding
@@ -23,8 +24,16 @@ def failed_update(text="CRLSet\nStatus - Component updates are disabled in Aerie
             "statuses": ["Component updates are disabled in Aerie."] if statuses is None else statuses}
 
 
-def scan_obs(pages, control=CONTROL_HIT, forced=None):
-    return {"pages": pages, "control": control, "failed_update": forced or failed_update()}
+def failed_download(text="Downloads\nmissing.bin\nFailed - No file", failed=True, bubble=None, error=None):
+    """chrome://downloads and the download bubble read after the Bench forced a download that failed (issue #94)."""
+    return {**page("chrome://downloads/ (after a failed download)", text=text, error=error),
+            "failed": failed,
+            "bubble": {"texts": ["missing.bin", "Failed - No file"], "error": None} if bubble is None else bubble}
+
+
+def scan_obs(pages, control=CONTROL_HIT, forced=None, download=None):
+    return {"pages": pages, "control": control, "failed_update": forced or failed_update(),
+            "failed_download": download or failed_download()}
 
 
 class ScannerTest(unittest.TestCase):
@@ -94,8 +103,7 @@ class NoHeliumJudgeTest(unittest.TestCase):
 
     def test_the_privacy_and_languages_pages_are_judged_like_every_other_page(self):
         # They used to be exempt while Helium services text was on them (issue #23).
-        for url in ("chrome://settings/privacy", "chrome://settings/privacy/services",
-                    "chrome://settings/languages"):
+        for url in ("chrome://settings/privacy", "chrome://settings/languages"):
             with self.subTest(url=url):
                 status, detail = self.judge(scan_obs([page(url, text="Helium services")]))
                 self.assertEqual(status, "fail")
@@ -142,6 +150,112 @@ class NoHeliumJudgeTest(unittest.TestCase):
         self.assertEqual(self.judge(scan_obs([page("chrome://version/")]))[0], "pass")
 
 
+class FailedDownloadJudgeTest(unittest.TestCase):
+    """The download bubble and chrome://downloads after a download that failed (issue #94)."""
+    judge = staticmethod(checks.get("branding_no_helium").judge)
+
+    def verdict(self, **kw):
+        return self.judge(scan_obs([page("chrome://version/")], download=failed_download(**kw)))
+
+    def test_a_clean_bubble_and_page_pass(self):
+        status, detail = self.verdict()
+        self.assertEqual(status, "pass", detail)
+        self.assertIn("download bubble", detail)
+
+    def test_helium_services_wording_in_the_bubble_fails_and_names_the_bubble(self):
+        status, detail = self.verdict(bubble={"texts": ["Extension downloads are disabled. Enable this feature in "
+                                                         "Helium services settings and try again."], "error": None})
+        self.assertEqual(status, "fail")
+        self.assertIn("download bubble", detail)
+        self.assertIn("Helium", detail)
+
+    def test_helium_wording_on_the_downloads_page_fails(self):
+        status, detail = self.verdict(text="Downloads\nReview Helium services updates")
+        self.assertEqual(status, "fail")
+        self.assertIn("chrome://downloads", detail)
+
+    def test_a_download_that_did_not_fail_proves_nothing(self):
+        status, detail = self.verdict(failed=False)
+        self.assertEqual(status, "fail")
+        self.assertIn("did not fail", detail)
+
+    def test_a_bubble_that_was_not_read_proves_nothing(self):
+        for bubble in ({"texts": [], "error": None}, {"texts": [], "error": "UiDevToolsError: no port"}):
+            with self.subTest(bubble=bubble):
+                status, detail = self.verdict(bubble=bubble)
+                self.assertEqual(status, "fail")
+                self.assertIn("download bubble", detail)
+
+    def test_a_downloads_page_that_did_not_load_fails(self):
+        status, detail = self.verdict(error="load timeout")
+        self.assertEqual(status, "fail")
+        self.assertIn("did not load", detail)
+
+    def test_a_missing_failed_download_case_fails(self):
+        obs = scan_obs([page("chrome://version/")])
+        del obs["failed_download"]
+        self.assertEqual(self.judge(obs)[0], "fail")
+
+
+class FakeUi:
+    """A UI DevTools tree: nodes are (id, class, props, children)."""
+
+    def __init__(self, tree):
+        self.tree, self.props = tree, {}
+
+    def send(self, method, params=None):
+        def build(n):
+            return {"nodeId": n[0], "attributes": ["class", n[1]], "children": [build(c) for c in n[3]]}
+
+        def collect(n):
+            self.props[n[0]] = n[2]
+            for c in n[3]:
+                collect(c)
+        collect(self.tree)
+        return {"root": build(self.tree)}
+
+    def properties(self, node_id):
+        return self.props[node_id]
+
+
+class BubbleTextTest(unittest.TestCase):
+    def test_reads_only_the_views_below_the_download_bubble(self):
+        tree = (1, "RootView", {}, [
+            (2, "ToolbarView", {"Text": "Helium toolbar"}, []),
+            (3, "DownloadBubbleContentsView", {"Text": "Downloads"}, [
+                (4, "DownloadBubbleRowView", {"TooltipText": "missing.bin"}, [
+                    (5, "Label", {"Text": "Failed - No file"}, [])])])])
+        self.assertEqual(branding.bubble_texts(FakeUi(tree)), ["Downloads", "missing.bin", "Failed - No file"])
+
+    def test_no_bubble_gives_no_text(self):
+        self.assertEqual(branding.bubble_texts(FakeUi((1, "RootView", {}, [(2, "Label", {"Text": "x"}, [])]))), [])
+
+
+class WiringTest(unittest.TestCase):
+    """observe() runs every case and hands each one's data to judge() under the key judge() reads."""
+
+    def test_observe_runs_the_pages_the_failed_update_and_the_failed_download(self):
+        calls = []
+
+        def fake_read_page(session, url, label=None, before_read=None):
+            calls.append(url)
+            return CONTROL_HIT if url.endswith(branding.CONTROL_PATH) else page(url)
+
+        class Fixtures:
+            base_url = "http://127.0.0.1:1"
+
+        class FakeSession:
+            fixtures = Fixtures()
+
+        with mock.patch.object(branding, "read_page", fake_read_page), \
+                mock.patch.object(branding, "read_failed_update", lambda s: failed_update()), \
+                mock.patch.object(branding, "read_failed_download", lambda s: failed_download()):
+            obs = checks.get("branding_no_helium")().observe(FakeSession())
+        self.assertEqual(set(obs), {"control", "pages", "failed_update", "failed_download"})
+        self.assertEqual(calls[1:], list(branding.PAGES))
+        self.assertEqual(checks.get("branding_no_helium").judge(obs)[0], "pass")
+
+
 class PageListTest(unittest.TestCase):
     def test_the_list_covers_the_surfaces_the_issue_names(self):
         urls = set(branding.PAGES)
@@ -149,6 +263,11 @@ class PageListTest(unittest.TestCase):
                        "chrome://chrome-urls/"):
             self.assertIn(needed, urls)
         self.assertGreaterEqual(len(urls), 15)
+
+    def test_the_removed_helium_services_route_is_not_listed(self):
+        # Issue #23 removed chrome://settings/privacy/services; the page would only show a 404.
+        self.assertNotIn("chrome://settings/privacy/services", branding.PAGES)
+        self.assertFalse([u for u in branding.PAGES if u.rstrip("/").endswith("/services")])
 
     def test_pages_are_unique_internal_urls(self):
         self.assertEqual(len(branding.PAGES), len(set(branding.PAGES)))

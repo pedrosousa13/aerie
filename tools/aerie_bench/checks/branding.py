@@ -13,6 +13,7 @@ from pathlib import Path
 
 from aerie_build import aerie_version, lock
 
+from .. import ui_devtools
 from ..session import Session
 from . import register
 from .hardening.common import DEEP_JS, HardeningCheck, Verdict
@@ -37,7 +38,6 @@ PAGES = (
     "chrome://settings/downloads",
     "chrome://settings/system",
     "chrome://settings/reset",
-    "chrome://settings/privacy/services",
     "chrome://flags/",
     "chrome://history/",
     "chrome://downloads/",
@@ -174,19 +174,131 @@ def judge_failed_update(forced: dict | None) -> list[str]:
     return []
 
 
+# A download that fails (issue #94). The fixture server answers 404 for a file that is not there, and a
+# download of a 404 ends as an interrupted download, shown as "Failed". The browser that does it has UI
+# DevTools, because the download bubble is a native view (CDP cannot see it): its text is every Text,
+# tooltip and accessible name of a view below a DownloadBubble* view.
+FAILED_DOWNLOAD_PAGE_LABEL = "chrome://downloads/ (after a failed download)"
+FAILED_DOWNLOAD_PATH = "/branding/no-such-file.bin"
+FAILED_DOWNLOAD_BUBBLE = "the download bubble"
+FORCE_DOWNLOAD_JS = f"""
+(() => {{
+  const a = document.createElement('a');
+  a.href = {FAILED_DOWNLOAD_PATH!r};
+  a.download = 'missing.bin';
+  document.body.appendChild(a);
+  a.click();
+  return true;
+}})()"""
+# The downloads page says "Failed" in the row of an interrupted download.
+DOWNLOAD_FAILED_JS = DEEP_JS + """
+(() => deepQueryAll(document, '*').some((e) => /^Failed\\b/.test((e.textContent || '').trim()) &&
+                                                  e.children.length === 0))()"""
+BUBBLE_TEXT_PROPERTIES = ("Text", "TooltipText", "AccessibleName")
+BUBBLE_WAIT = 20.0
+
+
+def bubble_texts(ui: "ui_devtools.UiDevTools") -> list[str]:
+    """The words on the download bubble: every text of every view below a view whose class starts with
+    DownloadBubble. Empty when the bubble is not on screen."""
+    texts: list[str] = []
+    root = ui.send("DOM.getDocument")["root"]
+    stack = [(root, False)]
+    while stack:
+        node, inside = stack.pop()
+        attrs = node.get("attributes") or []
+        cls = attrs[1] if len(attrs) > 1 and attrs[0] == "class" else node.get("nodeName", "")
+        inside = inside or cls.startswith("DownloadBubble")
+        if inside and node["nodeId"] != root["nodeId"]:
+            try:
+                props = ui.properties(node["nodeId"])
+            except ui_devtools.UiDevToolsError as exc:
+                if not str(exc).startswith("CSS.getMatchedStylesForNode:"):
+                    raise
+                props = {}
+            texts += [props[k] for k in BUBBLE_TEXT_PROPERTIES if props.get(k)]
+        stack.extend((c, inside) for c in reversed(node.get("children") or []))
+    return texts
+
+
+def read_failed_download(session: Session) -> dict:
+    """Force a download that fails in a second browser (with UI DevTools), then read chrome://downloads
+    and the download bubble: a read_page() dict plus ``failed`` (the page shows a failed download) and
+    ``bubble`` ({"texts", "error"})."""
+    got: dict = {"url": FAILED_DOWNLOAD_PAGE_LABEL, "title": "", "text": "", "error": None,
+                 "failed": False, "bubble": {"texts": [], "error": None}}
+    try:
+        with session.new_profile() as profile, \
+                session.variant(extra_flags=ui_devtools.FLAGS, profile=profile) as browser:
+            browser.navigate("/index.html")
+            browser.evaluate(FORCE_DOWNLOAD_JS, user_gesture=True)
+            deadline = time.monotonic() + BUBBLE_WAIT
+            ui = None
+            try:
+                ui = ui_devtools.connect(profile.path, timeout=browser.timeout)
+                while True:
+                    texts = bubble_texts(ui)
+                    if any("Failed" in t for t in texts) or time.monotonic() >= deadline:
+                        break
+                    time.sleep(0.5)
+                got["bubble"]["texts"] = texts
+            except (ui_devtools.UiDevToolsError, OSError) as exc:
+                got["bubble"]["error"] = f"{type(exc).__name__}: {exc}"
+            finally:
+                if ui is not None:
+                    ui.close()
+
+            def wait_failed(b: Session) -> None:
+                b.wait_for(DOWNLOAD_FAILED_JS, timeout=BUBBLE_WAIT, interval=0.5)
+
+            page_read = read_page(browser, "chrome://downloads/", label=FAILED_DOWNLOAD_PAGE_LABEL,
+                                  before_read=wait_failed)
+            got.update(page_read)
+            got["failed"] = False if page_read["error"] else bool(browser.evaluate(DOWNLOAD_FAILED_JS))
+    except Exception as exc:  # noqa: BLE001  (a browser that cannot be driven is data, not a crash)
+        got["error"] = f"could not force a failed download: {type(exc).__name__}: {exc}"
+    return got
+
+
+def judge_failed_download(forced: dict | None) -> list[str]:
+    """Problems with chrome://downloads and the download bubble after a failed download: both must have
+    been read, the download must really have failed (else the case proves nothing), and neither may say
+    Helium."""
+    if not forced:
+        return ["no case read the download bubble and chrome://downloads after a failed download"]
+    if forced.get("error"):
+        return [f"chrome://downloads after a failed download did not load ({forced['error']})"]
+    problems: list[str] = []
+    if not forced.get("failed"):
+        problems.append("the forced download did not fail (chrome://downloads shows no failed download), "
+                        "so the case proves nothing")
+    bubble = forced.get("bubble") or {}
+    if bubble.get("error") or not bubble.get("texts"):
+        problems.append(f"{FAILED_DOWNLOAD_BUBBLE} was not read ({bubble.get('error') or 'no text on it'}), "
+                        "so the case proves nothing")
+    for where, text in (("chrome://downloads", forced.get("text", "") + "\n" + forced.get("title", "")),
+                        (FAILED_DOWNLOAD_BUBBLE, "\n".join(bubble.get("texts") or []))):
+        hits = find_helium(text)
+        if hits:
+            problems.append(f"{where} says Helium after a failed download: ...{hits[0]}... ({len(hits)} hit(s))")
+    return problems
+
+
 @register
 class NoHelium(HardeningCheck):
     name = "branding_no_helium"
     control = "all"
     negative_control = ("A fixture page with the word Helium inside a shadow root is read by the same "
                         "scanner and must be reported, so the scan can see a hit. The failed-update case "
-                        "also fails when no component update failed, so it cannot pass without reaching "
-                        "the error path.")
+                        "also fails when no component update failed, and the failed-download case when no "
+                        "download failed or the bubble could not be read, so neither can pass without "
+                        "reaching the error path.")
 
     def observe(self, session: Session) -> dict:
         control = read_page(session, session.fixtures.base_url + CONTROL_PATH)
         return {"control": control, "pages": [read_page(session, url) for url in PAGES],
-                "failed_update": read_failed_update(session)}
+                "failed_update": read_failed_update(session),
+                "failed_download": read_failed_download(session)}
 
     @staticmethod
     def judge(obs: dict) -> Verdict:
@@ -208,10 +320,12 @@ class NoHelium(HardeningCheck):
                 continue
             problems.append(f"{p['url']} says Helium: ...{hits[0]}... ({len(hits)} hit(s))")
         problems += judge_failed_update(obs.get("failed_update"))
+        problems += judge_failed_download(obs.get("failed_download"))
         if problems:
             return "fail", "; ".join(problems)
         return "pass", (f"no Helium in the titles and text of {len(obs['pages'])} pages, nor on "
-                        "chrome://components after a failed component update")
+                        "chrome://components after a failed component update, nor on chrome://downloads and the download "
+                        "bubble after a failed download")
 
 
 def open_target(session: Session, url: str, settle: float) -> dict:
