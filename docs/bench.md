@@ -63,6 +63,30 @@ Options:
 | `--build-root DIR` | Build root (env `AERIE_BUILD_ROOT`, default `/mnt/linux2/aerie-build`). `./aerie bench` only for the flag; `python3 -m aerie_bench` takes it too. |
 | `--lock-timeout SEC` | `./aerie bench` only. How long to wait for the build-tree lock (default: wait; `0` fails at once). See [ci.md](ci.md). |
 
+## Your own CDP script (or a screenshot)
+
+For an ad hoc script, use the Bench's launcher. Do not start the browser with your own
+`subprocess` call and `--remote-debugging-pipe`: the pipe needs the browser's fds 3 and 4 wired
+exactly, and `launcher.spawn` does that.
+
+One-liner, a screenshot of a local page (works under `./aerie locked`). It needs a local server; start one first
+in the directory you want to show:
+
+```sh
+python3 -m http.server 8000 --bind 127.0.0.1 &
+./aerie locked -- python3 tools/aerie_bench/shot.py --binary "$(./aerie info | awk '/^binary/{print $2}')" http://127.0.0.1:8000/ --out /tmp/page.png
+```
+
+It uses a throwaway profile, and prints the PNG path and size. `--headed` shows the window,
+`--no-sandbox` is for containers.
+
+For other CDP work, copy `tools/aerie_bench/shot.py`: `launcher.spawn(launcher.build_argv(...), env=browser_env(os.environ, profile))`
+returns a `BrowserProcess` whose `.client.send(method, params, session_id=...)` speaks CDP, and
+`.shutdown()` stops the browser.
+
+Always start the browser through `launcher.spawn`. It wires the browser's fds 3 and 4; a hand-made
+`--remote-debugging-pipe` launch fails with "Remote debugging pipe fds not open" (issue #97).
+
 ## What a run does
 
 1. Starts the fixture server on `127.0.0.1`, ephemeral port. It serves
