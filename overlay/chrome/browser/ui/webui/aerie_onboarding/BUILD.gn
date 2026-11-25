@@ -35,6 +35,7 @@ source_set("setup_handler") {
   ]
   deps = [
     "//base",
+    "//components/aerie_import_sources",
     "//components/helium_services",
     "//components/prefs",
     "//content/public/browser",

@@ -69,6 +69,8 @@ TEST_BINARIES = (
     ("aerie_color_unittests", ()),
     # The crash reports that stay on the device: what is read from a dump, listing, deleting and pruning (issue #262).
     ("aerie_crash_reports_unittests", ()),
+    # The setup page's import step: browser icons from the system, Flatpak and Helium folders, one row per install (issue #91).
+    ("aerie_import_sources_unittests", ()),
 )
 # The Views UI test binaries (issue #175, seam B). They link Chromium's browser test support, so they are not
 # in a plain `./aerie test-cpp`; ask for them with --target. They are defined in overlay/chrome/test/aerie and

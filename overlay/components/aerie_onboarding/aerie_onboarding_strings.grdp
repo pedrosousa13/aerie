@@ -75,6 +75,9 @@
   <message name="IDS_AERIE_SETUP_IMPORT_RUNNING" desc="Shown while an import runs.">
     Importing…
   </message>
+  <message name="IDS_AERIE_SETUP_IMPORT_NO_PASSWORDS" desc="Note in the import step: passwords and autofill are never imported, and how to bring passwords over.">
+    Passwords and autofill are not imported. To bring passwords over, export them from the other browser as a CSV file and import that file in Settings.
+  </message>
   <message name="IDS_AERIE_SETUP_IMPORT_FAILED" desc="Shown when an import fails.">
     The import didn't finish. You can try again from Settings.
   </message>

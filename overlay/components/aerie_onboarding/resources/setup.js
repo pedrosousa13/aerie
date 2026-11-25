@@ -6,7 +6,9 @@
 // onboarding page and talks to the same browser handlers that Helium's page
 // controller registers (chrome/browser/ui/webui/onboarding):
 //
-//   import    initializeImportDialog, importData, 'import-data-status-changed'
+//   import    initializeImportDialog, importData, 'import-data-status-changed',
+//             aerieSetup.getBrowserIcons (the installed browsers' own icons as
+//             PNG data URLs; no icon means the letter tile, and nothing is fetched)
 //   search    getSearchEnginesList, setDefaultSearchEngine
 //   default   requestDefaultBrowserState, setAsDefaultBrowser,
 //             'browser-default-state-changed'
@@ -112,6 +114,7 @@ const S = {
   steps: ['welcome', 'import', 'look', 'block', 'search', 'privacy', 'default', 'done'],
   step: 0,
   profiles: null,            // null while loading, [] when none found
+  icons: {},                 // browser name -> data:image/png URL, for installed browsers that have an icon
   from: 'none',              // profile index as a string, or 'none'
   items: new Set(['bookmarks', 'passwords', 'history']),
   importing: false, importError: false, imported: null,
@@ -216,7 +219,17 @@ function radioGroup(name, items, current, body) {
                  'aria-checked': String(it.id === current), onclick: () => choose(name, it.id)},
       body(it), h('span', {class: 'tick'}, tickIcon()))));
 }
-const optBody = it => [h('span', {class: 'logo', style: {background: it.tile}}, it.letter),
+// The icon the browser sent for `name`, only when it is a PNG data URL; anything else gets the letter tile.
+const PNG_DATA_URL = /^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/;
+function browserIcon(name) {
+  const url = S.icons[name];
+  return typeof url === 'string' && PNG_DATA_URL.test(url) ? url : null;
+}
+function logoNode(it, extra) {
+  return it.icon ? h('img', {class: `logo icon${extra ? ` ${extra}` : ''}`, src: it.icon, alt: '', draggable: 'false'})
+                 : h('span', {class: `logo${extra ? ` ${extra}` : ''}`, style: {background: it.tile}}, it.letter);
+}
+const optBody = it => [logoNode(it),
   h('span', {class: 'tx'}, h('span', {class: 't'}, it.name), it.desc ? h('span', {class: 'd'}, it.desc) : null)];
 function retrigger(el, cls) {
   if (!el) {
@@ -285,6 +298,7 @@ const VIEWS = {
     const options = profiles.map((p, n) => ({
       id: String(p.index), name: p.name, desc: p.profileName || null,
       tile: BROWSER_TILES[n % BROWSER_TILES.length], letter: (p.name.trim()[0] || '?').toUpperCase(),
+      icon: browserIcon(p.name),
     }));
     options.push({id: 'none', name: t('importFresh'), desc: t('importFreshDesc'), tile: 'rgba(255,255,255,.25)', letter: '+'});
     const status = S.profiles === null ? t('importLoading') : profiles.length === 0 ? t('importNoneFound') : null;
@@ -292,6 +306,7 @@ const VIEWS = {
       h('div', {class: 'copy'}, eyebrow(0), heading('importTitle', 1),
         status ? E(2, h('p', {class: 'note', id: 'import-status'}, status)) : null,
         profiles.length ? E(2, radioGroup('from', options, S.from, optBody)) : null,
+        profiles.length ? E(2, h('p', {class: 'note', id: 'import-no-passwords'}, t('importNoPasswords'))) : null,
         E(3, h('div', {class: `collapse${S.from === 'none' ? ' shut' : ''}`, id: 'what'}, h('div', {},
           h('div', {class: 'label'}, t('importWhat')),
           h('div', {class: 'checks', role: 'group', id: 'import-items'}, importPills())))),
@@ -410,8 +425,10 @@ function updateImport(changedFrom) {
   }
   const p = selectedProfile();
   const n = (S.profiles || []).indexOf(p);
-  logo.style.background = p ? BROWSER_TILES[n % BROWSER_TILES.length] : 'rgba(255,255,255,.25)';
-  logo.textContent = p ? (p.name.trim()[0] || '?').toUpperCase() : '+';
+  const icon = p ? browserIcon(p.name) : null;
+  logo.style.background = p && !icon ? BROWSER_TILES[n % BROWSER_TILES.length] : icon ? 'transparent' : 'rgba(255,255,255,.25)';
+  logo.replaceChildren(icon ? h('img', {src: icon, alt: '', draggable: 'false'}) : (p ? (p.name.trim()[0] || '?').toUpperCase() : '+'));
+  logo.classList.toggle('icon', Boolean(icon));
   if (changedFrom) {
     retrigger(logo, 'flip');
     const items = $('#import-items');
@@ -579,6 +596,14 @@ async function loadBrowserState() {
     if (S.steps[S.step] === 'import') {
       render(0);
     }
+    // The icons come from files on this computer; until they arrive, and for a browser
+    // without one, the row shows its letter tile.
+    sendWithPromise('aerieSetup.getBrowserIcons', S.profiles.map(p => p.name)).then(icons => {
+      S.icons = icons && typeof icons === 'object' ? icons : {};
+      if (S.steps[S.step] === 'import') {
+        render(0);
+      }
+    }, () => {});
   }, () => { S.profiles = []; });
 
   // The list can be empty while the search engine service loads; the browser
