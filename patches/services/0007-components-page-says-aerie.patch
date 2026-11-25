@@ -7,8 +7,8 @@ services in settings." for a component whose update failed while Helium services
 they are always off and the services page is gone (services/0006), so the text named Helium and
 sent the user to a page that does not exist. The message is kept as Helium's (substitution
 KEEP_MESSAGES), so this patch uses an Aerie message instead
-(IDS_AERIE_COMPONENTS_SVC_STATUS_UPDATES_DISABLED, chrome/app/aerie_services_strings.grdp). Helium's
-message stays in the grd, unused, to keep Helium bumps cheap. The Bench check branding_no_helium
+(IDS_AERIE_COMPONENTS_SVC_STATUS_UPDATES_DISABLED, chrome/app/aerie_services_strings.grdp). services/0009
+removes Helium's message from the grd. The Bench check branding_no_helium
 forces a failed update before it reads chrome://components.
 
 Depends on the Helium patch component-updates.patch (adds the lines this patch changes) and on

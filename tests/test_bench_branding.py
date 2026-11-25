@@ -3,6 +3,7 @@
 import re
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from aerie_bench import checks
 from aerie_bench.checks import branding
@@ -23,8 +24,16 @@ def failed_update(text="CRLSet\nStatus - Component updates are disabled in Aerie
             "statuses": ["Component updates are disabled in Aerie."] if statuses is None else statuses}
 
 
-def scan_obs(pages, control=CONTROL_HIT, forced=None):
-    return {"pages": pages, "control": control, "failed_update": forced or failed_update()}
+def failed_download(text="Downloads\nmissing.bin\nFailed - No file", failed=True, bubble=None, error=None):
+    """chrome://downloads and the download bubble read after the Bench forced a download that failed (issue #94)."""
+    return {**page("chrome://downloads/ (after a failed download)", text=text, error=error),
+            "failed": failed,
+            "bubble": {"texts": ["missing.bin", "Failed - No file"], "error": None} if bubble is None else bubble}
+
+
+def scan_obs(pages, control=CONTROL_HIT, forced=None, download=None):
+    return {"pages": pages, "control": control, "failed_update": forced or failed_update(),
+            "failed_download": download or failed_download()}
 
 
 class ScannerTest(unittest.TestCase):
@@ -94,8 +103,7 @@ class NoHeliumJudgeTest(unittest.TestCase):
 
     def test_the_privacy_and_languages_pages_are_judged_like_every_other_page(self):
         # They used to be exempt while Helium services text was on them (issue #23).
-        for url in ("chrome://settings/privacy", "chrome://settings/privacy/services",
-                    "chrome://settings/languages"):
+        for url in ("chrome://settings/privacy", "chrome://settings/languages"):
             with self.subTest(url=url):
                 status, detail = self.judge(scan_obs([page(url, text="Helium services")]))
                 self.assertEqual(status, "fail")
@@ -142,6 +150,112 @@ class NoHeliumJudgeTest(unittest.TestCase):
         self.assertEqual(self.judge(scan_obs([page("chrome://version/")]))[0], "pass")
 
 
+class FailedDownloadJudgeTest(unittest.TestCase):
+    """The download bubble and chrome://downloads after a download that failed (issue #94)."""
+    judge = staticmethod(checks.get("branding_no_helium").judge)
+
+    def verdict(self, **kw):
+        return self.judge(scan_obs([page("chrome://version/")], download=failed_download(**kw)))
+
+    def test_a_clean_bubble_and_page_pass(self):
+        status, detail = self.verdict()
+        self.assertEqual(status, "pass", detail)
+        self.assertIn("download bubble", detail)
+
+    def test_helium_services_wording_in_the_bubble_fails_and_names_the_bubble(self):
+        status, detail = self.verdict(bubble={"texts": ["Extension downloads are disabled. Enable this feature in "
+                                                         "Helium services settings and try again."], "error": None})
+        self.assertEqual(status, "fail")
+        self.assertIn("download bubble", detail)
+        self.assertIn("Helium", detail)
+
+    def test_helium_wording_on_the_downloads_page_fails(self):
+        status, detail = self.verdict(text="Downloads\nReview Helium services updates")
+        self.assertEqual(status, "fail")
+        self.assertIn("chrome://downloads", detail)
+
+    def test_a_download_that_did_not_fail_proves_nothing(self):
+        status, detail = self.verdict(failed=False)
+        self.assertEqual(status, "fail")
+        self.assertIn("did not fail", detail)
+
+    def test_a_bubble_that_was_not_read_proves_nothing(self):
+        for bubble in ({"texts": [], "error": None}, {"texts": [], "error": "UiDevToolsError: no port"}):
+            with self.subTest(bubble=bubble):
+                status, detail = self.verdict(bubble=bubble)
+                self.assertEqual(status, "fail")
+                self.assertIn("download bubble", detail)
+
+    def test_a_downloads_page_that_did_not_load_fails(self):
+        status, detail = self.verdict(error="load timeout")
+        self.assertEqual(status, "fail")
+        self.assertIn("did not complete", detail)
+
+    def test_a_missing_failed_download_case_fails(self):
+        obs = scan_obs([page("chrome://version/")])
+        del obs["failed_download"]
+        self.assertEqual(self.judge(obs)[0], "fail")
+
+
+class FakeUi:
+    """A UI DevTools tree: nodes are (id, class, props, children)."""
+
+    def __init__(self, tree):
+        self.tree, self.props = tree, {}
+
+    def send(self, method, params=None):
+        def build(n):
+            return {"nodeId": n[0], "attributes": ["class", n[1]], "children": [build(c) for c in n[3]]}
+
+        def collect(n):
+            self.props[n[0]] = n[2]
+            for c in n[3]:
+                collect(c)
+        collect(self.tree)
+        return {"root": build(self.tree)}
+
+    def properties(self, node_id):
+        return self.props[node_id]
+
+
+class BubbleTextTest(unittest.TestCase):
+    def test_reads_only_the_views_below_the_download_bubble(self):
+        tree = (1, "RootView", {}, [
+            (2, "ToolbarView", {"Text": "Helium toolbar"}, []),
+            (3, "DownloadBubbleContentsView", {"Text": "Downloads"}, [
+                (4, "DownloadBubbleRowView", {"TooltipText": "missing.bin"}, [
+                    (5, "Label", {"Text": "Failed - No file"}, [])])])])
+        self.assertEqual(branding.bubble_texts(FakeUi(tree)), ["Downloads", "missing.bin", "Failed - No file"])
+
+    def test_no_bubble_gives_no_text(self):
+        self.assertEqual(branding.bubble_texts(FakeUi((1, "RootView", {}, [(2, "Label", {"Text": "x"}, [])]))), [])
+
+
+class WiringTest(unittest.TestCase):
+    """observe() runs every case and hands each one's data to judge() under the key judge() reads."""
+
+    def test_observe_runs_the_pages_the_failed_update_and_the_failed_download(self):
+        calls = []
+
+        def fake_read_page(session, url, label=None, before_read=None):
+            calls.append(url)
+            return CONTROL_HIT if url.endswith(branding.CONTROL_PATH) else page(url)
+
+        class Fixtures:
+            base_url = "http://127.0.0.1:1"
+
+        class FakeSession:
+            fixtures = Fixtures()
+
+        with mock.patch.object(branding, "read_page", fake_read_page), \
+                mock.patch.object(branding, "read_failed_update", lambda s: failed_update()), \
+                mock.patch.object(branding, "read_failed_download", lambda s: failed_download()):
+            obs = checks.get("branding_no_helium")().observe(FakeSession())
+        self.assertEqual(set(obs), {"control", "pages", "failed_update", "failed_download"})
+        self.assertEqual(calls[1:], list(branding.PAGES))
+        self.assertEqual(checks.get("branding_no_helium").judge(obs)[0], "pass")
+
+
 class PageListTest(unittest.TestCase):
     def test_the_list_covers_the_surfaces_the_issue_names(self):
         urls = set(branding.PAGES)
@@ -149,6 +263,11 @@ class PageListTest(unittest.TestCase):
                        "chrome://chrome-urls/"):
             self.assertIn(needed, urls)
         self.assertGreaterEqual(len(urls), 15)
+
+    def test_the_removed_helium_services_route_is_not_listed(self):
+        # Issue #23 removed chrome://settings/privacy/services; the page would only show a 404.
+        self.assertNotIn("chrome://settings/privacy/services", branding.PAGES)
+        self.assertFalse([u for u in branding.PAGES if u.rstrip("/").endswith("/services")])
 
     def test_pages_are_unique_internal_urls(self):
         self.assertEqual(len(branding.PAGES), len(set(branding.PAGES)))
@@ -246,3 +365,109 @@ class VersionJudgeTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PressDownloadButtonTest(unittest.TestCase):
+    class Ui(FakeUi):
+        def __init__(self, tree):
+            super().__init__(tree)
+            self.pressed = []
+
+        def press(self, node_id, props):
+            self.pressed.append(node_id)
+
+    def tree(self, tooltip="New download available"):
+        return (1, "RootView", {}, [
+            (2, "PinnedActionToolbarButton", {"TooltipText": "Download notes"}, []),  # a decoy with the word
+            (3, "PinnedActionToolbarButton", {"TooltipText": tooltip}, [
+                (4, "DownloadProgressRing", {}, [])])])
+
+    def test_presses_the_button_that_holds_the_progress_ring_in_any_language(self):
+        for tooltip in ("New download available", "Novo download disponivel", ""):
+            with self.subTest(tooltip=tooltip):
+                ui = self.Ui(self.tree(tooltip))
+                self.assertTrue(branding.press_download_button(ui))
+                self.assertEqual(ui.pressed, [3])
+
+    def test_no_download_button_is_pressed_when_the_browser_made_none(self):
+        ui = self.Ui((1, "RootView", {}, [(2, "PinnedActionToolbarButton", {"TooltipText": "Download"}, [])]))
+        self.assertFalse(branding.press_download_button(ui))
+        self.assertEqual(ui.pressed, [])
+
+
+class DeadlineTest(unittest.TestCase):
+    def test_cap_is_the_smaller_of_the_wish_and_what_is_left(self):
+        now = [100.0]
+        d = branding.Deadline(10, clock=lambda: now[0])
+        self.assertEqual(d.cap(3), 3)
+        now[0] = 108.0
+        self.assertEqual(d.cap(3), 2.0)
+        d.check("a step")
+        now[0] = 111.0
+        self.assertEqual(d.cap(3), 0.0)
+        with self.assertRaisesRegex(branding.StepTimeout, "a step.*10s"):
+            d.check("a step")
+
+    def test_a_tree_walk_stops_at_the_deadline(self):
+        tree = (1, "RootView", {}, [(2, "DownloadBubbleContentsView", {"Text": "x"}, [])])
+        with self.assertRaises(branding.StepTimeout):
+            branding.bubble_texts(FakeUi(tree), branding.Deadline(0))
+
+    def test_describe_keeps_the_root_cause(self):
+        try:
+            try:
+                raise OSError("port file missing")
+            except OSError as inner:
+                raise RuntimeError("cannot read the bubble") from inner
+        except RuntimeError as exc:
+            text = branding.describe(exc)
+        self.assertEqual(text, "RuntimeError: cannot read the bubble <- OSError: port file missing")
+
+
+class ForceFailureTest(unittest.TestCase):
+    class Session:
+        def __init__(self, done=True):
+            self.done, self.log = done, []
+
+        def wait_for(self, js, timeout=0, interval=0):
+            self.log.append(("wait", js, timeout))
+            return True if js == "ready" else self.done
+
+        def evaluate(self, js, user_gesture=False):
+            self.log.append(("run", js, user_gesture))
+
+    def test_waits_for_ready_runs_the_action_then_waits_for_done(self):
+        s = self.Session()
+        self.assertTrue(branding.force_failure(s, "act", ready_js="ready", done_js="done", wait=7, user_gesture=True))
+        self.assertEqual(s.log, [("wait", "ready", 15.0), ("run", "act", True), ("wait", "done", 7)])
+
+    def test_a_failure_that_never_shows_is_false_not_an_error(self):
+        self.assertFalse(branding.force_failure(self.Session(done=None), "act", done_js="done"))
+
+    def test_without_a_done_check_it_just_runs_the_action(self):
+        s = self.Session()
+        self.assertTrue(branding.force_failure(s, "act"))
+        self.assertEqual(s.log, [("run", "act", False)])
+
+    def test_the_failed_update_and_the_failed_download_share_it(self):
+        src = Path(branding.__file__).read_text()
+        self.assertEqual(src.count("force_failure("), 3)  # the definition and its two callers
+
+
+class ReadFailedDownloadTest(unittest.TestCase):
+    def test_a_browser_that_cannot_start_leaves_the_root_cause_in_the_error(self):
+        class Session:
+            def new_profile(self):
+                raise OSError("no space left")
+
+        with mock.patch.object(branding.xinput, "xvfb", lambda timeout=15: mock.MagicMock()):
+            got = branding.read_failed_download(Session())
+        self.assertIn("could not force a failed download", got["error"])
+        self.assertIn("OSError: no space left", got["error"])
+
+    def test_a_case_that_runs_over_its_budget_fails_with_the_step(self):
+        with mock.patch.object(branding.xinput, "xvfb", lambda timeout=15: mock.MagicMock()):
+            got = branding.read_failed_download(mock.MagicMock(), budget=0)
+        self.assertIn("timed out", got["error"])
+        self.assertIn("starting the browser", got["error"])
+        self.assertIn("did not complete", branding.judge_failed_download(got)[0])

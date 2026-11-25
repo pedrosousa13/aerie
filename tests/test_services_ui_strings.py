@@ -11,11 +11,12 @@ PATCHES = REPO / "patches" / "services"
 UI_PATCH = PATCHES / "0006-remove-the-helium-services-ui.patch"
 DIALOG_PATCH = PATCHES / "0003-extension-proxy-not-configured.patch"
 COMPONENTS_PATCH = PATCHES / "0007-components-page-says-aerie.patch"
+NAGS_PATCH = PATCHES / "0009-remove-the-helium-services-nags.patch"
 
 
 def patch_text() -> str:
     """The patches that use the messages."""
-    return "".join(p.read_text(encoding="utf-8") for p in (UI_PATCH, DIALOG_PATCH, COMPONENTS_PATCH))
+    return "".join(p.read_text(encoding="utf-8") for p in (UI_PATCH, DIALOG_PATCH, COMPONENTS_PATCH, NAGS_PATCH))
 
 
 def messages():
@@ -43,7 +44,8 @@ class StringsTest(unittest.TestCase):
     def test_every_message_a_patch_asks_for_exists(self):
         used = set(re.findall(r"\bIDS_(?:SETTINGS_)?AERIE_EXTENSION_PROXY_\w+|"
                               r"\bIDS_SETTINGS_LANGUAGES_DICTIONARY_DOWNLOAD_FAILED_HELP_AERIE\b|"
-                              r"\bIDS_AERIE_COMPONENTS_SVC_STATUS_\w+",
+                              r"\bIDS_AERIE_COMPONENTS_SVC_STATUS_\w+|"
+                              r"\bIDS_AERIE_DOWNLOAD_BUBBLE_EXTENSION_DOWNLOADS_OFF\b",
                               patch_text()))
         self.assertEqual(used, set(messages()))
 
@@ -83,6 +85,24 @@ class ComponentsPageTest(unittest.TestCase):
         # The Helium patch comes from helium-adapt.txt and is applied before every series entry.
         self.assertIn("helium/core/component-updates.patch",
                       (REPO / "patches" / "helium-adapt.txt").read_text())
+
+
+class DownloadSummaryTest(unittest.TestCase):
+    """The download bubble summary for a blocked extension download (issue #94) points at a control that exists."""
+
+    def test_it_points_at_the_extension_proxy_row_of_privacy_and_security(self):
+        text = " ".join("".join(messages()["IDS_AERIE_DOWNLOAD_BUBBLE_EXTENSION_DOWNLOADS_OFF"].itertext()).split())
+        self.assertIn("Privacy and security settings", text)
+        label = " ".join("".join(messages()["IDS_SETTINGS_AERIE_EXTENSION_PROXY_LABEL"].itertext()).split())
+        self.assertIn(label, text)
+        # The row is on the privacy page (services/0006), where Settings calls the section "Privacy and security".
+        ui = UI_PATCH.read_text(encoding="utf-8")
+        self.assertIn('+    <div id="extensionProxyRow"', ui)
+        self.assertIn("privacy_page/privacy_page.html", ui)
+
+    def test_it_has_no_link_to_a_page(self):
+        text = "".join(messages()["IDS_AERIE_DOWNLOAD_BUBBLE_EXTENSION_DOWNLOADS_OFF"].itertext())
+        self.assertNotRegex(text, r"https?://|chrome://|<a ")
 
 
 class PatchTest(unittest.TestCase):

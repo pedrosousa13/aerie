@@ -7,7 +7,7 @@ check files, uBlock Origin assets and browser updates do nothing, its "setup pen
 never goes away, and its crash reporting menu does nothing (crash/0001). The page, the
 settings-helium-services-page element, the route (chrome://settings/privacy/services) and
 the changelog proxy go. The two places that opened that route (ShowHeliumServices and the
-download bubble's "enable Helium services" link) open the privacy page instead, and a saved
+download bubble's "enable Helium services" link) open the privacy page instead (services/0009 removes both later), and a saved
 link to the old path falls back to the Settings home page.
 
 The one control that still works, the extension proxy address, becomes a row of the privacy

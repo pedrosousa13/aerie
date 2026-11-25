@@ -5,7 +5,8 @@
 
      Strings for the extension proxy (issue #23): its row in Settings > Privacy and security, the
      dialog that tells the user none is set, and the Languages page note about spell check
-     dictionaries. Also the chrome://components status after a failed component update (#131).
+     dictionaries. Also the chrome://components status after a failed component update (#131) and the
+     download bubble summary for a blocked extension download (#94).
      tests/test_services_ui_strings.py checks that every message is used. -->
 <grit-part>
   <message name="IDS_AERIE_EXTENSION_PROXY_UNSET_TITLE" desc="Title of the dialog shown when someone starts an extension install and no extension proxy address is set.">
@@ -31,5 +32,8 @@
   </message>
   <message name="IDS_AERIE_COMPONENTS_SVC_STATUS_UPDATES_DISABLED" desc="Status of a component on chrome://components after its update failed because component updates are turned off. Aerie has no settings page for them.">
     Component updates are disabled in Aerie.
+  </message>
+  <message name="IDS_AERIE_DOWNLOAD_BUBBLE_EXTENSION_DOWNLOADS_OFF" desc="Summary in the download bubble for an extension download that was blocked because no extension proxy is set. It has no button: Aerie has no Settings page for it to open.">
+    Extension downloads are disabled. Set an address under Extension proxy in Privacy and security settings and try again.
   </message>
 </grit-part>

@@ -85,6 +85,9 @@ services/0007-components-page-says-aerie.patch
 # Chromium 158's Private AI client is off by default, not by luck (#304).
 services/0008-turn-the-private-ai-client-off.patch
 
+# The app menu item, the menu nag and the download bubble link for Helium services are gone too (#94).
+services/0009-remove-the-helium-services-nags.patch
+
 # The Aerie Guard strings join the grd after the other Aerie string parts (#99).
 adblock/0017-add-aerie-guard-strings.patch
 
