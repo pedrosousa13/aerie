@@ -51,8 +51,14 @@ Flatpak Chromium and its icon, records every request, and fails on any that is n
 `about:` or `blob:`; it also checks that an `https` image and an `https` `fetch` from the page are
 refused. The Python tests check that the script has no network call. The icon files are read only
 from the data dirs (for a Flatpak export directory, also its installation): an absolute `Icon=` path or a symlink that leaves them is
-refused, and a file is opened once without following a symlink and checked as a regular file of at most
-256 KiB. The names are lookup keys in a fixed table, never a path. No browser's trademark is bundled. macOS (the app bundle
+refused. A symlink that points outside them (Debian's `/usr/lib/firefox` icon directory, for
+example) therefore gets the letter tile. A file is resolved once and opened once, then checked as a
+regular file of at most 256 KiB through that descriptor. Where the kernel has `openat2` (Linux 5.6),
+the open is made beneath the allowed directory with `RESOLVE_BENEATH` and `RESOLVE_NO_SYMLINKS`, so a
+path swapped for a symlink after the check is refused. Without it, the open uses `O_NOFOLLOW`, which
+covers only the last path component: a directory on the way could still be swapped in that short
+window by a process that can write to the data dirs. Nothing here defends against such a process
+beyond that; the data dirs are the user's own. The names are lookup keys in a fixed table, never a path. No browser's trademark is bundled. macOS (the app bundle
 icon) comes with the macOS build (M4).
 
 **What comes over.** Passwords and autofill are never imported, from any browser:

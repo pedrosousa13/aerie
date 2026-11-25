@@ -115,7 +115,6 @@ const S = {
   step: 0,
   profiles: null,            // null while loading, [] when none found
   icons: {},                 // browser name -> data:image/png URL, for installed browsers that have an icon
-  iconsLoaded: false,        // the icon lookup has answered (or failed); the row tiles are final
   from: 'none',              // profile index as a string, or 'none'
   items: new Set(['bookmarks', 'passwords', 'history']),
   importing: false, importError: false, imported: null,
@@ -604,11 +603,10 @@ async function loadBrowserState() {
     // without one, the row shows its letter tile.
     sendWithPromise('aerieSetup.getBrowserIcons', S.profiles.map(p => p.name)).then(icons => {
       S.icons = icons && typeof icons === 'object' ? icons : {};
-      S.iconsLoaded = true;
       if (S.steps[S.step] === 'import') {
         render(0);
       }
-    }, () => { S.iconsLoaded = true; });
+    }, () => {});
   }, () => { S.profiles = []; });
 
   // The list can be empty while the search engine service loads; the browser

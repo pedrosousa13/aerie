@@ -10,6 +10,7 @@
 
 #include "chrome/browser/ui/webui/aerie_onboarding/aerie_setup_handler.h"
 
+#include <algorithm>
 #include <memory>
 #include <set>
 #include <string>
@@ -360,6 +361,13 @@ IN_PROC_BROWSER_TEST_F(AerieSetupHandlerBrowserTest,
       [&](content::URLLoaderInterceptor::RequestParams* params) {
         base::AutoLock auto_lock(lock);
         requested.push_back(params->url_request.url);
+        if (params->url_request.url.SchemeIsHTTPOrHTTPS()) {
+          // Only the control below asks for one; answer it without the network.
+          content::URLLoaderInterceptor::WriteResponse(
+              "HTTP/1.1 200 OK\nContent-Type: text/html\n\n", "control",
+              params->client.get());
+          return true;
+        }
         return false;  // Let it through: the test only watches.
       }));
 
@@ -379,7 +387,7 @@ IN_PROC_BROWSER_TEST_F(AerieSetupHandlerBrowserTest,
   ASSERT_TRUE(wait_for(
       "window.aerieSetup.state.steps[window.aerieSetup.state.step] === 'import'"));
   ASSERT_TRUE(wait_for(
-      "window.aerieSetup.state.profiles !== null && window.aerieSetup.state.iconsLoaded"));
+      "document.querySelector('#stage .opt .logo img')"));
 
   EXPECT_EQ("Chromium (Flatpak)",
             content::EvalJs(contents,
@@ -396,13 +404,26 @@ IN_PROC_BROWSER_TEST_F(AerieSetupHandlerBrowserTest,
   EXPECT_EQ("blocked", content::EvalJs(contents, R"(
       fetch('https://example.com/').then(() => 'fetched', () => 'blocked'))"));
 
-  base::AutoLock auto_lock(lock);
-  for (const GURL& url : requested) {
+  std::vector<GURL> seen;
+  {
+    base::AutoLock auto_lock(lock);
+    seen = requested;
+  }
+  // The recording works: it holds the page's own load...
+  EXPECT_FALSE(seen.empty());
+  EXPECT_TRUE(std::count(seen.begin(), seen.end(), GURL("chrome://setup/")) > 0);
+  // ...and nothing but browser-internal requests.
+  for (const GURL& url : seen) {
     EXPECT_TRUE(url.SchemeIs("chrome") || url.SchemeIs("aerie") ||
                 url.SchemeIs("data") || url.SchemeIs("about") ||
                 url.SchemeIs("blob"))
         << url;
   }
+
+  // Control: a request to the network is recorded, so the check above can fail.
+  ASSERT_TRUE(content::NavigateToURL(contents, GURL("https://control.test/")));
+  base::AutoLock auto_lock(lock);
+  EXPECT_TRUE(std::count(requested.begin(), requested.end(), GURL("https://control.test/")) > 0);
 }
 
 // The real aerie://setup page, with the handlers the patch registers.
