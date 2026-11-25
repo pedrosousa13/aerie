@@ -117,11 +117,90 @@ TEST_F(BrowserIconTest, FallsBackToOtherThemesAndPixmaps) {
   EXPECT_EQ(Decoded(BrowserIconDataUrl({share_}, {"opera"})), FakePng("pix"));
 }
 
-TEST_F(BrowserIconTest, TakesAnAbsoluteIconPath) {
-  const base::FilePath icon = dir_.GetPath().AppendASCII("elsewhere/zen.png");
+TEST_F(BrowserIconTest, TakesAnAbsoluteIconPathInsideTheDataDirs) {
+  const base::FilePath icon = share_.AppendASCII("pixmaps/zen.png");
   Write(icon, FakePng("abs"));
   WriteDesktop(share_, "zen", "Icon=" + icon.value());
   EXPECT_EQ(Decoded(BrowserIconDataUrl({share_}, {"zen"})), FakePng("abs"));
+}
+
+TEST_F(BrowserIconTest, RefusesAnAbsoluteIconPathOutsideTheDataDirs) {
+  // A .desktop file in the user's own directory is writable by anything the user runs; it must not
+  // turn any readable PNG on disk into an icon.
+  const base::FilePath icon = dir_.GetPath().AppendASCII("elsewhere/zen.png");
+  Write(icon, FakePng("outside"));
+  WriteDesktop(share_, "zen", "Icon=" + icon.value());
+  EXPECT_EQ(BrowserIconDataUrl({share_}, {"zen"}), "");
+}
+
+TEST_F(BrowserIconTest, RefusesAnAbsolutePathThatClimbsOutOfTheDataDirs) {
+  Write(dir_.GetPath().AppendASCII("secret.png"), FakePng("secret"));
+  ASSERT_TRUE(base::CreateDirectory(share_.AppendASCII("pixmaps")));
+  WriteDesktop(share_, "zen", "Icon=" + share_.value() + "/pixmaps/../../secret.png");
+  EXPECT_EQ(BrowserIconDataUrl({share_}, {"zen"}), "");
+}
+
+TEST_F(BrowserIconTest, RefusesASymlinkedIconThatPointsOutsideTheDataDirs) {
+  const base::FilePath secret = dir_.GetPath().AppendASCII("secret.png");
+  Write(secret, FakePng("secret"));
+  WriteDesktop(share_, "chromium", "Icon=chromium");
+  ASSERT_TRUE(base::CreateDirectory(
+      share_.AppendASCII("icons/hicolor/64x64/apps")));
+  ASSERT_TRUE(base::CreateSymbolicLink(
+      secret, share_.AppendASCII("icons/hicolor/64x64/apps/chromium.png")));
+  EXPECT_EQ(BrowserIconDataUrl({share_}, {"chromium"}), "");
+}
+
+TEST_F(BrowserIconTest, RefusesASymlinkedDesktopEntryThatPointsOutside) {
+  const base::FilePath entry = dir_.GetPath().AppendASCII("evil.desktop");
+  Write(entry, "[Desktop Entry]\nIcon=chromium\n");
+  ASSERT_TRUE(base::CreateDirectory(share_.AppendASCII("applications")));
+  ASSERT_TRUE(base::CreateSymbolicLink(
+      entry, share_.AppendASCII("applications/chromium.desktop")));
+  WriteThemeIcon(share_, "hicolor", "64x64", "chromium", FakePng("a"));
+  EXPECT_EQ(BrowserIconDataUrl({share_}, {"chromium"}), "");
+}
+
+TEST_F(BrowserIconTest, FollowsASymlinkThatStaysInsideTheDataDirs) {
+  WriteDesktop(share_, "chromium", "Icon=chromium");
+  Write(share_.AppendASCII("pixmaps/real.png"), FakePng("linked"));
+  ASSERT_TRUE(base::CreateDirectory(
+      share_.AppendASCII("icons/hicolor/64x64/apps")));
+  ASSERT_TRUE(base::CreateSymbolicLink(
+      share_.AppendASCII("pixmaps/real.png"),
+      share_.AppendASCII("icons/hicolor/64x64/apps/chromium.png")));
+  EXPECT_EQ(Decoded(BrowserIconDataUrl({share_}, {"chromium"})),
+            FakePng("linked"));
+}
+
+TEST_F(BrowserIconTest, FollowsFlatpakExportsIntoTheInstallationsAppDirectory) {
+  // <flatpak>/exports/share/... are symlinks into <flatpak>/app/<id>/current/active/export/share/...
+  const base::FilePath installation = dir_.GetPath().AppendASCII("flatpak");
+  const base::FilePath exports = installation.AppendASCII("exports/share");
+  const base::FilePath app_share = installation.AppendASCII(
+      "app/org.chromium.Chromium/current/active/export/share");
+  Write(app_share.AppendASCII("applications/org.chromium.Chromium.desktop"),
+        "[Desktop Entry]\nIcon=org.chromium.Chromium\n");
+  Write(app_share.AppendASCII(
+            "icons/hicolor/128x128/apps/org.chromium.Chromium.png"),
+        FakePng("exported"));
+  ASSERT_TRUE(base::CreateDirectory(exports.AppendASCII("applications")));
+  ASSERT_TRUE(base::CreateDirectory(exports.AppendASCII("icons/hicolor/128x128/apps")));
+  ASSERT_TRUE(base::CreateSymbolicLink(
+      app_share.AppendASCII("applications/org.chromium.Chromium.desktop"),
+      exports.AppendASCII("applications/org.chromium.Chromium.desktop")));
+  ASSERT_TRUE(base::CreateSymbolicLink(
+      app_share.AppendASCII("icons/hicolor/128x128/apps/org.chromium.Chromium.png"),
+      exports.AppendASCII("icons/hicolor/128x128/apps/org.chromium.Chromium.png")));
+  EXPECT_EQ(Decoded(BrowserIconDataUrl({exports}, {"org.chromium.Chromium"})),
+            FakePng("exported"));
+}
+
+TEST_F(BrowserIconTest, ADirectoryNamedLikeAnIconIsNotAnIcon) {
+  WriteDesktop(share_, "chromium", "Icon=chromium");
+  ASSERT_TRUE(base::CreateDirectory(
+      share_.AppendASCII("icons/hicolor/64x64/apps/chromium.png")));
+  EXPECT_EQ(BrowserIconDataUrl({share_}, {"chromium"}), "");
 }
 
 TEST_F(BrowserIconTest, ReadsTheIconOfTheEntryGroupOnly) {

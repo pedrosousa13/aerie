@@ -16,10 +16,16 @@
 #include <string_view>
 #include <utility>
 
+#include "base/base_paths.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
+#include "base/path_service.h"
+#include "base/scoped_environment_variable_override.h"
+#include "base/synchronization/lock.h"
+#include "base/test/bind.h"
 #include "base/test/run_until.h"
+#include "base/test/scoped_path_override.h"
 #include "base/memory/raw_ptr.h"
 #include "base/values.h"
 #include "chrome/browser/profiles/profile.h"
@@ -31,6 +37,7 @@
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
 #include "content/public/test/test_web_ui.h"
+#include "content/public/test/url_loader_interceptor.h"
 #include "url/gurl.h"
 
 namespace aerie_onboarding {
@@ -322,6 +329,80 @@ IN_PROC_BROWSER_TEST_F(AerieSetupHandlerBrowserTest, MalformedIconRequestsAreRej
   }
   too_many.Append(std::move(names));
   AskForIconsExpectingRejection(std::move(too_many));
+}
+
+// The import step on the real page, end to end (issue #91): a Flatpak Chromium in a throwaway home
+// is listed as "Chromium (Flatpak)" with its own icon from a throwaway icon theme, and nothing
+// on the page asks for anything outside the browser.
+IN_PROC_BROWSER_TEST_F(AerieSetupHandlerBrowserTest,
+                       TheImportStepShowsAnIconAndMakesNoOutsideRequest) {
+  base::ScopedTempDir home;
+  ASSERT_TRUE(home.CreateUniqueTempDir());
+  base::ScopedPathOverride home_override(base::DIR_HOME, home.GetPath());
+  const base::FilePath user_data = home.GetPath().AppendASCII(
+      ".var/app/org.chromium.Chromium/config/chromium");
+  ASSERT_TRUE(base::CreateDirectory(user_data.AppendASCII("Default")));
+  ASSERT_TRUE(base::WriteFile(
+      user_data.AppendASCII("Local State"),
+      R"({"profile":{"info_cache":{"Default":{"name":"Work"}}}})"));
+  ASSERT_TRUE(base::WriteFile(user_data.AppendASCII("Default/Bookmarks"),
+                              R"({"roots":{}})"));
+  InstallBrowser("org.chromium.Chromium", "org.chromium.Chromium",
+                 FakePng("page"));
+  base::ScopedEnvironmentVariableOverride data_home(
+      "XDG_DATA_HOME", share_.GetPath().AsUTF8Unsafe());
+  base::ScopedEnvironmentVariableOverride data_dirs(
+      "XDG_DATA_DIRS", share_.GetPath().AsUTF8Unsafe());
+
+  base::Lock lock;
+  std::vector<GURL> requested;
+  content::URLLoaderInterceptor interceptor(base::BindLambdaForTesting(
+      [&](content::URLLoaderInterceptor::RequestParams* params) {
+        base::AutoLock auto_lock(lock);
+        requested.push_back(params->url_request.url);
+        return false;  // Let it through: the test only watches.
+      }));
+
+  content::WebContents* contents =
+      browser()->tab_strip_model()->GetActiveWebContents();
+  ASSERT_TRUE(content::NavigateToURL(contents, GURL("chrome://setup/")));
+  auto wait_for = [&](const std::string& expression) {
+    return base::test::RunUntil([&] {
+      return content::EvalJs(contents, "!!(" + expression + ")").ExtractBool();
+    });
+  };
+  ASSERT_TRUE(wait_for("window.aerieSetup"));
+  // Press Continue, as a person does, once the page has drawn it.
+  ASSERT_TRUE(wait_for("document.querySelector('#next')"));
+  ASSERT_TRUE(content::ExecJs(
+      contents, "document.querySelector('#next').click()"));
+  ASSERT_TRUE(wait_for(
+      "window.aerieSetup.state.steps[window.aerieSetup.state.step] === 'import'"));
+  ASSERT_TRUE(wait_for(
+      "window.aerieSetup.state.profiles !== null && window.aerieSetup.state.iconsLoaded"));
+
+  EXPECT_EQ("Chromium (Flatpak)",
+            content::EvalJs(contents,
+                            "window.aerieSetup.state.profiles[0].name"));
+  EXPECT_EQ(true, content::EvalJs(contents, R"(
+      (() => { const img = document.querySelector('#stage .opt .logo img');
+        return !!img && img.src.startsWith('data:image/png;base64,'); })())"));
+
+  // The page content security policy refuses an image or a connection to the network.
+  EXPECT_EQ("blocked", content::EvalJs(contents, R"(
+      new Promise(resolve => { const i = new Image();
+        i.onload = () => resolve('loaded'); i.onerror = () => resolve('blocked');
+        i.src = 'https://example.com/icon.png'; }))"));
+  EXPECT_EQ("blocked", content::EvalJs(contents, R"(
+      fetch('https://example.com/').then(() => 'fetched', () => 'blocked'))"));
+
+  base::AutoLock auto_lock(lock);
+  for (const GURL& url : requested) {
+    EXPECT_TRUE(url.SchemeIs("chrome") || url.SchemeIs("aerie") ||
+                url.SchemeIs("data") || url.SchemeIs("about") ||
+                url.SchemeIs("blob"))
+        << url;
+  }
 }
 
 // The real aerie://setup page, with the handlers the patch registers.

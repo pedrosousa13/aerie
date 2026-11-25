@@ -6,10 +6,14 @@
 
 #include <algorithm>
 #include <array>
+#include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 #include "base/base64.h"
+#include "build/build_config.h"
 #include "base/environment.h"
 #include "base/files/file.h"
 #include "base/files/file_enumerator.h"
@@ -17,6 +21,15 @@
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
 #include "components/aerie_import_sources/import_sources.h"
+#include "components/aerie_import_sources/known_browsers.h"
+
+#if BUILDFLAG(IS_POSIX)
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
+#include "base/posix/eintr_wrapper.h"
+#endif
 
 namespace aerie_import_sources {
 
@@ -60,24 +73,87 @@ std::string IconOfDesktopEntry(const std::string& contents) {
   return std::string();
 }
 
-// The bytes of `path` when it is a regular PNG file of at most kMaxIconBytes.
-bool ReadPng(const base::FilePath& path, std::string* bytes) {
-  base::File::Info info;
-  if (!base::GetFileInfo(path, &info) || info.is_directory ||
-      info.size <= 0 || info.size > static_cast<int64_t>(kMaxIconBytes)) {
-    return false;
+// The places a desktop entry, an icon file or an absolute Icon= path may really live, with
+// symlinks resolved: every data dir, and for a Flatpak export directory
+// (<installation>/exports/share) the whole installation, because its entries and icons are
+// symlinks into <installation>/app/<id>/....
+class AllowedRoots {
+ public:
+  explicit AllowedRoots(const std::vector<base::FilePath>& data_dirs) {
+    for (const base::FilePath& dir : data_dirs) {
+      Add(dir);
+      if (dir.BaseName().value() == "share" &&
+          dir.DirName().BaseName().value() == "exports") {
+        Add(dir.DirName().DirName());
+      }
+    }
   }
-  std::string contents;
-  if (!base::ReadFileToStringWithMaxSize(path, &contents, kMaxIconBytes) ||
-      contents.size() < 16) {
-    return false;
+
+  // Whether `real` (already resolved) is inside one of the roots.
+  bool Contains(const base::FilePath& real) const {
+    return std::any_of(roots_.begin(), roots_.end(),
+                       [&](const base::FilePath& root) {
+                         return root.IsParent(real);
+                       });
   }
-  const std::string_view view(contents);
+
+ private:
+  void Add(const base::FilePath& dir) {
+    const base::FilePath real = base::MakeAbsoluteFilePath(dir);
+    if (!real.empty()) {
+      roots_.push_back(real);
+    }
+  }
+
+  std::vector<base::FilePath> roots_;
+};
+
+// The contents of a regular file of at most `max_bytes`, which must lie inside `roots` once its
+// symlinks are resolved. It resolves the path once, opens the result without following a
+// symlink at the last step, and checks and reads through that one descriptor, so the file that
+// was checked is the file that is read.
+std::optional<std::string> ReadRegularFile(const base::FilePath& path,
+                                           const AllowedRoots& roots,
+                                           size_t max_bytes) {
+#if BUILDFLAG(IS_POSIX)
+  const base::FilePath real = base::MakeAbsoluteFilePath(path);
+  if (real.empty() || !roots.Contains(real)) {
+    return std::nullopt;
+  }
+  // O_NONBLOCK so that a FIFO that slipped in cannot block the open; fstat then refuses it.
+  base::ScopedFD fd(HANDLE_EINTR(
+      open(real.value().c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK)));
+  if (!fd.is_valid()) {
+    return std::nullopt;
+  }
+  struct stat info;
+  if (fstat(fd.get(), &info) != 0 || !S_ISREG(info.st_mode) ||
+      info.st_size <= 0 || static_cast<uint64_t>(info.st_size) > max_bytes) {
+    return std::nullopt;
+  }
+  std::string contents(static_cast<size_t>(info.st_size), '\0');
+  base::File file(std::move(fd));
+  if (!file.ReadAtCurrentPosAndCheck(base::as_writable_byte_span(contents))) {
+    return std::nullopt;
+  }
+  return contents;
+#else
+  return std::nullopt;
+#endif
+}
+
+// The bytes of a PNG file (by its signature and IHDR chunk) read as above.
+std::optional<std::string> ReadPng(const base::FilePath& path,
+                                   const AllowedRoots& roots) {
+  std::optional<std::string> bytes = ReadRegularFile(path, roots, kMaxIconBytes);
+  if (!bytes || bytes->size() < 16) {
+    return std::nullopt;
+  }
+  const std::string_view view(*bytes);
   if (!view.starts_with(kPngMagic) || view.substr(12, 4) != kIhdr) {
-    return false;
+    return std::nullopt;
   }
-  *bytes = std::move(contents);
-  return true;
+  return bytes;
 }
 
 // The theme directories under `<data dir>/icons`: hicolor first, then the others by
@@ -98,84 +174,63 @@ std::vector<std::string> ThemeNames(const base::FilePath& icons_dir) {
   return result;
 }
 
-// Looks `icon` up in the icon directories of all `data_dirs`. `icon` is an absolute path or
-// a plain icon name.
-bool FindIcon(const std::vector<base::FilePath>& data_dirs,
-              const std::string& icon,
-              std::string* bytes) {
+// Every place the icon file `file_name` (a plain name with ".png") may be, best first: the
+// hicolor icons of all data dirs by size, then the other themes by size, then pixmaps.
+std::vector<base::FilePath> IconCandidates(
+    const std::vector<base::FilePath>& data_dirs,
+    const std::string& file_name) {
+  std::vector<std::vector<std::string>> themes;
+  for (const base::FilePath& dir : data_dirs) {
+    themes.push_back(ThemeNames(dir.AppendASCII("icons")));
+  }
+  std::vector<base::FilePath> candidates;
+  // Pass 0: hicolor (always the first theme). Pass 1: every other theme.
+  for (bool hicolor : {true, false}) {
+    for (std::string_view size : kSizes) {
+      for (size_t d = 0; d < data_dirs.size(); ++d) {
+        for (size_t t = 0; t < themes[d].size(); ++t) {
+          if ((t == 0) != hicolor) {
+            continue;
+          }
+          candidates.push_back(data_dirs[d]
+                                   .AppendASCII("icons")
+                                   .AppendASCII(themes[d][t])
+                                   .AppendASCII(size)
+                                   .AppendASCII("apps")
+                                   .AppendASCII(file_name));
+        }
+      }
+    }
+  }
+  for (const base::FilePath& dir : data_dirs) {
+    candidates.push_back(dir.AppendASCII("pixmaps").AppendASCII(file_name));
+  }
+  return candidates;
+}
+
+// Looks `icon` up in the icon directories of all `data_dirs`. `icon` is an absolute path (which
+// must lie inside the data dirs) or a plain icon name.
+std::optional<std::string> FindIcon(
+    const std::vector<base::FilePath>& data_dirs,
+    const AllowedRoots& roots,
+    const std::string& icon) {
   if (!icon.empty() && icon.front() == '/') {
-    return ReadPng(base::FilePath(icon), bytes);
+    return ReadPng(base::FilePath(icon), roots);
   }
   if (!IsPlainName(icon)) {
-    return false;
+    return std::nullopt;
   }
   // The icon name may carry its extension.
   std::string stem = icon;
   if (base::EndsWith(stem, ".png", base::CompareCase::INSENSITIVE_ASCII)) {
     stem.resize(stem.size() - 4);
   }
-  const std::string file = stem + ".png";
-
-  std::vector<std::vector<std::string>> themes;
-  for (const auto& dir : data_dirs) {
-    themes.push_back(ThemeNames(dir.AppendASCII("icons")));
-  }
-  // hicolor of every data dir first, so a Flatpak export beats a stray theme.
-  for (int pass = 0; pass < 2; ++pass) {
-    for (std::string_view size : kSizes) {
-      for (size_t d = 0; d < data_dirs.size(); ++d) {
-        const auto& names = themes[d];
-        for (size_t t = 0; t < names.size(); ++t) {
-          if ((pass == 0) != (t == 0)) {
-            continue;  // Pass 0 is hicolor (always first), pass 1 the rest.
-          }
-          const base::FilePath path = data_dirs[d]
-                                          .AppendASCII("icons")
-                                          .AppendASCII(names[t])
-                                          .AppendASCII(size)
-                                          .AppendASCII("apps")
-                                          .AppendASCII(file);
-          if (ReadPng(path, bytes)) {
-            return true;
-          }
-        }
-      }
+  for (const base::FilePath& path : IconCandidates(data_dirs, stem + ".png")) {
+    if (std::optional<std::string> bytes = ReadPng(path, roots)) {
+      return bytes;
     }
   }
-  for (const auto& dir : data_dirs) {
-    if (ReadPng(dir.AppendASCII("pixmaps").AppendASCII(file), bytes)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-struct BrowserIds {
-  std::string_view name;
-  std::vector<std::string> native;
-  std::vector<std::string> flatpak;
-};
-
-const std::vector<BrowserIds>& Table() {
-  static const std::vector<BrowserIds> table = {
-      {"Google Chrome", {"google-chrome", "google-chrome-stable"}, {"com.google.Chrome"}},
-      {"Google Chrome Beta", {"google-chrome-beta"}, {}},
-      {"Google Chrome Dev", {"google-chrome-unstable"}, {}},
-      {"Chromium", {"chromium", "chromium-browser"}, {"org.chromium.Chromium"}},
-      {"Brave", {"brave-browser", "brave"}, {"com.brave.Browser"}},
-      {"Microsoft Edge", {"microsoft-edge", "microsoft-edge-stable"}, {"com.microsoft.Edge"}},
-      {"Vivaldi", {"vivaldi-stable", "vivaldi"}, {"com.vivaldi.Vivaldi"}},
-      {"Opera", {"opera"}, {"com.opera.Opera"}},
-      {"Yandex", {"yandex-browser", "yandex-browser-beta"}, {}},
-      {"NAVER Whale", {"naver-whale", "naver-whale-stable"}, {}},
-      {"Helium", {"helium", "net.imput.helium"}, {}},
-      {"Firefox", {"firefox", "firefox-esr", "org.mozilla.firefox"}, {"org.mozilla.firefox"}},
-      {"Mozilla Firefox", {"firefox", "firefox-esr", "org.mozilla.firefox"}, {"org.mozilla.firefox"}},
-      {"Firefox Developer Edition", {"firefox-developer-edition"}, {}},
-      {"Firefox Nightly", {"firefox-nightly"}, {}},
-      {"Zen", {"zen", "zen-browser", "app.zen_browser.zen"}, {"app.zen_browser.zen"}},
-  };
-  return table;
+  return std::nullopt;
 }
 
 }  // namespace
@@ -214,21 +269,24 @@ std::vector<base::FilePath> SystemDataDirs() {
 
 std::string BrowserIconDataUrl(const std::vector<base::FilePath>& data_dirs,
                                const std::vector<std::string>& desktop_ids) {
+  const AllowedRoots roots(data_dirs);
   for (const std::string& id : desktop_ids) {
     if (!IsPlainName(id)) {
       continue;
     }
-    for (const auto& dir : data_dirs) {
-      std::string entry;
-      if (!base::ReadFileToStringWithMaxSize(
-              dir.AppendASCII("applications").AppendASCII(id + ".desktop"),
-              &entry, kMaxDesktopFileBytes)) {
+    for (const base::FilePath& dir : data_dirs) {
+      std::optional<std::string> entry = ReadRegularFile(
+          dir.AppendASCII("applications").AppendASCII(id + ".desktop"), roots,
+          kMaxDesktopFileBytes);
+      if (!entry) {
         continue;
       }
-      const std::string icon = IconOfDesktopEntry(entry);
-      std::string bytes;
-      if (!icon.empty() && FindIcon(data_dirs, icon, &bytes)) {
-        return "data:image/png;base64," + base::Base64Encode(bytes);
+      const std::string icon = IconOfDesktopEntry(*entry);
+      if (icon.empty()) {
+        continue;
+      }
+      if (std::optional<std::string> bytes = FindIcon(data_dirs, roots, icon)) {
+        return "data:image/png;base64," + base::Base64Encode(*bytes);
       }
     }
   }
@@ -240,10 +298,17 @@ std::vector<std::string> DesktopIdsForBrowser(std::string_view name) {
   if (flatpak) {
     name.remove_suffix(std::string_view(kFlatpakSuffix).size());
   }
-  for (const BrowserIds& row : Table()) {
-    if (row.name == name) {
-      return flatpak ? row.flatpak : row.native;
+  for (const KnownBrowser& browser : KnownBrowsers()) {
+    if (std::find(browser.names.begin(), browser.names.end(), name) ==
+        browser.names.end()) {
+      continue;
     }
+    if (!flatpak) {
+      return browser.native_desktop_ids;
+    }
+    return browser.flatpak_app_id.empty()
+               ? std::vector<std::string>()
+               : std::vector<std::string>{browser.flatpak_app_id};
   }
   return {};
 }

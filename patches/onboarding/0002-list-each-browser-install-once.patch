@@ -9,7 +9,7 @@ DetectChromeProfiles now also tries the folders aerie_import_sources::ExtraChrom
 DetectSourceProfilesWorker passes the finished list through NormalizeSources: a Flatpak source gets
 " (Flatpak)" after its name so it reads apart from the native install, and a source with the same
 importer type and the same folder (symlinks resolved, as with Zen's second Flatpak id) is listed once.
-Helium has no importer type; its profile has Chromium's format, so it imports as Chrome.
+Both files include import_sources.h and take the home directory from it. Helium has no importer type; its profile has Chromium's format, so it imports as Chrome.
 
 --- a/chrome/browser/importer/BUILD.gn
 +++ b/chrome/browser/importer/BUILD.gn
@@ -23,36 +23,25 @@ Helium has no importer type; its profile has Chromium's format, so it imports as
      "//components/favicon/core",
 --- a/chrome/browser/importer/chrome_importer_list.cc
 +++ b/chrome/browser/importer/chrome_importer_list.cc
-@@ -17,7 +17,21 @@
+@@ -17,6 +17,10 @@
  #include "components/user_data_importer/common/importer_type.h"
  #include "ui/base/l10n/l10n_util.h"
  
 +#if BUILDFLAG(IS_LINUX)
-+#include "base/base_paths.h"
-+#include "base/path_service.h"
 +#include "components/aerie_import_sources/import_sources.h"
 +#endif
 +
  namespace {
-+#if BUILDFLAG(IS_LINUX)
-+base::FilePath GetHomeDirectoryForImport() {
-+  base::FilePath home;
-+  base::PathService::Get(base::DIR_HOME, &home);
-+  return home;
-+}
-+#endif
-+
  void AddChromeToProfiles(
      std::vector<user_data_importer::SourceProfile>* profiles,
-     base::ListValue chrome_profiles,
-@@ -155,6 +169,16 @@
+@@ -155,6 +159,16 @@
            base::FilePath::StringType(FILE_PATH_LITERAL("Local State")))),
        GetOperaSnapUserDataFolder(), kOperaBrowser,
        user_data_importer::TYPE_OPERA);
 +
 +  // Flatpak installs of Chromium-family browsers, and Helium (issue #91).
 +  for (const auto& source : aerie_import_sources::ExtraChromiumSources(
-+           GetHomeDirectoryForImport())) {
++           aerie_import_sources::HomeDirectory())) {
 +    AddChromeToProfiles(
 +        profiles,
 +        GetChromeSourceProfiles(source.user_data_folder.Append(
@@ -64,17 +53,25 @@ Helium has no importer type; its profile has Chromium's format, so it imports as
  
 --- a/chrome/browser/importer/importer_list.cc
 +++ b/chrome/browser/importer/importer_list.cc
-@@ -254,6 +254,15 @@
+@@ -27,6 +27,10 @@
+ #include "chrome/common/importer/edge_importer_utils_win.h"
+ #endif
+ 
++#if BUILDFLAG(IS_LINUX)
++#include "components/aerie_import_sources/import_sources.h"
++#endif
++
+ #include "chrome/browser/importer/chrome_importer_list.cc"
+ 
+ namespace {
+@@ -254,6 +258,12 @@
      profiles.push_back(bookmarks_profile);
    }
  
 +#if BUILDFLAG(IS_LINUX)
 +  // One row per install (issue #91): Flatpak installs say so, a source is listed once.
-+  {
-+    base::FilePath home;
-+    base::PathService::Get(base::DIR_HOME, &home);
-+    aerie_import_sources::NormalizeSources(home, &profiles);
-+  }
++  aerie_import_sources::NormalizeSources(
++      aerie_import_sources::HomeDirectory(), &profiles);
 +#endif
 +
    for (auto& profile : profiles) {

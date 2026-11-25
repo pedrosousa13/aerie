@@ -37,9 +37,22 @@ same folder reached by two paths (Zen's second Flatpak id, `io.github.zen_browse
 `icons/hicolor` (sizes near 64 px first), the other themes and `pixmaps`. Only a PNG is used: the first
 bytes must be the PNG signature and an `IHDR` chunk, and a file over 256 KiB is skipped. A name that
 has no icon (or only an SVG) is left out and the page keeps its letter tile. The page accepts only a
-`data:image/png;base64,` value, and it fetches nothing: the page's content security policy has no
-network `img-src`, and the Python tests check that the script has no network call. The names are
-lookup keys in a fixed table, never a path. No browser's trademark is bundled. macOS (the app bundle
+`data:image/png;base64,` value, and it fetches nothing. What the browser enforces: the setup page's
+data source gets Chromium's WebUI defaults from `webui::SetupWebUIDataSource` (`ui/webui/webui_util.cc`,
+`SetJSModuleDefaults`), and neither Helium's page controller nor Aerie's patch overrides them (the only
+override Helium added, Trusted Types, is removed by `patches/onboarding/0001`). So `default-src 'self'`;
+`img-src chrome://resources chrome://theme chrome://image chrome://favicon2 chrome://app-icon
+chrome://extension-icon chrome://fileicon blob: data: 'self'`; `connect-src chrome://webui-test
+chrome://resources chrome://theme 'self'`. No `http:` or `https:` source is allowed for an image or a
+connection, and `data:` images are allowed, which is how the icon is shown. (`data:` is broader than
+PNG; the page's own check is what limits an icon to a PNG.) The browser test
+`TheImportStepShowsAnIconAndMakesNoOutsideRequest` loads the real page to the import step with a
+Flatpak Chromium and its icon, records every request, and fails on any that is not `chrome:`, `data:`,
+`about:` or `blob:`; it also checks that an `https` image and an `https` `fetch` from the page are
+refused. The Python tests check that the script has no network call. The icon files are read only
+from the data dirs (for a Flatpak export directory, also its installation): an absolute `Icon=` path or a symlink that leaves them is
+refused, and a file is opened once without following a symlink and checked as a regular file of at most
+256 KiB. The names are lookup keys in a fixed table, never a path. No browser's trademark is bundled. macOS (the app bundle
 icon) comes with the macOS build (M4).
 
 **What comes over.** Passwords and autofill are never imported, from any browser:

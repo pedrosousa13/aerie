@@ -115,6 +115,7 @@ const S = {
   step: 0,
   profiles: null,            // null while loading, [] when none found
   icons: {},                 // browser name -> data:image/png URL, for installed browsers that have an icon
+  iconsLoaded: false,        // the icon lookup has answered (or failed); the row tiles are final
   from: 'none',              // profile index as a string, or 'none'
   items: new Set(['bookmarks', 'passwords', 'history']),
   importing: false, importError: false, imported: null,
@@ -225,10 +226,15 @@ function browserIcon(name) {
   const url = S.icons[name];
   return typeof url === 'string' && PNG_DATA_URL.test(url) ? url : null;
 }
-function logoNode(it, extra) {
-  return it.icon ? h('img', {class: `logo icon${extra ? ` ${extra}` : ''}`, src: it.icon, alt: '', draggable: 'false'})
-                 : h('span', {class: `logo${extra ? ` ${extra}` : ''}`, style: {background: it.tile}}, it.letter);
+// Fills a .logo element: the browser's icon when it has one, else its coloured letter tile. `it` has icon,
+// tile and letter.
+function fillLogo(node, it) {
+  node.classList.toggle('icon', Boolean(it.icon));
+  node.style.background = it.icon ? 'transparent' : it.tile;
+  node.replaceChildren(it.icon ? h('img', {src: it.icon, alt: '', draggable: 'false'}) : it.letter);
+  return node;
 }
+const logoNode = it => fillLogo(h('span', {class: 'logo'}), it);
 const optBody = it => [logoNode(it),
   h('span', {class: 'tx'}, h('span', {class: 't'}, it.name), it.desc ? h('span', {class: 'd'}, it.desc) : null)];
 function retrigger(el, cls) {
@@ -425,10 +431,8 @@ function updateImport(changedFrom) {
   }
   const p = selectedProfile();
   const n = (S.profiles || []).indexOf(p);
-  const icon = p ? browserIcon(p.name) : null;
-  logo.style.background = p && !icon ? BROWSER_TILES[n % BROWSER_TILES.length] : icon ? 'transparent' : 'rgba(255,255,255,.25)';
-  logo.replaceChildren(icon ? h('img', {src: icon, alt: '', draggable: 'false'}) : (p ? (p.name.trim()[0] || '?').toUpperCase() : '+'));
-  logo.classList.toggle('icon', Boolean(icon));
+  fillLogo(logo, p ? {icon: browserIcon(p.name), tile: BROWSER_TILES[n % BROWSER_TILES.length], letter: (p.name.trim()[0] || '?').toUpperCase()}
+                   : {icon: null, tile: 'rgba(255,255,255,.25)', letter: '+'});
   if (changedFrom) {
     retrigger(logo, 'flip');
     const items = $('#import-items');
@@ -600,10 +604,11 @@ async function loadBrowserState() {
     // without one, the row shows its letter tile.
     sendWithPromise('aerieSetup.getBrowserIcons', S.profiles.map(p => p.name)).then(icons => {
       S.icons = icons && typeof icons === 'object' ? icons : {};
+      S.iconsLoaded = true;
       if (S.steps[S.step] === 'import') {
         render(0);
       }
-    }, () => {});
+    }, () => { S.iconsLoaded = true; });
   }, () => { S.profiles = []; });
 
   // The list can be empty while the search engine service loads; the browser

@@ -161,17 +161,16 @@ class BrowserIconTest(unittest.TestCase):
         self.assertTrue(match, "the page must check the icon's form")
         self.assertIn("^data:image\\/png;base64,", match.group(1))
         self.assertIn("PNG_DATA_URL.test(url)", SCRIPT)
-        # Every <img> the page builds takes its source from browserIcon(), which applies that check.
+        # The one <img> the page builds takes its source from fillLogo(), whose icon comes from browserIcon(),
+        # which applies that check.
         sources = re.findall(r"\bsrc\b\s*[:=]\s*([^,}\n]+)", SCRIPT)
-        self.assertTrue(sources)
-        for source in sources:
-            self.assertIn(source.strip(), {"it.icon", "icon"}, source)
-        self.assertEqual(len(re.findall(r"icon: browserIcon\(p\.name\)", SCRIPT)), 1)
-        self.assertIn("const icon = p ? browserIcon(p.name) : null;", SCRIPT)
+        self.assertEqual([source.strip() for source in sources], ["it.icon"])
+        self.assertEqual(len(re.findall(r"icon: browserIcon\(p\.name\)", SCRIPT)), 2)  # the rows and the hand-off logo
 
     def test_no_icon_means_the_letter_tile(self):
         self.assertIn("BROWSER_TILES[n % BROWSER_TILES.length], letter:", SCRIPT)
-        self.assertIn(": h('span', {class: `logo${extra ? ` ${extra}` : ''}`, style: {background: it.tile}}, it.letter);", SCRIPT)
+        self.assertIn("node.style.background = it.icon ? 'transparent' : it.tile;", SCRIPT)
+        self.assertIn("it.icon ? h('img', {src: it.icon, alt: '', draggable: 'false'}) : it.letter", SCRIPT)
 
     def test_the_page_makes_no_network_request_for_icons(self):
         # The icon arrives as bytes from the browser; nothing on the page fetches one.

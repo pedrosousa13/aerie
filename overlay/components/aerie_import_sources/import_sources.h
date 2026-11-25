@@ -17,6 +17,10 @@ namespace aerie_import_sources {
 // The suffix that tells the user a row is a Flatpak install.
 inline constexpr char kFlatpakSuffix[] = " (Flatpak)";
 
+// The user's home directory, or an empty path when it is not known. The importer list hooks
+// (patches/onboarding/0002) take it from here, so they share one way to find it.
+base::FilePath HomeDirectory();
+
 // A Chromium-format user data folder that Chromium's own importer list does not look at.
 struct ExtraChromiumSource {
   std::string brand;  // The name of the row, such as "Chromium (Flatpak)".

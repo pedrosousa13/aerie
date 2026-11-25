@@ -9,7 +9,9 @@
 
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
+#include "base/base_paths.h"
 #include "base/files/scoped_temp_dir.h"
+#include "base/test/scoped_path_override.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace aerie_import_sources {
@@ -200,6 +202,21 @@ TEST(ExtraChromiumSourcesTest, FlatpakChromiumFamilyAndHelium) {
   EXPECT_EQ(helium->user_data_folder,
             base::FilePath("/h/.config/net.imput.helium"));
   EXPECT_EQ(helium->importer_type, user_data_importer::TYPE_CHROME);
+}
+
+TEST(ExtraChromiumSourcesTest,
+     FirefoxAndZenAreNotAddedBecauseTheImporterFindsThem) {
+  for (const auto& s : ExtraChromiumSources(base::FilePath("/h"))) {
+    EXPECT_EQ(s.brand.find("Firefox"), std::string::npos) << s.brand;
+    EXPECT_EQ(s.brand.find("Zen"), std::string::npos) << s.brand;
+  }
+}
+
+TEST(HomeDirectoryTest, IsTheHomeDirectoryOfThePathService) {
+  base::ScopedTempDir dir;
+  ASSERT_TRUE(dir.CreateUniqueTempDir());
+  base::ScopedPathOverride home(base::DIR_HOME, dir.GetPath());
+  EXPECT_EQ(HomeDirectory(), dir.GetPath());
 }
 
 TEST(ExtraChromiumSourcesTest, EveryFlatpakBrandEndsInTheLabel) {

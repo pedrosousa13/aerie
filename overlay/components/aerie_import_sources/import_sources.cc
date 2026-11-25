@@ -5,36 +5,19 @@
 #include "components/aerie_import_sources/import_sources.h"
 
 #include <set>
-#include <string_view>
+#include <string>
 #include <utility>
+#include <vector>
 
+#include "base/base_paths.h"
 #include "base/files/file_util.h"
+#include "base/path_service.h"
+#include "base/strings/utf_string_conversions.h"
+#include "components/aerie_import_sources/known_browsers.h"
 
 namespace aerie_import_sources {
 
 namespace {
-
-struct FlatpakChromium {
-  const char* brand;
-  const char* app_id;
-  const char* data_folder;  // Under <home>/.var/app/<app id>/config.
-  user_data_importer::ImporterType type;
-};
-
-constexpr FlatpakChromium kFlatpakChromium[] = {
-    {"Google Chrome (Flatpak)", "com.google.Chrome", "google-chrome",
-     user_data_importer::TYPE_CHROME},
-    {"Chromium (Flatpak)", "org.chromium.Chromium", "chromium",
-     user_data_importer::TYPE_CHROME},
-    {"Brave (Flatpak)", "com.brave.Browser", "BraveSoftware/Brave-Browser",
-     user_data_importer::TYPE_BRAVE},
-    {"Microsoft Edge (Flatpak)", "com.microsoft.Edge", "microsoft-edge",
-     user_data_importer::TYPE_EDGE_CHROMIUM},
-    {"Vivaldi (Flatpak)", "com.vivaldi.Vivaldi", "vivaldi",
-     user_data_importer::TYPE_VIVALDI},
-    {"Opera (Flatpak)", "com.opera.Opera", "opera",
-     user_data_importer::TYPE_OPERA},
-};
 
 // `path` with symlinks resolved, or `path` itself when it does not exist.
 base::FilePath Canonical(const base::FilePath& path) {
@@ -44,20 +27,28 @@ base::FilePath Canonical(const base::FilePath& path) {
 
 }  // namespace
 
+base::FilePath HomeDirectory() {
+  base::FilePath home;
+  base::PathService::Get(base::DIR_HOME, &home);
+  return home;
+}
+
 std::vector<ExtraChromiumSource> ExtraChromiumSources(
     const base::FilePath& home) {
   std::vector<ExtraChromiumSource> sources;
   if (home.empty()) {
     return sources;
   }
-  for (const FlatpakChromium& entry : kFlatpakChromium) {
-    sources.push_back(
-        {entry.brand,
-         home.Append(".var/app")
-             .AppendASCII(entry.app_id)
-             .Append("config")
-             .Append(entry.data_folder),
-         entry.type});
+  for (const KnownBrowser& browser : KnownBrowsers()) {
+    if (browser.flatpak_app_id.empty() || browser.flatpak_data_folder.empty()) {
+      continue;
+    }
+    sources.push_back({browser.names.front() + kFlatpakSuffix,
+                       home.Append(".var/app")
+                           .AppendASCII(browser.flatpak_app_id)
+                           .Append("config")
+                           .Append(browser.flatpak_data_folder),
+                       browser.flatpak_importer_type});
   }
   // Helium keeps a Chromium profile in its own folder. Its importer type is Chrome's.
   sources.push_back({"Helium", home.Append(".config/net.imput.helium"),
@@ -69,6 +60,7 @@ void NormalizeSources(
     const base::FilePath& home,
     std::vector<user_data_importer::SourceProfile>* profiles) {
   const base::FilePath flatpak_root = Canonical(home).Append(".var/app");
+  const std::u16string suffix = base::UTF8ToUTF16(std::string(kFlatpakSuffix));
   std::set<std::pair<int, base::FilePath>> seen;
   std::vector<user_data_importer::SourceProfile> kept;
   for (auto& profile : *profiles) {
@@ -78,7 +70,6 @@ void NormalizeSources(
                .second) {
         continue;
       }
-      const std::u16string suffix = u" (Flatpak)";  // As kFlatpakSuffix.
       if (flatpak_root.IsParent(folder) &&
           !profile.importer_name.ends_with(suffix)) {
         profile.importer_name += suffix;
