@@ -79,7 +79,7 @@ class AerieGuardSettingsBrowserTest : public InProcessBrowserTest {
       }
     })())";
     std::string text = content::EvalJs(web_contents(), script).ExtractString();
-    std::optional<base::Value> parsed = base::JSONReader::Read(text);
+    std::optional<base::Value> parsed = base::JSONReader::Read(text, base::JSON_PARSE_RFC);
     EXPECT_TRUE(parsed && parsed->is_dict()) << text;
     return parsed && parsed->is_dict() ? std::move(parsed->GetDict())
                                        : base::DictValue();
