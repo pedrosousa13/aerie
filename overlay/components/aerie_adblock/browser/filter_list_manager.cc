@@ -20,6 +20,7 @@
 #include "components/aerie_adblock/browser/adblock_engine.h"
 #include "components/aerie_adblock/browser/catalogue.h"
 #include "components/aerie_adblock/browser/filter_list_storage.h"
+#include "components/aerie_adblock/browser/list_title.h"
 #include "content/public/browser/browser_context.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 
@@ -254,6 +255,37 @@ void FilterListManager::RemoveList(std::string_view id) {
   Save();
   Notify();
   Rebuild();
+}
+
+bool FilterListManager::CanViewListSource(std::string_view id) const {
+  const FilterListEntry* entry = state_.Find(id);
+  return entry && !entry->url.empty() && !entry->builtin && !entry->catalogue;
+}
+
+bool FilterListManager::ReadListSource(std::string_view id,
+                                       ListSourceCallback done) {
+  if (!CanViewListSource(id)) {
+    return false;
+  }
+  base::FilePath path = filter_list_storage::ListPath(dir_, id);
+  if (path.empty()) {
+    return false;
+  }
+  file_runner_->PostTaskAndReplyWithResult(
+      FROM_HERE,
+      base::BindOnce(
+          [](base::FilePath path) -> std::optional<std::string> {
+            std::string text;
+            if (!base::ReadFileToStringWithMaxSize(path, &text,
+                                                   kMaxListBytes) &&
+                text.empty()) {
+              return std::nullopt;
+            }
+            return text;
+          },
+          std::move(path)),
+      std::move(done));
+  return true;
 }
 
 void FilterListManager::UpdateList(std::string_view id) {
@@ -657,6 +689,9 @@ void FilterListManager::OnChecked(std::string id, std::string text, ListCheck ch
     FinishFetch(id);
     return;
   }
+  // The name comes from the header of the saved text (list_title.h), so it is
+  // bounded and has no control characters, whatever the engine reports.
+  check.title = ParseListTitle(text);
   reserved_bytes_[id] = bytes;
   file_runner_->PostTaskAndReplyWithResult(
       FROM_HERE,

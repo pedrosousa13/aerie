@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <map>
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 #include <string_view>
@@ -123,6 +124,19 @@ class FilterListManager {
   // when the table is full; |*error| says which.
   bool AddList(const GURL& url, std::string* error);
   void RemoveList(std::string_view id);
+
+  // The saved text of a list the user added by address (issue #108), for the
+  // read-only source page. Addressed by list id only: |id| must be exactly the
+  // id of a list that has an address, is not built in and not from the
+  // catalogue. Anything else, an unknown id, an address and the user's own
+  // rules included, returns false and never runs |done|. Otherwise |done| runs
+  // later with the text of the saved copy, or nullopt when there is none (the
+  // list never downloaded). The text is untrusted: show it as text only.
+  using ListSourceCallback =
+      base::OnceCallback<void(std::optional<std::string>)>;
+  bool ReadListSource(std::string_view id, ListSourceCallback done);
+  // Whether ReadListSource() accepts |id|.
+  bool CanViewListSource(std::string_view id) const;
 
   // Turns a catalogue list on or off (issue #105). |id| must be exactly an id
   // of the catalogue (catalogue.h): the address downloaded is the one the build
