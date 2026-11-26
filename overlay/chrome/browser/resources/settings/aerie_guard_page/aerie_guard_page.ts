@@ -466,7 +466,8 @@ export class SettingsAerieGuardPageElement extends
     // Clear a search that hides the suggestions, then go to the first one.
     this.catalogueQuery_ = '';
     this.updateComplete.then(() => {
-      const group = this.shadowRoot.querySelector<HTMLElement>(`#catalogue-${SUGGESTED_SECTION}`);
+      const group = this.shadowRoot.querySelector<HTMLElement>(
+          `#catalogue-${SUGGESTED_SECTION}`);
       group?.scrollIntoView({block: 'start'});
       group?.querySelector<CrToggleElement>('cr-toggle')?.focus();
     });

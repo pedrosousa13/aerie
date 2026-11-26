@@ -87,10 +87,14 @@ def judge(obs: dict | None) -> list[str]:
     text = obs.get("state_file")
     if text is not None:
         try:
-            entries = (json.loads(text) or {}).get("lists") or []
+            parsed = json.loads(text)
         except ValueError:
             problems.append("state.json is not JSON")
-            entries = []
+            parsed = {}
+        if not isinstance(parsed, dict):
+            problems.append("state.json is not a JSON object")
+            parsed = {}
+        entries = parsed.get("lists") or []
         from_catalogue = [e.get("id") for e in entries if isinstance(e, dict) and e.get("catalogue")]
         if from_catalogue:
             problems.append(f"state.json holds catalogue list(s): {', '.join(map(str, from_catalogue))}")

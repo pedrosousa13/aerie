@@ -43,6 +43,12 @@ class JudgeTest(unittest.TestCase):
         self.assertEqual([], rs.judge(obs))
         self.assertEqual("no state file", rs.state_file_note(None))
 
+    def test_a_state_file_that_is_not_a_json_object_fails_instead_of_crashing(self):
+        for text in ("[]", "[1, 2]", "5", '"x"', "true"):
+            obs = good()
+            obs["state_file"] = text
+            self.assertTrue(any("not a JSON object" in p for p in rs.judge(obs)), text)
+
     def test_a_present_state_file_must_show_no_catalogue_entry(self):
         obs = good()
         obs["state_file"] = json.dumps({"lists": []})

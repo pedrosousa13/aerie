@@ -2,10 +2,12 @@ Aerie-Purpose: Give the Aerie Guard page the strings of its filter list catalogu
 Aerie-Upstream-Area: chrome/browser/ui/webui/settings (settings_localized_strings_provider.cc)
 Aerie-Kind: hook
 
-Issue #105. Issue #106 adds the strings of the suggested-lists group and of the one-time card
-(aerieGuardSuggested*, aerieGuardLanguageCard*). The messages are in the overlay's
-aerie_guard_settings_strings.grdp, which adblock/0022 already includes. This patch hands each one to the Settings page in a function
-of its own, so it does not share context lines with the tables of adblock/0022 and adblock/0027.
+Issue #105. Issue #106 adds the strings of the suggested-lists group and of
+the one-time card (aerieGuardSuggested*, aerieGuardLanguageCard*). The messages
+are in the overlay's aerie_guard_settings_strings.grdp, which adblock/0022
+already includes. This patch hands each one to the Settings page in a function
+of its own, so it does not share context lines with the tables of adblock/0022
+and adblock/0027.
 The name and description of a list are looked up by its catalogue id on the page
 (aerieGuardCatTitle_<id>, aerieGuardCatDesc_<id>). tests/test_aerie_guard_settings.py checks both ways:
 every id of components/aerie_adblock/catalogue.json has its title and description in the grdp
