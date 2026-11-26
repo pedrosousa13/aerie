@@ -25,6 +25,7 @@ LIST_STRINGS = "adblock/0025-add-aerie-guard-list-strings.patch"
 LEVEL_STRINGS = "adblock/0026-add-aerie-guard-level-settings-strings.patch"
 CUSTOM_STRINGS = "adblock/0027-add-aerie-guard-custom-rules-strings.patch"
 CATALOGUE_STRINGS = "adblock/0028-add-aerie-guard-catalogue-strings.patch"
+SUBSCRIPTION_STRINGS = "adblock/0031-add-aerie-guard-subscription-strings.patch"
 PREF = "aerie.guard.show_blocked_count"
 
 
@@ -79,7 +80,7 @@ class HandlerTest(unittest.TestCase):
             "aerieGuard.getState", "aerieGuard.addList", "aerieGuard.removeList", "aerieGuard.setListEnabled",
             "aerieGuard.updateList", "aerieGuard.setCatalogueList", "aerieGuard.dismissLanguageCard",
             "aerieGuard.updateAll", "aerieGuard.setException", "aerieGuard.setAutoUpdate",
-            "aerieGuard.setDefaultLevel", "aerieGuard.setCustomRules"]))
+            "aerieGuard.setDefaultLevel", "aerieGuard.setCustomRules", "aerieGuard.viewSource"]))
         self.assertGreaterEqual(text.count("ResolveJavascriptCallback"), 1)
 
     def test_settings_acts_on_the_regular_profile_and_never_shows_a_session(self):
@@ -171,7 +172,7 @@ class StringsTest(unittest.TestCase):
     def test_every_message_is_given_to_the_page_and_every_name_exists(self):
         used = set(re.findall(r"\bIDS_SETTINGS_AERIE_GUARD_\w+",
                               added(BACKEND) + added(LIST_STRINGS) + added(LEVEL_STRINGS) + added(CUSTOM_STRINGS)
-                              + added(CATALOGUE_STRINGS)))
+                              + added(CATALOGUE_STRINGS) + added(SUBSCRIPTION_STRINGS)))
         self.assertEqual(used, set(self.messages()))
 
     def test_no_upstream_product_name(self):
@@ -289,7 +290,7 @@ class ListRowsTest(unittest.TestCase):
     def test_every_string_key_the_page_reads_is_given_to_the_page(self):
         given = set(re.findall(r'\{"(aerieGuard\w+)"',
                                re.sub(r"\s+", " ", added(BACKEND) + added(LIST_STRINGS) + added(LEVEL_STRINGS) + added(CUSTOM_STRINGS)
-                               + added(CATALOGUE_STRINGS))))
+                               + added(CATALOGUE_STRINGS) + added(SUBSCRIPTION_STRINGS))))
         read = set(re.findall(r"\$i18n\{(aerieGuard\w+)\}", self.HTML))
         read |= set(re.findall(r"(?:getString|getStringF)\(\s*'(aerieGuard\w+)'", self.TS))
         self.assertTrue(read)

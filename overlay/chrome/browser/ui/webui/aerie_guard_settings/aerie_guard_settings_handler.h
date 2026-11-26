@@ -29,6 +29,13 @@ namespace aerie_guard {
 //   aerieGuard.getState []                    the state
 //   aerieGuard.addList [url]                  add a custom list (https only)
 //   aerieGuard.removeList [id]                remove a custom list
+//   aerieGuard.viewSource [id]                opens the saved text of a list
+//                                             the user added by address in a
+//                                             new tab (issue #108), as
+//                                             text/plain. The id is a list id,
+//                                             never an address; an id the
+//                                             manager does not accept rejects
+//                                             the promise and opens nothing.
 //   aerieGuard.setListEnabled [id, enabled]   a list on or off (issue #104)
 //   aerieGuard.setCatalogueList [id, on]      a catalogue list on or off (issue
 //                                             #105). The id is a catalogue id,
@@ -73,6 +80,8 @@ class AerieGuardSettingsHandler
 
   // The state the page shows, as a dictionary. Public for tests.
   // |add_error| is the manager's text for a list it refused, "" for none.
+  // "addErrorCode" is its fixed code ("insecure_url", "non_public_url",
+  // "duplicate" or "too_many"; "" for none): the page shows its own string.
   // |exception_error| is "", "invalid_host", "table_full" or "locked".
   // |list_error| is "", "required" (EasyList cannot be turned off) or
   // "unknown_list".
@@ -119,6 +128,7 @@ class AerieGuardSettingsHandler
   void HandleGetState(const base::ListValue& args);
   void HandleAddList(const base::ListValue& args);
   void HandleRemoveList(const base::ListValue& args);
+  void HandleViewSource(const base::ListValue& args);
   void HandleSetListEnabled(const base::ListValue& args);
   void HandleSetCatalogueList(const base::ListValue& args);
   void HandleDismissLanguageCard(const base::ListValue& args);

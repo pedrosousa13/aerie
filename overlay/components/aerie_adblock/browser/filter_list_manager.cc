@@ -159,10 +159,10 @@ bool FilterListManager::AddList(const GURL& url, std::string* error) {
       *error = ListFailureMessage(ListFailure::kNonPublicUrl);
       return false;
     case FilterListState::AddResult::kDuplicate:
-      *error = "This list is already added.";
+      *error = kAddErrorDuplicate;
       return false;
     case FilterListState::AddResult::kTooMany:
-      *error = "Too many lists. Remove one first.";
+      *error = kAddErrorTooMany;
       return false;
   }
   Save();

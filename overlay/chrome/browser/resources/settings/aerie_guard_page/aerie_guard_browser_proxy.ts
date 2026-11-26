@@ -88,6 +88,12 @@ export interface AerieGuardState {
   defaultLevel: string;
   /** The manager's text for a list it refused. Empty for none. */
   addError: string;
+  /**
+   * A fixed code for why `addList` refused an address: 'insecure_url',
+   * 'non_public_url', 'duplicate' or 'too_many'. '' for none. The page owns
+   * the words.
+   */
+  addErrorCode: string;
   /** '', 'invalid_host', 'table_full' or 'locked'. */
   exceptionError: string;
   /** '', 'required', 'unknown_list', 'too_many' or 'too_large'. */
@@ -118,6 +124,13 @@ export interface AerieGuardBrowserProxy {
   getState(): Promise<AerieGuardState>;
   addList(url: string): Promise<AerieGuardState>;
   removeList(id: string): Promise<AerieGuardState>;
+  /**
+   * Opens the saved text of a list the user added by address in a new tab, as
+   * plain text (issue #108). The argument is a list id, never an address: the
+   * promise rejects for any other text and nothing opens. The remote address
+   * is never opened.
+   */
+  viewSource(id: string): Promise<AerieGuardState>;
   setListEnabled(id: string, enabled: boolean): Promise<AerieGuardState>;
   /**
    * Turns a catalogue list on (the browser downloads it from its publisher) or
@@ -149,6 +162,10 @@ export class AerieGuardBrowserProxyImpl implements AerieGuardBrowserProxy {
 
   removeList(id: string): Promise<AerieGuardState> {
     return sendWithPromise('aerieGuard.removeList', id);
+  }
+
+  viewSource(id: string): Promise<AerieGuardState> {
+    return sendWithPromise('aerieGuard.viewSource', id);
   }
 
   setListEnabled(id: string, enabled: boolean): Promise<AerieGuardState> {

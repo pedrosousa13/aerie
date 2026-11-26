@@ -1,0 +1,40 @@
+Aerie-Purpose: Register chrome://aerie-list-source, the read-only text/plain view of a filter list the user added by address, with the WebUI config map.
+Aerie-Upstream-Area: chrome/browser/ui/webui/chrome_web_ui_configs.cc, chrome/browser/ui/webui/BUILD.gn
+Aerie-Kind: hook
+
+Issue #108. The page is a WebUI (AerieListSourceUIConfig, in the overlay
+under chrome/browser/ui/webui/aerie_guard_settings). Settings opens it for "View
+source". It serves the saved text of one list, addressed by list id, as
+text/plain, so a web page can neither navigate to it nor frame it and the
+list is never rendered as HTML. It is registered with the config map and
+nothing else: no host constant, no histogram variant, no resources.
+
+--- a/chrome/browser/ui/webui/BUILD.gn
++++ b/chrome/browser/ui/webui/BUILD.gn
+@@ -55,6 +55,7 @@
+     "//chrome/browser/ui/webui/accessibility",
+     "//chrome/browser/ui/webui/actor_internals",
+     "//chrome/browser/ui/webui/aerie_guard",
++    "//chrome/browser/ui/webui/aerie_guard_settings:list_source",
+     "//chrome/browser/ui/webui/autofill_and_password_manager_internals",
+     "//chrome/browser/ui/webui/bluetooth_internals",
+     "//chrome/browser/ui/webui/chrome_urls",
+--- a/chrome/browser/ui/webui/chrome_web_ui_configs.cc
++++ b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
+@@ -142,6 +142,7 @@
+ #include "chrome/browser/ui/webui/system/system_info_ui.h"
+ #include "chrome/browser/ui/webui/tab_search/tab_search_ui.h"
+ #include "chrome/browser/ui/webui/aerie_guard/aerie_guard_ui.h"
++#include "chrome/browser/ui/webui/aerie_guard_settings/aerie_list_source_ui.h"
+ #include "chrome/browser/ui/webui/user_education_internals/user_education_internals_ui.h"
+ #include "chrome/browser/ui/webui/web_app_internals/web_app_internals_ui.h"
+ #include "chrome/browser/ui/webui/webnn_internals/webnn_internals_ui.h"
+@@ -409,6 +410,8 @@
+   map.AddWebUIConfig(std::make_unique<tabs::TabGroupHomeUIConfig>());
+   map.AddWebUIConfig(std::make_unique<TabSearchUIConfig>());
+   map.AddWebUIConfig(std::make_unique<aerie_guard::AerieGuardUIConfig>());
++  map.AddWebUIConfig(
++      std::make_unique<aerie_guard::AerieListSourceUIConfig>());
+   map.AddWebUIConfig(std::make_unique<TabsFromOtherDevicesUIConfig>());
+   map.AddWebUIConfig(std::make_unique<TermsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<UserEducationInternalsUIConfig>());

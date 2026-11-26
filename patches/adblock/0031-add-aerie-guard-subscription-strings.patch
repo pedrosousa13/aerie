@@ -1,0 +1,53 @@
+Aerie-Purpose: Give the Aerie Guard page the strings of adding a filter list by address: the heading, the field, the IP address warning, the errors, and View source and Unsubscribe.
+Aerie-Upstream-Area: chrome/browser/ui/webui/settings (settings_localized_strings_provider.cc)
+Aerie-Kind: hook
+
+Issue #108. The messages are in the overlay's
+aerie_guard_settings_strings.grdp, which adblock/0022 already includes. This
+patch hands each one to the Settings page in a function of its own, so it does
+not share context lines with the tables of adblock/0022, adblock/0027 and
+adblock/0028.
+
+--- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
++++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
+@@ -1784,6 +1784,32 @@
+   html_source->AddLocalizedStrings(kLocalizedStrings);
+ }
+ 
++void AddAerieGuardSubscriptionStrings(content::WebUIDataSource* html_source) {
++  static constexpr webui::LocalizedString kLocalizedStrings[] = {
++      {"aerieGuardSubscriptionsHeading",
++       IDS_SETTINGS_AERIE_GUARD_SUBSCRIPTIONS_HEADING},
++      {"aerieGuardSubscriptionsDesc",
++       IDS_SETTINGS_AERIE_GUARD_SUBSCRIPTIONS_DESC},
++      {"aerieGuardAddListLabel", IDS_SETTINGS_AERIE_GUARD_ADD_LIST_LABEL},
++      {"aerieGuardAddListPlaceholder",
++       IDS_SETTINGS_AERIE_GUARD_ADD_LIST_PLACEHOLDER},
++      {"aerieGuardAddListButton", IDS_SETTINGS_AERIE_GUARD_ADD_LIST_BUTTON},
++      {"aerieGuardAddListIpWarning",
++       IDS_SETTINGS_AERIE_GUARD_ADD_LIST_IP_WARNING},
++      {"aerieGuardAddListErrorDuplicate",
++       IDS_SETTINGS_AERIE_GUARD_ADD_LIST_ERROR_DUPLICATE},
++      {"aerieGuardAddListErrorTooMany",
++       IDS_SETTINGS_AERIE_GUARD_ADD_LIST_ERROR_TOO_MANY},
++      {"aerieGuardListViewSource", IDS_SETTINGS_AERIE_GUARD_LIST_VIEW_SOURCE},
++      {"aerieGuardListViewSourceAria",
++       IDS_SETTINGS_AERIE_GUARD_LIST_VIEW_SOURCE_ARIA},
++      {"aerieGuardListUnsubscribe", IDS_SETTINGS_AERIE_GUARD_LIST_UNSUBSCRIBE},
++      {"aerieGuardListUnsubscribeAria",
++       IDS_SETTINGS_AERIE_GUARD_LIST_UNSUBSCRIBE_ARIA},
++  };
++  html_source->AddLocalizedStrings(kLocalizedStrings);
++}
++
+ void AddOnStartupStrings(content::WebUIDataSource* html_source) {
+   static constexpr webui::LocalizedString kLocalizedStrings[] = {
+       {"onStartup", IDS_SETTINGS_ON_STARTUP},
+@@ -4894,6 +4920,7 @@
+   AddAerieGuardStrings(html_source);
+   AddAerieGuardCustomRulesStrings(html_source);
+   AddAerieGuardCatalogueStrings(html_source);
++  AddAerieGuardSubscriptionStrings(html_source);
+   AddAiStrings(html_source);
+   AddAutofillStrings(html_source, profile, web_contents);
+   AddAppearanceStrings(html_source, profile);

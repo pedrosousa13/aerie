@@ -80,6 +80,10 @@ export function getHtml(this: SettingsAerieGuardPageElement) {
           data-list-id="${list.id}">
         <div class="flex cr-padded-text">
           <div class="list-title">${this.listTitle_(list)}</div>
+          ${this.isSubscription_(list) ? html`
+            <!-- Text only: the address is the user's own input. -->
+            <div class="secondary list-address">${list.url}</div>
+          ` : ''}
           <div class="secondary list-rules">${this.listRulesText_(list)}</div>
           <div class="secondary list-ignored">
             ${this.listIgnoredText_(list)}
@@ -116,6 +120,18 @@ export function getHtml(this: SettingsAerieGuardPageElement) {
             ${this.listUpdateButton_(list)}
           </cr-button>
         ` : ''}
+        ${this.isSubscription_(list) ? html`
+          <cr-button class="list-view-source" data-id="${list.id}"
+              aria-label="${this.listViewSourceLabel_(list)}"
+              @click="${this.onListViewSourceClick_}">
+            $i18n{aerieGuardListViewSource}
+          </cr-button>
+          <cr-button class="list-unsubscribe" data-id="${list.id}"
+              aria-label="${this.listUnsubscribeLabel_(list)}"
+              @click="${this.onListUnsubscribeClick_}">
+            $i18n{aerieGuardListUnsubscribe}
+          </cr-button>
+        ` : ''}
         <cr-toggle class="list-toggle" data-id="${list.id}"
             ?checked="${list.enabled}" ?disabled="${list.required}"
             aria-label="${this.listToggleLabel_(list)}"
@@ -128,6 +144,33 @@ export function getHtml(this: SettingsAerieGuardPageElement) {
       ${this.listError_}
     </div>
   ` : ''}
+  <div class="cr-row hr">
+    <div class="flex cr-padded-text">
+      <h2 id="subscriptionsHeading" class="cr-title-text">
+        $i18n{aerieGuardSubscriptionsHeading}
+      </h2>
+      <div class="secondary">$i18n{aerieGuardSubscriptionsDesc}</div>
+    </div>
+  </div>
+  <div class="cr-row">
+    <cr-input id="newListInput" class="flex" type="url" autocomplete="off"
+        label="$i18n{aerieGuardAddListLabel}"
+        placeholder="$i18n{aerieGuardAddListPlaceholder}"
+        .value="${this.newListUrl_}"
+        ?invalid="${!!this.addListError_}"
+        error-message="${this.addListError_}"
+        @value-changed="${this.onNewListValueChanged_}"
+        @keydown="${this.onNewListKeydown_}">
+    </cr-input>
+    <cr-button id="addList" class="action-button"
+        ?disabled="${!this.canAddList_()}"
+        @click="${this.onAddListClick_}">
+      $i18n{aerieGuardAddListButton}
+    </cr-button>
+  </div>
+  <div id="addListWarning" class="cr-row secondary" role="note">
+    $i18n{aerieGuardAddListIpWarning}
+  </div>
   <div class="cr-row hr">
     <div class="flex cr-padded-text">
       <h2 id="catalogueHeading" class="cr-title-text">
