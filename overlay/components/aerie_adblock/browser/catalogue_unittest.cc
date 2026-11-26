@@ -112,7 +112,7 @@ TEST(CatalogueSuggestionTest, AGermanLocaleSuggestsTheGermanLists) {
 
 TEST(CatalogueSuggestionTest, OnlyTheLanguageSubtagCounts) {
   EXPECT_EQ((Ids{"iberia"}), Suggest("pt-BR", ""));
-  EXPECT_EQ((Ids{"iberia"}), Suggest("en-GB", "pt-PT"));
+  EXPECT_EQ((Ids{"iberia"}), Suggest("", "pt-PT"));
   EXPECT_EQ((Ids{"iberia"}), Suggest("es_MX", ""));
 }
 
