@@ -13,6 +13,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <tuple>
 #include <vector>
 
 #include "base/command_line.h"
@@ -26,6 +27,7 @@
 #include "base/memory/raw_ptr.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/webui/aerie_guard_settings/aerie_list_source_ui.h"
 #include "chrome/common/chrome_paths.h"
@@ -39,7 +41,9 @@
 #include "components/aerie_adblock/browser/filter_list_storage.h"
 #include "components/language/core/browser/pref_names.h"
 #include "components/prefs/pref_service.h"
+#include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/web_contents.h"
+#include "content/public/browser/web_contents_delegate.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
@@ -628,6 +632,98 @@ IN_PROC_BROWSER_TEST_F(AerieListSubscriptionBrowserTest,
         EXPECT_NE(aerie_guard::kListSourceHost,
                   frame->GetLastCommittedURL().host());
       });
+}
+
+// A delegate that opens nothing: OpenURLFromTab() answers null, as it does
+// when a navigation is refused.
+class RefusingDelegate : public content::WebContentsDelegate {
+ public:
+  content::WebContents* OpenURLFromTab(
+      content::WebContents* source,
+      const content::OpenURLParams& params,
+      base::OnceCallback<void(content::NavigationHandle&)>
+          navigation_handle_callback) override {
+    ++refused_;
+    return nullptr;
+  }
+  int refused() const { return refused_; }
+
+ private:
+  int refused_ = 0;
+};
+
+// The source page is for the regular profile only: Settings opens it there,
+// and the manager and its saved lists are the regular profile's.
+IN_PROC_BROWSER_TEST_F(AerieListSubscriptionBrowserTest,
+                       TheSourcePageIsServedToTheRegularProfileOnly) {
+  const std::string id = AddFixtureList();
+  const GURL source = aerie_guard::ListSourceUrl(id);
+
+  // A regular window shows the list.
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), source));
+  EXPECT_NE(nullptr, web_contents()->GetWebUI());
+  EXPECT_NE(std::string::npos,
+            content::EvalJs(web_contents(), "document.body.innerText")
+                .ExtractString()
+                .find("||ads.subscription.example^"));
+
+  // Incognito and guest windows do not: no WebUI is made and no text of the
+  // list reaches the page.
+  BrowserWindowInterface* incognito = CreateIncognitoBrowser();
+  BrowserWindowInterface* guest = CreateGuestBrowser();
+  ASSERT_TRUE(incognito);
+  ASSERT_TRUE(guest);
+  for (BrowserWindowInterface* other : {incognito, guest}) {
+    std::ignore = ui_test_utils::NavigateToURL(other, source);
+    content::WebContents* page =
+        other->GetActiveTabInterface()->GetContents();
+    EXPECT_EQ(nullptr, page->GetWebUI());
+    const std::string shown =
+        content::EvalJs(page, "document.body ? document.body.innerText : ''")
+            .ExtractString();
+    EXPECT_EQ(std::string::npos, shown.find("ads.subscription.example"));
+    EXPECT_EQ(std::string::npos, shown.find("Hostile"));
+  }
+}
+
+// A navigation that opens no tab rejects the promise, so the page can tell
+// the user.
+IN_PROC_BROWSER_TEST_F(AerieListSubscriptionBrowserTest,
+                       ViewSourceRejectsWhenNoTabOpens) {
+  const std::string id = AddFixtureList();
+  content::WebContents* settings = web_contents();
+  const int tabs_before = browser()->tab_strip_model()->count();
+  content::WebContentsDelegate* original = settings->GetDelegate();
+  RefusingDelegate refusing;
+  settings->SetDelegate(&refusing);
+  base::DictValue answer = Call("viewSource", "[\"" + id + "\"]");
+  settings->SetDelegate(original);
+  EXPECT_EQ(false, answer.FindBool("ok"));
+  const std::string* error = answer.FindString("error");
+  ASSERT_TRUE(error);
+  EXPECT_NE(std::string::npos, error->find("open_failed")) << *error;
+  EXPECT_EQ(1, refusing.refused());
+  EXPECT_EQ(tabs_before, browser()->tab_strip_model()->count());
+}
+
+// The page shows View source and Unsubscribe from the handler's own flag.
+IN_PROC_BROWSER_TEST_F(AerieListSubscriptionBrowserTest,
+                       TheStateSaysWhichListsCanShowTheirSource) {
+  AddFixtureList();
+  base::DictValue answer = Call("getState", "[]");
+  const base::DictValue* state = answer.FindDict("state");
+  ASSERT_TRUE(state);
+  const base::ListValue* lists = state->FindList("lists");
+  ASSERT_TRUE(lists);
+  int can_view = 0;
+  for (const base::Value& list : *lists) {
+    const std::optional<bool> flag = list.GetDict().FindBool("canViewSource");
+    ASSERT_TRUE(flag.has_value());
+    const std::string* url = list.GetDict().FindString("url");
+    EXPECT_EQ(url && *url == ListUrl(), *flag);
+    can_view += *flag ? 1 : 0;
+  }
+  EXPECT_EQ(1, can_view);
 }
 
 IN_PROC_BROWSER_TEST_F(AerieListSubscriptionBrowserTest,

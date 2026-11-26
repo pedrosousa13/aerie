@@ -679,7 +679,11 @@ class SubscriptionTest(unittest.TestCase):
 
     def test_the_source_page_is_plain_text_and_cannot_be_framed(self):
         text = self.SOURCE_CC
-        self.assertIn('return "text/plain";', text)
+        self.assertIn('kMimeType[] = "text/plain";', text)
+        self.assertIn("return kMimeType;", text)
+        # Only a regular profile gets the page: the saved lists are its own.
+        self.assertIn("IsWebUIEnabled(", text)
+        self.assertIn("profile->IsRegularProfile()", text)
         self.assertIn("ShouldServeMimeTypeAsContentTypeHeader() override { return true; }", text)
         self.assertIn("default-src 'none';", text)
         self.assertIn("frame-ancestors 'none';", text)
@@ -726,7 +730,7 @@ class SubscriptionTest(unittest.TestCase):
         for key in ("aerieGuardAddListErrorDuplicate", "aerieGuardAddListErrorTooMany",
                     "aerieGuardListErrorInsecureUrl", "aerieGuardListErrorNonPublicUrl"):
             self.assertIn(key, self.TS)
-        words = "".join(m.itertext()) if False else STRINGS.read_text(encoding="utf-8")
+        words = STRINGS.read_text(encoding="utf-8")
         warning = re.search(r'ADD_LIST_IP_WARNING"[^>]*>\s*(.*?)\s*</message>', words, re.S).group(1)
         self.assertIn("IP address", warning)
 
@@ -734,6 +738,12 @@ class SubscriptionTest(unittest.TestCase):
         for needle in ("list-update", "list-view-source", "list-unsubscribe", "onListViewSourceClick_",
                        "onListUnsubscribeClick_", "isSubscription_(list)", "list-address"):
             self.assertIn(needle, self.HTML + self.TS, needle)
+        # The page does not guess which lists are subscriptions: the handler says so per list, from the manager.
+        self.assertIn("canViewSource", self.PROXY)
+        self.assertIn("return list.canViewSource", self.TS)
+        self.assertNotIn("!list.builtin", self.TS)
+        self.assertIn('item.Set("canViewSource"', code(HANDLER_CC))
+        self.assertIn("CanViewListSource(entry.id)", code(HANDLER_CC))
         self.assertIn("viewSource(id)", self.TS)
         self.assertIn("removeList(id)", self.TS)
         self.assertIn("'aerieGuard.viewSource', id", self.PROXY)

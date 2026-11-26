@@ -201,6 +201,9 @@ base::DictValue AerieGuardSettingsHandler::StateToValue(
     item.Set("url", entry.url);
     item.Set("title", entry.title);
     item.Set("builtin", entry.builtin);
+    // True for a list the user subscribed to by address: the page shows View
+    // source and Unsubscribe for it. The manager decides, not the page.
+    item.Set("canViewSource", manager.CanViewListSource(entry.id));
     item.Set("rules", entry.rules);
     item.Set("ignoredExceptions", entry.ignored_exceptions);
     item.Set("enabled", entry.enabled);
@@ -418,12 +421,17 @@ void AerieGuardSettingsHandler::HandleViewSource(const base::ListValue& args) {
     return;
   }
   using ui::mojom::WindowOpenDisposition;
-  web_ui()->GetWebContents()->OpenURL(
-      content::OpenURLParams(ListSourceUrl(*id), content::Referrer(),
-                             WindowOpenDisposition::kNewForegroundTab,
-                             ui::PAGE_TRANSITION_LINK,
-                             /*is_renderer_initiated=*/false),
-      /*navigation_handle_callback=*/{});
+  // A null result means no tab was opened (a delegate refused it): reject, so
+  // the page tells the user instead of showing nothing.
+  if (!web_ui()->GetWebContents()->OpenURL(
+          content::OpenURLParams(ListSourceUrl(*id), content::Referrer(),
+                                 WindowOpenDisposition::kNewForegroundTab,
+                                 ui::PAGE_TRANSITION_LINK,
+                                 /*is_renderer_initiated=*/false),
+          /*navigation_handle_callback=*/{})) {
+    Reject(args, "open_failed");
+    return;
+  }
   Resolve(args, std::string_view(), std::string_view());
 }
 

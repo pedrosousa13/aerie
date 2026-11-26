@@ -128,7 +128,8 @@ def good_view_source():
         "entry": {"id": "abc", "url": "http://127.0.0.1:5000/filters/source-list.txt", "title": fl.SOURCE_TITLE,
                   "updated": 1, "error": ""},
         "refused": [{"name": "the address of the list", "refused": True}, {"name": "an unknown id", "refused": True},
-                    {"name": "a built-in list", "refused": True}],
+                    {"name": "a built-in list", "refused": True}, {"name": "the user's own rules", "refused": True},
+                    {"name": "a number", "refused": True}],
         "view_ok": True,
         "page": {"url": "chrome://aerie-list-source/abc", "content_type": "text/plain", "marker": "undefined",
                  "elements": 0, "text": SOURCE_TEXT},
@@ -392,6 +393,20 @@ class ViewSourceStepTest(unittest.TestCase):
         self.assertTrue(any("accepted the address" in p for p in problems), problems)
         problems = self.problems(lambda o: o.update({"refused": o["refused"][:1]}))
         self.assertTrue(any("no probe sends an unknown id" in p for p in problems), problems)
+
+    def test_every_probe_the_observer_sends_must_be_present_by_exact_name(self):
+        for name, _ in fl.SOURCE_PROBES:
+            problems = self.problems(lambda o: o.update(
+                {"refused": [p for p in o["refused"] if p["name"] != name]}))
+            self.assertTrue(any(f"no probe sends {name}" in p for p in problems), (name, problems))
+        # A longer name does not stand in for the one that is needed.
+        problems = self.problems(lambda o: o["refused"][1].update({"name": "not an unknown id at all"}))
+        self.assertTrue(any("no probe sends an unknown id" in p for p in problems), problems)
+
+    def test_counts_that_are_not_numbers_fail_and_never_raise(self):
+        for before, after in (("1", "2"), (1, "2"), (None, 1), (1.5, 2), (True, 2), ([], {})):
+            problems = self.problems(lambda o: o.update({"hits_before": before, "hits_after": after}))
+            self.assertTrue(problems, (before, after))
 
     def test_viewing_the_source_must_not_ask_the_list_server(self):
         problems = self.problems(lambda o: o.update({"hits_after": 2}))

@@ -10,6 +10,8 @@ export interface AerieGuardList {
   url: string;
   title: string;
   builtin: boolean;
+  /** True for a list the user subscribed to by address (the manager says). */
+  canViewSource: boolean;
   rules: number;
   /** Exception rules that match every address; the engine ignores them. */
   ignoredExceptions: number;

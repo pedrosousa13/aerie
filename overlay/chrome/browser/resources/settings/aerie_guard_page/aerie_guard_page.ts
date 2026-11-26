@@ -253,7 +253,7 @@ export class SettingsAerieGuardPageElement extends
   // True for a list the user subscribed to by address: the lists that can be
   // unsubscribed from and whose saved text can be viewed.
   protected isSubscription_(list: AerieGuardList): boolean {
-    return !list.builtin && list.url !== '';
+    return list.canViewSource;
   }
 
   protected canAddList_(): boolean {

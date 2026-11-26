@@ -122,6 +122,10 @@ SOURCE_LIST_PATH = "/filters/source-list.txt"  # a list that is hostile when ren
 SOURCE_TITLE = "<b>Hostile</b> list"  # its "! Title:" line; shown as text
 SOURCE_URL_PREFIX = "chrome://aerie-list-source/"
 SOURCE_MARKER = "__aerieSourceRan"
+# The viewSource messages the observer sends that name no list the user added, with their arguments; the judge
+# requires every name (issue #108).
+SOURCE_PROBES = (("the address of the list", None), ("an unknown id", ["nosuchlist"]),
+                 ("a built-in list", ["easylist"]), ("the user's own rules", ["custom"]), ("a number", [123]))
 OWN_PAGE_PATH = "/filters/own-rules.html"
 OWN_HOST = "a.localhost"  # the site the saved rule is for
 OWN_OTHER_HOST = "b.localhost"  # a site it is not for
@@ -396,8 +400,8 @@ def judge_view_source(obs: dict | None) -> list[str]:
         problems.append(f"view source: the title is {entry.get('title')!r}, not the list's {SOURCE_TITLE!r}")
     refused = obs.get("refused")
     names = [p.get("name", "") for p in refused if isinstance(p, dict)] if isinstance(refused, list) else []
-    for needed in ("the address", "an unknown id", "a built-in list"):
-        if not any(needed in name for name in names):
+    for needed, _ in SOURCE_PROBES:
+        if needed not in names:
             problems.append(f"view source: no probe sends {needed}")
     for probe in refused if isinstance(refused, list) else []:
         if isinstance(probe, dict) and probe.get("refused") is not True:
@@ -419,6 +423,8 @@ def judge_view_source(obs: dict | None) -> list[str]:
     before, after = obs.get("hits_before"), obs.get("hits_after")
     if before is None or after is None:
         problems.append("view source: the list server's requests were not counted")
+    elif not isinstance(before, int) or not isinstance(after, int) or isinstance(before, bool) or isinstance(after, bool):
+        problems.append(f"view source: the list server's request counts are not numbers ({before!r}, {after!r})")
     elif after != before:
         problems.append(f"view source: viewing the source made {after - before} request(s) to the list's server")
     return problems
@@ -972,9 +978,7 @@ def observe_view_source(session: Session) -> dict:
                 "listed": find_list(state, INSECURE_LIST_URL) is not None}
     entry = add_list(session, source_url)
     list_id = (entry or {}).get("id")
-    probes = [("the address of the list", [source_url]), ("an unknown id", ["nosuchlist"]),
-              ("a built-in list", ["easylist"]), ("the user's own rules", ["custom"]),
-              ("a number", [123])]
+    probes = [(name, [source_url] if args is None else args) for name, args in SOURCE_PROBES]
     refused = [{"name": name, "refused": call(session, "viewSource", args).get("ok") is False}
                for name, args in probes]
     view_ok = call(session, "viewSource", [list_id]).get("ok") is True if list_id else False

@@ -32,6 +32,11 @@ class AerieListSourceUIConfig
     : public content::DefaultWebUIConfig<AerieListSourceUI> {
  public:
   AerieListSourceUIConfig();
+
+  // content::WebUIConfig: only for a regular profile. Not for an incognito or
+  // guest window: the page shows the saved lists, which are the regular
+  // profile's.
+  bool IsWebUIEnabled(content::BrowserContext* browser_context) override;
 };
 
 // The controller. No chrome.send bindings and no message handler; it adds the

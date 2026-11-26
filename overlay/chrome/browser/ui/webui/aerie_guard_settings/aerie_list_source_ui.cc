@@ -23,6 +23,8 @@ namespace aerie_guard {
 
 namespace {
 
+const char kMimeType[] = "text/plain";
+
 // Serves the saved text of a list as text/plain. The list id is the whole
 // request path; the manager accepts only the id of a list the user added by
 // address, so no other file, address or id is ever read.
@@ -60,7 +62,15 @@ class ListSourceDataSource : public content::URLDataSource {
                 std::move(callback)));
   }
 
-  std::string GetMimeType(const GURL& url) override { return "text/plain"; }
+  // No charset: the mime type is also the response's mime_type, so
+  // "text/plain; charset=utf-8" makes document.contentType carry the
+  // parameter and the data source API has no field for a charset (a browser
+  // test showed the page still decodes as windows-1252). A non-ASCII
+  // character in a list therefore shows in that encoding. Chromium adds no
+  // X-Content-Type-Options: nosniff to a chrome:// data source response
+  // (URLDataManagerBackend::GetHeaders) and the API has no hook for it. The
+  // type is explicit and the page has no resource to sniff.
+  std::string GetMimeType(const GURL& url) override { return kMimeType; }
   // The type must reach the response as its Content-Type header.
   bool ShouldServeMimeTypeAsContentTypeHeader() override { return true; }
   // The text of a list changes when it is updated.
@@ -92,6 +102,14 @@ GURL ListSourceUrl(const std::string& id) {
 
 AerieListSourceUIConfig::AerieListSourceUIConfig()
     : DefaultWebUIConfig(content::kChromeUIScheme, kListSourceHost) {}
+
+bool AerieListSourceUIConfig::IsWebUIEnabled(
+    content::BrowserContext* browser_context) {
+  // The saved lists are the regular profile's: Settings opens the page there
+  // and nowhere else. An incognito or guest window gets no page at all.
+  Profile* profile = Profile::FromBrowserContext(browser_context);
+  return profile && profile->IsRegularProfile();
+}
 
 AerieListSourceUI::AerieListSourceUI(content::WebUI* web_ui)
     : content::WebUIController(web_ui) {

@@ -276,9 +276,11 @@ bool FilterListManager::ReadListSource(std::string_view id,
       base::BindOnce(
           [](base::FilePath path) -> std::optional<std::string> {
             std::string text;
+            // Any failed read is a failure, an oversize file included:
+            // ReadFileToStringWithMaxSize() leaves the first bytes in |text|
+            // then, and a list cut short must not be shown as the list.
             if (!base::ReadFileToStringWithMaxSize(path, &text,
-                                                   kMaxListBytes) &&
-                text.empty()) {
+                                                   kMaxListBytes)) {
               return std::nullopt;
             }
             return text;
