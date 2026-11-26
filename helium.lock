@@ -2,15 +2,15 @@
 # when moving to a new Helium release (see README "Updating Helium").
 
 [helium]
-# Helium release this tree builds: helium-linux tag 0.22.2.1.
-version = "0.22.2.1"
+# Helium release this tree builds: helium-linux tag 0.22.3.1.
+version = "0.22.3.1"
 chromium_version = "158.0.8127.36"
 # helium-chromium submodule -> github.com/imputnet/helium
-core_tag = "0.22.2"
-core_commit = "f32f2c066787492b9ba112dc1be1ad230b53658a"
+core_tag = "0.22.3"
+core_commit = "f614c17d580a921029fa53bd72b8202e10d94676"
 # helium-linux submodule -> github.com/imputnet/helium-linux
-platform_tag = "0.22.2.1"
-platform_commit = "d77f716db31b6009e88c75ce94d5a2bf21794286"
+platform_tag = "0.22.3.1"
+platform_commit = "3927765b567e0a8023c0b01e47a9c6f00f67f13e"
 
 # sha256 of every file Helium's downloads INI files fetch. Values are copied
 # from the publisher: the prepared Chromium tarballs from the SHA256SUMS of
