@@ -1,6 +1,6 @@
 # 3. Let users manage filter lists and turn blocking off per site
 
-Status: accepted (issue #10). Changes two decisions of [ADR 0001](0001-native-adblock-engine.md): "no user controls" and "the build never fetches, lists change only through a reviewed commit" now apply to the shipped lists only.
+Status: accepted (issue #10), amended by issue #105 (the catalogue, below). Changes two decisions of [ADR 0001](0001-native-adblock-engine.md): "no user controls" and "the build never fetches, lists change only through a reviewed commit" now apply to the shipped lists only.
 
 ## Context
 
@@ -20,8 +20,20 @@ The Filter Engine of #8 blocks with two lists that ship in the build. Users need
 - **The count** is per tab and per page. The proxy factory learns its frame from the hook (`patches/adblock/0008`); a `WebContentsUserData` counts and resets on the next committed document. Workers are not counted.
 - **UI**: a WebUI page, `chrome://filters`, and a toolbar button, not the Settings page (a Polymer page would need a Helium-coupled settings patch). The sidebar and command bar take the button's role in M2 and M3. Update (issue #99): the toolbar button is gone. The Aerie Guard icon in the address bar, a page action, replaces it, and patch `0010` was removed (patches `0014` to `0017` add the icon). Update (issue #103): the page `chrome://filters` is gone too. Its place is the Aerie Guard section of Settings, a Lit route (patches `0022` to `0024`); `chrome://filters` is rewritten to it. The Helium coupling the first sentence feared is one menu hunk, listed in the [Helium dependency ledger](../helium-dependency-ledger.md).
 
+## Amendment: a catalogue of publisher addresses (issue #105)
+
+Lists in use may now come from a fixed set of publisher addresses shipped in the build, as well as from the shipped lists and the address the user types. The catalogue is `overlay/components/aerie_adblock/catalogue.json`. The build turns it into a C++ table (`generate_catalogue.py`); nothing parses the file at run time and nothing downloads a table.
+
+- **Only an id crosses the page boundary.** The Settings page and the handler say "turn on `uboprivacy`", never an address. The manager looks the id up in the build's table and refuses anything that is not exactly one of its ids: an unknown id, an id in another case and a raw address all fail before any state changes or any request starts. The handler rejects the promise for them. The state file keeps only the id of a catalogue list: on load the address comes from the build again, so an edited state file cannot point a download elsewhere, and an id the build does not have is dropped.
+- **Nothing is fetched until the user turns a list on**, and nothing at all for a list that is off. Turning a list off removes it and its file. A list that is on joins the daily schedule like any other list. `default_enabled` is false for every entry, and a test fails if it is not.
+- **Only lists with a clear licence for redistribution.** The allow-list is `GPL-3.0`, `GPL-3.0-or-CC-BY-SA-3.0`, `CC-BY-3.0`, `CC-BY-SA-3.0` and `MPL-2.0`. A test over the file and the build tool both refuse anything else, and an entry whose address is not https. A list is added only when its own header, or the licence page that header names, states its licence; a list whose licence cannot be confirmed is left out. Peter Lowe's list, Dan Pollock's hosts and URLhaus (CC0 not confirmed) are not in it.
+- **The same download rules as any list**: https only, no cookies, no referrer, no cache, 5 MiB, 60 s, a redirect that leaves https stops it, and `check_list` before anything replaces a copy. The traffic annotation is its own, `aerie_catalogue_filter_list_download`, so each publisher host is reachable only by the code that downloads catalogue lists. The hosts are in [network-endpoints.md](../network-endpoints.md), marked user-initiated.
+- **Bounded rebuilds.** Every list in use counts, whoever chose it: at most 30 (`kMaxListsInUse`, the user's own rules excepted), and at most 32 MiB of downloaded copies of the lists that are on (`kMaxTotalListBytes`). A download that would take the total past the cap is refused and the copy in use stays; a list with no copy shows the "larger than the allowed limit" error, a list that has one keeps it and shows nothing. Turning a list back on is checked the same way. The cap is enforced again where the engine is rebuilt, on the size of the text it reads, whatever the saved state says: a list that would go over is left out of the engine and shows the error.
+- **A catalogue list is curated, like the built-in ones.** For the blocking level (issue #109) it is not a custom list: in Standard it does not judge first-party requests on its own. Only lists the user adds by address do.
+- **Names and descriptions are strings of the grd**, found by catalogue id on the page. A test keeps the grd text and `catalogue.json` equal.
+
 ## Consequences
 
-- The browser now contacts list publishers. Their addresses are in [network-endpoints.md](../network-endpoints.md).
+- The browser now contacts list publishers. Their addresses, the catalogue's too, are in [network-endpoints.md](../network-endpoints.md).
 - The overlay adds a WebUI, the Guard icon and hook patches `0008`, `0009` and `0014` to `0017`. None depends on a Helium patch.
 - Resource id range 10270 was taken for the old page's grd. It is unused since issue #103; ids 10280 and up are the Guard panel's.

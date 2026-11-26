@@ -84,6 +84,33 @@ source_set("classifier") {
   ]
 }
 
+# The catalogue of filter lists the user may turn on (issue #105): a C++ table
+# generated from components/aerie_adblock/catalogue.json. The build fails if an
+# entry breaks the licence allow-list or is not https.
+action("catalogue_table") {
+  visibility = [ ":*" ]
+  script = "//components/aerie_adblock/generate_catalogue.py"
+  inputs = [ "//components/aerie_adblock/catalogue.json" ]
+  outputs = [ "$target_gen_dir/catalogue_table.cc" ]
+  args = [
+    "--catalogue",
+    rebase_path("//components/aerie_adblock/catalogue.json", root_build_dir),
+    "--out",
+    rebase_path(outputs[0], root_build_dir),
+  ]
+}
+
+source_set("catalogue") {
+  visibility = _visibility
+  sources = [
+    "catalogue.cc",
+    "catalogue.h",
+  ]
+  sources += get_target_outputs(":catalogue_table")
+  public_deps = [ "//base" ]
+  deps = [ ":catalogue_table" ]
+}
+
 # The user's filter list settings as data, and their files (issue #10). No
 # Rust, no network.
 source_set("list_types") {
@@ -97,6 +124,7 @@ source_set("list_types") {
     "list_failure.h",
   ]
   public_deps = [
+    ":catalogue",
     ":classified_request",  # blocking_level.h, which filter_list_state.h includes.
     "//base",
     "//url",
@@ -317,6 +345,7 @@ test("aerie_adblock_unittests") {
     "adblock_proxying_url_loader_factory_unittest.cc",
     "adblock_proxying_url_loader_unittest.cc",
     "aerie_guard_prefs_unittest.cc",
+    "catalogue_unittest.cc",
     "cosmetic_scripts_unittest.cc",
     "filter_engine_service_unittest.cc",
     "filter_list_fetcher_unittest.cc",
@@ -332,6 +361,7 @@ test("aerie_adblock_unittests") {
   ]
   deps = [
     "//crypto",
+    ":catalogue",
     ":classifier",
     ":cosmetic_scripts",
     ":engine",

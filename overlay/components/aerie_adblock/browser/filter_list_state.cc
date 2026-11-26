@@ -9,6 +9,7 @@
 
 #include "base/strings/string_util.h"
 #include "base/strings/string_number_conversions.h"
+#include "components/aerie_adblock/browser/catalogue.h"
 #include "components/aerie_adblock/browser/list_failure.h"
 #include "crypto/hash.h"
 #include "net/base/ip_address.h"
@@ -74,12 +75,28 @@ std::string CustomListId(const GURL& url) {
                    base::span(digest).first<8u>()));
 }
 
-// The lists that have an address and are not built in. The user's own rules
-// are a list too, but have no slot in the table.
+// The lists the user added by address. The user's own rules are a list too, but
+// have no slot in the table, and a catalogue list has its own door.
 size_t CountCustomLists(const std::vector<FilterListEntry>& lists) {
   return std::count_if(lists.begin(), lists.end(), [](const auto& e) {
-    return !e.builtin && e.id != kCustomRulesId;
+    return !e.builtin && !e.catalogue && e.id != kCustomRulesId;
   });
+}
+
+size_t CountListsInUse(const std::vector<FilterListEntry>& lists) {
+  return std::count_if(lists.begin(), lists.end(),
+                       [](const auto& e) { return e.id != kCustomRulesId; });
+}
+
+// Title: the page shows the grd's name for the id. The id stands in where text
+// is needed.
+FilterListEntry FromCatalogue(const CatalogueEntry& catalogue) {
+  FilterListEntry entry;
+  entry.id = std::string(catalogue.id);
+  entry.url = std::string(catalogue.url);
+  entry.title = std::string(catalogue.id);
+  entry.catalogue = true;
+  return entry;
 }
 
 FilterListEntry BuiltIn(const char* id, const char* url, const char* title) {
@@ -224,7 +241,8 @@ FilterListState::AddResult FilterListState::AddCustomList(const GURL& url,
       return AddResult::kDuplicate;
     }
   }
-  if (CountCustomLists(lists_) >= kMaxCustomLists) {
+  if (CountCustomLists(lists_) >= kMaxCustomLists ||
+      CountListsInUse(lists_) >= kMaxListsInUse) {
     return AddResult::kTooMany;
   }
   FilterListEntry entry;
@@ -237,6 +255,34 @@ FilterListState::AddResult FilterListState::AddCustomList(const GURL& url,
   *id = entry.id;
   lists_.push_back(std::move(entry));
   return AddResult::kAdded;
+}
+
+FilterListState::CatalogueAddResult FilterListState::AddCatalogueList(
+    std::string_view id) {
+  const CatalogueEntry* catalogue = FindCatalogueEntry(id);
+  if (!catalogue) {
+    return CatalogueAddResult::kUnknownId;
+  }
+  if (Find(id)) {
+    return CatalogueAddResult::kAlreadyOn;
+  }
+  if (CountListsInUse(lists_) >= kMaxListsInUse) {
+    return CatalogueAddResult::kTooMany;
+  }
+  lists_.push_back(FromCatalogue(*catalogue));
+  return CatalogueAddResult::kAdded;
+}
+
+bool FilterListState::FitsByteBudget(std::string_view id,
+                                     size_t bytes,
+                                     size_t reserved_elsewhere) const {
+  size_t total = bytes + reserved_elsewhere;
+  for (const FilterListEntry& entry : lists_) {
+    if (entry.enabled && entry.id != id && entry.bytes > 0) {
+      total += static_cast<size_t>(entry.bytes);
+    }
+  }
+  return total <= kMaxTotalListBytes;
 }
 
 FilterListEntry& FilterListState::EnsureCustomRulesEntry() {
@@ -363,6 +409,8 @@ base::DictValue FilterListState::ToValue() const {
     item.Set("url", entry.url);
     item.Set("title", entry.title);
     item.Set("builtin", entry.builtin);
+    item.Set("catalogue", entry.catalogue);
+    item.Set("bytes", entry.bytes);
     item.Set("rules", entry.rules);
     item.Set("ignored_exceptions", entry.ignored_exceptions);
     item.Set("enabled", entry.enabled);
@@ -449,6 +497,17 @@ FilterListState FilterListState::FromValue(const base::DictValue& dict) {
       state.EnsureCustomRulesEntry();
       entry = state.Find(kCustomRulesId);
     }
+    if (!entry && item->FindBool("catalogue").value_or(false)) {
+      // A catalogue list: only the id is taken from the file. The address is
+      // the build's, so a file cannot send a download anywhere. An id the
+      // build does not have is dropped.
+      const CatalogueEntry* catalogue = FindCatalogueEntry(*id);
+      if (!catalogue || CountListsInUse(state.lists_) >= kMaxListsInUse) {
+        continue;
+      }
+      state.lists_.push_back(FromCatalogue(*catalogue));
+      entry = &state.lists_.back();
+    }
     if (!entry) {
       // A custom list: its address must have an acceptable shape, and its id
       // be the one this build would give that address (so a file name cannot
@@ -461,7 +520,8 @@ FilterListState FilterListState::FromValue(const base::DictValue& dict) {
       GURL gurl(*url);
       if (!HasAcceptableListUrlShape(gurl, /*allow_loopback=*/true) ||
           CustomListId(gurl) != *id ||
-          CountCustomLists(state.lists_) >= kMaxCustomLists) {
+          CountCustomLists(state.lists_) >= kMaxCustomLists ||
+          CountListsInUse(state.lists_) >= kMaxListsInUse) {
         continue;
       }
       FilterListEntry fresh;
@@ -473,13 +533,16 @@ FilterListState FilterListState::FromValue(const base::DictValue& dict) {
     }
     // Built-in lists keep their own address and title, and the user's own rules
     // have no title: the page names them.
-    if (!entry->builtin && entry->id != kCustomRulesId) {
+    if (!entry->builtin && !entry->catalogue && entry->id != kCustomRulesId) {
       if (const std::string* title = item->FindString("title")) {
         entry->title = title->substr(0, kMaxTitleLength);
       }
     }
     int rules = item->FindInt("rules").value_or(0);
     entry->rules = (rules > 0 && rules <= kMaxRules) ? rules : 0;
+    int bytes = item->FindInt("bytes").value_or(0);
+    entry->bytes =
+        (bytes > 0 && static_cast<size_t>(bytes) <= kMaxListBytes) ? bytes : 0;
     int ignored = item->FindInt("ignored_exceptions").value_or(0);
     entry->ignored_exceptions = (ignored > 0 && ignored <= kMaxRules) ? ignored : 0;
     // Anything but a stored false is on, and so is a list that cannot be off:

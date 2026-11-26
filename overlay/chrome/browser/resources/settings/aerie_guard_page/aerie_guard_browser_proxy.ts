@@ -25,6 +25,32 @@ export interface AerieGuardList {
   error: string;
 }
 
+/** One list of the catalogue (issue #105), named by its catalogue id. */
+export interface AerieGuardCatalogueList {
+  /** The catalogue id; the page finds its name and description by it. */
+  id: string;
+  /** An https address; the page links it. */
+  homepage: string;
+  licence: string;
+  /** Language codes of a regional list; empty for the others. */
+  langs: string[];
+  /** True when the user turned the list on and it is not switched off. */
+  on: boolean;
+  rules: number;
+  status: 'idle'|'updating'|'updated'|'failed';
+  /** A fixed code for the last error ('' for none); the page owns the words. */
+  errorCode: string;
+  /** Milliseconds since the epoch, or null when nothing was downloaded. */
+  updated: number|null;
+}
+
+/** The catalogue lists of one category, in the order of the page. */
+export interface AerieGuardCatalogueGroup {
+  /** 'annoyances', 'cookies', 'social', 'privacy' or 'regional'. */
+  category: string;
+  lists: AerieGuardCatalogueList[];
+}
+
 /** One line of the user's own rules that is dropped or ignored. */
 export interface AerieGuardCustomIssue {
   /** 1-based. */
@@ -64,11 +90,13 @@ export interface AerieGuardState {
   addError: string;
   /** '', 'invalid_host', 'table_full' or 'locked'. */
   exceptionError: string;
-  /** '', 'required' or 'unknown_list'. */
+  /** '', 'required', 'unknown_list', 'too_many' or 'too_large'. */
   listError: string;
   /** Hosts where blocking is off, saved ones only, sorted. */
   exceptions: string[];
   lists: AerieGuardList[];
+  /** The filter list catalogue, grouped by category (issue #105). */
+  catalogue: AerieGuardCatalogueGroup[];
   /** Why the last save of the user's own rules was refused; '' for none. */
   customError: string;
   customRules: AerieGuardCustomRules;
@@ -83,6 +111,12 @@ export interface AerieGuardBrowserProxy {
   addList(url: string): Promise<AerieGuardState>;
   removeList(id: string): Promise<AerieGuardState>;
   setListEnabled(id: string, enabled: boolean): Promise<AerieGuardState>;
+  /**
+   * Turns a catalogue list on (the browser downloads it from its publisher) or
+   * off. The argument is a catalogue id, never an address: the promise rejects
+   * for any other text.
+   */
+  setCatalogueList(id: string, on: boolean): Promise<AerieGuardState>;
   updateList(id: string): Promise<AerieGuardState>;
   updateAll(): Promise<AerieGuardState>;
   setException(host: string, enabled: boolean): Promise<AerieGuardState>;
@@ -109,6 +143,10 @@ export class AerieGuardBrowserProxyImpl implements AerieGuardBrowserProxy {
 
   setListEnabled(id: string, enabled: boolean): Promise<AerieGuardState> {
     return sendWithPromise('aerieGuard.setListEnabled', id, enabled);
+  }
+
+  setCatalogueList(id: string, on: boolean): Promise<AerieGuardState> {
+    return sendWithPromise('aerieGuard.setCatalogueList', id, on);
   }
 
   updateList(id: string): Promise<AerieGuardState> {

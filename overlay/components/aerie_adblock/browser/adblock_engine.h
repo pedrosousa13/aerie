@@ -64,6 +64,12 @@ struct BuildResult {
   // /regex/ rules, over all the lists, that were left out (too big, or too
   // many in one list). Set when |failure| is kNone.
   size_t dropped_regex_rules = 0;
+  // Set by FilterEngineService::ReplaceLists(), which reads the lists: the size
+  // of each list it was given (in the order given), and the indexes of the
+  // lists it left out because they would take the lists over the size cap
+  // (kMaxListBytes, kMaxTotalListBytes).
+  std::vector<size_t> sizes;
+  std::vector<size_t> skipped;
 };
 
 // C++ face of the Rust engine (adblock-rust, used unmodified). Not

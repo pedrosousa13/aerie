@@ -1,0 +1,156 @@
+[
+  {
+    "id": "fanboyannoyances",
+    "title": "Fanboy Annoyances",
+    "description": "Hides pop-ups, newsletter prompts, chat widgets, in-page video overlays and other page clutter.",
+    "url": "https://easylist.to/easylist/fanboy-annoyance.txt",
+    "homepage": "https://easylist.to/",
+    "licence": "GPL-3.0-or-CC-BY-SA-3.0",
+    "langs": [],
+    "category": "annoyances",
+    "default_enabled": false
+  },
+  {
+    "id": "uboannoyances",
+    "title": "uBlock annoyances",
+    "description": "Hides notices, banners, sticky bars and other annoyances.",
+    "url": "https://ublockorigin.github.io/uAssets/filters/annoyances.min.txt",
+    "homepage": "https://github.com/uBlockOrigin/uAssets",
+    "licence": "GPL-3.0",
+    "langs": [],
+    "category": "annoyances",
+    "default_enabled": false
+  },
+  {
+    "id": "easylistcookie",
+    "title": "EasyList Cookie List",
+    "description": "Hides cookie consent banners and notices.",
+    "url": "https://secure.fanboy.co.nz/fanboy-cookiemonster.txt",
+    "homepage": "https://easylist.to/",
+    "licence": "CC-BY-3.0",
+    "langs": [],
+    "category": "cookies",
+    "default_enabled": false
+  },
+  {
+    "id": "fanboysocial",
+    "title": "Fanboy Social",
+    "description": "Blocks social media buttons, share widgets and embedded feeds.",
+    "url": "https://easylist.to/easylist/fanboy-social.txt",
+    "homepage": "https://easylist.to/",
+    "licence": "GPL-3.0-or-CC-BY-SA-3.0",
+    "langs": [],
+    "category": "social",
+    "default_enabled": false
+  },
+  {
+    "id": "ubofilters",
+    "title": "uBlock filters",
+    "description": "Extra rules for ads, trackers and malware hosts that EasyList does not cover.",
+    "url": "https://ublockorigin.github.io/uAssets/filters/filters.min.txt",
+    "homepage": "https://github.com/uBlockOrigin/uAssets",
+    "licence": "GPL-3.0",
+    "langs": [],
+    "category": "privacy",
+    "default_enabled": false
+  },
+  {
+    "id": "uboprivacy",
+    "title": "uBlock privacy",
+    "description": "Blocks trackers and other requests that follow you across sites.",
+    "url": "https://ublockorigin.github.io/uAssets/filters/privacy.min.txt",
+    "homepage": "https://github.com/uBlockOrigin/uAssets",
+    "licence": "GPL-3.0",
+    "langs": [],
+    "category": "privacy",
+    "default_enabled": false
+  },
+  {
+    "id": "ubounbreak",
+    "title": "uBlock unbreak",
+    "description": "Exceptions that fix sites other lists break.",
+    "url": "https://ublockorigin.github.io/uAssets/filters/unbreak.min.txt",
+    "homepage": "https://github.com/uBlockOrigin/uAssets",
+    "licence": "GPL-3.0",
+    "langs": [],
+    "category": "privacy",
+    "default_enabled": false
+  },
+  {
+    "id": "adguardurltracking",
+    "title": "AdGuard URL Tracking",
+    "description": "Strips tracking parameters, such as utm_source, from addresses.",
+    "url": "https://filters.adtidy.org/extension/ublock/filters/17.txt",
+    "homepage": "https://github.com/AdguardTeam/AdGuardFilters",
+    "licence": "GPL-3.0",
+    "langs": [],
+    "category": "privacy",
+    "default_enabled": false
+  },
+  {
+    "id": "easylistgermany",
+    "title": "EasyList Germany",
+    "description": "Ad and tracker rules for German-language sites.",
+    "url": "https://easylist.to/easylistgermany/easylistgermany.txt",
+    "homepage": "https://easylist.to/",
+    "licence": "GPL-3.0-or-CC-BY-SA-3.0",
+    "langs": [
+      "de"
+    ],
+    "category": "regional",
+    "default_enabled": false
+  },
+  {
+    "id": "easylistitaly",
+    "title": "EasyList Italy",
+    "description": "Ad and tracker rules for Italian-language sites.",
+    "url": "https://easylist-downloads.adblockplus.org/easylistitaly.txt",
+    "homepage": "https://easylist.to/",
+    "licence": "GPL-3.0-or-CC-BY-SA-3.0",
+    "langs": [
+      "it"
+    ],
+    "category": "regional",
+    "default_enabled": false
+  },
+  {
+    "id": "listefr",
+    "title": "Liste FR",
+    "description": "Ad and tracker rules for French-language sites. Complements EasyList.",
+    "url": "https://easylist-downloads.adblockplus.org/liste_fr.txt",
+    "homepage": "https://forums.lanik.us/viewforum.php?f=91",
+    "licence": "CC-BY-SA-3.0",
+    "langs": [
+      "fr"
+    ],
+    "category": "regional",
+    "default_enabled": false
+  },
+  {
+    "id": "adguardjapanese",
+    "title": "AdGuard Japanese",
+    "description": "Ad and tracker rules for Japanese-language sites.",
+    "url": "https://filters.adtidy.org/extension/ublock/filters/7.txt",
+    "homepage": "https://github.com/AdguardTeam/AdGuardFilters",
+    "licence": "GPL-3.0",
+    "langs": [
+      "ja"
+    ],
+    "category": "regional",
+    "default_enabled": false
+  },
+  {
+    "id": "adguardspanishportuguese",
+    "title": "AdGuard Spanish/Portuguese",
+    "description": "Ad and tracker rules for Spanish- and Portuguese-language sites.",
+    "url": "https://filters.adtidy.org/extension/ublock/filters/9.txt",
+    "homepage": "https://github.com/AdguardTeam/AdGuardFilters",
+    "licence": "GPL-3.0",
+    "langs": [
+      "es",
+      "pt"
+    ],
+    "category": "regional",
+    "default_enabled": false
+  }
+]

@@ -6,6 +6,11 @@
 // subdomain of it.
 constexpr AllowedHost kAllowedHosts[] = {
     {"aerie_filter_list_download", "easylist.to"},
+    {"aerie_catalogue_filter_list_download", "easylist.to"},
+    {"aerie_catalogue_filter_list_download", "easylist-downloads.adblockplus.org"},
+    {"aerie_catalogue_filter_list_download", "secure.fanboy.co.nz"},
+    {"aerie_catalogue_filter_list_download", "ublockorigin.github.io"},
+    {"aerie_catalogue_filter_list_download", "filters.adtidy.org"},
     {"update_client", "update.googleapis.com"},
     {"update_client", "dl.google.com"},
     {"update_client", "gvt1.com"},

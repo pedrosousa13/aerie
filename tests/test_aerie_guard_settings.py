@@ -3,6 +3,7 @@ FilterListManager, the pref the Guard icon reads, and the redirect of chrome://f
 
 These are source checks. The C++ and the TypeScript are built in the combined build."""
 
+import json
 import re
 import unittest
 import xml.etree.ElementTree as ET
@@ -23,6 +24,7 @@ REDIRECT = "adblock/0024-redirect-filters-to-aerie-guard-settings.patch"
 LIST_STRINGS = "adblock/0025-add-aerie-guard-list-strings.patch"
 LEVEL_STRINGS = "adblock/0026-add-aerie-guard-level-settings-strings.patch"
 CUSTOM_STRINGS = "adblock/0027-add-aerie-guard-custom-rules-strings.patch"
+CATALOGUE_STRINGS = "adblock/0028-add-aerie-guard-catalogue-strings.patch"
 PREF = "aerie.guard.show_blocked_count"
 
 
@@ -75,7 +77,7 @@ class HandlerTest(unittest.TestCase):
         names = re.findall(r'"(aerieGuard\.\w+)"', text)
         self.assertEqual(sorted(names), sorted([
             "aerieGuard.getState", "aerieGuard.addList", "aerieGuard.removeList", "aerieGuard.setListEnabled",
-            "aerieGuard.updateList",
+            "aerieGuard.updateList", "aerieGuard.setCatalogueList",
             "aerieGuard.updateAll", "aerieGuard.setException", "aerieGuard.setAutoUpdate",
             "aerieGuard.setDefaultLevel", "aerieGuard.setCustomRules"]))
         self.assertGreaterEqual(text.count("ResolveJavascriptCallback"), 1)
@@ -168,7 +170,8 @@ class StringsTest(unittest.TestCase):
 
     def test_every_message_is_given_to_the_page_and_every_name_exists(self):
         used = set(re.findall(r"\bIDS_SETTINGS_AERIE_GUARD_\w+",
-                              added(BACKEND) + added(LIST_STRINGS) + added(LEVEL_STRINGS) + added(CUSTOM_STRINGS)))
+                              added(BACKEND) + added(LIST_STRINGS) + added(LEVEL_STRINGS) + added(CUSTOM_STRINGS)
+                              + added(CATALOGUE_STRINGS)))
         self.assertEqual(used, set(self.messages()))
 
     def test_no_upstream_product_name(self):
@@ -285,7 +288,8 @@ class ListRowsTest(unittest.TestCase):
 
     def test_every_string_key_the_page_reads_is_given_to_the_page(self):
         given = set(re.findall(r'\{"(aerieGuard\w+)"',
-                               re.sub(r"\s+", " ", added(BACKEND) + added(LIST_STRINGS) + added(LEVEL_STRINGS) + added(CUSTOM_STRINGS))))
+                               re.sub(r"\s+", " ", added(BACKEND) + added(LIST_STRINGS) + added(LEVEL_STRINGS) + added(CUSTOM_STRINGS)
+                               + added(CATALOGUE_STRINGS))))
         read = set(re.findall(r"\$i18n\{(aerieGuard\w+)\}", self.HTML))
         read |= set(re.findall(r"(?:getString|getStringF)\(\s*'(aerieGuard\w+)'", self.TS))
         self.assertTrue(read)
@@ -474,3 +478,105 @@ class RedirectTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CatalogueRowsTest(unittest.TestCase):
+    """Issue #105: the catalogue rows of the page, and the one door to them: a catalogue id."""
+    TS = (PAGE_DIR / "aerie_guard_page.ts").read_text(encoding="utf-8")
+    HTML = (PAGE_DIR / "aerie_guard_page.html.ts").read_text(encoding="utf-8")
+    PROXY = (PAGE_DIR / "aerie_guard_browser_proxy.ts").read_text(encoding="utf-8")
+    CATALOGUE = json.loads((OVERLAY / "components/aerie_adblock/catalogue.json").read_text(encoding="utf-8"))
+
+    def messages(self):
+        return {m.get("name"): "".join(m.itertext()).strip() for m in ET.parse(STRINGS).getroot().iter("message")}
+
+    def test_the_series_puts_the_strings_patch_after_the_custom_rules_strings(self):
+        self.assertGreater(SERIES.index(CATALOGUE_STRINGS), SERIES.index(CUSTOM_STRINGS))
+        self.assertTrue((REPO / "patches" / CATALOGUE_STRINGS).is_file())
+
+    def test_every_list_has_its_name_and_description_in_the_grd_and_given_to_the_page(self):
+        given = re.sub(r"\s+", " ", added(CATALOGUE_STRINGS))
+        messages = self.messages()
+        for entry in self.CATALOGUE:
+            for kind, field in (("Title", "title"), ("Desc", "description")):
+                with self.subTest(id=entry["id"], kind=kind):
+                    ids = f"IDS_SETTINGS_AERIE_GUARD_CAT_{entry['id'].upper()}_{field.upper() if kind == 'Title' else 'DESC'}"
+                    self.assertIn(f'{{"aerieGuardCat{kind}_{entry["id"]}", {ids}}}', given)
+                    # The words of the catalogue file and of the grd are one text.
+                    self.assertEqual(messages[ids], entry[field])
+
+    def test_the_grd_has_no_list_string_the_catalogue_does_not_name(self):
+        # The other direction: a list taken out of catalogue.json takes its strings with it, in the grdp and in
+        # the table handed to the page.
+        ids = {e["id"].upper() for e in self.CATALOGUE}
+        found = {m.group(1) for name in self.messages()
+                 for m in [re.fullmatch(r"IDS_SETTINGS_AERIE_GUARD_CAT_([A-Z0-9]+)_(?:TITLE|DESC)", name)] if m}
+        self.assertEqual(found, ids)
+        handed = set(re.findall(r'\{"aerieGuardCat(?:Title|Desc)_([a-z0-9]+)"', added(CATALOGUE_STRINGS)))
+        self.assertEqual(handed, {e["id"] for e in self.CATALOGUE})
+        for name in self.messages():
+            if re.fullmatch(r"IDS_SETTINGS_AERIE_GUARD_CAT_[A-Z0-9]+_(?:TITLE|DESC)", name):
+                self.assertEqual(len(re.findall(f'"{name}"|{name}[,}}]', added(CATALOGUE_STRINGS))), 1, name)
+
+    def test_the_page_looks_a_list_up_by_its_id_and_the_search_covers_what_it_shows(self):
+        self.assertIn("'aerieGuardCatTitle_'", self.TS)
+        self.assertIn("'aerieGuardCatDesc_'", self.TS)
+        self.assertIn("visibleCatalogue_", self.HTML)
+        for word in ("catalogueTitle_(list)", "catalogueDesc_(list)", "list.licence", "list.langs"):
+            self.assertIn(word, self.TS)
+
+    def test_the_page_sends_an_id_and_never_an_address(self):
+        self.assertIn("setCatalogueList(id, toggle.checked)", self.TS)
+        self.assertIn("sendWithPromise('aerieGuard.setCatalogueList', id, on)", self.PROXY)
+        # An address in a row is only ever shown as a link to the publisher's website.
+        rows = self.HTML[self.HTML.index('id="catalogue"'):self.HTML.index('id="customHeading"')]
+        self.assertNotIn(".url", rows)
+        self.assertIn("startsWith('https://')", self.TS)
+
+    def test_a_row_shows_title_description_licence_homepage_and_a_switch(self):
+        for needle in ("catalogueTitle_(list)", "catalogueDesc_(list)", "catalogueLicenceText_(list)",
+                       "catalogue-homepage", "catalogue-toggle", "category-${group.category}"):
+            self.assertIn(needle, self.HTML)
+
+    def test_the_handler_takes_a_catalogue_id_and_never_builds_an_address(self):
+        text = code(HANDLER_CC)
+        body = text[text.index("void AerieGuardSettingsHandler::HandleSetCatalogueList("):]
+        body = body[:body.index("void AerieGuardSettingsHandler::HandleUpdateList(")]
+        self.assertIn("StringArg(args, 1)", body)
+        self.assertIn("manager->SetCatalogueListEnabled(", body)
+        self.assertIn("is_bool()", body)
+        self.assertNotIn("GURL", body)
+        self.assertIn('Reject(args, "unknown_list")', body)
+
+    def test_the_handler_groups_the_rows_by_category_and_keeps_them_out_of_the_custom_lists(self):
+        text = code(HANDLER_CC)
+        self.assertIn("CatalogueCategories()", text)
+        self.assertIn('out.Set("catalogue"', text)
+        self.assertIn("if (entry.catalogue)", text)
+
+    def test_the_manager_looks_the_id_up_before_anything_else(self):
+        text = code(BROWSER / "filter_list_manager.cc")
+        body = text[text.index("FilterListManager::SetCatalogueListEnabled("):]
+        body = body[:body.index("FilterListManager::SetListEnabled(")]
+        self.assertLess(body.index("FindCatalogueEntry(id)"), body.index("AddCatalogueList"))
+        self.assertLess(body.index("FindCatalogueEntry(id)"), body.index("FetchList"))
+        self.assertIn("CatalogueResult::kUnknownId", body)
+
+    def test_the_state_takes_the_address_from_the_build_not_from_the_file(self):
+        text = code(BROWSER / "filter_list_state.cc")
+        self.assertIn("FromCatalogue(*catalogue)", text)
+        body = text[text.index("FindCatalogueEntry(*id)"):]
+        body = body[:body.index("GURL gurl(*url)")]
+        self.assertNotIn('FindString("url")', body)
+        self.assertNotIn("GURL", body)
+
+    def test_the_catalogue_download_has_its_own_annotation(self):
+        text = (BROWSER / "filter_list_fetcher.cc").read_text(encoding="utf-8")
+        self.assertIn('"aerie_catalogue_filter_list_download"', text)
+        self.assertIn("kCatalogue", (BROWSER / "filter_list_manager.cc").read_text(encoding="utf-8"))
+
+    def test_the_table_is_generated_from_the_catalogue_file(self):
+        gn = (BROWSER / "BUILD.gn").read_text(encoding="utf-8")
+        self.assertIn('script = "//components/aerie_adblock/generate_catalogue.py"', gn)
+        self.assertIn("catalogue_unittest.cc", gn)
+        self.assertNotIn("kCatalogueTable[] = {", (BROWSER / "catalogue.cc").read_text(encoding="utf-8"))

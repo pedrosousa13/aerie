@@ -57,9 +57,15 @@ enum class ExceptionResult {
 //   - A list that fails the download or the check never replaces the copy in
 //     use. Its error is shown, the old rules keep blocking.
 //   - Nothing is fetched except from a list's own address: a built-in list's
-//     publisher address, or the address the user typed. There is no other
-//     server. The scheduled update runs when automatic updates are on and a
-//     day has passed since the last check; a fresh install waits one day.
+//     publisher address, a catalogue list's address (shipped in the build, see
+//     catalogue.h), or the address the user typed. There is no other server.
+//   - The count and total size of the lists in use are capped
+//     (kMaxListsInUse, kMaxTotalListBytes), so a rebuild stays bounded. The
+//     cap is checked when a list is turned on and when a copy is downloaded,
+//     and enforced again where the engine is rebuilt, on the size of the text
+//     it reads: a list that would go over is left out and shows an error.
+//   - The scheduled update runs when automatic updates are on and a day has
+//     passed since the last check; a fresh install waits one day.
 //   - The shipped engine stays in use until a list changes, so a profile that
 //     never touches the settings starts with no extra work.
 //
@@ -117,11 +123,26 @@ class FilterListManager {
   // when the table is full; |*error| says which.
   bool AddList(const GURL& url, std::string* error);
   void RemoveList(std::string_view id);
+
+  // Turns a catalogue list on or off (issue #105). |id| must be exactly an id
+  // of the catalogue (catalogue.h): the address downloaded is the one the build
+  // ships, and an address, a title or any other text is kUnknownId, with
+  // nothing fetched and nothing changed. On: the list is added and downloaded
+  // at once (the same fetcher and checks as any list); kTooMany when the
+  // lists in use are at kMaxListsInUse. Off: the list, its file and its rules
+  // are removed. Turning on a list that is already on does nothing. A list
+  // that is listed but off and would take the total size over the cap when
+  // turned back on stays off with an error: kTooLarge.
+  enum class CatalogueResult { kOk, kUnknownId, kTooMany, kTooLarge };
+  CatalogueResult SetCatalogueListEnabled(std::string_view id, bool enabled);
+
   // Turns a list on or off (issue #104). The list's file stays; only
   // RemoveList() deletes it. A list that is off is left out of the engine at
   // once (the engine is rebuilt) and is skipped by UpdateAll() and the
   // scheduled update. Turning EasyList off is refused (kRequired) whoever
-  // asks: see CanBeDisabled().
+  // asks: see CanBeDisabled(). Turning a list on that would take the total
+  // size of the lists in use over kMaxTotalListBytes is refused (kTooLarge):
+  // it stays off and shows the error.
   FilterListState::EnableResult SetListEnabled(std::string_view id,
                                                bool enabled);
   // Never fetches the user's own rules (kCustomRulesId): they have no address.
@@ -276,7 +297,13 @@ class FilterListManager {
   void FetchList(const std::string& id);
   void OnFetched(std::string id, FilterListFetcher::Result result);
   void OnChecked(std::string id, std::string text, ListCheck check);
-  void OnWritten(std::string id, ListCheck check, bool written);
+  void OnWritten(std::string id, ListCheck check, size_t bytes, bool written);
+  // What the copies on their way to disk hold, those of other lists than |id|.
+  size_t ReservedBytesExcept(const std::string& id) const;
+  // After a rebuild: the real sizes of the lists, and the error of those the
+  // engine left out for the size cap.
+  void ApplyBuiltSizes(const std::vector<std::string>& ids,
+                       const BuildResult& result);
   // The end of one list's fetch chain: it is no longer updating.
   void FinishFetch(const std::string& id);
   // Counts the rules of the built-in lists the build shipped (a list with no
@@ -319,6 +346,12 @@ class FilterListManager {
   // Ids whose update is running, and whose last update this session worked.
   std::set<std::string> updating_;
   std::set<std::string> updated_ok_;
+  // Copies checked and on their way to disk: they count against the size cap
+  // before they are saved, so two downloads that finish together cannot both
+  // pass it.
+  std::map<std::string, size_t> reserved_bytes_;
+  // Lists the last rebuild left out for the size cap.
+  std::set<std::string> over_budget_;
   // Off-the-record sessions' own blocking levels. Memory only.
   std::map<SessionKey, std::map<std::string, BlockingLevel>> session_levels_;
   // The user's own rules. |custom_save_id_| counts the saves, so an analysis

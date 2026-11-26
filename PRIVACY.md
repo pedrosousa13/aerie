@@ -13,6 +13,7 @@ policies.
 | When | Host | What is sent |
 | --- | --- | --- |
 | Filter list updates: once a day (the first check is a day after install), or when you click update on `chrome://filters` | `easylist.to` | A plain https request for `easylist.txt` and `easyprivacy.txt`. No cookies and no referrer. You can turn updates off on `chrome://filters`. |
+| Only after you turn on a list of the filter list catalogue in Settings, then on the same schedule for the lists that are on | The publisher of that list: `easylist.to`, `easylist-downloads.adblockplus.org`, `secure.fanboy.co.nz`, `ublockorigin.github.io` or `filters.adtidy.org` | A plain https request for that one list. No cookies and no referrer. Nothing is downloaded for a list that is off, and none is on by default. |
 | A custom filter list you add | The https address you entered | The same kind of request, on the same schedule. |
 | Only after you turn on Widevine (protected video) | `update.googleapis.com`, then the Google download host named in its reply | An update check that names only the Widevine component, then the download of the component. Off by default. |
 | Only after you set an extension proxy in Settings | The https address you entered | Extension downloads and update checks. Not set by default. |

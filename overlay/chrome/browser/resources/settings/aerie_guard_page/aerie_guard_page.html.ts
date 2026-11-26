@@ -109,6 +109,85 @@ export function getHtml(this: SettingsAerieGuardPageElement) {
   ` : ''}
   <div class="cr-row hr">
     <div class="flex cr-padded-text">
+      <h2 id="catalogueHeading" class="cr-title-text">
+        $i18n{aerieGuardCatalogueHeading}
+      </h2>
+      <div class="secondary">$i18n{aerieGuardCatalogueDesc}</div>
+    </div>
+  </div>
+  <div class="cr-row">
+    <cr-input id="catalogueSearch" class="flex" type="search"
+        autocomplete="off"
+        label="$i18n{aerieGuardCatalogueSearchLabel}"
+        placeholder="$i18n{aerieGuardCatalogueSearchPlaceholder}"
+        .value="${this.catalogueQuery_}"
+        @value-changed="${this.onCatalogueSearchValueChanged_}">
+    </cr-input>
+  </div>
+  <div id="catalogue" aria-labelledby="catalogueHeading">
+    ${this.visibleCatalogue_().map(group => html`
+      <div class="catalogue-group" data-category="${group.category}"
+          role="group" aria-labelledby="category-${group.category}">
+        <div class="cr-row">
+          <h3 id="category-${group.category}" class="cr-title-text">
+            ${this.categoryTitle_(group.category)}
+          </h3>
+        </div>
+        ${group.lists.map(list => html`
+          <div class="cr-row catalogue-row" data-catalogue-id="${list.id}">
+            <div class="flex cr-padded-text">
+              <div class="list-title">${this.catalogueTitle_(list)}</div>
+              <div class="secondary catalogue-desc">
+                ${this.catalogueDesc_(list)}
+              </div>
+              ${list.langs.length ? html`
+                <div class="secondary catalogue-langs">
+                  ${this.catalogueLanguagesText_(list)}
+                </div>
+              ` : ''}
+              <div class="secondary catalogue-meta">
+                <span class="catalogue-licence">
+                  ${this.catalogueLicenceText_(list)}
+                </span>
+                ${this.catalogueHomepage_(list) ? html`
+                  <a class="catalogue-homepage"
+                      href="${this.catalogueHomepage_(list)}"
+                      target="_blank" rel="noopener noreferrer"
+                      aria-label="${this.catalogueHomepageLabel_(list)}">
+                    $i18n{aerieGuardCatalogueHomepage}
+                  </a>
+                ` : ''}
+              </div>
+              <div class="secondary catalogue-rules">
+                ${this.catalogueRulesText_(list)}
+              </div>
+              ${list.status === 'updating' || list.status === 'failed' ? html`
+                <div class="secondary list-status"
+                    data-status="${list.status}" role="status">
+                  ${this.catalogueStatusText_(list)}
+                </div>
+              ` : ''}
+              ${list.errorCode ? html`
+                <div class="list-error" role="alert">
+                  ${this.catalogueFailureText_(list)}
+                </div>
+              ` : ''}
+            </div>
+            <cr-toggle class="catalogue-toggle" data-id="${list.id}"
+                ?checked="${list.on}"
+                aria-label="${this.catalogueToggleLabel_(list)}"
+                @change="${this.onCatalogueToggleChange_}">
+            </cr-toggle>
+          </div>`)}
+      </div>`)}
+    ${this.visibleCatalogue_().length === 0 ? html`
+      <div id="catalogueNoResults" class="cr-row secondary" role="status">
+        $i18n{aerieGuardCatalogueNoResults}
+      </div>
+    ` : ''}
+  </div>
+  <div class="cr-row hr">
+    <div class="flex cr-padded-text">
       <h2 id="customHeading" class="cr-title-text">
         $i18n{aerieGuardCustomHeading}
       </h2>
