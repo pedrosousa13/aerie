@@ -113,7 +113,7 @@ class TestCppTest(unittest.TestCase):
             [Path(c[0]).name for c in calls],
             ["aerie_adblock_unittests", "aerie_adblock_content_unittests", "aerie_widevine_unittests",
              "aerie_services_unittests", "aerie_adblock_common_unittests", "aerie_adblock_renderer_unittests", "aerie_fingerprint_unittests",
-             "aerie_gpu_info_unittests", "aerie_network_unittests", "aerie_screen_unittests", "aerie_media_devices_unittests", "aerie_text_metrics_unittests", "aerie_webgl_readback_unittests", "aerie_fonts_unittests",
+             "aerie_gpu_info_unittests", "aerie_network_unittests", "aerie_screen_unittests", "aerie_media_devices_unittests", "aerie_keyboard_layout_unittests", "aerie_text_metrics_unittests", "aerie_webgl_readback_unittests", "aerie_fonts_unittests",
              "aerie_design_tokens_unittests", "aerie_tab_model_unittests", "aerie_sidebar_unittests", "aerie_frame_unittests", "aerie_color_unittests", "aerie_crash_reports_unittests", "aerie_import_sources_unittests"])
         build_tree.assert_called_once()
 

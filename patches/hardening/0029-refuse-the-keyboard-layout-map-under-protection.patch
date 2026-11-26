@@ -1,0 +1,116 @@
+Aerie-Purpose: Make navigator.keyboard.getLayoutMap() return a promise rejected with NotSupportedError while fingerprinting protection is on for the site of the page, so the physical keyboard layout (which gives away the user's region) is not exposed; navigator.keyboard.lock() and unlock() are untouched (issue #203).
+Aerie-Upstream-Area: content/browser/keyboard_lock/keyboard_lock_service_impl.cc (GetKeyboardLayoutMap), third_party/blink/public/mojom/keyboard_lock/keyboard_lock.mojom (GetKeyboardLayoutMapStatus), third_party/blink/renderer/modules/keyboard/keyboard_layout.cc (GotKeyboardLayoutMap), content/browser/BUILD.gn
+Aerie-Kind: hook
+
+Upstream answers getLayoutMap() in the browser (KeyboardLockServiceImpl::GetKeyboardLayoutMap) with
+the layout map of the focused page's window, and the renderer resolves the promise with it. The
+map has 49 entries on a US keyboard and different key names on an AZERTY, QWERTZ or Dvorak
+keyboard, so it shows the user's region and layout.
+
+The browser decides, per request, after the permissions-policy check that upstream does first:
+protection is on for the site of the top page
+(ContentBrowserClient::HeliumNoiseEnabled for the origin of the outermost main frame: the pref,
+the per-site HELIUM_NOISE setting and the HeliumNoise feature, the rule that decides whether a page
+gets its noise tokens). Then the answer is a new status, GetKeyboardLayoutMapStatus::kNotSupported,
+and the renderer rejects the promise with a NotSupportedError DOMException, the outcome in a
+browser without the API (Firefox, Safari). Otherwise nothing changes and the real map comes back.
+For a top page with an opaque origin (a sandboxed or data: page, which has no site to switch off)
+the URL is empty and HeliumNoiseEnabled answers from the feature and the pref alone, so the map is
+refused whenever protection is on (fail closed). Protection off, globally or for the site, or
+--disable-features=HeliumNoise, gives back the real map. A frame of another site in the page gets
+the answer of its top page.
+
+The decision is Aerie's own pure code with unit tests (components/aerie_keyboard_layout). The
+surface has no token and no derived value, so nothing is stored or sent to a renderer. The
+layout map is a web-exposed value only: KeyboardEvent.key and code, keyboard.lock() and unlock(),
+and input method detection are not changed.
+
+--- a/content/browser/BUILD.gn
++++ b/content/browser/BUILD.gn
+@@ -158,6 +158,7 @@
+     "//cc/mojo_embedder",
+     "//cc/paint",
+     "//components/aerie_fingerprint",
++    "//components/aerie_keyboard_layout",
+     "//components/aerie_media_devices",
+     "//components/back_forward_cache:enum",
+     "//components/browsing_data/core:cookie_or_cache_deletion_choice",
+--- a/content/browser/keyboard_lock/keyboard_lock_service_impl.cc
++++ b/content/browser/keyboard_lock/keyboard_lock_service_impl.cc
+@@ -13,11 +13,14 @@
+ #include "base/functional/bind.h"
+ #include "base/functional/callback.h"
+ #include "base/metrics/histogram_macros.h"
++#include "components/aerie_keyboard_layout/layout_map_policy.h"
+ #include "content/browser/keyboard_lock/keyboard_lock_metrics.h"
+ #include "content/browser/renderer_host/render_frame_host_impl.h"
+ #include "content/browser/renderer_host/render_widget_host_impl.h"
+ #include "content/public/browser/render_frame_host.h"
++#include "content/public/browser/content_browser_client.h"
+ #include "content/public/browser/render_widget_host.h"
++#include "content/public/common/content_client.h"
+ #include "content/public/common/content_features.h"
+ #include "services/network/public/mojom/permissions_policy/permissions_policy_feature.mojom.h"
+ #include "third_party/blink/public/mojom/devtools/console_message.mojom.h"
+@@ -151,6 +154,24 @@
+     std::move(callback).Run(std::move(response));
+     return;
+   }
++  // Aerie (issue #203): the layout gives away the user's region. The decision
++  // that gives a page its noise tokens (the pref and the per-site setting, read
++  // here in the browser process), made for the site of the page the user is on,
++  // so a frame of another site gets its top page's answer. It is false when
++  // the HeliumNoise feature is off. A top page with an opaque origin has an
++  // empty URL here; the per-site lookup skips such a URL and answers from the
++  // feature and the pref alone, so the map is refused (fail closed, as for the
++  // noise tokens). lock() and unlock() are not touched.
++  if (aerie_keyboard_layout::ShouldRefuseLayoutMap(
++          {.site_protected = GetContentClient()->browser()->HeliumNoiseEnabled(
++               frame_host_impl.GetBrowserContext(),
++               frame_host_impl.GetOutermostMainFrame()
++                   ->GetLastCommittedOrigin()
++                   .GetURL())})) {
++    response->status = blink::mojom::GetKeyboardLayoutMapStatus::kNotSupported;
++    std::move(callback).Run(std::move(response));
++    return;
++  }
+   response->status = blink::mojom::GetKeyboardLayoutMapStatus::kSuccess;
+   response->layout_map = frame_host_impl.GetPage().GetKeyboardLayoutMap();
+ 
+--- a/third_party/blink/public/mojom/keyboard_lock/keyboard_lock.mojom
++++ b/third_party/blink/public/mojom/keyboard_lock/keyboard_lock.mojom
+@@ -16,6 +16,9 @@
+   kSuccess = 0,
+   kFail = 1,
+   kDenied = 2,
++  // Aerie (issue #203): the browser refuses the layout map under
++  // fingerprinting protection; the page sees NotSupportedError.
++  kNotSupported = 3,
+ };
+ 
+ struct GetKeyboardLayoutMapResult {
+--- a/third_party/blink/renderer/modules/keyboard/keyboard_layout.cc
++++ b/third_party/blink/renderer/modules/keyboard/keyboard_layout.cc
+@@ -31,6 +31,9 @@
+ constexpr char kKeyboardMapRequestFailedErrorMsg[] =
+     "getLayoutMap() request could not be completed.";
+ 
++constexpr char kKeyboardMapNotSupportedErrorMsg[] =
++    "getLayoutMap() is not supported.";
++
+ }
+ 
+ KeyboardLayout::KeyboardLayout(ExecutionContext* context)
+@@ -105,6 +108,12 @@
+       layout_map_property_->Reject(MakeGarbageCollected<DOMException>(
+           DOMExceptionCode::kSecurityError, kFeaturePolicyBlocked));
+       break;
++    case mojom::blink::GetKeyboardLayoutMapStatus::kNotSupported:
++      // Aerie (issue #203): the outcome of a browser without the API.
++      layout_map_property_->Reject(MakeGarbageCollected<DOMException>(
++          DOMExceptionCode::kNotSupportedError,
++          kKeyboardMapNotSupportedErrorMsg));
++      break;
+   }
+   layout_map_property_ = nullptr;
+ }

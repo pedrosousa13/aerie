@@ -137,6 +137,9 @@ hardening/0027-ignore-extension-cookie-allow-rules-while-third-party-cookies-are
 # Device list before permission (#202): one empty audioinput, audiooutput and videoinput for a page with no media permission while protection is on.
 hardening/0028-pin-the-device-list-before-permission.patch
 
+# Keyboard layout map (#203): getLayoutMap() rejects with NotSupportedError while protection is on for the site.
+hardening/0029-refuse-the-keyboard-layout-map-under-protection.patch
+
 # Design Tokens (#174): the reduced-motion pref, its strings and its row on the Appearance page.
 sidebar/0001-add-the-reduced-motion-pref.patch
 sidebar/0002-add-the-reduced-motion-strings.patch
