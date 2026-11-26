@@ -1,0 +1,168 @@
+Aerie-Purpose: Give a page that holds no camera or microphone permission the same short device list from navigator.mediaDevices.enumerateDevices() while fingerprinting protection is on for its site, one audioinput, one audiooutput and one videoinput with empty deviceId, label and groupId, whatever the machine has (issue #202).
+Aerie-Upstream-Area: content/browser/renderer_host/media/media_devices_manager.cc (OnDevicesEnumeratedAndRanked), content/browser/media/media_devices_util.cc and media_devices_util.h (MediaDeviceSaltAndOrigin, GetMediaDeviceSaltAndOrigin), content/browser/BUILD.gn
+Aerie-Kind: hook
+
+Upstream trims the list of a kind to its first device when the page has no permission for that
+kind, and gives that entry an empty id, label and group id (W3C Media Capture access control
+model). A machine that has no camera, or no microphone or speaker the system lists, therefore
+shows no entry of that kind, and the number of kinds a page sees tells it what the machine has.
+
+The browser decides, per request, in MediaDevicesManager::OnDevicesEnumeratedAndRanked, which has
+the permission result of the page for each kind:
+- The page holds a grant for the kind (microphone for audioinput and, as upstream decides,
+  audiooutput; camera for videoinput): nothing changes. The real devices, ids and labels come back
+  as normal.
+- The page holds no grant, the HeliumNoise feature is on and protection is on for the site
+  (MediaDeviceSaltAndOrigin::fingerprinting_protected): the list of the kind has exactly one entry,
+  with an empty deviceId, label and groupId. When the stock list has one entry already, it is
+  untouched. When the machine has no such device, one empty entry is added. The pure code that
+  decides, and that says how many entries are missing, is Aerie's own, with unit tests
+  (components/aerie_media_devices).
+
+"Protection is on for the site" is ContentBrowserClient::HeliumNoiseEnabled for the top page's
+origin, read on the UI thread when GetMediaDeviceSaltAndOrigin makes the salt: the same rule that
+decides whether a page gets its noise tokens (the pref, the per-site HELIUM_NOISE setting, and the
+HeliumNoise feature). Turning protection off, globally or for the site, or starting the browser
+with --disable-features=HeliumNoise, gives back the real list. A frame of another site in the
+page gets the answer of its top page, as for the tokens.
+
+The surface has no token and no derived value: the pinned list is the same for every site, so
+nothing is derived, stored or sent to a renderer (S1, S2, S5 hold trivially). getUserMedia,
+device labels after a grant, the devicechange event and WebRTC address handling are not changed.
+
+--- a/content/browser/BUILD.gn
++++ b/content/browser/BUILD.gn
+@@ -158,6 +158,7 @@
+     "//cc/mojo_embedder",
+     "//cc/paint",
+     "//components/aerie_fingerprint",
++    "//components/aerie_media_devices",
+     "//components/back_forward_cache:enum",
+     "//components/browsing_data/core:cookie_or_cache_deletion_choice",
+     "//components/cbor",
+--- a/content/browser/media/media_devices_util.cc
++++ b/content/browser/media/media_devices_util.cc
+@@ -26,6 +26,7 @@
+ #include "content/public/browser/render_frame_host.h"
+ #include "content/public/browser/web_contents.h"
+ #include "content/public/browser/web_contents_delegate.h"
++#include "content/public/browser/content_browser_client.h"
+ #include "content/public/common/content_client.h"
+ #include "crypto/hmac.h"
+ #include "media/base/media_switches.h"
+@@ -44,6 +45,7 @@
+              const url::Origin& origin,
+              bool has_focus,
+              bool is_background,
++             bool fingerprinting_protected,
+              std::optional<ukm::SourceId> source_id,
+              MediaDeviceSaltAndOriginCallback callback,
+              bool are_persistent_device_ids_allowed,
+@@ -62,6 +64,7 @@
+   MediaDeviceSaltAndOrigin salt_and_origin(std::move(device_id_salt), origin,
+                                            std::move(group_id_salt), has_focus,
+                                            is_background, std::move(source_id));
++  salt_and_origin.set_fingerprinting_protected(fingerprinting_protected);
+   std::move(callback).Run(salt_and_origin);
+ }
+ 
+@@ -153,10 +156,24 @@
+   bool is_background = web_contents && web_contents->IsNeverComposited();
+   std::string frame_salt = frame_host->GetMediaDeviceIDSaltBase();
+ 
++  // Aerie (issue #202): the decision that gives a page its noise tokens (the
++  // pref and the per-site setting, read here in the browser process), made for
++  // the site of the page the user is on. It is false when the HeliumNoise
++  // feature is off, so a request from a page with protection off for its site
++  // gets the real list. A frame of another site in the page gets its top
++  // page's answer, as for the tokens.
++  const bool fingerprinting_protected =
++      GetContentClient()->browser()->HeliumNoiseEnabled(
++          frame_host->GetBrowserContext(),
++          frame_host->GetOutermostMainFrame()
++              ->GetLastCommittedOrigin()
++              .GetURL());
++
+   GetContentClient()->browser()->GetMediaDeviceIDSalt(
+       frame_host, site_for_cookies, frame_host->GetStorageKey(),
+       base::BindOnce(&GotSalt, std::move(frame_salt), std::move(origin),
+-                     has_focus, is_background, std::move(source_id),
++                     has_focus, is_background, fingerprinting_protected,
++                     std::move(source_id),
+                      std::move(callback)));
+ }
+ 
+--- a/content/browser/media/media_devices_util.h
++++ b/content/browser/media/media_devices_util.h
+@@ -50,6 +50,10 @@
+   }
+   bool has_focus() const { return has_focus_; }
+   bool is_background() const { return is_background_; }
++  // Aerie (issue #202): whether fingerprinting protection is on for the site
++  // of the page that makes the request, decided in the browser process when the
++  // salt is made.
++  bool fingerprinting_protected() const { return fingerprinting_protected_; }
+ 
+   void set_device_id_salt(std::string salt) {
+     device_id_salt_ = std::move(salt);
+@@ -61,6 +65,9 @@
+   void set_origin(url::Origin origin) { origin_ = std::move(origin); }
+   void set_has_focus(bool has_focus) { has_focus_ = has_focus; }
+   void set_is_background(bool is_background) { is_background_ = is_background; }
++  void set_fingerprinting_protected(bool fingerprinting_protected) {
++    fingerprinting_protected_ = fingerprinting_protected;
++  }
+ 
+  private:
+   std::string device_id_salt_;
+@@ -71,6 +78,7 @@
+   std::optional<ukm::SourceId> ukm_source_id_;
+   bool has_focus_;
+   bool is_background_;
++  bool fingerprinting_protected_ = false;
+ };
+ 
+ // Returns the current media device ID salt and security origin for the given
+--- a/content/browser/renderer_host/media/media_devices_manager.cc
++++ b/content/browser/renderer_host/media/media_devices_manager.cc
+@@ -32,6 +32,7 @@
+ #include "content/browser/renderer_host/media/media_stream_manager.h"
+ #include "content/browser/renderer_host/media/video_capture_manager.h"
+ #include "content/browser/renderer_host/render_frame_host_impl.h"
++#include "components/aerie_media_devices/device_list.h"
+ #include "content/common/features.h"
+ #include "content/public/browser/audio_service.h"
+ #include "content/public/browser/browser_task_traits.h"
+@@ -47,6 +48,7 @@
+ #include "mojo/public/cpp/bindings/remote.h"
+ #include "services/audio/public/mojom/device_notifications.mojom.h"
+ #include "services/video_capture/public/cpp/features.h"
++#include "third_party/blink/public/common/features.h"
+ #include "third_party/blink/public/common/mediastream/media_devices.h"
+ #include "third_party/blink/public/mojom/mediastream/media_devices.mojom.h"
+ 
+@@ -1216,6 +1218,24 @@
+       translation[i].push_back(TranslateMediaDeviceInfo(
+           has_permissions[i], salt_and_origin, device_info));
+     }
++
++    // Aerie (issue #202): a page with protection on for its site and no
++    // permission for this kind of device sees exactly one empty entry of the
++    // kind, whatever the machine has. Chromium already trims the list to one
++    // entry; this adds the entry that a machine without such a device lacks.
++    if (aerie_media_devices::ShouldPinDeviceList(
++            {.master_enabled = base::FeatureList::IsEnabled(
++                 blink::features::kHeliumNoise),
++             .site_protected = salt_and_origin.fingerprinting_protected(),
++             .has_permission = has_permissions[i]})) {
++      for (int missing = aerie_media_devices::MissingPinnedEntries(
++               static_cast<int>(translation[i].size()));
++           missing > 0; --missing) {
++        translation[i].push_back(TranslateMediaDeviceInfo(
++            /*has_permission=*/false, salt_and_origin,
++            blink::WebMediaDeviceInfo()));
++      }
++    }
+   }
+ 
+   // Expose devices authorized by selectAudioOutput.

@@ -134,6 +134,9 @@ hardening/0026-report-the-masked-window-position-in-event-screen-coordinates.pat
 # An extension's broad cookie allow has no effect while third-party cookies are blocked, also when it was set while they were allowed (#166).
 hardening/0027-ignore-extension-cookie-allow-rules-while-third-party-cookies-are-blocked.patch
 
+# Device list before permission (#202): one empty audioinput, audiooutput and videoinput for a page with no media permission while protection is on.
+hardening/0028-pin-the-device-list-before-permission.patch
+
 # Design Tokens (#174): the reduced-motion pref, its strings and its row on the Appearance page.
 sidebar/0001-add-the-reduced-motion-pref.patch
 sidebar/0002-add-the-reduced-motion-strings.patch

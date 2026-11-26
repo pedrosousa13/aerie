@@ -51,6 +51,8 @@ TEST_BINARIES = (
     ("aerie_network_unittests", ()),
     # The bucketed screen size and the decision to report it (issue #116).
     ("aerie_screen_unittests", ()),
+    # The device list a page sees before it holds a camera or microphone permission, and the decision to pin it (issue #202).
+    ("aerie_media_devices_unittests", ()),
     # The measureText noise factor and the decision to apply it (issue #118).
     ("aerie_text_metrics_unittests", ()),
     # Which WebGL readPixels calls get noise, and where their pixels sit in the buffer (issue #119).
