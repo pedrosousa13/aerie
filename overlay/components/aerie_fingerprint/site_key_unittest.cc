@@ -153,6 +153,25 @@ TEST(NoiseSitePatternTest, OnlyWebAddressesHaveOne) {
   EXPECT_FALSE(NoiseSitePattern(GURL()).IsValid());
 }
 
+TEST(NoiseSiteHostTest, ARegistrableDomainNamesTheSite) {
+  EXPECT_EQ(NoiseSiteHost(GURL("https://shop.example.com/page")),
+            "example.com");
+  EXPECT_EQ(NoiseSiteHost(GURL("https://a.b.example/")), "b.example");
+  EXPECT_EQ(NoiseSiteHost(GURL("https://alice.github.io/")),
+            "alice.github.io");
+}
+
+TEST(NoiseSiteHostTest, AHostWithoutARegistrableDomainIsItself) {
+  EXPECT_EQ(NoiseSiteHost(GURL("http://localhost:3000/")), "localhost");
+  EXPECT_EQ(NoiseSiteHost(GURL("http://192.168.1.5/")), "192.168.1.5");
+  EXPECT_EQ(NoiseSiteHost(GURL("http://[::1]:8080/")), "[::1]");
+}
+
+TEST(NoiseSiteHostTest, AnAddressWithoutASiteHasNoHost) {
+  EXPECT_TRUE(NoiseSiteHost(GURL()).empty());
+  EXPECT_TRUE(NoiseSiteHost(GURL("file:///tmp/a.html")).empty());
+}
+
 }  // namespace
 
 }  // namespace aerie_fingerprint
