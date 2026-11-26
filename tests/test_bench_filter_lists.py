@@ -117,6 +117,25 @@ def good_lists():
     }
 
 
+SOURCE_TEXT = ("[Adblock Plus 2.0]\n! Title: <b>Hostile</b> list\n<script>window.__aerieSourceRan = 1</script>\n"
+               "<h1 id=\"aerie-source-heading\">Rendered as HTML</h1>\n")
+
+
+def good_view_source():
+    """What observe_view_source returns for a build whose source page is plain text."""
+    return {
+        "insecure": {"ok": True, "code": "insecure_url", "listed": False},
+        "entry": {"id": "abc", "url": "http://127.0.0.1:5000/filters/source-list.txt", "title": fl.SOURCE_TITLE,
+                  "updated": 1, "error": ""},
+        "refused": [{"name": "the address of the list", "refused": True}, {"name": "an unknown id", "refused": True},
+                    {"name": "a built-in list", "refused": True}],
+        "view_ok": True,
+        "page": {"url": "chrome://aerie-list-source/abc", "content_type": "text/plain", "marker": "undefined",
+                 "elements": 0, "text": SOURCE_TEXT},
+        "hits_before": 1, "hits_after": 1,
+    }
+
+
 def own_visit(blocked, host="a.localhost", **over):
     v = {"visit": "x", "host": host, "blocked_loaded": not blocked, "open_loaded": True,
          "scriptlet_marker": "undefined", "done": True, "fixture_blocked_requests": 0 if blocked else 1}
@@ -172,6 +191,7 @@ def good():
         "custom_rules": good_custom(),
         "validation": good_validation(),
         "catalogue": good_catalogue(),
+        "view_source": good_view_source(),
         "incognito": good_incognito(),
     }
 
@@ -335,6 +355,72 @@ class ValidationTest(unittest.TestCase):
         for key in ("state_before", "state_after"):
             p = self.problems(lambda v: v.update({key: None}))
             self.assertTrue(any("state file could not be read" in x for x in p), p)
+
+
+class ViewSourceStepTest(unittest.TestCase):
+    """Issue #108: a hostile list's saved text is shown as text and runs nothing; an http:// address is refused."""
+
+    def problems(self, mutate=None):
+        obs = good_view_source()
+        if mutate:
+            mutate(obs)
+        return fl.judge_view_source(obs)
+
+    def test_a_good_run_has_no_problem(self):
+        self.assertEqual(self.problems(), [])
+
+    def test_a_source_page_that_renders_the_list_as_html_fails(self):
+        def html(obs):
+            obs["page"].update({"content_type": "text/html", "marker": "1", "elements": 2})
+        problems = self.problems(html)
+        self.assertTrue(any("not text/plain" in p for p in problems), problems)
+        self.assertTrue(any("script ran" in p for p in problems), problems)
+        self.assertTrue(any("in the DOM" in p for p in problems), problems)
+
+    def test_an_http_address_that_was_added_fails(self):
+        problems = self.problems(lambda o: o["insecure"].update({"code": "", "listed": True}))
+        self.assertTrue(any("http://" in p for p in problems), problems)
+        problems = self.problems(lambda o: o["insecure"].update({"listed": True}))
+        self.assertTrue(any("added to the lists" in p for p in problems), problems)
+
+    def test_the_title_is_the_one_of_the_header(self):
+        problems = self.problems(lambda o: o["entry"].update({"title": "127.0.0.1"}))
+        self.assertTrue(any("title" in p for p in problems), problems)
+
+    def test_viewSource_must_refuse_an_address_an_unknown_id_and_a_built_in_list(self):
+        problems = self.problems(lambda o: o["refused"][0].update({"refused": False}))
+        self.assertTrue(any("accepted the address" in p for p in problems), problems)
+        problems = self.problems(lambda o: o.update({"refused": o["refused"][:1]}))
+        self.assertTrue(any("no probe sends an unknown id" in p for p in problems), problems)
+
+    def test_viewing_the_source_must_not_ask_the_list_server(self):
+        problems = self.problems(lambda o: o.update({"hits_after": 2}))
+        self.assertTrue(any("request(s) to the list's server" in p for p in problems), problems)
+
+    def test_missing_or_malformed_observations_fail_and_never_raise(self):
+        for obs in (None, "text", [], {}, {"page": "x"}, {"page": {}}, {"page": []},
+                    {**good_view_source(), "page": {"url": 5, "content_type": 6, "text": 7}},
+                    {**good_view_source(), "refused": "no", "insecure": []},
+                    {**good_view_source(), "entry": "x"}):
+            self.assertTrue(fl.judge_view_source(obs), obs)
+
+    def test_judge_includes_the_step(self):
+        obs = good()
+        obs["view_source"]["page"]["content_type"] = "text/html"
+        status, detail, _ = fl.judge(obs)
+        self.assertEqual(status, "fail")
+        self.assertIn("view source", detail)
+        obs = good()
+        del obs["view_source"]
+        self.assertEqual(fl.judge(obs)[0], "fail")
+
+    def test_the_fixture_list_is_hostile_when_rendered_and_a_list_when_not(self):
+        text = (Path(fixtures.__file__).parent / "fixtures" / "filters" / "source-list.txt").read_text()
+        self.assertIn("<script>window." + fl.SOURCE_MARKER, text)
+        self.assertIn("onerror=", text)
+        self.assertIn("<h1", text)
+        self.assertIn("! Title: " + fl.SOURCE_TITLE, text)
+        self.assertFalse(text.lstrip().lower().startswith(("<!doctype", "<html")))
 
 
 class CatalogueStepTest(unittest.TestCase):

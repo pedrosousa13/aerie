@@ -26,6 +26,7 @@ source_set("handler") {
     "//components/aerie_adblock/browser:guard_prefs",
     "//components/language/core/browser",
     "//components/prefs",
+    "//content/public/common",
     "//ui/base",
     "//url",
   ]

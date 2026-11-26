@@ -651,3 +651,103 @@ class SuggestionsTest(unittest.TestCase):
         body = text[text.index("SuggestCatalogueIds("):]
         for forbidden in ("g_browser_process", "PrefService", "FilterListManager", "GURL", "Profile"):
             self.assertNotIn(forbidden, body)
+
+
+class SubscriptionTest(unittest.TestCase):
+    """Issue #108: custom list subscriptions in Settings, with View source and Unsubscribe."""
+    TS = (PAGE_DIR / "aerie_guard_page.ts").read_text(encoding="utf-8")
+    HTML = (PAGE_DIR / "aerie_guard_page.html.ts").read_text(encoding="utf-8")
+    PROXY = (PAGE_DIR / "aerie_guard_browser_proxy.ts").read_text(encoding="utf-8")
+    SOURCE_CC = code(HANDLER_DIR / "aerie_list_source_ui.cc")
+    SOURCE = "adblock/0030-register-aerie-list-source-page.patch"
+    STRINGS_PATCH = "adblock/0031-add-aerie-guard-subscription-strings.patch"
+
+    def test_the_series_lists_the_source_page_and_its_strings_in_order(self):
+        self.assertEqual(SERIES.index(self.SOURCE), SERIES.index("adblock/0029-build-aerie-guard-settings-browser-tests.patch") + 1)
+        self.assertGreater(SERIES.index(self.STRINGS_PATCH), SERIES.index(self.SOURCE))
+        for name in (self.SOURCE, self.STRINGS_PATCH):
+            self.assertTrue((REPO / "patches" / name).is_file(), name)
+
+    def test_the_caps_are_the_ones_of_the_brief_and_defined_once(self):
+        state_h = (BROWSER / "filter_list_state.h").read_text(encoding="utf-8")
+        self.assertIn("inline constexpr size_t kMaxCustomLists = 20;", state_h)
+        self.assertIn("inline constexpr size_t kMaxListsInUse = 30;", state_h)
+        for path in list(BROWSER.glob("*.cc")) + list(HANDLER_DIR.glob("*.cc")) + list(PAGE_DIR.glob("*.ts")):
+            if path.name.endswith("unittest.cc") or path.name.endswith("browsertest.cc"):
+                continue
+            self.assertNotRegex(path.read_text(encoding="utf-8"), r"\b(kMaxCustomLists|kMaxListsInUse)\s*=", path.name)
+
+    def test_the_source_page_is_plain_text_and_cannot_be_framed(self):
+        text = self.SOURCE_CC
+        self.assertIn('return "text/plain";', text)
+        self.assertIn("ShouldServeMimeTypeAsContentTypeHeader() override { return true; }", text)
+        self.assertIn("default-src 'none';", text)
+        self.assertIn("frame-ancestors 'none';", text)
+        self.assertIn("ShouldDenyXFrameOptions() override { return true; }", text)
+        self.assertNotIn("text/html", text)
+        self.assertNotIn("WebUIDataSource", text)  # one source, one type, no HTML shell
+
+    def test_the_source_page_reads_the_saved_text_by_id_and_never_fetches(self):
+        text = self.SOURCE_CC
+        self.assertIn("CanViewListSource(id)", text)
+        self.assertIn("ReadListSource(", text)
+        for forbidden in ("GURL(entry", "->url", "SimpleURLLoader", "FilterListFetcher", "FetchList"):
+            self.assertNotIn(forbidden, text)
+        manager = code(BROWSER / "filter_list_manager.cc")
+        body = manager[manager.index("bool FilterListManager::CanViewListSource("):]
+        body = body[:body.index("void FilterListManager::UpdateList(")]
+        self.assertIn("!entry->builtin && !entry->catalogue", body)
+        self.assertIn("ListPath(dir_, id)", body)
+        for forbidden in ("fetcher_", "FetchList", "GURL("):
+            self.assertNotIn(forbidden, body)
+
+    def test_the_handler_opens_the_page_by_list_id_only(self):
+        text = code(HANDLER_CC)
+        body = text[text.index("void AerieGuardSettingsHandler::HandleViewSource("):]
+        body = body[:body.index("void AerieGuardSettingsHandler::HandleSetListEnabled(")]
+        self.assertIn("CanViewListSource(*id)", body)
+        self.assertIn("ListSourceUrl(*id)", body)
+        self.assertIn('Reject(args, "unknown_list")', body)
+        self.assertNotIn("GURL(", body)
+        self.assertIn("NEW_FOREGROUND_TAB", body)
+
+    def test_the_source_page_is_registered_with_the_web_ui_config_map_only(self):
+        text = added(self.SOURCE)
+        self.assertIn("AerieListSourceUIConfig", text)
+        self.assertIn("aerie_guard_settings:list_source", text)
+        header = (HANDLER_DIR / "aerie_list_source_ui.h").read_text(encoding="utf-8")
+        self.assertIn('kListSourceHost[] = "aerie-list-source";', header)
+
+    def test_the_add_flow_warns_about_the_ip_address_and_names_errors_by_code(self):
+        self.assertIn("aerieGuardAddListIpWarning", self.HTML)
+        self.assertIn('role="note"', self.HTML)
+        self.assertIn("addErrorCode", self.PROXY)
+        self.assertIn("AddListErrorCode(", code(HANDLER_CC))
+        for key in ("aerieGuardAddListErrorDuplicate", "aerieGuardAddListErrorTooMany",
+                    "aerieGuardListErrorInsecureUrl", "aerieGuardListErrorNonPublicUrl"):
+            self.assertIn(key, self.TS)
+        words = "".join(m.itertext()) if False else STRINGS.read_text(encoding="utf-8")
+        warning = re.search(r'ADD_LIST_IP_WARNING"[^>]*>\s*(.*?)\s*</message>', words, re.S).group(1)
+        self.assertIn("IP address", warning)
+
+    def test_each_subscription_has_update_view_source_and_unsubscribe(self):
+        for needle in ("list-update", "list-view-source", "list-unsubscribe", "onListViewSourceClick_",
+                       "onListUnsubscribeClick_", "isSubscription_(list)", "list-address"):
+            self.assertIn(needle, self.HTML + self.TS, needle)
+        self.assertIn("viewSource(id)", self.TS)
+        self.assertIn("removeList(id)", self.TS)
+        self.assertIn("'aerieGuard.viewSource', id", self.PROXY)
+
+    def test_the_title_falls_back_to_the_address(self):
+        self.assertRegex(self.TS, r"list\.title \|\| list\.url")
+
+    def test_the_title_is_parsed_from_the_saved_header_by_a_bounded_pure_function(self):
+        header = (BROWSER / "list_title.h").read_text(encoding="utf-8")
+        for name in ("kMaxListTitleBytes", "kMaxListHeaderLines", "kMaxListHeaderBytes", "ParseListTitle"):
+            self.assertIn(name, header)
+        self.assertIn("check.title = ParseListTitle(text);", code(BROWSER / "filter_list_manager.cc"))
+        self.assertIn("list_title_unittest.cc", (BROWSER / "BUILD.gn").read_text(encoding="utf-8"))
+
+    def test_the_address_and_the_title_are_shown_as_text_never_as_markup(self):
+        for needle in ("innerHTML", "unsafeHTML", "unsafeStatic", "insertAdjacentHTML"):
+            self.assertNotIn(needle, self.TS + self.HTML)

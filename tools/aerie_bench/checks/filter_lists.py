@@ -72,6 +72,14 @@ What it proves (the numbers are the issue #10 acceptance criteria, then the ones
    addresses are the publishers' and the Bench reaches none); that no request is made by default is
    ``zero_traffic``.
 
+12. Subscriptions and View source (issue #108): a list added by address is served by the fixture server and holds a ``<script>``,
+   an ``<img onerror>`` and an ``<h1>``. Adding an ``http://`` address is refused with the code ``insecure_url`` and makes no entry.
+   The added list shows the title of its ``! Title:`` line (the markup in it kept as text). The saved text is opened at
+   ``chrome://aerie-list-source/<id>``: ``document.contentType`` is ``text/plain``, no ``script``, ``img`` or ``h1`` of the list is in
+   the DOM, the marker the script would set is undefined and the text is on the page as characters. ``aerieGuard.viewSource`` is
+   addressed by id: the list's address, an unknown id and a built-in list are refused. Viewing the source makes no request to
+   the list's server. A source page that renders the list as HTML fails this step: see ``judge_view_source``.
+
 What stays with the unit tests: that an incognito tab cannot undo an exception that a regular window saved.
 
 Decision logic is in plain functions (``judge``, ``judge_restart``, ``judge_validation``, ...) that the tests
@@ -110,6 +118,10 @@ AD_URL = "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"  # Eas
 PROBE_PREFIXES = (TRACKER_URL + "?probe=", AD_URL + "?probe=")
 STATE_FILE = "AerieFilterLists/state.json"  # inside the profile
 CUSTOM_FILE = "AerieFilterLists/lists/custom.txt"  # the user's own rules, inside the profile
+SOURCE_LIST_PATH = "/filters/source-list.txt"  # a list that is hostile when rendered as HTML (issue #108)
+SOURCE_TITLE = "<b>Hostile</b> list"  # its "! Title:" line; shown as text
+SOURCE_URL_PREFIX = "chrome://aerie-list-source/"
+SOURCE_MARKER = "__aerieSourceRan"
 OWN_PAGE_PATH = "/filters/own-rules.html"
 OWN_HOST = "a.localhost"  # the site the saved rule is for
 OWN_OTHER_HOST = "b.localhost"  # a site it is not for
@@ -359,6 +371,59 @@ def judge_catalogue(obs: dict | None) -> list[str]:
     return problems
 
 
+def judge_view_source(obs: dict | None) -> list[str]:
+    """The subscription step (issue #108): an ``http://`` address is refused, the list shows its title, and its saved text
+    is opened as plain text that runs nothing.
+
+    ``obs`` has ``insecure`` (``{"ok", "code", "listed"}`` for adding an ``http://`` address), ``entry`` (the added list's
+    state entry), ``refused`` (a list of ``{"name", "refused"}`` for the ``viewSource`` messages that name no list the
+    user added), ``view_ok`` (the message for the list's id was accepted), ``page`` (what the source page showed:
+    ``url``, ``content_type``, ``marker``, ``elements`` (count of ``script, img, h1`` in the DOM), ``text``) and
+    ``hits_before`` and ``hits_after`` (requests to the list's path around the view). Anything that is not what it should be
+    is a problem, a missing or malformed observation too."""
+    if not isinstance(obs, dict) or not obs.get("page"):
+        return ["view source: no observations: the check never opened a source page"]
+    problems: list[str] = []
+    insecure = obs.get("insecure")
+    if not isinstance(insecure, dict) or insecure.get("ok") is not True or insecure.get("code") != "insecure_url":
+        problems.append(f"view source: an http:// address was not refused with insecure_url ({insecure})")
+    elif insecure.get("listed"):
+        problems.append("view source: an http:// address was added to the lists")
+    entry = obs.get("entry")
+    if not isinstance(entry, dict) or entry.get("error") or not entry.get("updated"):
+        problems.append(f"view source: the list did not load ({entry})")
+    elif entry.get("title") != SOURCE_TITLE:
+        problems.append(f"view source: the title is {entry.get('title')!r}, not the list's {SOURCE_TITLE!r}")
+    refused = obs.get("refused")
+    names = [p.get("name", "") for p in refused if isinstance(p, dict)] if isinstance(refused, list) else []
+    for needed in ("the address", "an unknown id", "a built-in list"):
+        if not any(needed in name for name in names):
+            problems.append(f"view source: no probe sends {needed}")
+    for probe in refused if isinstance(refused, list) else []:
+        if isinstance(probe, dict) and probe.get("refused") is not True:
+            problems.append(f"view source: viewSource accepted {probe.get('name')}")
+    if obs.get("view_ok") is not True:
+        problems.append("view source: viewSource refused the id of the list the user added")
+    page = obs["page"] if isinstance(obs.get("page"), dict) else {}
+    if not str(page.get("url", "")).startswith(SOURCE_URL_PREFIX):
+        problems.append(f"view source: the page is {page.get('url')!r}, not the source page of the list")
+    if page.get("content_type") != "text/plain":
+        problems.append(f"view source: the document is {page.get('content_type')!r}, not text/plain")
+    if page.get("elements") != 0:
+        problems.append(f"view source: {page.get('elements')} script, img or h1 element(s) of the list are in the DOM")
+    if page.get("marker") not in (None, "undefined"):
+        problems.append(f"view source: the list's script ran (marker {page.get('marker')!r})")
+    text = page.get("text")
+    if not isinstance(text, str) or "<script>window." + SOURCE_MARKER not in text or "<h1" not in text:
+        problems.append("view source: the list's markup is not on the page as text")
+    before, after = obs.get("hits_before"), obs.get("hits_after")
+    if before is None or after is None:
+        problems.append("view source: the list server's requests were not counted")
+    elif after != before:
+        problems.append(f"view source: viewing the source made {after - before} request(s) to the list's server")
+    return problems
+
+
 def find_id(state: dict | None, list_id: str) -> dict | None:
     return next((x for x in (state or {}).get("lists", []) if x.get("id") == list_id), None)
 
@@ -523,6 +588,7 @@ def judge(obs: dict) -> tuple[str, str, dict]:
     problems += judge_custom_rules(obs.get("custom_rules"))
     problems += judge_validation(obs.get("validation"))
     problems += judge_catalogue(obs.get("catalogue"))
+    problems += judge_view_source(obs.get("view_source"))
     problems += judge_incognito(obs.get("incognito"))
     problems += judge_restart(obs.get("restart"), obs.get("list_url", ""))
     data = {"update": update_data, "page_count_samples": obs.get("page_count_samples"),
@@ -534,7 +600,8 @@ def judge(obs: dict) -> tuple[str, str, dict]:
                     f"{EXCEPTED_HOST} only and it survived a restart; {len(obs['validation']['probes'])} bad arguments were refused "
                     f"and left state.json unchanged; {len(obs['catalogue']['probes'])} catalogue messages that name something other than "
                     f"a catalogue id (an unknown id, a raw address) were refused, the fixture server saw no request and state.json "
-                    f"did not change; Guard turned off in an incognito window through the panel applied there only "
+                    f"did not change; a hostile list's saved text was shown as text/plain with nothing of it in the DOM, "
+                    f"an http:// list address was refused; Guard turned off in an incognito window through the panel applied there only "
                     f"and never reached state.json; both negative controls rejected; EasyPrivacy off let its request through and on "
                     f"blocked it, EasyList refused to turn off; the user's own rules blocked a script on {OWN_HOST} only, their "
                     f"scriptlet line did not run and was reported with a reason, an oversize text was refused"), data
@@ -680,6 +747,7 @@ def observe_first_launch(session: Session, profile_path: str | Path | None = Non
     obs["custom_rules"] = observe_custom_rules(session, profile_path)
     obs["validation"] = observe_validation(session, profile_path)
     obs["catalogue"] = observe_catalogue(session, profile_path)
+    obs["view_source"] = observe_view_source(session)
     return obs
 
 
@@ -878,6 +946,51 @@ def observe_validation(session: Session, profile_path: str | Path | None) -> dic
     time.sleep(SETTLE)
     after = read_state_file(profile_path) if profile_path else None
     return {"probes": probes, "state_before": before, "state_after": after}
+
+
+SOURCE_PAGE_JS = """(() => ({
+  url: location.href,
+  content_type: document.contentType,
+  marker: String(window[%s]),
+  elements: document.querySelectorAll('script, img, h1').length,
+  text: document.body ? document.body.innerText : null,
+}))()"""
+
+
+def source_hits(session: Session) -> int:
+    return sum(1 for r in session.fixtures.snapshot() if r["path"].split("?", 1)[0] == SOURCE_LIST_PATH)
+
+
+def observe_view_source(session: Session) -> dict:
+    """Add a hostile list, refuse an http:// one, and open the saved text of the list as the source page."""
+    source_url = list_url_of(session, SOURCE_LIST_PATH)
+    open_manager(session)
+    answer = call(session, "addList", [INSECURE_LIST_URL])
+    state = answer.get("state") if isinstance(answer, dict) and answer.get("ok") else None
+    insecure = {"ok": answer.get("ok") if isinstance(answer, dict) else None,
+                "code": (state or {}).get("addErrorCode"),
+                "listed": find_list(state, INSECURE_LIST_URL) is not None}
+    entry = add_list(session, source_url)
+    list_id = (entry or {}).get("id")
+    probes = [("the address of the list", [source_url]), ("an unknown id", ["nosuchlist"]),
+              ("a built-in list", ["easylist"]), ("the user's own rules", ["custom"]),
+              ("a number", [123])]
+    refused = [{"name": name, "refused": call(session, "viewSource", args).get("ok") is False}
+               for name, args in probes]
+    view_ok = call(session, "viewSource", [list_id]).get("ok") is True if list_id else False
+    hits_before = source_hits(session)
+    page = {}
+    if list_id:
+        nav = session.navigate_url(SOURCE_URL_PREFIX + list_id)
+        if not nav["error"]:
+            page = session.evaluate(SOURCE_PAGE_JS % json.dumps(SOURCE_MARKER)) or {}
+    time.sleep(SETTLE)
+    obs = {"insecure": insecure, "entry": entry, "refused": refused, "view_ok": view_ok, "page": page,
+           "hits_before": hits_before, "hits_after": source_hits(session)}
+    open_manager(session)  # back to a page that keeps the next step working
+    if list_id:
+        send(session, "removeList", [list_id])
+    return obs
 
 
 def observe_incognito(session: Session, profile_path: str | Path) -> dict:
