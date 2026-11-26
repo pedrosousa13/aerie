@@ -420,7 +420,7 @@ void AerieGuardSettingsHandler::HandleViewSource(const base::ListValue& args) {
   using ui::mojom::WindowOpenDisposition;
   web_ui()->GetWebContents()->OpenURL(
       content::OpenURLParams(ListSourceUrl(*id), content::Referrer(),
-                             WindowOpenDisposition::NEW_FOREGROUND_TAB,
+                             WindowOpenDisposition::kNewForegroundTab,
                              ui::PAGE_TRANSITION_LINK,
                              /*is_renderer_initiated=*/false),
       /*navigation_handle_callback=*/{});

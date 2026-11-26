@@ -709,7 +709,7 @@ class SubscriptionTest(unittest.TestCase):
         self.assertIn("ListSourceUrl(*id)", body)
         self.assertIn('Reject(args, "unknown_list")', body)
         self.assertNotIn("GURL(", body)
-        self.assertIn("NEW_FOREGROUND_TAB", body)
+        self.assertIn("kNewForegroundTab", body)
 
     def test_the_source_page_is_registered_with_the_web_ui_config_map_only(self):
         text = added(self.SOURCE)
