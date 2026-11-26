@@ -43,6 +43,12 @@ import {AerieGuardBrowserProxyImpl} from './aerie_guard_browser_proxy.js';
 import type {AerieGuardBrowserProxy, AerieGuardCatalogueGroup, AerieGuardCatalogueList, AerieGuardCustomIssue, AerieGuardCustomRules, AerieGuardList, AerieGuardState} from './aerie_guard_browser_proxy.js';
 import {getHtml} from './aerie_guard_page.html.js';
 
+interface CatalogueSection {
+  category: string;
+  suggested: boolean;
+  lists: AerieGuardCatalogueList[];
+}
+
 const SettingsAerieGuardPageElementBase = SettingsViewMixinLit(CrLitElement);
 
 export class SettingsAerieGuardPageElement extends
@@ -411,20 +417,22 @@ export class SettingsAerieGuardPageElement extends
     return out;
   }
 
-  // The suggested lists (issue #106) that match the search, in the order of
-  // the catalogue. They sit in a group of their own at the top and are left
-  // out of their category, so no list is on the page twice.
-  protected suggestedCatalogue_(): AerieGuardCatalogueList[] {
-    return this.visibleCatalogue_().flatMap(
-        group => group.lists.filter(l => this.suggested_.includes(l.id)));
-  }
-
-  protected categoryGroups_(): AerieGuardCatalogueGroup[] {
-    const out: AerieGuardCatalogueGroup[] = [];
-    for (const group of this.visibleCatalogue_()) {
+  // What the catalogue shows, top down (issue #106): the suggested lists that
+  // match the search in a group of their own, then the categories without
+  // them, so no list is on the page twice. Every row is drawn the same way
+  // and has the one switch of issue #105.
+  protected catalogueSections_(): CatalogueSection[] {
+    const out: CatalogueSection[] = [];
+    const groups = this.visibleCatalogue_();
+    const suggested =
+        groups.flatMap(g => g.lists.filter(l => this.suggested_.includes(l.id)));
+    if (suggested.length) {
+      out.push({category: 'suggested', suggested: true, lists: suggested});
+    }
+    for (const group of groups) {
       const lists = group.lists.filter(l => !this.suggested_.includes(l.id));
       if (lists.length) {
-        out.push({category: group.category, lists});
+        out.push({category: group.category, suggested: false, lists});
       }
     }
     return out;
@@ -441,17 +449,17 @@ export class SettingsAerieGuardPageElement extends
             l => !l.on && this.suggested_.includes(l.id)));
   }
 
-  protected onLanguageCardDismiss_() {
+  protected onLanguageCardDismissClick_() {
     this.languageCardDismissed_ = true;
     this.browserProxy_.dismissLanguageCard().then(
         state => this.applyState_(state));
   }
 
-  protected onLanguageCardReview_() {
+  protected onLanguageCardReviewClick_() {
     // Clear a search that hides the suggestions, then go to the first one.
     this.catalogueQuery_ = '';
     this.updateComplete.then(() => {
-      const group = this.shadowRoot!.querySelector<HTMLElement>('#suggested');
+      const group = this.shadowRoot.querySelector<HTMLElement>('#suggested');
       group?.scrollIntoView({block: 'start'});
       group?.querySelector<CrToggleElement>('cr-toggle')?.focus();
     });

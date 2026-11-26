@@ -521,7 +521,7 @@ class CatalogueRowsTest(unittest.TestCase):
     def test_the_page_looks_a_list_up_by_its_id_and_the_search_covers_what_it_shows(self):
         self.assertIn("'aerieGuardCatTitle_'", self.TS)
         self.assertIn("'aerieGuardCatDesc_'", self.TS)
-        self.assertIn("visibleCatalogue_", self.HTML)
+        self.assertIn("visibleCatalogue_", self.TS)
         for word in ("catalogueTitle_(list)", "catalogueDesc_(list)", "list.licence", "list.langs"):
             self.assertIn(word, self.TS)
 
@@ -535,7 +535,7 @@ class CatalogueRowsTest(unittest.TestCase):
 
     def test_a_row_shows_title_description_licence_homepage_and_a_switch(self):
         for needle in ("catalogueTitle_(list)", "catalogueDesc_(list)", "catalogueLicenceText_(list)",
-                       "catalogue-homepage", "catalogue-toggle", "category-${group.category}"):
+                       "catalogue-homepage", "catalogue-toggle", "heading-${section.category}"):
             self.assertIn(needle, self.HTML)
 
     def test_the_handler_takes_a_catalogue_id_and_never_builds_an_address(self):
@@ -601,15 +601,19 @@ class SuggestionsTest(unittest.TestCase):
                 self.assertIn(key, self.HTML)
 
     def test_the_suggested_group_is_at_the_top_of_the_catalogue_and_the_card_is_in_the_section(self):
-        catalogue = self.HTML[self.HTML.index('id="catalogue"'):]
-        self.assertLess(catalogue.index('id="suggested"'), catalogue.index("categoryGroups_()"))
+        body = self.TS[self.TS.index("catalogueSections_(): CatalogueSection[]"):]
+        body = body[:body.index("// The card shows once")]
+        # The group is pushed before the categories.
+        self.assertLess(body.index("suggested: true"), body.index("suggested: false"))
+        self.assertIn("catalogueSections_().map(", self.HTML)
+        self.assertIn("'suggested'", self.HTML)
         section = self.HTML[self.HTML.index("<settings-section"):]
         self.assertLess(section.index('id="languageCard"'), section.index('id="showCount"'))
 
     def test_accepting_a_suggestion_is_the_catalogue_switch_and_sends_an_id_only(self):
-        # The group draws the same row as every category, so the one enable path is the one of issue #105.
-        self.assertIn("this.suggestedCatalogue_().map(catalogueRow)", self.HTML)
-        self.assertIn("group.lists.map(catalogueRow)", self.HTML)
+        # Every section draws the same row, so the one enable path is the one of issue #105.
+        self.assertEqual(self.HTML.count("onCatalogueToggleChange_"), 1)
+        self.assertEqual(self.HTML.count("section.lists.map("), 1)
         self.assertEqual(self.TS.count("setCatalogueList("), 1)
         self.assertNotIn("setCatalogueList", self.HTML)
 
