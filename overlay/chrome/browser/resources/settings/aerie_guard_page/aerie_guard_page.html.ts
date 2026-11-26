@@ -11,6 +11,27 @@ export function getHtml(this: SettingsAerieGuardPageElement) {
   return html`<!--_html_template_start_-->
 <settings-section page-title="$i18n{aerieGuardPageTitle}"
     class="cr-centered-card-container">
+  ${this.languageCardVisible_() ? html`
+    <div class="cr-row">
+      <div id="languageCard" class="language-card flex" role="region"
+          aria-labelledby="languageCardTitle">
+        <div id="languageCardTitle" class="cr-title-text">
+          $i18n{aerieGuardLanguageCardTitle}
+        </div>
+        <div class="secondary">$i18n{aerieGuardLanguageCardBody}</div>
+        <div class="language-card-actions">
+          <cr-button id="languageCardReview" class="action-button"
+              @click="${this.onLanguageCardReviewClick_}">
+            $i18n{aerieGuardLanguageCardReview}
+          </cr-button>
+          <cr-button id="languageCardDismiss"
+              @click="${this.onLanguageCardDismissClick_}">
+            $i18n{aerieGuardLanguageCardDismiss}
+          </cr-button>
+        </div>
+      </div>
+    </div>
+  ` : ''}
   <settings-toggle-button id="showCount"
       pref-key="aerie.guard.show_blocked_count"
       label="$i18n{aerieGuardShowCount}"
@@ -125,15 +146,25 @@ export function getHtml(this: SettingsAerieGuardPageElement) {
     </cr-input>
   </div>
   <div id="catalogue" aria-labelledby="catalogueHeading">
-    ${this.visibleCatalogue_().map(group => html`
-      <div class="catalogue-group" data-category="${group.category}"
-          role="group" aria-labelledby="category-${group.category}">
+    ${this.catalogueSections_().map(section => html`
+      <div class="catalogue-group" id="catalogue-${section.category}"
+          data-category="${section.category}"
+          role="group" aria-labelledby="category-${section.category}">
         <div class="cr-row">
-          <h3 id="category-${group.category}" class="cr-title-text">
-            ${this.categoryTitle_(group.category)}
-          </h3>
+          ${this.isSuggestedSection_(section) ? html`
+            <div class="flex cr-padded-text">
+              <h3 id="category-${section.category}" class="cr-title-text">
+                $i18n{aerieGuardSuggestedHeading}
+              </h3>
+              <div class="secondary">$i18n{aerieGuardSuggestedDesc}</div>
+            </div>
+          ` : html`
+            <h3 id="category-${section.category}" class="cr-title-text">
+              ${this.categoryTitle_(section.category)}
+            </h3>
+          `}
         </div>
-        ${group.lists.map(list => html`
+        ${section.lists.map(list => html`
           <div class="cr-row catalogue-row" data-catalogue-id="${list.id}">
             <div class="flex cr-padded-text">
               <div class="list-title">${this.catalogueTitle_(list)}</div>
@@ -154,7 +185,7 @@ export function getHtml(this: SettingsAerieGuardPageElement) {
                       href="${this.catalogueHomepage_(list)}"
                       target="_blank" rel="noopener noreferrer"
                       aria-label="${this.catalogueHomepageLabel_(list)}">
-                    $i18n{aerieGuardCatalogueHomepage}
+                    ${this.catalogueHomepageText_()}
                   </a>
                 ` : ''}
               </div>

@@ -8,6 +8,7 @@
 // tests drive the handler the way the page does, with sendWithPromise from the
 // settings page itself.
 
+#include <algorithm>
 #include <optional>
 #include <string>
 #include <vector>
@@ -16,12 +17,16 @@
 #include "base/test/run_until.h"
 #include "base/values.h"
 #include "base/memory/raw_ptr.h"
+#include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/test/base/chrome_test_utils.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
+#include "components/aerie_adblock/browser/aerie_guard_prefs.h"
 #include "components/aerie_adblock/browser/catalogue.h"
 #include "components/aerie_adblock/browser/filter_list_manager.h"
+#include "components/language/core/browser/pref_names.h"
+#include "components/prefs/pref_service.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
@@ -199,6 +204,112 @@ IN_PROC_BROWSER_TEST_F(AerieGuardSettingsBrowserTest,
         'aerieGuardCatalogueCategoryRegional', 'aerieGuardCatalogueLicence',
         'aerieGuardCatalogueHomepage', 'aerieGuardCatalogueToggleAria',
         'aerieGuardListErrorTooMany']) {
+      if (!loadTimeData.valueExists(key)) {
+        missing.push(key);
+      }
+    }
+    return JSON.stringify(missing);
+  })())";
+  EXPECT_EQ("[]", content::EvalJs(web_contents(), script).ExtractString());
+}
+
+// The regional suggestions (issue #106): the handler names the catalogue lists
+// that fit the browser's languages and whether the one-time card was
+// dismissed. It turns nothing on and starts no download.
+std::vector<std::string> Strings(const base::ListValue* list) {
+  std::vector<std::string> out;
+  if (list) {
+    for (const base::Value& v : *list) {
+      out.push_back(v.GetString());
+    }
+  }
+  return out;
+}
+
+IN_PROC_BROWSER_TEST_F(AerieGuardSettingsBrowserTest,
+                       TheSuggestionsFollowTheLanguagesAndTurnNothingOn) {
+  ChangeCounter counter;
+  manager_->AddObserver(&counter);
+  const size_t lists_before = manager_->state().lists().size();
+
+  chrome_test_utils::GetProfile(this)->GetPrefs()->SetString(
+      language::prefs::kAcceptLanguages, "de,en-US;q=0.8");
+  base::DictValue answer = Call("getState", "[]");
+  ASSERT_EQ(true, answer.FindBool("ok"));
+  const base::DictValue* state = answer.FindDict("state");
+  ASSERT_TRUE(state);
+  std::vector<std::string> suggested = Strings(state->FindList("suggested"));
+  EXPECT_NE(suggested.end(),
+            std::find(suggested.begin(), suggested.end(), "easylistgermany"));
+  for (const std::string& id : suggested) {
+    const aerie_adblock::CatalogueEntry* entry =
+        aerie_adblock::FindCatalogueEntry(id);
+    ASSERT_TRUE(entry) << id;
+    EXPECT_FALSE(entry->langs.empty()) << id;
+  }
+  EXPECT_EQ(false, state->FindBool("languageCardDismissed"));
+
+  // Receiving the suggestions changed nothing: no list is on, the manager did
+  // not start a download and nothing told it to change.
+  for (const base::Value& group : *state->FindList("catalogue")) {
+    for (const base::Value& row : *group.GetDict().FindList("lists")) {
+      EXPECT_EQ(false, row.GetDict().FindBool("on"));
+      EXPECT_EQ("idle", *row.GetDict().FindString("status"));
+    }
+  }
+  EXPECT_EQ(0, counter.count());
+  EXPECT_FALSE(manager_->busy());
+  EXPECT_EQ(lists_before, manager_->state().lists().size());
+  manager_->RemoveObserver(&counter);
+
+  // A profile with English only has no regional suggestion.
+  chrome_test_utils::GetProfile(this)->GetPrefs()->SetString(
+      language::prefs::kAcceptLanguages, "en-US,en");
+  answer = Call("getState", "[]");
+  EXPECT_TRUE(Strings(answer.FindDict("state")->FindList("suggested")).empty());
+}
+
+IN_PROC_BROWSER_TEST_F(AerieGuardSettingsBrowserTest,
+                       ADismissedCardStaysDismissedWhenThePageIsOpenedAgain) {
+  PrefService* prefs = chrome_test_utils::GetProfile(this)->GetPrefs();
+  EXPECT_FALSE(prefs->GetBoolean(aerie_guard::kLanguageCardDismissed));
+  EXPECT_EQ(false, Call("getState", "[]")
+                       .FindDict("state")
+                       ->FindBool("languageCardDismissed"));
+
+  base::DictValue answer = Call("dismissLanguageCard", "[]");
+  ASSERT_EQ(true, answer.FindBool("ok"));
+  EXPECT_EQ(true, answer.FindDict("state")->FindBool("languageCardDismissed"));
+  EXPECT_TRUE(prefs->GetBoolean(aerie_guard::kLanguageCardDismissed));
+
+  // A new page makes a new handler. It reads the profile, not a field.
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("about:blank")));
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL(kSettingsUrl)));
+  ASSERT_TRUE(content::EvalJs(web_contents(),
+                              "typeof chrome.send === 'function'")
+                  .ExtractBool());
+  EXPECT_EQ(true, Call("getState", "[]")
+                      .FindDict("state")
+                      ->FindBool("languageCardDismissed"));
+
+  // Dismissing turned no list on.
+  for (const aerie_adblock::CatalogueEntry& entry :
+       aerie_adblock::Catalogue()) {
+    const aerie_adblock::FilterListEntry* list =
+        manager_->state().Find(entry.id);
+    EXPECT_FALSE(list && list->enabled) << entry.id;
+  }
+}
+
+IN_PROC_BROWSER_TEST_F(AerieGuardSettingsBrowserTest,
+                       EveryWordOfTheSuggestionsIsAGrdString) {
+  const std::string script = R"((async () => {
+    const {loadTimeData} =
+        await import('chrome://resources/js/load_time_data.js');
+    const missing = [];
+    for (const key of ['aerieGuardSuggestedHeading', 'aerieGuardSuggestedDesc',
+        'aerieGuardLanguageCardTitle', 'aerieGuardLanguageCardBody',
+        'aerieGuardLanguageCardDismiss', 'aerieGuardLanguageCardReview']) {
       if (!loadTimeData.valueExists(key)) {
         missing.push(key);
       }

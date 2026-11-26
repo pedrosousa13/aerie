@@ -25,4 +25,13 @@ TEST(AerieGuardPrefsTest, TheUserCanHideTheCountAndShowItAgain) {
   EXPECT_TRUE(prefs.GetBoolean(kShowBlockedCount));
 }
 
+TEST(AerieGuardPrefsTest, TheLanguageCardIsShownUntilTheUserDismissesIt) {
+  TestingPrefServiceSimple prefs;
+  RegisterProfilePrefs(prefs.registry());
+  EXPECT_FALSE(prefs.GetBoolean(kLanguageCardDismissed));
+  EXPECT_TRUE(prefs.FindPreference(kLanguageCardDismissed)->IsDefaultValue());
+  prefs.SetBoolean(kLanguageCardDismissed, true);
+  EXPECT_TRUE(prefs.GetBoolean(kLanguageCardDismissed));
+}
+
 }  // namespace aerie_guard

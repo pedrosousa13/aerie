@@ -43,6 +43,15 @@ import {AerieGuardBrowserProxyImpl} from './aerie_guard_browser_proxy.js';
 import type {AerieGuardBrowserProxy, AerieGuardCatalogueGroup, AerieGuardCatalogueList, AerieGuardCustomIssue, AerieGuardCustomRules, AerieGuardList, AerieGuardState} from './aerie_guard_browser_proxy.js';
 import {getHtml} from './aerie_guard_page.html.js';
 
+// The name of the group of suggested lists. It is the `category` of that
+// section and, in the page, the end of its id.
+const SUGGESTED_SECTION = 'suggested';
+
+interface CatalogueSection {
+  category: string;
+  lists: AerieGuardCatalogueList[];
+}
+
 const SettingsAerieGuardPageElementBase = SettingsViewMixinLit(CrLitElement);
 
 export class SettingsAerieGuardPageElement extends
@@ -78,6 +87,19 @@ export class SettingsAerieGuardPageElement extends
         textarea#customRules:focus-visible {
           outline: 2px solid var(--cr-focus-outline-color, currentColor);
         }
+        .language-card {
+          background: var(--cr-card-background-color, transparent);
+          border: 1px solid var(--cr-separator-color, #ccc);
+          border-radius: 12px;
+          display: flex;
+          flex-direction: column;
+          gap: 0.5rem;
+          padding: 0.75rem 1rem;
+        }
+        .language-card-actions {
+          display: flex;
+          gap: 0.5rem;
+        }
         .catalogue-meta {
           display: flex;
           flex-wrap: wrap;
@@ -109,6 +131,8 @@ export class SettingsAerieGuardPageElement extends
       lists_: {type: Array},
       catalogue_: {type: Array},
       catalogueQuery_: {type: String},
+      suggested_: {type: Object},
+      languageCardDismissed_: {type: Boolean},
       listsBusy_: {type: Boolean},
       listError_: {type: String},
       newSite_: {type: String},
@@ -127,6 +151,11 @@ export class SettingsAerieGuardPageElement extends
   protected accessor lists_: AerieGuardList[] = [];
   protected accessor catalogue_: AerieGuardCatalogueGroup[] = [];
   protected accessor catalogueQuery_: string = '';
+  // The catalogue ids that fit the browser's languages (issue #106).
+  protected accessor suggested_: Set<string> = new Set();
+  // True until the state arrives, so the card never flashes for a user who
+  // dismissed it.
+  protected accessor languageCardDismissed_: boolean = true;
   protected accessor listsBusy_: boolean = false;
   protected accessor listError_: string = '';
   protected accessor newSite_: string = '';
@@ -176,6 +205,8 @@ export class SettingsAerieGuardPageElement extends
     this.exceptions_ = state.exceptions;
     this.lists_ = state.lists;
     this.catalogue_ = state.catalogue;
+    this.suggested_ = new Set(state.suggested);
+    this.languageCardDismissed_ = state.languageCardDismissed;
     this.listsBusy_ = state.busy;
     this.customRules_ = state.customRules;
     // "Saved and in use" must not stay on screen once the entry is turned off
@@ -317,6 +348,10 @@ export class SettingsAerieGuardPageElement extends
     return loadTimeData.getStringF('aerieGuardCatalogueLicence', list.licence);
   }
 
+  protected catalogueHomepageText_(): string {
+    return loadTimeData.getString('aerieGuardCatalogueHomepage');
+  }
+
   protected catalogueHomepageLabel_(list: AerieGuardCatalogueList): string {
     return loadTimeData.getStringF(
         'aerieGuardCatalogueHomepageAria', this.catalogueTitle_(list));
@@ -383,6 +418,59 @@ export class SettingsAerieGuardPageElement extends
       }
     }
     return out;
+  }
+
+  // What the catalogue shows, top down (issue #106): the suggested lists that
+  // match the search in a group of their own, then the categories without
+  // them, so no list is on the page twice. Every row is drawn the same way
+  // and has the one switch of issue #105.
+  protected catalogueSections_(): CatalogueSection[] {
+    const groups = this.visibleCatalogue_();
+    const out: CatalogueSection[] = [];
+    const suggested = groups.flatMap(
+        g => g.lists.filter(l => this.suggested_.has(l.id)));
+    if (suggested.length) {
+      out.push({category: SUGGESTED_SECTION, lists: suggested});
+    }
+    for (const group of groups) {
+      const lists = group.lists.filter(l => !this.suggested_.has(l.id));
+      if (lists.length) {
+        out.push({category: group.category, lists});
+      }
+    }
+    return out;
+  }
+
+  protected isSuggestedSection_(section: CatalogueSection): boolean {
+    return section.category === SUGGESTED_SECTION;
+  }
+
+  // The card shows once, and only while a suggested list is still off: a user
+  // who already turned them all on has nothing left to be asked.
+  protected languageCardVisible_(): boolean {
+    if (this.languageCardDismissed_) {
+      return false;
+    }
+    return this.catalogue_.some(
+        group => group.lists.some(
+            l => !l.on && this.suggested_.has(l.id)));
+  }
+
+  protected onLanguageCardDismissClick_() {
+    this.languageCardDismissed_ = true;
+    this.browserProxy_.dismissLanguageCard().then(
+        state => this.applyState_(state));
+  }
+
+  protected onLanguageCardReviewClick_() {
+    // Clear a search that hides the suggestions, then go to the first one.
+    this.catalogueQuery_ = '';
+    this.updateComplete.then(() => {
+      const group = this.shadowRoot.querySelector<HTMLElement>(
+          `#catalogue-${SUGGESTED_SECTION}`);
+      group?.scrollIntoView({block: 'start'});
+      group?.querySelector<CrToggleElement>('cr-toggle')?.focus();
+    });
   }
 
   protected onCatalogueSearchValueChanged_(e: CustomEvent<{value: string}>) {

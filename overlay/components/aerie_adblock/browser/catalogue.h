@@ -6,7 +6,9 @@
 #define COMPONENTS_AERIE_ADBLOCK_BROWSER_CATALOGUE_H_
 
 #include <cstddef>
+#include <string>
 #include <string_view>
+#include <vector>
 
 #include "base/containers/span.h"
 
@@ -44,6 +46,25 @@ const CatalogueEntry* FindCatalogueEntry(std::string_view id);
 
 // The categories of the page, in the order it shows them.
 base::span<const std::string_view> CatalogueCategories();
+
+// The regional lists to suggest for a language setting (issue #106). Pure: it
+// reads no pref, no global and no network, so the same three inputs always give
+// the same answer.
+//
+// |app_locale| is the browser's locale ("de", "pt-BR"). |accept_languages| is
+// the text of the "intl.accept_languages" pref: a comma separated list of
+// language tags, each with an optional ";q=" weight ("fr,de;q=0.8"). Only the
+// language subtag of each counts ("pt-BR" is "pt") and case does not matter.
+// A part that is not a language tag is skipped.
+//
+// Returns the id of every entry of |table| whose |langs| names one of those
+// languages, once each, in the order of |table|. Empty input gives an empty
+// result. An entry with no |langs| is never suggested. Nothing is turned on and
+// nothing is fetched by asking.
+std::vector<std::string> SuggestCatalogueIds(
+    std::string_view app_locale,
+    std::string_view accept_languages,
+    base::span<const CatalogueEntry> table);
 
 }  // namespace aerie_adblock
 

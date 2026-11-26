@@ -10,12 +10,16 @@
 
 #include "base/functional/bind.h"
 #include "base/strings/string_split.h"
+#include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/profile.h"
+#include "components/aerie_adblock/browser/aerie_guard_prefs.h"
 #include "components/aerie_adblock/browser/blocking_level.h"
 #include "components/aerie_adblock/browser/catalogue.h"
 #include "components/aerie_adblock/browser/custom_rules.h"
 #include "components/aerie_adblock/browser/filter_list_state.h"
 #include "components/aerie_adblock/browser/list_failure.h"
+#include "components/language/core/browser/pref_names.h"
+#include "components/prefs/pref_service.h"
 #include "content/public/browser/web_ui.h"
 #include "url/gurl.h"
 
@@ -209,6 +213,31 @@ base::DictValue AerieGuardSettingsHandler::StateToValue(
   return out;
 }
 
+base::DictValue AerieGuardSettingsHandler::PageState(
+    const FilterListManager& manager,
+    std::string_view add_error,
+    std::string_view exception_error,
+    std::string_view list_error,
+    std::string_view custom_error) const {
+  base::DictValue out = StateToValue(manager, add_error, exception_error,
+                                     list_error, custom_error);
+  // The regional lists that fit the browser's languages (issue #106). A pure
+  // match of the locale and the language pref against the catalogue; it reads
+  // no network, and asking turns nothing on.
+  PrefService* prefs = profile_->GetPrefs();
+  base::ListValue suggested;
+  for (const std::string& id : aerie_adblock::SuggestCatalogueIds(
+           g_browser_process->GetApplicationLocale(),
+           prefs->GetString(language::prefs::kAcceptLanguages),
+           aerie_adblock::Catalogue())) {
+    suggested.Append(id);
+  }
+  out.Set("suggested", std::move(suggested));
+  out.Set("languageCardDismissed",
+          prefs->GetBoolean(aerie_guard::kLanguageCardDismissed));
+  return out;
+}
+
 void AerieGuardSettingsHandler::RegisterMessages() {
   web_ui()->RegisterMessageCallback(
       "aerieGuard.getState",
@@ -225,6 +254,10 @@ void AerieGuardSettingsHandler::RegisterMessages() {
   web_ui()->RegisterMessageCallback(
       "aerieGuard.setListEnabled",
       base::BindRepeating(&AerieGuardSettingsHandler::HandleSetListEnabled,
+                          base::Unretained(this)));
+  web_ui()->RegisterMessageCallback(
+      "aerieGuard.dismissLanguageCard",
+      base::BindRepeating(&AerieGuardSettingsHandler::HandleDismissLanguageCard,
                           base::Unretained(this)));
   web_ui()->RegisterMessageCallback(
       "aerieGuard.setCatalogueList",
@@ -264,8 +297,8 @@ void AerieGuardSettingsHandler::OnFilterListsChanged() {
   FilterListManager* manager = FilterListManager::Get();
   if (manager && IsJavascriptAllowed()) {
     FireWebUIListener(kStateChangedEvent,
-                      StateToValue(*manager, std::string_view(),
-                                   std::string_view()));
+                      PageState(*manager, std::string_view(),
+                                std::string_view()));
   }
 }
 
@@ -293,9 +326,9 @@ void AerieGuardSettingsHandler::Resolve(const base::ListValue& args,
   if (!manager || !id) {
     return;
   }
-  ResolveJavascriptCallback(base::Value(*id),
-                            StateToValue(*manager, add_error, exception_error,
-                                         list_error, custom_error));
+  ResolveJavascriptCallback(
+      base::Value(*id), PageState(*manager, add_error, exception_error,
+                                  list_error, custom_error));
 }
 
 void AerieGuardSettingsHandler::Reject(const base::ListValue& args,
@@ -411,6 +444,22 @@ void AerieGuardSettingsHandler::HandleSetCatalogueList(
     case FilterListManager::CatalogueResult::kTooLarge:
       Resolve(args, std::string_view(), std::string_view(), "too_large");
       break;
+  }
+}
+
+void AerieGuardSettingsHandler::HandleDismissLanguageCard(
+    const base::ListValue& args) {
+  if (!CallbackId(args)) {
+    return;
+  }
+  if (args.size() != 1) {
+    Reject(args, "bad_argument");
+    return;
+  }
+  if (Begin(args)) {
+    // The profile remembers it: a new page or a new window does not ask again.
+    profile_->GetPrefs()->SetBoolean(aerie_guard::kLanguageCardDismissed, true);
+    Resolve(args, std::string_view(), std::string_view());
   }
 }
 
@@ -540,9 +589,9 @@ void AerieGuardSettingsHandler::OnCustomRulesSaved(
   }
   ResolveJavascriptCallback(
       base::Value(callback_id),
-      StateToValue(*manager, std::string_view(), std::string_view(),
-                   std::string_view(),
-                   aerie_adblock::CustomRulesFailureCode(failure)));
+      PageState(*manager, std::string_view(), std::string_view(),
+                std::string_view(),
+                aerie_adblock::CustomRulesFailureCode(failure)));
 }
 
 }  // namespace aerie_guard

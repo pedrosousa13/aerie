@@ -22,6 +22,9 @@ source_set("handler") {
     "//chrome/browser/profiles:profile",
     "//components/aerie_adblock/browser:catalogue",
     "//components/aerie_adblock/browser:classified_request",  # blocking_level.h
+    "//components/aerie_adblock/browser:guard_prefs",
+    "//components/language/core/browser",
+    "//components/prefs",
     "//url",
   ]
 }
@@ -41,7 +44,10 @@ source_set("browser_tests") {
     "//chrome/test:test_support_ui",
     "//chrome/test/base:chrome_test_utils",
     "//components/aerie_adblock/browser:catalogue",
+    "//components/aerie_adblock/browser:guard_prefs",
     "//components/aerie_adblock/browser:lists",
+    "//components/language/core/browser",
+    "//components/prefs",
     "//content/public/browser",
     "//content/test:test_support",
     "//url",

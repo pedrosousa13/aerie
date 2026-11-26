@@ -277,6 +277,24 @@
   <message name="IDS_SETTINGS_AERIE_GUARD_LIST_ERROR_TOO_MANY" desc="Error shown when the user turns on a filter list but too many lists are already in use.">
     Too many lists are in use. Turn one off first.
   </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_SUGGESTED_HEADING" desc="Heading of the group at the top of the filter list catalogue. It holds the regional lists that fit the languages of the browser.">
+    Suggested for your languages
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_SUGGESTED_DESC" desc="Line under the heading of the suggested filter lists. It says the lists are only suggestions and are off until the user turns them on.">
+    These lists match the languages of your browser. They stay off until you turn them on.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_LANGUAGE_CARD_TITLE" desc="Title of the one-time card in the Aerie Guard section of Settings. It suggests regional filter lists that fit the languages of the browser.">
+    Filter lists for your languages
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_LANGUAGE_CARD_BODY" desc="Text of the one-time card that suggests regional filter lists. It says that nothing is turned on or downloaded until the user chooses a list.">
+    Aerie has filter lists made for the languages of your browser. Nothing is turned on or downloaded until you choose a list.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_LANGUAGE_CARD_DISMISS" desc="Label of the button that closes the one-time card that suggests regional filter lists. The card does not come back.">
+    Dismiss
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_LANGUAGE_CARD_REVIEW" desc="Label of the button on the one-time card that moves the user to the suggested filter lists in the catalogue.">
+    Review lists
+  </message>
   <message name="IDS_SETTINGS_AERIE_GUARD_CAT_FANBOYANNOYANCES_TITLE" desc="Name of the filter list Fanboy Annoyances in the catalogue of the Aerie Guard section of Settings. It is the publisher's name for the list.">
     Fanboy Annoyances
   </message>

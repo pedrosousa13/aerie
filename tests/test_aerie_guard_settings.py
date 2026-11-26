@@ -77,7 +77,7 @@ class HandlerTest(unittest.TestCase):
         names = re.findall(r'"(aerieGuard\.\w+)"', text)
         self.assertEqual(sorted(names), sorted([
             "aerieGuard.getState", "aerieGuard.addList", "aerieGuard.removeList", "aerieGuard.setListEnabled",
-            "aerieGuard.updateList", "aerieGuard.setCatalogueList",
+            "aerieGuard.updateList", "aerieGuard.setCatalogueList", "aerieGuard.dismissLanguageCard",
             "aerieGuard.updateAll", "aerieGuard.setException", "aerieGuard.setAutoUpdate",
             "aerieGuard.setDefaultLevel", "aerieGuard.setCustomRules"]))
         self.assertGreaterEqual(text.count("ResolveJavascriptCallback"), 1)
@@ -521,7 +521,7 @@ class CatalogueRowsTest(unittest.TestCase):
     def test_the_page_looks_a_list_up_by_its_id_and_the_search_covers_what_it_shows(self):
         self.assertIn("'aerieGuardCatTitle_'", self.TS)
         self.assertIn("'aerieGuardCatDesc_'", self.TS)
-        self.assertIn("visibleCatalogue_", self.HTML)
+        self.assertIn("visibleCatalogue_", self.TS)
         for word in ("catalogueTitle_(list)", "catalogueDesc_(list)", "list.licence", "list.langs"):
             self.assertIn(word, self.TS)
 
@@ -535,7 +535,7 @@ class CatalogueRowsTest(unittest.TestCase):
 
     def test_a_row_shows_title_description_licence_homepage_and_a_switch(self):
         for needle in ("catalogueTitle_(list)", "catalogueDesc_(list)", "catalogueLicenceText_(list)",
-                       "catalogue-homepage", "catalogue-toggle", "category-${group.category}"):
+                       "catalogue-homepage", "catalogue-toggle", "category-${section.category}"):
             self.assertIn(needle, self.HTML)
 
     def test_the_handler_takes_a_catalogue_id_and_never_builds_an_address(self):
@@ -580,3 +580,73 @@ class CatalogueRowsTest(unittest.TestCase):
         self.assertIn('script = "//components/aerie_adblock/generate_catalogue.py"', gn)
         self.assertIn("catalogue_unittest.cc", gn)
         self.assertNotIn("kCatalogueTable[] = {", (BROWSER / "catalogue.cc").read_text(encoding="utf-8"))
+
+
+class SuggestionsTest(unittest.TestCase):
+    """Issue #106: the regional suggestions and the one-time card. A suggestion is only a suggestion."""
+    TS = (PAGE_DIR / "aerie_guard_page.ts").read_text(encoding="utf-8")
+    HTML = (PAGE_DIR / "aerie_guard_page.html.ts").read_text(encoding="utf-8")
+    PROXY = (PAGE_DIR / "aerie_guard_browser_proxy.ts").read_text(encoding="utf-8")
+    KEYS = ("aerieGuardSuggestedHeading", "aerieGuardSuggestedDesc", "aerieGuardLanguageCardTitle",
+            "aerieGuardLanguageCardBody", "aerieGuardLanguageCardDismiss", "aerieGuardLanguageCardReview")
+
+    def test_every_string_is_in_the_grd_and_given_to_the_page(self):
+        names = {m.get("name") for m in ET.parse(STRINGS).getroot().iter("message")}
+        given = re.sub(r"\s+", " ", added(CATALOGUE_STRINGS))
+        for key in self.KEYS:
+            with self.subTest(key=key):
+                ids = "IDS_SETTINGS_AERIE_GUARD_" + re.sub(r"(?<!^)(?=[A-Z])", "_", key[len("aerieGuard"):]).upper()
+                self.assertIn(ids, names)
+                self.assertIn(f'{{"{key}", {ids}}}', given)
+                self.assertIn(key, self.HTML)
+
+    def test_the_suggested_group_is_at_the_top_of_the_catalogue_and_the_card_is_in_the_section(self):
+        body = self.TS[self.TS.index("catalogueSections_(): CatalogueSection[]"):]
+        body = body[:body.index("// The card shows once")]
+        # The group is pushed before the categories.
+        self.assertLess(body.index("category: SUGGESTED_SECTION"), body.index("category: group.category"))
+        # The search filters first, so a suggested list is still found, in the suggested group.
+        self.assertIn("this.visibleCatalogue_()", body)
+        self.assertEqual(self.TS.count("'suggested'"), 1)
+        self.assertIn("catalogueSections_().map(", self.HTML)
+        self.assertNotIn("'suggested'", self.HTML)
+        section = self.HTML[self.HTML.index("<settings-section"):]
+        self.assertLess(section.index('id="languageCard"'), section.index('id="showCount"'))
+
+    def test_accepting_a_suggestion_is_the_catalogue_switch_and_sends_an_id_only(self):
+        # Every section draws the same row, so the one enable path is the one of issue #105.
+        self.assertEqual(self.HTML.count("onCatalogueToggleChange_"), 1)
+        self.assertEqual(self.HTML.count("section.lists.map("), 1)
+        self.assertEqual(self.TS.count("setCatalogueList("), 1)
+        self.assertNotIn("setCatalogueList", self.HTML)
+
+    def test_a_list_is_on_the_page_once(self):
+        self.assertIn("!this.suggested_.has(l.id)", self.TS)
+        self.assertNotIn("suggested_.includes", self.TS)
+
+    def test_dismissing_is_a_profile_pref_and_the_page_asks_the_handler(self):
+        self.assertIn("sendWithPromise('aerieGuard.dismissLanguageCard')", self.PROXY)
+        self.assertIn("this.browserProxy_.dismissLanguageCard()", self.TS)
+        text = code(HANDLER_CC)
+        body = text[text.index("void AerieGuardSettingsHandler::HandleDismissLanguageCard("):]
+        body = body[:body.index("void AerieGuardSettingsHandler::HandleUpdateList(")]
+        self.assertIn("SetBoolean(aerie_guard::kLanguageCardDismissed, true)", body)
+        for forbidden in ("SetCatalogueListEnabled", "AddList", "UpdateAll", "UpdateList"):
+            self.assertNotIn(forbidden, body)
+        pref = code(BROWSER / "aerie_guard_prefs.h")
+        self.assertIn('kLanguageCardDismissed[] =\n    "aerie.guard.language_card_dismissed";', pref.replace("\n\n", "\n"))
+        self.assertRegex(code(BROWSER / "aerie_guard_prefs.cc"), r"RegisterBooleanPref\(kLanguageCardDismissed,\s*false\)")
+
+    def test_the_handler_only_reports_the_match_and_never_acts_on_it(self):
+        text = code(HANDLER_CC)
+        body = text[text.index("AerieGuardSettingsHandler::PageState("):]
+        body = body[:body.index("void AerieGuardSettingsHandler::RegisterMessages(")]
+        self.assertIn("SuggestCatalogueIds(", body)
+        for forbidden in ("SetCatalogueListEnabled", "AddList", "UpdateAll", "UpdateList", "SetBoolean", "SetString"):
+            self.assertNotIn(forbidden, body)
+
+    def test_the_match_is_pure_and_reads_no_global(self):
+        text = code(BROWSER / "catalogue.cc")
+        body = text[text.index("SuggestCatalogueIds("):]
+        for forbidden in ("g_browser_process", "PrefService", "FilterListManager", "GURL", "Profile"):
+            self.assertNotIn(forbidden, body)

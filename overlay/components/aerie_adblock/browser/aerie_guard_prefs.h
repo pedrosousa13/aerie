@@ -16,6 +16,14 @@ namespace aerie_guard {
 // settings_private allowlist (patches/adblock/0022), and a test compares them.
 inline constexpr char kShowBlockedCount[] = "aerie.guard.show_blocked_count";
 
+// Whether the user dismissed the one-time card that suggests regional filter
+// lists for the browser's languages (issue #106). A profile pref, off by
+// default; once on, the card never comes back. The page writes it through the
+// Settings handler (aerieGuard.dismissLanguageCard), not through
+// settingsPrivate. Dismissing it turns no list on and fetches nothing.
+inline constexpr char kLanguageCardDismissed[] =
+    "aerie.guard.language_card_dismissed";
+
 // Called from chrome::RegisterProfilePrefs (patches/adblock/0022).
 void RegisterProfilePrefs(PrefRegistrySimple* registry);
 

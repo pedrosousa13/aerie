@@ -86,6 +86,9 @@ Aerie's blocking and protection feature: the ad and tracker Filter Engine, plus 
 **Catalogue** (filter list catalogue)
 The fixed set of filter lists, with publisher addresses shipped in the build, that the user can turn on in Settings > Aerie Guard (#105, [ADR 0003](docs/adr/0003-user-managed-filter-lists.md)). `components/aerie_adblock/catalogue.json` is its source. A list is named by its catalogue id; the page never sends an address, and an unknown id is refused. Nothing is bundled and nothing is downloaded until the user turns a list on. Only lists with an allow-listed licence are in it. Not the same as a custom list, which is an address the user typed.
 
+**Regional suggestion**
+A catalogue list whose languages fit the browser's locale or `intl.accept_languages`, offered to the user in Settings > Aerie Guard (#106). Only a suggestion: it is never turned on by itself, because that would fetch from a publisher on a fresh profile. The match is a local, pure function; there is no network lookup.
+
 ## Privacy
 
 **Crash report**
