@@ -30,15 +30,13 @@ namespace aerie_adblock {
 //   - https only (loopback http only with the Bench's switch), and a redirect
 //     that leaves https stops the download;
 //   - no cookies, no credentials, no referrer, no cache;
-//   - at most kMaxListDownloadBytes of body and kListDownloadTimeout of time;
+//   - at most kMaxListBytes of body and kListDownloadTimeout of time;
 //   - a status other than 200 is a failure.
 // It does not look at the content; the engine's check_list does that.
 //
 // UI thread. Destroying the fetcher cancels every download in flight.
 class FilterListFetcher {
  public:
-  // The body size cap: the most SimpleURLLoader::DownloadToString accepts.
-  static constexpr size_t kMaxListDownloadBytes = 5 * 1024 * 1024;
   static constexpr base::TimeDelta kListDownloadTimeout = base::Seconds(60);
 
   struct Result {

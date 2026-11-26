@@ -6,8 +6,10 @@ Issue #105. The messages are in the overlay's aerie_guard_settings_strings.grdp,
 adblock/0022 already includes. This patch hands each one to the Settings page in a function
 of its own, so it does not share context lines with the tables of adblock/0022 and adblock/0027.
 The name and description of a list are looked up by its catalogue id on the page
-(aerieGuardCatTitle_<id>, aerieGuardCatDesc_<id>). A test compares the names with the grdp and
-with components/aerie_adblock/catalogue.json.
+(aerieGuardCatTitle_<id>, aerieGuardCatDesc_<id>). tests/test_aerie_guard_settings.py checks both ways:
+every id of components/aerie_adblock/catalogue.json has its title and description in the grdp
+(with the same words) and in the table below, and the grdp and the table hold no list string for an
+id the catalogue does not have.
 
 --- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
 +++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc

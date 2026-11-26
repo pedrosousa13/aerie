@@ -186,8 +186,10 @@ FilterListManager::CatalogueResult FilterListManager::SetCatalogueListEnabled(
     return CatalogueResult::kOk;
   }
   if (entry) {  // Already listed: on, or switched off by SetListEnabled().
-    if (!entry->enabled) {
-      SetListEnabled(id, true);
+    if (!entry->enabled &&
+        SetListEnabled(id, true) ==
+            FilterListState::EnableResult::kTooLarge) {
+      return CatalogueResult::kTooLarge;
     }
     return CatalogueResult::kOk;
   }
@@ -206,6 +208,15 @@ FilterListState::EnableResult FilterListManager::SetListEnabled(
     bool enabled) {
   const FilterListEntry* entry = state_.Find(id);
   const bool changed = entry && entry->enabled != enabled;
+  if (changed && enabled &&
+      !state_.FitsByteBudget(id, entry->bytes,
+                             ReservedBytesExcept(std::string(id)))) {
+    // Turning it on would take the lists over the size cap, whatever was
+    // saved when it was off. It stays off.
+    SetError(std::string(id), ListFailure::kTooLarge);
+    Notify();
+    return FilterListState::EnableResult::kTooLarge;
+  }
   FilterListState::EnableResult result = state_.SetEnabled(id, enabled);
   if (result != FilterListState::EnableResult::kOk || !changed) {
     return result;
@@ -628,13 +639,25 @@ void FilterListManager::OnChecked(std::string id, std::string text, ListCheck ch
                     "dropped";
   }
   // The copy in use stays when the new one would take the lists over the
-  // total size cap (issue #105).
+  // total size cap (issue #105). A list that has a good copy (a refetch on
+  // the schedule, say) keeps it and shows no error: nothing is wrong with
+  // what the user has, and the list will not shrink by being asked again. A
+  // list with no copy shows the error, because it is not in use.
   const size_t bytes = text.size();
-  if (!state_.FitsByteBudget(id, bytes)) {
-    SetError(id, ListFailure::kTooLarge);
+  if (!state_.FitsByteBudget(id, bytes, ReservedBytesExcept(id))) {
+    const FilterListEntry* entry = state_.Find(id);
+    if (entry->builtin || !entry->updated.is_null()) {
+      LOG(WARNING) << "aerie_adblock: the new copy of filter list " << id
+                   << " would take the lists over the size cap; the copy in "
+                      "use stays";
+      updated_ok_.erase(id);
+    } else {
+      SetError(id, ListFailure::kTooLarge);
+    }
     FinishFetch(id);
     return;
   }
+  reserved_bytes_[id] = bytes;
   file_runner_->PostTaskAndReplyWithResult(
       FROM_HERE,
       base::BindOnce(
@@ -646,10 +669,21 @@ void FilterListManager::OnChecked(std::string id, std::string text, ListCheck ch
                      id, std::move(check), bytes));
 }
 
+size_t FilterListManager::ReservedBytesExcept(const std::string& id) const {
+  size_t total = 0;
+  for (const auto& [other, bytes] : reserved_bytes_) {
+    if (other != id) {
+      total += bytes;
+    }
+  }
+  return total;
+}
+
 void FilterListManager::OnWritten(std::string id,
                                   ListCheck check,
                                   size_t bytes,
                                   bool written) {
+  reserved_bytes_.erase(id);
   FilterListEntry* entry = state_.Find(id);
   if (!entry) {
     FinishFetch(id);
@@ -688,6 +722,7 @@ void FilterListManager::Rebuild(bool retry) {
     }
     FilterEngineService::ListInput input;
     input.own = entry.id == kCustomRulesId;
+    input.essential = entry.builtin || input.own;
     // A catalogue list is curated like a built-in one: it does not judge
     // first-party requests on its own in Standard.
     input.custom = !entry.builtin && !entry.catalogue && !input.own;
@@ -874,6 +909,49 @@ void FilterListManager::OnCustomLoaded(CustomAnalysis loaded) {
   End();
 }
 
+void FilterListManager::ApplyBuiltSizes(const std::vector<std::string>& ids,
+                                        const BuildResult& result) {
+  // The engine read every list it was given, so these sizes are the real ones
+  // and replace whatever the state file said (issue #105).
+  bool changed = false;
+  std::set<std::string> left_out;
+  for (size_t index : result.skipped) {
+    if (index < ids.size()) {
+      left_out.insert(ids[index]);
+    }
+  }
+  const std::string too_large = ListFailureMessage(ListFailure::kTooLarge);
+  for (size_t i = 0; i < ids.size() && i < result.sizes.size(); ++i) {
+    FilterListEntry* entry = state_.Find(ids[i]);
+    if (!entry) {
+      continue;
+    }
+    if (!entry->updated.is_null() &&
+        entry->bytes != static_cast<int>(result.sizes[i])) {
+      entry->bytes = static_cast<int>(result.sizes[i]);
+      changed = true;
+    }
+    if (left_out.count(ids[i])) {
+      LOG(WARNING) << "aerie_adblock: filter list " << ids[i]
+                   << " is left out: it would take the lists over the size "
+                      "cap";
+      if (entry->error != too_large) {
+        entry->error = too_large;
+        changed = true;
+      }
+      updated_ok_.erase(ids[i]);
+    } else if (over_budget_.count(ids[i]) && entry->error == too_large) {
+      entry->error.clear();  // It fits now.
+      changed = true;
+    }
+  }
+  over_budget_ = std::move(left_out);
+  if (changed) {
+    Save();
+    Notify();
+  }
+}
+
 void FilterListManager::OnRebuilt(std::vector<std::string> ids,
                                   bool retry,
                                   BuildResult result) {
@@ -888,6 +966,7 @@ void FilterListManager::OnRebuilt(std::vector<std::string> ids,
                    << " regex rule(s) that are too big or too many were "
                       "dropped when the lists were built";
     }
+    ApplyBuiltSizes(ids, result);
     End();
     return;
   }

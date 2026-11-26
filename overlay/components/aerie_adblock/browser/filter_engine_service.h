@@ -124,6 +124,9 @@ class FilterEngineService {
     bool custom = false;
     // The user's own rules (issue #107): may hold hide rules only.
     bool own = false;
+    // Never left out for the size cap: the built-in lists and the user's own
+    // rules. They are counted, so the others make room for them.
+    bool essential = false;
   };
   using ReplaceCallback = base::OnceCallback<void(BuildResult)>;
 
@@ -131,7 +134,9 @@ class FilterEngineService {
   // work runs on the engine's sequence, after the load and every earlier
   // query. If any list is bad (unreadable, not a list, too slow) nothing
   // changes and |callback| gets the failure and the list's index; the old
-  // rules, which keep blocking, stay. Later queries wait for the build.
+  // rules, which keep blocking, stay. A list that is not essential and would
+  // take the lists over the size cap, by the size of its text, is left out
+  // (BuildResult::skipped). Later queries wait for the build.
   void ReplaceLists(std::vector<ListInput> lists, ReplaceCallback callback);
 
   // Sites where blocking is off, as set by the user (issue #10). A request

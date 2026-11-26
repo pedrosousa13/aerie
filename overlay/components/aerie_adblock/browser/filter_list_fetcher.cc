@@ -185,7 +185,7 @@ void FilterListFetcher::Fetch(const GURL& url,
                          std::move(body));
           },
           weak_factory_.GetWeakPtr(), id, loader),
-      kMaxListDownloadBytes);
+      kMaxListBytes);
 }
 
 void FilterListFetcher::OnRedirect(int id, const GURL& new_url) {

@@ -505,6 +505,19 @@ class CatalogueRowsTest(unittest.TestCase):
                     # The words of the catalogue file and of the grd are one text.
                     self.assertEqual(messages[ids], entry[field])
 
+    def test_the_grd_has_no_list_string_the_catalogue_does_not_name(self):
+        # The other direction: a list taken out of catalogue.json takes its strings with it, in the grdp and in
+        # the table handed to the page.
+        ids = {e["id"].upper() for e in self.CATALOGUE}
+        found = {m.group(1) for name in self.messages()
+                 for m in [re.fullmatch(r"IDS_SETTINGS_AERIE_GUARD_CAT_([A-Z0-9]+)_(?:TITLE|DESC)", name)] if m}
+        self.assertEqual(found, ids)
+        handed = set(re.findall(r'\{"aerieGuardCat(?:Title|Desc)_([a-z0-9]+)"', added(CATALOGUE_STRINGS)))
+        self.assertEqual(handed, {e["id"] for e in self.CATALOGUE})
+        for name in self.messages():
+            if re.fullmatch(r"IDS_SETTINGS_AERIE_GUARD_CAT_[A-Z0-9]+_(?:TITLE|DESC)", name):
+                self.assertEqual(len(re.findall(f'"{name}"|{name}[,}}]', added(CATALOGUE_STRINGS))), 1, name)
+
     def test_the_page_looks_a_list_up_by_its_id_and_the_search_covers_what_it_shows(self):
         self.assertIn("'aerieGuardCatTitle_'", self.TS)
         self.assertIn("'aerieGuardCatDesc_'", self.TS)

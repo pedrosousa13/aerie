@@ -1193,6 +1193,15 @@ TEST_F(FilterListManagerTest, TurningAListOnTwiceFetchesOnce) {
   EXPECT_EQ(1u, network_.total_requests());
 }
 
+// What counts towards kMaxListsInUse: every list but the user's own rules.
+size_t InUse(const FilterListState& state) {
+  size_t n = 0;
+  for (const FilterListEntry& entry : state.lists()) {
+    n += entry.id != kCustomRulesId;
+  }
+  return n;
+}
+
 // A manager over a state file the test wrote first.
 class CatalogueCapTest : public FilterListManagerTest {
  protected:
@@ -1210,15 +1219,15 @@ TEST_F(CatalogueCapTest, TheNumberOfListsInUseIsCappedAndNothingIsFetchedPastIt)
                                   false, &id));
   }
   for (const CatalogueEntry& entry : Catalogue()) {
-    if (state.ListsInUse() < kMaxListsInUse) {
+    if (InUse(state) < kMaxListsInUse) {
       ASSERT_EQ(FilterListState::CatalogueAddResult::kAdded,
                 state.AddCatalogueList(entry.id));
     }
   }
-  ASSERT_EQ(kMaxListsInUse, state.ListsInUse());
+  ASSERT_EQ(kMaxListsInUse, InUse(state));
   Seed(state);
   auto manager = MakeManager();
-  ASSERT_EQ(kMaxListsInUse, manager->state().ListsInUse());
+  ASSERT_EQ(kMaxListsInUse, InUse(manager->state()));
   const size_t before = network_.total_requests();
 
   std::string_view left_out;
@@ -1281,6 +1290,191 @@ TEST_F(CatalogueCapTest, ADownloadThatTakesTheTotalSizeOverTheCapIsRefused) {
   WaitUntilIdle(*manager);
   EXPECT_TRUE(Blocks("cat-big.example"));
   EXPECT_EQ("", manager->state().Find("uboprivacy")->error);
+}
+
+// A list of about |bytes| that blocks |host|.
+std::string SizedList(const std::string& host, size_t bytes) {
+  std::string text = "||" + host + "^\n";
+  const std::string comment = "! padding padding padding padding padding\n";
+  while (text.size() + comment.size() <= bytes) {
+    text += comment;
+  }
+  return text;
+}
+
+constexpr size_t kBigList = kMaxListBytes - 1024;  // Fits the one-list cap.
+
+// The ids of the first |n| lists of the catalogue, in table order.
+std::vector<std::string> FirstCatalogueIds(size_t n) {
+  std::vector<std::string> ids;
+  for (const CatalogueEntry& entry : Catalogue()) {
+    if (ids.size() < n) {
+      ids.emplace_back(entry.id);
+    }
+  }
+  return ids;
+}
+
+std::string UrlOf(const std::string& id) {
+  return std::string(FindCatalogueEntry(id)->url);
+}
+
+TEST_F(CatalogueCapTest, AListTurnedBackOnCannotTakeTheTotalOverTheCap) {
+  // Six lists at the size limit fill 30 of the 32 MiB; a seventh is off.
+  const std::vector<std::string> ids = FirstCatalogueIds(7);
+  FilterListState state;
+  for (const std::string& id : ids) {
+    ASSERT_EQ(FilterListState::CatalogueAddResult::kAdded,
+              state.AddCatalogueList(id));
+    state.Find(id)->bytes = static_cast<int>(kMaxListBytes);
+  }
+  state.Find(ids[6])->enabled = false;
+  Seed(state);
+  auto manager = MakeManager();
+  const size_t before = network_.total_requests();
+
+  // Through the catalogue's door and through the plain switch.
+  EXPECT_EQ(FilterListManager::CatalogueResult::kTooLarge,
+            manager->SetCatalogueListEnabled(ids[6], true));
+  EXPECT_EQ(FilterListState::EnableResult::kTooLarge,
+            manager->SetListEnabled(ids[6], true));
+  WaitUntilIdle(*manager);
+  const FilterListEntry* entry = manager->state().Find(ids[6]);
+  ASSERT_TRUE(entry);
+  EXPECT_FALSE(entry->enabled);
+  EXPECT_EQ(ListFailureMessage(ListFailure::kTooLarge), entry->error);
+  EXPECT_EQ(before, network_.total_requests());
+
+  // Room made by turning another list off lets it back on.
+  ASSERT_EQ(FilterListState::EnableResult::kOk,
+            manager->SetListEnabled(ids[0], false));
+  EXPECT_EQ(FilterListState::EnableResult::kOk,
+            manager->SetListEnabled(ids[6], true));
+  WaitUntilIdle(*manager);
+  EXPECT_TRUE(manager->state().Find(ids[6])->enabled);
+}
+
+TEST_F(CatalogueCapTest, ListsTurnedOnTogetherCannotTakeTheTotalOverTheCap) {
+  // Seven lists never downloaded, so none has a size on record (0 bytes).
+  // Each one alone fits; together they do not.
+  const std::vector<std::string> ids = FirstCatalogueIds(7);
+  for (size_t i = 0; i < ids.size(); ++i) {
+    network_.AddResponse(UrlOf(ids[i]),
+                         SizedList("cat-" + std::to_string(i) + ".example",
+                                   kBigList));
+  }
+  auto manager = MakeManager();
+  for (const std::string& id : ids) {
+    ASSERT_EQ(FilterListManager::CatalogueResult::kOk,
+              manager->SetCatalogueListEnabled(id, true));
+  }
+  WaitUntilIdle(*manager);
+
+  size_t total = 0;
+  size_t refused = 0;
+  for (const std::string& id : ids) {
+    const FilterListEntry* entry = manager->state().Find(id);
+    ASSERT_TRUE(entry);
+    total += static_cast<size_t>(entry->bytes);
+    if (entry->updated.is_null()) {
+      ++refused;
+      EXPECT_EQ(ListFailureMessage(ListFailure::kTooLarge), entry->error);
+    }
+  }
+  EXPECT_LE(total, kMaxTotalListBytes);
+  EXPECT_EQ(1u, refused);
+}
+
+// The lists of the next two tests are on disk and in the state file as an
+// earlier run left them.
+class OnDiskCapTest : public CatalogueCapTest {
+ protected:
+  // Seven lists of about 5 MiB each, in this order, with the sizes the state
+  // file claims. They are 35 MiB together: the cap holds the first six.
+  std::vector<std::string> SeedSevenBigLists(int claimed_bytes) {
+    const std::vector<std::string> ids = FirstCatalogueIds(7);
+    FilterListState state;
+    for (size_t i = 0; i < ids.size(); ++i) {
+      EXPECT_EQ(FilterListState::CatalogueAddResult::kAdded,
+                state.AddCatalogueList(ids[i]));
+      FilterListEntry* entry = state.Find(ids[i]);
+      entry->updated = base::Time::FromSecondsSinceUnixEpoch(1700000000);
+      entry->bytes = claimed_bytes;
+      EXPECT_TRUE(filter_list_storage::WriteList(
+          dir_.GetPath(), ids[i],
+          SizedList("cat-" + std::to_string(i) + ".example", kBigList)));
+    }
+    Seed(state);
+    return ids;
+  }
+};
+
+TEST_F(OnDiskCapTest, TheEngineLeavesOutTheListThatTakesTheTotalOverTheCap) {
+  // Saved before the size was recorded: every size reads 0.
+  const std::vector<std::string> ids = SeedSevenBigLists(0);
+  auto manager = MakeManager();
+  EXPECT_TRUE(Blocks("cat-0.example"));
+  EXPECT_TRUE(Blocks("cat-5.example"));
+  EXPECT_FALSE(Blocks("cat-6.example"));
+  const FilterListEntry* last = manager->state().Find(ids[6]);
+  ASSERT_TRUE(last);
+  EXPECT_EQ(ListFailureMessage(ListFailure::kTooLarge), last->error);
+  EXPECT_EQ("", manager->state().Find(ids[0])->error);
+  // The sizes now on record are the real ones.
+  EXPECT_GT(manager->state().Find(ids[0])->bytes, 0);
+}
+
+TEST_F(OnDiskCapTest, ASizeForgedInTheStateFileDoesNotHideAList) {
+  // The file claims 1 byte for each of seven 5 MiB lists.
+  const std::vector<std::string> ids = SeedSevenBigLists(1);
+  auto manager = MakeManager();
+  EXPECT_TRUE(Blocks("cat-0.example"));
+  EXPECT_FALSE(Blocks("cat-6.example"));
+  EXPECT_EQ(ListFailureMessage(ListFailure::kTooLarge),
+            manager->state().Find(ids[6])->error);
+  EXPECT_EQ(static_cast<int>(SizedList("cat-0.example", kBigList).size()),
+            manager->state().Find(ids[0])->bytes);
+
+  // Room made: the list is built in on the next rebuild and its error goes.
+  ASSERT_EQ(FilterListState::EnableResult::kOk,
+            manager->SetListEnabled(ids[0], false));
+  WaitUntilIdle(*manager);
+  EXPECT_TRUE(Blocks("cat-6.example"));
+  EXPECT_EQ("", manager->state().Find(ids[6])->error);
+}
+
+TEST_F(CatalogueCapTest, ARefetchOverTheCapKeepsTheGoodCopyAndShowsNoError) {
+  // Six lists fill 30 MiB; the seventh holds a 1 MiB copy.
+  const std::vector<std::string> ids = FirstCatalogueIds(7);
+  FilterListState state;
+  for (const std::string& id : ids) {
+    ASSERT_EQ(FilterListState::CatalogueAddResult::kAdded,
+              state.AddCatalogueList(id));
+  }
+  for (size_t i = 0; i < 6; ++i) {
+    state.Find(ids[i])->bytes = static_cast<int>(kMaxListBytes);
+  }
+  Seed(state);
+  network_.AddResponse(UrlOf(ids[6]),
+                       SizedList("cat-old.example", 1024 * 1024));
+  auto manager = MakeManager();
+  manager->UpdateList(ids[6]);
+  WaitUntilIdle(*manager);
+  ASSERT_TRUE(Blocks("cat-old.example"));
+  const base::Time copy_time = manager->state().Find(ids[6])->updated;
+  ASSERT_FALSE(copy_time.is_null());
+
+  // The publisher's list has grown past what fits.
+  network_.ClearResponses();
+  network_.AddResponse(UrlOf(ids[6]),
+                       SizedList("cat-new.example", 3 * 1024 * 1024));
+  manager->UpdateList(ids[6]);
+  WaitUntilIdle(*manager);
+  const FilterListEntry* entry = manager->state().Find(ids[6]);
+  EXPECT_TRUE(Blocks("cat-old.example"));
+  EXPECT_FALSE(Blocks("cat-new.example"));
+  EXPECT_EQ("", entry->error);
+  EXPECT_EQ(copy_time, entry->updated);
 }
 
 }  // namespace

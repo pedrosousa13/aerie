@@ -38,9 +38,9 @@ inline constexpr size_t kMaxCustomLists = 20;
 // custom ones and catalogue ones (issue #105). The user's own rules are one
 // text of their own and do not count. This bounds the work of a rebuild.
 inline constexpr size_t kMaxListsInUse = 30;
-// The size of one downloaded list (what the fetcher accepts) and of all the
-// copies in use together. A list that would take the total over the cap is
-// refused and the copy in use stays.
+// The size of one downloaded list (the most the fetcher accepts and the engine
+// builds from) and of all the copies in use together. A list that would take
+// the total over the cap is refused and the copy in use stays.
 inline constexpr size_t kMaxListBytes = 5 * 1024 * 1024;
 inline constexpr size_t kMaxTotalListBytes = 32 * 1024 * 1024;
 inline constexpr size_t kMaxExceptions = 1000;
@@ -157,21 +157,25 @@ class FilterListState {
   // list is on and has no copy yet.
   enum class CatalogueAddResult { kAdded, kUnknownId, kAlreadyOn, kTooMany };
   CatalogueAddResult AddCatalogueList(std::string_view id);
-  // How many lists count towards kMaxListsInUse: every one but the user's own
-  // rules.
-  size_t ListsInUse() const;
-  // True when a copy of |bytes| for list |id| keeps the copies of the lists
-  // that are on within kMaxTotalListBytes. The list's own current copy does not
-  // count: it is the one being replaced.
-  bool FitsByteBudget(std::string_view id, size_t bytes) const;
+  // True when |bytes| for list |id| keep the lists that are on within
+  // kMaxTotalListBytes, counting the saved size of the others plus
+  // |reserved_elsewhere| (copies checked but not yet saved). The list's own
+  // current copy does not count: it is the one being replaced. This is a
+  // check at the door; the engine's rebuild enforces the cap again on the
+  // size of the text it reads (FilterEngineService::ReplaceLists()).
+  bool FitsByteBudget(std::string_view id,
+                      size_t bytes,
+                      size_t reserved_elsewhere = 0) const;
   // The entry for the user's own rules (issue #107), made when absent: id
   // kCustomRulesId, no address, on. It is not a "custom list" of the table
   // limit. RemoveList(kCustomRulesId) removes it.
   FilterListEntry& EnsureCustomRulesEntry();
   // Turns a list on or off. The list and its file stay either way. kRequired
   // (nothing changes) for a list that CanBeDisabled() refuses and |enabled| is
-  // false; kUnknownList for an id that is not in the state.
-  enum class EnableResult { kOk, kUnknownList, kRequired };
+  // false; kUnknownList for an id that is not in the state. The manager adds
+  // kTooLarge: turning the list on would take the lists over
+  // kMaxTotalListBytes.
+  enum class EnableResult { kOk, kUnknownList, kRequired, kTooLarge };
   EnableResult SetEnabled(std::string_view id, bool enabled);
   // Removes a custom list. Built-in lists stay. False if nothing was removed.
   bool RemoveList(std::string_view id);

@@ -374,6 +374,9 @@ void AerieGuardSettingsHandler::HandleSetListEnabled(
     case aerie_adblock::FilterListState::EnableResult::kUnknownList:
       error = "unknown_list";
       break;
+    case aerie_adblock::FilterListState::EnableResult::kTooLarge:
+      error = "too_large";
+      break;
   }
   Resolve(args, std::string_view(), std::string_view(), error);
 }
@@ -404,6 +407,9 @@ void AerieGuardSettingsHandler::HandleSetCatalogueList(
       break;
     case FilterListManager::CatalogueResult::kTooMany:
       Resolve(args, std::string_view(), std::string_view(), "too_many");
+      break;
+    case FilterListManager::CatalogueResult::kTooLarge:
+      Resolve(args, std::string_view(), std::string_view(), "too_large");
       break;
   }
 }

@@ -90,7 +90,7 @@ export interface AerieGuardState {
   addError: string;
   /** '', 'invalid_host', 'table_full' or 'locked'. */
   exceptionError: string;
-  /** '', 'required', 'unknown_list' or 'too_many'. */
+  /** '', 'required', 'unknown_list', 'too_many' or 'too_large'. */
   listError: string;
   /** Hosts where blocking is off, saved ones only, sorted. */
   exceptions: string[];

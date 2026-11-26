@@ -89,9 +89,10 @@ class NoNetworkTest(unittest.TestCase):
         out = subprocess.run(["git", "diff", "-U0", "main", "--", "docs/network-endpoints.md"],
                              cwd=REPO, capture_output=True, text=True).stdout
         added = [l for l in out.splitlines() if l.startswith("+|") and ("`http://" in l or "`https://" in l)]
-        # The filter list catalogue (#105) adds its publisher hosts, as its brief asks.
-        added = [l for l in added if "aerie_catalogue_filter_list_download" not in l]
-        self.assertEqual(added, [])
+        # Only rows that name this feature count. A diff against main also holds the rows other issues add
+        # (the filter list catalogue, #105, adds its publisher hosts); they say nothing about auto-file.
+        ours = ("aerie_tab_model", "auto_file", "rule_matcher", "sheet", "switch")
+        self.assertEqual([l for l in added if any(word in l for word in ours)], [])
 
 
 class BuildWiringTest(unittest.TestCase):

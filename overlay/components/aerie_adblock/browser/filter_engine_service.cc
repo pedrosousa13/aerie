@@ -63,6 +63,12 @@ class FilterEngineService::Host {
     std::vector<std::string> texts;
     std::vector<bool> custom;
     std::vector<bool> own;
+    // Which input each text came from: a list left out (below) moves the
+    // others up.
+    std::vector<size_t> source;
+    std::vector<size_t> sizes(inputs.size(), 0);
+    std::vector<size_t> skipped;
+    size_t total = 0;
     texts.reserve(inputs.size());
     for (size_t i = 0; i < inputs.size(); ++i) {
       ListInput& input = inputs[i];
@@ -71,11 +77,30 @@ class FilterEngineService::Host {
                                              kMaxListFileBytes)) {
         return BuildResult{ListFailure::kUnreadable, i};
       }
+      // The size cap holds on what is in hand, not on what the state file
+      // says about it (issue #105). A list that is not essential and would
+      // take the lists over the cap is left out; its size is still reported.
+      const size_t size = input.text.size();
+      sizes[i] = size;
+      if (!input.essential &&
+          (size > kMaxListBytes || total + size > kMaxTotalListBytes)) {
+        skipped.push_back(i);
+        continue;
+      }
+      total += size;
+      source.push_back(i);
       texts.push_back(std::move(input.text));
       custom.push_back(input.custom);
       own.push_back(input.own);
     }
     BuildResult result = engine_.LoadLists(texts, kBuildBudget, custom, own);
+    if (result.failure != ListFailure::kNone) {
+      result.failed_index = result.failed_index < source.size()
+                                ? source[result.failed_index]
+                                : result.failed_index;
+    }
+    result.sizes = std::move(sizes);
+    result.skipped = std::move(skipped);
     if (result.failure == ListFailure::kNone && result.ignored_exceptions > 0) {
       LOG(WARNING) << "aerie_adblock: " << result.ignored_exceptions
                    << " exception rule(s) that match every address were "

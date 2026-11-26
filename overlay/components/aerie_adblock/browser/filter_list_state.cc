@@ -273,12 +273,10 @@ FilterListState::CatalogueAddResult FilterListState::AddCatalogueList(
   return CatalogueAddResult::kAdded;
 }
 
-size_t FilterListState::ListsInUse() const {
-  return CountListsInUse(lists_);
-}
-
-bool FilterListState::FitsByteBudget(std::string_view id, size_t bytes) const {
-  size_t total = bytes;
+bool FilterListState::FitsByteBudget(std::string_view id,
+                                     size_t bytes,
+                                     size_t reserved_elsewhere) const {
+  size_t total = bytes + reserved_elsewhere;
   for (const FilterListEntry& entry : lists_) {
     if (entry.enabled && entry.id != id && entry.bytes > 0) {
       total += static_cast<size_t>(entry.bytes);

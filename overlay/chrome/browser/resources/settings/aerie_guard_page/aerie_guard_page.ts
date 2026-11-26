@@ -14,8 +14,8 @@
  * catalogue (#105) is a searchable set of lists from their publishers, grouped
  * by category; a switch names a list by its catalogue id and the browser
  * downloads it from the address the build ships. Subscriptions get their own
- * rows from later issues (#106, #108). The user's own rules (#107) are a text box saved as the list
- * 'custom'; the browser bounds and parses the text, and the page shows the
+ * rows from later issues (#106, #108). The user's own rules (#107) are a text
+ * box saved as the list 'custom'; the browser bounds and parses the text, and the page shows the
  * lines that were dropped or ignored with the reason. Every piece of the text
  * is rendered as text content only.
  */
@@ -260,6 +260,8 @@ export class SettingsAerieGuardPageElement extends
         return loadTimeData.getString('aerieGuardListErrorRequired');
       case 'too_many':
         return loadTimeData.getString('aerieGuardListErrorTooMany');
+      case 'too_large':
+        return loadTimeData.getString('aerieGuardListErrorTooLarge');
       default:
         return loadTimeData.getString('aerieGuardErrorGeneric');
     }
@@ -353,7 +355,9 @@ export class SettingsAerieGuardPageElement extends
   }
 
   protected catalogueFailureText_(list: AerieGuardCatalogueList): string {
-    return list.errorCode ? this.codeText_('aerieGuardListError', list.errorCode) : '';
+    return list.errorCode ?
+        this.codeText_('aerieGuardListError', list.errorCode) :
+        '';
   }
 
   // The groups that have a list matching the search, with only those lists.

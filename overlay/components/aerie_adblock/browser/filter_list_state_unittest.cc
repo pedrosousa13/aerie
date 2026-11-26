@@ -701,6 +701,15 @@ TEST(FilterListStateTest, ACatalogueAddressIsNotAddedAgainAsACustomList) {
                 false, &id));
 }
 
+// What counts towards kMaxListsInUse: every list but the user's own rules.
+size_t InUse(const FilterListState& state) {
+  size_t n = 0;
+  for (const FilterListEntry& entry : state.lists()) {
+    n += entry.id != kCustomRulesId;
+  }
+  return n;
+}
+
 TEST(FilterListStateTest, TheNumberOfListsInUseIsCapped) {
   FilterListState state;
   std::string id;
@@ -720,7 +729,7 @@ TEST(FilterListStateTest, TheNumberOfListsInUseIsCapped) {
     }
     ++added;
   }
-  EXPECT_EQ(kMaxListsInUse, state.ListsInUse());
+  EXPECT_EQ(kMaxListsInUse, InUse(state));
   EXPECT_EQ(kMaxListsInUse - 2 - kMaxCustomLists, added);
   EXPECT_EQ(FilterListState::CatalogueAddResult::kTooMany, last);
   // And the other door is shut too.
@@ -729,7 +738,7 @@ TEST(FilterListStateTest, TheNumberOfListsInUseIsCapped) {
                                 &id));
   // The user's own rules never use up a place.
   state.EnsureCustomRulesEntry();
-  EXPECT_EQ(kMaxListsInUse, state.ListsInUse());
+  EXPECT_EQ(kMaxListsInUse, InUse(state));
 }
 
 TEST(FilterListStateTest, TheTotalSizeOfTheListsInUseIsCapped) {
@@ -823,7 +832,7 @@ TEST(FilterListStateTest, TooManySavedListsAreCutAtTheCap) {
   }
   base::DictValue dict;
   dict.Set("lists", std::move(lists));
-  EXPECT_LE(FilterListState::FromValue(dict).ListsInUse(), kMaxListsInUse);
+  EXPECT_LE(InUse(FilterListState::FromValue(dict)), kMaxListsInUse);
 }
 
 TEST(FilterListStateTest, ADamagedSizeFallsBackToZero) {
