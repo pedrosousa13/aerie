@@ -67,9 +67,12 @@ class RecordedCasesTest(unittest.TestCase):
         self.assertEqual(status, "fail")
         self.assertIn("pref off", detail)
 
-    def test_workers_may_stay_capped_when_off_until_they_get_tokens(self):
-        for name in ("worker_capped_when_off_is_accepted_until_workers_get_tokens", "worker_real_when_off_is_accepted"):
-            self.assertEqual(DeviceMemory.judge(cases()[name]["obs"])[0], "pass", name)
+    def test_a_worker_must_report_the_real_value_when_protection_is_off(self):
+        for name, text in (("worker_capped_when_pref_off", "worker saw navigator.deviceMemory 8"),
+                           ("worker_capped_when_site_off", "worker saw navigator.deviceMemory 8")):
+            status, detail = DeviceMemory.judge(cases()[name]["obs"])
+            self.assertEqual(status, "fail", name)
+            self.assertIn(text, detail)
         self.assertEqual(DeviceMemory.judge(cases()["worker_missing_when_site_off"]["obs"])[0], "fail")
 
     def test_cap_is_defined_once(self):
