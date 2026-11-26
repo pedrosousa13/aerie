@@ -121,7 +121,7 @@ export function getHtml(this: SettingsAerieGuardPageElement) {
         label="$i18n{aerieGuardCatalogueSearchLabel}"
         placeholder="$i18n{aerieGuardCatalogueSearchPlaceholder}"
         .value="${this.catalogueQuery_}"
-        @value-changed="${this.onCatalogueSearchChanged_}">
+        @value-changed="${this.onCatalogueSearchValueChanged_}">
     </cr-input>
   </div>
   <div id="catalogue" aria-labelledby="catalogueHeading">

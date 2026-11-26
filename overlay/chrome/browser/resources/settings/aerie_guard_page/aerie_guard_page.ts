@@ -381,7 +381,7 @@ export class SettingsAerieGuardPageElement extends
     return out;
   }
 
-  protected onCatalogueSearchChanged_(e: CustomEvent<{value: string}>) {
+  protected onCatalogueSearchValueChanged_(e: CustomEvent<{value: string}>) {
     this.catalogueQuery_ = e.detail.value;
   }
 
