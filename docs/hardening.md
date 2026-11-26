@@ -383,7 +383,6 @@ by this rule.
 
 ## Not covered
 
-- Workers: Device memory, WebGL and WebGPU in a worker follow the worker's token like a window: capped or masked while protection is on, real values when it is off.
 - WebGPU adapter info: Only the vendor, architecture, device, description and driver strings are emptied. The adapter limits, the feature list and the subgroup sizes are real values.
 - Device memory above 8 GB: The baseline showed 32 GB because upstream raised the desktop maximum from 8 to 32 GB (crbug.com/454354290). Aerie caps it at 8 GB while protection is on for the page. When protection is off, globally or for the site, the real bucket is reported, in the window and in its workers.
 - Client rects noise: getClientRects and getBoundingClientRect noise exists upstream and now takes its factor from the site's text-metrics token, but it stays off until fonts are handled and it is measured again.

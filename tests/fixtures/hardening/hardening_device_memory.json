@@ -769,6 +769,37 @@
      "legacy_header": "32"
     }
    }
+  },
+  {
+   "name": "worker_real_when_pref_off_and_site_off",
+   "expect": "pass",
+   "detail_contains": "",
+   "obs": {
+    "main": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "pref_off": {
+     "window": 32,
+     "worker": 32,
+     "header": "32",
+     "legacy_header": "32"
+    },
+    "site_off": {
+     "window": 32,
+     "worker": 32,
+     "header": "32",
+     "legacy_header": "32"
+    },
+    "control": {
+     "window": 32,
+     "worker": 32,
+     "header": "32",
+     "legacy_header": "32"
+    }
+   }
   }
  ]
 }
