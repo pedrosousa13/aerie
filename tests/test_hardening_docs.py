@@ -71,9 +71,9 @@ class DocsTest(unittest.TestCase):
         self.assertNotIn("Fingerprinting randomization", self.doc)
         self.assertNotIn("Fingerprinting randomization", render.render_markup(TABLE))
 
-    def test_not_covered_lists_workers_webgpu_and_the_device_memory_cause(self):
+    def test_not_covered_lists_webgpu_and_the_device_memory_cause(self):
         not_covered = self.doc.split("## Not covered")[1].split("\n## ")[0]
-        self.assertIn("Workers", not_covered)
+        self.assertNotIn("Workers", not_covered)
         self.assertIn("WebGPU adapter", not_covered)
         self.assertIn("crbug.com/454354290", not_covered)
 

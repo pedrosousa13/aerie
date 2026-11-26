@@ -14,13 +14,13 @@
     },
     "pref_off": {
      "window": 32,
-     "worker": 8,
+     "worker": 32,
      "header": "32",
      "legacy_header": "32"
     },
     "site_off": {
      "window": 32,
-     "worker": 8,
+     "worker": 32,
      "header": "32",
      "legacy_header": "32"
     },
@@ -45,13 +45,13 @@
     },
     "pref_off": {
      "window": 32,
-     "worker": 8,
+     "worker": 32,
      "header": "32",
      "legacy_header": "32"
     },
     "site_off": {
      "window": 32,
-     "worker": 8,
+     "worker": 32,
      "header": "32",
      "legacy_header": "32"
     },
@@ -76,13 +76,13 @@
     },
     "pref_off": {
      "window": 32,
-     "worker": 8,
+     "worker": 32,
      "header": "32",
      "legacy_header": "32"
     },
     "site_off": {
      "window": 32,
-     "worker": 8,
+     "worker": 32,
      "header": "32",
      "legacy_header": "32"
     },
@@ -107,13 +107,13 @@
     },
     "pref_off": {
      "window": 32,
-     "worker": 8,
+     "worker": 32,
      "header": "32",
      "legacy_header": "32"
     },
     "site_off": {
      "window": 32,
-     "worker": 8,
+     "worker": 32,
      "header": "32",
      "legacy_header": "32"
     },
@@ -138,13 +138,13 @@
     },
     "pref_off": {
      "window": 32,
-     "worker": 8,
+     "worker": 32,
      "header": "32",
      "legacy_header": "32"
     },
     "site_off": {
      "window": 32,
-     "worker": 8,
+     "worker": 32,
      "header": "32",
      "legacy_header": "32"
     },
@@ -175,7 +175,7 @@
     },
     "site_off": {
      "window": 32,
-     "worker": 8,
+     "worker": 32,
      "header": "32",
      "legacy_header": "32"
     },
@@ -200,13 +200,13 @@
     },
     "pref_off": {
      "window": 32,
-     "worker": 8,
+     "worker": 32,
      "header": "32",
      "legacy_header": "32"
     },
     "site_off": {
      "window": 32,
-     "worker": 8,
+     "worker": 32,
      "header": "32",
      "legacy_header": "32"
     },
@@ -231,13 +231,13 @@
     },
     "pref_off": {
      "window": 32,
-     "worker": 8,
+     "worker": 32,
      "header": "32",
      "legacy_header": "32"
     },
     "site_off": {
      "window": 32,
-     "worker": 8,
+     "worker": 32,
      "header": "32",
      "legacy_header": "32"
     },
@@ -321,13 +321,13 @@
     },
     "pref_off": {
      "window": 32,
-     "worker": 8,
+     "worker": 32,
      "header": "32",
      "legacy_header": "32"
     },
     "site_off": {
      "window": 32,
-     "worker": 8,
+     "worker": 32,
      "header": "32",
      "legacy_header": "32"
     },
@@ -352,13 +352,13 @@
     },
     "pref_off": {
      "window": 32,
-     "worker": 8,
+     "worker": 32,
      "header": "32",
      "legacy_header": "32"
     },
     "site_off": {
      "window": 32,
-     "worker": 8,
+     "worker": 32,
      "header": "32",
      "legacy_header": "32"
     },
@@ -383,13 +383,13 @@
     },
     "pref_off": {
      "window": 32,
-     "worker": 8,
+     "worker": 32,
      "header": "32",
      "legacy_header": null
     },
     "site_off": {
      "window": 32,
-     "worker": 8,
+     "worker": 32,
      "header": "32",
      "legacy_header": "32"
     },
@@ -414,7 +414,7 @@
     },
     "pref_off": {
      "window": 32,
-     "worker": 8,
+     "worker": 32,
      "header": "32",
      "legacy_header": "32"
     },
@@ -445,13 +445,13 @@
     },
     "pref_off": {
      "window": 32,
-     "worker": 8,
+     "worker": 32,
      "header": "32",
      "legacy_header": "32"
     },
     "site_off": {
      "window": 32,
-     "worker": 8,
+     "worker": 32,
      "header": "8",
      "legacy_header": "32"
     },
@@ -476,13 +476,13 @@
     },
     "pref_off": {
      "window": 32,
-     "worker": 8,
+     "worker": 32,
      "header": "32",
      "legacy_header": "32"
     },
     "site_off": {
      "window": 32,
-     "worker": 8,
+     "worker": 32,
      "header": "32",
      "legacy_header": "32"
     },
@@ -507,13 +507,13 @@
     },
     "pref_off": {
      "window": 32,
-     "worker": 8,
+     "worker": 32,
      "header": "32",
      "legacy_header": "32"
     },
     "site_off": {
      "window": 32,
-     "worker": 8,
+     "worker": 32,
      "header": "32",
      "legacy_header": "32"
     },
@@ -538,13 +538,13 @@
     },
     "pref_off": {
      "window": 32,
-     "worker": 8,
+     "worker": 32,
      "header": "32",
      "legacy_header": "32"
     },
     "site_off": {
      "window": 32,
-     "worker": 8,
+     "worker": 32,
      "header": "32",
      "legacy_header": "32"
     },
@@ -600,7 +600,7 @@
     },
     "pref_off": {
      "window": 32,
-     "worker": 8,
+     "worker": 32,
      "header": "32",
      "legacy_header": "32"
     },
@@ -628,13 +628,13 @@
     },
     "pref_off": {
      "window": 32,
-     "worker": 8,
+     "worker": 32,
      "header": "32",
      "legacy_header": "8"
     },
     "site_off": {
      "window": 32,
-     "worker": 8,
+     "worker": 32,
      "header": "32",
      "legacy_header": "32"
     },
@@ -665,69 +665,7 @@
     },
     "site_off": {
      "window": 16,
-     "worker": 8,
-     "header": "32",
-     "legacy_header": "32"
-    },
-    "control": {
-     "window": 32,
-     "worker": 32,
-     "header": "32",
-     "legacy_header": "32"
-    }
-   }
-  },
-  {
-   "name": "worker_capped_when_off_is_accepted_until_workers_get_tokens",
-   "expect": "pass",
-   "detail_contains": "",
-   "obs": {
-    "main": {
-     "window": 8,
-     "worker": 8,
-     "header": "8",
-     "legacy_header": "8"
-    },
-    "pref_off": {
-     "window": 32,
-     "worker": 8,
-     "header": "32",
-     "legacy_header": "32"
-    },
-    "site_off": {
-     "window": 32,
-     "worker": 8,
-     "header": "32",
-     "legacy_header": "32"
-    },
-    "control": {
-     "window": 32,
-     "worker": 32,
-     "header": "32",
-     "legacy_header": "32"
-    }
-   }
-  },
-  {
-   "name": "worker_real_when_off_is_accepted",
-   "expect": "pass",
-   "detail_contains": "",
-   "obs": {
-    "main": {
-     "window": 8,
-     "worker": 8,
-     "header": "8",
-     "legacy_header": "8"
-    },
-    "pref_off": {
-     "window": 32,
-     "worker": 32,
-     "header": "32",
-     "legacy_header": "32"
-    },
-    "site_off": {
-     "window": 32,
-     "worker": 32,
+     "worker": 16,
      "header": "32",
      "legacy_header": "32"
     },
@@ -752,13 +690,106 @@
     },
     "pref_off": {
      "window": 32,
-     "worker": 8,
+     "worker": 32,
      "header": "32",
      "legacy_header": "32"
     },
     "site_off": {
      "window": 32,
      "worker": null,
+     "header": "32",
+     "legacy_header": "32"
+    },
+    "control": {
+     "window": 32,
+     "worker": 32,
+     "header": "32",
+     "legacy_header": "32"
+    }
+   }
+  },
+  {
+   "name": "worker_capped_when_pref_off",
+   "expect": "fail",
+   "detail_contains": "fingerprinting pref off",
+   "obs": {
+    "main": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "pref_off": {
+     "window": 32,
+     "worker": 8,
+     "header": "32",
+     "legacy_header": "32"
+    },
+    "site_off": {
+     "window": 32,
+     "worker": 32,
+     "header": "32",
+     "legacy_header": "32"
+    },
+    "control": {
+     "window": 32,
+     "worker": 32,
+     "header": "32",
+     "legacy_header": "32"
+    }
+   }
+  },
+  {
+   "name": "worker_capped_when_site_off",
+   "expect": "fail",
+   "detail_contains": "site switched off",
+   "obs": {
+    "main": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "pref_off": {
+     "window": 32,
+     "worker": 32,
+     "header": "32",
+     "legacy_header": "32"
+    },
+    "site_off": {
+     "window": 32,
+     "worker": 8,
+     "header": "32",
+     "legacy_header": "32"
+    },
+    "control": {
+     "window": 32,
+     "worker": 32,
+     "header": "32",
+     "legacy_header": "32"
+    }
+   }
+  },
+  {
+   "name": "worker_real_when_pref_off_and_site_off",
+   "expect": "pass",
+   "detail_contains": "",
+   "obs": {
+    "main": {
+     "window": 8,
+     "worker": 8,
+     "header": "8",
+     "legacy_header": "8"
+    },
+    "pref_off": {
+     "window": 32,
+     "worker": 32,
+     "header": "32",
+     "legacy_header": "32"
+    },
+    "site_off": {
+     "window": 32,
+     "worker": 32,
      "header": "32",
      "legacy_header": "32"
     },

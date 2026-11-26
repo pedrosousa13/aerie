@@ -4,8 +4,8 @@ Aerie patch hardening/0012 lowers the desktop maximum from 32 to 8 for a context
 protection: the global pref is on and the site has no per-site off. The window decides it from its Helium
 noise tokens, the headers decide it browser-side from the pref and the helium_noise content setting.
 The check runs with protection on (capped), with the pref off and with a per-site HELIUM_NOISE exception for
-the fixture origin (both report the real value in the window and in both headers). The worker cap does not read the worker's
-noise token, so a worker stays capped when protection is off; it must still report a number.
+the fixture origin (both report the real value in the window and in both headers). A worker decides the same way from the
+tokens it carries, so it matches the window in every variant.
 A machine with 8 GB or less reports its real bucket either way, so the check cannot tell the cap from the
 machine: it is inconclusive there, never a pass.
 """
@@ -94,8 +94,7 @@ class DeviceMemory(HardeningCheck):
 
     @staticmethod
     def _real_problem(label: str, side: dict, real: float) -> str | None:
-        """Protection is off here: the window and both headers report the machine's own bucket. The worker is
-        not held to it (its cap does not read its noise token, so it stays capped), but it must report a number."""
+        """Protection is off here: the window, the worker and both headers report the machine's own bucket."""
         window, worker = side.get("window"), side.get("worker")
         header, legacy = parse_hint(side.get("header")), parse_hint(side.get("legacy_header"))
         if window is None:
@@ -104,6 +103,8 @@ class DeviceMemory(HardeningCheck):
             return f"{label}: navigator.deviceMemory is {window:g}, not the real {real:g}"
         if worker is None:
             return f"{label}: the worker saw no navigator.deviceMemory"
+        if worker != real:
+            return f"{label}: the worker saw navigator.deviceMemory {worker:g}, not the real {real:g}"
         if header is None:
             return f"{label}: the server saw no Sec-CH-Device-Memory header after the Accept-CH opt-in"
         if header != real:
@@ -143,4 +144,4 @@ class DeviceMemory(HardeningCheck):
         return "pass", (f"with the cap off this machine reports {control['window']:g} GB; with protection on it "
                         f"reports at most {CAP:g} in the window, in a worker, in Sec-CH-Device-Memory and in "
                         f"Device-Memory; with the fingerprinting pref off and with the site switched off the "
-                        f"window and both headers report the real {control['window']:g}")
+                        f"window, the worker and both headers report the real {control['window']:g}")
