@@ -1,0 +1,23 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Aerie Bench Media Devices</title></head>
+<body>
+<p>Lists navigator.mediaDevices.enumerateDevices() once. With ?gum=1 the page first asks for the camera and the
+microphone, so the list is the one a page that holds a grant sees.</p>
+<script>
+  window.__done = false;
+  const wantGrant = new URLSearchParams(location.search).get('gum') === '1';
+  (async () => {
+    try {
+      if (wantGrant) {
+        const stream = await navigator.mediaDevices.getUserMedia({audio: true, video: true});
+        stream.getTracks().forEach((track) => track.stop());
+      }
+      const list = await navigator.mediaDevices.enumerateDevices();
+      window.__result = {granted: wantGrant,
+                         devices: list.map((d) => ({kind: d.kind, deviceId: d.deviceId, label: d.label,
+                                                     groupId: d.groupId}))};
+    } catch (e) { window.__result = {error: String(e)}; }
+    window.__done = true;
+  })();
+</script>
+</body></html>

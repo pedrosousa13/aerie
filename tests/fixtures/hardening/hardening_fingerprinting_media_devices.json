@@ -1,0 +1,1539 @@
+{
+ "check": "hardening_fingerprinting_media_devices",
+ "cases": [
+  {
+   "name": "pinned_when_on_real_when_off_and_after_a_grant",
+   "expect": "pass",
+   "detail_contains": "one audioinput, one audiooutput and one videoinput",
+   "obs": {
+    "main": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "videoinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "pref_off": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "site_off": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "control": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "granted": {
+     "granted": true,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "pa1",
+       "label": "Fake Default Audio Input",
+       "groupId": "pg"
+      },
+      {
+       "kind": "videoinput",
+       "deviceId": "pv1",
+       "label": "fake_device_0",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "po1",
+       "label": "Default - Fake Output",
+       "groupId": "pg"
+      }
+     ]
+    },
+    "granted_control": {
+     "granted": true,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "ca1",
+       "label": "Fake Default Audio Input",
+       "groupId": "cg"
+      },
+      {
+       "kind": "videoinput",
+       "deviceId": "cv1",
+       "label": "fake_device_0",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "co1",
+       "label": "Default - Fake Output",
+       "groupId": "cg"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "unpatched_build_lists_the_machine_without_a_camera",
+   "expect": "fail",
+   "detail_contains": "not one audioinput, one audiooutput and one videoinput",
+   "obs": {
+    "main": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "pref_off": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "site_off": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "control": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "granted": {
+     "granted": true,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "pa1",
+       "label": "Fake Default Audio Input",
+       "groupId": "pg"
+      },
+      {
+       "kind": "videoinput",
+       "deviceId": "pv1",
+       "label": "fake_device_0",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "po1",
+       "label": "Default - Fake Output",
+       "groupId": "pg"
+      }
+     ]
+    },
+    "granted_control": {
+     "granted": true,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "ca1",
+       "label": "Fake Default Audio Input",
+       "groupId": "cg"
+      },
+      {
+       "kind": "videoinput",
+       "deviceId": "cv1",
+       "label": "fake_device_0",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "co1",
+       "label": "Default - Fake Output",
+       "groupId": "cg"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "pin_still_there_when_pref_off",
+   "expect": "fail",
+   "detail_contains": "fingerprinting pref off",
+   "obs": {
+    "main": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "videoinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "pref_off": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "videoinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "site_off": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "control": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "granted": {
+     "granted": true,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "pa1",
+       "label": "Fake Default Audio Input",
+       "groupId": "pg"
+      },
+      {
+       "kind": "videoinput",
+       "deviceId": "pv1",
+       "label": "fake_device_0",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "po1",
+       "label": "Default - Fake Output",
+       "groupId": "pg"
+      }
+     ]
+    },
+    "granted_control": {
+     "granted": true,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "ca1",
+       "label": "Fake Default Audio Input",
+       "groupId": "cg"
+      },
+      {
+       "kind": "videoinput",
+       "deviceId": "cv1",
+       "label": "fake_device_0",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "co1",
+       "label": "Default - Fake Output",
+       "groupId": "cg"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "pin_still_there_when_site_off",
+   "expect": "fail",
+   "detail_contains": "site switched off",
+   "obs": {
+    "main": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "videoinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "pref_off": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "site_off": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "videoinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "control": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "granted": {
+     "granted": true,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "pa1",
+       "label": "Fake Default Audio Input",
+       "groupId": "pg"
+      },
+      {
+       "kind": "videoinput",
+       "deviceId": "pv1",
+       "label": "fake_device_0",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "po1",
+       "label": "Default - Fake Output",
+       "groupId": "pg"
+      }
+     ]
+    },
+    "granted_control": {
+     "granted": true,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "ca1",
+       "label": "Fake Default Audio Input",
+       "groupId": "cg"
+      },
+      {
+       "kind": "videoinput",
+       "deviceId": "cv1",
+       "label": "fake_device_0",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "co1",
+       "label": "Default - Fake Output",
+       "groupId": "cg"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "pinned_entry_has_a_label",
+   "expect": "fail",
+   "detail_contains": "has a deviceId, a label or a groupId",
+   "obs": {
+    "main": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "Mic",
+       "groupId": ""
+      },
+      {
+       "kind": "videoinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "pref_off": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "site_off": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "control": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "granted": {
+     "granted": true,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "pa1",
+       "label": "Fake Default Audio Input",
+       "groupId": "pg"
+      },
+      {
+       "kind": "videoinput",
+       "deviceId": "pv1",
+       "label": "fake_device_0",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "po1",
+       "label": "Default - Fake Output",
+       "groupId": "pg"
+      }
+     ]
+    },
+    "granted_control": {
+     "granted": true,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "ca1",
+       "label": "Fake Default Audio Input",
+       "groupId": "cg"
+      },
+      {
+       "kind": "videoinput",
+       "deviceId": "cv1",
+       "label": "fake_device_0",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "co1",
+       "label": "Default - Fake Output",
+       "groupId": "cg"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "two_audio_inputs_before_permission",
+   "expect": "fail",
+   "detail_contains": "not one audioinput",
+   "obs": {
+    "main": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "videoinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "pref_off": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "site_off": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "control": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "granted": {
+     "granted": true,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "pa1",
+       "label": "Fake Default Audio Input",
+       "groupId": "pg"
+      },
+      {
+       "kind": "videoinput",
+       "deviceId": "pv1",
+       "label": "fake_device_0",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "po1",
+       "label": "Default - Fake Output",
+       "groupId": "pg"
+      }
+     ]
+    },
+    "granted_control": {
+     "granted": true,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "ca1",
+       "label": "Fake Default Audio Input",
+       "groupId": "cg"
+      },
+      {
+       "kind": "videoinput",
+       "deviceId": "cv1",
+       "label": "fake_device_0",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "co1",
+       "label": "Default - Fake Output",
+       "groupId": "cg"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "pin_kept_after_a_grant",
+   "expect": "fail",
+   "detail_contains": "after a grant",
+   "obs": {
+    "main": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "videoinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "pref_off": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "site_off": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "control": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "granted": {
+     "granted": true,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "videoinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "granted_control": {
+     "granted": true,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "ca1",
+       "label": "Fake Default Audio Input",
+       "groupId": "cg"
+      },
+      {
+       "kind": "videoinput",
+       "deviceId": "cv1",
+       "label": "fake_device_0",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "co1",
+       "label": "Default - Fake Output",
+       "groupId": "cg"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "grant_labels_hidden_after_a_grant",
+   "expect": "fail",
+   "detail_contains": "a device still has an empty deviceId",
+   "obs": {
+    "main": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "videoinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "pref_off": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "site_off": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "control": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "granted": {
+     "granted": true,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "Fake Default Audio Input",
+       "groupId": "pg"
+      },
+      {
+       "kind": "videoinput",
+       "deviceId": "",
+       "label": "fake_device_0",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "Default - Fake Output",
+       "groupId": "pg"
+      }
+     ]
+    },
+    "granted_control": {
+     "granted": true,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "ca1",
+       "label": "Fake Default Audio Input",
+       "groupId": "cg"
+      },
+      {
+       "kind": "videoinput",
+       "deviceId": "cv1",
+       "label": "fake_device_0",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "co1",
+       "label": "Default - Fake Output",
+       "groupId": "cg"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "negative_control_shows_a_label_without_permission",
+   "expect": "fail",
+   "detail_contains": "negative control failed",
+   "obs": {
+    "main": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "videoinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "pref_off": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "site_off": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "control": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "Mic",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "granted": {
+     "granted": true,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "pa1",
+       "label": "Fake Default Audio Input",
+       "groupId": "pg"
+      },
+      {
+       "kind": "videoinput",
+       "deviceId": "pv1",
+       "label": "fake_device_0",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "po1",
+       "label": "Default - Fake Output",
+       "groupId": "pg"
+      }
+     ]
+    },
+    "granted_control": {
+     "granted": true,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "ca1",
+       "label": "Fake Default Audio Input",
+       "groupId": "cg"
+      },
+      {
+       "kind": "videoinput",
+       "deviceId": "cv1",
+       "label": "fake_device_0",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "co1",
+       "label": "Default - Fake Output",
+       "groupId": "cg"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "negative_control_grant_shows_no_label",
+   "expect": "fail",
+   "detail_contains": "negative control failed",
+   "obs": {
+    "main": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "videoinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "pref_off": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "site_off": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "control": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "granted": {
+     "granted": true,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "pa1",
+       "label": "Fake Default Audio Input",
+       "groupId": "pg"
+      },
+      {
+       "kind": "videoinput",
+       "deviceId": "pv1",
+       "label": "fake_device_0",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "po1",
+       "label": "Default - Fake Output",
+       "groupId": "pg"
+      }
+     ]
+    },
+    "granted_control": {
+     "granted": true,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "videoinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "machine_with_every_device_is_inconclusive",
+   "expect": "error",
+   "detail_contains": "inconclusive",
+   "obs": {
+    "main": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "videoinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "pref_off": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "videoinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "site_off": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "videoinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "control": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "videoinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "granted": {
+     "granted": true,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "pa1",
+       "label": "Fake Default Audio Input",
+       "groupId": "pg"
+      },
+      {
+       "kind": "videoinput",
+       "deviceId": "pv1",
+       "label": "fake_device_0",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "po1",
+       "label": "Default - Fake Output",
+       "groupId": "pg"
+      }
+     ]
+    },
+    "granted_control": {
+     "granted": true,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "ca1",
+       "label": "Fake Default Audio Input",
+       "groupId": "cg"
+      },
+      {
+       "kind": "videoinput",
+       "deviceId": "cv1",
+       "label": "fake_device_0",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "co1",
+       "label": "Default - Fake Output",
+       "groupId": "cg"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "page_failed",
+   "expect": "fail",
+   "detail_contains": "the media devices page failed (main)",
+   "obs": {
+    "main": {
+     "error": "timeout waiting for the fixture page"
+    },
+    "pref_off": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "site_off": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "control": {
+     "granted": false,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "",
+       "label": "",
+       "groupId": ""
+      }
+     ]
+    },
+    "granted": {
+     "granted": true,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "pa1",
+       "label": "Fake Default Audio Input",
+       "groupId": "pg"
+      },
+      {
+       "kind": "videoinput",
+       "deviceId": "pv1",
+       "label": "fake_device_0",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "po1",
+       "label": "Default - Fake Output",
+       "groupId": "pg"
+      }
+     ]
+    },
+    "granted_control": {
+     "granted": true,
+     "devices": [
+      {
+       "kind": "audioinput",
+       "deviceId": "ca1",
+       "label": "Fake Default Audio Input",
+       "groupId": "cg"
+      },
+      {
+       "kind": "videoinput",
+       "deviceId": "cv1",
+       "label": "fake_device_0",
+       "groupId": ""
+      },
+      {
+       "kind": "audiooutput",
+       "deviceId": "co1",
+       "label": "Default - Fake Output",
+       "groupId": "cg"
+      }
+     ]
+    }
+   }
+  }
+ ]
+}
