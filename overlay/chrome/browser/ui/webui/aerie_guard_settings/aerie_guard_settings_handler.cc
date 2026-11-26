@@ -417,6 +417,7 @@ void AerieGuardSettingsHandler::HandleViewSource(const base::ListValue& args) {
     Reject(args, "unknown_list");
     return;
   }
+  using ui::mojom::WindowOpenDisposition;
   web_ui()->GetWebContents()->OpenURL(
       content::OpenURLParams(ListSourceUrl(*id), content::Referrer(),
                              WindowOpenDisposition::NEW_FOREGROUND_TAB,
