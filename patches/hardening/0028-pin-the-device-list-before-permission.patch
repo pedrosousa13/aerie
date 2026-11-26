@@ -12,8 +12,9 @@ the permission result of the page for each kind:
 - The page holds a grant for the kind (microphone for audioinput and, as upstream decides,
   audiooutput; camera for videoinput): nothing changes. The real devices, ids and labels come back
   as normal.
-- The page holds no grant, the HeliumNoise feature is on and protection is on for the site
-  (MediaDeviceSaltAndOrigin::fingerprinting_protected): the list of the kind has exactly one entry,
+- The page holds no grant and protection is on for the site
+  (MediaDeviceSaltAndOrigin::fingerprinting_protected, false when the HeliumNoise feature is
+  off): the list of the kind has exactly one entry,
   with an empty deviceId, label and groupId. When the stock list has one entry already, it is
   untouched. When the machine has no such device, one empty entry is added. The pure code that
   decides, and that says how many entries are missing, is Aerie's own, with unit tests
@@ -22,7 +23,7 @@ the permission result of the page for each kind:
 "Protection is on for the site" is ContentBrowserClient::HeliumNoiseEnabled for the top page's
 origin, read on the UI thread when GetMediaDeviceSaltAndOrigin makes the salt: the same rule that
 decides whether a page gets its noise tokens (the pref, the per-site HELIUM_NOISE setting, and the
-HeliumNoise feature). Turning protection off, globally or for the site, or starting the browser
+HeliumNoise feature). In a private window, and for a top page with an opaque origin (a sandboxed or data: page, which has no site to switch off), the feature and the global pref decide, so the list is pinned. Turning protection off, globally or for the site, or starting the browser
 with --disable-features=HeliumNoise, gives back the real list. A frame of another site in the
 page gets the answer of its top page, as for the tokens.
 
@@ -42,14 +43,14 @@ device labels after a grant, the devicechange event and WebRTC address handling 
      "//components/cbor",
 --- a/content/browser/media/media_devices_util.cc
 +++ b/content/browser/media/media_devices_util.cc
-@@ -26,6 +26,7 @@
+@@ -23,6 +23,7 @@
+ #include "content/common/features.h"
+ #include "content/public/browser/browser_task_traits.h"
+ #include "content/public/browser/browser_thread.h"
++#include "content/public/browser/content_browser_client.h"
  #include "content/public/browser/render_frame_host.h"
  #include "content/public/browser/web_contents.h"
  #include "content/public/browser/web_contents_delegate.h"
-+#include "content/public/browser/content_browser_client.h"
- #include "content/public/common/content_client.h"
- #include "crypto/hmac.h"
- #include "media/base/media_switches.h"
 @@ -44,6 +45,7 @@
               const url::Origin& origin,
               bool has_focus,
@@ -66,7 +67,7 @@ device labels after a grant, the devicechange event and WebRTC address handling 
    std::move(callback).Run(salt_and_origin);
  }
  
-@@ -153,10 +156,24 @@
+@@ -153,10 +156,28 @@
    bool is_background = web_contents && web_contents->IsNeverComposited();
    std::string frame_salt = frame_host->GetMediaDeviceIDSaltBase();
  
@@ -75,7 +76,11 @@ device labels after a grant, the devicechange event and WebRTC address handling 
 +  // the site of the page the user is on. It is false when the HeliumNoise
 +  // feature is off, so a request from a page with protection off for its site
 +  // gets the real list. A frame of another site in the page gets its top
-+  // page's answer, as for the tokens.
++  // page's answer, as for the tokens. A top page with an opaque origin (a
++  // sandboxed page, a data: URL) has an empty URL here; the per-site lookup
++  // skips such a URL and answers from the feature and the pref alone, so the
++  // list is pinned (fail closed, as for the noise tokens). A private window
++  // follows the pref too: the per-site setting does not inherit into it.
 +  const bool fingerprinting_protected =
 +      GetContentClient()->browser()->HeliumNoiseEnabled(
 +          frame_host->GetBrowserContext(),
@@ -125,23 +130,15 @@ device labels after a grant, the devicechange event and WebRTC address handling 
  // Returns the current media device ID salt and security origin for the given
 --- a/content/browser/renderer_host/media/media_devices_manager.cc
 +++ b/content/browser/renderer_host/media/media_devices_manager.cc
-@@ -32,6 +32,7 @@
+@@ -28,6 +28,7 @@
+ #include "base/threading/thread_checker.h"
+ #include "base/time/time.h"
+ #include "build/build_config.h"
++#include "components/aerie_media_devices/device_list.h"
+ #include "content/browser/media/media_devices_permission_checker.h"
  #include "content/browser/renderer_host/media/media_stream_manager.h"
  #include "content/browser/renderer_host/media/video_capture_manager.h"
- #include "content/browser/renderer_host/render_frame_host_impl.h"
-+#include "components/aerie_media_devices/device_list.h"
- #include "content/common/features.h"
- #include "content/public/browser/audio_service.h"
- #include "content/public/browser/browser_task_traits.h"
-@@ -47,6 +48,7 @@
- #include "mojo/public/cpp/bindings/remote.h"
- #include "services/audio/public/mojom/device_notifications.mojom.h"
- #include "services/video_capture/public/cpp/features.h"
-+#include "third_party/blink/public/common/features.h"
- #include "third_party/blink/public/common/mediastream/media_devices.h"
- #include "third_party/blink/public/mojom/mediastream/media_devices.mojom.h"
- 
-@@ -1216,6 +1218,24 @@
+@@ -1216,6 +1217,22 @@
        translation[i].push_back(TranslateMediaDeviceInfo(
            has_permissions[i], salt_and_origin, device_info));
      }
@@ -151,9 +148,7 @@ device labels after a grant, the devicechange event and WebRTC address handling 
 +    // kind, whatever the machine has. Chromium already trims the list to one
 +    // entry; this adds the entry that a machine without such a device lacks.
 +    if (aerie_media_devices::ShouldPinDeviceList(
-+            {.master_enabled = base::FeatureList::IsEnabled(
-+                 blink::features::kHeliumNoise),
-+             .site_protected = salt_and_origin.fingerprinting_protected(),
++            {.site_protected = salt_and_origin.fingerprinting_protected(),
 +             .has_permission = has_permissions[i]})) {
 +      for (int missing = aerie_media_devices::MissingPinnedEntries(
 +               static_cast<int>(translation[i].size()));

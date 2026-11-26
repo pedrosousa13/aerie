@@ -10,8 +10,7 @@ namespace aerie_media_devices {
 namespace {
 
 // A page that holds no permission, on a site where protection is on.
-constexpr Policy kProtected = {.master_enabled = true,
-                               .site_protected = true,
+constexpr Policy kProtected = {.site_protected = true,
                                .has_permission = false};
 
 TEST(DeviceListPolicyTest, PinsTheListWithoutPermissionWhenProtected) {
@@ -25,16 +24,10 @@ TEST(DeviceListPolicyTest, RealDevicesAfterAGrant) {
 }
 
 TEST(DeviceListPolicyTest, RealListWhenProtectionIsOffForTheSite) {
-  // The browser reports "not protected" when the global switch is off or the
-  // site has its own off.
+  // The browser reports "not protected" when the HeliumNoise feature or the
+  // global switch is off, or the site has its own off.
   Policy policy = kProtected;
   policy.site_protected = false;
-  EXPECT_FALSE(ShouldPinDeviceList(policy));
-}
-
-TEST(DeviceListPolicyTest, RealListWhenHeliumNoiseIsOff) {
-  Policy policy = kProtected;
-  policy.master_enabled = false;
   EXPECT_FALSE(ShouldPinDeviceList(policy));
 }
 

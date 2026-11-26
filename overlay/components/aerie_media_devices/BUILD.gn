@@ -6,8 +6,8 @@ import("//testing/test.gni")
 
 # The device list that navigator.mediaDevices.enumerateDevices() returns to a
 # page that holds no camera or microphone permission, while fingerprinting
-# protection is on (issue #202): the decision to pin the list and the entry that
-# it pins. Pure code with no Blink, no content and no base, so it has unit
+# protection is on (issue #202): the decision to pin the list and how many empty
+# entries a kind needs to reach the pinned list. Pure code with no Blink, no content and no base, so it has unit
 # tests. The media devices manager calls it
 # (patches/hardening/0028-pin-the-device-list-before-permission.patch).
 source_set("aerie_media_devices") {

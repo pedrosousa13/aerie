@@ -19,11 +19,11 @@ inline constexpr int kPinnedEntriesPerKind = 1;
 
 // What decides whether a request gets the pinned list.
 struct Policy {
-  // The HeliumNoise feature.
-  bool master_enabled;
-  // Whether protection is on for the site of the requesting page: the global
-  // switch is on and the site has no per-site off. The browser decides this
-  // with ContentBrowserClient::HeliumNoiseEnabled.
+  // Whether protection is on for the site of the requesting page: the
+  // HeliumNoise feature and the global switch are on and the site has no
+  // per-site off. A page with no site to switch off (an opaque origin) counts
+  // as protected. The browser decides this with
+  // ContentBrowserClient::HeliumNoiseEnabled.
   bool site_protected;
   // Whether the page holds a permission for this kind of device.
   bool has_permission;

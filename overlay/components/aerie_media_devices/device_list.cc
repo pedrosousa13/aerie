@@ -7,8 +7,7 @@
 namespace aerie_media_devices {
 
 bool ShouldPinDeviceList(const Policy& policy) {
-  return policy.master_enabled && policy.site_protected &&
-         !policy.has_permission;
+  return policy.site_protected && !policy.has_permission;
 }
 
 int MissingPinnedEntries(int stock_count) {

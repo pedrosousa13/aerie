@@ -64,7 +64,7 @@ def pinned_problem(label: str, devices: list[dict]) -> str | None:
     return None
 
 
-def observe_labels(devices: list[dict]) -> list[str]:
+def sorted_labels(devices: list[dict]) -> list[str]:
     return sorted(d.get("label") or "" for d in devices)
 
 
@@ -102,7 +102,7 @@ class MediaDevices(HardeningCheck):
         if not all(blank(d) for d in control):
             return "fail", ("negative control failed: with the noise feature off and no permission the list "
                             "still showed an id or a label, so the page did not run without a permission")
-        # The grant runs first: they tell whether the fixture can show a grant at all.
+        # Check the granted control first: it tells whether the fixture can show a grant at all.
         granted_control = obs["granted_control"]["devices"]
         if not granted_control or not any(d.get("label") for d in granted_control):
             return "fail", ("negative control failed: with a fake camera, a fake microphone and a granted "
@@ -122,10 +122,10 @@ class MediaDevices(HardeningCheck):
                                 f"and not the real list "
                                 f"({', '.join(f'{n} {k}' for k, n in counts(control).items())})")
         granted = obs["granted"]["devices"]
-        if counts(granted) != counts(granted_control) or observe_labels(granted) != observe_labels(granted_control):
+        if counts(granted) != counts(granted_control) or sorted_labels(granted) != sorted_labels(granted_control):
             return "fail", (f"after a grant, with protection on, the page saw {counts(granted)} with labels "
-                            f"{observe_labels(granted)}, not the real {counts(granted_control)} with labels "
-                            f"{observe_labels(granted_control)}")
+                            f"{sorted_labels(granted)}, not the real {counts(granted_control)} with labels "
+                            f"{sorted_labels(granted_control)}")
         if any(not d.get("deviceId") for d in granted):
             return "fail", "after a grant, with protection on, a device still has an empty deviceId"
         return "pass", (f"with the feature off a page without permission sees "
