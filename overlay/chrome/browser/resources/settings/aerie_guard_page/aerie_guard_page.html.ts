@@ -4,13 +4,83 @@
 
 import {html} from '//resources/lit/v3_0/lit.rollup.js';
 
+import type {AerieGuardCatalogueList} from './aerie_guard_browser_proxy.js';
 import type {SettingsAerieGuardPageElement} from './aerie_guard_page.js';
 
 // Every word on the page is a string of the grd (aerie_guard_settings_strings.grdp).
 export function getHtml(this: SettingsAerieGuardPageElement) {
+  // One catalogue row; the suggested group and the categories draw the same.
+  const catalogueRow = (list: AerieGuardCatalogueList) => html`
+          <div class="cr-row catalogue-row" data-catalogue-id="${list.id}">
+            <div class="flex cr-padded-text">
+              <div class="list-title">${this.catalogueTitle_(list)}</div>
+              <div class="secondary catalogue-desc">
+                ${this.catalogueDesc_(list)}
+              </div>
+              ${list.langs.length ? html`
+                <div class="secondary catalogue-langs">
+                  ${this.catalogueLanguagesText_(list)}
+                </div>
+              ` : ''}
+              <div class="secondary catalogue-meta">
+                <span class="catalogue-licence">
+                  ${this.catalogueLicenceText_(list)}
+                </span>
+                ${this.catalogueHomepage_(list) ? html`
+                  <a class="catalogue-homepage"
+                      href="${this.catalogueHomepage_(list)}"
+                      target="_blank" rel="noopener noreferrer"
+                      aria-label="${this.catalogueHomepageLabel_(list)}">
+                    ${this.catalogueHomepageText_()}
+                  </a>
+                ` : ''}
+              </div>
+              <div class="secondary catalogue-rules">
+                ${this.catalogueRulesText_(list)}
+              </div>
+              ${list.status === 'updating' || list.status === 'failed' ? html`
+                <div class="secondary list-status"
+                    data-status="${list.status}" role="status">
+                  ${this.catalogueStatusText_(list)}
+                </div>
+              ` : ''}
+              ${list.errorCode ? html`
+                <div class="list-error" role="alert">
+                  ${this.catalogueFailureText_(list)}
+                </div>
+              ` : ''}
+            </div>
+            <cr-toggle class="catalogue-toggle" data-id="${list.id}"
+                ?checked="${list.on}"
+                aria-label="${this.catalogueToggleLabel_(list)}"
+                @change="${this.onCatalogueToggleChange_}">
+            </cr-toggle>
+          </div>`;
+
   return html`<!--_html_template_start_-->
 <settings-section page-title="$i18n{aerieGuardPageTitle}"
     class="cr-centered-card-container">
+  ${this.languageCardVisible_() ? html`
+    <div class="cr-row">
+    <div id="languageCard" class="language-card flex" role="region"
+        aria-labelledby="languageCardTitle">
+      <div id="languageCardTitle" class="cr-title-text">
+        $i18n{aerieGuardLanguageCardTitle}
+      </div>
+      <div class="secondary">$i18n{aerieGuardLanguageCardBody}</div>
+      <div class="language-card-actions">
+        <cr-button id="languageCardReview" class="action-button"
+            @click="${this.onLanguageCardReview_}">
+          $i18n{aerieGuardLanguageCardReview}
+        </cr-button>
+        <cr-button id="languageCardDismiss"
+            @click="${this.onLanguageCardDismiss_}">
+          $i18n{aerieGuardLanguageCardDismiss}
+        </cr-button>
+      </div>
+    </div>
+    </div>
+  ` : ''}
   <settings-toggle-button id="showCount"
       pref-key="aerie.guard.show_blocked_count"
       label="$i18n{aerieGuardShowCount}"
@@ -125,7 +195,21 @@ export function getHtml(this: SettingsAerieGuardPageElement) {
     </cr-input>
   </div>
   <div id="catalogue" aria-labelledby="catalogueHeading">
-    ${this.visibleCatalogue_().map(group => html`
+    ${this.suggestedCatalogue_().length ? html`
+      <div id="suggested" class="catalogue-group" role="group"
+          aria-labelledby="suggestedHeading">
+        <div class="cr-row">
+          <div class="flex cr-padded-text">
+            <h3 id="suggestedHeading" class="cr-title-text">
+              $i18n{aerieGuardSuggestedHeading}
+            </h3>
+            <div class="secondary">$i18n{aerieGuardSuggestedDesc}</div>
+          </div>
+        </div>
+        ${this.suggestedCatalogue_().map(catalogueRow)}
+      </div>
+    ` : ''}
+    ${this.categoryGroups_().map(group => html`
       <div class="catalogue-group" data-category="${group.category}"
           role="group" aria-labelledby="category-${group.category}">
         <div class="cr-row">
@@ -133,52 +217,7 @@ export function getHtml(this: SettingsAerieGuardPageElement) {
             ${this.categoryTitle_(group.category)}
           </h3>
         </div>
-        ${group.lists.map(list => html`
-          <div class="cr-row catalogue-row" data-catalogue-id="${list.id}">
-            <div class="flex cr-padded-text">
-              <div class="list-title">${this.catalogueTitle_(list)}</div>
-              <div class="secondary catalogue-desc">
-                ${this.catalogueDesc_(list)}
-              </div>
-              ${list.langs.length ? html`
-                <div class="secondary catalogue-langs">
-                  ${this.catalogueLanguagesText_(list)}
-                </div>
-              ` : ''}
-              <div class="secondary catalogue-meta">
-                <span class="catalogue-licence">
-                  ${this.catalogueLicenceText_(list)}
-                </span>
-                ${this.catalogueHomepage_(list) ? html`
-                  <a class="catalogue-homepage"
-                      href="${this.catalogueHomepage_(list)}"
-                      target="_blank" rel="noopener noreferrer"
-                      aria-label="${this.catalogueHomepageLabel_(list)}">
-                    $i18n{aerieGuardCatalogueHomepage}
-                  </a>
-                ` : ''}
-              </div>
-              <div class="secondary catalogue-rules">
-                ${this.catalogueRulesText_(list)}
-              </div>
-              ${list.status === 'updating' || list.status === 'failed' ? html`
-                <div class="secondary list-status"
-                    data-status="${list.status}" role="status">
-                  ${this.catalogueStatusText_(list)}
-                </div>
-              ` : ''}
-              ${list.errorCode ? html`
-                <div class="list-error" role="alert">
-                  ${this.catalogueFailureText_(list)}
-                </div>
-              ` : ''}
-            </div>
-            <cr-toggle class="catalogue-toggle" data-id="${list.id}"
-                ?checked="${list.on}"
-                aria-label="${this.catalogueToggleLabel_(list)}"
-                @change="${this.onCatalogueToggleChange_}">
-            </cr-toggle>
-          </div>`)}
+        ${group.lists.map(catalogueRow)}
       </div>`)}
     ${this.visibleCatalogue_().length === 0 ? html`
       <div id="catalogueNoResults" class="cr-row secondary" role="status">

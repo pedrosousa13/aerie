@@ -36,6 +36,10 @@ namespace aerie_guard {
 //                                             not in the table the build ships
 //                                             rejects the promise and starts no
 //                                             download.
+//   aerieGuard.dismissLanguageCard []         the one-time card that suggests
+//                                             regional lists is dismissed for
+//                                             good (issue #106). It turns no
+//                                             list on and starts no download.
 //   aerieGuard.updateList [id]                download one list again now
 //   aerieGuard.updateAll []                   download every list again now
 //   aerieGuard.setException [host, enabled]   blocking off/on for a site
@@ -84,6 +88,11 @@ class AerieGuardSettingsHandler
   // strings, found by id. A list that is on from the catalogue is not in
   // "lists".
   //
+  // "suggested" is the catalogue ids of the regional lists that fit the
+  // browser's locale and its language pref (issue #106; PageState adds it,
+  // because it reads the profile). "languageCardDismissed" is the profile pref
+  // of the one-time card. Neither turns a list on.
+  //
   // "customRules" is the saved text of the user's own rules and what was found
   // in it: {text, networkRules, hideRules, ignoredExceptions, dropped,
   // issueCount, issues: [{line, reason, ignored, rule}]}. |text| and |rule| are
@@ -112,6 +121,7 @@ class AerieGuardSettingsHandler
   void HandleRemoveList(const base::ListValue& args);
   void HandleSetListEnabled(const base::ListValue& args);
   void HandleSetCatalogueList(const base::ListValue& args);
+  void HandleDismissLanguageCard(const base::ListValue& args);
   void HandleUpdateList(const base::ListValue& args);
   void HandleUpdateAll(const base::ListValue& args);
   void HandleSetException(const base::ListValue& args);
@@ -121,6 +131,15 @@ class AerieGuardSettingsHandler
   // The manager's answer to HandleSetCustomRules().
   void OnCustomRulesSaved(std::string callback_id,
                           aerie_adblock::CustomRulesFailure failure);
+
+  // StateToValue() plus what only the profile knows: "suggested" and
+  // "languageCardDismissed".
+  base::DictValue PageState(
+      const aerie_adblock::FilterListManager& manager,
+      std::string_view add_error,
+      std::string_view exception_error,
+      std::string_view list_error = std::string_view(),
+      std::string_view custom_error = std::string_view()) const;
 
   // Allows JavaScript and starts watching the manager. Returns the manager,
   // or null (and rejects the callback in |args|) when it does not exist yet.

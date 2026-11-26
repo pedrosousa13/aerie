@@ -97,6 +97,14 @@ export interface AerieGuardState {
   lists: AerieGuardList[];
   /** The filter list catalogue, grouped by category (issue #105). */
   catalogue: AerieGuardCatalogueGroup[];
+  /**
+   * Catalogue ids of the regional lists that fit the browser's languages
+   * (issue #106). A suggestion only: none of them is on until the user turns
+   * it on.
+   */
+  suggested: string[];
+  /** True once the user dismissed the one-time card for the suggestions. */
+  languageCardDismissed: boolean;
   /** Why the last save of the user's own rules was refused; '' for none. */
   customError: string;
   customRules: AerieGuardCustomRules;
@@ -117,6 +125,8 @@ export interface AerieGuardBrowserProxy {
    * for any other text.
    */
   setCatalogueList(id: string, on: boolean): Promise<AerieGuardState>;
+  /** Dismisses the one-time card for good. Turns no list on. */
+  dismissLanguageCard(): Promise<AerieGuardState>;
   updateList(id: string): Promise<AerieGuardState>;
   updateAll(): Promise<AerieGuardState>;
   setException(host: string, enabled: boolean): Promise<AerieGuardState>;
@@ -147,6 +157,10 @@ export class AerieGuardBrowserProxyImpl implements AerieGuardBrowserProxy {
 
   setCatalogueList(id: string, on: boolean): Promise<AerieGuardState> {
     return sendWithPromise('aerieGuard.setCatalogueList', id, on);
+  }
+
+  dismissLanguageCard(): Promise<AerieGuardState> {
+    return sendWithPromise('aerieGuard.dismissLanguageCard');
   }
 
   updateList(id: string): Promise<AerieGuardState> {

@@ -10,6 +10,7 @@ namespace aerie_guard {
 
 void RegisterProfilePrefs(PrefRegistrySimple* registry) {
   registry->RegisterBooleanPref(kShowBlockedCount, true);
+  registry->RegisterBooleanPref(kLanguageCardDismissed, false);
 }
 
 }  // namespace aerie_guard

@@ -78,6 +78,19 @@ export class SettingsAerieGuardPageElement extends
         textarea#customRules:focus-visible {
           outline: 2px solid var(--cr-focus-outline-color, currentColor);
         }
+        .language-card {
+          background: var(--cr-card-background-color, transparent);
+          border: 1px solid var(--cr-separator-color, #ccc);
+          border-radius: 12px;
+          display: flex;
+          flex-direction: column;
+          gap: 0.5rem;
+          padding: 0.75rem 1rem;
+        }
+        .language-card-actions {
+          display: flex;
+          gap: 0.5rem;
+        }
         .catalogue-meta {
           display: flex;
           flex-wrap: wrap;
@@ -109,6 +122,8 @@ export class SettingsAerieGuardPageElement extends
       lists_: {type: Array},
       catalogue_: {type: Array},
       catalogueQuery_: {type: String},
+      suggested_: {type: Array},
+      languageCardDismissed_: {type: Boolean},
       listsBusy_: {type: Boolean},
       listError_: {type: String},
       newSite_: {type: String},
@@ -127,6 +142,11 @@ export class SettingsAerieGuardPageElement extends
   protected accessor lists_: AerieGuardList[] = [];
   protected accessor catalogue_: AerieGuardCatalogueGroup[] = [];
   protected accessor catalogueQuery_: string = '';
+  // The catalogue ids that fit the browser's languages (issue #106).
+  protected accessor suggested_: string[] = [];
+  // True until the state arrives, so the card never flashes for a user who
+  // dismissed it.
+  protected accessor languageCardDismissed_: boolean = true;
   protected accessor listsBusy_: boolean = false;
   protected accessor listError_: string = '';
   protected accessor newSite_: string = '';
@@ -176,6 +196,8 @@ export class SettingsAerieGuardPageElement extends
     this.exceptions_ = state.exceptions;
     this.lists_ = state.lists;
     this.catalogue_ = state.catalogue;
+    this.suggested_ = state.suggested;
+    this.languageCardDismissed_ = state.languageCardDismissed;
     this.listsBusy_ = state.busy;
     this.customRules_ = state.customRules;
     // "Saved and in use" must not stay on screen once the entry is turned off
@@ -317,6 +339,10 @@ export class SettingsAerieGuardPageElement extends
     return loadTimeData.getStringF('aerieGuardCatalogueLicence', list.licence);
   }
 
+  protected catalogueHomepageText_(): string {
+    return loadTimeData.getString('aerieGuardCatalogueHomepage');
+  }
+
   protected catalogueHomepageLabel_(list: AerieGuardCatalogueList): string {
     return loadTimeData.getStringF(
         'aerieGuardCatalogueHomepageAria', this.catalogueTitle_(list));
@@ -383,6 +409,52 @@ export class SettingsAerieGuardPageElement extends
       }
     }
     return out;
+  }
+
+  // The suggested lists (issue #106) that match the search, in the order of
+  // the catalogue. They sit in a group of their own at the top and are left
+  // out of their category, so no list is on the page twice.
+  protected suggestedCatalogue_(): AerieGuardCatalogueList[] {
+    return this.visibleCatalogue_().flatMap(
+        group => group.lists.filter(l => this.suggested_.includes(l.id)));
+  }
+
+  protected categoryGroups_(): AerieGuardCatalogueGroup[] {
+    const out: AerieGuardCatalogueGroup[] = [];
+    for (const group of this.visibleCatalogue_()) {
+      const lists = group.lists.filter(l => !this.suggested_.includes(l.id));
+      if (lists.length) {
+        out.push({category: group.category, lists});
+      }
+    }
+    return out;
+  }
+
+  // The card shows once, and only while a suggested list is still off: a user
+  // who already turned them all on has nothing left to be asked.
+  protected languageCardVisible_(): boolean {
+    if (this.languageCardDismissed_) {
+      return false;
+    }
+    return this.catalogue_.some(
+        group => group.lists.some(
+            l => !l.on && this.suggested_.includes(l.id)));
+  }
+
+  protected onLanguageCardDismiss_() {
+    this.languageCardDismissed_ = true;
+    this.browserProxy_.dismissLanguageCard().then(
+        state => this.applyState_(state));
+  }
+
+  protected onLanguageCardReview_() {
+    // Clear a search that hides the suggestions, then go to the first one.
+    this.catalogueQuery_ = '';
+    this.updateComplete.then(() => {
+      const group = this.shadowRoot!.querySelector<HTMLElement>('#suggested');
+      group?.scrollIntoView({block: 'start'});
+      group?.querySelector<CrToggleElement>('cr-toggle')?.focus();
+    });
   }
 
   protected onCatalogueSearchValueChanged_(e: CustomEvent<{value: string}>) {
