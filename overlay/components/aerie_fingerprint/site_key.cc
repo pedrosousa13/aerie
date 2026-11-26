@@ -48,4 +48,15 @@ ContentSettingsPattern NoiseSitePattern(const GURL& url) {
   return ContentSettingsPattern::FromURLToSchemefulSitePattern(url);
 }
 
+std::string NoiseSiteHost(const GURL& url) {
+  if (!url.is_valid() || !url.SchemeIsHTTPOrHTTPS()) {
+    return std::string();
+  }
+  const net::SchemefulSite site(url);
+  if (site.opaque()) {
+    return std::string();
+  }
+  return std::string(site.GetURL().host());
+}
+
 }  // namespace aerie_fingerprint

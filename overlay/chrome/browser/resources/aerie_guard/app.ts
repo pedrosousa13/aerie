@@ -241,7 +241,7 @@ export class AerieGuardAppElement extends CrLitElement {
   // What the switch covers.
   protected fingerprintingScopeText_(): string {
     return loadTimeData.getStringF(
-        'fingerprintingScope', this.state_?.host ?? '');
+        'fingerprintingScope', this.state_?.fingerprinting.site ?? '');
   }
 
   protected surfaceText_(surface: ProtectedSurface): string {

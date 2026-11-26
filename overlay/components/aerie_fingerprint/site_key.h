@@ -47,6 +47,11 @@ std::string NoisePartitionKey(std::string_view partition_domain,
 // Returns an invalid pattern for an address that is not http or https.
 ContentSettingsPattern NoiseSitePattern(const GURL& url);
 
+// The host NoiseSitePattern covers, for display: the registrable domain
+// ("example.com" for "shop.example.com"), or the host itself when there is
+// none (an IP address, "localhost"). Empty for an address that has no site.
+std::string NoiseSiteHost(const GURL& url);
+
 }  // namespace aerie_fingerprint
 
 #endif  // COMPONENTS_AERIE_FINGERPRINT_SITE_KEY_H_

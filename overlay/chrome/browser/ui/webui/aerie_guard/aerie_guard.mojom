@@ -39,6 +39,10 @@ struct FingerprintingState {
   // The switch changed after the page loaded. The noise tokens are fixed when
   // a navigation commits, so the tab shows the old values until it reloads.
   bool needs_reload;
+  // The site the switch covers, named for the row: the registrable domain
+  // ("example.com" for "shop.example.com"), or the host itself when there is
+  // none. The page shows it as is.
+  string site;
 };
 
 // How far network blocking goes on the site (issue #109). "Off" is not a level:

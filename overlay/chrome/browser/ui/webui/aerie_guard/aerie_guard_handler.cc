@@ -18,6 +18,7 @@
 #include "chrome/grit/generated_resources.h"
 #include "components/aerie_adblock/browser/blocking_level.h"
 #include "components/aerie_fingerprint/protected_surfaces.h"
+#include "components/aerie_fingerprint/site_key.h"
 #include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/navigation_controller.h"
@@ -165,6 +166,7 @@ mojom::FingerprintingStatePtr AerieGuardHandler::FingerprintingStateOfTarget() {
                                         CommittedUrl(tab));
   auto out = mojom::FingerprintingState::New();
   out->mode = ToMojo(state);
+  out->site = aerie_fingerprint::NoiseSiteHost(CommittedUrl(tab));
   for (aerie_fingerprint::ProtectedSurface surface :
        aerie_fingerprint::ProtectedSurfaces()) {
     out->surfaces.push_back(ToMojo(surface));

@@ -153,6 +153,46 @@ TEST(NoiseSitePatternTest, OnlyWebAddressesHaveOne) {
   EXPECT_FALSE(NoiseSitePattern(GURL()).IsValid());
 }
 
+TEST(NoiseSiteHostTest, ARegistrableDomainNamesTheSite) {
+  EXPECT_EQ(NoiseSiteHost(GURL("https://shop.example.com/page")),
+            "example.com");
+  EXPECT_EQ(NoiseSiteHost(GURL("https://a.b.example/")), "b.example");
+  EXPECT_EQ(NoiseSiteHost(GURL("https://alice.github.io/")),
+            "alice.github.io");
+}
+
+TEST(NoiseSiteHostTest, AHostWithoutARegistrableDomainIsItself) {
+  EXPECT_EQ(NoiseSiteHost(GURL("http://localhost:3000/")), "localhost");
+  EXPECT_EQ(NoiseSiteHost(GURL("http://192.168.1.5/")), "192.168.1.5");
+  EXPECT_EQ(NoiseSiteHost(GURL("http://[::1]:8080/")), "[::1]");
+}
+
+TEST(NoiseSiteHostTest, AgreesWithTheSitePattern) {
+  // The pattern is "<scheme>://[*.]<site>" or "<scheme>://<host>".
+  for (const char* spec :
+       {"https://shop.example.com/page", "https://a.b.example/",
+        "https://alice.github.io/", "https://x.alice.github.io/",
+        "http://192.168.1.5/", "http://localhost:3000/", "http://x.localhost/",
+        "http://intranet/"}) {
+    const GURL url(spec);
+    const std::string site = NoiseSiteHost(url);
+    const std::string pattern = NoiseSitePattern(url).ToString();
+    ASSERT_FALSE(site.empty()) << spec;
+    const std::string rest = pattern.substr(pattern.find("://") + 3);
+    EXPECT_TRUE(rest == site || rest == "[*.]" + site)
+        << spec << ": site " << site << ", pattern " << pattern;
+  }
+  for (const char* spec : {"file:///tmp/a.html", "chrome://settings/", ""}) {
+    EXPECT_FALSE(NoiseSitePattern(GURL(spec)).IsValid()) << spec;
+    EXPECT_TRUE(NoiseSiteHost(GURL(spec)).empty()) << spec;
+  }
+}
+
+TEST(NoiseSiteHostTest, AnAddressWithoutASiteHasNoHost) {
+  EXPECT_TRUE(NoiseSiteHost(GURL()).empty());
+  EXPECT_TRUE(NoiseSiteHost(GURL("file:///tmp/a.html")).empty());
+}
+
 }  // namespace
 
 }  // namespace aerie_fingerprint

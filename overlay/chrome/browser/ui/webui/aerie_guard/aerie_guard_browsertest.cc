@@ -313,6 +313,37 @@ class AerieGuardFingerprintingTest : public AerieGuardBrowserTest {
   std::unique_ptr<aerie_guard::AerieGuardHandler> handler_;
 };
 
+// The row names the site the switch covers, not the tab's host (#160).
+IN_PROC_BROWSER_TEST_F(AerieGuardFingerprintingTest,
+                       TheRowNamesTheSiteOfASubdomainPage) {
+  ASSERT_TRUE(content::NavigateToURL(web_contents(), Url("a.b.example")));
+  OpenPanelFor(web_contents());
+  aerie_guard::mojom::PanelStatePtr state = GetState();
+  ASSERT_TRUE(state);
+  EXPECT_EQ("a.b.example", state->host);
+  EXPECT_EQ("b.example", state->fingerprinting->site);
+}
+
+IN_PROC_BROWSER_TEST_F(AerieGuardFingerprintingTest,
+                       TheRowNamesTheHostOfAnIpPage) {
+  ASSERT_TRUE(content::NavigateToURL(
+      web_contents(), embedded_test_server()->GetURL("/title1.html")));
+  ASSERT_EQ("127.0.0.1", web_contents()->GetLastCommittedURL().host());
+  OpenPanelFor(web_contents());
+  aerie_guard::mojom::PanelStatePtr state = GetState();
+  ASSERT_TRUE(state);
+  EXPECT_EQ("127.0.0.1", state->fingerprinting->site);
+}
+
+IN_PROC_BROWSER_TEST_F(AerieGuardFingerprintingTest,
+                       TheRowNamesTheHostOfALocalhostPage) {
+  ASSERT_TRUE(content::NavigateToURL(web_contents(), Url("localhost")));
+  OpenPanelFor(web_contents());
+  aerie_guard::mojom::PanelStatePtr state = GetState();
+  ASSERT_TRUE(state);
+  EXPECT_EQ("localhost", state->fingerprinting->site);
+}
+
 // Turning protection off for a.localhost gives its real canvas value back after
 // the reload; b.localhost keeps its noise; turning it on again brings the noise
 // back.
