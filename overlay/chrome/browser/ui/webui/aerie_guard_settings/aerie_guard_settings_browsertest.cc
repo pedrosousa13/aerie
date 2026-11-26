@@ -232,7 +232,7 @@ IN_PROC_BROWSER_TEST_F(AerieGuardSettingsBrowserTest,
   manager_->AddObserver(&counter);
   const size_t lists_before = manager_->state().lists().size();
 
-  browser()->profile()->GetPrefs()->SetString(
+  chrome_test_utils::GetProfile(this)->GetPrefs()->SetString(
       language::prefs::kAcceptLanguages, "de,en-US;q=0.8");
   base::DictValue answer = Call("getState", "[]");
   ASSERT_EQ(true, answer.FindBool("ok"));
@@ -263,7 +263,7 @@ IN_PROC_BROWSER_TEST_F(AerieGuardSettingsBrowserTest,
   manager_->RemoveObserver(&counter);
 
   // A profile with English only has no regional suggestion.
-  browser()->profile()->GetPrefs()->SetString(
+  chrome_test_utils::GetProfile(this)->GetPrefs()->SetString(
       language::prefs::kAcceptLanguages, "en-US,en");
   answer = Call("getState", "[]");
   EXPECT_TRUE(Strings(answer.FindDict("state")->FindList("suggested")).empty());
@@ -271,7 +271,7 @@ IN_PROC_BROWSER_TEST_F(AerieGuardSettingsBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(AerieGuardSettingsBrowserTest,
                        ADismissedCardStaysDismissedWhenThePageIsOpenedAgain) {
-  PrefService* prefs = browser()->profile()->GetPrefs();
+  PrefService* prefs = chrome_test_utils::GetProfile(this)->GetPrefs();
   EXPECT_FALSE(prefs->GetBoolean(aerie_guard::kLanguageCardDismissed));
   EXPECT_EQ(false, Call("getState", "[]")
                        .FindDict("state")
