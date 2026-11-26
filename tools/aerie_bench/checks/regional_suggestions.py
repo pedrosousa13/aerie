@@ -8,12 +8,13 @@ from a publisher on a fresh profile and break zero traffic by default (issue #6)
 
 What it proves, on one launch:
 
+0. The German locale took: the page's first language is German (the flag could silently do nothing).
 1. The match happened: ``suggested`` holds the German list (so the German locale reached the matching code), and every
    suggested id is a catalogue list for a language.
 2. Nothing is on: no catalogue row is ``on`` in the state, none has left the ``idle`` status, and ``state.json`` (when
-   the browser wrote one) has no entry that came from the catalogue.
-3. Nothing was fetched: the NetLog of the launch holds no request to the host of any catalogue list, and the fixture
-   server saw no request that the page did not ask for.
+   the browser wrote one; no file means nothing was ever turned on, and the result says so) has no entry that came from the catalogue.
+3. Nothing was fetched: the NetLog of the launch holds no request to the address (host and path) of any catalogue
+   list, and the fixture server saw no request that the page did not ask for.
 
 ``zero_traffic`` on a profile in the same locale (``LC_ALL=de_DE.UTF-8 ./aerie bench --check zero_traffic``) is the
 brief's other half. To see this step fail, run it on a build whose handler turns the match on.
@@ -41,9 +42,16 @@ EXPECTED_ID = "easylistgermany"
 CATALOGUE_FILE = Path(__file__).resolve().parents[3] / "overlay/components/aerie_adblock/catalogue.json"
 
 
-def publisher_hosts(catalogue: list[dict]) -> set[str]:
-    """The host of every catalogue download address."""
-    return {urlsplit(e["url"]).hostname or "" for e in catalogue} - {""}
+def address_of(url: str) -> tuple[str, str]:
+    """(host, path) of an address: the query and the fragment do not name a list."""
+    parts = urlsplit(url)
+    return (parts.hostname or "", parts.path)
+
+
+def catalogue_addresses(catalogue: list[dict]) -> set[tuple[str, str]]:
+    """The host and path of every catalogue download address. Not the host alone: easylist.to also serves the
+    built-in lists (EasyList, EasyPrivacy), which the browser may update inside the quiet wait."""
+    return {address_of(e["url"]) for e in catalogue} - {("", "")}
 
 
 def catalogue_rows(state: dict | None) -> list[dict]:
@@ -72,8 +80,12 @@ def judge(obs: dict | None) -> list[str]:
     busy = [row.get("id") for row in rows if row.get("status") != "idle"]
     if busy:
         problems.append(f"catalogue list(s) not idle (a download started): {', '.join(map(str, busy))}")
+    languages = str(obs.get("page_languages") or "").split("|")[0].split(",")[0].lower()
+    if not languages.startswith("de"):
+        problems.append(f"the browser did not take the German locale (page languages: {obs.get('page_languages')})")
+    # No state file means no list was ever turned on or fetched: that passes, and the result line says so.
     text = obs.get("state_file")
-    if text:
+    if text is not None:
         try:
             entries = (json.loads(text) or {}).get("lists") or []
         except ValueError:
@@ -82,12 +94,13 @@ def judge(obs: dict | None) -> list[str]:
         from_catalogue = [e.get("id") for e in entries if isinstance(e, dict) and e.get("catalogue")]
         if from_catalogue:
             problems.append(f"state.json holds catalogue list(s): {', '.join(map(str, from_catalogue))}")
-    hosts = publisher_hosts(obs.get("catalogue") or [])
-    if not hosts:
+    addresses = catalogue_addresses(obs.get("catalogue") or [])
+    if not addresses:
         problems.append("the catalogue was not read, so it is not proven that no publisher was contacted")
-    seen = sorted({urlsplit(u).hostname or "" for u in netlog.all_urls(obs.get("netlog_records") or [])} & hosts)
+    seen = sorted({host + path for u in netlog.all_urls(obs.get("netlog_records") or [])
+                   for host, path in [address_of(u)]} & {host + path for host, path in addresses})
     if seen:
-        problems.append(f"the browser contacted a list publisher: {', '.join(seen)}")
+        problems.append(f"the browser fetched a catalogue list: {', '.join(seen)}")
     if obs.get("netlog_records") is None:
         problems.append("the NetLog is missing, so it is not proven that no publisher was contacted")
     before, after = obs.get("fixture_requests_before"), obs.get("fixture_requests_after")
@@ -96,6 +109,10 @@ def judge(obs: dict | None) -> list[str]:
     elif after != before:
         problems.append(f"the fixture server saw {after - before} request(s) while only getState was sent")
     return problems
+
+
+def state_file_note(text: str | None) -> str:
+    return "no state file" if text is None else "state.json has no catalogue entry"
 
 
 def observe(session: Session, profile_path: str | Path | None) -> dict:
@@ -142,5 +159,5 @@ class RegionalSuggestions:
             return CheckResult(self.name, "fail", f"{len(problems)} problem(s): " + "; ".join(problems), data=data)
         return CheckResult(self.name, "pass",
                            f"A German locale suggested {', '.join(data['suggested'])}; no catalogue list is on, none "
-                           f"is downloading, state.json has no catalogue entry and no list publisher was contacted",
+                           f"is downloading, {state_file_note(obs.get('state_file'))} and no catalogue list was fetched",
                            data=data)

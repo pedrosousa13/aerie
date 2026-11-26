@@ -535,7 +535,7 @@ class CatalogueRowsTest(unittest.TestCase):
 
     def test_a_row_shows_title_description_licence_homepage_and_a_switch(self):
         for needle in ("catalogueTitle_(list)", "catalogueDesc_(list)", "catalogueLicenceText_(list)",
-                       "catalogue-homepage", "catalogue-toggle", "heading-${section.category}"):
+                       "catalogue-homepage", "catalogue-toggle", "category-${section.category}"):
             self.assertIn(needle, self.HTML)
 
     def test_the_handler_takes_a_catalogue_id_and_never_builds_an_address(self):
@@ -604,9 +604,12 @@ class SuggestionsTest(unittest.TestCase):
         body = self.TS[self.TS.index("catalogueSections_(): CatalogueSection[]"):]
         body = body[:body.index("// The card shows once")]
         # The group is pushed before the categories.
-        self.assertLess(body.index("suggested: true"), body.index("suggested: false"))
+        self.assertLess(body.index("category: SUGGESTED_SECTION"), body.index("category: group.category"))
+        # The search filters first, so a suggested list is still found, in the suggested group.
+        self.assertIn("this.visibleCatalogue_()", body)
+        self.assertEqual(self.TS.count("'suggested'"), 1)
         self.assertIn("catalogueSections_().map(", self.HTML)
-        self.assertIn("'suggested'", self.HTML)
+        self.assertNotIn("'suggested'", self.HTML)
         section = self.HTML[self.HTML.index("<settings-section"):]
         self.assertLess(section.index('id="languageCard"'), section.index('id="showCount"'))
 
@@ -618,7 +621,8 @@ class SuggestionsTest(unittest.TestCase):
         self.assertNotIn("setCatalogueList", self.HTML)
 
     def test_a_list_is_on_the_page_once(self):
-        self.assertIn("!this.suggested_.includes(l.id)", self.TS)
+        self.assertIn("!this.suggested_.has(l.id)", self.TS)
+        self.assertNotIn("suggested_.includes", self.TS)
 
     def test_dismissing_is_a_profile_pref_and_the_page_asks_the_handler(self):
         self.assertIn("sendWithPromise('aerieGuard.dismissLanguageCard')", self.PROXY)

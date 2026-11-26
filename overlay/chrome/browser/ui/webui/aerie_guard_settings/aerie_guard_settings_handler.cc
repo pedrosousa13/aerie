@@ -326,9 +326,9 @@ void AerieGuardSettingsHandler::Resolve(const base::ListValue& args,
   if (!manager || !id) {
     return;
   }
-  ResolveJavascriptCallback(base::Value(*id),
-                            PageState(*manager, add_error, exception_error, list_error,
-                                      custom_error));
+  ResolveJavascriptCallback(
+      base::Value(*id), PageState(*manager, add_error, exception_error,
+                                  list_error, custom_error));
 }
 
 void AerieGuardSettingsHandler::Reject(const base::ListValue& args,

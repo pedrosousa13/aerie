@@ -13,23 +13,23 @@ export function getHtml(this: SettingsAerieGuardPageElement) {
     class="cr-centered-card-container">
   ${this.languageCardVisible_() ? html`
     <div class="cr-row">
-    <div id="languageCard" class="language-card flex" role="region"
-        aria-labelledby="languageCardTitle">
-      <div id="languageCardTitle" class="cr-title-text">
-        $i18n{aerieGuardLanguageCardTitle}
+      <div id="languageCard" class="language-card flex" role="region"
+          aria-labelledby="languageCardTitle">
+        <div id="languageCardTitle" class="cr-title-text">
+          $i18n{aerieGuardLanguageCardTitle}
+        </div>
+        <div class="secondary">$i18n{aerieGuardLanguageCardBody}</div>
+        <div class="language-card-actions">
+          <cr-button id="languageCardReview" class="action-button"
+              @click="${this.onLanguageCardReviewClick_}">
+            $i18n{aerieGuardLanguageCardReview}
+          </cr-button>
+          <cr-button id="languageCardDismiss"
+              @click="${this.onLanguageCardDismissClick_}">
+            $i18n{aerieGuardLanguageCardDismiss}
+          </cr-button>
+        </div>
       </div>
-      <div class="secondary">$i18n{aerieGuardLanguageCardBody}</div>
-      <div class="language-card-actions">
-        <cr-button id="languageCardReview" class="action-button"
-            @click="${this.onLanguageCardReviewClick_}">
-          $i18n{aerieGuardLanguageCardReview}
-        </cr-button>
-        <cr-button id="languageCardDismiss"
-            @click="${this.onLanguageCardDismissClick_}">
-          $i18n{aerieGuardLanguageCardDismiss}
-        </cr-button>
-      </div>
-    </div>
     </div>
   ` : ''}
   <settings-toggle-button id="showCount"
@@ -147,19 +147,19 @@ export function getHtml(this: SettingsAerieGuardPageElement) {
   </div>
   <div id="catalogue" aria-labelledby="catalogueHeading">
     ${this.catalogueSections_().map(section => html`
-      <div class="catalogue-group" id="${section.suggested ? 'suggested' : 'group-' + section.category}"
+      <div class="catalogue-group" id="catalogue-${section.category}"
           data-category="${section.category}"
-          role="group" aria-labelledby="heading-${section.category}">
+          role="group" aria-labelledby="category-${section.category}">
         <div class="cr-row">
-          ${section.suggested ? html`
+          ${this.isSuggestedSection_(section) ? html`
             <div class="flex cr-padded-text">
-              <h3 id="heading-${section.category}" class="cr-title-text">
+              <h3 id="category-${section.category}" class="cr-title-text">
                 $i18n{aerieGuardSuggestedHeading}
               </h3>
               <div class="secondary">$i18n{aerieGuardSuggestedDesc}</div>
             </div>
           ` : html`
-            <h3 id="heading-${section.category}" class="cr-title-text">
+            <h3 id="category-${section.category}" class="cr-title-text">
               ${this.categoryTitle_(section.category)}
             </h3>
           `}

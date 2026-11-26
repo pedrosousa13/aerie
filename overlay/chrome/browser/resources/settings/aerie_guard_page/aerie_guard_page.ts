@@ -43,9 +43,12 @@ import {AerieGuardBrowserProxyImpl} from './aerie_guard_browser_proxy.js';
 import type {AerieGuardBrowserProxy, AerieGuardCatalogueGroup, AerieGuardCatalogueList, AerieGuardCustomIssue, AerieGuardCustomRules, AerieGuardList, AerieGuardState} from './aerie_guard_browser_proxy.js';
 import {getHtml} from './aerie_guard_page.html.js';
 
+// The name of the group of suggested lists. It is the `category` of that
+// section and, in the page, the end of its id.
+const SUGGESTED_SECTION = 'suggested';
+
 interface CatalogueSection {
   category: string;
-  suggested: boolean;
   lists: AerieGuardCatalogueList[];
 }
 
@@ -128,7 +131,7 @@ export class SettingsAerieGuardPageElement extends
       lists_: {type: Array},
       catalogue_: {type: Array},
       catalogueQuery_: {type: String},
-      suggested_: {type: Array},
+      suggested_: {type: Object},
       languageCardDismissed_: {type: Boolean},
       listsBusy_: {type: Boolean},
       listError_: {type: String},
@@ -149,7 +152,7 @@ export class SettingsAerieGuardPageElement extends
   protected accessor catalogue_: AerieGuardCatalogueGroup[] = [];
   protected accessor catalogueQuery_: string = '';
   // The catalogue ids that fit the browser's languages (issue #106).
-  protected accessor suggested_: string[] = [];
+  protected accessor suggested_: Set<string> = new Set();
   // True until the state arrives, so the card never flashes for a user who
   // dismissed it.
   protected accessor languageCardDismissed_: boolean = true;
@@ -202,7 +205,7 @@ export class SettingsAerieGuardPageElement extends
     this.exceptions_ = state.exceptions;
     this.lists_ = state.lists;
     this.catalogue_ = state.catalogue;
-    this.suggested_ = state.suggested;
+    this.suggested_ = new Set(state.suggested);
     this.languageCardDismissed_ = state.languageCardDismissed;
     this.listsBusy_ = state.busy;
     this.customRules_ = state.customRules;
@@ -422,20 +425,24 @@ export class SettingsAerieGuardPageElement extends
   // them, so no list is on the page twice. Every row is drawn the same way
   // and has the one switch of issue #105.
   protected catalogueSections_(): CatalogueSection[] {
-    const out: CatalogueSection[] = [];
     const groups = this.visibleCatalogue_();
-    const suggested =
-        groups.flatMap(g => g.lists.filter(l => this.suggested_.includes(l.id)));
+    const out: CatalogueSection[] = [];
+    const suggested = groups.flatMap(
+        g => g.lists.filter(l => this.suggested_.has(l.id)));
     if (suggested.length) {
-      out.push({category: 'suggested', suggested: true, lists: suggested});
+      out.push({category: SUGGESTED_SECTION, lists: suggested});
     }
     for (const group of groups) {
-      const lists = group.lists.filter(l => !this.suggested_.includes(l.id));
+      const lists = group.lists.filter(l => !this.suggested_.has(l.id));
       if (lists.length) {
-        out.push({category: group.category, suggested: false, lists});
+        out.push({category: group.category, lists});
       }
     }
     return out;
+  }
+
+  protected isSuggestedSection_(section: CatalogueSection): boolean {
+    return section.category === SUGGESTED_SECTION;
   }
 
   // The card shows once, and only while a suggested list is still off: a user
@@ -446,7 +453,7 @@ export class SettingsAerieGuardPageElement extends
     }
     return this.catalogue_.some(
         group => group.lists.some(
-            l => !l.on && this.suggested_.includes(l.id)));
+            l => !l.on && this.suggested_.has(l.id)));
   }
 
   protected onLanguageCardDismissClick_() {
@@ -459,7 +466,7 @@ export class SettingsAerieGuardPageElement extends
     // Clear a search that hides the suggestions, then go to the first one.
     this.catalogueQuery_ = '';
     this.updateComplete.then(() => {
-      const group = this.shadowRoot.querySelector<HTMLElement>('#suggested');
+      const group = this.shadowRoot.querySelector<HTMLElement>(`#catalogue-${SUGGESTED_SECTION}`);
       group?.scrollIntoView({block: 'start'});
       group?.querySelector<CrToggleElement>('cr-toggle')?.focus();
     });
