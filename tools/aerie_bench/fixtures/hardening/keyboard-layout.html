@@ -1,0 +1,25 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Aerie Bench Keyboard Layout</title></head>
+<body>
+<p>Calls navigator.keyboard.getLayoutMap() once and records how it ends, and whether keyboard.lock() and
+keyboard.unlock() exist.</p>
+<script>
+  window.__done = false;
+  (async () => {
+    const keyboard = navigator.keyboard;
+    const result = {hasKeyboard: !!keyboard,
+                    lockType: keyboard ? typeof keyboard.lock : 'none',
+                    unlockType: keyboard ? typeof keyboard.unlock : 'none'};
+    try {
+      const map = await keyboard.getLayoutMap();
+      result.size = map.size;
+      result.sample = Array.from(map.entries()).slice(0, 3);
+    } catch (e) {
+      result.rejection = e && e.name;
+      result.message = e && e.message;
+    }
+    window.__result = result;
+    window.__done = true;
+  })();
+</script>
+</body></html>

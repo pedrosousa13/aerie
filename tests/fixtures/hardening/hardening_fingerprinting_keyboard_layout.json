@@ -1,0 +1,745 @@
+{
+  "check": "hardening_fingerprinting_keyboard_layout",
+  "cases": [
+    {
+      "name": "refused_when_on_real_when_off",
+      "expect": "pass",
+      "detail_contains": "rejects with NotSupportedError",
+      "obs": {
+        "main": {
+          "hasKeyboard": true,
+          "lockType": "function",
+          "unlockType": "function",
+          "rejection": "NotSupportedError",
+          "message": "getLayoutMap() is not supported."
+        },
+        "pref_off": {
+          "hasKeyboard": true,
+          "lockType": "function",
+          "unlockType": "function",
+          "size": 49,
+          "sample": [
+            [
+              "Backquote",
+              "`"
+            ],
+            [
+              "Backslash",
+              "\\"
+            ],
+            [
+              "BracketLeft",
+              "["
+            ]
+          ]
+        },
+        "site_off": {
+          "hasKeyboard": true,
+          "lockType": "function",
+          "unlockType": "function",
+          "size": 49,
+          "sample": [
+            [
+              "Backquote",
+              "`"
+            ],
+            [
+              "Backslash",
+              "\\"
+            ],
+            [
+              "BracketLeft",
+              "["
+            ]
+          ]
+        },
+        "control": {
+          "hasKeyboard": true,
+          "lockType": "function",
+          "unlockType": "function",
+          "size": 49,
+          "sample": [
+            [
+              "Backquote",
+              "`"
+            ],
+            [
+              "Backslash",
+              "\\"
+            ],
+            [
+              "BracketLeft",
+              "["
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "name": "unpatched_build_returns_the_map",
+      "expect": "fail",
+      "detail_contains": "not a NotSupportedError rejection",
+      "obs": {
+        "main": {
+          "hasKeyboard": true,
+          "lockType": "function",
+          "unlockType": "function",
+          "size": 49,
+          "sample": [
+            [
+              "Backquote",
+              "`"
+            ],
+            [
+              "Backslash",
+              "\\"
+            ],
+            [
+              "BracketLeft",
+              "["
+            ]
+          ]
+        },
+        "pref_off": {
+          "hasKeyboard": true,
+          "lockType": "function",
+          "unlockType": "function",
+          "size": 49,
+          "sample": [
+            [
+              "Backquote",
+              "`"
+            ],
+            [
+              "Backslash",
+              "\\"
+            ],
+            [
+              "BracketLeft",
+              "["
+            ]
+          ]
+        },
+        "site_off": {
+          "hasKeyboard": true,
+          "lockType": "function",
+          "unlockType": "function",
+          "size": 49,
+          "sample": [
+            [
+              "Backquote",
+              "`"
+            ],
+            [
+              "Backslash",
+              "\\"
+            ],
+            [
+              "BracketLeft",
+              "["
+            ]
+          ]
+        },
+        "control": {
+          "hasKeyboard": true,
+          "lockType": "function",
+          "unlockType": "function",
+          "size": 49,
+          "sample": [
+            [
+              "Backquote",
+              "`"
+            ],
+            [
+              "Backslash",
+              "\\"
+            ],
+            [
+              "BracketLeft",
+              "["
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "name": "wrong_rejection_name",
+      "expect": "fail",
+      "detail_contains": "not a NotSupportedError rejection",
+      "obs": {
+        "main": {
+          "hasKeyboard": true,
+          "lockType": "function",
+          "unlockType": "function",
+          "rejection": "SecurityError"
+        },
+        "pref_off": {
+          "hasKeyboard": true,
+          "lockType": "function",
+          "unlockType": "function",
+          "size": 49,
+          "sample": [
+            [
+              "Backquote",
+              "`"
+            ],
+            [
+              "Backslash",
+              "\\"
+            ],
+            [
+              "BracketLeft",
+              "["
+            ]
+          ]
+        },
+        "site_off": {
+          "hasKeyboard": true,
+          "lockType": "function",
+          "unlockType": "function",
+          "size": 49,
+          "sample": [
+            [
+              "Backquote",
+              "`"
+            ],
+            [
+              "Backslash",
+              "\\"
+            ],
+            [
+              "BracketLeft",
+              "["
+            ]
+          ]
+        },
+        "control": {
+          "hasKeyboard": true,
+          "lockType": "function",
+          "unlockType": "function",
+          "size": 49,
+          "sample": [
+            [
+              "Backquote",
+              "`"
+            ],
+            [
+              "Backslash",
+              "\\"
+            ],
+            [
+              "BracketLeft",
+              "["
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "name": "refusal_still_there_when_pref_off",
+      "expect": "fail",
+      "detail_contains": "fingerprinting pref off: getLayoutMap() rejected",
+      "obs": {
+        "main": {
+          "hasKeyboard": true,
+          "lockType": "function",
+          "unlockType": "function",
+          "rejection": "NotSupportedError",
+          "message": "getLayoutMap() is not supported."
+        },
+        "pref_off": {
+          "hasKeyboard": true,
+          "lockType": "function",
+          "unlockType": "function",
+          "rejection": "NotSupportedError",
+          "message": "getLayoutMap() is not supported."
+        },
+        "site_off": {
+          "hasKeyboard": true,
+          "lockType": "function",
+          "unlockType": "function",
+          "size": 49,
+          "sample": [
+            [
+              "Backquote",
+              "`"
+            ],
+            [
+              "Backslash",
+              "\\"
+            ],
+            [
+              "BracketLeft",
+              "["
+            ]
+          ]
+        },
+        "control": {
+          "hasKeyboard": true,
+          "lockType": "function",
+          "unlockType": "function",
+          "size": 49,
+          "sample": [
+            [
+              "Backquote",
+              "`"
+            ],
+            [
+              "Backslash",
+              "\\"
+            ],
+            [
+              "BracketLeft",
+              "["
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "name": "refusal_still_there_when_site_off",
+      "expect": "fail",
+      "detail_contains": "site switched off: getLayoutMap() rejected",
+      "obs": {
+        "main": {
+          "hasKeyboard": true,
+          "lockType": "function",
+          "unlockType": "function",
+          "rejection": "NotSupportedError",
+          "message": "getLayoutMap() is not supported."
+        },
+        "pref_off": {
+          "hasKeyboard": true,
+          "lockType": "function",
+          "unlockType": "function",
+          "size": 49,
+          "sample": [
+            [
+              "Backquote",
+              "`"
+            ],
+            [
+              "Backslash",
+              "\\"
+            ],
+            [
+              "BracketLeft",
+              "["
+            ]
+          ]
+        },
+        "site_off": {
+          "hasKeyboard": true,
+          "lockType": "function",
+          "unlockType": "function",
+          "rejection": "NotSupportedError",
+          "message": "getLayoutMap() is not supported."
+        },
+        "control": {
+          "hasKeyboard": true,
+          "lockType": "function",
+          "unlockType": "function",
+          "size": 49,
+          "sample": [
+            [
+              "Backquote",
+              "`"
+            ],
+            [
+              "Backslash",
+              "\\"
+            ],
+            [
+              "BracketLeft",
+              "["
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "name": "pref_off_returns_a_different_map",
+      "expect": "fail",
+      "detail_contains": "fingerprinting pref off: getLayoutMap() gave 3 entries",
+      "obs": {
+        "main": {
+          "hasKeyboard": true,
+          "lockType": "function",
+          "unlockType": "function",
+          "rejection": "NotSupportedError",
+          "message": "getLayoutMap() is not supported."
+        },
+        "pref_off": {
+          "hasKeyboard": true,
+          "lockType": "function",
+          "unlockType": "function",
+          "size": 3
+        },
+        "site_off": {
+          "hasKeyboard": true,
+          "lockType": "function",
+          "unlockType": "function",
+          "size": 49,
+          "sample": [
+            [
+              "Backquote",
+              "`"
+            ],
+            [
+              "Backslash",
+              "\\"
+            ],
+            [
+              "BracketLeft",
+              "["
+            ]
+          ]
+        },
+        "control": {
+          "hasKeyboard": true,
+          "lockType": "function",
+          "unlockType": "function",
+          "size": 49,
+          "sample": [
+            [
+              "Backquote",
+              "`"
+            ],
+            [
+              "Backslash",
+              "\\"
+            ],
+            [
+              "BracketLeft",
+              "["
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "name": "lock_missing_when_protected",
+      "expect": "fail",
+      "detail_contains": "navigator.keyboard.lock is undefined",
+      "obs": {
+        "main": {
+          "hasKeyboard": true,
+          "lockType": "undefined",
+          "unlockType": "function",
+          "rejection": "NotSupportedError"
+        },
+        "pref_off": {
+          "hasKeyboard": true,
+          "lockType": "function",
+          "unlockType": "function",
+          "size": 49,
+          "sample": [
+            [
+              "Backquote",
+              "`"
+            ],
+            [
+              "Backslash",
+              "\\"
+            ],
+            [
+              "BracketLeft",
+              "["
+            ]
+          ]
+        },
+        "site_off": {
+          "hasKeyboard": true,
+          "lockType": "function",
+          "unlockType": "function",
+          "size": 49,
+          "sample": [
+            [
+              "Backquote",
+              "`"
+            ],
+            [
+              "Backslash",
+              "\\"
+            ],
+            [
+              "BracketLeft",
+              "["
+            ]
+          ]
+        },
+        "control": {
+          "hasKeyboard": true,
+          "lockType": "function",
+          "unlockType": "function",
+          "size": 49,
+          "sample": [
+            [
+              "Backquote",
+              "`"
+            ],
+            [
+              "Backslash",
+              "\\"
+            ],
+            [
+              "BracketLeft",
+              "["
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "name": "unlock_missing_when_site_off",
+      "expect": "fail",
+      "detail_contains": "site switched off: navigator.keyboard.lock is function and unlock is undefined",
+      "obs": {
+        "main": {
+          "hasKeyboard": true,
+          "lockType": "function",
+          "unlockType": "function",
+          "rejection": "NotSupportedError",
+          "message": "getLayoutMap() is not supported."
+        },
+        "pref_off": {
+          "hasKeyboard": true,
+          "lockType": "function",
+          "unlockType": "function",
+          "size": 49,
+          "sample": [
+            [
+              "Backquote",
+              "`"
+            ],
+            [
+              "Backslash",
+              "\\"
+            ],
+            [
+              "BracketLeft",
+              "["
+            ]
+          ]
+        },
+        "site_off": {
+          "hasKeyboard": true,
+          "lockType": "function",
+          "unlockType": "undefined",
+          "size": 49
+        },
+        "control": {
+          "hasKeyboard": true,
+          "lockType": "function",
+          "unlockType": "function",
+          "size": 49,
+          "sample": [
+            [
+              "Backquote",
+              "`"
+            ],
+            [
+              "Backslash",
+              "\\"
+            ],
+            [
+              "BracketLeft",
+              "["
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "name": "negative_control_rejects",
+      "expect": "fail",
+      "detail_contains": "negative control failed",
+      "obs": {
+        "main": {
+          "hasKeyboard": true,
+          "lockType": "function",
+          "unlockType": "function",
+          "rejection": "NotSupportedError",
+          "message": "getLayoutMap() is not supported."
+        },
+        "pref_off": {
+          "hasKeyboard": true,
+          "lockType": "function",
+          "unlockType": "function",
+          "size": 49,
+          "sample": [
+            [
+              "Backquote",
+              "`"
+            ],
+            [
+              "Backslash",
+              "\\"
+            ],
+            [
+              "BracketLeft",
+              "["
+            ]
+          ]
+        },
+        "site_off": {
+          "hasKeyboard": true,
+          "lockType": "function",
+          "unlockType": "function",
+          "size": 49,
+          "sample": [
+            [
+              "Backquote",
+              "`"
+            ],
+            [
+              "Backslash",
+              "\\"
+            ],
+            [
+              "BracketLeft",
+              "["
+            ]
+          ]
+        },
+        "control": {
+          "hasKeyboard": true,
+          "lockType": "function",
+          "unlockType": "function",
+          "rejection": "NotSupportedError",
+          "message": "getLayoutMap() is not supported."
+        }
+      }
+    },
+    {
+      "name": "negative_control_empty_map",
+      "expect": "fail",
+      "detail_contains": "negative control failed",
+      "obs": {
+        "main": {
+          "hasKeyboard": true,
+          "lockType": "function",
+          "unlockType": "function",
+          "rejection": "NotSupportedError",
+          "message": "getLayoutMap() is not supported."
+        },
+        "pref_off": {
+          "hasKeyboard": true,
+          "lockType": "function",
+          "unlockType": "function",
+          "size": 49,
+          "sample": [
+            [
+              "Backquote",
+              "`"
+            ],
+            [
+              "Backslash",
+              "\\"
+            ],
+            [
+              "BracketLeft",
+              "["
+            ]
+          ]
+        },
+        "site_off": {
+          "hasKeyboard": true,
+          "lockType": "function",
+          "unlockType": "function",
+          "size": 49,
+          "sample": [
+            [
+              "Backquote",
+              "`"
+            ],
+            [
+              "Backslash",
+              "\\"
+            ],
+            [
+              "BracketLeft",
+              "["
+            ]
+          ]
+        },
+        "control": {
+          "hasKeyboard": true,
+          "lockType": "function",
+          "unlockType": "function",
+          "size": 0
+        }
+      }
+    },
+    {
+      "name": "page_failed",
+      "expect": "fail",
+      "detail_contains": "the keyboard layout page failed (main)",
+      "obs": {
+        "main": {
+          "error": "timeout waiting for the fixture page"
+        },
+        "pref_off": {
+          "hasKeyboard": true,
+          "lockType": "function",
+          "unlockType": "function",
+          "size": 49,
+          "sample": [
+            [
+              "Backquote",
+              "`"
+            ],
+            [
+              "Backslash",
+              "\\"
+            ],
+            [
+              "BracketLeft",
+              "["
+            ]
+          ]
+        },
+        "site_off": {
+          "hasKeyboard": true,
+          "lockType": "function",
+          "unlockType": "function",
+          "size": 49,
+          "sample": [
+            [
+              "Backquote",
+              "`"
+            ],
+            [
+              "Backslash",
+              "\\"
+            ],
+            [
+              "BracketLeft",
+              "["
+            ]
+          ]
+        },
+        "control": {
+          "hasKeyboard": true,
+          "lockType": "function",
+          "unlockType": "function",
+          "size": 49,
+          "sample": [
+            [
+              "Backquote",
+              "`"
+            ],
+            [
+              "Backslash",
+              "\\"
+            ],
+            [
+              "BracketLeft",
+              "["
+            ]
+          ]
+        }
+      }
+    }
+  ]
+}

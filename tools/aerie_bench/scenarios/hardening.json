@@ -21,6 +21,7 @@
     "hardening_fingerprinting_fonts",
     "hardening_device_memory",
     "hardening_fingerprinting_media_devices",
+    "hardening_fingerprinting_keyboard_layout",
     "hardening_extension_prefs",
     "hardening_pref_defaults",
     "hardening_settings_page",
