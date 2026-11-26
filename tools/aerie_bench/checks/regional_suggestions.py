@@ -1,20 +1,21 @@
 """Regional suggestions: a browser in another language suggests lists and turns none of them on (issue #106).
 
-The browser starts on a fresh profile with ``--lang=de``. The Settings message handler (``AerieGuardSettingsHandler``)
+The browser starts on a fresh profile in a German locale (``LC_ALL=de_DE.UTF-8``; Chromium on Linux ignores
+``--lang``, see ``LANG_ENV``). The Settings message handler (``AerieGuardSettingsHandler``)
 answers ``aerieGuard.getState`` with ``suggested``, the catalogue ids that fit the locale and the language pref. The
 brief is that a suggestion is only a suggestion: Brave turns a matching list on by itself, which for Aerie would fetch
 from a publisher on a fresh profile and break zero traffic by default (issue #6).
 
 What it proves, on one launch:
 
-1. The match happened: ``suggested`` holds the German list (so ``--lang=de`` reached the matching code), and every
+1. The match happened: ``suggested`` holds the German list (so the German locale reached the matching code), and every
    suggested id is a catalogue list for a language.
 2. Nothing is on: no catalogue row is ``on`` in the state, none has left the ``idle`` status, and ``state.json`` (when
    the browser wrote one) has no entry that came from the catalogue.
 3. Nothing was fetched: the NetLog of the launch holds no request to the host of any catalogue list, and the fixture
    server saw no request that the page did not ask for.
 
-``zero_traffic`` on a profile with the same flag (``./aerie bench --check zero_traffic --flag=--lang=de``) is the
+``zero_traffic`` on a profile in the same locale (``LC_ALL=de_DE.UTF-8 ./aerie bench --check zero_traffic``) is the
 brief's other half. To see this step fail, run it on a build whose handler turns the match on.
 
 The decision logic is in ``judge`` and takes recorded observations, like ``filter_lists``.
@@ -33,7 +34,9 @@ from ..session import CheckResult, Session
 from . import register
 from .filter_lists import SETTLE, open_manager, read_state_file
 
-LANG_FLAG = "--lang=de"
+# Chromium on Linux with GLib reads the locale from LANGUAGE, LC_ALL, LC_MESSAGES and LANG only: the ``--lang``
+# switch is ignored there (ui/base/l10n/l10n_util.cc, GetCandidates), so the check sets the environment.
+LANG_ENV = {"LC_ALL": "de_DE.UTF-8"}
 EXPECTED_ID = "easylistgermany"
 CATALOGUE_FILE = Path(__file__).resolve().parents[3] / "overlay/components/aerie_adblock/catalogue.json"
 
@@ -48,7 +51,7 @@ def catalogue_rows(state: dict | None) -> list[dict]:
 
 
 def judge(obs: dict | None) -> list[str]:
-    """The problems with the observations of the ``--lang=de`` launch. Empty means it passed."""
+    """The problems with the observations of the German-locale launch. Empty means it passed."""
     if not obs:
         return ["no observations: the launch never answered getState"]
     state = obs.get("state")
@@ -58,7 +61,7 @@ def judge(obs: dict | None) -> list[str]:
         problems.append("the state has no catalogue rows")
     suggested = (state or {}).get("suggested")
     if not isinstance(suggested, list) or EXPECTED_ID not in suggested:
-        problems.append(f"{LANG_FLAG} did not suggest {EXPECTED_ID} (suggested: {suggested})")
+        problems.append(f"a German locale did not suggest {EXPECTED_ID} (suggested: {suggested})")
     known = {row.get("id") for row in rows}
     for list_id in suggested if isinstance(suggested, list) else []:
         if list_id not in known:
@@ -96,13 +99,15 @@ def judge(obs: dict | None) -> list[str]:
 
 
 def observe(session: Session, profile_path: str | Path | None) -> dict:
-    """Open Settings on the ``--lang=de`` browser and read what it suggests and what it did about it."""
+    """Open Settings on the German-locale browser and read what it suggests and what it did about it."""
     obs: dict = {}
     obs["state"] = open_manager(session)
     before = len(session.fixtures.snapshot())
     time.sleep(SETTLE)  # a download the handler wrongly started would have reached the network by now
     obs["state_after"] = open_manager(session)
     obs["fixture_requests_before"], obs["fixture_requests_after"] = before, len(session.fixtures.snapshot())
+    # What the page was given as the language: evidence that the flag reached the browser.
+    obs["page_languages"] = session.evaluate("navigator.languages.join(',') + '|' + document.documentElement.lang")
     obs["state_file"] = read_state_file(profile_path) if profile_path else None
     return obs
 
@@ -116,7 +121,7 @@ class RegionalSuggestions:
         self._obs: dict = {}
         try:
             with session.new_profile() as profile:
-                with session.variant((LANG_FLAG,), profile=profile) as launch:
+                with session.variant((), profile=profile, env=LANG_ENV) as launch:
                     self._obs = observe(launch, profile.path)
                 self._obs["netlog_records"] = launch.netlog  # filled in once the browser exited
         except (CdpError, OSError, RuntimeError) as exc:
@@ -132,10 +137,10 @@ class RegionalSuggestions:
         # would show here even when the first answer came before it).
         judged = {**obs, "state": obs.get("state_after") or obs.get("state")}
         problems = judge(judged)
-        data = {"suggested": (judged["state"] or {}).get("suggested")}
+        data = {"suggested": (judged["state"] or {}).get("suggested"), "page_languages": obs.get("page_languages")}
         if problems:
             return CheckResult(self.name, "fail", f"{len(problems)} problem(s): " + "; ".join(problems), data=data)
         return CheckResult(self.name, "pass",
-                           f"{LANG_FLAG} suggested {', '.join(data['suggested'])}; no catalogue list is on, none "
+                           f"A German locale suggested {', '.join(data['suggested'])}; no catalogue list is on, none "
                            f"is downloading, state.json has no catalogue entry and no list publisher was contacted",
                            data=data)

@@ -88,7 +88,7 @@ class JudgeTest(unittest.TestCase):
 
     def test_the_check_is_registered(self):
         self.assertIn("regional_suggestions", REGISTRY)
-        self.assertEqual("--lang=de", rs.LANG_FLAG)
+        self.assertEqual("de_DE.UTF-8", rs.LANG_ENV["LC_ALL"])
 
 
 if __name__ == "__main__":
