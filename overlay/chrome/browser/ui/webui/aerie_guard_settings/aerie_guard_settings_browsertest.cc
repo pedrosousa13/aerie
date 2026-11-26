@@ -434,8 +434,8 @@ IN_PROC_BROWSER_TEST_F(AerieListSubscriptionBrowserTest,
               *answer.FindDict("state")->FindString("addErrorCode"))
         << url;
   }
-  // An https address on the user's own computer is refused for its own reason.
-  base::DictValue answer = Call("addList", "[\"https://127.0.0.1/x.txt\"]");
+  // An https address on the user's own network is refused for its own reason.
+  base::DictValue answer = Call("addList", "[\"https://192.168.1.1/x.txt\"]");
   EXPECT_EQ("non_public_url",
             *answer.FindDict("state")->FindString("addErrorCode"));
   // A message that is not an address at all is rejected.
