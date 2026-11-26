@@ -17,10 +17,12 @@
 #include "base/test/bind.h"
 #include "base/test/task_environment.h"
 #include "components/aerie_adblock/browser/adblock_engine.h"
+#include "components/aerie_adblock/browser/catalogue.h"
 #include "components/aerie_adblock/browser/filter_list_storage.h"
 #include "components/aerie_adblock/browser/session_key.h"
 #include "net/http/http_status_code.h"
 #include "services/network/public/cpp/weak_wrapper_shared_url_loader_factory.h"
+#include "services/network/public/cpp/resource_request.h"
 #include "services/network/test/test_url_loader_factory.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -1051,6 +1053,234 @@ TEST_F(CustomRulesTest, TheLastOfTwoQuickSavesWins) {
   EXPECT_FALSE(Blocks("first.example"));
   EXPECT_TRUE(Blocks("second.example"));
   EXPECT_EQ("||second.example^\n", manager->custom_rules().text);
+}
+
+
+// The catalogue (issue #105).
+
+constexpr char kFanboyUrl[] = "https://easylist.to/easylist/fanboy-annoyance.txt";
+constexpr char kUboPrivacyUrl[] =
+    "https://ublockorigin.github.io/uAssets/filters/privacy.min.txt";
+
+TEST_F(FilterListManagerTest, ACatalogueListIsDownloadedFromTheBuildTimeAddressWhenTurnedOn) {
+  network_.AddResponse(kFanboyUrl, "! Title: Some other name\n||cat-one.example^\n");
+  std::vector<std::string> requested;
+  network_.SetInterceptor(base::BindLambdaForTesting(
+      [&](const network::ResourceRequest& request) {
+        requested.push_back(request.url.spec());
+      }));
+  auto manager = MakeManager();
+  EXPECT_EQ(0u, network_.total_requests());  // Nothing by default.
+
+  EXPECT_EQ(FilterListManager::CatalogueResult::kOk,
+            manager->SetCatalogueListEnabled("fanboyannoyances", true));
+  WaitUntilIdle(*manager);
+  EXPECT_EQ(1u, network_.total_requests());
+  EXPECT_EQ((std::vector<std::string>{kFanboyUrl}), requested);
+  EXPECT_TRUE(Blocks("cat-one.example"));
+  const FilterListEntry* entry = manager->state().Find("fanboyannoyances");
+  ASSERT_TRUE(entry);
+  EXPECT_TRUE(entry->catalogue);
+  EXPECT_FALSE(entry->updated.is_null());
+  EXPECT_GT(entry->bytes, 0);
+  EXPECT_EQ(1, entry->rules);
+  EXPECT_EQ("", entry->error);
+  // The list's own header does not rename a catalogue list.
+  EXPECT_NE("Some other name", entry->title);
+}
+
+TEST_F(FilterListManagerTest, AnUnknownIdOrARawAddressIsRefusedAndNothingIsFetched) {
+  auto manager = MakeManager();
+  for (const char* bad :
+       {"nope", "", "easylist", "custom", "FANBOYANNOYANCES", kFanboyUrl,
+        "https://evil.example/list.txt", "http://127.0.0.1:8000/list.txt"}) {
+    EXPECT_EQ(FilterListManager::CatalogueResult::kUnknownId,
+              manager->SetCatalogueListEnabled(bad, true))
+        << bad;
+    EXPECT_EQ(FilterListManager::CatalogueResult::kUnknownId,
+              manager->SetCatalogueListEnabled(bad, false))
+        << bad;
+  }
+  WaitUntilIdle(*manager);
+  EXPECT_FALSE(manager->busy());
+  EXPECT_EQ(0u, network_.total_requests());
+  EXPECT_EQ(0, network_.NumPending());
+  EXPECT_EQ(2u, manager->state().lists().size());
+}
+
+TEST_F(FilterListManagerTest, TurningACatalogueListOffRemovesItAndStopsItsDownloads) {
+  network_.AddResponse(kFanboyUrl, "||cat-one.example^\n");
+  network_.AddResponse(kEasyListUrl, "||new-one.example^\n");
+  network_.AddResponse(kEasyPrivacyUrl, "||new-two.example^\n");
+  std::vector<std::string> requested;
+  network_.SetInterceptor(base::BindLambdaForTesting(
+      [&](const network::ResourceRequest& request) {
+        requested.push_back(request.url.spec());
+      }));
+  auto manager = MakeManager();
+  ASSERT_EQ(FilterListManager::CatalogueResult::kOk,
+            manager->SetCatalogueListEnabled("fanboyannoyances", true));
+  WaitUntilIdle(*manager);
+  const base::FilePath file =
+      filter_list_storage::ListPath(dir_.GetPath(), "fanboyannoyances");
+  ASSERT_TRUE(base::PathExists(file));
+  ASSERT_TRUE(Blocks("cat-one.example"));
+
+  EXPECT_EQ(FilterListManager::CatalogueResult::kOk,
+            manager->SetCatalogueListEnabled("fanboyannoyances", false));
+  WaitUntilIdle(*manager);
+  EXPECT_EQ(nullptr, manager->state().Find("fanboyannoyances"));
+  EXPECT_FALSE(base::PathExists(file));
+  EXPECT_FALSE(Blocks("cat-one.example"));
+
+  // The schedule has nothing of it to fetch.
+  manager->MaybeRunScheduledUpdate(base::Time::Now());
+  task_environment_.AdvanceClock(base::Days(2));
+  manager->MaybeRunScheduledUpdate(base::Time::Now());
+  WaitUntilIdle(*manager);
+  EXPECT_EQ((std::vector<std::string>{kFanboyUrl, kEasyListUrl, kEasyPrivacyUrl}),
+            requested);  // After the one download, only the built-in lists.
+}
+
+TEST_F(FilterListManagerTest, ACatalogueListThatIsOnIsUpdatedOnTheDailySchedule) {
+  network_.AddResponse(kFanboyUrl, "||cat-one.example^\n");
+  network_.AddResponse(kEasyListUrl, "||new-one.example^\n");
+  network_.AddResponse(kEasyPrivacyUrl, "||new-two.example^\n");
+  auto manager = MakeManager();
+  ASSERT_EQ(FilterListManager::CatalogueResult::kOk,
+            manager->SetCatalogueListEnabled("fanboyannoyances", true));
+  WaitUntilIdle(*manager);
+  ASSERT_EQ(1u, network_.total_requests());
+
+  manager->MaybeRunScheduledUpdate(base::Time::Now());
+  task_environment_.AdvanceClock(base::Hours(23));
+  manager->MaybeRunScheduledUpdate(base::Time::Now());
+  WaitUntilIdle(*manager);
+  EXPECT_EQ(1u, network_.total_requests());  // Not before a day.
+
+  task_environment_.AdvanceClock(base::Hours(2));
+  manager->MaybeRunScheduledUpdate(base::Time::Now());
+  WaitUntilIdle(*manager);
+  EXPECT_EQ(4u, network_.total_requests());  // Two built-in and the catalogue list.
+}
+
+TEST_F(FilterListManagerTest, ACatalogueListSurvivesARestartWithNoRequest) {
+  network_.AddResponse(kFanboyUrl, "||cat-one.example^\n");
+  {
+    auto manager = MakeManager();
+    ASSERT_EQ(FilterListManager::CatalogueResult::kOk,
+              manager->SetCatalogueListEnabled("fanboyannoyances", true));
+    WaitUntilIdle(*manager);
+  }
+  const size_t before = network_.total_requests();
+  auto manager = MakeManager();
+  const FilterListEntry* entry = manager->state().Find("fanboyannoyances");
+  ASSERT_TRUE(entry);
+  EXPECT_TRUE(entry->catalogue);
+  EXPECT_EQ(kFanboyUrl, entry->url);
+  EXPECT_TRUE(Blocks("cat-one.example"));
+  EXPECT_EQ(before, network_.total_requests());
+}
+
+TEST_F(FilterListManagerTest, TurningAListOnTwiceFetchesOnce) {
+  network_.AddResponse(kFanboyUrl, "||cat-one.example^\n");
+  auto manager = MakeManager();
+  EXPECT_EQ(FilterListManager::CatalogueResult::kOk,
+            manager->SetCatalogueListEnabled("fanboyannoyances", true));
+  EXPECT_EQ(FilterListManager::CatalogueResult::kOk,
+            manager->SetCatalogueListEnabled("fanboyannoyances", true));
+  WaitUntilIdle(*manager);
+  EXPECT_EQ(1u, network_.total_requests());
+}
+
+// A manager over a state file the test wrote first.
+class CatalogueCapTest : public FilterListManagerTest {
+ protected:
+  void Seed(const FilterListState& state) {
+    ASSERT_TRUE(filter_list_storage::SaveState(dir_.GetPath(), state));
+  }
+};
+
+TEST_F(CatalogueCapTest, TheNumberOfListsInUseIsCappedAndNothingIsFetchedPastIt) {
+  FilterListState state;
+  std::string id;
+  for (size_t i = 0; i < kMaxCustomLists; ++i) {
+    ASSERT_EQ(FilterListState::AddResult::kAdded,
+              state.AddCustomList(GURL("https://l.example/" + std::to_string(i)),
+                                  false, &id));
+  }
+  for (const CatalogueEntry& entry : Catalogue()) {
+    if (state.ListsInUse() < kMaxListsInUse) {
+      ASSERT_EQ(FilterListState::CatalogueAddResult::kAdded,
+                state.AddCatalogueList(entry.id));
+    }
+  }
+  ASSERT_EQ(kMaxListsInUse, state.ListsInUse());
+  Seed(state);
+  auto manager = MakeManager();
+  ASSERT_EQ(kMaxListsInUse, manager->state().ListsInUse());
+  const size_t before = network_.total_requests();
+
+  std::string_view left_out;
+  for (const CatalogueEntry& entry : Catalogue()) {
+    if (!manager->state().Find(entry.id)) {
+      left_out = entry.id;
+      break;
+    }
+  }
+  ASSERT_FALSE(left_out.empty());
+  EXPECT_EQ(FilterListManager::CatalogueResult::kTooMany,
+            manager->SetCatalogueListEnabled(left_out, true));
+  std::string error;
+  EXPECT_FALSE(manager->AddList(GURL("https://l.example/one-more"), &error));
+  WaitUntilIdle(*manager);
+  EXPECT_EQ(nullptr, manager->state().Find(left_out));
+  EXPECT_EQ(before, network_.total_requests());
+}
+
+std::string BigList(size_t bytes) {
+  std::string text = "||cat-big.example^\n";
+  const std::string comment = "! padding padding padding padding padding\n";
+  while (text.size() < bytes) {
+    text += comment;
+  }
+  return text;
+}
+
+TEST_F(CatalogueCapTest, ADownloadThatTakesTheTotalSizeOverTheCapIsRefused) {
+  FilterListState state;
+  // Six lists at the size limit already fill 30 of the 32 MiB.
+  size_t seeded = 0;
+  for (const CatalogueEntry& entry : Catalogue()) {
+    if (entry.id == "uboprivacy" || seeded == 6) {
+      continue;
+    }
+    ASSERT_EQ(FilterListState::CatalogueAddResult::kAdded,
+              state.AddCatalogueList(entry.id));
+    state.Find(entry.id)->bytes = static_cast<int>(kMaxListBytes);
+    ++seeded;
+  }
+  Seed(state);
+  network_.AddResponse(kUboPrivacyUrl, BigList(3 * 1024 * 1024));
+  auto manager = MakeManager();
+  ASSERT_EQ(FilterListManager::CatalogueResult::kOk,
+            manager->SetCatalogueListEnabled("uboprivacy", true));
+  WaitUntilIdle(*manager);
+  const FilterListEntry* entry = manager->state().Find("uboprivacy");
+  ASSERT_TRUE(entry);
+  EXPECT_TRUE(entry->updated.is_null());  // No copy was taken.
+  EXPECT_EQ(ListFailureMessage(ListFailure::kTooLarge), entry->error);
+  EXPECT_FALSE(Blocks("cat-big.example"));
+  EXPECT_FALSE(base::PathExists(
+      filter_list_storage::ListPath(dir_.GetPath(), "uboprivacy")));
+
+  // A smaller list fits.
+  network_.ClearResponses();
+  network_.AddResponse(kUboPrivacyUrl, BigList(1024 * 1024));
+  manager->UpdateList("uboprivacy");
+  WaitUntilIdle(*manager);
+  EXPECT_TRUE(Blocks("cat-big.example"));
+  EXPECT_EQ("", manager->state().Find("uboprivacy")->error);
 }
 
 }  // namespace

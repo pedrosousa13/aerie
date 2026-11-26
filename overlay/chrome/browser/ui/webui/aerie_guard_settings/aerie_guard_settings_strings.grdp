@@ -3,7 +3,7 @@
      You can use, redistribute, and/or modify this source code under
      the terms of the GPL-3.0 license that can be found in the LICENSE file.
 
-     Strings of the Aerie Guard section of Settings (issues #103, #104 and #107). patches/adblock/0022 (#103, #104) and 0027 (#107) give each one to the
+     Strings of the Aerie Guard section of Settings (issues #103, #104, #105 and #107). patches/adblock/0022 (#103, #104) and 0027 (#107) give each one to the
      settings page under the name tests/test_aerie_guard_settings.py checks. -->
 <grit-part>
   <message name="IDS_SETTINGS_AERIE_GUARD_TITLE" desc="Title of the Aerie Guard section of Settings and the text of its entry in the menu on the left.">
@@ -225,4 +225,135 @@
   <message name="IDS_SETTINGS_AERIE_GUARD_CUSTOM_ERROR_UNWRITABLE" desc="Error shown when the user's own filter rules could not be written to disk.">
     The rules could not be saved on this computer.
   </message>
+  <!-- catalogue:begin -->
+  <message name="IDS_SETTINGS_AERIE_GUARD_CATALOGUE_HEADING" desc="Heading of the catalogue of filter lists in the Aerie Guard section of Settings.">
+    Filter list catalogue
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CATALOGUE_DESC" desc="Text under the heading of the catalogue of filter lists. It says that nothing is downloaded until the user turns a list on and where a list comes from.">
+    Lists that other people publish. Aerie downloads a list from its publisher only after you turn it on, and nothing is downloaded for lists that are off. Lists that are on are updated like the others.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CATALOGUE_SEARCH_LABEL" desc="Label of the search field above the catalogue of filter lists.">
+    Search lists
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CATALOGUE_SEARCH_PLACEHOLDER" desc="Hint inside the empty search field above the catalogue of filter lists.">
+    Name, language or topic
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CATALOGUE_NO_RESULTS" desc="Text shown when the search finds no filter list in the catalogue.">
+    No list matches your search.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CATALOGUE_CATEGORY_ANNOYANCES" desc="Heading of the group of filter lists that hide page annoyances such as pop-ups.">
+    Annoyances
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CATALOGUE_CATEGORY_COOKIES" desc="Heading of the group of filter lists that hide cookie consent notices.">
+    Cookie notices
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CATALOGUE_CATEGORY_SOCIAL" desc="Heading of the group of filter lists that block social media buttons and widgets.">
+    Social
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CATALOGUE_CATEGORY_PRIVACY" desc="Heading of the group of filter lists that block trackers and tracking parameters.">
+    Privacy
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CATALOGUE_CATEGORY_REGIONAL" desc="Heading of the group of filter lists made for sites in one language or region.">
+    Regional
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CATALOGUE_LICENCE" desc="Line on a catalogue row that names the licence of the filter list. The placeholder is a licence name such as GPL-3.0.">
+    Licence: <ph name="LICENCE">$1<ex>GPL-3.0</ex></ph>
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CATALOGUE_HOMEPAGE" desc="Link on a catalogue row to the website of the filter list's publisher.">
+    Website
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CATALOGUE_HOMEPAGE_ARIA" desc="Accessible name of the link to the website of a filter list's publisher. The placeholder is the name of the list.">
+    Website of <ph name="LIST">$1<ex>EasyList Germany</ex></ph>
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CATALOGUE_TOGGLE_ARIA" desc="Accessible name of the switch that turns one catalogue filter list on or off. The placeholder is the name of the list.">
+    Download and use <ph name="LIST">$1<ex>EasyList Germany</ex></ph>
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CATALOGUE_LANGUAGES" desc="Line on a catalogue row that names the languages a regional filter list is made for. The placeholder is a list of language names.">
+    For sites in <ph name="LANGUAGES">$1<ex>German</ex></ph>
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CATALOGUE_NOT_DOWNLOADED" desc="Line on a catalogue row for a filter list that is off. It says that nothing has been downloaded.">
+    Off. Nothing is downloaded.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_LIST_ERROR_TOO_MANY" desc="Error shown when the user turns on a filter list but too many lists are already in use.">
+    Too many lists are in use. Turn one off first.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CAT_FANBOYANNOYANCES_TITLE" desc="Name of the filter list Fanboy Annoyances in the catalogue of the Aerie Guard section of Settings. It is the publisher's name for the list.">
+    Fanboy Annoyances
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CAT_FANBOYANNOYANCES_DESC" desc="One sentence that says what the filter list Fanboy Annoyances does, shown under its name in the catalogue.">
+    Hides pop-ups, newsletter prompts, chat widgets, in-page video overlays and other page clutter.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CAT_UBOANNOYANCES_TITLE" desc="Name of the filter list uBlock annoyances in the catalogue of the Aerie Guard section of Settings. It is the publisher's name for the list.">
+    uBlock annoyances
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CAT_UBOANNOYANCES_DESC" desc="One sentence that says what the filter list uBlock annoyances does, shown under its name in the catalogue.">
+    Hides notices, banners, sticky bars and other annoyances.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CAT_EASYLISTCOOKIE_TITLE" desc="Name of the filter list EasyList Cookie List in the catalogue of the Aerie Guard section of Settings. It is the publisher's name for the list.">
+    EasyList Cookie List
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CAT_EASYLISTCOOKIE_DESC" desc="One sentence that says what the filter list EasyList Cookie List does, shown under its name in the catalogue.">
+    Hides cookie consent banners and notices.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CAT_FANBOYSOCIAL_TITLE" desc="Name of the filter list Fanboy Social in the catalogue of the Aerie Guard section of Settings. It is the publisher's name for the list.">
+    Fanboy Social
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CAT_FANBOYSOCIAL_DESC" desc="One sentence that says what the filter list Fanboy Social does, shown under its name in the catalogue.">
+    Blocks social media buttons, share widgets and embedded feeds.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CAT_UBOFILTERS_TITLE" desc="Name of the filter list uBlock filters in the catalogue of the Aerie Guard section of Settings. It is the publisher's name for the list.">
+    uBlock filters
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CAT_UBOFILTERS_DESC" desc="One sentence that says what the filter list uBlock filters does, shown under its name in the catalogue.">
+    Extra rules for ads, trackers and malware hosts that EasyList does not cover.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CAT_UBOPRIVACY_TITLE" desc="Name of the filter list uBlock privacy in the catalogue of the Aerie Guard section of Settings. It is the publisher's name for the list.">
+    uBlock privacy
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CAT_UBOPRIVACY_DESC" desc="One sentence that says what the filter list uBlock privacy does, shown under its name in the catalogue.">
+    Blocks trackers and other requests that follow you across sites.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CAT_UBOUNBREAK_TITLE" desc="Name of the filter list uBlock unbreak in the catalogue of the Aerie Guard section of Settings. It is the publisher's name for the list.">
+    uBlock unbreak
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CAT_UBOUNBREAK_DESC" desc="One sentence that says what the filter list uBlock unbreak does, shown under its name in the catalogue.">
+    Exceptions that fix sites other lists break.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CAT_ADGUARDURLTRACKING_TITLE" desc="Name of the filter list AdGuard URL Tracking in the catalogue of the Aerie Guard section of Settings. It is the publisher's name for the list.">
+    AdGuard URL Tracking
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CAT_ADGUARDURLTRACKING_DESC" desc="One sentence that says what the filter list AdGuard URL Tracking does, shown under its name in the catalogue.">
+    Strips tracking parameters, such as utm_source, from addresses.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CAT_EASYLISTGERMANY_TITLE" desc="Name of the filter list EasyList Germany in the catalogue of the Aerie Guard section of Settings. It is the publisher's name for the list.">
+    EasyList Germany
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CAT_EASYLISTGERMANY_DESC" desc="One sentence that says what the filter list EasyList Germany does, shown under its name in the catalogue.">
+    Ad and tracker rules for German-language sites.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CAT_EASYLISTITALY_TITLE" desc="Name of the filter list EasyList Italy in the catalogue of the Aerie Guard section of Settings. It is the publisher's name for the list.">
+    EasyList Italy
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CAT_EASYLISTITALY_DESC" desc="One sentence that says what the filter list EasyList Italy does, shown under its name in the catalogue.">
+    Ad and tracker rules for Italian-language sites.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CAT_LISTEFR_TITLE" desc="Name of the filter list Liste FR in the catalogue of the Aerie Guard section of Settings. It is the publisher's name for the list.">
+    Liste FR
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CAT_LISTEFR_DESC" desc="One sentence that says what the filter list Liste FR does, shown under its name in the catalogue.">
+    Ad and tracker rules for French-language sites. Complements EasyList.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CAT_ADGUARDJAPANESE_TITLE" desc="Name of the filter list AdGuard Japanese in the catalogue of the Aerie Guard section of Settings. It is the publisher's name for the list.">
+    AdGuard Japanese
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CAT_ADGUARDJAPANESE_DESC" desc="One sentence that says what the filter list AdGuard Japanese does, shown under its name in the catalogue.">
+    Ad and tracker rules for Japanese-language sites.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CAT_ADGUARDSPANISHPORTUGUESE_TITLE" desc="Name of the filter list AdGuard Spanish/Portuguese in the catalogue of the Aerie Guard section of Settings. It is the publisher's name for the list.">
+    AdGuard Spanish/Portuguese
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_CAT_ADGUARDSPANISHPORTUGUESE_DESC" desc="One sentence that says what the filter list AdGuard Spanish/Portuguese does, shown under its name in the catalogue.">
+    Ad and tracker rules for Spanish- and Portuguese-language sites.
+  </message>
+  <!-- catalogue:end -->
 </grit-part>

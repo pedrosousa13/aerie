@@ -15,6 +15,7 @@
 #include "base/strings/string_util.h"
 #include "base/time/time.h"
 #include "base/values.h"
+#include "components/aerie_adblock/browser/catalogue.h"
 #include "crypto/hash.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "url/gurl.h"
@@ -653,6 +654,187 @@ TEST(FilterListStateTest, AFileCannotGiveTheUsersOwnRulesAnAddressOrATitle) {
   ASSERT_TRUE(e);
   EXPECT_EQ("", e->title);  // The page owns the name.
   EXPECT_EQ(5, e->rules);
+}
+
+// The catalogue (issue #105): a list is turned on by its id, and its address
+// is the one the build ships.
+
+TEST(FilterListStateTest, ACatalogueListIsAddedByIdWithTheBuildTimeAddress) {
+  FilterListState state;
+  EXPECT_EQ(FilterListState::CatalogueAddResult::kAdded,
+            state.AddCatalogueList("fanboyannoyances"));
+  const FilterListEntry* e = state.Find("fanboyannoyances");
+  ASSERT_TRUE(e);
+  EXPECT_EQ("https://easylist.to/easylist/fanboy-annoyance.txt", e->url);
+  EXPECT_TRUE(e->catalogue);
+  EXPECT_FALSE(e->builtin);
+  EXPECT_TRUE(e->enabled);
+  EXPECT_TRUE(e->updated.is_null());  // Not downloaded yet.
+  EXPECT_TRUE(state.NeedsRebuild());
+  EXPECT_EQ(FilterListState::CatalogueAddResult::kAlreadyOn,
+            state.AddCatalogueList("fanboyannoyances"));
+  EXPECT_EQ(3u, state.lists().size());
+}
+
+TEST(FilterListStateTest, AnUnknownIdOrARawAddressAddsNothing) {
+  FilterListState state;
+  for (const char* bad :
+       {"nope", "", "easylist", "custom", "FanboyAnnoyances",
+        "https://easylist.to/easylist/fanboy-annoyance.txt",
+        "https://evil.example/a.txt", "http://127.0.0.1:8000/a.txt"}) {
+    EXPECT_EQ(FilterListState::CatalogueAddResult::kUnknownId,
+              state.AddCatalogueList(bad))
+        << bad;
+  }
+  EXPECT_EQ(2u, state.lists().size());
+  EXPECT_FALSE(state.NeedsRebuild());
+}
+
+TEST(FilterListStateTest, ACatalogueAddressIsNotAddedAgainAsACustomList) {
+  FilterListState state;
+  ASSERT_EQ(FilterListState::CatalogueAddResult::kAdded,
+            state.AddCatalogueList("fanboyannoyances"));
+  std::string id;
+  EXPECT_EQ(FilterListState::AddResult::kDuplicate,
+            state.AddCustomList(
+                GURL("https://easylist.to/easylist/fanboy-annoyance.txt"),
+                false, &id));
+}
+
+TEST(FilterListStateTest, TheNumberOfListsInUseIsCapped) {
+  FilterListState state;
+  std::string id;
+  // Twenty custom lists and two built-in ones leave room for the rest.
+  for (size_t i = 0; i < kMaxCustomLists; ++i) {
+    ASSERT_EQ(state.AddCustomList(
+                  GURL("https://l.example/" + std::to_string(i)), false, &id),
+              FilterListState::AddResult::kAdded);
+  }
+  size_t added = 0;
+  FilterListState::CatalogueAddResult last =
+      FilterListState::CatalogueAddResult::kAdded;
+  for (const CatalogueEntry& entry : Catalogue()) {
+    last = state.AddCatalogueList(entry.id);
+    if (last != FilterListState::CatalogueAddResult::kAdded) {
+      break;
+    }
+    ++added;
+  }
+  EXPECT_EQ(kMaxListsInUse, state.ListsInUse());
+  EXPECT_EQ(kMaxListsInUse - 2 - kMaxCustomLists, added);
+  EXPECT_EQ(FilterListState::CatalogueAddResult::kTooMany, last);
+  // And the other door is shut too.
+  EXPECT_EQ(FilterListState::AddResult::kTooMany,
+            state.AddCustomList(GURL("https://l.example/one-more"), false,
+                                &id));
+  // The user's own rules never use up a place.
+  state.EnsureCustomRulesEntry();
+  EXPECT_EQ(kMaxListsInUse, state.ListsInUse());
+}
+
+TEST(FilterListStateTest, TheTotalSizeOfTheListsInUseIsCapped) {
+  FilterListState state;
+  ASSERT_EQ(FilterListState::CatalogueAddResult::kAdded,
+            state.AddCatalogueList("fanboyannoyances"));
+  ASSERT_EQ(FilterListState::CatalogueAddResult::kAdded,
+            state.AddCatalogueList("uboprivacy"));
+  state.Find("fanboyannoyances")->bytes =
+      static_cast<int>(kMaxTotalListBytes - 1000);
+  // A new copy of the same list replaces the old one: only the difference
+  // counts.
+  EXPECT_TRUE(state.FitsByteBudget("fanboyannoyances", kMaxListBytes));
+  EXPECT_TRUE(state.FitsByteBudget("uboprivacy", 1000));
+  EXPECT_FALSE(state.FitsByteBudget("uboprivacy", 1001));
+  // A list that is off is not in use.
+  state.Find("fanboyannoyances")->enabled = false;
+  EXPECT_TRUE(state.FitsByteBudget("uboprivacy", kMaxListBytes));
+}
+
+TEST(FilterListStateTest, ACatalogueListSurvivesASaveAndLoad) {
+  FilterListState state;
+  ASSERT_EQ(FilterListState::CatalogueAddResult::kAdded,
+            state.AddCatalogueList("easylistcookie"));
+  FilterListEntry* e = state.Find("easylistcookie");
+  e->rules = 12;
+  e->bytes = 3456;
+  e->updated = base::Time::FromSecondsSinceUnixEpoch(1700000000);
+  std::optional<base::Value> json = base::JSONReader::Read(
+      *base::WriteJson(state.ToValue()), base::JSON_PARSE_RFC);
+  ASSERT_TRUE(json && json->is_dict());
+  FilterListState back = FilterListState::FromValue(json->GetDict());
+  const FilterListEntry* b = back.Find("easylistcookie");
+  ASSERT_TRUE(b);
+  EXPECT_TRUE(b->catalogue);
+  EXPECT_EQ("https://secure.fanboy.co.nz/fanboy-cookiemonster.txt", b->url);
+  EXPECT_EQ(12, b->rules);
+  EXPECT_EQ(3456, b->bytes);
+  EXPECT_EQ(base::Time::FromSecondsSinceUnixEpoch(1700000000), b->updated);
+}
+
+TEST(FilterListStateTest, AFileCannotChangeTheAddressOfACatalogueList) {
+  std::optional<base::Value> json = base::JSONReader::Read(
+      R"json({"lists": [
+        {"id": "fanboyannoyances", "catalogue": true,
+         "url": "https://evil.example/steal.txt", "title": "Evil"}]})json",
+      base::JSON_PARSE_RFC);
+  ASSERT_TRUE(json && json->is_dict());
+  FilterListState state = FilterListState::FromValue(json->GetDict());
+  const FilterListEntry* e = state.Find("fanboyannoyances");
+  ASSERT_TRUE(e);
+  EXPECT_EQ("https://easylist.to/easylist/fanboy-annoyance.txt", e->url);
+  EXPECT_NE("Evil", e->title);
+}
+
+TEST(FilterListStateTest, AFileCannotMakeAListUpOutOfTheCatalogue) {
+  // An id the build does not have, even with a good address: dropped. So is a
+  // list that claims to be from the catalogue under an id of its own making,
+  // and a custom list that claims an id of the catalogue.
+  std::optional<base::Value> json = base::JSONReader::Read(
+      R"json({"lists": [
+        {"id": "madeup", "catalogue": true, "url": "https://lists.example/a.txt"},
+        {"id": "fanboyannoyances", "url": "https://evil.example/a.txt"}]})json",
+      base::JSON_PARSE_RFC);
+  ASSERT_TRUE(json && json->is_dict());
+  FilterListState state = FilterListState::FromValue(json->GetDict());
+  EXPECT_EQ(nullptr, state.Find("madeup"));
+  EXPECT_EQ(nullptr, state.Find("fanboyannoyances"));
+  EXPECT_EQ(2u, state.lists().size());
+}
+
+TEST(FilterListStateTest, TooManySavedListsAreCutAtTheCap) {
+  base::ListValue lists;
+  for (const CatalogueEntry& entry : Catalogue()) {
+    base::DictValue item;
+    item.Set("id", std::string(entry.id));
+    item.Set("catalogue", true);
+    item.Set("url", std::string(entry.url));
+    lists.Append(std::move(item));
+  }
+  for (size_t i = 0; i < kMaxCustomLists; ++i) {
+    GURL url("https://l.example/" + std::to_string(i));
+    FilterListState one;
+    std::string id;
+    ASSERT_EQ(FilterListState::AddResult::kAdded,
+              one.AddCustomList(url, false, &id));
+    base::DictValue item;
+    item.Set("id", id);
+    item.Set("url", url.spec());
+    lists.Append(std::move(item));
+  }
+  base::DictValue dict;
+  dict.Set("lists", std::move(lists));
+  EXPECT_LE(FilterListState::FromValue(dict).ListsInUse(), kMaxListsInUse);
+}
+
+TEST(FilterListStateTest, ADamagedSizeFallsBackToZero) {
+  std::optional<base::Value> json = base::JSONReader::Read(
+      R"json({"lists": [{"id": "easylist", "url": "x", "bytes": -5},
+                        {"id": "easyprivacy", "url": "x", "bytes": 999999999}]})json",
+      base::JSON_PARSE_RFC);
+  ASSERT_TRUE(json && json->is_dict());
+  FilterListState state = FilterListState::FromValue(json->GetDict());
+  EXPECT_EQ(0, state.Find(kEasyListId)->bytes);
+  EXPECT_EQ(0, state.Find(kEasyPrivacyId)->bytes);
 }
 
 TEST(FilterListStateTest, GarbageGivesDefaults) {

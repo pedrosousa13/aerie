@@ -18,6 +18,7 @@
 #include "base/supports_user_data.h"
 #include "base/task/thread_pool.h"
 #include "components/aerie_adblock/browser/adblock_engine.h"
+#include "components/aerie_adblock/browser/catalogue.h"
 #include "components/aerie_adblock/browser/filter_list_storage.h"
 #include "content/public/browser/browser_context.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
@@ -167,6 +168,37 @@ bool FilterListManager::AddList(const GURL& url, std::string* error) {
   Notify();
   FetchList(id);
   return true;
+}
+
+FilterListManager::CatalogueResult FilterListManager::SetCatalogueListEnabled(
+    std::string_view id,
+    bool enabled) {
+  // The only check that matters: an exact id of the build's table. Everything
+  // the page can send that is not one stops here.
+  if (!FindCatalogueEntry(id)) {
+    return CatalogueResult::kUnknownId;
+  }
+  const FilterListEntry* entry = state_.Find(id);
+  if (!enabled) {
+    if (entry && entry->catalogue) {
+      RemoveList(id);
+    }
+    return CatalogueResult::kOk;
+  }
+  if (entry) {  // Already listed: on, or switched off by SetListEnabled().
+    if (!entry->enabled) {
+      SetListEnabled(id, true);
+    }
+    return CatalogueResult::kOk;
+  }
+  if (state_.AddCatalogueList(id) !=
+      FilterListState::CatalogueAddResult::kAdded) {
+    return CatalogueResult::kTooMany;
+  }
+  Save();
+  Notify();
+  FetchList(std::string(id));
+  return CatalogueResult::kOk;
 }
 
 FilterListState::EnableResult FilterListManager::SetListEnabled(
@@ -523,8 +555,9 @@ void FilterListManager::FetchList(const std::string& id) {
   fetcher_.Fetch(GURL(entry->url),
                  base::BindOnce(&FilterListManager::OnFetched,
                                 weak_factory_.GetWeakPtr(), id),
-                 entry->builtin ? FilterListFetcher::Source::kBuiltIn
-                                : FilterListFetcher::Source::kUserAdded);
+                 entry->builtin     ? FilterListFetcher::Source::kBuiltIn
+                 : entry->catalogue ? FilterListFetcher::Source::kCatalogue
+                                    : FilterListFetcher::Source::kUserAdded);
 }
 
 void FilterListManager::SetError(const std::string& id, ListFailure failure) {
@@ -594,6 +627,14 @@ void FilterListManager::OnChecked(std::string id, std::string text, ListCheck ch
                  << " regex rule(s) that are too big or too many; they are "
                     "dropped";
   }
+  // The copy in use stays when the new one would take the lists over the
+  // total size cap (issue #105).
+  const size_t bytes = text.size();
+  if (!state_.FitsByteBudget(id, bytes)) {
+    SetError(id, ListFailure::kTooLarge);
+    FinishFetch(id);
+    return;
+  }
   file_runner_->PostTaskAndReplyWithResult(
       FROM_HERE,
       base::BindOnce(
@@ -602,10 +643,13 @@ void FilterListManager::OnChecked(std::string id, std::string text, ListCheck ch
           },
           dir_, id, std::move(text)),
       base::BindOnce(&FilterListManager::OnWritten, weak_factory_.GetWeakPtr(),
-                     id, std::move(check)));
+                     id, std::move(check), bytes));
 }
 
-void FilterListManager::OnWritten(std::string id, ListCheck check, bool written) {
+void FilterListManager::OnWritten(std::string id,
+                                  ListCheck check,
+                                  size_t bytes,
+                                  bool written) {
   FilterListEntry* entry = state_.Find(id);
   if (!entry) {
     FinishFetch(id);
@@ -618,9 +662,11 @@ void FilterListManager::OnWritten(std::string id, ListCheck check, bool written)
   }
   entry->rules = check.rules;
   entry->ignored_exceptions = check.ignored_exceptions;
+  entry->bytes = static_cast<int>(bytes);
   entry->updated = base::Time::Now();
   entry->error.clear();
-  if (!entry->builtin && !check.title.empty()) {
+  // A built-in or catalogue list keeps the name Aerie gave it.
+  if (!entry->builtin && !entry->catalogue && !check.title.empty()) {
     entry->title = check.title;
   }
   updated_ok_.insert(id);
@@ -642,7 +688,9 @@ void FilterListManager::Rebuild(bool retry) {
     }
     FilterEngineService::ListInput input;
     input.own = entry.id == kCustomRulesId;
-    input.custom = !entry.builtin && !input.own;
+    // A catalogue list is curated like a built-in one: it does not judge
+    // first-party requests on its own in Standard.
+    input.custom = !entry.builtin && !entry.catalogue && !input.own;
     if (!entry.updated.is_null()) {
       input.path = filter_list_storage::ListPath(dir_, entry.id);
     } else if (entry.builtin) {
@@ -853,6 +901,7 @@ void FilterListManager::OnRebuilt(std::vector<std::string> ids,
     if (FilterListEntry* entry = state_.Find(id)) {
       entry->error = ListFailureMessage(result.failure);
       entry->updated = base::Time();
+      entry->bytes = 0;
       entry->rules = 0;
       entry->ignored_exceptions = 0;
       // The user's own rules are not a copy that can be downloaded again: the

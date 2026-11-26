@@ -30,6 +30,12 @@ namespace aerie_guard {
 //   aerieGuard.addList [url]                  add a custom list (https only)
 //   aerieGuard.removeList [id]                remove a custom list
 //   aerieGuard.setListEnabled [id, enabled]   a list on or off (issue #104)
+//   aerieGuard.setCatalogueList [id, on]      a catalogue list on or off (issue
+//                                             #105). The id is a catalogue id,
+//                                             never an address. An id that is
+//                                             not in the table the build ships
+//                                             rejects the promise and starts no
+//                                             download.
 //   aerieGuard.updateList [id]                download one list again now
 //   aerieGuard.updateAll []                   download every list again now
 //   aerieGuard.setException [host, enabled]   blocking off/on for a site
@@ -70,6 +76,14 @@ class AerieGuardSettingsHandler
   // |custom_error| is "", "too_large", "too_many_lines", "not_text", "timeout"
   // or "unwritable": why the last save of the user's own rules was refused.
   //
+  // |list_error| "too_many": the lists in use are at the cap.
+  //
+  // "catalogue" is the filter list catalogue grouped by category, in the order
+  // of the page: [{category, lists: [{id, homepage, licence, langs, on, rules,
+  // status, errorCode, updated}]}]. Titles and descriptions are the page's own
+  // strings, found by id. A list that is on from the catalogue is not in
+  // "lists".
+  //
   // "customRules" is the saved text of the user's own rules and what was found
   // in it: {text, networkRules, hideRules, ignoredExceptions, dropped,
   // issueCount, issues: [{line, reason, ignored, rule}]}. |text| and |rule| are
@@ -97,6 +111,7 @@ class AerieGuardSettingsHandler
   void HandleAddList(const base::ListValue& args);
   void HandleRemoveList(const base::ListValue& args);
   void HandleSetListEnabled(const base::ListValue& args);
+  void HandleSetCatalogueList(const base::ListValue& args);
   void HandleUpdateList(const base::ListValue& args);
   void HandleUpdateAll(const base::ListValue& args);
   void HandleSetException(const base::ListValue& args);

@@ -76,6 +76,48 @@ constexpr net::NetworkTrafficAnnotationTag kCustomTrafficAnnotation =
         policy_exception_justification: "Not implemented."
       })");
 
+// The same download for a list of the catalogue (issue #105): the address is
+// one the build ships, the user only turned the list on.
+constexpr net::NetworkTrafficAnnotationTag kCatalogueTrafficAnnotation =
+    net::DefineNetworkTrafficAnnotation("aerie_catalogue_filter_list_download",
+                                        R"(
+      semantics {
+        sender: "Aerie ad blocking"
+        description:
+          "Downloads a filter list (a text file of ad and tracker rules) "
+          "from the address of its publisher. The address is one of a fixed "
+          "set the browser ships; the user chose to turn that list on in the "
+          "filter list settings."
+        trigger:
+          "The user turns the list on or updates it, or the daily scheduled "
+          "update of the lists that are on (can be turned off in the filter "
+          "list settings)."
+        data: "Only the list's address. No cookies, no identifiers."
+        destination: OTHER
+        destination_other: "The list publisher's server"
+      }
+      policy {
+        cookies_allowed: NO
+        setting:
+          "Turn the list off, or turn off 'Update lists automatically' in "
+          "the filter list settings. Nothing is downloaded until the user "
+          "turns a list on."
+        policy_exception_justification: "Not implemented."
+      })");
+
+net::NetworkTrafficAnnotationTag TrafficAnnotationFor(
+    FilterListFetcher::Source source) {
+  switch (source) {
+    case FilterListFetcher::Source::kUserAdded:
+      return kCustomTrafficAnnotation;
+    case FilterListFetcher::Source::kCatalogue:
+      return kCatalogueTrafficAnnotation;
+    case FilterListFetcher::Source::kBuiltIn:
+      break;
+  }
+  return kTrafficAnnotation;
+}
+
 }  // namespace
 
 FilterListFetcher::FilterListFetcher(
@@ -112,11 +154,8 @@ void FilterListFetcher::Fetch(const GURL& url,
   request->load_flags = net::LOAD_DISABLE_CACHE;
   request->headers.SetHeader("Accept", "text/plain, */*;q=0.1");
 
-  download->loader =
-      network::SimpleURLLoader::Create(
-          std::move(request),
-          source == Source::kUserAdded ? kCustomTrafficAnnotation
-                                       : kTrafficAnnotation);
+  download->loader = network::SimpleURLLoader::Create(
+      std::move(request), TrafficAnnotationFor(source));
   download->loader->SetTimeoutDuration(kListDownloadTimeout);
   download->loader->SetOnRedirectCallback(base::BindRepeating(
       [](base::WeakPtr<FilterListFetcher> self, int id,

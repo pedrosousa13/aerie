@@ -1,0 +1,77 @@
+Aerie-Purpose: Give the Aerie Guard page the strings of its filter list catalogue: the headings, the search field, the name and description of every list, and the licence and website lines.
+Aerie-Upstream-Area: chrome/browser/ui/webui/settings (settings_localized_strings_provider.cc)
+Aerie-Kind: hook
+
+Issue #105. The messages are in the overlay's aerie_guard_settings_strings.grdp, which
+adblock/0022 already includes. This patch hands each one to the Settings page in a function
+of its own, so it does not share context lines with the tables of adblock/0022 and adblock/0027.
+The name and description of a list are looked up by its catalogue id on the page
+(aerieGuardCatTitle_<id>, aerieGuardCatDesc_<id>). A test compares the names with the grdp and
+with components/aerie_adblock/catalogue.json.
+
+--- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
++++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
+@@ -1729,6 +1729,55 @@
+   html_source->AddLocalizedStrings(kLocalizedStrings);
+ }
+ 
++void AddAerieGuardCatalogueStrings(content::WebUIDataSource* html_source) {
++  static constexpr webui::LocalizedString kLocalizedStrings[] = {
++      {"aerieGuardCatalogueHeading", IDS_SETTINGS_AERIE_GUARD_CATALOGUE_HEADING},
++      {"aerieGuardCatalogueDesc", IDS_SETTINGS_AERIE_GUARD_CATALOGUE_DESC},
++      {"aerieGuardCatalogueSearchLabel", IDS_SETTINGS_AERIE_GUARD_CATALOGUE_SEARCH_LABEL},
++      {"aerieGuardCatalogueSearchPlaceholder", IDS_SETTINGS_AERIE_GUARD_CATALOGUE_SEARCH_PLACEHOLDER},
++      {"aerieGuardCatalogueNoResults", IDS_SETTINGS_AERIE_GUARD_CATALOGUE_NO_RESULTS},
++      {"aerieGuardCatalogueCategoryAnnoyances", IDS_SETTINGS_AERIE_GUARD_CATALOGUE_CATEGORY_ANNOYANCES},
++      {"aerieGuardCatalogueCategoryCookies", IDS_SETTINGS_AERIE_GUARD_CATALOGUE_CATEGORY_COOKIES},
++      {"aerieGuardCatalogueCategorySocial", IDS_SETTINGS_AERIE_GUARD_CATALOGUE_CATEGORY_SOCIAL},
++      {"aerieGuardCatalogueCategoryPrivacy", IDS_SETTINGS_AERIE_GUARD_CATALOGUE_CATEGORY_PRIVACY},
++      {"aerieGuardCatalogueCategoryRegional", IDS_SETTINGS_AERIE_GUARD_CATALOGUE_CATEGORY_REGIONAL},
++      {"aerieGuardCatalogueLicence", IDS_SETTINGS_AERIE_GUARD_CATALOGUE_LICENCE},
++      {"aerieGuardCatalogueHomepage", IDS_SETTINGS_AERIE_GUARD_CATALOGUE_HOMEPAGE},
++      {"aerieGuardCatalogueHomepageAria", IDS_SETTINGS_AERIE_GUARD_CATALOGUE_HOMEPAGE_ARIA},
++      {"aerieGuardCatalogueToggleAria", IDS_SETTINGS_AERIE_GUARD_CATALOGUE_TOGGLE_ARIA},
++      {"aerieGuardCatalogueLanguages", IDS_SETTINGS_AERIE_GUARD_CATALOGUE_LANGUAGES},
++      {"aerieGuardCatalogueNotDownloaded", IDS_SETTINGS_AERIE_GUARD_CATALOGUE_NOT_DOWNLOADED},
++      {"aerieGuardListErrorTooMany", IDS_SETTINGS_AERIE_GUARD_LIST_ERROR_TOO_MANY},
++      {"aerieGuardCatTitle_fanboyannoyances", IDS_SETTINGS_AERIE_GUARD_CAT_FANBOYANNOYANCES_TITLE},
++      {"aerieGuardCatDesc_fanboyannoyances", IDS_SETTINGS_AERIE_GUARD_CAT_FANBOYANNOYANCES_DESC},
++      {"aerieGuardCatTitle_uboannoyances", IDS_SETTINGS_AERIE_GUARD_CAT_UBOANNOYANCES_TITLE},
++      {"aerieGuardCatDesc_uboannoyances", IDS_SETTINGS_AERIE_GUARD_CAT_UBOANNOYANCES_DESC},
++      {"aerieGuardCatTitle_easylistcookie", IDS_SETTINGS_AERIE_GUARD_CAT_EASYLISTCOOKIE_TITLE},
++      {"aerieGuardCatDesc_easylistcookie", IDS_SETTINGS_AERIE_GUARD_CAT_EASYLISTCOOKIE_DESC},
++      {"aerieGuardCatTitle_fanboysocial", IDS_SETTINGS_AERIE_GUARD_CAT_FANBOYSOCIAL_TITLE},
++      {"aerieGuardCatDesc_fanboysocial", IDS_SETTINGS_AERIE_GUARD_CAT_FANBOYSOCIAL_DESC},
++      {"aerieGuardCatTitle_ubofilters", IDS_SETTINGS_AERIE_GUARD_CAT_UBOFILTERS_TITLE},
++      {"aerieGuardCatDesc_ubofilters", IDS_SETTINGS_AERIE_GUARD_CAT_UBOFILTERS_DESC},
++      {"aerieGuardCatTitle_uboprivacy", IDS_SETTINGS_AERIE_GUARD_CAT_UBOPRIVACY_TITLE},
++      {"aerieGuardCatDesc_uboprivacy", IDS_SETTINGS_AERIE_GUARD_CAT_UBOPRIVACY_DESC},
++      {"aerieGuardCatTitle_ubounbreak", IDS_SETTINGS_AERIE_GUARD_CAT_UBOUNBREAK_TITLE},
++      {"aerieGuardCatDesc_ubounbreak", IDS_SETTINGS_AERIE_GUARD_CAT_UBOUNBREAK_DESC},
++      {"aerieGuardCatTitle_adguardurltracking", IDS_SETTINGS_AERIE_GUARD_CAT_ADGUARDURLTRACKING_TITLE},
++      {"aerieGuardCatDesc_adguardurltracking", IDS_SETTINGS_AERIE_GUARD_CAT_ADGUARDURLTRACKING_DESC},
++      {"aerieGuardCatTitle_easylistgermany", IDS_SETTINGS_AERIE_GUARD_CAT_EASYLISTGERMANY_TITLE},
++      {"aerieGuardCatDesc_easylistgermany", IDS_SETTINGS_AERIE_GUARD_CAT_EASYLISTGERMANY_DESC},
++      {"aerieGuardCatTitle_easylistitaly", IDS_SETTINGS_AERIE_GUARD_CAT_EASYLISTITALY_TITLE},
++      {"aerieGuardCatDesc_easylistitaly", IDS_SETTINGS_AERIE_GUARD_CAT_EASYLISTITALY_DESC},
++      {"aerieGuardCatTitle_listefr", IDS_SETTINGS_AERIE_GUARD_CAT_LISTEFR_TITLE},
++      {"aerieGuardCatDesc_listefr", IDS_SETTINGS_AERIE_GUARD_CAT_LISTEFR_DESC},
++      {"aerieGuardCatTitle_adguardjapanese", IDS_SETTINGS_AERIE_GUARD_CAT_ADGUARDJAPANESE_TITLE},
++      {"aerieGuardCatDesc_adguardjapanese", IDS_SETTINGS_AERIE_GUARD_CAT_ADGUARDJAPANESE_DESC},
++      {"aerieGuardCatTitle_adguardspanishportuguese", IDS_SETTINGS_AERIE_GUARD_CAT_ADGUARDSPANISHPORTUGUESE_TITLE},
++      {"aerieGuardCatDesc_adguardspanishportuguese", IDS_SETTINGS_AERIE_GUARD_CAT_ADGUARDSPANISHPORTUGUESE_DESC},
++  };
++  html_source->AddLocalizedStrings(kLocalizedStrings);
++}
++
+ void AddOnStartupStrings(content::WebUIDataSource* html_source) {
+   static constexpr webui::LocalizedString kLocalizedStrings[] = {
+       {"onStartup", IDS_SETTINGS_ON_STARTUP},
+@@ -4838,6 +4887,7 @@
+   AddAboutStrings(html_source, profile);
+   AddAerieGuardStrings(html_source);
+   AddAerieGuardCustomRulesStrings(html_source);
++  AddAerieGuardCatalogueStrings(html_source);
+   AddAiStrings(html_source);
+   AddAutofillStrings(html_source, profile, web_contents);
+   AddAppearanceStrings(html_source, profile);

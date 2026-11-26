@@ -9,8 +9,10 @@
 #include <utility>
 
 #include "base/functional/bind.h"
+#include "base/strings/string_split.h"
 #include "chrome/browser/profiles/profile.h"
 #include "components/aerie_adblock/browser/blocking_level.h"
+#include "components/aerie_adblock/browser/catalogue.h"
 #include "components/aerie_adblock/browser/custom_rules.h"
 #include "components/aerie_adblock/browser/filter_list_state.h"
 #include "components/aerie_adblock/browser/list_failure.h"
@@ -76,6 +78,58 @@ base::DictValue CustomRulesToValue(const aerie_adblock::CustomRules& rules) {
   return out;
 }
 
+const char* UpdateStatusName(FilterListManager::UpdateStatus status);
+
+// The catalogue (issue #105), grouped by category in the order of the page.
+// Every row names a list by its catalogue id; the title and description are
+// the page's own strings for that id. A list is "on" when the state has it and
+// it is not switched off.
+base::ListValue CatalogueToValue(const FilterListManager& manager) {
+  const aerie_adblock::FilterListState& state = manager.state();
+  base::ListValue groups;
+  for (std::string_view category : aerie_adblock::CatalogueCategories()) {
+    base::ListValue rows;
+    for (const aerie_adblock::CatalogueEntry& entry :
+         aerie_adblock::Catalogue()) {
+      if (entry.category != category) {
+        continue;
+      }
+      const FilterListEntry* list = state.Find(entry.id);
+      base::DictValue row;
+      row.Set("id", std::string(entry.id));
+      row.Set("homepage", std::string(entry.homepage));
+      row.Set("licence", std::string(entry.licence));
+      base::ListValue langs;
+      for (const std::string& lang : base::SplitString(
+               entry.langs, ",", base::TRIM_WHITESPACE,
+               base::SPLIT_WANT_NONEMPTY)) {
+        langs.Append(lang);
+      }
+      row.Set("langs", std::move(langs));
+      row.Set("on", list && list->catalogue && list->enabled);
+      row.Set("rules", list ? list->rules : 0);
+      row.Set("status", UpdateStatusName(manager.UpdateStatusFor(entry.id)));
+      row.Set("errorCode",
+              list ? aerie_adblock::ListFailureCodeForMessage(list->error)
+                   : std::string());
+      if (list && !list->updated.is_null()) {
+        row.Set("updated", list->updated.InMillisecondsFSinceUnixEpoch());
+      } else {
+        row.Set("updated", base::Value());
+      }
+      rows.Append(std::move(row));
+    }
+    if (rows.empty()) {
+      continue;
+    }
+    base::DictValue group;
+    group.Set("category", std::string(category));
+    group.Set("lists", std::move(rows));
+    groups.Append(std::move(group));
+  }
+  return groups;
+}
+
 const char* UpdateStatusName(FilterListManager::UpdateStatus status) {
   switch (status) {
     case FilterListManager::UpdateStatus::kIdle:
@@ -125,6 +179,9 @@ base::DictValue AerieGuardSettingsHandler::StateToValue(
   out.Set("exceptions", std::move(exceptions));
   base::ListValue lists;
   for (const FilterListEntry& entry : state.lists()) {
+    if (entry.catalogue) {
+      continue;  // Shown by the catalogue rows, which name it by id.
+    }
     base::DictValue item;
     item.Set("id", entry.id);
     item.Set("url", entry.url);
@@ -148,6 +205,7 @@ base::DictValue AerieGuardSettingsHandler::StateToValue(
     lists.Append(std::move(item));
   }
   out.Set("lists", std::move(lists));
+  out.Set("catalogue", CatalogueToValue(manager));
   return out;
 }
 
@@ -167,6 +225,10 @@ void AerieGuardSettingsHandler::RegisterMessages() {
   web_ui()->RegisterMessageCallback(
       "aerieGuard.setListEnabled",
       base::BindRepeating(&AerieGuardSettingsHandler::HandleSetListEnabled,
+                          base::Unretained(this)));
+  web_ui()->RegisterMessageCallback(
+      "aerieGuard.setCatalogueList",
+      base::BindRepeating(&AerieGuardSettingsHandler::HandleSetCatalogueList,
                           base::Unretained(this)));
   web_ui()->RegisterMessageCallback(
       "aerieGuard.updateList",
@@ -314,6 +376,36 @@ void AerieGuardSettingsHandler::HandleSetListEnabled(
       break;
   }
   Resolve(args, std::string_view(), std::string_view(), error);
+}
+
+void AerieGuardSettingsHandler::HandleSetCatalogueList(
+    const base::ListValue& args) {
+  const std::string* id = StringArg(args, 1);
+  if (!CallbackId(args)) {
+    return;
+  }
+  if (!id || args.size() != 3 || !args[2].is_bool()) {
+    Reject(args, "bad_argument");
+    return;
+  }
+  FilterListManager* manager = Begin(args);
+  if (!manager) {
+    return;
+  }
+  // The message names a catalogue id and nothing else. The manager looks the
+  // id up in the table the build shipped: an unknown id, and so any address,
+  // is refused before anything is added or fetched.
+  switch (manager->SetCatalogueListEnabled(*id, args[2].GetBool())) {
+    case FilterListManager::CatalogueResult::kOk:
+      Resolve(args, std::string_view(), std::string_view());
+      break;
+    case FilterListManager::CatalogueResult::kUnknownId:
+      Reject(args, "unknown_list");
+      break;
+    case FilterListManager::CatalogueResult::kTooMany:
+      Resolve(args, std::string_view(), std::string_view(), "too_many");
+      break;
+  }
 }
 
 void AerieGuardSettingsHandler::HandleUpdateList(const base::ListValue& args) {

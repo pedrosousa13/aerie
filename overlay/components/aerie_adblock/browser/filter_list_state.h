@@ -34,6 +34,15 @@ inline constexpr char kEasyPrivacyUrl[] =
     "https://easylist.to/easylist/easyprivacy.txt";
 
 inline constexpr size_t kMaxCustomLists = 20;
+// Every list the engine is built from, whoever chose it: the built-in ones,
+// custom ones and catalogue ones (issue #105). The user's own rules are one
+// text of their own and do not count. This bounds the work of a rebuild.
+inline constexpr size_t kMaxListsInUse = 30;
+// The size of one downloaded list (what the fetcher accepts) and of all the
+// copies in use together. A list that would take the total over the cap is
+// refused and the copy in use stays.
+inline constexpr size_t kMaxListBytes = 5 * 1024 * 1024;
+inline constexpr size_t kMaxTotalListBytes = 32 * 1024 * 1024;
 inline constexpr size_t kMaxExceptions = 1000;
 // Hosts that have cosmetic hiding turned off while blocking stays on (#101).
 inline constexpr size_t kMaxCosmeticOffHosts = 1000;
@@ -52,6 +61,12 @@ struct FilterListEntry {
   std::string url;
   std::string title;  // From the list's own "! Title:" line, or built in.
   bool builtin = false;
+  // True for a list the user turned on from the catalogue (issue #105): its
+  // id is the catalogue id and its address is the one the build ships, never
+  // one read from the state file. Not a "custom" list for the engine: the
+  // catalogue is curated, like the built-in lists.
+  bool catalogue = false;
+  int bytes = 0;  // Size of the copy in use; 0 until a list is downloaded.
   int rules = 0;  // Network rules in the copy in use; 0 until a list loads.
   // Exception ("@@") rules in the copy in use that match every address. The
   // engine ignores them; the settings page shows how many.
@@ -136,6 +151,19 @@ class FilterListState {
 
   // Adds a custom list. On kAdded, |*id| is its id.
   AddResult AddCustomList(const GURL& url, bool allow_loopback, std::string* id);
+  // Turns on a catalogue list by id (issue #105). The id must be exactly one
+  // of the catalogue's; an address, a title or any other text is
+  // kUnknownId and adds nothing. The address is the build's own. On kAdded the
+  // list is on and has no copy yet.
+  enum class CatalogueAddResult { kAdded, kUnknownId, kAlreadyOn, kTooMany };
+  CatalogueAddResult AddCatalogueList(std::string_view id);
+  // How many lists count towards kMaxListsInUse: every one but the user's own
+  // rules.
+  size_t ListsInUse() const;
+  // True when a copy of |bytes| for list |id| keeps the copies of the lists
+  // that are on within kMaxTotalListBytes. The list's own current copy does not
+  // count: it is the one being replaced.
+  bool FitsByteBudget(std::string_view id, size_t bytes) const;
   // The entry for the user's own rules (issue #107), made when absent: id
   // kCustomRulesId, no address, on. It is not a "custom list" of the table
   // limit. RemoveList(kCustomRulesId) removes it.

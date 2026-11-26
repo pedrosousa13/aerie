@@ -56,8 +56,11 @@ class FilterListFetcher {
 
   // Who chose the address. A user-added list's download carries its own
   // traffic annotation, which the request policy lets reach any host
-  // (docs/network-endpoints.md). A built-in list keeps to its publisher.
-  enum class Source { kBuiltIn, kUserAdded };
+  // (docs/network-endpoints.md). A built-in list keeps to its publisher. So
+  // does a catalogue list (issue #105), under an annotation of its own, so a
+  // catalogue host is reachable only by the code that downloads catalogue
+  // lists.
+  enum class Source { kBuiltIn, kUserAdded, kCatalogue };
 
   // Starts a download. |callback| runs once, later, never from inside Fetch().
   void Fetch(const GURL& url,

@@ -11,8 +11,10 @@
  * route (/aerieGuard) and wired the way Aerie's Security hardening page is.
  * It also lists the filter lists with their rule counts, ignored exception
  * rules and update status, and switches a list on or off (#104). The
- * catalogue and subscriptions get their own rows from later issues (#105,
- * #106, #108). The user's own rules (#107) are a text box saved as the list
+ * catalogue (#105) is a searchable set of lists from their publishers, grouped
+ * by category; a switch names a list by its catalogue id and the browser
+ * downloads it from the address the build ships. Subscriptions get their own
+ * rows from later issues (#106, #108). The user's own rules (#107) are a text box saved as the list
  * 'custom'; the browser bounds and parses the text, and the page shows the
  * lines that were dropped or ignored with the reason. Every piece of the text
  * is rendered as text content only.
@@ -38,7 +40,7 @@ import {getCss as getSettingsSharedLit} from '../settings_shared_lit.css.js';
 import {getCss as getCrSharedStyle} from 'chrome://resources/cr_elements/cr_shared_style_lit.css.js';
 
 import {AerieGuardBrowserProxyImpl} from './aerie_guard_browser_proxy.js';
-import type {AerieGuardBrowserProxy, AerieGuardCustomIssue, AerieGuardCustomRules, AerieGuardList, AerieGuardState} from './aerie_guard_browser_proxy.js';
+import type {AerieGuardBrowserProxy, AerieGuardCatalogueGroup, AerieGuardCatalogueList, AerieGuardCustomIssue, AerieGuardCustomRules, AerieGuardList, AerieGuardState} from './aerie_guard_browser_proxy.js';
 import {getHtml} from './aerie_guard_page.html.js';
 
 const SettingsAerieGuardPageElementBase = SettingsViewMixinLit(CrLitElement);
@@ -76,6 +78,14 @@ export class SettingsAerieGuardPageElement extends
         textarea#customRules:focus-visible {
           outline: 2px solid var(--cr-focus-outline-color, currentColor);
         }
+        .catalogue-meta {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 4px 16px;
+        }
+        .catalogue-meta a {
+          color: var(--cr-link-color);
+        }
         .issue-rule {
           display: block;
           font-family: var(--cr-monospace-font-family, monospace);
@@ -97,6 +107,8 @@ export class SettingsAerieGuardPageElement extends
       defaultLevel_: {type: String},
       exceptions_: {type: Array},
       lists_: {type: Array},
+      catalogue_: {type: Array},
+      catalogueQuery_: {type: String},
       listsBusy_: {type: Boolean},
       listError_: {type: String},
       newSite_: {type: String},
@@ -113,6 +125,8 @@ export class SettingsAerieGuardPageElement extends
   protected accessor defaultLevel_: string = 'aggressive';
   protected accessor exceptions_: string[] = [];
   protected accessor lists_: AerieGuardList[] = [];
+  protected accessor catalogue_: AerieGuardCatalogueGroup[] = [];
+  protected accessor catalogueQuery_: string = '';
   protected accessor listsBusy_: boolean = false;
   protected accessor listError_: string = '';
   protected accessor newSite_: string = '';
@@ -161,6 +175,7 @@ export class SettingsAerieGuardPageElement extends
     this.defaultLevel_ = state.defaultLevel;
     this.exceptions_ = state.exceptions;
     this.lists_ = state.lists;
+    this.catalogue_ = state.catalogue;
     this.listsBusy_ = state.busy;
     this.customRules_ = state.customRules;
     // "Saved and in use" must not stay on screen once the entry is turned off
@@ -240,9 +255,157 @@ export class SettingsAerieGuardPageElement extends
   }
 
   private listErrorText_(code: string): string {
-    return code === 'required' ?
-        loadTimeData.getString('aerieGuardListErrorRequired') :
-        loadTimeData.getString('aerieGuardErrorGeneric');
+    switch (code) {
+      case 'required':
+        return loadTimeData.getString('aerieGuardListErrorRequired');
+      case 'too_many':
+        return loadTimeData.getString('aerieGuardListErrorTooMany');
+      default:
+        return loadTimeData.getString('aerieGuardErrorGeneric');
+    }
+  }
+
+  // The catalogue (issue #105). The name and description of a list are grd
+  // strings found by its id; an id without one shows the id.
+  private catalogueString_(prefix: string, id: string): string {
+    const key = prefix + id;
+    return loadTimeData.valueExists(key) ? loadTimeData.getString(key) : id;
+  }
+
+  protected catalogueTitle_(list: AerieGuardCatalogueList): string {
+    return this.catalogueString_('aerieGuardCatTitle_', list.id);
+  }
+
+  protected catalogueDesc_(list: AerieGuardCatalogueList): string {
+    return this.catalogueString_('aerieGuardCatDesc_', list.id);
+  }
+
+  protected categoryTitle_(category: string): string {
+    const key = 'aerieGuardCatalogueCategory' +
+        category.charAt(0).toUpperCase() + category.slice(1);
+    return loadTimeData.valueExists(key) ? loadTimeData.getString(key) :
+                                           category;
+  }
+
+  private languageNames_(list: AerieGuardCatalogueList): string[] {
+    let names: Intl.DisplayNames|null = null;
+    try {
+      names = new Intl.DisplayNames([navigator.language], {type: 'language'});
+    } catch {
+      names = null;
+    }
+    return list.langs.map(code => {
+      try {
+        return names?.of(code) || code;
+      } catch {
+        return code;
+      }
+    });
+  }
+
+  protected catalogueLanguagesText_(list: AerieGuardCatalogueList): string {
+    return list.langs.length ?
+        loadTimeData.getStringF(
+            'aerieGuardCatalogueLanguages',
+            this.languageNames_(list).join(', ')) :
+        '';
+  }
+
+  protected catalogueLicenceText_(list: AerieGuardCatalogueList): string {
+    return loadTimeData.getStringF('aerieGuardCatalogueLicence', list.licence);
+  }
+
+  protected catalogueHomepageLabel_(list: AerieGuardCatalogueList): string {
+    return loadTimeData.getStringF(
+        'aerieGuardCatalogueHomepageAria', this.catalogueTitle_(list));
+  }
+
+  // Only an https address becomes a link, whatever the browser sent.
+  protected catalogueHomepage_(list: AerieGuardCatalogueList): string {
+    return list.homepage.startsWith('https://') ? list.homepage : '';
+  }
+
+  protected catalogueToggleLabel_(list: AerieGuardCatalogueList): string {
+    return loadTimeData.getStringF(
+        'aerieGuardCatalogueToggleAria', this.catalogueTitle_(list));
+  }
+
+  protected catalogueRulesText_(list: AerieGuardCatalogueList): string {
+    if (!list.on) {
+      return loadTimeData.getString('aerieGuardCatalogueNotDownloaded');
+    }
+    if (list.updated === null) {
+      return '';  // The download has not finished: the status says so.
+    }
+    return loadTimeData.getStringF(
+        'aerieGuardListRules', list.rules.toLocaleString());
+  }
+
+  protected catalogueStatusText_(list: AerieGuardCatalogueList): string {
+    switch (list.status) {
+      case 'updating':
+        return loadTimeData.getString('aerieGuardListStatusUpdating');
+      case 'failed':
+        return loadTimeData.getString('aerieGuardListStatusFailed');
+      default:
+        return '';
+    }
+  }
+
+  protected catalogueFailureText_(list: AerieGuardCatalogueList): string {
+    return list.errorCode ? this.codeText_('aerieGuardListError', list.errorCode) : '';
+  }
+
+  // The groups that have a list matching the search, with only those lists.
+  // The words searched are the ones the user sees: the name, the description,
+  // the category, the licence and the languages.
+  protected visibleCatalogue_(): AerieGuardCatalogueGroup[] {
+    const query = this.catalogueQuery_.trim().toLowerCase();
+    if (!query) {
+      return this.catalogue_;
+    }
+    const out: AerieGuardCatalogueGroup[] = [];
+    for (const group of this.catalogue_) {
+      const category = this.categoryTitle_(group.category).toLowerCase();
+      const lists = group.lists.filter(list => {
+        const haystack = [
+          this.catalogueTitle_(list), this.catalogueDesc_(list), category,
+          list.licence, ...list.langs, ...this.languageNames_(list)
+        ].join('\n').toLowerCase();
+        return haystack.includes(query);
+      });
+      if (lists.length) {
+        out.push({category: group.category, lists});
+      }
+    }
+    return out;
+  }
+
+  protected onCatalogueSearchChanged_(e: CustomEvent<{value: string}>) {
+    this.catalogueQuery_ = e.detail.value;
+  }
+
+  protected onCatalogueToggleChange_(e: Event) {
+    const toggle = e.target as CrToggleElement;
+    const id = toggle.dataset['id'];
+    if (!id) {
+      return;
+    }
+    this.listError_ = '';
+    this.browserProxy_.setCatalogueList(id, toggle.checked).then(
+        state => {
+          this.applyState_(state);
+          // A refused change leaves the list as it was: draw it that way.
+          let on = false;
+          for (const group of state.catalogue) {
+            on = group.lists.find(l => l.id === id)?.on ?? on;
+          }
+          toggle.checked = on;
+        },
+        () => {
+          toggle.checked = !toggle.checked;
+          this.listError_ = loadTimeData.getString('aerieGuardErrorGeneric');
+        });
   }
 
   protected listToggleLabel_(list: AerieGuardList): string {
