@@ -43,6 +43,22 @@ def good_validation():
     return {"probes": [dict(p) for p in PROBES], "state_before": STATE_FILE, "state_after": STATE_FILE}
 
 
+def catalogue_state(on=()):
+    rows = {"annoyances": ["fanboyannoyances"], "cookies": ["easylistcookie"], "social": ["fanboysocial"],
+            "privacy": ["uboprivacy"], "regional": ["easylistgermany"]}
+    return {"lists": [], "catalogue": [
+        {"category": cat, "lists": [{"id": i, "on": i in on} for i in ids]} for cat, ids in rows.items()]}
+
+
+def good_catalogue():
+    """What observe_catalogue returns for a build where the handler takes a catalogue id only."""
+    probes = fl.catalogue_probes("http://127.0.0.1:5000" + fl.CATALOGUE_RAW_PATH)
+    return {"state_before": catalogue_state(), "state_after": catalogue_state(),
+            "probes": [{"name": name, "refused": True} for name, _ in probes],
+            "fixture_requests_before": 12, "fixture_requests_after": 12,
+            "file_before": STATE_FILE, "file_after": STATE_FILE}
+
+
 INC = "incognito.localhost"
 
 
@@ -155,6 +171,7 @@ def good():
         "lists": good_lists(),
         "custom_rules": good_custom(),
         "validation": good_validation(),
+        "catalogue": good_catalogue(),
         "incognito": good_incognito(),
     }
 
@@ -318,6 +335,103 @@ class ValidationTest(unittest.TestCase):
         for key in ("state_before", "state_after"):
             p = self.problems(lambda v: v.update({key: None}))
             self.assertTrue(any("state file could not be read" in x for x in p), p)
+
+
+class CatalogueStepTest(unittest.TestCase):
+    """Issue #105: an unknown id and a raw address are refused, and the fixture server sees no request."""
+
+    def problems(self, mutate=None):
+        obs = good_catalogue()
+        if mutate:
+            mutate(obs)
+        return fl.judge_catalogue(obs)
+
+    def test_a_good_run_has_no_problem(self):
+        self.assertEqual(self.problems(), [])
+
+    def test_judge_includes_the_catalogue_step(self):
+        obs = good()
+        obs["catalogue"]["probes"][0]["refused"] = False
+        status, detail, _ = fl.judge(obs)
+        self.assertEqual(status, "fail")
+        self.assertIn("catalogue", detail)
+
+    def test_missing_observations_fail(self):
+        obs = good()
+        del obs["catalogue"]
+        status, detail, _ = fl.judge(obs)
+        self.assertEqual(status, "fail")
+        self.assertIn("never sent a catalogue message", detail)
+
+    def test_the_probes_send_an_unknown_id_and_a_raw_address_of_the_fixture_server(self):
+        probes = dict(fl.catalogue_probes("http://127.0.0.1:5000/x"))
+        self.assertEqual(probes["an unknown id"], ["notacataloguelist", True])
+        self.assertEqual(probes["a raw address of the fixture server"], ["http://127.0.0.1:5000/x", True])
+        self.assertEqual(probes["a raw address of a real catalogue list"], [fl.REAL_CATALOGUE_ADDRESS, True])
+
+    def test_the_real_address_is_one_the_catalogue_ships(self):
+        import json
+        from pathlib import Path
+        urls = {e["url"] for e in json.loads(
+            (Path(__file__).resolve().parent.parent / "overlay/components/aerie_adblock/catalogue.json").read_text())}
+        self.assertIn(fl.REAL_CATALOGUE_ADDRESS, urls)
+
+    def test_the_check_sends_the_message_to_the_handler(self):
+        import inspect
+        self.assertIn('"setCatalogueList"', inspect.getsource(fl.observe_catalogue))
+        self.assertIn("observe_catalogue(session, profile_path)", inspect.getsource(fl.observe_first_launch))
+
+    def test_a_handler_that_takes_a_raw_address_fails(self):
+        def accept(obs):
+            for probe in obs["probes"]:
+                if "raw address" in probe["name"]:
+                    probe["refused"] = False
+        p = self.problems(accept)
+        self.assertEqual(len(p), 2)
+        self.assertTrue(all("was not refused" in x for x in p))
+
+    def test_a_handler_that_takes_an_unknown_id_fails(self):
+        def accept(obs):
+            obs["probes"][0]["refused"] = False
+        self.assertEqual(self.problems(accept), ["catalogue: an unknown id was not refused"])
+
+    def test_a_request_to_the_fixture_server_fails(self):
+        def fetched(obs):
+            obs["fixture_requests_after"] += 1
+        self.assertIn("the fixture server saw 1 request(s)", self.problems(fetched)[0])
+
+    def test_uncounted_requests_fail(self):
+        def uncounted(obs):
+            obs["fixture_requests_after"] = None
+        self.assertIn("not proven", self.problems(uncounted)[0])
+
+    def test_a_changed_state_file_fails(self):
+        def changed(obs):
+            obs["file_after"] = '{"lists": [{"id": "x"}]}'
+        self.assertEqual(self.problems(changed), ["catalogue: state.json changed while only refused ids were sent"])
+
+    def test_an_unreadable_state_file_fails(self):
+        def unreadable(obs):
+            obs["file_before"] = None
+        self.assertIn("not proven that nothing changed", self.problems(unreadable)[0])
+
+    def test_a_list_that_is_on_fails(self):
+        def on(obs):
+            obs["state_after"] = catalogue_state(on={"fanboyannoyances"})
+        self.assertIn("nobody turned on", self.problems(on)[0])
+
+    def test_a_state_that_is_not_grouped_by_category_fails(self):
+        def flat(obs):
+            obs["state_before"] = {"lists": []}
+        self.assertIn("does not group the catalogue", self.problems(flat)[0])
+        def swapped(obs):
+            obs["state_before"]["catalogue"].reverse()
+        self.assertIn("does not group the catalogue", self.problems(swapped)[0])
+
+    def test_a_catalogue_list_among_the_users_lists_fails(self):
+        def leaked(obs):
+            obs["state_after"]["lists"] = [{"id": "fanboyannoyances"}]
+        self.assertIn("among the user's lists", self.problems(leaked)[0])
 
 
 class IncognitoTest(unittest.TestCase):

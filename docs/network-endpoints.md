@@ -124,9 +124,10 @@ Left alone on purpose:
 | Endpoint | Where | When | Aerie |
 | --- | --- | --- | --- |
 | `https://easylist.to/easylist/easylist.txt`, `.../easyprivacy.txt` | `FilterListManager` (built-in lists) | Update from the filter list page, or the daily schedule (on by default; the first check is a day after install) | The publisher's own address. https only, no cookies, no referrer, 5 MiB, 60 s. Can be turned off on `chrome://filters`. |
+| `https://easylist.to/` (Fanboy Annoyances, Fanboy Social, EasyList Germany), `https://easylist-downloads.adblockplus.org/` (EasyList Italy, Liste FR), `https://secure.fanboy.co.nz/` (EasyList Cookie List), `https://ublockorigin.github.io/` (uBlock annoyances, filters, privacy and unbreak), `https://filters.adtidy.org/` (AdGuard URL Tracking, Japanese, Spanish/Portuguese) | `FilterListManager` (catalogue lists, #105) | **User-initiated.** Only after the user turns that list on in Settings > Aerie Guard, then on the daily schedule for the lists that are on. Nothing is fetched for a list that is off, and nothing by default. | The address of each list is fixed in the build (`overlay/components/aerie_adblock/catalogue.json`); the page names a catalogue id, never an address, and an unknown id is refused. Same rules as the built-in lists: https only, no cookies, no referrer, 5 MiB per list, 60 s. The lists in use are capped in number and total size. Their own traffic annotation, `aerie_catalogue_filter_list_download`, reaches these hosts and no other. None is Google-owned or Helium-owned. |
 | Any https address the user added | `FilterListManager` (custom lists) | When the user adds or updates it, and on the schedule | Same rules. Never http (loopback http only with `--aerie-test-allow-loopback-filter-lists`). A redirect that leaves https stops the download. |
 
-Neither host is Google-owned or Helium-owned. Nothing is fetched on a fresh install before the first scheduled check, a day later. See [adblock.md](adblock.md).
+None of these hosts is Google-owned or Helium-owned. Nothing is fetched on a fresh install before the first scheduled check, a day later. See [adblock.md](adblock.md).
 
 ## Request policy
 
@@ -194,6 +195,11 @@ Annotation plus host, so a host is reachable only by the code that is meant to u
 | Annotation | Host | Why |
 | --- | --- | --- |
 | `aerie_filter_list_download` | `easylist.to` | Built-in filter lists: EasyList and EasyPrivacy |
+| `aerie_catalogue_filter_list_download` | `easylist.to` | Catalogue filter lists (Fanboy Annoyances, Fanboy Social, EasyList Germany). User-initiated: only after the user turns the list on (#105) |
+| `aerie_catalogue_filter_list_download` | `easylist-downloads.adblockplus.org` | Catalogue filter lists (EasyList Italy, Liste FR). User-initiated: only after the user turns the list on (#105) |
+| `aerie_catalogue_filter_list_download` | `secure.fanboy.co.nz` | Catalogue filter list (EasyList Cookie List). User-initiated: only after the user turns the list on (#105) |
+| `aerie_catalogue_filter_list_download` | `ublockorigin.github.io` | Catalogue filter lists (uBlock annoyances, filters, privacy, unbreak). User-initiated: only after the user turns the list on (#105) |
+| `aerie_catalogue_filter_list_download` | `filters.adtidy.org` | Catalogue filter lists (AdGuard URL Tracking, Japanese, Spanish/Portuguese). User-initiated: only after the user turns the list on (#105) |
 | `update_client` | `update.googleapis.com` | Widevine component update check, only after the user opts in (#7) |
 | `update_client` | `dl.google.com` | Widevine component download, only after the user opts in (#7) |
 | `update_client` | `gvt1.com` | Widevine component download from Google's CDN, only after the user opts in (#7) |

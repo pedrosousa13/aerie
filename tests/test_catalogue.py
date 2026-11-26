@@ -98,6 +98,25 @@ class CatalogueFileTest(unittest.TestCase):
                                    if "adtidy" in e["url"]])
 
 
+class DocsTest(unittest.TestCase):
+    def test_every_publisher_host_is_listed_as_user_initiated_in_the_endpoints_doc(self):
+        doc = (REPO / "docs/network-endpoints.md").read_text(encoding="utf-8")
+        rows = re.findall(r"^\| `aerie_catalogue_filter_list_download` \| `([^`]+)` \| (.*) \|$", doc, re.M)
+        self.assertEqual({host for host, _ in rows}, {urlsplit(e["url"]).hostname for e in load()})
+        for host, why in rows:
+            self.assertIn("User-initiated", why, host)
+
+    def test_the_generated_allowlist_has_the_same_hosts(self):
+        inc = (REPO / "overlay/services/network/aerie/request_allowlist.inc").read_text(encoding="utf-8")
+        hosts = set(re.findall(r'\{"aerie_catalogue_filter_list_download", "([^"]+)"\}', inc))
+        self.assertEqual(hosts, {urlsplit(e["url"]).hostname for e in load()})
+
+    def test_the_privacy_policy_names_every_publisher(self):
+        text = (REPO / "PRIVACY.md").read_text(encoding="utf-8")
+        for host in {urlsplit(e["url"]).hostname for e in load()}:
+            self.assertIn(f"`{host}`", text, host)
+
+
 class CheckerTest(unittest.TestCase):
     """The check above must fail on a bad entry. Each case changes one field of a good one."""
 

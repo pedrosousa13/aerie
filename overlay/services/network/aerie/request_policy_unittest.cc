@@ -64,6 +64,37 @@ TEST(AerieRequestPolicyTest, ARowIsForItsOwnAnnotationOnly) {
                          "https://easylist.to/easylist/easylist.txt")));
 }
 
+// The catalogue lists (issue #105) have their own annotation and their own hosts.
+TEST(AerieRequestPolicyTest, CatalogueDownloadsReachTheirPublishersAndNoOtherHost) {
+  const int32_t catalogue = Hash("aerie_catalogue_filter_list_download");
+  for (const char* url :
+       {"https://easylist.to/easylist/fanboy-annoyance.txt",
+        "https://easylist-downloads.adblockplus.org/easylistitaly.txt",
+        "https://secure.fanboy.co.nz/fanboy-cookiemonster.txt",
+        "https://ublockorigin.github.io/uAssets/filters/privacy.min.txt",
+        "https://filters.adtidy.org/extension/ublock/filters/17.txt"}) {
+    EXPECT_EQ(Verdict::kAllow,
+              Decide(Facts(RequestOrigin::kBrowserProcess, catalogue, url)))
+        << url;
+  }
+  for (const char* url : {"https://evil.example/list.txt",
+                          "https://update.googleapis.com/service/update2/json",
+                          "https://raw.githubusercontent.com/x/y/z.txt"}) {
+    EXPECT_EQ(Verdict::kRefusedUnlistedHost,
+              Decide(Facts(RequestOrigin::kBrowserProcess, catalogue, url)))
+        << url;
+  }
+  // A catalogue host is not open to the built-in list code, and the other way
+  // round.
+  EXPECT_EQ(Verdict::kRefusedUnlistedHost,
+            Decide(Facts(RequestOrigin::kBrowserProcess,
+                         Hash("aerie_filter_list_download"),
+                         "https://filters.adtidy.org/extension/ublock/filters/17.txt")));
+  EXPECT_EQ(Verdict::kRefusedUnlistedHost,
+            Decide(Facts(RequestOrigin::kBrowserProcess, catalogue,
+                         "https://update.googleapis.com/service/update2/json")));
+}
+
 // --- Browser requests: refused -----------------------------------------------
 
 TEST(AerieRequestPolicyTest, RefusesASystemRequestToAnUnlistedHost) {

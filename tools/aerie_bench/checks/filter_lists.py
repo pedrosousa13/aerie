@@ -62,6 +62,16 @@ What it proves (the numbers are the issue #10 acceptance criteria, then the ones
    runs; it does not prove why (the engine itself builds only hide stylesheets), and no build that skips
    ``sanitize_list`` is run here: see ``judge_custom_rules``.
 
+11. The catalogue (issue #105): the handler's state groups the catalogue by category (annoyances, cookies, social, privacy,
+   regional) with every list off, and no catalogue list is among the user's lists. ``aerieGuard.setCatalogueList``
+   takes a catalogue id only: an unknown id, an id in capitals, the address of the fixture list (a raw URL), the
+   address of a real catalogue list and a number instead of an id are each refused (the promise rejects), the
+   fixture server sees no request at all while they are sent, nothing is turned on and ``state.json`` is
+   byte for byte the same afterwards. A handler that takes an address as the id would fetch it from the fixture
+   server and fail this step: see ``judge_catalogue``. The catalogue's own downloads are not made here (the
+   addresses are the publishers' and the Bench reaches none); that no request is made by default is
+   ``zero_traffic``.
+
 What stays with the unit tests: that an incognito tab cannot undo an exception that a regular window saved.
 
 Decision logic is in plain functions (``judge``, ``judge_restart``, ``judge_validation``, ...) that the tests
@@ -306,6 +316,49 @@ def judge_validation(val: dict | None) -> list[str]:
     return problems
 
 
+def judge_catalogue(obs: dict | None) -> list[str]:
+    """The catalogue step: the state is grouped by category and all off, and every probe that names something
+    other than a catalogue id was refused without a request to the fixture server or a change to the state.
+
+    ``obs`` has ``state_before`` and ``state_after`` (the handler's state), ``probes`` (a list of ``{"name",
+    "refused"}``), ``fixture_requests_before`` and ``fixture_requests_after`` (how many requests the fixture
+    server had logged around the probes) and ``file_before`` and ``file_after`` (``state.json`` around them)."""
+    if not obs or not obs.get("probes"):
+        return ["no catalogue observations: the check never sent a catalogue message"]
+    problems: list[str] = []
+    for key in ("state_before", "state_after"):
+        groups = (obs.get(key) or {}).get("catalogue")
+        if not isinstance(groups, list) or [g.get("category") for g in groups] != CATALOGUE_CATEGORIES:
+            problems.append(f"catalogue: the state ({key}) does not group the catalogue as {CATALOGUE_CATEGORIES}")
+            continue
+        rows = [row for g in groups for row in g.get("lists", [])]
+        if not rows or any(not row.get("id") for row in rows):
+            problems.append(f"catalogue: the state ({key}) has no list rows")
+        if any(row.get("on") for row in rows):
+            problems.append(f"catalogue: a list is on in the state ({key}) that nobody turned on")
+        ids = {row.get("id") for row in rows}
+        if any(x.get("id") in ids for x in (obs.get(key) or {}).get("lists", [])):
+            problems.append(f"catalogue: a catalogue list shows among the user's lists ({key})")
+    names = [p.get("name", "") for p in obs["probes"]]
+    for needed in ("an unknown id", "a raw address"):
+        if not any(needed in name for name in names):
+            problems.append(f"catalogue: no probe sends {needed}")
+    for probe in obs["probes"]:
+        if probe.get("refused") is not True:
+            problems.append(f"catalogue: {probe.get('name')} was not refused")
+    before, after = obs.get("fixture_requests_before"), obs.get("fixture_requests_after")
+    if before is None or after is None:
+        problems.append("catalogue: the fixture server's requests were not counted, so it is not proven that none was made")
+    elif after != before:
+        problems.append(f"catalogue: the fixture server saw {after - before} request(s) while only refused ids were sent")
+    file_before, file_after = obs.get("file_before"), obs.get("file_after")
+    if file_before is None or file_after is None:
+        problems.append("catalogue: the state file could not be read, so it is not proven that nothing changed")
+    elif file_before != file_after:
+        problems.append("catalogue: state.json changed while only refused ids were sent")
+    return problems
+
+
 def find_id(state: dict | None, list_id: str) -> dict | None:
     return next((x for x in (state or {}).get("lists", []) if x.get("id") == list_id), None)
 
@@ -469,6 +522,7 @@ def judge(obs: dict) -> tuple[str, str, dict]:
     problems += judge_lists(obs.get("lists"))
     problems += judge_custom_rules(obs.get("custom_rules"))
     problems += judge_validation(obs.get("validation"))
+    problems += judge_catalogue(obs.get("catalogue"))
     problems += judge_incognito(obs.get("incognito"))
     problems += judge_restart(obs.get("restart"), obs.get("list_url", ""))
     data = {"update": update_data, "page_count_samples": obs.get("page_count_samples"),
@@ -478,7 +532,9 @@ def judge(obs: dict) -> tuple[str, str, dict]:
     return "pass", (f"custom list took effect without restart, {N_ADS} ads blocked and counted, update contacted only "
                     f"list publishers ({len(update_data['publisher_requests'])} request(s)), exception for "
                     f"{EXCEPTED_HOST} only and it survived a restart; {len(obs['validation']['probes'])} bad arguments were refused "
-                    f"and left state.json unchanged; Guard turned off in an incognito window through the panel applied there only "
+                    f"and left state.json unchanged; {len(obs['catalogue']['probes'])} catalogue messages that name something other than "
+                    f"a catalogue id (an unknown id, a raw address) were refused, the fixture server saw no request and state.json "
+                    f"did not change; Guard turned off in an incognito window through the panel applied there only "
                     f"and never reached state.json; both negative controls rejected; EasyPrivacy off let its request through and on "
                     f"blocked it, EasyList refused to turn off; the user's own rules blocked a script on {OWN_HOST} only, their "
                     f"scriptlet line did not run and was reported with a reason, an oversize text was refused"), data
@@ -623,7 +679,43 @@ def observe_first_launch(session: Session, profile_path: str | Path | None = Non
     obs["lists"] = observe_lists(session, custom_url)
     obs["custom_rules"] = observe_custom_rules(session, profile_path)
     obs["validation"] = observe_validation(session, profile_path)
+    obs["catalogue"] = observe_catalogue(session, profile_path)
     return obs
+
+
+CATALOGUE_CATEGORIES = ["annoyances", "cookies", "social", "privacy", "regional"]
+CATALOGUE_RAW_PATH = "/filters/catalogue-raw-address.txt"  # not a fixture: the server only logs the request
+REAL_CATALOGUE_ADDRESS = "https://easylist.to/easylist/fanboy-annoyance.txt"  # a publisher address of the build
+
+
+def catalogue_probes(raw_url: str) -> list[tuple[str, list]]:
+    """Messages to ``aerieGuard.setCatalogueList`` that the handler must refuse: (name, arguments)."""
+    return [
+        ("an unknown id", ["notacataloguelist", True]),
+        ("an id in capitals", ["FANBOYANNOYANCES", True]),
+        ("a raw address of the fixture server", [raw_url, True]),
+        ("a raw address of a real catalogue list", [REAL_CATALOGUE_ADDRESS, True]),
+        ("an empty id", ["", True]),
+        ("a number as the id", [123, True]),
+        ("an unknown id to turn off", ["notacataloguelist", False]),
+    ]
+
+
+def observe_catalogue(session: Session, profile_path: str | Path | None) -> dict:
+    """Send the refused ids and see that nothing was fetched or changed."""
+    state_before = open_manager(session)
+    time.sleep(SETTLE)
+    file_before = read_state_file(profile_path) if profile_path else None
+    raw_url = list_url_of(session, CATALOGUE_RAW_PATH)
+    requests_before = len(session.fixtures.snapshot())
+    probes = [{"name": name, "refused": call(session, "setCatalogueList", args).get("ok") is False}
+              for name, args in catalogue_probes(raw_url)]
+    time.sleep(SETTLE)  # a fetch the handler wrongly started would have reached the server by now
+    requests_after = len(session.fixtures.snapshot())
+    file_after = read_state_file(profile_path) if profile_path else None
+    return {"state_before": state_before, "state_after": read_state(session), "probes": probes,
+            "fixture_requests_before": requests_before, "fixture_requests_after": requests_after,
+            "file_before": file_before, "file_after": file_after}
 
 
 PROBE_JS = "fetch(%s, {mode: 'no-cors'}).then(() => 0, () => 0); true"

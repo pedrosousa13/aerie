@@ -83,6 +83,9 @@ The named values for colour, radius, spacing, type, size and motion, defined onc
 **Guard**
 Aerie's blocking and protection feature: the ad and tracker Filter Engine, plus per-site controls and the fingerprinting switch. It shows as an icon at the end of the address pill. Its panel opens from that icon, and its section of Settings is `chrome://settings/aerieGuard` ([docs/adblock.md](docs/adblock.md)). Blocking features and flows follow Brave Shields.
 
+**Catalogue** (filter list catalogue)
+The fixed set of filter lists, with publisher addresses shipped in the build, that the user can turn on in Settings > Aerie Guard (#105, [ADR 0003](docs/adr/0003-user-managed-filter-lists.md)). `components/aerie_adblock/catalogue.json` is its source. A list is named by its catalogue id; the page never sends an address, and an unknown id is refused. Nothing is bundled and nothing is downloaded until the user turns a list on. Only lists with an allow-listed licence are in it. Not the same as a custom list, which is an address the user typed.
+
 ## Privacy
 
 **Crash report**
