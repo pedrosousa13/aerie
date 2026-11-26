@@ -313,9 +313,6 @@ class AerieGuardFingerprintingTest : public AerieGuardBrowserTest {
   std::unique_ptr<aerie_guard::AerieGuardHandler> handler_;
 };
 
-// Turning protection off for a.localhost gives its real canvas value back after
-// the reload; b.localhost keeps its noise; turning it on again brings the noise
-// back.
 // The row names the site the switch covers, not the tab's host (#160).
 IN_PROC_BROWSER_TEST_F(AerieGuardFingerprintingTest,
                        TheRowNamesTheSiteOfASubdomainPage) {
@@ -347,6 +344,9 @@ IN_PROC_BROWSER_TEST_F(AerieGuardFingerprintingTest,
   EXPECT_EQ("localhost", state->fingerprinting->site);
 }
 
+// Turning protection off for a.localhost gives its real canvas value back after
+// the reload; b.localhost keeps its noise; turning it on again brings the noise
+// back.
 IN_PROC_BROWSER_TEST_F(AerieGuardFingerprintingTest,
                        TheRowTurnsNoiseOffForOneSiteOnly) {
   // The real value: read with protection off for the whole browser.
