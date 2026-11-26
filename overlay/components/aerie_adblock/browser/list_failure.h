@@ -93,6 +93,24 @@ inline std::string ListFailureCodeForMessage(const std::string& message) {
   return std::string();
 }
 
+// The texts FilterListManager::AddList() gives for a list it refused for a
+// reason that is not a ListFailure.
+inline constexpr char kAddErrorDuplicate[] = "This list is already added.";
+inline constexpr char kAddErrorTooMany[] = "Too many lists. Remove one first.";
+
+// The code for the text AddList() gave (issue #108): a ListFailure code, or
+// "duplicate" or "too_many". "" for no error or any other text. The page
+// owns the words.
+inline std::string AddListErrorCode(const std::string& message) {
+  if (message == kAddErrorDuplicate) {
+    return "duplicate";
+  }
+  if (message == kAddErrorTooMany) {
+    return "too_many";
+  }
+  return ListFailureCodeForMessage(message);
+}
+
 }  // namespace aerie_adblock
 
 #endif  // COMPONENTS_AERIE_ADBLOCK_BROWSER_LIST_FAILURE_H_

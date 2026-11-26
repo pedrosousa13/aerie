@@ -118,6 +118,11 @@ adblock/0028-add-aerie-guard-catalogue-strings.patch
 # The catalogue door of the Settings handler, tested through the page's message channel (#105).
 adblock/0029-build-aerie-guard-settings-browser-tests.patch
 
+# Custom list subscriptions in Settings (#108): the read-only text/plain page behind "View source".
+adblock/0030-register-aerie-list-source-page.patch
+# The strings of adding a list by address, View source and Unsubscribe (#108).
+adblock/0031-add-aerie-guard-subscription-strings.patch
+
 # Opt-in "Restrict fonts" (#117): pages can match only an allowlist of common fonts; the pref, the kFonts token, the font selectors and Local Font Access.
 hardening/0020-restrict-fonts-to-an-allowlist.patch
 # Key the fingerprinting seeds on the Workspace (storage partition) too (#121).

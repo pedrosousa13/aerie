@@ -1,0 +1,7 @@
+[Adblock Plus 2.0]
+! Title: <b>Hostile</b> list
+! A list that tries to run when its saved text is viewed (issue #108).
+<script>window.__aerieSourceRan = 1</script>
+<img src=x onerror="window.__aerieSourceRan = 2">
+<h1 id="aerie-source-heading">Rendered as HTML</h1>
+/filters/source-never-matches/

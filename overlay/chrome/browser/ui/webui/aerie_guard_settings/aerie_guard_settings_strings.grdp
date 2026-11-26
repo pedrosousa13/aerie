@@ -374,4 +374,40 @@
     Ad and tracker rules for Spanish- and Portuguese-language sites.
   </message>
   <!-- catalogue:end -->
+  <message name="IDS_SETTINGS_AERIE_GUARD_SUBSCRIPTIONS_HEADING" desc="Heading of the part of the Aerie Guard page where the user adds a filter list by its web address.">
+    Add a list by address
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_SUBSCRIPTIONS_DESC" desc="Text under the heading for adding a filter list by address. It says that the browser downloads the list again once a day and that the lists added this way appear in the list of filter lists above.">
+    Subscribe to a filter list from its address. The browser downloads it now and then updates it once a day. It appears in the lists above, where you can update it, read its text or unsubscribe.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_ADD_LIST_LABEL" desc="Label of the text field where the user types the web address of a filter list.">
+    Address of the filter list
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_ADD_LIST_PLACEHOLDER" desc="Example address shown in the empty text field where the user types the address of a filter list.">
+    https://lists.example/my-list.txt
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_ADD_LIST_BUTTON" desc="Button next to the text field. It subscribes to the filter list at the address that was typed.">
+    Subscribe
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_ADD_LIST_IP_WARNING" desc="Warning under the field where the user adds a filter list by address. It says that downloading the list tells the list's server the IP address of this computer.">
+    The server that hosts a list learns your IP address each time the browser downloads the list. Subscribe only to lists from sources you trust.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_ADD_LIST_ERROR_DUPLICATE" desc="Error under the field for adding a filter list: the user is already subscribed to the list at this address.">
+    You are already subscribed to this list.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_ADD_LIST_ERROR_TOO_MANY" desc="Error under the field for adding a filter list: the user is subscribed to the largest number of lists that is allowed.">
+    You are subscribed to the most lists that are allowed. Unsubscribe from one first.
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_LIST_VIEW_SOURCE" desc="Button on a filter list the user subscribed to. It opens the text of the saved list in a new tab, read only.">
+    View source
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_LIST_VIEW_SOURCE_ARIA" desc="Accessible name of the button that opens the saved text of a filter list. The placeholder is the name of the list.">
+    View source of <ph name="LIST_NAME">$1<ex>My list</ex></ph>
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_LIST_UNSUBSCRIBE" desc="Button on a filter list the user subscribed to. It removes the list and deletes its saved copy.">
+    Unsubscribe
+  </message>
+  <message name="IDS_SETTINGS_AERIE_GUARD_LIST_UNSUBSCRIBE_ARIA" desc="Accessible name of the button that unsubscribes from a filter list. The placeholder is the name of the list.">
+    Unsubscribe from <ph name="LIST_NAME">$1<ex>My list</ex></ph>
+  </message>
 </grit-part>

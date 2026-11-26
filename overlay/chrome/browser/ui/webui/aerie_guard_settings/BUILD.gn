@@ -20,12 +20,39 @@ source_set("handler") {
   ]
   deps = [
     "//chrome/browser/profiles:profile",
+    ":list_source",
     "//components/aerie_adblock/browser:catalogue",
     "//components/aerie_adblock/browser:classified_request",  # blocking_level.h
     "//components/aerie_adblock/browser:guard_prefs",
     "//components/language/core/browser",
     "//components/prefs",
+    "//content/public/common",
+    "//ui/base",
     "//url",
+  ]
+}
+
+# aerie://list-source/<id> (issue #108): the saved text of a filter list the
+# user added by address, as text/plain. Registered by patches/adblock/0030.
+source_set("list_source") {
+  visibility = [
+    ":*",
+    "//chrome/browser/ui/webui:*",
+  ]
+  sources = [
+    "aerie_list_source_ui.cc",
+    "aerie_list_source_ui.h",
+  ]
+  public_deps = [
+    "//base",
+    "//content/public/browser",
+    "//url",
+  ]
+  deps = [
+    "//chrome/browser/profiles:profile",
+    "//components/aerie_adblock/browser:lists",
+    "//content/public/common",
+    "//services/network/public/mojom",
   ]
 }
 
@@ -43,6 +70,7 @@ source_set("browser_tests") {
     "//chrome/test:test_support",
     "//chrome/test:test_support_ui",
     "//chrome/test/base:chrome_test_utils",
+    ":list_source",
     "//components/aerie_adblock/browser:catalogue",
     "//components/aerie_adblock/browser:guard_prefs",
     "//components/aerie_adblock/browser:lists",
@@ -50,6 +78,8 @@ source_set("browser_tests") {
     "//components/prefs",
     "//content/public/browser",
     "//content/test:test_support",
+    "//net:test_support",
+    "//net",
     "//url",
   ]
 }

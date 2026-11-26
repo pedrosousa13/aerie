@@ -5,6 +5,7 @@
 #include "components/aerie_adblock/browser/filter_list_manager.h"
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -18,6 +19,7 @@
 #include "base/test/task_environment.h"
 #include "components/aerie_adblock/browser/adblock_engine.h"
 #include "components/aerie_adblock/browser/catalogue.h"
+#include "components/aerie_adblock/browser/filter_list_state.h"
 #include "components/aerie_adblock/browser/filter_list_storage.h"
 #include "components/aerie_adblock/browser/session_key.h"
 #include "net/http/http_status_code.h"
@@ -152,6 +154,85 @@ TEST_F(FilterListManagerTest, ACustomListTakesEffectWithoutARestart) {
   EXPECT_FALSE(entry.updated.is_null());
   // Only the list's own address was asked for.
   EXPECT_EQ(1u, network_.total_requests());
+}
+
+TEST_F(FilterListManagerTest, ACustomListTitleIsCleanedAndBoundedByTheHeader) {
+  // Control characters go, HTML stays text, and a title below the header is
+  // not the list's name (issue #108).
+  network_.AddResponse(kCustomUrl,
+                       "! Title: <i>Mine</i>\x01 list\n||custom.example^\n"
+                       "! Title: Not this one\n");
+  auto manager = MakeManager();
+  std::string error;
+  ASSERT_TRUE(manager->AddList(GURL(kCustomUrl), &error)) << error;
+  WaitUntilIdle(*manager);
+  EXPECT_EQ("<i>Mine</i> list", manager->state().lists().back().title);
+}
+
+TEST_F(FilterListManagerTest, TheSourceOfACustomListIsReadByIdOnly) {
+  const std::string text =
+      "! Title: Mine\n<script>alert(1)</script>\n||custom.example^\n";
+  network_.AddResponse(kCustomUrl, text);
+  auto manager = MakeManager();
+  std::string error;
+  ASSERT_TRUE(manager->AddList(GURL(kCustomUrl), &error)) << error;
+  WaitUntilIdle(*manager);
+  const std::string id = manager->state().lists().back().id;
+
+  std::optional<std::string> got;
+  base::RunLoop loop;
+  ASSERT_TRUE(manager->ReadListSource(
+      id, base::BindLambdaForTesting([&](std::optional<std::string> source) {
+        got = std::move(source);
+        loop.Quit();
+      })));
+  loop.Run();
+  ASSERT_TRUE(got.has_value());
+  EXPECT_EQ(text, *got);
+
+  // Unknown ids, addresses, built-in lists, the user's own rules and ids that
+  // are not list ids are refused, and the callback never runs.
+  for (const char* bad :
+       {"", "nope", "easylist", "easyprivacy", "custom", kCustomUrl,
+        "../state", "ABCDEF"}) {
+    bool ran = false;
+    EXPECT_FALSE(manager->ReadListSource(
+        bad, base::BindLambdaForTesting(
+                 [&](std::optional<std::string>) { ran = true; })))
+        << bad;
+    EXPECT_FALSE(ran) << bad;
+  }
+}
+
+// A file over the size cap is never shown cut short: any failed read is a
+// failure, so the page shows its error string.
+TEST_F(FilterListManagerTest, ASourceThatCannotBeReadWholeIsAFailure) {
+  network_.AddResponse(kCustomUrl, "||custom.example^\n");
+  auto manager = MakeManager();
+  std::string error;
+  ASSERT_TRUE(manager->AddList(GURL(kCustomUrl), &error)) << error;
+  WaitUntilIdle(*manager);
+  const std::string id = manager->state().lists().back().id;
+  const base::FilePath path =
+      filter_list_storage::ListPath(dir_.GetPath(), id);
+
+  auto read = [&]() {
+    std::optional<std::string> got = std::string("not run");
+    base::RunLoop loop;
+    EXPECT_TRUE(manager->ReadListSource(
+        id, base::BindLambdaForTesting([&](std::optional<std::string> source) {
+          got = std::move(source);
+          loop.Quit();
+        })));
+    loop.Run();
+    return got;
+  };
+
+  ASSERT_TRUE(base::WriteFile(path, std::string(kMaxListBytes + 1, 'a')));
+  EXPECT_EQ(std::nullopt, read());
+
+  ASSERT_TRUE(base::DeleteFile(path));
+  EXPECT_EQ(std::nullopt, read());
 }
 
 TEST_F(FilterListManagerTest, ACustomListSurvivesARestart) {

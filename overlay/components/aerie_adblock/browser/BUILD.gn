@@ -122,6 +122,8 @@ source_set("list_types") {
     "filter_list_storage.cc",
     "filter_list_storage.h",
     "list_failure.h",
+    "list_title.cc",
+    "list_title.h",
   ]
   public_deps = [
     ":catalogue",
@@ -353,6 +355,7 @@ test("aerie_adblock_unittests") {
     "filter_list_state_unittest.cc",
     "filter_list_storage_unittest.cc",
     "guard_state_unittest.cc",
+    "list_title_unittest.cc",
     "protection_engine_unittest.cc",
     "protection_policy_unittest.cc",
     "protection_service_unittest.cc",

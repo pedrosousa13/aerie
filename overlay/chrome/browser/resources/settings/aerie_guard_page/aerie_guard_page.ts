@@ -13,8 +13,12 @@
  * rules and update status, and switches a list on or off (#104). The
  * catalogue (#105) is a searchable set of lists from their publishers, grouped
  * by category; a switch names a list by its catalogue id and the browser
- * downloads it from the address the build ships. Subscriptions get their own
- * rows from later issues (#106, #108). The user's own rules (#107) are a text
+ * downloads it from the address the build ships. A list the user added by
+ * address (#108) shows its title (or its address), when it was updated and
+ * its error, with Update now, View source and Unsubscribe; the address is
+ * typed into a field under the lists, with the warning that the list's server
+ * learns the IP address. View source sends the list id and the browser opens
+ * the saved text as plain text. The user's own rules (#107) are a text
  * box saved as the list 'custom'; the browser bounds and parses the text, and the page shows the
  * lines that were dropped or ignored with the reason. Every piece of the text
  * is rendered as text content only.
@@ -68,8 +72,17 @@ export class SettingsAerieGuardPageElement extends
         .list-error {
           color: var(--cr-form-field-error-color, var(--google-red-600));
         }
-        cr-button.list-update {
+        cr-button.list-update,
+        cr-button.list-view-source {
           margin-inline-end: var(--cr-section-padding);
+        }
+        cr-button.list-unsubscribe {
+          margin-inline-end: var(--cr-section-padding);
+        }
+        .list-address {
+          font-family: var(--cr-monospace-font-family, monospace);
+          font-size: 12px;
+          overflow-wrap: anywhere;
         }
         textarea#customRules {
           background: var(--cr-input-background-color, transparent);
@@ -135,6 +148,8 @@ export class SettingsAerieGuardPageElement extends
       languageCardDismissed_: {type: Boolean},
       listsBusy_: {type: Boolean},
       listError_: {type: String},
+      newListUrl_: {type: String},
+      addListError_: {type: String},
       newSite_: {type: String},
       siteError_: {type: String},
       customDraft_: {type: String},
@@ -158,6 +173,8 @@ export class SettingsAerieGuardPageElement extends
   protected accessor languageCardDismissed_: boolean = true;
   protected accessor listsBusy_: boolean = false;
   protected accessor listError_: string = '';
+  protected accessor newListUrl_: string = '';
+  protected accessor addListError_: string = '';
   protected accessor newSite_: string = '';
   protected accessor siteError_: string = '';
   // What is in the text box. It follows the saved text until the user types.
@@ -225,11 +242,105 @@ export class SettingsAerieGuardPageElement extends
     }
   }
 
-  // The user's own rules have no address and no title of their own.
+  // The user's own rules have no address and no title of their own. A list
+  // added by address with no "! Title:" line shows its address (issue #108).
   protected listTitle_(list: AerieGuardList): string {
     return list.id === 'custom' ?
         loadTimeData.getString('aerieGuardCustomListTitle') :
-        list.title;
+        list.title || list.url;
+  }
+
+  // True for a list the user subscribed to by address: the lists that can be
+  // unsubscribed from and whose saved text can be viewed.
+  protected isSubscription_(list: AerieGuardList): boolean {
+    return list.canViewSource;
+  }
+
+  protected canAddList_(): boolean {
+    return this.newListUrl_.trim().length > 0;
+  }
+
+  protected onNewListValueChanged_(e: CustomEvent<{value: string}>) {
+    this.newListUrl_ = e.detail.value;
+    this.addListError_ = '';
+  }
+
+  protected onNewListKeydown_(e: KeyboardEvent) {
+    if (e.key === 'Enter' && this.canAddList_()) {
+      this.onAddListClick_();
+    }
+  }
+
+  protected onAddListClick_() {
+    if (!this.canAddList_()) {
+      return;
+    }
+    this.addListError_ = '';
+    this.browserProxy_.addList(this.newListUrl_.trim()).then(
+        state => {
+          this.applyState_(state);
+          if (state.addErrorCode) {
+            this.addListError_ = this.addListErrorText_(state.addErrorCode);
+          } else if (state.addError) {
+            this.addListError_ = loadTimeData.getString('aerieGuardErrorGeneric');
+          } else {
+            this.newListUrl_ = '';
+          }
+        },
+        () => {
+          this.addListError_ = loadTimeData.getString('aerieGuardErrorGeneric');
+        });
+  }
+
+  // The code is a fixed word of the handler; the page owns the sentence.
+  private addListErrorText_(code: string): string {
+    switch (code) {
+      case 'insecure_url':
+        return loadTimeData.getString('aerieGuardListErrorInsecureUrl');
+      case 'non_public_url':
+        return loadTimeData.getString('aerieGuardListErrorNonPublicUrl');
+      case 'duplicate':
+        return loadTimeData.getString('aerieGuardAddListErrorDuplicate');
+      case 'too_many':
+        return loadTimeData.getString('aerieGuardAddListErrorTooMany');
+      default:
+        return loadTimeData.getString('aerieGuardErrorGeneric');
+    }
+  }
+
+  protected listViewSourceLabel_(list: AerieGuardList): string {
+    return loadTimeData.getStringF(
+        'aerieGuardListViewSourceAria', this.listTitle_(list));
+  }
+
+  protected listUnsubscribeLabel_(list: AerieGuardList): string {
+    return loadTimeData.getStringF(
+        'aerieGuardListUnsubscribeAria', this.listTitle_(list));
+  }
+
+  protected onListViewSourceClick_(e: Event) {
+    const id = (e.currentTarget as HTMLElement).dataset['id'];
+    if (id) {
+      this.listError_ = '';
+      // The browser opens the saved text in a new tab. Only the id is sent.
+      this.browserProxy_.viewSource(id).then(
+          state => this.applyState_(state),
+          () => {
+            this.listError_ = loadTimeData.getString('aerieGuardErrorGeneric');
+          });
+    }
+  }
+
+  protected onListUnsubscribeClick_(e: Event) {
+    const id = (e.currentTarget as HTMLElement).dataset['id'];
+    if (id) {
+      this.listError_ = '';
+      this.browserProxy_.removeList(id).then(
+          state => this.applyState_(state),
+          () => {
+            this.listError_ = loadTimeData.getString('aerieGuardErrorGeneric');
+          });
+    }
   }
 
   protected listRulesText_(list: AerieGuardList): string {
@@ -509,7 +620,7 @@ export class SettingsAerieGuardPageElement extends
     return loadTimeData.getStringF(
         list.status === 'failed' ? 'aerieGuardListRetryAria' :
                                    'aerieGuardListUpdateNowAria',
-        list.title);
+        this.listTitle_(list));
   }
 
   protected listUpdateButton_(list: AerieGuardList): string {

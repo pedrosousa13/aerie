@@ -12,6 +12,7 @@
 #include "base/strings/string_split.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/webui/aerie_guard_settings/aerie_list_source_ui.h"
 #include "components/aerie_adblock/browser/aerie_guard_prefs.h"
 #include "components/aerie_adblock/browser/blocking_level.h"
 #include "components/aerie_adblock/browser/catalogue.h"
@@ -20,7 +21,12 @@
 #include "components/aerie_adblock/browser/list_failure.h"
 #include "components/language/core/browser/pref_names.h"
 #include "components/prefs/pref_service.h"
+#include "content/public/browser/page_navigator.h"
+#include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_ui.h"
+#include "content/public/common/referrer.h"
+#include "ui/base/page_transition_types.h"
+#include "ui/base/window_open_disposition.h"
 #include "url/gurl.h"
 
 namespace aerie_guard {
@@ -169,6 +175,10 @@ base::DictValue AerieGuardSettingsHandler::StateToValue(
   out.Set("defaultLevel",
           std::string(aerie_adblock::BlockingLevelName(state.default_level())));
   out.Set("addError", std::string(add_error));
+  // The page shows its own text for the code (a grd string), not the manager's
+  // sentence.
+  out.Set("addErrorCode",
+          aerie_adblock::AddListErrorCode(std::string(add_error)));
   out.Set("exceptionError", std::string(exception_error));
   out.Set("listError", std::string(list_error));
   out.Set("customError", std::string(custom_error));
@@ -191,6 +201,9 @@ base::DictValue AerieGuardSettingsHandler::StateToValue(
     item.Set("url", entry.url);
     item.Set("title", entry.title);
     item.Set("builtin", entry.builtin);
+    // True for a list the user subscribed to by address: the page shows View
+    // source and Unsubscribe for it. The manager decides, not the page.
+    item.Set("canViewSource", manager.CanViewListSource(entry.id));
     item.Set("rules", entry.rules);
     item.Set("ignoredExceptions", entry.ignored_exceptions);
     item.Set("enabled", entry.enabled);
@@ -250,6 +263,10 @@ void AerieGuardSettingsHandler::RegisterMessages() {
   web_ui()->RegisterMessageCallback(
       "aerieGuard.removeList",
       base::BindRepeating(&AerieGuardSettingsHandler::HandleRemoveList,
+                          base::Unretained(this)));
+  web_ui()->RegisterMessageCallback(
+      "aerieGuard.viewSource",
+      base::BindRepeating(&AerieGuardSettingsHandler::HandleViewSource,
                           base::Unretained(this)));
   web_ui()->RegisterMessageCallback(
       "aerieGuard.setListEnabled",
@@ -380,6 +397,42 @@ void AerieGuardSettingsHandler::HandleRemoveList(const base::ListValue& args) {
     manager->RemoveList(*id);
     Resolve(args, std::string_view(), std::string_view());
   }
+}
+
+void AerieGuardSettingsHandler::HandleViewSource(const base::ListValue& args) {
+  const std::string* id = StringArg(args, 1);
+  if (!CallbackId(args)) {
+    return;
+  }
+  if (!id || args.size() != 2) {
+    Reject(args, "bad_argument");
+    return;
+  }
+  FilterListManager* manager = Begin(args);
+  if (!manager) {
+    return;
+  }
+  // By list id only. The manager accepts the id of a list the user added by
+  // address and nothing else: not an address, not a built-in list, not the
+  // user's own rules. The page is opened in a new tab and never fetches the
+  // list's address.
+  if (!manager->CanViewListSource(*id)) {
+    Reject(args, "unknown_list");
+    return;
+  }
+  using ui::mojom::WindowOpenDisposition;
+  // A null result means no tab was opened (a delegate refused it): reject, so
+  // the page tells the user instead of showing nothing.
+  if (!web_ui()->GetWebContents()->OpenURL(
+          content::OpenURLParams(ListSourceUrl(*id), content::Referrer(),
+                                 WindowOpenDisposition::kNewForegroundTab,
+                                 ui::PAGE_TRANSITION_LINK,
+                                 /*is_renderer_initiated=*/false),
+          /*navigation_handle_callback=*/{})) {
+    Reject(args, "open_failed");
+    return;
+  }
+  Resolve(args, std::string_view(), std::string_view());
 }
 
 void AerieGuardSettingsHandler::HandleSetListEnabled(
